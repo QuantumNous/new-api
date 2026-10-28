@@ -79,6 +79,25 @@ func TestResponseOpenAI2ClaudeUsageCarriesOpenAIBillingUsage(t *testing.T) {
 	assert.Nil(t, resp.Usage.BillingUsage.OpenAIUsage.BillingUsage)
 }
 
+func TestResponseOpenAI2ClaudePreservesReasoningBeforeText(t *testing.T) {
+	message := dto.Message{Role: "assistant", Content: "final answer"}
+	message.ReasoningContent = ptr("considering the request")
+	resp := ResponseOpenAI2Claude(&dto.OpenAITextResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{
+			{Message: message, FinishReason: "stop"},
+		},
+	}, nil)
+
+	require.Len(t, resp.Content, 2)
+	assert.Equal(t, "thinking", resp.Content[0].Type)
+	require.NotNil(t, resp.Content[0].Thinking)
+	assert.Equal(t, "considering the request", *resp.Content[0].Thinking)
+	assert.Equal(t, "text", resp.Content[1].Type)
+	assert.Equal(t, "final answer", resp.Content[1].GetText())
+}
+
 func TestBuildClaudeUsageFromOpenAICacheWriteUsage(t *testing.T) {
 	usage := buildClaudeUsageFromOpenAIUsage(&dto.Usage{
 		PromptTokens:     3619,
@@ -202,6 +221,192 @@ func TestStreamResponseOpenAI2ClaudeClosesTextThinkingAndToolBlocks(t *testing.T
 	assert.Equal(t, 7, finishResponses[1].Usage.BillingUsage.OpenAIUsage.PromptTokens)
 	assert.Equal(t, 3, finishResponses[1].Usage.BillingUsage.OpenAIUsage.CompletionTokens)
 	assert.Equal(t, "message_stop", finishResponses[2].Type)
+}
+
+func TestStreamResponseOpenAI2ClaudeFirstFrameUsesUpstreamUsageWhenPresent(t *testing.T) {
+	info := &convmeta.Values{
+		EstimatePromptTokens: 32,
+		SendResponseCount:    1,
+		ClaudeConvertInfo:    &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone},
+	}
+
+	responses := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("hello")},
+		}},
+		Usage: &dto.Usage{PromptTokens: 29, CompletionTokens: 0, TotalTokens: 29},
+	}, info)
+	require.NotEmpty(t, responses)
+	require.Equal(t, "message_start", responses[0].Type)
+	require.NotNil(t, responses[0].Message)
+	require.NotNil(t, responses[0].Message.Usage)
+	assert.Equal(t, 29, responses[0].Message.Usage.InputTokens)
+}
+
+func TestStreamResponseOpenAI2ClaudeMessageDeltaCorrectsEstimatedFirstFrame(t *testing.T) {
+	info := &convmeta.Values{
+		EstimatePromptTokens: 32,
+		SendResponseCount:    1,
+		ClaudeConvertInfo:    &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone},
+	}
+
+	first := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("hello")},
+		}},
+	}, info)
+	require.NotEmpty(t, first)
+	require.Equal(t, "message_start", first[0].Type)
+	require.NotNil(t, first[0].Message.Usage)
+	assert.Equal(t, 32, first[0].Message.Usage.InputTokens)
+
+	info.SendResponseCount = 2
+	finish := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			FinishReason: ptr("stop"),
+		}},
+		Usage: &dto.Usage{PromptTokens: 29, CompletionTokens: 4, TotalTokens: 33},
+	}, info)
+	var delta *dto.ClaudeResponse
+	for _, resp := range finish {
+		if resp.Type == "message_delta" {
+			delta = resp
+			break
+		}
+	}
+	require.NotNil(t, delta)
+	require.NotNil(t, delta.Usage)
+	assert.Equal(t, 29, delta.Usage.InputTokens)
+	assert.Equal(t, 4, delta.Usage.OutputTokens)
+}
+
+func TestStreamResponseOpenAI2ClaudeMessageDeltaDoesNotZeroFirstFrameCache(t *testing.T) {
+	info := &convmeta.Values{
+		EstimatePromptTokens: 8,
+		SendResponseCount:    1,
+		ClaudeConvertInfo:    &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone},
+	}
+
+	first := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("hello")},
+		}},
+		Usage: &dto.Usage{
+			PromptTokens:     40,
+			CompletionTokens: 0,
+			TotalTokens:      40,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens:         20,
+				CachedCreationTokens: 10,
+			},
+		},
+	}, info)
+	require.Equal(t, "message_start", first[0].Type)
+	require.NotNil(t, first[0].Message.Usage)
+	assert.Equal(t, 20, first[0].Message.Usage.CacheReadInputTokens)
+	assert.Equal(t, 10, first[0].Message.Usage.CacheCreationInputTokens)
+
+	info.SendResponseCount = 2
+	finish := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			FinishReason: ptr("stop"),
+		}},
+		Usage: &dto.Usage{PromptTokens: 29, CompletionTokens: 4, TotalTokens: 33},
+	}, info)
+	var delta *dto.ClaudeResponse
+	for _, resp := range finish {
+		if resp.Type == "message_delta" {
+			delta = resp
+			break
+		}
+	}
+	require.NotNil(t, delta)
+	require.NotNil(t, delta.Usage)
+	assert.Equal(t, 29, delta.Usage.InputTokens)
+	assert.Equal(t, 20, delta.Usage.CacheReadInputTokens)
+	assert.Equal(t, 10, delta.Usage.CacheCreationInputTokens)
+}
+
+func TestStreamResponseOpenAI2ClaudeGeminiBillingUsageOnStartAndDelta(t *testing.T) {
+	info := &convmeta.Values{
+		EstimatePromptTokens: 4994,
+		SendResponseCount:    1,
+		ClaudeConvertInfo:    &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone},
+	}
+
+	firstUsage := &dto.Usage{
+		PromptTokens:     3868,
+		CompletionTokens: 0,
+		TotalTokens:      3868,
+		BillingUsage: dto.NewGeminiChatBillingUsage(&dto.GeminiUsageMetadata{
+			PromptTokenCount: 3868,
+			TotalTokenCount:  3868,
+		}),
+	}
+	first := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("hello")},
+		}},
+		Usage: firstUsage,
+	}, info)
+	require.NotEmpty(t, first)
+	require.Equal(t, "message_start", first[0].Type)
+	require.NotNil(t, first[0].Message)
+	require.NotNil(t, first[0].Message.Usage)
+	assert.Equal(t, 3868, first[0].Message.Usage.InputTokens)
+	require.NotNil(t, first[0].Message.Usage.BillingUsage)
+	assert.Equal(t, dto.BillingUsageSourceGeminiChat, first[0].Message.Usage.BillingUsage.Source)
+	assert.Equal(t, dto.BillingUsageSemanticGemini, first[0].Message.Usage.BillingUsage.Semantic)
+	require.NotNil(t, first[0].Message.Usage.BillingUsage.GeminiUsageMetadata)
+	assert.Equal(t, 3868, first[0].Message.Usage.BillingUsage.GeminiUsageMetadata.PromptTokenCount)
+
+	info.SendResponseCount = 2
+	finish := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			FinishReason: ptr("stop"),
+		}},
+		Usage: &dto.Usage{
+			PromptTokens:     3868,
+			CompletionTokens: 12,
+			TotalTokens:      3880,
+			BillingUsage: dto.NewGeminiChatBillingUsage(&dto.GeminiUsageMetadata{
+				PromptTokenCount:     3868,
+				CandidatesTokenCount: 12,
+				TotalTokenCount:      3880,
+			}),
+		},
+	}, info)
+	var delta *dto.ClaudeResponse
+	for _, resp := range finish {
+		if resp.Type == "message_delta" {
+			delta = resp
+			break
+		}
+	}
+	require.NotNil(t, delta)
+	require.NotNil(t, delta.Usage)
+	assert.Equal(t, 3868, delta.Usage.InputTokens)
+	assert.Equal(t, 12, delta.Usage.OutputTokens)
+	require.NotNil(t, delta.Usage.BillingUsage)
+	assert.Equal(t, dto.BillingUsageSourceGeminiChat, delta.Usage.BillingUsage.Source)
+	assert.Equal(t, dto.BillingUsageSemanticGemini, delta.Usage.BillingUsage.Semantic)
+	require.NotNil(t, delta.Usage.BillingUsage.GeminiUsageMetadata)
+	assert.Equal(t, 3868, delta.Usage.BillingUsage.GeminiUsageMetadata.PromptTokenCount)
+	assert.Equal(t, 12, delta.Usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
 }
 
 func TestNormalizeCacheCreationSplit(t *testing.T) {

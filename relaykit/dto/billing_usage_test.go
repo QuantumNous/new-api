@@ -63,6 +63,38 @@ func TestNewEstimatedGeminiChatBillingUsage(t *testing.T) {
 	assert.Equal(t, 18, billingUsage.GeminiUsageMetadata.TotalTokenCount)
 }
 
+func TestCanonicalGeminiUsageClampsNegativeCompletionFromTotalMinusPrompt(t *testing.T) {
+	usage, ok := NewGeminiChatBillingUsage(&GeminiUsageMetadata{
+		PromptTokenCount: 50,
+		TotalTokenCount:  30,
+	}).CanonicalUsage()
+	require.True(t, ok)
+	assert.Equal(t, 0, usage.CompletionTokens)
+}
+
+func TestCanonicalOpenAIUsageMergesInputTokenDetailsFieldwise(t *testing.T) {
+	usage, ok := NewOpenAIResponsesBillingUsage(&Usage{
+		PromptTokens: 10,
+		PromptTokensDetails: InputTokenDetails{
+			CachedTokens: 8,
+			TextTokens:   12,
+			ImageTokens:  4,
+			AudioTokens:  3,
+		},
+		InputTokensDetails: &InputTokenDetails{
+			CachedTokens:         5,
+			CachedCreationTokens: 7,
+			TextTokens:           2,
+		},
+	}).CanonicalUsage()
+	require.True(t, ok)
+	assert.Equal(t, 8, usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 12, usage.PromptTokensDetails.TextTokens)
+	assert.Equal(t, 4, usage.PromptTokensDetails.ImageTokens)
+	assert.Equal(t, 3, usage.PromptTokensDetails.AudioTokens)
+	assert.Equal(t, 7, usage.PromptTokensDetails.CachedCreationTokens)
+}
+
 func TestBillingUsageJSONUsesProtocolNamedFields(t *testing.T) {
 	billingUsage := &BillingUsage{
 		OpenAIUsage:         &Usage{PromptTokens: 1, BillingUsage: NewClaudeMessagesBillingUsage(&ClaudeUsage{InputTokens: 9})},

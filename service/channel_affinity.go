@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -699,15 +700,15 @@ func MarkChannelAffinityUsed(c *gin.Context, selectedGroup string, channelID int
 	c.Set(ginKeyChannelAffinityLogInfo, info)
 }
 
-func AppendChannelAffinityAdminInfo(c *gin.Context, adminInfo map[string]interface{}) {
-	if c == nil || adminInfo == nil {
+func AppendChannelAffinityAdminInfo(c *gin.Context, other *model.LogOther) {
+	if c == nil || other == nil {
 		return
 	}
 	anyInfo, ok := c.Get(ginKeyChannelAffinityLogInfo)
 	if !ok || anyInfo == nil {
 		return
 	}
-	adminInfo["channel_affinity"] = anyInfo
+	other.SetAdmin("channel_affinity", anyInfo)
 }
 
 func RecordChannelAffinity(c *gin.Context, channelID int) {
