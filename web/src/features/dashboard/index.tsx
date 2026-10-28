@@ -399,9 +399,11 @@ export function Dashboard() {
           {activeSection === 'users' && (
             <FadeIn>
               <div className='space-y-5'>
-                <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyRealtimeUserUsage />
-                </Suspense>
+                {isAdmin && (
+                  <Suspense fallback={<ModelChartsFallback />}>
+                    <LazyRealtimeUserUsage />
+                  </Suspense>
+                )}
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyUserCharts
                     filters={userChartsFilters}
