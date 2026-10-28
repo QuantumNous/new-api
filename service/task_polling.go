@@ -132,6 +132,18 @@ type TaskPollSummary struct {
 // (processedPlatforms, totalPlatforms). It returns immediately if the task
 // adaptor factory has not been wired yet, to avoid a nil call during startup.
 func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) TaskPollSummary {
+	return runTaskPolling(ctx, report, 0, 0, constant.TaskQueryLimit)
+}
+
+// RunTaskPollingShard polls unfinished async tasks in one id shard.
+func RunTaskPollingShard(ctx context.Context, shard int, count int, limit int, report func(processed, total int)) TaskPollSummary {
+	if count <= 0 || limit <= 0 {
+		return TaskPollSummary{}
+	}
+	return runTaskPolling(ctx, report, shard, count, limit)
+}
+
+func runTaskPolling(ctx context.Context, report func(processed, total int), shard int, count int, limit int) TaskPollSummary {
 	summary := TaskPollSummary{}
 	if GetTaskAdaptorFunc == nil {
 		return summary
@@ -141,8 +153,10 @@ func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) 
 	}
 
 	common.SysLog(common.LogText("task progress polling started"))
-	sweepTimedOutTasks(ctx)
-	allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
+	if count <= 0 || shard == 0 {
+		sweepTimedOutTasks(ctx)
+	}
+	allTasks := model.GetUnfinishedSyncTasks(limit, shard, count)
 	summary.UnfinishedTasks = len(allTasks)
 	platformTask := make(map[constant.TaskPlatform][]*model.Task)
 	for _, t := range allTasks {

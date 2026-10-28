@@ -32,12 +32,24 @@ type midjourneyPollSummary struct {
 // is lost) and, when report is non-nil, reports progress as (processedChannels,
 // totalChannels) so the system task surfaces a percentage.
 func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, total int)) midjourneyPollSummary {
+	return runMidjourneyTaskUpdate(ctx, report, 0, 0)
+}
+
+// RunDistributedMidjourneyShard polls one id shard. The caller holds that shard's lock.
+func RunDistributedMidjourneyShard(ctx context.Context, shard int, count int) {
+	if count <= 0 {
+		return
+	}
+	runMidjourneyTaskUpdate(ctx, nil, shard, count)
+}
+
+func runMidjourneyTaskUpdate(ctx context.Context, report func(processed, total int), shard int, count int) midjourneyPollSummary {
 	summary := midjourneyPollSummary{}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	tasks := model.GetAllUnFinishTasks()
+	tasks := model.GetUnfinishedMidjourneyTasks(shard, count)
 	if len(tasks) == 0 {
 		return summary
 	}

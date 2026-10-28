@@ -152,9 +152,13 @@ func main() {
 
 	// Register the periodic channel test, upstream model update, and async task
 	// polling (Midjourney / Suno / video) jobs as scheduled system tasks
-	// (DB-lease dedup across masters + run history), then start the runner that
-	// schedules and executes them. Master-only execution and the UpdateTask
-	// switch are enforced inside the runner and each handler's Enabled().
+	// (DB-lease dedup across masters + run history), then start the runner.
+	// With Redis, every node runs jobs and a lock prevents duplicate execution.
+	// Video and Midjourney polling is split into id shards. Without Redis, only
+	// the master runs jobs.
+	service.RegisterDistributedPoll("midjourney", func(ctx context.Context, shard int, count int) {
+		controller.RunDistributedMidjourneyShard(ctx, shard, count)
+	})
 	controller.RegisterScheduledSystemTasks()
 	service.StartSystemTaskRunner()
 

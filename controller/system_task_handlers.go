@@ -119,6 +119,9 @@ type midjourneyPollHandler struct{}
 func (midjourneyPollHandler) Type() string { return model.SystemTaskTypeMidjourneyPoll }
 
 func (midjourneyPollHandler) Enabled() bool {
+	if service.DistributedPollActive() {
+		return false
+	}
 	return constant.UpdateTask && model.HasUnfinishedMidjourneyTasks()
 }
 
@@ -139,6 +142,9 @@ type asyncTaskPollHandler struct{}
 func (asyncTaskPollHandler) Type() string { return model.SystemTaskTypeAsyncTaskPoll }
 
 func (asyncTaskPollHandler) Enabled() bool {
+	if service.DistributedPollActive() {
+		return false
+	}
 	return constant.UpdateTask && model.HasUnfinishedSyncTasks()
 }
 

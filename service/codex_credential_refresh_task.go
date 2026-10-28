@@ -33,7 +33,7 @@ func shouldAutoRefreshCodexChannelStatus(status int) bool {
 
 func StartCodexCredentialAutoRefreshTask() {
 	codexCredentialRefreshOnce.Do(func() {
-		if !common.IsMasterNode {
+		if !BackgroundJobsEnabled() {
 			return
 		}
 
@@ -43,21 +43,27 @@ func StartCodexCredentialAutoRefreshTask() {
 			ticker := time.NewTicker(codexCredentialRefreshTickInterval)
 			defer ticker.Stop()
 
-			runCodexCredentialAutoRefreshOnce()
+			runExclusiveCodexRefresh()
 			for range ticker.C {
-				runCodexCredentialAutoRefreshOnce()
+				runExclusiveCodexRefresh()
 			}
 		})
 	})
 }
 
-func runCodexCredentialAutoRefreshOnce() {
+func runExclusiveCodexRefresh() {
+	RunExclusiveJob("codex_refresh", runCodexCredentialAutoRefreshOnce)
+}
+
+func runCodexCredentialAutoRefreshOnce(ctx context.Context) {
 	if !codexCredentialRefreshRunning.CompareAndSwap(false, true) {
 		return
 	}
 	defer codexCredentialRefreshRunning.Store(false)
 
-	ctx := context.Background()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	now := time.Now()
 
 	var refreshed int
@@ -65,6 +71,9 @@ func runCodexCredentialAutoRefreshOnce() {
 
 	offset := 0
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		var channels []*model.Channel
 		err := model.DB.
 			Select("id", "name", "key", "status", "channel_info").

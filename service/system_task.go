@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -122,9 +123,10 @@ func notifySystemTaskRunner() {
 
 func StartSystemTaskRunner() {
 	systemTaskRunnerOnce.Do(func() {
-		if !common.IsMasterNode {
+		if !BackgroundJobsEnabled() {
 			return
 		}
+		startDistributedPollers()
 
 		runnerID := fmt.Sprintf("%s-%s", common.NodeName, common.GetRandomString(8))
 		gopool.Go(func() {
@@ -222,10 +224,26 @@ func EnqueueSystemTask(taskType string, payload any) (*model.SystemTask, bool, e
 // runSystemTaskClaimPass tries to claim one pending task per registered type
 // and dispatches each claimed task in its own goroutine so a long-running
 // handler (e.g. channel test) never blocks another type (e.g. log cleanup).
+func skipDistributedPollType(taskType string) bool {
+	if !DistributedPollActive() {
+		return false
+	}
+	return taskType == model.SystemTaskTypeAsyncTaskPoll || taskType == model.SystemTaskTypeMidjourneyPoll
+}
+
 func runSystemTaskClaimPass(runnerID string) {
 	handlers := registeredSystemTaskHandlers()
+	if DistributedPollActive() && len(handlers) > 0 {
+		WaitTaskLockJitter()
+		rand.Shuffle(len(handlers), func(i, j int) {
+			handlers[i], handlers[j] = handlers[j], handlers[i]
+		})
+	}
 	taskTypes := make([]string, 0, len(handlers))
 	for _, handler := range handlers {
+		if skipDistributedPollType(handler.Type()) {
+			continue
+		}
 		taskTypes = append(taskTypes, handler.Type())
 	}
 	pendingTasks, err := model.FindEarliestPendingSystemTasks(taskTypes)
@@ -234,25 +252,55 @@ func runSystemTaskClaimPass(runnerID string) {
 		return
 	}
 	for _, handler := range handlers {
+		if skipDistributedPollType(handler.Type()) {
+			continue
+		}
+		var redisLock *DistLock
+		if DistributedPollActive() {
+			var ok bool
+			var lockErr error
+			redisLock, ok, lockErr = AcquireDistLock(context.Background(), jobLockKey(handler.Type()))
+			if lockErr != nil {
+				logger.LogWarn(context.Background(), common.LogText("system task redis lock failed: type=%s err=%v", handler.Type(), lockErr))
+				continue
+			}
+			if !ok {
+				continue
+			}
+		}
 		task := pendingTasks[handler.Type()]
 		if task == nil {
+			releaseDistLock(redisLock)
 			continue
 		}
 		claimedTask, claimed, err := model.ClaimSystemTask(task.ID, handler.Type(), runnerID, systemTaskLockUntil())
 		if err != nil {
+			releaseDistLock(redisLock)
 			logger.LogWarn(context.Background(), common.LogText("system task claim failed: %v", err))
 			continue
 		}
 		if !claimed {
+			releaseDistLock(redisLock)
 			continue
 		}
 		dispatchHandler := handler
 		dispatchTask := claimedTask
+		dispatchLock := redisLock
 		gopool.Go(func() {
-			runWithLeaseHeartbeat(dispatchTask, runnerID, func(ctx context.Context) {
+			defer releaseDistLock(dispatchLock)
+			runWithLeaseHeartbeat(dispatchTask, runnerID, dispatchLock, func(ctx context.Context) {
 				dispatchHandler.Run(ctx, dispatchTask, runnerID)
 			})
 		})
+	}
+}
+
+func releaseDistLock(lock *DistLock) {
+	if lock == nil {
+		return
+	}
+	if err := lock.Release(context.Background()); err != nil {
+		logger.LogWarn(context.Background(), common.LogText("system task redis unlock failed: key=%s err=%v", lock.Key, err))
 	}
 }
 
@@ -305,11 +353,14 @@ func runSystemTaskScheduler() {
 // runWithLeaseHeartbeat renews the per-type lock on a background ticker while
 // fn runs. The TTL is a crash-detection window, not a task time limit: an
 // arbitrarily long handler stays alive as long as the heartbeat succeeds.
-func runWithLeaseHeartbeat(task *model.SystemTask, runnerID string, fn func(ctx context.Context)) {
+func runWithLeaseHeartbeat(task *model.SystemTask, runnerID string, redisLock *DistLock, fn func(ctx context.Context)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	interval := systemTaskLockTTL / 3
+	if redisLock != nil {
+		interval = distLockRenewEvery
+	}
 	if interval <= 0 {
 		interval = systemTaskLockTTL
 	}
@@ -323,6 +374,12 @@ func runWithLeaseHeartbeat(task *model.SystemTask, runnerID string, fn func(ctx 
 			case <-done:
 				return
 			case <-ticker.C:
+				if redisLock != nil {
+					if err := redisLock.Renew(context.Background()); err != nil {
+						cancel()
+						return
+					}
+				}
 				if err := model.RenewSystemTaskLock(task.TaskID, runnerID, systemTaskLockUntil()); err != nil {
 					cancel()
 					return

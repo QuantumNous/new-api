@@ -94,11 +94,18 @@ func GetAllTasks(startIdx int, num int, queryParams TaskQueryParams) []*Midjourn
 }
 
 func GetAllUnFinishTasks() []*Midjourney {
+	return GetUnfinishedMidjourneyTasks(0, 0)
+}
+
+// GetUnfinishedMidjourneyTasks returns unfinished Midjourney rows. count > 0
+// keeps only the shard where id % count == shard.
+func GetUnfinishedMidjourneyTasks(shard int, count int) []*Midjourney {
 	var tasks []*Midjourney
-	var err error
-	// get all tasks progress is not 100%
-	err = DB.Where("progress != ?", "100%").Find(&tasks).Error
-	if err != nil {
+	query := DB.Where("progress != ?", "100%")
+	if count > 0 {
+		query = query.Where("id % ? = ?", count, shard)
+	}
+	if err := query.Find(&tasks).Error; err != nil {
 		return nil
 	}
 	return tasks

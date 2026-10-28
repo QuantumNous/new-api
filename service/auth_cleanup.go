@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -11,17 +12,18 @@ const authArtifactCleanupInterval = time.Hour
 
 // StartAuthArtifactCleanup removes expired dashboard Sessions, old one-time
 // authentication flows and access tokens that expired beyond the revoked
-// session retention. Only the master instance performs cleanup.
+// session retention. Every node may start the loop. Redis keeps a single owner
+// when it is enabled; otherwise only the master enters this function.
 func StartAuthArtifactCleanup() {
-	if !common.IsMasterNode {
+	if !BackgroundJobsEnabled() {
 		return
 	}
 	go func() {
-		cleanupAuthArtifacts()
+		RunExclusiveJob("auth_cleanup", func(context.Context) { cleanupAuthArtifacts() })
 		ticker := time.NewTicker(authArtifactCleanupInterval)
 		defer ticker.Stop()
 		for range ticker.C {
-			cleanupAuthArtifacts()
+			RunExclusiveJob("auth_cleanup", func(context.Context) { cleanupAuthArtifacts() })
 		}
 	}()
 }

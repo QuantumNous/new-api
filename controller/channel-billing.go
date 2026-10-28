@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -781,8 +782,10 @@ func UpdateAllChannelsBalance(c *gin.Context) {
 func AutomaticallyUpdateChannels(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Minute)
-		common.SysLog(common.LogText("updating all channels"))
-		_ = updateAllChannelsBalance()
-		common.SysLog(common.LogText("channels update done"))
+		service.RunExclusiveJob("channel_balance", func(context.Context) {
+			common.SysLog(common.LogText("updating all channels"))
+			_ = updateAllChannelsBalance()
+			common.SysLog(common.LogText("channels update done"))
+		})
 	}
 }

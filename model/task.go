@@ -378,11 +378,18 @@ func GetTimedOutUnfinishedTasks(cutoffUnix int64, limit int) []*Task {
 }
 
 func GetAllUnFinishSyncTasks(limit int) []*Task {
+	return GetUnfinishedSyncTasks(limit, 0, 0)
+}
+
+// GetUnfinishedSyncTasks returns unfinished async tasks. count > 0 keeps only
+// rows whose id falls in the given shard, so two nodes can poll different rows.
+func GetUnfinishedSyncTasks(limit int, shard int, count int) []*Task {
 	var tasks []*Task
-	var err error
-	// get all tasks progress is not 100%
-	err = DB.Where("progress != ?", "100%").Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess).Limit(limit).Order("id").Find(&tasks).Error
-	if err != nil {
+	query := DB.Where("progress != ?", "100%").Where("status != ?", TaskStatusFailure).Where("status != ?", TaskStatusSuccess)
+	if count > 0 {
+		query = query.Where("id % ? = ?", count, shard)
+	}
+	if err := query.Limit(limit).Order("id").Find(&tasks).Error; err != nil {
 		return nil
 	}
 	return tasks

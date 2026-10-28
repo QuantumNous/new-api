@@ -27,7 +27,7 @@ var (
 
 func StartSubscriptionQuotaResetTask() {
 	subscriptionResetOnce.Do(func() {
-		if !common.IsMasterNode {
+		if !BackgroundJobsEnabled() {
 			return
 		}
 		gopool.Go(func() {
@@ -35,24 +35,29 @@ func StartSubscriptionQuotaResetTask() {
 			ticker := time.NewTicker(subscriptionResetTickInterval)
 			defer ticker.Stop()
 
-			runSubscriptionQuotaResetOnce()
+			RunExclusiveJob("subscription_reset", runSubscriptionQuotaResetOnce)
 			for range ticker.C {
-				runSubscriptionQuotaResetOnce()
+				RunExclusiveJob("subscription_reset", runSubscriptionQuotaResetOnce)
 			}
 		})
 	})
 }
 
-func runSubscriptionQuotaResetOnce() {
+func runSubscriptionQuotaResetOnce(ctx context.Context) {
 	if !subscriptionResetRunning.CompareAndSwap(false, true) {
 		return
 	}
 	defer subscriptionResetRunning.Store(false)
 
-	ctx := context.Background()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	totalReset := 0
 	totalExpired := 0
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		n, err := model.ExpireDueSubscriptions(subscriptionResetBatchSize)
 		if err != nil {
 			logger.LogWarn(ctx, common.LogText("subscription expire task failed: %v", err))
@@ -67,6 +72,9 @@ func runSubscriptionQuotaResetOnce() {
 		}
 	}
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		n, err := model.ResetDueSubscriptions(subscriptionResetBatchSize)
 		if err != nil {
 			logger.LogWarn(ctx, common.LogText("subscription quota reset task failed: %v", err))
