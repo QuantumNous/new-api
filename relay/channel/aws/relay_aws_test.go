@@ -22,6 +22,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream"
 	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream/eventstreamapi"
@@ -219,6 +220,88 @@ func TestDoAwsClientRequest_ForwardsThinkingBlockBindingAndBetaList(t *testing.T
 	require.NoError(t, common.Unmarshal(awsReq.Body, &payload))
 	assert.Equal(t, []string{"fast-mode-2026-02-01", "thinking-binding-controls-2026-08-01"}, payload.AnthropicBeta)
 	assert.JSONEq(t, `{"type":"adaptive","display":"summarized","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`, string(payload.Thinking))
+}
+
+func TestDoAwsClientRequest_PreservesSafeguards(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	settings := model_setting.GetGlobalSettings()
+	originalPassthrough := settings.PassThroughRequestEnabled
+	settings.PassThroughRequestEnabled = false
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = originalPassthrough })
+
+	const legacyBody = `{"anthropic_version":"bedrock-2023-05-31","anthropic_beta":["dangerous-tool-use-2026-09-03"],"messages":[{"role":"user","content":"hello"}],"max_tokens":512}`
+	tests := []struct {
+		name       string
+		safeguards string
+	}{
+		{name: "omitted"},
+		{name: "empty_array", safeguards: `[]`},
+		{name: "dangerous_tool_use", safeguards: `[{"type":"dangerous_tool_use","classifier_context":{"v":1,"permission_mode":"auto"}}]`},
+		// Preserve invalid values so AWS can reject them instead of silently disabling the feature.
+		{name: "invalid_object", safeguards: `{"enabled":true,"policy":"strict","blocked_actions":["rm -rf","sudo"]}`},
+	}
+	for _, tt := range tests {
+		for _, stream := range []bool{false, true} {
+			name := tt.name + "/nonstream"
+			if stream {
+				name = tt.name + "/stream"
+			}
+			t.Run(name, func(t *testing.T) {
+				input := map[string]any{
+					"model": "claude-sonnet-5", "max_tokens": 512, "stream": stream,
+					"messages": []map[string]any{{"role": "user", "content": "hello"}},
+				}
+				if tt.safeguards != "" {
+					input["safeguards"] = json.RawMessage(tt.safeguards)
+				}
+				raw, err := common.Marshal(input)
+				require.NoError(t, err)
+				var request dto.ClaudeRequest
+				require.NoError(t, common.Unmarshal(raw, &request))
+
+				ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(raw))
+				ctx.Request.Header.Set("anthropic-beta", "dangerous-tool-use-2026-09-03")
+				info := &relaycommon.RelayInfo{
+					OriginModelName: "claude-sonnet-5",
+					IsStream:        stream,
+					RelayFormat:     relaytypes.RelayFormatClaude,
+					ChannelMeta: &relaycommon.ChannelMeta{
+						ApiKey:            "access-key|secret-key|us-east-1",
+						UpstreamModelName: "global.anthropic.claude-sonnet-5",
+					},
+				}
+				adaptor := &Adaptor{}
+				converted, err := adaptor.ConvertClaudeRequest(ctx, info, &request)
+				require.NoError(t, err)
+				raw, err = common.Marshal(converted)
+				require.NoError(t, err)
+				_, err = doAwsClientRequest(ctx, info, adaptor, bytes.NewReader(raw))
+				require.NoError(t, err)
+
+				var outbound []byte
+				if stream {
+					sdkRequest, ok := adaptor.AwsReq.(*bedrockruntime.InvokeModelWithResponseStreamInput)
+					require.True(t, ok)
+					outbound = sdkRequest.Body
+				} else {
+					sdkRequest, ok := adaptor.AwsReq.(*bedrockruntime.InvokeModelInput)
+					require.True(t, ok)
+					outbound = sdkRequest.Body
+				}
+				if tt.safeguards == "" {
+					assert.Equal(t, legacyBody, string(outbound), "legacy requests must remain byte-for-byte unchanged")
+					return
+				}
+				var expected map[string]json.RawMessage
+				require.NoError(t, common.UnmarshalJsonStr(legacyBody, &expected))
+				expected["safeguards"] = json.RawMessage(tt.safeguards)
+				want, err := common.Marshal(expected)
+				require.NoError(t, err)
+				assert.JSONEq(t, string(want), string(outbound))
+			})
+		}
+	}
 }
 
 func TestNewAwsInvokeContextInheritsParent(t *testing.T) {
