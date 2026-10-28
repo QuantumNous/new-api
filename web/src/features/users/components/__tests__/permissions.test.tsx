@@ -46,7 +46,7 @@ const description =
 function renderPermissions(
   viewerRole: number,
   allowed?: boolean,
-  maxConcurrency = 0
+  maxConcurrency: number | null = 0
 ) {
   useAuthStore
     .getState()
@@ -96,7 +96,9 @@ function renderPermissions(
         success: true,
         data: {
           ...target,
-          max_concurrency: maxConcurrency,
+          ...(maxConcurrency === null
+            ? {}
+            : { max_concurrency: maxConcurrency }),
           admin_permissions:
             allowed === undefined ? {} : { audit: { read: allowed } },
         },
@@ -192,6 +194,7 @@ it('root saving an administrator without changing permissions or password does n
     )
   )
   expect(put.mock.calls[0][1]).not.toHaveProperty('admin_permissions')
+  expect(put.mock.calls[0][1]).not.toHaveProperty('max_concurrency')
   expect(get).not.toHaveBeenCalledWith('/api/verify/methods', expect.anything())
 })
 
@@ -225,5 +228,27 @@ it.each([0, 5])(
         {}
       )
     )
+  }
+)
+
+it.each([3, null])(
+  'a display-name edit omits an unchanged concurrency limit loaded as %s',
+  async (loadedLimit) => {
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    renderPermissions(100, true, loadedLimit)
+    const displayName = await screen.findByDisplayValue('Managed admin')
+    await userEvent.clear(displayName)
+    await userEvent.type(displayName, 'Renamed admin')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith(
+        '/api/user/',
+        expect.objectContaining({ id: 2, display_name: 'Renamed admin' }),
+        {}
+      )
+    )
+    expect(put.mock.calls[0][1]).not.toHaveProperty('max_concurrency')
   }
 )
