@@ -732,6 +732,7 @@ func executeTaskSubmissionWith(
 		diagnostics.failed("settle", "billing_error", taskErr, true)
 		return nil, taskErr
 	}
+	perfmetrics.RecordImmediateTaskResult(relayInfo, result.Immediate)
 	if task.Status != model.TaskStatusFailure {
 		service.MarkRequestPolicySuccess(c, nil)
 	} else {
