@@ -241,13 +241,11 @@ export const ModelPricingEditorPanel = forwardRef<
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
-      let nextPricingMode: PricingMode = 'per-token'
-      if (editData.billingMode === 'tiered_expr') {
-        nextPricingMode = 'tiered_expr'
-      } else if (editData.price) {
-        nextPricingMode = 'per-request'
-      }
-      setPricingMode(nextPricingMode)
+      let nextMode: PricingMode = 'per-token'
+      if (editData.billingMode === 'tiered_expr') nextMode = 'tiered_expr'
+      else if (editData.imagePrice) nextMode = 'per-image'
+      else if (editData.price) nextMode = 'per-request'
+      setPricingMode(nextMode)
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {

@@ -294,30 +294,28 @@ const ModelRatioVisualEditorComponent = forwardRef<
     billingExpr,
   ])
 
-  const modeCounts = useMemo(() => {
-    const counts = {
-      'per-token': 0,
-      'per-request': 0,
-      tiered_expr: 0,
-      [TASK_PRICING_MODE_FILTER]: 0,
-    }
-    for (const model of models) {
-      const mode =
-        model.billingMode === 'per-request' ||
-        model.billingMode === 'tiered_expr'
-          ? model.billingMode
-          : 'per-token'
-      counts[mode] += 1
-      if (
-        taskModelNames.has(model.name) &&
-        model.billingMode === 'tiered_expr' &&
-        Boolean(model.billingExpr)
-      ) {
-        counts[TASK_PRICING_MODE_FILTER] += 1
-      }
-    }
-    return counts
-  }, [models, taskModelNames])
+  const modeCounts = useMemo(
+    () =>
+      models.reduce(
+        (acc, model) => {
+          const mode =
+            model.billingMode === 'per-request' ||
+            model.billingMode === 'per-image' ||
+            model.billingMode === 'tiered_expr'
+              ? model.billingMode
+              : 'per-token'
+          acc[mode] += 1
+          return acc
+        },
+        {
+          'per-token': 0,
+          'per-request': 0,
+          'per-image': 0,
+          tiered_expr: 0,
+        } as Record<PricingMode, number>
+      ),
+    [models]
+  )
 
   const handleEdit = useCallback(
     (model: ModelRow) => {

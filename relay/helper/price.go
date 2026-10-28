@@ -74,19 +74,31 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 }
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
-	if info != nil {
-		if matched := resolveBillingModelName(info.GetOriginModelName()); matched != "" && matched != info.OriginModelName {
-			info.BillingModelName = matched
+	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
+	customImagePrice := false
+	var imageBilling *hosttypes.ImageBillingDetail
+	if imageRequest, ok := info.Request.(*dto.ImageRequest); ok {
+		if cfg, configured := ratio_setting.GetImagePricingConfig(info.OriginModelName); configured {
+			var err error
+			imageBilling, err = ResolveImagePricing(imageRequest, cfg)
+			if err != nil {
+				return hosttypes.PriceData{}, err
+			}
+			modelPrice, usePrice, customImagePrice = imageBilling.UnitPrice, true, true
+		}
+		resolution, aspectRatio := imageRequestEnumFields(imageRequest)
+		if imagePrice, matched := ratio_setting.GetImagePrice(info.OriginModelName, imageRequest.Size, resolution, aspectRatio); matched {
+			modelPrice = imagePrice
+			usePrice = true
+			customImagePrice = true
 		}
 	}
-	billingModelName := info.GetBillingModelName()
-	modelPrice, usePrice := ratio_setting.GetModelPrice(billingModelName, false)
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	// Check if this model uses tiered_expr billing
-	if billing_setting.GetBillingMode(billingModelName) == billing_setting.BillingModeTieredExpr {
-		return modelPriceHelperTiered(c, info, billingModelName, promptTokens, meta, groupRatioInfo)
+	if imageBilling == nil && billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
 	}
 
 	var preConsumedQuota int
@@ -283,52 +295,26 @@ func HasModelBillingConfig(modelName string) bool {
 	return ok && strings.TrimSpace(expr) != ""
 }
 
-// HasPriceOrRatioEntry reports whether name has a configured price, ratio, or
-// tiered billing-mode entry after a single wildcard normalization. Self-use
-// fallback does not count as a configured ratio.
-func HasPriceOrRatioEntry(name string) bool {
-	formatted := ratio_setting.FormatMatchingModelName(name)
-	if _, ok := ratio_setting.GetModelPrice(formatted, false); ok {
-		return true
+func imageRequestEnumFields(request *dto.ImageRequest) (string, string) {
+	if request == nil {
+		return "", ""
 	}
-	if ratio_setting.HasConfiguredModelRatio(formatted) {
-		return true
+	readString := func(name string) string {
+		raw, ok := request.Extra[name]
+		if !ok {
+			return ""
+		}
+		var value string
+		if err := common.Unmarshal(raw, &value); err != nil {
+			return ""
+		}
+		return value
 	}
-	return billing_setting.GetBillingMode(formatted) == billing_setting.BillingModeTieredExpr
+	return readString("resolution"), readString("aspect_ratio")
 }
 
-func resolveBillingModelName(origin string) string {
-	var candidates []string
-	if !reasoning.ParseModelModifiers(origin).HasModifiers() {
-		candidates = append(candidates, origin)
-	}
-	candidates = append(candidates, hostreasoning.CanonicalBillingModelNames(origin)...)
-	base := hostreasoning.BaseModelName(origin)
-	candidates = append(candidates, base)
-
-	seen := make(map[string]struct{}, len(candidates))
-	matched := ""
-	for _, name := range candidates {
-		if name == "" {
-			continue
-		}
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		if HasPriceOrRatioEntry(name) {
-			matched = name
-			break
-		}
-	}
-	if matched == "" {
-		matched = base
-	}
-	return matched
-}
-
-func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billingModelName string, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {
-	exprStr, ok := billing_setting.GetBillingExpr(billingModelName)
+func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {
+	exprStr, ok := billing_setting.GetBillingExpr(info.OriginModelName)
 	if !ok {
 		return hosttypes.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", billingModelName)
 	}
