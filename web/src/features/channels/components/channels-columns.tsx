@@ -633,6 +633,9 @@ function ExternalTagToggle({ channel, tag }: { channel: Channel; tag: string }):
           const response = await updateChannel(channel.id, { tag: next })
           if (response.success) {
             queryClient.invalidateQueries({ queryKey: ['channels'] })
+            // Reclassifying a channel changes external-billing aggregation,
+            // so its cached report totals must be dropped as well.
+            void queryClient.invalidateQueries({ queryKey: ['external-billing'] })
           } else {
             toast.error(response.message || t('Failed to update channel'))
           }
