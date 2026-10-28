@@ -252,3 +252,27 @@ it.each([3, null])(
     expect(put.mock.calls[0][1]).not.toHaveProperty('max_concurrency')
   }
 )
+
+it.each([0, 3])(
+  'an explicit edit back to the loaded concurrency limit %s is included in the update',
+  async (limit) => {
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    renderPermissions(100, true, limit)
+    const input = await screen.findByRole('spinbutton', {
+      name: 'Maximum concurrent requests',
+    })
+    await waitFor(() => expect(input).toHaveValue(limit))
+    await userEvent.clear(input)
+    await userEvent.type(input, String(limit))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith(
+        '/api/user/',
+        expect.objectContaining({ id: 2, max_concurrency: limit }),
+        {}
+      )
+    )
+  }
+)
