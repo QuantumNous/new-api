@@ -56,7 +56,7 @@ import { cn } from '@/lib/utils'
 
 const REALTIME_PARAMS = {
   window_seconds: 60,
-  trend_minutes: 10,
+  trend_minutes: 60,
   limit: 100,
 } as const
 
@@ -144,7 +144,7 @@ function chartSpec(
   trend: RealtimeUsageSnapshot['trend']
 ) {
   return {
-    type: 'area',
+    type: 'line',
     data: [
       {
         id: 'realtime-trend',

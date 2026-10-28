@@ -20,7 +20,7 @@ func (p RealtimeUsageParams) normalized() (RealtimeUsageParams, error) {
 		p.WindowSeconds = 60
 	}
 	if p.TrendMinutes == 0 {
-		p.TrendMinutes = 10
+		p.TrendMinutes = 60
 	}
 	if p.Limit == 0 {
 		p.Limit = 20
@@ -28,8 +28,8 @@ func (p RealtimeUsageParams) normalized() (RealtimeUsageParams, error) {
 	if p.WindowSeconds < 30 || p.WindowSeconds > 300 {
 		return p, errors.New("window_seconds must be between 30 and 300")
 	}
-	if p.TrendMinutes < 5 || p.TrendMinutes > 30 {
-		return p, errors.New("trend_minutes must be between 5 and 30")
+	if p.TrendMinutes < 5 || p.TrendMinutes > 1440 {
+		return p, errors.New("trend_minutes must be between 5 and 1440")
 	}
 	if p.Limit < 5 || p.Limit > 100 {
 		return p, errors.New("limit must be between 5 and 100")

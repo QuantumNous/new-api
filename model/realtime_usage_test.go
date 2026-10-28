@@ -9,8 +9,8 @@ import (
 func TestRealtimeUsageParamsValidation(t *testing.T) {
 	got, err := NormalizeRealtimeUsageParams(RealtimeUsageParams{})
 	require.NoError(t, err)
-	require.Equal(t, RealtimeUsageParams{WindowSeconds: 60, TrendMinutes: 10, Limit: 20}, got)
-	for _, p := range []RealtimeUsageParams{{WindowSeconds: 29}, {TrendMinutes: 31}, {Limit: 101}} {
+	require.Equal(t, RealtimeUsageParams{WindowSeconds: 60, TrendMinutes: 60, Limit: 20}, got)
+	for _, p := range []RealtimeUsageParams{{WindowSeconds: 29}, {TrendMinutes: 1441}, {Limit: 101}} {
 		_, err := NormalizeRealtimeUsageParams(p)
 		require.Error(t, err)
 	}
