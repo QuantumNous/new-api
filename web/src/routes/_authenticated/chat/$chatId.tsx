@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link, createFileRoute, redirect } from '@tanstack/react-router'
 import { Loader2, MessageCircleWarning } from 'lucide-react'
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -72,6 +72,55 @@ function ChatRouteComponent() {
       serverAddress,
     })
   }, [activeKey, isWebLink, preset, requiresActiveKey, serverAddress])
+
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  // 凭据只在内存里传给画布，iframe 的 src 和地址栏都不出现 Key。
+  const credentials = useMemo(() => {
+    if (!iframeSrc) return null
+    try {
+      const params = new URLSearchParams(
+        new URL(iframeSrc).hash.replace(/^#/, '')
+      )
+      const baseUrl = params.get('baseUrl') || params.get('baseurl') || ''
+      const apiKey = params.get('apiKey') || params.get('apikey') || ''
+      return baseUrl || apiKey ? { baseUrl, apiKey } : null
+    } catch {
+      return null
+    }
+  }, [iframeSrc])
+
+  const cleanSrc = useMemo(() => {
+    if (!iframeSrc) return ''
+    try {
+      const url = new URL(iframeSrc)
+      url.hash = ''
+      return url.toString()
+    } catch {
+      return iframeSrc
+    }
+  }, [iframeSrc])
+
+  const sendCredentials = useCallback(() => {
+    const frame = iframeRef.current
+    if (!frame?.contentWindow || !credentials || !cleanSrc) return
+    frame.contentWindow.postMessage(
+      { type: 'sxc:credentials', ...credentials },
+      new URL(cleanSrc).origin
+    )
+  }, [cleanSrc, credentials])
+
+  useEffect(() => {
+    const frame = iframeRef.current
+    if (!frame || !cleanSrc) return
+    frame.src = cleanSrc
+    if (!credentials) return
+    const timers = [0, 300, 800, 1500, 3000].map((ms) =>
+      window.setTimeout(sendCredentials, ms)
+    )
+    return () => timers.forEach((timer) => window.clearTimeout(timer))
+  }, [cleanSrc, credentials, sendCredentials])
+
 
   if (!preset) {
     return (
@@ -155,12 +204,12 @@ function ChatRouteComponent() {
 
   return (
     <iframe
-      src={iframeSrc}
-      key={iframeSrc}
+      ref={iframeRef}
       className='min-h-0 w-full flex-1 border-0'
       allow='camera; microphone; fullscreen'
       allowFullScreen
       title={`Chat preset: ${preset.name}`}
+      onLoad={sendCredentials}
     />
   )
 }
