@@ -50,13 +50,14 @@ return 1`)
 // A lease belongs to one admitted client request, including its internal
 // retries. Redis leases expire after a crashed process stops renewing them.
 type userConcurrencyLease struct {
-	userID int
-	rdb    *redis.Client
-	key    string
-	id     string
-	stop   chan struct{}
-	done   chan struct{}
-	once   sync.Once
+	userID    int
+	rdb       *redis.Client
+	key       string
+	id        string
+	stop      chan struct{}
+	done      chan struct{}
+	once      sync.Once
+	expiresAt time.Time
 }
 
 func acquireUserConcurrency(ctx context.Context, userID, limit int) (*userConcurrencyLease, error) {
@@ -78,6 +79,7 @@ func acquireUserConcurrency(ctx context.Context, userID, limit int) (*userConcur
 	lease.id = common.GetUUID()
 	operationCtx, cancel := context.WithTimeout(ctx, userConcurrencyOperationTimeout)
 	defer cancel()
+	lease.expiresAt = time.Now().Add(userConcurrencyLeaseTTL)
 	admitted, err := acquireUserConcurrencyScript.Run(operationCtx, lease.rdb,
 		[]string{lease.key}, limit, lease.id, userConcurrencyLeaseTTL.Milliseconds()).Int()
 	if err != nil {
@@ -92,29 +94,44 @@ func acquireUserConcurrency(ctx context.Context, userID, limit int) (*userConcur
 	return lease, nil
 }
 
+// renew advances the conservative expiry only after Redis confirms ownership.
+// Starting the TTL before the operation accounts for response latency.
 func (lease *userConcurrencyLease) renew() (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), userConcurrencyOperationTimeout)
 	defer cancel()
+	expiresAt := time.Now().Add(userConcurrencyLeaseTTL)
 	renewed, err := renewUserConcurrencyScript.Run(ctx, lease.rdb,
 		[]string{lease.key}, lease.id, userConcurrencyLeaseTTL.Milliseconds()).Int()
+	if err == nil && renewed == 1 {
+		lease.expiresAt = expiresAt
+	}
 	return renewed == 1, err
 }
 
+// keepAlive tolerates temporary Redis failures while the confirmed lease is
+// valid. A missing lease cancels immediately; persistent errors cancel before
+// expiry, leaving one operation timeout of headroom for stopping upstream work.
 func (lease *userConcurrencyLease) keepAlive(cancel context.CancelFunc) {
 	defer close(lease.done)
-	ticker := time.NewTicker(userConcurrencyLeaseTTL / 3)
-	defer ticker.Stop()
+	timer := time.NewTimer(min(userConcurrencyLeaseTTL/3, time.Until(lease.expiresAt.Add(-userConcurrencyOperationTimeout))))
+	defer timer.Stop()
 	for {
 		select {
 		case <-lease.stop:
 			return
-		case <-ticker.C:
-			renewed, err := lease.renew()
-			if err != nil || !renewed {
+		case <-timer.C:
+			var renewed bool
+			var err error = context.DeadlineExceeded
+			if time.Now().Before(lease.expiresAt.Add(-userConcurrencyOperationTimeout)) {
+				renewed, err = lease.renew()
+			}
+			remaining := time.Until(lease.expiresAt.Add(-userConcurrencyOperationTimeout))
+			if err == nil && !renewed || remaining <= 0 {
 				common.SysError(common.LogText("user concurrency lease lost for user %d: %v", lease.userID, err))
 				cancel()
 				return
 			}
+			timer.Reset(min(userConcurrencyLeaseTTL/3, remaining))
 		}
 	}
 }

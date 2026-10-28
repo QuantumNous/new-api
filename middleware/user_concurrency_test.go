@@ -1,9 +1,11 @@
 package middleware
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -359,4 +362,102 @@ func TestUserConcurrencyRealRedisAtomicAdmission(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, admitted)
+}
+
+// pipeUserConcurrencyRedis keeps the Redis protocol boundary inside a synctest
+// bubble, so renewal retries and expiry are tested without wall-clock sleeps.
+func pipeUserConcurrencyRedis(t *testing.T, replies []string) (*redis.Client, <-chan time.Time) {
+	t.Helper()
+	renewals := make(chan time.Time, len(replies))
+	client := redis.NewClient(&redis.Options{
+		PoolSize: 1, MaxRetries: -1,
+		Dialer: func(context.Context, string, string) (net.Conn, error) {
+			conn, peer := net.Pipe()
+			go func() {
+				defer peer.Close()
+				reader := bufio.NewReader(peer)
+				index := 0
+				for {
+					line, err := reader.ReadString('\n')
+					if err != nil {
+						return
+					}
+					count, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "*")))
+					if !assert.NoError(t, err) {
+						return
+					}
+					args := make([]string, count)
+					for i := range count {
+						line, err = reader.ReadString('\n')
+						if !assert.NoError(t, err) {
+							return
+						}
+						size, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "$")))
+						if !assert.NoError(t, err) {
+							return
+						}
+						value := make([]byte, size+2)
+						if _, err := io.ReadFull(reader, value); !assert.NoError(t, err) {
+							return
+						}
+						args[i] = string(value[:size])
+					}
+					reply := ":1\r\n"
+					if len(args) > 1 && args[1] == renewUserConcurrencyScript.Hash() {
+						if !assert.Less(t, index, len(replies), "unexpected renewal") {
+							return
+						}
+						reply = replies[index]
+						index++
+						renewals <- time.Now()
+					}
+					if _, err := io.WriteString(peer, reply); err != nil {
+						return
+					}
+				}
+			}()
+			return conn, nil
+		},
+	})
+	t.Cleanup(func() { _ = client.Close() })
+	return client, renewals
+}
+
+func TestUserConcurrencyKeepAliveRenewalFailures(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		replies    []string
+		aliveAfter int
+		cancelAt   time.Duration
+	}{
+		{"transient_error_then_recovered", []string{"-ERR temporary failure\r\n", ":1\r\n", "-ERR temporary failure\r\n", ":1\r\n", ":0\r\n"}, 4, 100 * time.Second},
+		{"persistent_errors", []string{"-ERR temporary failure\r\n", "-ERR temporary failure\r\n"}, 2, userConcurrencyLeaseTTL - userConcurrencyOperationTimeout},
+		{"lease_missing", []string{":0\r\n"}, 0, userConcurrencyLeaseTTL / 3},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				client, renewals := pipeUserConcurrencyRedis(t, test.replies)
+				previousEnabled, previousRDB := common.RedisEnabled, common.RDB
+				common.RedisEnabled, common.RDB = true, client
+				t.Cleanup(func() { common.RedisEnabled, common.RDB = previousEnabled, previousRDB })
+				started := time.Now()
+				lease, err := acquireUserConcurrency(t.Context(), 830006, 1)
+				require.NoError(t, err)
+				require.NotNil(t, lease)
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				lease.stop, lease.done = make(chan struct{}), make(chan struct{})
+				go lease.keepAlive(cancel)
+				defer lease.release()
+				for range test.aliveAfter {
+					<-renewals
+					synctest.Wait()
+					require.NoError(t, ctx.Err(), "a transient renewal error must preserve the active request")
+				}
+				<-ctx.Done()
+				synctest.Wait()
+				assert.Equal(t, test.cancelAt, time.Since(started), "cancel before a lease can expire, or immediately when Redis confirms loss")
+			})
+		})
+	}
 }
