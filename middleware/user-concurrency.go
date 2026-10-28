@@ -121,7 +121,7 @@ func (lease *userConcurrencyLease) keepAlive(cancel context.CancelFunc) {
 			return
 		case <-timer.C:
 			var renewed bool
-			var err error = context.DeadlineExceeded
+			err := context.DeadlineExceeded
 			if time.Now().Before(lease.expiresAt.Add(-userConcurrencyOperationTimeout)) {
 				renewed, err = lease.renew()
 			}
