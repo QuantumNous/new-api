@@ -107,6 +107,6 @@ export async function getRealtimeUserUsage(params: {
     success: boolean
     data: RealtimeUsageSnapshot
     message?: string
-  }>('/api/dashboard/realtime-users', { params })
+  }>('/api/dashboard/realtime-users', { params, skipErrorHandler: true })
   return res.data
 }

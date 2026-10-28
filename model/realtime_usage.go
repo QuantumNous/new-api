@@ -114,7 +114,12 @@ func AggregateRealtimeUsage(logs []*Log, now int64, p RealtimeUsageParams) (Real
 	if now == 0 {
 		now = time.Now().Unix()
 	}
-	cutoff := now - int64(params.WindowSeconds)
+	windowCutoff := now - int64(params.WindowSeconds)
+	trendCutoff := now - int64(params.TrendMinutes*60)
+	cutoff := windowCutoff
+	if trendCutoff < cutoff {
+		cutoff = trendCutoff
+	}
 	type aggregate struct {
 		RealtimeUsageUser
 	}
@@ -122,12 +127,33 @@ func AggregateRealtimeUsage(logs []*Log, now int64, p RealtimeUsageParams) (Real
 	buckets := map[int64]*RealtimeUsageTrend{}
 	userBuckets := map[int]map[int64]*RealtimeUsageTrend{}
 	for _, log := range logs {
-		if log == nil || log.Type != LogTypeConsume || log.CreatedAt < cutoff || log.CreatedAt > now {
+		if log == nil || (log.Type != LogTypeConsume && log.Type != LogTypeError) || log.CreatedAt < cutoff || log.CreatedAt > now {
 			continue
 		}
+		inSummary := log.CreatedAt >= windowCutoff
 		other, _ := common.StrToMap(log.Other)
 		tokens := totalTokensFromUsage(log.PromptTokens, log.CompletionTokens, other)
 		errLog := realtimeLogError(log, other)
+		if !inSummary {
+			// Older records only feed the trend buckets.
+			bucketAt := (log.CreatedAt / 60) * 60
+			userTrendBuckets := userBuckets[log.UserId]
+			if userTrendBuckets == nil {
+				userTrendBuckets = map[int64]*RealtimeUsageTrend{}
+				userBuckets[log.UserId] = userTrendBuckets
+			}
+			userBucket := userTrendBuckets[bucketAt]
+			if userBucket == nil {
+				userBucket = &RealtimeUsageTrend{Timestamp: bucketAt}
+				userTrendBuckets[bucketAt] = userBucket
+			}
+			userBucket.Requests++
+			userBucket.TotalTokens += tokens
+			if errLog {
+				userBucket.Errors++
+			}
+			continue
+		}
 		a := byUser[log.UserId]
 		if a == nil {
 			a = &aggregate{RealtimeUsageUser: RealtimeUsageUser{UserID: log.UserId, Username: log.Username}}
@@ -239,7 +265,11 @@ func GetRealtimeUsageSnapshot(p RealtimeUsageParams) (RealtimeUsageSnapshot, err
 	}
 	now := time.Now().Unix()
 	var logs []*Log
-	if err := LOG_DB.Model(&Log{}).Where("type = ? AND created_at >= ?", LogTypeConsume, now-int64(params.WindowSeconds)).Find(&logs).Error; err != nil {
+	lookback := params.WindowSeconds
+	if trend := params.TrendMinutes * 60; trend > lookback {
+		lookback = trend
+	}
+	if err := LOG_DB.Model(&Log{}).Where("type IN ? AND created_at >= ?", []int{LogTypeConsume, LogTypeError}, now-int64(lookback)).Find(&logs).Error; err != nil {
 		return RealtimeUsageSnapshot{}, err
 	}
 	return AggregateRealtimeUsage(logs, now, params)
