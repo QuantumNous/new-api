@@ -120,6 +120,9 @@ export function UsersMutateDrawer({
   // routine edits of an administrator do not require step-up verification.
   const loadedPermissions = useRef<AdminPermissionMatrix | undefined>(undefined)
 
+  // An unchanged limit is omitted so unrelated edits cannot overwrite a newer value.
+  const loadedMaxConcurrency = useRef(0)
+
   // Fetch groups
   const { data: groupsData } = useQuery({
     queryKey: ['groups'],
@@ -149,6 +152,7 @@ export function UsersMutateDrawer({
         .then((result) => {
           if (result.success && result.data) {
             loadedPermissions.current = result.data.admin_permissions
+            loadedMaxConcurrency.current = result.data.max_concurrency ?? 0
             form.reset(transformUserToFormDefaults(result.data))
           } else {
             handleServerError(result, t('Failed to load'))
@@ -188,6 +192,12 @@ export function UsersMutateDrawer({
         currentRow?.id,
         permissionCatalog
       )
+      if (
+        isUpdate &&
+        payload.max_concurrency === loadedMaxConcurrency.current
+      ) {
+        delete payload.max_concurrency
+      }
       if (
         isUpdate &&
         payload.admin_permissions &&
@@ -264,6 +274,7 @@ export function UsersMutateDrawer({
       const result = requireServerSuccess(await getUser(currentRow.id))
       if (result.success && result.data) {
         loadedPermissions.current = result.data.admin_permissions
+        loadedMaxConcurrency.current = result.data.max_concurrency ?? 0
         form.reset(transformUserToFormDefaults(result.data))
       }
       triggerRefresh()
