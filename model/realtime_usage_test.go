@@ -31,5 +31,11 @@ func TestAggregateRealtimeUsageCacheTrendAndErrors(t *testing.T) {
 	require.Len(t, got.Users, 1)
 	require.Equal(t, 32, got.Users[0].TotalTokens)
 	require.Equal(t, 1, got.Users[0].Errors)
+	require.Len(t, got.UserTrends[1], 6)
+	userRequests := 0
+	for _, point := range got.UserTrends[1] {
+		userRequests += point.Requests
+	}
+	require.Equal(t, 2, userRequests)
 	require.Len(t, got.Trend, 6)
 }

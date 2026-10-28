@@ -69,6 +69,7 @@ export interface RealtimeUsageSnapshot {
   summary: RealtimeUsageSummary
   users: RealtimeUsageUser[]
   trend: RealtimeUsageTrend[]
+  user_trends?: Record<string, RealtimeUsageTrend[]>
   updated_at: number
 }
 

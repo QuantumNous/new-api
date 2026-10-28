@@ -50,10 +50,11 @@ func TestGetRealtimeUsersAdminSnapshotContract(t *testing.T) {
 	var body struct {
 		Success bool `json:"success"`
 		Data    struct {
-			Summary   model.RealtimeUsageSummary `json:"summary"`
-			Users     []model.RealtimeUsageUser  `json:"users"`
-			Trend     []model.RealtimeUsageTrend `json:"trend"`
-			UpdatedAt int64                      `json:"updated_at"`
+			Summary    model.RealtimeUsageSummary         `json:"summary"`
+			Users      []model.RealtimeUsageUser          `json:"users"`
+			Trend      []model.RealtimeUsageTrend         `json:"trend"`
+			UserTrends map[int][]model.RealtimeUsageTrend `json:"user_trends"`
+			UpdatedAt  int64                              `json:"updated_at"`
 		} `json:"data"`
 	}
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
@@ -63,6 +64,7 @@ func TestGetRealtimeUsersAdminSnapshotContract(t *testing.T) {
 	require.Len(t, body.Data.Users, 1)
 	assert.Equal(t, "alice", body.Data.Users[0].Username)
 	assert.NotEmpty(t, body.Data.Trend)
+	assert.NotEmpty(t, body.Data.UserTrends[7])
 	assert.Equal(t, now, body.Data.UpdatedAt)
 }
 

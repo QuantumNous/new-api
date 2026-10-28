@@ -5376,6 +5376,7 @@
     "Realtime user usage": "实时用户调用",
     "Realtime status": "实时状态",
     "Live": "实时",
+    "Paused": "已暂停",
     "Last updated": "上次更新",
     "Active users": "活跃用户",
     "Realtime TPM": "实时 TPM",
@@ -5389,6 +5390,8 @@
     "Errors": "错误数",
     "Last call": "最后调用",
     "Realtime trend": "实时趋势",
-    "Search users": "搜索用户"
+    "Search users": "搜索用户",
+    "Sort by {{field}}": "按 {{field}} 排序",
+    "Select {{username}}": "选择 {{username}}"
   }
 }

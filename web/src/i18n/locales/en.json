@@ -5376,6 +5376,7 @@
     "Realtime user usage": "Realtime user usage",
     "Realtime status": "Realtime status",
     "Live": "Live",
+    "Paused": "Paused",
     "Last updated": "Last updated",
     "Active users": "Active users",
     "Realtime TPM": "Realtime TPM",
@@ -5389,6 +5390,8 @@
     "Errors": "Errors",
     "Last call": "Last call",
     "Realtime trend": "Realtime trend",
-    "Search users": "Search users"
+    "Search users": "Search users",
+    "Sort by {{field}}": "Sort by {{field}}",
+    "Select {{username}}": "Select {{username}}"
   }
 }

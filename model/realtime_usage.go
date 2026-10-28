@@ -71,10 +71,11 @@ type RealtimeUsageTrend struct {
 }
 
 type RealtimeUsageSnapshot struct {
-	Summary   RealtimeUsageSummary `json:"summary"`
-	Users     []RealtimeUsageUser  `json:"users"`
-	Trend     []RealtimeUsageTrend `json:"trend"`
-	UpdatedAt int64                `json:"updated_at"`
+	Summary    RealtimeUsageSummary         `json:"summary"`
+	Users      []RealtimeUsageUser          `json:"users"`
+	Trend      []RealtimeUsageTrend         `json:"trend"`
+	UserTrends map[int][]RealtimeUsageTrend `json:"user_trends,omitempty"`
+	UpdatedAt  int64                        `json:"updated_at"`
 }
 
 func realtimeLogError(log *Log, other map[string]interface{}) bool {
@@ -119,6 +120,7 @@ func AggregateRealtimeUsage(logs []*Log, now int64, p RealtimeUsageParams) (Real
 	}
 	byUser := map[int]*aggregate{}
 	buckets := map[int64]*RealtimeUsageTrend{}
+	userBuckets := map[int]map[int64]*RealtimeUsageTrend{}
 	for _, log := range logs {
 		if log == nil || log.Type != LogTypeConsume || log.CreatedAt < cutoff || log.CreatedAt > now {
 			continue
@@ -155,6 +157,21 @@ func AggregateRealtimeUsage(logs []*Log, now int64, p RealtimeUsageParams) (Real
 		if errLog {
 			bucket.Errors++
 		}
+		userTrendBuckets := userBuckets[log.UserId]
+		if userTrendBuckets == nil {
+			userTrendBuckets = map[int64]*RealtimeUsageTrend{}
+			userBuckets[log.UserId] = userTrendBuckets
+		}
+		userBucket := userTrendBuckets[bucketAt]
+		if userBucket == nil {
+			userBucket = &RealtimeUsageTrend{Timestamp: bucketAt}
+			userTrendBuckets[bucketAt] = userBucket
+		}
+		userBucket.Requests++
+		userBucket.TotalTokens += tokens
+		if errLog {
+			userBucket.Errors++
+		}
 		snapshot.Summary.Requests++
 		snapshot.Summary.TotalTokens += tokens
 		if errLog {
@@ -181,13 +198,27 @@ func AggregateRealtimeUsage(logs []*Log, now int64, p RealtimeUsageParams) (Real
 	snapshot.Summary.TPM = float64(snapshot.Summary.TotalTokens) * 60 / float64(params.WindowSeconds)
 	snapshot.Summary.ErrorRate = rate(errorCount, snapshot.Summary.Requests)
 	trendStart := now - int64(params.TrendMinutes*60)
-	snapshot.Trend = make([]RealtimeUsageTrend, 0, params.TrendMinutes)
-	for ts := (trendStart / 60) * 60; ts <= (now/60)*60; ts += 60 {
+	trendStart = (trendStart / 60) * 60
+	trendEnd := (now / 60) * 60
+	snapshot.Trend = make([]RealtimeUsageTrend, 0, params.TrendMinutes+1)
+	for ts := trendStart; ts <= trendEnd; ts += 60 {
 		if bucket := buckets[ts]; bucket != nil {
 			snapshot.Trend = append(snapshot.Trend, *bucket)
 		} else {
 			snapshot.Trend = append(snapshot.Trend, RealtimeUsageTrend{Timestamp: ts})
 		}
+	}
+	snapshot.UserTrends = make(map[int][]RealtimeUsageTrend, len(users))
+	for _, user := range users {
+		trend := make([]RealtimeUsageTrend, 0, params.TrendMinutes+1)
+		for ts := trendStart; ts <= trendEnd; ts += 60 {
+			if bucket := userBuckets[user.UserID][ts]; bucket != nil {
+				trend = append(trend, *bucket)
+			} else {
+				trend = append(trend, RealtimeUsageTrend{Timestamp: ts})
+			}
+		}
+		snapshot.UserTrends[user.UserID] = trend
 	}
 	snapshot.UpdatedAt = now
 	return snapshot, nil
