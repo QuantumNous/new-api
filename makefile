@@ -7,8 +7,10 @@ DEV_API_SERVICE = new-api
 DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
+IMAGE ?= new-api:latest
+IMAGE_PLATFORM ?= linux/amd64
 
-.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-web reset-setup test
+.PHONY: all build-web build-all-web build-image push-image build-and-push-image start-api dev dev-api dev-api-rebuild dev-web reset-setup test
 
 all: build-all-web start-api
 
@@ -18,6 +20,18 @@ build-web:
 	@cd $(WEB_DIR) && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$$(cat ../VERSION) bun run build
 
 build-all-web: build-web
+
+build-image:
+	@echo "Building $(IMAGE) for $(IMAGE_PLATFORM)..."
+	@docker buildx build --platform $(IMAGE_PLATFORM) --load --tag $(IMAGE) .
+
+push-image:
+	@echo "Pushing $(IMAGE)..."
+	@docker push $(IMAGE)
+
+build-and-push-image:
+	@echo "Building and pushing $(IMAGE) for $(IMAGE_PLATFORM)..."
+	@docker buildx build --platform $(IMAGE_PLATFORM) --push --tag $(IMAGE) .
 
 start-api:
 	@echo "Starting api dev server..."

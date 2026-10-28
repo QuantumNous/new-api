@@ -16,8 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { DEFAULT_LOGO, DEFAULT_LOGO_ICON } from './constants'
+
 export function applyFaviconToDom(url: string) {
   if (typeof document === 'undefined' || !url) return
+  if (url === DEFAULT_LOGO) url = DEFAULT_LOGO_ICON
   try {
     const next = new URL(url, window.location.href).href
     const existing =

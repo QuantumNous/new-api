@@ -121,6 +121,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if request.N != nil {
 		imageN = *request.N
 	}
+	if info.PriceData.ImageBilling != nil {
+		imageN = uint(info.PriceData.ImageBilling.Count)
+	}
 
 	if usage.(*dto.Usage).TotalTokens == 0 {
 		usage.(*dto.Usage).TotalTokens = 1

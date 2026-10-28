@@ -30,6 +30,7 @@ import (
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/QuantumNous/new-api/service/modelparam"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -334,6 +335,9 @@ func InitResources() error {
 		}
 	}
 	model.InitOptionMap()
+	if err := modelparam.ConfigureFromOptionMap(); err != nil {
+		common.SysError("failed to load model parameter rules: " + err.Error())
+	}
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()

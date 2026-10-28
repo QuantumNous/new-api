@@ -333,6 +333,12 @@ func TestOpenaiImageHandlerUsesPositiveActualCountForFixedPrice(t *testing.T) {
 			wantCount: 2,
 		},
 		{
+			name:      "fixed price uses generated images usage over data length",
+			body:      `{"data":[{"b64_json":"first"},{"b64_json":"second"}],"usage":{"generated_images":1}}`,
+			usePrice:  true,
+			wantCount: 1,
+		},
+		{
 			name:      "empty data keeps requested count",
 			body:      `{"data":[]}`,
 			usePrice:  true,

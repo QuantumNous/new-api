@@ -1,6 +1,9 @@
 package ratio_setting
 
 import (
+	"encoding/json"
+	"fmt"
+	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -8,6 +11,99 @@ import (
 	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
 )
+
+// ImagePriceRule describes a fixed price for an image request. Empty selector
+// fields are wildcards; when several rules match, the most specific rule wins.
+type ImagePriceRule struct {
+	Size        string  `json:"size,omitempty"`
+	Resolution  string  `json:"resolution,omitempty"`
+	AspectRatio string  `json:"aspect_ratio,omitempty"`
+	Price       float64 `json:"price"`
+}
+
+var imagePriceMap = types.NewRWMap[string, json.RawMessage]()
+
+func ImagePrice2JSONString() string { return imagePriceMap.MarshalJSONString() }
+
+func UpdateImagePriceByJSONString(jsonStr string) error {
+	if err := ValidateImagePriceJSON(jsonStr); err != nil {
+		return err
+	}
+	return imagePriceMap.UnmarshalJSON([]byte(jsonStr))
+}
+
+func ValidateImagePriceJSON(jsonStr string) error {
+	var values map[string]json.RawMessage
+	if err := common.UnmarshalJsonStr(jsonStr, &values); err != nil {
+		return err
+	}
+	for model, raw := range values {
+		if common.GetJsonType(raw) == "object" {
+			var cfg ImagePricingConfig
+			if err := common.Unmarshal(raw, &cfg); err != nil {
+				return err
+			}
+			if err := cfg.Validate(); err != nil {
+				return fmt.Errorf("image pricing %s: %w", model, err)
+			}
+			continue
+		}
+		var rules []ImagePriceRule
+		if err := common.Unmarshal(raw, &rules); err != nil {
+			return err
+		}
+		for index, rule := range rules {
+			if math.IsNaN(rule.Price) || math.IsInf(rule.Price, 0) || rule.Price < 0 {
+				return fmt.Errorf("image price for %s rule %d must be a non-negative finite number", model, index)
+			}
+		}
+	}
+	return nil
+}
+
+func GetImagePrice(model, size, resolution, aspectRatio string) (float64, bool) {
+	raw, ok := imagePriceMap.Get(FormatMatchingModelName(model))
+	if !ok {
+		return 0, false
+	}
+	var rules []ImagePriceRule
+	if common.Unmarshal(raw, &rules) != nil {
+		return 0, false
+	}
+	bestScore := -1
+	var best ImagePriceRule
+	for _, rule := range rules {
+		if rule.Size != "" && rule.Size != size ||
+			rule.Resolution != "" && rule.Resolution != resolution ||
+			rule.AspectRatio != "" && rule.AspectRatio != aspectRatio {
+			continue
+		}
+		score := 0
+		if rule.Size != "" {
+			score++
+		}
+		if rule.Resolution != "" {
+			score++
+		}
+		if rule.AspectRatio != "" {
+			score++
+		}
+		if score > bestScore {
+			bestScore, best = score, rule
+		}
+	}
+	if bestScore < 0 {
+		return 0, false
+	}
+	return best.Price, true
+}
+
+func GetImagePriceMap() map[string]json.RawMessage { return imagePriceMap.ReadAll() }
+
+func HasImagePriceConfig(model string) bool {
+	_, ok := imagePriceMap.Get(FormatMatchingModelName(model))
+	return ok
+}
 
 // from songquanpeng/one-api
 const (

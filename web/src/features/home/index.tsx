@@ -26,7 +26,7 @@ import { useTheme } from '@/context/theme-provider'
 import { isLikelyHtml } from '@/lib/content-format'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { CTA, Features, Hero, HowItWorks, Stats } from './components'
+import { TokenInfraLanding } from './components/tokeninfra-landing'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -122,11 +122,12 @@ export function Home() {
 
   return (
     <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
+      <TokenInfraLanding
+        isAuthenticated={isAuthenticated}
+        // Upstream project documentation remains available at https://docs.newapi.pro.
+        // This company homepage links to our own quick start.
+        docsUrl='/docs'
+      />
       <Footer />
     </PublicLayout>
   )

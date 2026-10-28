@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import type { Table } from '@tanstack/react-table'
-import { Eye, EyeOff } from 'lucide-react'
+import { Download, Eye, EyeOff } from 'lucide-react'
 import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -43,6 +43,7 @@ import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
 import { CommonLogsStats } from './common-logs-stats'
+import { BillingExportDialog } from './billing-export-dialog'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import {
   LogsFilterField,
@@ -117,6 +118,7 @@ export function CommonLogsFilterBar<TData>(
   const queryClient = useQueryClient()
   const searchParams = route.useSearch()
   const { isAdminView: isAdmin } = useLogsViewScope()
+  const [billingExportOpen, setBillingExportOpen] = useState(false)
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
@@ -271,24 +273,40 @@ export function CommonLogsFilterBar<TData>(
     </div>
   )
   const sensitiveToggle = (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant='ghost'
-            size='icon'
-            onClick={() => setSensitiveVisible(!sensitiveVisible)}
-            aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-            className='text-muted-foreground hover:text-foreground size-7'
-          />
-        }
-      >
-        {sensitiveVisible ? <Eye /> : <EyeOff />}
-      </TooltipTrigger>
-      <TooltipContent>
-        {sensitiveVisible ? t('Hide') : t('Show')}
-      </TooltipContent>
-    </Tooltip>
+    <div className='flex items-center gap-2'>
+      {isAdmin && (
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={() => setBillingExportOpen(true)}
+        >
+          <Download data-icon='inline-start' />
+          {t('Export bill')}
+        </Button>
+      )}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={() => setSensitiveVisible(!sensitiveVisible)}
+              aria-label={sensitiveVisible ? t('Hide') : t('Show')}
+              className='text-muted-foreground hover:text-foreground size-7'
+            />
+          }
+        >
+          {sensitiveVisible ? <Eye /> : <EyeOff />}
+        </TooltipTrigger>
+        <TooltipContent>
+          {sensitiveVisible ? t('Hide') : t('Show')}
+        </TooltipContent>
+      </Tooltip>
+      <BillingExportDialog
+        open={billingExportOpen}
+        onOpenChange={setBillingExportOpen}
+      />
+    </div>
   )
 
   const dateRangeFilter = (

@@ -25,6 +25,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/modelparam"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -128,6 +129,31 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	if registry := modelparam.DefaultRegistry(); registry != nil {
+		protocol, protocolErr := modelparam.ProtocolFor(relayFormat)
+		if protocolErr == nil && (strings.HasPrefix(c.GetHeader("Content-Type"), "application/json") || c.GetHeader("Content-Type") == "") {
+			bodyStorage, bodyErr := common.GetBodyStorage(c)
+			if bodyErr != nil {
+				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				return
+			}
+			body, bodyErr := bodyStorage.Bytes()
+			if bodyErr != nil {
+				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				return
+			}
+			violation, validationErr := modelparam.ValidateDefault(modelparam.Input{Model: relayInfo.OriginModelName, Protocol: protocol, Body: body})
+			if validationErr != nil {
+				newAPIError = modelparam.ParseErrorToAPIError(validationErr)
+				return
+			}
+			if violation != nil {
+				newAPIError = modelparam.ToAPIError(violation)
+				return
+			}
+		}
+	}
+
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
@@ -202,6 +228,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		addUsedChannel(c, channel.Id)
+		if billingErr := service.PrepareImageBillingForSelectedGroup(c, relayInfo); billingErr != nil {
+			newAPIError = billingErr
+			break
+		}
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break

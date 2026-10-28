@@ -14,6 +14,7 @@ type GroupRatioInfo struct {
 }
 
 type PriceData struct {
+	ImageBilling         *ImageBillingDetail
 	FreeModel            bool
 	ModelPrice           float64
 	ModelRatio           float64
@@ -30,6 +31,26 @@ type PriceData struct {
 	Quota                int // 按次计费的最终额度（MJ / Task）
 	QuotaToPreConsume    int // 按量计费的预消耗额度
 	GroupRatioInfo       GroupRatioInfo
+}
+
+// ImageBillingDetail is a request-time price snapshot, persisted with the bill.
+type ImageBillingDetail struct {
+	Version      int     `json:"version"`
+	BasePrice    float64 `json:"base_price"`
+	Multiplier   float64 `json:"multiplier"`
+	UnitPrice    float64 `json:"unit_price"`
+	Size         string  `json:"size"`
+	Width        int64   `json:"width"`
+	Height       int64   `json:"height"`
+	Pixels       int64   `json:"pixels"`
+	MinPixels    int64   `json:"min_pixels"`
+	MaxPixels    *int64  `json:"max_pixels"`
+	Tier         int     `json:"tier"`
+	Count        int     `json:"count"`
+	CountSource  string  `json:"count_source"`
+	GroupRatio   float64 `json:"group_ratio"`
+	Quota        int     `json:"quota"`
+	QuotaPerUnit float64 `json:"quota_per_unit"`
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {

@@ -21,6 +21,7 @@ import { api } from '@/lib/api'
 import type {
   FlowQuotaDataItem,
   QuotaDataItem,
+  RealtimeUsageSnapshot,
   UptimeGroupResult,
 } from './types'
 
@@ -89,5 +90,23 @@ export async function getUptimeStatus() {
   const res = await api.get<{ success: boolean; data: UptimeGroupResult[] }>(
     '/api/uptime/status'
   )
+  return res.data
+}
+
+// Get the bounded realtime usage snapshot for administrator dashboards.
+export async function getRealtimeUserUsage(params: {
+  window_seconds: number
+  trend_minutes: number
+  limit: number
+}): Promise<{
+  success: boolean
+  data: RealtimeUsageSnapshot
+  message?: string
+}> {
+  const res = await api.get<{
+    success: boolean
+    data: RealtimeUsageSnapshot
+    message?: string
+  }>('/api/dashboard/realtime-users', { params, skipErrorHandler: true })
   return res.data
 }

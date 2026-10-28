@@ -213,6 +213,7 @@ export type ModelSettings = {
   CreateCacheRatio: string
   CompletionRatio: string
   ImageRatio: string
+  ImagePrice: string
   AudioRatio: string
   AudioCompletionRatio: string
   ExposeRatioEnabled: boolean
@@ -272,6 +273,7 @@ export type BillingSettings = {
   CreateCacheRatio: string
   CompletionRatio: string
   ImageRatio: string
+  ImagePrice: string
   AudioRatio: string
   AudioCompletionRatio: string
   ExposeRatioEnabled: boolean
