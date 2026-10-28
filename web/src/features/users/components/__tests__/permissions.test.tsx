@@ -43,7 +43,11 @@ const label = "View other accounts' audit logs"
 const description =
   'View audit records from user and admin roles. Root records are always excluded.'
 
-function renderPermissions(viewerRole: number, allowed?: boolean) {
+function renderPermissions(
+  viewerRole: number,
+  allowed?: boolean,
+  maxConcurrency = 0
+) {
   useAuthStore
     .getState()
     .auth.setUser({ id: 1, username: 'operator', role: viewerRole })
@@ -92,6 +96,7 @@ function renderPermissions(viewerRole: number, allowed?: boolean) {
         success: true,
         data: {
           ...target,
+          max_concurrency: maxConcurrency,
           admin_permissions:
             allowed === undefined ? {} : { audit: { read: allowed } },
         },
@@ -195,3 +200,30 @@ it('admin cannot edit the audit permission even when the catalog is available', 
   await screen.findByDisplayValue('Managed admin')
   expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument()
 })
+
+it.each([0, 5])(
+  'root saves a per-user concurrency limit of %s without changing account permissions',
+  async (limit) => {
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    renderPermissions(100, true, 3)
+    const input = await screen.findByRole('spinbutton', {
+      name: 'Maximum concurrent requests',
+    })
+    await waitFor(() => expect(input).toHaveValue(3))
+    expect(input).toHaveAccessibleDescription(
+      'Shared across all API keys and groups for this user. 0 disables the limit. Excess requests return 429 without waiting.'
+    )
+    await userEvent.clear(input)
+    await userEvent.type(input, String(limit))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith(
+        '/api/user/',
+        expect.objectContaining({ id: 2, max_concurrency: limit }),
+        {}
+      )
+    )
+  }
+)

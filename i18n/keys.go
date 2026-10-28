@@ -19,8 +19,10 @@ const (
 	MsgAuthTokenGroupDeprecated   = "auth.token_group_deprecated"
 	MsgAuthChannelSelectForbidden = "auth.channel_select_forbidden"
 
-	MsgRateLimitReached      = "rate_limit.reached"
-	MsgRateLimitTotalReached = "rate_limit.total_reached"
+	MsgRateLimitReached            = "rate_limit.reached"
+	MsgConcurrencyLimitReached     = "rate_limit.concurrency_reached"
+	MsgConcurrencyLimitUnavailable = "rate_limit.concurrency_unavailable"
+	MsgRateLimitTotalReached       = "rate_limit.total_reached"
 
 	MsgDistributorInvalidRequest               = "distributor.invalid_request"
 	MsgDistributorInvalidChannelId             = "distributor.invalid_channel_id"

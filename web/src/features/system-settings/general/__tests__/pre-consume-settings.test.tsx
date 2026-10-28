@@ -23,11 +23,13 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { useState } from 'react'
 import { beforeEach, expect, test, vi } from 'vitest'
 
+import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 
 import { SettingsPageProvider } from '../../components/settings-page-context'
@@ -42,6 +44,7 @@ function Fixture() {
         <QuotaSettingsSection
           defaultValues={{
             QuotaForNewUser: 0,
+            DefaultUserMaxConcurrency: 0,
             QuotaForInviter: 0,
             QuotaForInvitee: 0,
             TopUpLink: '',
@@ -77,6 +80,71 @@ async function renderSettings() {
 
 beforeEach(() => {
   vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
+})
+
+test('saves the default concurrency limit for new users', async () => {
+  await renderSettings()
+  const input = screen.getByRole('spinbutton', {
+    name: 'Default maximum concurrent requests for new users',
+  })
+  expect(input).toHaveValue(0)
+  expect(input).toHaveAccessibleDescription(
+    'Applies to newly created users. 0 disables the limit; existing users are unchanged.'
+  )
+  fireEvent.change(input, { target: { value: '5' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() =>
+    expect(api.put).toHaveBeenCalledWith('/api/option/', {
+      key: 'DefaultUserMaxConcurrency',
+      value: 5,
+    })
+  )
+})
+
+test.each(['-1', '1.5', '2147483648', ''])(
+  'invalid default concurrency "%s" prevents saving',
+  async (value) => {
+    await renderSettings()
+    const input = screen.getByRole('spinbutton', {
+      name: 'Default maximum concurrent requests for new users',
+    })
+    fireEvent.change(input, { target: { value } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(input).toHaveAttribute('aria-invalid', 'true'))
+    expect(input).toHaveAccessibleDescription(
+      expect.stringContaining(
+        'Default maximum concurrency must be an integer between 0 and 2147483647'
+      )
+    )
+    expect(api.put).not.toHaveBeenCalled()
+  }
+)
+
+test('default concurrency validation uses the selected language after switching', async () => {
+  await renderSettings()
+  const input = screen.getByRole('spinbutton', {
+    name: 'Default maximum concurrent requests for new users',
+  })
+  i18next.addResourceBundle('zh', 'translation', zh.translation)
+  try {
+    await act(() => i18next.changeLanguage('zh'))
+    fireEvent.change(input, { target: { value: '1.5' } })
+    fireEvent.click(
+      screen.getByRole('button', { name: i18next.t('Save Changes') })
+    )
+    await waitFor(() => expect(input).toHaveAttribute('aria-invalid', 'true'))
+    expect(input).toHaveAccessibleDescription(
+      expect.stringContaining(
+        zh.translation[
+          'Default maximum concurrency must be an integer between 0 and 2147483647'
+        ]
+      )
+    )
+    expect(api.put).not.toHaveBeenCalled()
+  } finally {
+    await act(() => i18next.changeLanguage('en'))
+    i18next.removeResourceBundle('zh', 'translation')
+  }
 })
 
 test.each(['0.5', '1.5', '2.5', '0.0001'])(

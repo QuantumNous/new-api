@@ -408,6 +408,52 @@ export function UsersMutateDrawer({
                     </FormItem>
                   )}
                 />
+
+                <FormField
+                  control={form.control}
+                  name='max_concurrency'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Maximum concurrent requests')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          value={
+                            field.value === undefined ||
+                            Number.isNaN(field.value)
+                              ? ''
+                              : field.value
+                          }
+                          min={0}
+                          max={2147483647}
+                          step={1}
+                          placeholder={
+                            isUpdate ? undefined : t('Use the new user default')
+                          }
+                          onChange={(event) => {
+                            const value = event.target.valueAsNumber
+                            field.onChange(
+                              Number.isNaN(value) && !isUpdate
+                                ? undefined
+                                : value
+                            )
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {isUpdate
+                          ? t(
+                              'Shared across all API keys and groups for this user. 0 disables the limit. Excess requests return 429 without waiting.'
+                            )
+                          : t(
+                              'Leave empty to use the new user default. Enter 0 for unlimited or a positive limit.'
+                            )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </SideDrawerSection>
 
               {/* Group & Quota Settings (Update only) */}

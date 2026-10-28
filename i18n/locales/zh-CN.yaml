@@ -92,3 +92,5 @@ channel.upstream_update_added_models: "新增模型示例（展示 {{.Shown}}/{{
 channel.upstream_update_removed_models: "删除模型示例（展示 {{.Shown}}/{{.Total}}）：{{.Models}}"
 channel.upstream_update_failed_channels: "失败渠道 ID（展示 {{.Shown}}/{{.Total}}）：{{.Ids}}"
 channel.upstream_update_more_omitted: "（其余 {{.Count}} 个已省略）"
+rate_limit.concurrency_reached: "已达到并发上限：所有 API Key 合计最多同时处理 {{.Max}} 个请求"
+rate_limit.concurrency_unavailable: "并发控制暂时不可用，请稍后重试"

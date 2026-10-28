@@ -76,13 +76,79 @@ func TestMigrationSchemaStability(t *testing.T) {
 				t.Skip("test database DSN is not configured")
 			}
 			t.Setenv("MIGRATION_TEST_DSN", dsn)
-			db, _, err := chooseDB("MIGRATION_TEST_DSN", false)
+			db, dbType, err := chooseDB("MIGRATION_TEST_DSN", false)
 			require.NoError(t, err)
+			previousType := common.MainDatabaseType()
+			common.SetMainDatabaseType(dbType)
+			initCol()
+			t.Cleanup(func() { common.SetMainDatabaseType(previousType); initCol() })
 			sqlDB, err := db.DB()
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = sqlDB.Close() })
 			recorder := &migrationSQLRecorder{}
 			db = db.Session(&gorm.Session{Logger: recorder})
+
+			t.Run("user_concurrency", func(t *testing.T) {
+				var version string
+				versionQuery := "SELECT version()"
+				if dialect == "sqlite" {
+					versionQuery = "SELECT sqlite_version()"
+				}
+				require.NoError(t, db.Raw(versionQuery).Scan(&version).Error)
+				t.Logf("database version: %s", version)
+				for _, mode := range []string{"fresh", "upgrade_v1.0.0-rc.47", "upgrade_concurrency_without_version"} {
+					t.Run(mode, func(t *testing.T) {
+						const table = "migration_user_concurrency"
+						t.Cleanup(func() { _ = db.Migrator().DropTable(table) })
+						tableDB := db.Table(table).Session(&gorm.Session{})
+						if mode != "fresh" {
+							if mode == "upgrade_concurrency_without_version" {
+								require.NoError(t, tableDB.AutoMigrate(&migrationUserWithConcurrency{}))
+							} else {
+								require.NoError(t, tableDB.AutoMigrate(&migrationUserBeforeConcurrency{}))
+							}
+							require.NoError(t, tableDB.Create(&migrationUserBeforeConcurrency{Id: 1, Username: "preserved", Password: "stored-hash", AffCode: "migration-aff", AuthVersion: 1, Setting: "{}"}).Error)
+							if mode == "upgrade_concurrency_without_version" {
+								require.NoError(t, tableDB.Where("id = ?", 1).Update("max_concurrency", 3).Error)
+							}
+						}
+						for pass := range 2 {
+							recorder.reset()
+							require.NoError(t, tableDB.AutoMigrate(&User{}))
+							if pass == 1 {
+								assert.Empty(t, recorder.schemaMutations(), "second startup must not alter the schema")
+							}
+						}
+						if mode == "fresh" {
+							require.NoError(t, tableDB.Create(&User{Id: 1, Username: "preserved", Password: "stored-hash", AffCode: "migration-aff", AuthVersion: 1, Setting: "{}"}).Error)
+						}
+						var user User
+						require.NoError(t, tableDB.First(&user, 1).Error)
+						if mode == "upgrade_concurrency_without_version" {
+							assert.Equal(t, 3, user.MaxConcurrency, "upgrading must preserve an administrator's existing limit")
+						} else {
+							assert.Zero(t, user.MaxConcurrency, "new and upgraded users must start without a concurrency limit")
+						}
+						assert.EqualValues(t, 1, user.ConcurrencyVersion)
+						assert.Equal(t, "preserved", user.Username)
+						assert.Equal(t, "stored-hash", user.Password)
+						assert.Equal(t, "{}", user.Setting)
+						for i, limit := range []int{5, 0} {
+							update := user
+							update.MaxConcurrency = limit
+							require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
+								return update.EditWithTx(tx.Table(table).Session(&gorm.Session{}), false, &update.MaxConcurrency)
+							}))
+							require.NoError(t, tableDB.First(&user, 1).Error)
+							assert.Equal(t, limit, user.MaxConcurrency)
+							assert.EqualValues(t, i+2, user.ConcurrencyVersion)
+							assert.EqualValues(t, 1, user.AuthVersion)
+						}
+						assert.True(t, tableDB.Migrator().HasIndex(&User{}, "Username"))
+						require.Error(t, tableDB.Create(&User{Username: "preserved", Password: "different", AffCode: "different-aff"}).Error, "username uniqueness must survive migration")
+					})
+				}
+			})
 
 			t.Run("identity_and_indexes", func(t *testing.T) {
 				const table = "migration_identity_test"
@@ -217,4 +283,48 @@ func TestMigrationSchemaStability(t *testing.T) {
 			}
 		})
 	}
+}
+
+// User schema from v1.0.0-rc.47, the release preceding the concurrency field.
+type migrationUserWithConcurrency struct {
+	Previous       migrationUserBeforeConcurrency `gorm:"embedded"`
+	MaxConcurrency int                            `gorm:"type:int;not null;default:0"`
+}
+
+type migrationUserBeforeConcurrency struct {
+	Id                   int                        `json:"id"`
+	Username             string                     `json:"username" gorm:"unique;index" validate:"max=20"`
+	Password             string                     `json:"password" gorm:"not null;" validate:"min=8,max=128"`
+	HasPassword          bool                       `json:"-" gorm:"-:all"`
+	OriginalPassword     string                     `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
+	DisplayName          string                     `json:"display_name" gorm:"index" validate:"max=20"`
+	Role                 int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
+	Status               int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
+	Email                string                     `json:"email" gorm:"index" validate:"max=50"`
+	GitHubId             string                     `json:"github_id" gorm:"column:github_id;index"`
+	DiscordId            string                     `json:"discord_id" gorm:"column:discord_id;index"`
+	OidcId               string                     `json:"oidc_id" gorm:"column:oidc_id;index"`
+	WeChatId             string                     `json:"wechat_id" gorm:"column:wechat_id;index"`
+	TelegramId           string                     `json:"telegram_id" gorm:"column:telegram_id;index"`
+	VerificationCode     string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
+	AccessToken          *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+	AccessTokenCreatedAt *int64                     `json:"-" gorm:"type:bigint;column:access_token_created_at"`    // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+	Quota                int                        `json:"quota" gorm:"type:int;default:0"`
+	UsedQuota            int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
+	RequestCount         int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	Group                string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
+	AffCode              string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
+	AffCount             int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
+	AffQuota             int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
+	AffHistoryQuota      int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
+	InviterId            int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	DeletedAt            gorm.DeletedAt             `gorm:"index"`
+	LinuxDOId            string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
+	Setting              string                     `json:"setting" gorm:"type:text;column:setting"`
+	Remark               string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
+	StripeCustomer       string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	CreatedAt            int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	LastLoginAt          int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	AuthVersion          int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
+	AdminPermissions     map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
 }

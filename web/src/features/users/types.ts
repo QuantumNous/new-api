@@ -59,6 +59,7 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  max_concurrency: z.number().int().nonnegative().optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -121,6 +122,7 @@ export interface UserFormData {
   username: string
   display_name: string
   password?: string
+  max_concurrency?: number
   role?: number // Only used when creating user
   quota?: number // Only used when updating user
   group?: string // Only used when updating user

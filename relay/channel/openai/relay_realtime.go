@@ -1,7 +1,9 @@
 package openai
 
 import (
+	"context"
 	"fmt"
+	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -24,6 +26,14 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	info.IsStream = true
 	clientConn := info.ClientWs
 	targetConn := info.TargetWs
+	ctx := c.Request.Context()
+	stopCancel := context.AfterFunc(ctx, func() {
+		_ = clientConn.Close()
+		_ = targetConn.Close()
+	})
+	defer stopCancel()
+	var readers sync.WaitGroup
+	readers.Add(2)
 
 	clientClosed := make(chan struct{})
 	targetClosed := make(chan struct{})
@@ -36,6 +46,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	sumUsage := &dto.RealtimeUsage{}
 
 	gopool.Go(func() {
+		defer readers.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				errChan <- fmt.Errorf("panic in client reader: %v", r)
@@ -43,7 +54,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 		}()
 		for {
 			select {
-			case <-c.Done():
+			case <-ctx.Done():
 				return
 			default:
 				_, message, err := clientConn.ReadMessage()
@@ -96,6 +107,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	})
 
 	gopool.Go(func() {
+		defer readers.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				errChan <- fmt.Errorf("panic in target reader: %v", r)
@@ -103,7 +115,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 		}()
 		for {
 			select {
-			case <-c.Done():
+			case <-ctx.Done():
 				return
 			default:
 				_, message, err := targetConn.ReadMessage()
@@ -207,8 +219,13 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	case err := <-errChan:
 		//return service.OpenAIErrorWrapper(err, "realtime_error", http.StatusInternalServerError), nil
 		logger.LogError(c, common.LogText("realtime error: %s", err.Error()))
-	case <-c.Done():
+	case <-ctx.Done():
 	}
+	// Closing the sockets interrupts reads and writes already in progress. Join
+	// both readers before their final usage snapshot is settled by this worker.
+	_ = clientConn.Close()
+	_ = targetConn.Close()
+	readers.Wait()
 
 	if usage.TotalTokens != 0 {
 		_ = preConsumeUsage(c, info, usage, sumUsage)

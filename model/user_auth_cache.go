@@ -23,6 +23,12 @@ var ErrUserAuthCachePending = errors.New("user authentication state update is pe
 
 var ErrUserAuthVersionConflict = errors.New("user authentication version update conflicted")
 
+var ErrUserConcurrencyCachePending = errors.New("user concurrency configuration update is pending")
+
+func getUserConcurrencyVersionKey(userId int) string {
+	return fmt.Sprintf("concurrency:user:version:%d", userId)
+}
+
 func getUserAuthFenceKey(userId int) string {
 	return fmt.Sprintf("auth:user:fence:%d", userId)
 }
@@ -47,6 +53,7 @@ func writeUserCache(user *UserBase, includeQuota bool) error {
 		return nil
 	}
 	user.CacheSchema = userCacheSchemaVersion
+	user.ConcurrencyVersion = max(user.ConcurrencyVersion, 1)
 	if user.AuthVersion <= 0 {
 		return fmt.Errorf("invalid user auth version")
 	}
@@ -63,6 +70,17 @@ local current = tonumber(redis.call('HGET', KEYS[1], 'AuthVersion') or '0')
 if pending > incoming or committed > incoming or current > incoming then
   return 0
 end
+local concurrencyIncoming = tonumber(ARGV[14])
+local concurrencyCommitted = tonumber(redis.call('GET', KEYS[4]) or '0')
+local concurrencyCurrent = tonumber(redis.call('HGET', KEYS[1], 'ConcurrencyVersion') or '0')
+if concurrencyIncoming < concurrencyCommitted or concurrencyIncoming < concurrencyCurrent then
+  return -1
+end
+-- Keep the floor beyond user-hash expiry: arbitrarily delayed profile fills
+-- must never restore an older limit, including a previous unlimited value.
+if concurrencyCommitted < concurrencyIncoming then
+  redis.call('SET', KEYS[4], ARGV[14])
+end
 if committed < incoming then
   redis.call('SET', KEYS[3], ARGV[1])
 end
@@ -75,22 +93,27 @@ end
 redis.call('HSET', KEYS[1],
   'Id', ARGV[2], 'Group', ARGV[3], 'Email', ARGV[4],
   'Status', ARGV[5], 'Role', ARGV[6], 'Username', ARGV[7],
-  'Setting', ARGV[8], 'AuthVersion', ARGV[1], 'CacheSchema', ARGV[9])
+  'Setting', ARGV[8], 'AuthVersion', ARGV[1], 'CacheSchema', ARGV[9],
+  'MaxConcurrency', ARGV[13], 'ConcurrencyVersion', ARGV[14])
 if ARGV[10] == '1' and redis.call('HEXISTS', KEYS[1], 'Quota') == 0 then
   redis.call('HSET', KEYS[1], 'Quota', ARGV[11])
 end
 redis.call('EXPIRE', KEYS[1], ARGV[12])
 return 1`
 	result, err := common.RDB.Eval(context.Background(), script,
-		[]string{getUserCacheKey(user.Id), getUserAuthFenceKey(user.Id), getUserAuthVersionKey(user.Id)},
+		[]string{getUserCacheKey(user.Id), getUserAuthFenceKey(user.Id), getUserAuthVersionKey(user.Id), getUserConcurrencyVersionKey(user.Id)},
 		user.AuthVersion, user.Id, user.Group, user.Email, user.Status, user.Role,
 		user.Username, user.Setting, user.CacheSchema, includeQuotaArg, user.Quota, ttl,
+		user.MaxConcurrency, user.ConcurrencyVersion,
 	).Int()
 	if err != nil {
 		return err
 	}
 	if result == 0 {
 		return ErrUserAuthCachePending
+	}
+	if result == -1 {
+		return ErrUserConcurrencyCachePending
 	}
 	return nil
 }
