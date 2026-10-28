@@ -852,6 +852,9 @@ func SumExternalSelfStat(startTimestamp int64, endTimestamp int64, userId int, u
 		common.SysError("failed to query self external billing stat: " + err.Error())
 		return nil, errors.New("查询外部渠道统计数据失败")
 	}
+	// Scan only populates the selected aggregate columns and clears the rest, so
+	// restore the display name after the query.
+	row.Username = username
 	return row, nil
 }
 
