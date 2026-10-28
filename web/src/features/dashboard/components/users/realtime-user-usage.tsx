@@ -159,7 +159,7 @@ function chartSpec(
       },
     ],
     xField: 'Time',
-    yField: 'Requests',
+    yField: 'Tokens',
     title: { visible: true, text: title },
     axes: [
       { orient: 'bottom', type: 'band' },
