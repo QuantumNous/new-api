@@ -120,8 +120,9 @@ export function UsersMutateDrawer({
   // routine edits of an administrator do not require step-up verification.
   const loadedPermissions = useRef<AdminPermissionMatrix | undefined>(undefined)
 
-  // An unchanged limit is omitted so unrelated edits cannot overwrite a newer value.
-  const loadedMaxConcurrency = useRef(0)
+  // Preserve explicit edits, including returning to the loaded value; untouched
+  // limits are omitted so unrelated edits cannot overwrite a newer setting.
+  const maxConcurrencyEdited = useRef(false)
 
   // Fetch groups
   const { data: groupsData } = useQuery({
@@ -152,7 +153,7 @@ export function UsersMutateDrawer({
         .then((result) => {
           if (result.success && result.data) {
             loadedPermissions.current = result.data.admin_permissions
-            loadedMaxConcurrency.current = result.data.max_concurrency ?? 0
+            maxConcurrencyEdited.current = false
             form.reset(transformUserToFormDefaults(result.data))
           } else {
             handleServerError(result, t('Failed to load'))
@@ -161,6 +162,7 @@ export function UsersMutateDrawer({
         .catch((error) => handleServerError(error, t('Failed to load')))
     } else if (open && !isUpdate) {
       // For create, reset to defaults
+      maxConcurrencyEdited.current = false
       form.reset(USER_FORM_DEFAULT_VALUES)
     }
   }, [open, isUpdate, currentRow, form, t])
@@ -192,10 +194,7 @@ export function UsersMutateDrawer({
         currentRow?.id,
         permissionCatalog
       )
-      if (
-        isUpdate &&
-        payload.max_concurrency === loadedMaxConcurrency.current
-      ) {
+      if (isUpdate && !maxConcurrencyEdited.current) {
         delete payload.max_concurrency
       }
       if (
@@ -274,7 +273,7 @@ export function UsersMutateDrawer({
       const result = requireServerSuccess(await getUser(currentRow.id))
       if (result.success && result.data) {
         loadedPermissions.current = result.data.admin_permissions
-        loadedMaxConcurrency.current = result.data.max_concurrency ?? 0
+        maxConcurrencyEdited.current = false
         form.reset(transformUserToFormDefaults(result.data))
       }
       triggerRefresh()
@@ -443,6 +442,7 @@ export function UsersMutateDrawer({
                             isUpdate ? undefined : t('Use the new user default')
                           }
                           onChange={(event) => {
+                            maxConcurrencyEdited.current = true
                             const value = event.target.valueAsNumber
                             field.onChange(
                               Number.isNaN(value) && !isUpdate
