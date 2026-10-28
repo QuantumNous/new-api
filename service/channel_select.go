@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -117,6 +118,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 	filters := GetChannelConstraints(param.Ctx).Filters
+	excludeChannelIds := attemptedChannelIds(param.Ctx)
 
 	if param.TokenGroup == "auto" {
 		autoGroups := GetRequestAutoGroups(param.Ctx, userGroup)
@@ -139,7 +141,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			autoGroup := autoGroups[i]
 			// Calculate priorityRetry for current group
 			// 计算当前分组的 priorityRetry
-			priorityRetry := param.GetRetry()
+			priorityRetry := priorityTierStartIndex(param)
 			// If moved to a new group, reset priorityRetry and update startRetryIndex
 			// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
 			if i > startGroupIndex {
@@ -152,6 +154,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 				param.ModelName,
 				priorityRetry,
 				filters,
+				excludeChannelIds,
 			)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
@@ -193,8 +196,9 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		channel, err = model.GetRandomSatisfiedChannel(
 			param.TokenGroup,
 			param.ModelName,
-			param.GetRetry(),
+			priorityTierStartIndex(param),
 			filters,
+			excludeChannelIds,
 		)
 		if err != nil {
 			return nil, param.TokenGroup, err
@@ -337,6 +341,12 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 					MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 				}
 			}
+			if affinityUsable {
+				// Session affinity supplied attempt 0 without walking the
+				// priority ladder; priorityTierStartIndex relies on this to
+				// restart retries from the highest priority tier.
+				common.SetContextKey(c, constant.ContextKeyChannelAffinityAttempted, true)
+			}
 			if !affinityUsable && !ShouldKeepChannelAffinityOnChannelDisabled() {
 				ClearCurrentChannelAffinityCache(c)
 			}
@@ -383,6 +393,35 @@ func pinnedChannelUnavailable(pin dto.ChannelPin, statusCode int, messageID stri
 		return &ChannelSelectError{StatusCode: http.StatusBadRequest, Code: "origin_task_channel_disabled", Message: "origin_task_channel_disabled"}
 	}
 	return &ChannelSelectError{StatusCode: statusCode, MessageID: messageID}
+}
+
+// priorityTierStartIndex maps the request's retry counter to the priority
+// tier index a fresh selection should start from. A session-affinity attempt
+// bypasses the priority ladder without consuming a tier, so the first retry
+// after a failed affinity channel starts from the highest priority again
+// instead of tier index 1.
+func priorityTierStartIndex(param *RetryParam) int {
+	tier := param.GetRetry()
+	if tier > 0 && common.GetContextKeyBool(param.Ctx, constant.ContextKeyChannelAffinityAttempted) {
+		tier--
+	}
+	return tier
+}
+
+// attemptedChannelIds returns the channel IDs already tried in this request,
+// as recorded in the use_channel trail by AppendUsedChannel.
+func attemptedChannelIds(c *gin.Context) []int {
+	trail := c.GetStringSlice("use_channel")
+	if len(trail) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(trail))
+	for _, entry := range trail {
+		if id, err := strconv.Atoi(entry); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 // AppendUsedChannel records an attempted channel in the request's channel

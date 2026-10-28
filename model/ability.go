@@ -110,6 +110,7 @@ func GetChannel(
 	model string,
 	retry int,
 	filters []dto.ChannelFilter,
+	excludeChannelIds []int,
 ) (*Channel, error) {
 	var abilities []Ability
 	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).Order("priority DESC, weight DESC").Find(&abilities).Error
@@ -125,6 +126,22 @@ func GetChannel(
 			return nil, err
 		}
 		abilities = filterAbilitiesByConstraints(abilities, model, filters)
+	}
+	// Prefer channels this request has not attempted yet, so a retry walks
+	// fresh channels first. When every eligible channel was already tried
+	// (for example a single channel with a transient failure), fall back to
+	// the full pool instead of failing the request.
+	if len(excludeChannelIds) > 0 {
+		excluded := make(map[int]bool, len(excludeChannelIds))
+		for _, channelId := range excludeChannelIds {
+			excluded[channelId] = true
+		}
+		keptAbilities := lo.Filter(abilities, func(ability Ability, _ int) bool {
+			return !excluded[ability.ChannelId]
+		})
+		if len(keptAbilities) > 0 {
+			abilities = keptAbilities
+		}
 	}
 	if len(abilities) > 0 {
 		priorities := make([]int64, 0)
@@ -143,10 +160,20 @@ func GetChannel(
 		if retry >= len(priorities) {
 			retry = len(priorities) - 1
 		}
-		targetPriority := priorities[retry]
-		abilities = lo.Filter(abilities, func(ability Ability, _ int) bool {
-			return ability.Priority == nil && targetPriority == 0 || ability.Priority != nil && *ability.Priority == targetPriority
-		})
+		// Walk from the retry tier downwards and pick the first tier that
+		// still has candidates, so tiers exhausted by this request are
+		// skipped instead of failing or re-rolling an already tried channel.
+		for idx := retry; idx < len(priorities); idx++ {
+			targetPriority := priorities[idx]
+			targetAbilities := lo.Filter(abilities, func(ability Ability, _ int) bool {
+				return ability.Priority == nil && targetPriority == 0 || ability.Priority != nil && *ability.Priority == targetPriority
+			})
+			if len(targetAbilities) == 0 {
+				continue
+			}
+			abilities = targetAbilities
+			break
+		}
 	}
 	channel := Channel{}
 	if len(abilities) > 0 {

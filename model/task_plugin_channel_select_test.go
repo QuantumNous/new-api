@@ -28,22 +28,22 @@ func TestTaskPluginChannelSelectionFiltersBothCachePaths(t *testing.T) {
 		require.NoError(t, channels[i].Insert())
 	}
 
-	selected, err := GetChannel("default", "shared", 0, identityFilters("alpha", nil))
+	selected, err := GetChannel("default", "shared", 0, identityFilters("alpha", nil), nil)
 	require.NoError(t, err)
 	require.NotNil(t, selected)
 	assert.Equal(t, "alpha", selected.Name)
-	selected, err = GetChannel("default", "shared", 0, identityFilters("", nil))
+	selected, err = GetChannel("default", "shared", 0, identityFilters("", nil), nil)
 	require.NoError(t, err)
 	assert.Nil(t, selected)
-	selected, err = GetChannel("default", "ordinary", 0, identityFilters("", nil))
+	selected, err = GetChannel("default", "ordinary", 0, identityFilters("", nil), nil)
 	require.NoError(t, err)
 	require.NotNil(t, selected)
 	assert.Equal(t, "ordinary", selected.Name)
-	selected, err = GetChannel("default", "legacy", 0, identityFilters("legacy-alpha", []int{constant.ChannelTypeKling}))
+	selected, err = GetChannel("default", "legacy", 0, identityFilters("legacy-alpha", []int{constant.ChannelTypeKling}), nil)
 	require.NoError(t, err)
 	require.NotNil(t, selected)
 	assert.Equal(t, "legacy-alpha", selected.Name)
-	selected, err = GetChannel("default", "legacy", 0, identityFilters("legacy-alpha", []int{constant.ChannelTypeKling, constant.ChannelTypeJimeng}))
+	selected, err = GetChannel("default", "legacy", 0, identityFilters("legacy-alpha", []int{constant.ChannelTypeKling, constant.ChannelTypeJimeng}), nil)
 	require.NoError(t, err)
 	require.NotNil(t, selected)
 	assert.Contains(t, []string{"legacy-alpha", "legacy-beta"}, selected.Name)
@@ -96,23 +96,23 @@ func TestNewAPIChannelServesExtendedTaskPlugins(t *testing.T) {
 		require.NoError(t, channels[i].Insert())
 	}
 
-	selected, err := GetChannel("default", "shared", 0, identityFilters("alpha", nil))
+	selected, err := GetChannel("default", "shared", 0, identityFilters("alpha", nil), nil)
 	require.NoError(t, err)
 	require.NotNil(t, selected)
 	assert.Equal(t, "gateway", selected.Name)
-	selected, err = GetChannel("default", "shared", 0, identityFilters("delta", nil))
+	selected, err = GetChannel("default", "shared", 0, identityFilters("delta", nil), nil)
 	require.NoError(t, err)
 	require.NotNil(t, selected)
 	assert.Equal(t, "gateway-single", selected.Name, "a single task_plugin_key still binds a New API channel")
-	selected, err = GetChannel("default", "shared", 0, identityFilters("beta", nil))
+	selected, err = GetChannel("default", "shared", 0, identityFilters("beta", nil), nil)
 	require.NoError(t, err)
 	assert.Nil(t, selected, "unbound plugins never reach the gateway channel")
 	shared := []dto.ChannelFilter{{Kind: dto.FilterTaskPluginIdentity, TaskPluginKey: "beta", TaskPluginKeys: []string{"beta", "gamma"}}}
-	selected, err = GetChannel("default", "shared", 0, shared)
+	selected, err = GetChannel("default", "shared", 0, shared, nil)
 	require.NoError(t, err)
 	require.NotNil(t, selected)
 	assert.Equal(t, "gateway", selected.Name, "a bound shared-model candidate admits the channel")
-	selected, err = GetChannel("default", "chat", 0, identityFilters("", nil))
+	selected, err = GetChannel("default", "chat", 0, identityFilters("", nil), nil)
 	require.NoError(t, err)
 	require.NotNil(t, selected)
 	assert.Equal(t, "gateway", selected.Name, "requests without a pinned plugin keep using the gateway")
@@ -128,12 +128,49 @@ func TestModelModifierNamesRouteWithAndWithoutMemoryCache(t *testing.T) {
 	for _, memoryCache := range []bool{false, true} {
 		common.MemoryCacheEnabled = memoryCache
 		InitChannelCache()
-		selected, err := GetRandomSatisfiedChannel("default", "deepseek-flash@effort:max", 0, nil)
+		selected, err := GetRandomSatisfiedChannel("default", "deepseek-flash@effort:max", 0, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, selected, "memory cache %v", memoryCache)
 		assert.Equal(t, "deepseek", selected.Name)
-		selected, err = GetRandomSatisfiedChannel("default", "deepseek-pro@effort:max", 0, nil)
+		selected, err = GetRandomSatisfiedChannel("default", "deepseek-pro@effort:max", 0, nil, nil)
 		require.NoError(t, err)
 		assert.Nil(t, selected, "memory cache %v", memoryCache)
 	}
+}
+
+// TestGetChannelSkipsTriedChannelsAndExhaustedTiers covers the database path
+// of issue #8063: a retry must not reselect a channel this request already
+// attempted and must fall through tiers emptied by that exclusion; once every
+// channel is tried the pool is retried instead of failing the request.
+func TestGetChannelSkipsTriedChannelsAndExhaustedTiers(t *testing.T) {
+	truncateTables(t)
+	p4 := int64(4)
+	p3 := int64(3)
+	w3 := uint(3)
+	w1 := uint(1)
+	for _, ch := range []Channel{
+		{Id: 910024, Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Name: "p4-a", Models: "tier-model", Group: "default", Priority: &p4, Weight: &w3},
+		{Id: 910026, Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Name: "p4-b", Models: "tier-model", Group: "default", Priority: &p4, Weight: &w3},
+		{Id: 910028, Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Name: "p4-c", Models: "tier-model", Group: "default", Priority: &p4, Weight: &w3},
+		{Id: 910025, Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Name: "p3-a", Models: "tier-model", Group: "default", Priority: &p3, Weight: &w1},
+		{Id: 910027, Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Name: "p3-b", Models: "tier-model", Group: "default", Priority: &p3, Weight: &w1},
+		{Id: 910029, Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Name: "p3-c", Models: "tier-model", Group: "default", Priority: &p3, Weight: &w1},
+	} {
+		require.NoError(t, ch.Insert())
+	}
+
+	selected, err := GetChannel("default", "tier-model", 0, nil, []int{910024, 910026, 910028})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.EqualValues(t, p3, *selected.Priority, "excluded top-tier channels must not be reselected; fall through to the next tier")
+
+	selected, err = GetChannel("default", "tier-model", 5, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.EqualValues(t, p3, *selected.Priority, "a retry index past the tier count still clamps to the lowest tier")
+
+	selected, err = GetChannel("default", "tier-model", 0, nil, []int{910024, 910026, 910028, 910025, 910027, 910029})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Contains(t, []int64{p4, p3}, *selected.Priority, "with every channel tried the pool is retried instead of failing the request")
 }

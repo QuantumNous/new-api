@@ -39,6 +39,10 @@ const (
 	ContextKeyChannelIsMultiKey        ContextKey = "channel_is_multi_key"
 	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
 	ContextKeyChannelKey               ContextKey = "channel_key"
+	// ContextKeyChannelAffinityAttempted marks that the request's first
+	// attempt was served by session affinity, which bypasses the priority
+	// ladder; retry selection then starts from the highest priority again.
+	ContextKeyChannelAffinityAttempted ContextKey = "channel_affinity_attempted"
 
 	// ContextKeyUpstreamRequestOrigin is the scheme and host of the last upstream
 	// request, which differs from the base URL for absolute Advanced Custom routes
