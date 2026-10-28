@@ -31,6 +31,21 @@ export const USD_PRICING_CURRENCY: PricingCurrency = {
   exchangeRate: 1,
 }
 
+export function suggestedCurrencyForModel(
+  modelName: string,
+  vendorName = ''
+): 'USD' | 'CNY' {
+  const overseasModel =
+    /(?:^|[-_/])(?:gpt|claude|gemini|grok|llama|mistral|sora|veo|whisper|dall[-_]?e)(?:[-_./]|$)/i
+  const domesticVendor =
+    /(?:alibaba|aliyun|qwen|volc|bytedance|doubao|zhipu|bigmodel|moonshot|kimi|tencent|hunyuan|baidu|deepseek|minimax|百炼|阿里|火山|豆包|智谱|月之暗面|腾讯|百度|深度求索)/i
+  const domesticModel =
+    /(?:^|[-_/])(?:qwen|qwq|wan|doubao|seedream|seedance|deepseek|glm|kimi|minimax|hunyuan|ernie|happyhorse)(?:[-_./]|$)/i
+  if (overseasModel.test(modelName)) return 'USD'
+  if (domesticModel.test(modelName)) return 'CNY'
+  return domesticVendor.test(vendorName) ? 'CNY' : 'USD'
+}
+
 export function getSitePricingCurrency(
   config: CurrencyConfig
 ): PricingCurrency | null {

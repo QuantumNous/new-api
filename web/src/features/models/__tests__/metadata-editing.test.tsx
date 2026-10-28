@@ -38,7 +38,36 @@ import { DataTableRowActions } from '../components/data-table-row-actions'
 import { ModelMutateDrawer } from '../components/drawers/model-mutate-drawer'
 import { ModelsDialogs } from '../components/models-dialogs'
 import { ModelsProvider } from '../components/models-provider'
+import {
+  inferModelPricingKind,
+  transformFormDataToModelPayload,
+  transformModelToFormDefaults,
+} from '../lib/model-form'
 import type { Model } from '../types'
+
+it.each([
+  ['happyhorse-1.1-i2v', 'video-gen', ['video']],
+  ['whisper-1', 'audio-in', ['audio', 'asr']],
+  ['tts-1', 'audio-out', ['audio', 'tts']],
+  ['qwen3-embedding', 'embedding', ['embedding']],
+  ['qwen-vl-plus', 'multimodal-chat', ['chat', 'vision']],
+  ['claude-sonnet-4', 'chat', ['chat']],
+] as const)('infers %s as %s', (name, kind, tags) => {
+  expect(inferModelPricingKind(name)).toEqual({ kind, tags })
+})
+
+it('preserves a legacy model type when pricing kind is still chat', () => {
+  const values = transformModelToFormDefaults({
+    ...model,
+    model_type: 'file',
+    pricing_kind: 'chat',
+  })
+  expect(values.model_type).toBe('file')
+  expect(transformFormDataToModelPayload(values)).toMatchObject({
+    model_type: 'file',
+    pricing_kind: 'chat',
+  })
+})
 
 const model = {
   id: 7,
@@ -76,6 +105,80 @@ function renderModelActions(currentModel: Model = model, role = 100) {
 }
 
 describe('model pricing entry', () => {
+  it('selecting a model type updates its default billing schema', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/models/7') {
+        return { data: { success: true, data: model } }
+      }
+      return { data: { success: true, data: { items: [] } } }
+    })
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    const client = renderModelActions()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Model type' })
+    )
+    await user.click(await screen.findByRole('option', { name: 'Video' }))
+    expect(
+      screen.getByRole('combobox', { name: 'Billing schema' })
+    ).toHaveValue('Video generation')
+    await user.click(screen.getByRole('button', { name: 'Save metadata' }))
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith(
+        '/api/models/',
+        expect.objectContaining({
+          model_type: 'video',
+          pricing_kind: 'video-gen',
+        }),
+        { skipBusinessError: true, skipErrorHandler: true }
+      )
+    )
+    client.clear()
+  })
+  it('suggests image metadata and saves the selected billing kind', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, data: { items: [] } },
+    })
+    const post = vi.spyOn(api, 'post').mockResolvedValue({
+      data: { success: true, data: { ...model, id: 9 } },
+    })
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <ModelMutateDrawer open onOpenChange={() => {}} />
+      </QueryClientProvider>
+    )
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Model Name *'), 'doubao-seedream-4')
+    expect(screen.getByText(/Suggested tags/)).toHaveTextContent('image')
+    fireEvent.blur(screen.getByLabelText('Model Name *'))
+    expect(screen.getByText('image')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Apply suggestions' }))
+    expect(
+      screen.getByRole('combobox', { name: 'Billing schema' })
+    ).toHaveValue('Image generation')
+    await user.click(screen.getByRole('button', { name: 'Save metadata' }))
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/api/models/',
+        expect.objectContaining({
+          model_type: 'image',
+          pricing_kind: 'image-gen',
+          tags: 'image',
+        }),
+        { skipBusinessError: true, skipErrorHandler: true }
+      )
+    )
+    client.clear()
+  })
   it('saves pricing and opens connections for a channel model without creating metadata', async () => {
     const channelModel = { ...model, id: 0, model_name: 'channel-only' }
     let storedPrice = 1.5

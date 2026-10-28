@@ -21,6 +21,65 @@ import { z } from 'zod'
 import type { Model } from '../types'
 import { parseModelTags as parseTagsFromUtils } from './model-utils'
 
+export const PRICING_KINDS = [
+  'chat',
+  'multimodal-chat',
+  'image-gen',
+  'video-gen',
+  'audio-in',
+  'audio-out',
+  'embedding',
+] as const
+
+export type PricingKind = (typeof PRICING_KINDS)[number]
+
+export function inferModelPricingKind(name: string): {
+  kind: PricingKind
+  tags: string[]
+} {
+  const normalized = name.trim().toLowerCase()
+  if (!normalized) return { kind: 'chat', tags: [] }
+  if (
+    /seedream|dall[-_]?e|gpt-image|flux|midjourney|stable-diffusion|qwen-image/.test(
+      normalized
+    )
+  ) {
+    return { kind: 'image-gen', tags: ['image'] }
+  }
+  if (
+    /seedance|sora|kling|veo|happyhorse|(?:^|[-_])(?:i2v|t2v|r2v)(?:[-_]|$)/.test(
+      normalized
+    )
+  ) {
+    return { kind: 'video-gen', tags: ['video'] }
+  }
+  if (/whisper|transcri|(?:^|[-_])asr(?:[-_]|$)/.test(normalized)) {
+    return { kind: 'audio-in', tags: ['audio', 'asr'] }
+  }
+  if (/^tts(?:[-_]|$)|text[-_]?to[-_]?speech|seed[-_]?tts/.test(normalized)) {
+    return { kind: 'audio-out', tags: ['audio', 'tts'] }
+  }
+  if (/embedding|embed(?:[-_]|$)|rerank|(?:^|[-_])bge[-_]/.test(normalized)) {
+    return { kind: 'embedding', tags: ['embedding'] }
+  }
+  if (
+    /gpt-4o|vision|(?:^|[-_])vl(?:[-_]|$)|glm-4v|multimodal/.test(normalized)
+  ) {
+    return { kind: 'multimodal-chat', tags: ['chat', 'vision'] }
+  }
+  return { kind: 'chat', tags: ['chat'] }
+}
+
+export function modelTypeForPricingKind(
+  kind: PricingKind
+): NonNullable<Model['model_type']> {
+  if (kind === 'image-gen') return 'image'
+  if (kind === 'video-gen') return 'video'
+  if (kind === 'audio-in' || kind === 'audio-out') return 'audio'
+  if (kind === 'embedding') return 'embedding'
+  return 'text'
+}
+
 // ============================================================================
 // Model Form Schema
 // ============================================================================
@@ -34,6 +93,10 @@ export const modelFormSchema = z.object({
   description: z.string().default(''),
   icon: z.string().default(''),
   tags: z.array(z.string()).default([]),
+  model_type: z
+    .enum(['text', 'embedding', 'image', 'file', 'audio', 'video'])
+    .default('text'),
+  pricing_kind: z.enum(PRICING_KINDS).default('chat'),
   vendor_id: z.number(),
   endpoints: z.string().default(''),
   name_rule: z.number().min(0).max(3).default(0),
@@ -50,6 +113,8 @@ export const MODEL_FORM_DEFAULT_VALUES: ModelFormValues = {
   description: '',
   icon: '',
   tags: [],
+  model_type: 'text',
+  pricing_kind: 'chat',
   vendor_id: 0,
   endpoints: '',
   name_rule: 0,
@@ -91,6 +156,12 @@ export function transformModelToFormDefaults(model: Model): ModelFormValues {
     description: model.description || '',
     icon: model.icon || '',
     tags: parseTagsFromUtils(model.tags),
+    model_type:
+      model.model_type ??
+      modelTypeForPricingKind(inferModelPricingKind(model.model_name).kind),
+    pricing_kind: PRICING_KINDS.includes(model.pricing_kind as PricingKind)
+      ? (model.pricing_kind as PricingKind)
+      : inferModelPricingKind(model.model_name).kind,
     vendor_id: model.vendor_id ?? 0,
     endpoints: model.endpoints || '',
     name_rule: model.name_rule || 0,
@@ -113,6 +184,8 @@ export function transformFormDataToModelPayload(
     description: formData.description || '',
     icon: formData.icon || '',
     tags: formatTagsArray(formData.tags),
+    pricing_kind: formData.pricing_kind,
+    model_type: formData.model_type,
     vendor_id: formData.vendor_id,
     endpoints: formData.endpoints || '',
     name_rule: formData.name_rule,

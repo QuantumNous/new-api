@@ -48,12 +48,15 @@ import {
 import {
   getSitePricingCurrency,
   isValidPricingCurrency,
+  suggestedCurrencyForModel,
   USD_PRICING_CURRENCY,
 } from './currency'
 import { modelPricingDisplay, pricingFromDraft, pricingRow } from './pricing'
 
 export function ModelPricingPanel(props: {
   modelName: string
+  pricingKind?: string
+  vendorName?: string
   onDirtyChange?: (dirty: boolean) => void
 }) {
   const { t } = useTranslation()
@@ -75,8 +78,19 @@ export function ModelPricingPanel(props: {
       values['billing_setting.billing_expr'] =
         entry.effective['billing_setting.billing_expr']
     }
-    return pricingRow(entry.model_name, values)
-  }, [entry])
+    const row = pricingRow(entry.model_name, values)
+    if (
+      props.pricingKind === 'image-gen' &&
+      Object.keys(entry.configured).length === 0
+    ) {
+      return {
+        ...row,
+        billingMode: 'tiered_expr' as const,
+        billingExpr: 'tier("image", fixed(0)) * image_count',
+      }
+    }
+    return row
+  }, [entry, props.pricingKind])
 
   useEffect(() => {
     const loaded = query.data?.entries.find(
@@ -164,6 +178,11 @@ export function ModelPricingPanel(props: {
         ref={editor}
         editData={editData}
         usageSchema={entry.usage_schema}
+        pricingKind={props.pricingKind}
+        preferredCurrency={suggestedCurrencyForModel(
+          props.modelName,
+          props.vendorName
+        )}
         pluginVariants={entry.plugin_variants}
         onDirtyChange={props.onDirtyChange}
         onSave={() => persist()}

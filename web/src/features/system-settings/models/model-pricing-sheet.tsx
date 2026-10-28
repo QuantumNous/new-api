@@ -123,6 +123,8 @@ type ModelPricingSheetProps = {
   onSave?: () => void | Promise<void>
   isSaving?: boolean
   usageSchema?: BillingUsageSchema
+  pricingKind?: string
+  preferredCurrency?: 'USD' | 'CNY'
   pluginVariants?: ModelPricingPluginVariant[]
   onDirtyChange?: (dirty: boolean) => void
 }
@@ -153,6 +155,8 @@ export const ModelPricingSheet = forwardRef<
     onSave,
     isSaving,
     usageSchema,
+    pricingKind,
+    preferredCurrency,
     pluginVariants,
     onDirtyChange,
   },
@@ -176,6 +180,8 @@ export const ModelPricingSheet = forwardRef<
           ref={ref}
           editData={editData}
           usageSchema={usageSchema}
+          pricingKind={pricingKind}
+          preferredCurrency={preferredCurrency}
           pluginVariants={pluginVariants}
           onDirtyChange={onDirtyChange}
           onSave={onSave}
@@ -197,6 +203,8 @@ export const ModelPricingEditorPanel = forwardRef<
     onSave,
     isSaving,
     usageSchema,
+    pricingKind,
+    preferredCurrency,
     pluginVariants,
     onDirtyChange,
     embedded = false,
@@ -209,9 +217,24 @@ export const ModelPricingEditorPanel = forwardRef<
   const formElementRef = useRef<HTMLFormElement>(null)
   const currencyConfig = useSystemConfigStore((state) => state.config.currency)
   const preference = usePricingPreferencesStore((state) => state.currency)
+  const setCurrencyPreference = usePricingPreferencesStore(
+    (state) => state.setCurrency
+  )
+  useEffect(() => {
+    if (preferredCurrency) {
+      setCurrencyPreference(preferredCurrency === 'CNY' ? 'site' : 'USD')
+    }
+  }, [preferredCurrency, setCurrencyPreference, editData?.name])
   const siteCurrency = useMemo(
-    () => getSitePricingCurrency(currencyConfig),
-    [currencyConfig]
+    () =>
+      preferredCurrency === 'CNY'
+        ? {
+            label: 'CNY',
+            symbol: '¥',
+            exchangeRate: currencyConfig.usdExchangeRate,
+          }
+        : getSitePricingCurrency(currencyConfig),
+    [currencyConfig, preferredCurrency]
   )
   const currency =
     preference === 'site' && isValidPricingCurrency(siteCurrency)
@@ -261,9 +284,14 @@ export const ModelPricingEditorPanel = forwardRef<
   if (editData?.billingMode !== 'tiered_expr' && hasLegacyPricing) {
     initialPricingMode = hasValue(editData?.price) ? 'per-request' : 'per-token'
   }
-  const initialBillingExpr =
-    editData?.billingExpr ||
-    (initialPricingMode === 'tiered_expr' ? DEFAULT_TOKEN_BILLING_EXPR : '')
+  let defaultBillingExpr = ''
+  if (initialPricingMode === 'tiered_expr') {
+    defaultBillingExpr =
+      pricingKind === 'image-gen'
+        ? 'tier("image", fixed(0)) * image_count'
+        : DEFAULT_TOKEN_BILLING_EXPR
+  }
+  const initialBillingExpr = editData?.billingExpr || defaultBillingExpr
   const { models: pricingModels } = usePricingData()
 
   const form = useForm<ModelPricingFormValues>({
@@ -832,7 +860,8 @@ export const ModelPricingEditorPanel = forwardRef<
     setOrdinaryPricingModel(watchedValues.name)
     setPricingMode('tiered_expr')
     setBillingExpr(
-      taskUsageSchema?.image_count?.unit === 'count'
+      pricingKind === 'image-gen' ||
+        taskUsageSchema?.image_count?.unit === 'count'
         ? 'tier("image", fixed(0)) * image_count'
         : DEFAULT_TOKEN_BILLING_EXPR
     )
@@ -840,8 +869,13 @@ export const ModelPricingEditorPanel = forwardRef<
     setEditorReloadToken((token) => token + 1)
   }
 
-  const expressionEditor =
-    usesTaskPricing && taskUsageSchema ? (
+  const imageUnitPrice =
+    /^tier\("image", fixed\((\d+(?:\.\d+)?)\)\) \* image_count$/.exec(
+      billingExpr
+    )?.[1]
+  let expressionEditor
+  if (usesTaskPricing && taskUsageSchema) {
+    expressionEditor = (
       <TaskUsagePricingEditor
         currency={currency}
         key={`${editorReloadToken}:${watchedValues.name}`}
@@ -852,7 +886,27 @@ export const ModelPricingEditorPanel = forwardRef<
         onBillingExprChange={setBillingExpr}
         onRequestRuleExprChange={setRequestRuleExpr}
       />
-    ) : (
+    )
+  } else if (pricingKind === 'image-gen' && imageUnitPrice !== undefined) {
+    expressionEditor = (
+      <Field className='gap-2'>
+        <FieldLabel htmlFor={promptPriceId}>{t('Price per image')}</FieldLabel>
+        <PricingAmountInput
+          id={promptPriceId}
+          aria-label={t('Price per image')}
+          value={imageUnitPrice}
+          currency={currency}
+          onChange={(usd) =>
+            setBillingExpr(`tier("image", fixed(${usd || '0'})) * image_count`)
+          }
+        />
+        <p className='text-muted-foreground text-xs'>
+          {t('Charged per generated image using the actual image count.')}
+        </p>
+      </Field>
+    )
+  } else {
+    expressionEditor = (
       <TieredPricingEditor
         currency={currency}
         key={editorReloadToken}
@@ -863,6 +917,7 @@ export const ModelPricingEditorPanel = forwardRef<
         onRequestRuleExprChange={setRequestRuleExpr}
       />
     )
+  }
 
   const showActions = Boolean(onSave)
 
@@ -943,6 +998,21 @@ export const ModelPricingEditorPanel = forwardRef<
                 )}
 
                 <PricingCurrencySelector siteCurrency={siteCurrency} />
+
+                {['video-gen', 'audio-in', 'audio-out'].includes(
+                  pricingKind ?? ''
+                ) &&
+                  !Object.values(taskUsageSchema ?? {}).some(
+                    (field) => field.unit === 'second'
+                  ) && (
+                    <Alert>
+                      <AlertDescription>
+                        {t(
+                          'Duration pricing requires a task plugin that reports usage in seconds.'
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                 <TaskPluginPricingEditor
                   key={`${editorReloadToken}:${watchedValues.name}`}

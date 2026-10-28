@@ -48,10 +48,12 @@ import {
 } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { useModelPricing } from '@/features/model-pricing/api'
+import { suggestedCurrencyForModel } from '@/features/model-pricing/currency'
 import {
   applyPricingDraft,
   pricingOptions,
 } from '@/features/model-pricing/pricing'
+import { inferModelPricingKind } from '@/features/models/lib/model-form'
 import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { splitPluginBillingExprKey } from '@/features/pricing/lib/plugin-pricing'
 import { useMediaQuery } from '@/hooks'
@@ -154,6 +156,16 @@ const ModelRatioVisualEditorComponent = forwardRef<
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editData, setEditData] = useState<ModelRatioData | null>(null)
+  const selectedPricingModel = pricingModels.find(
+    (item) => item.model_name === editData?.name
+  )
+  const inferredPricingKind = inferModelPricingKind(editData?.name ?? '').kind
+  const preferredCurrency = editData
+    ? suggestedCurrencyForModel(
+        editData.name,
+        selectedPricingModel?.vendor_name
+      )
+    : undefined
   const pricingConfig = useModelPricing(
     editData?.name ? [editData.name] : [],
     Boolean(editData?.name)
@@ -749,6 +761,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
             <ModelPricingEditorPanel
               ref={editorPanelRef}
               editData={editData}
+              pricingKind={inferredPricingKind}
+              preferredCurrency={preferredCurrency}
               pluginVariants={
                 pricingConfig.data?.entries.find(
                   (entry) => entry.model_name === editData?.name
@@ -799,6 +813,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           editData={editData}
+          pricingKind={inferredPricingKind}
+          preferredCurrency={preferredCurrency}
           pluginVariants={
             pricingConfig.data?.entries.find(
               (entry) => entry.model_name === editData?.name

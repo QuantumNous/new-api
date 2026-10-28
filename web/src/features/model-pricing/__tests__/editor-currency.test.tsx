@@ -47,6 +47,17 @@ import {
 } from '@/stores/system-config-store'
 
 import { previewModelPricing } from '../api'
+import { suggestedCurrencyForModel } from '../currency'
+
+it.each([
+  ['doubao-seedream-4', '', 'CNY'],
+  ['custom-model', 'Alibaba', 'CNY'],
+  ['gpt-5', 'OpenAI', 'USD'],
+  ['gpt-5', 'Alibaba', 'USD'],
+  ['unknown-model', '', 'USD'],
+] as const)('suggests %s / %s pricing currency as %s', (name, vendor, want) => {
+  expect(suggestedCurrencyForModel(name, vendor)).toBe(want)
+})
 
 const clients: QueryClient[] = []
 
@@ -95,7 +106,8 @@ it('reads preview prices and billing metadata from the common data envelope', as
 
 function renderEditor(
   data: Partial<ModelRatioData> = {},
-  usageSchema?: BillingUsageSchema
+  usageSchema?: BillingUsageSchema,
+  modelOptions?: { pricingKind?: string; preferredCurrency?: 'USD' | 'CNY' }
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -116,6 +128,8 @@ function renderEditor(
           ...entry,
         }}
         usageSchema={usageSchema}
+        pricingKind={modelOptions?.pricingKind}
+        preferredCurrency={modelOptions?.preferredCurrency}
         onDirtyChange={dirty}
       />
     </QueryClientProvider>
@@ -128,6 +142,35 @@ function renderEditor(
     reload: (entry: Partial<ModelRatioData>) => result.rerender(view(entry)),
   }
 }
+
+it('starts an image model with a per-image expression and converts CNY input to USD', async () => {
+  const editor = renderEditor(
+    { name: 'doubao-seedream-4', billingMode: 'tiered_expr', billingExpr: '' },
+    undefined,
+    { pricingKind: 'image-gen', preferredCurrency: 'CNY' }
+  )
+  expect(
+    screen.getByRole('combobox', { name: 'Pricing currency' })
+  ).toHaveTextContent('CNY')
+  const imagePrice = screen.getByRole('textbox', { name: 'Price per image' })
+  fireEvent.change(imagePrice, { target: { value: '7' } })
+  const draft = await commit(editor.ref)
+  expect(draft?.billingExpr).toBe('tier("image", fixed(1)) * image_count')
+})
+
+it('does not present per-second pricing without a duration usage source', () => {
+  renderEditor(
+    { name: 'happyhorse-1.1-t2v', billingMode: 'tiered_expr' },
+    undefined,
+    { pricingKind: 'video-gen', preferredCurrency: 'CNY' }
+  )
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Duration pricing requires a task plugin that reports usage in seconds.'
+  )
+  expect(
+    screen.queryByRole('textbox', { name: 'Price per second' })
+  ).not.toBeInTheDocument()
+})
 
 async function selectCurrency(label: string) {
   const user = userEvent.setup()

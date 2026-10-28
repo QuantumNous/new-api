@@ -75,6 +75,9 @@ import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
 import {
   modelFormSchema,
+  inferModelPricingKind,
+  modelTypeForPricingKind,
+  PRICING_KINDS,
   MODEL_FORM_DEFAULT_VALUES,
   transformModelToFormDefaults,
   transformFormDataToModelPayload,
@@ -141,6 +144,7 @@ export function ModelMutateDrawer(props: {
     enabled: props.open && isEditing,
   })
   const savedModel = modelQuery.data ?? currentRow
+  const suggestedMetadata = inferModelPricingKind(form.watch('model_name'))
 
   useEffect(() => {
     if (!props.open) return
@@ -322,6 +326,39 @@ export function ModelMutateDrawer(props: {
                               <Input
                                 placeholder={t('gpt-4, claude-3-opus, etc.')}
                                 {...field}
+                                onBlur={() => {
+                                  field.onBlur()
+                                  if (
+                                    isEditing &&
+                                    field.value === currentRow?.model_name
+                                  ) {
+                                    return
+                                  }
+                                  if (form.getValues('tags')?.length) return
+                                  const inferred = inferModelPricingKind(
+                                    field.value
+                                  )
+                                  if (inferred.tags.length === 0) return
+                                  form.setValue('tags', inferred.tags, {
+                                    shouldDirty: true,
+                                  })
+                                  form.setValue(
+                                    'model_type',
+                                    modelTypeForPricingKind(inferred.kind),
+                                    {
+                                      shouldDirty: true,
+                                    }
+                                  )
+                                  if (
+                                    form.getValues('pricing_kind') === 'chat'
+                                  ) {
+                                    form.setValue(
+                                      'pricing_kind',
+                                      inferred.kind,
+                                      { shouldDirty: true }
+                                    )
+                                  }
+                                }}
                               />
                             </FormControl>
                             <FormDescription>
@@ -422,6 +459,147 @@ export function ModelMutateDrawer(props: {
                             </FormControl>
                             <FormDescription>
                               {t('Press Enter or comma to add tags')}
+                            </FormDescription>
+                            {suggestedMetadata.tags.length > 0 && (
+                              <div className='flex flex-wrap items-center gap-2 text-xs'>
+                                <span className='text-muted-foreground'>
+                                  {t('Suggested tags')}:{' '}
+                                  {suggestedMetadata.tags.join(', ')}
+                                </span>
+                                <Button
+                                  type='button'
+                                  size='sm'
+                                  variant='outline'
+                                  onClick={() => {
+                                    form.setValue(
+                                      'tags',
+                                      suggestedMetadata.tags,
+                                      { shouldDirty: true }
+                                    )
+                                    form.setValue(
+                                      'pricing_kind',
+                                      suggestedMetadata.kind,
+                                      { shouldDirty: true }
+                                    )
+                                    form.setValue(
+                                      'model_type',
+                                      modelTypeForPricingKind(
+                                        suggestedMetadata.kind
+                                      ),
+                                      {
+                                        shouldDirty: true,
+                                      }
+                                    )
+                                  }}
+                                >
+                                  {t('Apply suggestions')}
+                                </Button>
+                              </div>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='model_type'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Model type')}</FormLabel>
+                            <FormControl>
+                              <Combobox
+                                options={(
+                                  [
+                                    ['text', 'Text'],
+                                    ['image', 'Image'],
+                                    ['video', 'Video'],
+                                    ['audio', 'Audio'],
+                                    ['embedding', 'Embedding'],
+                                    ['file', 'File'],
+                                  ] as const
+                                ).map(([value, label]) => ({
+                                  value,
+                                  label: t(label),
+                                }))}
+                                value={field.value}
+                                onValueChange={(value: string | null) => {
+                                  if (!value) return
+                                  field.onChange(value)
+                                  const currentKind =
+                                    form.getValues('pricing_kind')
+                                  let kind = currentKind
+                                  if (value === 'image') {
+                                    kind = 'image-gen'
+                                  } else if (value === 'video') {
+                                    kind = 'video-gen'
+                                  } else if (value === 'embedding') {
+                                    kind = 'embedding'
+                                  } else if (
+                                    value === 'audio' &&
+                                    currentKind !== 'audio-out'
+                                  ) {
+                                    kind = 'audio-in'
+                                  } else if (
+                                    value === 'text' &&
+                                    currentKind !== 'multimodal-chat'
+                                  ) {
+                                    kind = 'chat'
+                                  }
+                                  form.setValue('pricing_kind', kind, {
+                                    shouldDirty: true,
+                                  })
+                                }}
+                                className='w-full'
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='pricing_kind'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Billing schema')}</FormLabel>
+                            <FormControl>
+                              <Combobox
+                                options={PRICING_KINDS.map((kind) => ({
+                                  value: kind,
+                                  label: t(
+                                    {
+                                      chat: 'Chat',
+                                      'multimodal-chat': 'Multimodal',
+                                      'image-gen': 'Image generation',
+                                      'video-gen': 'Video generation',
+                                      'audio-in': 'Audio input',
+                                      'audio-out': 'Audio output',
+                                      embedding: 'Embedding',
+                                    }[kind]
+                                  ),
+                                }))}
+                                value={field.value}
+                                onValueChange={(value: string | null) => {
+                                  const kind = PRICING_KINDS.find(
+                                    (item) => item === value
+                                  )
+                                  if (!kind) return
+                                  field.onChange(kind)
+                                  form.setValue(
+                                    'model_type',
+                                    modelTypeForPricingKind(kind),
+                                    {
+                                      shouldDirty: true,
+                                    }
+                                  )
+                                }}
+                                className='w-full'
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t('Choose how this model is billed.')}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -658,6 +836,12 @@ export function ModelMutateDrawer(props: {
               {(savedModel.name_rule === 0 || pricingName) && (
                 <ModelPricingPanel
                   onDirtyChange={setPricingDirty}
+                  pricingKind={
+                    savedModel.pricing_kind ??
+                    inferModelPricingKind(pricingName || savedModel.model_name)
+                      .kind
+                  }
+                  vendorName={selectedVendor?.name}
                   key={
                     savedModel.name_rule === 0
                       ? savedModel.model_name
