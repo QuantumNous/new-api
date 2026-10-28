@@ -311,15 +311,15 @@ func GetExternalBillingSelfStat(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// Scope by the authenticated user ID (not username) so a username rename
+	// or reuse cannot drop history or leak another accounts external totals.
+	userId := c.GetInt("id")
 	username := c.GetString("username")
-	rows, err := model.SumExternalByUser(startTimestamp, endTimestamp, username)
+	row, err := model.SumExternalSelfStat(startTimestamp, endTimestamp, userId, username)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	if rows == nil {
-		rows = []model.ExternalBillingRow{}
-	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": rows})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": []model.ExternalBillingRow{*row}})
 	return
 }

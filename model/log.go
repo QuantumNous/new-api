@@ -819,6 +819,42 @@ func SumExternalByUser(startTimestamp int64, endTimestamp int64, username string
 	return rows, nil
 }
 
+// SumExternalSelfStat returns the callers own external-channel consumption,
+// scoped by the authenticated user ID rather than the username. Filtering and
+// aggregating on logs.user_id (the authoritative identity) guarantees that a
+// username rename or reuse can neither drop history nor leak another
+// accounts totals; username is only echoed back for display.
+func SumExternalSelfStat(startTimestamp int64, endTimestamp int64, userId int, username string) (*ExternalBillingRow, error) {
+	// Resolve external channel ids through the main DB: LOG_DB may be a
+	// separate database (e.g. ClickHouse) without a channels table, so a
+	// cross-database JOIN would fail there.
+	var externalChannelIds []int64
+	if err := DB.Table("channels").Where("tag = ?", "external").Pluck("id", &externalChannelIds).Error; err != nil {
+		common.SysError("failed to resolve external channels: " + err.Error())
+		return nil, errors.New("查询外部渠道统计数据失败")
+	}
+	row := &ExternalBillingRow{Username: username}
+	if len(externalChannelIds) == 0 {
+		return row, nil
+	}
+	tx := LOG_DB.Table("logs").
+		Select("COALESCE(sum(prompt_tokens),0) prompt_tokens, COALESCE(sum(completion_tokens),0) completion_tokens, COALESCE(sum(prompt_tokens),0)+COALESCE(sum(completion_tokens),0) total_tokens, COALESCE(sum(quota),0) quota, count(DISTINCT model_name) model_count").
+		Where("logs.channel_id IN ?", externalChannelIds).
+		Where("logs.type = ?", LogTypeConsume).
+		Where("logs.user_id = ?", userId)
+	if startTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", endTimestamp)
+	}
+	if err := tx.Scan(row).Error; err != nil {
+		common.SysError("failed to query self external billing stat: " + err.Error())
+		return nil, errors.New("查询外部渠道统计数据失败")
+	}
+	return row, nil
+}
+
 func CountOldLog(ctx context.Context, targetTimestamp int64) (int64, error) {
 	var total int64
 	if err := LOG_DB.WithContext(ctx).Model(&Log{}).Where("created_at < ?", targetTimestamp).Count(&total).Error; err != nil {
