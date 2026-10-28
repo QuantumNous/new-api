@@ -392,12 +392,14 @@ export function Dashboard() {
           )}
           {activeSection === 'users' && (
             <FadeIn>
-              <Suspense fallback={<ModelChartsFallback />}>
-                <LazyUserCharts
-                  filters={userChartsFilters}
-                  onFiltersChange={setUserChartsFilters}
-                />
-              </Suspense>
+              <div className='space-y-5'>
+                <Suspense fallback={<ModelChartsFallback />}>
+                  <LazyUserCharts
+                    filters={userChartsFilters}
+                    onFiltersChange={setUserChartsFilters}
+                  />
+                </Suspense>
+              </div>
             </FadeIn>
           )}
           {activeSection === 'flow' && (
