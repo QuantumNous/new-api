@@ -36,11 +36,11 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   return (
     <div className='bg-muted/20 relative grid h-svh max-w-none overflow-hidden lg:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)]'>
       <div className='pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,color-mix(in_oklab,var(--primary)_16%,transparent),transparent_34%),radial-gradient(circle_at_88%_82%,color-mix(in_oklab,var(--chart-2)_14%,transparent),transparent_30%)]' />
-      <aside className='bg-foreground text-background relative hidden overflow-hidden p-12 lg:flex lg:flex-col lg:justify-between xl:p-16'>
-        <div className='absolute -top-24 -right-24 size-80 rounded-full border border-white/10 bg-white/5 blur-3xl' />
-        <div className='absolute right-16 bottom-16 size-52 rounded-full border border-white/10 bg-white/5 blur-2xl' />
+      <aside className='bg-background relative hidden overflow-hidden border-r p-12 lg:flex lg:flex-col lg:justify-between xl:p-16'>
+        <div className='bg-primary/8 absolute -top-24 -right-24 size-80 rounded-full border border-primary/10 blur-3xl' />
+        <div className='bg-chart-2/8 absolute right-16 bottom-16 size-52 rounded-full border border-chart-2/10 blur-2xl' />
         <div className='relative max-w-xl'>
-          <div className='mb-16 flex items-center gap-2 text-sm font-medium tracking-[0.18em] uppercase opacity-70'>
+          <div className='text-muted-foreground mb-16 flex items-center gap-2 text-sm font-medium tracking-[0.18em] uppercase'>
             <Sparkles className='size-4' />
             {t('Unified access')}
           </div>
@@ -49,15 +49,15 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           </p>
           <h2 className='max-w-lg text-5xl leading-[1.04] font-semibold tracking-[-0.04em] xl:text-6xl'>
             {t('Unified API Gateway for')}{' '}
-            <span className='text-primary-foreground/70'>{t('Secure & Reliable')}</span>
+            <span className='text-primary'>{t('Secure & Reliable')}</span>
           </h2>
-          <p className='mt-7 max-w-md text-base leading-7 text-white/65'>
+          <p className='text-muted-foreground mt-7 max-w-md text-base leading-7'>
             {t('One place to manage models, keys, usage, and access across your AI stack.')}
           </p>
-          <div className='mt-10 grid max-w-md gap-3 text-sm text-white/75'>
+          <div className='text-muted-foreground mt-10 grid max-w-md gap-3 text-sm'>
             {['Monitor usage in real time', 'Route requests across providers', 'Keep every team on one gateway'].map((item) => (
               <div key={item} className='flex items-center gap-3'>
-                <span className='flex size-6 items-center justify-center rounded-full border border-white/15 bg-white/10'>
+                <span className='bg-primary/8 text-primary border-primary/15 flex size-6 items-center justify-center rounded-full border'>
                   <Check className='size-3.5' />
                 </span>
                 {t(item)}
@@ -65,7 +65,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             ))}
           </div>
         </div>
-        <div className='relative flex items-center justify-between text-xs text-white/45'>
+        <div className='text-muted-foreground relative flex items-center justify-between text-xs'>
           <span>{t('Secure & Reliable')}</span>
           <ArrowUpRight className='size-4' />
         </div>
