@@ -71,15 +71,16 @@ func ResponsesResponseToClaudeMessagesResponse(resp *dto.OpenAIResponsesResponse
 	return claudeResponse, usage, nil
 }
 
-func responsesArgumentsToClaudeInput(arguments string) map[string]any {
-	input := make(map[string]any)
+func responsesArgumentsToClaudeInput(arguments string) map[string]json.RawMessage {
+	input := make(map[string]json.RawMessage)
 	if strings.TrimSpace(arguments) == "" {
 		return input
 	}
 	if err := kitutil.Unmarshal([]byte(arguments), &input); err == nil && input != nil {
 		return input
 	}
-	return map[string]any{"input": arguments}
+	raw, _ := kitutil.Marshal(arguments)
+	return map[string]json.RawMessage{"input": raw}
 }
 
 func responsesClaudeStopReason(resp *dto.OpenAIResponsesResponse, sawToolCall bool) string {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,7 +207,9 @@ func TestConvertResponseDirectAndMultiHopConverters(t *testing.T) {
 	assert.Equal(t, "text", claudeValue.Content[0].Type)
 	assert.Equal(t, "tool_use", claudeValue.Content[1].Type)
 	assert.Equal(t, "lookup", claudeValue.Content[1].Name)
-	assert.Equal(t, map[string]any{"q": "x"}, claudeValue.Content[1].Input)
+	inputJSON, err := kitutil.Marshal(claudeValue.Content[1].Input)
+	require.NoError(t, err)
+	assert.Equal(t, `{"q":"x"}`, string(inputJSON))
 	assert.Equal(t, 11, toClaude.Usage.TotalTokens)
 
 	toGemini, err := ConvertResponse(nil, &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}, types.RelayFormatGemini, responses)
@@ -798,6 +801,44 @@ func TestConvertResponseToResponsesRestoresRecordedCustomTools(t *testing.T) {
 				"response.custom_tool_call_input.done ls",
 				`response.output_item.done custom_tool_call "ls"`,
 			}, toolEvents)
+		})
+	}
+}
+
+func TestConvertResponsesToClaudePreservesToolArguments(t *testing.T) {
+	tests := []struct{ name, arguments, want string }{
+		{"large integer", `{"id":9007199254740993}`, `{"id":9007199254740993}`},
+		{"nested values", `{"nested":{"ids":[18446744073709551615],"value":0.123456789012345678901}}`, `{"nested":{"ids":[18446744073709551615],"value":0.123456789012345678901}}`},
+		{"small integer", `{"id":123}`, `{"id":123}`},
+		{"other values", `{"a":[true,null,"ok"]}`, `{"a":[true,null,"ok"]}`},
+		{"empty object", `{}`, `{}`},
+		{"empty arguments", ``, `{}`},
+		{"whitespace", `   `, `{}`},
+		{"null", `null`, `{"input":"null"}`},
+		{"array", `[]`, `{"input":"[]"}`},
+		{"number", `42`, `{"input":"42"}`},
+		{"invalid JSON", `{"id":`, `{"input":"{\"id\":"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			arguments, err := kitutil.Marshal(tt.arguments)
+			require.NoError(t, err)
+			response := &dto.OpenAIResponsesResponse{
+				ID: "resp_test", Status: []byte(`"completed"`),
+				Output: []dto.ResponsesOutput{{Type: "function_call", CallId: "call_test", Name: "lookup", Arguments: arguments}},
+			}
+			result, err := ConvertResponse(nil, nil, types.RelayFormatClaude, response)
+			require.NoError(t, err)
+			converted := result.Value.(*dto.ClaudeResponse)
+			require.Len(t, converted.Content, 1)
+			assert.Equal(t, "tool_use", converted.Content[0].Type)
+			assert.Equal(t, "call_test", converted.Content[0].Id)
+			assert.Equal(t, "lookup", converted.Content[0].Name)
+			inputJSON, err := kitutil.Marshal(converted.Content[0].Input)
+			require.NoError(t, err)
+			// Compare exact JSON: decoding through float64 would hide lost precision.
+			assert.Equal(t, tt.want, string(inputJSON))
+			assert.Equal(t, "tool_use", converted.StopReason)
 		})
 	}
 }
