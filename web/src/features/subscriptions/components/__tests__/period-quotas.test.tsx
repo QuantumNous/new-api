@@ -147,6 +147,7 @@ it.each([
   ['ja', ja],
   ['ru', ru],
   ['vi', viLocale],
+  ['invalid_locale', en],
 ] as const)(
   'shows remaining quota and Beijing reset times in %s',
   async (language, resource) => {
@@ -180,9 +181,9 @@ it.each([
     expect(
       daily.getByText(i18n.t('Remaining')).nextElementSibling
     ).toHaveTextContent(formatQuota(limit - used))
-    expect(
-      daily.getByText(i18n.t('Next reset')).nextElementSibling?.textContent
-    ).toMatch(/\b00:00\b/)
+    const reset = daily.getByText(i18n.t('Next reset')).nextElementSibling
+    expect(reset).toHaveTextContent(/\b00:00\b/)
+    expect(reset).toHaveTextContent(/\b(?:GMT|UTC)\+8\b/)
     expect(daily.getByRole('progressbar')).toHaveAttribute(
       'aria-valuenow',
       '40'
@@ -202,6 +203,40 @@ it.each([
     )
   }
 )
+
+it('keeps the Beijing timezone marker visible when the interface language changes', async () => {
+  const i18n = createInstance()
+  await i18n.use(initReactI18next).init({
+    lng: 'en',
+    fallbackLng: 'en',
+    resources: { en, fr },
+  })
+  const window = {
+    limit: 0,
+    used: 0,
+    reset_at: Date.parse('2026-11-01T16:00:00Z') / 1000,
+  }
+  render(
+    <I18nextProvider i18n={i18n}>
+      <SubscriptionQuotaSummary
+        windows={{ daily: window, weekly: window, monthly: window }}
+      />
+    </I18nextProvider>
+  )
+  const daily = screen.getByRole('group', { name: 'Daily quota limit' })
+  await userEvent.click(within(daily).getByRole('button'))
+  const reset = daily.querySelector('time')
+  expect(reset).toHaveTextContent(/\bGMT\+8\b/)
+
+  await act(async () => {
+    await i18n.changeLanguage('fr')
+  })
+
+  expect(within(daily).getByText(i18n.t('Next reset'))).toBeVisible()
+  expect(reset).toHaveTextContent(/\b00:00\b/)
+  expect(reset).toHaveTextContent(/\bUTC\+8\b/)
+  expect(reset).toHaveAttribute('datetime', '2026-11-01T16:00:00.000Z')
+})
 
 it('shows midnight as 00:00 when the runtime defaults to the h24 clock', async () => {
   const DateTimeFormat = Intl.DateTimeFormat

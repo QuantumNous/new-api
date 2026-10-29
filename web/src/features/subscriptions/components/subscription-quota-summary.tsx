@@ -136,6 +136,7 @@ export function SubscriptionQuotaSummary(props: Props) {
       minute: '2-digit',
       hourCycle: 'h23',
       timeZone: 'Asia/Shanghai',
+      timeZoneName: 'short',
     }
   )
 
