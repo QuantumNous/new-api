@@ -29,7 +29,7 @@ export function getMessageContentStyles() {
 
     // User bubble: compact surface that stays calm in both light and dark themes.
     'group-[.is-user]:rounded-2xl',
-    'group-[.is-user]:rounded-br-md',
+    'group-[.is-user]:rounded-ee-md',
     'group-[.is-user]:border',
     'group-[.is-user]:border-border/70',
     'group-[.is-user]:bg-muted/70',

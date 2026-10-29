@@ -129,7 +129,7 @@ export function AmountDiscountVisualEditor({
           size='sm'
           className='w-full sm:w-auto'
         >
-          <Plus className='h-4 w-4 sm:mr-2' />
+          <Plus className='h-4 w-4 sm:me-2' />
           <span className='sm:inline'>{t('Add discount tier')}</span>
         </Button>
       </div>
@@ -180,8 +180,8 @@ export function AmountDiscountVisualEditor({
               {
                 id: 'actions',
                 header: t('Actions'),
-                className: 'text-right',
-                cellClassName: 'text-right',
+                className: 'text-end',
+                cellClassName: 'text-end',
                 cell: (discount) => (
                   <StaticRowActions
                     editLabel={t('Edit')}

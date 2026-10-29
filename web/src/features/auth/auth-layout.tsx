@@ -34,7 +34,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
     <div className='relative grid h-svh max-w-none'>
       <Link
         to='/'
-        className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
+        className='absolute start-4 top-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:start-8 sm:top-8'
       >
         <div className='relative h-8 w-8'>
           {loading ? (

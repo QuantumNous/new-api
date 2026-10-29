@@ -92,7 +92,7 @@ export function TwoFASetupDialog(props: TwoFASetupDialogProps) {
               disabled={props.initializing || props.loading || !code}
             >
               {props.loading && (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <Loader2 className='me-2 h-4 w-4 animate-spin' />
               )}
               {props.loading ? t('Enabling...') : t('Enable 2FA')}
             </Button>
@@ -182,7 +182,7 @@ export function TwoFASetupDialog(props: TwoFASetupDialogProps) {
                   variant='outline'
                   size='default'
                   className='w-full'
-                  iconClassName='mr-2 size-4'
+                  iconClassName='me-2 size-4'
                   tooltip={t('Copy all backup codes')}
                   aria-label={t('Copy all backup codes')}
                 >

@@ -23,7 +23,14 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -237,5 +244,52 @@ describe('overview setup guide', () => {
     expect(
       screen.queryByRole('button', { name: 'Setup guide' })
     ).not.toBeInTheDocument()
+  })
+})
+
+describe('overview setup guide direction', () => {
+  it('aligns the quick action text to the inline start, next to its icon', async () => {
+    const user = userEvent.setup()
+    await renderOverview()
+    await user.click(await screen.findByRole('button', { name: 'Setup guide' }))
+
+    const action = await screen.findByRole('button', { name: /^API Keys/ })
+    expect(action).toHaveClass('text-start')
+    expect(action).not.toHaveClass('text-left')
+  })
+
+  it('aligns the setup steps to the inline start and runs their line under the step circles', async () => {
+    useAuthStore
+      .getState()
+      .auth.setUser({ id: 1, username: 'new-user', role: 1 })
+    await renderOverview()
+
+    const steps = await screen.findAllByRole('listitem')
+    const stepLink = within(steps[0]).getByRole('link')
+    expect(stepLink).toHaveClass('text-start')
+    expect(stepLink).not.toHaveClass('text-left')
+    const connector = steps[0].querySelector(
+      '[data-slot="setup-step-connector"]'
+    )
+    expect(connector).toHaveClass('start-4')
+    expect(connector).not.toHaveClass('left-4')
+  })
+
+  it('mirrors the decorative code backdrop to the far side of the heading', async () => {
+    useAuthStore
+      .getState()
+      .auth.setUser({ id: 1, username: 'new-user', role: 1 })
+    await renderOverview()
+    await screen.findByRole('button', { name: 'Hide setup guide' })
+
+    const code = document.querySelector(
+      '[data-slot="setup-guide-backdrop-code"]'
+    )
+    expect(code).toHaveClass('end-3', 'text-end', 'rtl:text-left')
+    expect(code).not.toHaveClass('right-3')
+    expect(code?.parentElement).toHaveClass('end-0')
+    expect(
+      document.querySelector('[data-slot="setup-guide-backdrop-glow"]')
+    ).toHaveClass('[--setup-glow-x:78%]', 'rtl:[--setup-glow-x:22%]')
   })
 })

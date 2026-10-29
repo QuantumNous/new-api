@@ -64,7 +64,7 @@ export function ChannelPriorityGuide(props: {
         'Move channels into a priority tier or between tiers. Priority values update automatically.'
       )}
       contentClassName='sm:max-w-lg'
-      headerClassName='pr-5'
+      headerClassName='pe-5'
       trigger={
         <Button
           type='button'

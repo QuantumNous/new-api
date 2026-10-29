@@ -119,7 +119,7 @@ export function RedemptionsExportDialog(props: RedemptionsExportDialogProps) {
         <Label htmlFor={`${id}-save-file`}>{t('Save as a file')}</Label>
       </div>
       {saveToFile && (
-        <div className='space-y-4 pl-6'>
+        <div className='space-y-4 ps-6'>
           <RadioGroup
             value={format}
             onValueChange={(value) => {

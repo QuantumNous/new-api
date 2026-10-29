@@ -218,7 +218,7 @@ function ResourceCell(props: ResourceCellProps) {
   return (
     <TooltipProvider delay={100}>
       <Tooltip>
-        <TooltipTrigger className='block w-full rounded-sm text-left focus-visible:ring-2 focus-visible:outline-none'>
+        <TooltipTrigger className='block w-full rounded-sm text-start focus-visible:ring-2 focus-visible:outline-none'>
           {content}
         </TooltipTrigger>
         <TooltipContent className='max-w-80'>{props.tooltip}</TooltipContent>
@@ -268,7 +268,7 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
             <TableHead className='h-9 w-[170px] text-xs'>
               {t('Last Seen')}
             </TableHead>
-            <TableHead className='h-9 w-[90px] pr-4 text-right text-xs'>
+            <TableHead className='h-9 w-[90px] pe-4 text-end text-xs'>
               {t('Actions')}
             </TableHead>
           </TableRow>
@@ -443,7 +443,7 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                     toIntlLocale(i18n.language)
                   )}
                 </TableCell>
-                <TableCell className='py-2.5 pr-4 text-right align-middle'>
+                <TableCell className='py-2.5 pe-4 text-end align-middle'>
                   {instance.status === 'stale' ? (
                     <TooltipProvider delay={100}>
                       <Tooltip>

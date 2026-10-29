@@ -168,7 +168,7 @@ export function CacheStatsDialog(props: Props) {
               className='flex justify-between gap-4 border-b pb-1 text-sm'
             >
               <span className='text-muted-foreground'>{row.key}</span>
-              <span className='text-right font-medium break-all'>
+              <span className='text-end font-medium break-all'>
                 {row.value}
               </span>
             </div>

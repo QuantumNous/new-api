@@ -48,7 +48,7 @@ export function QuotaDetailsPopover(props: QuotaDetailsPopoverProps) {
               variant='ghost'
               aria-label={props.triggerLabel}
               className={cn(
-                'h-auto w-full min-w-0 justify-start px-0 py-0.5 text-left font-normal hover:bg-transparent aria-expanded:bg-transparent',
+                'h-auto w-full min-w-0 justify-start px-0 py-0.5 text-start font-normal hover:bg-transparent aria-expanded:bg-transparent',
                 props.triggerClassName
               )}
             />
@@ -67,7 +67,9 @@ export function QuotaDetailsPopover(props: QuotaDetailsPopoverProps) {
           {props.details.map((detail) => (
             <Fragment key={detail.label}>
               <dt className='text-muted-foreground'>{detail.label}</dt>
-              <dd className='text-right break-all'>{detail.value}</dd>
+              <dd className='text-end break-all'>
+                <bdi dir='ltr'>{detail.value}</bdi>
+              </dd>
             </Fragment>
           ))}
         </dl>

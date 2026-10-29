@@ -141,7 +141,7 @@ export function AudioPreviewDialog(props: AudioPreviewDialogProps) {
 
   let body = (
     <ScrollArea className='max-h-[60vh]'>
-      <div className='space-y-3 pr-2'>
+      <div className='space-y-3 pe-2'>
         {clips.map((clip, idx) => (
           <AudioClipCard key={clip.clip_id || clip.id || idx} clip={clip} />
         ))}

@@ -115,7 +115,7 @@ export const QueueItemDescription = ({
 }: QueueItemDescriptionProps) => (
   <div
     className={cn(
-      'ml-6 text-xs',
+      'ms-6 text-xs',
       completed
         ? 'text-muted-foreground/40 line-through'
         : 'text-muted-foreground',
@@ -206,7 +206,7 @@ export const QueueList = ({
   ...props
 }: QueueListProps) => (
   <ScrollArea className={cn('mt-2 -mb-1', className)} {...props}>
-    <div className='max-h-40 pr-4'>
+    <div className='max-h-40 pe-4'>
       <ul>{children}</ul>
     </div>
   </ScrollArea>
@@ -236,7 +236,7 @@ export const QueueSectionTrigger = ({
       <Button
         variant='ghost'
         className={cn(
-          'group bg-muted/40 text-muted-foreground hover:bg-muted h-auto w-full justify-between px-3 py-2 text-left',
+          'group bg-muted/40 text-muted-foreground hover:bg-muted h-auto w-full justify-between px-3 py-2 text-start',
           className
         )}
         type='button'

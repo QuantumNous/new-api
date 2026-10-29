@@ -263,6 +263,7 @@ export function ChannelSelectorDialog({
               </Select>
               {endpointType === 'custom' && (
                 <Input
+                  dir='ltr'
                   value={currentEndpoint}
                   onChange={(e) => updateEndpoint(channel.id, e.target.value)}
                   placeholder={t('/your/endpoint')}
@@ -340,7 +341,7 @@ export function ChannelSelectorDialog({
       <div className='flex h-full min-h-0 flex-col gap-4 overflow-hidden'>
         <div className='flex shrink-0 items-center gap-2'>
           <div className='relative flex-1'>
-            <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
+            <Search className='text-muted-foreground pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2' />
             <Input
               placeholder={t('Search by name or URL...')}
               value={search}

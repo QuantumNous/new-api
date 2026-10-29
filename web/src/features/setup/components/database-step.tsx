@@ -120,7 +120,7 @@ export function DatabaseStep({ status }: DatabaseStepProps) {
             </p>
             {isElectron && electronDataDir && (
               <p className='mt-3 rounded-md bg-amber-100/70 px-3 py-2 font-mono text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-200'>
-                {t('Data directory:')} {electronDataDir}
+                {t('Data directory:')} <bdi dir='ltr'>{electronDataDir}</bdi>
               </p>
             )}
             {isElectron && !electronDataDir && (

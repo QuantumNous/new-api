@@ -58,14 +58,16 @@ function getPinnedColumnClassName(
   pinnedColumn: DataTablePinnedColumn,
   kind: 'header' | 'cell'
 ) {
+  // `left` pins to the start of the row and `right` to its end, so both the
+  // offset and the edge shadow follow the reading direction.
   const edgeClassName =
     pinnedColumn.side === 'left'
-      ? 'shadow-[8px_0_10px_-10px_hsl(var(--foreground))]'
-      : 'shadow-[-8px_0_10px_-10px_hsl(var(--foreground))]'
+      ? 'shadow-[8px_0_10px_-10px_hsl(var(--foreground))] rtl:shadow-[-8px_0_10px_-10px_hsl(var(--foreground))]'
+      : 'shadow-[-8px_0_10px_-10px_hsl(var(--foreground))] rtl:shadow-[8px_0_10px_-10px_hsl(var(--foreground))]'
 
   return cn(
     'sticky whitespace-nowrap',
-    pinnedColumn.side === 'left' ? 'left-0' : 'right-0',
+    pinnedColumn.side === 'left' ? 'start-0' : 'end-0',
     edgeClassName,
     kind === 'header'
       ? '[background-color:var(--table-header-bg,var(--table-header))] group-hover:[background-color:var(--table-header-hover)] z-30'

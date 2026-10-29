@@ -184,7 +184,7 @@ export function ChannelPriorityModeToggle(props: {
     <ButtonGroup aria-label={t('Drag mode')} className='shrink-0'>
       <Tooltip>
         <TooltipTrigger
-          render={<span className='inline-flex [&>button]:rounded-r-none' />}
+          render={<span className='inline-flex [&>button]:rounded-e-none' />}
         >
           <Button
             type='button'

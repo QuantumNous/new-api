@@ -13,11 +13,11 @@ export function PolicyDecisionRecord(props: {
       {(props.events ?? []).map((event, index) => (
         <li
           key={`${event.attempt}:${event.channel_id ?? 0}:${event.decision.action}:${event.decision.reason}:${event.rule ?? ''}`}
-          className='border-border relative ml-3 min-w-0 border-l pb-5 pl-6 last:border-transparent last:pb-1'
+          className='border-border relative ms-3 min-w-0 border-s ps-6 pb-5 last:border-transparent last:pb-1'
         >
           <span
             aria-hidden='true'
-            className='border-border bg-background absolute -left-3 flex size-6 items-center justify-center rounded-full border text-xs'
+            className='border-border bg-background absolute -start-3 flex size-6 items-center justify-center rounded-full border text-xs'
           >
             {index + 1}
           </span>

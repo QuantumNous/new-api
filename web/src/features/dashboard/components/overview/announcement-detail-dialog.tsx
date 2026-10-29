@@ -55,7 +55,7 @@ export function AnnouncementDetailModal({
       contentHeight='auto'
       bodyClassName='space-y-4'
     >
-      <ScrollArea className='max-h-[min(58vh,520px)] pr-4'>
+      <ScrollArea className='max-h-[min(58vh,520px)] pe-4'>
         <div className='space-y-4'>
           {announcement?.content && (
             <div>

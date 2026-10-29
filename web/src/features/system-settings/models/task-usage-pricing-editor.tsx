@@ -624,6 +624,7 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
             <Field className='gap-2 border-t pt-3'>
               <FieldLabel>{t('Request rule pricing')}</FieldLabel>
               <Textarea
+                dir='ltr'
                 value={props.requestRuleExpr}
                 onChange={(event) =>
                   props.onRequestRuleExprChange(event.target.value)
@@ -665,6 +666,7 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
               </AlertDescription>
             </Alert>
             <Textarea
+              dir='ltr'
               aria-label={t('Billing expression')}
               value={rawExpr}
               onChange={(event) => handleRawChange(event.target.value)}

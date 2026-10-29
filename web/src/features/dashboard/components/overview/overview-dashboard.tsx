@@ -183,28 +183,35 @@ function buildCurlCommand(args: {
   ].join('\n')
 }
 
+// The backdrop is composed around the guide's heading: the glow and the code
+// texture sit on the far side and fade in toward the heading. It mirrors in
+// right-to-left languages so the texture never runs behind the heading.
 function SetupGuideBackdrop(props: { compact?: boolean }) {
   return (
     <>
       <div
+        data-slot='setup-guide-backdrop-glow'
         className={cn(
-          'pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_48%_120%_at_78%_0%,color-mix(in_oklch,var(--overview-accent-1)_14%,transparent)_0%,transparent_62%),linear-gradient(112deg,color-mix(in_oklch,var(--card)_94%,var(--overview-accent-2)_6%)_0%,color-mix(in_oklch,var(--card)_94%,var(--overview-accent-3)_6%)_48%,color-mix(in_oklch,var(--background)_90%,var(--overview-accent-1)_10%)_100%)] dark:opacity-60',
+          'pointer-events-none absolute inset-0 [--setup-glow-x:78%] [--setup-sweep:112deg] [--setup-fade:90deg] rtl:[--setup-glow-x:22%] rtl:[--setup-sweep:248deg] rtl:[--setup-fade:270deg] bg-[radial-gradient(ellipse_48%_120%_at_var(--setup-glow-x)_0%,color-mix(in_oklch,var(--overview-accent-1)_14%,transparent)_0%,transparent_62%),linear-gradient(var(--setup-sweep),color-mix(in_oklch,var(--card)_94%,var(--overview-accent-2)_6%)_0%,color-mix(in_oklch,var(--card)_94%,var(--overview-accent-3)_6%)_48%,color-mix(in_oklch,var(--background)_90%,var(--overview-accent-1)_10%)_100%)] dark:opacity-60',
           props.compact
-            ? '[mask-image:linear-gradient(90deg,black_0%,black_48%,transparent_74%)] opacity-55'
+            ? '[mask-image:linear-gradient(var(--setup-fade),black_0%,black_48%,transparent_74%)] opacity-55'
             : 'opacity-85'
         )}
         aria-hidden='true'
       />
       <div
         className={cn(
-          'text-foreground/5 dark:text-foreground/8 pointer-events-none absolute inset-y-0 right-0 hidden overflow-hidden font-mono sm:block',
+          'text-foreground/5 dark:text-foreground/8 pointer-events-none absolute inset-y-0 end-0 hidden overflow-hidden font-mono sm:block',
           props.compact ? 'w-1/2 opacity-45' : 'w-[58%] opacity-75'
         )}
         aria-hidden='true'
       >
         <pre
+          data-slot='setup-guide-backdrop-code'
           className={cn(
-            'absolute right-3 [mask-image:linear-gradient(90deg,transparent_0%,black_30%,black_82%,transparent_100%)] text-right tracking-[0.38em] whitespace-pre',
+            // The code lines keep their own left-to-right direction, so the
+            // flush edge is set per direction: toward the card edge in both.
+            'absolute end-3 [--setup-fade:90deg] [mask-image:linear-gradient(var(--setup-fade),transparent_0%,black_30%,black_82%,transparent_100%)] text-end tracking-[0.38em] whitespace-pre rtl:[--setup-fade:270deg] rtl:text-left',
             props.compact
               ? '-top-6 text-[9px] leading-4'
               : 'top-1 text-[11px] leading-5'
@@ -233,7 +240,8 @@ function StartStepItem(props: {
     <li className='relative flex gap-3 pb-2.5 last:pb-0'>
       {!props.isLast && (
         <span
-          className='bg-border absolute top-9 bottom-0 left-4 w-px'
+          data-slot='setup-step-connector'
+          className='bg-border absolute start-4 top-9 bottom-0 w-px'
           aria-hidden='true'
         />
       )}
@@ -251,7 +259,7 @@ function StartStepItem(props: {
 
       <Link
         to={props.step.to}
-        className='bg-background/70 hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left shadow-xs transition-colors outline-none focus-visible:ring-2'
+        className='bg-background/70 hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-start shadow-xs transition-colors outline-none focus-visible:ring-2'
       >
         <span className='flex min-w-0 items-start gap-2.5'>
           <span className='bg-muted mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg'>
@@ -270,7 +278,7 @@ function StartStepItem(props: {
           </span>
         </span>
         <ArrowRight
-          className='text-muted-foreground size-4 shrink-0'
+          className='text-muted-foreground size-4 shrink-0 rtl:rotate-180'
           aria-hidden='true'
         />
       </Link>
@@ -379,7 +387,7 @@ function RequestPreview(props: {
           <span className='bg-warning size-2 rounded-full' />
           <span className='bg-success size-2 rounded-full' />
         </div>
-        <div className='flex flex-col gap-1 overflow-hidden'>
+        <div dir='ltr' className='flex flex-col gap-1 overflow-hidden'>
           {previewLines.map((line) => (
             <code
               key={line}
@@ -426,7 +434,7 @@ function QuickActionItem(props: { action: QuickAction }) {
   return (
     <Button
       variant='outline'
-      className='h-auto justify-start rounded-xl px-3 py-3 text-left'
+      className='h-auto justify-start rounded-xl px-3 py-3 text-start'
       render={<Link to={props.action.to} />}
     >
       <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg'>

@@ -204,7 +204,7 @@ function NoticeContent({
   }
 
   return (
-    <ScrollArea className='h-[min(52vh,28rem)] pr-3'>
+    <ScrollArea className='h-[min(52vh,28rem)] pe-3'>
       <RichContent breaks content={notice} />
     </ScrollArea>
   )
@@ -239,7 +239,7 @@ function AnnouncementsContent({
   }
 
   return (
-    <ScrollArea className='h-[min(52vh,28rem)] pr-3'>
+    <ScrollArea className='h-[min(52vh,28rem)] pe-3'>
       <div className='flex flex-col'>
         {announcements.map((item, idx) => {
           const announcementKey = getAnnouncementRenderKey(item)
@@ -318,7 +318,7 @@ export function NotificationPopover({
         {unreadCount > 0 ? (
           <Badge
             variant='destructive'
-            className='absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center px-1 text-[10px] font-semibold tabular-nums'
+            className='absolute -end-1 -top-1 flex h-5 min-w-5 items-center justify-center px-1 text-[10px] font-semibold tabular-nums'
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </Badge>

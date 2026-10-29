@@ -112,7 +112,7 @@ export function TaskDetailsDialog(props: TaskDetailsDialogProps) {
       description={t('View the complete details for this task')}
       contentClassName='min-w-0 overflow-hidden sm:max-w-2xl'
       contentHeight='min(72dvh, 720px)'
-      bodyClassName='pr-2 sm:pr-4'
+      bodyClassName='pe-2 sm:pe-4'
     >
       <div className='space-y-3'>
         <DetailSection label={t('Basic Information')}>

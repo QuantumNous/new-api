@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { DataTableViewMode } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
+import { useDirection } from '@/components/ui/direction'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatNumber } from '@/lib/format'
@@ -43,6 +44,8 @@ export function ChannelPriorityDemo(props: {
 }) {
   const { t, i18n } = useTranslation()
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
+  // Motion offsets are physical; they move towards the inline end.
+  const inlineSign = useDirection() === 'rtl' ? -1 : 1
   const [frame, setFrame] = useState(0)
   const elapsed = useRef(0)
   const current = frames[reduced ? frames.length - 1 : frame]
@@ -125,7 +128,7 @@ export function ChannelPriorityDemo(props: {
               role='presentation'
               animate={{ y: pointerY }}
               transition={{ duration: reduced ? 0 : 0.6 }}
-              className='absolute top-3 left-6 z-30'
+              className='absolute start-6 top-3 z-30'
             >
               <MousePointer2 className='fill-primary text-primary-foreground size-5 drop-shadow' />
             </motion.li>
@@ -138,7 +141,7 @@ export function ChannelPriorityDemo(props: {
             className={cn(
               'absolute z-20 rounded-full bg-amber-500',
               card
-                ? 'top-3 left-1/2 h-24 w-0.5'
+                ? 'top-3 start-1/2 h-24 w-0.5'
                 : 'inset-x-3 top-[4.5rem] h-0.5'
             )}
           />
@@ -151,7 +154,7 @@ export function ChannelPriorityDemo(props: {
           if (name === 'C') priority = reached ? result : 0
           let y = index * 64
           if (lifted && !card) y = reached ? 20 : 96
-          let x: number | string = lifted ? 6 : 0
+          let x: number | string = lifted ? 6 * inlineSign : 0
           if (card) {
             let column = index % 2
             y = Math.floor(index / 2) * 108
@@ -159,14 +162,14 @@ export function ChannelPriorityDemo(props: {
               column = 1
               y = 24
             }
-            x = `calc(${column * 100}% + ${column * 12 + (lifted ? 4 : 0)}px)`
+            x = `calc(${column * 100 * inlineSign}% + ${(column * 12 + (lifted ? 4 : 0)) * inlineSign}px)`
           }
-          let layout = 'right-3 h-13 items-center gap-2 px-3'
+          let layout = 'end-3 h-13 items-center gap-2 px-3'
           if (card) {
             layout =
               'h-24 w-[calc(50%-1.125rem)] flex-col items-start justify-between p-3'
           } else if (lifted) {
-            layout = 'right-6 left-auto h-9 w-[60%] items-center gap-2 px-2'
+            layout = 'end-6 start-auto h-9 w-[60%] items-center gap-2 px-2'
           }
           return (
             <motion.li
@@ -178,7 +181,7 @@ export function ChannelPriorityDemo(props: {
                 ease: [0.22, 1, 0.36, 1],
               }}
               className={cn(
-                'bg-background absolute top-3 left-3 flex min-w-0 rounded-lg border',
+                'bg-background absolute top-3 start-3 flex min-w-0 rounded-lg border',
                 layout,
                 peer && 'border-primary bg-primary/5',
                 target && same && 'border-primary',
@@ -204,7 +207,7 @@ export function ChannelPriorityDemo(props: {
                       'inset-y-0 inset-x-6 border-x border-dashed',
                     card &&
                       !same &&
-                      'inset-y-0 left-0 w-6 border-r border-dashed',
+                      'inset-y-0 start-0 w-6 border-e border-dashed',
                     !card &&
                       same &&
                       'inset-x-0 inset-y-2 border-y border-dashed',
@@ -231,7 +234,7 @@ export function ChannelPriorityDemo(props: {
                 variant='outline'
                 className={cn(
                   'relative shrink-0 tabular-nums',
-                  !card && 'ml-auto',
+                  !card && 'ms-auto',
                   peer && 'border-primary/30 text-primary'
                 )}
               >
@@ -242,7 +245,7 @@ export function ChannelPriorityDemo(props: {
                   aria-hidden
                   className={cn(
                     'fill-primary text-primary-foreground absolute top-1/2 size-5 drop-shadow',
-                    same && reached ? 'left-1/2' : '-left-2'
+                    same && reached ? 'start-1/2' : '-start-2'
                   )}
                 />
               )}

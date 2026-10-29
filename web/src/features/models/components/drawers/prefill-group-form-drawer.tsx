@@ -281,7 +281,7 @@ export function PrefillGroupFormDrawer({
                       items={PREFILL_GROUP_TYPES.map((type) => ({
                         value: type.value,
                         label: (
-                          <div className='flex flex-col text-left'>
+                          <div className='flex flex-col text-start'>
                             <span className='font-medium'>{type.label}</span>
                             <span
                               data-prefill-description
@@ -307,7 +307,7 @@ export function PrefillGroupFormDrawer({
                         <SelectGroup>
                           {PREFILL_GROUP_TYPES.map((type) => (
                             <SelectItem key={type.value} value={type.value}>
-                              <div className='flex flex-col text-left'>
+                              <div className='flex flex-col text-start'>
                                 <span className='font-medium'>
                                   {type.label}
                                 </span>
@@ -397,7 +397,7 @@ export function PrefillGroupFormDrawer({
             {t('Cancel')}
           </SheetClose>
           <Button type='submit' form='prefill-group-form' disabled={isSaving}>
-            {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+            {isSaving && <Loader2 className='me-2 h-4 w-4 animate-spin' />}
             {isSaving && t('Saving...')}
             {!isSaving && isEdit && t('Save changes')}
             {!isSaving && !isEdit && t('Create')}

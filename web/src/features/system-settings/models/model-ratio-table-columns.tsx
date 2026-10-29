@@ -146,7 +146,7 @@ export function buildModelRatioColumns({
           variant={getModeVariant(row.original.billingMode)}
           copyable={false}
           showDot={false}
-          className='-ml-1.5 px-0'
+          className='-ms-1.5 px-0'
         />
       ),
       filterFn: (row, id, value) => {

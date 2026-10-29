@@ -201,6 +201,7 @@ export function WaffoSettingsSection({
         <div className='grid gap-1.5'>
           <Label>{t('Merchant ID')}</Label>
           <Input
+            dir='ltr'
             value={values.WaffoMerchantId}
             onChange={(event) =>
               onValueChange('WaffoMerchantId', event.target.value)
@@ -212,6 +213,7 @@ export function WaffoSettingsSection({
           <div className='grid gap-1.5'>
             <Label>{t('RSA Private Key (Production)')}</Label>
             <Textarea
+              dir='ltr'
               rows={3}
               value={values.WaffoPrivateKey}
               onChange={(event) =>
@@ -223,6 +225,7 @@ export function WaffoSettingsSection({
           <div className='grid gap-1.5'>
             <Label>{t('RSA Private Key (Sandbox)')}</Label>
             <Textarea
+              dir='ltr'
               rows={3}
               value={values.WaffoSandboxPrivateKey}
               onChange={(event) =>
@@ -237,6 +240,7 @@ export function WaffoSettingsSection({
           <div className='grid gap-1.5'>
             <Label>{t('Waffo Public Key (Production)')}</Label>
             <Textarea
+              dir='ltr'
               rows={3}
               value={values.WaffoPublicCert}
               onChange={(event) =>
@@ -248,6 +252,7 @@ export function WaffoSettingsSection({
           <div className='grid gap-1.5'>
             <Label>{t('Waffo Public Key (Sandbox)')}</Label>
             <Textarea
+              dir='ltr'
               rows={3}
               value={values.WaffoSandboxPublicCert}
               onChange={(event) =>
@@ -298,6 +303,7 @@ export function WaffoSettingsSection({
           <div className='grid gap-1.5'>
             <Label>{t('Callback notification URL')}</Label>
             <Input
+              dir='ltr'
               placeholder='https://example.com/api/waffo/webhook'
               value={values.WaffoNotifyUrl}
               onChange={(event) =>
@@ -308,6 +314,7 @@ export function WaffoSettingsSection({
           <div className='grid gap-1.5'>
             <Label>{t('Payment return URL')}</Label>
             <Input
+              dir='ltr'
               placeholder='https://example.com/wallet'
               value={values.WaffoReturnUrl}
               onChange={(event) =>
@@ -322,7 +329,7 @@ export function WaffoSettingsSection({
         <div className='flex items-center justify-between'>
           <h4 className='font-medium'>{t('Payment Methods')}</h4>
           <Button type='button' variant='outline' size='sm' onClick={openAdd}>
-            <Plus className='mr-1 h-3 w-3' />
+            <Plus className='me-1 h-3 w-3' />
             {t('Add payment method')}
           </Button>
         </div>
@@ -364,8 +371,8 @@ export function WaffoSettingsSection({
             {
               id: 'actions',
               header: t('Actions'),
-              className: 'text-right',
-              cellClassName: 'text-right',
+              className: 'text-end',
+              cellClassName: 'text-end',
               cell: (_m, idx) => (
                 <StaticRowActions
                   editLabel={t('Edit')}
@@ -469,6 +476,7 @@ export function WaffoSettingsSection({
           <div className='grid gap-1.5'>
             <Label>{t('Payment method type')}</Label>
             <Input
+              dir='ltr'
               value={methodForm.payMethodType}
               onChange={(e) =>
                 setMethodForm((p) => ({

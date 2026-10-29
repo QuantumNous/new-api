@@ -175,7 +175,7 @@ export function SettingsControlChildren({
 }: SettingsControlChildrenProps) {
   return (
     <div
-      className={cn('border-border/70 ml-2 min-w-0 border-l pl-3', className)}
+      className={cn('border-border/70 ms-2 min-w-0 border-s ps-3', className)}
       {...props}
     />
   )

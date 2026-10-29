@@ -41,7 +41,7 @@ export function AuditDetailFields(props: { fields: AuditDetailField[] }) {
           <div className='text-muted-foreground text-xs break-all'>
             {field.label}
           </div>
-          <div className='space-y-1 border-l pl-2'>
+          <div className='space-y-1 border-s ps-2'>
             <AuditDetailFields
               fields={entries.map(([key, item]) => ({
                 label: auditFieldLabel(key, t),

@@ -160,7 +160,7 @@ export function AutoGroupOrderEditor(props: AutoGroupOrderEditorProps) {
                   strokeWidth={2}
                   aria-hidden='true'
                   data-slot='global-auto-order-connector'
-                  className='text-muted-foreground size-3.5 shrink-0'
+                  className='text-muted-foreground size-3.5 shrink-0 rtl:rotate-180'
                 />
               )}
               <span

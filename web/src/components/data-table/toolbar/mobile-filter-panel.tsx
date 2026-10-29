@@ -67,7 +67,7 @@ export function DataTableMobileFilterPanel(
               size='icon'
               className={cn(
                 'text-muted-foreground hover:text-foreground',
-                props.compact ? 'size-9' : 'mr-auto size-7'
+                props.compact ? 'size-9' : 'me-auto size-7'
               )}
             />
           }

@@ -248,7 +248,7 @@ export function RechargeFormCard({
                           key={preset.value}
                           variant='outline'
                           className={cn(
-                            'flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
+                            'flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-start whitespace-normal sm:min-h-[72px] sm:p-4',
                             selectedPreset === preset.value
                               ? 'border-foreground bg-foreground/5 dark:border-foreground dark:bg-foreground/10'
                               : 'border-muted'
@@ -356,7 +356,7 @@ export function RechargeFormCard({
                               ? `${method.name}. ${disabledReason}`
                               : method.name
                           }
-                          className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
+                          className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-start'
                         >
                           {paymentLoading === method.type ? (
                             <Loader2 className='h-4 w-4 animate-spin' />
@@ -454,7 +454,7 @@ export function RechargeFormCard({
                                 ? `${method.name}. ${disabledReason}`
                                 : method.name
                             }
-                            className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
+                            className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-start'
                           >
                             {methodIcon}
                             <span className='flex min-w-0 flex-col items-start gap-0.5'>
@@ -541,7 +541,7 @@ export function RechargeFormCard({
               variant='outline'
               className='h-9 px-4'
             >
-              {redeeming && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+              {redeeming && <Loader2 className='me-2 h-4 w-4 animate-spin' />}
               {t('Redeem')}
             </Button>
           </div>

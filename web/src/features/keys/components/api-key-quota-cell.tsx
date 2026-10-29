@@ -134,15 +134,15 @@ export function ApiKeyQuotaCell(props: ApiKeyQuotaCellProps) {
         {props.variant === 'card' && (
           <span className='text-muted-foreground'>
             {t('Remaining')}
-            <span className='ml-1'>({quotaUnit})</span>
+            <span className='ms-1'>({quotaUnit})</span>
           </span>
         )}
         <span
           className={cn(
             'min-w-0 truncate',
             props.variant === 'card'
-              ? 'text-right text-sm leading-5 font-normal'
-              : 'text-left font-medium',
+              ? 'text-end text-sm leading-5 font-normal'
+              : 'text-start font-medium',
             !props.apiKey.unlimited_quota && 'tabular-nums',
             !props.apiKey.unlimited_quota &&
               remaining < 0 &&
@@ -152,18 +152,22 @@ export function ApiKeyQuotaCell(props: ApiKeyQuotaCellProps) {
               'text-muted-foreground'
           )}
         >
-          {props.apiKey.unlimited_quota ? t('Unlimited') : formattedRemaining}
+          {props.apiKey.unlimited_quota ? (
+            t('Unlimited')
+          ) : (
+            <bdi dir='ltr'>{formattedRemaining}</bdi>
+          )}
         </span>
         {props.variant === 'card' && (
           <span className='text-muted-foreground'>{t('Used amount')}</span>
         )}
         <span
           className={cn(
-            'text-muted-foreground min-w-0 truncate text-right tabular-nums',
+            'text-muted-foreground min-w-0 truncate text-end tabular-nums',
             props.variant === 'card' && 'text-sm leading-5 font-normal'
           )}
         >
-          {formattedUsed}
+          <bdi dir='ltr'>{formattedUsed}</bdi>
         </span>
       </span>
     </QuotaDetailsPopover>

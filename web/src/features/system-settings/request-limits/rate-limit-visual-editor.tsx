@@ -124,16 +124,16 @@ export function RateLimitVisualEditor({
     <div className='space-y-4'>
       <div className='flex items-center gap-4'>
         <div className='relative flex-1'>
-          <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
+          <Search className='text-muted-foreground absolute start-2.5 top-2.5 h-4 w-4' />
           <Input
             placeholder={t('Search group names...')}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className='pl-9'
+            className='ps-9'
           />
         </div>
         <Button onClick={handleAdd}>
-          <Plus className='mr-2 h-4 w-4' />
+          <Plus className='me-2 h-4 w-4' />
           {t('Add group')}
         </Button>
       </div>
@@ -158,8 +158,8 @@ export function RateLimitVisualEditor({
           {
             id: 'max-requests',
             header: t('Max Requests (incl. failures)'),
-            className: 'text-right',
-            cellClassName: 'text-right',
+            className: 'text-end',
+            cellClassName: 'text-end',
             cell: (limit) => (
               <span className='font-mono'>
                 {limit.maxRequests === 0
@@ -171,8 +171,8 @@ export function RateLimitVisualEditor({
           {
             id: 'max-success',
             header: t('Max Success'),
-            className: 'text-right',
-            cellClassName: 'text-right',
+            className: 'text-end',
+            cellClassName: 'text-end',
             cell: (limit) => (
               <span className='font-mono'>
                 {limit.maxSuccess.toLocaleString()}
@@ -182,8 +182,8 @@ export function RateLimitVisualEditor({
           {
             id: 'actions',
             header: t('Actions'),
-            className: 'text-right',
-            cellClassName: 'text-right',
+            className: 'text-end',
+            cellClassName: 'text-end',
             cell: (limit) => (
               <StaticRowActions
                 editLabel={t('Edit')}

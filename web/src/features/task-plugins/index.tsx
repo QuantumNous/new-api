@@ -179,7 +179,7 @@ export function TaskPlugins() {
                 'Factory and custom plugins all stop serving immediately. In-flight tasks will be handled by timeout cleanup.'
               )}
             </p>
-            <ul className='list-disc pl-5'>
+            <ul className='list-disc ps-5'>
               {(pluginsQuery.data ?? [])
                 .filter((plugin) => plugin.source === 'override')
                 .map((plugin) => (

@@ -303,7 +303,11 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormItem>
                     <FormLabel>{t('Slug')}</FormLabel>
                     <FormControl>
-                      <Input placeholder={t('e.g. my-gitlab')} {...field} />
+                      <Input
+                        dir='ltr'
+                        placeholder={t('e.g. my-gitlab')}
+                        {...field}
+                      />
                     </FormControl>
                     <FormDescription>
                       {t('Used in URLs and API routes')}
@@ -322,6 +326,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormLabel>{t('Icon')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       placeholder={t('Icon identifier (e.g. github, gitlab)')}
                       {...field}
                     />
@@ -349,6 +354,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                     <FormLabel>{t('Client ID')}</FormLabel>
                     <FormControl>
                       <Input
+                        dir='ltr'
                         placeholder={t('OAuth Client ID')}
                         autoComplete='off'
                         {...field}
@@ -437,6 +443,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormLabel>{t('Well-Known URL')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       placeholder={t(
                         'https://provider.com/.well-known/openid-configuration'
                       )}
@@ -461,6 +468,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormLabel>{t('Authorization Endpoint')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       placeholder='https://provider.com/oauth/authorize'
                       {...field}
                     />
@@ -478,6 +486,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormLabel>{t('Token Endpoint')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       placeholder='https://provider.com/oauth/token'
                       {...field}
                     />
@@ -495,6 +504,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormLabel>{t('User Info Endpoint')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       placeholder='https://provider.com/api/user'
                       {...field}
                     />
@@ -512,6 +522,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormLabel>{t('Scopes')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       placeholder={t('e.g. openid profile email')}
                       {...field}
                     />
@@ -544,7 +555,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormItem>
                     <FormLabel>{t('User ID Field')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='id' {...field} />
+                      <Input dir='ltr' placeholder='id' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -558,7 +569,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormItem>
                     <FormLabel>{t('Username Field')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='login' {...field} />
+                      <Input dir='ltr' placeholder='login' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -572,7 +583,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormItem>
                     <FormLabel>{t('Display Name Field')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='name' {...field} />
+                      <Input dir='ltr' placeholder='name' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -586,7 +597,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormItem>
                     <FormLabel>{t('Email Field')}</FormLabel>
                     <FormControl>
-                      <Input placeholder='email' {...field} />
+                      <Input dir='ltr' placeholder='email' {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -201,7 +201,7 @@ export function FlowNodeFilterControl(props: FlowNodeFilterControlProps) {
           <Badge
             key={flowNodeFilterKey(option)}
             variant='secondary'
-            className='max-w-[14rem] rounded-sm pr-1'
+            className='max-w-[14rem] rounded-sm pe-1'
           >
             <span className='truncate'>
               {t(props.stageLabels[option.kind])}: {option.label}

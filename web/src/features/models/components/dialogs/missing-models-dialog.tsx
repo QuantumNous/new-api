@@ -160,7 +160,7 @@ export function MissingModelsDialog({
               {t('Showing')} {displayStart}-{displayEnd} {t('of')} {totalItems}
             </div>
             <div className='relative w-48'>
-              <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
+              <Search className='text-muted-foreground pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2' />
               <Input
                 value={searchTerm}
                 onChange={(event) => {
@@ -168,7 +168,7 @@ export function MissingModelsDialog({
                   setCurrentPage(1)
                 }}
                 placeholder={t('Search models...')}
-                className='pl-9'
+                className='ps-9'
                 aria-label={t('Search missing models')}
               />
             </div>

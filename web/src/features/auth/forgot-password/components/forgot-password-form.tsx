@@ -111,7 +111,7 @@ export function ForgotPasswordForm({
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder='name@example.com' {...field} />
+                <Input dir='ltr' placeholder='name@example.com' {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -126,7 +126,11 @@ export function ForgotPasswordForm({
           {isActive
             ? t('Resend ({{seconds}}s)', { seconds: secondsLeft })
             : t('Send reset email')}
-          {isLoading ? <Loader2 className='animate-spin' /> : <ArrowRight />}
+          {isLoading ? (
+            <Loader2 className='animate-spin' />
+          ) : (
+            <ArrowRight className='rtl:rotate-180' />
+          )}
         </Button>
 
         {isTurnstileEnabled && (

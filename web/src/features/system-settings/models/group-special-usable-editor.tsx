@@ -204,7 +204,7 @@ function GroupSection(props: GroupSectionProps) {
             </span>
             {!isKnownGroup && (
               <StatusBadge variant='danger' copyable={false}>
-                <AlertTriangle className='mr-1 h-3 w-3' />
+                <AlertTriangle className='me-1 h-3 w-3' />
                 {t('Not in pricing table')}
               </StatusBadge>
             )}

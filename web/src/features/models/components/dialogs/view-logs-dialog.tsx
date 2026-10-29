@@ -241,9 +241,9 @@ export function ViewLogsDialog({
             disabled={isFetchingLogs || isFetchingContainers}
           >
             {isFetchingLogs || isFetchingContainers ? (
-              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              <Loader2 className='me-2 h-4 w-4 animate-spin' />
             ) : (
-              <RefreshCcw className='mr-2 h-4 w-4' />
+              <RefreshCcw className='me-2 h-4 w-4' />
             )}
             {t('Refresh')}
           </Button>
@@ -253,7 +253,7 @@ export function ViewLogsDialog({
             onClick={handleDownload}
             disabled={!logsText.trim()}
           >
-            <Download className='mr-2 h-4 w-4' />
+            <Download className='me-2 h-4 w-4' />
             {t('Download')}
           </Button>
           <div className='col-span-2 flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 sm:col-span-1'>

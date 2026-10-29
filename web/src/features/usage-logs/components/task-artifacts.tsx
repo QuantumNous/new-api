@@ -116,7 +116,7 @@ function LegacyAudioPreview(props: { taskId: string }) {
     <>
       <button
         type='button'
-        className='group flex items-center gap-1 text-left text-xs'
+        className='group flex items-center gap-1 text-start text-xs'
         onClick={() => setOpen(true)}
       >
         <HugeiconsIcon
@@ -476,7 +476,7 @@ export function TaskArtifactsCell(props: { log: TaskLog }) {
           previewMode === 'legacy-video' ? 'sm:max-w-xl' : 'sm:max-w-4xl'
         }
         contentHeight='auto'
-        bodyClassName='pr-2 sm:pr-4'
+        bodyClassName='pe-2 sm:pe-4'
       >
         <TaskArtifacts
           taskId={props.log.task_id}

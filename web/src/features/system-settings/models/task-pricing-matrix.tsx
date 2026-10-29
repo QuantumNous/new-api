@@ -282,7 +282,7 @@ function TaskMatrixTable(props: TaskMatrixTableProps) {
               key={`${rowLabel}:${entry.index}`}
               className={cn(
                 props.matchedRowIndex === entry.index &&
-                  'bg-primary/5 border-l-primary border-l-2'
+                  'bg-primary/5 border-s-primary border-s-2'
               )}
             >
               {visibleEnumFields.map(([field]) => (
@@ -411,7 +411,7 @@ function TaskMatrixGroup(props: TaskMatrixGroupProps) {
         render={
           <button
             type='button'
-            className='hover:bg-muted/40 flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors'
+            className='hover:bg-muted/40 flex w-full items-center justify-between rounded-lg border px-3 py-2 text-start transition-colors'
             aria-expanded={props.open}
           />
         }

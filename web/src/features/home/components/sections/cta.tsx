@@ -68,7 +68,7 @@ export function CTA(props: CTAProps) {
         <div className='mt-8 flex items-center justify-center gap-3'>
           <Button className='group rounded-lg' render={<Link to='/sign-up' />}>
             {t('Get Started')}
-            <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
+            <ArrowRight className='ms-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5' />
           </Button>
           <Button
             variant='outline'

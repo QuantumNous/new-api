@@ -257,7 +257,7 @@ export function SidebarModulesCard() {
                       sectionEnabled ? '' : 'opacity-50'
                     }`}
                   >
-                    <div className='mr-2 min-w-0'>
+                    <div className='me-2 min-w-0'>
                       <p className='truncate text-sm font-medium'>
                         {mod.title}
                       </p>

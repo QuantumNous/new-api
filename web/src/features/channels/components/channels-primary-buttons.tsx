@@ -195,7 +195,7 @@ export function ChannelsPrimaryButtons() {
               checked={batchMode}
               onCheckedChange={handleBatchModeToggle}
             >
-              <ListChecks className='mr-2 h-4 w-4' />
+              <ListChecks className='me-2 h-4 w-4' />
               {t('Batch Operations')}
             </DropdownMenuCheckboxItem>
 
@@ -204,7 +204,7 @@ export function ChannelsPrimaryButtons() {
               checked={enableTagMode}
               onCheckedChange={handleTagModeToggle}
             >
-              <Tags className='mr-2 h-4 w-4' />
+              <Tags className='me-2 h-4 w-4' />
               {t('Tag Mode')}
             </DropdownMenuCheckboxItem>
 

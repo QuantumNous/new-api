@@ -101,7 +101,7 @@ export function Hero(props: HeroProps) {
 
       <div className='mx-auto grid max-w-6xl grid-cols-1 items-start gap-12 lg:grid-cols-12 lg:gap-8'>
         {/* Left Column: Title, description, action buttons and application support */}
-        <div className='flex flex-col items-start text-left lg:col-span-6'>
+        <div className='flex flex-col items-start text-start lg:col-span-6'>
           {/* Top Pill Badge */}
           <div
             className='landing-animate-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/5 px-3 py-1.5 text-[11px] font-medium text-blue-600 opacity-0 shadow-xs dark:border-blue-400/20 dark:bg-blue-400/5 dark:text-blue-400'
@@ -144,7 +144,7 @@ export function Hero(props: HeroProps) {
                   render={<Link to='/dashboard' />}
                 >
                   {t('Go to Dashboard')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
+                  <ArrowRight className='ms-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5' />
                 </Button>
                 {renderDocsButton()}
               </>
@@ -155,7 +155,7 @@ export function Hero(props: HeroProps) {
                   render={<Link to='/sign-up' />}
                 >
                   {t('Get Started')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
+                  <ArrowRight className='ms-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5' />
                 </Button>
                 <Button
                   variant='outline'

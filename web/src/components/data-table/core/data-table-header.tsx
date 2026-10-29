@@ -80,8 +80,8 @@ export function DataTableHeader<TData>({
                     handleColumnResizeKeyDown(event, table, header)
                   }
                   className={cn(
-                    'absolute top-0 right-0 h-full w-2 cursor-col-resize touch-none select-none',
-                    'after:bg-border hover:after:bg-primary after:absolute after:top-2 after:right-0 after:h-[calc(100%-1rem)] after:w-px after:transition-colors',
+                    'absolute top-0 end-0 h-full w-2 cursor-col-resize touch-none select-none',
+                    'after:bg-border hover:after:bg-primary after:absolute after:top-2 after:end-0 after:h-[calc(100%-1rem)] after:w-px after:transition-colors',
                     header.column.getIsResizing() && 'after:bg-primary'
                   )}
                 />
@@ -100,16 +100,13 @@ function handleColumnResizeKeyDown<TData>(
   header: Header<TData, unknown>
 ) {
   const step = event.shiftKey ? 50 : 10
+  // The resizer sits on the column's end edge, which is on the left in RTL.
+  const widenKey =
+    table.options.columnResizeDirection === 'rtl' ? 'ArrowLeft' : 'ArrowRight'
 
-  if (event.key === 'ArrowLeft') {
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
     event.preventDefault()
-    resizeColumnByKeyboard(table, header, -step)
-    return
-  }
-
-  if (event.key === 'ArrowRight') {
-    event.preventDefault()
-    resizeColumnByKeyboard(table, header, step)
+    resizeColumnByKeyboard(table, header, event.key === widenKey ? step : -step)
     return
   }
 

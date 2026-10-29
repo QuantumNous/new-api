@@ -196,7 +196,7 @@ function ApiKeyRestrictionCell(props: {
         label={props.emptyLabel}
         variant='neutral'
         copyable={false}
-        className='-ml-1.5'
+        className='-ms-1.5'
       />
     )
   }

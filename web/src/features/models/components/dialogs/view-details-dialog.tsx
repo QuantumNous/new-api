@@ -163,7 +163,7 @@ export function ViewDetailsDialog({
         </Button>
       }
     >
-      <div className='max-h-[calc(100dvh-8.5rem)] space-y-3 overflow-y-auto py-2 pr-1 sm:max-h-[72vh] sm:space-y-4'>
+      <div className='max-h-[calc(100dvh-8.5rem)] space-y-3 overflow-y-auto py-2 pe-1 sm:max-h-[72vh] sm:space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='text-muted-foreground text-sm'>
             {t('Deployment ID')}:{' '}
@@ -171,7 +171,7 @@ export function ViewDetailsDialog({
           </div>
           <div className='grid grid-cols-2 gap-2 sm:flex sm:items-center'>
             <Button variant='outline' size='sm' onClick={handleCopyId}>
-              <Copy className='mr-2 h-4 w-4' />
+              <Copy className='me-2 h-4 w-4' />
               {t('Copy')}
             </Button>
             <Button
@@ -181,9 +181,9 @@ export function ViewDetailsDialog({
               disabled={isFetchingDetails || isFetchingContainers}
             >
               {isFetchingDetails || isFetchingContainers ? (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <Loader2 className='me-2 h-4 w-4 animate-spin' />
               ) : (
-                <RefreshCcw className='mr-2 h-4 w-4' />
+                <RefreshCcw className='me-2 h-4 w-4' />
               )}
               {t('Refresh')}
             </Button>
@@ -285,7 +285,7 @@ export function ViewDetailsDialog({
                             size='sm'
                             onClick={() => window.open(url, '_blank')}
                           >
-                            <ExternalLink className='mr-2 h-4 w-4' />
+                            <ExternalLink className='me-2 h-4 w-4' />
                             {t('Open')}
                           </Button>
                         ) : null}

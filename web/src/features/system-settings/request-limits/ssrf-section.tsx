@@ -311,6 +311,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                 </FormLabel>
                 <FormControl>
                   <Textarea
+                    dir='ltr'
                     placeholder={t('example.com&#10;blocked-site.com')}
                     rows={4}
                     {...field}
@@ -375,6 +376,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                 </FormLabel>
                 <FormControl>
                   <Textarea
+                    dir='ltr'
                     placeholder={t('192.168.1.1&#10;10.0.0.0/8')}
                     rows={4}
                     {...field}
@@ -395,7 +397,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
               <FormItem>
                 <FormLabel>{t('Allowed Ports')}</FormLabel>
                 <FormControl>
-                  <Input placeholder={t('80,443,8080')} {...field} />
+                  <Input dir='ltr' placeholder={t('80,443,8080')} {...field} />
                 </FormControl>
                 <FormDescription>
                   {t(

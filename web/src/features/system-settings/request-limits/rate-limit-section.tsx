@@ -255,12 +255,12 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                   >
                     {useVisualEditor ? (
                       <>
-                        <Code2 className='mr-2 h-4 w-4' />
+                        <Code2 className='me-2 h-4 w-4' />
                         {t('JSON Mode')}
                       </>
                     ) : (
                       <>
-                        <Palette className='mr-2 h-4 w-4' />
+                        <Palette className='me-2 h-4 w-4' />
                         {t('Visual Mode')}
                       </>
                     )}
@@ -290,7 +290,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                   <FormDescription>
                     <div className='space-y-1 text-xs'>
                       <p className='font-semibold'>{t('Format:')}</p>
-                      <ul className='list-inside list-disc space-y-0.5 pl-2'>
+                      <ul className='list-inside list-disc space-y-0.5 ps-2'>
                         <li>
                           {t('JSON object:')}{' '}
                           {`{"groupName": [maxRequests, maxSuccess]}`}
