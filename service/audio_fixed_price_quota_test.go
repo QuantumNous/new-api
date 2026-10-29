@@ -18,8 +18,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// A per-request price must be charged when the usage carries audio tokens.
-func TestPostAudioConsumeQuota_FixedPriceIsCharged(t *testing.T) {
+func setupAudioFixedPriceDB(t *testing.T) *gorm.DB {
+	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	sqlDB, err := db.DB()
@@ -32,6 +32,12 @@ func TestPostAudioConsumeQuota_FixedPriceIsCharged(t *testing.T) {
 	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	t.Cleanup(func() { model.DB, model.LOG_DB = oldDB, oldLogDB; common.SetDatabaseTypes(oldMainType, oldLogType) })
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.Log{}))
+	return db
+}
+
+// A per-request price must be charged when the usage carries audio tokens.
+func TestPostAudioConsumeQuota_FixedPriceIsCharged(t *testing.T) {
+	db := setupAudioFixedPriceDB(t)
 
 	user := model.User{Username: "audio_fixed_price", Quota: 2_000_000, Status: common.UserStatusEnabled}
 	require.NoError(t, db.Create(&user).Error)
@@ -65,4 +71,39 @@ func TestPostAudioConsumeQuota_FixedPriceIsCharged(t *testing.T) {
 	require.NoError(t, db.Where("user_id = ?", user.Id).Take(&log).Error)
 	want := int(0.02 * common.QuotaPerUnit)
 	assert.Equal(t, want, log.Quota)
+}
+
+// A fixed-price realtime session is settled once at the end; the per-response
+// pre-consume must not also charge token quota for it.
+func TestPreWssConsumeQuota_FixedPriceSkipsTokenCharge(t *testing.T) {
+	db := setupAudioFixedPriceDB(t)
+
+	user := model.User{Username: "wss_fixed_price", Quota: 2_000_000, Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&user).Error)
+	token := model.Token{UserId: user.Id, Key: "wss-fixed-price-test", Name: "wss", RemainQuota: 2_000_000, Status: common.TokenStatusEnabled}
+	require.NoError(t, db.Create(&token).Error)
+
+	info := &relaycommon.RelayInfo{
+		UserId: user.Id, TokenId: token.Id, TokenKey: token.Key,
+		OriginModelName: "gpt-4o-realtime-preview", UsingGroup: "default", UserGroup: "default",
+		StartTime: time.Now(),
+		PriceData: hosttypes.PriceData{
+			UsePrice:       true,
+			ModelPrice:     0.02,
+			GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1},
+		},
+	}
+	usage := &dto.RealtimeUsage{
+		InputTokens: 1000, OutputTokens: 1000, TotalTokens: 2000,
+		InputTokenDetails:  dto.InputTokenDetails{TextTokens: 1000},
+		OutputTokenDetails: dto.OutputTokenDetails{AudioTokens: 1000},
+	}
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("GET", "/v1/realtime", nil)
+
+	require.NoError(t, PreWssConsumeQuota(ctx, info, usage))
+
+	quota, err := model.GetUserQuota(user.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, 2_000_000, quota)
 }
