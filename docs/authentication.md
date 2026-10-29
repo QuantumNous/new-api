@@ -6,7 +6,7 @@
 
 - Access Token 是有效期 15 分钟的 JWT，只保存在浏览器内存中，通过 `Authorization: Bearer <token>` 发送。
 - Refresh Token 是随机不透明值，有效期最长 30 天。浏览器只通过 `HttpOnly`、`SameSite=Strict` Cookie 持有它；服务端仅保存 HMAC 摘要，并在每次刷新时轮换。
-- `new_api_has_session` 是 Refresh Cookie 的会话提示，值恒为 `1`，`Path=/`、非 `HttpOnly`，与 Refresh Cookie 同时写入、同时清除、同一过期时间。它只声明"曾签发过 Refresh Cookie"，不含任何凭据，也不参与任何鉴权判定；伪造它唯一的效果是自费一次注定失败的 refresh。它存在的原因是 Refresh Cookie 被 `HttpOnly` 和 `Path=/api/user/auth` 双重限制，`/` 上的页面无法判断自己是否匿名，否则每次冷启动都要发一次注定 401 的 refresh，而该请求还会占用按 IP 计数的 `CriticalRateLimit` 配额。
+- `new_api_has_session` 是 Refresh Cookie 的会话提示，值恒为 `1`，`Path=/`、非 `HttpOnly`，与 Refresh Cookie 同时写入、同时清除、同一过期时间。它只声明"曾签发过 Refresh Cookie"，不含任何凭据，也不参与任何鉴权判定；伪造它唯一的效果是自费一次注定失败的 refresh。它存在的原因是 Refresh Cookie 被 `HttpOnly` 和 `Path=/api/user/auth` 双重限制，`/` 上的页面无法判断自己是否匿名，否则每次冷启动都要发一次注定 401 的 refresh，而该请求还会占用按 IP 计数的会话刷新配额。
 - `user_sessions` 是登录会话控制面，记录设备、IP、登录方式、最后活跃时间、到期时间和撤销状态。数据库中的 Session 状态是最终权威；撤销传播速度取决于下文所述的 Redis 拓扑。
 - 用户的密码、状态、角色或安全因子发生安全相关变化时，`auth_version` 会递增并使旧登录会话失效。订阅带来的分组升降级只刷新授权缓存，不会退出任何登录设备。
 - Redis 缓存保存用户鉴权快照和登录会话快照。版本栅栏和撤销 tombstone 防止旧缓存重新授权；Session 快照使用跟随 `SYNC_FREQUENCY` 的短 TTL，缓存未命中或未启用 Redis 时回退到数据库校验。
@@ -72,6 +72,18 @@
 前端将冷启动状态与登录状态分开管理。网络或服务端临时故障允许后续导航重试 refresh；服务端确认 Refresh Cookie 无效时才进入已完成的匿名状态。内存 SID 与 Cookie SID 不一致时，客户端清除旧内存身份并在不携带旧 SID 的情况下重试一次。
 
 公开页面的冷启动会先读 `new_api_has_session`：提示不存在且内存中没有任何身份时跳过 refresh，直接按匿名渲染，且**不**把这次跳过记为已完成的匿名判定——跳过只是延后，不是服务端结论。会依据鉴权结果做跳转的位置（受保护路由与登录页）不看提示，内存为空时一律回源。因此提示缺失但 Refresh Cookie 有效的用户（该 Cookie 上线前建立的会话，或只清理了 `/` 站点数据的浏览器）会在公开页显示为匿名，并在进入上述任一位置时自动恢复登录态，不需要重新输入密码。提示因服务端撤销而过期时，那次 refresh 返回 401 并在同一响应里清除提示，浪费的请求只发生一次。
+
+## 登录与会话接口限流
+
+登录、注册及其他关键操作继续共用 `CRITICAL_RATE_LIMIT`（默认每 IP `20` 次 / `1200` 秒）。会话刷新和退出分别使用独立的 IP 计数，不占用关键操作额度，刷新额度耗尽也不占用退出额度：
+
+- `AUTH_SESSION_RATE_LIMIT_ENABLE`：默认 `true`，控制刷新与退出的专项限流。
+- `AUTH_SESSION_RATE_LIMIT`：默认 `60`，每个接口在窗口内允许的请求数，必须为正整数。
+- `AUTH_SESSION_RATE_LIMIT_DURATION`：默认 `60`，窗口长度，单位为秒，必须为正整数。关闭专项限流应设置 `AUTH_SESSION_RATE_LIMIT_ENABLE=false`。
+
+限流在 Cookie 验证前执行，缺少或无效 Cookie 的请求同样计数；不会根据未经验证的 Cookie 或 `X-Auth-Session` 分配额度。Redis 使用固定窗口，内存限流使用滑动窗口；共享 Redis 的节点共用计数，各节点应保持配置一致。超过额度返回 `429` 和 `Retry-After`，Redis 检查失败返回 `500`，不会继续轮换会话或清除 Cookie。环境变量在启动时读取。
+
+所有这些接口仍受 `GLOBAL_API_RATE_LIMIT` 总额度保护；按 IP 分开的会话接口额度不代表同一出口下的各用户或设备拥有独立额度。Origin 校验、Refresh Token 轮换、过期及重放检测保持不变。
 
 ## Session 签发限额与保留策略
 
