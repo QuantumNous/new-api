@@ -23,3 +23,13 @@ func lockForUpdate(tx *gorm.DB) *gorm.DB {
 	}
 	return tx.Clauses(clause.Locking{Strength: "UPDATE"})
 }
+
+// lockForShare reads current policy without serializing its readers. Policy
+// updates wait for those readers; the MySQL driver uses LOCK IN SHARE MODE on
+// 5.7. SQLite has no row locking clause and retains its single-writer behavior.
+func lockForShare(tx *gorm.DB) *gorm.DB {
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		return tx
+	}
+	return tx.Clauses(clause.Locking{Strength: "SHARE"})
+}

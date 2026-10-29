@@ -56,7 +56,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   }
 
   return (
-    <div className='-ml-1.5 flex items-center gap-1'>
+    <div className='-ml-1.5 flex items-center gap-1.5'>
       <Tooltip>
         <TooltipTrigger
           render={
@@ -90,7 +90,6 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         </TooltipTrigger>
         <TooltipContent>{t('Reset subscription quota')}</TooltipContent>
       </Tooltip>
-
       <Tooltip>
         <TooltipTrigger
           render={

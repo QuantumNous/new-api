@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -51,16 +52,20 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		return nil
 	}
 	delta := actualQuota - s.preConsumedQuota
+	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
+	if !s.fundingSettled {
+		applied, err := s.funding.Settle(delta)
+		if err != nil {
+			return err
+		}
+		// A task can finish before submission settles. Only adjust its token
+		// by the difference actually applied to the locked funding receipt.
+		delta = applied
+		s.fundingSettled = true
+	}
 	if delta == 0 {
 		s.settled = true
 		return nil
-	}
-	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
-	if !s.fundingSettled {
-		if err := s.funding.Settle(delta); err != nil {
-			return err
-		}
-		s.fundingSettled = true
 	}
 	// 2) 调整令牌额度
 	var tokenErr error
@@ -114,7 +119,11 @@ func (s *BillingSession) Refund(c *gin.Context) {
 		if err := funding.Refund(); err != nil {
 			common.SysLog(common.LogText("error refunding billing source: %s", err.Error()))
 		}
-		if extraReserved > 0 && funding.Source() == BillingSourceSubscription && subscriptionId > 0 {
+		tracked := false
+		if sub, ok := funding.(*SubscriptionFunding); ok {
+			tracked = sub.periodTracked
+		}
+		if extraReserved > 0 && funding.Source() == BillingSourceSubscription && subscriptionId > 0 && !tracked {
 			if err := model.PostConsumeUserSubscriptionDelta(subscriptionId, -int64(extraReserved)); err != nil {
 				common.SysLog(common.LogText("error refunding subscription extra reserved quota: %s", err.Error()))
 			}
@@ -248,7 +257,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		}
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "no active subscription") || strings.Contains(errMsg, "subscription quota insufficient") {
-			return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgQuotaSubscriptionInsufficient, map[string]any{"Error": errMsg})), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			return types.NewErrorWithStatusCode(errors.New(subscriptionQuotaErrorMessage(s.lang, err)), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 	}
@@ -259,6 +268,23 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	s.syncRelayInfo()
 
 	return nil
+}
+
+// subscriptionQuotaErrorMessage keeps both initial and additional reservations
+// on the same translated client error contract.
+func subscriptionQuotaErrorMessage(lang string, err error) string {
+	var limit *model.SubscriptionQuotaLimitError
+	if errors.As(err, &limit) {
+		key := i18n.MsgQuotaSubscriptionDailyLimit
+		switch limit.Period {
+		case "weekly":
+			key = i18n.MsgQuotaSubscriptionWeeklyLimit
+		case "monthly":
+			key = i18n.MsgQuotaSubscriptionMonthlyLimit
+		}
+		return i18n.Translate(lang, key, map[string]any{"ResetAt": time.Unix(limit.ResetAt, 0).In(time.FixedZone("Asia/Shanghai", 8*3600)).Format("2006-01-02 15:04:05 +08:00")})
+	}
+	return i18n.Translate(lang, i18n.MsgQuotaSubscriptionInsufficient, map[string]any{"Error": err.Error()})
 }
 
 func (s *BillingSession) reserveFunding(delta int, requireAvailableQuota bool) error {
@@ -285,9 +311,12 @@ func (s *BillingSession) reserveFunding(delta int, requireAvailableQuota bool) e
 		funding.consumed += delta
 		return nil
 	case *SubscriptionFunding:
-		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, int64(delta)); err != nil {
+		if err := funding.Reserve(int64(s.preConsumedQuota + delta)); err != nil {
+			if !errors.Is(err, model.ErrSubscriptionQuotaInsufficient) {
+				return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+			}
 			return types.NewErrorWithStatusCode(
-				errors.New(i18n.Translate(s.lang, i18n.MsgQuotaSubscriptionInsufficient, map[string]any{"Error": err.Error()})),
+				errors.New(subscriptionQuotaErrorMessage(s.lang, err)),
 				types.ErrorCodeInsufficientUserQuota,
 				http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(),
@@ -309,7 +338,7 @@ func (s *BillingSession) rollbackFundingReserve(delta int) {
 			funding.consumed -= delta
 		}
 	case *SubscriptionFunding:
-		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, -int64(delta)); err != nil {
+		if err := funding.RollbackReserve(int64(s.preConsumedQuota)); err != nil {
 			common.SysLog(common.LogText("error rolling back subscription funding reserve: %s", err.Error()))
 		}
 	}
@@ -368,6 +397,9 @@ func (s *BillingSession) syncRelayInfo() {
 	info.BillingSource = s.funding.Source()
 
 	if sub, ok := s.funding.(*SubscriptionFunding); ok {
+		if sub.periodTracked {
+			info.SubscriptionReceiptID = sub.requestId
+		}
 		info.SubscriptionId = sub.subscriptionId
 		info.SubscriptionPreConsumed = sub.preConsumed + int64(s.extraReserved)
 		info.SubscriptionPostDelta = 0
@@ -376,6 +408,7 @@ func (s *BillingSession) syncRelayInfo() {
 		info.SubscriptionPlanId = sub.PlanId
 		info.SubscriptionPlanTitle = sub.PlanTitle
 	} else {
+		info.SubscriptionReceiptID = ""
 		info.SubscriptionId = 0
 		info.SubscriptionPreConsumed = 0
 	}

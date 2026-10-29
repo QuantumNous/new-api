@@ -143,7 +143,8 @@ type RelayInfo struct {
 	// "" or "wallet" => wallet; "subscription" => subscription
 	BillingSource string
 	// SubscriptionId is the user_subscriptions.id used when BillingSource == "subscription"
-	SubscriptionId int
+	SubscriptionId        int
+	SubscriptionReceiptID string
 	// SubscriptionPreConsumed is the amount pre-consumed on subscription item (quota units or 1)
 	SubscriptionPreConsumed int64
 	// SubscriptionPostDelta is the post-consume delta applied to amount_used (quota units; can be negative).
@@ -995,6 +996,14 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 		info.convOptions = options
 	}
 	return options
+}
+
+// ResetResponseTiming starts the timing lifecycle of a new generation on a
+// persistent connection. A copied RelayInfo must not inherit the previous FRT.
+func (info *RelayInfo) ResetResponseTiming(start time.Time) {
+	info.StartTime = start
+	info.FirstResponseTime = start.Add(-time.Second)
+	info.isFirstResponse = true
 }
 
 func (info *RelayInfo) SetFirstResponseTime() {

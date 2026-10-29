@@ -24,6 +24,30 @@ import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 import type { SubscriptionPlan, PlanPayload } from '../types'
 
 export function getPlanFormSchema(t: TFunction) {
+  const periodLimit = z.coerce
+    .number({
+      error: () =>
+        t(
+          'Period quota limits must be non-negative amounts within the supported range'
+        ),
+    })
+    .refine(
+      (value) => {
+        const quota = parseQuotaFromDollars(value)
+        return (
+          Number.isFinite(value) &&
+          value >= 0 &&
+          Number.isSafeInteger(quota) &&
+          (value === 0 || quota > 0)
+        )
+      },
+      {
+        error: () =>
+          t(
+            'Period quota limits must be non-negative amounts within the supported range'
+          ),
+      }
+    )
   return z.object({
     title: z.string().min(1, t('Please enter plan title')),
     subtitle: z.string().optional(),
@@ -40,11 +64,15 @@ export function getPlanFormSchema(t: TFunction) {
     ]),
     quota_reset_custom_seconds: z.coerce.number().min(0).optional(),
     enabled: z.boolean(),
+    recommended: z.boolean(),
     sort_order: z.coerce.number(),
     allow_balance_pay: z.boolean(),
     allow_wallet_overflow: z.boolean(),
     max_purchase_per_user: z.coerce.number().min(0),
     total_amount: z.coerce.number().min(0),
+    daily_limit: periodLimit,
+    weekly_limit: periodLimit,
+    monthly_limit: periodLimit,
     upgrade_group: z.string().optional(),
     downgrade_group: z.string().optional(),
     stripe_price_id: z.string().optional(),
@@ -65,11 +93,15 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   quota_reset_period: 'never',
   quota_reset_custom_seconds: 0,
   enabled: true,
+  recommended: false,
   sort_order: 0,
   allow_balance_pay: true,
   allow_wallet_overflow: true,
   max_purchase_per_user: 0,
   total_amount: 0,
+  daily_limit: 0,
+  weekly_limit: 0,
+  monthly_limit: 0,
   upgrade_group: '',
   downgrade_group: '',
   stripe_price_id: '',
@@ -88,11 +120,15 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     quota_reset_period: plan.quota_reset_period || 'never',
     quota_reset_custom_seconds: Number(plan.quota_reset_custom_seconds || 0),
     enabled: plan.enabled !== false,
+    recommended: plan.recommended === true,
     sort_order: Number(plan.sort_order || 0),
     allow_balance_pay: plan.allow_balance_pay !== false,
     allow_wallet_overflow: plan.allow_wallet_overflow !== false,
     max_purchase_per_user: Number(plan.max_purchase_per_user || 0),
     total_amount: quotaUnitsToDollars(Number(plan.total_amount || 0)),
+    daily_limit: quotaUnitsToDollars(plan.daily_limit ?? 0),
+    weekly_limit: quotaUnitsToDollars(plan.weekly_limit ?? 0),
+    monthly_limit: quotaUnitsToDollars(plan.monthly_limit ?? 0),
     upgrade_group: plan.upgrade_group || '',
     downgrade_group: plan.downgrade_group || '',
     stripe_price_id: plan.stripe_price_id || '',
@@ -117,6 +153,9 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       sort_order: Number(values.sort_order || 0),
       max_purchase_per_user: Number(values.max_purchase_per_user || 0),
       total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
+      daily_limit: parseQuotaFromDollars(values.daily_limit),
+      weekly_limit: parseQuotaFromDollars(values.weekly_limit),
+      monthly_limit: parseQuotaFromDollars(values.monthly_limit),
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
     },

@@ -113,14 +113,18 @@ func taskIsSubscription(task *model.Task) bool {
 }
 
 // taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
-func taskAdjustFunding(task *model.Task, delta int) error {
+func taskAdjustFunding(task *model.Task, delta int) (int64, error) {
 	if taskIsSubscription(task) {
-		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
+		if task.SubscriptionReceiptID != "" {
+			return model.SettleSubscriptionPreConsume(task.SubscriptionReceiptID, int64(task.Quota)+int64(delta))
+		}
+		err := model.PostConsumeUserSubscriptionDeltaAt(task.PrivateData.SubscriptionId, int64(delta), max(task.SubmitTime, task.CreatedAt))
+		return int64(delta), err
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(task.UserId, delta, false)
+		return int64(delta), model.DecreaseUserQuota(task.UserId, delta, false)
 	}
-	return model.IncreaseUserQuota(task.UserId, -delta, false)
+	return int64(delta), model.IncreaseUserQuota(task.UserId, -delta, false)
 }
 
 // taskAdjustTokenQuota 调整任务的令牌额度，delta > 0 表示扣费，delta < 0 表示退还。
@@ -267,9 +271,19 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 	}
 
 	// 1. 退还资金来源（钱包或订阅）
-	if err := taskAdjustFunding(task, -quota); err != nil {
-		logger.LogWarn(ctx, common.LogText("failed to refund the funding source, task %s: %s", task.TaskID, err.Error()))
+	applied, fundingErr := taskAdjustFunding(task, -quota)
+	if fundingErr != nil {
+		logger.LogWarn(ctx, common.LogText("failed to refund the funding source, task %s: %s", task.TaskID, fundingErr.Error()))
 		return false
+	}
+
+	quota = -common.QuotaFromFloat(float64(applied))
+	if quota == 0 {
+		task.Quota = 0
+		if err := task.UpdateQuota(); err != nil {
+			logger.LogError(ctx, common.LogText("failed to write back the settled task quota, task %s: %s", task.TaskID, err.Error()))
+		}
+		return true
 	}
 
 	// 2. 退还令牌额度
@@ -329,16 +343,28 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	))
 
 	// 调整资金来源
-	if err := taskAdjustFunding(task, quotaDelta); err != nil {
-		logger.LogError(ctx, common.LogText("failed to adjust funding for the difference, task %s: %s", task.TaskID, err.Error()))
+	applied, fundingErr := taskAdjustFunding(task, quotaDelta)
+	if fundingErr != nil {
+		logger.LogError(ctx, common.LogText("failed to adjust funding for the difference, task %s: %s", task.TaskID, fundingErr.Error()))
 		return
 	}
 
-	// 调整令牌额度
-	taskAdjustTokenQuota(ctx, task, quotaDelta)
+	// The receipt tracks money already charged; task.Quota tracks usage already
+	// reported. Submission can leave those amounts different.
+	fundingDelta := common.QuotaFromFloat(float64(applied))
+	taskAdjustTokenQuota(ctx, task, fundingDelta)
 
 	task.Quota = actualQuota
-	if err := task.UpdateQuota(); err != nil {
+	if task.SubscriptionReceiptID != "" {
+		updated, err := task.UpdateQuotaIfUnchanged(preConsumedQuota)
+		if err != nil {
+			logger.LogError(ctx, common.LogText("failed to write back the settled task quota, task %s: %s", task.TaskID, err.Error()))
+			return
+		}
+		if !updated {
+			return
+		}
+	} else if err := task.UpdateQuota(); err != nil {
 		logger.LogError(ctx, common.LogText("failed to write back the settled task quota, task %s: %s", task.TaskID, err.Error()))
 	}
 

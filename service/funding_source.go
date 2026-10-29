@@ -17,8 +17,8 @@ type FundingSource interface {
 	Source() string
 	// PreConsume 从该资金来源预扣 amount 额度
 	PreConsume(amount int) error
-	// Settle 根据差额调整资金来源（正数补扣，负数退还）
-	Settle(delta int) error
+	// Settle 根据差额调整资金来源，并返回实际入账的差额。
+	Settle(delta int) (int, error)
 	// Refund 退还所有预扣费
 	Refund() error
 }
@@ -55,14 +55,14 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	return nil
 }
 
-func (w *WalletFunding) Settle(delta int) error {
+func (w *WalletFunding) Settle(delta int) (int, error) {
 	if delta == 0 {
-		return nil
+		return 0, nil
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta, false)
+		return delta, model.DecreaseUserQuota(w.userId, delta, false)
 	}
-	return model.IncreaseUserQuota(w.userId, -delta, false)
+	return delta, model.IncreaseUserQuota(w.userId, -delta, false)
 }
 
 func (w *WalletFunding) Refund() error {
@@ -85,6 +85,8 @@ type SubscriptionFunding struct {
 	amount         int64 // 预扣的订阅额度（subConsume）
 	subscriptionId int
 	preConsumed    int64
+	reserved       int64
+	periodTracked  bool
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
 	AmountTotal     int64
 	AmountUsedAfter int64
@@ -102,6 +104,8 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	}
 	s.subscriptionId = res.UserSubscriptionId
 	s.preConsumed = res.PreConsumed
+	s.reserved = res.PreConsumed
+	s.periodTracked = res.PeriodTracked
 	s.AmountTotal = res.AmountTotal
 	s.AmountUsedAfter = res.AmountUsedAfter
 	// 获取订阅计划信息
@@ -112,11 +116,43 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	return nil
 }
 
-func (s *SubscriptionFunding) Settle(delta int) error {
+func (s *SubscriptionFunding) Settle(delta int) (int, error) {
+	if s.periodTracked {
+		applied, err := model.FinalizeSubscriptionPreConsume(s.requestId, s.reserved+int64(delta))
+		return int(applied), err
+	}
 	if delta == 0 {
+		return 0, nil
+	}
+	return delta, model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+}
+
+func (s *SubscriptionFunding) Reserve(target int64) error {
+	if target <= s.reserved {
 		return nil
 	}
-	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	var err error
+	if s.periodTracked {
+		err = model.ReserveSubscriptionPreConsume(s.requestId, target)
+	} else {
+		err = model.PostConsumeUserSubscriptionDelta(s.subscriptionId, target-s.reserved)
+	}
+	if err == nil {
+		s.reserved = target
+	}
+	return err
+}
+
+func (s *SubscriptionFunding) RollbackReserve(target int64) error {
+	if s.periodTracked {
+		if err := model.RollbackSubscriptionPreConsume(s.requestId, target); err != nil {
+			return err
+		}
+	} else if err := model.PostConsumeUserSubscriptionDelta(s.subscriptionId, target-s.reserved); err != nil {
+		return err
+	}
+	s.reserved = target
+	return nil
 }
 
 func (s *SubscriptionFunding) Refund() error {

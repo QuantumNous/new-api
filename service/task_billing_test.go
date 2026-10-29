@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -24,6 +26,8 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -49,7 +53,15 @@ func TestMain(m *testing.M) {
 		panic("failed to load locales: " + err.Error())
 	}
 
-	if err := db.AutoMigrate(
+	if err := db.AutoMigrate(taskBillingTestModels()...); err != nil {
+		panic("failed to migrate: " + err.Error())
+	}
+
+	os.Exit(m.Run())
+}
+
+func taskBillingTestModels() []any {
+	return []any{
 		&model.Task{},
 		&model.User{},
 		&model.Token{},
@@ -58,13 +70,44 @@ func TestMain(m *testing.M) {
 		&model.Midjourney{},
 		&model.TopUp{},
 		&model.UserSubscription{},
+		&model.SubscriptionPlan{},
+		&model.SubscriptionPreConsumeRecord{},
+		&model.SubscriptionQuotaWindow{},
 		&model.SystemTask{},
 		&model.SystemTaskLock{},
-	); err != nil {
-		panic("failed to migrate: " + err.Error())
 	}
+}
 
-	os.Exit(m.Run())
+func taskBillingDialectDB(t *testing.T, dialect string) {
+	t.Helper()
+	if dialect == "sqlite" {
+		return
+	}
+	dsn := os.Getenv("TEST_" + strings.ToUpper(dialect) + "_DSN")
+	if dsn == "" {
+		t.Skip("test database DSN is not configured")
+	}
+	var driver gorm.Dialector = mysql.Open(dsn)
+	dbType := common.DatabaseTypeMySQL
+	if dialect == "postgres" {
+		driver = postgres.Open(dsn)
+		dbType = common.DatabaseTypePostgreSQL
+	}
+	db, err := gorm.Open(driver, &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	previousDB, previousLogDB := model.DB, model.LOG_DB
+	previousMainType, previousLogType := common.MainDatabaseType(), common.LogDatabaseType()
+	model.DB, model.LOG_DB = db, db
+	common.SetDatabaseTypes(dbType, dbType)
+	t.Cleanup(func() {
+		assert.NoError(t, db.Migrator().DropTable(taskBillingTestModels()...))
+		model.DB, model.LOG_DB = previousDB, previousLogDB
+		common.SetDatabaseTypes(previousMainType, previousLogType)
+		assert.NoError(t, sqlDB.Close())
+	})
+	require.NoError(t, db.AutoMigrate(taskBillingTestModels()...))
 }
 
 // ---------------------------------------------------------------------------
@@ -82,6 +125,9 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM midjourneys")
 		model.DB.Exec("DELETE FROM top_ups")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		model.DB.Exec("DELETE FROM subscription_plans")
+		model.DB.Exec("DELETE FROM subscription_pre_consume_records")
+		model.DB.Exec("DELETE FROM subscription_quota_windows")
 		model.DB.Exec("DELETE FROM system_task_locks")
 		model.DB.Exec("DELETE FROM system_tasks")
 	})
@@ -1807,6 +1853,169 @@ func TestSettle_TokenRecalcFallsBackToCompletionTokens(t *testing.T) {
 
 			assert.Equal(t, testCase.wantSettled, settled)
 			assert.Equal(t, testCase.wantQuota, task.Quota)
+		})
+	}
+}
+
+func TestSubscriptionPeriodQuotaFundingAndTaskRefund(t *testing.T) {
+	truncate(t)
+	seedUser(t, 7001, 1000)
+	seedToken(t, 7001, 7001, "period-token", 1000)
+	seedChannel(t, 7001)
+	plan := model.SubscriptionPlan{Title: "Period funding", DailyLimit: 10}
+	require.NoError(t, model.DB.Create(&plan).Error)
+	now := model.GetDBTimestamp()
+	sub := model.UserSubscription{UserId: 7001, PlanId: plan.Id, AmountTotal: 100, Status: "active", StartTime: now, EndTime: now + 86400, AllowWalletOverflow: true}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	// The receipt is persisted with the task and survives a manual reset.
+	funding := &SubscriptionFunding{requestId: "period-delayed-task", userId: sub.UserId, amount: 4}
+	require.NoError(t, funding.PreConsume(4))
+	require.NoError(t, funding.Reserve(6))
+	applied, err := funding.Settle(1)
+	require.NoError(t, err, "actual amount 7 is recorded")
+	assert.Equal(t, 1, applied)
+	seedChargedAccounting(t, 7001, 7001, 7001, 7, 1)
+	task := makeTask(7001, 7001, 7, 7001, BillingSourceSubscription, sub.Id)
+	task.SubscriptionReceiptID = funding.requestId
+	require.NoError(t, model.DB.Create(task).Error)
+	staleRecalculation := *task
+	RecalculateTaskQuota(context.Background(), task, 12, common.NewMessage("actual usage"))
+	assert.Equal(t, 995, getTokenRemainQuota(t, 7001))
+	RecalculateTaskQuota(context.Background(), &staleRecalculation, 12, common.NewMessage("duplicate settlement"))
+	assert.Equal(t, 995, getTokenRemainQuota(t, 7001), "settlement above the period cap is charged once")
+	usedQuota, requestCount := getUserUsageAccounting(t, 7001)
+	assert.Equal(t, 12, usedQuota, "a stale task copy cannot count usage twice")
+	assert.Equal(t, 1, requestCount)
+	assert.EqualValues(t, 12, getChannelUsedQuota(t, 7001))
+	assert.EqualValues(t, 1, countLogs(t))
+	staleTask := *task
+	_, err = model.AdminResetUserSubscriptionsByPlan(sub.UserId, plan.Id, false)
+	require.NoError(t, err)
+	_, err = model.PreConsumeUserSubscription("period-after-task-reset", sub.UserId, "model", 0, 5)
+	require.NoError(t, err)
+	assert.True(t, RefundTaskQuota(context.Background(), task, "task failed"))
+	assert.Equal(t, 1007, getTokenRemainQuota(t, 7001))
+	assert.True(t, RefundTaskQuota(context.Background(), &staleTask, "duplicate refund"))
+	assert.Equal(t, 1007, getTokenRemainQuota(t, 7001), "a stale task copy cannot refund the token twice")
+	assert.EqualValues(t, 5, getSubscriptionUsed(t, sub.Id))
+	assert.Zero(t, getTaskQuota(t, task.ID))
+}
+
+func TestSubscriptionPeriodQuotaWalletFallback(t *testing.T) {
+	for _, test := range []struct {
+		name, preference string
+		overflow         bool
+		wantSource       string
+	}{
+		{"overflow_allowed", "subscription_first", true, BillingSourceWallet},
+		{"overflow_disabled", "subscription_first", false, ""},
+		{"subscription_only", "subscription_only", true, ""},
+		{"wallet_first", "wallet_first", false, BillingSourceWallet},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			truncate(t)
+			seedUser(t, 7101, 100)
+			plan := model.SubscriptionPlan{Title: "Daily cap", DailyLimit: 1}
+			require.NoError(t, model.DB.Create(&plan).Error)
+			now := model.GetDBTimestamp()
+			sub := model.UserSubscription{UserId: 7101, PlanId: plan.Id, Status: "active", StartTime: now, EndTime: now + 86400, AllowWalletOverflow: test.overflow}
+			require.NoError(t, model.DB.Create(&sub).Error)
+			_, err := model.PreConsumeUserSubscription("fallback-full", sub.UserId, "model", 0, 1)
+			require.NoError(t, err)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			info := &relaycommon.RelayInfo{UserId: sub.UserId, RequestId: "fallback-next", IsPlayground: true, UserSetting: dto.UserSetting{BillingPreference: test.preference}}
+			session, apiErr := NewBillingSession(c, info, 1)
+			if test.wantSource == "" {
+				require.NotNil(t, apiErr)
+				assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+				return
+			}
+			require.Nil(t, apiErr)
+			assert.Equal(t, test.wantSource, session.funding.Source())
+			require.NoError(t, session.Settle(1))
+		})
+	}
+}
+
+func TestSubscriptionTaskFinalChargeSurvivesSubmitSettlement(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			taskBillingDialectDB(t, dialect)
+			for _, test := range []struct {
+				name        string
+				preConsumed int
+				actual      int
+			}{
+				{"unchanged", 4, 12},
+				{"submit_decrease", 10, 12},
+				{"submit_increase", 2, 12},
+				{"receipt_matches_actual", 12, 12},
+				{"actual_below_recorded", 10, 2},
+				{"task_refund", 10, 0},
+			} {
+				for _, finalBeforeSubmit := range []bool{false, true} {
+					t.Run(test.name+"/"+map[bool]string{false: "submit_first", true: "task_first"}[finalBeforeSubmit], func(t *testing.T) {
+						truncate(t)
+						seedUser(t, 7201, 1000)
+						seedToken(t, 7201, 7201, "submit-race-token", 1000)
+						seedChannel(t, 7201)
+						plan := model.SubscriptionPlan{Title: "Submit settlement", DailyLimit: 20}
+						require.NoError(t, model.DB.Create(&plan).Error)
+						now := model.GetDBTimestamp()
+						sub := model.UserSubscription{UserId: 7201, PlanId: plan.Id, AmountTotal: 100, Status: "active", StartTime: now, EndTime: now + 86400}
+						require.NoError(t, model.DB.Create(&sub).Error)
+						c, _ := gin.CreateTestContext(httptest.NewRecorder())
+						c.Request = httptest.NewRequest(http.MethodPost, "/task/submit", nil)
+						info := &relaycommon.RelayInfo{UserId: sub.UserId, TokenId: 7201, TokenKey: "submit-race-token", RequestId: "submit-race", ForcePreConsume: true, UserSetting: dto.UserSetting{BillingPreference: "subscription_only"}}
+						session, apiErr := NewBillingSession(c, info, test.preConsumed)
+						require.Nil(t, apiErr)
+						seedChargedAccounting(t, 7201, 7201, 0, 4, 1)
+						task := makeTask(7201, 7201, 4, 7201, BillingSourceSubscription, sub.Id)
+						task.SubscriptionReceiptID = info.SubscriptionReceiptID
+						require.NotEmpty(t, task.SubscriptionReceiptID)
+						require.NoError(t, model.DB.Create(task).Error)
+						if !finalBeforeSubmit {
+							require.NoError(t, session.Settle(4))
+						}
+						staleTask := *task
+						RecalculateTaskQuota(context.Background(), task, test.actual, common.NewMessage("actual usage"))
+						require.NoError(t, session.Settle(4))
+						require.NoError(t, session.Settle(4), "initial settlement is idempotent")
+						RecalculateTaskQuota(context.Background(), &staleTask, test.actual, common.NewMessage("duplicate settlement"))
+						assert.False(t, session.NeedsRefund())
+						assert.EqualValues(t, test.actual, getSubscriptionUsed(t, sub.Id))
+						assert.Equal(t, 1000-test.actual, getTokenRemainQuota(t, 7201))
+						assert.Equal(t, test.actual, getTokenUsedQuota(t, 7201))
+						assert.Equal(t, test.actual, getTaskQuota(t, task.ID))
+						usedQuota, requestCount := getUserUsageAccounting(t, 7201)
+						assert.Equal(t, test.actual, usedQuota)
+						assert.Equal(t, 1, requestCount)
+						assert.EqualValues(t, test.actual, getChannelUsedQuota(t, 7201))
+						log := getLastLog(t)
+						require.NotNil(t, log)
+						logQuota := test.actual - 4
+						logType := model.LogTypeConsume
+						if test.actual < 4 {
+							logType = model.LogTypeRefund
+							logQuota = -logQuota
+						}
+						assert.Equal(t, logQuota, log.Quota)
+						assert.Equal(t, logType, log.Type)
+						assert.EqualValues(t, 1, countLogs(t), "a stale task copy must not log usage twice")
+						var receipt model.SubscriptionPreConsumeRecord
+						require.NoError(t, model.DB.Where("request_id = ?", task.SubscriptionReceiptID).First(&receipt).Error)
+						assert.EqualValues(t, test.actual, receipt.AccountedAmount)
+						assert.Positive(t, receipt.SettledAt)
+						var windows []model.SubscriptionQuotaWindow
+						require.NoError(t, model.DB.Where("subscription_id = ?", sub.Id).Find(&windows).Error)
+						require.Len(t, windows, 4)
+						for _, window := range windows {
+							assert.EqualValues(t, test.actual, window.Used, window.Kind)
+						}
+					})
+				}
+			}
 		})
 	}
 }

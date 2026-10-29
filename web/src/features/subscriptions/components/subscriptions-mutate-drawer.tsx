@@ -73,7 +73,11 @@ import {
   createWaffoPancakeSubscriptionProduct,
   listWaffoPancakeSubscriptionProductOptions,
 } from '../api'
-import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
+import {
+  getDurationUnitOptions,
+  getResetPeriodOptions,
+  getPeriodQuotaOptions,
+} from '../constants'
 import {
   getPlanFormSchema,
   PLAN_FORM_DEFAULTS,
@@ -152,6 +156,7 @@ export function SubscriptionsMutateDrawer({
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
+  const enabled = form.watch('enabled')
   // Gate "+ Create on Pancake" on the same checks the mint handler runs.
   const watchedTitle = form.watch('title')
   const watchedPrice = form.watch('price_amount')
@@ -165,6 +170,16 @@ export function SubscriptionsMutateDrawer({
     try {
       const payload = formValuesToPlanPayload(values)
       if (isEdit && currentRow?.plan?.id) {
+        if (
+          payload.plan.recommended === (currentRow.plan.recommended ?? false)
+        ) {
+          delete payload.plan.recommended
+        }
+        for (const { field } of getPeriodQuotaOptions(t)) {
+          if (payload.plan[field] === (currentRow.plan[field] ?? 0)) {
+            delete payload.plan[field]
+          }
+        }
         const res = await updatePlan(currentRow.plan.id, payload)
         if (res.success) {
           toast.success(t('Update succeeded'))
@@ -400,7 +415,7 @@ export function SubscriptionsMutateDrawer({
                 />
               </div>
 
-              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+              <div className='grid grid-cols-1 items-start gap-3 sm:grid-cols-2'>
                 <FormField
                   control={form.control}
                   name='upgrade_group'
@@ -464,7 +479,9 @@ export function SubscriptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
+              </div>
 
+              <div className='grid grid-cols-2 items-start gap-3'>
                 <FormField
                   control={form.control}
                   name='max_purchase_per_user'
@@ -490,29 +507,29 @@ export function SubscriptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <FormField
-                control={form.control}
-                name='sort_order'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Sort Order')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        type='number'
-                        onChange={(e) =>
-                          field.onChange(
-                            Number.parseInt(e.target.value, 10) || 0
-                          )
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name='sort_order'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Sort Order')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          onChange={(e) =>
+                            field.onChange(
+                              Number.parseInt(e.target.value, 10) || 0
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className='flex flex-col gap-3'>
                 <FormField
@@ -526,6 +543,39 @@ export function SubscriptionsMutateDrawer({
                       <FormControl>
                         <Switch
                           checked={field.value}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked)
+                            if (!checked) {
+                              form.setValue('recommended', false, {
+                                shouldDirty: true,
+                              })
+                            }
+                          }}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='recommended'
+                  render={({ field }) => (
+                    <FormItem className={sideDrawerSwitchItemClassName()}>
+                      <div className='space-y-1'>
+                        <FormLabel className='!mt-0'>
+                          {t('Recommended')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Recommend this plan on the wallet page. Enabling it replaces the current recommendation.'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          disabled={!enabled}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
@@ -569,6 +619,49 @@ export function SubscriptionsMutateDrawer({
                   )}
                 />
               </div>
+            </SideDrawerSection>
+
+            <SideDrawerSection>
+              <h3 className='text-sm font-medium'>
+                {t('Subscription period quotas')}
+              </h3>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'All enabled limits apply together. 0 means unlimited. Daily, weekly and monthly limits reset at 00:00, Monday 00:00 and the first day of the month 00:00.'
+                )}
+              </p>
+              {getPeriodQuotaOptions(t).map((option) => (
+                <FormField
+                  key={option.field}
+                  control={form.control}
+                  name={option.field}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {option.label} ({currencyLabel})
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          step={tokensOnly ? 1 : 'any'}
+                          placeholder={t('Unlimited')}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ))}
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Changes apply to existing subscriptions without clearing usage. Only requests started after this feature was enabled count toward period limits.'
+                )}
+              </p>
             </SideDrawerSection>
 
             {/* Duration Settings */}

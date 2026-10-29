@@ -41,6 +41,7 @@ import {
 } from '../../api'
 import { formatDuration, formatResetPeriod } from '../../lib'
 import type { PlanRecord } from '../../types'
+import { SubscriptionQuotaSummary } from '../subscription-quota-summary'
 
 interface PaymentMethod {
   type: string
@@ -212,8 +213,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
       const res = await paySubscriptionBalance({ plan_id: plan.id })
       if (res.success) {
         toast.success(t('Subscription purchased successfully'))
-        void props.onPurchaseSuccess?.()
         props.onOpenChange(false)
+        void props.onPurchaseSuccess?.()
       } else {
         handleServerError(res, t('Payment request failed'))
       }
@@ -275,6 +276,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
               {totalAmount > 0 ? formatQuota(totalAmount) : t('Unlimited')}
             </span>
           </div>
+          <SubscriptionQuotaSummary plan={plan} />
           {plan.upgrade_group && (
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-sm'>
@@ -292,7 +294,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
         {limitReached && (
           <Alert variant='destructive'>
-            <AlertDescription>
+            <AlertDescription className='text-center'>
               {t('Purchase limit reached')} ({props.purchaseCount}/
               {props.purchaseLimit})
             </AlertDescription>
@@ -310,14 +312,16 @@ export function SubscriptionPurchaseDialog(props: Props) {
           </div>
           {!allowBalancePay ? (
             <Alert variant='destructive'>
-              <AlertDescription>
+              <AlertDescription className='text-center'>
                 {t('This plan does not allow balance redemption')}
               </AlertDescription>
             </Alert>
           ) : (
             insufficientBalance && (
               <Alert variant='destructive'>
-                <AlertDescription>{t('Insufficient balance')}</AlertDescription>
+                <AlertDescription className='text-center'>
+                  {t('Insufficient balance')}
+                </AlertDescription>
               </Alert>
             )
           )}

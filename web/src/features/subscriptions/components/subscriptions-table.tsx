@@ -17,10 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import type { ColumnFiltersState } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DataTablePage, useDataTable } from '@/components/data-table'
+import {
+  DataTablePage,
+  DISABLED_ROW_DESKTOP,
+  DISABLED_ROW_MOBILE,
+  useDataTable,
+} from '@/components/data-table'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getAdminPlans } from '../api'
@@ -31,6 +37,7 @@ export function SubscriptionsTable() {
   const { t } = useTranslation()
   const columns = useSubscriptionsColumns()
   const { refreshTrigger } = useSubscriptions()
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-subscription-plans', refreshTrigger],
@@ -46,8 +53,18 @@ export function SubscriptionsTable() {
   const { table } = useDataTable({
     data: plans,
     columns,
-    withFilteredRowModel: false,
-    withFacetedRowModel: false,
+    columnFilters,
+    onColumnFiltersChange: setColumnFilters,
+    initialColumnVisibility: {
+      id: false,
+      sort_order: false,
+      reset: false,
+      payment: false,
+      upgrade_group: false,
+    },
+    columnVisibilityStorageKey: 'subscriptions-table-columns-v3',
+    enableColumnResizing: true,
+    columnSizingStorageKey: 'subscriptions-column-sizing-v3',
   })
 
   return (
@@ -55,11 +72,39 @@ export function SubscriptionsTable() {
       table={table}
       columns={columns}
       isLoading={isLoading}
-      emptyTitle={t('No subscription plans yet')}
-      emptyDescription={t(
-        'Click "Create Plan" to create your first subscription plan'
-      )}
+      emptyTitle={
+        table.getState().columnFilters.length
+          ? t('No results found.')
+          : t('No subscription plans yet')
+      }
+      emptyDescription={
+        table.getState().columnFilters.length
+          ? t('Try adjusting your search')
+          : t('Click "Create Plan" to create your first subscription plan')
+      }
       skeletonKeyPrefix='subscriptions-skeleton'
+      getColumnClassName={(columnId) =>
+        columnId === 'actions' ? 'pl-4' : undefined
+      }
+      getRowClassName={(row, { isMobile }) => {
+        if (row.original.plan.enabled) return undefined
+        return isMobile ? DISABLED_ROW_MOBILE : DISABLED_ROW_DESKTOP
+      }}
+      toolbarProps={{
+        searchKey: 'title',
+        searchPlaceholder: t('Filter by name...'),
+        filters: [
+          {
+            columnId: 'enabled',
+            title: t('Status'),
+            singleSelect: true,
+            options: [
+              { label: t('Enabled'), value: 'true' },
+              { label: t('Disabled'), value: 'false' },
+            ],
+          },
+        ],
+      }}
       applyHeaderSize
     />
   )

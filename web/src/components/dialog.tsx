@@ -43,6 +43,7 @@ type DialogProps = React.ComponentProps<typeof DialogRoot> & {
   bodyClassName?: string
   footerClassName?: string
   initialFocus?: boolean
+  finalFocus?: React.ComponentProps<typeof DialogContent>['finalFocus']
   showCloseButton?: boolean
 }
 
@@ -63,6 +64,7 @@ export function Dialog({
   bodyClassName,
   footerClassName,
   initialFocus,
+  finalFocus,
   showCloseButton,
   ...dialogProps
 }: DialogProps) {
@@ -76,6 +78,7 @@ export function Dialog({
           dialogContentMotionClassName
         )}
         initialFocus={initialFocus}
+        finalFocus={finalFocus}
         showCloseButton={showCloseButton}
         style={
           {

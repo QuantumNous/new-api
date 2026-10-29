@@ -62,6 +62,7 @@ import {
 } from '../../api'
 import { formatTimestamp } from '../../lib'
 import type { PlanRecord, UserSubscriptionRecord } from '../../types'
+import { SubscriptionQuotaSummary } from '../subscription-quota-summary'
 
 interface Props {
   open: boolean
@@ -345,6 +346,15 @@ export function UserSubscriptionsDialog(props: Props) {
                   },
                 },
                 {
+                  id: 'period_quotas',
+                  header: t('Subscription period quotas'),
+                  cell: (record) => (
+                    <SubscriptionQuotaSummary
+                      windows={record.subscription.quota_windows}
+                    />
+                  ),
+                },
+                {
                   id: 'actions',
                   header: t('Actions'),
                   className: 'text-right',
@@ -449,6 +459,11 @@ export function UserSubscriptionsDialog(props: Props) {
           handleConfirm={handleResetConfirm}
           isLoading={resetting}
         >
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'This resets the original allowance and all daily, weekly and monthly usage. Previous requests cannot restore the newly reset quota.'
+            )}
+          </p>
           <label className='flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm'>
             <span>{t('Advance next reset time')}</span>
             <Switch

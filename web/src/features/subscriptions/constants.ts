@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 // ============================================================================
 // Duration Unit Options
@@ -44,4 +44,27 @@ export function getDurationUnitOptions(t: TFunction) {
 
 export function getResetPeriodOptions(t: TFunction) {
   return RESET_PERIODS.map((p) => ({ value: p.value, label: t(p.labelKey) }))
+}
+
+export function getPeriodQuotaOptions(t: TFunction) {
+  return [
+    {
+      key: 'daily',
+      field: 'daily_limit',
+      label: t('Daily quota limit'),
+      shortLabel: t('Daily'),
+    },
+    {
+      key: 'weekly',
+      field: 'weekly_limit',
+      label: t('Weekly quota limit'),
+      shortLabel: t('Weekly'),
+    },
+    {
+      key: 'monthly',
+      field: 'monthly_limit',
+      label: t('Monthly quota limit'),
+      shortLabel: t('Monthly'),
+    },
+  ] as const
 }

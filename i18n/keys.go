@@ -35,6 +35,9 @@ const (
 	MsgDistributorNoAvailableChannelTaskPlugin = "distributor.no_available_channel_task_plugin"
 	MsgDistributorInvalidParseModel            = "distributor.invalid_request_parse_model"
 
+	MsgQuotaSubscriptionDailyLimit       = "quota.subscription_daily_limit"
+	MsgQuotaSubscriptionWeeklyLimit      = "quota.subscription_weekly_limit"
+	MsgQuotaSubscriptionMonthlyLimit     = "quota.subscription_monthly_limit"
 	MsgQuotaUserInsufficient             = "quota.user_insufficient"
 	MsgQuotaPreConsumeInsufficient       = "quota.pre_consume_insufficient"
 	MsgQuotaSubscriptionInsufficient     = "quota.subscription_insufficient"

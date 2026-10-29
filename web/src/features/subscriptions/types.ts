@@ -34,11 +34,15 @@ export const subscriptionPlanSchema = z.object({
   quota_reset_period: z.enum(['never', 'daily', 'weekly', 'monthly', 'custom']),
   quota_reset_custom_seconds: z.number().optional(),
   enabled: z.boolean(),
+  recommended: z.boolean().optional(),
   sort_order: z.number(),
   allow_balance_pay: z.boolean().optional().default(true),
   allow_wallet_overflow: z.boolean().optional().default(true),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
+  daily_limit: z.number().optional(),
+  weekly_limit: z.number().optional(),
+  monthly_limit: z.number().optional(),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
@@ -56,6 +60,22 @@ export interface PlanRecord {
 // User Subscription Schema & Types
 // ============================================================================
 
+const quotaWindowSchema = z.object({
+  limit: z.number(),
+  used: z.number(),
+  reset_at: z.number(),
+})
+
+export const subscriptionQuotaWindowsSchema = z.object({
+  daily: quotaWindowSchema,
+  weekly: quotaWindowSchema,
+  monthly: quotaWindowSchema,
+})
+
+export type SubscriptionQuotaWindows = z.infer<
+  typeof subscriptionQuotaWindowsSchema
+>
+
 export const userSubscriptionSchema = z.object({
   id: z.number(),
   user_id: z.number(),
@@ -66,6 +86,7 @@ export const userSubscriptionSchema = z.object({
   end_time: z.number(),
   amount_total: z.number(),
   amount_used: z.number(),
+  quota_windows: subscriptionQuotaWindowsSchema.optional(),
   next_reset_time: z.number().optional(),
 })
 

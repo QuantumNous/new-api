@@ -1,7 +1,11 @@
 package openai
 
 import (
+	"context"
 	"fmt"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -10,233 +14,308 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
+type realtimeBillingTurn struct {
+	info    *relaycommon.RelayInfo
+	local   dto.RealtimeUsage
+	eventID string
+}
+
+// All accounting and socket writes run on one event loop. Reader goroutines
+// only deliver frames, so client audio and upstream usage cannot race.
 func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.RealtimeUsage) {
 	if info == nil || info.ClientWs == nil || info.TargetWs == nil {
 		return types.NewError(fmt.Errorf("invalid websocket connection"), types.ErrorCodeBadResponse), nil
 	}
-
 	info.IsStream = true
-	clientConn := info.ClientWs
-	targetConn := info.TargetWs
-
-	clientClosed := make(chan struct{})
-	targetClosed := make(chan struct{})
-	sendChan := make(chan []byte, 100)
-	receiveChan := make(chan []byte, 100)
-	errChan := make(chan error, 2)
-
-	usage := &dto.RealtimeUsage{}
-	localUsage := &dto.RealtimeUsage{}
-	sumUsage := &dto.RealtimeUsage{}
-
-	gopool.Go(func() {
-		defer func() {
-			if r := recover(); r != nil {
-				errChan <- fmt.Errorf("panic in client reader: %v", r)
-			}
-		}()
-		for {
-			select {
-			case <-c.Done():
-				return
-			default:
-				_, message, err := clientConn.ReadMessage()
-				if err != nil {
-					if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-						errChan <- fmt.Errorf("error reading from client: %v", err)
-					}
-					close(clientClosed)
-					return
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	defer cancel()
+	stop := context.AfterFunc(ctx, func() { _ = info.ClientWs.Close(); _ = info.TargetWs.Close() })
+	defer stop()
+	type frame struct {
+		upstream bool
+		message  []byte
+		err      error
+	}
+	frames := make(chan frame, 2)
+	var readers sync.WaitGroup
+	for _, upstream := range []bool{false, true} {
+		conn := info.ClientWs
+		if upstream {
+			conn = info.TargetWs
+		}
+		readers.Go(func() {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					cancel()
 				}
-
-				realtimeEvent := &dto.RealtimeEvent{}
-				err = common.Unmarshal(message, realtimeEvent)
-				if err != nil {
-					errChan <- fmt.Errorf("error unmarshalling message: %v", err)
-					return
-				}
-
-				if realtimeEvent.Type == dto.RealtimeEventTypeSessionUpdate {
-					if realtimeEvent.Session != nil {
-						if realtimeEvent.Session.Tools != nil {
-							info.RealtimeTools = realtimeEvent.Session.Tools
-						}
-					}
-				}
-
-				textToken, audioToken, err := service.CountTokenRealtime(info, *realtimeEvent, info.UpstreamModelName)
-				if err != nil {
-					errChan <- fmt.Errorf("error counting text token: %v", err)
-					return
-				}
-				logger.LogInfo(c, common.LogText("type: %s, textToken: %d, audioToken: %d", realtimeEvent.Type, textToken, audioToken))
-				localUsage.TotalTokens += textToken + audioToken
-				localUsage.InputTokens += textToken + audioToken
-				localUsage.InputTokenDetails.TextTokens += textToken
-				localUsage.InputTokenDetails.AudioTokens += audioToken
-
-				err = helper.WssString(c, targetConn, string(message))
-				if err != nil {
-					errChan <- fmt.Errorf("error writing to target: %v", err)
-					return
-				}
-
+			}()
+			for {
+				_, message, err := conn.ReadMessage()
 				select {
-				case sendChan <- message:
-				default:
+				case frames <- frame{upstream, message, err}:
+				case <-ctx.Done():
+					return
+				}
+				if err != nil {
+					return
+				}
+			}
+		})
+	}
+	// Only creates awaiting acceptance belong in pending. A rejected create's
+	// reservation can be reused, but cannot claim another request's response.
+	var pending []*realtimeBillingTurn
+	reusable := []*realtimeBillingTurn{{info: info}}
+	active := make(map[string]*realtimeBillingTurn)
+	completed := make(map[string]bool)
+	total := &dto.RealtimeUsage{}
+	bufferedInput := dto.RealtimeUsage{}
+	defer func() {
+		cancel()
+		_ = info.ClientWs.Close()
+		_ = info.TargetWs.Close()
+		readers.Wait()
+		for _, turn := range active {
+			service.PostWssConsumeQuota(c, turn.info, turn.info.UpstreamModelName, &turn.local, nil)
+		}
+		for _, turns := range [][]*realtimeBillingTurn{pending, reusable} {
+			for _, turn := range turns {
+				if turn.local.TotalTokens > 0 {
+					service.PostWssConsumeQuota(c, turn.info, turn.info.UpstreamModelName, &turn.local, nil)
+				} else if turn.info.Billing != nil {
+					turn.info.Billing.Refund(c)
 				}
 			}
 		}
-	})
-
-	gopool.Go(func() {
-		defer func() {
-			if r := recover(); r != nil {
-				errChan <- fmt.Errorf("panic in target reader: %v", r)
+	}()
+	for {
+		var incoming frame
+		select {
+		case incoming = <-frames:
+		case <-ctx.Done():
+			return nil, total
+		}
+		if incoming.err != nil {
+			return nil, total
+		}
+		var event dto.RealtimeEvent
+		if err := common.Unmarshal(incoming.message, &event); err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponse), total
+		}
+		if !incoming.upstream {
+			if event.Type == dto.RealtimeEventTypeSessionUpdate && event.Session != nil {
+				info.RealtimeTools = event.Session.Tools
 			}
-		}()
-		for {
-			select {
-			case <-c.Done():
-				return
-			default:
-				_, message, err := targetConn.ReadMessage()
-				if err != nil {
-					if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-						errChan <- fmt.Errorf("error reading from target: %v", err)
+			if event.Type == dto.RealtimeEventTypeResponseCreate {
+				if len(reusable) == 0 {
+					turn, apiErr := reserveRealtimeTurn(c, info)
+					if apiErr != nil {
+						_ = helper.WssObject(c, info.ClientWs, gin.H{"type": "error", "error": apiErr.ToOpenAIError()})
+						return nil, total
 					}
-					close(targetClosed)
-					return
+					reusable = append(reusable, turn)
 				}
-				info.SetFirstResponseTime()
-				realtimeEvent := &dto.RealtimeEvent{}
-				err = common.Unmarshal(message, realtimeEvent)
-				if err != nil {
-					errChan <- fmt.Errorf("error unmarshalling message: %v", err)
-					return
+				turn := reusable[0]
+				// A connection can start with a zero estimate. Ensure that its
+				// first turn also reserves token quota before generation is requested.
+				if apiErr := preConsumeRealtimeTurn(c, turn.info); apiErr != nil {
+					_ = helper.WssObject(c, info.ClientWs, gin.H{"type": "error", "error": apiErr.ToOpenAIError()})
+					return nil, total
 				}
 
-				if realtimeEvent.Type == dto.RealtimeEventTypeResponseDone {
-					realtimeUsage := realtimeEvent.Response.Usage
-					if realtimeUsage != nil {
-						usage.TotalTokens += realtimeUsage.TotalTokens
-						usage.InputTokens += realtimeUsage.InputTokens
-						usage.OutputTokens += realtimeUsage.OutputTokens
-						usage.InputTokenDetails.AudioTokens += realtimeUsage.InputTokenDetails.AudioTokens
-						usage.InputTokenDetails.CachedTokens += realtimeUsage.InputTokenDetails.CachedTokens
-						usage.InputTokenDetails.TextTokens += realtimeUsage.InputTokenDetails.TextTokens
-						usage.OutputTokenDetails.AudioTokens += realtimeUsage.OutputTokenDetails.AudioTokens
-						usage.OutputTokenDetails.TextTokens += realtimeUsage.OutputTokenDetails.TextTokens
-						err := preConsumeUsage(c, info, usage, sumUsage)
-						if err != nil {
-							errChan <- fmt.Errorf("error consume usage: %v", err)
-							return
-						}
-						// 本次计费完成，清除
-						usage = &dto.RealtimeUsage{}
-
-						localUsage = &dto.RealtimeUsage{}
-					} else {
-						textToken, audioToken, err := service.CountTokenRealtime(info, *realtimeEvent, info.UpstreamModelName)
-						if err != nil {
-							errChan <- fmt.Errorf("error counting text token: %v", err)
-							return
-						}
-						logger.LogInfo(c, common.LogText("type: %s, textToken: %d, audioToken: %d", realtimeEvent.Type, textToken, audioToken))
-						localUsage.TotalTokens += textToken + audioToken
-						info.IsFirstRequest = false
-						localUsage.InputTokens += textToken + audioToken
-						localUsage.InputTokenDetails.TextTokens += textToken
-						localUsage.InputTokenDetails.AudioTokens += audioToken
-						err = preConsumeUsage(c, info, localUsage, sumUsage)
-						if err != nil {
-							errChan <- fmt.Errorf("error consume usage: %v", err)
-							return
-						}
-						// 本次计费完成，清除
-						localUsage = &dto.RealtimeUsage{}
-						// print now usage
-					}
-					logger.LogInfo(c, common.LogText("realtime streaming sumUsage: %v", sumUsage))
-					logger.LogInfo(c, common.LogText("realtime streaming localUsage: %v", localUsage))
-					logger.LogInfo(c, common.LogText("realtime streaming localUsage: %v", localUsage))
-
-				} else if realtimeEvent.Type == dto.RealtimeEventTypeSessionUpdated || realtimeEvent.Type == dto.RealtimeEventTypeSessionCreated {
-					realtimeSession := realtimeEvent.Session
-					if realtimeSession != nil {
-						// update audio format
-						info.InputAudioFormat = common.GetStringIfEmpty(realtimeSession.InputAudioFormat, info.InputAudioFormat)
-						info.OutputAudioFormat = common.GetStringIfEmpty(realtimeSession.OutputAudioFormat, info.OutputAudioFormat)
-					}
-				} else {
-					textToken, audioToken, err := service.CountTokenRealtime(info, *realtimeEvent, info.UpstreamModelName)
+				// error.event_id refers to the client event, not the server
+				// error envelope. Supply an ID when the client omitted one.
+				if event.EventId == "" {
+					event.EventId = common.NewRequestId()
+					var err error
+					incoming.message, err = sjson.SetBytes(incoming.message, "event_id", event.EventId)
 					if err != nil {
-						errChan <- fmt.Errorf("error counting text token: %v", err)
-						return
+						return types.NewError(err, types.ErrorCodeInvalidRequest), total
 					}
-					logger.LogInfo(c, common.LogText("type: %s, textToken: %d, audioToken: %d", realtimeEvent.Type, textToken, audioToken))
-					localUsage.TotalTokens += textToken + audioToken
-					localUsage.OutputTokens += textToken + audioToken
-					localUsage.OutputTokenDetails.TextTokens += textToken
-					localUsage.OutputTokenDetails.AudioTokens += audioToken
 				}
-
-				err = helper.WssString(c, clientConn, string(message))
-				if err != nil {
-					errChan <- fmt.Errorf("error writing to client: %v", err)
-					return
+				turn.eventID = event.EventId
+				pending = append(pending, turn)
+				reusable = reusable[1:]
+			}
+			// Audio chunks and commits only fill input context. In particular,
+			// continuous microphone audio must not reserve a second response.
+			text, audio, err := service.CountTokenRealtime(info, event, info.UpstreamModelName)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeBadResponse), total
+			}
+			bufferedInput.InputTokenDetails.TextTokens += text
+			bufferedInput.InputTokenDetails.AudioTokens += audio
+			bufferedInput.InputTokens += text + audio
+			bufferedInput.TotalTokens += text + audio
+			if event.Type == "input_audio_buffer.clear" {
+				bufferedInput.InputTokens -= bufferedInput.InputTokenDetails.AudioTokens
+				bufferedInput.TotalTokens -= bufferedInput.InputTokenDetails.AudioTokens
+				bufferedInput.InputTokenDetails.AudioTokens = 0
+			}
+			if err := helper.WssString(c, info.TargetWs, string(incoming.message)); err != nil {
+				return nil, total
+			}
+			continue
+		}
+		if event.Type == dto.RealtimeEventTypeError {
+			// Reuse only a rejected, not-yet-started generation. An unrelated
+			// error must not release another turn's reservation.
+			eventID := gjson.GetBytes(incoming.message, "error.event_id").String()
+			rejectedIndex := -1
+			if eventID != "" {
+				for index, turn := range pending {
+					if turn.eventID == eventID {
+						rejectedIndex = index
+						break
+					}
 				}
-
-				select {
-				case receiveChan <- message:
-				default:
+			} else if event.Error != nil && event.Error.Type == "invalid_request_error" && (event.Error.Param == "response" || strings.HasPrefix(event.Error.Param, "response.")) {
+				// Some providers omit event_id. A response parameter error is
+				// unambiguous only when exactly one create is awaiting acceptance.
+				if len(pending) == 1 {
+					rejectedIndex = 0
 				}
 			}
+			if rejectedIndex >= 0 {
+				rejected := pending[rejectedIndex]
+				rejected.eventID = ""
+				pending = append(pending[:rejectedIndex], pending[rejectedIndex+1:]...)
+				reusable = append(reusable, rejected)
+			}
 		}
-	})
 
-	select {
-	case <-clientClosed:
-	case <-targetClosed:
-	case err := <-errChan:
-		//return service.OpenAIErrorWrapper(err, "realtime_error", http.StatusInternalServerError), nil
-		logger.LogError(c, common.LogText("realtime error: %s", err.Error()))
-	case <-c.Done():
+		if event.Type == dto.RealtimeEventTypeSessionUpdated || event.Type == dto.RealtimeEventTypeSessionCreated {
+			if event.Session != nil {
+				info.InputAudioFormat = common.GetStringIfEmpty(event.Session.InputAudioFormat, info.InputAudioFormat)
+				info.OutputAudioFormat = common.GetStringIfEmpty(event.Session.OutputAudioFormat, info.OutputAudioFormat)
+			}
+		}
+		// Input items can be confirmed before a response starts (or while a
+		// preceding response is running). Keep them for the next generation's
+		// fallback usage; they are never output tokens of the active response.
+		if event.Type == dto.RealtimeEventConversationItemCreated {
+			text, audio, err := service.CountTokenRealtime(info, event, info.UpstreamModelName)
+			if err != nil {
+				logger.LogWarn(c, err.Error())
+			} else {
+				bufferedInput.InputTokenDetails.TextTokens += text
+				bufferedInput.InputTokenDetails.AudioTokens += audio
+				bufferedInput.InputTokens += text + audio
+				bufferedInput.TotalTokens += text + audio
+			}
+		}
+		responseID := gjson.GetBytes(incoming.message, "response_id").String()
+		if id := gjson.GetBytes(incoming.message, "response.id").String(); id != "" {
+			responseID = id
+		}
+		if event.Type == "response.created" && active[responseID] == nil && !completed[responseID] {
+			if len(pending) == 0 {
+				// VAD/idle-timeout responses can be initiated by the provider.
+				// Reserve before accepting their output and close on exhaustion.
+				if len(reusable) == 0 {
+					turn, apiErr := reserveRealtimeTurn(c, info)
+					if apiErr != nil {
+						_ = helper.WssObject(c, info.ClientWs, gin.H{"type": "error", "error": apiErr.ToOpenAIError()})
+						return nil, total
+					}
+					reusable = append(reusable, turn)
+				}
+				pending = append(pending, reusable[0])
+				reusable = reusable[1:]
+			}
+			if apiErr := preConsumeRealtimeTurn(c, pending[0].info); apiErr != nil {
+				_ = helper.WssObject(c, info.ClientWs, gin.H{"type": "error", "error": apiErr.ToOpenAIError()})
+				return nil, total
+			}
+			pending[0].local = bufferedInput
+			pending[0].info.SetFirstResponseTime()
+			bufferedInput = dto.RealtimeUsage{}
+			active[responseID] = pending[0]
+			pending = pending[1:]
+		}
+		turn := active[responseID]
+		if turn == nil && len(active) == 1 {
+			for _, candidate := range active {
+				turn = candidate
+			}
+		}
+		if event.Type == dto.RealtimeEventTypeResponseDone && !completed[responseID] {
+			if turn == nil && len(pending) > 0 {
+				turn = pending[0]
+				turn.local = bufferedInput
+				bufferedInput = dto.RealtimeUsage{}
+				pending = pending[1:]
+			}
+			if turn != nil {
+				turn.info.SetFirstResponseTime()
+				usage := &turn.local
+				if event.Response != nil && event.Response.Usage != nil {
+					usage = event.Response.Usage
+				}
+				if responseID != "" {
+					completed[responseID] = true
+				}
+				service.PostWssConsumeQuota(c, turn.info, turn.info.UpstreamModelName, usage, nil)
+				total.TotalTokens += usage.TotalTokens
+				total.InputTokens += usage.InputTokens
+				total.OutputTokens += usage.OutputTokens
+				for id, candidate := range active {
+					if candidate == turn {
+						delete(active, id)
+					}
+				}
+			}
+		} else if turn != nil && event.Type != dto.RealtimeEventConversationItemCreated {
+			text, audio, err := service.CountTokenRealtime(info, event, info.UpstreamModelName)
+			if err != nil {
+				logger.LogWarn(c, err.Error())
+			} else {
+				turn.local.OutputTokenDetails.TextTokens += text
+				turn.local.OutputTokenDetails.AudioTokens += audio
+				turn.local.OutputTokens += text + audio
+				turn.local.TotalTokens += text + audio
+			}
+		}
+		if err := helper.WssString(c, info.ClientWs, string(incoming.message)); err != nil {
+			return nil, total
+		}
 	}
-
-	if usage.TotalTokens != 0 {
-		_ = preConsumeUsage(c, info, usage, sumUsage)
-	}
-
-	if localUsage.TotalTokens != 0 {
-		_ = preConsumeUsage(c, info, localUsage, sumUsage)
-	}
-
-	// check usage total tokens, if 0, use local usage
-
-	return nil, sumUsage
 }
 
-func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage, totalUsage *dto.RealtimeUsage) error {
-	if usage == nil || totalUsage == nil {
-		return fmt.Errorf("invalid usage pointer")
+// Each generation selects its funding source again, which preserves subscription
+// fallback preferences and gives a new request its own calendar provenance.
+func reserveRealtimeTurn(c *gin.Context, template *relaycommon.RelayInfo) (*realtimeBillingTurn, *types.NewAPIError) {
+	info := *template
+	info.RequestId = common.NewRequestId()
+	info.ResetResponseTiming(time.Now())
+	info.Billing = nil
+	info.BillingSource = ""
+	info.SubscriptionReceiptID = ""
+	info.SubscriptionId = 0
+	info.SubscriptionPreConsumed = 0
+	info.SubscriptionPostDelta = 0
+	info.FinalPreConsumedQuota = 0
+	info.ForcePreConsume = true
+	if apiErr := preConsumeRealtimeTurn(c, &info); apiErr != nil {
+		return nil, apiErr
 	}
+	return &realtimeBillingTurn{info: &info}, nil
+}
 
-	totalUsage.TotalTokens += usage.TotalTokens
-	totalUsage.InputTokens += usage.InputTokens
-	totalUsage.OutputTokens += usage.OutputTokens
-	totalUsage.InputTokenDetails.CachedTokens += usage.InputTokenDetails.CachedTokens
-	totalUsage.InputTokenDetails.TextTokens += usage.InputTokenDetails.TextTokens
-	totalUsage.InputTokenDetails.AudioTokens += usage.InputTokenDetails.AudioTokens
-	totalUsage.OutputTokenDetails.TextTokens += usage.OutputTokenDetails.TextTokens
-	totalUsage.OutputTokenDetails.AudioTokens += usage.OutputTokenDetails.AudioTokens
-	// clear usage
-	err := service.PreWssConsumeQuota(ctx, info, usage)
-	return err
+// A paid response needs a positive reservation even when its estimate is zero.
+// Preserve negative estimates so the shared billing validator can reject them.
+func preConsumeRealtimeTurn(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
+	if info.PriceData.FreeModel {
+		return nil
+	}
+	amount := info.PriceData.QuotaToPreConsume
+	if amount == 0 {
+		amount = 1
+	}
+	return service.PreConsumeBilling(c, amount, info)
 }

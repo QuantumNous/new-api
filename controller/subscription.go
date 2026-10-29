@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -15,7 +16,31 @@ import (
 // ---- Shared types ----
 
 type SubscriptionPlanDTO struct {
-	Plan model.SubscriptionPlan `json:"plan"`
+	Plan SubscriptionPlanView `json:"plan"`
+}
+
+type SubscriptionPlanView struct {
+	model.SubscriptionPlan
+	Recommended bool `json:"recommended"`
+}
+
+type subscriptionPlanWriteRequest struct {
+	Plan struct {
+		model.SubscriptionPlan
+		DailyLimit   *int64 `json:"daily_limit"`
+		WeeklyLimit  *int64 `json:"weekly_limit"`
+		MonthlyLimit *int64 `json:"monthly_limit"`
+		Recommended  *bool  `json:"recommended"`
+	} `json:"plan"`
+}
+
+func (request *subscriptionPlanWriteRequest) validateWindowLimits() error {
+	for _, limit := range []*int64{request.Plan.DailyLimit, request.Plan.WeeklyLimit, request.Plan.MonthlyLimit} {
+		if limit != nil && (*limit < 0 || *limit > common.MaxWalletQuota) {
+			return common.NewMessage("Period quota limits must be non-negative amounts within the supported range")
+		}
+	}
+	return nil
 }
 
 type BillingPreferenceRequest struct {
@@ -39,13 +64,27 @@ func GetSubscriptionPlans(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	recommendedID, err := model.GetRecommendedSubscriptionPlanID()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
 		p.NormalizeDefaults()
 		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
+			Plan: SubscriptionPlanView{SubscriptionPlan: p, Recommended: p.Enabled && p.Id == recommendedID},
 		})
 	}
+	slices.SortStableFunc(result, func(a, b SubscriptionPlanDTO) int {
+		if a.Plan.Recommended == b.Plan.Recommended {
+			return 0
+		}
+		if a.Plan.Recommended {
+			return -1
+		}
+		return 1
+	})
 	common.ApiSuccess(c, result)
 }
 
@@ -123,18 +162,19 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	recommendedID, err := model.GetRecommendedSubscriptionPlanID()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
 		p.NormalizeDefaults()
 		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
+			Plan: SubscriptionPlanView{SubscriptionPlan: p, Recommended: p.Enabled && p.Id == recommendedID},
 		})
 	}
 	common.ApiSuccess(c, result)
-}
-
-type AdminUpsertSubscriptionPlanRequest struct {
-	Plan model.SubscriptionPlan `json:"plan"`
 }
 
 func AdminCreateSubscriptionPlan(c *gin.Context) {
@@ -142,12 +182,16 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 
-	var req AdminUpsertSubscriptionPlanRequest
+	var req subscriptionPlanWriteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
 	req.Plan.Id = 0
+	if err := req.validateWindowLimits(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if strings.TrimSpace(req.Plan.Title) == "" {
 		common.ApiErrorT(c, "Subscription plan title cannot be empty")
 		return
@@ -203,13 +247,32 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorT(c, "Custom reset cycle must be greater than 0 seconds")
 		return
 	}
-	err := model.DB.Create(&req.Plan).Error
+	plan := req.Plan.SubscriptionPlan
+	if req.Plan.DailyLimit != nil {
+		plan.DailyLimit = *req.Plan.DailyLimit
+	}
+	if req.Plan.WeeklyLimit != nil {
+		plan.WeeklyLimit = *req.Plan.WeeklyLimit
+	}
+	if req.Plan.MonthlyLimit != nil {
+		plan.MonthlyLimit = *req.Plan.MonthlyLimit
+	}
+	recommended := req.Plan.Recommended != nil && *req.Plan.Recommended
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&plan).Error; err != nil {
+			return err
+		}
+		if recommended && plan.Enabled {
+			return model.SetSubscriptionPlanRecommendation(tx, plan.Id, true)
+		}
+		return nil
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	model.InvalidateSubscriptionPlanCache(req.Plan.Id)
-	common.ApiSuccess(c, req.Plan)
+	model.InvalidateSubscriptionPlanCache(plan.Id)
+	common.ApiSuccess(c, SubscriptionPlanView{SubscriptionPlan: plan, Recommended: recommended && plan.Enabled})
 }
 
 func AdminUpdateSubscriptionPlan(c *gin.Context) {
@@ -222,9 +285,13 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid ID")
 		return
 	}
-	var req AdminUpsertSubscriptionPlanRequest
+	var req subscriptionPlanWriteRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	if err := req.validateWindowLimits(); err != nil {
+		common.ApiError(c, err)
 		return
 	}
 	if strings.TrimSpace(req.Plan.Title) == "" {
@@ -301,6 +368,15 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),
 		}
+		if req.Plan.DailyLimit != nil {
+			updateMap["daily_limit"] = *req.Plan.DailyLimit
+		}
+		if req.Plan.WeeklyLimit != nil {
+			updateMap["weekly_limit"] = *req.Plan.WeeklyLimit
+		}
+		if req.Plan.MonthlyLimit != nil {
+			updateMap["monthly_limit"] = *req.Plan.MonthlyLimit
+		}
 		if req.Plan.AllowBalancePay != nil {
 			updateMap["allow_balance_pay"] = *req.Plan.AllowBalancePay
 		}
@@ -309,6 +385,12 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err
+		}
+		if !req.Plan.Enabled {
+			return model.SetSubscriptionPlanRecommendation(tx, id, false)
+		}
+		if req.Plan.Recommended != nil {
+			return model.SetSubscriptionPlanRecommendation(tx, id, *req.Plan.Recommended)
 		}
 		return nil
 	})
@@ -339,7 +421,15 @@ func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
-	if err := model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Update("enabled", *req.Enabled).Error; err != nil {
+	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Update("enabled", *req.Enabled).Error; err != nil {
+			return err
+		}
+		if !*req.Enabled {
+			return model.SetSubscriptionPlanRecommendation(tx, id, false)
+		}
+		return nil
+	}); err != nil {
 		common.ApiError(c, err)
 		return
 	}
