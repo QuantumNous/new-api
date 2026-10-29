@@ -460,13 +460,17 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta
 		stopReason = stopReasonOpenAI2Claude(choice.FinishReason)
 		reasoningContent := choice.Message.GetReasoningContent()
 		textContent := choice.Message.StringContent()
+		refusal := ""
+		if choice.Message.Refusal != nil {
+			refusal = *choice.Message.Refusal
+		}
 		toolCalls := choice.Message.ParseToolCalls()
 		if reasoningContent != "" {
 			claudeContent := dto.ClaudeMediaMessage{Type: "thinking"}
 			claudeContent.Thinking = kitutil.GetPointer(reasoningContent)
 			contents = append(contents, claudeContent)
 		}
-		if textContent != "" || (reasoningContent == "" && len(toolCalls) == 0) {
+		if textContent != "" || (reasoningContent == "" && len(toolCalls) == 0 && refusal == "") {
 			claudeContent := dto.ClaudeMediaMessage{}
 			claudeContent.Type = "text"
 			claudeContent.SetText(textContent)
@@ -475,6 +479,9 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta
 				claudeContent.Citations, _ = kitutil.Marshal(citations)
 			}
 			contents = append(contents, claudeContent)
+		}
+		if refusal != "" && refusal != textContent {
+			contents = append(contents, dto.ClaudeMediaMessage{Type: "text", Text: kitutil.GetPointer(refusal)})
 		}
 		for _, toolUse := range toolCalls {
 			claudeContent := dto.ClaudeMediaMessage{}

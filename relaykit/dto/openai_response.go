@@ -574,6 +574,7 @@ func ResponsesArgumentsString(arguments json.RawMessage) string {
 }
 
 type ResponsesOutputContent struct {
+	Refusal     string `json:"refusal,omitempty"`
 	Type        string `json:"type"`
 	Text        string `json:"text"`
 	Annotations []any  `json:"annotations"`

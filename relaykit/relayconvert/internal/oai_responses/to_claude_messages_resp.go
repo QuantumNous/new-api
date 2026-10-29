@@ -41,6 +41,12 @@ func ResponsesResponseToClaudeMessagesResponse(resp *dto.OpenAIResponsesResponse
 			}
 		case responsesOutputTypeMessage:
 			for _, content := range output.Content {
+				if content.Type == "refusal" {
+					if content.Refusal != "" {
+						claudeResponse.Content = append(claudeResponse.Content, dto.ClaudeMediaMessage{Type: "text", Text: kitutil.GetPointer(content.Refusal)})
+					}
+					continue
+				}
 				if content.Type != "output_text" {
 					continue
 				}

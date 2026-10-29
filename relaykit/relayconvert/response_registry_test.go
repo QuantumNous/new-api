@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -798,6 +799,54 @@ func TestConvertResponseToResponsesRestoresRecordedCustomTools(t *testing.T) {
 				"response.custom_tool_call_input.done ls",
 				`response.output_item.done custom_tool_call "ls"`,
 			}, toolEvents)
+		})
+	}
+}
+
+func TestConvertResponseToClaudePreservesRefusalText(t *testing.T) {
+	tests := []struct {
+		name, payload string
+		chat          bool
+		wantText      []string
+		wantTypes     []string
+		wantStop      string
+	}{
+		{"chat refusal", `{"choices":[{"message":{"role":"assistant","content":null,"refusal":"Cannot help."},"finish_reason":"stop"}]}`, true, []string{"Cannot help."}, []string{"text"}, "end_turn"},
+		{"chat mixed text", `{"choices":[{"message":{"role":"assistant","content":"Explanation.","refusal":"Cannot help."},"finish_reason":"stop"}]}`, true, []string{"Explanation.", "Cannot help."}, []string{"text", "text"}, "end_turn"},
+		{"chat same text", `{"choices":[{"message":{"role":"assistant","content":"Cannot help.","refusal":"Cannot help."},"finish_reason":"stop"}]}`, true, []string{"Cannot help."}, []string{"text"}, "end_turn"},
+		{"chat null refusal", `{"choices":[{"message":{"role":"assistant","content":"Hello","refusal":null},"finish_reason":"stop"}]}`, true, []string{"Hello"}, []string{"text"}, "end_turn"},
+		{"chat empty refusal", `{"choices":[{"message":{"role":"assistant","content":null,"refusal":""},"finish_reason":"stop"}]}`, true, []string{""}, []string{"text"}, "end_turn"},
+		{"chat absent refusal", `{"choices":[{"message":{"role":"assistant","content":"Hello"},"finish_reason":"length"}]}`, true, []string{"Hello"}, []string{"text"}, "max_tokens"},
+		{"chat content filter", `{"choices":[{"message":{"role":"assistant","content":null,"refusal":"Cannot help."},"finish_reason":"content_filter"}]}`, true, []string{"Cannot help."}, []string{"text"}, "refusal"},
+		{"chat tool call", `{"choices":[{"message":{"role":"assistant","content":null,"refusal":"Cannot help.","tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}`, true, []string{"Cannot help."}, []string{"text", "tool_use"}, "tool_use"},
+		{"responses refusal", `{"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"refusal","refusal":"Cannot help."}]}]}`, false, []string{"Cannot help."}, []string{"text"}, "end_turn"},
+		{"responses mixed text", `{"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Before."},{"type":"refusal","refusal":"Cannot help."},{"type":"output_text","text":"After."}]}]}`, false, []string{"Before.", "Cannot help.", "After."}, []string{"text", "text", "text"}, "end_turn"},
+		{"responses empty refusal", `{"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello"},{"type":"refusal","refusal":""}]}]}`, false, []string{"Hello"}, []string{"text"}, "end_turn"},
+		{"responses missing refusal", `{"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"refusal"}]}]}`, false, []string{""}, []string{"text"}, "end_turn"},
+		{"responses ordinary text", `{"status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello"}]}]}`, false, []string{"Hello"}, []string{"text"}, "end_turn"},
+		{"responses nonassistant", `{"status":"completed","output":[{"type":"message","role":"user","content":[{"type":"refusal","refusal":"Ignored"}]},{"type":"message","role":"assistant","content":[{"type":"refusal","refusal":"Cannot help."}]}]}`, false, []string{"Cannot help."}, []string{"text"}, "end_turn"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var response any = &dto.OpenAIResponsesResponse{}
+			if tt.chat {
+				response = &dto.OpenAITextResponse{}
+			}
+			// Decode wire JSON so losing refusal fields in DTOs also fails this test.
+			require.NoError(t, kitutil.Unmarshal([]byte(tt.payload), response))
+			result, err := ConvertResponse(nil, nil, types.RelayFormatClaude, response)
+			require.NoError(t, err)
+			converted := result.Value.(*dto.ClaudeResponse)
+			var texts, blockTypes []string
+			for _, block := range converted.Content {
+				blockTypes = append(blockTypes, block.Type)
+				if block.Type == "text" {
+					texts = append(texts, block.GetText())
+				}
+			}
+			assert.Equal(t, tt.wantText, texts)
+			assert.Equal(t, tt.wantTypes, blockTypes)
+			assert.Equal(t, tt.wantStop, converted.StopReason)
 		})
 	}
 }
