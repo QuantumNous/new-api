@@ -74,12 +74,14 @@ type GeneralOpenAIRequest struct {
 	Store json.RawMessage `json:"store,omitempty"`
 	// Used by OpenAI to cache responses for similar requests to optimize your cache hit rates. Replaces the user field
 	PromptCacheKey       string          `json:"prompt_cache_key,omitempty"`
+	PromptCacheOptions   json.RawMessage `json:"prompt_cache_options,omitempty"`
 	PromptCacheRetention json.RawMessage `json:"prompt_cache_retention,omitempty"`
 	LogitBias            json.RawMessage `json:"logit_bias,omitempty"`
 	Metadata             json.RawMessage `json:"metadata,omitempty"`
 	Prediction           json.RawMessage `json:"prediction,omitempty"`
 	// gemini
-	ExtraBody json.RawMessage `json:"extra_body,omitempty"`
+	ExtraBody   json.RawMessage `json:"extra_body,omitempty"`
+	ImageConfig json.RawMessage `json:"imageConfig,omitempty"`
 	//xai
 	SearchParameters json.RawMessage `json:"search_parameters,omitempty"`
 	// OpenAI Chat web search.
@@ -344,7 +346,8 @@ func GetOpenAIChatCapabilities(modelName, reasoningEffort string) OpenAIChatCapa
 
 	isGPT5Model := IsOpenAIGPT5Model(modelName)
 	isGPT6SolLuna := isOpenAIModelSnapshot(modelName, "gpt-6-sol") || isOpenAIModelSnapshot(modelName, "gpt-6-luna")
-	if !isGPT5Model && !isGPT6SolLuna && !isOpenAIModelSnapshot(modelName, "gpt-6-astra") {
+	isGPT61Terra := isOpenAIModelSnapshot(modelName, "gpt-6.1-terra")
+	if !isGPT5Model && !isGPT6SolLuna && !isGPT61Terra && !isOpenAIModelSnapshot(modelName, "gpt-6-astra") && !isOpenAIModelSnapshot(modelName, "gpt-6.1-sol") {
 		return capabilities
 	}
 	capabilities.UseMaxCompletionTokens = true
@@ -353,14 +356,17 @@ func GetOpenAIChatCapabilities(modelName, reasoningEffort string) OpenAIChatCapa
 	// These standard GPT-5 models default to none and support sampling only
 	// without reasoning. Named variants (pro, codex, chat-latest, etc.) do not
 	// inherit this exception. GPT-6 Sol and Luna follow the same rule. GPT-6
-	// Astra never supports these parameters.
+	// Astra and GPT-6.1 Sol never support these parameters. GPT-6.1 Terra
+	// defaults to medium, so it keeps them only with an explicit none.
 	// https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.2
 	// https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.4
 	// https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra
 	// https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-luna
+	// https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6.1-sol
+	// https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6.1-terra
 	supportsSampling := false
 	if reasoningEffort == "" || reasoningEffort == "none" {
-		supportsSampling = isGPT6SolLuna
+		supportsSampling = isGPT6SolLuna || (isGPT61Terra && reasoningEffort == "none")
 		for _, model := range []string{"gpt-5.1", "gpt-5.2", "gpt-5.4"} {
 			if isOpenAIModelSnapshot(modelName, model) {
 				supportsSampling = true
@@ -426,9 +432,26 @@ func (t ToolCallRequest) MarshalJSON() ([]byte, error) {
 type FunctionRequest struct {
 	Description string `json:"description,omitempty"`
 	Name        string `json:"name"`
-	Parameters  any    `json:"parameters,omitempty"`
-	Arguments   string `json:"arguments,omitempty"`
-	Strict      *bool  `json:"strict,omitempty"`
+	// Parameters keeps the client's schema bytes: upstreams generate
+	// arguments in schema property order, and a decoded map would sort it.
+	Parameters json.RawMessage `json:"parameters,omitempty"`
+	Arguments  string          `json:"arguments,omitempty"`
+	Strict     *bool           `json:"strict,omitempty"`
+}
+
+// UnmarshalJSON leaves a null parameters value out, as the former decoded
+// value did.
+func (f *FunctionRequest) UnmarshalJSON(data []byte) error {
+	type functionFields FunctionRequest
+	var fields functionFields
+	if err := kitutil.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if kitutil.GetJsonType(fields.Parameters) == "null" {
+		fields.Parameters = nil
+	}
+	*f = FunctionRequest(fields)
+	return nil
 }
 
 type StreamOptions struct {

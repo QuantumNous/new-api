@@ -40,6 +40,24 @@ func TestGetDeepSeekBalanceUSD(t *testing.T) {
 			want:            10,
 		},
 		{
+			name:            "converts CNY when USD balance is zero",
+			responseJSON:    `{"balance_infos":[{"currency":"USD","total_balance":"0.00"},{"currency":"CNY","total_balance":"73.00"}]}`,
+			usdExchangeRate: 7.3,
+			want:            10,
+		},
+		{
+			name:            "converts CNY when zero USD follows CNY",
+			responseJSON:    `{"balance_infos":[{"currency":"CNY","total_balance":"73.00"},{"currency":"USD","total_balance":"0.00"}]}`,
+			usdExchangeRate: 7.3,
+			want:            10,
+		},
+		{
+			name:            "returns zero when USD balance is zero and CNY is absent",
+			responseJSON:    `{"balance_infos":[{"currency":"USD","total_balance":"0.00"}]}`,
+			usdExchangeRate: 7.3,
+			want:            0,
+		},
+		{
 			name:            "returns error when USD and CNY are absent",
 			responseJSON:    `{"balance_infos":[{"currency":"EUR","total_balance":"10.00"}]}`,
 			usdExchangeRate: 7.3,

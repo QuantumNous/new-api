@@ -165,23 +165,45 @@ func TestApplyParamOverrideReplace(t *testing.T) {
 func TestApplyParamOverrideRegexReplace(t *testing.T) {
 	// regex_replace example:
 	// {"operations":[{"path":"model","mode":"regex_replace","from":"^gpt-","to":"openai/gpt-"}]}
-	input := []byte(`{"model":"gpt-4o-mini","temperature":0.7}`)
-	override := map[string]any{
-		"operations": []any{
-			map[string]any{
-				"path": "model",
-				"mode": "regex_replace",
-				"from": "^gpt-",
-				"to":   "openai/gpt-",
-			},
+	operation := map[string]any{"mode": "regex_replace"}
+	override := map[string]any{"operations": []any{operation}}
+	// Reusing a channel configuration must apply the current pattern on every request.
+	for _, tt := range []struct {
+		name  string
+		input string
+		path  string
+		from  string
+		to    string
+		want  string
+	}{
+		{
+			name:  "single path",
+			input: `{"model":"gpt-4o-mini","temperature":0.7}`,
+			path:  "model", from: "^gpt-", to: "openai/gpt-",
+			want: `{"model":"openai/gpt-4o-mini","temperature":0.7}`,
 		},
+		{
+			name:  "next request uses updated pattern",
+			input: `{"model":"gpt-4o-mini","temperature":0.7}`,
+			path:  "model", from: "-mini$", to: "",
+			want: `{"model":"gpt-4o","temperature":0.7}`,
+		},
+		{
+			name:  "wildcard path applies one pattern to every field",
+			input: `{"messages":[{"content":"foo 1"},{"content":"foo 2"},{"content":"bar"}]}`,
+			path:  "messages.*.content", from: `^foo (\d)$`, to: "baz $1",
+			want: `{"messages":[{"content":"baz 1"},{"content":"baz 2"},{"content":"bar"}]}`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			operation["path"] = tt.path
+			operation["from"] = tt.from
+			operation["to"] = tt.to
+			out, err := ApplyParamOverride([]byte(tt.input), override, nil)
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.want, string(out))
+		})
 	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"openai/gpt-4o-mini","temperature":0.7}`, string(out))
 }
 
 func TestApplyParamOverrideReplaceRequiresFrom(t *testing.T) {
@@ -2306,6 +2328,17 @@ func TestRemoveDisabledFieldsDefaultFiltering(t *testing.T) {
 		t.Fatalf("RemoveDisabledFields returned error: %v", err)
 	}
 	assertJSONEqual(t, `{"cache_control":{"type":"ephemeral"},"store":true}`, string(out))
+}
+
+// Upstreams fill a schema's properties in their order, so removing a field
+// must leave the client's nested key order as it was.
+func TestRemoveDisabledFieldsKeepsNestedKeyOrder(t *testing.T) {
+	input := `{"service_tier":"flex","response_format":{"type":"json_schema","json_schema":{"name":"answer","schema":{"type":"object","properties":{"reasoning":{"type":"string"},"answer":{"type":"string"}}}}},"stream_options":{"include_usage":true,"include_obfuscation":false}}`
+
+	out, err := RemoveDisabledFields([]byte(input), dto.ChannelOtherSettings{}, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, `{"response_format":{"type":"json_schema","json_schema":{"name":"answer","schema":{"type":"object","properties":{"reasoning":{"type":"string"},"answer":{"type":"string"}}}}},"stream_options":{"include_usage":true}}`, string(out))
 }
 
 func TestRemoveDisabledFieldsNoControlledFieldsKeepsBody(t *testing.T) {

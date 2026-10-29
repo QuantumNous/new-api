@@ -25,6 +25,7 @@ import {
   PricingToolbar,
   type PricingToolbarProps,
 } from '../components/pricing-toolbar'
+import { filterByQuotaType } from '../lib/filters'
 import type { PricingModel } from '../types'
 
 function toolbarProps(): PricingToolbarProps {
@@ -61,6 +62,133 @@ function toolbarProps(): PricingToolbarProps {
 }
 
 describe('pricing controls', () => {
+  it.each<{
+    name: string
+    pricing: Partial<PricingModel>
+    matches: string[]
+  }>([
+    { name: 'legacy token pricing', pricing: {}, matches: ['token'] },
+    {
+      name: 'legacy per-request pricing',
+      pricing: { quota_type: 1, model_price: 0.01 },
+      matches: ['request'],
+    },
+    {
+      name: 'dynamic fixed pricing with a legacy token quota type',
+      pricing: {
+        billing_mode: 'tiered_expr',
+        billing_expr: 'tier("request", fixed(0.01))',
+      },
+      matches: ['request'],
+    },
+    {
+      name: 'free dynamic per-request pricing',
+      pricing: {
+        billing_mode: 'tiered_expr',
+        billing_expr: 'v1:tier("free", fixed(0))',
+      },
+      matches: ['request'],
+    },
+    {
+      name: 'request-dependent fixed tiers with an extra multiplier',
+      pricing: {
+        billing_mode: 'tiered_expr',
+        billing_expr:
+          '(param("quality") == "hd" ? tier("hd", fixed(0.02)) : tier("base", fixed(0.01))) * (header("x-fast") == "true" ? 2 : 1)',
+      },
+      matches: ['request'],
+    },
+    {
+      name: 'mixed pricing across nested time tiers classified only as token-based',
+      pricing: {
+        billing_mode: 'tiered_expr',
+        billing_expr:
+          'hour("UTC") < 12 ? (len < 1000 ? tier("short", fixed(0.01)) : tier("long", p * 2 + c * 8)) : tier("night", fixed(0.02))',
+      },
+      matches: ['token'],
+    },
+    {
+      name: 'mixed pricing overriding a legacy request quota type',
+      pricing: {
+        quota_type: 1,
+        billing_mode: 'tiered_expr',
+        billing_expr:
+          'len < 1000 ? tier("short", fixed(0.01)) : tier("long", p * 2 + c * 8)',
+      },
+      matches: ['token'],
+    },
+    {
+      name: 'dynamic token pricing overriding a legacy request quota type',
+      pricing: {
+        quota_type: 1,
+        billing_mode: 'tiered_expr',
+        billing_expr: 'tier("base", p * 2 + c * 8)',
+      },
+      matches: ['token'],
+    },
+    {
+      name: 'token pricing with fixed syntax only in its tier label',
+      pricing: {
+        billing_mode: 'tiered_expr',
+        billing_expr: 'tier("fixed(0.01)", p * 2)',
+      },
+      matches: ['token'],
+    },
+    {
+      name: 'task usage retaining its separate category',
+      pricing: {
+        billing_mode: 'tiered_expr',
+        billing_expr: 'tier("base", u("seconds") * 0.4)',
+        billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+      },
+      matches: ['task'],
+    },
+    {
+      name: 'unparseable dynamic pricing retaining its legacy category',
+      pricing: {
+        quota_type: 1,
+        billing_mode: 'tiered_expr',
+        billing_expr: 'tier("request", fixed(',
+      },
+      matches: ['request'],
+    },
+  ])(
+    'keeps filter results and sidebar counts consistent for $name',
+    ({ pricing, matches }) => {
+      const model: PricingModel = {
+        id: 1,
+        model_name: 'pricing-model',
+        quota_type: 0,
+        model_ratio: 1,
+        completion_ratio: 1,
+        enable_groups: ['default'],
+        ...pricing,
+      }
+      const models = [model]
+      render(<PricingSidebar {...toolbarProps()} models={models} />)
+
+      for (const [quotaType, label] of [
+        ['token', 'Token-based'],
+        ['request', 'Per Request'],
+        ['task', 'Task billing'],
+      ]) {
+        const included = matches.includes(quotaType)
+        expect(filterByQuotaType(models, quotaType)).toEqual(
+          included ? [model] : []
+        )
+        expect(
+          screen.getByRole('button', {
+            name: new RegExp(`^${label}\\s*${included ? 1 : 0}$`),
+          })
+        ).toBeVisible()
+      }
+      expect(filterByQuotaType(models, 'all')).toEqual([model])
+      expect(
+        screen.getByRole('button', { name: /^All Models\s*1$/ })
+      ).toBeVisible()
+    }
+  )
+
   it('counts each model once per filter and updates counts when the catalog changes', () => {
     const props = toolbarProps()
     const base: PricingModel = {
@@ -192,9 +320,9 @@ describe('pricing controls', () => {
     render(<PricingToolbar {...props} />)
     await user.click(screen.getByRole('button', { name: 'Name' }))
     await user.click(
-      screen.getByRole('menuitem', { name: 'Price: Low to High' })
+      screen.getByRole('menuitem', { name: 'Input Price: Low to High' })
     )
-    expect(props.onSortChange).toHaveBeenCalledWith('price-low')
+    expect(props.onSortChange).toHaveBeenCalledWith('input-price-low')
   })
 
   it('opens mobile filters from the left, selects a group, and restores focus on close', async () => {

@@ -48,9 +48,11 @@ func MergeUsageNonZero(current *Usage, incoming *Usage) *Usage {
 		if details.CachedTokens > 0 ||
 			details.CachedCreationTokens > 0 ||
 			details.CacheWriteTokens > 0 ||
+			details.CacheCreationInputTokens > 0 ||
 			details.TextTokens > 0 ||
 			details.AudioTokens > 0 ||
-			details.ImageTokens > 0 || details.CachedTokensDetails != nil {
+			details.ImageTokens > 0 || details.CachedTokensDetails != nil ||
+			details.CacheWriteTokensDetails != nil {
 			if current.InputTokensDetails == nil {
 				current.InputTokensDetails = &InputTokenDetails{}
 			}
@@ -318,6 +320,24 @@ func mergeInputTokenDetails(current *InputTokenDetails, incoming InputTokenDetai
 	}
 	if incoming.CacheWriteTokens > 0 {
 		current.CacheWriteTokens = incoming.CacheWriteTokens
+	}
+	if incoming.CacheCreationInputTokens > 0 {
+		current.CacheCreationInputTokens = incoming.CacheCreationInputTokens
+	}
+	if incoming.CacheWriteTokensDetails != nil {
+		// A detached copy; like the scalar counts, a later zero keeps the
+		// earlier value.
+		var merged CacheWriteTokenDetails
+		if current.CacheWriteTokensDetails != nil {
+			merged = *current.CacheWriteTokensDetails
+		}
+		if incoming.CacheWriteTokensDetails.TTL30mTokens > 0 {
+			merged.TTL30mTokens = incoming.CacheWriteTokensDetails.TTL30mTokens
+		}
+		if incoming.CacheWriteTokensDetails.TTL12hTokens > 0 {
+			merged.TTL12hTokens = incoming.CacheWriteTokensDetails.TTL12hTokens
+		}
+		current.CacheWriteTokensDetails = &merged
 	}
 	if incoming.TextTokens > 0 {
 		current.TextTokens = incoming.TextTokens

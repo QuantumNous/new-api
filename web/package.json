@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "rsbuild dev",
     "build": "rsbuild build",
-    "build:check": "tsgo -b && rsbuild build",
-    "typecheck": "tsgo -b",
+    "build:check": "bun check -b && rsbuild build",
+    "typecheck": "bun check -b",
     "lint": "oxlint -c .oxlintrc.json .",
     "lint:fix": "oxlint -c .oxlintrc.json . --fix",
     "lint:plugins": "cd ../plugins && oxlint -c .oxlintrc.json .",
@@ -45,15 +45,15 @@
     "@visactor/vchart": "^2.1.2",
     "ai": "^7.0.136",
     "auto-skeleton-react": "^1.0.5",
-    "axios": "^1.18.1",
+    "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "dayjs": "^1.11.21",
     "dompurify": "3.4.16",
-    "i18next": "^26.3.4",
+    "i18next": "^26.5.3",
     "i18next-browser-languagedetector": "^8.2.1",
-    "input-otp": "^1.4.2",
+    "input-otp": "^1.5.0",
     "katex": "^0.18.2",
     "lucide-react": "^1.23.0",
     "marked": "^18.0.5",
@@ -66,9 +66,9 @@
     "react-day-picker": "^10.0.1",
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.80.0",
-    "react-i18next": "^17.0.8",
+    "react-i18next": "^17.1.0",
     "react-icons": "^5.7.0",
-    "react-resizable-panels": "^4.12.0",
+    "react-resizable-panels": "^4.14.6",
     "react-top-loading-bar": "^3.0.2",
     "recharts": "3.9.1",
     "shiki": "^4.3.0",
@@ -100,7 +100,6 @@
     "@types/node-forge": "^1.3.14",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@typescript/native-preview": "^7.0.0-dev.20260702.3",
     "@xyflow/react": "^12.11.1",
     "embla-carousel-react": "^8.6.0",
     "jsdom": "^29.1.1",
@@ -108,7 +107,7 @@
     "oxfmt": "^0.72.0",
     "oxlint": "^1.72.0",
     "shadcn": "^4.12.0",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.4"
   },
   "overrides": {
     "brace-expansion": "2.1.1",
@@ -123,5 +122,6 @@
     "postcss": "8.5.15",
     "qs": "6.15.2",
     "uuid": "14.0.0"
-  }
+  },
+  "packageManager": "bun@1.4.4"
 }

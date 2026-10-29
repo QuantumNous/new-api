@@ -7,11 +7,12 @@ export const meta = {
     en: "Google Veo video generation on the Gemini API (text-to-video and image-to-video)",
     zh: "Google Veo 视频生成（文生视频、图生视频），Gemini API 版本",
   },
-  version: "1.0.2",
+  version: "1.1.0",
   author: { name: "QuantumNous" },
   channelTypes: [24],
   models: ["veo-3.0-generate-001", "veo-3.0-fast-generate-001", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview"],
   fetchMode: "per_task",
+  upstreams: ["vendor", "new_api"],
   usageSchema: {
     // Requested video duration in seconds. Allowed values: 4, 6, 8.
     seconds: {
@@ -32,11 +33,38 @@ export const meta = {
     { label: "8s × 4k", facts: { seconds: 8, resolution: "4k" } },
     { label: "4s × 720p", facts: { seconds: 4, resolution: "720p" } },
   ],
+  // Gemini API request and response bodies, for clients and for a downstream
+  // New API gateway. The model segment carries the method,
+  // models/{model}:predictLongRunning, and the operation it returns is named
+  // after the gateway task.
+  routes: [
+    { method: "POST", path: "/google/v1beta/models/:model", type: "submit", decode: "predictLongRunning", render: "operation" },
+    { method: "GET", path: "/google/v1beta/models/:model/operations/:task_id", type: "query", render: "operation" },
+  ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
 
 function trimmed(value) {
   return String(value || "").trim();
+}
+
+function plainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+// On a New API channel the same plugin answers on another gateway, which
+// serves the Gemini API wire format on the prefixed native routes and takes
+// its own token as a Bearer header.
+function viaGateway(ctx) {
+  return Boolean(ctx.upstream && ctx.upstream.kind === "new_api");
+}
+
+function apiRoot(ctx) {
+  return ctx.baseUrl + (viaGateway(ctx) ? "/google" : "");
+}
+
+function authHeaders(ctx) {
+  return viaGateway(ctx) ? { Authorization: "Bearer " + ctx.apiKey } : { "x-goog-api-key": ctx.apiKey };
 }
 
 function responsesInput(req) {
@@ -160,12 +188,64 @@ function version(ctx) {
   return settings.geminiVersion || "v1beta";
 }
 
+export const native = {
+  predictLongRunning: function (ctx) {
+    const segment = String((ctx.params || {}).model || "");
+    const separator = segment.lastIndexOf(":");
+    if (separator <= 0 || segment.slice(separator + 1) !== "predictLongRunning") throw new Error("the path must name models/{model}:predictLongRunning");
+    const model = segment.slice(0, separator);
+    if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
+    const body = plainObject(ctx.body.value);
+    if (!body) throw new Error("request body must be an object");
+    const instances = Array.isArray(body.instances) ? body.instances : [];
+    const instance = plainObject(instances[0]);
+    if (instances.length !== 1 || !instance) throw new Error("instances must hold exactly one instance");
+    // buildSubmitRequest sends only the prompt and the first frame.
+    for (const key of Object.keys(instance)) {
+      if (key !== "prompt" && key !== "image") throw new Error("instances[0]." + key + " is not supported");
+    }
+    const metadata = Object.assign({}, plainObject(body.parameters) || {});
+    const requestBody = { model: model, prompt: instance.prompt, metadata: metadata };
+    if (metadata.durationSeconds !== undefined) {
+      requestBody.duration = metadata.durationSeconds;
+      delete metadata.durationSeconds;
+      if ([4, 6, 8].indexOf(Number(requestBody.duration)) < 0) throw new Error("durationSeconds must be one of 4, 6, or 8");
+    }
+    if (metadata.resolution !== undefined && ["720p", "1080p", "4k"].indexOf(String(metadata.resolution).toLowerCase()) < 0)
+      throw new Error("resolution must be one of 720p, 1080p, or 4k");
+    if (instance.image !== undefined) {
+      const inline = plainObject(plainObject(instance.image) && instance.image.inlineData);
+      if (!inline || !trimmed(inline.data)) throw new Error("instances[0].image must carry inlineData");
+      requestBody.images = ["data:" + (trimmed(inline.mimeType) || "application/octet-stream") + ";base64," + inline.data];
+    }
+    return { kind: "submit", model: model, action: requestBody.images ? "image_to_video" : "text_to_video", requestBody: requestBody };
+  },
+  // The operation is named after the gateway task, so the caller polls it
+  // here. The poller can fail a task whose operation was still running; that
+  // operation is rendered done with the failure.
+  operation: function (ctx, task) {
+    const data = plainObject(task.data) || {};
+    const named = /^models\/([^/]+)\/operations\//.exec(String(data.name || ""));
+    const model = named ? named[1] : String((ctx.params || {}).model || "").split(":")[0];
+    const output = Object.assign({}, data, { name: "models/" + model + "/operations/" + task.task_id });
+    if (task.status === "FAILURE" && !(plainObject(data.error) && data.error.message)) {
+      output.done = true;
+      output.error = { message: task.fail_reason || "task failed" };
+      delete output.response;
+    }
+    return output;
+  },
+  error: function (ctx, error) {
+    return { error: { code: error.httpStatus, message: error.message } };
+  },
+};
+
 export function buildSubmitRequest(ctx) {
   const result = converted(ctx);
   return {
-    url: ctx.baseUrl + "/" + version(ctx) + "/models/" + ctx.upstreamModel + ":predictLongRunning",
+    url: apiRoot(ctx) + "/" + version(ctx) + "/models/" + ctx.upstreamModel + ":predictLongRunning",
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json", "x-goog-api-key": ctx.apiKey },
+    headers: Object.assign({ "Content-Type": "application/json", Accept: "application/json" }, authHeaders(ctx)),
     body: result.body,
     action: result.action,
   };
@@ -198,9 +278,9 @@ export function extractUsageOnComplete() {
 
 export function buildQueryRequest(ctx) {
   return {
-    url: ctx.baseUrl + "/v1beta/" + utils.base64URLDecode(ctx.taskId),
+    url: apiRoot(ctx) + "/v1beta/" + utils.base64URLDecode(ctx.taskId),
     method: "GET",
-    headers: { Accept: "application/json", "x-goog-api-key": ctx.apiKey },
+    headers: Object.assign({ Accept: "application/json" }, authHeaders(ctx)),
   };
 }
 
@@ -235,6 +315,16 @@ export function buildContentRequest(ctx) {
   if (ctx.artifactKey !== "video") throw new Error("artifact_not_found");
   const url = artifactVideoURL(ctx);
   if (!url) throw new Error("artifact_not_found");
+  // The file needs the Gemini key, which only the gateway holds; it serves the
+  // video as the artifact of its task, the last segment of the operation name.
+  if (viaGateway(ctx)) {
+    const taskID = utils.base64URLDecode(ctx.upstreamTaskId).split("/").pop();
+    return {
+      url: ctx.baseUrl + "/v1/tasks/" + encodeURIComponent(taskID) + "/artifacts/video/content",
+      method: ctx.clientRequest.method,
+      headers: { Authorization: "Bearer " + ctx.apiKey },
+    };
+  }
   return { url: url, method: ctx.clientRequest.method, headers: { "x-goog-api-key": ctx.apiKey } };
 }
 

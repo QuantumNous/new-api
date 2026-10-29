@@ -86,13 +86,10 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 		return nil, err
 	}
 	for i := range functions {
-		if params, ok := functions[i].Parameters.(map[string]any); ok {
-			if props, hasProps := params["properties"].(map[string]any); hasProps && len(props) == 0 {
-				functions[i].Parameters = nil
-				continue
-			}
+		functions[i].Parameters, err = sharedgemini.CleanFunctionParametersJSON(functions[i].Parameters)
+		if err != nil {
+			return nil, fmt.Errorf("invalid tool parameters: %w", err)
 		}
-		functions[i].Parameters = sharedgemini.CleanFunctionParameters(functions[i].Parameters)
 	}
 	if len(functions) > 0 {
 		geminiRequest.SetTools([]dto.GeminiChatTool{

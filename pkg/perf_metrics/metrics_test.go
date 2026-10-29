@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,6 +40,7 @@ func TestClassifyRelayOutcome(t *testing.T) {
 		{"unavailable channel", context.Background(), types.NewErrorWithStatusCode(errors.New("disabled"), types.ErrorCodeGetChannelFailed, 403), OutcomeFailure},
 		{"empty upstream response", context.Background(), types.NewError(errors.New("empty"), types.ErrorCodeEmptyResponse), OutcomeFailure},
 		{"network failure", context.Background(), types.NewOpenAIError(errors.New("connection refused"), types.ErrorCodeDoRequestFailed, 500), OutcomeFailure},
+		{"connection closed after non-stream response", canceled, nil, OutcomeSuccess},
 		{"client cancellation", canceled, types.NewOpenAIError(errors.New("context canceled"), types.ErrorCodeDoRequestFailed, 500), OutcomeIgnored},
 		{"upstream deadline", context.Background(), types.NewOpenAIError(context.DeadlineExceeded, types.ErrorCodeDoRequestFailed, 504), OutcomeFailure},
 	} {
@@ -137,22 +139,49 @@ func TestRecordTaskResultSamplesTerminalTasks(t *testing.T) {
 	}, relaycommon.FailTaskInfo("boom"))
 	RecordTaskResult(&model.Task{Status: model.TaskStatusSuccess, FinishTime: now}, nil)
 
+	assert.Equal(t, map[bucketKey]counters{
+		{model: "video-model", group: "a"}: {
+			requestCount:   2,
+			successCount:   1,
+			totalLatencyMs: 180000,
+			outputTokens:   5000,
+			generationMs:   100000,
+		},
+	}, mergedHotBuckets())
+}
+
+// Immediate submit results: only successes are sampled, timed from relay start.
+func TestRecordImmediateTaskResultSamplesSuccessOnly(t *testing.T) {
+	hotBuckets.Clear()
+	t.Cleanup(func() { hotBuckets.Clear() })
+	info := &relaycommon.RelayInfo{OriginModelName: "image-model", UsingGroup: "a", StartTime: time.Now().Add(-2 * time.Second)}
+	RecordImmediateTaskResult(info, &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, TotalTokens: 4096})
+	RecordImmediateTaskResult(info, relaycommon.FailTaskInfo("boom"))
+	RecordImmediateTaskResult(info, &relaycommon.TaskInfo{Status: model.TaskStatusInProgress})
+	RecordImmediateTaskResult(info, nil)
+
+	merged := mergedHotBuckets()
+	require.Len(t, merged, 1)
+	got := merged[bucketKey{model: "image-model", group: "a"}]
+	assert.GreaterOrEqual(t, got.totalLatencyMs, int64(2000))
+	assert.Equal(t, counters{
+		requestCount:   1,
+		successCount:   1,
+		totalLatencyMs: got.totalLatencyMs,
+		outputTokens:   4096,
+		generationMs:   got.totalLatencyMs,
+	}, got)
+}
+
+func mergedHotBuckets() map[bucketKey]counters {
 	merged := map[bucketKey]counters{}
 	hotBuckets.Range(func(key, value any) bool {
 		k := key.(bucketKey)
-		require.Equal(t, "video-model", k.model)
-		require.Equal(t, "a", k.group)
 		k.bucketTs = 0
 		mergeCounters(merged, k, value.(*atomicBucket).snapshot())
 		return true
 	})
-	assert.Equal(t, counters{
-		requestCount:   2,
-		successCount:   1,
-		totalLatencyMs: 180000,
-		outputTokens:   5000,
-		generationMs:   100000,
-	}, merged[bucketKey{model: "video-model", group: "a"}])
+	return merged
 }
 
 // TEST_PERF_MYSQL_DSN / TEST_PERF_POSTGRES_DSN optionally run the aggregation
@@ -262,7 +291,7 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			assert.Equal(t, 98.04, combined.Summary.SuccessRate)
 			assert.Equal(t, 99.01, combined.Models[0].SuccessRate)
 
-			t.Run("recent history does not change window summaries", func(t *testing.T) {
+			t.Run("recent models are summarized over their status sample hours", func(t *testing.T) {
 				for i := range 26 {
 					require.NoError(t, model.UpsertPerfMetric(&model.PerfMetric{
 						ModelName: "history-model", Group: "a", BucketTs: hour - int64(i+1)*6*3600,
@@ -293,9 +322,13 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 				require.NoError(t, err)
 				history, err := QuerySummaryAll(24, groups, "history-model", "history-idle", "history-hidden", "history-hot", "missing")
 				require.NoError(t, err)
-				assert.Equal(t, window.Summary, history.Summary)
-				assert.ElementsMatch(t, window.Models, history.Models)
 				assert.Equal(t, window.WindowStart, history.WindowStart)
+				summaries := lo.KeyBy(history.Models, func(m ModelSummary) string { return m.ModelName })
+				assert.Equal(t, int64(124), summaries["history-model"].RequestCount)
+				assert.Equal(t, 99.19, summaries["history-model"].SuccessRate)
+				assert.Equal(t, int64(1), summaries["history-idle"].RequestCount)
+				assert.Equal(t, 0.0, summaries["history-idle"].SuccessRate)
+				assert.NotContains(t, summaries, "history-hidden")
 				points := history.RecentSuccessSeries["history-model"]
 				require.Len(t, points, 24)
 				expected := make([]SuccessRatePoint, 0, 24)
