@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SystemUpdateAction } from '@/features/system-update/system-update-action'
 import { useStatus } from '@/hooks/use-status'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestamp } from '@/lib/format'
 
 import { SettingsSection } from '../components/settings-section'
@@ -30,10 +31,11 @@ type UpdateCheckerSectionProps = {
 }
 
 export function UpdateCheckerSection(props: UpdateCheckerSectionProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { status } = useStatus()
   const uptime = props.startTime
-    ? formatTimestamp(props.startTime)
+    ? formatTimestamp(props.startTime, locale)
     : t('Unknown')
   const version = status?.version || props.currentVersion || t('Unknown')
 

@@ -22,6 +22,7 @@ import { QuotaDetailsPopover } from '@/components/quota-details-popover'
 import { Progress } from '@/components/ui/progress'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatQuotaWithCurrency, getCurrencyDisplay } from '@/lib/currency'
+import { appendPercentSign } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
@@ -46,15 +47,25 @@ export function ApiKeyQuotaCell(props: ApiKeyQuotaCellProps) {
   const percentage = hasProgress
     ? Math.min(100, Math.max(0, (remaining / total) * 100))
     : 0
-  const formattedUsed = formatQuotaWithCurrency(used, { showSymbol: false })
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const formattedUsed = formatQuotaWithCurrency(used, {
+    showSymbol: false,
+    locale,
+  })
   const formattedRemaining = formatQuotaWithCurrency(remaining, {
     showSymbol: false,
+    locale,
   })
-  const formattedTotal = formatQuotaWithCurrency(total, { showSymbol: false })
-  const formattedPercentage = new Intl.NumberFormat(
-    toIntlLocale(i18n.resolvedLanguage || i18n.language),
-    { maximumFractionDigits: 1 }
-  ).format(percentage)
+  const formattedTotal = formatQuotaWithCurrency(total, {
+    showSymbol: false,
+    locale,
+  })
+  const formattedPercentage = appendPercentSign(
+    new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(
+      percentage
+    ),
+    locale
+  )
   const isInactive =
     props.apiKey.status !== API_KEY_STATUS.ENABLED ||
     remaining <= 0 ||
@@ -66,7 +77,7 @@ export function ApiKeyQuotaCell(props: ApiKeyQuotaCellProps) {
   else if (percentage <= 30) progressColor = 'text-amber-500'
   const usageDescription = `${t('Used amount')} ${formattedUsed}`
   const remainingDescription = hasProgress
-    ? `${t('Remaining')} ${formattedRemaining}; ${t('Remaining percentage')} ${formattedPercentage}%`
+    ? `${t('Remaining')} ${formattedRemaining}; ${t('Remaining percentage')} ${formattedPercentage}`
     : `${t('Remaining')} ${formattedRemaining}`
   const triggerLabel = props.apiKey.unlimited_quota
     ? `${t('Unlimited')}; ${usageDescription}`
@@ -83,7 +94,7 @@ export function ApiKeyQuotaCell(props: ApiKeyQuotaCellProps) {
   if (hasProgress) {
     details.push({
       label: t('Remaining percentage'),
-      value: `${formattedPercentage}%`,
+      value: formattedPercentage,
     })
   }
 

@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampToDate } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { createServerError } from '@/lib/server-error-message'
@@ -78,7 +79,8 @@ function isActiveLogCleanupTask(task: LogCleanupTask | null) {
  * created before a chosen time as a background task and shows its progress.
  */
 export function HistoryLogCleanup() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const titleId = useId()
   const [purgeDate, setPurgeDate] = useState<Date | undefined>(() =>
     getDateDaysAgo(30)
@@ -117,8 +119,8 @@ export function HistoryLogCleanup() {
 
   const formattedPurgeDate = useMemo(() => {
     if (!purgeDate) return ''
-    return formatTimestampToDate(purgeDate.getTime(), 'milliseconds')
-  }, [purgeDate])
+    return formatTimestampToDate(purgeDate.getTime(), 'milliseconds', locale)
+  }, [purgeDate, locale])
 
   const logCleanupActive = isActiveLogCleanupTask(logCleanupTask)
   const logCleanupState = logCleanupTask?.state

@@ -25,6 +25,7 @@ import type {
   ProcessedUserChartData,
 } from '@/features/dashboard/types'
 import { getCurrencyDisplay } from '@/lib/currency'
+import { formatFixed } from '@/lib/format'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
 
 type TFunction = (key: string) => string
@@ -50,18 +51,22 @@ export function getDashboardChartColors(domainLength: number): string[] {
   )
 }
 
-function renderQuotaCompat(rawQuota: number, digits = 4): string {
+function renderQuotaCompat(
+  rawQuota: number,
+  digits = 4,
+  locale?: string
+): string {
   const { config, meta } = getCurrencyDisplay()
-  if (meta.kind === 'tokens') return rawQuota.toLocaleString()
+  if (meta.kind === 'tokens') return rawQuota.toLocaleString(locale)
   const usd = rawQuota / config.quotaPerUnit
   const rate = 'exchangeRate' in meta ? meta.exchangeRate : 1
   const symbol = 'symbol' in meta ? meta.symbol : '$'
   const value = usd * rate
   const fixed = value.toFixed(digits)
   if (Number.parseFloat(fixed) === 0 && rawQuota > 0 && value > 0) {
-    return symbol + Math.pow(10, -digits).toFixed(digits)
+    return symbol + formatFixed(Math.pow(10, -digits), digits, locale)
   }
-  return symbol + fixed
+  return symbol + formatFixed(value, digits, locale)
 }
 
 /**
@@ -71,15 +76,18 @@ export function processChartData(
   data: QuotaDataItem[],
   timeGranularity: TimeGranularity = 'day',
   t?: TFunction,
-  chartCornerRadius?: number
+  chartCornerRadius?: number,
+  locale?: string
 ): ProcessedChartData {
   const tt: TFunction = t ?? ((x) => x)
   const otherLabel = tt('Other')
 
   const formatInt = (value: number) =>
-    Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value)
-  const formatQuotaValue = (value: number) => renderQuotaCompat(value, 4)
-  const formatQuotaTotal = (value: number) => renderQuotaCompat(value, 2)
+    Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)
+  const formatQuotaValue = (value: number) =>
+    renderQuotaCompat(value, 4, locale)
+  const formatQuotaTotal = (value: number) =>
+    renderQuotaCompat(value, 2, locale)
 
   const MAX_TOOLTIP_MODELS = 15
   const isOtherTooltipKey = (key: string) =>
@@ -228,7 +236,7 @@ export function processChartData(
 
   data.forEach((item) => {
     const timestamp = Number(item.created_at)
-    const timeKey = formatChartTime(timestamp, timeGranularity)
+    const timeKey = formatChartTime(timestamp, timeGranularity, locale)
     timeTimestamps.set(
       timeKey,
       Math.min(timeTimestamps.get(timeKey) ?? timestamp, timestamp)
@@ -296,7 +304,8 @@ export function processChartData(
     const padded = Array.from({ length: MAX_TREND_POINTS }, (_, i) =>
       formatChartTime(
         lastTime - (MAX_TREND_POINTS - 1 - i) * intervalSec,
-        timeGranularity
+        timeGranularity,
+        locale
       )
     )
     return padded
@@ -710,13 +719,14 @@ export function processUserChartData(
   data: QuotaDataItem[],
   timeGranularity: TimeGranularity = 'day',
   t?: TFunction,
-  limit = 10
+  limit = 10,
+  locale?: string
 ): ProcessedUserChartData {
   const tt: TFunction = t ?? ((x) => x)
   const { config } = getCurrencyDisplay()
   const quotaPerUnit = config.quotaPerUnit
 
-  const formatVal = (raw: number) => renderQuotaCompat(raw, 2)
+  const formatVal = (raw: number) => renderQuotaCompat(raw, 2, locale)
 
   const emptyResult: ProcessedUserChartData = {
     spec_user_rank: {
@@ -786,7 +796,7 @@ export function processUserChartData(
 
   data.forEach((item) => {
     const ts = Number(item.created_at)
-    const timeKey = formatChartTime(ts, timeGranularity)
+    const timeKey = formatChartTime(ts, timeGranularity, locale)
     timeTimestamps.set(timeKey, Math.min(timeTimestamps.get(timeKey) ?? ts, ts))
     const user = item.username || 'unknown'
     if (!topUserSet.has(user)) return

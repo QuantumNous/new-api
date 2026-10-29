@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
  * Time utility functions for consistent time handling across the application
  */
 import dayjs from '@/lib/dayjs'
+import { formatDisplayDate } from '@/lib/format'
 
 /**
  * Time granularity type
@@ -141,36 +142,44 @@ export function computeTimeRange(
 
 /**
  * Format Unix timestamp (seconds) to YYYY-MM-DD
+ * (Solar Hijri for a Persian locale, see `formatDisplayDate`)
  */
-export function formatDate(tsSec: number): string {
-  return dayjs(tsSec * 1000).format('YYYY-MM-DD')
+export function formatDate(tsSec: number, locale?: string): string {
+  return formatDisplayDate(tsSec * 1000, 'YYYY-MM-DD', locale)
 }
 
 /**
  * Format Date object to YYYY-MM-DD HH:mm:ss
+ * (Solar Hijri for a Persian locale, see `formatDisplayDate`)
  */
-export function formatDateTimeObject(date: Date): string {
-  return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
+export function formatDateTimeObject(date: Date, locale?: string): string {
+  return formatDisplayDate(date, 'YYYY-MM-DD HH:mm:ss', locale)
 }
 
 /**
  * Format timestamp for chart display based on time granularity
  * @param timestamp Unix timestamp in seconds
  * @param granularity Time granularity: 'hour', 'day', or 'week'
+ * @param locale Interface locale from `toIntlLocale`; Solar Hijri for Persian
  * @returns Formatted string suitable for chart axis
  */
 export function formatChartTime(
   timestamp: number,
-  granularity: TimeGranularity = 'day'
+  granularity: TimeGranularity = 'day',
+  locale?: string
 ): string {
   const d = dayjs(timestamp * 1000)
-  let result = d.format('MM-DD')
+  let result = formatDisplayDate(d.toDate(), 'MM-DD', locale)
 
   if (granularity === 'hour') {
-    result += ` ${d.format('HH')}:00`
+    result = formatDisplayDate(
+      d.startOf('hour').toDate(),
+      'MM-DD HH:mm',
+      locale
+    )
   } else if (granularity === 'week') {
     const weekEnd = d.add(6, 'day')
-    result += ` - ${weekEnd.format('MM-DD')}`
+    result += ` - ${formatDisplayDate(weekEnd.toDate(), 'MM-DD', locale)}`
   }
 
   return result

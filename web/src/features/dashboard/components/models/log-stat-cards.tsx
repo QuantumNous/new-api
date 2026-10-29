@@ -127,8 +127,8 @@ export function LogStatCards(props: LogStatCardsProps) {
     const formatted =
       config.key === 'quota'
         ? {
-            displayValue: formatQuota(rawValue),
-            fullValue: formatQuota(rawValue),
+            displayValue: formatQuota(rawValue, locale),
+            fullValue: formatQuota(rawValue, locale),
           }
         : formatStatNumber(rawValue, locale)
 

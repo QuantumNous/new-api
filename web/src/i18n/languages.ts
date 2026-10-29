@@ -100,3 +100,16 @@ export function toIntlLocale(value?: string | null): string | undefined {
     return undefined
   }
 }
+
+/**
+ * Whether an Intl locale tag (the result of `toIntlLocale`) is Persian. Dates
+ * shown in Persian use the Solar Hijri calendar; see `formatDisplayDate`.
+ */
+export function isPersianIntlLocale(locale?: string | null): boolean {
+  if (!locale) return false
+  try {
+    return new Intl.Locale(locale).language === 'fa'
+  } catch {
+    return false
+  }
+}

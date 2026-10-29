@@ -21,7 +21,8 @@ import { useTranslation } from 'react-i18next'
 
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatQuota } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber, formatQuota } from '@/lib/format'
 
 import type { UserWalletData } from '../types'
 
@@ -31,7 +32,8 @@ interface WalletStatsCardProps {
 }
 
 export function WalletStatsCard(props: WalletStatsCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   if (props.loading) {
     return (
       <div className='grid grid-cols-3 divide-x rounded-lg border'>
@@ -55,21 +57,21 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
   }[] = [
     {
       label: t('Current Balance'),
-      value: formatQuota(props.user?.quota ?? 0),
+      value: formatQuota(props.user?.quota ?? 0, locale),
       description: t('Remaining quota'),
       icon: WalletCards,
       tone: 'success',
     },
     {
       label: t('Total Usage'),
-      value: formatQuota(props.user?.used_quota ?? 0),
+      value: formatQuota(props.user?.used_quota ?? 0, locale),
       description: t('Total consumed quota'),
       icon: BarChart3,
       tone: 'info',
     },
     {
       label: t('API Requests'),
-      value: (props.user?.request_count ?? 0).toLocaleString(),
+      value: formatNumber(props.user?.request_count ?? 0, locale),
       description: t('Total requests made'),
       icon: Activity,
       tone: 'chart-4',

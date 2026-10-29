@@ -84,6 +84,7 @@ import type {
   FlowOverflowMode,
   FlowRole,
 } from '@/features/dashboard/types'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatQuota } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 import { requireServerSuccess } from '@/lib/server-error-message'
@@ -248,14 +249,16 @@ function toggleSelectedNodeFilter(
     : [...filters, filter]
 }
 
-function formatFlowMetricNumber(value: number): string {
-  return Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
-    value
-  )
+function formatFlowMetricNumber(
+  value: number,
+  locale: Intl.LocalesArgument
+): string {
+  return Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)
 }
 
 export function FlowCharts(props: FlowChartsProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { resolvedTheme, themeReady } = useChartTheme()
   const textColor = useThemeColor('--foreground')
   const chartInstanceRef = useRef<IVChart | null>(null)
@@ -361,6 +364,7 @@ export function FlowCharts(props: FlowChartsProps) {
         maskSensitive,
         deletedTokenLabel: (tokenId) => t('Deleted ({{id}})', { id: tokenId }),
         otherNodeLabel: (kind) => t(FLOW_OTHER_NODE_LABEL_KEYS[kind]),
+        locale,
       }),
     [
       flowRole,
@@ -376,6 +380,7 @@ export function FlowCharts(props: FlowChartsProps) {
       visibleStages,
       maskSensitive,
       t,
+      locale,
     ]
   )
   const userFilterOptions = useMemo(
@@ -398,8 +403,10 @@ export function FlowCharts(props: FlowChartsProps) {
   const metricLabel = t(FLOW_METRIC_LABEL_KEYS[metric])
   const formatNodeMetricValue = useCallback(
     (value: number) =>
-      metric === 'quota' ? formatQuota(value) : formatFlowMetricNumber(value),
-    [metric]
+      metric === 'quota'
+        ? formatQuota(value, locale)
+        : formatFlowMetricNumber(value, locale),
+    [metric, locale]
   )
   // Explicit filters (the chips/dropdown control) narrow the rows that feed the
   // chart. They are intentionally independent from the click-to-highlight state
@@ -461,16 +468,17 @@ export function FlowCharts(props: FlowChartsProps) {
       buildFlowSankeySpec(
         flowData.flow,
         chartTitle,
-        formatQuota,
+        (value) => formatQuota(value, locale),
         {
           quota: t('Quota'),
           tokens: t('Tokens'),
           requests: t('Requests'),
           share: t('Share'),
         },
-        textColor
+        textColor,
+        locale
       ),
-    [chartTitle, flowData.flow, t, textColor]
+    [chartTitle, flowData.flow, t, textColor, locale]
   )
   const chartTheme = resolvedTheme === 'dark' ? 'dark' : 'light'
   const chartKey = [
@@ -607,7 +615,9 @@ export function FlowCharts(props: FlowChartsProps) {
                     value={String(limit)}
                     className='px-2.5 text-xs'
                   >
-                    {t('Top {{count}}', { count: limit })}
+                    {t('Top {{count}}', {
+                      count: formatFlowMetricNumber(limit, locale),
+                    })}
                   </TabsTrigger>
                 ))}
               </TabsList>

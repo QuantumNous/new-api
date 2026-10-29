@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatNumber } from '@/lib/format'
 
 import { formatCreemPrice } from '../../lib/format'
@@ -41,7 +42,8 @@ export function CreemConfirmDialog({
   product,
   processing,
 }: CreemConfirmDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
 
   if (!product) return null
 
@@ -79,12 +81,14 @@ export function CreemConfirmDialog({
         <div className='flex items-center justify-between'>
           <span className='text-muted-foreground'>{t('Price')}</span>
           <span className='text-primary font-medium'>
-            {formatCreemPrice(product.price, product.currency)}
+            {formatCreemPrice(product.price, product.currency, locale)}
           </span>
         </div>
         <div className='flex items-center justify-between'>
           <span className='text-muted-foreground'>{t('Quota')}</span>
-          <span className='font-medium'>{formatNumber(product.quota)}</span>
+          <span className='font-medium'>
+            {formatNumber(product.quota, locale)}
+          </span>
         </div>
       </div>
     </Dialog>

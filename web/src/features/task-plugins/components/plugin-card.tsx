@@ -21,6 +21,8 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber } from '@/lib/format'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
 import type { TaskPluginListItem } from '../types'
@@ -48,6 +50,7 @@ const MAX_VISIBLE_MODELS = 4
  */
 function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
   const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const cells = row.getAllCells()
   const description = resolveLocalizedText(
     row.original.meta.description,
@@ -133,7 +136,7 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
                 className='font-normal'
                 title={hiddenModels.join(', ')}
               >
-                +{hiddenModels.length}
+                +{formatNumber(hiddenModels.length, locale)}
               </Badge>
             ) : null}
           </div>

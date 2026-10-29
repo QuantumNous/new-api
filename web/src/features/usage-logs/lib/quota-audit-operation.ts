@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { isPersianIntlLocale } from '@/i18n/languages'
 import { formatLogQuota } from '@/lib/format'
 
 type Translate = (key: string, opts?: Record<string, unknown>) => string
@@ -35,9 +36,14 @@ const QUOTA_OPERATIONS: Record<string, { label: string; named: string }> = {
   },
 }
 
-function quotaText(value: unknown, t: Translate): string {
+function quotaText(value: unknown, t: Translate, locale?: string): string {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return formatLogQuota(value)
+    // Persian amounts follow the interface locale. Other languages keep the
+    // runtime default locale, so their audit text stays as it was.
+    return formatLogQuota(
+      value,
+      isPersianIntlLocale(locale) ? locale : undefined
+    )
   }
   if (typeof value === 'string' && value.trim()) return value
   return t('Not recorded')
@@ -47,7 +53,8 @@ export function buildQuotaAuditOperation(
   action: string,
   params: Record<string, unknown>,
   success: boolean,
-  t: Translate
+  t: Translate,
+  locale?: string
 ) {
   const unknownMode = action === 'generic' && params.action === 'add_quota'
   const operation = unknownMode
@@ -77,7 +84,7 @@ export function buildQuotaAuditOperation(
   if (requested === undefined && success && action === 'user.quota_override') {
     requested = params.to
   }
-  const amount = quotaText(requested, t)
+  const amount = quotaText(requested, t, locale)
   let description = t('Requested quota: {{quota}}', { quota: amount })
   const fields: { label: string; value: string; copyable?: boolean }[] = [
     { label: t('Target username'), value: name || t('Not recorded') },
@@ -91,8 +98,8 @@ export function buildQuotaAuditOperation(
     { label: t('Requested quota'), value: amount },
   ]
   if (success) {
-    const before = quotaText(params.from, t)
-    const after = quotaText(params.to, t)
+    const before = quotaText(params.from, t, locale)
+    const after = quotaText(params.to, t, locale)
     const unchanged =
       params.from !== undefined &&
       params.from !== null &&

@@ -45,7 +45,8 @@ import {
 } from '@/components/ui/sheet'
 import { SecureVerificationDialog } from '@/features/auth/secure-verification'
 import { AuditLogViewer } from '@/features/usage-logs/audit/components/audit-log-viewer'
-import { toIntlLocale } from '@/i18n/languages'
+import { isPersianIntlLocale, toIntlLocale } from '@/i18n/languages'
+import { formatGregorianTitle, formatTimestampToDate } from '@/lib/format'
 
 import type { AccessTokenItem as AccessToken } from '../api'
 import { useAccessTokens } from '../hooks/use-access-tokens'
@@ -66,8 +67,11 @@ export function AccessTokensCard() {
       }),
     [locale]
   )
+  // Persian shows numeric Solar Hijri dates, as everywhere else in the app.
   const formatTime = (seconds: number) =>
-    timeFormat.format(new Date(seconds * 1000))
+    isPersianIntlLocale(locale)
+      ? formatTimestampToDate(seconds, 'seconds', locale)
+      : timeFormat.format(new Date(seconds * 1000))
   const [createOpen, setCreateOpen] = useState(false)
   const [revokeTarget, setRevokeTarget] = useState<
     AccessToken | 'legacy' | null
@@ -130,13 +134,18 @@ export function AccessTokensCard() {
             </div>
             <p className='text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs'>
               {legacy.created_at ? (
-                <span>
+                <span title={formatGregorianTitle(legacy.created_at, locale)}>
                   {t('Created {{time}}', {
                     time: formatTime(legacy.created_at),
                   })}
                 </span>
               ) : null}
-              <span>
+              <span
+                title={formatGregorianTitle(
+                  legacy.last_used_at ?? undefined,
+                  locale
+                )}
+              >
                 {legacy.last_used_at
                   ? t('Last used {{time}}', {
                       time: formatTime(legacy.last_used_at),
@@ -145,7 +154,10 @@ export function AccessTokensCard() {
               </span>
             </p>
             <div className='flex flex-wrap items-center justify-between gap-2'>
-              <p className='text-sm'>
+              <p
+                className='text-sm'
+                title={formatGregorianTitle(legacy.retire_at, locale)}
+              >
                 {t(
                   'The legacy token stops working on {{date}}. Create a new token to replace it.',
                   { date: formatTime(legacy.retire_at) }

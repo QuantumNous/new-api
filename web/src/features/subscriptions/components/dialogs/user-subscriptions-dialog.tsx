@@ -48,7 +48,8 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { formatQuota } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatFixed, formatGregorianTitle, formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { getServerMessage } from '@/lib/server-error-message'
 
@@ -106,7 +107,8 @@ function SubscriptionStatusBadge(props: {
 }
 
 export function UserSubscriptionsDialog(props: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [plans, setPlans] = useState<PlanRecord[]>([])
@@ -260,7 +262,7 @@ export function UserSubscriptionsDialog(props: Props) {
               <Combobox
                 options={plans.map((p) => ({
                   value: String(p.plan.id),
-                  label: `${p.plan.title} ($${Number(p.plan.price_amount || 0).toFixed(2)})`,
+                  label: `${p.plan.title} ($${formatFixed(Number(p.plan.price_amount || 0), 2, locale)})`,
                 }))}
                 value={selectedPlanId}
                 onValueChange={(v) => v !== null && setSelectedPlanId(v)}
@@ -322,11 +324,14 @@ export function UserSubscriptionsDialog(props: Props) {
 
                     return (
                       <div className='text-sm'>
-                        <div>
-                          {t('Start')}: {formatTimestamp(sub.start_time)}
+                        <div
+                          title={formatGregorianTitle(sub.start_time, locale)}
+                        >
+                          {t('Start')}:{' '}
+                          {formatTimestamp(sub.start_time, locale)}
                         </div>
-                        <div>
-                          {t('End')}: {formatTimestamp(sub.end_time)}
+                        <div title={formatGregorianTitle(sub.end_time, locale)}>
+                          {t('End')}: {formatTimestamp(sub.end_time, locale)}
                         </div>
                       </div>
                     )
@@ -340,7 +345,7 @@ export function UserSubscriptionsDialog(props: Props) {
                     const total = Number(sub.amount_total || 0)
                     const used = Number(sub.amount_used || 0)
                     return total > 0
-                      ? `${formatQuota(used)}/${formatQuota(total)}`
+                      ? `${formatQuota(used, locale)}/${formatQuota(total, locale)}`
                       : t('Unlimited')
                   },
                 },

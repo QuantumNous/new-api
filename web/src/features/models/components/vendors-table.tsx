@@ -38,7 +38,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
-import { formatTimestampToDate } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatGregorianTitle, formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { createServerError } from '@/lib/server-error-message'
 
@@ -52,7 +53,8 @@ import { useModels } from './models-provider'
 const route = getRouteApi('/_authenticated/models/$section')
 
 export function VendorsTable() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const navigate = useNavigate()
   const { setCurrentVendor, setOpen } = useModels()
   const [operation, setOperation] = useState<VendorOperation | null>(null)
@@ -176,12 +178,20 @@ export function VendorsTable() {
     {
       accessorKey: 'created_time',
       header: t('Created At'),
-      cell: ({ row }) => formatTimestampToDate(row.original.created_time),
+      cell: ({ row }) => (
+        <span title={formatGregorianTitle(row.original.created_time, locale)}>
+          {formatTimestampToDate(row.original.created_time, 'seconds', locale)}
+        </span>
+      ),
     },
     {
       accessorKey: 'updated_time',
       header: t('Updated At'),
-      cell: ({ row }) => formatTimestampToDate(row.original.updated_time),
+      cell: ({ row }) => (
+        <span title={formatGregorianTitle(row.original.updated_time, locale)}>
+          {formatTimestampToDate(row.original.updated_time, 'seconds', locale)}
+        </span>
+      ),
     },
     {
       id: 'actions',

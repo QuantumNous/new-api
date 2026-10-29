@@ -24,7 +24,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
+import {
+  formatGregorianTitle,
+  formatTimestampRelative,
+  formatTimestampToDate,
+} from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 interface TimestampCellProps {
@@ -42,11 +46,17 @@ export function TimestampCell(props: TimestampCellProps) {
   }
 
   const timestampMs = props.timestamp * 1000
-  const absoluteTime = formatTimestampToDate(props.timestamp)
+  const absoluteTime = formatTimestampToDate(
+    props.timestamp,
+    'seconds',
+    props.locale
+  )
+  const gregorianTime = formatGregorianTitle(props.timestamp, props.locale)
   if (props.format === 'absolute') {
     return (
       <time
         dateTime={new Date(timestampMs).toISOString()}
+        title={gregorianTime}
         className={cn('block whitespace-nowrap tabular-nums', props.className)}
       >
         {absoluteTime}
@@ -82,6 +92,11 @@ export function TimestampCell(props: TimestampCellProps) {
       </TooltipTrigger>
       <TooltipContent>
         <span className='tabular-nums'>{absoluteTime}</span>
+        {gregorianTime && (
+          <span className='block tabular-nums' dir='ltr'>
+            {gregorianTime}
+          </span>
+        )}
       </TooltipContent>
     </Tooltip>
   )

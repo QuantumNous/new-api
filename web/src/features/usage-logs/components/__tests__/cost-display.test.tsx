@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import type React from 'react'
@@ -52,9 +52,27 @@ describe('log cost display', () => {
     useSystemConfigStore.setState(useSystemConfigStore.getInitialState(), true)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     useSystemConfigStore.setState(useSystemConfigStore.getInitialState(), true)
     localStorage.clear()
+    await i18next.changeLanguage('en')
+    i18next.removeResourceBundle('fa', 'translation')
+  })
+
+  test('re-renders the cost with Persian digits after switching to Persian without a reload', async () => {
+    // Like the app, Persian must have translations of its own; otherwise
+    // i18next resolves the language to English.
+    i18next.addResourceBundle('fa', 'translation', { Wallet: 'کیف پول' })
+    await i18next.changeLanguage('en')
+    renderCost({ quota: 6_000_000, other: null })
+    expect(screen.getByText('$12')).toBeInTheDocument()
+
+    await act(async () => {
+      await i18next.changeLanguage('fa')
+    })
+
+    expect(screen.queryByText('$12')).not.toBeInTheDocument()
+    expect(screen.getByText(/۱۲/)).toBeInTheDocument()
   })
 
   test.each([

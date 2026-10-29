@@ -78,7 +78,8 @@ export function getPaymentMethodName(
 
 /**
  * Format timestamp to readable date string
+ * (Solar Hijri for a Persian locale from `toIntlLocale`)
  */
-export function formatTimestamp(timestamp: number): string {
-  return formatTimestampToDate(timestamp)
+export function formatTimestamp(timestamp: number, locale?: string): string {
+  return formatTimestampToDate(timestamp, 'seconds', locale)
 }
