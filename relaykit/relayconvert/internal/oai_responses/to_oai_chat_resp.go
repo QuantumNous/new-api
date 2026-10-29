@@ -1,6 +1,7 @@
 package oairesponses
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -104,6 +105,26 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 		Role:    "assistant",
 		Content: text,
 	}
+	var refusal strings.Builder
+	var hasRefusal bool
+	var logprobs []json.RawMessage
+	for _, output := range resp.Output {
+		if output.Type != responsesOutputTypeMessage || (output.Role != "" && output.Role != "assistant") {
+			continue
+		}
+		for _, content := range output.Content {
+			if content.Type == "refusal" {
+				hasRefusal = true
+				refusal.WriteString(content.Refusal)
+			}
+			if content.Type == "output_text" {
+				logprobs = append(logprobs, content.Logprobs...)
+			}
+		}
+	}
+	if hasRefusal {
+		msg.Refusal = kitutil.GetPointer(refusal.String())
+	}
 	if annotations, err := responsesAnnotationsToChat(resp); err != nil {
 		return nil, nil, err
 	} else if len(annotations) > 0 {
@@ -129,6 +150,9 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 			},
 		},
 		Usage: *usage,
+	}
+	if logprobs != nil {
+		out.Choices[0].Logprobs = &dto.ChatLogprobs{Content: logprobs}
 	}
 
 	return out, usage, nil

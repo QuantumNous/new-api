@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -291,13 +292,20 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		info.SetFirstResponseTime()
 	}
 
-	validUsage := service.ValidUsage(&usageResp.Usage)
+	// Presence, not a nonzero token count, determines whether upstream
+	// provided statistics. Null and missing usage remain absent from SSE.
+	hasUsage := gjson.GetBytes(responseBody, "usage").IsObject()
 	var usageJSON []byte
-	if validUsage {
+	if hasUsage {
 		usageJSON, err = common.Marshal(usageResp.Usage)
 		if err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
+	}
+
+	eventType := "image_generation.completed"
+	if info.RelayMode == relayconstant.RelayModeImagesEdits {
+		eventType = "image_edit.completed"
 	}
 
 	// gjson.Result.Array returns the element list for an array and a single
@@ -309,13 +317,23 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		if !openaiImageDataHasField(image, "url") && !openaiImageDataHasField(image, "b64_json") {
 			continue
 		}
-		payload := []byte(`{"type":"image_generation.completed"}`)
+		payload := []byte(`{"type":"` + eventType + `"}`)
 		payload, err = sjson.SetBytes(payload, "created_at", created)
 		if err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
-		if validUsage {
+		if hasUsage {
 			payload, err = sjson.SetRawBytes(payload, "usage", usageJSON)
+			if err != nil {
+				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			}
+		}
+		for _, field := range []string{"size", "quality", "background", "output_format"} {
+			value := gjson.GetBytes(responseBody, field)
+			if !value.Exists() {
+				continue
+			}
+			payload, err = sjson.SetRawBytes(payload, field, []byte(value.Raw))
 			if err != nil {
 				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
@@ -337,7 +355,7 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
 		}
-		if writeErr := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "image_generation.completed"}, string(payload)); writeErr != nil {
+		if writeErr := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: eventType}, string(payload)); writeErr != nil {
 			if info != nil && info.StreamStatus != nil {
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, writeErr)
 			}

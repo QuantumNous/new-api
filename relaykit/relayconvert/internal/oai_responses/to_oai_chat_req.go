@@ -83,6 +83,14 @@ func ResponsesRequestToChatCompletionsRequest(ctx context.Context, req *dto.Open
 		ThinkingBudget:       req.ThinkingBudget,
 	}
 
+	var include []string
+	if len(req.Include) > 0 {
+		_ = kitutil.Unmarshal(req.Include, &include)
+	}
+	if req.TopLogProbs != nil || slices.Contains(include, "message.output_text.logprobs") {
+		out.LogProbs = kitutil.GetPointer(true)
+	}
+
 	out.FrequencyPenalty, err = responsesRawFloat(req.FrequencyPenalty)
 	if err != nil {
 		return nil, fmt.Errorf("invalid frequency_penalty: %w", err)
@@ -481,11 +489,14 @@ func RequestTextToChatResponseFormat(raw json.RawMessage) (*dto.ResponseFormat, 
 
 func responsesImagePartToChatImageURL(part map[string]any) any {
 	if imageURL, ok := part["image_url"]; ok {
-		// Chat Completions takes the URL inside an object. detail is left out:
-		// Chat upstreams that validate it with older OpenAI SDKs reject newer
-		// values such as "original".
+		// Older Chat SDKs reject "original"; preserve the shared detail levels.
 		if url, ok := imageURL.(string); ok {
-			return map[string]any{"url": url}
+			image := map[string]any{"url": url}
+			switch detail := kitutil.Interface2String(part["detail"]); detail {
+			case "auto", "low", "high":
+				image["detail"] = detail
+			}
+			return image
 		}
 		return imageURL
 	}

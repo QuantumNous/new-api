@@ -85,8 +85,8 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 		Created: created,
 		Choices: make([]dto.OpenAITextResponseChoice, 0, len(response.Candidates)),
 	}
-	isToolCall := false
 	for _, candidate := range response.Candidates {
+		isToolCall := false
 		choice := dto.OpenAITextResponseChoice{
 			Index: int(candidate.Index),
 			Message: dto.Message{
@@ -107,11 +107,13 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 				content.Grow(inlineGrow)
 			}
 			appended := 0
+			contentEndsWithNewlinePart := false
 			writeSep := func() {
-				if appended > 0 {
+				if appended > 0 && !contentEndsWithNewlinePart {
 					content.WriteByte('\n')
 				}
 				appended++
+				contentEndsWithNewlinePart = false
 			}
 			var toolCalls []dto.ToolCallResponse
 			for _, part := range candidate.Content.Parts {
@@ -151,7 +153,10 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 						content.WriteString("```output\n")
 						content.WriteString(part.CodeExecutionResult.Output)
 						content.WriteString("\n```")
-					} else if part.Text != "\n" {
+					} else if part.Text == "\n" {
+						content.WriteString(part.Text)
+						contentEndsWithNewlinePart = true
+					} else {
 						writeSep()
 						content.WriteString(part.Text)
 					}
@@ -197,7 +202,7 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 			Index: int(candidate.Index),
 			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{},
 		}
-		var content strings.Builder
+		var content, reasoning strings.Builder
 		var inlineGrow int
 		for _, part := range candidate.Content.Parts {
 			if part.InlineData != nil {
@@ -208,11 +213,13 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 			content.Grow(inlineGrow)
 		}
 		appended := 0
+		contentEndsWithNewlinePart := false
 		writeSep := func() {
-			if appended > 0 {
+			if appended > 0 && !contentEndsWithNewlinePart {
 				content.WriteByte('\n')
 			}
 			appended++
+			contentEndsWithNewlinePart = false
 		}
 		isTools := false
 		isThought := false
@@ -245,9 +252,11 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 					choice.Delta.ToolCalls = append(choice.Delta.ToolCalls, *call)
 				}
 			} else if part.Thought {
+				if isThought {
+					reasoning.WriteByte('\n')
+				}
 				isThought = true
-				writeSep()
-				content.WriteString(part.Text)
+				reasoning.WriteString(part.Text)
 			} else {
 				if part.ExecutableCode != nil {
 					writeSep()
@@ -261,15 +270,19 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 					content.WriteString("```output\n")
 					content.WriteString(part.CodeExecutionResult.Output)
 					content.WriteString("\n```\n")
-				} else if part.Text != "\n" {
+				} else if part.Text == "\n" {
+					content.WriteString(part.Text)
+					contentEndsWithNewlinePart = true
+				} else {
 					writeSep()
 					content.WriteString(part.Text)
 				}
 			}
 		}
 		if isThought {
-			choice.Delta.SetReasoningContent(content.String())
-		} else {
+			choice.Delta.SetReasoningContent(reasoning.String())
+		}
+		if !isThought || content.Len() > 0 {
 			choice.Delta.SetContentString(content.String())
 		}
 		if isTools {

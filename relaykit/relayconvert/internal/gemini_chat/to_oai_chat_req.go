@@ -167,6 +167,22 @@ func GeminiGenerateContentRequestToOpenAIChat(ctx context.Context, geminiRequest
 	if geminiRequest.GenerationConfig.CandidateCount != nil {
 		openaiRequest.N = kitutil.GetPointer(*geminiRequest.GenerationConfig.CandidateCount)
 	}
+	if geminiRequest.GenerationConfig.ResponseMimeType == "application/json" {
+		openaiRequest.ResponseFormat = &dto.ResponseFormat{Type: "json_object"}
+	}
+	openaiRequest.LogProbs = geminiRequest.GenerationConfig.ResponseLogprobs
+	if openaiRequest.LogProbs != nil && *openaiRequest.LogProbs && geminiRequest.GenerationConfig.Logprobs != nil {
+		openaiRequest.TopLogProbs = kitutil.GetPointer(int(*geminiRequest.GenerationConfig.Logprobs))
+	}
+	if geminiRequest.GenerationConfig.Seed != nil {
+		openaiRequest.Seed = kitutil.GetPointer(float64(*geminiRequest.GenerationConfig.Seed))
+	}
+	if geminiRequest.GenerationConfig.PresencePenalty != nil {
+		openaiRequest.PresencePenalty = kitutil.GetPointer(float64(*geminiRequest.GenerationConfig.PresencePenalty))
+	}
+	if geminiRequest.GenerationConfig.FrequencyPenalty != nil {
+		openaiRequest.FrequencyPenalty = kitutil.GetPointer(float64(*geminiRequest.GenerationConfig.FrequencyPenalty))
+	}
 
 	if len(geminiRequest.GetTools()) > 0 {
 		var tools []dto.ToolCallRequest
