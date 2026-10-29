@@ -90,7 +90,7 @@
     "@rsbuild/core": "^2.1.4",
     "@rsbuild/plugin-react": "^2.1.0",
     "@rsbuild/plugin-tailwindcss": "^2.0.3",
-    "@tanstack/react-query-devtools": "^5.101.2",
+    "@tanstack/react-query-devtools": "^5.105.0",
     "@tanstack/react-router-devtools": "^1.167.0",
     "@tanstack/router-plugin": "^1.168.42",
     "@testing-library/jest-dom": "^7.0.0",
