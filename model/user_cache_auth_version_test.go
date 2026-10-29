@@ -32,6 +32,105 @@ func useUserCacheMiniRedis(t *testing.T) *miniredis.Miniredis {
 	return server
 }
 
+func TestUserCacheReadsWithOneConnectionBorrow(t *testing.T) {
+	useUserCacheMiniRedis(t)
+	user := &UserBase{
+		Id: 4301, Group: "default", Email: "cache@example.com", Quota: 1000,
+		Status: common.UserStatusEnabled, Role: common.RoleCommonUser,
+		Username: "pipeline-user", Setting: `{"record_ip_log":true}`, AuthVersion: 3,
+	}
+	require.NoError(t, writeUserCache(user, true))
+	before := common.RDB.PoolStats()
+	got, err := GetUserCache(user.Id)
+	require.NoError(t, err)
+	after := common.RDB.PoolStats()
+	assert.Equal(t, user, got)
+	assert.EqualValues(t, 1, after.Hits+after.Misses-before.Hits-before.Misses)
+
+	// Wallet reads must observe changes after the authentication snapshot.
+	require.NoError(t, cacheDecrUserQuota(user.Id, 800))
+	before = common.RDB.PoolStats()
+	quota, err := GetUserQuota(user.Id, false)
+	require.NoError(t, err)
+	after = common.RDB.PoolStats()
+	assert.Equal(t, 200, quota)
+	assert.EqualValues(t, 1, after.Hits+after.Misses-before.Hits-before.Misses)
+}
+
+func TestUserCacheInvalidHashFallsBackToDatabase(t *testing.T) {
+	for _, tc := range []struct{ name, field, value string }{
+		{name: "missing hash"},
+		{name: "wrong owner", field: "Id", value: "999999"},
+		{name: "old schema", field: "CacheSchema", value: "1"},
+		{name: "missing version", field: "AuthVersion", value: "0"},
+		{name: "invalid version", field: "AuthVersion", value: "bad"},
+		{name: "invalid quota", field: "Quota", value: "bad"},
+		{name: "overflow quota", field: "Quota", value: "9223372036854775808"},
+		{name: "invalid status", field: "Status", value: "bad"},
+		{name: "invalid role", field: "Role", value: "bad"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+			server := useUserCacheMiniRedis(t)
+			user := User{Username: "authoritative-user", Group: "default", Quota: 100,
+				Status: common.UserStatusEnabled, Role: common.RoleCommonUser, AuthVersion: 1}
+			require.NoError(t, DB.Create(&user).Error)
+			cached := user.ToBaseUser()
+			cached.Username = "cached-user"
+			require.NoError(t, writeUserCache(cached, true))
+			if tc.field == "" {
+				server.Del(getUserCacheKey(user.Id))
+			} else {
+				server.HSet(getUserCacheKey(user.Id), tc.field, tc.value)
+			}
+			got, err := GetUserCache(user.Id)
+			require.NoError(t, err)
+			assert.Equal(t, user.Username, got.Username)
+			assert.Equal(t, user.Quota, got.Quota)
+		})
+	}
+}
+
+func TestUserCacheFallbackStillChecksPendingFence(t *testing.T) {
+	truncateTables(t)
+	server := useUserCacheMiniRedis(t)
+	user := User{Username: "pending-fallback-user", Group: "default", Quota: 100,
+		Status: common.UserStatusEnabled, Role: common.RoleCommonUser, AuthVersion: 1}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, SetUserAuthVersionFence(user.Id, 2))
+	for _, wrongType := range []bool{false, true} {
+		if wrongType {
+			require.NoError(t, server.Set(getUserCacheKey(user.Id), "not-a-hash"))
+		}
+		got, err := GetUserCache(user.Id)
+		assert.ErrorIs(t, err, ErrUserAuthCachePending)
+		assert.Nil(t, got)
+	}
+}
+
+func TestUserCacheFailuresDoNotReturnSnapshot(t *testing.T) {
+	server := useUserCacheMiniRedis(t)
+	const userID = 4302
+	require.NoError(t, writeUserCache(&UserBase{Id: userID, AuthVersion: 1}, true))
+	require.NoError(t, server.Set(getUserAuthVersionKey(userID), "bad-version"))
+	got, err := cacheGetUserBase(userID)
+	require.Error(t, err)
+	assert.Nil(t, got)
+
+	// A failed database fallback must not populate an empty user snapshot.
+	tx := DB.Begin()
+	require.NoError(t, tx.Error)
+	require.NoError(t, tx.Rollback().Error)
+	oldDB := DB
+	DB = tx
+	t.Cleanup(func() { DB = oldDB })
+	server.Del(getUserCacheKey(userID))
+	got, err = GetUserCache(userID)
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.False(t, server.Exists(getUserCacheKey(userID)))
+}
+
 func TestUserAuthFenceRollbackExpiresAndRecovers(t *testing.T) {
 	truncateTables(t)
 	server := useUserCacheMiniRedis(t)

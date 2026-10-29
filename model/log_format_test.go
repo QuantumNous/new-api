@@ -1,13 +1,81 @@
 package model
 
 import (
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/gin-gonic/gin"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+func TestRecordLogsUseAuthenticatedUserSetting(t *testing.T) {
+	truncateTables(t)
+	user := User{Username: "request-log-setting", Setting: `{"record_ip_log":true}`}
+	require.NoError(t, DB.Create(&user).Error)
+	userSettingQueries := 0
+	require.NoError(t, DB.Callback().Query().Before("gorm:query").Register("test:record_log_setting_reads", func(tx *gorm.DB) {
+		if tx.Statement.Table == "users" {
+			userSettingQueries++
+		}
+	}))
+	t.Cleanup(func() { require.NoError(t, DB.Callback().Query().Remove("test:record_log_setting_reads")) })
+
+	for _, tc := range []struct {
+		name        string
+		setting     any
+		userID      int
+		wantIP      string
+		wantQueries int
+	}{
+		{name: "request setting true", setting: dto.UserSetting{RecordIpLog: true}, userID: user.Id, wantIP: "203.0.113.10"},
+		{name: "request setting false overrides database", setting: dto.UserSetting{}, userID: user.Id},
+		{name: "missing setting falls back", userID: user.Id, wantIP: "203.0.113.10", wantQueries: 1},
+		{name: "invalid setting falls back", setting: "invalid", userID: user.Id, wantIP: "203.0.113.10", wantQueries: 1},
+		{name: "different user falls back", setting: dto.UserSetting{}, userID: user.Id + 1, wantIP: "203.0.113.10", wantQueries: 1},
+	} {
+		for _, logType := range []string{"error", "consume"} {
+			t.Run(logType+"/"+tc.name, func(t *testing.T) {
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+				c.Request.RemoteAddr = "203.0.113.10:4321"
+				c.Set("id", tc.userID)
+				if tc.setting != nil {
+					common.SetContextKey(c, constant.ContextKeyUserSetting, tc.setting)
+				}
+				requestID := common.NewRequestId()
+				c.Set(common.RequestIdKey, requestID)
+
+				userSettingQueries = 0
+				if logType == "error" {
+					RecordErrorLog(c, user.Id, 1, "test-model", "test-token", "upstream error", 1, 1, true, "default", NewLogOther())
+				} else {
+					RecordConsumeLog(c, user.Id, RecordConsumeLogParams{Quota: 17, PromptTokens: 11, CompletionTokens: 3, ModelName: "test-model", Other: NewLogOther()})
+				}
+				assert.Equal(t, tc.wantQueries, userSettingQueries)
+
+				var got Log
+				require.NoError(t, LOG_DB.Where("request_id = ?", requestID).First(&got).Error)
+				assert.Equal(t, user.Id, got.UserId)
+				assert.Equal(t, tc.wantIP, got.Ip)
+				if logType == "error" {
+					assert.Equal(t, LogTypeError, got.Type)
+					assert.Zero(t, got.Quota)
+				} else {
+					assert.Equal(t, LogTypeConsume, got.Type)
+					assert.Equal(t, 17, got.Quota)
+					assert.Equal(t, 11, got.PromptTokens)
+					assert.Equal(t, 3, got.CompletionTokens)
+				}
+			})
+		}
+	}
+}
 
 // TestFormatUserLogsStripsQuotaSaturation verifies the admin-only quota
 // saturation marker (nested under other.admin_info) is removed for non-admin
