@@ -10,7 +10,7 @@ export const meta = {
   version: "1.1.1",
   author: { name: "QuantumNous" },
   channelTypes: [50],
-  models: ["kling-v2-5-turbo", "kling-v2-6", "kling-v3"],
+  models: ["kling-v2-5-turbo", "kling-v2-6", "kling-v3", "kling-4.0"],
   fetchMode: "per_task",
   upstreams: ["vendor", "new_api"],
   usageSchema: {
@@ -26,6 +26,8 @@ export const meta = {
     { label: "v2.6 pro 10s · audio", facts: { units: 10 } },
     { label: "v3 pro 5s", facts: { units: 4 } },
     { label: "v3 4k 5s", facts: { units: 15 } },
+    { label: "4.0 1080p 10s", facts: { units: 15 } },
+    { label: "4.0 1080p 10s · video input", facts: { units: 18 } },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
   // Kling's own paths; the gateway also serves each under /kling.
@@ -34,6 +36,12 @@ export const meta = {
     { method: "POST", path: "/v1/videos/image2video", type: "submit", action: "image_to_video", decode: "decodeSubmit", render: "taskCreated" },
     { method: "GET", path: "/v1/videos/text2video/:task_id", type: "query", render: "taskStatus" },
     { method: "GET", path: "/v1/videos/image2video/:task_id", type: "query", render: "taskStatus" },
+    // Kling 4.0 takes the model in the path and answers its tasks at
+    // GET /tasks?task_ids=.
+    { method: "POST", path: "/text-to-video/kling-4.0", type: "submit", action: "text_to_video", decode: "kling4TextToVideo", render: "kling4Created" },
+    { method: "POST", path: "/image-to-video/kling-4.0", type: "submit", action: "image_to_video", decode: "kling4ImageToVideo", render: "kling4Created" },
+    { method: "POST", path: "/omni-video/kling-4.0", type: "submit", action: "reference_to_video", decode: "kling4OmniVideo", render: "kling4Created" },
+    { method: "GET", path: "/tasks", type: "query", taskIdParam: "task_ids", render: "kling4Tasks" },
   ],
 };
 
@@ -56,6 +64,24 @@ const DEFAULT_KLING_MODEL = {
   soundUnits: { std: 0.9, pro: 1.2, "4k": 3.0 },
   voiceUnits: { std: 1.2, pro: 1.2, "4k": 3.0 },
 };
+
+// Kling 4.0 takes the model in the path and bills units per second of a total
+// duration (kling.ai/document-api/pricing/base/video): the output alone, or,
+// with an input video, twice the output, or input plus output when the input
+// is longer. Input videos are feature_video, base_video and video character
+// elements; Kling reports their length in usage.input_duration.
+const KLING4_MODELS = ["kling-4.0"];
+const KLING4_UNITS = { "720p": 1.0, "1080p": 1.5 };
+const KLING4_VIDEO_INPUT_UNITS = { "720p": 0.6, "1080p": 0.9 };
+// The longest output, and the longest total of input videos, in seconds.
+const KLING4_MAX_SECONDS = 30;
+// Whether an element is a video character is not in the request, so an
+// element counts as an input video.
+const KLING4_VIDEO_INPUTS = ["feature_video", "base_video", "element"];
+const KLING4_ACTIONS = { "text-to-video": "text_to_video", "image-to-video": "image_to_video", "omni-video": "reference_to_video" };
+// OpenAI video sizes the host protocols map to a Kling 4.0 resolution;
+// without one Kling uses 1080p.
+const KLING4_RESOLUTIONS = { "1280x720": "720p", "720x1280": "720p", "1920x1080": "1080p", "1080x1920": "1080p" };
 
 // Kling's numeric error codes for the statuses the gateway answers with
 // (kling.ai/document-api/api/get-started/error-codes).
@@ -140,8 +166,16 @@ function pathFor(action) {
   return action === "image_to_video" ? "/v1/videos/image2video" : "/v1/videos/text2video";
 }
 
+function apiRoot(ctx) {
+  return ctx.baseUrl + (viaGateway(ctx) ? "/kling" : "");
+}
+
 function urlFor(ctx, action) {
-  return ctx.baseUrl + (viaGateway(ctx) ? "/kling" : "") + pathFor(action);
+  return apiRoot(ctx) + pathFor(action);
+}
+
+function requestHeaders(ctx) {
+  return { Accept: "application/json", Authorization: "Bearer " + tokenFor(ctx), "User-Agent": "kling-sdk/1.0" };
 }
 
 // OpenAI video sizes the host protocols map to Kling's text-to-video
@@ -218,6 +252,157 @@ function filePlaceholder(image) {
   return placeholder;
 }
 
+function plainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function isKling4(model) {
+  return KLING4_MODELS.includes(model);
+}
+
+// A native body goes to the API family of the route the client called; the
+// host protocols pick it by model.
+function usesKling4(ctx, req) {
+  return req.vendorBody ? Boolean(req.endpoint) : isKling4(submitModel(ctx, req));
+}
+
+// 1080p is Kling's default and the dearer; a resolution Kling does not list
+// reserves it.
+function kling4Resolution(settings) {
+  return trimmed(settings.resolution).toLowerCase() === "720p" ? "720p" : "1080p";
+}
+
+// Kling would call back, or look tasks up, by ids the gateway does not hand
+// out. The duration is billed, so it is bounded; Kling checks its range.
+function checkKling4Body(body) {
+  const options = plainObject(body.options);
+  for (const name of UNSUPPORTED_FIELDS) {
+    const value = options[name];
+    if (value !== undefined && value !== null && value !== "") throw new Error("options." + name + " is not supported; query the task instead");
+  }
+  const settings = plainObject(body.settings);
+  if (settings.duration !== undefined && settings.duration !== null) validateKlingDuration(settings.duration);
+}
+
+// The Kling 4.0 request: a native body as the client wrote it, for the
+// endpoint it called. The host protocols send text-to-video, or image-to-video
+// with the first frame and an optional last frame; metadata adds Kling's own
+// fields. Kling 4.0 has no mode, and without a duration Kling picks one.
+function kling4Submission(ctx) {
+  const req = ctx.requestBody || {};
+  if (req.vendorBody) {
+    checkKling4Body(req.vendorBody);
+    return { endpoint: req.endpoint, body: req.vendorBody };
+  }
+  const metadata = Object.assign({}, plainObject(req.metadata));
+  const frames = [
+    ["first_frame", req.image || metadata.image],
+    ["last_frame", metadata.image_tail],
+  ].filter(function (frame) {
+    return frame[1];
+  });
+  let duration = metadata.duration;
+  if (duration === undefined || duration === null) duration = req.duration;
+  for (const name of ["mode", "duration", "image", "image_tail"]) delete metadata[name];
+  const endpoint = frames.length ? "image-to-video" : "text-to-video";
+  const settings = {};
+  const size = trimmed(req.size);
+  if (KLING4_RESOLUTIONS[size]) settings.resolution = KLING4_RESOLUTIONS[size];
+  if (endpoint === "text-to-video" && size) settings.aspect_ratio = aspectRatio(size);
+  if (duration !== undefined && duration !== null) settings.duration = validateKlingDuration(duration);
+  let body;
+  if (endpoint === "text-to-video") body = req.prompt ? { prompt: req.prompt } : {};
+  else {
+    const contents = req.prompt ? [{ type: "prompt", text: req.prompt }] : [];
+    for (const frame of frames) contents.push({ type: frame[0], url: filePlaceholder(frame[1]) });
+    body = { contents: contents };
+  }
+  if (Object.keys(settings).length) body.settings = settings;
+  Object.assign(body, metadata);
+  checkKling4Body(body);
+  return { endpoint: endpoint, body: body };
+}
+
+// Without a duration Kling follows the prompt or the base_video, so the
+// longest output is reserved; only Kling knows the length of an input video,
+// so the longest input is reserved. The units Kling reports settle the task.
+function kling4ReservedUnits(body) {
+  const settings = plainObject(body.settings);
+  const resolution = kling4Resolution(settings);
+  const seconds = settings.duration === undefined || settings.duration === null ? KLING4_MAX_SECONDS : validateKlingDuration(settings.duration);
+  const contents = Array.isArray(body.contents) ? body.contents : [];
+  const videoInput = contents.some(function (item) {
+    return item && KLING4_VIDEO_INPUTS.includes(item.type);
+  });
+  if (!videoInput) return KLING4_UNITS[resolution] * seconds;
+  return KLING4_VIDEO_INPUT_UNITS[resolution] * Math.max(seconds * 2, KLING4_MAX_SECONDS + seconds);
+}
+
+// The task's entry in a Kling 4.0 reply: the list GET /tasks answers, or the
+// single task of the create reply.
+function kling4Entry(reply, taskId) {
+  const data = plainObject(reply).data;
+  if (!Array.isArray(data)) return plainObject(data);
+  return (
+    data.find(function (entry) {
+      return entry && taskId && entry.id === taskId;
+    }) || plainObject(data[0])
+  );
+}
+
+// A Kling 4.0 reply carries the task as data, or as the only entry of the list
+// GET /tasks answers; the earlier API's reply has data.task_id.
+function isKling4Reply(reply) {
+  const data = plainObject(reply).data;
+  return Array.isArray(data) || Boolean(data && typeof data === "object" && data.id && !data.task_id);
+}
+
+function kling4Videos(entry) {
+  return (Array.isArray(entry.outputs) ? entry.outputs : []).filter(function (output) {
+    return output && output.type === "video";
+  });
+}
+
+// Upstream durations are saturated before they become units.
+function reportedSeconds(value) {
+  const seconds = Number.parseFloat(value);
+  return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 3600) : 0;
+}
+
+// The units Kling deducted from resource packages. A task paid in cash, wholly
+// or in part, gets the units of the durations Kling reports instead.
+function kling4CompletedUnits(ctx, body) {
+  const entry = kling4Entry(body, ctx && ctx.taskId);
+  if (entry.status !== "succeeded") return null;
+  const deductions = Array.isArray(entry.billing) ? entry.billing : [];
+  const inUnits = deductions.every(function (item) {
+    return item && item.charge_type === "unit";
+  });
+  if (deductions.length && inUnits) {
+    const units = deductions.reduce(function (sum, item) {
+      return sum + Number.parseFloat(item.amount);
+    }, 0);
+    return Number.isFinite(units) && units >= 0 ? { units: units } : null;
+  }
+  const videos = kling4Videos(entry);
+  const output = reportedSeconds(videos.length ? videos[0].duration : "");
+  if (!output) return null;
+  const input = reportedSeconds(plainObject(entry.usage).input_duration);
+  const resolution = kling4Resolution(plainObject(ctx && ctx.state));
+  if (!input) return { units: KLING4_UNITS[resolution] * output };
+  return { units: KLING4_VIDEO_INPUT_UNITS[resolution] * (input <= output ? output * 2 : input + output) };
+}
+
+function decodeKling4Submit(endpoint) {
+  return function (ctx) {
+    if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
+    const body = ctx.body.value;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("request body must be an object");
+    checkKling4Body(body);
+    return { kind: "submit", model: "kling-4.0", requestBody: { model: "kling-4.0", vendorBody: body, endpoint: endpoint } };
+  };
+}
+
 // Kling's own body, whose model_name is required, sent as is for Kling to
 // check.
 function decodeNativeSubmit(ctx) {
@@ -244,7 +429,7 @@ export const native = {
   // reports as running (poll failures or the task timeout); it then reads failed.
   taskStatus: function (ctx, task) {
     const statusMap = { NOT_START: "submitted", SUBMITTED: "submitted", QUEUED: "submitted", IN_PROGRESS: "processing", SUCCESS: "succeed", FAILURE: "failed" };
-    const result = task.data && typeof task.data === "object" && !Array.isArray(task.data) ? task.data : null;
+    const result = task.data && typeof task.data === "object" && !Array.isArray(task.data) && !isKling4Reply(task.data) ? task.data : null;
     if (result) {
       const data = Object.assign({}, result.data && typeof result.data === "object" ? result.data : {}, { task_id: task.task_id });
       if (task.status === "FAILURE" && data.task_status !== "failed") {
@@ -266,6 +451,36 @@ export const native = {
       },
     };
   },
+  kling4TextToVideo: decodeKling4Submit("text-to-video"),
+  kling4ImageToVideo: decodeKling4Submit("image-to-video"),
+  kling4OmniVideo: decodeKling4Submit("omni-video"),
+  kling4Created: function (ctx, task) {
+    const result = plainObject(task.data);
+    return Object.assign({}, result, { data: Object.assign({}, plainObject(result.data), { id: task.task_id }) });
+  },
+  // Kling 4.0 answers GET /tasks with a list; the gateway answers for one
+  // task, from Kling's last reply. A task the gateway failed reads failed.
+  kling4Tasks: function (ctx, task) {
+    const statusMap = {
+      NOT_START: "submitted",
+      SUBMITTED: "submitted",
+      QUEUED: "submitted",
+      IN_PROGRESS: "processing",
+      SUCCESS: "succeeded",
+      FAILURE: "failed",
+    };
+    const result = isKling4Reply(task.data) ? plainObject(task.data) : {};
+    const entry = Object.assign(
+      { status: statusMap[task.status] || "submitted", create_time: task.created_at * 1000, update_time: (task.updated_at || task.created_at) * 1000 },
+      kling4Entry(result),
+      { id: task.task_id },
+    );
+    if (task.status === "FAILURE" && entry.status !== "failed") {
+      entry.status = "failed";
+      entry.message = task.fail_reason || "";
+    }
+    return Object.assign({ code: 0, message: "", request_id: "" }, result, { data: [entry] });
+  },
   error: function (ctx, error) {
     return { code: ERROR_CODES[error.httpStatus] || (error.httpStatus >= 500 ? 5000 : 1200), message: error.message, request_id: error.requestId || "" };
   },
@@ -277,6 +492,17 @@ export const native = {
 // duration, at Kling's defaults when absent.
 export function buildSubmitRequest(ctx) {
   const req = ctx.requestBody;
+  if (usesKling4(ctx, req)) {
+    const model = submitModel(ctx, req);
+    const submission = kling4Submission(ctx);
+    return {
+      url: apiRoot(ctx) + "/" + submission.endpoint + "/" + model,
+      method: "POST",
+      headers: Object.assign({ "Content-Type": "application/json" }, requestHeaders(ctx)),
+      body: submission.body,
+      action: KLING4_ACTIONS[submission.endpoint],
+    };
+  }
   const metadata = req.metadata || {};
   const inferredAction = req.image || metadata.image || metadata.image_tail ? "image_to_video" : "text_to_video";
   const action = ctx.action === "text_to_video" || ctx.action === "image_to_video" ? ctx.action : inferredAction;
@@ -302,15 +528,27 @@ export function buildSubmitRequest(ctx) {
   return {
     url: urlFor(ctx, action),
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + tokenFor(ctx), "User-Agent": "kling-sdk/1.0" },
+    headers: Object.assign({ "Content-Type": "application/json" }, requestHeaders(ctx)),
     body: body,
     action: action,
   };
 }
 
+// A Kling 4.0 task keeps the resolution it was sent at, for a settlement
+// without a unit deduction; the state also marks the task as one.
+function isKling4Task(ctx) {
+  return Boolean(plainObject(ctx && ctx.state).resolution);
+}
+
 export function parseSubmitResponse(ctx, resp) {
   const result = resp.body || {};
   if (result.code !== 0) throw new Error(result.message || "kling submit failed");
+  const req = (ctx && ctx.requestBody) || {};
+  if (usesKling4(ctx, req)) {
+    if (!result.data || !result.data.id) throw new Error("missing task id");
+    const settings = plainObject(kling4Submission(ctx).body.settings);
+    return { taskId: result.data.id, taskData: result, state: { resolution: kling4Resolution(settings) } };
+  }
   if (!result.data || !result.data.task_id) throw new Error("missing task_id");
   return { taskId: result.data.task_id, taskData: result };
 }
@@ -318,20 +556,35 @@ export function parseSubmitResponse(ctx, resp) {
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const req = ctx.requestBody || {};
+  if (usesKling4(ctx, req)) return { units: kling4ReservedUnits(kling4Submission(ctx).body) };
   // A native body reads like the metadata of a host-protocol request.
   const source = req.vendorBody ? { metadata: req.vendorBody } : req;
   return { units: unitsPerSecond(submitModel(ctx, req), outboundMode(source), source.metadata || {}) * outboundDuration(source) };
 }
 
 export function buildQueryRequest(ctx) {
-  return {
-    url: urlFor(ctx, ctx.action) + "/" + ctx.taskId,
-    method: "GET",
-    headers: { Accept: "application/json", Authorization: "Bearer " + tokenFor(ctx), "User-Agent": "kling-sdk/1.0" },
-  };
+  const url = isKling4Task(ctx) ? apiRoot(ctx) + "/tasks?task_ids=" + encodeURIComponent(ctx.taskId) : urlFor(ctx, ctx.action) + "/" + ctx.taskId;
+  return { url: url, method: "GET", headers: requestHeaders(ctx) };
+}
+
+function parseKling4Result(ctx, body) {
+  const entry = kling4Entry(body, ctx.taskId);
+  const statuses = { submitted: "SUBMITTED", processing: "IN_PROGRESS", succeeded: "SUCCESS", failed: "FAILURE" };
+  const status = statuses[entry.status];
+  if (!status) return { status: "UNKNOWN", reason: "unknown task status: " + String(entry.status || "") };
+  const result = { code: body.code || 0, taskId: entry.id, status: status, reason: entry.message || "" };
+  const videos = status === "SUCCESS" ? kling4Videos(entry) : [];
+  if (videos.length && videos[0].url) result.url = videos[0].url;
+  const usage = kling4CompletedUnits(ctx, body);
+  if (usage && usage.units > 0) {
+    result.completionTokens = Math.ceil(usage.units);
+    result.totalTokens = Math.ceil(usage.units);
+  }
+  return result;
 }
 
 export function parseTaskResult(ctx, body) {
+  if (isKling4Task(ctx)) return parseKling4Result(ctx, body);
   const data = body.data || {};
   const statuses = { submitted: "SUBMITTED", processing: "IN_PROGRESS", succeed: "SUCCESS", failed: "FAILURE" };
   const status = statuses[data.task_status];
@@ -354,6 +607,10 @@ function artifactData(ctx) {
 }
 
 function artifactVideoURL(ctx) {
+  if (isKling4Task(ctx)) {
+    const videos = kling4Videos(kling4Entry(artifactData(ctx), ctx.taskId));
+    return videos.length ? String(videos[0].url || "").trim() : "";
+  }
   const result = (artifactData(ctx).data || {}).task_result || {};
   const videos = Array.isArray(result.videos) ? result.videos : [];
   return videos.length ? String(videos[0].url || "").trim() : "";
@@ -370,7 +627,8 @@ export function buildContentRequest(ctx) {
   return { url: url, method: ctx.clientRequest.method, credentialless: true };
 }
 
-export function extractUsageOnComplete(_task, _taskResult, body) {
+export function extractUsageOnComplete(ctx, _taskResult, body) {
+  if (isKling4Task(ctx)) return kling4CompletedUnits(ctx, body);
   const data = (body && body.data) || {};
   if (
     !Object.prototype.hasOwnProperty.call(data, "final_unit_deduction") ||
@@ -484,8 +742,9 @@ export const protocols = {
         else if (req.duration !== undefined) req.seconds = Number(req.duration);
       }
       const seconds = req.seconds === undefined ? req.duration : req.seconds;
+      // Without a duration the request builder sends Kling's default, 5, and
+      // Kling 4.0 picks the length itself.
       if (seconds !== undefined) req.duration = validateKlingDuration(seconds);
-      else req.duration = 5;
       if (hasInputReferenceFile) {
         req.image = { __fileRef: "request_file:input_reference", encoding: "base64", maxBytes: 10485760 };
       } else {
@@ -516,6 +775,18 @@ export const protocols = {
         progress: Number(String(task.progress || "0").replace("%", "")),
         created_at: data.created_at || 0,
       };
+      // Kling 4.0 replies carry the task as data, or as the only entry of the
+      // list GET /tasks answers.
+      if (isKling4Reply(response)) {
+        const entry = kling4Entry(response);
+        const videos = kling4Videos(entry);
+        output.created_at = entry.create_time || 0;
+        if (entry.update_time) output.completed_at = entry.update_time;
+        if (videos.length && videos[0].duration) output.seconds = videos[0].duration;
+        if (response.code !== 0 && response.message) output.error = { message: response.message, code: String(response.code) };
+        if (entry.status === "failed") output.error = { message: entry.message || "", code: "" };
+        return output;
+      }
       if (data.updated_at) output.completed_at = data.updated_at;
       const videos = data.task_result && data.task_result.videos ? data.task_result.videos : [];
       if (videos.length) {
