@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,6 +18,8 @@ import (
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -637,6 +640,146 @@ func TestActivateTaskPluginRefreshesRuntimeSyncState(t *testing.T) {
 	taskPluginSyncState.Unlock()
 	assert.Equal(t, "hash-v2", syncedHash)
 	assert.False(t, hasSyncError)
+}
+
+// Every change that puts a version into service answers with the prices the
+// serving plugin cannot charge, read after the registry sync.
+func TestTaskPluginChangesReportPricingIssuesOfServingPlugin(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	// Pricing reads need the production key-column quoting.
+	previousLogDB := model.LOG_DB
+	t.Cleanup(func() { model.LOG_DB = previousLogDB })
+	t.Setenv("LOG_SQL_DSN", "")
+	require.NoError(t, model.InitLogDB())
+	key := "pricing-notice-probe"
+	cleanupTaskPluginControllerRuntime(t, key)
+	upload := func(version string) string {
+		body, err := common.Marshal(map[string]any{"source": taskPluginControllerTestSource(key, version)})
+		require.NoError(t, err)
+		return string(body)
+	}
+	unpriced := []model.ModelPricingIssue{{ModelName: "doc-1", PluginKey: key, PluginName: "Test", Reason: model.ModelPricingIssueUnconfigured}}
+	statusPath := "/api/plugin/task/" + key + "/status"
+	for _, step := range []struct {
+		name, method, path, body string
+		params                   gin.Params
+		handler                  gin.HandlerFunc
+		want                     []model.ModelPricingIssue
+	}{
+		{"first upload serves", http.MethodPost, "/api/plugin/task", upload("1.0.0"), nil, UploadTaskPlugin, unpriced},
+		{"later upload waits for activation", http.MethodPost, "/api/plugin/task", upload("2.0.0"), nil, UploadTaskPlugin, nil},
+		{"activation", http.MethodPost, "/api/plugin/task/" + key + "/activate", `{"version":"2.0.0"}`, gin.Params{{Key: "key", Value: key}}, ActivateTaskPlugin, unpriced},
+		{"switching off", http.MethodPost, statusPath, `{"enabled":false}`, gin.Params{{Key: "key", Value: key}}, SetTaskPluginStatus, nil},
+		{"switching on", http.MethodPost, statusPath, `{"enabled":true}`, gin.Params{{Key: "key", Value: key}}, SetTaskPluginStatus, unpriced},
+		{"deleting the active version promotes another", http.MethodDelete, "/api/plugin/task/" + key + "/versions/2.0.0", "", gin.Params{{Key: "key", Value: key}, {Key: "version", Value: "2.0.0"}}, DeleteTaskPluginVersion, unpriced},
+	} {
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Params = step.params
+		context.Request = httptest.NewRequest(step.method, step.path, strings.NewReader(step.body))
+		context.Request.Header.Set("Content-Type", "application/json")
+		step.handler(context)
+
+		var response struct {
+			Success bool   `json:"success"`
+			Message string `json:"message"`
+			Data    struct {
+				PricingIssues []model.ModelPricingIssue `json:"pricing_issues"`
+			} `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response), step.name)
+		require.True(t, response.Success, "%s: %s", step.name, response.Message)
+		assert.Equal(t, step.want, response.Data.PricingIssues, step.name)
+	}
+	active, err := model.GetTaskPluginVersion(key, "")
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0", active.Version)
+}
+
+// A plugin switched off keeps its saved prices for when it is switched back
+// on, whether its override row is stored disabled or its built-in sits in the
+// disabled set: prices for models its installed version declares are not
+// issues, and none of its models counts as unpriced. Prices turn stale once the
+// installed version stops declaring the model or the plugin is gone.
+func TestSwitchedOffPluginPricesAreNotPricingIssues(t *testing.T) {
+	setupTaskPluginFactoryDisableTest(t)
+	// Pricing reads need the production key-column quoting.
+	previousLogDB := model.LOG_DB
+	t.Cleanup(func() { model.LOG_DB = previousLogDB })
+	t.Setenv("LOG_SQL_DSN", "")
+	require.NoError(t, model.InitLogDB())
+	savedConfig := config.GlobalConfig.ExportAllConfigs()
+	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(savedConfig)) })
+	key := "pricing-off-probe"
+	cleanupTaskPluginControllerRuntime(t, key)
+	body, err := common.Marshal(map[string]any{"source": taskPluginControllerTestSource(key, "1.0.0")})
+	require.NoError(t, err)
+	upload := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(upload)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task", strings.NewReader(string(body)))
+	context.Request.Header.Set("Content-Type", "application/json")
+	UploadTaskPlugin(context)
+	require.Contains(t, upload.Body.String(), `"success":true`)
+	var kling jsplugin.Meta
+	for _, meta := range jsplugin.DefaultRegistry.Snapshot().Factory {
+		if meta.Key == "kling" {
+			kling = meta
+		}
+	}
+	require.NotEmpty(t, kling.Models)
+	prices, err := common.Marshal(map[string]string{
+		key + "::doc-1":              `tier("base", u("units") * 0.1)`,
+		key + "::retired-model":      `tier("base", u("units") * 0.1)`,
+		"kling::" + kling.Models[0]:  `tier("base", u("units") * 0.1)`,
+		"kling::kling-retired-model": `tier("base", u("units") * 0.1)`,
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Save(&model.Option{Key: billing_setting.PluginBillingExprOption, Value: string(prices)}).Error)
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{billing_setting.PluginBillingExprOption: string(prices)}))
+	readIssues := func() []model.ModelPricingIssue {
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Request = httptest.NewRequest(http.MethodGet, "/api/option/model_pricing/issues", nil)
+		GetModelPricingIssues(context)
+		var response struct {
+			Success bool                      `json:"success"`
+			Data    []model.ModelPricingIssue `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.True(t, response.Success)
+		return slices.DeleteFunc(response.Data, func(issue model.ModelPricingIssue) bool {
+			return issue.PluginKey != key && issue.PluginKey != "kling"
+		})
+	}
+	unpricedKling := func(issue model.ModelPricingIssue) bool {
+		return issue.PluginKey == "kling" && issue.Reason == model.ModelPricingIssueUnconfigured
+	}
+	if len(kling.Models) > 1 {
+		require.True(t, slices.ContainsFunc(readIssues(), unpricedKling), "a serving built-in reports its unpriced models")
+	}
+
+	for _, plugin := range []string{key, "kling"} {
+		require.Contains(t, postTaskPluginStatus(t, plugin, "", `{"enabled":false}`).Body.String(), `"success":true`)
+	}
+	row, err := model.GetTaskPluginVersion(key, "")
+	require.NoError(t, err)
+	require.False(t, row.Enabled)
+	require.Equal(t, []string{"kling"}, setting.GetTaskPluginDisabledFactoryKeys())
+	_, serving := jsplugin.DefaultRegistry.Get("kling")
+	require.False(t, serving)
+	// A plugin missing from the live generation is named by its key.
+	stale := func(name, plugin string) model.ModelPricingIssue {
+		return model.ModelPricingIssue{ModelName: name, PluginKey: plugin, PluginName: plugin, Reason: model.ModelPricingIssueStale}
+	}
+	assert.Equal(t, []model.ModelPricingIssue{stale("kling-retired-model", "kling"), stale("retired-model", key)}, readIssues())
+
+	remove := httptest.NewRecorder()
+	context, _ = gin.CreateTestContext(remove)
+	context.Params = gin.Params{{Key: "key", Value: key}, {Key: "version", Value: "1.0.0"}}
+	context.Request = httptest.NewRequest(http.MethodDelete, "/api/plugin/task/"+key+"/versions/1.0.0", nil)
+	DeleteTaskPluginVersion(context)
+	require.Contains(t, remove.Body.String(), `"success":true`)
+	assert.Equal(t, []model.ModelPricingIssue{stale("doc-1", key), stale("kling-retired-model", "kling"), stale("retired-model", key)}, readIssues())
 }
 
 func TestSyncTaskPluginsPublishesOneGenerationForWholeBatch(t *testing.T) {

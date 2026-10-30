@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/features/system-settings/models/pricing-issues'
 
 import { activateTaskPlugin, uploadTaskPlugin } from '../api'
 import {
@@ -50,6 +51,7 @@ import { MarketplaceCapabilities } from './marketplace-capabilities'
 import { PluginIcon } from './plugin-icon'
 import { PluginSourcePicker } from './plugin-source-picker'
 import { PluginUrlImportField } from './plugin-url-import-field'
+import { PricingIssueList } from './pricing-issue-list'
 
 type UploadDialogProps = {
   open: boolean
@@ -83,6 +85,9 @@ export function UploadDialog(props: UploadDialogProps) {
       queryClient.invalidateQueries({
         queryKey: ['task-plugin-versions', data.meta.key],
       })
+      queryClient.invalidateQueries({
+        queryKey: MODEL_PRICING_ISSUES_QUERY_KEY,
+      })
       toast.success(
         data.plugin?.active === false
           ? t('Plugin saved, activation required')
@@ -100,6 +105,9 @@ export function UploadDialog(props: UploadDialogProps) {
       })
       queryClient.invalidateQueries({
         queryKey: ['task-plugin-versions', detail.meta.key],
+      })
+      queryClient.invalidateQueries({
+        queryKey: MODEL_PRICING_ISSUES_QUERY_KEY,
       })
       toast.success(t('Plugin version activated'))
     },
@@ -162,6 +170,9 @@ export function UploadDialog(props: UploadDialogProps) {
   if (result) {
     const needsActivation =
       result.plugin?.active === false && !activateMutation.isSuccess
+    const pricingIssues = activateMutation.isSuccess
+      ? activateMutation.data?.pricing_issues
+      : result.pricing_issues
 
     return (
       <Dialog
@@ -220,6 +231,11 @@ export function UploadDialog(props: UploadDialogProps) {
             </AlertDescription>
           )}
         </Alert>
+        {pricingIssues?.length ? (
+          <div className='text-muted-foreground text-sm'>
+            <PricingIssueList issues={pricingIssues} />
+          </div>
+        ) : null}
         {activateMutation.error && (
           <Alert variant='destructive'>
             <AlertTriangle aria-hidden='true' />

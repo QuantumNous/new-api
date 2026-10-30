@@ -20,6 +20,7 @@ import type {
   BillingUsageSchema,
   BillingUsageExample,
 } from '@/features/pricing/types'
+import type { ModelPricingIssue } from '@/features/system-settings/models/pricing-issues'
 
 export type TaskPluginProtocolClaim =
   | string
@@ -112,7 +113,17 @@ export type TaskPluginDetail = {
   source: string
   layer: 'factory' | 'override'
   has_icon?: boolean
+  /** Set when the upload put this version into service. */
+  pricing_issues?: ModelPricingIssue[]
 }
+
+/**
+ * Answer of an activation, a switch-on or the deletion of the active version:
+ * the prices the plugin now serving the key cannot charge.
+ */
+export type TaskPluginPricingNotice = {
+  pricing_issues?: ModelPricingIssue[] | null
+} | null
 
 export type ApiResponse<T> = {
   success: boolean

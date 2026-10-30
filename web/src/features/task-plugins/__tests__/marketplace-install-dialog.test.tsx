@@ -25,6 +25,7 @@ import {
 } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Toaster } from 'sonner'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import {
@@ -435,6 +436,39 @@ test('selecting a historical version installs its source and hash', async () => 
     remark: 'Official v1.0',
     icon: undefined,
   })
+})
+
+test('an install that needs activation reports what the activated version cannot charge', async () => {
+  const user = userEvent.setup()
+  vi.stubGlobal('crypto', webcrypto)
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(source))
+  )
+  api.installMarketplacePlugin.mockResolvedValue({
+    meta: { key: 'demo', name: 'Demo', version: '1.1' },
+    plugin: { active: false },
+  })
+  api.activateTaskPlugin.mockResolvedValue({
+    pricing_issues: [
+      {
+        model_name: 'demo-video',
+        plugin_key: 'demo',
+        plugin_name: 'Demo',
+        reason: 'unconfigured',
+      },
+    ],
+  })
+  renderDialog()
+  render(<Toaster />)
+  const install = screen.getByRole('button', { name: 'Install and enable' })
+  await waitFor(() => expect(install).toBeEnabled())
+
+  await user.click(install)
+
+  expect(api.activateTaskPlugin).toHaveBeenCalledWith('demo', '1.1')
+  expect(await screen.findByText('Installed Demo v1.1')).toBeVisible()
+  expect(screen.getByText('demo-video: No price set')).toBeVisible()
 })
 
 test('a single published version remains visible and cannot be changed', () => {

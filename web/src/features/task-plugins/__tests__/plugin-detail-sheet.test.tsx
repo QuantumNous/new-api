@@ -20,6 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
+import { Toaster } from 'sonner'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { api } from '@/lib/api'
@@ -29,6 +30,7 @@ import type {
   TaskPluginDetail,
   TaskPluginListItem,
   TaskPluginMeta,
+  TaskPluginRecord,
 } from '../types'
 
 const queryClients: QueryClient[] = []
@@ -444,6 +446,61 @@ test('keeps header and navigation outside the scrolling content with long metada
   expect(screen.getByText('/very-long-path/'.repeat(20))).toHaveClass(
     'break-all'
   )
+})
+
+test('activating a version lists the models it cannot charge', async () => {
+  const user = userEvent.setup()
+  const fixture = renderSheet({})
+  const version = (number: string, active: boolean): TaskPluginRecord => ({
+    id: active ? 2 : 1,
+    key: 'kling',
+    api_version: 1,
+    version: number,
+    source: '',
+    source_hash: number,
+    enabled: true,
+    active,
+    created_at: active ? 2 : 1,
+    remark: '',
+  })
+  const versions = [version('1.2.3', true), version('1.0.0', false)]
+  fixture.queryClient.setQueryData(['task-plugin-versions', 'kling'], versions)
+  vi.spyOn(api, 'get').mockImplementation(async (url) => ({
+    data: {
+      success: true,
+      data: url.endsWith('/versions') ? versions : fixture.detail,
+    },
+  }))
+  const post = vi.spyOn(api, 'post').mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        pricing_issues: [
+          {
+            model_name: 'kling-v1',
+            plugin_key: 'kling',
+            plugin_name: 'Kling',
+            reason: 'unconfigured',
+          },
+        ],
+      },
+    },
+  })
+  render(<Toaster />)
+
+  await user.click(screen.getByRole('tab', { name: 'Version history' }))
+  const row = screen.getByRole('row', { name: /1\.0\.0/ })
+  await user.click(
+    within(row).getByRole('button', { name: 'Activate / Roll back' })
+  )
+
+  expect(post).toHaveBeenCalledWith(
+    '/api/plugin/task/kling/activate',
+    { version: '1.0.0' },
+    expect.any(Object)
+  )
+  expect(await screen.findByText('Plugin version activated')).toBeVisible()
+  expect(screen.getByText('kling-v1: No price set')).toBeVisible()
 })
 
 test('version loading and failure allow retry without hiding the overview', async () => {

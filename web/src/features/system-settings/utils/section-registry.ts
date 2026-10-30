@@ -61,15 +61,19 @@ export function createSectionRegistry<
   ]
 
   /**
-   * Get navigation items for sidebar
+   * Get navigation items for sidebar, with an optional badge per section
    */
-  function getSectionNavItems(t: TFunction) {
+  function getSectionNavItems(
+    t: TFunction,
+    badges?: Partial<Record<SectionId, string>>
+  ) {
     return sections.map((section) => ({
       title: t(section.titleKey),
       url:
         urlStyle === 'path'
           ? `${basePath}/${section.id}`
           : `${basePath}?section=${section.id}`,
+      badge: badges?.[section.id as SectionId],
     }))
   }
 
