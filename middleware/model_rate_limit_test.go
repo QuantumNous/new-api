@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -200,27 +201,31 @@ func TestModelRateLimitCountsConfiguredGroupsSeparately(t *testing.T) {
 	}
 }
 
-type expireRateLimitKeyAfterLLenHook struct {
-	server *miniredis.Miniredis
-	key    string
+type modelRateLimitRedisHook struct {
+	server    *miniredis.Miniredis
+	expireKey string
+	lindexErr error
 }
 
-func (hook expireRateLimitKeyAfterLLenHook) BeforeProcess(ctx context.Context, _ redis.Cmder) (context.Context, error) {
+func (hook modelRateLimitRedisHook) BeforeProcess(ctx context.Context, _ redis.Cmder) (context.Context, error) {
 	return ctx, nil
 }
 
-func (hook expireRateLimitKeyAfterLLenHook) AfterProcess(_ context.Context, cmd redis.Cmder) error {
-	if cmd.Name() == "llen" {
-		hook.server.Del(hook.key)
+func (hook modelRateLimitRedisHook) AfterProcess(_ context.Context, cmd redis.Cmder) error {
+	if cmd.Name() == "llen" && hook.expireKey != "" {
+		hook.server.Del(hook.expireKey)
+	}
+	if cmd.Name() == "lindex" && hook.lindexErr != nil {
+		return hook.lindexErr
 	}
 	return nil
 }
 
-func (expireRateLimitKeyAfterLLenHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
+func (modelRateLimitRedisHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
 	return ctx, nil
 }
 
-func (expireRateLimitKeyAfterLLenHook) AfterProcessPipeline(context.Context, []redis.Cmder) error {
+func (modelRateLimitRedisHook) AfterProcessPipeline(context.Context, []redis.Cmder) error {
 	return nil
 }
 
@@ -230,9 +235,23 @@ func TestCheckRedisRateLimitAllowsKeyExpiringBeforeTimestampRead(t *testing.T) {
 	withinWindow := time.Now().UTC().Format(modelRateLimitTimeFormat)
 	_, err := redisServer.Push(key, withinWindow)
 	require.NoError(t, err)
-	redisClient.AddHook(expireRateLimitKeyAfterLLenHook{server: redisServer, key: key})
+	redisClient.AddHook(modelRateLimitRedisHook{server: redisServer, expireKey: key})
 
 	allowed, err := checkRedisRateLimit(context.Background(), redisClient, key, 1, 60)
 	require.NoError(t, err)
 	assert.True(t, allowed)
+}
+
+func TestCheckRedisRateLimitPreservesTimestampReadErrors(t *testing.T) {
+	redisServer, redisClient := useRateLimitMiniRedis(t)
+	key := "rateLimit:timestamp-read-error"
+	withinWindow := time.Now().UTC().Format(modelRateLimitTimeFormat)
+	_, err := redisServer.Push(key, withinWindow)
+	require.NoError(t, err)
+	expected := errors.New("injected LINDEX failure")
+	redisClient.AddHook(modelRateLimitRedisHook{lindexErr: expected})
+
+	allowed, err := checkRedisRateLimit(context.Background(), redisClient, key, 1, 60)
+	require.ErrorIs(t, err, expected)
+	assert.False(t, allowed)
 }
