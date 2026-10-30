@@ -7,16 +7,19 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
+func setupMultiKeyChannelTest(t *testing.T) *model.User {
+	t.Helper()
 	previousDB, previousLogDB := model.DB, model.LOG_DB
 	previousType, previousLogType := common.MainDatabaseType(), common.LogDatabaseType()
 	previousMaster, previousCache, previousRedis, previousSQLite := common.IsMasterNode, common.MemoryCacheEnabled, common.RedisEnabled, common.SQLitePath
@@ -47,7 +50,12 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 	var version string
 	require.NoError(t, database.Raw(versionQuery).Scan(&version).Error)
 	t.Logf("database=%s version=%s", common.MainDatabaseType(), version)
+	return root
+}
 
+func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
+	root := setupMultiKeyChannelTest(t)
+	database := model.DB
 	for _, cacheEnabled := range []bool{false, true} {
 		for _, action := range []string{"enable_key", "enable_all_keys"} {
 			for _, tc := range []struct {
@@ -106,6 +114,159 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 					assert.Equal(t, tc.wantStatus == common.ChannelStatusEnabled, ability.Enabled)
 				})
 			}
+		}
+	}
+}
+
+func TestUpdateChannelMultiKeyState(t *testing.T) {
+	root := setupMultiKeyChannelTest(t)
+	const oldKeys = "old-key-one\nold-key-two\nold-key-three"
+	const newKeys = "new-key-one\nnew-key-two\nnew-key-three"
+	for _, cacheEnabled := range []bool{false, true} {
+		for _, tc := range []struct {
+			name            string
+			request         map[string]any
+			wantKeys        string
+			wantSelectable  []string
+			clearState      bool
+			channelDisabled bool
+			denied          bool
+		}{
+			{
+				name: "replace same count", request: map[string]any{"key_mode": "replace", "key": newKeys},
+				wantKeys: newKeys, wantSelectable: strings.Split(newKeys, "\n"), clearState: true,
+			},
+			{
+				name: "replace fewer keys", request: map[string]any{"key_mode": "replace", "key": "new-key-one"},
+				wantKeys: "new-key-one", wantSelectable: []string{"new-key-one"}, clearState: true,
+			},
+			{
+				name: "append preserves disabled keys", request: map[string]any{"key_mode": "append", "key": "new-key-one\nnew-key-two"},
+				wantKeys: oldKeys + "\nnew-key-one\nnew-key-two", wantSelectable: []string{"old-key-three", "new-key-one", "new-key-two"},
+			},
+			{
+				name: "replace with empty key", request: map[string]any{"key_mode": "replace", "key": ""},
+				wantKeys: oldKeys, wantSelectable: []string{"old-key-three"},
+			},
+			{
+				name: "replace without key", request: map[string]any{"key_mode": "replace"},
+				wantKeys: oldKeys, wantSelectable: []string{"old-key-three"},
+			},
+			{
+				name: "mode change preserves state", request: map[string]any{"multi_key_mode": string(constant.MultiKeyModeRandom)},
+				wantKeys: oldKeys, wantSelectable: []string{"old-key-three"},
+			},
+			{
+				name: "replace preserves channel manual disable", request: map[string]any{"key_mode": "replace", "key": newKeys},
+				wantKeys: newKeys, clearState: true, channelDisabled: true,
+			},
+			{
+				name: "unauthorized replacement preserves state", request: map[string]any{"key_mode": "replace", "key": newKeys},
+				wantKeys: oldKeys, wantSelectable: []string{"old-key-three"}, denied: true,
+			},
+		} {
+			t.Run(fmt.Sprintf("cache=%t/%s", cacheEnabled, tc.name), func(t *testing.T) {
+				common.MemoryCacheEnabled = cacheEnabled
+				channel := &model.Channel{
+					Name: t.Name(), Type: constant.ChannelTypeOpenAI, Key: oldKeys,
+					Status: common.ChannelStatusEnabled, Models: "test-model", Group: "default",
+					ChannelInfo: model.ChannelInfo{
+						IsMultiKey: true, MultiKeySize: 3, MultiKeyMode: constant.MultiKeyModePolling, MultiKeyPollingIndex: 1,
+						MultiKeyStatusList:     map[int]int{0: common.ChannelStatusManuallyDisabled, 1: common.ChannelStatusAutoDisabled},
+						MultiKeyDisabledReason: map[int]string{0: "manual operation", 1: "upstream unavailable"},
+						MultiKeyDisabledTime:   map[int]int64{0: 100, 1: 200},
+					},
+				}
+				if tc.channelDisabled {
+					channel.Status = common.ChannelStatusManuallyDisabled
+				}
+				require.NoError(t, channel.Insert())
+				model.InitChannelCache()
+				t.Cleanup(func() {
+					require.NoError(t, channel.Delete())
+					model.InitChannelCache()
+				})
+
+				request := map[string]any{"id": channel.Id, "type": channel.Type, "name": channel.Name, "models": channel.Models, "group": channel.Group}
+				for key, value := range tc.request {
+					request[key] = value
+				}
+				payload, err := common.Marshal(request)
+				require.NoError(t, err)
+				recorder := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(recorder)
+				c.Set("id", root.Id)
+				c.Set("role", common.RoleRootUser)
+				if tc.denied {
+					c.Set("role", common.RoleCommonUser)
+				}
+				requestID := common.NewRequestId()
+				t.Cleanup(func() {
+					require.NoError(t, model.LOG_DB.Where("request_id = ?", requestID).Delete(&model.AuditLog{}).Error)
+				})
+				c.Set(common.RequestIdKey, requestID)
+				c.Request = httptest.NewRequest(http.MethodPut, "/api/channel", bytes.NewReader(payload))
+				c.Request.Header.Set("Content-Type", "application/json")
+				UpdateChannel(c)
+				var result struct {
+					Success bool `json:"success"`
+				}
+				require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+				require.Equal(t, !tc.denied, result.Success, recorder.Body.String())
+
+				loaded, err := model.GetChannelById(channel.Id, true)
+				require.NoError(t, err)
+				cached, err := model.CacheGetChannel(channel.Id)
+				require.NoError(t, err)
+				wantMode := constant.MultiKeyModePolling
+				if mode, ok := tc.request["multi_key_mode"].(string); ok {
+					wantMode = constant.MultiKeyMode(mode)
+				}
+				for _, actual := range []*model.Channel{loaded, cached} {
+					assert.Equal(t, tc.wantKeys, actual.Key)
+					assert.Equal(t, channel.Status, actual.Status)
+					assert.True(t, actual.ChannelInfo.IsMultiKey)
+					assert.Equal(t, len(strings.Split(tc.wantKeys, "\n")), actual.ChannelInfo.MultiKeySize)
+					assert.Equal(t, wantMode, actual.ChannelInfo.MultiKeyMode)
+					assert.Equal(t, 1, actual.ChannelInfo.MultiKeyPollingIndex)
+					if tc.clearState {
+						assert.Empty(t, actual.ChannelInfo.MultiKeyStatusList)
+						assert.Empty(t, actual.ChannelInfo.MultiKeyDisabledReason)
+						assert.Empty(t, actual.ChannelInfo.MultiKeyDisabledTime)
+					} else {
+						assert.Equal(t, channel.ChannelInfo.MultiKeyStatusList, actual.ChannelInfo.MultiKeyStatusList)
+						assert.Equal(t, channel.ChannelInfo.MultiKeyDisabledReason, actual.ChannelInfo.MultiKeyDisabledReason)
+						assert.Equal(t, channel.ChannelInfo.MultiKeyDisabledTime, actual.ChannelInfo.MultiKeyDisabledTime)
+					}
+				}
+				var ability model.Ability
+				require.NoError(t, model.DB.Where("channel_id = ?", channel.Id).First(&ability).Error)
+				assert.Equal(t, !tc.channelDisabled, ability.Enabled)
+
+				var selected []string
+				for range len(tc.wantSelectable) {
+					active, err := model.CacheGetChannel(channel.Id)
+					require.NoError(t, err)
+					key, _, apiErr := active.GetNextEnabledKey()
+					require.Nil(t, apiErr)
+					selected = append(selected, key)
+				}
+				assert.ElementsMatch(t, tc.wantSelectable, selected)
+
+				var audits []model.AuditLog
+				require.NoError(t, model.LOG_DB.Where("request_id = ? AND action = ?", requestID, "channel.update").Find(&audits).Error)
+				if tc.denied {
+					assert.Empty(t, audits)
+				} else {
+					require.Len(t, audits, 1)
+				}
+				encodedAudit, err := common.Marshal(audits)
+				require.NoError(t, err)
+				for key := range strings.SplitSeq(oldKeys+"\n"+newKeys, "\n") {
+					assert.NotContains(t, recorder.Body.String(), key)
+					assert.NotContains(t, string(encodedAudit), key)
+				}
+			})
 		}
 	}
 }

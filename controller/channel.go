@@ -1218,7 +1218,13 @@ func UpdateChannel(c *gin.Context) {
 				channel.Key = strings.Join(allKeys, "\n")
 			}
 		case "replace":
-			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
+			// Disabled state belongs to the old keys, not their replacement indexes.
+			// An empty key leaves the stored keys unchanged.
+			if channel.Key != "" {
+				channel.ChannelInfo.MultiKeyStatusList = nil
+				channel.ChannelInfo.MultiKeyDisabledReason = nil
+				channel.ChannelInfo.MultiKeyDisabledTime = nil
+			}
 		}
 	}
 	err = channel.Update()
