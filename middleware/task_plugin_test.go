@@ -69,6 +69,8 @@ decodeJob: function(ctx) {
   if (ctx.params.category !== "video") throw new Error("bad params");
   if (ctx.query.tag.length !== 2 || ctx.query.tag[0] !== "first" || ctx.query.tag[1] !== "second") throw new Error("bad query");
   if (ctx.body.kind !== "json" || !Array.isArray(ctx.body.value) || ctx.body.value[0] !== "prompt") throw new Error("bad body");
+  // Decoders read the client's headers, without its gateway credentials.
+  if (ctx.requestHeaders["X-Dashscope-Async"] !== "enable" || ctx.requestHeaders.Authorization !== undefined) throw new Error("bad headers");
 	return {kind: "submit", model: "resolved-model", action: "resolved-action", requestBody: {prompt: "normalized"}};
 },
 jobCreated: function(ctx, task) { return task; },
@@ -96,6 +98,8 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 	})
 	request := httptest.NewRequest(http.MethodPost, "/vendor/jobs/video?tag=first&tag=second", strings.NewReader(`["prompt",2]`))
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-DashScope-Async", "enable")
+	request.Header.Set("Authorization", "Bearer sk-gateway")
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
@@ -2418,6 +2422,67 @@ func TestPrepareTaskPluginRouteDecodesEverySharedSubmitCandidate(t *testing.T) {
 	}
 }
 
+// A case variant or a channel alias of a declared model is matched on a
+// native path as on the host protocols: the task takes the declared spelling
+// or keeps the alias, and a rejection names the client's model.
+func TestPrepareTaskPluginRouteMatchesChannelAliases(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}))
+	require.NoError(t, model.DB.Create(&model.Channel{Type: constant.ChannelTypeTaskPlugin, Status: common.ChannelStatusEnabled, Key: "key",
+		Models:       "scoped-alias,outside-alias,shared-alias",
+		ModelMapping: common.GetPointer(`{"scoped-alias":"scoped-model","outside-alias":"other-model","shared-alias":"shared-model"}`)}).Error)
+	// Replace any cached alias view, so the routes' generation builds its own
+	// from this channel.
+	model.InitChannelCache()
+	t.Cleanup(model.InitChannelCache)
+	shared := `[{method: "POST", path: "/probe/v1/shared", type: "submit", decode: "createJob", render: "jobStatus"}]`
+	router := sharedTaskPluginRouteRouter(t,
+		compileTaskRoutePlugin(t, sharedRouteTestPluginSource("alias-scoped", `["scoped-model", "other-model"]`, `[
+			{method: "POST", path: "/probe/v1/scoped", type: "submit", decode: "createJob", render: "jobStatus", models: ["scoped-model"]},
+			{method: "POST", path: "/probe/v1/single", type: "submit", decode: "createJob", render: "jobStatus"}]`, "")),
+		compileTaskRoutePlugin(t, sharedRouteTestPluginSource("alias-a", `["shared-model"]`, shared, "")),
+		compileTaskRoutePlugin(t, sharedRouteTestPluginSource("alias-b", `["shared-model"]`, shared, "")))
+
+	type result struct {
+		Plugin     string   `json:"plugin"`
+		Candidates []string `json:"candidates"`
+		Model      string   `json:"model"`
+		Message    string   `json:"message"`
+	}
+	for _, testCase := range []struct {
+		name, path, model string
+		status            int
+		want              result
+	}{
+		{name: "alias on a route with models", path: "/probe/v1/scoped", model: "scoped-alias", status: http.StatusAccepted,
+			want: result{Plugin: "alias-scoped", Candidates: []string{"alias-scoped"}, Model: "scoped-alias"}},
+		{name: "case variant on a route with models", path: "/probe/v1/scoped", model: "SCOPED-MODEL", status: http.StatusAccepted,
+			want: result{Plugin: "alias-scoped", Candidates: []string{"alias-scoped"}, Model: "scoped-model"}},
+		{name: "alias on a route without models", path: "/probe/v1/single", model: "scoped-alias", status: http.StatusAccepted,
+			want: result{Plugin: "alias-scoped", Candidates: []string{"alias-scoped"}, Model: "scoped-alias"}},
+		{name: "alias on a shared path", path: "/probe/v1/shared", model: "shared-alias", status: http.StatusAccepted,
+			want: result{Plugin: "alias-a", Candidates: []string{"alias-a", "alias-b"}, Model: "shared-alias"}},
+		{name: "case variant on a shared path", path: "/probe/v1/shared", model: "Shared-Model", status: http.StatusAccepted,
+			want: result{Plugin: "alias-a", Candidates: []string{"alias-a", "alias-b"}, Model: "shared-model"}},
+		{name: "alias of a model outside the route models", path: "/probe/v1/scoped", model: "outside-alias", status: http.StatusBadRequest,
+			want: result{Message: `model "outside-alias" is not allowed on this route`}},
+		{name: "declared model outside the route models", path: "/probe/v1/scoped", model: "other-model", status: http.StatusBadRequest,
+			want: result{Message: `model "other-model" is not allowed on this route`}},
+		{name: "alias of another plugin's model", path: "/probe/v1/single", model: "shared-alias", status: http.StatusBadRequest,
+			want: result{Message: `model "shared-alias" is not served by this plugin`}},
+		{name: "case variant of another plugin's model", path: "/probe/v1/single", model: "Shared-Model", status: http.StatusBadRequest,
+			want: result{Message: `model "Shared-Model" is not served by this plugin`}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := performSharedRouteRequest(router, http.MethodPost, testCase.path, fmt.Sprintf(`{"model":%q}`, testCase.model))
+			assert.Equal(t, testCase.status, recorder.Code, recorder.Body.String())
+			var got result
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &got))
+			assert.Equal(t, testCase.want, got)
+		})
+	}
+}
+
 // A query on a path several plugins declare is answered by the task's own
 // plugin; a task none of them owns is as unknown as a missing one.
 func TestPrepareTaskPluginRouteAnswersSharedQueriesByTaskOwner(t *testing.T) {
@@ -2523,6 +2588,44 @@ export function buildContentRequest() { return {url: "https://example.com/video.
 	notReady := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/files/task_running", "")
 	assert.Equal(t, http.StatusNotFound, notReady.Code)
 	assert.Contains(t, notReady.Body.String(), `"code":"task_not_found"`)
+}
+
+// A native presenter answers with the vendor's own status by returning a reply
+// wrapper; anything else it returns is a 200 JSON body.
+func TestNativePresentersChooseTheVendorsStatus(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	plugin := compileTaskRoutePlugin(t, sharedRouteTestPluginSource("reply-probe", `["probe-model"]`, `[
+		{method: "GET", path: "/probe/v1/jobs/:task_id", type: "query", render: "pending"},
+		{method: "GET", path: "/probe/v1/moved/:task_id", type: "query", render: "moved"},
+		{method: "GET", path: "/probe/v1/broken/:task_id", type: "query", render: "broken"},
+		{method: "GET", path: "/probe/v1/plain/:task_id", type: "query", render: "jobStatus"}
+	]`, `pending(ctx, task) { return {__status: 202, __headers: {"retry-after": "5"}, __body: {status: "pending"}}; },
+	moved(ctx, task) { return {__status: 302, __headers: {Location: "https://cdn.example/v.mp4"}}; },
+	broken(ctx, task) { return {__status: 202, __headers: {"Set-Cookie": "a=b"}}; },
+	error(ctx, error) { return error.httpStatus === 404 ? {__status: 200, __body: {status: "not_found"}} : {message: error.message}; },`))
+	insertTaskPluginRouteTask(t, &model.Task{TaskID: "task_job", UserId: 7, Platform: "reply-probe", Status: model.TaskStatusInProgress})
+	router := sharedTaskPluginRouteRouter(t, plugin)
+
+	pending := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/jobs/task_job", "")
+	assert.Equal(t, http.StatusAccepted, pending.Code)
+	assert.Equal(t, "5", pending.Header().Get("Retry-After"))
+	assert.JSONEq(t, `{"status":"pending"}`, pending.Body.String())
+
+	moved := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/moved/task_job", "")
+	assert.Equal(t, http.StatusFound, moved.Code)
+	assert.Equal(t, "https://cdn.example/v.mp4", moved.Header().Get("Location"))
+	assert.Empty(t, moved.Body.String())
+
+	broken := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/broken/task_job", "")
+	assert.Equal(t, http.StatusInternalServerError, broken.Code, "a wrapper may set only Location and Retry-After")
+	assert.Empty(t, broken.Header().Get("Set-Cookie"))
+
+	plain := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/plain/task_job", "")
+	assert.Equal(t, http.StatusOK, plain.Code)
+
+	missing := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/plain/task_missing", "")
+	assert.Equal(t, http.StatusOK, missing.Code, "the error presenter answers with the vendor's status too")
+	assert.JSONEq(t, `{"status":"not_found"}`, missing.Body.String())
 }
 
 func TestNativeRouteCredentialRewritesOnlyTheVendorsOwnForm(t *testing.T) {

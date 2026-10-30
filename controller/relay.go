@@ -746,6 +746,11 @@ func executeTaskSubmissionWith(
 
 func presentTaskSubmission(c *gin.Context, outcome *taskSubmissionOutcome) {
 	diagnostics := newTaskPluginSubmitDiagnostics(c)
+	// A native route that relayed the vendor's event stream has answered.
+	if c.Writer.Written() {
+		diagnostics.present(outcome.Task, "native_stream")
+		return
+	}
 	otherRatios := outcome.RelayInfo.PriceData.OtherRatios()
 	if otherRatios == nil {
 		otherRatios = map[string]float64{}
@@ -762,9 +767,12 @@ func presentTaskSubmission(c *gin.Context, outcome *taskSubmissionOutcome) {
 				viewValue, valueErr := taskPluginProtocolJSONValue(view)
 				if valueErr == nil {
 					if body, callErr := pinned.Plugin.Engine.CallPath(c.Request.Context(), "native", []string{pinned.Route.Render}, requestContext.JSValue(), viewValue); callErr == nil {
-						diagnostics.present(outcome.Task, "native_presenter")
-						c.JSON(http.StatusOK, body)
-						return
+						if replyErr := middleware.WriteNativeReply(c, http.StatusOK, body); replyErr == nil {
+							diagnostics.present(outcome.Task, "native_presenter")
+							return
+						} else {
+							logger.LogError(c, common.LogText("task plugin native submit presenter failed: %s", replyErr.Error()))
+						}
 					} else {
 						logger.LogError(c, common.LogText("task plugin native submit presenter failed: %s", callErr.Error()))
 					}
@@ -800,6 +808,11 @@ func presentTaskSubmission(c *gin.Context, outcome *taskSubmissionOutcome) {
 func respondTaskSubmissionError(c *gin.Context, taskErr *taskdto.TaskError) {
 	service.RecordRequestPolicyTermination(c, taskSubmissionAPIError(taskErr))
 	newTaskPluginSubmitDiagnostics(c).presentError(taskErr)
+	// The client of a relayed event stream already has the vendor's events,
+	// including any error event; nothing can follow them.
+	if c.Writer.Written() {
+		return
+	}
 	if middleware.RespondTaskPluginError(c, taskErr) {
 		return
 	}

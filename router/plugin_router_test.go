@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -199,6 +200,32 @@ func TestPluginSSEFlushesWithoutFallbackBuffering(t *testing.T) {
 	assert.Empty(t, recorder.Header().Get("Content-Encoding"))
 	assert.Empty(t, recorder.Header().Get("Cache-Control"))
 	assert.Empty(t, recorder.Header().Get("Cache-Version"))
+}
+
+// A plugin route reaches the client connection through the gated writer: a
+// relayed stream that stopped early cuts it off, and the client sees the
+// stream end as the vendor's did.
+func TestPluginRouteCanCutOffItsClientStream(t *testing.T) {
+	plugin := compileRouterPlugin(t, "cut-owner", "1.0.0", `[
+		{method: "GET", path: "/vendor/stream", type: "dynamic"}
+	]`)
+	handlers := testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, _ jsplugin.RouteBinding) {
+		c.Header("Content-Type", "text/event-stream")
+		_, _ = c.Writer.WriteString("data: ready\n\n")
+		c.Writer.Flush()
+		assert.NoError(t, http.NewResponseController(c.Writer).SetWriteDeadline(time.Now()))
+	})
+	outer, registry := newPluginRouterTest(t, []*jsplugin.LoadedPlugin{plugin}, handlers)
+	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
+	server := httptest.NewServer(outer)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/vendor/stream")
+	require.NoError(t, err)
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	assert.Equal(t, "data: ready\n\n", string(body))
+	assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
 }
 
 func TestWebCacheHeadersDoNotLeakOntoPluginRoutes(t *testing.T) {

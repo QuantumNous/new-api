@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -1031,6 +1032,197 @@ func TestAlibabaSynchronousMultiImageAndStream(t *testing.T) {
 			assert.False(t, c.Writer.Written())
 		})
 	}
+}
+
+// Interleaved Wan output is a stream for a native client that asks for one
+// with X-DashScope-Sse. DashScope's error event reaches the client and ends
+// the result: before any image the task fails and costs nothing, after one
+// the reservation stands. A gateway released before relayed streams answers
+// the stream request with one JSON body, which settles instead of failing
+// after that gateway has billed it.
+func TestAlibabaInterleavedStreamOutcomes(t *testing.T) {
+	plugin := newAlibabaPlugin(t)
+	route := plugin.Meta.Routes[slices.IndexFunc(plugin.Meta.Routes, func(route jsplugin.Route) bool {
+		return route.Path == "/api/v1/services/aigc/multimodal-generation/generation"
+	})]
+	submit := func(t *testing.T, channelType int, contentType, body string) (*taskplugin.TaskAdaptor, *relaycommon.RelayInfo, *relaychannel.TaskSubmitResponse, string) {
+		info := &relaycommon.RelayInfo{OriginModelName: "wan2.6-image", ChannelMeta: &relaycommon.ChannelMeta{ChannelType: channelType, UpstreamModelName: "wan2.6-image", ChannelBaseUrl: "https://upstream.example", ApiKey: "key"},
+			TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "task_public"}}
+		adaptor := taskplugin.New(plugin)
+		adaptor.Init(info)
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, route.Path, nil)
+		c.Request.Header.Set("X-DashScope-Sse", "enable")
+		c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: plugin, Route: route})
+		c.Set("task_request", map[string]any{"model": "wan2.6-image", "metadata": map[string]any{"upstream_mode": "sync",
+			"input":      map[string]any{"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"text": "a recipe"}}}}},
+			"parameters": map[string]any{"enable_interleave": true, "stream": true, "max_images": 3}}})
+		require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+		request := httptest.NewRequest(http.MethodPost, "https://upstream.example", nil)
+		require.NoError(t, adaptor.BuildRequestHeader(c, request, info))
+		require.Equal(t, "enable", request.Header.Get("X-DashScope-Sse"), "DashScope and current gateways stream interleaved output")
+		parsed, taskErr := adaptor.ParseResponse(c, &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {contentType}}, Body: io.NopCloser(strings.NewReader(body))}, info)
+		require.Nil(t, taskErr)
+		require.NotNil(t, parsed.Immediate)
+		return adaptor, info, parsed, recorder.Body.String()
+	}
+	const image = "id:1\nevent:result\n:HTTP_STATUS/200\ndata:{\"output\":{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":[{\"image\":\"https://cdn.example/1.png\"}]},\"finish_reason\":\"null\"}],\"finished\":false},\"usage\":{\"image_count\":1},\"request_id\":\"r\"}\n\n"
+	const failed = "id:2\nevent:error\n:HTTP_STATUS/400\ndata:{\"code\":\"DataInspectionFailed\",\"message\":\"Output data may contain inappropriate content.\",\"request_id\":\"r\"}\n\n"
+
+	t.Run("an error event before any image fails the task", func(t *testing.T) {
+		_, _, parsed, relayed := submit(t, 0, "text/event-stream", failed)
+		assert.Equal(t, failed, relayed)
+		assert.Equal(t, "FAILURE", parsed.Immediate.Status)
+		assert.Equal(t, "DataInspectionFailed: Output data may contain inappropriate content.", parsed.Immediate.Reason)
+	})
+
+	t.Run("an error event after an image keeps the reservation", func(t *testing.T) {
+		adaptor, info, parsed, relayed := submit(t, 0, "text/event-stream", image+failed)
+		assert.Equal(t, image+failed, relayed)
+		assert.Equal(t, "SUCCESS", parsed.Immediate.Status)
+		assert.Equal(t, "task_public", parsed.UpstreamTaskID)
+		assert.Nil(t, parsed.Immediate.UsageFacts)
+		assert.Nil(t, adaptor.AdjustBillingOnSubmit(info, parsed.TaskData))
+	})
+
+	t.Run("an earlier gateway answers with JSON", func(t *testing.T) {
+		body := `{"request_id":"r","output":{"finished":true,"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":[{"text":"step"},{"image":"https://cdn.example/1.png"},{"image":"https://cdn.example/2.png"}]}}]},"usage":{"image_count":2}}`
+		_, _, parsed, relayed := submit(t, constant.ChannelTypeNewAPI, "application/json", body)
+		assert.Empty(t, relayed, "the presenter answers the client")
+		assert.Equal(t, "SUCCESS", parsed.Immediate.Status)
+		assert.Equal(t, map[string]any{"image_count": float64(2)}, parsed.Immediate.UsageFacts)
+		assert.JSONEq(t, body, string(parsed.TaskData))
+	})
+}
+
+// DashScope's own bodies go to DashScope as sent, for it to check. The
+// gateway asks the asynchronous endpoints for a task itself, sends a video
+// body to the endpoint its client called, and relays interleaved output as a
+// stream only to a client that asks for SSE; host protocols keep the model's
+// endpoint and always take interleaved output as a stream.
+func TestAlibabaNativeRequestsGoAsSent(t *testing.T) {
+	plugin := newAlibabaPlugin(t)
+	call := func(export string, members []string, args ...any) (map[string]any, error) {
+		value, err := plugin.Engine.CallPath(t.Context(), export, members, args...)
+		if err != nil {
+			return nil, err
+		}
+		return alibabaObject(t, value), nil
+	}
+	messages := map[string]any{"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"text": "a recipe"}}}}}
+	for _, tc := range []struct {
+		name          string
+		path          string
+		decoder       string
+		headers       map[string]any
+		body          map[string]any
+		upstream      string
+		wantURL       string
+		wantHeaders   map[string]any
+		wantType      any
+		wantStream    any
+		wantFacts     map[string]any
+		wantVideoBody bool
+	}{
+		{
+			name: "a video task without X-DashScope-Async", path: "/api/v1/services/aigc/video-generation/video-synthesis", decoder: "createVideoTask",
+			body:    map[string]any{"model": "wan3.0-video", "input": map[string]any{"prompt": "a cat"}},
+			wantURL: "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis", wantHeaders: map[string]any{"X-DashScope-Async": "enable"},
+			wantFacts: map[string]any{"seconds": float64(5), "resolution": "1080P"}, wantVideoBody: true,
+		},
+		{
+			name: "a video model at another endpoint", path: "/ali/api/v1/services/aigc/image2video/video-synthesis", decoder: "createVideoTask",
+			body:    map[string]any{"model": "wan3.0-video", "input": map[string]any{"prompt": "a cat"}},
+			wantURL: "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2video/video-synthesis", wantHeaders: map[string]any{"X-DashScope-Async": "enable"},
+			wantFacts: map[string]any{"seconds": float64(5), "resolution": "1080P"}, wantVideoBody: true,
+		},
+		{
+			name: "an alias goes as the channel's model", path: "/api/v1/services/aigc/video-generation/video-synthesis", decoder: "createVideoTask",
+			body: map[string]any{"model": "my-wan", "input": map[string]any{"prompt": "a cat"}}, upstream: "wan3.0-video",
+			wantURL: "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis", wantHeaders: map[string]any{"X-DashScope-Async": "enable"},
+			wantFacts: map[string]any{"seconds": float64(5), "resolution": "1080P"}, wantVideoBody: true,
+		},
+		{
+			name: "interleaved output without X-DashScope-Sse", path: "/api/v1/services/aigc/multimodal-generation/generation", decoder: "createImageTask",
+			body:    map[string]any{"model": "wan2.6-image", "input": messages, "parameters": map[string]any{"enable_interleave": true, "max_images": 3}},
+			wantURL: "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation", wantHeaders: map[string]any{},
+			wantType: "json", wantFacts: map[string]any{"image_count": float64(3)},
+		},
+		{
+			name: "a stream in the body without X-DashScope-Sse", path: "/api/v1/services/aigc/multimodal-generation/generation", decoder: "createImageTask",
+			body:    map[string]any{"model": "wan2.6-image", "input": messages, "parameters": map[string]any{"enable_interleave": true, "stream": true, "max_images": 3}},
+			wantURL: "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation", wantHeaders: map[string]any{},
+			wantType: "sse", wantStream: true, wantFacts: map[string]any{"image_count": float64(3)},
+		},
+		{
+			name: "interleaved output with X-DashScope-Sse", path: "/api/v1/services/aigc/multimodal-generation/generation", decoder: "createImageTask",
+			headers: map[string]any{"X-Dashscope-Sse": "enable"},
+			body:    map[string]any{"model": "wan2.6-image", "input": messages, "parameters": map[string]any{"enable_interleave": true, "max_images": 3}},
+			wantURL: "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation", wantHeaders: map[string]any{"X-DashScope-Sse": "enable"},
+			wantType: "sse", wantStream: true, wantFacts: map[string]any{"image_count": float64(3)},
+		},
+		{
+			name: "a top-level stream field", path: "/api/v1/services/aigc/multimodal-generation/generation", decoder: "createImageTask",
+			body:    map[string]any{"model": "wan2.6-t2i", "stream": true, "input": map[string]any{"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"text": "a cat"}}}}}},
+			wantURL: "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation", wantHeaders: map[string]any{},
+			wantType: "json", wantFacts: map[string]any{"image_count": float64(1)},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			headers := tc.headers
+			if headers == nil {
+				headers = map[string]any{}
+			}
+			intent, err := call("native", []string{tc.decoder}, map[string]any{"path": tc.path, "requestHeaders": headers, "body": map[string]any{"kind": "json", "value": tc.body}})
+			require.NoError(t, err)
+			upstream := tc.body["model"]
+			if tc.upstream != "" {
+				upstream = tc.upstream
+			}
+			driver := map[string]any{"path": tc.path, "requestHeaders": headers, "requestBody": intent["requestBody"], "model": tc.body["model"], "upstreamModel": upstream,
+				"baseUrl": "https://dashscope.aliyuncs.com", "apiKey": "key", "upstream": map[string]any{"kind": "vendor"}, "publicTaskId": "task_public"}
+			descriptor, err := call("buildSubmitRequest", nil, driver)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantURL, descriptor["url"])
+			sent := map[string]any{}
+			for key, value := range descriptor["headers"].(map[string]any) {
+				if strings.HasPrefix(key, "X-DashScope") {
+					sent[key] = value
+				}
+			}
+			assert.Equal(t, tc.wantHeaders, sent)
+			assert.Equal(t, tc.wantType, descriptor["responseType"])
+			body := descriptor["body"].(map[string]any)
+			if tc.wantVideoBody {
+				assert.Equal(t, upstream, body["model"])
+				assert.Equal(t, tc.body["input"], body["input"])
+			} else {
+				assert.Equal(t, tc.wantStream, body["parameters"].(map[string]any)["stream"])
+			}
+			facts, err := call("extractUsage", nil, driver)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantFacts, facts)
+		})
+	}
+
+	t.Run("a video request needs its model", func(t *testing.T) {
+		_, err := call("native", []string{"createVideoTask"}, map[string]any{"path": "/api/v1/services/aigc/video-generation/video-synthesis",
+			"body": map[string]any{"kind": "json", "value": map[string]any{"input": map[string]any{"prompt": "a cat"}}}})
+		require.ErrorContains(t, err, "model is required")
+	})
+
+	// A /v1/videos client cannot pass its request off as a native one.
+	t.Run("a host protocol keeps the model's endpoint", func(t *testing.T) {
+		intent, err := call("protocols", []string{"openai_video", "decodeRequest"}, map[string]any{"model": "wan2.2-kf2v-flash", "path": "/v1/videos",
+			"body": map[string]any{"kind": "json", "value": map[string]any{"model": "wan2.2-kf2v-flash", "prompt": "a cat",
+				"first_frame_url": "https://cdn.example/first.png", "last_frame_url": "https://cdn.example/last.png", "native": map[string]any{"service": "video-generation"}}}})
+		require.NoError(t, err)
+		descriptor, err := call("buildSubmitRequest", nil, map[string]any{"path": "/v1/videos", "requestHeaders": map[string]any{}, "requestBody": intent["requestBody"],
+			"model": "wan2.2-kf2v-flash", "upstreamModel": "wan2.2-kf2v-flash", "baseUrl": "https://dashscope.aliyuncs.com", "apiKey": "key", "upstream": map[string]any{"kind": "vendor"}})
+		require.NoError(t, err)
+		assert.Equal(t, "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2video/video-synthesis", descriptor["url"])
+	})
 }
 
 // The OpenAI Images protocol claims every declared image model on both image

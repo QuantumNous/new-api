@@ -322,13 +322,16 @@ func ParseFileReference(ref string) (field string, index int, ok bool) {
 // routing hooks. RequestBody contains decoded JSON or multipart text fields;
 // raw binary and multipart file bytes remain host-owned.
 type RouteRequestContext struct {
-	Path        string              `json:"path"`
-	Method      string              `json:"method"`
-	Params      map[string]string   `json:"params"`
-	Query       map[string][]string `json:"query"`
-	Body        any                 `json:"body"`
-	Files       []map[string]any    `json:"-"`
-	RequestBody any                 `json:"-"`
+	Path   string              `json:"path"`
+	Method string              `json:"method"`
+	Params map[string]string   `json:"params"`
+	Query  map[string][]string `json:"query"`
+	Body   any                 `json:"body"`
+	// Headers is the client's request headers without gateway credentials,
+	// which hooks read as requestHeaders.
+	Headers     map[string]string `json:"-"`
+	Files       []map[string]any  `json:"-"`
+	RequestBody any               `json:"-"`
 	// BodyText is the JSON body as the client sent it, which JSValueFor
 	// gives to plugins that preserve JSON order; Body stays the Go value the
 	// host reads. Body storage never changes these bytes, which the engine
@@ -338,22 +341,26 @@ type RouteRequestContext struct {
 
 // JSValue shares the request with hooks without copying it: the engine never
 // writes JavaScript changes back into Go values, so the request must only stay
-// unchanged while a hook runs. Missing params and query still reach hooks as
-// empty objects rather than null.
+// unchanged while a hook runs. Missing params, query and headers still reach
+// hooks as empty objects rather than null.
 func (r RouteRequestContext) JSValue() map[string]any {
-	params, query := r.Params, r.Query
+	params, query, headers := r.Params, r.Query, r.Headers
 	if params == nil {
 		params = map[string]string{}
 	}
 	if query == nil {
 		query = map[string][]string{}
 	}
+	if headers == nil {
+		headers = map[string]string{}
+	}
 	return map[string]any{
-		"path":   r.Path,
-		"method": r.Method,
-		"params": params,
-		"query":  query,
-		"body":   r.Body,
+		"path":           r.Path,
+		"method":         r.Method,
+		"params":         params,
+		"query":          query,
+		"requestHeaders": headers,
+		"body":           r.Body,
 	}
 }
 

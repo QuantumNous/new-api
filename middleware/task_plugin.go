@@ -223,7 +223,13 @@ func PrepareTaskPluginRoute() gin.HandlerFunc {
 				reason   string
 				detail   string
 			)
-			if len(candidate.Route.Models) > 0 && !slices.Contains(candidate.Route.Models, claimedModel) {
+			// The list names declared models; a case variant or a channel
+			// alias of a listed model is allowed with it.
+			allowed := len(candidate.Route.Models) == 0
+			if !allowed {
+				_, _, allowed = model.ResolveTaskPluginModel(pinned.Generation, claimedModel, candidate.Route.Models)
+			}
+			if !allowed {
 				reason, detail = "model_not_allowed", fmt.Sprintf("model %q is not allowed on this route", claimedModel)
 			} else {
 				value, text, callErr := candidate.Plugin.Engine.CallPathWithMemberJSON(
@@ -235,7 +241,7 @@ func PrepareTaskPluginRoute() gin.HandlerFunc {
 				} else {
 					result, _ = value.(map[string]any)
 					bodyText = text
-					intent, reason, detail = checkTaskPluginRouteIntent(candidate, value)
+					intent, reason, detail = checkTaskPluginRouteIntent(pinned.Generation, candidate, value)
 				}
 			}
 			if reason == "" && intent.kind == string(pluginruntime.RouteTypeQuery) {
@@ -369,7 +375,7 @@ type taskPluginRouteIntent struct {
 
 // checkTaskPluginRouteIntent validates a native decoder's result against the
 // candidate route. A rejection names a log reason and the client's detail.
-func checkTaskPluginRouteIntent(candidate pluginruntime.RouteBinding, value any) (intent taskPluginRouteIntent, reason, detail string) {
+func checkTaskPluginRouteIntent(generation *pluginruntime.RoutingGeneration, candidate pluginruntime.RouteBinding, value any) (intent taskPluginRouteIntent, reason, detail string) {
 	resolved, ok := value.(map[string]any)
 	if !ok {
 		return intent, "result_not_object", taskPluginInvalidRouteResult
@@ -388,13 +394,16 @@ func checkTaskPluginRouteIntent(candidate pluginruntime.RouteBinding, value any)
 		if !valid || strings.TrimSpace(modelName) == "" {
 			return intent, "invalid_model", "decoded request is missing a model"
 		}
-		if !slices.Contains(candidate.Plugin.Meta.Models, modelName) {
+		// The task is named as on the host protocols: a case variant by the
+		// declared spelling, a channel alias by the alias.
+		served, declared, owned := model.ResolveTaskPluginModel(generation, modelName, candidate.Plugin.Meta.Models)
+		if !owned {
 			return intent, "model_not_owned", fmt.Sprintf("model %q is not served by this plugin", modelName)
 		}
-		if len(candidate.Route.Models) > 0 && !slices.Contains(candidate.Route.Models, modelName) {
+		if len(candidate.Route.Models) > 0 && !slices.Contains(candidate.Route.Models, declared) {
 			return intent, "resolved_model_not_allowed", fmt.Sprintf("model %q is not allowed on this route", modelName)
 		}
-		intent.model = modelName
+		intent.model = served
 		intent.action = candidate.Route.Action
 		if resolvedAction, present := resolved["action"]; present {
 			actionValue, actionOK := resolvedAction.(string)
@@ -986,11 +995,12 @@ func PrepareTaskPluginEndpoint() gin.HandlerFunc {
 
 func buildTaskPluginRouteRequest(c *gin.Context) (pluginruntime.RouteRequestContext, error) {
 	requestContext := pluginruntime.RouteRequestContext{
-		Path:   c.Request.URL.Path,
-		Method: c.Request.Method,
-		Params: make(map[string]string, len(c.Params)),
-		Query:  make(map[string][]string),
-		Body:   map[string]any{"kind": string(pluginruntime.BodyNone)},
+		Path:    c.Request.URL.Path,
+		Method:  c.Request.Method,
+		Params:  make(map[string]string, len(c.Params)),
+		Query:   make(map[string][]string),
+		Headers: taskjsplugin.ClientRequestHeaders(c.Request.Header),
+		Body:    map[string]any{"kind": string(pluginruntime.BodyNone)},
 	}
 	for _, param := range c.Params {
 		requestContext.Params[param.Key] = param.Value
@@ -1485,11 +1495,85 @@ func renderTaskPluginQuery(
 		time.Since(renderStarted).Milliseconds(),
 	)
 	c.Abort()
-	c.JSON(http.StatusOK, result)
+	if replyErr := WriteNativeReply(c, http.StatusOK, result); replyErr != nil {
+		logger.LogWarn(c, common.LogText("task_plugin subsystem=query event=render_failed generation=%d plugin=%q renderer=%q err=%q", generation, pinned.Plugin.Meta.Key, renderer, replyErr.Error()))
+		abortTaskPluginRouteError(c, http.StatusInternalServerError)
+	}
+}
+
+// nativeReplyHeaders are the headers a reply wrapper may set: a redirect
+// target and a retry hint.
+var nativeReplyHeaders = []string{"Location", "Retry-After"}
+
+// WriteNativeReply writes what a native presenter returned. A value is the
+// JSON body of a reply with the given status (200 for submit and query
+// presenters, the host's status for the error presenter), unless it is an
+// object with a __status member: such a reply wrapper, {__status, __headers?,
+// __body?}, answers with the vendor's own status, as xAI answers a pending
+// video with 202. The status is an integer from 200 to 599, __headers may set
+// only Location and Retry-After, and a wrapper without __body sends no body.
+// An invalid wrapper is an error and writes nothing.
+func WriteNativeReply(c *gin.Context, status int, value any) error {
+	wrapper, ok := value.(map[string]any)
+	if !ok {
+		c.JSON(status, value)
+		return nil
+	}
+	rawStatus, isWrapper := wrapper["__status"]
+	if !isWrapper {
+		c.JSON(status, value)
+		return nil
+	}
+	status = 0
+	switch typed := rawStatus.(type) {
+	case int64:
+		status = int(typed)
+	case int:
+		status = typed
+	case float64:
+		if typed == float64(int(typed)) {
+			status = int(typed)
+		}
+	}
+	if status < 200 || status > 599 {
+		return fmt.Errorf("reply wrapper __status must be an integer from 200 to 599")
+	}
+	headers := map[string]string{}
+	for key, member := range wrapper {
+		switch key {
+		case "__status", "__body":
+		case "__headers":
+			values, ok := member.(map[string]any)
+			if !ok {
+				return fmt.Errorf("reply wrapper __headers must be an object")
+			}
+			for name, headerValue := range values {
+				canonical := http.CanonicalHeaderKey(name)
+				text, isString := headerValue.(string)
+				if !slices.Contains(nativeReplyHeaders, canonical) || !isString {
+					return fmt.Errorf("reply wrapper may set only string Location and Retry-After headers")
+				}
+				headers[canonical] = text
+			}
+		default:
+			return fmt.Errorf("reply wrapper has unknown member %q", key)
+		}
+	}
+	for name, headerValue := range headers {
+		c.Header(name, headerValue)
+	}
+	if body, hasBody := wrapper["__body"]; hasBody {
+		c.JSON(status, body)
+		return nil
+	}
+	c.Status(status)
+	c.Writer.WriteHeaderNow()
+	return nil
 }
 
 // RespondTaskPluginError gives a pinned plugin a sanitized error DTO and writes
-// its native error body. The host-provided status remains authoritative.
+// its native error body with the host's status, unless the body is a reply
+// wrapper that answers with the vendor's own status.
 func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 	if taskErr == nil {
 		return false
@@ -1513,6 +1597,9 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 			"requestId":  requestID,
 		})
 		if callErr == nil {
+			callErr = WriteNativeReply(c, sanitized.HTTPStatus, body)
+		}
+		if callErr == nil {
 			logger.LogDebug(
 				c,
 				"task_plugin subsystem=route event=error_rendered plugin=%q renderer=plugin status=%d code=%q",
@@ -1520,7 +1607,6 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 				sanitized.HTTPStatus,
 				sanitized.Code,
 			)
-			c.JSON(sanitized.HTTPStatus, body)
 			return true
 		}
 		logger.LogWarn(

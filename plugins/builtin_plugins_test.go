@@ -36,9 +36,9 @@ func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing
 		{"POST", "/v1/videos/image2video", "kling", jsplugin.RouteTypeSubmit, "image_to_video", "taskCreated", false, false},
 		{"GET", "/v1/videos/text2video/:task_id", "kling", jsplugin.RouteTypeQuery, "", "taskStatus", false, false},
 		{"GET", "/kling/v1/videos/image2video/:task_id", "kling", jsplugin.RouteTypeQuery, "", "taskStatus", true, false},
-		{"POST", "/api/common/v3/submit_task_v2", "jimeng", jsplugin.RouteTypeSubmit, "", "renderTask", false, false},
-		{"POST", "/api/common/v3/get_result_v2", "jimeng", jsplugin.RouteTypeDynamic, "", "renderTask", false, false},
-		{"POST", "/jimeng/api/common/v3/submit_task_v2", "jimeng", jsplugin.RouteTypeSubmit, "", "renderTask", true, false},
+		{"POST", "/api/common/v3/submit_task_v2", "jimeng", jsplugin.RouteTypeSubmit, "", "taskSubmitted", false, false},
+		{"POST", "/api/common/v3/get_result_v2", "jimeng", jsplugin.RouteTypeDynamic, "", "taskResult", false, false},
+		{"POST", "/jimeng/api/common/v3/submit_task_v2", "jimeng", jsplugin.RouteTypeSubmit, "", "taskSubmitted", true, false},
 		{"POST", "/suno/submit/:action", "sunoapi", jsplugin.RouteTypeSubmit, "", "renderSubmit", false, true},
 		{"POST", "/suno/fetch", "sunoapi", jsplugin.RouteTypeDynamic, "", "renderTasks", false, true},
 		{"GET", "/suno/fetch/:task_id", "sunoapi", jsplugin.RouteTypeQuery, "", "renderTask", false, true},
@@ -424,7 +424,8 @@ func TestBuiltInPluginsAddressNewAPIUpstreamOnNativeRoutes(t *testing.T) {
 		})
 	}
 
-	t.Run("alibaba asks only DashScope for an interleaved image stream", func(t *testing.T) {
+	// A gateway's native route streams interleaved output as DashScope does.
+	t.Run("alibaba asks for an interleaved image stream", func(t *testing.T) {
 		plugin, found := generation.Get("alibaba")
 		require.True(t, found)
 		for _, variant := range []struct {
@@ -434,7 +435,7 @@ func TestBuiltInPluginsAddressNewAPIUpstreamOnNativeRoutes(t *testing.T) {
 			wantSSEHeader    bool
 		}{
 			{"vendor", map[string]any{"kind": "vendor"}, "sse", true},
-			{"new_api", map[string]any{"kind": "new_api"}, "json", false},
+			{"new_api", map[string]any{"kind": "new_api"}, "sse", true},
 		} {
 			t.Run(variant.name, func(t *testing.T) {
 				value, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{
@@ -451,7 +452,7 @@ func TestBuiltInPluginsAddressNewAPIUpstreamOnNativeRoutes(t *testing.T) {
 					Headers      map[string]string `json:"headers"`
 				}
 				require.NoError(t, common.Unmarshal(encoded, &descriptor))
-				assert.Equal(t, variant.wantResponseType, descriptor.ResponseType, "a gateway native route aggregates the vendor stream and answers with JSON")
+				assert.Equal(t, variant.wantResponseType, descriptor.ResponseType)
 				_, hasSSEHeader := descriptor.Headers["X-DashScope-Sse"]
 				assert.Equal(t, variant.wantSSEHeader, hasSSEHeader)
 			})

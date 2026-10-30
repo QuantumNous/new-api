@@ -29,6 +29,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
@@ -109,6 +110,23 @@ var taskArtifactKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~-]{0,1
 // hooks receive every other request header.
 var gatewayCredentialHeaders = []string{"Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key", "X-Goog-Api-Key", "Mj-Api-Secret"}
 
+// ClientRequestHeaders is the client's request headers as decoders and driver
+// hooks receive them: the first value of each under its canonical name,
+// without the headers that carry gateway credentials, and with Content-Type
+// and Accept always present.
+func ClientRequestHeaders(header http.Header) map[string]string {
+	headers := make(map[string]string, len(header)+2)
+	for name, values := range header {
+		name = http.CanonicalHeaderKey(name)
+		if len(values) > 0 && !slices.Contains(gatewayCredentialHeaders, name) {
+			headers[name] = values[0]
+		}
+	}
+	headers["Content-Type"] = header.Get("Content-Type")
+	headers["Accept"] = header.Get("Accept")
+	return headers
+}
+
 const maxTaskArtifacts = 64
 
 // maxTaskPluginPersistedJSONBytes is the shared ceiling for taskData and plugin state.
@@ -127,6 +145,11 @@ type TaskAdaptor struct {
 	// requestBodyText is the decoded requestBody as JSON text, which hooks
 	// of a plugin that preserves JSON order receive instead.
 	requestBodyText json.RawMessage
+	// keepReservation is set when the client of a native route already holds
+	// the relayed events of a submission whose stream stopped before the
+	// upstream finished it, or whose result the plugin could not read: the
+	// task then settles at the reserved quota.
+	keepReservation bool
 }
 
 func New(plugin *pluginruntime.LoadedPlugin) *TaskAdaptor { return &TaskAdaptor{plugin: plugin} }
@@ -177,7 +200,8 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 					resolved, resolvedOK := resolvedValue.(map[string]any)
 					kind, _ := resolved["kind"].(string)
 					resolvedModel, _ := resolved["model"].(string)
-					if callErr != nil || !resolvedOK || kind != string(pluginruntime.RouteTypeSubmit) || resolvedModel != c.GetString("resolved_task_model") {
+					served, _, owned := model.ResolveTaskPluginModel(pinned.Generation, resolvedModel, a.plugin.Meta.Models)
+					if callErr != nil || !resolvedOK || kind != string(pluginruntime.RouteTypeSubmit) || !owned || served != c.GetString("resolved_task_model") {
 						return service.TaskErrorWrapperLocal(fmt.Errorf("final task plugin decoder rejected the pinned model"), "plugin_request_invalid", http.StatusBadRequest)
 					}
 					if _, forbidden := resolved["renderer"]; forbidden {
@@ -262,6 +286,9 @@ func (a *TaskAdaptor) ExtractUsageFactsValidated(c *gin.Context, info *relaycomm
 }
 
 func (a *TaskAdaptor) AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskData []byte) map[string]float64 {
+	if a.keepReservation {
+		return nil
+	}
 	var data any
 	if err := common.Unmarshal(taskData, &data); err != nil {
 		data = string(taskData)
@@ -529,38 +556,120 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, bod
 	wasStream := info.IsStream
 	info.IsStream = false
 	defer func() { info.IsStream = wasStream }()
+	// A native route relays an SSE reply to the client as it arrives, so the
+	// vendor's work and what the client receives no longer depend on the
+	// client staying: from here the submission ignores the client leaving,
+	// keeps reading to the end and settles. Keep-alive comments reset the
+	// idle timeout, so the upstream request is bounded by the submission
+	// deadline of the host protocols (TASK_PLUGIN_PROTOCOL_TIMEOUT_SECONDS).
+	var release context.CancelFunc
+	if a.submit != nil && a.submit.ResponseType == "sse" && relaysSubmitEvents(c) {
+		detached := c.Request.WithContext(context.WithoutCancel(c.Request.Context()))
+		timeout := time.Duration(constant.TaskPluginProtocolTimeoutSeconds) * time.Second
+		if timeout <= 0 {
+			timeout = 10 * time.Minute
+		}
+		var upstream context.Context
+		upstream, release = context.WithTimeout(detached.Context(), timeout)
+		c.Request = detached.WithContext(upstream)
+		defer func() { c.Request = detached }()
+	}
 	if a.submit != nil && strings.TrimSpace(a.submit.Method) != "" {
 		originalMethod := c.Request.Method
 		c.Request.Method = strings.ToUpper(a.submit.Method)
 		defer func() { c.Request.Method = originalMethod }()
 	}
-	return channel.DoTaskApiRequest(a, c, info, body)
+	resp, err := channel.DoTaskApiRequest(a, c, info, body)
+	if release != nil {
+		if err != nil || resp == nil {
+			release()
+		} else {
+			resp.Body = deadlineBody{ReadCloser: resp.Body, release: release}
+		}
+	}
+	return resp, err
 }
 
-func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (_ *channel.TaskSubmitResponse, taskErr *dto.TaskError) {
+// deadlineBody releases the deadline of a relayed submission's upstream
+// request once its reply is closed.
+type deadlineBody struct {
+	io.ReadCloser
+	release context.CancelFunc
+}
+
+func (b deadlineBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.release()
+	return err
+}
+
+// relaysSubmitEvents reports whether the submission came through a native
+// route, whose client receives an SSE reply event by event.
+func relaysSubmitEvents(c *gin.Context) bool {
+	_, native := c.Get(pluginruntime.ContextKeyPinnedRoute)
+	return native
+}
+
+// submitReplyLimit bounds the submit reply and each of its SSE events. A
+// native route that declares retainResult: false delivers the reply once and
+// never persists it, so it may be as large as a downloaded file, which lets a
+// vendor return Base64 images.
+func submitReplyLimit(c *gin.Context) int64 {
+	if value, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
+		if pinned, ok := value.(pluginruntime.PinnedRoute); ok && pinned.Route.RetainResult != nil && !*pinned.Route.RetainResult {
+			return max(maxInlineFileBytes(), maxTaskPluginPersistedJSONBytes)
+		}
+	}
+	return maxTaskPluginPersistedJSONBytes
+}
+
+func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (submitted *channel.TaskSubmitResponse, taskErr *dto.TaskError) {
 	started := time.Now()
 	var responseBody any
 	var err error
 	streaming := a.submit != nil && a.submit.ResponseType == "sse"
 	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	acceptedStream := streaming || mediaType == "text/event-stream"
+	eventStream := mediaType == "text/event-stream"
+	acceptedStream := streaming || eventStream
+	relayed := false
 	defer func() {
-		if acceptedStream && taskErr != nil {
+		switch {
+		case taskErr == nil:
+		case relayed:
+			// The client already holds the vendor's events, so the task
+			// completes at the reserved quota instead of failing and refunding
+			// the vendor's work.
+			logger.LogWarn(c, common.LogText("task plugin %s could not read the result of a relayed submit stream; settling at the reserved quota: %s", a.plugin.Meta.Key, taskErr.Message))
+			a.keepReservation = true
+			submitted = &channel.TaskSubmitResponse{UpstreamTaskID: info.PublicTaskID, Immediate: &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, Progress: taskcommon.ProgressComplete}}
+			taskErr = nil
+		case acceptedStream:
 			taskErr.NoRetry = true
 		}
 	}()
-	if !streaming && acceptedStream {
+	if !streaming && eventStream {
 		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("unexpected SSE response for a JSON submission"), "plugin_submit_response_invalid", http.StatusBadGateway)
 	}
-	if streaming {
+	replyLimit := submitReplyLimit(c)
+	if eventStream {
 		// Every failure after accepting this stream is non-retryable: the
 		// upstream may already have performed billable work.
 		defer resp.Body.Close()
-		responseBody, err = a.readSubmitEvents(c.Request.Context(), resp, a.submitContext(c, info))
+		var client *gin.Context
+		if relaysSubmitEvents(c) {
+			client = c
+		}
+		var stopped bool
+		responseBody, stopped, err = a.readSubmitEvents(c.Request.Context(), resp, a.submitContext(c, info), submitEventStream{client: client, frameLimit: replyLimit})
+		relayed = client != nil && c.Writer.Written()
+		a.keepReservation = stopped
 	} else {
+		// A stream request may get a JSON reply too: a gateway released
+		// before relayed streams reads the vendor's stream on its native
+		// route and answers with one JSON body.
 		var body []byte
-		body, err = io.ReadAll(io.LimitReader(resp.Body, maxTaskPluginPersistedJSONBytes+1))
-		if err == nil && len(body) > maxTaskPluginPersistedJSONBytes {
+		body, err = io.ReadAll(io.LimitReader(resp.Body, replyLimit+1))
+		if err == nil && int64(len(body)) > replyLimit {
 			err = fmt.Errorf("task submit response exceeds size limit")
 		}
 		responseBody = string(body)
@@ -606,10 +715,16 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 		)
 		return nil, service.TaskErrorWrapper(err, "plugin_submit_response_invalid", http.StatusBadGateway, common.UpstreamAddresses(c)...)
 	}
+	// Only an immediate terminal result goes unpersisted; any other task data
+	// is stored and keeps the persisted limit.
+	dataLimit := int64(maxTaskPluginPersistedJSONBytes)
+	if parsed.Immediate != nil && (parsed.Immediate.Status == "SUCCESS" || parsed.Immediate.Status == "FAILURE") {
+		dataLimit = replyLimit
+	}
 	var taskData []byte
 	if parsed.TaskData != nil {
 		taskData, err = common.Marshal(parsed.TaskData)
-		if err != nil || len(taskData) > maxTaskPluginPersistedJSONBytes {
+		if err != nil || int64(len(taskData)) > dataLimit {
 			if err == nil {
 				err = fmt.Errorf("task data exceeds size limit")
 			}
@@ -639,6 +754,11 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 	}
 	response.Immediate = immediate
 	if immediate.Status != model.TaskStatusSuccess || !a.hasHook(c.Request.Context(), "extractUsageOnComplete") {
+		return response, nil
+	}
+	// A relayed stream that stopped early keeps the reservation: the plugin
+	// did not see the end of the vendor's work.
+	if a.keepReservation {
 		return response, nil
 	}
 	// Match the polling hook context without persisting a temporary task.
@@ -1639,14 +1759,7 @@ func (a *TaskAdaptor) submitContext(c *gin.Context, info *relaycommon.RelayInfo)
 					routeRequest.Query[key] = append([]string(nil), values...)
 				}
 			}
-			for name, values := range c.Request.Header {
-				name = http.CanonicalHeaderKey(name)
-				if len(values) > 0 && !slices.Contains(gatewayCredentialHeaders, name) {
-					requestHeaders[name] = values[0]
-				}
-			}
-			requestHeaders["Content-Type"] = c.GetHeader("Content-Type")
-			requestHeaders["Accept"] = c.GetHeader("Accept")
+			requestHeaders = ClientRequestHeaders(c.Request.Header)
 			if strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
 				if form, err := common.ParseMultipartFormReusable(c); err == nil {
 					defer form.RemoveAll()

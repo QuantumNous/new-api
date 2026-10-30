@@ -574,6 +574,16 @@ func (w *gatedResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return w.underlying.Hijack()
 }
 
+// Unwrap lets http.ResponseController reach the client connection once a
+// plugin route answers, as a relayed stream that stopped early needs to cut it
+// off.
+func (w *gatedResponseWriter) Unwrap() http.ResponseWriter {
+	if !w.active.Load() {
+		return nil
+	}
+	return w.underlying
+}
+
 func (w *gatedResponseWriter) CloseNotify() <-chan bool {
 	if w.active.Load() {
 		return w.underlying.CloseNotify()

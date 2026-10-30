@@ -33,7 +33,8 @@ export type DecodedBody =
   | Readonly<{kind: "multipart"; fields: Readonly<Record<string, readonly string[]>>; files: readonly FileReference[]}>
   | Readonly<{kind: "none"}>;
 
-export interface NativeDecodeContext {method: string; path: string; params: Readonly<Record<string, string>>; query: Readonly<Record<string, readonly string[]>>; body: DecodedBody}
+/** requestHeaders: the client's request headers, as DriverContext.requestHeaders holds them. Older gateways do not pass them to decoders. */
+export interface NativeDecodeContext {method: string; path: string; params: Readonly<Record<string, string>>; query: Readonly<Record<string, readonly string[]>>; requestHeaders: Readonly<Record<string, string>>; body: DecodedBody}
 export interface ProtocolDecodeContext extends NativeDecodeContext {protocol: ProtocolName; operation: string; model: string; upstreamModel?: string; stream: boolean}
 export type SubmitIntent = {kind: "submit"; model: string; action?: string; requestBody?: unknown; originTaskIds?: readonly string[]};
 export type QueryIntent = {kind: "query"; taskIds: readonly string[]};
@@ -70,7 +71,9 @@ export interface TaskArtifact {key: string; type: "video" | "audio" | "image" | 
 export declare const meta: Meta;
 /** A query presenter's context: artifacts holds the gateway download addresses of one task in SUCCESS (from listArtifacts) and is empty otherwise. Throwing "artifact_not_found" answers 404. */
 export interface NativeQueryContext extends NativeDecodeContext {artifacts: Readonly<Record<string, {key: string; type: string; url: string; mimeType?: string}>>}
-export declare const native: Record<string, ((ctx: NativeDecodeContext) => TaskIntent) | ((ctx: NativeQueryContext, task: TaskView | readonly TaskView[]) => unknown)> & {error?: (ctx: NativeDecodeContext, error: {code: string; message: string; httpStatus: number; retryable: boolean}) => unknown};
+/** A native presenter's reply with the vendor's own HTTP status (200–599); only Location and Retry-After may be set, and a reply without __body has no body. Any other value is the JSON body of a 200 reply, or of the host's status for the error presenter. */
+export type NativeReply = {__status: number; __headers?: {Location?: string; "Retry-After"?: string}; __body?: unknown};
+export declare const native: Record<string, ((ctx: NativeDecodeContext) => TaskIntent) | ((ctx: NativeQueryContext, task: TaskView | readonly TaskView[]) => unknown | NativeReply)> & {error?: (ctx: NativeDecodeContext, error: {code: string; message: string; httpStatus: number; retryable: boolean; requestId: string}) => unknown | NativeReply};
 export declare const protocols: {
   openai_responses?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; renderEvents?(ctx: unknown, task: TaskView, previousState: unknown): unknown; renderFinal?(ctx: unknown, task: TaskView): unknown};
   openai_video?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): unknown};
