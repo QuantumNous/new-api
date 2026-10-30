@@ -984,17 +984,29 @@ func routeHasOwnPrefix(key, routePath string) bool {
 
 // PluginRouteBindings returns the addresses plugin serves: each declared route
 // and, unless the route lives under the plugin's own prefix, its /{key} copy.
+// A plugin that declares the copy's address itself (TypeSafe 1.2.0 declares
+// /v1/systemone and /typesafe/v1/systemone) serves it by that declaration.
 func PluginRouteBindings(plugin *LoadedPlugin) []RouteBinding {
 	key := plugin.Meta.Key
+	declared := make(map[string]struct{}, len(plugin.Meta.Routes))
+	for _, route := range plugin.Meta.Routes {
+		// Declared paths were validated at load.
+		shape, _ := routePathShape(route.Path)
+		declared[route.Method+" "+shape] = struct{}{}
+	}
 	bindings := make([]RouteBinding, 0, 2*len(plugin.Meta.Routes))
 	for _, route := range plugin.Meta.Routes {
 		if routeHasOwnPrefix(key, route.Path) {
 			bindings = append(bindings, RouteBinding{Plugin: plugin, Route: route, OwnPrefix: true})
 			continue
 		}
+		bindings = append(bindings, RouteBinding{Plugin: plugin, Route: route})
 		pinned := route
 		pinned.Path = "/" + key + route.Path
-		bindings = append(bindings, RouteBinding{Plugin: plugin, Route: route}, RouteBinding{Plugin: plugin, Route: pinned, Pinned: true})
+		shape, _ := routePathShape(pinned.Path)
+		if _, exists := declared[route.Method+" "+shape]; !exists {
+			bindings = append(bindings, RouteBinding{Plugin: plugin, Route: pinned, Pinned: true})
+		}
 	}
 	return bindings
 }

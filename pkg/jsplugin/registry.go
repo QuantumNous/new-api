@@ -1371,23 +1371,15 @@ func normalizeV1Meta(meta *Meta) error {
 				return fmt.Errorf("plugin route %s %s model %q is not declared in plugin meta models", meta.Routes[index].Method, meta.Routes[index].Path, model)
 			}
 		}
-		// A route outside the plugin's own prefix is also served under
-		// /{key}; that address must not repeat another declaration either.
-		addresses := []string{meta.Routes[index].Path}
-		if !routeHasOwnPrefix(meta.Key, meta.Routes[index].Path) {
-			addresses = append(addresses, "/"+meta.Key+meta.Routes[index].Path)
+		shape, err := routePathShape(meta.Routes[index].Path)
+		if err != nil {
+			return err
 		}
-		for _, address := range addresses {
-			shape, err := routePathShape(address)
-			if err != nil {
-				return err
-			}
-			key := meta.Routes[index].Method + " " + shape
-			if _, exists := routeKeys[key]; exists {
-				return fmt.Errorf("plugin meta routes contain duplicate route %s %s", meta.Routes[index].Method, address)
-			}
-			routeKeys[key] = struct{}{}
+		key := meta.Routes[index].Method + " " + shape
+		if _, exists := routeKeys[key]; exists {
+			return fmt.Errorf("plugin meta routes contain duplicate route %s %s", meta.Routes[index].Method, meta.Routes[index].Path)
 		}
+		routeKeys[key] = struct{}{}
 	}
 	protocols := make(map[string]struct{}, len(meta.Protocols))
 	for index := range meta.Protocols {

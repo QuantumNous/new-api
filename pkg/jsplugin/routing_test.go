@@ -1071,18 +1071,30 @@ func TestReservedNamespaceChecksUseSegmentBoundaries(t *testing.T) {
 }
 
 // The gateway serves a plugin's routes under /{key}, so a key may not name a
-// host namespace, and a declared route may not repeat one of those addresses.
+// host namespace. A plugin may declare one of those addresses itself, as
+// TypeSafe 1.2.0 declares /v1/systemone and /typesafe/v1/systemone; the
+// declaration serves it and the copy is not added again.
 func TestPluginKeyAndKeyAddressesAreValidated(t *testing.T) {
 	for _, key := range []string{"api", "v1", "assets", "console"} {
 		meta := Meta{APIVersion: 1, Key: key, Name: "Key", Version: "1.0.0", Author: AuthorMeta{Name: "Test"}, Models: []string{"model"}, FetchMode: "per_task"}
 		require.ErrorContains(t, ValidateV1Meta(meta), "is a reserved path segment", key)
 	}
-	meta := Meta{APIVersion: 1, Key: "copyist", Name: "Copyist", Version: "1.0.0", Author: AuthorMeta{Name: "Test"}, Models: []string{"model"}, FetchMode: "per_task",
-		Routes: []Route{
-			{Method: "POST", Path: "/v9/jobs", Type: RouteTypeSubmit, Decode: "decode", Render: "render"},
-			{Method: "POST", Path: "/copyist/v9/jobs", Type: RouteTypeSubmit, Decode: "decode", Render: "render"},
-		}}
-	require.ErrorContains(t, ValidateV1Meta(meta), "duplicate route POST /copyist/v9/jobs")
+	native := `export const native = {decode: function() { return {}; }, render: function(ctx, task) { return task; }};`
+	plugin := mustCompileRoutingPlugin(t, "copyist", 0, `["model"]`, `routes: [
+		{method: "POST", path: "/v9/jobs", type: "submit", decode: "decode", render: "render"},
+		{method: "POST", path: "/copyist/v9/jobs", type: "submit", decode: "decode", render: "render"},
+	],`, native)
+	bindings := PluginRouteBindings(plugin)
+	require.Len(t, bindings, 2)
+	assert.Equal(t, "/v9/jobs", bindings[0].Route.Path)
+	assert.False(t, bindings[0].Pinned)
+	assert.Equal(t, "/copyist/v9/jobs", bindings[1].Route.Path)
+	assert.True(t, bindings[1].OwnPrefix)
+	registry := NewRegistry()
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{plugin}))
+	require.Empty(t, registry.RoutingErrors())
+	_, ok := registry.Generation().LookupDeclaredRoute("POST", "/copyist/v9/jobs")
+	assert.True(t, ok)
 }
 
 func TestRoutingGenerationServesDeclaredRoutesAndKeyCopies(t *testing.T) {
