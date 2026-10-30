@@ -35,7 +35,7 @@ func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		release, admissionErr := model.AdmitGroupRequest(common.GetContextKeyString(c, constant.ContextKeyUsingGroup), c.GetString("user_group"))
 		if admissionErr != nil {
-			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, admissionErr.Error())
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
 			return
 		}
 		defer release()
@@ -58,7 +58,7 @@ func Distribute() func(c *gin.Context) {
 		}
 		releaseRequested, admissionErr := model.AdmitGroupRequest(modelRequest.Group)
 		if admissionErr != nil {
-			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, admissionErr.Error())
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
 			return
 		}
 		defer releaseRequested()

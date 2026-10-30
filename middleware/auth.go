@@ -623,7 +623,7 @@ func TokenAuth() func(c *gin.Context) {
 		tokenGroup := token.Group
 		release, err := model.AdmitGroupRequest(userGroup, tokenGroup)
 		if err != nil {
-			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, common.TranslateMessage(c, err.Error()))
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
 			return
 		}
 		defer release()

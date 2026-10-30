@@ -53,8 +53,15 @@ func TestUnusedGroupMigration(t *testing.T) {
 	common.IsMasterNode = false
 	oldOptions, oldRatio := common.OptionMap, ratio_setting.GroupRatio2JSONString()
 	oldRedis, oldMemory := common.RedisEnabled, common.MemoryCacheEnabled
+	oldRedisClient := common.RDB
 	oldUsable, oldTopup := setting.UserUsableGroups2JSONString(), common.TopupGroupRatio2JSONString()
 	common.RedisEnabled, common.MemoryCacheEnabled = false, false
+	if os.Getenv("TEST_GROUP_MIGRATION_REDIS_URL") != "" {
+		t.Setenv("REDIS_CONN_STRING", os.Getenv("TEST_GROUP_MIGRATION_REDIS_URL"))
+		require.NoError(t, common.InitRedisClient())
+		common.RedisEnabled = true
+	}
+	common.MemoryCacheEnabled = os.Getenv("TEST_GROUP_MIGRATION_MEMORY_CACHE") == "true"
 	model.DB, model.LOG_DB = db, db
 	require.NoError(t, model.InitLogDB())
 	common.IsMasterNode = previousMaster
@@ -68,6 +75,10 @@ func TestUnusedGroupMigration(t *testing.T) {
 		model.LOG_DB = oldLogDB
 		common.OptionMap = oldOptions
 		common.RedisEnabled, common.MemoryCacheEnabled = oldRedis, oldMemory
+		if common.RDB != oldRedisClient {
+			require.NoError(t, common.RDB.Close())
+			common.RDB = oldRedisClient
+		}
 		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(oldUsable))
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(oldTopup))
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(oldRatio))
@@ -127,9 +138,11 @@ func TestUnusedGroupMigration(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"probe","messages":[]}`))
 		req.Header.Set("Authorization", "Bearer sk-"+key.Key)
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept-Language", "zh-CN")
 		rec := httptest.NewRecorder()
 		engine.ServeHTTP(rec, req)
 		assert.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), "分组正在迁移，请稍后重试。")
 		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/interrupted-01", nil).Body.String(), `"state":"paused"`)
 		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "true")
 		recovery := request(http.MethodPost, "/api/option/group_migration/interrupted-01/resume", nil)
@@ -143,6 +156,22 @@ func TestUnusedGroupMigration(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, request(http.MethodPost, "/api/option/group_migration", payload).Code)
 		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/preview?source=unused&target=premium", nil).Body.String(), "Other known serving instances")
 		require.NoError(t, db.Delete(&instance).Error)
+	})
+	t.Run("resume reconciles a terminal commit whose acknowledgement was lost", func(t *testing.T) {
+		op := model.GroupMigrationOperation{ID: "lost-acknowledgement", Source: "unused", Target: "premium", State: "paused", ActorID: root.Id}
+		require.NoError(t, db.Create(&op).Error)
+		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": op.ID, "owner": "previous-process"}).Error)
+		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "")
+		require.NoError(t, model.InitGroupMigrations(context.Background()))
+		// Model the durable result of a terminal commit with a lost reply: the
+		// process still has its pause, while the database has released ownership.
+		require.NoError(t, db.Model(&op).Update("state", "aborted").Error)
+		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": "", "owner": ""}).Error)
+		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "true")
+		assert.Contains(t, request(http.MethodPost, "/api/option/group_migration/"+op.ID+"/resume", nil).Body.String(), `"state":"aborted"`)
+		release, err := model.AdmitGroupRequest("unused")
+		require.NoError(t, err)
+		release()
 	})
 	t.Run("committed operations retain the pause until restart recovery publishes configuration", func(t *testing.T) {
 		require.NoError(t, model.UpdateOptionsBulk(map[string]string{"GroupRatio": `{"default":1,"unused":0.75,"recover":0.6}`}))
@@ -234,6 +263,29 @@ func TestUnusedGroupMigration(t *testing.T) {
 		assert.Contains(t, submitted.Body.String(), `"state":"paused"`)
 		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "true")
 		assert.Contains(t, request(http.MethodPost, "/api/option/group_migration/drain-test-01/resume", nil).Body.String(), `"state":"aborted"`)
+	})
+	t.Run("a replaced owner cannot commit or clear the durable pause", func(t *testing.T) {
+		op := model.GroupMigrationOperation{ID: "fenced-owner-01", Source: "unused", Target: "premium", State: "paused", ActorID: root.Id}
+		require.NoError(t, db.Create(&op).Error)
+		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": op.ID, "owner": "original-process"}).Error)
+		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "")
+		require.NoError(t, model.InitGroupMigrations(context.Background()))
+		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Update("owner", "replacement-process").Error)
+		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "true")
+		response := request(http.MethodPost, "/api/option/group_migration/"+op.ID+"/resume", nil)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		var refused struct{ Data model.GroupMigrationOperation }
+		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &refused))
+		assert.Equal(t, "paused", refused.Data.State)
+		assert.Equal(t, model.ErrGroupMigrationPaused.Error(), refused.Data.Reason)
+		var control model.GroupMigrationControl
+		require.NoError(t, db.First(&control, 1).Error)
+		assert.Equal(t, "replacement-process", control.Owner)
+		assert.Equal(t, op.ID, control.OperationID)
+		assert.ErrorIs(t, model.ValidateGroupReference("unused", false, false), model.ErrGroupMigrationPaused)
+		assert.True(t, ratio_setting.ContainsGroupRatio("unused"))
+		require.NoError(t, model.InitGroupMigrations(context.Background()))
+		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/"+op.ID, nil).Body.String(), `"state":"aborted"`)
 	})
 	response := request(http.MethodPost, "/api/option/group_migration", payload)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())

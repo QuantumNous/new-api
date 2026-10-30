@@ -411,13 +411,41 @@ func ResumeGroupMigration(ctx context.Context, id string) (*GroupMigrationOperat
 	groupOptionMutex.Lock()
 	defer groupOptionMutex.Unlock()
 	op, err := GetGroupMigration(ctx, id)
-	if err != nil || op.State == "completed" || op.State == "aborted" {
+	if err != nil {
 		return op, err
 	}
 	groupMigrationTraffic.Lock()
 	owner := groupMigrationTraffic.owner
 	recoveryOwner, operation := groupMigrationTraffic.recoveryOwner, groupMigrationTraffic.operation
 	groupMigrationTraffic.Unlock()
+	if op.State == "completed" || op.State == "aborted" {
+		if operation != id {
+			return op, nil
+		}
+		// A terminal transaction can commit while its acknowledgement is lost.
+		// Reconcile only this process's pause, under the durable control lock.
+		err = DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			var control GroupMigrationControl
+			if err := control.lock(tx); err != nil {
+				return err
+			}
+			if err := groupMigrationQualification(tx); err != nil {
+				return err
+			}
+			if control.OperationID != "" || owner == "" {
+				return ErrGroupMigrationPaused
+			}
+			return nil
+		})
+		if err == nil {
+			groupMigrationTraffic.Lock()
+			if groupMigrationTraffic.owner == owner && groupMigrationTraffic.operation == id {
+				groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = "", "", ""
+			}
+			groupMigrationTraffic.Unlock()
+		}
+		return op, err
+	}
 	// A restart without the declaration retains the old owner. Only the owner
 	// observed at startup may be reclaimed; a later replacement stays fenced.
 	err = DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
