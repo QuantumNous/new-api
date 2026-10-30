@@ -424,6 +424,40 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 	return fixture
 }
 
+func TestResponsesWebSocketClosesAfterConcurrencyLeaseLoss(t *testing.T) {
+	started := make(chan struct{})
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+			return
+		}
+		close(started)
+		_, _, _ = ws.ReadMessage()
+	})
+	require.NoError(t, model.DB.Model(fixture.user).Update("max_concurrency", 1).Error)
+	require.NoError(t, model.PublishUserAuthCache(fixture.user.Id))
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","response":{"model":"ws-billing","input":"hello"}}`)))
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("upstream generation did not start")
+	}
+	key := fmt.Sprintf("concurrency:user:v1:%d", fixture.user.Id)
+	count, err := common.RDB.ZCard(t.Context(), key).Result()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, count)
+	require.NoError(t, common.RDB.Del(t.Context(), key).Err())
+	// Wait for the actual lease renewal to detect loss; no synthetic cancellation
+	// can prove the request middleware reaches the WebSocket session.
+	require.NoError(t, fixture.client.SetReadDeadline(time.Now().Add(25*time.Second)))
+	_, _, err = fixture.client.ReadMessage()
+	assert.True(t, websocket.IsCloseError(err, websocket.CloseInternalServerErr), "lease loss must close the client connection: %v", err)
+	select {
+	case <-fixture.upstreamDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("upstream continued after lease loss")
+	}
+}
+
 func TestResponsesInterruptedStreamHealth(t *testing.T) {
 	for _, scenario := range []string{"websocket timeout", "sse timeout", "sse client cancel"} {
 		t.Run(scenario, func(t *testing.T) {

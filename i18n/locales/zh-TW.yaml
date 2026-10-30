@@ -92,3 +92,5 @@ channel.upstream_update_added_models: "新增模型範例（顯示 {{.Shown}}/{{
 channel.upstream_update_removed_models: "刪除模型範例（顯示 {{.Shown}}/{{.Total}}）：{{.Models}}"
 channel.upstream_update_failed_channels: "失敗管道 ID（顯示 {{.Shown}}/{{.Total}}）：{{.Ids}}"
 channel.upstream_update_more_omitted: "（其餘 {{.Count}} 個已省略）"
+rate_limit.concurrency_reached: "已達到並行請求上限：所有 API Key 合計最多同時處理 {{.Max}} 個請求"
+rate_limit.concurrency_unavailable: "並行請求控制暫時無法使用，請稍後重試"

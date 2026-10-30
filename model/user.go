@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -97,6 +98,8 @@ type User struct {
 	Quota                int                        `json:"quota" gorm:"type:int;default:0"`
 	UsedQuota            int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount         int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	MaxConcurrency       int                        `json:"max_concurrency" gorm:"type:int;not null;default:0" validate:"gte=0,lte=2147483647"`
+	ConcurrencyVersion   int64                      `json:"-" gorm:"type:bigint;not null;default:1"`
 	Group                string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
 	AffCode              string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount             int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
@@ -116,16 +119,18 @@ type User struct {
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:          user.Id,
-		Group:       user.Group,
-		Quota:       user.Quota,
-		Status:      user.Status,
-		Role:        user.Role,
-		Username:    user.Username,
-		Setting:     user.Setting,
-		Email:       user.Email,
-		AuthVersion: user.AuthVersion,
-		CacheSchema: userCacheSchemaVersion,
+		Id:                 user.Id,
+		Group:              user.Group,
+		Quota:              user.Quota,
+		Status:             user.Status,
+		Role:               user.Role,
+		Username:           user.Username,
+		Setting:            user.Setting,
+		Email:              user.Email,
+		AuthVersion:        user.AuthVersion,
+		CacheSchema:        userCacheSchemaVersion,
+		MaxConcurrency:     user.MaxConcurrency,
+		ConcurrencyVersion: user.ConcurrencyVersion,
 	}
 	return cache
 }
@@ -621,7 +626,12 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	return tx.Commit().Error
 }
 
-func (user *User) prepareForInsert(tx *gorm.DB) error {
+func (user *User) prepareForInsert(tx *gorm.DB, maxConcurrency *int) error {
+	if maxConcurrency != nil {
+		user.MaxConcurrency = *maxConcurrency
+	} else if user.MaxConcurrency == 0 {
+		user.MaxConcurrency = setting.GetDefaultUserMaxConcurrency()
+	}
 	user.Email = NormalizeEmail(user.Email)
 	if err := ensureEmailAvailableWithTx(tx, user.Email, 0); err != nil {
 		return err
@@ -675,7 +685,7 @@ func ensureEmailAvailableWithTx(tx *gorm.DB, email string, excludeUserID int) er
 func (user *User) Insert(inviterId int) error {
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
-			if err := user.prepareForInsert(tx); err != nil {
+			if err := user.prepareForInsert(tx, nil); err != nil {
 				return err
 			}
 			user.Quota = common.QuotaForNewUser
@@ -737,9 +747,10 @@ func (user *User) FinishInsert(inviterId int) {
 // InsertWithTx inserts a new user within an existing transaction.
 // This is used for OAuth registration where user creation and binding need to be atomic.
 // Post-creation tasks (sidebar config, logs, inviter rewards) are handled after the transaction commits.
-func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
+// A non-nil maxConcurrency overrides the new-user default, including an explicit zero.
+func (user *User) InsertWithTx(tx *gorm.DB, inviterId int, maxConcurrency *int) error {
 	return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
-		if err := user.prepareForInsert(tx); err != nil {
+		if err := user.prepareForInsert(tx, maxConcurrency); err != nil {
 			return err
 		}
 		user.Quota = common.QuotaForNewUser
@@ -841,6 +852,8 @@ func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 		"aff_quota",
 		"aff_history",
 		"auth_version",
+		"max_concurrency",
+		"concurrency_version",
 	).Updates(newUser).Error; err != nil {
 		return err
 	}
@@ -853,7 +866,7 @@ func (user *User) Edit(updatePassword bool) error {
 		return err
 	}
 	if err := DB.Transaction(func(tx *gorm.DB) error {
-		return user.EditWithTx(tx, updatePassword)
+		return user.EditWithTx(tx, updatePassword, &user.MaxConcurrency)
 	}); err != nil {
 		return err
 	}
@@ -867,7 +880,7 @@ func (user *User) Edit(updatePassword bool) error {
 	return nil
 }
 
-func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
+func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool, maxConcurrency *int) error {
 	var err error
 	if updatePassword {
 		user.Password, err = common.HashAccountPassword(user.Password)
@@ -883,13 +896,21 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 		"group":        newUser.Group,
 		"remark":       newUser.Remark,
 	}
+	// nil means the administrator omitted this field. Keep it out of the SQL
+	// update so another request's committed limit and version remain intact.
+	if maxConcurrency != nil {
+		updates["max_concurrency"] = *maxConcurrency
+	}
 	if updatePassword {
 		updates["password"] = newUser.Password
 	}
 
 	current := User{}
-	if err = tx.First(&current, user.Id).Error; err != nil {
+	if err = lockForUpdate(tx).First(&current, user.Id).Error; err != nil {
 		return err
+	}
+	if maxConcurrency != nil && current.MaxConcurrency != *maxConcurrency {
+		updates["concurrency_version"] = max(current.ConcurrencyVersion, 1) + 1
 	}
 	authChanged := (updatePassword && current.Password != newUser.Password) || current.Group != newUser.Group
 	if authChanged {

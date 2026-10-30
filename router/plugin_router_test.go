@@ -14,9 +14,11 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -778,6 +780,94 @@ func TestProductionPluginNativeQueryTraversesInnerRouter(t *testing.T) {
 	assert.Contains(t, recorder.Body.String(), `"task_status":"succeed"`)
 	assert.NotContains(t, recorder.Body.String(), "private_upstream_id")
 	assert.NotContains(t, recorder.Body.String(), "secret.example")
+}
+
+func TestProductionDynamicQueryBypassesFullUserConcurrency(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	previousDB, previousRedis := model.DB, common.RedisEnabled
+	previousRateLimit := setting.ModelRequestRateLimitEnabled
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Task{}))
+	model.DB, common.RedisEnabled, setting.ModelRequestRateLimitEnabled = db, false, false
+	t.Cleanup(func() {
+		model.DB, common.RedisEnabled, setting.ModelRequestRateLimitEnabled = previousDB, previousRedis, previousRateLimit
+		sqlDB, err := db.DB()
+		if err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+	plugin, err := jsplugin.CompilePlugin(`
+export const meta = {
+  apiVersion: 1, key: "concurrent-query", name: "Concurrency queries", version: "1.0.0",
+  author: {name: "Test"}, models: ["doc"], fetchMode: "per_task",
+  routes: [
+    {method: "POST", path: "/vendor/dynamic", type: "dynamic", decode: "decode", render: "result"},
+    {method: "GET", path: "/vendor/tasks/:task_id", type: "query", render: "result"}
+  ]
+};
+export const native = {
+  decode(ctx) {
+    if (ctx.body.value.query) return {kind: "query", taskIds: ctx.body.value.ids};
+    return {kind: "submit", model: "doc", requestBody: {}};
+  },
+  result(ctx, tasks) { return {ids: (Array.isArray(tasks) ? tasks : [tasks]).map(task => task.task_id)}; }
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+`, jsplugin.Options{})
+	require.NoError(t, err)
+	for _, task := range []model.Task{
+		{TaskID: "owned", UserId: 93001, Platform: "concurrent-query", Status: model.TaskStatusSuccess},
+		{TaskID: "other-user", UserId: 93002, Platform: "concurrent-query", Status: model.TaskStatusSuccess},
+	} {
+		require.NoError(t, db.Create(&task).Error)
+	}
+	authenticate := func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyUserId, 93001)
+		common.SetContextKey(c, constant.ContextKeyUserMaxConcurrency, 1)
+		common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
+		c.Next()
+	}
+	outer, registry := newPluginRouterTest(t, []*jsplugin.LoadedPlugin{plugin}, func(generation *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) []gin.HandlerFunc {
+		handlers := productionPluginRouteHandlers(generation, binding)
+		handlers[1] = authenticate // The authenticated identity is the fixture boundary.
+		return handlers
+	})
+	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	outer.GET("/hold-concurrency", authenticate, middleware.UserConcurrencyLimit(), func(c *gin.Context) { close(entered); <-release })
+	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
+	t.Cleanup(func() { releaseOnce.Do(func() { close(release) }); <-finished })
+	go func() { defer close(finished); performPluginRequest(outer, http.MethodGet, "/hold-concurrency") }()
+	select {
+	case <-entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the user's only slot was not acquired")
+	}
+	for _, step := range []struct {
+		method, path, body string
+		status             int
+	}{
+		{http.MethodPost, "/vendor/dynamic", `{"query":true,"ids":["owned"]}`, http.StatusOK},
+		{http.MethodGet, "/vendor/tasks/owned", "", http.StatusOK},
+		{http.MethodPost, "/vendor/dynamic", `{"query":true,"ids":["other-user"]}`, http.StatusNotFound},
+		{http.MethodPost, "/vendor/dynamic", `{"query":false}`, http.StatusTooManyRequests},
+	} {
+		request := httptest.NewRequest(step.method, step.path, strings.NewReader(step.body))
+		if step.body != "" {
+			request.Header.Set("Content-Type", "application/json")
+		}
+		response := httptest.NewRecorder()
+		outer.ServeHTTP(response, request)
+		assert.Equal(t, step.status, response.Code, "%s %s: %s", step.method, step.path, response.Body.String())
+		if step.status == http.StatusOK {
+			assert.JSONEq(t, `{"ids":["owned"]}`, response.Body.String())
+		}
+	}
 }
 
 func newPluginRouterTest(

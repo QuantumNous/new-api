@@ -4,15 +4,19 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // setupAdminUserTest promotes the enrolled operator to root and creates a
@@ -208,6 +212,167 @@ func TestAdminUserRoutineEditsDoNotRequireProof(t *testing.T) {
 	var count int64
 	require.NoError(t, model.DB.Model(&model.User{}).Where("username = ?", "new-member").Count(&count).Error)
 	assert.EqualValues(t, 1, count)
+}
+
+func TestAdminUserConcurrencyUpdateValidationAndOmittedField(t *testing.T) {
+	operator, identity, target := setupAdminUserTest(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.CasbinRule{}, &model.AuthzRole{}))
+	require.NoError(t, authz.Init(model.DB))
+	require.NoError(t, model.DB.Model(target).Update("max_concurrency", 3).Error)
+	for _, step := range []struct {
+		field   string
+		want    int
+		success bool
+	}{
+		{field: "", want: 3, success: true},
+		{field: `,"max_concurrency":5`, want: 5, success: true},
+		{field: `,"max_concurrency":-1`, want: 5},
+		{field: `,"max_concurrency":1.5`, want: 5},
+		{field: `,"max_concurrency":2147483648`, want: 5},
+		{field: `,"max_concurrency":0`, want: 0, success: true},
+	} {
+		response := adminUserRequest(http.MethodPut, "/api/user/", fmt.Sprintf(`{"id":%d,"username":"managed-user","group":"default"%s}`, target.Id, step.field), "", identity, operator.Role, nil, UpdateUser)
+		var body struct {
+			Success bool `json:"success"`
+		}
+		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+		assert.Equal(t, step.success, body.Success, response.Body.String())
+		stored, err := model.GetUserById(target.Id, false)
+		require.NoError(t, err)
+		assert.Equal(t, step.want, stored.MaxConcurrency)
+		assert.Equal(t, target.AuthVersion, stored.AuthVersion, "operational limits must not invalidate login sessions")
+	}
+	// Editing one's own profile cannot override an administrator's limit.
+	require.NoError(t, model.DB.Model(operator).Update("max_concurrency", 2).Error)
+	response := adminUserRequest(http.MethodPut, "/api/user/self", `{"username":"enrollment-user","display_name":"Renamed","max_concurrency":0}`, "", identity, operator.Role, nil, UpdateSelf)
+	var body struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+	require.True(t, body.Success, response.Body.String())
+	stored, err := model.GetUserById(operator.Id, false)
+	require.NoError(t, err)
+	assert.Equal(t, 2, stored.MaxConcurrency)
+	response = adminUserRequest(http.MethodPost, "/api/user/", `{"username":"new-limited-user","password":"member-password-1","role":1,"max_concurrency":4}`, "", identity, operator.Role, nil, CreateUser)
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+	require.True(t, body.Success, response.Body.String())
+	var created model.User
+	require.NoError(t, model.DB.Where("username = ?", "new-limited-user").First(&created).Error)
+	assert.Equal(t, 4, created.MaxConcurrency)
+}
+
+func TestAdminUserEditOmissionPreservesConcurrentLimitChange(t *testing.T) {
+	for _, omitted := range []string{"", `,"max_concurrency":null`} {
+		t.Run(fmt.Sprintf("field=%s", omitted), func(t *testing.T) {
+			operator, identity, target := setupAdminUserTest(t)
+			require.NoError(t, model.DB.AutoMigrate(&model.CasbinRule{}, &model.AuthzRole{}))
+			require.NoError(t, authz.Init(model.DB))
+			changed := false
+			const callback = "test:change_limit_after_admin_snapshot"
+			require.NoError(t, model.DB.Callback().Query().After("gorm:after_query").Register(callback, func(tx *gorm.DB) {
+				snapshot, ok := tx.Statement.Dest.(*model.User)
+				if !ok || snapshot.Id != target.Id || changed {
+					return
+				}
+				changed = true
+				// Commit the explicit limit update after this edit has read its
+				// original user, but before its transaction begins.
+				concurrent := *snapshot
+				concurrent.MaxConcurrency = 3
+				require.NoError(t, concurrent.Edit(false))
+			}))
+			t.Cleanup(func() { _ = model.DB.Callback().Query().Remove(callback) })
+			response := adminUserRequest(http.MethodPut, "/api/user/", fmt.Sprintf(`{"id":%d,"username":"managed-user","display_name":"Renamed","group":"default"%s}`, target.Id, omitted), "", identity, operator.Role, nil, UpdateUser)
+			var result struct {
+				Success bool `json:"success"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+			require.True(t, result.Success, response.Body.String())
+			require.True(t, changed, "the explicit update must occur between snapshot and transaction")
+			stored, err := model.GetUserById(target.Id, false)
+			require.NoError(t, err)
+			assert.Equal(t, "Renamed", stored.DisplayName)
+			assert.Equal(t, 3, stored.MaxConcurrency)
+			assert.EqualValues(t, 2, stored.ConcurrencyVersion, "omitting the field must not create another policy version")
+			assert.EqualValues(t, 1, stored.AuthVersion)
+		})
+	}
+}
+
+func TestDefaultUserConcurrencyCreation(t *testing.T) {
+	operator, identity, existing := setupAdminUserTest(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.CasbinRule{}, &model.AuthzRole{}, &model.Option{}))
+	require.NoError(t, authz.Init(model.DB))
+	previous := setting.GetDefaultUserMaxConcurrency()
+	previousQuota := common.QuotaForNewUser
+	previousRegister, previousPasswordRegister, previousEmail := common.RegisterEnabled, common.PasswordRegisterEnabled, common.EmailVerificationEnabled
+	common.RegisterEnabled, common.PasswordRegisterEnabled, common.EmailVerificationEnabled = true, true, false
+	common.QuotaForNewUser = 0
+	common.OptionMapRWMutex.Lock()
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
+	oldOption, hadOption := common.OptionMap[setting.DefaultUserMaxConcurrencyOptionKey]
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateDefaultUserMaxConcurrency(strconv.Itoa(previous)))
+		common.QuotaForNewUser = previousQuota
+		common.RegisterEnabled, common.PasswordRegisterEnabled, common.EmailVerificationEnabled = previousRegister, previousPasswordRegister, previousEmail
+		common.OptionMapRWMutex.Lock()
+		defer common.OptionMapRWMutex.Unlock()
+		if hadOption {
+			common.OptionMap[setting.DefaultUserMaxConcurrencyOptionKey] = oldOption
+		} else {
+			delete(common.OptionMap, setting.DefaultUserMaxConcurrencyOptionKey)
+		}
+	})
+	require.NoError(t, model.UpdateOption(setting.DefaultUserMaxConcurrencyOptionKey, "5"))
+	for _, invalid := range []string{"-1", "1.5", "2147483648", ""} {
+		require.Error(t, model.UpdateOption(setting.DefaultUserMaxConcurrencyOptionKey, invalid))
+		require.Error(t, setting.UpdateDefaultUserMaxConcurrency(invalid))
+	}
+	var option model.Option
+	require.NoError(t, model.DB.Where(&model.Option{Key: setting.DefaultUserMaxConcurrencyOptionKey}).First(&option).Error)
+	assert.Equal(t, "5", option.Value)
+	assert.Equal(t, 5, setting.GetDefaultUserMaxConcurrency())
+	common.OptionMapRWMutex.RLock()
+	assert.Equal(t, "5", common.OptionMap[setting.DefaultUserMaxConcurrencyOptionKey])
+	common.OptionMapRWMutex.RUnlock()
+	response := adminUserRequest(http.MethodPost, "/api/user/register", `{"username":"default-register","password":"member-password-1","max_concurrency":0}`, "", identity, 0, nil, Register)
+	var body struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+	require.True(t, body.Success, response.Body.String())
+	var registered model.User
+	require.NoError(t, model.DB.Where("username = ?", "default-register").First(&registered).Error)
+	assert.Equal(t, 5, registered.MaxConcurrency, "untrusted registration data must not override the administrator's default")
+	oauth := model.User{Username: "default-oauth", DisplayName: "OAuth", Role: common.RoleCommonUser}
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error { return oauth.InsertWithTx(tx, 0, nil) }))
+	assert.Equal(t, 5, oauth.MaxConcurrency)
+	for _, tc := range []struct {
+		name, field string
+		want        int
+	}{
+		{"inherited", "", 5}, {"unlimited", `,"max_concurrency":0`, 0}, {"explicit", `,"max_concurrency":3`, 3},
+	} {
+		response = adminUserRequest(http.MethodPost, "/api/user/", fmt.Sprintf(`{"username":%q,"password":"member-password-1","role":1%s}`, "default-"+tc.name, tc.field), "", identity, operator.Role, nil, CreateUser)
+		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+		require.True(t, body.Success, response.Body.String())
+		var created model.User
+		require.NoError(t, model.DB.Where("username = ?", "default-"+tc.name).First(&created).Error)
+		assert.Equal(t, tc.want, created.MaxConcurrency)
+	}
+	require.NoError(t, model.UpdateOption(setting.DefaultUserMaxConcurrencyOptionKey, "0"))
+	var unchanged model.User
+	require.NoError(t, model.DB.First(&unchanged, existing.Id).Error)
+	assert.Equal(t, existing.MaxConcurrency, unchanged.MaxConcurrency)
+	var oldRegistered model.User
+	require.NoError(t, model.DB.First(&oldRegistered, registered.Id).Error)
+	assert.Equal(t, 5, oldRegistered.MaxConcurrency)
+	unlimited := model.User{Username: "default-disabled", DisplayName: "Disabled", Role: common.RoleCommonUser}
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error { return unlimited.InsertWithTx(tx, 0, nil) }))
+	assert.Zero(t, unlimited.MaxConcurrency)
 }
 
 func TestCreateUserRejectsNonStandardRole(t *testing.T) {

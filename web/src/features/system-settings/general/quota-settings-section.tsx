@@ -53,6 +53,25 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const quotaSchema = z.object({
   QuotaForNewUser: z.coerce.number().min(0),
+  DefaultUserMaxConcurrency: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce
+      .number({
+        error: () =>
+          i18next.t(
+            'Default maximum concurrency must be an integer between 0 and 2147483647'
+          ),
+      })
+      .refine(
+        (value) => Number.isInteger(value) && value >= 0 && value <= 2147483647,
+        {
+          error: () =>
+            i18next.t(
+              'Default maximum concurrency must be an integer between 0 and 2147483647'
+            ),
+        }
+      )
+  ),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string(),
@@ -159,6 +178,37 @@ export function QuotaSettingsSection({
                       {
                         formattedQuota: formatQuotaInputValue(field.value),
                       }
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='DefaultUserMaxConcurrency'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    {t('Default maximum concurrent requests for new users')}
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={2147483647}
+                      step={1}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Applies to newly created users. 0 disables the limit; existing users are unchanged.'
                     )}
                   </FormDescription>
                   <FormMessage />

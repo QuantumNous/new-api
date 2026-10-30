@@ -223,6 +223,19 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 	request.ContentLength = int64(len(message))
 	request.Header.Set("Content-Type", "application/json")
 	apiErr = s.runner(request, requestID, func(c *gin.Context) *types.NewAPIError {
+		// Each generation has its own middleware context and concurrency lease.
+		// Cancellation must stop the connection's readers too, not just this call.
+		cancelDone := make(chan struct{})
+		stopCancel := context.AfterFunc(c.Request.Context(), func() {
+			defer close(cancelDone)
+			s.shutdown(websocket.CloseInternalServerErr, "request cancelled")
+		})
+		defer func() {
+			if !stopCancel() {
+				// Keep the lease until the cancellation callback closes both peers.
+				<-cancelDone
+			}
+		}()
 		if parseErr != nil {
 			return newResponsesWSInvalidRequestError(parseErr)
 		}

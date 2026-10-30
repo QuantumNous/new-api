@@ -120,6 +120,10 @@ export function UsersMutateDrawer({
   // routine edits of an administrator do not require step-up verification.
   const loadedPermissions = useRef<AdminPermissionMatrix | undefined>(undefined)
 
+  // Preserve explicit edits, including returning to the loaded value; untouched
+  // limits are omitted so unrelated edits cannot overwrite a newer setting.
+  const maxConcurrencyEdited = useRef(false)
+
   // Fetch groups
   const { data: groupsData } = useQuery({
     queryKey: ['groups'],
@@ -149,6 +153,7 @@ export function UsersMutateDrawer({
         .then((result) => {
           if (result.success && result.data) {
             loadedPermissions.current = result.data.admin_permissions
+            maxConcurrencyEdited.current = false
             form.reset(transformUserToFormDefaults(result.data))
           } else {
             handleServerError(result, t('Failed to load'))
@@ -157,6 +162,7 @@ export function UsersMutateDrawer({
         .catch((error) => handleServerError(error, t('Failed to load')))
     } else if (open && !isUpdate) {
       // For create, reset to defaults
+      maxConcurrencyEdited.current = false
       form.reset(USER_FORM_DEFAULT_VALUES)
     }
   }, [open, isUpdate, currentRow, form, t])
@@ -188,6 +194,9 @@ export function UsersMutateDrawer({
         currentRow?.id,
         permissionCatalog
       )
+      if (isUpdate && !maxConcurrencyEdited.current) {
+        delete payload.max_concurrency
+      }
       if (
         isUpdate &&
         payload.admin_permissions &&
@@ -264,6 +273,7 @@ export function UsersMutateDrawer({
       const result = requireServerSuccess(await getUser(currentRow.id))
       if (result.success && result.data) {
         loadedPermissions.current = result.data.admin_permissions
+        maxConcurrencyEdited.current = false
         form.reset(transformUserToFormDefaults(result.data))
       }
       triggerRefresh()
@@ -404,6 +414,53 @@ export function UsersMutateDrawer({
                           }
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='max_concurrency'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Maximum concurrent requests')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          value={
+                            field.value === undefined ||
+                            Number.isNaN(field.value)
+                              ? ''
+                              : field.value
+                          }
+                          min={0}
+                          max={2147483647}
+                          step={1}
+                          placeholder={
+                            isUpdate ? undefined : t('Use the new user default')
+                          }
+                          onChange={(event) => {
+                            maxConcurrencyEdited.current = true
+                            const value = event.target.valueAsNumber
+                            field.onChange(
+                              Number.isNaN(value) && !isUpdate
+                                ? undefined
+                                : value
+                            )
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {isUpdate
+                          ? t(
+                              'Shared across all API keys and groups for this user. 0 disables the limit. Excess requests return 429 without waiting.'
+                            )
+                          : t(
+                              'Leave empty to use the new user default. Enter 0 for unlimited or a positive limit.'
+                            )}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -71,6 +72,58 @@ func TestUserAuthFenceRollbackExpiresAndRecovers(t *testing.T) {
 	cached, err := GetUserCache(user.Id)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, cached.AuthVersion)
+}
+
+func TestUserConcurrencyCacheRefreshAndLegacySchema(t *testing.T) {
+	truncateTables(t)
+	useUserCacheMiniRedis(t)
+	user := User{Username: "concurrency-cache", Password: "unused", Group: "default", AffCode: "concurrency-cache", AuthVersion: 1, MaxConcurrency: 3}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, populateUserCache(user))
+	cached, err := GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 3, cached.MaxConcurrency)
+	// Old hashes contain no limit field and must be rehydrated before admission.
+	require.NoError(t, common.RDB.HDel(t.Context(), getUserCacheKey(user.Id), "MaxConcurrency").Err())
+	require.NoError(t, common.RDB.HSet(t.Context(), getUserCacheKey(user.Id), "CacheSchema", 2).Err())
+	cached, err = GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 3, cached.MaxConcurrency)
+	user.MaxConcurrency = 0
+	require.NoError(t, user.Edit(false))
+	cached, err = GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Zero(t, cached.MaxConcurrency)
+}
+
+func TestUserConcurrencyCacheRejectsDelayedSnapshots(t *testing.T) {
+	for _, expired := range []bool{false, true} {
+		t.Run(fmt.Sprintf("expired=%t", expired), func(t *testing.T) {
+			truncateTables(t)
+			server := useUserCacheMiniRedis(t)
+			user := User{Username: "concurrency-snapshot", Password: "unused", Group: "default", AffCode: "concurrency-snapshot", AuthVersion: 1}
+			require.NoError(t, DB.Create(&user).Error)
+			require.NoError(t, populateUserCache(user))
+			stale := user
+			user.MaxConcurrency = 3
+			require.NoError(t, user.Edit(false))
+			profile := stale
+			profile.DisplayName = "updated profile"
+			require.NoError(t, profile.Update(false))
+			assert.Equal(t, 3, profile.MaxConcurrency)
+			assert.Equal(t, user.ConcurrencyVersion, profile.ConcurrencyVersion, "profile writes must not roll back the policy version")
+			if expired {
+				server.FastForward(time.Duration(userCacheTTLSeconds()+1) * time.Second)
+			}
+			for _, publish := range []func(User) error{updateUserCache, populateUserCache} {
+				assert.ErrorIs(t, publish(stale), ErrUserConcurrencyCachePending, "a delayed profile snapshot must be rejected")
+				cached, err := GetUserCache(user.Id)
+				require.NoError(t, err)
+				assert.Equal(t, 3, cached.MaxConcurrency)
+				assert.EqualValues(t, 1, cached.AuthVersion, "changing operational limits must preserve login sessions")
+			}
+		})
+	}
 }
 
 func TestPendingUserAuthFenceRejectsStaleCacheWrite(t *testing.T) {

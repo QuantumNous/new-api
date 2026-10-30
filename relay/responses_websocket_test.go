@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -17,6 +20,9 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/coze"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
+	"github.com/QuantumNous/new-api/relay/channel/volcengine"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -660,6 +666,218 @@ func TestResponsesWSShutdownInterruptsBusyWriter(t *testing.T) {
 	require.NoError(t, latePeer.SetReadDeadline(time.Now().Add(time.Second)))
 	_, _, err := latePeer.ReadMessage()
 	assert.True(t, websocket.IsCloseError(err, websocket.CloseNormalClosure), "want a 1000 close frame, got %v", err)
+}
+
+func TestRealtimeRequestCancellationClosesBothPeers(t *testing.T) {
+	client, server, cleanupClient := newTestWebSocketPair(t)
+	defer cleanupClient()
+	target, upstream, cleanupTarget := newTestWebSocketPair(t)
+	defer cleanupTarget()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/realtime", nil).WithContext(ctx)
+	require.Nil(t, c.Done(), "the default Gin configuration does not forward request cancellation")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = openai.OpenaiRealtimeHandler(c, &relaycommon.RelayInfo{ClientWs: server, TargetWs: target})
+	}()
+	cancel()
+	for _, peer := range []*websocket.Conn{client, upstream} {
+		require.NoError(t, peer.SetReadDeadline(time.Now().Add(2*time.Second)))
+		_, _, err := peer.ReadMessage()
+		assert.Error(t, err)
+		var netErr net.Error
+		assert.False(t, errors.As(err, &netErr) && netErr.Timeout(), "cancellation must close the socket, not leave its reader blocked")
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Realtime continued after request cancellation")
+	}
+}
+
+type cancellationRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f cancellationRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+func TestCozeRequestCancellation(t *testing.T) {
+	for _, stage := range []string{"retrieve", "detail", "polling-delay"} {
+		t.Run(stage, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				settings := dto.ChannelSettings{Proxy: "http://" + stage + ".coze-cancellation.invalid:80"}
+				client, err := service.GetHttpClientWithProxySettings(settings.Proxy, settings)
+				require.NoError(t, err)
+				t.Cleanup(func() { service.InvalidateProxyClient(settings.Proxy) })
+				polls := 0
+				client.Transport = cancellationRoundTripper(func(request *http.Request) (*http.Response, error) {
+					body := `{"code":0,"data":{"id":"chat-1","conversation_id":"conversation-1"}}`
+					switch request.URL.Path {
+					case "/v3/chat/retrieve":
+						polls++
+						if stage == "polling-delay" {
+							if polls > 1 {
+								return nil, context.Canceled
+							}
+							cancel()
+							body = `{"code":0,"data":{"status":"in_progress"}}`
+						} else if stage == "detail" {
+							body = `{"code":0,"data":{"status":"completed"}}`
+						} else {
+							cancel()
+							if request.Context().Done() == nil {
+								return nil, errors.New("poll request ignored cancellation")
+							}
+							<-request.Context().Done()
+							return nil, request.Context().Err()
+						}
+					case "/v3/chat/message/list":
+						cancel()
+						if request.Context().Done() == nil {
+							return nil, errors.New("detail request ignored cancellation")
+						}
+						<-request.Context().Done()
+						return nil, request.Context().Err()
+					}
+					return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: request}, nil
+				})
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(ctx)
+				info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://coze.example", ChannelSetting: settings}}
+				started := time.Now()
+				_, err = (&coze.Adaptor{}).DoRequest(c, info, strings.NewReader(`{}`))
+				require.ErrorIs(t, err, context.Canceled)
+				if stage == "polling-delay" {
+					assert.Equal(t, time.Duration(0), time.Since(started), "cancellation must interrupt the polling delay")
+					assert.Equal(t, 1, polls, "cancellation must prevent another poll")
+				}
+			})
+		})
+	}
+}
+
+func TestVolcengineTTSRequestCancellation(t *testing.T) {
+	for _, stage := range []string{"dial", "handshake", "read"} {
+		t.Run(stage, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			upstreamReady := make(chan *websocket.Conn, 1)
+			handshakeReady := make(chan struct{})
+			stopUpstream := make(chan struct{})
+			upgrader := websocket.Upgrader{}
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+				if stage == "handshake" {
+					close(handshakeReady)
+					select {
+					case <-request.Context().Done():
+					case <-stopUpstream:
+					}
+					return
+				}
+				conn, err := upgrader.Upgrade(w, request, nil)
+				if assert.NoError(t, err) {
+					upstreamReady <- conn
+				}
+			}))
+			defer upstream.Close()
+			defer close(stopUpstream)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/audio/speech", nil).WithContext(ctx)
+			info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeAudioSpeech, ChannelMeta: &relaycommon.ChannelMeta{ApiKey: "app|token", ChannelBaseUrl: "ws" + strings.TrimPrefix(upstream.URL, "http")}}
+			adaptor := &volcengine.Adaptor{}
+			_, err := adaptor.ConvertAudioRequest(c, info, dto.AudioRequest{Input: "hello", Voice: "alloy"})
+			require.NoError(t, err)
+			if stage == "dial" {
+				cancel()
+			}
+			done := make(chan *types.NewAPIError, 1)
+			go func() { _, apiErr := adaptor.DoResponse(c, nil, info); done <- apiErr }()
+			if stage == "handshake" {
+				select {
+				case <-handshakeReady:
+				case <-time.After(2 * time.Second):
+					t.Fatal("TTS did not start its handshake")
+				}
+				cancel()
+			}
+			if stage == "read" {
+				var peer *websocket.Conn
+				select {
+				case peer = <-upstreamReady:
+				case <-time.After(2 * time.Second):
+					t.Fatal("TTS did not connect")
+				}
+				defer peer.Close()
+				require.NoError(t, peer.SetReadDeadline(time.Now().Add(2*time.Second)))
+				_, _, err = peer.ReadMessage()
+				require.NoError(t, err, "TTS must send its request before cancellation")
+				cancel()
+				_, _, err = peer.ReadMessage()
+				require.Error(t, err)
+				var netErr net.Error
+				assert.False(t, errors.As(err, &netErr) && netErr.Timeout(), "cancellation must close the upstream socket")
+			}
+			select {
+			case apiErr := <-done:
+				require.NotNil(t, apiErr)
+			case <-time.After(2 * time.Second):
+				// Unblock the old implementation too, so a failing regression
+				// never leaves an upstream socket or test goroutine behind.
+				select {
+				case peer := <-upstreamReady:
+					_ = peer.Close()
+				default:
+				}
+				t.Fatal("TTS continued after request cancellation")
+			}
+		})
+	}
+}
+
+func TestResponsesWSCancellationFinishesBeforeRequestRelease(t *testing.T) {
+	_, client, cleanupClient := newTestWebSocketPair(t)
+	defer cleanupClient()
+	target, _, cleanupTarget := newTestWebSocketPair(t)
+	defer cleanupTarget()
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		shutdownStarted := make(chan struct{})
+		allowShutdown := make(chan struct{})
+		finishRunner := make(chan struct{})
+		released := make(chan struct{})
+		s := &responsesWSSession{ctx: ctx, client: client, target: target, request: httptest.NewRequest(http.MethodPost, "/v1/responses", nil)}
+		s.cancel = func() { cancel(); close(shutdownStarted); <-allowShutdown }
+		s.runner = func(request *http.Request, _ string, run func(*gin.Context) *types.NewAPIError) *types.NewAPIError {
+			requestCtx, cancelRequest := context.WithCancel(request.Context())
+			cancelRequest()
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = request.WithContext(requestCtx)
+			_ = run(c)
+			close(released)
+			<-finishRunner
+			return nil
+		}
+		state := &responsesWSCallState{done: make(chan struct{})}
+		go s.runRequest(state, []byte(`{`), responsesWSCreateEvent{}, "", "cancel-test")
+		<-shutdownStarted
+		synctest.Wait()
+		select {
+		case <-released:
+			t.Error("generation returned to its runner before upstream shutdown finished")
+		default:
+		}
+		close(allowShutdown)
+		<-released
+		assert.Error(t, target.WriteMessage(websocket.TextMessage, []byte("closed")), "the runner may release its lease only after the upstream is closed")
+		close(finishRunner)
+		<-state.done
+	})
 }
 
 func TestResponsesWSPassthroughPreservesRawPricingParameters(t *testing.T) {

@@ -27,11 +27,14 @@ import { quotaUnitsToDollars } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 
 import { DEFAULT_GROUP } from '../constants'
-import { type UserFormData, type User } from '../types'
+import type { UserFormData, User } from '../types'
 
 // ============================================================================
 // Form Schema
 // ============================================================================
+
+const MAX_CONCURRENCY_ERROR =
+  'Maximum concurrency must be an integer between 0 and 2147483647'
 
 export const userFormSchema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -41,6 +44,12 @@ export const userFormSchema = z.object({
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
   remark: z.string().optional(),
+  max_concurrency: z
+    .number({ error: MAX_CONCURRENCY_ERROR })
+    .int(MAX_CONCURRENCY_ERROR)
+    .min(0, MAX_CONCURRENCY_ERROR)
+    .max(2147483647, MAX_CONCURRENCY_ERROR)
+    .optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -60,6 +69,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   quota_dollars: 0,
   group: DEFAULT_GROUP,
   remark: '',
+  max_concurrency: undefined,
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
 }
@@ -80,6 +90,7 @@ export function transformFormDataToPayload(
     username: data.username,
     display_name: data.display_name || data.username,
     password: data.password || undefined,
+    max_concurrency: data.max_concurrency,
   }
 
   const role = userId === undefined ? data.role || 1 : (data.role ?? 0)
@@ -121,6 +132,7 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
+    max_concurrency: user.max_concurrency ?? 0,
     admin_permissions: user.admin_permissions ?? {},
   }
 }

@@ -650,8 +650,15 @@ func GetUserModels(c *gin.Context) {
 }
 
 func UpdateUser(c *gin.Context) {
-	var updatedUser model.User
-	err := common.DecodeJson(c.Request.Body, &updatedUser)
+	var request struct {
+		model.User
+		MaxConcurrency *int `json:"max_concurrency"`
+	}
+	err := common.DecodeJson(c.Request.Body, &request)
+	updatedUser := request.User
+	if request.MaxConcurrency != nil {
+		updatedUser.MaxConcurrency = *request.MaxConcurrency
+	}
 	if err != nil || updatedUser.Id == 0 {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
@@ -685,6 +692,9 @@ func UpdateUser(c *gin.Context) {
 		"username": originUser.Username,
 		"id":       updatedUser.Id,
 	}
+	if request.MaxConcurrency != nil {
+		auditParams["max_concurrency"] = *request.MaxConcurrency
+	}
 	// Resetting a password or rewriting the admin permission matrix changes what
 	// the managed account can do or who can sign in to it.
 	if updatePassword || updatedUser.AdminPermissions != nil {
@@ -698,7 +708,7 @@ func UpdateUser(c *gin.Context) {
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
-		if err := updatedUser.EditWithTx(tx, updatePassword); err != nil {
+		if err := updatedUser.EditWithTx(tx, updatePassword, request.MaxConcurrency); err != nil {
 			return err
 		}
 		touched, err := updateAdminPermissionsForUserInTx(c, tx, updatedUser.Id, originUser.Role, updatedUser.AdminPermissions)
@@ -997,8 +1007,15 @@ func DeleteSelf(c *gin.Context) {
 }
 
 func CreateUser(c *gin.Context) {
-	var user model.User
-	err := common.DecodeJson(c.Request.Body, &user)
+	var request struct {
+		model.User
+		MaxConcurrency *int `json:"max_concurrency"`
+	}
+	err := common.DecodeJson(c.Request.Body, &request)
+	user := request.User
+	if request.MaxConcurrency != nil {
+		user.MaxConcurrency = *request.MaxConcurrency
+	}
 	user.Username = strings.TrimSpace(user.Username)
 	if err != nil || user.Username == "" || user.Password == "" {
 		common.ApiErrorT(c, "Invalid parameters")
@@ -1038,7 +1055,7 @@ func CreateUser(c *gin.Context) {
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
-		if err := cleanUser.InsertWithTx(tx, 0); err != nil {
+		if err := cleanUser.InsertWithTx(tx, 0, request.MaxConcurrency); err != nil {
 			return err
 		}
 		touched, err := updateAdminPermissionsForUserInTx(c, tx, cleanUser.Id, cleanUser.Role, user.AdminPermissions)
