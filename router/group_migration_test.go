@@ -51,7 +51,8 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	common.NodeName = os.Getenv("TEST_MIGRATION_CHILD")
 	common.SessionSecret = "group-migration-process-test-session-secret"
-	common.RedisEnabled, common.MemoryCacheEnabled = false, true
+	common.RedisEnabled = false
+	common.MemoryCacheEnabled = os.Getenv("TEST_GROUP_MIGRATION_MEMORY_CACHE") == "true"
 	common.IsMasterNode = false
 	var driver gorm.Dialector = sqlite.Open(os.Getenv("TEST_MIGRATION_SQLITE") + "?_pragma=busy_timeout(10000)&_pragma=journal_mode(WAL)")
 	databaseType := common.DatabaseTypeSQLite
@@ -75,14 +76,28 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	}
 	if os.Getenv("TEST_MIGRATION_SEED") == "true" {
 		require.NoError(t, db.Create(&model.Option{Key: "GroupRatio", Value: `{"default":1,"routing":0.6}`}).Error)
-		require.NoError(t, db.Create(&model.Option{Key: "UserUsableGroups", Value: `{"routing":"Premium access"}`}).Error)
+		require.NoError(t, db.Create(&model.Option{Key: "UserUsableGroups", Value: `{"routing":"Premium access","auto":"Automatic"}`}).Error)
 		root := model.User{Username: "cluster-root", AffCode: "cluster-root", Role: common.RoleRootUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, Quota: 100000}
 		user := model.User{Username: "cluster-user", AffCode: "cluster-user", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "routing", AuthVersion: 1, Quota: 7000}
 		require.NoError(t, db.Create(&root).Error)
 		require.NoError(t, db.Create(&user).Error)
-		for i, group := range []string{"routing", ""} {
-			require.NoError(t, db.Create(&model.Token{UserId: user.Id, Key: strings.Repeat(strconv.Itoa(i+1), 48), Group: group, Status: common.TokenStatusEnabled, ExpiredTime: -1, UnlimitedQuota: true}).Error)
+		for key, value := range map[string]string{
+			"AutoGroups":      `["routing"]`,
+			"GroupGroupRatio": `{"routing":{"routing":0.6}}`,
+			"group_ratio_setting.group_special_usable_group": `{"routing":{"+:routing":"Premium access"}}`,
+			"TopupGroupRatio":            `{"routing":0.85}`,
+			"ModelRequestRateLimitGroup": `{"routing":[120,60]}`,
+		} {
+			require.NoError(t, db.Create(&model.Option{Key: key, Value: value}).Error)
 		}
+		for i, token := range []model.Token{{Group: "routing"}, {Group: ""}, {Group: "auto"}, {Group: "auto", AutoGroups: `["routing"]`, CrossGroupRetry: true}} {
+			token.UserId, token.Key = user.Id, strings.Repeat(strconv.Itoa(i+1), 48)
+			token.Status, token.ExpiredTime, token.UnlimitedQuota = common.TokenStatusEnabled, -1, true
+			require.NoError(t, db.Create(&token).Error)
+		}
+		plan := model.SubscriptionPlan{Title: "cluster-plan", UpgradeGroup: "routing", DowngradeGroup: "routing", Enabled: true, DurationUnit: model.SubscriptionDurationDay, DurationValue: 1}
+		require.NoError(t, db.Create(&plan).Error)
+		require.NoError(t, db.Create(&model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", UpgradeGroup: "routing", DowngradeGroup: "routing", PrevUserGroup: "routing", EndTime: time.Now().Unix() + 3600}).Error)
 		baseURL := os.Getenv("TEST_MIGRATION_UPSTREAM")
 		channel := model.Channel{Type: constant.ChannelTypeOpenAI, Key: "fixture-upstream-key", Name: "cluster-routing", Status: common.ChannelStatusEnabled, Group: "routing", Models: "migration-probe", BaseURL: &baseURL}
 		require.NoError(t, db.Create(&channel).Error)
@@ -110,8 +125,12 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	engine := gin.New()
 	SetApiRouter(engine)
 	engine.POST("/v1/chat/completions", middleware.TokenAuth(), middleware.Distribute(), func(c *gin.Context) {
-		c.Header("X-Routed-Group", common.GetContextKeyString(c, constant.ContextKeyUsingGroup))
-		c.Header("X-Routing-Ratio", strconv.FormatFloat(service.GetUserGroupRatio(c.GetString("user_group"), common.GetContextKeyString(c, constant.ContextKeyUsingGroup)), 'f', -1, 64))
+		group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+		if group == "auto" {
+			group = common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+		}
+		c.Header("X-Routed-Group", group)
+		c.Header("X-Routing-Ratio", strconv.FormatFloat(service.GetUserGroupRatio(c.GetString("user_group"), group), 'f', -1, 64))
 		target, err := url.Parse(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl))
 		require.NoError(t, err)
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(c.Writer, c.Request)
@@ -251,20 +270,23 @@ func (process *migrationProcess) waitState(t *testing.T, id, state string) model
 func TestGroupMigrationCluster(t *testing.T) {
 	held, release := make(chan struct{}, 1), make(chan struct{})
 	var once sync.Once
-	t.Cleanup(func() { once.Do(func() { close(release) }) })
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Migration-Hold") == "true" {
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = w.Write([]byte("data: first\n\n"))
+			w.(http.Flusher).Flush()
 			held <- struct{}{}
 			<-release
 		}
 		_, _ = w.Write([]byte(`{"upstream":"original"}`))
 	}))
 	t.Cleanup(upstream.Close)
+	t.Cleanup(func() { once.Do(func() { close(release) }) })
 	database := filepath.Join(t.TempDir(), "cluster.db")
 	a := startMigrationProcess(t, database, "migration-a", upstream.URL, true, "")
 	b := startMigrationProcess(t, database, "migration-b", upstream.URL, false, "")
 	for _, process := range []*migrationProcess{a, b} {
-		for _, key := range []string{"1", "2"} {
+		for _, key := range []string{"1", "2", "3", "4"} {
 			response := process.relay(false, key)
 			require.NoError(t, response.err)
 			require.Equal(t, http.StatusOK, response.status, string(response.body))
@@ -347,7 +369,7 @@ func TestGroupMigrationCluster(t *testing.T) {
 	require.Equal(t, http.StatusOK, status, string(body))
 	require.Contains(t, string(body), `"state":"completed"`)
 	for _, process := range []*migrationProcess{a, b} {
-		for _, key := range []string{"1", "2"} {
+		for _, key := range []string{"1", "2", "3", "4"} {
 			response := process.relay(false, key)
 			require.NoError(t, response.err)
 			require.Equal(t, http.StatusOK, response.status, string(response.body))
@@ -459,6 +481,66 @@ func TestUnusedGroupMigration(t *testing.T) {
 		engine.ServeHTTP(rec, req)
 		return rec
 	}
+	t.Run("all migration routes enforce the current root session", func(t *testing.T) {
+		routes := []struct{ method, path string }{
+			{http.MethodGet, "/api/option/group_migration/preview?source=unused&target=premium"},
+			{http.MethodPost, "/api/option/group_migration"},
+			{http.MethodGet, "/api/option/group_migration"},
+			{http.MethodGet, "/api/option/group_migration/not-authorized"},
+			{http.MethodPost, "/api/option/group_migration/not-authorized/resume"},
+		}
+		for _, scenario := range []struct {
+			name, credential, sessionStatus string
+			role, status                    int
+			expiresAt                       int64
+		}{
+			{"anonymous with refresh cookie", "", model.UserSessionStatusActive, common.RoleRootUser, http.StatusUnauthorized, now + 3600},
+			{"tampered bearer", credential + "x", model.UserSessionStatusActive, common.RoleRootUser, http.StatusUnauthorized, now + 3600},
+			{"ordinary user", credential, model.UserSessionStatusActive, common.RoleCommonUser, http.StatusForbidden, now + 3600},
+			{"administrator", credential, model.UserSessionStatusActive, common.RoleAdminUser, http.StatusForbidden, now + 3600},
+			{"expired session", credential, model.UserSessionStatusActive, common.RoleRootUser, http.StatusUnauthorized, now - 1},
+			{"revoked session", credential, model.UserSessionStatusRevoked, common.RoleRootUser, http.StatusUnauthorized, now + 3600},
+		} {
+			t.Run(scenario.name, func(t *testing.T) {
+				require.NoError(t, db.Model(&root).Update("role", scenario.role).Error)
+				require.NoError(t, model.PublishUserAuthCache(root.Id))
+				session := model.UserSession{SID: "migration-" + strings.ReplaceAll(scenario.name, " ", "-"), UserID: root.Id, Version: 1, UserAuthVersion: 1, Status: model.UserSessionStatusActive, RefreshHash: "test-refresh-hash", LoginMethod: "password", LastActiveAt: now, ExpiresAt: scenario.expiresAt}
+				if scenario.expiresAt <= now {
+					// Seed an already expired session without publishing an active cache entry.
+					require.NoError(t, db.Create(&session).Error)
+				} else {
+					require.NoError(t, model.CreateUserSession(&session))
+				}
+				if scenario.sessionStatus == model.UserSessionStatusRevoked {
+					revoked, err := model.RevokeUserSession(root.Id, session.SID, "test-revoke")
+					require.NoError(t, err)
+					require.True(t, revoked)
+				}
+				scenarioCredential := scenario.credential
+				if scenarioCredential == credential {
+					scenarioCredential, _, err = service.IssueAccessToken(service.AuthIdentity{UserID: root.Id, SessionID: session.SID, UserAuthVersion: 1, SessionVersion: 1})
+					require.NoError(t, err)
+				}
+				for _, route := range routes {
+					req := httptest.NewRequest(route.method, route.path, strings.NewReader(`{}`))
+					req.Header.Set("Content-Type", "application/json")
+					req.Header.Set("Origin", "https://untrusted.example")
+					req.AddCookie(&http.Cookie{Name: service.RefreshCookieName, Value: "migration-session.test-refresh-hash"})
+					if scenarioCredential != "" {
+						req.Header.Set("Authorization", "Bearer "+scenarioCredential)
+					}
+					rec := httptest.NewRecorder()
+					engine.ServeHTTP(rec, req)
+					assert.Equal(t, scenario.status, rec.Code, "%s %s: %s", route.method, route.path, rec.Body.String())
+				}
+			})
+		}
+		require.NoError(t, db.Model(&root).Update("role", common.RoleRootUser).Error)
+		require.NoError(t, model.PublishUserAuthCache(root.Id))
+		var operations int64
+		require.NoError(t, db.Model(&model.GroupMigrationOperation{}).Count(&operations).Error)
+		assert.Zero(t, operations)
+	})
 	preview := request(http.MethodGet, "/api/option/group_migration/preview?source=unused&target=premium", nil)
 	t.Run("a declared cluster requires every participant even with the single node flag", func(t *testing.T) {
 		t.Setenv("GROUP_MIGRATION_NODES", "migration-a,migration-b")
@@ -743,19 +825,49 @@ func TestUnusedGroupMigration(t *testing.T) {
 		require.NoError(t, db.Create(&disabledAbility).Error)
 		history := model.Task{TaskID: "historical-routing", UserId: user.Id, Group: "routing", Status: model.TaskStatusSuccess, Quota: 123}
 		require.NoError(t, db.Create(&history).Error)
+		// Keep historical usage and audit data in a genuinely separate store.
+		var logDriver gorm.Dialector = sqlite.Open(filepath.Join(t.TempDir(), "history.db"))
+		logType := common.DatabaseTypeSQLite
+		if dsn := os.Getenv("TEST_GROUP_MIGRATION_LOG_DSN"); dsn != "" {
+			if dialect == "mysql" {
+				logDriver, logType = mysql.Open(dsn), common.DatabaseTypeMySQL
+			} else if dialect == "postgres" {
+				logDriver, logType = postgres.Open(dsn), common.DatabaseTypePostgreSQL
+			}
+		}
+		logDB, err := gorm.Open(logDriver, &gorm.Config{})
+		require.NoError(t, err)
+		require.NoError(t, logDB.AutoMigrate(&model.Log{}, &model.AuditLog{}))
+		previousLogDB, previousLogType := model.LOG_DB, common.LogDatabaseType()
+		model.LOG_DB = logDB
+		common.SetLogDatabaseType(logType)
+		t.Cleanup(func() {
+			model.LOG_DB = previousLogDB
+			common.SetLogDatabaseType(previousLogType)
+			connection, err := logDB.DB()
+			require.NoError(t, err)
+			require.NoError(t, connection.Close())
+		})
 		log := model.AuditLog{EventId: "historical-routing", UserId: user.Id, Content: "historical routing"}
-		require.NoError(t, db.Create(&log).Error)
+		require.NoError(t, logDB.Create(&log).Error)
+		usage := model.Log{UserId: user.Id, Group: "routing", Content: "historical usage", Quota: 123}
+		require.NoError(t, logDB.Create(&usage).Error)
 		// Unfinished inherited tasks prevent execution before any resource changes.
 		pendingTask := model.Task{TaskID: "pending-routing", UserId: user.Id, Status: model.TaskStatusInProgress}
 		require.NoError(t, db.Create(&pendingTask).Error)
 		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=migrated", nil).Body.String(), "Related unfinished tasks")
 		require.NoError(t, db.Delete(&pendingTask).Error)
-		plan := model.SubscriptionPlan{Title: "routing-subscription", UpgradeGroup: "routing"}
+		plan := model.SubscriptionPlan{Title: "routing-subscription", UpgradeGroup: "routing", DowngradeGroup: "routing", Enabled: true, DurationUnit: model.SubscriptionDurationDay, DurationValue: 7}
 		require.NoError(t, db.Create(&plan).Error)
+		subscription := model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", UpgradeGroup: "routing", DowngradeGroup: "routing", PrevUserGroup: "routing", EndTime: now - 1, AmountTotal: 321, AmountUsed: 17}
+		require.NoError(t, db.Create(&subscription).Error)
+		order := model.SubscriptionOrder{UserId: autoUser.Id, PlanId: plan.Id, TradeNo: "mixed-migration-order", Money: 2.5, Status: common.TopUpStatusPending, PaymentProvider: model.PaymentProviderEpay, PaymentMethod: "alipay"}
+		require.NoError(t, db.Create(&order).Error)
+		_, err = model.GetSubscriptionPlanById(plan.Id)
+		require.NoError(t, err, "warm the plan cache before the combined cutover")
 		var subscriptionPreview struct{ Data model.GroupMigrationPreview }
 		require.NoError(t, common.Unmarshal(request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=migrated", nil).Body.Bytes(), &subscriptionPreview))
 		assert.Empty(t, subscriptionPreview.Data.ExecutionBlockers)
-		require.NoError(t, db.Delete(&plan).Error)
 		model.InitChannelCache()
 		held := make(chan struct{}, len(keys))
 		releaseHeld := make(chan struct{})
@@ -805,6 +917,17 @@ func TestUnusedGroupMigration(t *testing.T) {
 		require.NoError(t, common.Unmarshal(request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=migrated", nil).Body.Bytes(), &preview))
 		require.Empty(t, preview.Data.ExecutionBlockers)
 		require.Empty(t, preview.Data.Blockers)
+		assert.Equal(t, model.GroupReferenceCount{Records: 1, References: 2}, preview.Data.Counts["subscription_plans"])
+		assert.Equal(t, model.GroupReferenceCount{Records: 1, References: 3}, preview.Data.Counts["subscriptions"])
+		// A confirmation cannot authorize a changed target or newly admitted task.
+		submission := model.GroupMigrationSubmission{OperationID: "mixed-stale", Source: "routing", Target: "migrated", Version: preview.Data.Version, Confirmation: preview.Data.Confirmation}
+		require.Contains(t, request(http.MethodPatch, "/api/option/group_settings", map[string]string{"GroupRatio": `{"default":1,"premium":0.75,"routing":0.6,"routing-extra":0.9,"migrated":0.5}`}).Body.String(), `"success":true`)
+		assert.Equal(t, http.StatusConflict, request(http.MethodPost, "/api/option/group_migration", submission).Code)
+		require.Contains(t, request(http.MethodPatch, "/api/option/group_settings", map[string]string{"GroupRatio": `{"default":1,"premium":0.75,"routing":0.6,"routing-extra":0.9}`}).Body.String(), `"success":true`)
+		require.NoError(t, db.Create(&pendingTask).Error)
+		assert.Equal(t, http.StatusConflict, request(http.MethodPost, "/api/option/group_migration", submission).Code)
+		require.NoError(t, db.Delete(&pendingTask).Error)
+		require.NoError(t, common.Unmarshal(request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=migrated", nil).Body.Bytes(), &preview))
 		beforeCutover := model.GroupRequestVersion()
 		// Fail only after all user/token/channel/ability updates have executed.
 		require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:used-migration-failure", func(tx *gorm.DB) {
@@ -827,6 +950,12 @@ func TestUnusedGroupMigration(t *testing.T) {
 		var unchangedAbility model.Ability
 		require.NoError(t, db.Where("channel_id = ?", channel.Id).First(&unchangedAbility).Error)
 		assert.Equal(t, "routing", unchangedAbility.Group)
+		var unchangedPlan model.SubscriptionPlan
+		require.NoError(t, db.First(&unchangedPlan, plan.Id).Error)
+		assert.Equal(t, plan, unchangedPlan)
+		var unchangedSubscription model.UserSubscription
+		require.NoError(t, db.First(&unchangedSubscription, subscription.Id).Error)
+		assert.Equal(t, subscription, unchangedSubscription)
 		for _, key := range keys {
 			call(key)
 		}
@@ -891,6 +1020,10 @@ func TestUnusedGroupMigration(t *testing.T) {
 		assert.ErrorIs(t, db.Create(&model.Task{TaskID: "blocked-inherited", UserId: user.Id}).Error, model.ErrGroupMigrationPaused)
 		assert.ErrorIs(t, db.Create(&model.Midjourney{UserId: user.Id}).Error, model.ErrGroupMigrationPaused)
 		assert.ErrorIs(t, db.Model(&keys[0]).Update("group", "routing").Error, model.ErrGroupMigrationPaused)
+		assert.ErrorIs(t, model.CompleteSubscriptionOrder(order.TradeNo, "paid", model.PaymentProviderEpay, ""), model.ErrGroupMigrationPaused)
+		_, err = model.ExpireDueSubscriptions(200)
+		assert.ErrorIs(t, err, model.ErrGroupMigrationPaused)
+		assert.Equal(t, http.StatusConflict, request(http.MethodPost, "/api/option/group_migration", model.GroupMigrationSubmission{OperationID: "mixed-concurrent", Source: "routing-extra", Target: "other", Version: preview.Data.Version, Confirmation: preview.Data.Confirmation}).Code)
 		select {
 		case <-migrated:
 			t.Fatal("migration completed before accepted requests drained")
@@ -925,6 +1058,30 @@ func TestUnusedGroupMigration(t *testing.T) {
 		}
 		require.Equal(t, http.StatusOK, result.Code, result.Body.String())
 		require.Contains(t, result.Body.String(), `"state":"completed"`)
+		var completed struct{ Data model.GroupMigrationOperation }
+		require.NoError(t, common.Unmarshal(result.Body.Bytes(), &completed))
+		var actualCounts map[string]model.GroupReferenceCount
+		require.NoError(t, common.UnmarshalJsonStr(completed.Data.Counts, &actualCounts))
+		assert.Equal(t, preview.Data.Counts, actualCounts, "the mixed preview describes the committed transaction")
+		var audit model.AuditLog
+		require.NoError(t, logDB.Where("action = ?", "group_migration").Order("id DESC").First(&audit).Error)
+		assert.True(t, audit.Success)
+		assert.Equal(t, root.Id, audit.UserId)
+		require.NotNil(t, audit.Other.Op)
+		for key, expected := range map[string]string{"source": "routing", "target": "migrated", "state": "completed", "counts": completed.Data.Counts} {
+			encoded, err := common.Marshal(audit.Other.Op.Params[key])
+			require.NoError(t, err)
+			var actual string
+			require.NoError(t, common.Unmarshal(encoded, &actual))
+			assert.Equal(t, expected, actual, key)
+		}
+		encodedAudit, err := common.Marshal(audit)
+		require.NoError(t, err)
+		for _, secret := range []string{credential, keys[0].Key, keys[1].Key, "routing-test-refresh", "test-refresh-hash"} {
+			assert.NotContains(t, string(encodedAudit), secret)
+		}
+		replay := model.GroupMigrationSubmission{OperationID: completed.Data.ID, Source: "routing", Target: "migrated", Version: preview.Data.Version, Confirmation: preview.Data.Confirmation}
+		require.Contains(t, request(http.MethodPost, "/api/option/group_migration", replay).Body.String(), `"state":"completed"`)
 		resumeAuthOnce.Do(func() { close(resumeAuth) })
 		select {
 		case rec := <-stalePlayground:
@@ -972,12 +1129,37 @@ func TestUnusedGroupMigration(t *testing.T) {
 		require.NoError(t, db.First(&historical, history.ID).Error)
 		assert.Equal(t, history, historical)
 		var historicalLog model.AuditLog
-		require.NoError(t, db.First(&historicalLog, log.Id).Error)
+		require.NoError(t, logDB.First(&historicalLog, log.Id).Error)
 		assert.Equal(t, log, historicalLog)
+		var historicalUsage model.Log
+		require.NoError(t, logDB.First(&historicalUsage, usage.Id).Error)
+		assert.Equal(t, usage, historicalUsage)
 		assert.JSONEq(t, `{"migrated":{"migrated":0.6,"routing-extra":0.7},"routing-extra":{"migrated":0.55}}`, ratio_setting.GroupGroupRatio2JSONString())
 		assert.JSONEq(t, `{"migrated":{"+:migrated":"Original access","-:default":"Hidden","routing-extra":"Other access"},"routing-extra":{"-:migrated":"Hidden"},"default":{"+:migrated":"Granted"}}`, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.MarshalJSONString())
 		assert.JSONEq(t, `{"migrated":0.85,"routing-extra":0.95}`, common.TopupGroupRatio2JSONString())
 		assert.JSONEq(t, `{"migrated":[120,60],"routing-extra":[90,60]}`, setting.ModelRequestRateLimitGroup2JSONString())
+		cachedPlan, err := model.GetSubscriptionPlanById(plan.Id)
+		require.NoError(t, err)
+		assert.Equal(t, "migrated", cachedPlan.UpgradeGroup)
+		assert.Equal(t, "migrated", cachedPlan.DowngradeGroup)
+		for range 2 {
+			require.NoError(t, model.CompleteSubscriptionOrder(order.TradeNo, "paid", model.PaymentProviderEpay, ""))
+		}
+		purchased, err := model.GetAllUserSubscriptions(autoUser.Id)
+		require.NoError(t, err)
+		require.Len(t, purchased, 1)
+		assert.Equal(t, "migrated", purchased[0].Subscription.UpgradeGroup)
+		count, err := model.ExpireDueSubscriptions(200)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+		require.NoError(t, db.First(&unchangedSubscription, subscription.Id).Error)
+		assert.Equal(t, "expired", unchangedSubscription.Status)
+		assert.Equal(t, int64(17), unchangedSubscription.AmountUsed)
+		for _, key := range keys {
+			call(key)
+		}
+		assert.Contains(t, request(http.MethodPost, "/api/token/", map[string]any{"name": "old-name", "group": "routing", "expired_time": -1, "unlimited_quota": true}).Body.String(), `"success":false`)
+		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=another", nil).Body.String(), "Source group does not exist")
 	})
 	t.Run("subscription transitions survive migration and retry", func(t *testing.T) {
 		oldStripeSecret, oldStripeWebhook, oldStripePrice := setting.StripeApiSecret, setting.StripeWebhookSecret, setting.StripePriceId
