@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"os"
 	"reflect"
 	"strings"
 
@@ -133,6 +134,16 @@ func guardGroupReferenceWrite(tx *gorm.DB) {
 	}
 	if writer, ok := tx.Statement.Context.Value(groupMigrationWriterKey{}).(groupMigrationWriter); ok && writer.operation == control.OperationID && writer.owner == control.Owner && writer.operation != "" {
 		return
+	}
+	if os.Getenv("GROUP_MIGRATION_NODES") != "" && groupMigrationNodeRevision.Load() != control.Revision {
+		tx.AddError(ErrGroupMigrationPaused)
+		return
+	}
+	if os.Getenv("GROUP_MIGRATION_NODES") != "" {
+		if err := verifyGroupMigrationGeneration(query); err != nil {
+			tx.AddError(err)
+			return
+		}
 	}
 	var op GroupMigrationOperation
 	if control.OperationID != "" {

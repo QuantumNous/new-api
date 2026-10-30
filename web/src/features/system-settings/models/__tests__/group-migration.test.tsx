@@ -62,6 +62,73 @@ afterEach(() => {
 })
 
 describe('group migration preview', () => {
+  it('shows missing participant readiness and prevents confirmation', async () => {
+    http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
+    http.get.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: {
+          source: 'vip',
+          target: 'premium',
+          version: 'v1',
+          counts: {},
+          unfinished_tasks: 0,
+          blockers: [],
+          execution_blockers: [],
+          warnings: [],
+          coordination: {
+            ready: false,
+            reason: 'Participant unavailable',
+            nodes: [
+              { name: 'node-a', phase: 'ready', revision: 2 },
+              { name: 'node-b', phase: '', revision: 0 },
+            ],
+          },
+        },
+      },
+    })
+    const user = userEvent.setup()
+    renderEntry()
+    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    await screen.findByRole('option', { name: 'vip' })
+    await user.selectOptions(screen.getByLabelText('Source group'), 'vip')
+    await user.type(screen.getByLabelText('Target group name'), 'premium')
+    await user.click(screen.getByRole('button', { name: 'Preview impact' }))
+    expect(await screen.findByText('Participant unavailable')).toBeVisible()
+    expect(screen.getByRole('row', { name: /node-a Ready 2/ })).toBeVisible()
+    expect(screen.getByRole('row', { name: /node-b Waiting 0/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Migrate group' })).toBeDisabled()
+  })
+  it('shows synchronization progress for the current operation', async () => {
+    http.get.mockResolvedValue({ data: { success: true, data: ['premium'] } })
+    http.history.mockReturnValue([
+      {
+        id: 'cluster-pending',
+        source: 'vip',
+        target: 'premium',
+        state: 'committed',
+        reason: '',
+        coordination: {
+          ready: false,
+          reason: 'Waiting for node-b',
+          nodes: [
+            { name: 'node-a', phase: 'synced', revision: 3 },
+            { name: 'node-b', phase: 'drained', revision: 2 },
+          ],
+        },
+      },
+    ])
+    const user = userEvent.setup()
+    renderEntry()
+    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    expect(await screen.findByText('Waiting for node-b')).toBeVisible()
+    expect(
+      screen.getByRole('row', { name: /node-a Configuration synchronized 3/ })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('row', { name: /node-b Requests drained 2/ })
+    ).toBeVisible()
+  })
   it('requires a fresh preview after abort and gives its confirmation a new operation ID', async () => {
     const preview = {
       source: 'vip',

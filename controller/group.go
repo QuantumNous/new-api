@@ -5,7 +5,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 	"net/http"
-	"os"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -16,10 +15,6 @@ import (
 )
 
 func ExecuteGroupMigration(c *gin.Context) {
-	if os.Getenv("GROUP_MIGRATION_SINGLE_NODE") != "true" {
-		common.ApiErrorStatus(c, http.StatusConflict, common.NewMessage("Set GROUP_MIGRATION_SINGLE_NODE=true only after guaranteeing a single serving instance and stopping other business writers."))
-		return
-	}
 	var submission model.GroupMigrationSubmission
 	if err := c.ShouldBindJSON(&submission); err != nil {
 		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Invalid migration request."))

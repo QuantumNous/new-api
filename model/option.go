@@ -1,7 +1,9 @@
 package model
 
 import (
+	"context"
 	"maps"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -201,6 +203,8 @@ func InitOptionMap() {
 func loadOptionsFromDatabase() {
 	groupOptionMutex.Lock()
 	defer groupOptionMutex.Unlock()
+	groupViewMutex.RLock()
+	defer groupViewMutex.RUnlock()
 	requestPolicyOptionMutex.Lock()
 	defer requestPolicyOptionMutex.Unlock()
 	defer func() {
@@ -317,6 +321,13 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
+	revision := groupMigrationNodeRevision.Load()
+	if os.Getenv("GROUP_MIGRATION_NODES") != "" {
+		if err := SyncGroupMigrationNode(context.Background()); err != nil {
+			return err
+		}
+		revision = groupMigrationNodeRevision.Load()
+	}
 	for key := range values {
 		if canonicalGroupOption(key) != "" {
 			groupMigrationTraffic.Lock()
@@ -327,6 +338,8 @@ func UpdateOptionsBulk(values map[string]string) error {
 			}
 			groupOptionMutex.Lock()
 			defer groupOptionMutex.Unlock()
+			groupViewMutex.RLock()
+			defer groupViewMutex.RUnlock()
 			var err error
 			values, err = prepareGroupOptions(values)
 			if err != nil {
@@ -375,6 +388,14 @@ func UpdateOptionsBulk(values map[string]string) error {
 				}
 				if control.OperationID != "" {
 					return ErrGroupMigrationPaused
+				}
+				if os.Getenv("GROUP_MIGRATION_NODES") != "" && control.Revision != revision {
+					return ErrGroupMigrationPaused
+				}
+				if os.Getenv("GROUP_MIGRATION_NODES") != "" {
+					if err := verifyGroupMigrationGeneration(tx); err != nil {
+						return err
+					}
 				}
 				break
 			}

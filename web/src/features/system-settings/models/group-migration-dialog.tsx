@@ -60,6 +60,12 @@ import {
   type GroupMigrationNames,
 } from '../lib/group-migration-schema'
 
+type MigrationCoordination = {
+  ready: boolean
+  reason: string
+  nodes: { name: string; phase: string; revision: number }[]
+}
+
 type GroupMigrationPreview = {
   source: string
   target: string
@@ -71,6 +77,7 @@ type GroupMigrationPreview = {
   execution_blockers: string[]
   confirmation: string
   expires_at: number
+  coordination?: MigrationCoordination
 }
 
 type MigrationOperation = {
@@ -79,6 +86,7 @@ type MigrationOperation = {
   target: string
   state: 'paused' | 'committed' | 'completed' | 'aborted'
   reason: string
+  coordination?: MigrationCoordination
 }
 
 export function GroupMigrationEntry() {
@@ -235,6 +243,14 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
     ...(result?.blockers ?? []),
     ...(result?.execution_blockers ?? []),
   ]
+  const coordination =
+    active?.coordination ?? result?.coordination ?? operation?.coordination
+  const phases: Record<string, string> = {
+    ready: t('Ready'),
+    draining: t('Draining requests'),
+    drained: t('Requests drained'),
+    synced: t('Configuration synchronized'),
+  }
   const categories = {
     users: t('Users'),
     tokens: t('Tokens'),
@@ -294,6 +310,38 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
           )}
           onRetry={() => void operations.refetch()}
         />
+      )}
+      {coordination && (
+        <section className='my-4 flex flex-col gap-2' aria-live='polite'>
+          <p>
+            {coordination.ready
+              ? t('Deployment coordination ready')
+              : t('Deployment coordination unavailable')}
+          </p>
+          {coordination.reason && (
+            <p className='text-destructive'>{t(coordination.reason)}</p>
+          )}
+          {coordination.nodes.length > 0 && (
+            <Table aria-label={t('Migration participants')}>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('Node')}</TableHead>
+                  <TableHead>{t('Status')}</TableHead>
+                  <TableHead>{t('Configuration revision')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {coordination.nodes.map((node) => (
+                  <TableRow key={node.name}>
+                    <TableCell className='break-all'>{node.name}</TableCell>
+                    <TableCell>{phases[node.phase] ?? t('Waiting')}</TableCell>
+                    <TableCell>{formatNumber(node.revision, locale)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </section>
       )}
       <Form {...form}>
         <form
@@ -448,6 +496,7 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
           disabled={
             !result ||
             blockers.length > 0 ||
+            coordination?.ready === false ||
             !!active ||
             execution.isPending ||
             operations.isError ||

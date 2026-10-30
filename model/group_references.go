@@ -53,6 +53,7 @@ type GroupMigrationPreview struct {
 	ExecutionBlockers []string                       `json:"execution_blockers"`
 	Confirmation      string                         `json:"confirmation"`
 	ExpiresAt         int64                          `json:"expires_at"`
+	Coordination      *GroupMigrationCoordination    `json:"coordination"`
 }
 
 func (inventory *GroupReferenceInventory) add(category, record, group string, path ...string) {
@@ -354,8 +355,9 @@ func previewGroupMigration(db *gorm.DB, source, target string) (*GroupMigrationP
 			break
 		}
 	}
-	if err := groupMigrationQualification(db); err != nil {
-		preview.ExecutionBlockers = append(preview.ExecutionBlockers, err.Error())
+	preview.Coordination = readGroupMigrationCoordination(db)
+	if !preview.Coordination.Ready {
+		preview.ExecutionBlockers = append(preview.ExecutionBlockers, preview.Coordination.Reason)
 	}
 	preview.ExpiresAt = time.Now().Add(5 * time.Minute).Unix()
 	preview.Confirmation = groupMigrationConfirmation(preview)

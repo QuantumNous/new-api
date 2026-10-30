@@ -431,6 +431,10 @@ func WssAuth(c *gin.Context) {
 // Used for endpoints that need to be accessible from both the dashboard and API clients.
 func TokenOrUserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		if err := model.SyncGroupMigrationNode(c.Request.Context()); err != nil {
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
+			return
+		}
 		groupVersion := model.GroupRequestVersion()
 		raw, ok := authorizationToken(c.GetHeader("Authorization"))
 		if ok {
@@ -478,6 +482,10 @@ func TokenOrUserAuth() func(c *gin.Context) {
 // 仍然检查令牌 IP 白名单和用户是否被封禁。
 func TokenAuthReadOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		if err := model.SyncGroupMigrationNode(c.Request.Context()); err != nil {
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
+			return
+		}
 		key := c.Request.Header.Get("Authorization")
 		if key == "" {
 			common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenNotProvided)))
@@ -547,6 +555,10 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		if err := model.SyncGroupMigrationNode(c.Request.Context()); err != nil {
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
+			return
+		}
 		groupVersion := model.GroupRequestVersion()
 		// 先检测是否为ws
 		applyWebSocketSubprotocolAuthorization(c.Request.Header)

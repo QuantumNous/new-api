@@ -160,7 +160,11 @@ func refreshGroupMigrationCaches(tx *gorm.DB, target string) error {
 	}
 	if common.RedisEnabled {
 		var users []User
-		if err := tx.Unscoped().Select("id", "group").Where(commonGroupCol+" = ?", target).Find(&users).Error; err != nil {
+		query := tx.Unscoped().Select("id", "group")
+		if target != "" {
+			query = query.Where(commonGroupCol+" = ?", target)
+		}
+		if err := query.Find(&users).Error; err != nil {
 			return err
 		}
 		const userScript = `if redis.call('EXISTS', KEYS[1]) == 1 then redis.call('HSET', KEYS[1], 'Group', ARGV[1]) end return 1`
