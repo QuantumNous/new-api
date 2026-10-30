@@ -199,6 +199,8 @@ func InitOptionMap() {
 }
 
 func loadOptionsFromDatabase() {
+	groupOptionMutex.Lock()
+	defer groupOptionMutex.Unlock()
 	requestPolicyOptionMutex.Lock()
 	defer requestPolicyOptionMutex.Unlock()
 	defer func() {
@@ -317,6 +319,12 @@ func UpdateOptionsBulk(values map[string]string) error {
 	}
 	for key := range values {
 		if canonicalGroupOption(key) != "" {
+			groupMigrationTraffic.Lock()
+			paused := groupMigrationTraffic.operation != ""
+			groupMigrationTraffic.Unlock()
+			if paused {
+				return ErrGroupMigrationPaused
+			}
 			groupOptionMutex.Lock()
 			defer groupOptionMutex.Unlock()
 			var err error
@@ -359,6 +367,18 @@ func UpdateOptionsBulk(values map[string]string) error {
 	}
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		for key := range values {
+			if canonicalGroupOption(key) != "" && tx.Migrator().HasTable(&GroupMigrationControl{}) {
+				var control GroupMigrationControl
+				if err := control.lock(tx); err != nil {
+					return err
+				}
+				if control.OperationID != "" {
+					return ErrGroupMigrationPaused
+				}
+				break
+			}
+		}
 		for k, v := range values {
 			option := Option{Key: k}
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {

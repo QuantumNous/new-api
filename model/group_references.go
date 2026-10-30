@@ -5,15 +5,18 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"gorm.io/gorm"
 )
 
 // GroupReference identifies one complete name occurrence. Paths preserve array
@@ -40,13 +43,16 @@ type GroupReferenceCount struct {
 }
 
 type GroupMigrationPreview struct {
-	Source          string                         `json:"source"`
-	Target          string                         `json:"target"`
-	Version         string                         `json:"version"`
-	Counts          map[string]GroupReferenceCount `json:"counts"`
-	UnfinishedTasks int                            `json:"unfinished_tasks"`
-	Blockers        []string                       `json:"blockers"`
-	Warnings        []string                       `json:"warnings"`
+	Source            string                         `json:"source"`
+	Target            string                         `json:"target"`
+	Version           string                         `json:"version"`
+	Counts            map[string]GroupReferenceCount `json:"counts"`
+	UnfinishedTasks   int                            `json:"unfinished_tasks"`
+	Blockers          []string                       `json:"blockers"`
+	Warnings          []string                       `json:"warnings"`
+	ExecutionBlockers []string                       `json:"execution_blockers"`
+	Confirmation      string                         `json:"confirmation"`
+	ExpiresAt         int64                          `json:"expires_at"`
 }
 
 func (inventory *GroupReferenceInventory) add(category, record, group string, path ...string) {
@@ -59,8 +65,11 @@ func (inventory *GroupReferenceInventory) add(category, record, group string, pa
 // Disabled resources and restorable soft deletes remain effective references.
 // No transaction, row locks, cache publication or business writes are performed.
 func ReadGroupReferenceInventory(ctx context.Context) (*GroupReferenceInventory, error) {
+	return readGroupReferenceInventory(DB.WithContext(ctx))
+}
+
+func readGroupReferenceInventory(db *gorm.DB) (*GroupReferenceInventory, error) {
 	inventory := &GroupReferenceInventory{channelGroups: map[string]string{}, configuration: map[string]string{}}
-	db := DB.WithContext(ctx)
 	var users []User
 	if err := db.Unscoped().Select("id", "group").Find(&users).Error; err != nil {
 		return nil, err
@@ -244,7 +253,11 @@ func (inventory *GroupReferenceInventory) readConfiguration(category, key, kind,
 // PreviewGroupMigration reports an observation, not execution authorization.
 // Future execution must re-read this inventory behind its write barrier.
 func PreviewGroupMigration(ctx context.Context, source, target string) (*GroupMigrationPreview, error) {
-	inventory, err := ReadGroupReferenceInventory(ctx)
+	return previewGroupMigration(DB.WithContext(ctx), source, target)
+}
+
+func previewGroupMigration(db *gorm.DB, source, target string) (*GroupMigrationPreview, error) {
+	inventory, err := readGroupReferenceInventory(db)
 	if err != nil {
 		return nil, err
 	}
@@ -329,6 +342,34 @@ func PreviewGroupMigration(ctx context.Context, source, target string) (*GroupMi
 		return nil, err
 	}
 	preview.Version = fmt.Sprintf("%x", sha256.Sum256(versionData))
+	preview.ExecutionBlockers = []string{}
+	for _, key := range []string{"GroupRatio", "group_ratio_setting.group_ratio", "UserUsableGroups", "TopupGroupRatio"} {
+		saved, exists := inventory.configuration["saved_configuration:"+key]
+		if !exists {
+			continue
+		}
+		kind := canonicalGroupOption(key)
+		var persisted, effective map[string]any
+		if common.UnmarshalJsonStr(saved, &persisted) != nil || common.UnmarshalJsonStr(inventory.configuration["configuration:"+kind], &effective) != nil || !reflect.DeepEqual(persisted, effective) {
+			preview.ExecutionBlockers = append(preview.ExecutionBlockers, "Saved and effective group configuration differ. Reload and repair configuration before migration.")
+			break
+		}
+	}
+	if err := groupMigrationQualification(db); err != nil {
+		preview.ExecutionBlockers = append(preview.ExecutionBlockers, err.Error())
+	}
+	for _, ref := range inventory.References {
+		if ref.Group != source {
+			continue
+		}
+		if (ref.Category == "configuration" || ref.Category == "saved_configuration") && slices.Contains([]string{"GroupRatio", "group_ratio_setting.group_ratio", "UserUsableGroups", "TopupGroupRatio"}, ref.Record) {
+			continue
+		}
+		preview.ExecutionBlockers = append(preview.ExecutionBlockers, "Only unused groups with a base ratio, description and top-up ratio can be migrated in single-node mode.")
+		break
+	}
+	preview.ExpiresAt = time.Now().Add(5 * time.Minute).Unix()
+	preview.Confirmation = groupMigrationConfirmation(preview)
 	return preview, nil
 }
 

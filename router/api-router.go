@@ -213,6 +213,10 @@ func SetApiRouter(router *gin.Engine) {
 		optionRoute.Use(middleware.RootAuth())
 		{
 			optionRoute.GET("/group_migration/preview", middleware.DisableCache(), controller.PreviewGroupMigration)
+			optionRoute.POST("/group_migration", controller.ExecuteGroupMigration)
+			optionRoute.GET("/group_migration", middleware.DisableCache(), controller.ListGroupMigrations)
+			optionRoute.GET("/group_migration/:id", middleware.DisableCache(), controller.GetGroupMigration)
+			optionRoute.POST("/group_migration/:id/resume", controller.ResumeGroupMigration)
 			optionRoute.GET("/", controller.GetOptions)
 			optionRoute.GET("/request_policy", controller.GetRequestPolicy)
 			optionRoute.PATCH("/request_policy", controller.UpdateRequestPolicy)

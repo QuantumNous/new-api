@@ -32,6 +32,12 @@ func canonicalGroupOption(key string) string {
 // ValidateGroupReference preserves empty inheritance and the token-only auto selector.
 // It never creates definitions or substitutes a default for a missing name.
 func ValidateGroupReference(group string, allowEmpty, allowAuto bool) error {
+	groupMigrationTraffic.Lock()
+	paused := groupMigrationTraffic.operation != "" && (group == groupMigrationTraffic.source || group == groupMigrationTraffic.target)
+	groupMigrationTraffic.Unlock()
+	if paused {
+		return ErrGroupMigrationPaused
+	}
 	if group == "" && allowEmpty || group == "auto" && allowAuto {
 		return nil
 	}

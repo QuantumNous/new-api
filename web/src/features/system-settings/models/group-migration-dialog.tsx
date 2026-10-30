@@ -17,12 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
@@ -64,6 +65,17 @@ type GroupMigrationPreview = {
   unfinished_tasks: number
   blockers: string[]
   warnings: string[]
+  execution_blockers: string[]
+  confirmation: string
+  expires_at: number
+}
+
+type MigrationOperation = {
+  id: string
+  source: string
+  target: string
+  state: 'paused' | 'committed' | 'completed' | 'aborted'
+  reason: string
 }
 
 export function GroupMigrationEntry() {
@@ -89,6 +101,58 @@ export function GroupMigrationEntry() {
 function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const client = useQueryClient()
+  const [confirmation, setConfirmation] = useState<GroupMigrationPreview>()
+  const [submission, setSubmission] = useState<(GroupMigrationPreview & { operation_id: string })>()
+  const [observed, setObserved] = useState<MigrationOperation>()
+  const operations = useQuery({
+    queryKey: ['group-migration', 'operations'],
+    queryFn: async ({ signal }) => {
+      const response = await api.get<{ success: boolean; data: MigrationOperation[] }>('/api/option/group_migration', { signal, skipErrorHandler: true })
+      return requireServerSuccess(response.data).data
+    },
+    refetchInterval: 2000,
+    retry: false,
+    meta: { errorToast: false },
+  })
+  const execution = useMutation({
+    meta: { errorToast: false },
+    mutationFn: async (request: { preview: GroupMigrationPreview & { operation_id: string } } | { resume: string }) => {
+      let response
+      if ('resume' in request) {
+        response = await api.post<{ success: boolean; data: MigrationOperation }>(`/api/option/group_migration/${encodeURIComponent(request.resume)}/resume`, undefined, { skipErrorHandler: true })
+      } else {
+        response = await api.post<{ success: boolean; data: MigrationOperation }>('/api/option/group_migration', {
+          operation_id: request.preview.operation_id,
+          source: request.preview.source,
+          target: request.preview.target,
+          version: request.preview.version,
+          confirmation: request.preview.confirmation,
+        }, { skipErrorHandler: true })
+      }
+      return requireServerSuccess(response.data).data
+    },
+    onSuccess: (operation) => {
+      setObserved(operation)
+      setConfirmation(undefined)
+      if (operation.state === 'completed') {
+        void client.invalidateQueries({ queryKey: ['group-migration', 'groups'] })
+        void client.invalidateQueries({ queryKey: ['system-options'] })
+      }
+      void operations.refetch()
+    },
+    onError: () => { void operations.refetch() },
+  })
+  const current = operations.data?.find((op) => op.id === observed?.id)
+  const operation = observed?.state === 'completed' || observed?.state === 'aborted'
+    ? observed : current ?? observed ?? operations.data?.[0]
+  const active = operations.data?.find((op) => op.state === 'paused' || op.state === 'committed')
+  const states = {
+    paused: t('Migration paused before commit'),
+    committed: t('Database committed; synchronization pending'),
+    completed: t('Migration completed'),
+    aborted: t('Migration aborted; preview and confirm again'),
+  }
   const form = useForm<GroupMigrationNames>({
     resolver: zodResolver(createGroupMigrationSchema(t)),
     defaultValues: { source: '', target: '' },
@@ -131,6 +195,7 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
     (preview.isError &&
       preview.variables?.source === source &&
       preview.variables.target === target)
+  const blockers = [...(result?.blockers ?? []), ...(result?.execution_blockers ?? [])]
   const categories = {
     users: t('Users'),
     tokens: t('Tokens'),
@@ -149,9 +214,18 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
       }}
       title={t('Group migration')}
       description={t(
-        'Preview group references before migration. No data will be changed.'
+        'Preview group references, then confirm migration. Related requests briefly pause during migration.'
       )}
     >
+      {operation && (
+        <section className='mb-4 flex flex-col gap-2' aria-live='polite'>
+          <p className='break-all text-sm'>{operation.id}: {operation.source} → {operation.target}</p>
+          <p>{states[operation.state]}</p>
+          {operation.reason && <p>{t(operation.reason)}</p>}
+        </section>
+      )}
+      {active && <Button type='button' disabled={execution.isPending} onClick={() => execution.mutate({ resume: active.id })}>{t('Resume migration')}</Button>}
+      {(execution.isError || operations.isError) && <ErrorState className='min-h-0' title={t('Unable to execute group migration. Check operation status before retrying.')} onRetry={() => void operations.refetch()} />}
       <Form {...form}>
         <form
           className='flex flex-col gap-4'
@@ -275,15 +349,15 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
             {t('Related unfinished tasks')}:{' '}
             {formatNumber(result.unfinished_tasks, locale)}
           </p>
-          {result.blockers.length === 0 ? (
+          {blockers.length === 0 ? (
             <p>
               {t(
-                'No blocking conditions found. Execution is not available yet.'
+                'No blocking conditions found. Review and confirm migration.'
               )}
             </p>
           ) : (
             <ul className='text-destructive flex list-disc flex-col gap-1 pl-5'>
-              {result.blockers.map((message) => (
+              {blockers.map((message) => (
                 <li key={message}>{t(message)}</li>
               ))}
             </ul>
@@ -302,10 +376,25 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
         <Button type='button' variant='outline' onClick={onClose}>
           {t('Close')}
         </Button>
-        <Button type='button' disabled>
-          {t('Migration execution is not available yet')}
+        <Button type='button' disabled={!result || blockers.length > 0 || !!active || execution.isPending || operations.isError || operations.isPending || operation?.state === 'completed' && operation.source === source} onClick={() => setConfirmation(result)}>
+          {t('Migrate group')}
         </Button>
       </div>
+      <ConfirmDialog
+        open={!!confirmation}
+        onOpenChange={(open) => { if (!open) setConfirmation(undefined) }}
+        title={t('Confirm group migration')}
+        desc={<p>{confirmation?.source} → {confirmation?.target}. {t('Related requests briefly pause. External scripts must use the new group name.')}</p>}
+        confirmText={t('Confirm migration')}
+        isLoading={execution.isPending}
+        handleConfirm={() => {
+          if (!confirmation) return
+          const pending = submission?.version === confirmation.version && submission.source === confirmation.source && submission.target === confirmation.target
+            ? submission : { ...confirmation, operation_id: crypto.randomUUID() }
+          setSubmission(pending)
+          execution.mutate({ preview: pending })
+        }}
+      />
     </Dialog>
   )
 }

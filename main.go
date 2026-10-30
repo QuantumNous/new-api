@@ -334,6 +334,9 @@ func InitResources() error {
 		}
 	}
 	model.InitOptionMap()
+	if err := model.InitGroupMigrations(context.Background()); err != nil {
+		return fmt.Errorf("initialize group migration recovery: %w", err)
+	}
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()

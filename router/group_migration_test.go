@@ -1,6 +1,8 @@
 package router
 
 import (
+	"context"
+	"errors"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +33,219 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+func TestUnusedGroupMigration(t *testing.T) {
+	dialect := os.Getenv("TEST_GROUP_MIGRATION_DIALECT")
+	var driver gorm.Dialector = sqlite.Open(filepath.Join(t.TempDir(), "migration.db"))
+	databaseType := common.DatabaseTypeSQLite
+	if dialect == "mysql" {
+		driver, databaseType = mysql.Open(os.Getenv("TEST_MYSQL_DSN")), common.DatabaseTypeMySQL
+	} else if dialect == "postgres" {
+		driver, databaseType = postgres.Open(os.Getenv("TEST_POSTGRES_DSN")), common.DatabaseTypePostgreSQL
+	}
+	db, err := gorm.Open(driver, &gorm.Config{})
+	require.NoError(t, err)
+	oldDB, oldLogDB := model.DB, model.LOG_DB
+	oldMain, oldLog := common.MainDatabaseType(), common.LogDatabaseType()
+	common.SetDatabaseTypes(databaseType, databaseType)
+	t.Setenv("LOG_SQL_DSN", "")
+	previousMaster := common.IsMasterNode
+	common.IsMasterNode = false
+	oldOptions, oldRatio := common.OptionMap, ratio_setting.GroupRatio2JSONString()
+	oldRedis, oldMemory := common.RedisEnabled, common.MemoryCacheEnabled
+	oldUsable, oldTopup := setting.UserUsableGroups2JSONString(), common.TopupGroupRatio2JSONString()
+	common.RedisEnabled, common.MemoryCacheEnabled = false, false
+	model.DB, model.LOG_DB = db, db
+	require.NoError(t, model.InitLogDB())
+	common.IsMasterNode = previousMaster
+	common.OptionMap = map[string]string{}
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = oldDB, oldLogDB
+		common.SetDatabaseTypes(oldMain, oldLog)
+		common.IsMasterNode = false
+		require.NoError(t, model.InitLogDB())
+		common.IsMasterNode = previousMaster
+		model.LOG_DB = oldLogDB
+		common.OptionMap = oldOptions
+		common.RedisEnabled, common.MemoryCacheEnabled = oldRedis, oldMemory
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(oldUsable))
+		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(oldTopup))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(oldRatio))
+		sqlDB, err := db.DB()
+		require.NoError(t, err)
+		require.NoError(t, sqlDB.Close())
+	})
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.UserAccessToken{}, &model.Option{}, &model.Token{}, &model.Channel{}, &model.Ability{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.Task{}, &model.Midjourney{}, &model.AuditLog{}, &model.SystemInstance{}))
+	require.NoError(t, i18n.Init())
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"unused":0.75}`))
+	require.NoError(t, model.UpdateOptionsBulk(map[string]string{"GroupRatio": `{"default":1,"unused":0.75}`, "UserUsableGroups": `{"unused":"Premium access"}`, "TopupGroupRatio": `{"unused":0.85}`}))
+	t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "true")
+	require.NoError(t, model.InitGroupMigrations(context.Background()))
+	root := model.User{Username: "migration-root", AffCode: "migration-root", Role: common.RoleRootUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, Quota: 100000}
+	require.NoError(t, db.Create(&root).Error)
+	require.NoError(t, model.PublishUserAuthCache(root.Id))
+	now := time.Now().Unix()
+	require.NoError(t, model.CreateUserSession(&model.UserSession{SID: "migration-session", UserID: root.Id, Version: 1, UserAuthVersion: 1, Status: model.UserSessionStatusActive, RefreshHash: "test-refresh-hash", LoginMethod: "password", LastActiveAt: now, ExpiresAt: now + 3600}))
+	credential, _, err := service.IssueAccessToken(service.AuthIdentity{UserID: root.Id, SessionID: "migration-session", UserAuthVersion: 1, SessionVersion: 1})
+	require.NoError(t, err)
+	engine := gin.New()
+	SetApiRouter(engine)
+	request := func(method, path string, payload any) *httptest.ResponseRecorder {
+		data, err := common.Marshal(payload)
+		require.NoError(t, err)
+		req := httptest.NewRequest(method, path, strings.NewReader(string(data)))
+		req.Header.Set("Authorization", "Bearer "+credential)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+		return rec
+	}
+	preview := request(http.MethodGet, "/api/option/group_migration/preview?source=unused&target=premium", nil)
+	var observed struct{ Data model.GroupMigrationPreview }
+	require.NoError(t, common.Unmarshal(preview.Body.Bytes(), &observed))
+	payload := map[string]any{"source": "unused", "target": "premium", "version": observed.Data.Version, "confirmation": observed.Data.Confirmation, "operation_id": "migration-test-01"}
+	t.Run("rejects a stale confirmation and a referenced source", func(t *testing.T) {
+		invalid := maps.Clone(payload)
+		invalid["confirmation"] = "0.invalid"
+		assert.Equal(t, http.StatusConflict, request(http.MethodPost, "/api/option/group_migration", invalid).Code)
+		key := model.Token{UserId: root.Id, Key: strings.Repeat("b", 48), Group: "unused", UnlimitedQuota: true, ExpiredTime: -1}
+		require.NoError(t, db.Create(&key).Error)
+		assert.Equal(t, http.StatusConflict, request(http.MethodPost, "/api/option/group_migration", payload).Code)
+		require.NoError(t, db.Unscoped().Delete(&key).Error)
+	})
+	t.Run("paused writes return temporary unavailability and restart retains the barrier", func(t *testing.T) {
+		key := model.Token{UserId: root.Id, Key: strings.Repeat("c", 48), Group: "unused", UnlimitedQuota: true, ExpiredTime: -1}
+		require.NoError(t, db.Create(&key).Error)
+		engine.POST("/v1/chat/completions", middleware.TokenAuth(), middleware.Distribute(), func(c *gin.Context) { c.Status(http.StatusOK) })
+		op := model.GroupMigrationOperation{ID: "interrupted-01", Source: "unused", Target: "premium", State: "paused", ActorID: root.Id}
+		require.NoError(t, db.Create(&op).Error)
+		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": op.ID, "owner": "previous-process"}).Error)
+		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "")
+		require.NoError(t, model.InitGroupMigrations(context.Background()))
+		response := request(http.MethodPost, "/api/token/", map[string]any{"name": "blocked", "group": "unused", "expired_time": -1, "unlimited_quota": true})
+		assert.Equal(t, http.StatusServiceUnavailable, response.Code, response.Body.String())
+		req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"probe","messages":[]}`))
+		req.Header.Set("Authorization", "Bearer sk-"+key.Key)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/interrupted-01", nil).Body.String(), `"state":"paused"`)
+		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "true")
+		recovery := request(http.MethodPost, "/api/option/group_migration/interrupted-01/resume", nil)
+		require.Equal(t, http.StatusOK, recovery.Code, recovery.Body.String())
+		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/interrupted-01", nil).Body.String(), `"state":"aborted"`)
+		require.NoError(t, db.Unscoped().Delete(&key).Error)
+	})
+	t.Run("known conflicting instance refuses execution", func(t *testing.T) {
+		instance := model.SystemInstance{NodeName: "other-serving-node", LastSeenAt: time.Now().Unix()}
+		require.NoError(t, db.Create(&instance).Error)
+		assert.Equal(t, http.StatusConflict, request(http.MethodPost, "/api/option/group_migration", payload).Code)
+		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/preview?source=unused&target=premium", nil).Body.String(), "Other known serving instances")
+		require.NoError(t, db.Delete(&instance).Error)
+	})
+	t.Run("committed operations retain the pause until restart recovery publishes configuration", func(t *testing.T) {
+		require.NoError(t, model.UpdateOptionsBulk(map[string]string{"GroupRatio": `{"default":1,"unused":0.75,"recover":0.6}`}))
+		var prepared struct{ Data model.GroupMigrationPreview }
+		require.NoError(t, common.Unmarshal(request(http.MethodGet, "/api/option/group_migration/preview?source=recover&target=recovered", nil).Body.Bytes(), &prepared))
+		require.Empty(t, prepared.Data.ExecutionBlockers)
+		require.NoError(t, db.Callback().Update().After("gorm:update").Register("test:withdraw-after-commit", func(tx *gorm.DB) {
+			if op, ok := tx.Statement.Dest.(*model.GroupMigrationOperation); ok && op.State == "committed" {
+				t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "")
+			}
+		}))
+		response := request(http.MethodPost, "/api/option/group_migration", map[string]any{"source": "recover", "target": "recovered", "version": prepared.Data.Version, "confirmation": prepared.Data.Confirmation, "operation_id": "recover-committed"})
+		require.NoError(t, db.Callback().Update().Remove("test:withdraw-after-commit"))
+		assert.Contains(t, response.Body.String(), `"state":"committed"`)
+		assert.ErrorIs(t, model.ValidateGroupReference("recover", false, false), model.ErrGroupMigrationPaused)
+		require.NoError(t, model.InitGroupMigrations(context.Background()))
+		assert.ErrorIs(t, model.ValidateGroupReference("recovered", false, false), model.ErrGroupMigrationPaused)
+		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "true")
+		response = request(http.MethodPost, "/api/option/group_migration/recover-committed/resume", nil)
+		assert.Contains(t, response.Body.String(), `"state":"completed"`)
+		assert.NoError(t, model.ValidateGroupReference("recovered", false, false))
+		assert.False(t, ratio_setting.ContainsGroupRatio("recover"))
+		assert.Equal(t, 0.6, ratio_setting.GetGroupRatioCopy()["recovered"])
+		// Return to the original preview's configuration for the remaining cases.
+		require.NoError(t, model.UpdateOptionsBulk(map[string]string{"GroupRatio": `{"default":1,"unused":0.75}`}))
+	})
+	t.Run("commit failure rolls back all configuration and releases the pause", func(t *testing.T) {
+		require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:migration-failure", func(tx *gorm.DB) {
+			if tx.Statement.Table == "options" {
+				tx.AddError(errors.New("injected option write failure"))
+			}
+		}))
+		failed := maps.Clone(payload)
+		failed["operation_id"] = "rollback-test-01"
+		response := request(http.MethodPost, "/api/option/group_migration", failed)
+		require.NoError(t, db.Callback().Create().Remove("test:migration-failure"))
+		assert.Contains(t, response.Body.String(), `"state":"aborted"`)
+		assert.True(t, ratio_setting.ContainsGroupRatio("unused"))
+		assert.False(t, ratio_setting.ContainsGroupRatio("premium"))
+		assert.NoError(t, model.ValidateGroupReference("unused", false, false))
+	})
+	t.Run("accepted requests drain while new references and requests are blocked", func(t *testing.T) {
+		release, err := model.AdmitGroupRequest("unused")
+		require.NoError(t, err)
+		defer release()
+		started := make(chan struct{})
+		finish := make(chan struct{})
+		var submitted *httptest.ResponseRecorder
+		var once sync.Once
+		require.NoError(t, db.Callback().Create().After("gorm:create").Register("test:migration-paused", func(tx *gorm.DB) {
+			if tx.Statement.Table == "group_migration_operations" {
+				once.Do(func() { close(started) })
+			}
+		}))
+		pending := maps.Clone(payload)
+		pending["operation_id"] = "drain-test-01"
+		go func() { submitted = request(http.MethodPost, "/api/option/group_migration", pending); close(finish) }()
+		select {
+		case <-started:
+		case <-time.After(5 * time.Second):
+			t.Fatal("migration did not start")
+		}
+		// The durable callback can run before commit; wait for the public
+		// admission boundary to report the local pause, without cancelling it.
+		require.Eventually(t, func() bool {
+			done, err := model.AdmitGroupRequest("unused")
+			if err == nil {
+				done()
+			}
+			return errors.Is(err, model.ErrGroupMigrationPaused)
+		}, 5*time.Second, 5*time.Millisecond)
+		assert.ErrorIs(t, db.Create(&model.Token{UserId: root.Id, Key: "blocked-background", Group: "premium"}).Error, model.ErrGroupMigrationPaused)
+		assert.NoError(t, db.Model(&root).Update("quota", 99999).Error)
+		select {
+		case <-finish:
+			t.Fatal("accepted request was not drained")
+		default:
+		}
+		// Withdraw deployment qualification before commit. Accepted traffic
+		// itself remains live until it releases naturally.
+		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "")
+		release()
+		select {
+		case <-finish:
+		case <-time.After(5 * time.Second):
+			t.Fatal("migration did not finish")
+		}
+		require.NoError(t, db.Callback().Create().Remove("test:migration-paused"))
+		assert.Contains(t, submitted.Body.String(), `"state":"paused"`)
+		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "true")
+		assert.Contains(t, request(http.MethodPost, "/api/option/group_migration/drain-test-01/resume", nil).Body.String(), `"state":"aborted"`)
+	})
+	response := request(http.MethodPost, "/api/option/group_migration", payload)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.Contains(t, response.Body.String(), `"state":"completed"`)
+	assert.True(t, ratio_setting.ContainsGroupRatio("premium"))
+	assert.False(t, ratio_setting.ContainsGroupRatio("unused"))
+	assert.Equal(t, 0.75, ratio_setting.GetGroupRatioCopy()["premium"])
+	retry := request(http.MethodPost, "/api/option/group_migration", payload)
+	assert.Equal(t, response.Body.String(), retry.Body.String(), "retry must return the same durable result")
+	status := request(http.MethodGet, "/api/option/group_migration/migration-test-01", nil)
+	assert.Equal(t, response.Body.String(), status.Body.String())
+}
 
 // The DSNs point only at disposable databases, following the management tests'
 // three-engine fixture convention. No existing application database is used.
@@ -155,6 +371,17 @@ func TestGroupMigrationPreview(t *testing.T) {
 	var saved model.Token
 	require.NoError(t, db.First(&saved, token.Id).Error)
 	assert.Equal(t, token, saved)
+	t.Run("execution requires a server deployment declaration", func(t *testing.T) {
+		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "")
+		payload := `{"source":"vip","target":"premium","single_node":true}`
+		req := httptest.NewRequest(http.MethodPost, "/api/option/group_migration", strings.NewReader(payload))
+		req.Header.Set("Authorization", "Bearer "+credential)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), "GROUP_MIGRATION_SINGLE_NODE")
+	})
 	t.Run("ordinary saves cannot rename a referenced group", func(t *testing.T) {
 		for _, key := range []string{"GroupRatio", "group_ratio_setting.group_ratio"} {
 			payload, err := common.Marshal(map[string]string{"key": key, "value": `{"default":1,"premium":0.8}`})

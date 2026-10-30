@@ -33,6 +33,12 @@ type ModelRequest struct {
 
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		release, admissionErr := model.AdmitGroupRequest(common.GetContextKeyString(c, constant.ContextKeyUsingGroup), c.GetString("user_group"))
+		if admissionErr != nil {
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, admissionErr.Error())
+			return
+		}
+		defer release()
 		var channel *model.Channel
 		defer func() {
 			if c.Writer.Status() >= 400 {
@@ -50,6 +56,12 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, invalidRequestStatus(err), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		releaseRequested, admissionErr := model.AdmitGroupRequest(modelRequest.Group)
+		if admissionErr != nil {
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, admissionErr.Error())
+			return
+		}
+		defer releaseRequested()
 		_, pinned, _ := constraints.ResolvedPin()
 		if !pinned {
 			// Select a channel for the user

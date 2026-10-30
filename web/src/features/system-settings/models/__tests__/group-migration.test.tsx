@@ -25,8 +25,13 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import { GroupMigrationEntry } from '../group-migration-dialog'
 
-const http = vi.hoisted(() => ({ get: vi.fn() }))
-vi.mock('@/lib/api', () => ({ api: http }))
+const http = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), history: vi.fn() }))
+vi.mock('@/lib/api', () => ({ api: {
+  get: (url: string, ...args: unknown[]) => url === '/api/option/group_migration'
+    ? Promise.resolve({ data: { success: true, data: http.history() ?? [] } })
+    : http.get(url, ...args),
+  post: http.post,
+} }))
 
 function renderEntry(role = 100) {
   useAuthStore.getState().auth.setUser({ id: 1, username: 'operator', role })
@@ -42,10 +47,24 @@ function renderEntry(role = 100) {
 
 afterEach(() => {
   http.get.mockReset()
+  http.post.mockReset()
+  http.history.mockReset()
   useAuthStore.getState().auth.reset()
 })
 
 describe('group migration preview', () => {
+  it('shows a persisted committed operation and lets the operator resume it', async () => {
+    http.get.mockResolvedValue({ data: { success: true, data: ['premium'] } })
+    http.history.mockReturnValue([{ id: 'recover-01', source: 'vip', target: 'premium', state: 'committed', reason: '' }])
+    http.post.mockResolvedValue({ data: { success: true, data: { id: 'recover-01', source: 'vip', target: 'premium', state: 'completed', reason: '' } } })
+    const user = userEvent.setup()
+    renderEntry()
+    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    expect(await screen.findByText('Database committed; synchronization pending')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Resume migration' }))
+    expect(await screen.findByText('Migration completed')).toBeVisible()
+    expect(http.post).toHaveBeenCalledWith('/api/option/group_migration/recover-01/resume', undefined, expect.any(Object))
+  })
   it('shows an invalid target error without requesting a preview', async () => {
     http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
     const user = userEvent.setup()
@@ -143,7 +162,7 @@ describe('group migration preview', () => {
     ).toBeVisible()
     expect(
       screen.getByRole('button', {
-        name: 'Migration execution is not available yet',
+        name: 'Migrate group',
       })
     ).toBeDisabled()
     expect(http.get).toHaveBeenLastCalledWith(

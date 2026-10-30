@@ -621,6 +621,12 @@ func TokenAuth() func(c *gin.Context) {
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group
+		release, err := model.AdmitGroupRequest(userGroup, tokenGroup)
+		if err != nil {
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, common.TranslateMessage(c, err.Error()))
+			return
+		}
+		defer release()
 		if tokenGroup != "" {
 			// check common.UserUsableGroups[userGroup]
 			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {

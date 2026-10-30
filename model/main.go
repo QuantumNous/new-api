@@ -371,6 +371,8 @@ func migrateDB() error {
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&SystemInstance{},
+		&GroupMigrationControl{},
+		&GroupMigrationOperation{},
 		&SystemTask{},
 		&SystemTaskLock{},
 		&CasbinRule{},
