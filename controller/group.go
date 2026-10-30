@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/QuantumNous/new-api/common"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/model"
@@ -10,6 +11,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func PreviewGroupMigration(c *gin.Context) {
+	preview, err := model.PreviewGroupMigration(c.Request.Context(), c.Query("source"), c.Query("target"))
+	if err != nil {
+		common.ApiErrorStatus(c, http.StatusInternalServerError, common.NewMessage("Unable to inspect group references. Please try again."))
+		return
+	}
+	common.ApiSuccess(c, preview)
+}
 
 func GetGroups(c *gin.Context) {
 	groupNames := make([]string, 0)

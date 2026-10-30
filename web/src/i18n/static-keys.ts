@@ -19,6 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  'Built-in groups cannot participate in migration.',
+  'Group names must contain 1 to 50 characters without commas, whitespace, control characters or rule prefixes.',
+  'Source and target groups must differ.',
+  'Source group does not exist.',
+  'Invalid group reference data must be repaired before migration.',
+  'Target group is already referenced or configured.',
+  'Related unfinished tasks must finish before migration.',
+  'The migrated channel group list would exceed 64 characters.',
+  'External scripts must use the new group name after migration.',
+  'Migration will briefly pause related requests. This preview does not pause service.',
+  'Unable to inspect group references. Please try again.',
   'The adjusted price is outside the supported range.',
   'This expression cannot be adjusted automatically. Keep the source price or edit it manually.',
   'Task usage metadata is unavailable. Pricing details cannot be displayed.',

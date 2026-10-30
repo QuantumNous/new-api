@@ -60,6 +60,7 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import { GroupMigrationEntry } from './group-migration-dialog'
 import {
   GroupRatioVisualEditor,
   type GroupSettingsSection,
@@ -128,6 +129,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             <HelpCircle className='mr-2 h-4 w-4' />
             {t('Usage guide')}
           </Button>
+          <GroupMigrationEntry />
           <Button variant='outline' size='sm' onClick={toggleEditMode}>
             {editMode === 'visual' ? (
               <>
