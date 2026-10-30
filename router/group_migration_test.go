@@ -31,6 +31,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stripe/stripe-go/v81/webhook"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -96,7 +97,7 @@ func TestUnusedGroupMigration(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, sqlDB.Close())
 	})
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.UserAccessToken{}, &model.Option{}, &model.Token{}, &model.Channel{}, &model.Ability{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.Task{}, &model.Midjourney{}, &model.AuditLog{}, &model.SystemInstance{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.UserAccessToken{}, &model.Option{}, &model.Token{}, &model.Channel{}, &model.Ability{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{}, &model.SubscriptionOrder{}, &model.TopUp{}, &model.Log{}, &model.Task{}, &model.Midjourney{}, &model.AuditLog{}, &model.SystemInstance{}))
 	require.NoError(t, i18n.Init())
 	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"unused":0.75}`))
 	require.NoError(t, model.UpdateOptionsBulk(map[string]string{"GroupRatio": `{"default":1,"unused":0.75}`, "UserUsableGroups": `{"unused":"Premium access"}`, "TopupGroupRatio": `{"unused":0.85}`}))
@@ -400,15 +401,16 @@ func TestUnusedGroupMigration(t *testing.T) {
 		require.NoError(t, db.Create(&history).Error)
 		log := model.AuditLog{EventId: "historical-routing", UserId: user.Id, Content: "historical routing"}
 		require.NoError(t, db.Create(&log).Error)
-		// Unfinished inherited tasks and unsupported subscription lifecycles must
-		// prevent execution before any resource or configuration is changed.
+		// Unfinished inherited tasks prevent execution before any resource changes.
 		pendingTask := model.Task{TaskID: "pending-routing", UserId: user.Id, Status: model.TaskStatusInProgress}
 		require.NoError(t, db.Create(&pendingTask).Error)
 		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=migrated", nil).Body.String(), "Related unfinished tasks")
 		require.NoError(t, db.Delete(&pendingTask).Error)
 		plan := model.SubscriptionPlan{Title: "routing-subscription", UpgradeGroup: "routing"}
 		require.NoError(t, db.Create(&plan).Error)
-		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=migrated", nil).Body.String(), "Subscription group references cannot be migrated yet.")
+		var subscriptionPreview struct{ Data model.GroupMigrationPreview }
+		require.NoError(t, common.Unmarshal(request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=migrated", nil).Body.Bytes(), &subscriptionPreview))
+		assert.Empty(t, subscriptionPreview.Data.ExecutionBlockers)
 		require.NoError(t, db.Delete(&plan).Error)
 		model.InitChannelCache()
 		held := make(chan struct{}, len(keys))
@@ -632,6 +634,278 @@ func TestUnusedGroupMigration(t *testing.T) {
 		assert.JSONEq(t, `{"migrated":{"+:migrated":"Original access","-:default":"Hidden","routing-extra":"Other access"},"routing-extra":{"-:migrated":"Hidden"},"default":{"+:migrated":"Granted"}}`, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.MarshalJSONString())
 		assert.JSONEq(t, `{"migrated":0.85,"routing-extra":0.95}`, common.TopupGroupRatio2JSONString())
 		assert.JSONEq(t, `{"migrated":[120,60],"routing-extra":[90,60]}`, setting.ModelRequestRateLimitGroup2JSONString())
+	})
+	t.Run("subscription transitions survive migration and retry", func(t *testing.T) {
+		oldStripeSecret, oldStripeWebhook, oldStripePrice := setting.StripeApiSecret, setting.StripeWebhookSecret, setting.StripePriceId
+		t.Cleanup(func() {
+			setting.StripeApiSecret, setting.StripeWebhookSecret, setting.StripePriceId = oldStripeSecret, oldStripeWebhook, oldStripePrice
+		})
+		setting.StripeApiSecret, setting.StripeWebhookSecret, setting.StripePriceId = "sk_test_migration", "whsec_migration", "price_migration"
+		payment := operation_setting.GetPaymentSetting()
+		oldPayment := *payment
+		t.Cleanup(func() { *payment = oldPayment })
+		payment.ComplianceConfirmed = true
+		payment.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+		var groups map[string]float64
+		require.NoError(t, common.UnmarshalJsonStr(ratio_setting.GroupRatio2JSONString(), &groups))
+		groups["subscription-old"], groups["subscription-vip"] = 0.8, 0.6
+		encoded, err := common.Marshal(groups)
+		require.NoError(t, err)
+		require.NoError(t, model.UpdateOptionsBulk(map[string]string{"GroupRatio": string(encoded)}))
+		users := []model.User{
+			{Username: "subscription-payment", AffCode: "sub-payment", Group: "default", Status: common.UserStatusEnabled},
+			{Username: "subscription-explicit", AffCode: "sub-explicit", Group: "default", Status: common.UserStatusEnabled},
+			{Username: "subscription-restore", AffCode: "sub-restore", Group: "subscription-old", Status: common.UserStatusEnabled},
+			{Username: "subscription-bind", AffCode: "sub-bind", Group: "default", Status: common.UserStatusEnabled},
+		}
+		require.NoError(t, db.Create(&users).Error)
+		plans := []model.SubscriptionPlan{
+			{Title: "purchase upgrade", UpgradeGroup: "subscription-old", DowngradeGroup: "default", Enabled: true, PriceAmount: 2.5, TotalAmount: 321, DurationUnit: model.SubscriptionDurationDay, DurationValue: 7, QuotaResetPeriod: model.SubscriptionResetDaily},
+			{Title: "explicit downgrade", UpgradeGroup: "subscription-vip", DowngradeGroup: "subscription-old", Enabled: true, TotalAmount: 654, DurationUnit: model.SubscriptionDurationDay, DurationValue: 3},
+			{Title: "restore previous", UpgradeGroup: "subscription-vip", Enabled: true, DurationUnit: model.SubscriptionDurationDay, DurationValue: 2},
+		}
+		require.NoError(t, db.Create(&plans).Error)
+		require.Contains(t, request(http.MethodPost, "/api/subscription/admin/bind", map[string]int{"user_id": users[0].Id, "plan_id": plans[0].Id}).Body.String(), `"success":true`)
+		refundable, err := model.PreConsumeUserSubscription("migration-refundable", users[0].Id, "migration-probe", 0, 3)
+		require.NoError(t, err)
+		for i := 1; i <= 2; i++ {
+			rec := request(http.MethodPost, "/api/subscription/admin/bind", map[string]int{"user_id": users[i].Id, "plan_id": plans[i].Id})
+			require.Contains(t, rec.Body.String(), `"success":true`)
+		}
+		// Disabled plans and cancelled/expired snapshots remain usable by later
+		// binding, invalidation or deletion; a status filter would lose references.
+		require.NoError(t, db.Model(&plans[1]).Update("enabled", false).Error)
+		require.NoError(t, db.First(&plans[1], plans[1].Id).Error)
+		now := model.GetDBTimestamp()
+		require.NoError(t, db.Model(&model.UserSubscription{}).Where("id = ?", refundable.UserSubscriptionId).Updates(map[string]any{"last_reset_time": now - 2*86400, "next_reset_time": now - 1}).Error)
+		require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id IN ?", []int{users[1].Id, users[2].Id}).Update("end_time", now-1).Error)
+		inactive := []model.UserSubscription{
+			{UserId: users[3].Id, Status: "expired", UpgradeGroup: "subscription-old", PrevUserGroup: "subscription-old", AmountTotal: 77, AmountUsed: 13, EndTime: now - 10},
+			{UserId: users[3].Id, Status: "cancelled", DowngradeGroup: "subscription-old", EndTime: now - 5},
+		}
+		require.NoError(t, db.Create(&inactive).Error)
+		var before []model.UserSubscription
+		require.NoError(t, db.Where("user_id IN ?", []int{users[1].Id, users[2].Id, users[3].Id}).Order("id").Find(&before).Error)
+		order := model.SubscriptionOrder{UserId: users[0].Id, PlanId: plans[0].Id, TradeNo: "subscription-migration-order", Money: 2.5, Status: common.TopUpStatusPending, PaymentProvider: model.PaymentProviderEpay, PaymentMethod: "alipay"}
+		require.NoError(t, order.Insert())
+		stripeEvents := make([]*webhook.SignedPayload, 0, 2)
+		for _, eventType := range []string{"checkout.session.completed", "checkout.session.async_payment_succeeded"} {
+			stripeOrder := model.SubscriptionOrder{UserId: users[0].Id, PlanId: plans[0].Id, TradeNo: "migration-" + eventType, Money: 2.5, Status: common.TopUpStatusPending, PaymentProvider: model.PaymentProviderStripe, PaymentMethod: "stripe"}
+			require.NoError(t, stripeOrder.Insert())
+			body, err := common.Marshal(map[string]any{"id": "evt_" + eventType, "object": "event", "type": eventType, "data": map[string]any{"object": map[string]string{"id": "cs_test", "client_reference_id": stripeOrder.TradeNo, "status": "complete", "payment_status": "paid"}}})
+			require.NoError(t, err)
+			stripeEvents = append(stripeEvents, webhook.GenerateTestSignedPayload(&webhook.UnsignedPayload{Payload: body, Secret: setting.StripeWebhookSecret}))
+		}
+		stripeCallback := func(event *webhook.SignedPayload) *httptest.ResponseRecorder {
+			req := httptest.NewRequest(http.MethodPost, "/api/stripe/webhook", strings.NewReader(string(event.Payload)))
+			req.Header.Set("Stripe-Signature", event.Header)
+			rec := httptest.NewRecorder()
+			engine.ServeHTTP(rec, req)
+			return rec
+		}
+		// Warm the actual plan cache before cutover.
+		cached, err := model.GetSubscriptionPlanById(plans[0].Id)
+		require.NoError(t, err)
+		require.Equal(t, "subscription-old", cached.UpgradeGroup)
+		var preview struct{ Data model.GroupMigrationPreview }
+		require.NoError(t, common.Unmarshal(request(http.MethodGet, "/api/option/group_migration/preview?source=subscription-old&target=subscription-new", nil).Body.Bytes(), &preview))
+		require.Empty(t, preview.Data.Blockers)
+		require.Empty(t, preview.Data.ExecutionBlockers)
+		assert.Equal(t, model.GroupReferenceCount{Records: 2, References: 2}, preview.Data.Counts["subscription_plans"])
+		assert.Equal(t, model.GroupReferenceCount{Records: 5, References: 6}, preview.Data.Counts["subscriptions"])
+		// Fail after subscription and user updates, before configuration commits.
+		require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:subscription-migration-failure", func(tx *gorm.DB) {
+			if tx.Statement.Table == "options" {
+				tx.AddError(errors.New("injected subscription migration failure"))
+			}
+		}))
+		failed := request(http.MethodPost, "/api/option/group_migration", model.GroupMigrationSubmission{OperationID: "subscription-rollback-05", Source: "subscription-old", Target: "subscription-new", Version: preview.Data.Version, Confirmation: preview.Data.Confirmation})
+		require.NoError(t, db.Callback().Create().Remove("test:subscription-migration-failure"))
+		require.Contains(t, failed.Body.String(), `"state":"aborted"`)
+		var rolledBack []model.UserSubscription
+		require.NoError(t, db.Where("user_id IN ?", []int{users[1].Id, users[2].Id, users[3].Id}).Order("id").Find(&rolledBack).Error)
+		assert.Equal(t, before, rolledBack)
+		var rolledBackPlans []model.SubscriptionPlan
+		require.NoError(t, db.Where("id IN ?", []int{plans[0].Id, plans[1].Id, plans[2].Id}).Order("id").Find(&rolledBackPlans).Error)
+		assert.Equal(t, plans, rolledBackPlans)
+		assert.Contains(t, ratio_setting.GroupRatio2JSONString(), `"subscription-old"`)
+		assert.NotContains(t, ratio_setting.GroupRatio2JSONString(), `"subscription-new"`)
+		require.NoError(t, common.Unmarshal(request(http.MethodGet, "/api/option/group_migration/preview?source=subscription-old&target=subscription-new", nil).Body.Bytes(), &preview))
+		payload := model.GroupMigrationSubmission{OperationID: "subscription-cutover-05", Source: "subscription-old", Target: "subscription-new", Version: preview.Data.Version, Confirmation: preview.Data.Confirmation}
+		release, err := model.AdmitGroupRequest("subscription-old")
+		require.NoError(t, err)
+		var releaseOnce sync.Once
+		defer releaseOnce.Do(release)
+		finished := make(chan *httptest.ResponseRecorder, 1)
+		go func() { finished <- request(http.MethodPost, "/api/option/group_migration", payload) }()
+		require.Eventually(t, func() bool {
+			done, err := model.AdmitGroupRequest("subscription-old")
+			if err == nil {
+				done()
+			}
+			return errors.Is(err, model.ErrGroupMigrationPaused)
+		}, 5*time.Second, 5*time.Millisecond)
+		assert.ErrorIs(t, model.CompleteSubscriptionOrder(order.TradeNo, "paid", model.PaymentProviderEpay, ""), model.ErrGroupMigrationPaused)
+		for _, event := range stripeEvents {
+			assert.Equal(t, http.StatusServiceUnavailable, stripeCallback(event).Code, "unfulfilled payments must remain retryable")
+		}
+		_, err = model.AdminResetUserSubscriptionsByPlan(users[1].Id, plans[1].Id, false)
+		assert.ErrorIs(t, err, model.ErrGroupMigrationPaused)
+		_, err = model.AdminResetPlanSubscriptions(plans[1].Id, false)
+		assert.ErrorIs(t, err, model.ErrGroupMigrationPaused)
+		// Admission is held above: its accounting must finish while migration drains.
+		consumed, err := model.PreConsumeUserSubscription("migration-admitted-preconsume", users[0].Id, "migration-probe", 0, 5)
+		require.NoError(t, err)
+		require.NoError(t, model.PostConsumeUserSubscriptionDelta(consumed.UserSubscriptionId, 2))
+		for range 2 {
+			require.NoError(t, model.RefundSubscriptionPreConsume("migration-refundable"))
+		}
+		assert.Equal(t, refundable.UserSubscriptionId, consumed.UserSubscriptionId)
+		bind := request(http.MethodPost, "/api/subscription/admin/bind", map[string]int{"user_id": users[3].Id, "plan_id": plans[0].Id})
+		assert.Equal(t, http.StatusServiceUnavailable, bind.Code, bind.Body.String())
+		count, err := model.ExpireDueSubscriptions(200)
+		assert.ErrorIs(t, err, model.ErrGroupMigrationPaused)
+		assert.Zero(t, count)
+		var stillActive []model.UserSubscription
+		require.NoError(t, db.Where("user_id IN ?", []int{users[1].Id, users[2].Id, users[3].Id}).Order("id").Find(&stillActive).Error)
+		assert.Equal(t, before, stillActive, "paused lifecycle attempts must roll back status and group changes")
+		releaseOnce.Do(release)
+		select {
+		case rec := <-finished:
+			require.Contains(t, rec.Body.String(), `"state":"completed"`)
+		case <-time.After(10 * time.Second):
+			t.Fatal("subscription migration did not finish")
+		}
+		cached, err = model.GetSubscriptionPlanById(plans[0].Id)
+		require.NoError(t, err)
+		plans[0].UpgradeGroup, plans[1].DowngradeGroup = "subscription-new", "subscription-new"
+		// Cache normalization is not a persisted commercial change.
+		cached.AllowBalancePay, cached.AllowWalletOverflow = nil, nil
+		assert.Equal(t, plans[0], *cached)
+		var disabled model.SubscriptionPlan
+		require.NoError(t, db.First(&disabled, plans[1].Id).Error)
+		assert.Equal(t, plans[1], disabled)
+		for i := range before {
+			if before[i].UpgradeGroup == "subscription-old" {
+				before[i].UpgradeGroup = "subscription-new"
+			}
+			if before[i].DowngradeGroup == "subscription-old" {
+				before[i].DowngradeGroup = "subscription-new"
+			}
+			if before[i].PrevUserGroup == "subscription-old" {
+				before[i].PrevUserGroup = "subscription-new"
+			}
+		}
+		var after []model.UserSubscription
+		require.NoError(t, db.Where("user_id IN ?", []int{users[1].Id, users[2].Id, users[3].Id}).Order("id").Find(&after).Error)
+		assert.Equal(t, before, after, "only name references change")
+		for range 2 {
+			require.NoError(t, model.CompleteSubscriptionOrder(order.TradeNo, "paid", model.PaymentProviderEpay, ""))
+			for _, event := range stripeEvents {
+				assert.Equal(t, http.StatusOK, stripeCallback(event).Code)
+			}
+		}
+		paymentSubs, err := model.GetAllUserSubscriptions(users[0].Id)
+		require.NoError(t, err)
+		require.Len(t, paymentSubs, 4, "callback retries must not duplicate the purchased subscription")
+		assert.Zero(t, consumed.AmountUsedBefore, "the automatic reset ran during drain before consumption")
+		assert.Equal(t, int64(4), paymentSubs[len(paymentSubs)-1].Subscription.AmountUsed, "reset, pre-consume, settlement and one refund all committed")
+		count, err = model.ExpireDueSubscriptions(200)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+		for i, want := range []string{"subscription-new", "subscription-new", "subscription-new"} {
+			user, err := model.GetUserById(users[i].Id, true)
+			require.NoError(t, err)
+			assert.Equal(t, want, user.Group)
+			cache, err := model.GetUserCache(users[i].Id)
+			require.NoError(t, err)
+			assert.Equal(t, want, cache.Group)
+		}
+		bind = request(http.MethodPost, "/api/subscription/admin/bind", map[string]int{"user_id": users[3].Id, "plan_id": plans[0].Id})
+		require.Contains(t, bind.Body.String(), `"success":true`)
+		// The old cancelled snapshot is still an effective explicit restoration.
+		deleted := request(http.MethodDelete, "/api/subscription/admin/user_subscriptions/"+strconv.Itoa(inactive[1].Id), nil)
+		require.Contains(t, deleted.Body.String(), `"success":true`)
+	})
+	t.Run("subscription quota reset serializes with migration", func(t *testing.T) {
+		payment := operation_setting.GetPaymentSetting()
+		oldPayment := *payment
+		t.Cleanup(func() { *payment = oldPayment })
+		payment.ComplianceConfirmed = true
+		payment.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+		var groups map[string]float64
+		require.NoError(t, common.UnmarshalJsonStr(ratio_setting.GroupRatio2JSONString(), &groups))
+		groups["reset-old"] = 0.7
+		encoded, err := common.Marshal(groups)
+		require.NoError(t, err)
+		require.NoError(t, model.UpdateOptionsBulk(map[string]string{"GroupRatio": string(encoded)}))
+		user := model.User{Username: "migration-reset", AffCode: "migration-reset", Group: "default", Status: common.UserStatusEnabled}
+		require.NoError(t, db.Create(&user).Error)
+		plan := model.SubscriptionPlan{Title: "migration reset", UpgradeGroup: "reset-old", TotalAmount: 100, DurationUnit: model.SubscriptionDurationDay, DurationValue: 7}
+		require.NoError(t, db.Create(&plan).Error)
+		require.Contains(t, request(http.MethodPost, "/api/subscription/admin/bind", map[string]int{"user_id": user.Id, "plan_id": plan.Id}).Body.String(), `"success":true`)
+		require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ?", user.Id).Update("amount_used", 17).Error)
+		var preview struct{ Data model.GroupMigrationPreview }
+		require.NoError(t, common.Unmarshal(request(http.MethodGet, "/api/option/group_migration/preview?source=reset-old&target=reset-new", nil).Body.Bytes(), &preview))
+		locked, proceed, migrationAttempt := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		var queryOnce, releaseOnce, attemptOnce sync.Once
+		defer releaseOnce.Do(func() { close(proceed) })
+		require.NoError(t, db.Callback().Query().After("gorm:query").Register("test:reset-read", func(tx *gorm.DB) {
+			if rows, ok := tx.Statement.Dest.(*[]model.UserSubscription); ok && len(*rows) > 0 && (*rows)[0].UserId == user.Id {
+				queryOnce.Do(func() {
+					close(locked)
+					<-proceed
+				})
+			}
+		}))
+		defer func() { require.NoError(t, db.Callback().Query().Remove("test:reset-read")) }()
+		require.NoError(t, db.Callback().Update().Before("gorm:update").Register("test:migration-lock-attempt", func(tx *gorm.DB) {
+			if tx.Statement.Table == "group_migration_controls" {
+				select {
+				case <-locked:
+					attemptOnce.Do(func() { close(migrationAttempt) })
+				default:
+				}
+			}
+		}))
+		defer func() { require.NoError(t, db.Callback().Update().Remove("test:migration-lock-attempt")) }()
+		resetDone := make(chan error, 1)
+		go func() {
+			_, err := model.AdminResetUserSubscriptionsByPlan(user.Id, plan.Id, false)
+			resetDone <- err
+		}()
+		select {
+		case <-locked:
+		case <-time.After(5 * time.Second):
+			t.Fatal("reset did not read subscription")
+		}
+		migrationDone := make(chan *httptest.ResponseRecorder, 1)
+		go func() {
+			migrationDone <- request(http.MethodPost, "/api/option/group_migration", model.GroupMigrationSubmission{OperationID: "reset-cutover-05", Source: "reset-old", Target: "reset-new", Version: preview.Data.Version, Confirmation: preview.Data.Confirmation})
+		}()
+		select {
+		case <-migrationAttempt:
+		case <-time.After(5 * time.Second):
+			t.Fatal("migration did not attempt its lock")
+		}
+		releaseOnce.Do(func() { close(proceed) })
+		select {
+		case err := <-resetDone:
+			require.NoError(t, err)
+		case <-time.After(10 * time.Second):
+			t.Fatal("reset deadlocked with migration")
+		}
+		select {
+		case rec := <-migrationDone:
+			require.Contains(t, rec.Body.String(), `"state":"completed"`)
+		case <-time.After(10 * time.Second):
+			t.Fatal("migration deadlocked with reset")
+		}
+		var sub model.UserSubscription
+		require.NoError(t, db.Where("user_id = ?", user.Id).First(&sub).Error)
+		assert.Zero(t, sub.AmountUsed)
+		assert.Equal(t, int64(100), sub.AmountTotal)
+		assert.Equal(t, "reset-new", sub.UpgradeGroup)
 	})
 }
 

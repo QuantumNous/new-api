@@ -26,6 +26,61 @@ func installGroupMigrationWriteBarrier(db *gorm.DB) error {
 	return nil
 }
 
+// Take the migration lock before reading lifecycle inputs, in the same order
+// as migration. A paused transition is retried with fresh plans and snapshots.
+// Zero ids acquire the lock before an order lookup; its ids are checked next.
+func guardSubscriptionGroupTransition(tx *gorm.DB, userID, planID, subscriptionID int) error {
+	if tx.Callback().Create().Get("new-api:group-migration") == nil {
+		return nil // Partial model fixtures have no migration coordinator.
+	}
+	if _, ok := tx.Statement.ConnPool.(gorm.TxCommitter); !ok {
+		return errors.New("subscription group transitions require a transaction")
+	}
+	var control GroupMigrationControl
+	if err := control.lock(tx); err != nil {
+		return err
+	}
+	if control.OperationID == "" {
+		return nil
+	}
+	var op GroupMigrationOperation
+	if err := tx.First(&op, "id = ?", control.OperationID).Error; err != nil {
+		return err
+	}
+	if subscriptionID > 0 {
+		var sub UserSubscription
+		if err := tx.Select("user_id").First(&sub, subscriptionID).Error; err != nil {
+			return err
+		}
+		userID = sub.UserId
+	}
+	groups := []string{op.Source, op.Target}
+	var count int64
+	if userID > 0 {
+		if err := tx.Unscoped().Model(&User{}).Where("id = ? AND "+commonGroupCol+" IN ?", userID, groups).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrGroupMigrationPaused
+		}
+		if err := tx.Model(&UserSubscription{}).Where("user_id = ? AND (upgrade_group IN ? OR downgrade_group IN ? OR prev_user_group IN ?)", userID, groups, groups, groups).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrGroupMigrationPaused
+		}
+	}
+	if planID > 0 {
+		if err := tx.Model(&SubscriptionPlan{}).Where("id = ? AND (upgrade_group IN ? OR downgrade_group IN ?)", planID, groups, groups).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrGroupMigrationPaused
+		}
+	}
+	return nil
+}
+
 func guardGroupReferenceWrite(tx *gorm.DB) {
 	if tx.Error != nil || tx.Statement.Schema == nil {
 		return

@@ -18,6 +18,19 @@ type groupMigrationWriterKey struct{}
 type groupMigrationWriter struct{ operation, owner string }
 
 func migrateGroupReferences(tx *gorm.DB, op *GroupMigrationOperation) error {
+	for _, resource := range []struct {
+		model   any
+		columns []string
+	}{
+		{&SubscriptionPlan{}, []string{"upgrade_group", "downgrade_group"}},
+		{&UserSubscription{}, []string{"upgrade_group", "downgrade_group", "prev_user_group"}},
+	} {
+		for _, column := range resource.columns {
+			if err := tx.Model(resource.model).Where(column+" = ?", op.Source).UpdateColumn(column, op.Target).Error; err != nil {
+				return err
+			}
+		}
+	}
 	for _, resource := range []any{&User{}, &Token{}, &Ability{}} {
 		if err := tx.Unscoped().Model(resource).Where(commonGroupCol+" = ?", op.Source).Update("group", op.Target).Error; err != nil {
 			return err
@@ -139,6 +152,12 @@ func migrateGroupConfiguration(inventory *GroupReferenceInventory, source, targe
 }
 
 func refreshGroupMigrationCaches(tx *gorm.DB, target string) error {
+	if err := getSubscriptionPlanCache().Purge(); err != nil {
+		return err
+	}
+	if err := getSubscriptionPlanInfoCache().Purge(); err != nil {
+		return err
+	}
 	if common.RedisEnabled {
 		var users []User
 		if err := tx.Unscoped().Select("id", "group").Where(commonGroupCol+" = ?", target).Find(&users).Error; err != nil {

@@ -390,6 +390,18 @@ func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	if id <= 0 {
 		return nil, errors.New("invalid plan id")
 	}
+	// Transactional readers use their own authoritative view and never publish
+	// uncommitted plans. Cache readers cannot publish across migration refresh.
+	if tx != nil {
+		var plan SubscriptionPlan
+		if err := tx.First(&plan, id).Error; err != nil {
+			return nil, err
+		}
+		plan.NormalizeDefaults()
+		return &plan, nil
+	}
+	groupViewMutex.RLock()
+	defer groupViewMutex.RUnlock()
 	key := subscriptionPlanCacheKey(id)
 	if key != "" {
 		if cached, found, err := getSubscriptionPlanCache().Get(key); err == nil && found {
@@ -398,11 +410,7 @@ func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 		}
 	}
 	var plan SubscriptionPlan
-	query := DB
-	if tx != nil {
-		query = tx
-	}
-	if err := query.Where("id = ?", id).First(&plan).Error; err != nil {
+	if err := DB.Where("id = ?", id).First(&plan).Error; err != nil {
 		return nil, err
 	}
 	plan.NormalizeDefaults()
@@ -493,6 +501,16 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
+	}
+	if err := guardSubscriptionGroupTransition(tx, userId, plan.Id, 0); err != nil {
+		return nil, err
+	}
+	// A caller may have obtained the plan before migration or from cache.
+	// Re-read it inside the serialized transaction before taking a snapshot.
+	var err error
+	plan, err = getSubscriptionPlanByIdTx(tx, plan.Id)
+	if err != nil {
+		return nil, err
 	}
 	for _, group := range []string{strings.TrimSpace(plan.UpgradeGroup), strings.TrimSpace(plan.DowngradeGroup)} {
 		if err := ValidateGroupReference(group, true, false); err != nil {
@@ -591,6 +609,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	var logPaymentMethod string
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := guardSubscriptionGroupTransition(tx, 0, 0, 0); err != nil {
+			return err
+		}
 		var order SubscriptionOrder
 		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
@@ -604,7 +625,10 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
+		if err := guardSubscriptionGroupTransition(tx, order.UserId, order.PlanId, 0); err != nil {
+			return err
+		}
+		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 		if err != nil {
 			return err
 		}
@@ -726,12 +750,16 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.M
 	if userId <= 0 || planId <= 0 {
 		return nil, errors.New("invalid userId or planId")
 	}
-	plan, err := GetSubscriptionPlanById(planId)
-	if err != nil {
-		return nil, err
-	}
 	groupChanged := false
-	err = DB.Transaction(func(tx *gorm.DB) error {
+	var upgradeGroup string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := guardSubscriptionGroupTransition(tx, userId, planId, 0); err != nil {
+			return err
+		}
+		plan, err := getSubscriptionPlanByIdTx(tx, planId)
+		if err != nil {
+			return err
+		}
 		// 与 CompleteSubscriptionOrder 一致：先锁用户行，再做购买次数检查。
 		var userRow User
 		if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&userRow).Error; err != nil {
@@ -740,6 +768,7 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.M
 		subscription, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin")
 		if err == nil {
 			groupChanged = subscription.PrevUserGroup != ""
+			upgradeGroup = subscription.UpgradeGroup
 		}
 		return err
 	})
@@ -748,7 +777,7 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.M
 	}
 	if groupChanged {
 		refreshSubscriptionUserGroupCache(userId, common.LogText("admin subscription creation"))
-		return common.NewMessage("User group will be upgraded to {{group}}", map[string]any{"group": plan.UpgradeGroup}), nil
+		return common.NewMessage("User group will be upgraded to {{group}}", map[string]any{"group": upgradeGroup}), nil
 	}
 	return nil, nil
 }
@@ -777,6 +806,9 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	var chargedQuota int
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := guardSubscriptionGroupTransition(tx, userId, planId, 0); err != nil {
+			return err
+		}
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
 			return err
@@ -950,6 +982,9 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (*common.Message, e
 	downgradeGroup := ""
 	var userId int
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := guardSubscriptionGroupTransition(tx, 0, 0, userSubscriptionId); err != nil {
+			return err
+		}
 		var sub UserSubscription
 		if err := lockForUpdate(tx).
 			Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
@@ -995,6 +1030,9 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (*common.Message, error
 	downgradeGroup := ""
 	var userId int
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := guardSubscriptionGroupTransition(tx, 0, 0, userSubscriptionId); err != nil {
+			return err
+		}
 		var sub UserSubscription
 		if err := lockForUpdate(tx).
 			Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
@@ -1112,6 +1150,9 @@ func AdminResetUserSubscriptionsByPlan(userId int, planId int, advanceResetTime 
 	var result *SubscriptionResetResult
 	now := GetDBTimestamp()
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := guardSubscriptionGroupTransition(tx, userId, planId, 0); err != nil {
+			return err
+		}
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
 			return err
@@ -1132,6 +1173,9 @@ func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*Subscripti
 	var result *SubscriptionResetResult
 	now := GetDBTimestamp()
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := guardSubscriptionGroupTransition(tx, 0, planId, 0); err != nil {
+			return err
+		}
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
 			return err
@@ -1178,7 +1222,11 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 	}
 	for userId := range userIds {
 		cacheGroup := ""
+		var expiredForUser int64
 		err := DB.Transaction(func(tx *gorm.DB) error {
+			if err := guardSubscriptionGroupTransition(tx, userId, 0, 0); err != nil {
+				return err
+			}
 			res := tx.Model(&UserSubscription{}).
 				Where("user_id = ? AND status = ? AND end_time > 0 AND end_time <= ?", userId, "active", now).
 				Updates(map[string]any{
@@ -1188,7 +1236,7 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 			if res.Error != nil {
 				return res.Error
 			}
-			expiredCount += int(res.RowsAffected)
+			expiredForUser = res.RowsAffected
 
 			// If there's an active upgraded subscription, keep current group.
 			var activeSub UserSubscription
@@ -1247,6 +1295,7 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 		if err != nil {
 			return expiredCount, err
 		}
+		expiredCount += int(expiredForUser)
 		if cacheGroup != "" {
 			refreshSubscriptionUserGroupCache(userId, common.LogText("subscription expiration"))
 		}
@@ -1304,14 +1353,14 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 		if sub.NextResetTime == 0 && next > 0 {
 			sub.NextResetTime = next
 			sub.LastResetTime = base.Unix()
-			return tx.Save(sub).Error
+			return tx.Model(sub).Updates(map[string]any{"next_reset_time": sub.NextResetTime, "last_reset_time": sub.LastResetTime}).Error
 		}
 		return nil
 	}
 	sub.AmountUsed = 0
 	sub.LastResetTime = base.Unix()
 	sub.NextResetTime = next
-	return tx.Save(sub).Error
+	return tx.Model(sub).Updates(map[string]any{"amount_used": sub.AmountUsed, "last_reset_time": sub.LastResetTime, "next_reset_time": sub.NextResetTime}).Error
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
@@ -1400,7 +1449,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				return err
 			}
 			sub.AmountUsed += amount
-			if err := tx.Save(&sub).Error; err != nil {
+			if err := tx.Model(&sub).Update("amount_used", sub.AmountUsed).Error; err != nil {
 				return err
 			}
 			returnValue.UserSubscriptionId = sub.Id
@@ -1436,7 +1485,7 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			record.Status = "refunded"
 			return tx.Save(&record).Error
 		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
+		if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -record.PreConsumed); err != nil {
 			return err
 		}
 		record.Status = "refunded"
@@ -1463,11 +1512,15 @@ func ResetDueSubscriptions(limit int) (int, error) {
 	resetCount := 0
 	for _, sub := range subs {
 		subCopy := sub
-		plan, err := getSubscriptionPlanByIdTx(nil, sub.PlanId)
-		if err != nil || plan == nil {
-			continue
-		}
-		err = DB.Transaction(func(tx *gorm.DB) error {
+		reset := false
+		err := DB.Transaction(func(tx *gorm.DB) error {
+			if err := guardSubscriptionGroupTransition(tx, 0, 0, subCopy.Id); err != nil {
+				return err
+			}
+			plan, err := getSubscriptionPlanByIdTx(tx, subCopy.PlanId)
+			if err != nil {
+				return nil
+			}
 			var locked UserSubscription
 			if err := lockForUpdate(tx).
 				Where("id = ? AND next_reset_time > 0 AND next_reset_time <= ?", subCopy.Id, now).
@@ -1477,11 +1530,14 @@ func ResetDueSubscriptions(limit int) (int, error) {
 			if err := maybeResetUserSubscriptionWithPlanTx(tx, &locked, plan, now); err != nil {
 				return err
 			}
-			resetCount++
+			reset = true
 			return nil
 		})
 		if err != nil {
 			return resetCount, err
+		}
+		if reset {
+			resetCount++
 		}
 	}
 	return resetCount, nil
@@ -1535,17 +1591,20 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var sub UserSubscription
-		if err := lockForUpdate(tx).
-			Where("id = ?", userSubscriptionId).
-			First(&sub).Error; err != nil {
-			return err
-		}
-		newUsed := max(sub.AmountUsed+delta, 0)
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
-		}
-		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		return postConsumeUserSubscriptionDeltaTx(tx, userSubscriptionId, delta)
 	})
+}
+
+func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64) error {
+	var sub UserSubscription
+	if err := lockForUpdate(tx).Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
+		return err
+	}
+	newUsed := max(sub.AmountUsed+delta, 0)
+	if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+		return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+	}
+	// Accounting for admitted requests continues during drain. Never write their
+	// group snapshots back, or acquire the migration lock after the subscription.
+	return tx.Model(&sub).Update("amount_used", newUsed).Error
 }

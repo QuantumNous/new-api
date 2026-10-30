@@ -357,15 +357,6 @@ func previewGroupMigration(db *gorm.DB, source, target string) (*GroupMigrationP
 	if err := groupMigrationQualification(db); err != nil {
 		preview.ExecutionBlockers = append(preview.ExecutionBlockers, err.Error())
 	}
-	for _, ref := range inventory.References {
-		if ref.Group != source {
-			continue
-		}
-		if ref.Category == "subscription_plans" || ref.Category == "subscriptions" {
-			preview.ExecutionBlockers = append(preview.ExecutionBlockers, "Subscription group references cannot be migrated yet.")
-			break
-		}
-	}
 	preview.ExpiresAt = time.Now().Add(5 * time.Minute).Unix()
 	preview.Confirmation = groupMigrationConfirmation(preview)
 	return preview, nil
