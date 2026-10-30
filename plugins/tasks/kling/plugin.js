@@ -73,15 +73,19 @@ const DEFAULT_KLING_MODEL = {
 const KLING4_MODELS = ["kling-4.0"];
 const KLING4_UNITS = { "720p": 1.0, "1080p": 1.5 };
 const KLING4_VIDEO_INPUT_UNITS = { "720p": 0.6, "1080p": 0.9 };
-// The longest output, and the longest total of input videos, in seconds.
+// The shortest and the longest output in seconds; the longest is also the
+// longest total of input videos.
+const KLING4_MIN_SECONDS = 3;
 const KLING4_MAX_SECONDS = 30;
 // Whether an element is a video character is not in the request, so an
 // element counts as an input video.
 const KLING4_VIDEO_INPUTS = ["feature_video", "base_video", "element"];
 const KLING4_ACTIONS = { "text-to-video": "text_to_video", "image-to-video": "image_to_video", "omni-video": "reference_to_video" };
-// OpenAI video sizes the host protocols map to a Kling 4.0 resolution;
-// without one Kling uses 1080p.
-const KLING4_RESOLUTIONS = { "1280x720": "720p", "720x1280": "720p", "1920x1080": "1080p", "1080x1920": "1080p" };
+// The text-to-video aspect ratios of kling-v2-5-turbo, kling-v2-6 and
+// kling-v3, then of Kling 4.0. The host protocols send the one nearest the
+// request's size; without a size Kling uses its default, 16:9.
+const KLING_ASPECT_RATIOS = ["16:9", "9:16", "1:1"];
+const KLING4_ASPECT_RATIOS = ["16:9", "9:16", "1:1", "21:9"];
 
 // Kling's numeric error codes for the statuses the gateway answers with
 // (kling.ai/document-api/api/get-started/error-codes).
@@ -178,11 +182,28 @@ function requestHeaders(ctx) {
   return { Accept: "application/json", Authorization: "Bearer " + tokenFor(ctx), "User-Agent": "kling-sdk/1.0" };
 }
 
-// OpenAI video sizes the host protocols map to Kling's text-to-video
-// aspect_ratio; without a size Kling uses its default, 16:9.
-function aspectRatio(size) {
-  const ratios = { "1024x1024": "1:1", "512x512": "1:1", "1280x720": "16:9", "1920x1080": "16:9", "720x1280": "9:16", "1080x1920": "9:16" };
-  return ratios[size] || "1:1";
+// A host-protocol size, WIDTHxHEIGHT.
+function sizeDimensions(size) {
+  const parts = trimmed(size).toLowerCase().split("x");
+  const width = Number(parts[0]);
+  const height = Number(parts[1]);
+  if (parts.length !== 2 || !(width > 0) || !(height > 0)) throw new Error("size must be WIDTHxHEIGHT, such as 1280x720");
+  return { width: width, height: height };
+}
+
+// The aspect ratio of the list nearest the size's.
+function aspectRatio(dimensions, ratios) {
+  let nearest = ratios[0];
+  let distance = Infinity;
+  for (const ratio of ratios) {
+    const sides = ratio.split(":").map(Number);
+    const ratioDistance = Math.abs(Math.log(dimensions.width / dimensions.height) - Math.log(sides[0] / sides[1]));
+    if (ratioDistance < distance) {
+      nearest = ratio;
+      distance = ratioDistance;
+    }
+  }
+  return nearest;
 }
 
 function submitModel(ctx, req) {
@@ -203,6 +224,15 @@ function klingMode(mode) {
 function validateKlingDuration(value) {
   const n = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
   if (!Number.isInteger(n) || n <= 0 || n > 3600) throw new Error("duration must be a positive integer of at most 3600");
+  return n;
+}
+
+// Kling 4.0 makes 3 to 30 seconds, so another duration is refused before it is
+// reserved.
+function kling4Duration(value) {
+  const n = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  if (!Number.isInteger(n) || n < KLING4_MIN_SECONDS || n > KLING4_MAX_SECONDS)
+    throw new Error("duration must be an integer from " + KLING4_MIN_SECONDS + " to " + KLING4_MAX_SECONDS);
   return n;
 }
 
@@ -273,7 +303,7 @@ function kling4Resolution(settings) {
 }
 
 // Kling would call back, or look tasks up, by ids the gateway does not hand
-// out. The duration is billed, so it is bounded; Kling checks its range.
+// out. The duration is billed, so it is kept within Kling 4.0's range.
 function checkKling4Body(body) {
   const options = plainObject(body.options);
   for (const name of UNSUPPORTED_FIELDS) {
@@ -281,7 +311,7 @@ function checkKling4Body(body) {
     if (value !== undefined && value !== null && value !== "") throw new Error("options." + name + " is not supported; query the task instead");
   }
   const settings = plainObject(body.settings);
-  if (settings.duration !== undefined && settings.duration !== null) validateKlingDuration(settings.duration);
+  if (settings.duration !== undefined && settings.duration !== null) kling4Duration(settings.duration);
 }
 
 // The Kling 4.0 request: a native body as the client wrote it, for the
@@ -307,9 +337,14 @@ function kling4Submission(ctx) {
   const endpoint = frames.length ? "image-to-video" : "text-to-video";
   const settings = {};
   const size = trimmed(req.size);
-  if (KLING4_RESOLUTIONS[size]) settings.resolution = KLING4_RESOLUTIONS[size];
-  if (endpoint === "text-to-video" && size) settings.aspect_ratio = aspectRatio(size);
-  if (duration !== undefined && duration !== null) settings.duration = validateKlingDuration(duration);
+  if (size) {
+    const dimensions = sizeDimensions(size);
+    // Kling 4.0 makes 720p and 1080p; a size gets the one whose shorter side
+    // is nearer its own.
+    settings.resolution = Math.min(dimensions.width, dimensions.height) < 900 ? "720p" : "1080p";
+    if (endpoint === "text-to-video") settings.aspect_ratio = aspectRatio(dimensions, KLING4_ASPECT_RATIOS);
+  }
+  if (duration !== undefined && duration !== null) settings.duration = kling4Duration(duration);
   let body;
   if (endpoint === "text-to-video") body = req.prompt ? { prompt: req.prompt } : {};
   else {
@@ -329,7 +364,7 @@ function kling4Submission(ctx) {
 function kling4ReservedUnits(body) {
   const settings = plainObject(body.settings);
   const resolution = kling4Resolution(settings);
-  const seconds = settings.duration === undefined || settings.duration === null ? KLING4_MAX_SECONDS : validateKlingDuration(settings.duration);
+  const seconds = settings.duration === undefined || settings.duration === null ? KLING4_MAX_SECONDS : kling4Duration(settings.duration);
   const contents = Array.isArray(body.contents) ? body.contents : [];
   const videoInput = contents.some(function (item) {
     return item && KLING4_VIDEO_INPUTS.includes(item.type);
@@ -487,7 +522,7 @@ export const native = {
 };
 
 // Native routes send the client's own body with the channel's model. The host
-// protocols add the prompt, first frame, mode and an aspect ratio mapped from
+// protocols add the prompt, first frame, mode and the aspect ratio nearest the
 // size; image-to-video has no aspect ratio. They always send mode and
 // duration, at Kling's defaults when absent.
 export function buildSubmitRequest(ctx) {
@@ -515,7 +550,7 @@ export function buildSubmitRequest(ctx) {
     if (req.prompt) body.prompt = req.prompt;
     if (req.image) body.image = req.image;
     if (req.mode) body.mode = req.mode;
-    if (action === "text_to_video" && req.size !== undefined && req.size !== null && req.size !== "") body.aspect_ratio = aspectRatio(req.size);
+    if (action === "text_to_video" && req.size !== undefined && req.size !== null && req.size !== "") body.aspect_ratio = aspectRatio(sizeDimensions(req.size), KLING_ASPECT_RATIOS);
     Object.assign(body, metadata);
     body.model_name = model;
     body.mode = klingMode(body.mode);

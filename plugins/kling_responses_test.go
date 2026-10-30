@@ -119,6 +119,20 @@ func TestKlingResponsesProtocol(t *testing.T) {
 		assert.InDelta(t, 2.1, facts["units"], 1e-9)
 	})
 
+	// A host-protocol size gets the nearest of Kling's text-to-video aspect
+	// ratios.
+	t.Run("sizes take the nearest aspect ratio", func(t *testing.T) {
+		for size, want := range map[string]string{"1792x1024": "16:9", "720x720": "1:1", "1024x1792": "9:16", "2560x1080": "16:9"} {
+			adaptor, c, info, taskErr := submit(t, openaiVideo, "kling-v3", map[string]any{"model": "kling-v3", "prompt": "a cat", "size": size})
+			require.Nil(t, taskErr)
+			assert.Equal(t, want, sentBody(t, adaptor, c, info)["aspect_ratio"], size)
+		}
+		_, _, _, taskErr := submit(t, openaiVideo, "kling-v3", map[string]any{"model": "kling-v3", "prompt": "a cat", "size": "large"})
+		require.NotNil(t, taskErr)
+		assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+		assert.ErrorContains(t, taskErr.Error, "size must be WIDTHxHEIGHT")
+	})
+
 	// A native request reaches Kling as the client sent it, for Kling to check:
 	// no model alias, no default aspect ratio, cfg_scale, mode or duration. The
 	// reservation follows Kling's units for the mode and audio at Kling's
@@ -245,7 +259,7 @@ func TestKling4(t *testing.T) {
 		units float64
 		state map[string]any
 	}
-	submit := func(t *testing.T, decoder []string, model string, body map[string]any) submission {
+	validate := func(t *testing.T, decoder []string, model string, body map[string]any) (*taskplugin.TaskAdaptor, *gin.Context, *relaycommon.RelayInfo, any, *dto.TaskError) {
 		t.Helper()
 		value, err := plugin.Engine.CallPath(t.Context(), decoder[0], decoder[1:], map[string]any{"model": model, "body": map[string]any{"kind": "json", "value": body}})
 		require.NoError(t, err)
@@ -260,7 +274,12 @@ func TestKling4(t *testing.T) {
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
 		requestBody := alibabaObject(t, value)["requestBody"]
 		c.Set("task_request", requestBody)
-		require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+		return adaptor, c, info, requestBody, adaptor.ValidateRequestAndSetAction(c, info)
+	}
+	submit := func(t *testing.T, decoder []string, model string, body map[string]any) submission {
+		t.Helper()
+		adaptor, c, info, requestBody, taskErr := validate(t, decoder, model, body)
+		require.Nil(t, taskErr)
 		reader, err := adaptor.BuildRequestBody(c, info)
 		require.NoError(t, err)
 		encoded, err := io.ReadAll(reader)
@@ -324,8 +343,9 @@ func TestKling4(t *testing.T) {
 		}{
 			{"callbacks carry Kling's task ids", map[string]any{"prompt": "a cat", "options": map[string]any{"callback_url": "https://client.example/hook"}}, "options.callback_url is not supported"},
 			{"external ids are not looked up", map[string]any{"prompt": "a cat", "options": map[string]any{"external_task_id": "mine-1"}}, "options.external_task_id is not supported"},
-			{"a billed duration above an hour", map[string]any{"prompt": "a cat", "settings": map[string]any{"duration": 3601}}, "duration must be a positive integer of at most 3600"},
-			{"a fractional duration", map[string]any{"prompt": "a cat", "settings": map[string]any{"duration": "5.5"}}, "duration must be a positive integer of at most 3600"},
+			{"a duration above Kling 4.0's 30 seconds", map[string]any{"prompt": "a cat", "settings": map[string]any{"duration": 31}}, "duration must be an integer from 3 to 30"},
+			{"a duration below its 3 seconds", map[string]any{"prompt": "a cat", "settings": map[string]any{"duration": "2"}}, "duration must be an integer from 3 to 30"},
+			{"a fractional duration", map[string]any{"prompt": "a cat", "settings": map[string]any{"duration": "5.5"}}, "duration must be an integer from 3 to 30"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				_, err := plugin.Engine.CallPath(t.Context(), "native", []string{"kling4TextToVideo"}, map[string]any{"body": map[string]any{"kind": "json", "value": tc.body}})
@@ -436,6 +456,39 @@ func TestKling4(t *testing.T) {
 		assert.Equal(t, map[string]any{"prompt": "a cat", "settings": map[string]any{"resolution": "720p", "aspect_ratio": "16:9", "duration": float64(5)}}, sent.body)
 		assert.InDelta(t, 5.0, sent.units, 1e-9)
 		assert.Equal(t, map[string]any{"resolution": "720p"}, sent.state)
+
+		// Any size gets the nearest of Kling 4.0's aspect ratios, and 720p or
+		// 1080p by its shorter side; image-to-video has no aspect ratio.
+		for _, tc := range []struct {
+			size     string
+			image    string
+			settings map[string]any
+		}{
+			{"720x720", "", map[string]any{"resolution": "720p", "aspect_ratio": "1:1", "duration": float64(5)}},
+			{"1792x1024", "", map[string]any{"resolution": "1080p", "aspect_ratio": "16:9", "duration": float64(5)}},
+			{"1024x1792", "", map[string]any{"resolution": "1080p", "aspect_ratio": "9:16", "duration": float64(5)}},
+			{"2560x1080", "", map[string]any{"resolution": "1080p", "aspect_ratio": "21:9", "duration": float64(5)}},
+			{"720x1280", "https://cdn.example/a.png", map[string]any{"resolution": "720p", "duration": float64(5)}},
+		} {
+			body := map[string]any{"model": "kling-4.0", "prompt": "a cat", "size": tc.size, "seconds": 5}
+			if tc.image != "" {
+				body["input_reference"] = tc.image
+			}
+			sent = submit(t, openaiVideo, "kling-4.0", body)
+			assert.Equal(t, tc.settings, sent.body["settings"], tc.size)
+		}
+
+		// Kling 4.0 makes 3 to 30 seconds; another duration is refused before
+		// anything is reserved.
+		for _, seconds := range []any{2, 31, "45"} {
+			_, _, _, _, taskErr := validate(t, openaiVideo, "kling-4.0", map[string]any{"model": "kling-4.0", "prompt": "a cat", "seconds": seconds})
+			require.NotNil(t, taskErr, seconds)
+			assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+			assert.ErrorContains(t, taskErr.Error, "duration must be an integer from 3 to 30")
+		}
+		_, _, _, _, taskErr := validate(t, openaiVideo, "kling-4.0", map[string]any{"model": "kling-4.0", "prompt": "a cat", "size": "720p"})
+		require.NotNil(t, taskErr)
+		assert.ErrorContains(t, taskErr.Error, "size must be WIDTHxHEIGHT")
 
 		sent = submit(t, openaiVideo, "kling-4.0", map[string]any{"model": "kling-4.0", "prompt": "a cat", "input_reference": "https://cdn.example/a.png", "seconds": 5,
 			"metadata": map[string]any{"image_tail": "https://cdn.example/b.png"}})
