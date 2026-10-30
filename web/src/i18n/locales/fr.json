@@ -6061,6 +6061,7 @@
     "Subscription": "Abonnement",
     "Subscription Billing": "Facturation d'abonnement",
     "Subscription First": "Abonnement en priorité",
+    "Subscription group references cannot be migrated yet.": "La migration des groupes référencés par des abonnements n’est pas encore prise en charge.",
     "Subscription Management": "Gestion des abonnements",
     "Subscription Only": "Abonnement uniquement",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "La création et la modification des forfaits d’abonnement sont verrouillées jusqu’à ce que l’administrateur confirme les conditions de conformité dans les paramètres de la passerelle de paiement.",

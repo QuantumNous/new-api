@@ -14,8 +14,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -56,7 +54,9 @@ var groupMigrationTraffic = struct {
 	sync.Mutex
 	owner, recoveryOwner, operation, source, target string
 	inflight                                        map[string]int
-}{inflight: map[string]int{}}
+	epoch                                           uint64
+	changed                                         map[string]uint64
+}{inflight: map[string]int{}, changed: map[string]uint64{}}
 
 type groupMigrationPausedError struct{ *common.Message }
 
@@ -165,14 +165,38 @@ func setGroupMigrationPause(op *GroupMigrationOperation) {
 	groupMigrationTraffic.Lock()
 	defer groupMigrationTraffic.Unlock()
 	groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = op.ID, op.Source, op.Target
+	advanceGroupMigrationVersion(op.Source, op.Target)
+}
+
+// Called under groupMigrationTraffic's lock at each pause or release. A request
+// only retries when one of its routing dependencies changed since authentication.
+func advanceGroupMigrationVersion(source, target string) {
+	groupMigrationTraffic.epoch++
+	groupMigrationTraffic.changed[source] = groupMigrationTraffic.epoch
+	groupMigrationTraffic.changed[target] = groupMigrationTraffic.epoch
 }
 
 // AdmitGroupRequest covers the whole response lifetime, including streams. It
 // never cancels accepted requests; migration waits for their release instead.
 func AdmitGroupRequest(groups ...string) (func(), error) {
+	return AdmitGroupRequestAtVersion(GroupRequestVersion(), groups...)
+}
+
+func GroupRequestVersion() uint64 {
+	groupMigrationTraffic.Lock()
+	defer groupMigrationTraffic.Unlock()
+	return groupMigrationTraffic.epoch
+}
+
+// Authentication captures the version before reading any routing snapshots.
+// A request straddling a cutover retries instead of using a retired group.
+func AdmitGroupRequestAtVersion(version uint64, groups ...string) (func(), error) {
 	groupMigrationTraffic.Lock()
 	defer groupMigrationTraffic.Unlock()
 	for _, group := range groups {
+		if groupMigrationTraffic.changed[group] > version {
+			return nil, ErrGroupMigrationPaused
+		}
 		if groupMigrationTraffic.operation != "" && (group == groupMigrationTraffic.source || group == groupMigrationTraffic.target) {
 			return nil, ErrGroupMigrationPaused
 		}
@@ -304,23 +328,19 @@ func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmissi
 		if preview.Version != op.Version || len(preview.Blockers)+len(preview.ExecutionBlockers) != 0 {
 			return common.NewMessage("The preview expired or changed. Preview and confirm again.")
 		}
-		values := map[string]string{"GroupRatio": ratio_setting.GroupRatio2JSONString(), "UserUsableGroups": setting.UserUsableGroups2JSONString(), "TopupGroupRatio": common.TopupGroupRatio2JSONString()}
-		for key, value := range values {
-			var object map[string]any
-			if err := common.UnmarshalJsonStr(value, &object); err != nil {
-				return err
-			}
-			if original, exists := object[op.Source]; exists {
-				object[op.Target] = original
-				delete(object, op.Source)
-			}
-			encoded, err := common.Marshal(object)
-			if err != nil {
-				return err
-			}
-			values[key] = string(encoded)
+		inventory, err := readGroupReferenceInventory(tx)
+		if err != nil {
+			return err
 		}
-		values["group_ratio_setting.group_ratio"] = values["GroupRatio"]
+		values, err := migrateGroupConfiguration(inventory, op.Source, op.Target)
+		if err != nil {
+			return err
+		}
+		writer := groupMigrationWriter{operation: op.ID, owner: owner}
+		tx = tx.WithContext(context.WithValue(tx.Statement.Context, groupMigrationWriterKey{}, writer))
+		if err := migrateGroupReferences(tx, op); err != nil {
+			return err
+		}
 		for key, value := range values {
 			if err := tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&Option{Key: key, Value: value}).Error; err != nil {
 				return err
@@ -357,6 +377,8 @@ func finishGroupMigration(ctx context.Context, op *GroupMigrationOperation, owne
 }
 
 func releaseGroupMigration(ctx context.Context, op *GroupMigrationOperation, owner, state, reason string) error {
+	groupViewMutex.Lock()
+	defer groupViewMutex.Unlock()
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var control GroupMigrationControl
 		if err := control.lock(tx); err != nil {
@@ -380,12 +402,14 @@ func releaseGroupMigration(ctx context.Context, op *GroupMigrationOperation, own
 			if err := common.UnmarshalJsonStr(committed.Values, &values); err != nil {
 				return err
 			}
-			// Publication is fenced by the same lock as ownership and release.
-			// Unused groups have no user/token/channel cache entries to refresh.
+			// Publication and cache refresh remain fenced until all views are ready.
 			for key, value := range values {
 				if err := updateOptionMap(key, value); err != nil {
 					return err
 				}
+			}
+			if err := refreshGroupMigrationCaches(tx, op.Target); err != nil {
+				return err
 			}
 		}
 		if err := tx.Model(op).Updates(map[string]any{"state": state, "reason": reason, "updated_at": time.Now().Unix()}).Error; err != nil {
@@ -396,6 +420,7 @@ func releaseGroupMigration(ctx context.Context, op *GroupMigrationOperation, own
 	if err == nil {
 		groupMigrationTraffic.Lock()
 		if groupMigrationTraffic.owner == owner && groupMigrationTraffic.operation == op.ID {
+			advanceGroupMigrationVersion(op.Source, op.Target)
 			groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = "", "", ""
 		}
 		groupMigrationTraffic.Unlock()
@@ -440,6 +465,7 @@ func ResumeGroupMigration(ctx context.Context, id string) (*GroupMigrationOperat
 		if err == nil {
 			groupMigrationTraffic.Lock()
 			if groupMigrationTraffic.owner == owner && groupMigrationTraffic.operation == id {
+				advanceGroupMigrationVersion(op.Source, op.Target)
 				groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = "", "", ""
 			}
 			groupMigrationTraffic.Unlock()

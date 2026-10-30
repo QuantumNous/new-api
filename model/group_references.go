@@ -343,13 +343,12 @@ func previewGroupMigration(db *gorm.DB, source, target string) (*GroupMigrationP
 	}
 	preview.Version = fmt.Sprintf("%x", sha256.Sum256(versionData))
 	preview.ExecutionBlockers = []string{}
-	for _, key := range []string{"GroupRatio", "group_ratio_setting.group_ratio", "UserUsableGroups", "TopupGroupRatio"} {
-		saved, exists := inventory.configuration["saved_configuration:"+key]
-		if !exists {
+	for key, saved := range inventory.configuration {
+		if !strings.HasPrefix(key, "saved_configuration:") {
 			continue
 		}
-		kind := canonicalGroupOption(key)
-		var persisted, effective map[string]any
+		kind := canonicalGroupOption(strings.TrimPrefix(key, "saved_configuration:"))
+		var persisted, effective any
 		if common.UnmarshalJsonStr(saved, &persisted) != nil || common.UnmarshalJsonStr(inventory.configuration["configuration:"+kind], &effective) != nil || !reflect.DeepEqual(persisted, effective) {
 			preview.ExecutionBlockers = append(preview.ExecutionBlockers, "Saved and effective group configuration differ. Reload and repair configuration before migration.")
 			break
@@ -362,11 +361,10 @@ func previewGroupMigration(db *gorm.DB, source, target string) (*GroupMigrationP
 		if ref.Group != source {
 			continue
 		}
-		if (ref.Category == "configuration" || ref.Category == "saved_configuration") && slices.Contains([]string{"GroupRatio", "group_ratio_setting.group_ratio", "UserUsableGroups", "TopupGroupRatio"}, ref.Record) {
-			continue
+		if ref.Category == "subscription_plans" || ref.Category == "subscriptions" {
+			preview.ExecutionBlockers = append(preview.ExecutionBlockers, "Subscription group references cannot be migrated yet.")
+			break
 		}
-		preview.ExecutionBlockers = append(preview.ExecutionBlockers, "Only unused groups with a base ratio, description and top-up ratio can be migrated in single-node mode.")
-		break
 	}
 	preview.ExpiresAt = time.Now().Add(5 * time.Minute).Unix()
 	preview.Confirmation = groupMigrationConfirmation(preview)

@@ -57,6 +57,13 @@ func cacheInitToken(token Token) (int, error) {
 	if !common.RedisEnabled {
 		return 0, nil
 	}
+	groupViewMutex.RLock()
+	defer groupViewMutex.RUnlock()
+	var routing Token
+	if err := DB.Select("id", "group", "auto_groups").First(&routing, token.Id).Error; err != nil {
+		return 0, err
+	}
+	token.Group, token.AutoGroups = routing.Group, routing.AutoGroups
 	allowIps := ""
 	if token.AllowIps != nil {
 		allowIps = *token.AllowIps

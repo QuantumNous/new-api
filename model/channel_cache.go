@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"gorm.io/gorm"
 )
 
 var group2model2channels map[string]map[string][]int // enabled channel
@@ -25,15 +26,26 @@ var channel2advancedCustomConfig map[int]*kitdto.AdvancedCustomConfig
 var channelSyncLock sync.RWMutex
 
 func InitChannelCache() {
+	groupViewMutex.RLock()
+	defer groupViewMutex.RUnlock()
+	if err := initChannelCache(DB); err != nil {
+		common.SysError(common.LogText("failed to sync channel cache: %s", err.Error()))
+		return
+	}
+	rebuildTaskAliasView()
+}
+
+func initChannelCache(db *gorm.DB) error {
 	if !common.MemoryCacheEnabled {
 		InvalidatePricingCache()
-		rebuildTaskAliasView()
-		return
+		return nil
 	}
 	newChannelId2channel := make(map[int]*Channel)
 	newChannel2advancedCustomConfig := make(map[int]*kitdto.AdvancedCustomConfig)
 	var channels []*Channel
-	DB.Find(&channels)
+	if err := db.Find(&channels).Error; err != nil {
+		return err
+	}
 	for _, channel := range channels {
 		newChannelId2channel[channel.Id] = channel
 		if channel.Type == constant.ChannelTypeAdvancedCustom {
@@ -43,7 +55,9 @@ func InitChannelCache() {
 		}
 	}
 	var abilities []*Ability
-	DB.Find(&abilities)
+	if err := db.Find(&abilities).Error; err != nil {
+		return err
+	}
 	groups := make(map[string]bool)
 	for _, ability := range abilities {
 		groups[ability.Group] = true
@@ -102,8 +116,8 @@ func InitChannelCache() {
 	// loadPricingAdvancedCustomConfigs. channelSyncLock MUST be released before
 	// invalidating the pricing cache, otherwise the reversed order deadlocks.
 	InvalidatePricingCache()
-	rebuildTaskAliasView()
 	common.SysLog(common.LogText("channels synced from database"))
+	return nil
 }
 
 func SyncChannelCache(frequency int) {
@@ -274,14 +288,19 @@ func CacheUpdateChannelStatus(id int, status int) {
 }
 
 func CacheUpdateChannel(channel *Channel) {
-	if !common.MemoryCacheEnabled {
+	if !common.MemoryCacheEnabled || channel == nil {
 		return
 	}
+	groupViewMutex.RLock()
+	defer groupViewMutex.RUnlock()
+	var authoritative Channel
+	if err := DB.Select("id", "group").First(&authoritative, channel.Id).Error; err != nil {
+		return
+	}
+	current := *channel
+	current.Group = authoritative.Group
+	channel = &current
 	channelSyncLock.Lock()
-	if channel == nil {
-		channelSyncLock.Unlock()
-		return
-	}
 
 	if channelsIDM == nil {
 		channelsIDM = make(map[int]*Channel)

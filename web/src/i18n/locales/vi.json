@@ -6061,6 +6061,7 @@
     "Subscription": "Đăng ký",
     "Subscription Billing": "Thanh toán gói đăng ký",
     "Subscription First": "Ưu tiên đăng ký",
+    "Subscription group references cannot be migrated yet.": "Chưa hỗ trợ di chuyển nhóm được gói đăng ký tham chiếu.",
     "Subscription Management": "Quản lý đăng ký",
     "Subscription Only": "Chỉ đăng ký",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "Việc tạo và thay đổi gói đăng ký bị khóa cho đến khi quản trị viên xác nhận điều khoản tuân thủ trong cài đặt Cổng thanh toán.",

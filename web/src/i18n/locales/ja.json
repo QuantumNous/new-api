@@ -6061,6 +6061,7 @@
     "Subscription": "サブスクリプション",
     "Subscription Billing": "サブスクリプション課金",
     "Subscription First": "サブスクリプション優先",
+    "Subscription group references cannot be migrated yet.": "サブスクリプションが参照するグループはまだ移行できません。",
     "Subscription Management": "サブスクリプション管理",
     "Subscription Only": "サブスクリプションのみ",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "管理者が支払いゲートウェイ設定でコンプライアンス条件を確認するまで、サブスクリプションプランの作成と変更はロックされます。",

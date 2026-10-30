@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -50,6 +51,9 @@ func validUserInfo(username string, role int) bool {
 }
 
 func authHelper(c *gin.Context, minRole int) {
+	// Distribution must reject an authentication snapshot read before cutover.
+	// Management requests do not acquire a routing admission themselves.
+	c.Set("group_migration_version", model.GroupRequestVersion())
 	if _, started := c.Get(accessTokenAuditContextKey); !started {
 		defer finishAccessTokenAudit(c)
 	}
@@ -427,6 +431,7 @@ func WssAuth(c *gin.Context) {
 // Used for endpoints that need to be accessible from both the dashboard and API clients.
 func TokenOrUserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		groupVersion := model.GroupRequestVersion()
 		raw, ok := authorizationToken(c.GetHeader("Authorization"))
 		if ok {
 			identity, internal, err := service.ParseDashboardAccessToken(raw)
@@ -444,6 +449,21 @@ func TokenOrUserAuth() func(c *gin.Context) {
 				return
 			}
 			setDashboardAuthContext(c, user, identity, false)
+			// Dashboard model views depend on every permitted routing group.
+			groups := []string{user.Group}
+			for group := range service.GetUserUsableGroups(user.Group) {
+				groups = append(groups, group)
+				if group == "auto" {
+					groups = append(groups, setting.GetAutoGroups()...)
+				}
+			}
+			release, err := model.AdmitGroupRequestAtVersion(groupVersion, groups...)
+			if err != nil {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
+				return
+			}
+			defer release()
+			c.Set("group_migration_admitted", true)
 			c.Next()
 			return
 		}
@@ -527,6 +547,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		groupVersion := model.GroupRequestVersion()
 		// 先检测是否为ws
 		applyWebSocketSubprotocolAuthorization(c.Request.Header)
 		// 检查path包含/v1/messages 或 /v1/models
@@ -621,12 +642,25 @@ func TokenAuth() func(c *gin.Context) {
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group
-		release, err := model.AdmitGroupRequest(userGroup, tokenGroup)
+		dependencies := []string{userGroup, tokenGroup}
+		if tokenGroup == "auto" || tokenGroup == "" && userGroup == "auto" {
+			groups, parseErr := token.GetAutoGroups()
+			if parseErr != nil {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgTokenInvalid))
+				return
+			}
+			if len(groups) == 0 {
+				groups = setting.GetAutoGroups()
+			}
+			dependencies = append(dependencies, groups...)
+		}
+		release, err := model.AdmitGroupRequestAtVersion(groupVersion, dependencies...)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
 			return
 		}
 		defer release()
+		c.Set("group_migration_admitted", true)
 		if tokenGroup != "" {
 			// check common.UserUsableGroups[userGroup]
 			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {

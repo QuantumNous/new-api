@@ -3,15 +3,18 @@ package router
 import (
 	"context"
 	"errors"
+	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -55,6 +58,9 @@ func TestUnusedGroupMigration(t *testing.T) {
 	oldRedis, oldMemory := common.RedisEnabled, common.MemoryCacheEnabled
 	oldRedisClient := common.RDB
 	oldUsable, oldTopup := setting.UserUsableGroups2JSONString(), common.TopupGroupRatio2JSONString()
+	oldAuto, oldNested := setting.AutoGroups2JsonString(), ratio_setting.GroupGroupRatio2JSONString()
+	oldSpecial := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.MarshalJSONString()
+	oldLimits := setting.ModelRequestRateLimitGroup2JSONString()
 	common.RedisEnabled, common.MemoryCacheEnabled = false, false
 	if os.Getenv("TEST_GROUP_MIGRATION_REDIS_URL") != "" {
 		t.Setenv("REDIS_CONN_STRING", os.Getenv("TEST_GROUP_MIGRATION_REDIS_URL"))
@@ -82,6 +88,10 @@ func TestUnusedGroupMigration(t *testing.T) {
 		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(oldUsable))
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(oldTopup))
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(oldRatio))
+		require.NoError(t, setting.UpdateAutoGroupsByJsonString(oldAuto))
+		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(oldNested))
+		require.NoError(t, common.UnmarshalJsonStr(oldSpecial, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup))
+		require.NoError(t, setting.UpdateModelRequestRateLimitGroupByJSONString(oldLimits))
 		sqlDB, err := db.DB()
 		require.NoError(t, err)
 		require.NoError(t, sqlDB.Close())
@@ -197,6 +207,8 @@ func TestUnusedGroupMigration(t *testing.T) {
 		assert.Equal(t, 0.6, ratio_setting.GetGroupRatioCopy()["recovered"])
 		// Return to the original preview's configuration for the remaining cases.
 		require.NoError(t, model.UpdateOptionsBulk(map[string]string{"GroupRatio": `{"default":1,"unused":0.75}`}))
+		require.NoError(t, common.Unmarshal(request(http.MethodGet, "/api/option/group_migration/preview?source=unused&target=premium", nil).Body.Bytes(), &observed))
+		payload["version"], payload["confirmation"] = observed.Data.Version, observed.Data.Confirmation
 	})
 	t.Run("commit failure rolls back all configuration and releases the pause", func(t *testing.T) {
 		require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:migration-failure", func(tx *gorm.DB) {
@@ -297,6 +309,330 @@ func TestUnusedGroupMigration(t *testing.T) {
 	assert.Equal(t, response.Body.String(), retry.Body.String(), "retry must return the same durable result")
 	status := request(http.MethodGet, "/api/option/group_migration/migration-test-01", nil)
 	assert.Equal(t, response.Body.String(), status.Body.String())
+	t.Run("original API keys retain explicit inherited and automatic routing", func(t *testing.T) {
+		oldModelRatio := ratio_setting.ModelRatio2JSONString()
+		t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(oldModelRatio)) })
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"gpt-4o-mini":0.075}`))
+		require.NoError(t, model.UpdateOptionsBulk(map[string]string{
+			"GroupRatio":                 `{"default":1,"premium":0.75,"routing":0.6,"routing-extra":0.9}`,
+			"UserUsableGroups":           `{"routing":"Original access","routing-extra":"Other access","auto":"Automatic"}`,
+			"AutoGroups":                 `["routing","routing-extra"]`,
+			"GroupGroupRatio":            `{"routing":{"routing":0.6,"routing-extra":0.7},"routing-extra":{"routing":0.55}}`,
+			"GroupSpecialUsableGroup":    `{"routing":{"+:routing":"Original access","-:default":"Hidden","routing-extra":"Other access"},"routing-extra":{"-:routing":"Hidden"},"default":{"+:routing":"Granted"}}`,
+			"TopupGroupRatio":            `{"routing":0.85,"routing-extra":0.95}`,
+			"ModelRequestRateLimitGroup": `{"routing":[120,60],"routing-extra":[90,60]}`,
+		}))
+		playgroundHeld, releasePlayground := make(chan struct{}, 1), make(chan struct{})
+		var playgroundReleaseOnce sync.Once
+		defer playgroundReleaseOnce.Do(func() { close(releasePlayground) })
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			body, err := io.ReadAll(r.Body)
+			assert.NoError(t, err)
+			if strings.Contains(string(body), "playground") {
+				if strings.Contains(string(body), "playground-hold") {
+					playgroundHeld <- struct{}{}
+					<-releasePlayground
+				}
+				_, _ = w.Write([]byte(`{"id":"migration-pg","object":"chat.completion","model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"upstream":"original"}`))
+		}))
+		defer upstream.Close()
+		baseURL := upstream.URL
+		channel := model.Channel{Type: constant.ChannelTypeOpenAI, Key: "upstream-private-key", Name: "migration-routing", Status: common.ChannelStatusEnabled, Group: "routing", Models: "migration-probe,gpt-4o-mini", BaseURL: &baseURL}
+		require.NoError(t, db.Create(&channel).Error)
+		require.NoError(t, db.Create(&model.Ability{Group: "routing", Model: "migration-probe", ChannelId: channel.Id, Enabled: true}).Error)
+		require.NoError(t, db.Create(&model.Ability{Group: "routing", Model: "gpt-4o-mini", ChannelId: channel.Id, Enabled: true}).Error)
+		user := model.User{Username: "routing-user", AffCode: "routing-user", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "routing", AuthVersion: 1, Quota: 7000}
+		require.NoError(t, db.Create(&user).Error)
+		require.NoError(t, model.PublishUserAuthCache(user.Id))
+		autoUser := model.User{Username: "auto-routing-user", AffCode: "auto-routing-user", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, Quota: 7000}
+		require.NoError(t, db.Create(&autoUser).Error)
+		require.NoError(t, model.PublishUserAuthCache(autoUser.Id))
+		credentials := make(map[int]string)
+		for _, account := range []model.User{user, autoUser} {
+			sid := "routing-session-" + strconv.Itoa(account.Id)
+			require.NoError(t, model.CreateUserSession(&model.UserSession{SID: sid, UserID: account.Id, Version: 1, UserAuthVersion: 1, Status: model.UserSessionStatusActive, RefreshHash: "routing-test-refresh", LoginMethod: "password", LastActiveAt: now, ExpiresAt: now + 3600}))
+			access, _, err := service.IssueAccessToken(service.AuthIdentity{UserID: account.Id, SessionID: sid, UserAuthVersion: 1, SessionVersion: 1})
+			require.NoError(t, err)
+			credentials[account.Id] = access
+		}
+		playground := gin.New()
+		SetRelayRouter(playground)
+		playgroundProbe := func(accountID int, content string) *httptest.ResponseRecorder {
+			body, err := common.Marshal(map[string]any{"model": "gpt-4o-mini", "group": "auto", "messages": []map[string]string{{"role": "user", "content": content}}})
+			require.NoError(t, err)
+			req := httptest.NewRequest(http.MethodPost, "/pg/chat/completions", strings.NewReader(string(body)))
+			req.Header.Set("Authorization", "Bearer "+credentials[accountID])
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept-Language", "en")
+			rec := httptest.NewRecorder()
+			playground.ServeHTTP(rec, req)
+			return rec
+		}
+		keys := []model.Token{
+			{Group: "routing"}, {Group: ""}, {Group: "auto"}, {Group: "auto", AutoGroups: `["routing-extra","routing"]`, CrossGroupRetry: true},
+		}
+		for i := range keys {
+			keys[i].UserId, keys[i].Key = user.Id, strings.Repeat(strconv.Itoa(i+1), 48)
+			if i >= 2 {
+				keys[i].UserId = autoUser.Id
+			}
+			keys[i].Status, keys[i].ExpiredTime, keys[i].UnlimitedQuota = common.TokenStatusEnabled, -1, true
+			require.NoError(t, db.Create(&keys[i]).Error)
+		}
+		disabledUser := model.User{Username: "disabled-routing", AffCode: "disabled-routing", Status: common.UserStatusDisabled, Group: "routing", Quota: 321}
+		require.NoError(t, db.Create(&disabledUser).Error)
+		require.NoError(t, db.Delete(&disabledUser).Error)
+		require.NoError(t, db.Unscoped().First(&disabledUser, disabledUser.Id).Error)
+		disabledToken := model.Token{UserId: disabledUser.Id, Key: strings.Repeat("9", 48), Group: "routing", Status: common.TokenStatusDisabled, RemainQuota: 456, ModelLimitsEnabled: true, ModelLimits: "migration-probe"}
+		require.NoError(t, db.Create(&disabledToken).Error)
+		require.NoError(t, db.Delete(&disabledToken).Error)
+		require.NoError(t, db.Unscoped().First(&disabledToken, disabledToken.Id).Error)
+		priority, weight := int64(5), uint(13)
+		disabledChannel := model.Channel{Type: constant.ChannelTypeOpenAI, Key: "disabled-key", Name: "disabled-routing", Status: common.ChannelStatusManuallyDisabled, Group: "routing-extra,routing", Models: "migration-probe", Priority: &priority, Weight: &weight}
+		require.NoError(t, db.Create(&disabledChannel).Error)
+		disabledAbility := model.Ability{Group: "routing", Model: "migration-probe", ChannelId: disabledChannel.Id, Enabled: false, Priority: &priority, Weight: weight}
+		require.NoError(t, db.Create(&disabledAbility).Error)
+		history := model.Task{TaskID: "historical-routing", UserId: user.Id, Group: "routing", Status: model.TaskStatusSuccess, Quota: 123}
+		require.NoError(t, db.Create(&history).Error)
+		log := model.AuditLog{EventId: "historical-routing", UserId: user.Id, Content: "historical routing"}
+		require.NoError(t, db.Create(&log).Error)
+		// Unfinished inherited tasks and unsupported subscription lifecycles must
+		// prevent execution before any resource or configuration is changed.
+		pendingTask := model.Task{TaskID: "pending-routing", UserId: user.Id, Status: model.TaskStatusInProgress}
+		require.NoError(t, db.Create(&pendingTask).Error)
+		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=migrated", nil).Body.String(), "Related unfinished tasks")
+		require.NoError(t, db.Delete(&pendingTask).Error)
+		plan := model.SubscriptionPlan{Title: "routing-subscription", UpgradeGroup: "routing"}
+		require.NoError(t, db.Create(&plan).Error)
+		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=migrated", nil).Body.String(), "Subscription group references cannot be migrated yet.")
+		require.NoError(t, db.Delete(&plan).Error)
+		model.InitChannelCache()
+		held := make(chan struct{}, len(keys))
+		releaseHeld := make(chan struct{})
+		var releaseOnce sync.Once
+		defer releaseOnce.Do(func() { close(releaseHeld) })
+		relay := gin.New()
+		relay.POST("/v1/chat/completions", middleware.TokenAuth(), middleware.Distribute(), func(c *gin.Context) {
+			group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+			if group == "auto" {
+				group = common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+			}
+			assert.Equal(t, 0.6, service.GetUserGroupRatio(c.GetString("user_group"), group))
+			if c.GetHeader("X-Migration-Hold") == "true" {
+				held <- struct{}{}
+				<-releaseHeld
+			}
+			target, err := url.Parse(common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl))
+			require.NoError(t, err)
+			httputil.NewSingleHostReverseProxy(target).ServeHTTP(c.Writer, c.Request)
+		})
+		probe := func(key model.Token, hold bool) *httptest.ResponseRecorder {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"migration-probe","messages":[]}`))
+			req = req.WithContext(ctx)
+			req.Header.Set("Authorization", "Bearer sk-"+key.Key)
+			req.Header.Set("Content-Type", "application/json")
+			if hold {
+				req.Header.Set("X-Migration-Hold", "true")
+			}
+			rec := httptest.NewRecorder()
+			relay.ServeHTTP(rec, req)
+			return rec
+		}
+		call := func(key model.Token) {
+			t.Helper()
+			rec := probe(key, false)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			assert.JSONEq(t, `{"upstream":"original"}`, rec.Body.String())
+		}
+		for _, key := range keys {
+			call(key)
+		}
+		pg := playgroundProbe(autoUser.Id, "playground")
+		require.Equal(t, http.StatusOK, pg.Code, pg.Body.String())
+		var preview struct{ Data model.GroupMigrationPreview }
+		require.NoError(t, common.Unmarshal(request(http.MethodGet, "/api/option/group_migration/preview?source=routing&target=migrated", nil).Body.Bytes(), &preview))
+		require.Empty(t, preview.Data.ExecutionBlockers)
+		require.Empty(t, preview.Data.Blockers)
+		beforeCutover := model.GroupRequestVersion()
+		// Fail only after all user/token/channel/ability updates have executed.
+		require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:used-migration-failure", func(tx *gorm.DB) {
+			if tx.Statement.Table == "options" {
+				tx.AddError(errors.New("injected option write failure after resource writes"))
+			}
+		}))
+		failed := request(http.MethodPost, "/api/option/group_migration", model.GroupMigrationSubmission{OperationID: "routing-rollback-04", Source: "routing", Target: "migrated", Version: preview.Data.Version, Confirmation: preview.Data.Confirmation})
+		require.NoError(t, db.Callback().Create().Remove("test:used-migration-failure"))
+		require.Contains(t, failed.Body.String(), `"state":"aborted"`)
+		var unchangedUser model.User
+		require.NoError(t, db.First(&unchangedUser, user.Id).Error)
+		assert.Equal(t, "routing", unchangedUser.Group)
+		var unchangedToken model.Token
+		require.NoError(t, db.First(&unchangedToken, keys[0].Id).Error)
+		assert.Equal(t, "routing", unchangedToken.Group)
+		var unchangedChannel model.Channel
+		require.NoError(t, db.First(&unchangedChannel, channel.Id).Error)
+		assert.Equal(t, "routing", unchangedChannel.Group)
+		var unchangedAbility model.Ability
+		require.NoError(t, db.Where("channel_id = ?", channel.Id).First(&unchangedAbility).Error)
+		assert.Equal(t, "routing", unchangedAbility.Group)
+		for _, key := range keys {
+			call(key)
+		}
+		// Each accepted routing mode remains active while the migration pauses
+		// new admissions, including inherited and automatic dependencies.
+		playgroundResponse := make(chan *httptest.ResponseRecorder, 1)
+		go func() { playgroundResponse <- playgroundProbe(autoUser.Id, "playground-hold") }()
+		select {
+		case <-playgroundHeld:
+		case <-time.After(5 * time.Second):
+			t.Fatal("Playground request did not reach upstream")
+		}
+		// Hold an authenticated DB snapshot across cutover, before admission.
+		if common.RedisEnabled {
+			require.NoError(t, common.RDB.Del(context.Background(), "user:"+strconv.Itoa(user.Id)).Err())
+		}
+		authSnapshotRead, resumeAuth := make(chan struct{}), make(chan struct{})
+		var authRead atomic.Bool
+		var resumeAuthOnce sync.Once
+		defer resumeAuthOnce.Do(func() { close(resumeAuth) })
+		require.NoError(t, db.Callback().Query().After("gorm:query").Register("test:stale-routing-auth", func(tx *gorm.DB) {
+			account, ok := tx.Statement.Dest.(*model.User)
+			if ok && account.Id == user.Id && len(tx.Statement.Selects) == 0 && authRead.CompareAndSwap(false, true) {
+				close(authSnapshotRead)
+				<-resumeAuth
+			}
+		}))
+		defer func() { require.NoError(t, db.Callback().Query().Remove("test:stale-routing-auth")) }()
+		stalePlayground := make(chan *httptest.ResponseRecorder, 1)
+		go func() { stalePlayground <- playgroundProbe(user.Id, "playground") }()
+		select {
+		case <-authSnapshotRead:
+		case <-time.After(5 * time.Second):
+			t.Fatal("Playground authentication did not read its routing snapshot")
+		}
+		responses := make(chan *httptest.ResponseRecorder, len(keys))
+		for _, key := range keys {
+			go func() { responses <- probe(key, true) }()
+		}
+		for range keys {
+			select {
+			case <-held:
+			case <-time.After(5 * time.Second):
+				t.Fatal("routing request did not reach the upstream boundary")
+			}
+		}
+		migrated := make(chan *httptest.ResponseRecorder, 1)
+		go func() {
+			migrated <- request(http.MethodPost, "/api/option/group_migration", model.GroupMigrationSubmission{OperationID: "routing-migration-04", Source: "routing", Target: "migrated", Version: preview.Data.Version, Confirmation: preview.Data.Confirmation})
+		}()
+		require.Eventually(t, func() bool {
+			done, err := model.AdmitGroupRequest("routing")
+			if err == nil {
+				done()
+			}
+			return errors.Is(err, model.ErrGroupMigrationPaused)
+		}, 5*time.Second, 5*time.Millisecond)
+		for _, key := range keys {
+			assert.Equal(t, http.StatusServiceUnavailable, probe(key, false).Code)
+		}
+		assert.Equal(t, http.StatusServiceUnavailable, playgroundProbe(autoUser.Id, "playground").Code)
+		assert.ErrorIs(t, db.Create(&model.Task{TaskID: "blocked-inherited", UserId: user.Id}).Error, model.ErrGroupMigrationPaused)
+		assert.ErrorIs(t, db.Create(&model.Midjourney{UserId: user.Id}).Error, model.ErrGroupMigrationPaused)
+		assert.ErrorIs(t, db.Model(&keys[0]).Update("group", "routing").Error, model.ErrGroupMigrationPaused)
+		select {
+		case <-migrated:
+			t.Fatal("migration completed before accepted requests drained")
+		default:
+		}
+		releaseOnce.Do(func() { close(releaseHeld) })
+		for range keys {
+			select {
+			case rec := <-responses:
+				assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			case <-time.After(5 * time.Second):
+				t.Fatal("accepted routing request did not finish")
+			}
+		}
+		select {
+		case <-migrated:
+			t.Fatal("migration completed before Playground drained")
+		default:
+		}
+		playgroundReleaseOnce.Do(func() { close(releasePlayground) })
+		select {
+		case rec := <-playgroundResponse:
+			assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		case <-time.After(5 * time.Second):
+			t.Fatal("accepted Playground request did not finish")
+		}
+		var result *httptest.ResponseRecorder
+		select {
+		case result = <-migrated:
+		case <-time.After(5 * time.Second):
+			t.Fatal("migration did not finish after request drain")
+		}
+		require.Equal(t, http.StatusOK, result.Code, result.Body.String())
+		require.Contains(t, result.Body.String(), `"state":"completed"`)
+		resumeAuthOnce.Do(func() { close(resumeAuth) })
+		select {
+		case rec := <-stalePlayground:
+			assert.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+			assert.Contains(t, rec.Body.String(), "Group migration is in progress")
+		case <-time.After(5 * time.Second):
+			t.Fatal("stale Playground authentication did not finish")
+		}
+		pg = playgroundProbe(autoUser.Id, "playground")
+		require.Equal(t, http.StatusOK, pg.Code, pg.Body.String())
+		for _, key := range keys {
+			call(key)
+		}
+		var inherited, custom model.Token
+		require.NoError(t, db.First(&inherited, keys[1].Id).Error)
+		require.NoError(t, db.First(&custom, keys[3].Id).Error)
+		assert.Empty(t, inherited.Group)
+		assert.JSONEq(t, `["routing-extra","migrated"]`, custom.AutoGroups)
+		assert.Equal(t, keys[3].Key, custom.Key)
+		assert.True(t, custom.CrossGroupRetry)
+		assert.Equal(t, []string{"migrated", "routing-extra"}, setting.GetAutoGroups())
+		assert.Equal(t, 0.9, ratio_setting.GetGroupRatio("routing-extra"))
+		unrelated, err := model.AdmitGroupRequestAtVersion(beforeCutover, "routing-extra")
+		require.NoError(t, err, "unrelated authentication may span a migration")
+		unrelated()
+		_, err = model.AdmitGroupRequestAtVersion(beforeCutover, "routing")
+		assert.ErrorIs(t, err, model.ErrGroupMigrationPaused)
+		var restoredUser model.User
+		require.NoError(t, db.Unscoped().First(&restoredUser, disabledUser.Id).Error)
+		disabledUser.Group = "migrated"
+		assert.Equal(t, disabledUser, restoredUser)
+		var restoredToken model.Token
+		require.NoError(t, db.Unscoped().First(&restoredToken, disabledToken.Id).Error)
+		disabledToken.Group = "migrated"
+		assert.Equal(t, disabledToken, restoredToken)
+		var restoredChannel model.Channel
+		require.NoError(t, db.First(&restoredChannel, disabledChannel.Id).Error)
+		disabledChannel.Group = "routing-extra,migrated"
+		assert.Equal(t, disabledChannel, restoredChannel)
+		var restoredAbility model.Ability
+		require.NoError(t, db.Where("channel_id = ?", disabledChannel.Id).First(&restoredAbility).Error)
+		disabledAbility.Group = "migrated"
+		assert.Equal(t, disabledAbility, restoredAbility)
+		var historical model.Task
+		require.NoError(t, db.First(&historical, history.ID).Error)
+		assert.Equal(t, history, historical)
+		var historicalLog model.AuditLog
+		require.NoError(t, db.First(&historicalLog, log.Id).Error)
+		assert.Equal(t, log, historicalLog)
+		assert.JSONEq(t, `{"migrated":{"migrated":0.6,"routing-extra":0.7},"routing-extra":{"migrated":0.55}}`, ratio_setting.GroupGroupRatio2JSONString())
+		assert.JSONEq(t, `{"migrated":{"+:migrated":"Original access","-:default":"Hidden","routing-extra":"Other access"},"routing-extra":{"-:migrated":"Hidden"},"default":{"+:migrated":"Granted"}}`, ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.MarshalJSONString())
+		assert.JSONEq(t, `{"migrated":0.85,"routing-extra":0.95}`, common.TopupGroupRatio2JSONString())
+		assert.JSONEq(t, `{"migrated":[120,60],"routing-extra":[90,60]}`, setting.ModelRequestRateLimitGroup2JSONString())
+	})
 }
 
 // The DSNs point only at disposable databases, following the management tests'

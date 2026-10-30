@@ -6061,6 +6061,7 @@
     "Subscription": "Subscription",
     "Subscription Billing": "Subscription Billing",
     "Subscription First": "Subscription First",
+    "Subscription group references cannot be migrated yet.": "Subscription group references cannot be migrated yet.",
     "Subscription Management": "Subscription Management",
     "Subscription Only": "Subscription Only",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.",

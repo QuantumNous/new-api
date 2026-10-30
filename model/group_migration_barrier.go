@@ -32,8 +32,12 @@ func guardGroupReferenceWrite(tx *gorm.DB) {
 	}
 	var columns []string
 	switch tx.Statement.Table {
-	case "users", "channels", "abilities", "tasks":
+	case "users", "channels", "abilities":
 		columns = []string{"group"}
+	case "tasks":
+		columns = []string{"group", "user_id"}
+	case "midjourneys":
+		columns = []string{"user_id"}
 	case "tokens":
 		columns = []string{"group", "auto_groups"}
 	case "subscription_plans":
@@ -70,6 +74,9 @@ func guardGroupReferenceWrite(tx *gorm.DB) {
 	var control GroupMigrationControl
 	if err := control.lock(query); err != nil {
 		tx.AddError(err)
+		return
+	}
+	if writer, ok := tx.Statement.Context.Value(groupMigrationWriterKey{}).(groupMigrationWriter); ok && writer.operation == control.OperationID && writer.owner == control.Owner && writer.operation != "" {
 		return
 	}
 	var op GroupMigrationOperation
@@ -124,6 +131,23 @@ func validateGroupWriteValue(tx *gorm.DB, value reflect.Value, columns []string,
 			continue
 		}
 		if raw == nil {
+			continue
+		}
+		if column == "user_id" {
+			id, ok := raw.(int)
+			if !ok {
+				return errors.New("task user references must be literal ids")
+			}
+			if id == 0 || op.ID == "" {
+				continue
+			}
+			var user User
+			if err := tx.Session(&gorm.Session{NewDB: true}).Select("id", "group").Unscoped().First(&user, id).Error; err != nil {
+				return err
+			}
+			if user.Group == op.Source || user.Group == op.Target {
+				return ErrGroupMigrationPaused
+			}
 			continue
 		}
 		group, ok := raw.(string)

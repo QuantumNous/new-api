@@ -46,6 +46,15 @@ func writeUserCache(user *UserBase, includeQuota bool) error {
 	if user == nil || user.Id <= 0 || !common.RedisEnabled {
 		return nil
 	}
+	groupViewMutex.RLock()
+	defer groupViewMutex.RUnlock()
+	var routing User
+	if err := DB.Select("id", "group").First(&routing, user.Id).Error; err != nil {
+		return err
+	}
+	current := *user
+	current.Group = routing.Group
+	user = &current
 	user.CacheSchema = userCacheSchemaVersion
 	if user.AuthVersion <= 0 {
 		return fmt.Errorf("invalid user auth version")
@@ -240,6 +249,15 @@ func updateUserCacheFieldAtVersion(userId int, field string, value any, authVers
 	}
 	if userId <= 0 || authVersion <= 0 {
 		return fmt.Errorf("invalid user auth version")
+	}
+	if field == "Group" {
+		groupViewMutex.RLock()
+		defer groupViewMutex.RUnlock()
+		var routing User
+		if err := DB.Select("id", "group").First(&routing, userId).Error; err != nil {
+			return err
+		}
+		value = routing.Group
 	}
 	const script = `
 local incoming = tonumber(ARGV[1])

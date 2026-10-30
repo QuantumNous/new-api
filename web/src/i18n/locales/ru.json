@@ -6061,6 +6061,7 @@
     "Subscription": "Подписка",
     "Subscription Billing": "Биллинг подписки",
     "Subscription First": "Подписка в приоритете",
+    "Subscription group references cannot be migrated yet.": "Миграция групп, используемых в подписках, пока не поддерживается.",
     "Subscription Management": "Управление подписками",
     "Subscription Only": "Только подписка",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "Создание и изменение планов подписки заблокированы, пока администратор не подтвердит условия соответствия в настройках платежного шлюза.",

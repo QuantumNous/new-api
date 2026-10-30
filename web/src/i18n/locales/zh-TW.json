@@ -6061,6 +6061,7 @@
     "Subscription": "訂閱",
     "Subscription Billing": "訂閱收費",
     "Subscription First": "優先訂閱",
+    "Subscription group references cannot be migrated yet.": "暫不支援遷移訂閱引用的分組。",
     "Subscription Management": "訂閱管理",
     "Subscription Only": "僅用訂閱",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "管理員在支付閘道設定中確認合規條款之前，訂閱套餐的建立和修改會被鎖定。",
