@@ -195,3 +195,52 @@ func TestInferencePresetSettingsAndDatabaseRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+func TestChannelImageURLProxyDatabaseRoundTrip(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			var driver gorm.Dialector
+			switch dialect {
+			case "sqlite":
+				driver = sqlite.Open(filepath.Join(t.TempDir(), "image-proxy.db"))
+			case "mysql":
+				dsn := os.Getenv("TEST_MYSQL_DSN")
+				if dsn == "" {
+					t.Skip("TEST_MYSQL_DSN is not configured")
+				}
+				driver = mysql.Open(dsn)
+			case "postgres":
+				dsn := os.Getenv("TEST_POSTGRES_DSN")
+				if dsn == "" {
+					t.Skip("TEST_POSTGRES_DSN is not configured")
+				}
+				driver = postgres.Open(dsn)
+			}
+			db, err := gorm.Open(driver, &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+			table := db.Table("image_proxy_setting_channels").Session(&gorm.Session{})
+			require.NoError(t, table.AutoMigrate(&Channel{}))
+			t.Cleanup(func() { require.NoError(t, db.Migrator().DropTable("image_proxy_setting_channels")) })
+			channel := &Channel{Key: "test", Name: "image-proxy"}
+			channel.SetSetting(dto.ChannelSettings{Proxy: "http://proxy.example:8080"})
+			require.NoError(t, table.Create(channel).Error)
+			assert.False(t, channel.GetSetting().ImageURLProxy)
+			for _, enabled := range []bool{false, true, false} {
+				var loaded Channel
+				require.NoError(t, table.First(&loaded, channel.Id).Error)
+				settings := loaded.GetSetting()
+				assert.Equal(t, "http://proxy.example:8080", settings.Proxy)
+				settings.ImageURLProxy = enabled
+				loaded.SetSetting(settings)
+				require.NoError(t, table.Save(&loaded).Error)
+				var saved Channel
+				require.NoError(t, table.First(&saved, channel.Id).Error)
+				assert.Equal(t, enabled, saved.GetSetting().ImageURLProxy)
+				assert.Equal(t, settings.Proxy, saved.GetSetting().Proxy)
+			}
+		})
+	}
+}

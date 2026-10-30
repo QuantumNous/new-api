@@ -6,18 +6,23 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func newImageTestContext(t *testing.T, body, contentType string, isStream bool) (*gin.Context, *httptest.ResponseRecorder, *http.Response, *relaycommon.RelayInfo) {
@@ -630,4 +635,243 @@ func TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent(t *testing.T) {
 	// is still forwarded in the data: payload (stream ID 77).
 	require.Contains(t, recorder.Body.String(), `event: upstream_error`)
 	require.Contains(t, recorder.Body.String(), `stream ID 77`)
+}
+
+func TestImageURLProxyStreamReportsRewriteFailure(t *testing.T) {
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
+	oldAddress, oldPublicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	system_setting.TaskPublicAddress = ""
+	t.Cleanup(func() {
+		system_setting.ServerAddress, system_setting.TaskPublicAddress = oldAddress, oldPublicAddress
+		constant.StreamingTimeout = oldTimeout
+	})
+	for _, tc := range []struct {
+		name, path, target, address, wantMessage string
+		enabled, upstreamOpen                    bool
+		requested                                int
+	}{
+		{"generation invalid target", "/v1/images/generations", "ftp://upstream.example/image.png?secret=upstream", "https://gateway.example", service.ErrImageProxyInvalid.Error(), true, true, 3},
+		{"edit invalid target", "/v1/images/edits", "ftp://upstream.example/image.png?secret=upstream", "https://gateway.example", service.ErrImageProxyInvalid.Error(), true, true, 3},
+		{"invalid gateway address", "/v1/images/generations", "https://upstream.example/image.png?secret=upstream", "invalid", "image proxy base URL is invalid", true, false, 1},
+		{"disabled keeps stream", "/v1/images/generations", "ftp://upstream.example/image.png?secret=upstream", "invalid", "", false, false, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			system_setting.ServerAddress = tc.address
+			eventType := "image_generation"
+			if tc.path == "/v1/images/edits" {
+				eventType = "image_edit"
+			}
+			partial := `{"type":"` + eventType + `.partial_image","b64_json":"partial"}`
+			completed := `{"type":"` + eventType + `.completed","url":"` + tc.target + `","usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}}`
+			body := "data: " + partial + "\n\ndata: " + completed + "\n\ndata: {\"type\":\"unexpected_tail\"}\n\n"
+			if !tc.upstreamOpen {
+				body += "data: [DONE]\n\n"
+			}
+			c, recorder, resp, info := newImageTestContext(t, body, "text/event-stream", true)
+			if tc.upstreamOpen {
+				resp.Body = &blockingBody{chunk: []byte(body), closed: make(chan struct{})}
+			}
+			c.Request.URL.Path = tc.path
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{ImageURLProxy: tc.enabled})
+			common.SetContextKey(c, constant.ContextKeyChannelId, 42)
+			info.ImageRequestCount = tc.requested
+			info.PriceData.UsePrice = true
+			info.PriceData.AddOtherRatio("n", float64(tc.requested))
+
+			usage, apiErr := OpenaiImageStreamHandler(c, info, resp)
+
+			require.Nil(t, apiErr, "a response rewrite failure must not trigger a generation retry or refund")
+			require.NotNil(t, usage)
+			assert.Equal(t, 10, usage.PromptTokens)
+			assert.Equal(t, 20, usage.CompletionTokens)
+			assert.Equal(t, 30, usage.TotalTokens)
+			assert.Equal(t, float64(tc.requested), info.PriceData.OtherRatios()["n"])
+			assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+			var chunks []string
+			for line := range strings.SplitSeq(recorder.Body.String(), "\n") {
+				if data, ok := strings.CutPrefix(line, "data: "); ok {
+					chunks = append(chunks, data)
+				}
+			}
+			require.NotNil(t, info.StreamStatus)
+			if !tc.enabled {
+				require.Len(t, chunks, 4)
+				assert.JSONEq(t, completed, chunks[1])
+				assert.False(t, info.StreamStatus.HasErrors())
+			} else {
+				require.Len(t, chunks, 3)
+				assert.JSONEq(t, fmt.Sprintf(`{"error":{"message":%q,"type":"new_api_error","param":"","code":"bad_response_body"}}`, tc.wantMessage), chunks[1])
+				assert.True(t, info.StreamStatus.ResponseFailed())
+				assert.Equal(t, 1, info.StreamStatus.TotalErrorCount())
+				assert.NotContains(t, recorder.Body.String(), "upstream.example")
+			}
+			assert.JSONEq(t, partial, chunks[0])
+			assert.Equal(t, "[DONE]", chunks[len(chunks)-1])
+		})
+	}
+}
+
+func TestImageURLProxyJSONStreamPreservesUsageOnRewriteFailure(t *testing.T) {
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
+	oldAddress, oldPublicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress
+	system_setting.ServerAddress, system_setting.TaskPublicAddress = "https://gateway.example", ""
+	t.Cleanup(func() {
+		system_setting.ServerAddress, system_setting.TaskPublicAddress = oldAddress, oldPublicAddress
+	})
+	const validImage = `{"url":"https://upstream.example/image.png?secret=upstream"}`
+	const invalidImage = `{"url":"ftp://upstream.example/image.png?secret=upstream"}`
+	for _, tc := range []struct {
+		name, path, data      string
+		enabled               bool
+		wantEvents, wantCount int
+	}{
+		{"first image fails", "/v1/images/generations", `[` + invalidImage + `,` + validImage + `]`, true, 0, 2},
+		{"later image fails", "/v1/images/generations", `[` + validImage + `,` + invalidImage + `]`, true, 1, 2},
+		{"object edit fails", "/v1/images/edits", invalidImage, true, 0, 1},
+		{"disabled keeps URLs", "/v1/images/generations", `[` + validImage + `,` + invalidImage + `]`, false, 2, 2},
+	} {
+		for _, mode := range []string{"fixed", "expression"} {
+			t.Run(tc.name+"/"+mode, func(t *testing.T) {
+				body := `{"created":1710000000,"data":` + tc.data + `,"usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}}`
+				c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+				c.Request.URL.Path = tc.path
+				common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{ImageURLProxy: tc.enabled})
+				common.SetContextKey(c, constant.ContextKeyChannelId, 42)
+				requested := 3
+				info.ImageRequestCount = requested
+				if mode == "expression" {
+					info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{EstimatedImageCount: &requested}
+				} else {
+					info.PriceData.UsePrice = true
+					info.PriceData.AddOtherRatio("n", float64(requested))
+				}
+
+				usage, apiErr := OpenaiImageStreamHandler(c, info, resp)
+
+				require.Nil(t, apiErr, "completed upstream usage must reach settlement instead of the refund path")
+				require.NotNil(t, usage)
+				assert.Equal(t, 10, usage.PromptTokens)
+				assert.Equal(t, 20, usage.CompletionTokens)
+				assert.Equal(t, 30, usage.TotalTokens)
+				if mode == "expression" {
+					require.NotNil(t, info.BillingImageCount)
+					assert.Equal(t, tc.wantCount, *info.BillingImageCount)
+					assert.Empty(t, info.PriceData.OtherRatios())
+				} else {
+					assert.Equal(t, float64(tc.wantCount), info.PriceData.OtherRatios()["n"])
+				}
+				output := recorder.Body.String()
+				assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+				assert.Equal(t, tc.wantEvents, strings.Count(output, "event: image_generation.completed"))
+				assert.Equal(t, tc.wantEvents, info.ReceivedResponseCount)
+				var chunks []string
+				for line := range strings.SplitSeq(output, "\n") {
+					if data, ok := strings.CutPrefix(line, "data: "); ok {
+						chunks = append(chunks, data)
+					}
+				}
+				require.NotNil(t, info.StreamStatus)
+				if tc.enabled {
+					require.Len(t, chunks, tc.wantEvents+2)
+					assert.JSONEq(t, `{"error":{"message":"image proxy token is invalid","type":"new_api_error","param":"","code":"bad_response_body"}}`, chunks[len(chunks)-2])
+					assert.True(t, info.StreamStatus.ResponseFailed())
+					assert.Equal(t, relaycommon.StreamEndReasonHandlerStop, info.StreamStatus.EndReason)
+					assert.Equal(t, 1, info.StreamStatus.TotalErrorCount())
+					assert.NotContains(t, output, "upstream.example")
+				} else {
+					require.Len(t, chunks, tc.wantEvents+1)
+					assert.Contains(t, output, `"url":"ftp://upstream.example/image.png?secret=upstream"`)
+					assert.False(t, info.StreamStatus.HasErrors())
+				}
+				assert.Equal(t, "[DONE]", chunks[len(chunks)-1])
+			})
+		}
+	}
+}
+
+func TestImageURLProxyPreservesImageBillingAndUsage(t *testing.T) {
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
+	oldAddress, oldPublicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress
+	oldTimeout := constant.StreamingTimeout
+	system_setting.ServerAddress, system_setting.TaskPublicAddress = "https://gateway.example", ""
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() {
+		system_setting.ServerAddress, system_setting.TaskPublicAddress = oldAddress, oldPublicAddress
+		constant.StreamingTimeout = oldTimeout
+	})
+	const upstreamURL = "https://upstream.example/private/image.png?secret=upstream"
+	const usage = `"usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}`
+	for _, tc := range []struct {
+		name, path, body     string
+		stream, sse, enabled bool
+		count                float64
+	}{
+		{"generation JSON", "/v1/images/generations", `{"data":[{"url":"` + upstreamURL + `","b64_json":"QUFB"}],` + usage + `}`, false, false, true, 1},
+		{"edit JSON object", "/v1/images/edits", `{"data":{"url":"` + upstreamURL + `","b64_json":"QUFB"},` + usage + `}`, false, false, true, 1},
+		{"split payload", "/v1/images/generations", `{"data":[{"url":"` + upstreamURL + `"},{"b64_json":"QUFB"}],` + usage + `}`, false, false, true, 1},
+		{"JSON converted to SSE", "/v1/images/generations", `{"data":[{"url":"` + upstreamURL + `","b64_json":"QUFB"}],` + usage + `}`, true, false, true, 1},
+		{"edit SSE", "/v1/images/edits", "data: {\"type\":\"image_edit.completed\",\"url\":\"" + upstreamURL + "\",\"b64_json\":\"QUFB\"," + usage + "}\n\ndata: [DONE]\n\n", true, true, true, 1},
+		{"disabled keeps JSON", "/v1/images/generations", `{"data":[{"url":"` + upstreamURL + `","b64_json":"QUFB"}],` + usage + `}`, false, false, false, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			contentType := "application/json"
+			if tc.sse {
+				contentType = "text/event-stream"
+			}
+			c, recorder, resp, info := newImageTestContext(t, tc.body, contentType, tc.stream)
+			c.Request.URL.Path = tc.path
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{ImageURLProxy: tc.enabled})
+			common.SetContextKey(c, constant.ContextKeyChannelId, 42)
+			resp.Header.Set("Location", upstreamURL)
+			upstreamContentType := contentType + `; profile="https://upstream.example/schema"`
+			resp.Header.Set("Content-Type", upstreamContentType)
+			info.PriceData.UsePrice = true
+			info.PriceData.AddOtherRatio("n", 3)
+			if tc.stream {
+				result, err := OpenaiImageStreamHandler(c, info, resp)
+				require.Nil(t, err)
+				assert.Equal(t, 30, result.TotalTokens)
+			} else {
+				result, err := OpenaiImageHandler(c, info, resp)
+				require.Nil(t, err)
+				assert.Equal(t, 30, result.TotalTokens)
+			}
+			assert.Equal(t, tc.count, info.PriceData.OtherRatios()["n"])
+			assert.Contains(t, recorder.Body.String(), `"b64_json":"QUFB"`)
+			if !tc.enabled {
+				assert.Equal(t, tc.body, recorder.Body.String())
+				assert.Equal(t, upstreamURL, recorder.Header().Get("Location"))
+				assert.Equal(t, upstreamContentType, recorder.Header().Get("Content-Type"))
+				return
+			}
+			assert.NotContains(t, recorder.Body.String(), "upstream.example")
+			assert.Empty(t, recorder.Header().Get("Location"))
+			assert.NotContains(t, fmt.Sprint(recorder.Header()), "upstream.example")
+			output := recorder.Body.String()
+			if tc.stream {
+				for _, line := range strings.Split(output, "\n") {
+					if strings.HasPrefix(line, "data:") && strings.Contains(line, `"url"`) {
+						output = strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+						break
+					}
+				}
+			}
+			link := gjson.Get(output, "data.0.url").String()
+			if link == "" {
+				link = gjson.Get(output, "data.url").String()
+			}
+			if link == "" {
+				link = gjson.Get(output, "url").String()
+			}
+			parsed, err := url.Parse(link)
+			require.NoError(t, err)
+			assert.Equal(t, "gateway.example", parsed.Host)
+			target, err := service.ReadImageProxyToken(parsed.Query().Get("token"))
+			require.NoError(t, err)
+			assert.Equal(t, upstreamURL, target.URL)
+			assert.Equal(t, 42, target.ChannelID)
+		})
+	}
 }

@@ -304,6 +304,7 @@ const SENSITIVE_FORM_FIELDS = [
   'tls_insecure_skip_verify',
   'pass_through_body_enabled',
   'responses_websocket_enabled',
+  'image_url_proxy',
   'system_prompt',
   'system_prompt_override',
   'allow_service_tier',
@@ -1970,6 +1971,33 @@ export function ChannelMutateDrawer({
               disabled={sensitiveLocked}
               checked={field.value}
               onCheckedChange={field.onChange}
+            />
+          </FormControl>
+        </FormItem>
+      )}
+    />
+  )
+
+  const imageURLProxyFields = (
+    <FormField
+      control={form.control}
+      name='image_url_proxy'
+      render={({ field }) => (
+        <FormItem className='flex items-center justify-between gap-4 px-4 py-3'>
+          <div className='space-y-0.5'>
+            <FormLabel>{t('Proxy image URLs')}</FormLabel>
+            <FormDescription>
+              {t('Serve images through this site to hide upstream URLs.')}
+            </FormDescription>
+          </div>
+          <FormControl>
+            <Switch
+              disabled={sensitiveLocked || isSubmitting}
+              checked={field.value === true}
+              onCheckedChange={field.onChange}
+              onBlur={field.onBlur}
+              name={field.name}
+              ref={field.ref}
             />
           </FormControl>
         </FormItem>
@@ -4755,6 +4783,7 @@ export function ChannelMutateDrawer({
                   channelType={currentType}
                   disabled={sensitiveLocked || isSubmitting}
                 />
+                {imageURLProxyFields}
                 {formatFields}
                 {ollamaOpenAIChatFields}
                 {thinkingFields}
