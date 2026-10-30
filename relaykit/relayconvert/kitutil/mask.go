@@ -123,14 +123,9 @@ func MaskSensitiveInfo(str string, upstreamURLs ...string) string {
 	}
 	// Mask URLs on an upstream host, and the query values of every other URL
 	str = maskURLPattern.ReplaceAllStringFunc(str, func(match string) string {
-		urlStr := match
-		for urlStr != "" {
-			last := urlStr[len(urlStr)-1]
-			if strings.IndexByte(".,;:!?'", last) < 0 && (last != ')' || strings.Count(urlStr, "(") >= strings.Count(urlStr, ")")) {
-				break
-			}
-			urlStr = urlStr[:len(urlStr)-1]
-		}
+		// Trailing punctuation belongs to the surrounding text and is kept
+		// outside the masked URL.
+		urlStr := strings.TrimRight(match, ".,;:!?')")
 		suffix := match[len(urlStr):]
 		u, err := url.Parse(urlStr)
 		if err != nil {

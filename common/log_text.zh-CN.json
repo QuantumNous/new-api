@@ -682,6 +682,7 @@
   "quota saturation on consume log: op=%s kind=%s original=%g clamped=%d user=%d model=%s": "消费日志: 额度超出上限，已按上限记录: op=%s kind=%s original=%g clamped=%d user=%d model=%s",
   "rate limit check failed (key=%s): %v": "限流检查失败 (key=%s): %v",
   "rate limit check failed (mark=%s): %v": "限流检查失败 (mark=%s): %v",
+  "read pricing issues of task plugin %s: %v": "读取任务插件 %s 待处理的价格失败: %v",
   "read response failed from %s: %s": "读取 %s 的响应失败: %s",
   "ready in %d ms": "启动完成，耗时 %d ms",
   "realtime error: %s": "Realtime 出错: %s",

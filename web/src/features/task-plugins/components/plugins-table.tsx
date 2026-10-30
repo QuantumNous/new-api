@@ -21,7 +21,6 @@ import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { Eye, MoreHorizontal, Trash2, Upload } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTablePage, useDataTable } from '@/components/data-table'
@@ -35,6 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { getChannelTypeLabel } from '@/features/channels/lib'
+import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/features/system-settings/models/pricing-issues'
 import { handleServerError } from '@/lib/handle-server-error'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
@@ -45,6 +45,7 @@ import {
   TaskPluginUsageError,
 } from '../api'
 import { isStaleFactoryOverride } from '../lib/marketplace'
+import { toastPluginChange } from '../lib/plugin-change-toast'
 import type { TaskPluginListItem, TaskPluginUsage } from '../types'
 import { PluginCard } from './plugin-card'
 import { PluginIcon } from './plugin-icon'
@@ -88,8 +89,14 @@ export function PluginsTable(props: PluginsTableProps) {
       enabled: boolean
       options?: { cascade?: boolean; force?: boolean }
     }) => setTaskPluginStatus(key, enabled, options),
-    onSuccess: () => {
+    onSuccess: (notice, variables) => {
       queryClient.invalidateQueries({ queryKey: ['task-plugins'] })
+      queryClient.invalidateQueries({
+        queryKey: MODEL_PRICING_ISSUES_QUERY_KEY,
+      })
+      if (variables.enabled && notice?.pricing_issues?.length) {
+        toastPluginChange(t('Plugin enabled'), notice.pricing_issues)
+      }
       setStatusConfirmation(null)
       setStatusTarget(null)
       setBlockedAction(null)
@@ -113,12 +120,15 @@ export function PluginsTable(props: PluginsTableProps) {
       plugin: TaskPluginListItem
       force?: boolean
     }) => deleteTaskPluginVersion(plugin.meta.key, plugin.meta.version, force),
-    onSuccess: () => {
+    onSuccess: (notice) => {
       setDeleteTarget(null)
       setBlockedAction(null)
       setBlockedUsage(null)
-      toast.success(t('Plugin version deleted'))
+      toastPluginChange(t('Plugin version deleted'), notice?.pricing_issues)
       queryClient.invalidateQueries({ queryKey: ['task-plugins'] })
+      queryClient.invalidateQueries({
+        queryKey: MODEL_PRICING_ISSUES_QUERY_KEY,
+      })
     },
     onError: (error) => {
       if (error instanceof TaskPluginUsageError) {

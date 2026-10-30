@@ -50,6 +50,24 @@ func TestMaskSensitiveInfoMasksOnlyTheUpstreamAddress(t *testing.T) {
 			want:         `failed to download https://cdn.example/image(1).png?token=*** (status 403)`,
 		},
 		{
+			name:         "trailing parenthesis stays outside the masked URL",
+			upstreamURLs: nil,
+			input:        `(see https://cdn.example/a?sig)`,
+			want:         `(see https://cdn.example/a?sig=***)`,
+		},
+		{
+			name:         "mixed trailing punctuation and parentheses are trimmed together",
+			upstreamURLs: nil,
+			input:        `(https://cdn.example/a?token=1&sig). ('https://cdn.example/a?sig') (https://cdn.example/a?sig.)`,
+			want:         `(https://cdn.example/a?sig=***&token=***). ('https://cdn.example/a?sig=***') (https://cdn.example/a?sig=***.)`,
+		},
+		{
+			name:         "trailing parentheses on an upstream URL",
+			upstreamURLs: []string{"https://wiki.upstream.example.com"},
+			input:        `(see https://wiki.upstream.example.com/Go_(lang)?k=v)).`,
+			want:         `(see https://***.com/***?k=***)).`,
+		},
+		{
 			name:         "apostrophes inside a URL keep its query and userinfo masked",
 			upstreamURLs: nil,
 			input:        `failed to download https://cdn.example/John's-photo.png?token=secret from 'https://o'neil:pw@cdn.example/a?sig=1'`,
