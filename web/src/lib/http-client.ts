@@ -95,8 +95,10 @@ api.interceptors.response.use(
     const config = error?.config as ApiRequestConfig | undefined
     const skipErrorHandler = config?.skipErrorHandler
     const status = error?.response?.status
+    const isUpstreamRelayError =
+      typeof error?.response?.data?.error?.message === 'string'
 
-    if (status === 401) {
+    if (status === 401 && !isUpstreamRelayError) {
       if (config && !config.skipAuthRefresh && !config.authRetry) {
         config.authRetry = true
         const outcome = await refreshAuthentication()

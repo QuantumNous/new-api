@@ -29,6 +29,7 @@ import { toast } from 'sonner'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { saveModelPricing } from '@/features/model-pricing/api'
+import { sendChatCompletion } from '@/features/playground/api'
 import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
 import { handleServerError } from '@/lib/handle-server-error'
 import { api } from '@/lib/http-client'
@@ -275,6 +276,72 @@ it('handles circular error causes and prioritizes translated stable error codes'
   handleServerError(error)
   handleServerError(error.cause)
   expect(notify).toHaveBeenCalledTimes(1)
+})
+
+it('does not refresh platform auth for an upstream Playground 401', async () => {
+  window.history.replaceState({}, '', '/playground')
+  useAuthStore.getState().auth.setBundle({
+    access_token: 'valid-access',
+    token_type: 'Bearer',
+    access_expires_at: 2_000_000_000,
+    user: { id: 1, username: 'test-user', role: 1 },
+    session: {
+      sid: 'playground-session',
+      current: true,
+      login_method: 'password',
+      ip: '',
+      user_agent: '',
+      created_at: 1,
+      last_active_at: 1,
+      expires_at: 2_000_000_000,
+    },
+  })
+  const open = vi.spyOn(XMLHttpRequest.prototype, 'open')
+  vi.spyOn(XMLHttpRequest.prototype, 'send').mockImplementation(function (
+    this: XMLHttpRequest
+  ) {
+    Object.defineProperties(this, {
+      status: { value: 401, configurable: true },
+      statusText: { value: 'Unauthorized', configurable: true },
+      responseText: {
+        value: JSON.stringify({ success: false, message: 'Unauthorized' }),
+        configurable: true,
+      },
+      readyState: { value: 4, configurable: true },
+    })
+    this.onloadend?.(new ProgressEvent('loadend'))
+  })
+  const adapter = vi.fn<AxiosAdapter>(async (config) => {
+    throw new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, undefined, {
+      data: {
+        error: {
+          message: 'Invalid upstream API key',
+          type: 'invalid_request_error',
+          code: 'invalid_api_key',
+        },
+      },
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: {},
+      config,
+    })
+  })
+  api.defaults.adapter = adapter
+  const notify = vi.spyOn(toast, 'error').mockReturnValue('error')
+
+  await expect(
+    sendChatCompletion({
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'hello' }],
+      stream: false,
+    })
+  ).rejects.toMatchObject({ response: { status: 401 } })
+
+  expect(adapter).toHaveBeenCalledTimes(1)
+  expect(open).not.toHaveBeenCalled()
+  expect(notify).not.toHaveBeenCalled()
+  expect(useAuthStore.getState().auth.accessToken).toBe('valid-access')
+  expect(window.location.pathname).toBe('/playground')
 })
 
 it.each([200, 401])(
