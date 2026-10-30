@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Code2, Eye, HelpCircle } from 'lucide-react'
-import { memo, useCallback, useState, type ReactNode } from 'react'
+import { memo, useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useWatch, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -90,6 +90,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 }: GroupRatioFormProps) {
   const { t } = useTranslation()
   const values = useWatch({ control: form.control })
+  const savedGroupRatio = form.formState.defaultValues?.GroupRatio
+  const savedGroupNames = useMemo(() => {
+    try {
+      return Object.keys(JSON.parse(savedGroupRatio || '{}'))
+    } catch {
+      return []
+    }
+  }, [savedGroupRatio])
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
   const [guideOpen, setGuideOpen] = useState(false)
   const [section, setSection] = useState<GroupSettingsSection>('pricing')
@@ -167,6 +175,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
         </SettingsPageActionsPortal>
         {editMode === 'visual' ? (
           <GroupRatioVisualEditor
+            savedGroupNames={savedGroupNames}
             section={section}
             onSectionChange={setSection}
             groupRatio={values.GroupRatio ?? ''}

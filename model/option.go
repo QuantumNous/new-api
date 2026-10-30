@@ -275,6 +275,9 @@ func validateOptionValue(key string, value string) error {
 }
 
 func UpdateOption(key string, value string) error {
+	if canonicalGroupOption(key) != "" {
+		return UpdateOptionsBulk(map[string]string{key: value})
+	}
 	if IsRequestPolicyOption(key) {
 		return UpdateRequestPolicyOptions(map[string]string{key: value})
 	}
@@ -311,6 +314,18 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	for key := range values {
+		if canonicalGroupOption(key) != "" {
+			groupOptionMutex.Lock()
+			defer groupOptionMutex.Unlock()
+			var err error
+			values, err = prepareGroupOptions(values)
+			if err != nil {
+				return err
+			}
+			break
+		}
 	}
 	for key := range values {
 		if IsPasskeyDomainOption(key) {

@@ -164,12 +164,7 @@ func ReadGroupReferenceInventory(ctx context.Context) (*GroupReferenceInventory,
 		keys = append(keys, key)
 		inventory.readConfiguration("configuration", key, key, value)
 	}
-	aliases := map[string]string{
-		"group_ratio_setting.group_ratio":                "GroupRatio",
-		"group_ratio_setting.group_group_ratio":          "GroupGroupRatio",
-		"group_ratio_setting.group_special_usable_group": "GroupSpecialUsableGroup",
-	}
-	for key := range aliases {
+	for key := range groupOptionAliases {
 		keys = append(keys, key)
 	}
 	var options []Option
@@ -178,7 +173,7 @@ func ReadGroupReferenceInventory(ctx context.Context) (*GroupReferenceInventory,
 	}
 	for _, option := range options {
 		kind := option.Key
-		if canonical, ok := aliases[kind]; ok {
+		if canonical, ok := groupOptionAliases[kind]; ok {
 			kind = canonical
 		}
 		// Persisted aliases can be reloaded later: inventory them independently,
@@ -201,6 +196,10 @@ func (inventory *GroupReferenceInventory) readConfiguration(category, key, kind,
 			return
 		}
 		for i, group := range groups {
+			if group == "" {
+				inventory.InvalidRecords++
+				continue
+			}
 			inventory.add(category, key, group, strconv.Itoa(i))
 		}
 		return
@@ -211,6 +210,10 @@ func (inventory *GroupReferenceInventory) readConfiguration(category, key, kind,
 		return
 	}
 	for outer, raw := range object {
+		if outer == "" {
+			inventory.InvalidRecords++
+			continue
+		}
 		inventory.add(category, key, outer, outer, "key")
 		switch kind {
 		case "GroupGroupRatio", "GroupSpecialUsableGroup":
@@ -227,6 +230,10 @@ func (inventory *GroupReferenceInventory) readConfiguration(category, key, kind,
 					} else {
 						group = strings.TrimPrefix(group, "-:")
 					}
+				}
+				if group == "" {
+					inventory.InvalidRecords++
+					continue
 				}
 				inventory.add(category, key, group, outer, inner, "key")
 			}

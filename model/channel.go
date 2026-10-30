@@ -455,6 +455,11 @@ func GetChannelById(id int, selectAll bool) (*Channel, error) {
 }
 
 func BatchInsertChannels(channels []Channel) error {
+	for _, channel := range channels {
+		if err := ValidateChannelGroups(channel.Group); err != nil {
+			return err
+		}
+	}
 	if len(channels) == 0 {
 		return nil
 	}
@@ -551,6 +556,9 @@ func (channel *Channel) GetStatusCodeMapping() string {
 }
 
 func (channel *Channel) Insert() error {
+	if err := ValidateChannelGroups(channel.Group); err != nil {
+		return err
+	}
 	var err error
 	err = DB.Create(channel).Error
 	if err != nil {
@@ -561,6 +569,11 @@ func (channel *Channel) Insert() error {
 }
 
 func (channel *Channel) Update() error {
+	if channel.Group != "" {
+		if err := ValidateChannelGroups(channel.Group); err != nil {
+			return err
+		}
+	}
 	// If this is a multi-key channel, recalculate MultiKeySize based on the current key list to avoid inconsistency after editing keys
 	if channel.ChannelInfo.IsMultiKey {
 		var keyStr string
@@ -853,6 +866,11 @@ func DisableChannelByTag(tag string) error {
 }
 
 func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
+	if group != nil && *group != "" {
+		if err := ValidateChannelGroups(*group); err != nil {
+			return err
+		}
+	}
 	updateData := Channel{}
 	shouldReCreateAbilities := false
 	updatedTag := tag

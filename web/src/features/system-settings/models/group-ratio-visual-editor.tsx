@@ -92,6 +92,7 @@ export type GroupSettingsSection =
   | 'auto'
 
 type GroupRatioVisualEditorProps = {
+  savedGroupNames?: readonly string[]
   section: GroupSettingsSection
   onSectionChange: (section: GroupSettingsSection) => void
   defaultUseAutoGroupField: ReactNode
@@ -267,6 +268,7 @@ function GroupNameSelect(props: GroupNameSelectProps) {
 }
 
 export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
+  savedGroupNames,
   section,
   onSectionChange,
   defaultUseAutoGroupField,
@@ -367,6 +369,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       </div>
       <TabsContent value='pricing' keepMounted>
         <GroupPricingTable
+          savedGroupNames={savedGroupNames}
           groupRatio={groupRatio}
           userUsableGroups={userUsableGroups}
           topupGroupRatio={topupGroupRatio}
@@ -472,6 +475,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
 })
 
 type GroupPricingTableProps = {
+  savedGroupNames?: readonly string[]
   groupRatio: string
   userUsableGroups: string
   topupGroupRatio: string
@@ -480,6 +484,7 @@ type GroupPricingTableProps = {
 }
 
 function GroupPricingTable({
+  savedGroupNames,
   groupRatio,
   userUsableGroups,
   topupGroupRatio,
@@ -660,6 +665,14 @@ function GroupPricingTable({
                 cell: (row) => (
                   <Input
                     value={row.name}
+                    readOnly={savedGroupNames?.includes(row.name)}
+                    title={
+                      savedGroupNames?.includes(row.name)
+                        ? t(
+                            'Use Group migration to change an existing group name.'
+                          )
+                        : undefined
+                    }
                     aria-label={t('Group name')}
                     onChange={(event) =>
                       updateRow(row._id, 'name', event.target.value)

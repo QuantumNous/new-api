@@ -24,6 +24,7 @@ import (
 	builtinplugins "github.com/QuantumNous/new-api/plugins"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -2057,6 +2058,9 @@ func TestPrepareTaskPluginEndpointFiltersEachSharedCandidate(t *testing.T) {
 
 func TestRouteTaskPluginEndpointUsesSelectedChannel(t *testing.T) {
 	require.NoError(t, appI18n.Init())
+	previousGroups := ratio_setting.GroupRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"route-test":1,"another-group":1}`))
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(previousGroups)) })
 	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
 		t.Run(dialect, func(t *testing.T) {
 			dsn := ""

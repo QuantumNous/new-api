@@ -431,7 +431,7 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 		tx = DB
 	}
 	var group string
-	if err := lockForUpdate(tx).Model(&User{}).Where("id = ?", userId).Select(commonGroupCol).Find(&group).Error; err != nil {
+	if err := lockForUpdate(tx).Model(&User{}).Where("id = ?", userId).Select([]string{"group"}).Find(&group).Error; err != nil {
 		return "", err
 	}
 	return group, nil
@@ -474,6 +474,9 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 	if target == "" || target == currentGroup {
 		return "", nil
 	}
+	if err := ValidateGroupReference(target, false, false); err != nil {
+		return "", err
+	}
 	if err := tx.Model(&User{}).Where("id = ?", sub.UserId).
 		Update("group", target).Error; err != nil {
 		return "", err
@@ -490,6 +493,11 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
+	}
+	for _, group := range []string{strings.TrimSpace(plan.UpgradeGroup), strings.TrimSpace(plan.DowngradeGroup)} {
+		if err := ValidateGroupReference(group, true, false); err != nil {
+			return nil, err
+		}
 	}
 	if plan.MaxPurchasePerUser > 0 {
 		var count int64
@@ -522,6 +530,9 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, err
 		}
 		if currentGroup != upgradeGroup {
+			if err := ValidateGroupReference(currentGroup, false, false); err != nil {
+				return nil, err
+			}
 			prevGroup = currentGroup
 			if err := tx.Model(&User{}).Where("id = ?", userId).
 				Update("group", upgradeGroup).Error; err != nil {
@@ -1222,6 +1233,9 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 			}
 			if target == "" || target == currentGroup {
 				return nil
+			}
+			if err := ValidateGroupReference(target, false, false); err != nil {
+				return err
 			}
 			if err := tx.Model(&User{}).Where("id = ?", userId).
 				Update("group", target).Error; err != nil {

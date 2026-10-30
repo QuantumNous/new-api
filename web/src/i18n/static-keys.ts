@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  'Referenced group does not exist.',
+  'Conflicting group configuration aliases.',
+  'Invalid group configuration.',
+  'Built-in groups cannot be deleted.',
+  'This group is still referenced. Use Group migration to change its name.',
   'Built-in groups cannot participate in migration.',
   'Group names must contain 1 to 50 characters without commas, whitespace, control characters or rule prefixes.',
   'Source and target groups must differ.',

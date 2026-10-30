@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   fireEvent,
   render,
@@ -33,6 +34,10 @@ import { z } from 'zod'
 import { SettingsPageProvider } from '../../components/settings-page-context'
 import { positiveIntegerSchema } from '../../utils/numeric-field'
 import { GroupRatioForm } from '../group-ratio-form'
+import { RatioSettingsCard } from '../ratio-settings-card'
+
+const http = vi.hoisted(() => ({ patch: vi.fn(), put: vi.fn(), get: vi.fn() }))
+vi.mock('@/lib/api', () => ({ api: http }))
 
 const defaults = {
   GroupRatio: '{"default":1,"vip":0.8}',
@@ -78,7 +83,104 @@ function Fixture(props: {
   )
 }
 
+function SettingsFixture() {
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+  )
+  const [actions, setActions] = useState<HTMLDivElement | null>(null)
+  return (
+    <QueryClientProvider client={client}>
+      <SettingsPageProvider actionsContainer={actions}>
+        <div ref={setActions} />
+        <RatioSettingsCard
+          visibleTabs={['groups']}
+          groupDefaults={defaults}
+          toolPricesDefault='{}'
+          modelDefaults={{
+            ModelPrice: '{}',
+            ModelRatio: '{}',
+            CacheRatio: '{}',
+            CreateCacheRatio: '{}',
+            CompletionRatio: '{}',
+            ImageRatio: '{}',
+            AudioRatio: '{}',
+            AudioCompletionRatio: '{}',
+            BillingMode: '{}',
+            BillingExpr: '{}',
+            PluginBillingExpr: '{}',
+            ExposeRatioEnabled: false,
+          }}
+        />
+      </SettingsPageProvider>
+    </QueryClientProvider>
+  )
+}
+
 describe('group settings workspace', () => {
+  it('saves related settings together, retains rejected drafts and locks names only after success', async () => {
+    const user = userEvent.setup()
+    http.patch.mockReset()
+    http.patch.mockResolvedValueOnce({
+      data: { success: false, message: 'Referenced group does not exist.' },
+    })
+    http.patch.mockResolvedValueOnce({ data: { success: true } })
+    render(<SettingsFixture />)
+    await user.click(screen.getByRole('button', { name: 'Add group' }))
+    const draft = screen.getAllByRole('textbox', { name: 'Group name' })[0]
+    await user.clear(draft)
+    await user.type(draft, 'premium')
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
+    await waitFor(() => expect(http.patch).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Save group settings' })
+      ).toBeEnabled()
+    )
+    expect(draft).toHaveValue('premium')
+    expect(draft).not.toHaveAttribute('readonly')
+    const [path, values] = http.patch.mock.calls[0]
+    expect(path).toBe('/api/option/group_settings')
+    expect(JSON.parse(values.GroupRatio)).toEqual({
+      premium: 1,
+      default: 1,
+      vip: 0.8,
+    })
+    expect(JSON.parse(values.UserUsableGroups)).toEqual({
+      premium: '',
+      default: 'Standard access',
+      vip: 'Premium access',
+    })
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
+    await waitFor(() => expect(http.patch).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(draft).toHaveAttribute('readonly'))
+    expect(http.patch.mock.calls[1]).toEqual(http.patch.mock.calls[0])
+    expect(http.put).not.toHaveBeenCalled()
+  })
+
+  it('keeps saved names read-only while new names and attributes remain editable', async () => {
+    const user = userEvent.setup()
+    render(<Fixture />)
+    for (const input of screen.getAllByRole('textbox', {
+      name: 'Group name',
+    })) {
+      expect(input).toHaveAttribute('readonly')
+    }
+    await user.click(screen.getByRole('button', { name: 'Add group' }))
+    const draft = screen.getAllByRole('textbox', { name: 'Group name' })[0]
+    expect(draft).not.toHaveAttribute('readonly')
+    await user.clear(draft)
+    await user.type(draft, 'premium')
+    expect(draft).toHaveValue('premium')
+    expect(draft).not.toHaveAttribute('readonly')
+    expect(
+      screen.getAllByRole('spinbutton', { name: 'Ratio' })[1]
+    ).not.toHaveAttribute('readonly')
+  })
+
   it('filters by description and clears search without discarding edits', async () => {
     const user = userEvent.setup()
     render(<Fixture />)
@@ -128,7 +230,9 @@ describe('group settings workspace', () => {
         .map((input) => input.value)
     ).toEqual(['group_2', 'group_1', 'default', 'vip'])
 
-    await user.click(screen.getByRole('button', { name: 'Save group settings' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     const saved = onSave.mock.calls[0][0]
     expect(JSON.parse(saved.GroupRatio)).toEqual({
@@ -201,7 +305,9 @@ describe('group settings workspace', () => {
     expect(screen.getByRole('button', { name: 'Move vip up' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Move vip down' })).toBeDisabled()
     await user.click(screen.getByRole('tab', { name: 'Pricing groups' }))
-    await user.click(screen.getByRole('button', { name: 'Save group settings' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     expect(onSave.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({
@@ -244,7 +350,9 @@ describe('group settings workspace', () => {
     )
     expect(screen.getByText('Not in pricing table')).toBeVisible()
     await user.click(screen.getByRole('tab', { name: 'Pricing groups' }))
-    await user.click(screen.getByRole('button', { name: 'Save group settings' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
     await waitFor(() => expect(onSave).toHaveBeenCalled())
     expect(JSON.parse(onSave.mock.calls[0][0].AutoGroups)).toEqual([
       'vip',
@@ -286,7 +394,9 @@ describe('group settings workspace', () => {
       { target: { value: '0' } }
     )
     await user.click(screen.getByRole('tab', { name: 'Pricing groups' }))
-    await user.click(screen.getByRole('button', { name: 'Save group settings' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Save group settings' })
+    )
     await waitFor(() =>
       expect(
         screen.getByRole('tab', { name: 'Auto group order' })
