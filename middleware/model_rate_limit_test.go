@@ -14,7 +14,9 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -196,4 +198,41 @@ func TestModelRateLimitCountsConfiguredGroupsSeparately(t *testing.T) {
 			}
 		})
 	}
+}
+
+type expireRateLimitKeyAfterLLenHook struct {
+	server *miniredis.Miniredis
+	key    string
+}
+
+func (hook expireRateLimitKeyAfterLLenHook) BeforeProcess(ctx context.Context, _ redis.Cmder) (context.Context, error) {
+	return ctx, nil
+}
+
+func (hook expireRateLimitKeyAfterLLenHook) AfterProcess(_ context.Context, cmd redis.Cmder) error {
+	if cmd.Name() == "llen" {
+		hook.server.Del(hook.key)
+	}
+	return nil
+}
+
+func (expireRateLimitKeyAfterLLenHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
+	return ctx, nil
+}
+
+func (expireRateLimitKeyAfterLLenHook) AfterProcessPipeline(context.Context, []redis.Cmder) error {
+	return nil
+}
+
+func TestCheckRedisRateLimitAllowsKeyExpiringBeforeTimestampRead(t *testing.T) {
+	redisServer, redisClient := useRateLimitMiniRedis(t)
+	key := "rateLimit:expires-between-count-and-timestamp"
+	withinWindow := time.Now().UTC().Format(modelRateLimitTimeFormat)
+	_, err := redisServer.Push(key, withinWindow)
+	require.NoError(t, err)
+	redisClient.AddHook(expireRateLimitKeyAfterLLenHook{server: redisServer, key: key})
+
+	allowed, err := checkRedisRateLimit(context.Background(), redisClient, key, 1, 60)
+	require.NoError(t, err)
+	assert.True(t, allowed)
 }
