@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -222,20 +224,48 @@ func TestConvertClaudeRequestForwardsThinkingBlockBinding(t *testing.T) {
 	}
 }
 
-func TestSetupRequestHeaderForwardsEveryAnthropicBetaValue(t *testing.T) {
+// Billing reads the request headers recorded on RelayInfo, so it must see the
+// same anthropic-beta value the upstream receives, including a fast-mode beta
+// sent on a later header line.
+func TestAnthropicBetaBillingMatchesForwardedHeader(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	c.Request.Header.Add("anthropic-beta", "fast-mode-2026-02-01")
-	c.Request.Header.Add("anthropic-beta", "thinking-binding-controls-2026-08-01")
-	info := &relaycommon.RelayInfo{
-		OriginModelName: "claude-opus-5-5",
-		ChannelMeta:     &relaycommon.ChannelMeta{ApiKey: "sk-test"},
+	const fastModeExpr = `tier("base", p * 5) * (has(header("anthropic-beta"), "fast-mode-2026-02-01") ? 6 : 1)`
+	tests := []struct {
+		name           string
+		headerOverride map[string]any
+	}{
+		{name: "adaptor default"},
+		{name: "wildcard passthrough", headerOverride: map[string]any{"*": ""}},
+		{name: "client_header placeholder", headerOverride: map[string]any{"anthropic-beta": "{client_header:anthropic-beta}"}},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+			c.Request.Header.Add("anthropic-beta", "interleaved-thinking-2025-05-14")
+			c.Request.Header.Add("anthropic-beta", "fast-mode-2026-02-01")
+			info := relaycommon.GenRelayInfoClaude(c, &dto.ClaudeRequest{Model: "claude-opus-4-6"})
+			info.OriginModelName = "claude-opus-4-6"
+			info.ChannelMeta = &relaycommon.ChannelMeta{ApiKey: "sk-test", HeadersOverride: tt.headerOverride}
 
-	header := http.Header{}
-	require.NoError(t, (&Adaptor{}).SetupRequestHeader(c, &header, info))
-	assert.Equal(t, []string{"fast-mode-2026-02-01,thinking-binding-controls-2026-08-01"}, header.Values("anthropic-beta"))
+			// Same order as channel.DoApiRequest: adaptor headers, then channel overrides.
+			header := http.Header{}
+			require.NoError(t, (&Adaptor{}).SetupRequestHeader(c, &header, info))
+			overrides, err := channel.ResolveHeaderOverride(info, c)
+			require.NoError(t, err)
+			for key, value := range overrides {
+				header.Set(key, value)
+			}
+			assert.Equal(t, []string{"interleaved-thinking-2025-05-14,fast-mode-2026-02-01"}, header.Values("anthropic-beta"))
+
+			input, err := helper.ResolveIncomingBillingExprRequestInput(c, info)
+			require.NoError(t, err)
+			assert.Equal(t, header.Get("anthropic-beta"), input.Headers["Anthropic-Beta"])
+			cost, _, err := billingexpr.RunExprWithRequest(fastModeExpr, billingexpr.TokenParams{P: 1}, input)
+			require.NoError(t, err)
+			assert.Equal(t, 30.0, cost)
+		})
+	}
 }
 
 func geminiToClaudeInfo() *relaycommon.RelayInfo {
