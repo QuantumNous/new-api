@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Activity, Hash, WalletCards } from 'lucide-react'
+
 import type { DashboardChartPreferences, DashboardFilters } from './types'
 
 export const TIME_GRANULARITY_STORAGE_KEY = 'data_export_default_time'
@@ -67,3 +69,9 @@ export const EMPTY_DASHBOARD_FILTERS: DashboardFilters = {
   time_granularity: 'hour',
   username: '',
 }
+
+export const USAGE_METRIC_OPTIONS = [
+  { value: 'quota', labelKey: 'By quota', icon: WalletCards },
+  { value: 'tokens', labelKey: 'By tokens', icon: Hash },
+  { value: 'requests', labelKey: 'By requests', icon: Activity },
+] as const
