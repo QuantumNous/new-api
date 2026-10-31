@@ -303,7 +303,7 @@ export const meta = {
     en: "Volcengine Doubao Seedance video generation and Seedream image generation",
     zh: "火山引擎豆包 Seedance 视频生成与 Seedream 图片生成",
   },
-  version: "1.4.0",
+  version: "1.4.1",
   author: { name: "QuantumNous" },
   channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
   models: Object.keys(VIDEO_MODELS).concat(Object.keys(IMAGE_MODELS)),
@@ -1233,12 +1233,18 @@ protocols.openai_video = {
       delete requestBody.vendorBody;
       // buildSubmitRequest reads seconds; duration is accepted as its alias.
       if (seconds !== undefined) requestBody.seconds = seconds;
-      return {
+      const intent = {
         kind: "submit",
         model: ctx.model,
         action: req.input_reference || req.image ? "image_to_video" : "text_to_video",
         requestBody: requestBody,
       };
+      // Draft continuation is declared here as well as on the native route: the
+      // host only resolves origin tasks the decoder names, and buildSubmitRequest
+      // has no upstream id to swap in without them.
+      const originTaskIds = draftTaskIds(req.metadata && req.metadata.content);
+      if (originTaskIds.length) intent.originTaskIds = originTaskIds;
+      return intent;
     }
     const first = function (name) {
       const values = (ctx.body.fields || {})[name] || [];
@@ -1268,12 +1274,15 @@ protocols.openai_video = {
       throw new Error("seconds must be -1 or between 1 and 3600");
     // vendorBody carries a native request's own body; clients of this protocol cannot set it.
     delete req.vendorBody;
-    return {
+    const intent = {
       kind: "submit",
       model: ctx.model,
       action: req.input_reference || req.image ? "image_to_video" : "text_to_video",
       requestBody: Object.assign({}, req, { model: ctx.model }),
     };
+    const originTaskIds = draftTaskIds(req.metadata && req.metadata.content);
+    if (originTaskIds.length) intent.originTaskIds = originTaskIds;
+    return intent;
   },
   render: function (ctx, task) {
     return legacyRenderers.openai_video(task);
