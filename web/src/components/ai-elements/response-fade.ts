@@ -66,12 +66,22 @@ export type FadeSegment = {
 
 const WORD_REGEX = /\S+\s*/g
 const NON_WHITESPACE_REGEX = /\S/
+const WHITESPACE_REGEX = /\s/
 /**
  * Scripts without word-delimiting spaces: Thai, Lao, Myanmar, Khmer,
  * Tibetan, CJK ideographs/kana, Hangul, and CJK compatibility ideographs.
  */
 const SPACELESS_REGEX =
   /[\u0E00-\u0EFF\u0F00-\u0FFF\u1000-\u109F\u1780-\u17FF\u2E80-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF]/
+/**
+ * CJK punctuation followed by kana or a Han ideograph: no word-break rule
+ * joins the pair, and the segmenter's dictionary run restarts after the
+ * punctuation, so the word segments that follow do not depend on earlier text.
+ */
+const CJK_BREAK_BEFORE_REGEX = /[\u3001\u3002\uFF0C\uFF1B\uFF1A\uFF01\uFF1F]/
+const CJK_BREAK_AFTER_REGEX =
+  /[\u3041-\u3096\u30A1-\u30FA\u3400-\u4DBF\u4E00-\u9FFF]/
+const MAX_SPLIT_POINT_SCAN = 256
 
 let wordSegmenter: Intl.Segmenter | null | undefined
 
@@ -129,6 +139,24 @@ export function splitWords(value: string): string[] {
   return parts
 }
 
+/**
+ * Whether splitWords(value.slice(index)) yields exactly the parts that
+ * splitWords(value) produces from index on: index starts a whitespace-
+ * delimited token, or follows CJK punctuation inside a spaceless run.
+ */
+function isStableSplitPoint(value: string, index: number): boolean {
+  const before = value[index - 1] ?? ''
+  const after = value[index] ?? ''
+  if (WHITESPACE_REGEX.test(before)) {
+    return NON_WHITESPACE_REGEX.test(after)
+  }
+  return (
+    CJK_BREAK_BEFORE_REGEX.test(before) &&
+    CJK_BREAK_AFTER_REGEX.test(after) &&
+    getWordSegmenter() != null
+  )
+}
+
 export function createFadeState(): FadeState {
   return { prevCount: 0, active: new Map(), firstRun: true, pending: null }
 }
@@ -169,10 +197,14 @@ export function commitRun(state: FadeState): void {
     state.active.set(start, entry)
   }
   for (const [start, entry] of state.active) {
-    if (pending.now - entry.at >= entry.delay + FADE_DURATION_MS) {
+    if (!isFading(entry, pending.now)) {
       state.active.delete(start)
     }
   }
+}
+
+function isFading(entry: FadeEntry, now: number): boolean {
+  return now - entry.at < entry.delay + FADE_DURATION_MS
 }
 
 /** Stages and immediately commits — for callers without a commit phase. */
@@ -185,14 +217,57 @@ export function endRun(run: FadeRun): void {
  * Classifies one text value into fade segments, advancing document-order
  * character offset. New parts (start >= prevCount) animate; parts still
  * inside their animation window replay identical props.
+ *
+ * Only text that can animate is split into words: the settled head of the
+ * value (before prevCount, with no part still fading) becomes one plain
+ * segment, so each render splits the streamed tail rather than the whole
+ * response.
  */
 export function classifyValue(run: FadeRun, value: string): FadeSegment[] {
   const { state, now } = run
+  const valueStart = run.count
+  const valueEnd = valueStart + value.length
+  let liveStart = run.suppress
+    ? valueEnd
+    : Math.min(Math.max(valueStart, state.prevCount), valueEnd)
+  if (!run.suppress) {
+    for (const [start, entry] of state.active) {
+      if (start >= valueStart && start < liveStart && isFading(entry, now)) {
+        liveStart = start
+      }
+    }
+  }
+  // Back up to a point where splitting the tail yields the same parts (and
+  // therefore the same start keys) as splitting the whole value. A long run
+  // without such a point is split whole rather than scanned to its start.
+  let splitFrom = liveStart - valueStart
+  const scanLimit = splitFrom - MAX_SPLIT_POINT_SCAN
+  while (
+    splitFrom > 0 &&
+    splitFrom < value.length &&
+    !isStableSplitPoint(value, splitFrom)
+  ) {
+    splitFrom = splitFrom > scanLimit ? splitFrom - 1 : 0
+  }
+
   const segments: FadeSegment[] = []
-  for (const part of splitWords(value)) {
+  if (splitFrom > 0) {
+    segments.push({
+      start: valueStart,
+      value: value.slice(0, splitFrom),
+      animated: false,
+      delay: 0,
+    })
+    run.count += splitFrom
+  }
+  if (splitFrom === value.length) {
+    return segments
+  }
+
+  for (const part of splitWords(value.slice(splitFrom))) {
     const start = run.count
     run.count += part.length
-    if (run.suppress || !NON_WHITESPACE_REGEX.test(part)) {
+    if (!NON_WHITESPACE_REGEX.test(part)) {
       segments.push({ start, value: part, animated: false, delay: 0 })
       continue
     }
@@ -207,7 +282,7 @@ export function classifyValue(run: FadeRun, value: string): FadeSegment[] {
       continue
     }
     const entry = state.active.get(start)
-    if (entry != null && now - entry.at < entry.delay + FADE_DURATION_MS) {
+    if (entry != null && isFading(entry, now)) {
       segments.push({
         start,
         value: part,
