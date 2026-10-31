@@ -69,6 +69,20 @@ func TestMaxTokensBounds(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "max_output_tokens is invalid")
 	})
+
+	t.Run("gemini interactions max_output_tokens overflow rejected", func(t *testing.T) {
+		c := newJSONContext(t, `{"model":"gemini-3.8-flash","input":"hi","generation_config":{"max_output_tokens":`+hugeN+`}}`)
+		_, err := GetAndValidateGeminiInteractionRequest(c)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "generation_config.max_output_tokens is invalid")
+	})
+
+	t.Run("gemini interactions accepts model and input", func(t *testing.T) {
+		c := newJSONContext(t, `{"model":"gemini-3.8-flash","input":"hi","stream":true}`)
+		request, err := GetAndValidateGeminiInteractionRequest(c)
+		require.NoError(t, err)
+		require.True(t, request.IsStream(c.Request))
+	})
 }
 
 func TestSGLangMinTokensBounds(t *testing.T) {
