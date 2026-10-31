@@ -172,11 +172,15 @@ func RedisHGetObj(key string, obj any) error {
 	if len(result) == 0 {
 		return fmt.Errorf("key %s not found in Redis", key)
 	}
+	return RedisHashToObj(result, obj)
+}
 
+// RedisHashToObj decodes an already loaded hash using RedisHGetObj's field rules.
+func RedisHashToObj(result map[string]string, obj any) error {
 	// Handle both pointer and non-pointer values
 	val := reflect.ValueOf(obj)
-	if val.Kind() != reflect.Pointer {
-		return fmt.Errorf("obj must be a pointer to a struct, got %T", obj)
+	if val.Kind() != reflect.Pointer || val.IsNil() {
+		return fmt.Errorf("obj must be a non-nil pointer to a struct, got %T", obj)
 	}
 
 	v := val.Elem()

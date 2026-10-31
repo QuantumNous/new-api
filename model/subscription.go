@@ -636,6 +636,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	if err != nil {
 		return err
 	}
+	invalidateSubscriptionDecisionCache(logUserId)
 	if upgradeGroup != "" && logUserId > 0 {
 		refreshSubscriptionUserGroupCache(logUserId, common.LogText("subscription payment completion"))
 	}
@@ -735,6 +736,7 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.M
 	if err != nil {
 		return nil, err
 	}
+	invalidateSubscriptionDecisionCache(userId)
 	if groupChanged {
 		refreshSubscriptionUserGroupCache(userId, common.LogText("admin subscription creation"))
 		return common.NewMessage("User group will be upgraded to {{group}}", map[string]any{"group": plan.UpgradeGroup}), nil
@@ -833,6 +835,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	if err != nil {
 		return err
 	}
+	invalidateSubscriptionDecisionCache(userId)
 
 	if chargedQuota > 0 {
 		if err := cacheDecrUserQuota(userId, int64(chargedQuota)); err != nil {
@@ -867,37 +870,24 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 }
 
 // HasActiveUserSubscription returns whether the user has any active subscription.
-// This is a lightweight existence check to avoid heavy pre-consume transactions.
+// The cached decision avoids heavy pre-consume transactions and repeated SQL reads.
 func HasActiveUserSubscription(userId int) (bool, error) {
-	if userId <= 0 {
-		return false, errors.New("invalid userId")
-	}
-	now := common.GetTimestamp()
-	var count int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
-		Count(&count).Error; err != nil {
+	state, err := loadSubscriptionDecisionState(userId)
+	if err != nil {
 		return false, err
 	}
-	return count > 0, nil
+	return *state.HasActive, nil
 }
 
 // UserActiveSubscriptionsAllowWalletOverflow returns whether wallet balance may be used
 // after the user's subscription quota is exhausted. A single active subscription that
 // disallows wallet overflow (allow_wallet_overflow = false) blocks the fallback.
 func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
-	if userId <= 0 {
-		return false, errors.New("invalid userId")
-	}
-	now := common.GetTimestamp()
-	var strictCount int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
-			userId, "active", now, false).
-		Count(&strictCount).Error; err != nil {
+	state, err := loadSubscriptionDecisionState(userId)
+	if err != nil {
 		return false, err
 	}
-	return strictCount == 0, nil
+	return *state.AllowWalletOverflow, nil
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
@@ -965,6 +955,7 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (*common.Message, e
 	if err != nil {
 		return nil, err
 	}
+	invalidateSubscriptionDecisionCache(userId)
 	if cacheGroup != "" && userId > 0 {
 		refreshSubscriptionUserGroupCache(userId, common.LogText("admin subscription update"))
 	}
@@ -1006,6 +997,7 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (*common.Message, error
 	if err != nil {
 		return nil, err
 	}
+	invalidateSubscriptionDecisionCache(userId)
 	if cacheGroup != "" && userId > 0 {
 		refreshSubscriptionUserGroupCache(userId, common.LogText("admin subscription deletion"))
 	}
@@ -1233,6 +1225,7 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 		if err != nil {
 			return expiredCount, err
 		}
+		invalidateSubscriptionDecisionCache(userId)
 		if cacheGroup != "" {
 			refreshSubscriptionUserGroupCache(userId, common.LogText("subscription expiration"))
 		}

@@ -103,6 +103,10 @@ func getUserAuthVersionFloor(userId int) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	return parseUserAuthVersionFloor(values)
+}
+
+func parseUserAuthVersionFloor(values []any) (int64, error) {
 	var floor int64
 	for _, value := range values {
 		if value == nil {

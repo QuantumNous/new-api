@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -118,16 +119,31 @@ func cacheGetUserBase(userId int) (*UserBase, error) {
 	if !common.RedisEnabled {
 		return nil, fmt.Errorf("redis is not enabled")
 	}
-	var userCache UserBase
-	// Try getting from Redis first
-	err := common.RedisHGetObj(getUserCacheKey(userId), &userCache)
+	ctx := context.Background()
+	key := getUserCacheKey(userId)
+	if common.DebugEnabled {
+		common.SysLog(common.LogText("Redis HGETALL: key=%s", key))
+	}
+	pipe := common.RDB.Pipeline()
+	defer pipe.Close()
+	// Read the hash before its version floors, sharing one connection borrow.
+	userCmd := pipe.HGetAll(ctx, key)
+	floorCmd := pipe.MGet(ctx, getUserAuthFenceKey(userId), getUserAuthVersionKey(userId))
+	_, err := pipe.Exec(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if len(userCmd.Val()) == 0 {
+		return nil, fmt.Errorf("key %s not found in Redis", key)
+	}
+	var userCache UserBase
+	if err := common.RedisHashToObj(userCmd.Val(), &userCache); err != nil {
 		return nil, err
 	}
 	if userCache.Id != userId || userCache.CacheSchema != userCacheSchemaVersion || userCache.AuthVersion <= 0 {
 		return nil, fmt.Errorf("user cache schema is stale")
 	}
-	floor, err := getUserAuthVersionFloor(userId)
+	floor, err := parseUserAuthVersionFloor(floorCmd.Val())
 	if err != nil {
 		return nil, err
 	}
