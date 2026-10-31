@@ -221,7 +221,8 @@ func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) {
 
 func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) error {
 	if requestContextDone(c) {
-		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
+		// 客户端断开后进入 drain 阶段：写失败不应中断上游 usage 读取。
+		return nil
 	}
 
 	event := common.CustomEvent{Data: fmt.Sprintf("event: %s\n", resp.Type)}
@@ -241,7 +242,8 @@ func StringData(c *gin.Context, str string) error {
 	}
 
 	if requestContextDone(c) {
-		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
+		// 客户端断开后进入 drain 阶段：写失败不应中断上游 usage 读取。
+		return nil
 	}
 
 	c.Render(-1, common.CustomEvent{Data: "data: " + str})
