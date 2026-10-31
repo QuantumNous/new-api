@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -1065,6 +1066,8 @@ type ChannelStatusBatchRequest struct {
 	Status int   `json:"status"`
 }
 
+// UpdateChannel applies authorized channel edits and refreshes routing state.
+// Replacing all keys clears their old disable state and restores exhausted channels.
 func UpdateChannel(c *gin.Context) {
 	channel := PatchChannel{}
 	rawBody, err := c.GetRawData()
@@ -1218,7 +1221,23 @@ func UpdateChannel(c *gin.Context) {
 				channel.Key = strings.Join(allKeys, "\n")
 			}
 		case "replace":
-			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
+			// Disabled state belongs to the old keys, not their replacement indexes.
+			// An empty key leaves the stored keys unchanged.
+			if channel.Key != "" {
+				channel.ChannelInfo.MultiKeyStatusList = nil
+				channel.ChannelInfo.MultiKeyDisabledReason = nil
+				channel.ChannelInfo.MultiKeyDisabledTime = nil
+				info := originChannel.GetOtherInfo()
+				if (originChannel.Status == common.ChannelStatusManuallyDisabled || originChannel.Status == common.ChannelStatusAutoDisabled) &&
+					info["status_reason"] == model.ChannelStatusReasonAllKeysDisabled &&
+					strings.TrimSpace(channel.Key) != "" && hasEnabledMultiKey(&channel.Channel) {
+					channel.Status = common.ChannelStatusEnabled
+					maps.Copy(info, channel.GetOtherInfo())
+					info["status_reason"] = ""
+					info["status_time"] = common.GetTimestamp()
+					channel.SetOtherInfo(info)
+				}
+			}
 		}
 	}
 	err = channel.Update()
