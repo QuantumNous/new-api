@@ -531,8 +531,8 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	attachQuotaSaturation(ctx, relayInfo, other)
 	if image := relayInfo.PriceData.ImageBilling; image != nil {
 		image.Quota = summary.Quota
-		other["image_billing"] = image
-		other["billing_mode"] = "per-image"
+		other.SetPublic("image_billing", image)
+		other.SetPublic("billing_mode", "per-image")
 	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{

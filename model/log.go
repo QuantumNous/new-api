@@ -66,7 +66,7 @@ func totalTokensSQLExpression() string {
 	switch {
 	case common.UsingLogDatabase(common.DatabaseTypeMySQL):
 		cacheRead = "CASE WHEN JSON_VALID(other) THEN COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_tokens')) AS UNSIGNED), 0) ELSE 0 END"
-		cacheWrite = "CASE WHEN JSON_VALID(other) THEN COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_write_tokens')) AS UNSIGNED), CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens')) AS UNSIGNED), CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens_5m')) AS UNSIGNED) + CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens_1h')) AS UNSIGNED), 0) ELSE 0 END"
+		cacheWrite = "CASE WHEN JSON_VALID(other) THEN COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_write_tokens')) AS UNSIGNED), CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens')) AS UNSIGNED), COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens_5m')) AS UNSIGNED), 0) + COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens_1h')) AS UNSIGNED), 0), 0) ELSE 0 END"
 	case common.UsingLogDatabase(common.DatabaseTypePostgreSQL):
 		cacheRead = "COALESCE(NULLIF(other::jsonb->>'cache_tokens', '')::bigint, 0)"
 		cacheWrite = "COALESCE(NULLIF(other::jsonb->>'cache_write_tokens', '')::bigint, 0)"
@@ -140,6 +140,7 @@ type Log struct {
 	Group             string `json:"group" gorm:"index"`
 	Ip                string `json:"ip" gorm:"index;default:''"`
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
+	ResponseId        string `json:"response_id,omitempty" gorm:"type:varchar(128);index:idx_logs_response_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
 	Other             string `json:"other"`
 }
@@ -376,6 +377,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 			return ""
 		}(),
 		RequestId:         requestId,
+		ResponseId:        c.GetString(common.ResponseIdKey),
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
@@ -440,6 +442,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			return ""
 		}(),
 		RequestId:         requestId,
+		ResponseId:        c.GetString(common.ResponseIdKey),
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
@@ -454,7 +457,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			ModelName: params.ModelName,
 			Quota:     params.Quota,
 			CreatedAt: createdAt,
-			TokenUsed: totalTokensFromUsage(params.PromptTokens, params.CompletionTokens, params.Other),
+			TokenUsed: totalTokensFromUsage(params.PromptTokens, params.CompletionTokens, params.Other.Snapshot()),
 			UseGroup:  params.Group,
 			TokenID:   params.TokenId,
 			ChannelID: params.ChannelId,
@@ -543,7 +546,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		tx = tx.Where("logs.token_name = ?", tokenName)
 	}
 	if requestId != "" {
-		tx = tx.Where("logs.request_id = ?", requestId)
+		tx = tx.Where("logs.request_id = ? OR logs.response_id = ?", requestId, requestId)
 	}
 	if upstreamRequestId != "" {
 		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
@@ -636,7 +639,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		tx = tx.Where("logs.token_name = ?", tokenName)
 	}
 	if requestId != "" {
-		tx = tx.Where("logs.request_id = ?", requestId)
+		tx = tx.Where("logs.request_id = ? OR logs.response_id = ?", requestId, requestId)
 	}
 	if upstreamRequestId != "" {
 		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
