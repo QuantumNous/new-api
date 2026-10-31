@@ -84,6 +84,7 @@ func InitOptionMap() {
 	common.OptionMap["SystemName"] = common.SystemName
 	common.OptionMap["Logo"] = common.Logo
 	common.OptionMap["ServerAddress"] = ""
+	common.OptionMap["SystemProxy"] = ""
 	common.OptionMap["TaskPublicAddress"] = system_setting.TaskPublicAddress
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey
@@ -231,6 +232,8 @@ func SyncOptions(frequency int) {
 	}
 }
 
+// validateOptionValue rejects option values that cannot be stored safely.
+// SystemProxy must be empty or an http, https, socks5, or socks5h proxy URL.
 func validateOptionValue(key string, value string) error {
 	if key == legacyAccessTokenRetireAtKey {
 		return errLegacyRetireAtReadOnly
@@ -270,6 +273,14 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
+	}
+	if key == "SystemProxy" {
+		if strings.TrimSpace(value) == "" {
+			return nil
+		}
+		if _, err := common.ParseProxyURLStrict(value); err != nil {
+			return common.NewMessage("Invalid system proxy")
+		}
 	}
 	return nil
 }
@@ -370,6 +381,8 @@ func UpdateOptionsBulk(values map[string]string) error {
 	return nil
 }
 
+// updateOptionMap stores an option and applies its in-memory side effect.
+// SystemProxy is trimmed and used as the fallback outbound proxy.
 func updateOptionMap(key string, value string) (err error) {
 	if key == retiredThemeOptionKey || key == legacyAccessTokenRetireAtKey {
 		common.OptionMapRWMutex.Lock()
@@ -513,6 +526,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPToken = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
+	case "SystemProxy":
+		common.SystemProxy = strings.TrimSpace(value)
 	case "TaskPublicAddress":
 		system_setting.TaskPublicAddress = value
 	case "WorkerUrl":

@@ -1,5 +1,8 @@
 {
   "translation": {
+    "System Proxy": "システムプロキシ",
+    "Outbound proxy used when a channel does not set its own. Supports HTTP, HTTPS, SOCKS5, and SOCKS5H. Leave empty to keep direct connections or the process environment proxy.": "チャネル独自のプロキシがない場合に使う送信プロキシ。HTTP、HTTPS、SOCKS5、SOCKS5H に対応。空欄なら直接接続かプロセス環境変数のプロキシのままです。",
+    "Invalid system proxy": "システムプロキシが無効です",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

@@ -1,5 +1,8 @@
 {
   "translation": {
+    "System Proxy": "System Proxy",
+    "Outbound proxy used when a channel does not set its own. Supports HTTP, HTTPS, SOCKS5, and SOCKS5H. Leave empty to keep direct connections or the process environment proxy.": "Outbound proxy used when a channel does not set its own. Supports HTTP, HTTPS, SOCKS5, and SOCKS5H. Leave empty to keep direct connections or the process environment proxy.",
+    "Invalid system proxy": "Invalid system proxy",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

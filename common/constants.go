@@ -17,6 +17,19 @@ var Footer = ""
 var Logo = ""
 var TopUpLink = ""
 
+// SystemProxy is the outbound proxy used when a channel has no proxy of its own.
+// Empty keeps the process environment proxy or a direct connection.
+// Production reads must use GetSystemProxy so they share OptionMapRWMutex with updates.
+var SystemProxy = ""
+
+// GetSystemProxy returns the current system outbound proxy.
+// The value is empty when no system proxy is configured.
+func GetSystemProxy() string {
+	OptionMapRWMutex.RLock()
+	defer OptionMapRWMutex.RUnlock()
+	return SystemProxy
+}
+
 // var ChatLink = ""
 // var ChatLink2 = ""
 var QuotaPerUnit = 500 * 1000.0 // $0.002 / 1K tokens
