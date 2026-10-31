@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -1228,8 +1229,10 @@ func UpdateChannel(c *gin.Context) {
 				channel.ChannelInfo.MultiKeyDisabledTime = nil
 				info := originChannel.GetOtherInfo()
 				if (originChannel.Status == common.ChannelStatusManuallyDisabled || originChannel.Status == common.ChannelStatusAutoDisabled) &&
-					info["status_reason"] == model.ChannelStatusReasonAllKeysDisabled && hasEnabledMultiKey(&channel.Channel) {
+					info["status_reason"] == model.ChannelStatusReasonAllKeysDisabled &&
+					strings.TrimSpace(channel.Key) != "" && hasEnabledMultiKey(&channel.Channel) {
 					channel.Status = common.ChannelStatusEnabled
+					maps.Copy(info, channel.GetOtherInfo())
 					info["status_reason"] = ""
 					info["status_time"] = common.GetTimestamp()
 					channel.SetOtherInfo(info)

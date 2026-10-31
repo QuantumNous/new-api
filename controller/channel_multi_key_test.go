@@ -139,6 +139,7 @@ func TestUpdateChannelMultiKeyState(t *testing.T) {
 			statusReason   string
 			exhaustKeys    bool
 			wantStatus     int
+			wantInfo       map[string]any
 			denied         bool
 		}{
 			{
@@ -182,6 +183,13 @@ func TestUpdateChannelMultiKeyState(t *testing.T) {
 				exhaustKeys: true, wantStatus: common.ChannelStatusEnabled,
 			},
 			{
+				name: "replacement merges unrelated metadata", request: map[string]any{"key_mode": "replace", "key": newKeys, "other_info": `{"unrelated":"changed","new_field":false,"status_reason":"client reason","status_time":999999999999}`},
+				wantKeys: newKeys, wantSelectable: strings.Split(newKeys, "\n"), clearState: true,
+				initialStatus: common.ChannelStatusManuallyDisabled, statusReason: model.ChannelStatusReasonAllKeysDisabled,
+				exhaustKeys: true, wantStatus: common.ChannelStatusEnabled,
+				wantInfo: map[string]any{"unrelated": "changed", "new_field": false, "omitted": "retained", "status_reason": ""},
+			},
+			{
 				name: "replace preserves unrelated automatic disable", request: map[string]any{"key_mode": "replace", "key": newKeys},
 				wantKeys: newKeys, clearState: true, initialStatus: common.ChannelStatusAutoDisabled, statusReason: "upstream unavailable",
 			},
@@ -197,6 +205,16 @@ func TestUpdateChannelMultiKeyState(t *testing.T) {
 			{
 				name: "empty array replacement preserves exhaustion", request: map[string]any{"key_mode": "replace", "key": "[]"},
 				wantKeys: "[]", clearState: true, initialStatus: common.ChannelStatusManuallyDisabled,
+				statusReason: model.ChannelStatusReasonAllKeysDisabled, exhaustKeys: true,
+			},
+			{
+				name: "newline replacement preserves exhaustion", request: map[string]any{"key_mode": "replace", "key": "\n"},
+				wantKeys: "\n", clearState: true, initialStatus: common.ChannelStatusManuallyDisabled,
+				statusReason: model.ChannelStatusReasonAllKeysDisabled, exhaustKeys: true,
+			},
+			{
+				name: "whitespace replacement preserves exhaustion", request: map[string]any{"key_mode": "replace", "key": " \t\r\n "},
+				wantKeys: " \t\r\n ", clearState: true, initialStatus: common.ChannelStatusAutoDisabled,
 				statusReason: model.ChannelStatusReasonAllKeysDisabled, exhaustKeys: true,
 			},
 			{
@@ -234,7 +252,7 @@ func TestUpdateChannelMultiKeyState(t *testing.T) {
 					channel.ChannelInfo.MultiKeyDisabledReason[2] = "manual operation"
 					channel.ChannelInfo.MultiKeyDisabledTime[2] = 300
 				}
-				channel.SetOtherInfo(map[string]any{"status_reason": tc.statusReason, "status_time": 100, "unrelated": "preserved"})
+				channel.SetOtherInfo(map[string]any{"status_reason": tc.statusReason, "status_time": 100, "unrelated": "preserved", "omitted": "retained"})
 				wantStatus := channel.Status
 				if tc.wantStatus != 0 {
 					wantStatus = tc.wantStatus
@@ -266,6 +284,7 @@ func TestUpdateChannelMultiKeyState(t *testing.T) {
 				c.Set(common.RequestIdKey, requestID)
 				c.Request = httptest.NewRequest(http.MethodPut, "/api/channel", bytes.NewReader(payload))
 				c.Request.Header.Set("Content-Type", "application/json")
+				updateStarted := common.GetTimestamp()
 				UpdateChannel(c)
 				var result struct {
 					Success bool `json:"success"`
@@ -282,24 +301,27 @@ func TestUpdateChannelMultiKeyState(t *testing.T) {
 					wantMode = constant.MultiKeyMode(mode)
 				}
 				wantOtherInfo := channel.GetOtherInfo()
-				if supplied, ok := tc.request["other_info"].(string); ok && !tc.denied {
+				if supplied, ok := tc.request["other_info"].(string); ok && !tc.denied && wantStatus == channel.Status {
 					wantOtherInfo = nil
 					require.NoError(t, common.UnmarshalJsonStr(supplied, &wantOtherInfo))
+				}
+				if tc.wantInfo != nil {
+					wantOtherInfo = tc.wantInfo
 				}
 				for _, actual := range []*model.Channel{loaded, cached} {
 					assert.Equal(t, tc.wantKeys, actual.Key)
 					assert.Equal(t, wantStatus, actual.Status)
 					otherInfo := actual.GetOtherInfo()
 					if wantStatus != channel.Status {
-						assert.Empty(t, otherInfo["status_reason"])
-						assert.Greater(t, otherInfo["status_time"], float64(100))
-						assert.Equal(t, "preserved", otherInfo["unrelated"])
-					} else {
-						assert.Equal(t, wantOtherInfo, otherInfo)
+						assert.GreaterOrEqual(t, otherInfo["status_time"], float64(updateStarted))
+						assert.LessOrEqual(t, otherInfo["status_time"], float64(common.GetTimestamp()))
+						wantOtherInfo["status_reason"] = ""
+						wantOtherInfo["status_time"] = otherInfo["status_time"]
 					}
+					assert.Equal(t, wantOtherInfo, otherInfo)
 					assert.True(t, actual.ChannelInfo.IsMultiKey)
 					if tc.wantKeys != "[]" {
-						assert.Equal(t, len(strings.Split(tc.wantKeys, "\n")), actual.ChannelInfo.MultiKeySize)
+						assert.Equal(t, len(strings.Split(strings.Trim(tc.wantKeys, "\n"), "\n")), actual.ChannelInfo.MultiKeySize)
 					}
 					assert.Equal(t, wantMode, actual.ChannelInfo.MultiKeyMode)
 					assert.Equal(t, 1, actual.ChannelInfo.MultiKeyPollingIndex)
