@@ -1,0 +1,35 @@
+{
+  "id": "a4e29c5b82f94d67b23e108a7c9df6e1",
+  "created": 1769088912,
+  "model": "magistral-medium-2507",
+  "usage": {
+    "prompt_tokens": 10,
+    "total_tokens": 56,
+    "completion_tokens": 46
+  },
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": [
+              {
+                "type": "text",
+                "text": "The user is asking for 2+2. This is basic arithmetic. 2+2=4."
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "2 + 2 = 4"
+          }
+        ]
+      }
+    }
+  ]
+}

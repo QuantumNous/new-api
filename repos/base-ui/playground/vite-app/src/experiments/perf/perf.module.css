@@ -1,0 +1,99 @@
+.container {
+  h1 {
+    margin-bottom: 8px;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--color-gray-900);
+  }
+}
+
+.settingsPanel {
+  margin-block: 12px;
+  padding: 12px 16px 16px;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.5rem;
+  background-color: var(--color-gray-50);
+}
+
+.settingsLegend {
+  padding: 0 6px;
+  font-weight: 600;
+  color: var(--color-gray-900);
+}
+
+.settingsGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 8px;
+}
+
+.settingsRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-gray-900);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+}
+
+.row {
+  padding: 8px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.75rem;
+  padding: 0 0.375rem;
+  margin: 0;
+  outline: 0;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background-color: var(--color-gray-50);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5rem;
+  color: var(--color-gray-900);
+  user-select: none;
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--color-gray-100);
+    }
+  }
+
+  &:active {
+    background-color: var(--color-gray-100);
+  }
+
+  &[data-popup-open] {
+    background-color: var(--color-gray-100);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+.radixArrow {
+  transform: rotate(180deg);
+  transform-origin: center;
+}

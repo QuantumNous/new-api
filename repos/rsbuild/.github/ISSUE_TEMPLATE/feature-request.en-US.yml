@@ -1,0 +1,29 @@
+name: '💡 Feature Request'
+description: Submit a new feature request to Rsbuild
+title: '[Feature]: '
+type: Enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for submitting new feature requests! Before submitting, please note:
+
+         - Confirmed that this is a common feature and cannot be implemented through existing APIs.
+         - Make sure you searched in the [Issues](https://github.com/web-infra-dev/rsbuild/issues) and didn't find the same request.
+         - You can discuss the feature in [Discussions](https://github.com/web-infra-dev/rsbuild/discussions) first.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What problem does this feature solve?
+      description: Please describe the usage scenario for this feature.
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: What does the proposed API look like?
+      description: Describe the new API, provide some code examples.
+    validations:
+      required: true

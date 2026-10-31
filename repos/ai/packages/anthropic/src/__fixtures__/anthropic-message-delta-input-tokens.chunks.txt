@@ -1,0 +1,8 @@
+{"type":"message_start","message":{"content":[],"id":"msg_3196a1cc08de4d76b85b8f5777c0d42b","model":"claude-opus-4-5-20251101","role":"assistant","stop_reason":null,"stop_sequence":null,"type":"message","usage":{"input_tokens":43,"output_tokens":1}}}
+{"type":"content_block_start","index":0,"content_block":{"text":"","type":"text"}}
+{"type":"content_block_delta","index":0,"delta":{"text":"p","type":"text_delta"}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"text":"ong","type":"text_delta"}}
+{"type":"content_block_stop","index":0}
+{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":61,"output_tokens":2}}
+{"type":"message_stop"}

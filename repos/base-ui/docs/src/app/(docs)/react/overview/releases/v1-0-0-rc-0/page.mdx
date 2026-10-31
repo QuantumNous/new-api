@@ -1,0 +1,75 @@
+# v1.0.0-rc.0
+
+<Subtitle>Dec 4, 2025</Subtitle>
+<Meta name="description" content="v1.0.0-rc.0 release notes. Dec 4, 2025." />
+
+## General changes
+
+- Fix missing `'use client'` directives ([#3408](https://github.com/mui/base-ui/pull/3408))
+
+## Autocomplete
+
+- Fix `keepHighlight` focus sync ([#3399](https://github.com/mui/base-ui/pull/3399))
+
+## Checkbox
+
+- **Breaking change:** Match native unchecked state in form submission.<br />
+  The Checkbox will not submit the `"off"` value with a form when unchecked anymore, unless the new `uncheckedValue` prop is set.
+  ([#3406](https://github.com/mui/base-ui/pull/3406))
+
+## Collapsible
+
+- Remove `render={null}` ([#3407](https://github.com/mui/base-ui/pull/3407))
+
+## Combobox
+
+- **Breaking change:** Removed the `keepHighlight` prop ([#3377](https://github.com/mui/base-ui/pull/3377))
+
+## Dialog
+
+- Close when pressing focusable element outside ([#3380](https://github.com/mui/base-ui/pull/3380))
+- Fix closing after pointer lock exit in Firefox ([#3379](https://github.com/mui/base-ui/pull/3379))
+
+## Menu
+
+- Add `highlightItemOnHover` prop ([#3377](https://github.com/mui/base-ui/pull/3377))
+- Do not import client components from MenuStore ([#3409](https://github.com/mui/base-ui/pull/3409))
+
+## Number Field
+
+- Ensure hidden input participates in form validation ([#3374](https://github.com/mui/base-ui/pull/3374))
+- Improve symbol replacement logic ([#3376](https://github.com/mui/base-ui/pull/3376))
+- Fix fractional step snapping ([#3375](https://github.com/mui/base-ui/pull/3375))
+- Fix parsing numbers with Swiss locale ([#3361](https://github.com/mui/base-ui/pull/3361))
+- Fix pointer lock release when soft clicking in Firefox ([#3378](https://github.com/mui/base-ui/pull/3378))
+
+## Popover
+
+- Close when pressing focusable element outside ([#3380](https://github.com/mui/base-ui/pull/3380))
+- Fix modal backdrop on touch ([#3383](https://github.com/mui/base-ui/pull/3383))
+- Fix popover glitching when flipped ([#3364](https://github.com/mui/base-ui/pull/3364))
+
+## Select
+
+- Add `highlightItemOnHover` prop ([#3377](https://github.com/mui/base-ui/pull/3377))
+
+## Switch
+
+- **Breaking change:** Match native off state in form submission.<br />
+  The Switch will not submit the `"off"` value with a form when unchecked anymore, unless the new `uncheckedValue` prop is set.
+  ([#3406](https://github.com/mui/base-ui/pull/3406))
+
+## Tabs
+
+- **Breaking change:** Fix Panel `keepMounted` behavior.<br />
+  The `value` prop is now required on `<Tabs.Tab>` and `<Tabs.Panel>`.
+  ([#3372](https://github.com/mui/base-ui/pull/3372))
+
+## Toast
+
+- Recalculate content height when layout size is fixed ([#3359](https://github.com/mui/base-ui/pull/3359))
+- Fix multiple swipe directions on same axis ([#3392](https://github.com/mui/base-ui/pull/3392))
+
+## Tooltip
+
+- Improve contained triggers performance ([#3385](https://github.com/mui/base-ui/pull/3385))

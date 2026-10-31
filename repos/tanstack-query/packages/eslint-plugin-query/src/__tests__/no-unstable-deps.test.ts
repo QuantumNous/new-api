@@ -1,0 +1,407 @@
+import { RuleTester } from '@typescript-eslint/rule-tester'
+import {
+  reactHookNames,
+  rule,
+  useQueryHookNames,
+} from '../rules/no-unstable-deps/no-unstable-deps.rule'
+
+const ruleTester = new RuleTester()
+
+interface TestCase {
+  reactHookImport: string
+  reactHookInvocation: string
+  reactHookAlias: string
+}
+const baseTestCases = {
+  valid: ({ reactHookImport, reactHookInvocation, reactHookAlias }: TestCase) =>
+    [
+      {
+        name: `should pass when destructured mutate is passed to ${reactHookAlias} as dependency`,
+        code: `
+            ${reactHookImport}
+            import { useMutation } from "@tanstack/react-query";
+
+            function Component() {
+                const { mutate } = useMutation({ mutationFn: (value: string) => value });
+                const callback = ${reactHookInvocation}(() => { mutate('hello') }, [mutate]);
+                return;
+            }
+              `,
+      },
+    ]
+      .concat(
+        useQueryHookNames.map((queryHook) => ({
+          name: `should pass result of ${queryHook} is passed to ${reactHookInvocation} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { ${queryHook} } from "@tanstack/react-query";
+
+            function Component() {
+              const { refetch } = ${queryHook}({ queryFn: (value: string) => value });
+              const callback = ${reactHookInvocation}(() => { query.refetch() }, [refetch]);
+              return;
+            }
+          `,
+        })),
+      )
+      .concat([
+        {
+          name: `should pass when useQueries with combine is passed to ${reactHookAlias} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { useQueries } from "@tanstack/react-query";
+
+            function Component() {
+              const queries = useQueries({
+                queries: [
+                  { queryKey: ['test'], queryFn: () => 'test' }
+                ],
+                combine: (results) => ({ data: results[0]?.data })
+              });
+              const callback = ${reactHookInvocation}(() => { queries.data }, [queries]);
+              return;
+            }
+          `,
+        },
+        {
+          name: `should pass when useSuspenseQueries with combine is passed to ${reactHookAlias} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { useSuspenseQueries } from "@tanstack/react-query";
+
+            function Component() {
+              const queries = useSuspenseQueries({
+                queries: [
+                  { queryKey: ['test'], queryFn: () => 'test' }
+                ],
+                combine: (results) => ({ data: results[0]?.data })
+              });
+              const callback = ${reactHookInvocation}(() => { queries.data }, [queries]);
+              return;
+            }
+          `,
+        },
+      ])
+      .concat([
+        {
+          name: `should pass when useQueries is array-destructured and element properties are used with ${reactHookAlias}`,
+          code: `
+            ${reactHookImport}
+            import { useQueries } from "@tanstack/react-query";
+
+            function Component() {
+              const [{ data }] = useQueries({
+                queries: [
+                  { queryKey: ['test'], queryFn: () => 'test' }
+                ]
+              });
+              const callback = ${reactHookInvocation}(() => { data }, [data]);
+              return;
+            }
+          `,
+        },
+      ])
+      .concat([
+        {
+          name: `should pass when useQuery is imported from non-TanStack source and used with ${reactHookAlias}`,
+          code: `
+            ${reactHookImport}
+            import { useQuery } from "./router";
+
+            function Component() {
+              const query = useQuery();
+              const callback = ${reactHookInvocation}(() => { query.refetch() }, [query]);
+              return;
+            }
+          `,
+        },
+        {
+          name: `should pass when useMutation is imported from non-TanStack source and used with ${reactHookAlias}`,
+          code: `
+            ${reactHookImport}
+            import { useMutation } from "./api";
+
+            function Component() {
+              const mutation = useMutation();
+              const callback = ${reactHookInvocation}(() => { mutation.mutate() }, [mutation]);
+              return;
+            }
+          `,
+        },
+      ]),
+  invalid: ({
+    reactHookImport,
+    reactHookInvocation,
+    reactHookAlias,
+  }: TestCase) =>
+    [
+      {
+        name: `result of useMutation is passed to ${reactHookInvocation} as dependency `,
+        code: `
+            ${reactHookImport}
+            import { useMutation } from "@tanstack/react-query";
+
+            function Component() {
+              const mutation = useMutation({ mutationFn: (value: string) => value });
+              const callback = ${reactHookInvocation}(() => { mutation.mutate('hello') }, [mutation]);
+              return;
+            }
+          `,
+        errors: [
+          {
+            messageId: 'noUnstableDeps',
+            data: { reactHook: reactHookAlias, queryHook: 'useMutation' },
+          },
+        ],
+      },
+    ]
+      .concat(
+        useQueryHookNames.map((queryHook) => ({
+          name: `result of ${queryHook} is passed to ${reactHookInvocation} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { ${queryHook} } from "@tanstack/react-query";
+
+            function Component() {
+              const query = ${queryHook}({ queryFn: (value: string) => value });
+              const callback = ${reactHookInvocation}(() => { query.refetch() }, [query]);
+              return;
+            }
+          `,
+          errors: [
+            {
+              messageId: 'noUnstableDeps',
+              data: { reactHook: reactHookAlias, queryHook },
+            },
+          ],
+        })),
+      )
+      .concat([
+        {
+          name: `result of useQueries without combine is passed to ${reactHookInvocation} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { useQueries } from "@tanstack/react-query";
+
+            function Component() {
+              const queries = useQueries({
+                queries: [
+                  { queryKey: ['test'], queryFn: () => 'test' }
+                ]
+              });
+              const callback = ${reactHookInvocation}(() => { queries[0]?.data }, [queries]);
+              return;
+            }
+          `,
+          errors: [
+            {
+              messageId: 'noUnstableDeps',
+              data: { reactHook: reactHookAlias, queryHook: 'useQueries' },
+            },
+          ],
+        },
+        {
+          name: `result of custom useMutation wrapper is passed to ${reactHookInvocation} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { useMutation } from "@tanstack/react-query";
+
+            const useMyMutation = () => useMutation({ mutationFn: (value: string) => value });
+
+            function Component() {
+              const mutation = useMyMutation();
+              const callback = ${reactHookInvocation}(() => { mutation.mutate('hello') }, [mutation]);
+              return;
+            }
+          `,
+          errors: [
+            {
+              messageId: 'noUnstableDeps',
+              data: { reactHook: reactHookAlias, queryHook: 'useMutation' },
+            },
+          ],
+        },
+        {
+          name: `result of custom useQuery wrapper is passed to ${reactHookInvocation} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { useQuery } from "@tanstack/react-query";
+
+            function useMyQuery() {
+              return useQuery({ queryFn: (value: string) => value });
+            }
+
+            function Component() {
+              const query = useMyQuery();
+              const callback = ${reactHookInvocation}(() => { query.refetch() }, [query]);
+              return;
+            }
+          `,
+          errors: [
+            {
+              messageId: 'noUnstableDeps',
+              data: { reactHook: reactHookAlias, queryHook: 'useQuery' },
+            },
+          ],
+        },
+        {
+          name: `result of later custom useMutation wrapper is passed to ${reactHookInvocation} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { useMutation } from "@tanstack/react-query";
+
+            function Component() {
+              const mutation = useMyMutation();
+              const callback = ${reactHookInvocation}(() => { mutation.mutate('hello') }, [mutation]);
+              return;
+            }
+
+            function useMyMutation() {
+              return useMutation({ mutationFn: (value: string) => value });
+            }
+          `,
+          errors: [
+            {
+              messageId: 'noUnstableDeps',
+              data: { reactHook: reactHookAlias, queryHook: 'useMutation' },
+            },
+          ],
+        },
+        {
+          name: `result of later custom useQuery wrapper is passed to ${reactHookInvocation} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { useQuery } from "@tanstack/react-query";
+
+            function Component() {
+              const query = useMyQuery();
+              const callback = ${reactHookInvocation}(() => { query.refetch() }, [query]);
+              return;
+            }
+
+            function useMyQuery() {
+              return useQuery({ queryFn: (value: string) => value });
+            }
+          `,
+          errors: [
+            {
+              messageId: 'noUnstableDeps',
+              data: { reactHook: reactHookAlias, queryHook: 'useQuery' },
+            },
+          ],
+        },
+      ])
+      .concat([
+        {
+          name: `array-destructured useQueries element is passed to ${reactHookInvocation} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { useQueries } from "@tanstack/react-query";
+
+            function Component() {
+              const [userQuery, postsQuery] = useQueries({
+                queries: [
+                  { queryKey: ['user'], queryFn: () => 'user' },
+                  { queryKey: ['posts'], queryFn: () => 'posts' }
+                ]
+              });
+              const callback = ${reactHookInvocation}(() => { userQuery.data }, [userQuery]);
+              return;
+            }
+          `,
+          errors: [
+            {
+              messageId: 'noUnstableDeps',
+              data: { reactHook: reactHookAlias, queryHook: 'useQueries' },
+            },
+          ],
+        },
+        {
+          name: `array-destructured useSuspenseQueries element is passed to ${reactHookInvocation} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { useSuspenseQueries } from "@tanstack/react-query";
+
+            function Component() {
+              const [query] = useSuspenseQueries({
+                queries: [
+                  { queryKey: ['test'], queryFn: () => 'test' }
+                ]
+              });
+              const callback = ${reactHookInvocation}(() => { query.data }, [query]);
+              return;
+            }
+          `,
+          errors: [
+            {
+              messageId: 'noUnstableDeps',
+              data: {
+                reactHook: reactHookAlias,
+                queryHook: 'useSuspenseQueries',
+              },
+            },
+          ],
+        },
+        {
+          name: `rest element of array-destructured useQueries is passed to ${reactHookInvocation} as dependency`,
+          code: `
+            ${reactHookImport}
+            import { useQueries } from "@tanstack/react-query";
+
+            function Component() {
+              const [firstQuery, ...restQueries] = useQueries({
+                queries: [
+                  { queryKey: ['a'], queryFn: () => 'a' },
+                  { queryKey: ['b'], queryFn: () => 'b' }
+                ]
+              });
+              const callback = ${reactHookInvocation}(() => {}, [restQueries]);
+              return;
+            }
+          `,
+          errors: [
+            {
+              messageId: 'noUnstableDeps',
+              data: { reactHook: reactHookAlias, queryHook: 'useQueries' },
+            },
+          ],
+        },
+      ]),
+}
+
+const testCases = (reactHookName: string) => [
+  {
+    reactHookImport: 'import * as React from "React";',
+    reactHookInvocation: `React.${reactHookName}`,
+    reactHookAlias: reactHookName,
+  },
+  {
+    reactHookImport: `import { ${reactHookName} } from "React";`,
+    reactHookInvocation: reactHookName,
+    reactHookAlias: reactHookName,
+  },
+  {
+    reactHookImport: `import { ${reactHookName} as useAlias } from "React";`,
+    reactHookInvocation: 'useAlias',
+    reactHookAlias: 'useAlias',
+  },
+]
+
+reactHookNames.forEach((reactHookName) => {
+  testCases(reactHookName).forEach(
+    ({ reactHookInvocation, reactHookAlias, reactHookImport }) => {
+      ruleTester.run('no-unstable-deps', rule, {
+        valid: baseTestCases.valid({
+          reactHookImport,
+          reactHookInvocation,
+          reactHookAlias,
+        }),
+        invalid: baseTestCases.invalid({
+          reactHookImport,
+          reactHookInvocation,
+          reactHookAlias,
+        }),
+      })
+    },
+  )
+})

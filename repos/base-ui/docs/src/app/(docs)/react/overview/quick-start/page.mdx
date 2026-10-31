@@ -1,0 +1,95 @@
+# Quick start
+
+<Subtitle>A quick guide to getting started with Base UI.</Subtitle>
+<Meta name="description" content="A quick guide to getting started with Base UI." />
+
+import { InstallationBlock } from 'docs/src/components/InstallationBlock';
+
+## Install the library
+
+Install Base UI using a package manager.
+
+<InstallationBlock className="bui-mt-5 bui-mb-6" package="@base-ui/react" />
+
+All components are included in a single package. Base UI is tree-shakable, so your app bundle will contain only the components that you actually use.
+
+## Set up
+
+### Portals
+
+Base UI uses portals for components that render popups, such as Dialog and Popover.
+To make portaled components always appear on top of the entire page, add the following style to your application layout root:
+
+```tsx title="layout.tsx"
+<body>
+  <div className="root">
+    {/* prettier-ignore */}
+    {children}
+  </div>
+</body>
+```
+
+```css title="styles.css"
+.root {
+  isolation: isolate;
+}
+```
+
+This style creates a separate stacking context for your application's `.root` element.
+This way, popups always appear above the page contents, and any `z-index` property in your styles won't interfere with them.
+
+### iOS 26+ Safari
+
+Starting with iOS 26, Safari allows content beneath the UI chrome to be visible. Backdrops such as those used by dialogs must use `position: absolute` instead of `position: fixed` to cover the entire visual viewport. For this to work after the page is scrolled, the following style must be added to your global styles:
+
+```css title="styles.css"
+body {
+  position: relative;
+}
+```
+
+## Assemble a component
+
+This demo shows you how to import a [Popover](/react/components/popover) component, assemble its parts, and apply styles.
+There are examples for both Tailwind and CSS Modules below, but since Base UI is unstyled, you can use CSS-in-JS, plain CSS, or any other styling solution you prefer.
+
+import { DemoPopoverHero } from '../../components/popover/demos/hero';
+
+<DemoPopoverHero />
+
+## Pre-styled components
+
+[shadcn/ui](https://ui.shadcn.com/create?base=base) is a great place to start if you need pre-styled components with higher-level abstractions while using Base UI under the hood.
+
+Take a look at the [Community](/react/overview/community) page to see more styled libraries powered by Base UI.
+
+## Working with LLMs
+
+For those of you working with LLMs, each docs page has a "View as Markdown" link at the top, which can be shared with AI chat assistants to help them understand Base UI concepts and component APIs.
+
+Additionally, there is an ["llms.txt"](/llms.txt) link in the "Handbook" section of the navigation sidebar, which you can feed to AI chat assistants to help them navigate the docs.
+
+## Next steps
+
+This walkthrough outlines the basics of putting together a Base UI component.
+Continue to the [Handbook](/react/handbook/styling) section for broader guidance on topics like styling, animation, and composition, or explore the [components](/react/components/accordion).
+
+export const metadata = {
+  keywords: [
+    'Base UI Quick Start',
+    'Install Base UI',
+    'Base UI shadcn',
+    'Base UI shadcn/ui',
+    'React Portal Setup',
+    'iOS Safari Backdrop Fix',
+    'Popover Assembly Example',
+    'llms.txt Link',
+    'Getting Started Guide',
+    'npm Install',
+    'Setup Guide',
+    'Installation Guide',
+    'Getting Started Tutorial',
+    'First Steps',
+    'Beginner Guide',
+  ],
+};

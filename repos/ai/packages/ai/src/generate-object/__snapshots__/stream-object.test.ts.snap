@@ -1,0 +1,189 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`streamObject > callbacks > onStart > should send correct information with text prompt 1`] = `
+{
+  "callId": "test-call-id",
+  "frequencyPenalty": undefined,
+  "headers": undefined,
+  "maxOutputTokens": 100,
+  "maxRetries": 2,
+  "messages": undefined,
+  "modelId": "test-model",
+  "operationId": "ai.streamObject",
+  "output": "object",
+  "presencePenalty": undefined,
+  "prompt": "test-prompt",
+  "provider": "test-provider",
+  "providerOptions": undefined,
+  "schema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "content": {
+        "type": "string",
+      },
+    },
+    "required": [
+      "content",
+    ],
+    "type": "object",
+  },
+  "schemaDescription": "A test schema",
+  "schemaName": "test-schema",
+  "seed": undefined,
+  "system": undefined,
+  "temperature": 0.5,
+  "topK": undefined,
+  "topP": undefined,
+}
+`;
+
+exports[`streamObject > output = "object" > options.onFinish > should be called when a valid object is generated 1`] = `
+{
+  "callId": "test-id",
+  "error": undefined,
+  "finishReason": "stop",
+  "object": {
+    "content": "Hello, world!",
+  },
+  "providerMetadata": {
+    "testProvider": {
+      "testKey": "testValue",
+    },
+  },
+  "reasoning": undefined,
+  "request": {},
+  "response": {
+    "headers": undefined,
+    "id": "id-0",
+    "modelId": "mock-model-id",
+    "timestamp": 1970-01-01T00:00:00.000Z,
+  },
+  "usage": {
+    "inputTokenDetails": {
+      "cacheReadTokens": undefined,
+      "cacheWriteTokens": undefined,
+      "noCacheTokens": 3,
+    },
+    "inputTokens": 3,
+    "outputTokenDetails": {
+      "reasoningTokens": undefined,
+      "textTokens": 10,
+    },
+    "outputTokens": 10,
+    "raw": undefined,
+    "totalTokens": 13,
+  },
+  "warnings": undefined,
+}
+`;
+
+exports[`streamObject > output = "object" > options.onFinish > should be called when object doesn't match the schema 1`] = `
+{
+  "callId": "test-id",
+  "error": [AI_NoObjectGeneratedError: No object generated: response did not match schema.],
+  "finishReason": "stop",
+  "object": undefined,
+  "providerMetadata": undefined,
+  "reasoning": undefined,
+  "request": {},
+  "response": {
+    "headers": undefined,
+    "id": "id-0",
+    "modelId": "mock-model-id",
+    "timestamp": 1970-01-01T00:00:00.000Z,
+  },
+  "usage": {
+    "inputTokenDetails": {
+      "cacheReadTokens": undefined,
+      "cacheWriteTokens": undefined,
+      "noCacheTokens": 3,
+    },
+    "inputTokens": 3,
+    "outputTokenDetails": {
+      "reasoningTokens": undefined,
+      "textTokens": 10,
+    },
+    "outputTokens": 10,
+    "raw": undefined,
+    "totalTokens": 13,
+  },
+  "warnings": undefined,
+}
+`;
+
+exports[`streamObject > output = "object" > result.fullStream > should send full stream data 1`] = `
+[
+  {
+    "object": {},
+    "type": "object",
+  },
+  {
+    "textDelta": "{ ",
+    "type": "text-delta",
+  },
+  {
+    "object": {
+      "content": "Hello, ",
+    },
+    "type": "object",
+  },
+  {
+    "textDelta": ""content": "Hello, ",
+    "type": "text-delta",
+  },
+  {
+    "object": {
+      "content": "Hello, world",
+    },
+    "type": "object",
+  },
+  {
+    "textDelta": "world",
+    "type": "text-delta",
+  },
+  {
+    "object": {
+      "content": "Hello, world!",
+    },
+    "type": "object",
+  },
+  {
+    "textDelta": "!"",
+    "type": "text-delta",
+  },
+  {
+    "textDelta": " }",
+    "type": "text-delta",
+  },
+  {
+    "finishReason": "stop",
+    "providerMetadata": {
+      "testProvider": {
+        "testKey": "testValue",
+      },
+    },
+    "response": {
+      "id": "id-0",
+      "modelId": "mock-model-id",
+      "timestamp": 1970-01-01T00:00:00.000Z,
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": undefined,
+        "cacheWriteTokens": undefined,
+        "noCacheTokens": 3,
+      },
+      "inputTokens": 3,
+      "outputTokenDetails": {
+        "reasoningTokens": undefined,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "raw": undefined,
+      "totalTokens": 13,
+    },
+  },
+]
+`;

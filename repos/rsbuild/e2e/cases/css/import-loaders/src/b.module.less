@@ -1,0 +1,15 @@
+@prefix: hello;
+
+.class-foo {
+  & + :global(.@{prefix}-class-foo) {
+    background-color: red;
+  }
+}
+
+.class-bar {
+  :global {
+    .@{prefix}-class-bar {
+      background-color: blue;
+    }
+  }
+}

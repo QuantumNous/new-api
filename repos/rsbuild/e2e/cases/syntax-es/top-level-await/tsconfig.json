@@ -1,0 +1,13 @@
+{
+  "extends": "@scripts/config/tsconfig",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "module": "ES2022",
+    "target": "ES2017",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "*.test.ts"]
+}

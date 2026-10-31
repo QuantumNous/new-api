@@ -1,0 +1,155 @@
+# Radio
+
+<Subtitle>An easily stylable radio button component.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React radio button component that is easy to style."
+/>
+
+import { DemoRadioHero } from './demos/hero';
+
+<DemoRadioHero />
+
+## Usage guidelines
+
+- **Form controls must have an accessible name**: It can be created using `<label>` elements, or the `Field` and `Fieldset` components. See [Labeling a radio group](#labeling-a-radio-group) and the [forms guide](/react/handbook/forms).
+
+## Anatomy
+
+Radio is always placed within Radio Group. Import the components and place them together:
+
+```jsx title="Anatomy"
+import { Radio } from '@base-ui/react/radio';
+import { RadioGroup } from '@base-ui/react/radio-group';
+
+<RadioGroup>
+  <Radio.Root>
+    <Radio.Indicator />
+  </Radio.Root>
+</RadioGroup>;
+```
+
+## Examples
+
+### Labeling a radio group
+
+Label the group with `aria-labelledby` and a sibling label element:
+
+```tsx title="Using aria-labelledby to label a radio group"
+<div id="storage-type-label">Storage type</div>
+<RadioGroup aria-labelledby="storage-type-label">{/* ... */}</RadioGroup>
+```
+
+An enclosing `<label>` is the simplest labeling pattern for each radio:
+
+```tsx title="Using an enclosing label to label a radio button"
+// @highlight
+<label>
+  <Radio.Root value="ssd" />
+  SSD
+  {/* @highlight */}
+</label>
+```
+
+### Rendering as a native button
+
+By default, `<Radio.Root>` renders a `<span>` element to support enclosing labels. Prefer rendering each radio as a native button when using sibling labels (`htmlFor`/`id`).
+
+```tsx title="Sibling label pattern with a native button"
+<div id="storage-type">Storage type</div>
+<RadioGroup defaultValue="ssd" aria-labelledby="storage-type">
+  <div>
+    <label htmlFor="storage-type-ssd">SSD</label>
+    {/* @highlight-text "nativeButton" "render={<button />}" */}
+    <Radio.Root value="ssd" id="storage-type-ssd" nativeButton render={<button />}>
+      <Radio.Indicator />
+    </Radio.Root>
+  </div>
+</RadioGroup>
+```
+
+Native buttons with wrapping labels are supported by using the `render` callback to avoid invalid HTML, so the hidden input is placed outside the label:
+
+```tsx title="Render callback"
+<div id="storage-type">Storage type</div>
+<RadioGroup defaultValue="ssd" aria-labelledby="storage-type">
+  <Radio.Root
+    value="ssd"
+    nativeButton
+    // @highlight-start
+    render={(buttonProps) => (
+      <label>
+        <button {...buttonProps} />
+        SSD
+      </label>
+    )}
+    {/* @highlight-end */}
+  />
+</RadioGroup>
+```
+
+### Form integration
+
+Use [Field](/react/components/field) and [Fieldset](/react/components/fieldset) for group labeling and form integration:
+
+```tsx title="Using Radio Group in a form"
+<Form>
+  {/* @highlight */}
+  <Field.Root name="storageType">
+    <Fieldset.Root render={<RadioGroup />}>
+      <Fieldset.Legend>Storage type</Fieldset.Legend>
+      <Field.Item>
+        <Field.Label>
+          <Radio.Root value="ssd" />
+          SSD
+        </Field.Label>
+      </Field.Item>
+      <Field.Item>
+        <Field.Label>
+          <Radio.Root value="hdd" />
+          HDD
+        </Field.Label>
+      </Field.Item>
+    </Fieldset.Root>
+  </Field.Root>
+</Form>
+```
+
+## API reference
+
+### RadioGroup
+
+import { TypesRadioGroup } from '../radio-group/types';
+
+Provides a shared state to a series of radio buttons. Renders a `<div>` element.
+
+<TypesRadioGroup />
+
+import { TypesRadio } from './types';
+
+### Root
+
+<TypesRadio.Root />
+
+### Indicator
+
+<TypesRadio.Indicator />
+
+export const metadata = {
+  keywords: [
+    'React Radio Button',
+    'Radio Group Component',
+    'Radio Button',
+    'Radio Input',
+    'Single Choice',
+    'Exclusive Choice',
+    'Mutually Exclusive',
+    'Option Selector',
+    'Option Button',
+    'Form Radio Control',
+    'Accessible Radio Group',
+    'Customizable Radio',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

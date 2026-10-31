@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "constraints": {
+    "go": "1.25"
+  },
+  "extends": [
+    "config:recommended",
+    ":semanticCommitTypeAll(build)",
+    ":separatePatchReleases"
+  ],
+  "ignorePresets": [
+    ":combinePatchMinorReleases",
+    ":prHourlyLimit2",
+    ":semanticPrefixFixDepsChoreOthers"
+  ],
+  "enabledManagers": [
+    "gomod"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "packageRules": [
+    {
+      "matchDatasources": [
+        "go"
+      ],
+      "addLabels": [
+        "go"
+      ]
+    }
+  ],
+  "postUpdateOptions": [
+    "gomodTidy"
+  ]
+}

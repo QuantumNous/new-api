@@ -1,0 +1,17 @@
+{
+  "extends": "../../../../../../tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "types": ["node", "vite/client", "vitest/globals"]
+  },
+  "include": [
+    "memory.bench.ts",
+    "memory.flame.ts",
+    "setup.ts",
+    "vite.config.ts",
+    "../../../bench-utils.ts",
+    "./src/**/*"
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "created_at": 1761768921,
+  "id": "5138abcf-4c4e-b0ab-7e0b-f4c81b98f455_us-east-1",
+  "max_output_tokens": null,
+  "model": "grok-4-fast-reasoning",
+  "object": "response",
+  "output": [
+    {
+      "arguments": "{\"code\":\"def fibonacci(n):\\n    if n <= 0:\\n        return 0\\n    elif n == 1:\\n        return 1\\n    else:\\n        a, b = 0, 1\\n        for _ in range(2, n + 1):\\n            a, b = b, a + b\\n        return b\\n\\nprint(fibonacci(10))\"}",
+      "call_id": "",
+      "name": "code_execution",
+      "type": "code_interpreter_call",
+      "id": "fc_5138abcf-4c4e-b0ab-7e0b-f4c81b98f455_us-east-1_0",
+      "status": "completed"
+    },
+    {
+      "content": [
+        {
+          "type": "output_text",
+          "text": "55",
+          "logprobs": [],
+          "annotations": []
+        }
+      ],
+      "id": "msg_5138abcf-4c4e-b0ab-7e0b-f4c81b98f455_us-east-1",
+      "role": "assistant",
+      "type": "message",
+      "status": "completed"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "reasoning": {
+    "effort": null,
+    "summary": null
+  },
+  "temperature": null,
+  "text": {
+    "format": {
+      "type": "text"
+    }
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "code_interpreter"
+    }
+  ],
+  "top_p": null,
+  "usage": {
+    "input_tokens": 1606,
+    "input_tokens_details": {
+      "cached_tokens": 1235
+    },
+    "output_tokens": 292,
+    "output_tokens_details": {
+      "reasoning_tokens": 190
+    },
+    "total_tokens": 1898,
+    "num_sources_used": 0,
+    "num_server_side_tools_used": 1
+  },
+  "user": null,
+  "incomplete_details": null,
+  "status": "completed",
+  "store": true,
+  "metadata": {}
+}

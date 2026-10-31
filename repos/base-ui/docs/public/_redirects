@@ -1,0 +1,26 @@
+# Link used in the demos, avoid 404
+/drafts / 301
+/inbox* / 301
+/trash / 301
+
+# Playground SPA redirects
+/vite-playground/* /vite-playground/index.html 200
+
+# Shortlink to Netlify deploy previews
+/pr/:number https://deploy-preview-:number--base-ui.netlify.app/ 302
+
+# For links that we can't edit later on, for example hosted in the code published on npm
+/r/discord https://discord.com/invite/g6C3hUtuxz 302
+/r/invalid-render-prop /react/handbook/composition 302
+
+# Legacy redirection
+# Added in chronological order (the last line is the most recent one)
+# To be removed 3+ years after being introduced
+
+# 2025
+
+# Handles error code path redirect to arg based path
+
+# At the time of adding this rule, there was requirement of at max only a single args[] param
+/production-error/:code args\[\]=:args /production-error?code=:code&args[]=:args 301
+/production-error/:code /production-error?code=:code 301

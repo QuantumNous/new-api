@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true
+  },
+  "include": [
+    "./typescript",
+    "./test",
+    "./index.*",
+    "eslint.config.mjs",
+    "vitest.*.mts",
+    "rollup.config.mjs"
+  ]
+}

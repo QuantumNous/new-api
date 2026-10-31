@@ -1,0 +1,28 @@
+name: Unit Test / Lint
+
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Install Dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Lint
+        run: |
+          pnpm lint
+          pnpm type
+
+      - name: Test
+        run: |
+          pnpm run test --ci
+          pnpm test:type
+
+      - name: Bundle watch
+        run: |
+          pnpm bundlewatch

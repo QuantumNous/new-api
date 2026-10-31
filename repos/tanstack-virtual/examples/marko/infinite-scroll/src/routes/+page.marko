@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Infinite Scroll — @tanstack/marko-virtual</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, sans-serif; padding: 24px; }
+      h1 { font-size: 24px; margin-bottom: 8px; }
+      p { color: #555; margin-bottom: 16px; }
+      .scroll-container { height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
+      .item { display: flex; align-items: center; padding: 0 16px; font-size: 14px; border-bottom: 1px solid #f3f4f6; box-sizing: border-box; }
+      .item-even { background: #f9fafb; }
+      .item-odd  { background: #ffffff; }
+      .placeholder { color: #9ca3af; font-style: italic; font-size: 13px; }
+      .footer { font-size: 12px; color: #9ca3af; margin-top: 8px; text-align: right; }
+    </style>
+  </head>
+  <body>
+    <h1>Infinite Scroll Virtualisation</h1>
+    <p>500 rows fetched in pages of 20 as you scroll. The virtualizer reserves all 500 slots upfront — unloaded rows show a placeholder.</p>
+
+    <const/TOTAL     = 500/>
+    <const/PAGE_SIZE = 20/>
+
+    <let/rows    = ([] as string[])/>
+    <let/loading = false/>
+    <let/hasMore = true/>
+    <let/offset  = 0/>
+    <let/mounted = false/>
+
+    <lifecycle onMount() {
+      mounted = true
+      loading = true
+      new Promise<void>(r => setTimeout(r, 400)).then(() => {
+        const n = Math.min(PAGE_SIZE, TOTAL)
+        rows = Array.from({ length: n }, (_, k) => "Row #" + (k + 1))
+        offset = n
+        hasMore = n < TOTAL
+        loading = false
+      })
+    }/>
+
+    <div/scrollEl class="scroll-container">
+      <if=mounted>
+        <virtualizer|{ virtualItems, totalSize }|
+          count=TOTAL
+          estimateSize=() => 52
+          getScrollElement=scrollEl
+          overscan=5
+        >
+          <effect() {
+            const last = virtualItems[virtualItems.length - 1]
+            if (last && last.index >= rows.length - 1 && !loading && hasMore) {
+              const off = offset
+              loading = true
+              new Promise<void>(r => setTimeout(r, 400)).then(() => {
+                const n = Math.min(PAGE_SIZE, TOTAL - off)
+                rows = [...rows, ...Array.from({ length: n }, (_, k) => "Row #" + (off + k + 1))]
+                offset = off + n
+                hasMore = offset < TOTAL
+                loading = false
+              })
+            }
+          }/>
+
+          <div style=`height: ${totalSize}px; width: 100%; position: relative`>
+            <for|item| of=virtualItems>
+              <div
+                class=item.index % 2 === 0 ? "item item-even" : "item item-odd"
+                style=`position: absolute; top: 0; left: 0; width: 100%; height: ${item.size}px; transform: translateY(${item.start}px)`
+              >
+                <if=item.index < rows.length>
+                  ${rows[item.index]}
+                </if>
+                <else>
+                  <span class="placeholder">
+                    ${loading && item.index === rows.length ? "Loading…" : "—"}
+                  </span>
+                </else>
+              </div>
+            </for>
+          </div>
+        </virtualizer>
+      </if>
+    </div>
+
+    <p class="footer">${rows.length} of ${TOTAL} rows loaded</p>
+  </body>
+</html>

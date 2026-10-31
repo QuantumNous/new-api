@@ -1,0 +1,6 @@
+/* This missing plugin is a probe: the build fails only if Tailwind runs. */
+@plugin './missing-tailwind-plugin.js';
+
+.unused {
+  color: red;
+}

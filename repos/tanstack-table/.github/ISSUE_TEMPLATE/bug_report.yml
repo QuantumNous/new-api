@@ -1,0 +1,100 @@
+name: '🐛 Bug report'
+description: Report a reproducible bug or regression
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue :pray:.
+
+        This issue tracker is for reporting reproducible bugs or regression's found in [react-table](https://github.com/tanstack/table)
+        If you have a question about how to achieve or implement something and are struggling, please post a question
+        inside of react-table's [Discussions tab](https://github.com/tanstack/table/discussions) instead of filing an issue.
+
+        Before submitting a new bug/issue, please check the links below to see if there is a solution or question posted there already:
+        - TanStack Table's [Discussions tab](https://github.com/tanstack/table/discussions)
+        - TanStack Table's [Open Issues](https://github.com/tanstack/table/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc)
+        - TanStack Table's [Closed Issues](https://github.com/tanstack/table/issues?q=is%3Aissue+sort%3Aupdated-desc+is%3Aclosed)
+
+        The more information you fill in, the better the community can help you.
+
+  - type: input
+    id: tanstack-table-version
+    attributes:
+      label: TanStack Table version
+      description: |
+        - Please let us know the exact version of the TanStack Table framework adapter that you were using when the issue occurred. If you are using an older version, check to see if your bug has already been solved in the latest version. Please don't just put in "latest", as this is subject to change.
+        - The latest "table-core" version is <img alt="" src="https://badgen.net/npm/v/@tanstack/react-table" />
+      placeholder: |
+        e.g. v8.11.6
+    validations:
+      required: true
+
+  - type: input
+    id: framework-library-version
+    attributes:
+      label: Framework/Library version
+      description: Which framework and what version of that framework are you using?
+      placeholder: |
+        e.g. React v17.0.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug and the steps to reproduce it
+      description: Provide a clear and concise description of the challenge you are running into, and the steps we should take to try to reproduce your bug.
+    validations:
+      required: true
+
+  - type: input
+    id: link
+    attributes:
+      label: Your Minimal, Reproducible Example - (Sandbox Highly Recommended)
+      description: |
+        Please add a link to a minimal reproduction.
+        Note:
+          - Your bug may get fixed much faster if we can run your code and it doesn't have dependencies other than React.
+          - To create a shareable code example for web, you can use CodeSandbox (https://codesandbox.io/s/new) or Stackblitz (https://stackblitz.com/).
+          - Please make sure the example is complete and runnable without prior dependencies and free of unnecessary abstractions
+          - Feel free to fork any of the official CodeSandbox examples to reproduce your issue: https://github.com/tanstack/table/tree/main/examples/
+          - For React Native, you can use: https://snack.expo.dev/
+          - For TypeScript related issues only, a TypeScript Playground link might be sufficient: https://www.typescriptlang.org/play
+          - Please read these tips for providing a minimal example: https://stackoverflow.com/help/mcve.
+      placeholder: |
+        e.g. Code Sandbox, Stackblitz, TypeScript Playground, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots_or_videos
+    attributes:
+      label: Screenshots or Videos (Optional)
+      description: |
+        If applicable, add screenshots or a video to help explain your problem.
+        For more information on the supported file image/file types and the file size limits, please refer
+        to the following link: https://docs.github.com/en/github/writing-on-github/working-with-advanced-formatting/attaching-files
+      placeholder: |
+        You can drag your video or image files inside of this editor ↓
+
+  - type: dropdown
+    attributes:
+      options:
+        - No, because I do not know how
+        - No, because I do not have time to dig into it
+        - Maybe, I'll investigate and start debugging
+        - Yes, I think I know how to fix it and will discuss it in the comments of this issue
+        - Yes, I am also opening a PR that solves the problem along side this issue
+      label: Do you intend to try to help solve this bug with your own PR?
+      description: |
+        If you think you know the cause of the problem, the fastest way to get it fixed is to suggest a fix, or fix it yourself! However, it is ok if you cannot solve this yourself and are just wanting help.
+  - type: checkboxes
+    id: agrees-to-terms
+    attributes:
+      label: Terms & Code of Conduct
+      description: By submitting this issue, you agree to follow our Code of Conduct and can verify that you have followed the requirements outlined above to the best of your ability.
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true
+        - label: I understand that if my bug cannot be reliable reproduced in a debuggable environment, it will probably not be fixed and this issue may even be closed.
+          required: true

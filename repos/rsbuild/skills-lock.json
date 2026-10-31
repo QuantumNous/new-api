@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "create-draft-release-notes": {
+      "source": "rstackjs/agent-skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/create-draft-release-notes/SKILL.md",
+      "computedHash": "9fa7807d607c7fb7e02795ddee2560cc190d4af791320537a66ca8b2e429d858"
+    },
+    "pr-creator": {
+      "source": "rstackjs/agent-skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/pr-creator/SKILL.md",
+      "computedHash": "c49fcbba72894d08a34d054a00720610d19a2e87e25942aee05da09e87b268df"
+    },
+    "release-blog-writer": {
+      "source": "rstackjs/agent-skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/release-blog-writer/SKILL.md",
+      "computedHash": "982e423497efa0a1266e06e14f880264c791e22b33144ce283fcd38041a7e814"
+    },
+    "rspress-description-generator": {
+      "source": "rstackjs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rspress-description-generator/SKILL.md",
+      "computedHash": "ca2693ca055d1b4e5903bdfacab522f46ca0e13cbc5db59e6c9589fdc8efc6ad"
+    }
+  }
+}

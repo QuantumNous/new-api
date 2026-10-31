@@ -1,0 +1,157 @@
+---
+description: 'Inlining static assets refers to embedding the content of a static asset directly in an HTML or JS file instead of linking to an external file.'
+---
+
+# Inline static assets
+
+Inlining static assets refers to embedding the content of a static asset directly in an HTML or JS file instead of linking to an external file. This can improve website performance by reducing the number of HTTP requests the browser needs to make to load the page.
+
+However, inlining static assets has some disadvantages, such as increasing the size of a single file, which may lead to slower loading. Decide whether to inline assets based on your specific situation.
+
+Rsbuild automatically inlines static assets smaller than 4KiB. Sometimes you may need to manually control whether assets are inlined. This document explains how to precisely control the inlining behavior of static assets.
+
+## Automatic inlining
+
+By default, Rsbuild inlines assets when the file size is less than a threshold (default is 4KiB). When inlined, the asset is converted to a Base64 encoded string and no longer requires a separate HTTP request. When the file size is greater than this threshold, it is loaded as a separate file with its own HTTP request.
+
+```js
+import smallImage from './static/smallImage.png';
+
+console.log(smallImage); // "data:image/png;base64,iVBORw0KGgo..."
+```
+
+You can modify the threshold with the [output.dataUriLimit](/config/output/data-uri-limit) config. For example, set the threshold for images to 5000 bytes and disable inlining for media assets:
+
+```ts
+export default {
+  output: {
+    dataUriLimit: {
+      image: 5000,
+      media: 0,
+    },
+  },
+};
+```
+
+## Force inlining
+
+You can force an asset to be inlined by adding the `inline` query parameter when importing it, regardless of the asset's size.
+
+```tsx
+import React from 'react';
+import img from './foo.png?inline';
+
+export default function Foo() {
+  return <img src={img} />;
+}
+```
+
+In the above example, the `foo.png` image will always be inlined, regardless of the image size.
+
+### Referenced from CSS file
+
+When you reference a static asset in your CSS file, you can also force it to inline with the `inline` query parameter.
+
+```css
+.foo {
+  background-image: url('./icon.png?inline');
+}
+```
+
+:::tip Impact of forcing inlining
+Inlining large assets will significantly increase the first paint time or first contentful paint time of a page, degrading user experience. If you inline a static asset multiple times in a CSS file, the base64 content will be injected repeatedly, increasing bundle size. Use forced inlining with caution.
+:::
+
+## Disable inlining
+
+To prevent assets from being inlined and ensure they're always loaded as separate files (regardless of their size), add the `url` query parameter.
+
+```tsx
+import React from 'react';
+import img from './foo.png?url';
+
+export default function Foo() {
+  return <img src={img} />;
+}
+```
+
+In the above example, the `foo.png` image will always be loaded as a separate file, even if it's smaller than the threshold.
+
+### Referenced from CSS file
+
+When you reference a static asset in your CSS file, you can also prevent inlining with the `url` query parameter.
+
+```css
+.foo {
+  background-image: url('./icon.png?url');
+}
+```
+
+:::tip Impact of disabling inlining
+Disabling asset inlining will increase the number of assets the web application needs to load. This will reduce loading efficiency in weak network environments or scenarios where HTTP/2 is not enabled. Use with caution.
+:::
+
+## Inline JS files
+
+In addition to inlining static assets into JS files, Rsbuild also supports inlining JS files into HTML files.
+
+Enable the [output.inlineScripts](/config/output/inline-scripts) config, and the generated JS files will not be written to the output directory but will be directly inlined in the HTML file.
+
+```ts
+export default {
+  output: {
+    inlineScripts: true,
+  },
+};
+```
+
+:::tip
+Inline JS files may cause the HTML file to become too large and will break HTTP caching. Use with caution.
+:::
+
+## Inline CSS files
+
+You can also inline CSS files into HTML files.
+
+Just enable the [output.inlineStyles](/config/output/inline-styles) config, and the generated CSS file will not be written to the output directory, but will be directly inlined in the HTML file.
+
+```ts
+export default {
+  output: {
+    inlineStyles: true,
+  },
+};
+```
+
+## Type declaration
+
+When you use URL queries such as `?inline` and `?url` in TypeScript code, TypeScript may prompt that the module is missing a type definition:
+
+```
+TS2307: Cannot find module './logo.png?inline' or its corresponding type declarations.
+```
+
+To fix this, use one of the following methods:
+
+- Method 1: If the `@rsbuild/core` package is installed, you can add the [preset types](/guide/basic/typescript#preset-types) provided by `@rsbuild/core` to `tsconfig.json`:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "types": ["@rsbuild/core/types"]
+  }
+}
+```
+
+- Method 2: Manually add the required type declarations:
+
+```ts
+declare module '*?url' {
+  const content: string;
+  export default content;
+}
+declare module '*?inline' {
+  const content: string;
+  export default content;
+}
+```

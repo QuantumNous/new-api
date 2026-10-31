@@ -1,0 +1,28 @@
+name: 'Dependabot'
+on:
+  pull_request: {}
+permissions:
+  contents: 'read'
+jobs:
+  automerge:
+    name: 'Auto-Merge'
+    runs-on: 'ubuntu-latest'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'go-webauthn/webauthn'
+    permissions:
+      contents: 'write'
+    steps:
+      - name: 'Harden Runner'
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: 'audit'
+      - name: 'Dependabot Fetch Metadata'
+        id: 'metadata'
+        uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b
+        with:
+          github-token: '${{ secrets.GITHUB_TOKEN }}'
+      - name: 'Enable Auto-Merge'
+        run: |
+          gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: '${{ github.event.pull_request.html_url }}'
+          GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'

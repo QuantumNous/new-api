@@ -1,0 +1,182 @@
+---
+description: 'Rsbuild 0.2 发布，调整 targets、entry 等核心配置，并重构 Babel 插件选项。'
+date: 2023-12-11 08:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Rsbuild 0.2 发布
+
+_2023 年 12 月 11 日_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-2.png)
+
+Rsbuild 0.2 版本包含一些 API 的不兼容更新，请参考当前文档进行升级。
+
+## Targets
+
+我们将 `createRsbuild` 方法的 `target` 移动至 rsbuild 配置对象中，这个改动使用户可以在 Rsbuild 配置文件中配置 targets。
+
+- before:
+
+```js
+const rsbuild = await createRsbuild({
+  target: ['web', 'node'],
+});
+```
+
+- after:
+
+```js
+// rsbuild.config.ts
+export default {
+  output: {
+    targets: ['web', 'node'],
+  },
+};
+```
+
+> 仅影响 JavaScript API。使用 Rsbuild CLI 的用户不需要做任何改变。
+
+## Entry
+
+删除已弃用的 `source.entries` 配置。
+
+自 Rsbuild 0.1.0 起，`source.entries` 已更名为 `source.entry`，我们在 Rsbuild v0.2.0`中删除了`source.entries` 配置。
+
+- before:
+
+```js
+// rsbuild.config.ts
+export default {
+  source: {
+    entries: {},
+  },
+};
+```
+
+- after:
+
+```js
+// rsbuild.config.ts
+export default {
+  source: {
+    entry: {},
+  },
+};
+```
+
+## Write to disk
+
+`dev.writeToDisk` 的默认值变更为 `false`.
+
+原因：
+
+- 减少文件系统开销，提升开发服务器性能。
+- 避免触发 UnoCSS 和其他工具的监听器。参考：[#654](https://github.com/web-infra-dev/rsbuild/issues/654)。
+- 使默认行为与 webpack-dev-middleware 及其他社区开发服务器保持一致。
+
+用户可以手动开启写入磁盘：
+
+```js
+export default {
+  dev: {
+    writeToDisk: true,
+  },
+};
+```
+
+## Babel 插件
+
+`@rsbuild/plugin-babel` 将所有的 babel-loader 选项移动到 `babelLoaderOptions`:
+
+- before:
+
+```ts
+pluginBabel({
+  plugins: [],
+  presets: [],
+});
+```
+
+- after:
+
+```ts
+pluginBabel([
+  babelLoaderOptions: {
+    plugins: [],
+    presets: [],
+  }
+]);
+```
+
+这种改变使我们能为 `pluginBabel` 添加更多选项，如 `include` 和 `exclude`。
+
+## Source map
+
+`output.disableSourceMap` 已经更名为 `output.sourceMap`.
+
+- before:
+
+```js
+export default {
+  output: {
+    disableSourceMap: {
+      js: true,
+      css: true,
+    },
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  output: {
+    sourceMap: {
+      js: false,
+      css: false,
+    },
+  },
+};
+```
+
+source map 的默认值已更新，以提升构建性能。
+
+- 之前：在开发阶段生成 JS / CSS 的 source map，在生产阶段生成 JS 的 source map。
+- 之后：在开发阶段生成 JS 的 source map，在生产阶段不生成 source map。
+
+## Inject styles
+
+将 `output.disableCssExtract` 更名为 `output.injectStyles` 以更加直观：
+
+- before:
+
+```js
+export default {
+  output: {
+    disableCssExtract: true,
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  output: {
+    injectStyles: true,
+  },
+};
+```

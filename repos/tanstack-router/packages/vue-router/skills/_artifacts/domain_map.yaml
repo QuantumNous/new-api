@@ -1,0 +1,65 @@
+# domain_map.yaml
+# Library: @tanstack/vue-router
+# Version: 1.166.2
+# Date: 2026-03-08
+# Status: reviewed
+
+library:
+  name: '@tanstack/vue-router'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Vue bindings for TanStack Router. Ref<T> returns,
+    defineComponent, h() render functions, provide/inject,
+    Html/Body components.
+  primary_framework: 'vue'
+
+domains:
+  - name: 'Vue Router Bindings'
+    slug: 'vue-router-bindings'
+    description: >-
+      Vue-specific components, composables, and render functions
+      for TanStack Router. Ref-based returns, provide/inject,
+      and Html/Body SSR components.
+
+skills:
+  - name: 'Vue Router'
+    slug: 'vue-router'
+    domain: 'vue-router-bindings'
+    description: >-
+      Vue bindings for TanStack Router. Ref<T> returns,
+      defineComponent, h() render functions, provide/inject,
+      Html/Body components.
+    type: framework
+    packages:
+      - '@tanstack/vue-router'
+    covers:
+      - Vue-specific router components
+      - Ref<T> return types
+      - defineComponent usage
+      - h() render functions
+      - provide/inject integration
+      - Html/Body SSR components
+    tasks:
+      - 'Set up TanStack Router in a Vue app'
+      - 'Create components with defineComponent and h()'
+      - 'Use provide/inject for router context'
+    failure_modes:
+      - mistake: 'Forgetting .value when reading Ref values in script'
+        mechanism: >-
+          Vue Router returns Ref<T> from composables. The common
+          mistake is reading them like plain values in script/setup
+          code. Templates auto-unwrap refs, but script logic still
+          needs .value.
+        priority: HIGH
+        status: active
+
+      - mistake: 'Missing provide/inject setup for router context'
+        mechanism: >-
+          Vue Router uses provide/inject for context propagation.
+          Not providing the router instance at the app root causes
+          injection errors in child components.
+        priority: MEDIUM
+        status: active
+
+gaps: []

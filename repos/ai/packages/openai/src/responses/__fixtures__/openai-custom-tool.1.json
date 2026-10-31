@@ -1,0 +1,63 @@
+{
+  "id": "resp_custom_tool_test_001",
+  "object": "response",
+  "created_at": 1741257730,
+  "status": "completed",
+  "error": null,
+  "incomplete_details": null,
+  "input": [],
+  "instructions": null,
+  "max_output_tokens": null,
+  "model": "gpt-5.2-codex",
+  "output": [
+    {
+      "type": "custom_tool_call",
+      "id": "ct_abc123def456",
+      "call_id": "call_custom_sql_001",
+      "name": "write_sql",
+      "input": "SELECT * FROM users WHERE age > 25",
+      "status": "completed"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "reasoning": {
+    "effort": "low",
+    "summary": null
+  },
+  "store": true,
+  "temperature": 1,
+  "text": {
+    "format": {
+      "type": "text"
+    }
+  },
+  "tool_choice": "required",
+  "tools": [
+    {
+      "type": "custom",
+      "name": "write_sql",
+      "description": "Write a SQL SELECT query to answer the user question.",
+      "format": {
+        "type": "grammar",
+        "syntax": "regex",
+        "definition": "SELECT .+"
+      }
+    }
+  ],
+  "top_p": 1,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 50,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 20,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 70
+  },
+  "user": null,
+  "metadata": {}
+}

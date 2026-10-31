@@ -1,0 +1,16 @@
+{
+  "name": "@zod/benchmarks",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "arktype": "^2.1.19",
+    "valibot": "^1.3.1",
+    "zod": "workspace:*",
+    "zod3": "npm:zod@~3.24.0",
+    "zod4": "npm:zod@4.0.8"
+  },
+  "scripts": {
+    "bench": "tsx --conditions @zod/source index.ts"
+  }
+}

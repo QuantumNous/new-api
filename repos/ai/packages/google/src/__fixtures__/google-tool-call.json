@@ -1,0 +1,37 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "name": "weather",
+              "args": {
+                "location": "San Francisco"
+              }
+            },
+            "thoughtSignature": "EskgCsYgAb4+9vtF7/499YQS2bjZs3xcQI+iAl+ILn29nK1j0Kg6su7QsUUUk3nrAAfnS2w5WiVvlcCqu9fAebJ2cvfaEyBahEt5"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0,
+      "finishMessage": "Model generated function call(s)."
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 29,
+    "candidatesTokenCount": 15,
+    "totalTokenCount": 937,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 29
+      }
+    ],
+    "thoughtsTokenCount": 893
+  },
+  "modelVersion": "gemini-3-pro-preview",
+  "responseId": "m36LaZGyCLz1xs0PtNSB-QU"
+}

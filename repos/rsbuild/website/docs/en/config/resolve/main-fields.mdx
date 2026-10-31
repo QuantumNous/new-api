@@ -1,0 +1,52 @@
+---
+description: "Controls the priority of fields in a package.json when locating a package's entry file."
+---
+
+# resolve.mainFields
+
+- **Type:** `string[]`
+- **Version:** `>= 1.5.9`
+
+Controls the priority of fields in a package.json used to locate a package's entry file. It is the ordered list of package.json fields Rspack will try when resolving an npm package's entry point.
+
+:::tip
+`resolve.mainFields` is provided by Rspack, see [Rspack - resolve.mainFields](https://rspack.rs/config/resolve#resolvemainfields) to learn more.
+:::
+
+## Default values
+
+- If [output.target](/config/output/target) is `'web'`, `'web-worker'`, or not specified, the default value is `["browser", "module", "main"]`.
+- If [output.target](/config/output/target) is `'node'`, the default value is `["module", "main"]`.
+
+## Basic example
+
+The value of `resolve.mainFields` overrides the default value of Rsbuild:
+
+```js title="rsbuild.config.ts"
+export default {
+  resolve: {
+    mainFields: ['custom', 'module', 'main'],
+  },
+};
+```
+
+## Multi-environments
+
+Configure different `mainFields` for different [environments](/config/environments):
+
+```js title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      resolve: {
+        mainFields: ['custom', 'browser', 'module', 'main'],
+      },
+    },
+    node: {
+      resolve: {
+        mainFields: ['custom', 'module', 'main'],
+      },
+    },
+  },
+};
+```

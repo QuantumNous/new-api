@@ -1,0 +1,353 @@
+---
+title: Human-in-the-Loop with Next.js
+description: Add a human approval step to your agentic system with Next.js and the AI SDK
+tags: ['next', 'agents', 'tool use']
+---
+
+# Human-in-the-Loop with Next.js
+
+When building agentic systems, it's important to add human-in-the-loop (HITL) functionality to ensure that users can approve actions before the system executes them. The AI SDK provides built-in support for tool execution approval through the `needsApproval` property on tools.
+
+This recipe shows how to add a human approval step to a Next.js chatbot using the AI SDK's native tool execution approval feature.
+
+## Background
+
+To understand how to implement this functionality, let's look at how tool calling works in a Next.js chatbot application with the AI SDK.
+
+On the frontend, use the `useChat` hook to manage the message state and user interaction.
+
+```tsx filename="app/page.tsx"
+'use client';
+
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+import { useState } from 'react';
+
+export default function Chat() {
+  const { messages, sendMessage } = useChat({
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+    }),
+  });
+  const [input, setInput] = useState('');
+
+  return (
+    <div>
+      <div>
+        {messages?.map(m => (
+          <div key={m.id}>
+            <strong>{`${m.role}: `}</strong>
+            {m.parts?.map((part, i) => {
+              switch (part.type) {
+                case 'text':
+                  return <div key={i}>{part.text}</div>;
+              }
+            })}
+            <br />
+          </div>
+        ))}
+      </div>
+
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          if (input.trim()) {
+            sendMessage({ text: input });
+            setInput('');
+          }
+        }}
+      >
+        <input
+          value={input}
+          placeholder="Say something..."
+          onChange={e => setInput(e.target.value)}
+        />
+      </form>
+    </div>
+  );
+}
+```
+
+On the backend, create a route handler that uses `streamText` and returns a `UIMessageStreamResponse`. The tool has an `execute` function that runs automatically when the model calls it.
+
+```ts filename="app/api/chat/route.ts"
+import {
+  streamText,
+  tool,
+  createUIMessageStreamResponse,
+  toUIMessageStream,
+} from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { z } from 'zod';
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  const result = streamText({
+    model: openai('gpt-4o'),
+    messages,
+    tools: {
+      getWeatherInformation: tool({
+        description: 'show the weather in a given city to the user',
+        inputSchema: z.object({ city: z.string() }),
+        execute: async ({ city }) => {
+          const weatherOptions = ['sunny', 'cloudy', 'rainy', 'snowy'];
+          return weatherOptions[
+            Math.floor(Math.random() * weatherOptions.length)
+          ];
+        },
+      }),
+    },
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream }),
+  });
+}
+```
+
+When a user asks the LLM for the weather in New York, the model generates a tool call with the city parameter. The AI SDK then runs the `execute` function automatically and returns the result.
+
+To add a HITL step, you add an approval gate between the tool call and the tool execution using `needsApproval`.
+
+## Adding Tool Execution Approval
+
+### Server Setup
+
+Add `needsApproval: true` to the tool definition. The tool keeps its `execute` function, but the SDK pauses execution until the user approves.
+
+```ts filename="app/api/chat/route.ts" highlight="20"
+import {
+  streamText,
+  tool,
+  createUIMessageStreamResponse,
+  toUIMessageStream,
+} from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { z } from 'zod';
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  const result = streamText({
+    model: openai('gpt-4o'),
+    messages,
+    tools: {
+      getWeatherInformation: tool({
+        description: 'show the weather in a given city to the user',
+        inputSchema: z.object({ city: z.string() }),
+        needsApproval: true,
+        execute: async ({ city }) => {
+          const weatherOptions = ['sunny', 'cloudy', 'rainy', 'snowy'];
+          return weatherOptions[
+            Math.floor(Math.random() * weatherOptions.length)
+          ];
+        },
+      }),
+    },
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream }),
+  });
+}
+```
+
+When the model calls this tool, instead of running the `execute` function, the SDK sends a tool part with the `approval-requested` state to the client. The tool only executes after the user responds.
+
+### Client-Side Approval UI
+
+On the frontend, check for the `approval-requested` state and render approve/deny buttons. Use `addToolApprovalResponse` from the `useChat` hook to send the user's decision.
+
+```tsx filename="app/page.tsx"
+'use client';
+
+import { useChat } from '@ai-sdk/react';
+import {
+  DefaultChatTransport,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+} from 'ai';
+import { useState } from 'react';
+
+export default function Chat() {
+  const { messages, sendMessage, addToolApprovalResponse } = useChat({
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+    }),
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+  });
+  const [input, setInput] = useState('');
+
+  return (
+    <div>
+      <div>
+        {messages?.map(m => (
+          <div key={m.id}>
+            <strong>{`${m.role}: `}</strong>
+            {m.parts?.map((part, i) => {
+              if (part.type === 'text') {
+                return <div key={i}>{part.text}</div>;
+              }
+              if (part.type === 'tool-getWeatherInformation') {
+                switch (part.state) {
+                  case 'approval-requested':
+                    return (
+                      <div key={part.toolCallId}>
+                        Get weather information for {part.input.city}?
+                        <div>
+                          <button
+                            onClick={() =>
+                              addToolApprovalResponse({
+                                id: part.approval.id,
+                                approved: true,
+                              })
+                            }
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              addToolApprovalResponse({
+                                id: part.approval.id,
+                                approved: false,
+                              })
+                            }
+                          >
+                            Deny
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  case 'output-available':
+                    return (
+                      <div key={part.toolCallId}>
+                        Weather in {part.input.city}: {part.output}
+                      </div>
+                    );
+                  case 'output-denied':
+                    return (
+                      <div key={part.toolCallId}>
+                        Weather request for {part.input.city} was denied.
+                      </div>
+                    );
+                }
+              }
+            })}
+            <br />
+          </div>
+        ))}
+      </div>
+
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          if (input.trim()) {
+            sendMessage({ text: input });
+            setInput('');
+          }
+        }}
+      >
+        <input
+          value={input}
+          placeholder="Say something..."
+          onChange={e => setInput(e.target.value)}
+        />
+      </form>
+    </div>
+  );
+}
+```
+
+Here's how the approval flow works:
+
+1. The model calls `getWeatherInformation` with a city
+2. The tool part enters the `approval-requested` state with an `approval.id`
+3. The UI renders approve/deny buttons
+4. When the user clicks a button, `addToolApprovalResponse` records the decision
+5. `sendAutomaticallyWhen` detects all approvals are responded to and sends the message
+6. On the server, if approved, the `execute` function runs and returns the result. If denied, the model receives the denial and responds accordingly.
+
+### Auto-Submit After Approval
+
+The `sendAutomaticallyWhen` option with `lastAssistantMessageIsCompleteWithApprovalResponses` automatically sends a message after all tool approvals in the last step have been responded to. Without this, you would need to call `sendMessage()` manually after each approval.
+
+```tsx
+import { useChat } from '@ai-sdk/react';
+import { lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
+
+const { messages, addToolApprovalResponse } = useChat({
+  sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+});
+```
+
+<Note>
+  If nothing happens after you approve a tool execution, make sure you either
+  call `sendMessage` manually or configure `sendAutomaticallyWhen` on the
+  `useChat` hook.
+</Note>
+
+### Dynamic Approval
+
+You can make approval conditional based on the tool's input by providing an async function to `needsApproval`:
+
+```ts filename="app/api/chat/route.ts" highlight="23"
+import {
+  streamText,
+  tool,
+  createUIMessageStreamResponse,
+  toUIMessageStream,
+} from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { z } from 'zod';
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  const result = streamText({
+    model: openai('gpt-4o'),
+    messages,
+    tools: {
+      processPayment: tool({
+        description: 'Process a payment',
+        inputSchema: z.object({
+          amount: z.number(),
+          recipient: z.string(),
+        }),
+        needsApproval: async ({ amount }) => amount > 1000,
+        execute: async ({ amount, recipient }) => {
+          return `Payment of $${amount} to ${recipient} processed.`;
+        },
+      }),
+    },
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream }),
+  });
+}
+```
+
+In this example, only payments over $1000 require approval. Smaller amounts execute automatically.
+
+### Handling Denial
+
+When a user denies a tool execution, the model receives the denial and can respond accordingly. To prevent the model from retrying the same tool call, add an instruction:
+
+```ts highlight="5-6"
+const result = streamText({
+  model: openai('gpt-4o'),
+  messages,
+  system:
+    'When a tool execution is not approved by the user, do not retry it. ' +
+    'Inform the user that the action was not performed.',
+  tools: {
+    // ...
+  },
+});
+```
+
+## Full Example
+
+To see this code in action, check out the [`next-openai` example](https://github.com/vercel/ai/tree/main/examples/next-openai) in the AI SDK repository. Navigate to the `/test-tool-approval` page and associated route handler.
+
+For more details on tool execution approval, see the [Tool Execution Approval](/docs/ai-sdk-core/tools-and-tool-calling#tool-execution-approval) and [Chatbot Tool Usage](/docs/ai-sdk-ui/chatbot-tool-usage#tool-execution-approval) documentation.

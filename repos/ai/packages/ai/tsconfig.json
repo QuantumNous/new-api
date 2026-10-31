@@ -1,0 +1,40 @@
+{
+  "extends": "./node_modules/@vercel/ai-tsconfig/base.json",
+  "compilerOptions": {
+    "target": "ES2018",
+    "stripInternal": true,
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "types": [
+      "@types/node"
+    ],
+    "composite": true,
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "exclude": [
+    "dist",
+    "build",
+    "node_modules",
+    "tsup.config.ts",
+    "internal.d.ts",
+    "test.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../gateway"
+    },
+    {
+      "path": "../provider"
+    },
+    {
+      "path": "../provider-utils"
+    },
+    {
+      "path": "../test-server"
+    }
+  ]
+}

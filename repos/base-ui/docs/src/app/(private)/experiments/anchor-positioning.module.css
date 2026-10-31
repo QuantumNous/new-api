@@ -1,0 +1,12 @@
+.controls {
+  fieldset {
+    display: flex;
+    gap: 5px;
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+}

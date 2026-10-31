@@ -1,0 +1,118 @@
+# Switch
+
+<Subtitle>A control that indicates whether a setting is on or off.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React switch component that indicates whether a setting is on or off."
+/>
+
+import { DemoSwitchHero } from './demos/hero';
+
+<DemoSwitchHero />
+
+## Usage guidelines
+
+- **Form controls must have an accessible name**: It can be created using a `<label>` element or the `Field` component. See [Labeling a switch](#labeling-a-switch) and the [forms guide](/react/handbook/forms).
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { Switch } from '@base-ui/react/switch';
+
+<Switch.Root>
+  <Switch.Thumb />
+</Switch.Root>;
+```
+
+## Examples
+
+### Labeling a switch
+
+An enclosing `<label>` is the simplest labeling pattern:
+
+```tsx title="Wrapping a label around a switch"
+// @highlight
+<label>
+  <Switch.Root />
+  Notifications
+  {/* @highlight */}
+</label>
+```
+
+### Rendering as a native button
+
+By default, `<Switch.Root>` renders a `<span>` element to support enclosing labels. Prefer rendering the switch as a native button when using sibling labels (`htmlFor`/`id`).
+
+```tsx title="Sibling label pattern with a native button"
+<div>
+  <label htmlFor="notifications-switch">Notifications</label>
+  {/* @highlight-text "nativeButton" "render={<button />}" */}
+  <Switch.Root id="notifications-switch" nativeButton render={<button />}>
+    <Switch.Thumb />
+  </Switch.Root>
+</div>
+```
+
+Native buttons with wrapping labels are supported by using the `render` callback to avoid invalid HTML, so the hidden input is placed outside the label:
+
+```tsx title="Render callback"
+<Switch.Root
+  nativeButton
+  // @highlight-start
+  render={(buttonProps) => (
+    <label>
+      <button {...buttonProps} />
+      Notifications
+    </label>
+  )}
+  {/* @highlight-end */}
+/>
+```
+
+### Form integration
+
+Use [Field](/react/components/field) to handle label associations and form integration:
+
+```tsx title="Using Switch in a form"
+<Form>
+  {/* @highlight */}
+  <Field.Root name="notifications">
+    <Field.Label>
+      <Switch.Root />
+      Notifications
+    </Field.Label>
+  </Field.Root>
+</Form>
+```
+
+## API reference
+
+import { TypesSwitch } from './types';
+
+### Root
+
+<TypesSwitch.Root />
+
+### Thumb
+
+<TypesSwitch.Thumb />
+
+export const metadata = {
+  keywords: [
+    'React Switch',
+    'Toggle Switch Component',
+    'Toggle Switch',
+    'Toggle Button',
+    'On/Off Control',
+    'On Off Switch',
+    'Binary Switch',
+    'Checkbox Alternative',
+    'Form Toggle Control',
+    'Aria Switch Role',
+    'Accessible Switch',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

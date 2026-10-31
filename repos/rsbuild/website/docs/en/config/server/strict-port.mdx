@@ -1,0 +1,41 @@
+---
+description: 'Controls whether Rsbuild throws an error instead of using the next available port when the specified port is occupied.'
+---
+
+# server.strictPort
+
+- **Type:** `boolean`
+- **Default:** `false`
+
+When a port is occupied, Rsbuild will automatically increment the port number until an available port is found.
+
+Set `strictPort` to `true` and Rsbuild will throw an exception when the port is occupied.
+
+## Example
+
+### Basic usage
+
+Enable strict port mode to ensure the dev server fails if the specified port is occupied:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    strictPort: true,
+  },
+};
+```
+
+### Use with specific port
+
+When you need to ensure your application runs on a specific port:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    port: 3333,
+    strictPort: true,
+  },
+};
+```
+
+With this configuration, if port 3333 is already in use, Rsbuild will throw an error instead of automatically using port 3334.

@@ -1,0 +1,18 @@
+在启动开发服务器后调用。你可以通过 `port` 参数获得开发服务器监听的端口号，通过 `routes` 获得页面路由信息。
+
+- **类型：**
+
+```ts
+type Routes = Array<{
+  entryName: string;
+  pathname: string;
+}>;
+
+function OnAfterStartDevServer(
+  callback: (params: {
+    port: number;
+    routes: Routes;
+    environments: Record<string, EnvironmentContext>;
+  }) => Promise<void> | void,
+): void;
+```

@@ -1,0 +1,9 @@
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"Calling a tool first."}}}
+{"contentBlockStart":{"contentBlockIndex":1,"start":{"toolUse":{"toolUseId":"tool-1","name":"get-weather"}}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"toolUse":{"input":"{\"location\":\"SF\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":1}}
+{"contentBlockDelta":{"contentBlockIndex":2,"delta":{"text":"Now JSON."}}}
+{"contentBlockStart":{"contentBlockIndex":3,"start":{"toolUse":{"toolUseId":"json-tool-id","name":"json"}}}}
+{"contentBlockDelta":{"contentBlockIndex":3,"delta":{"toolUse":{"input":"{\"result\":\"data\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":3}}
+{"messageStop":{"stopReason":"tool_use"}}

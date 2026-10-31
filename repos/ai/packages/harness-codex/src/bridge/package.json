@@ -1,0 +1,12 @@
+{
+  "name": "harness-codex-bridge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@openai/codex-sdk": "0.130.0",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "ws": "8.21.0",
+    "zod": "3.25.76"
+  }
+}

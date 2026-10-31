@@ -1,0 +1,11 @@
+extends:
+  - '@commitlint/config-conventional'
+rules:
+  body-max-line-length: [2, always, Infinity]
+  body-min-length: [2, always, 20]
+  header-case: [2, always, lower-case]
+  header-max-length: [2, always, 72]
+  type-enum: [2, always ["build", "ci", "docs", "feat", "fix", "perf", "refactor", "revert", "test"]]
+  scope-enum: [2, always, ["metadata", "protocol", "webauthn"]]
+defaultIgnores: true
+helpUrl: 'https://github.com/go-webauthn/webauthn/blob/master/CONTRIBUTING.md#commit-message-convention'

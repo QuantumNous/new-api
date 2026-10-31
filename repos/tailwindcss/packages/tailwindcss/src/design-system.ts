@@ -1,0 +1,251 @@
+import { Polyfills } from '.'
+import { optimizeAst, toCss, type AstNode } from './ast'
+import {
+  parseCandidate,
+  parseVariant,
+  printCandidate,
+  printVariant,
+  type Candidate,
+  type Variant,
+} from './candidate'
+import { compileAstNodes, compileCandidates } from './compile'
+import { substituteFunctions } from './css-functions'
+import {
+  canonicalizeCandidates,
+  getClassList,
+  getVariants,
+  type CanonicalizeOptions,
+  type ClassEntry,
+  type VariantEntry,
+} from './intellisense'
+import { getClassOrder } from './sort'
+import type { SourceLocation } from './source-maps/source'
+import { Theme, ThemeOptions, type ThemeKey } from './theme'
+import { Utilities, createUtilities, withAlpha } from './utilities'
+import { DefaultMap } from './utils/default-map'
+import { extractUsedVariables } from './utils/variables'
+import { Variants, createVariants, substituteAtVariant } from './variants'
+import { WalkAction, walk } from './walk'
+
+export const enum CompileAstFlags {
+  None = 0,
+  RespectImportant = 1 << 0,
+}
+
+export type DesignSystem = {
+  theme: Theme
+  utilities: Utilities
+  variants: Variants
+
+  invalidCandidates: Set<string>
+
+  // Whether to mark utility declarations as !important
+  important: boolean
+
+  getClassOrder(classes: string[]): [string, bigint | null][]
+  getClassList(): ClassEntry[]
+  getVariants(): VariantEntry[]
+
+  parseCandidate(candidate: string): Readonly<Candidate>[]
+  parseVariant(variant: string): Readonly<Variant> | null
+  compileAstNodes(candidate: Candidate, flags?: CompileAstFlags): ReturnType<typeof compileAstNodes>
+
+  printCandidate(candidate: Candidate): string
+  printVariant(variant: Variant): string
+
+  getVariantOrder(): Map<Variant, number>
+  resolveThemeValue(path: string, forceInline?: boolean): string | undefined
+
+  trackUsedVariables(raw: string): void
+  canonicalizeCandidates(candidates: string[], options?: CanonicalizeOptions): string[]
+
+  // Used by IntelliSense
+  candidatesToCss(classes: string[]): (string | null)[]
+  candidatesToAst(classes: string[]): AstNode[][]
+
+  // General purpose storage
+  storage: Record<symbol, unknown>
+}
+
+export function buildDesignSystem(
+  theme: Theme,
+  utilitiesSrc?: SourceLocation | undefined,
+): DesignSystem {
+  let utilities = createUtilities(theme)
+  let variants = createVariants(theme)
+
+  let parsedVariants = new DefaultMap((variant) => parseVariant(variant, designSystem))
+  let parsedCandidates = new DefaultMap((candidate) =>
+    Array.from(parseCandidate(candidate, designSystem)),
+  )
+
+  let compiledAstNodes = new DefaultMap<number>((flags) => {
+    return new DefaultMap<Candidate>((candidate) => {
+      let ast = compileAstNodes(candidate, designSystem, flags)
+
+      try {
+        let nodes = ast.map((value) => value.node)
+
+        // Arbitrary values (`text-[theme(--color-red-500)]`) and arbitrary
+        // properties (`[--my-var:theme(--color-red-500)]`) can contain function
+        // calls so we need evaluate any functions we find there that weren't in
+        // the source CSS.
+        substituteFunctions(nodes, designSystem)
+
+        // JS plugins might contain an `@variant` inside a generated utility
+        substituteAtVariant(nodes, designSystem)
+      } catch (err) {
+        // If substitution fails then the candidate likely contains a call to
+        // `theme()` that is invalid which may be because of incorrect usage,
+        // invalid arguments, or a theme key that does not exist.
+        return []
+      }
+
+      return ast
+    })
+  })
+
+  let trackUsedVariables = new DefaultMap((raw) => {
+    for (let variable of extractUsedVariables(raw)) {
+      theme.markUsedVariable(variable)
+    }
+  })
+
+  function candidatesToAst(classes: string[]): AstNode[][] {
+    let result: AstNode[][] = []
+
+    for (let className of classes) {
+      let wasValid = true
+
+      let { astNodes } = compileCandidates([className], designSystem, {
+        onInvalidCandidate() {
+          wasValid = false
+        },
+      })
+
+      if (utilitiesSrc) {
+        walk(astNodes, (node) => {
+          // We do this conditionally to preserve source locations from both
+          // `@utility` and `@custom-variant`. Even though generated nodes are
+          // cached this should be fine because `utilitiesNode.src` should not
+          // change without a full rebuild which destroys the cache.
+          node.src ??= utilitiesSrc
+          return WalkAction.Continue
+        })
+      }
+
+      // Disable all polyfills to not unnecessarily pollute IntelliSense output
+      astNodes = optimizeAst(astNodes, designSystem, Polyfills.None)
+
+      result.push(wasValid ? astNodes : [])
+    }
+
+    return result
+  }
+
+  function candidatesToCss(classes: string[]): (string | null)[] {
+    return candidatesToAst(classes).map((nodes) => {
+      return nodes.length > 0 ? toCss(nodes) : null
+    })
+  }
+
+  let designSystem: DesignSystem = {
+    theme,
+    utilities,
+    variants,
+
+    invalidCandidates: new Set(),
+    important: false,
+
+    candidatesToCss,
+    candidatesToAst,
+
+    getClassOrder(classes) {
+      return getClassOrder(this, classes)
+    },
+    getClassList() {
+      return getClassList(this)
+    },
+    getVariants() {
+      return getVariants(this)
+    },
+
+    parseCandidate(candidate: string) {
+      return parsedCandidates.get(candidate)
+    },
+    parseVariant(variant: string) {
+      return parsedVariants.get(variant)
+    },
+    compileAstNodes(candidate: Candidate, flags = CompileAstFlags.RespectImportant) {
+      return compiledAstNodes.get(flags).get(candidate)
+    },
+
+    printCandidate(candidate: Candidate) {
+      return printCandidate(designSystem, candidate)
+    },
+    printVariant(variant: Variant) {
+      return printVariant(variant)
+    },
+
+    getVariantOrder() {
+      let variants = Array.from(parsedVariants.values())
+      variants.sort((a, z) => this.variants.compare(a, z))
+
+      let order = new Map<Variant, number>()
+      let prevVariant: Variant | undefined = undefined
+      let index: number = 0
+
+      for (let variant of variants) {
+        if (variant === null) {
+          continue
+        }
+        // This variant is not the same order as the previous one
+        // so it goes into a new group
+        if (prevVariant !== undefined && this.variants.compare(prevVariant, variant) !== 0) {
+          index++
+        }
+
+        order.set(variant, index)
+        prevVariant = variant
+      }
+
+      return order
+    },
+
+    resolveThemeValue(path: `${ThemeKey}` | `${ThemeKey}${string}`, forceInline: boolean = true) {
+      // Extract an eventual modifier from the path. e.g.:
+      // - "--color-red-500 / 50%" -> "50%"
+      let lastSlash = path.lastIndexOf('/')
+      let modifier: string | null = null
+      if (lastSlash !== -1) {
+        modifier = path.slice(lastSlash + 1).trim()
+        path = path.slice(0, lastSlash).trim() as ThemeKey
+      }
+
+      let themeValue =
+        theme.resolve(null, [path], forceInline ? ThemeOptions.INLINE : ThemeOptions.NONE) ??
+        undefined
+
+      // Apply the opacity modifier if present
+      if (modifier && themeValue) {
+        return withAlpha(themeValue, modifier)
+      }
+
+      return themeValue
+    },
+
+    trackUsedVariables(raw: string) {
+      trackUsedVariables.get(raw)
+    },
+
+    canonicalizeCandidates(candidates: string[], options?: CanonicalizeOptions) {
+      return canonicalizeCandidates(this, candidates, options)
+    },
+
+    // General purpose storage, each key has to be a unique symbol to avoid
+    // collisions.
+    storage: {},
+  }
+
+  return designSystem
+}

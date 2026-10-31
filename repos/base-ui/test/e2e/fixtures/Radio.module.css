@@ -1,0 +1,56 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  color: black;
+}
+
+.Caption {
+  font-weight: 500;
+}
+
+.Label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.RadioRoot {
+  display: flex;
+  width: 1.25rem;
+  height: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  outline: 0;
+}
+
+.RadioRoot[data-unchecked] {
+  border: 1px solid lightgray;
+}
+
+.RadioRoot[data-checked] {
+  background: black;
+}
+
+.RadioRoot:focus-visible {
+  outline: 2px solid darkblue;
+  outline-offset: 2px;
+}
+
+.Indicator {
+  display: flex;
+}
+
+.Indicator::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #f9fafb;
+}
+
+.RadioRoot[data-unchecked] .Indicator {
+  display: none;
+}

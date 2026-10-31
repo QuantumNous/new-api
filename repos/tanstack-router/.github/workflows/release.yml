@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    branches: [main, '*-pre', '*-maint']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+  SERVER_PRESET: 'node-server'
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: true # changesets/action pushes Release PR commits
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
+      - name: Run Build
+        run: pnpm run build:all
+      - name: Enter Pre-Release Mode
+        if: "contains(github.ref_name, '-pre') && !hashFiles('.changeset/pre.json')"
+        run: pnpm changeset pre enter pre
+      - name: Determine dist-tag
+        id: dist-tag
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+          if [[ "$BRANCH" == *-pre ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$BRANCH" == *-maint ]]; then
+            echo "tag=maint" >> "$GITHUB_OUTPUT"
+          else
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@63a615b9cd06ba9a3e6d13796c7fbcb080a60a0b # v1.8.0
+        with:
+          version: pnpm run changeset:version
+          publish: pnpm run changeset:publish ${{ steps.dist-tag.outputs.tag && format('--tag {0}', steps.dist-tag.outputs.tag) }}
+          title: 'ci: Version Packages'
+          commit: 'ci: changeset release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_OPTIONS: --max-old-space-size=8192
+      - name: Create GitHub Release
+        if: steps.changesets.outputs.published == 'true'
+        run: node scripts/create-github-release.mjs ${{ steps.dist-tag.outputs.prerelease == 'true' && '--prerelease' }} ${{ steps.dist-tag.outputs.latest == 'true' && '--latest' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

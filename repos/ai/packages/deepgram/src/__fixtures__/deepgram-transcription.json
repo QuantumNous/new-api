@@ -1,0 +1,746 @@
+{
+  "metadata": {
+    "transaction_key": "deprecated",
+    "request_id": "e9ad6d71-4f48-4f6e-8b19-035dbcdda8cb",
+    "sha256": "6f73ccb595182d7373ccdb7fe1ef3221d61dc5a9e3d28a5e725630abc2614780",
+    "created": "2026-02-12T22:42:32.266Z",
+    "duration": 36.744,
+    "channels": 1,
+    "models": ["2187e11a-3532-4498-b076-81fa530bdd49"],
+    "model_info": {
+      "2187e11a-3532-4498-b076-81fa530bdd49": {
+        "name": "general-nova-3",
+        "version": "2025-07-31.0",
+        "arch": "nova-3"
+      }
+    }
+  },
+  "results": {
+    "channels": [
+      {
+        "alternatives": [
+          {
+            "transcript": "galileo was an american robotic space program that studied the planet jupiter and its moons as well as several other solar system bodies named after the italian astronomer galileo galilei the galileo spacecraft consisted of an orbiter and an atmospheric entry probe it was delivered into earth orbit on october eighteen nineteen eighty nine by space shuttle atlantis on the sts-thirty four mission and arrived at jupiter on december seven nineteen ninety five after gravity assist flybys of venus and earth and became the first spacecraft to orbit jupiter",
+            "confidence": 0.99902344,
+            "words": [
+              {
+                "word": "galileo",
+                "start": 0.16,
+                "end": 0.79999995,
+                "confidence": 0.99641925,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "was",
+                "start": 0.79999995,
+                "end": 0.96,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "an",
+                "start": 0.96,
+                "end": 1.1999999,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "american",
+                "start": 1.1999999,
+                "end": 1.52,
+                "confidence": 0.9980469,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "robotic",
+                "start": 1.52,
+                "end": 2.08,
+                "confidence": 0.94970703,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "space",
+                "start": 2.08,
+                "end": 2.48,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "program",
+                "start": 2.48,
+                "end": 2.8799999,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "that",
+                "start": 2.8799999,
+                "end": 3.12,
+                "confidence": 0.92089844,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "studied",
+                "start": 3.12,
+                "end": 3.52,
+                "confidence": 0.99609375,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "the",
+                "start": 3.52,
+                "end": 3.6799998,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "planet",
+                "start": 3.6799998,
+                "end": 4,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "jupiter",
+                "start": 4,
+                "end": 4.48,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "and",
+                "start": 4.48,
+                "end": 4.7999997,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "its",
+                "start": 4.7999997,
+                "end": 5.04,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "moons",
+                "start": 5.04,
+                "end": 5.68,
+                "confidence": 0.9920247,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "as",
+                "start": 5.68,
+                "end": 5.92,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "well",
+                "start": 5.92,
+                "end": 6.08,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "as",
+                "start": 6.08,
+                "end": 6.24,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "several",
+                "start": 6.24,
+                "end": 6.56,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "other",
+                "start": 6.56,
+                "end": 6.8799996,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "solar",
+                "start": 6.8799996,
+                "end": 7.3599997,
+                "confidence": 0.9453125,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "system",
+                "start": 7.3599997,
+                "end": 7.68,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "bodies",
+                "start": 7.68,
+                "end": 8.4,
+                "confidence": 0.99853516,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "named",
+                "start": 9.04,
+                "end": 9.5199995,
+                "confidence": 0.9995117,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "after",
+                "start": 9.5199995,
+                "end": 9.76,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "the",
+                "start": 9.76,
+                "end": 10,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "italian",
+                "start": 10,
+                "end": 10.4,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "astronomer",
+                "start": 10.4,
+                "end": 11.12,
+                "confidence": 0.99869794,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "galileo",
+                "start": 11.12,
+                "end": 11.679999,
+                "confidence": 0.9980469,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "galilei",
+                "start": 11.679999,
+                "end": 12.32,
+                "confidence": 0.86486816,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "the",
+                "start": 12.345,
+                "end": 12.665,
+                "confidence": 0.9838867,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "galileo",
+                "start": 12.665,
+                "end": 13.305,
+                "confidence": 0.9996745,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "spacecraft",
+                "start": 13.305,
+                "end": 13.945,
+                "confidence": 0.9970703,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "consisted",
+                "start": 13.945,
+                "end": 14.585,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "of",
+                "start": 14.585,
+                "end": 14.745,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "an",
+                "start": 14.745,
+                "end": 14.905001,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "orbiter",
+                "start": 14.905001,
+                "end": 15.305,
+                "confidence": 0.97233075,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "and",
+                "start": 15.305,
+                "end": 15.625,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "an",
+                "start": 15.625,
+                "end": 15.785,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "atmospheric",
+                "start": 15.785,
+                "end": 16.505001,
+                "confidence": 0.9942627,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "entry",
+                "start": 16.505001,
+                "end": 16.905,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "probe",
+                "start": 16.905,
+                "end": 17.545,
+                "confidence": 0.9975586,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "it",
+                "start": 18.185,
+                "end": 18.345001,
+                "confidence": 0.9951172,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "was",
+                "start": 18.345001,
+                "end": 18.585,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "delivered",
+                "start": 18.585,
+                "end": 18.985,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "into",
+                "start": 18.985,
+                "end": 19.305,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "earth",
+                "start": 19.305,
+                "end": 19.545,
+                "confidence": 0.9741211,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "orbit",
+                "start": 19.545,
+                "end": 19.945,
+                "confidence": 0.98828125,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "on",
+                "start": 19.945,
+                "end": 20.105,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "october",
+                "start": 20.105,
+                "end": 20.505001,
+                "confidence": 0.9506836,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "eighteen",
+                "start": 20.505001,
+                "end": 21.305,
+                "confidence": 0.9812012,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "nineteen",
+                "start": 21.305,
+                "end": 21.625,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "eighty",
+                "start": 21.625,
+                "end": 21.865,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "nine",
+                "start": 21.865,
+                "end": 22.425,
+                "confidence": 0.9980469,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "by",
+                "start": 22.505001,
+                "end": 22.665,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "space",
+                "start": 22.665,
+                "end": 22.985,
+                "confidence": 0.7949219,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "shuttle",
+                "start": 22.985,
+                "end": 23.385,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "atlantis",
+                "start": 23.385,
+                "end": 23.945,
+                "confidence": 0.9946289,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "on",
+                "start": 23.945,
+                "end": 24.105,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "the",
+                "start": 24.105,
+                "end": 24.265,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "sts-thirty",
+                "start": 24.265,
+                "end": 25.465,
+                "confidence": 0.9986328,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "four",
+                "start": 25.465,
+                "end": 25.625,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "mission",
+                "start": 25.625,
+                "end": 25.945,
+                "confidence": 0.9609375,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "and",
+                "start": 26.33,
+                "end": 26.57,
+                "confidence": 0.99609375,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "arrived",
+                "start": 26.57,
+                "end": 26.97,
+                "confidence": 0.9970703,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "at",
+                "start": 26.97,
+                "end": 27.13,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "jupiter",
+                "start": 27.13,
+                "end": 27.61,
+                "confidence": 0.9941406,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "on",
+                "start": 27.61,
+                "end": 27.85,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "december",
+                "start": 27.85,
+                "end": 28.25,
+                "confidence": 0.9741211,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "seven",
+                "start": 28.25,
+                "end": 28.89,
+                "confidence": 0.83984375,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "nineteen",
+                "start": 28.89,
+                "end": 29.13,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "ninety",
+                "start": 29.13,
+                "end": 29.45,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "five",
+                "start": 29.45,
+                "end": 30.09,
+                "confidence": 0.97631836,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "after",
+                "start": 30.25,
+                "end": 30.49,
+                "confidence": 0.9921875,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "gravity",
+                "start": 30.49,
+                "end": 30.97,
+                "confidence": 0.9892578,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "assist",
+                "start": 30.97,
+                "end": 31.369999,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "flybys",
+                "start": 31.369999,
+                "end": 31.85,
+                "confidence": 0.99104816,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "of",
+                "start": 31.85,
+                "end": 32.01,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "venus",
+                "start": 32.01,
+                "end": 32.33,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "and",
+                "start": 32.33,
+                "end": 32.57,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "earth",
+                "start": 32.57,
+                "end": 33.13,
+                "confidence": 0.97143555,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "and",
+                "start": 33.13,
+                "end": 33.29,
+                "confidence": 0.9970703,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "became",
+                "start": 33.29,
+                "end": 33.61,
+                "confidence": 0.99902344,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "the",
+                "start": 33.61,
+                "end": 33.85,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "first",
+                "start": 33.85,
+                "end": 34.17,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "spacecraft",
+                "start": 34.17,
+                "end": 34.809998,
+                "confidence": 0.9995117,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "to",
+                "start": 34.809998,
+                "end": 35.05,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "orbit",
+                "start": 35.05,
+                "end": 35.37,
+                "confidence": 1,
+                "speaker": 0,
+                "speaker_confidence": 1
+              },
+              {
+                "word": "jupiter",
+                "start": 35.37,
+                "end": 35.85,
+                "confidence": 0.99560547,
+                "speaker": 0,
+                "speaker_confidence": 1
+              }
+            ]
+          }
+        ],
+        "detected_language": "en",
+        "language_confidence": 0.99352765
+      }
+    ]
+  }
+}

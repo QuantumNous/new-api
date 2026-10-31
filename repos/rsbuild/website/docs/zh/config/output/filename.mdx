@@ -1,0 +1,250 @@
+---
+description: '在生产模式构建后，Rsbuild 会自动在文件名中间添加 hash 值，如果不需要添加，可以将 output.filenameHash 设置为 false 来禁用该行为。'
+---
+
+# output.filename
+
+- **类型：**
+
+```ts
+type FilenameConfig = {
+  html?: string;
+  js?: string | Function;
+  css?: string | Function;
+  svg?: string | Function;
+  font?: string | Function;
+  wasm?: string;
+  image?: string | Function;
+  media?: string | Function;
+  assets?: string | Function;
+};
+```
+
+- **默认值：**
+
+```js
+// 开发模式构建
+const devDefaultFilename = {
+  html: '[name].html',
+  js: '[name].js',
+  css: '[name].css',
+  svg: '[name].[contenthash:10].svg',
+  font: '[name].[contenthash:10][ext]',
+  wasm: '[contenthash:10].module.wasm',
+  image: '[name].[contenthash:10][ext]',
+  media: '[name].[contenthash:10][ext]',
+  assets: '[name].[contenthash:10][ext]',
+};
+
+// 生产模式构建
+const prodDefaultFilename = {
+  html: '[name].html',
+  js: output.target === 'node' ? '[name].js' : '[name].[contenthash:10].js',
+  css: '[name].[contenthash:10].css',
+  svg: '[name].[contenthash:10].svg',
+  font: '[name].[contenthash:10][ext]',
+  wasm: '[contenthash:10].module.wasm',
+  image: '[name].[contenthash:10][ext]',
+  media: '[name].[contenthash:10][ext]',
+  assets: '[name].[contenthash:10][ext]',
+};
+```
+
+设置构建产物的名称。
+
+在生产模式构建后，Rsbuild 会自动在文件名中间添加 hash 值，如果不需要添加，可以将 [output.filenameHash](/config/output/filename-hash) 设置为 `false` 来禁用该行为。
+
+:::tip
+Rsbuild 会基于 `output.filename` 和 [output.distPath](/config/output/dist-path) 来生成最终的文件路径。
+
+查看 [构建产物](/guide/basic/output-files) 了解更多。
+
+:::
+
+## 文件类型
+
+`output.filename` 可以为不同类型的文件设置不同的名称。
+
+下面是 `output.filename` 中各个选项的说明：
+
+- `html`：HTML 文件的名称。
+- `js`：JavaScript 文件的名称。
+- `css`：CSS 样式文件的名称。
+- `svg`：SVG 图片的名称。
+- `font`：字体文件的名称。
+- `wasm`: Wasm 文件的名称。
+- `image`：非 SVG 图片的名称。
+- `media`：视频等媒体资源的名称。
+- `assets`：其他静态资源的名称。例如 [扩展静态资源类型](/guide/basic/static-assets#extend-asset-types) 中定义的资源。
+
+## 示例
+
+修改 JavaScript 文件的名称为 `[name]_script.js`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filename: {
+      js: '[name]_script.js',
+    },
+  },
+};
+```
+
+为开发和生产构建设置不同的文件名：
+
+```ts title="rsbuild.config.ts"
+const isProd = process.env.NODE_ENV === 'production';
+
+export default {
+  output: {
+    filename: {
+      js: isProd ? '[name]_script.[contenthash:10].js' : '[name]_script.js',
+    },
+  },
+};
+```
+
+:::tip 文件名中的 hash 值
+通常来说，Rsbuild 只会在生产模式下设置文件名的 hash 值（即 `process.env.NODE_ENV === 'production'` 时）。
+
+如果你在开发模式下设置了文件名的 hash，那么可能会导致热更新不生效（尤其是 CSS 文件）。这是因为每次文件内容变化时，都会引起 hash 变化，导致打包工具无法读取到最新的文件内容。
+:::
+
+## 文件名占位符
+
+在 `output.filename` 的值中，你可以使用文件名占位符来动态生成文件名。
+
+常用的文件名占位符有：
+
+- `[name]` - entry 名称，即 [source.entry](/config/source/entry) 的 key。
+- `[contenthash]` - 基于文件内容生成的 hash 值。
+- `[contenthash:<length>]` - 基于文件内容生成的 hash 值，并指定 hash 长度。
+- `[ext]` - 文件后缀名，包含点号。
+
+> 更多文件名占位符可以参考 [Rspack - 文件名占位符](https://rspack.rs/zh/config/filename-placeholders)。
+
+:::tip
+
+- `filename.html` 只能使用部分文件名占位符，如 `[name]`、`[contenthash:<length>]`。
+- `filename.js` 和 `filename.css` 不支持 `[ext]`。
+
+:::
+
+## 异步模块文件名
+
+当你在代码中通过 dynamic import 的方式引入模块时，该模块会被单独打包成一个文件，它默认的命名规则如下：
+
+- 在开发模式下会基于模块路径生成名称，比如 `dist/static/js/async/src_add_ts.js`。
+- 在生产模式下会是一个随机的数字 id，比如 `dist/static/js/async/798.27e3083eab.js`，这是为了避免在生产模式中泄露源代码的路径，同时字符数也更少。
+
+```js title="src/index.ts"
+const { add } = await import('./add.ts');
+```
+
+如果你希望为异步模块指定一个固定的名称，可以通过 Rspack 提供的 [magic comments](https://rspack.rs/zh/api/runtime-api/module-methods#magic-comments) 来实现，通过 `rspackChunkName` 指定模块名称：
+
+```js title="src/index.ts"
+const { add } = await import(/* rspackChunkName: "my-chunk-name" */ './add.ts');
+```
+
+通过以上写法指定模块名称后，生成的文件会是 `dist/static/js/async/my-chunk-name.js`。
+
+## 使用函数
+
+你可以传入一个函数来根据文件信息动态设置文件名。
+
+这个函数接收两个参数：
+
+- `pathData`：一个对象，包含文件路径信息。
+- `assetInfo`：一个可选的对象，包含额外的资源信息。
+
+为 JavaScript 文件动态设置文件名：
+
+```ts title="rsbuild.config.ts"
+const isProd = process.env.NODE_ENV === 'production';
+
+export default {
+  output: {
+    filename: {
+      js: (pathData, assetInfo) => {
+        console.log(pathData); // 你可以在这里查看 pathData 的内容
+
+        if (pathData.chunk?.name === 'index') {
+          return isProd ? '[name].[contenthash:10].js' : '[name].js';
+        }
+        return '/some-path/[name].js';
+      },
+    },
+  },
+};
+```
+
+为 CSS 文件动态设置文件名：
+
+```ts title="rsbuild.config.ts"
+const isProd = process.env.NODE_ENV === 'production';
+
+export default {
+  output: {
+    filename: {
+      css: (pathData, assetInfo) => {
+        if (pathData.chunk?.name === 'index') {
+          return isProd ? '[name].[contenthash:10].css' : '[name].css';
+        }
+        return '/some-path/[name].css';
+      },
+    },
+  },
+};
+```
+
+为图片文件动态设置文件名：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filename: {
+      image: (pathData) => {
+        if (pathData.filename?.includes('foo')) {
+          return '/foo/[name][ext]';
+        }
+        return '/bar/[name][ext]';
+      },
+    },
+  },
+};
+```
+
+:::tip
+`output.filename.html` 暂不支持使用函数。
+:::
+
+## Query hash
+
+如果你需要在资源的 URL query 上生成 hash 值，可以参考以下配置：
+
+```ts title="rsbuild.config.ts"
+const isProd = process.env.NODE_ENV === 'production';
+
+export default {
+  output: {
+    filename: {
+      js: isProd ? '[name].js?v=[contenthash:10]' : `[name].js`,
+      css: isProd ? '[name].css?v=[contenthash:10]' : `[name].css`,
+    },
+  },
+};
+```
+
+在这种情况下，JS、CSS 的文件名将不包含 hash，而 HTML 中的 URL 将包含 hash query。
+
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <script defer src="/static/js/index.js?v=b8565050ab"></script>
+    <link href="/static/css/index.css?v=02d157caab" rel="stylesheet" />
+  </head>
+</html>
+```

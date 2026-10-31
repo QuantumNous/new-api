@@ -1,0 +1,12 @@
+{
+  "name": "@scripts/config",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@rslib/core": "catalog:",
+    "@types/node": "catalog:",
+    "rsbuild-plugin-arethetypeswrong": "catalog:",
+    "typescript": "catalog:"
+  }
+}

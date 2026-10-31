@@ -1,0 +1,1167 @@
+{
+  "typeName": "IWordCloudChartSpec",
+  "description": "IWordCloudChartSpec 配置规范的完整实现分析",
+  "inheritanceTree": {
+    "IWordCloudChartSpec": {
+      "description": "IWordCloudChartSpec 接口配置",
+      "directExtends": [
+        "IChartSpec",
+        "IChartExtendsSeriesSpec<IWordCloudSeriesSpec>"
+      ],
+      "ownProperties": [
+        {
+          "name": "type",
+          "description": "type 配置",
+          "type": "'wordCloud'",
+          "originalType": "'wordCloud'",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "series",
+          "description": "series 配置",
+          "type": "IWordCloudSeriesSpec[]",
+          "originalType": "IWordCloudSeriesSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IWordCloudSeriesSpec"
+          ]
+        }
+      ]
+    },
+    "IChartSpec": {
+      "description": "chart spec",
+      "directExtends": [],
+      "ownProperties": [
+        {
+          "name": "type",
+          "description": "图表类型",
+          "type": "string",
+          "originalType": "string",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "data",
+          "description": "数据",
+          "type": "IData",
+          "originalType": "IData",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IData"
+          ]
+        },
+        {
+          "name": "width",
+          "description": "画布宽度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "height",
+          "description": "画布高度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "autoFit",
+          "description": "图表宽高是否自适应容器，浏览器环境下默认为 true。\n该配置的优先级高于构造函数中的 autoFit 配置。\n如果用户配置了 width，则以用户配置的 width 为准，height 同理。",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "padding",
+          "description": "图表整体 padding 设置",
+          "type": "ILayoutPaddingSpec",
+          "originalType": "ILayoutPaddingSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ILayoutPaddingSpec"
+          ]
+        },
+        {
+          "name": "color",
+          "description": "图表色系配置",
+          "type": "string[] | Omit<IVisualSpecScale<unknown, string>, 'id'>",
+          "originalType": "string[] | Omit<IVisualSpecScale<unknown, string>, 'id'>",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IVisualSpecScale"
+          ]
+        },
+        {
+          "name": "series",
+          "description": "系列",
+          "type": "ISeriesSpec[]",
+          "originalType": "ISeriesSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISeriesSpec"
+          ]
+        },
+        {
+          "name": "seriesStyle",
+          "description": "系列样式",
+          "type": "ISeriesStyle",
+          "originalType": "ISeriesStyle",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISeriesStyle"
+          ]
+        },
+        {
+          "name": "animationThreshold",
+          "description": "自动关闭动画的阀值，对应的是单系列data的长度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "since": "1.2.0"
+        },
+        {
+          "name": "hover",
+          "description": "hover 交互",
+          "type": "boolean | IHoverSpec",
+          "originalType": "boolean | IHoverSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IHoverSpec"
+          ]
+        },
+        {
+          "name": "select",
+          "description": "select 交互",
+          "type": "boolean | ISelectSpec",
+          "originalType": "boolean | ISelectSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISelectSpec"
+          ]
+        },
+        {
+          "name": "region",
+          "description": "region配置",
+          "type": "RegionSpec[]",
+          "originalType": "RegionSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "RegionSpec"
+          ]
+        },
+        {
+          "name": "title",
+          "description": "图表标题配置",
+          "type": "ITitleSpec",
+          "originalType": "ITitleSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ITitleSpec"
+          ]
+        },
+        {
+          "name": "layout",
+          "description": "布局配置",
+          "type": "ILayoutSpec",
+          "originalType": "ILayoutSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ILayoutSpec"
+          ]
+        },
+        {
+          "name": "legends",
+          "description": "图例配置",
+          "type": "ILegendSpec | ILegendSpec[]",
+          "originalType": "ILegendSpec | ILegendSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ILegendSpec"
+          ]
+        },
+        {
+          "name": "crosshair",
+          "description": "十字辅助线配置",
+          "type": "ICrosshairSpec | ICrosshairSpec[]",
+          "originalType": "ICrosshairSpec | ICrosshairSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICrosshairSpec"
+          ]
+        },
+        {
+          "name": "tooltip",
+          "description": "tooltip配置",
+          "type": "ITooltipSpec",
+          "originalType": "ITooltipSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ITooltipSpec"
+          ]
+        },
+        {
+          "name": "player",
+          "description": "播放器配置",
+          "type": "IPlayer",
+          "originalType": "IPlayer",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IPlayer"
+          ]
+        },
+        {
+          "name": "dataZoom",
+          "description": "缩略轴配置",
+          "type": "IDataZoomSpec | IDataZoomSpec[]",
+          "originalType": "IDataZoomSpec | IDataZoomSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IDataZoomSpec"
+          ]
+        },
+        {
+          "name": "scrollBar",
+          "description": "滚动条配置",
+          "type": "IScrollBarSpec | IScrollBarSpec[]",
+          "originalType": "IScrollBarSpec | IScrollBarSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IScrollBarSpec"
+          ]
+        },
+        {
+          "name": "brush",
+          "description": "框选配置",
+          "type": "IBrushSpec",
+          "originalType": "IBrushSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IBrushSpec"
+          ]
+        },
+        {
+          "name": "scales",
+          "description": "全局 scale 配置",
+          "type": "IVisualSpecScale<unknown, unknown>[]",
+          "originalType": "IVisualSpecScale<unknown, unknown>[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IVisualSpecScale"
+          ]
+        },
+        {
+          "name": "customMark",
+          "description": "自定义mark",
+          "type": "ICustomMarkSpec<EnableMarkType>[]",
+          "originalType": "ICustomMarkSpec<EnableMarkType>[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICustomMarkSpec"
+          ]
+        },
+        {
+          "name": "axes",
+          "description": "轴",
+          "type": "ICommonAxisSpec[]",
+          "originalType": "ICommonAxisSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICommonAxisSpec"
+          ]
+        },
+        {
+          "name": "theme",
+          "description": "图表上的主题定义。\n可以直接配置主题名，前提是该主题名已经注册",
+          "type": "Omit<ITheme, 'name'> | string",
+          "originalType": "Omit<ITheme, 'name'> | string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ITheme"
+          ]
+        },
+        {
+          "name": "background",
+          "description": "图表背景色配置，优先级高于构造函数中的 background 配置\n自1.11.6版本支持渐变色对象的配置",
+          "type": "IBackgroundSpec",
+          "originalType": "IBackgroundSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IBackgroundSpec"
+          ]
+        },
+        {
+          "name": "stackInverse",
+          "description": "堆积时是否逆序",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "since": "1.4.0",
+          "defaultValue": "false"
+        },
+        {
+          "name": "stackSort",
+          "description": "堆积时是否排序",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "since": "1.10.4",
+          "defaultValue": "false"
+        },
+        {
+          "name": "media",
+          "description": "媒体查询配置",
+          "type": "IMediaQuerySpec",
+          "originalType": "IMediaQuerySpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMediaQuerySpec"
+          ],
+          "since": "1.8.0"
+        }
+      ]
+    },
+    "IChartExtendsSeriesSpec<IWordCloudSeriesSpec>": {
+      "description": "IWordCloudSeriesSpec 的属性（排除 data, morph, stackValue, tooltip）",
+      "directExtends": [],
+      "ownProperties": [
+        {
+          "name": "hover",
+          "description": "图表hover相关交互配置，当值为boolean类型时，表示开启或者关闭该交互\n也支持更详细的交互配置",
+          "type": "IHoverSpec | boolean",
+          "originalType": "IHoverSpec | boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IHoverSpec"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "select",
+          "description": "图表选中相关交互配置，当值为boolean类型时，表示开启或者关闭该交互\n也支持更详细的交互配置",
+          "type": "ISelectSpec | boolean",
+          "originalType": "ISelectSpec | boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISelectSpec"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "interactions",
+          "description": "其他需要按需注册的类型交互",
+          "type": "IInteractionItemSpec[]",
+          "originalType": "IInteractionItemSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IInteractionItemSpec"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "type",
+          "description": "type 配置",
+          "type": "'wordCloud'",
+          "originalType": "'wordCloud'",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "name",
+          "description": "系列名称",
+          "type": "string",
+          "originalType": "string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "id",
+          "description": "用户自定义的 series id",
+          "type": "string | number",
+          "originalType": "StringOrNumber",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "dataIndex",
+          "description": "系列关联的数据索引",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "defaultValue": "0",
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "dataId",
+          "description": "系列关联的数据id",
+          "type": "string | number",
+          "originalType": "StringOrNumber",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "dataKey",
+          "description": "dataKey用于绑定数据与Mark的关系, 该配置在动画中非常重要.",
+          "type": "string | string[] | ((data: Datum, index: number) => string)",
+          "originalType": "DataKeyType",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "regionIndex",
+          "description": "系列关联的region索引",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "defaultValue": "0",
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "regionId",
+          "description": "系列关联的region id",
+          "type": "string | number",
+          "originalType": "StringOrNumber",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "seriesField",
+          "description": "分组字段",
+          "type": "string",
+          "originalType": "string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "seriesStyle",
+          "description": "系列样式",
+          "type": "ISeriesStyle",
+          "originalType": "ISeriesStyle",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISeriesStyle"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "stack",
+          "description": "是否对数据进行堆叠处理",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "totalLabel",
+          "description": "堆叠汇总标签",
+          "type": "ITotalLabelSpec",
+          "originalType": "ITotalLabelSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ITotalLabelSpec"
+          ],
+          "since": "1.3.0",
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "percent",
+          "description": "是否对数据进行百分比处理",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "stackOffsetSilhouette",
+          "description": "是否围绕中心轴偏移轮廓",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "invalidType",
+          "description": "非合规数据点连接方式",
+          "type": "'zero' | 'ignore' | 'link' | 'break'",
+          "originalType": "IInvalidType",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "defaultValue": "'break'\n'break'指在该数据点处断开\n'link' 指忽略该点保持连续\n'zero' 指该点默认数值为0\n'ignore' 指不处理",
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "animation",
+          "description": "是否开启系列动画",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "animationThreshold",
+          "description": "自动关闭动画的阀值，对应的是单系列data的长度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "since": "1.2.0",
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "support3d",
+          "description": "是否支持3d视角",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "extensionMark",
+          "description": "系列的扩展mark，能够获取系列上的数据",
+          "type": "(IExtensionMarkSpec<Exclude<EnableMarkType, 'group'>> | IExtensionGroupMarkSpec)[]",
+          "originalType": "(IExtensionMarkSpec<Exclude<EnableMarkType, 'group'>> | IExtensionGroupMarkSpec)[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IExtensionMarkSpec",
+            "IExtensionGroupMarkSpec"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "zIndex",
+          "description": "今当通过`series`配置的时候，才会生效",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "animationAppear",
+          "description": "animationAppear 配置",
+          "type": "| boolean\n    | (IStateAnimateSpec<WordcloudAppearPreset> & {\n        /**\n         * 默认prest('scaleIn')时，duration为词云中单个词的动画参考时长。当单词数过多，会根据单词总数和总动画时长进行动态调整\n         * prest为 'fadeIn' 时，则为总动画时长。\n         */\n        duration?: number;\n        /**\n         * 词云入场动画总时长，在默认prest('scaleIn')时生效。\n         * @default 1000\n         * @since 1.4.0\n         */\n        totalTime?: number;\n      })\n    | IMarkAnimateSpec<string>",
+          "originalType": "| boolean\n    | (IStateAnimateSpec<WordcloudAppearPreset> & {\n        /**\n         * 默认prest('scaleIn')时，duration为词云中单个词的动画参考时长。当单词数过多，会根据单词总数和总动画时长进行动态调整\n         * prest为 'fadeIn' 时，则为总动画时长。\n         */\n        duration?: number;\n        /**\n         * 词云入场动画总时长，在默认prest('scaleIn')时生效。\n         * @default 1000\n         * @since 1.4.0\n         */\n        totalTime?: number;\n      })\n    | IMarkAnimateSpec<string>",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "(IStateAnimateSpec",
+            "{\n        /**\n         * 默认prest('scaleIn')时，duration为词云中单个词的动画参考时长。当单词数过多，会根据单词总数和总动画时长进行动态调整\n         * prest为 'fadeIn' 时，则为总动画时长。\n         */\n        duration?: number;\n        /**\n         * 词云入场动画总时长，在默认prest('scaleIn')时生效。\n         * @default 1000\n         * @since 1.4.0\n         */\n        totalTime?: number;\n      })"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "animationEnter",
+          "description": "数据新增动画配置",
+          "type": "IAnimationConfig",
+          "originalType": "IAnimationConfig",
+          "required": false,
+          "category": "动画配置",
+          "isSimple": false,
+          "dependencies": [
+            "IAnimationConfig"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "animationUpdate",
+          "description": "数据更新动画配置",
+          "type": "IAnimationConfig",
+          "originalType": "IAnimationConfig",
+          "required": false,
+          "category": "动画配置",
+          "isSimple": false,
+          "dependencies": [
+            "IAnimationConfig"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "animationExit",
+          "description": "数据移除动画配置",
+          "type": "IAnimationConfig",
+          "originalType": "IAnimationConfig",
+          "required": false,
+          "category": "动画配置",
+          "isSimple": false,
+          "dependencies": [
+            "IAnimationConfig"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "nameField",
+          "description": "文本字段",
+          "type": "string",
+          "originalType": "string",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "valueField",
+          "description": "权重字段",
+          "type": "string",
+          "originalType": "string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "fontFamilyField",
+          "description": "字体字段",
+          "type": "string",
+          "originalType": "string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "fontWeightField",
+          "description": "字重字段",
+          "type": "string",
+          "originalType": "string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "fontStyleField",
+          "description": "字体样式字段",
+          "type": "string",
+          "originalType": "string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "colorHexField",
+          "description": "直接指定 hex 颜色字段",
+          "type": "string",
+          "originalType": "string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "colorMode",
+          "description": "颜色模式\nTODO: 'linear' 待支持",
+          "type": "'ordinal'",
+          "originalType": "'ordinal'",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "colorList",
+          "description": "颜色列表",
+          "type": "string[]",
+          "originalType": "string[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "rotateAngles",
+          "description": "可旋转角度 随机取范围",
+          "type": "number[]",
+          "originalType": "number[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "fontWeightRange",
+          "description": "字重范围",
+          "type": "[number, number]",
+          "originalType": "[number, number]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [
+          ],
+          "defaultValue": "[200,500]",
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "fontSizeRange",
+          "description": "字体大小范围",
+          "type": "[number, number] | 'auto'",
+          "originalType": "[number, number] | 'auto'",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [
+          ],
+          "since": "1.8.7 如果配置为'auto', 则fontSizeRange不传入, 字体大小会随画布大小改变而改变",
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "maskShape",
+          "description": "词云形状",
+          "type": "string | WordCloudShapeType | TextShapeMask | GeometricMaskShape",
+          "originalType": "string | WordCloudShapeType | TextShapeMask | GeometricMaskShape",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "WordCloudShapeType",
+            "TextShapeMask",
+            "GeometricMaskShape"
+          ],
+          "defaultValue": "'circle'\n\n注意，文字类型和几何形状类型的shape自 1.12.0 版本开始支持",
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "keepAspect",
+          "description": "TODO: 缩放mask时是否保持比例",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "random",
+          "description": "是否开始随机摆放方向(顺时针｜逆时针), 主要用于spec测试",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": [],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "wordCloudConfig",
+          "description": "词云特殊配置",
+          "type": "WordCloudConfigType",
+          "originalType": "WordCloudConfigType",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "WordCloudConfigType"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "wordCloudShapeConfig",
+          "description": "形状词云特殊配置",
+          "type": "WordCloudShapeConfigType",
+          "originalType": "WordCloudShapeConfigType",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "WordCloudShapeConfigType"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "word",
+          "description": "词云文字图元配置 或 形状词云核心词文字图元配置",
+          "type": "IMarkSpec<ITextMarkSpec> & {\n    padding?: number;\n    formatMethod?: ITextFormatMethod<[datum?: any]>;\n  }",
+          "originalType": "IMarkSpec<ITextMarkSpec> & {\n    padding?: number;\n    formatMethod?: ITextFormatMethod<[datum?: any]>;\n  }",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMarkSpec",
+            "ITextMarkSpec"
+          ],
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "fillingWord",
+          "description": "形状词云填充词文字图元配置",
+          "type": "IMarkSpec<ITextMarkSpec> & {\n    padding?: number;\n  }",
+          "originalType": "IMarkSpec<ITextMarkSpec> & {\n    padding?: number;\n  }",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMarkSpec",
+            "ITextMarkSpec"
+          ],
+          "deprecated": true,
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        },
+        {
+          "name": "wordMask",
+          "description": "当形状词云的形状为文字类型和几何形状类型的时候，支持绘制形状轮廓",
+          "type": "IMarkSpec<IRectMarkSpec>",
+          "originalType": "IMarkSpec<IRectMarkSpec>",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMarkSpec",
+            "IRectMarkSpec"
+          ],
+          "since": "1.12.0",
+          "inheritedFrom": "IWordCloudSeriesBaseSpec"
+        }
+      ],
+      "note": "展开自 Omit<IWordCloudSeriesSpec, 'data' | 'morph' | 'stackValue' | 'tooltip'> - 包含 46 个属性（已展开所有继承）",
+      "expandedFrom": "IWordCloudSeriesSpec",
+      "omittedKeys": [
+        "data",
+        "morph",
+        "stackValue",
+        "tooltip"
+      ]
+    }
+  },
+  "timestamp": "2025-08-06T05:48:04.812Z",
+  "version": "1.0.0",
+  "sourceFile": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/chart/word-cloud/interface.ts",
+  "complexTypeDefinitions": {
+    "IWordCloudSeriesSpec": {
+      "typeName": "IWordCloudSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/series/word-cloud/interface.ts",
+      "note": "类型 IWordCloudSeriesSpec 的定义位置"
+    },
+    "IData": {
+      "typeName": "IData",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 IData 的定义位置"
+    },
+    "ILayoutPaddingSpec": {
+      "typeName": "ILayoutPaddingSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/layout.ts",
+      "note": "类型 ILayoutPaddingSpec 的定义位置"
+    },
+    "IVisualSpecScale": {
+      "typeName": "IVisualSpecScale",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/visual.ts",
+      "note": "类型 IVisualSpecScale 的定义位置"
+    },
+    "ISeriesSpec": {
+      "typeName": "ISeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 ISeriesSpec 的定义位置"
+    },
+    "ISeriesStyle": {
+      "typeName": "ISeriesStyle",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/series/interface/common.ts",
+      "note": "类型 ISeriesStyle 的定义位置"
+    },
+    "IHoverSpec": {
+      "typeName": "IHoverSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/interaction/interface/spec.ts",
+      "note": "类型 IHoverSpec 的定义位置"
+    },
+    "ISelectSpec": {
+      "typeName": "ISelectSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/interaction/interface/spec.ts",
+      "note": "类型 ISelectSpec 的定义位置"
+    },
+    "RegionSpec": {
+      "typeName": "RegionSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/region/interface.ts",
+      "note": "类型 RegionSpec 的定义位置"
+    },
+    "ITitleSpec": {
+      "typeName": "ITitleSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/component/title/interface/spec.ts",
+      "note": "类型 ITitleSpec 的定义位置"
+    },
+    "ILayoutSpec": {
+      "typeName": "ILayoutSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/layout/interface.ts",
+      "note": "类型 ILayoutSpec 的定义位置"
+    },
+    "ILegendSpec": {
+      "typeName": "ILegendSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/component/legend/interface.ts",
+      "note": "类型 ILegendSpec 的定义位置"
+    },
+    "ICrosshairSpec": {
+      "typeName": "ICrosshairSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/component/crosshair/interface/spec.ts",
+      "note": "类型 ICrosshairSpec 的定义位置"
+    },
+    "ITooltipSpec": {
+      "typeName": "ITooltipSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/component/tooltip/interface/spec.ts",
+      "note": "类型 ITooltipSpec 的定义位置"
+    },
+    "IPlayer": {
+      "typeName": "IPlayer",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/component/player/interface/spec.ts",
+      "note": "类型 IPlayer 的定义位置"
+    },
+    "IDataZoomSpec": {
+      "typeName": "IDataZoomSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/component/data-zoom/data-zoom/interface.ts",
+      "note": "类型 IDataZoomSpec 的定义位置"
+    },
+    "IScrollBarSpec": {
+      "typeName": "IScrollBarSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/component/data-zoom/scroll-bar/interface.ts",
+      "note": "类型 IScrollBarSpec 的定义位置"
+    },
+    "IBrushSpec": {
+      "typeName": "IBrushSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/component/brush/interface.ts",
+      "note": "类型 IBrushSpec 的定义位置"
+    },
+    "ICustomMarkSpec": {
+      "typeName": "ICustomMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 ICustomMarkSpec 的定义位置"
+    },
+    "ICommonAxisSpec": {
+      "typeName": "ICommonAxisSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/component/axis/interface/spec.ts",
+      "note": "类型 ICommonAxisSpec 的定义位置"
+    },
+    "ITheme": {
+      "typeName": "ITheme",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/theme/interface.ts",
+      "note": "类型 ITheme 的定义位置"
+    },
+    "IBackgroundSpec": {
+      "typeName": "IBackgroundSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 IBackgroundSpec 的定义位置"
+    },
+    "IMediaQuerySpec": {
+      "typeName": "IMediaQuerySpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/media-query.ts",
+      "note": "类型 IMediaQuerySpec 的定义位置"
+    },
+    "IInteractionItemSpec": {
+      "typeName": "IInteractionItemSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/interaction/interface/spec.ts",
+      "note": "类型 IInteractionItemSpec 的定义位置"
+    },
+    "ITotalLabelSpec": {
+      "typeName": "ITotalLabelSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/component/label/interface.ts",
+      "note": "类型 ITotalLabelSpec 的定义位置"
+    },
+    "IExtensionMarkSpec": {
+      "typeName": "IExtensionMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 IExtensionMarkSpec 的定义位置"
+    },
+    "IExtensionGroupMarkSpec": {
+      "typeName": "IExtensionGroupMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 IExtensionGroupMarkSpec 的定义位置"
+    },
+    "(IStateAnimateSpec": {
+      "typeName": "(IStateAnimateSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 (IStateAnimateSpec 的定义位置"
+    },
+    "{\n        /**\n         * 默认prest('scaleIn')时，duration为词云中单个词的动画参考时长。当单词数过多，会根据单词总数和总动画时长进行动态调整\n         * prest为 'fadeIn' 时，则为总动画时长。\n         */\n        duration?: number;\n        /**\n         * 词云入场动画总时长，在默认prest('scaleIn')时生效。\n         * @default 1000\n         * @since 1.4.0\n         */\n        totalTime?: number;\n      })": {
+      "typeName": "{\n        /**\n         * 默认prest('scaleIn')时，duration为词云中单个词的动画参考时长。当单词数过多，会根据单词总数和总动画时长进行动态调整\n         * prest为 'fadeIn' 时，则为总动画时长。\n         */\n        duration?: number;\n        /**\n         * 词云入场动画总时长，在默认prest('scaleIn')时生效。\n         * @default 1000\n         * @since 1.4.0\n         */\n        totalTime?: number;\n      })",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 {\n        /**\n         * 默认prest('scaleIn')时，duration为词云中单个词的动画参考时长。当单词数过多，会根据单词总数和总动画时长进行动态调整\n         * prest为 'fadeIn' 时，则为总动画时长。\n         */\n        duration?: number;\n        /**\n         * 词云入场动画总时长，在默认prest('scaleIn')时生效。\n         * @default 1000\n         * @since 1.4.0\n         */\n        totalTime?: number;\n      }) 的定义位置"
+    },
+    "IAnimationConfig": {
+      "typeName": "IAnimationConfig",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 IAnimationConfig 的定义位置"
+    },
+    "WordCloudShapeType": {
+      "typeName": "WordCloudShapeType",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/series/word-cloud/interface.ts",
+      "note": "类型 WordCloudShapeType 的定义位置"
+    },
+    "TextShapeMask": {
+      "typeName": "TextShapeMask",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 TextShapeMask 的定义位置"
+    },
+    "GeometricMaskShape": {
+      "typeName": "GeometricMaskShape",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 GeometricMaskShape 的定义位置"
+    },
+    "WordCloudConfigType": {
+      "typeName": "WordCloudConfigType",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/series/word-cloud/interface.ts",
+      "note": "类型 WordCloudConfigType 的定义位置"
+    },
+    "WordCloudShapeConfigType": {
+      "typeName": "WordCloudShapeConfigType",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/series/word-cloud/interface.ts",
+      "note": "类型 WordCloudShapeConfigType 的定义位置"
+    },
+    "IMarkSpec": {
+      "typeName": "IMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 IMarkSpec 的定义位置"
+    },
+    "ITextMarkSpec": {
+      "typeName": "ITextMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/visual.ts",
+      "note": "类型 ITextMarkSpec 的定义位置"
+    },
+    "IRectMarkSpec": {
+      "typeName": "IRectMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/visual.ts",
+      "note": "类型 IRectMarkSpec 的定义位置"
+    }
+  },
+  "statistics": {
+    "totalInterfaces": 3,
+    "totalProperties": 78,
+    "complexTypes": 39,
+    "typeFileLocations": 39,
+    "dependencyTypes": 862
+  }
+}

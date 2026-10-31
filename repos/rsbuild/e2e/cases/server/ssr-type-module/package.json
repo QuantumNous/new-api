@@ -1,0 +1,12 @@
+{
+  "name": "@e2e/custom-server-ssr-type-module",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" rsbuild"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "workspace:*"
+  }
+}

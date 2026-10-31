@@ -1,0 +1,1177 @@
+# Comprehensive Web Development and Software Engineering Reference Guide
+
+## Volume 1: Fundamentals of Modern Web Development
+
+### Part I: HTML and Document Structure
+
+#### Chapter 1: Introduction to HTML5
+
+HTML5 represents a significant evolution in web markup languages. Released as a W3C Recommendation in October 2014, it introduced numerous new elements, attributes, and behaviors while also providing a more detailed definition of how markup should be processed by browsers.
+
+The fundamental structure of an HTML5 document begins with the doctype declaration, which tells the browser that this document should be rendered in standards mode. Unlike previous versions of HTML, the HTML5 doctype is remarkably simple: just "<!DOCTYPE html>". This simplicity reflects the design philosophy of HTML5, which aims to be more practical and easier to write than its predecessors.
+
+##### 1.1 Document Structure and Semantics
+
+The semantic elements introduced in HTML5 provide meaning to the structure of web content. These elements include:
+
+Article Element: The article element represents a self-contained composition in a document, page, application, or site. This could be a forum post, a magazine or newspaper article, a blog entry, a user-submitted comment, an interactive widget or gadget, or any other independent item of content.
+
+Section Element: The section element represents a generic sectional element that doesn't have a more specific semantic element to represent it. Typically, sections have a heading as a child element.
+
+Header Element: The header element represents introductory content, typically a group of introductory or navigational aids. It may contain some heading elements but also other elements like a logo, wrapped section's header, a search form, and so on.
+
+Footer Element: The footer element represents a footer for its nearest ancestor sectioning content or sectioning root element. A footer typically contains information about the author of the section, copyright data or links to related documents.
+
+Nav Element: The nav element represents a section of a page that links to other pages or to parts within the page: a section with navigation links.
+
+Aside Element: The aside element represents a section of a page that consists of content that is tangentially related to the content around the aside element, and which could be considered separate from that content.
+
+Main Element: The main element represents the dominant content of the body of a document. The main content area consists of content that is directly related to or expands upon the central topic of a document, or the central functionality of an application.
+
+##### 1.2 Form Elements and Input Types
+
+HTML5 introduced numerous new input types that provide better input control and validation:
+
+Email Input: input type="email" is used for input fields that should contain an e-mail address. Depending on browser support, the e-mail address can be automatically validated when submitted.
+
+URL Input: input type="url" is used for input fields that should contain a URL address. Depending on browser support, the url field can be automatically validated when submitted.
+
+Number Input: input type="number" is used for input fields that should contain a numeric value. You can also set restrictions on what numbers are accepted using the min, max, and step attributes.
+
+Range Input: input type="range" is used for input fields that should contain a value within a range. The range type displays as a slider control.
+
+Date Input: input type="date" is used for input fields that should contain a date. The date picker shows up in the input field when you interact with it.
+
+Time Input: input type="time" allows the user to select a time (no time zone).
+
+Datetime-local Input: input type="datetime-local" specifies a date and time input field, with no time zone.
+
+Month Input: input type="month" allows the user to select a month and year.
+
+Week Input: input type="week" allows the user to select a week and year.
+
+Search Input: input type="search" is used for search fields (a search field behaves like a regular text field).
+
+Color Input: input type="color" is used for input fields that should contain a color. Depending on browser support, a color picker can show up in the input field.
+
+##### 1.3 Multimedia Elements
+
+HTML5 provides native support for multimedia content without requiring third-party plugins:
+
+Video Element: The video element is used to embed video content in a document. It may contain one or more video sources, represented using the src attribute or the source element.
+
+Audio Element: The audio element is used to embed sound content in documents. It may contain one or more audio sources, represented using the src attribute or the source element.
+
+Source Element: The source element is used to specify multiple media resources for the picture, the audio element, or the video element.
+
+Track Element: The track element is used as a child of the media elements, audio and video. It lets you specify timed text tracks (or time-based data).
+
+##### 1.4 Canvas and Graphics
+
+The canvas element is used to draw graphics on a web page via JavaScript. The canvas element is only a container for graphics; you must use JavaScript to actually draw the graphics.
+
+Canvas has several methods for drawing paths, boxes, circles, text, and adding images including fillRect, strokeRect, clearRect, beginPath, closePath, moveTo, lineTo, arc, fill, stroke, fillText, and strokeText.
+
+##### 1.5 Web Storage
+
+HTML5 provides two mechanisms for storing data on the client:
+
+localStorage: Stores data with no expiration date. The data will not be deleted when the browser is closed, and will be available the next day, week, or year.
+
+sessionStorage: Stores data for one session. The data is deleted when the user closes the specific browser tab.
+
+Both storage mechanisms provide the same methods and properties including setItem, getItem, removeItem, clear, and key methods.
+
+#### Chapter 2: CSS3 and Modern Styling
+
+CSS3 is the latest evolution of the Cascading Style Sheets language and aims at extending CSS2.1. It brings a lot of long-awaited novelties, like rounded corners, shadows, gradients, transitions or animations, as well as new layouts like multi-columns, flexible box or grid layouts.
+
+##### 2.1 Selectors
+
+CSS3 introduces many new selectors that provide more precise control over element selection:
+
+Attribute Selectors including attribute beginning with value selector, attribute ending with value selector, and attribute contains value selector.
+
+Structural Pseudo-classes including root, nth-child, nth-last-child, nth-of-type, nth-last-of-type, first-child, last-child, first-of-type, last-of-type, only-child, only-of-type, and empty selectors.
+
+UI Element States Pseudo-classes including enabled, disabled, checked, focus, target, and not selectors.
+
+##### 2.2 Box Model and Layout
+
+CSS3 introduces the box-sizing property which allows you to include the padding and border in an element's total width and height:
+
+content-box: The width and height properties include only the content
+border-box: The width and height properties include the content, padding, and border
+
+Flexbox Layout: The Flexible Box Layout Module makes it easier to design flexible responsive layout structure without using float or positioning.
+
+Key flexbox properties for the container include display flex, flex-direction, flex-wrap, flex-flow, justify-content, align-items, and align-content.
+
+Key flexbox properties for items include order, flex-grow, flex-shrink, flex-basis, flex shorthand, and align-self.
+
+Grid Layout: CSS Grid Layout is a two-dimensional layout system for the web. It lets you lay content out in rows and columns.
+
+Key grid properties for the container include display grid, grid-template-columns, grid-template-rows, grid-template-areas, grid-column-gap, grid-row-gap, grid-gap, justify-items, align-items, justify-content, and align-content.
+
+Key grid properties for items include grid-column-start, grid-column-end, grid-row-start, grid-row-end, grid-column, grid-row, grid-area, justify-self, and align-self.
+
+##### 2.3 Transitions and Animations
+
+CSS3 transitions allow you to change property values smoothly over a given duration with properties like transition-property, transition-duration, transition-timing-function, transition-delay, and the transition shorthand.
+
+CSS3 animations allow animation of HTML elements without using JavaScript with @keyframes rules and properties like animation-name, animation-duration, animation-timing-function, animation-delay, animation-iteration-count, animation-direction, animation-fill-mode, animation-play-state, and the animation shorthand.
+
+##### 2.4 Transforms
+
+CSS3 transforms allow you to rotate, scale, move, skew elements.
+
+2D Transforms include translate, rotate, scale, scaleX, scaleY, skew, skewX, skewY, and matrix functions.
+
+3D Transforms include translate3d, translateX, translateY, translateZ, scale3d, scaleX, scaleY, scaleZ, rotate3d, rotateX, rotateY, rotateZ, and perspective functions.
+
+##### 2.5 Visual Effects
+
+CSS3 provides several properties for adding visual effects:
+
+Shadows including box-shadow and text-shadow properties.
+
+Gradients including linear-gradient, radial-gradient, repeating-linear-gradient, and repeating-radial-gradient functions.
+
+Filters including blur, brightness, contrast, drop-shadow, grayscale, hue-rotate, invert, opacity, saturate, and sepia filters.
+
+Border Radius with border-radius and individual corner radius properties.
+
+### Part II: JavaScript and ECMAScript
+
+#### Chapter 3: Modern JavaScript (ES6+)
+
+ECMAScript 2015 (ES6) was the first major update to JavaScript since ES5 was standardized in 2009. It introduced many new features that have become essential for modern JavaScript development.
+
+##### 3.1 Variable Declarations
+
+ES6 introduced two new ways to declare variables:
+
+let: The let keyword allows you to declare block-scoped variables. Unlike var, which declares variables globally or function-wide regardless of block scope, let limits the variable's scope to the block, statement, or expression in which it is used.
+
+const: The const keyword creates a read-only reference to a value. This doesn't mean the value it holds is immutable, just that the variable identifier cannot be reassigned. For instance, if the content is an object, the object's contents can be altered.
+
+##### 3.2 Arrow Functions
+
+Arrow functions provide a shorter syntax for writing function expressions. They don't have their own this binding, cannot be used as constructors, don't have an arguments object, and cannot be used as generators.
+
+##### 3.3 Template Literals
+
+Template literals provide an easy way to create multiline strings and perform string interpolation using backticks and dollar-brace syntax for expressions. Tagged templates allow you to parse template literals with a function.
+
+##### 3.4 Destructuring
+
+Destructuring allows you to unpack values from arrays or properties from objects into distinct variables with array destructuring and object destructuring syntax.
+
+##### 3.5 Classes
+
+ES6 introduced a cleaner syntax for creating objects and dealing with inheritance using the class keyword, constructor method, extends keyword for inheritance, and super() for parent class access.
+
+##### 3.6 Modules
+
+ES6 modules allow you to export and import functionality between JavaScript files with named exports and default exports.
+
+##### 3.7 Promises and Async/Await
+
+Promises provide a cleaner way to handle asynchronous operations with resolve and reject callbacks, then and catch methods. Async/await provides a more synchronous-looking way to write asynchronous code.
+
+##### 3.8 Iterators and Generators
+
+Iterators are objects that define a sequence and potentially a return value upon its termination with the Symbol.iterator method. Generators are functions that can be exited and later re-entered using the function* syntax and yield keyword.
+
+##### 3.9 Map, Set, WeakMap, and WeakSet
+
+Map is a collection of keyed data items that allows keys of any type. Set is a collection of unique values. WeakMap is like Map but keys must be objects and are weakly referenced. WeakSet is like Set but stores only objects that are weakly referenced.
+
+##### 3.10 Spread and Rest Operators
+
+The spread operator allows an iterable to be expanded in arrays and objects. The rest parameter allows a function to accept an indefinite number of arguments.
+
+#### Chapter 4: TypeScript Fundamentals
+
+TypeScript is a typed superset of JavaScript that compiles to plain JavaScript. It adds optional static typing and class-based object-oriented programming to the language.
+
+##### 4.1 Basic Types
+
+TypeScript provides several basic types including boolean, number, string, array, tuple, enum, any, void, null, undefined, never, and object types.
+
+##### 4.2 Interfaces
+
+Interfaces define the structure of an object with properties, optional properties marked with question mark, readonly properties, function types, indexable types, and class types that implement interfaces.
+
+##### 4.3 Classes
+
+TypeScript supports full object-oriented programming with classes including private, protected, and public access modifiers, readonly properties, constructors, methods, inheritance with extends, and abstract classes.
+
+##### 4.4 Generics
+
+Generics allow you to create reusable components with generic functions, generic interfaces, generic classes, and generic constraints using the extends keyword.
+
+##### 4.5 Advanced Types
+
+TypeScript provides several advanced type features including union types with the pipe operator, intersection types with the ampersand operator, type guards with type predicates, conditional types, and mapped types like Readonly and Partial.
+
+### Part III: Backend Development
+
+#### Chapter 5: Node.js and Server-Side JavaScript
+
+Node.js is a JavaScript runtime built on Chrome's V8 JavaScript engine. It uses an event-driven, non-blocking I/O model that makes it lightweight and efficient.
+
+##### 5.1 Core Modules
+
+Node.js provides several built-in modules:
+
+fs (File System) module for file operations including readFile, readFileSync, writeFile, appendFile, unlink, mkdir, and readdir methods.
+
+http module for creating HTTP servers with createServer, handling requests and responses, and listening on ports.
+
+path module for file path operations including join, resolve, basename, dirname, and extname methods.
+
+events module with the EventEmitter class for creating and handling custom events.
+
+stream module for handling streaming data with readable and writable streams and the pipe method.
+
+##### 5.2 Express.js Framework
+
+Express is a minimal and flexible Node.js web application framework with middleware support, static file serving, routing with GET, POST, PUT, DELETE methods, route parameters, request body parsing, and error handling middleware.
+
+##### 5.3 Database Integration
+
+MongoDB with Mongoose for document database operations with schemas, models, and CRUD operations including create, find, findById, findOne, updateOne, findByIdAndUpdate, deleteOne, and findByIdAndDelete methods.
+
+PostgreSQL with Sequelize for relational database operations with model definitions using DataTypes, model initialization, and CRUD operations.
+
+#### Chapter 6: API Design and REST
+
+REST (Representational State Transfer) is an architectural style for designing networked applications.
+
+##### 6.1 REST Principles
+
+Client-Server Architecture, Statelessness, Cacheability, Uniform Interface, and Layered System principles.
+
+##### 6.2 HTTP Methods
+
+GET for retrieving resources, POST for creating resources, PUT for updating resources (replace), PATCH for partial updates, DELETE for removing resources, HEAD for retrieving headers, and OPTIONS for retrieving available methods.
+
+##### 6.3 Status Codes
+
+2xx Success codes including 200 OK, 201 Created, 204 No Content.
+3xx Redirection codes including 301 Moved Permanently, 302 Found, 304 Not Modified.
+4xx Client Error codes including 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 405 Method Not Allowed, 409 Conflict, 422 Unprocessable Entity, 429 Too Many Requests.
+5xx Server Error codes including 500 Internal Server Error, 502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout.
+
+##### 6.4 API Versioning
+
+URL Path Versioning with version numbers in the path like /api/v1/users.
+Query Parameter Versioning with version as a query parameter.
+Header Versioning with version in Accept headers.
+
+##### 6.5 Authentication and Authorization
+
+JWT (JSON Web Tokens) for creating tokens with sign method, verifying tokens, and implementing authentication middleware.
+
+OAuth 2.0 Flows including Authorization Code Flow, Implicit Flow, Resource Owner Password Credentials Flow, and Client Credentials Flow.
+
+### Part IV: Frontend Frameworks
+
+#### Chapter 7: React
+
+React is a JavaScript library for building user interfaces.
+
+##### 7.1 Components
+
+Functional Components as simple functions that return JSX, and Class Components that extend React.Component with render methods.
+
+##### 7.2 Hooks
+
+useState for state management, useEffect for side effects with cleanup functions and dependency arrays, useContext for accessing context values, useReducer for complex state logic with actions and reducers, useCallback for memoizing callbacks, useMemo for memoizing expensive computations, and useRef for mutable references.
+
+##### 7.3 State Management
+
+Redux for centralized state management with actions, reducers, store creation with createStore, and useSelector and useDispatch hooks for component integration.
+
+#### Chapter 8: Vue.js
+
+Vue is a progressive JavaScript framework for building user interfaces.
+
+##### 8.1 Vue 3 Composition API
+
+Using script setup with ref for reactive primitives, computed for derived state, watch for watching reactive values, and lifecycle hooks like onMounted.
+
+##### 8.2 Vue Router
+
+Creating routers with createRouter and createWebHistory, defining routes with path and component mappings, and route parameters.
+
+##### 8.3 Pinia (State Management)
+
+Defining stores with defineStore, including state, getters, and actions.
+
+### Part V: DevOps and Deployment
+
+#### Chapter 9: Docker and Containerization
+
+Docker is a platform for developing, shipping, and running applications in containers.
+
+##### 9.1 Dockerfile
+
+Building Docker images with FROM for base image, WORKDIR for setting working directory, COPY for copying files, RUN for executing commands, EXPOSE for port declaration, and CMD for startup command.
+
+##### 9.2 Docker Compose
+
+Defining multi-container applications with services, ports, environment variables, depends_on for service dependencies, volumes for persistent storage, and image references.
+
+##### 9.3 Docker Commands
+
+docker build for building images, docker run for running containers with port mappings and names, docker ps for listing containers, docker logs for viewing logs, docker exec for executing commands in containers, docker stop and docker rm for stopping and removing containers, docker rmi for removing images, and docker-compose commands for multi-container orchestration.
+
+#### Chapter 10: Kubernetes
+
+Kubernetes is a container orchestration platform.
+
+##### 10.1 Deployment
+
+Defining deployments with replicas, selectors, pod templates, container specifications, resource limits for memory and CPU, and environment variables from secrets.
+
+##### 10.2 Service
+
+Defining services with selectors, ports, target ports, and service types like LoadBalancer, ClusterIP, and NodePort.
+
+##### 10.3 Ingress
+
+Defining ingress rules for routing external traffic with host-based and path-based routing, annotations for configuration, and TLS termination.
+
+##### 10.4 kubectl Commands
+
+kubectl apply for applying configurations, kubectl get for listing resources, kubectl describe for detailed resource information, kubectl logs for viewing pod logs, kubectl exec for executing commands in pods, kubectl scale for scaling deployments, and kubectl delete for removing resources.
+
+### Part VI: Testing
+
+#### Chapter 11: Testing Strategies
+
+##### 11.1 Unit Testing with Jest
+
+Writing tests with describe blocks, test functions, expect assertions, toBe and toEqual matchers.
+
+##### 11.2 Integration Testing
+
+Testing API endpoints with supertest, making requests with get, post, send methods, and expect assertions for status codes and response bodies.
+
+##### 11.3 E2E Testing with Playwright
+
+Writing end-to-end tests with page.goto for navigation, expect assertions for page titles, page.fill for form inputs, page.click for button clicks, and expect assertions for URLs and element content.
+
+### Part VII: Security
+
+#### Chapter 12: Web Security Best Practices
+
+##### 12.1 Common Vulnerabilities
+
+SQL Injection with parameterized queries as the solution.
+XSS (Cross-Site Scripting) with textContent or sanitization as the solution.
+CSRF (Cross-Site Request Forgery) with CSRF tokens as the solution.
+
+##### 12.2 Security Headers
+
+Using helmet middleware for setting security headers including Content-Security-Policy with directives for defaultSrc, scriptSrc, styleSrc, and imgSrc.
+
+##### 12.3 Input Validation
+
+Using express-validator for validating and sanitizing input with body validators for email, password length, and name trimming and escaping.
+
+### Part VIII: Performance Optimization
+
+#### Chapter 13: Web Performance
+
+##### 13.1 Caching Strategies
+
+HTTP Caching with Cache-Control headers and ETag support.
+Redis Caching with get, set, and setex methods for caching data with TTL.
+
+##### 13.2 Database Optimization
+
+Indexing with CREATE INDEX, composite indexes, partial indexes, and expression indexes.
+Query Optimization with EXPLAIN ANALYZE, avoiding SELECT *, and using LIMIT for pagination.
+
+##### 13.3 Frontend Optimization
+
+Code Splitting with React.lazy and Suspense for lazy loading components.
+Image Optimization with responsive images using srcset and sizes, and modern formats with picture element and source fallbacks.
+
+## Volume 2: Database Systems and Data Management
+
+### Part IX: Relational Databases
+
+#### Chapter 14: SQL Fundamentals
+
+SQL (Structured Query Language) is the standard language for managing relational databases. Understanding SQL is essential for any developer working with data.
+
+##### 14.1 Data Definition Language (DDL)
+
+DDL statements are used to define the database schema:
+
+CREATE TABLE for creating tables with columns, data types, constraints like PRIMARY KEY, NOT NULL, UNIQUE, DEFAULT, REFERENCES for foreign keys, and CHECK constraints.
+
+ALTER TABLE for adding columns, dropping columns, modifying column types, adding and dropping constraints, and renaming columns and tables.
+
+DROP TABLE for removing tables with IF EXISTS and CASCADE options.
+
+##### 14.2 Data Manipulation Language (DML)
+
+DML statements are used to manage data within tables:
+
+INSERT for single row inserts, multiple row inserts, insert with returning clause, and insert from select queries.
+
+UPDATE for simple updates, multiple column updates, update with returning clause, update with subquery, and update with join.
+
+DELETE for simple deletes, delete with returning clause, delete with subquery, and TRUNCATE for fast deletion of all rows.
+
+##### 14.3 Data Query Language (DQL)
+
+SELECT basics for selecting all columns, specific columns, columns with aliases, distinct values, and expressions.
+
+WHERE clause with comparison operators, logical operators AND/OR/NOT, BETWEEN for range queries, IN for set membership, LIKE and ILIKE for pattern matching, and IS NULL/IS NOT NULL for null checking.
+
+ORDER BY for single column sorting, multiple column sorting, and NULLS FIRST/LAST handling.
+
+LIMIT and OFFSET for pagination and result limiting.
+
+##### 14.4 Joins
+
+INNER JOIN for matching rows in both tables.
+LEFT JOIN for all rows from left table with matching rows from right.
+RIGHT JOIN for all rows from right table with matching rows from left.
+FULL OUTER JOIN for all rows from both tables.
+CROSS JOIN for Cartesian product of tables.
+Self Join for joining a table with itself.
+Multiple Joins for complex queries involving many tables.
+
+##### 14.5 Aggregation Functions
+
+Basic Aggregations including COUNT, SUM, AVG, MIN, MAX, STRING_AGG, and ARRAY_AGG functions.
+
+GROUP BY for grouping results by columns with HAVING clause for filtering groups.
+
+Window Functions including ROW_NUMBER, RANK, DENSE_RANK for ranking, PARTITION BY for partitioning, LAG and LEAD for accessing adjacent rows, and running totals with SUM OVER.
+
+##### 14.6 Subqueries
+
+Scalar Subqueries returning single values.
+Table Subqueries returning result sets.
+EXISTS and NOT EXISTS for existence checks.
+IN with Subquery for set membership with dynamic sets.
+
+##### 14.7 Common Table Expressions (CTEs)
+
+Basic CTE with WITH clause for named query expressions.
+Multiple CTEs for complex queries with multiple named expressions.
+Recursive CTE for hierarchical data traversal like comment trees with base case and recursive case.
+
+#### Chapter 15: Database Design and Normalization
+
+##### 15.1 Normal Forms
+
+First Normal Form (1NF) requiring single values per cell and unique records.
+Second Normal Form (2NF) requiring 1NF and full functional dependency on primary key.
+Third Normal Form (3NF) requiring 2NF and no transitive functional dependencies.
+Boyce-Codd Normal Form (BCNF) requiring 3NF and all determinants being super keys.
+
+##### 15.2 Entity-Relationship Modeling
+
+Cardinality Types including One-to-One (1:1), One-to-Many (1:N), and Many-to-Many (M:N) relationships.
+
+##### 15.3 Indexing Strategies
+
+B-Tree Index as the default index type for ordered data.
+Hash Index for equality comparisons.
+GIN Index for arrays and full-text search with to_tsvector.
+GiST Index for geometric data.
+Partial Index for indexing subsets of rows.
+Expression Index for indexing computed values.
+
+#### Chapter 16: NoSQL Databases
+
+##### 16.1 Document Databases (MongoDB)
+
+Schema Design with embedded documents for denormalization and referenced documents for normalization.
+
+Query Examples including find with filters, projection, sorting and pagination, aggregation pipeline with match/group/sort stages, array operations with in/all operators, and update operations with set/inc/push operators.
+
+##### 16.2 Key-Value Stores (Redis)
+
+Data Structures including Strings with SET/GET/INCR/EXPIRE, Lists with LPUSH/RPUSH/LRANGE/LPOP, Sets with SADD/SISMEMBER/SMEMBERS/SINTER, Sorted Sets with ZADD/ZRANGE/ZRANK, and Hashes with HSET/HGET/HGETALL/HINCRBY.
+
+Pub/Sub with PUBLISH and SUBSCRIBE/PSUBSCRIBE commands.
+
+##### 16.3 Column-Family Stores (Cassandra)
+
+CREATE KEYSPACE with replication configuration.
+CREATE TABLE with partition keys, clustering columns, and clustering order.
+
+##### 16.4 Graph Databases (Neo4j)
+
+Cypher Queries for creating nodes and relationships, querying relationships, finding friends of friends, and calculating shortest paths.
+
+### Part X: Algorithms and Data Structures
+
+#### Chapter 17: Essential Data Structures
+
+##### 17.1 Arrays and Linked Lists
+
+Array Operations with get, set, push, pop, insert, and remove methods.
+Linked List with ListNode class and LinkedList class implementing append, prepend, find, remove, and toArray methods.
+
+##### 17.2 Stacks and Queues
+
+Stack Implementation with push, pop, peek, isEmpty, and size methods. Use cases include expression evaluation, undo/redo, browser history, call stack, and depth-first search.
+
+Queue Implementation with enqueue, dequeue, peek, isEmpty, and size methods.
+
+Priority Queue with heap-based implementation using bubbleUp and bubbleDown methods.
+
+##### 17.3 Trees
+
+Binary Search Tree with TreeNode class and BST class implementing insert, find, inOrder/preOrder/postOrder traversals, levelOrder traversal (BFS), min, max, and height methods.
+
+##### 17.4 Hash Tables
+
+Hash Table Implementation with hash function using prime multiplication, set/get/delete methods with separate chaining for collision resolution, and keys/values methods.
+
+##### 17.5 Graphs
+
+Graph Implementation with adjacency list representation supporting directed and weighted graphs, addVertex, addEdge, removeEdge, removeVertex, DFS, BFS, and Dijkstra's shortest path algorithm.
+
+#### Chapter 18: Sorting and Searching Algorithms
+
+##### 18.1 Sorting Algorithms
+
+Quick Sort with partition function using pivot element and in-place swapping.
+Merge Sort with divide-and-conquer approach and merge function.
+Heap Sort with heapify function building max heap and extracting elements.
+
+##### 18.2 Searching Algorithms
+
+Binary Search for finding elements in sorted arrays.
+Binary Search First for finding first occurrence.
+Binary Search Last for finding last occurrence.
+
+#### Chapter 19: Dynamic Programming
+
+##### 19.1 Classic DP Problems
+
+Fibonacci with memoization (top-down), tabulation (bottom-up), and space-optimized solutions.
+
+Longest Common Subsequence with 2D DP table.
+
+Knapsack Problem with 0/1 Knapsack and Unbounded Knapsack variants.
+
+Coin Change with minimum coins needed and number of ways to make change variants.
+
+Edit Distance (Levenshtein Distance) with 2D DP table handling insert, delete, and replace operations.
+
+### Part XI: Design Patterns
+
+#### Chapter 20: Creational Patterns
+
+##### 20.1 Singleton
+
+Singleton pattern ensuring single instance with static instance property and getInstance method.
+
+##### 20.2 Factory
+
+Factory pattern with base Animal class, Dog and Cat subclasses, and AnimalFactory with static create method.
+
+##### 20.3 Builder
+
+Builder pattern with QueryBuilder class implementing fluent interface with select, from, where, orderBy, limit, offset, and build methods.
+
+#### Chapter 21: Structural Patterns
+
+##### 21.1 Adapter
+
+Adapter pattern with OldLogger, new Logger interface, and LoggerAdapter bridging the two.
+
+##### 21.2 Decorator
+
+Decorator pattern with Coffee base class, MilkDecorator and SugarDecorator wrapping and extending functionality.
+
+##### 21.3 Proxy
+
+Proxy pattern with RealImage and ProxyImage implementing lazy loading.
+
+#### Chapter 22: Behavioral Patterns
+
+##### 22.1 Observer
+
+Observer pattern with EventEmitter implementing on, off, emit, and once methods.
+
+##### 22.2 Strategy
+
+Strategy pattern with PaymentContext and interchangeable CreditCardStrategy, PayPalStrategy, and CryptoStrategy.
+
+##### 22.3 Command
+
+Command pattern with Command base class, AddTextCommand implementation, and Editor with command history and undo functionality.
+
+## Appendix A: Git Commands Reference
+
+Configuration commands for setting user name and email.
+Repository commands including init and clone.
+Staging commands including add and reset.
+Committing commands including commit and commit --amend.
+Branching commands including branch, checkout, merge, and rebase.
+Remote commands including remote add, fetch, pull, push, and push with upstream.
+History commands including log, diff, and show.
+Stashing commands including stash, stash pop, and stash list.
+Tagging commands including tag and push --tags.
+
+## Appendix B: Regular Expressions
+
+Email validation pattern for matching standard email formats.
+URL validation pattern for matching HTTP/HTTPS URLs.
+Phone number pattern for matching US phone formats.
+Password pattern for enforcing complexity requirements.
+IP address pattern for matching IPv4 addresses.
+Date pattern for matching YYYY-MM-DD format.
+Credit card pattern for matching major card types.
+
+## Appendix C: HTTP Headers Reference
+
+Request Headers including Accept, Accept-Encoding, Accept-Language, Authorization, Cache-Control, Content-Type, Cookie, Host, Origin, Referer, and User-Agent.
+
+Response Headers including Access-Control-Allow-Origin, Cache-Control, Content-Encoding, Content-Length, Content-Type, ETag, Expires, Last-Modified, Location, Set-Cookie, X-Content-Type-Options, X-Frame-Options, and X-XSS-Protection.
+
+## Appendix D: System Design Concepts
+
+### Scalability
+
+Horizontal Scaling by adding more machines.
+Vertical Scaling by adding more resources to existing machines.
+
+### Load Balancing
+
+Algorithms including Round Robin, Least Connections, IP Hash, and Weighted Round Robin.
+
+### Caching Strategies
+
+Cache-Aside (Lazy Loading) checking cache first then database.
+Write-Through writing to cache then database synchronously.
+Write-Behind (Write-Back) writing to cache then database asynchronously.
+
+### Database Partitioning
+
+Horizontal Partitioning (Sharding) with range-based, hash-based, and directory-based approaches.
+Vertical Partitioning splitting tables by columns.
+
+### Message Queues
+
+Use Cases including asynchronous processing, load leveling, service decoupling, and event-driven architecture.
+Popular Systems including RabbitMQ, Apache Kafka, Amazon SQS, and Redis Pub/Sub.
+
+### CAP Theorem
+
+Consistency ensuring every read receives most recent write.
+Availability ensuring every request receives a response.
+Partition Tolerance ensuring system operates despite network partitions.
+
+Trade-offs with CP systems like MongoDB and HBase, AP systems like Cassandra and DynamoDB, and CA systems like traditional single-node RDBMS.
+
+### ACID vs BASE
+
+ACID for relational databases with Atomicity, Consistency, Isolation, and Durability.
+BASE for NoSQL databases with Basically Available, Soft state, and Eventually consistent.
+
+## Appendix E: Mathematics for Programming
+
+### Big O Notation
+
+Common Complexities including O(1) Constant, O(log n) Logarithmic, O(n) Linear, O(n log n) Linearithmic, O(n^2) Quadratic, O(2^n) Exponential, and O(n!) Factorial.
+
+### Probability Basics
+
+Probability Rules including addition rule P(A or B), multiplication rule P(A and B) for independent events, and conditional probability P(A|B).
+
+### Statistics
+
+Measures of Central Tendency including Mean, Median, and Mode.
+Measures of Dispersion including Range, Variance, and Standard Deviation.
+
+This comprehensive reference guide provides the foundational knowledge needed for modern software development across multiple domains including web development, databases, algorithms, design patterns, and system design concepts.
+
+---
+
+## Additional Technical Reference Material
+
+### Cloud Computing Platforms
+
+#### Amazon Web Services (AWS)
+
+AWS is the world's most comprehensive cloud platform, offering over 200 fully featured services from data centers globally.
+
+Compute Services:
+- EC2 (Elastic Compute Cloud): Virtual servers in the cloud with various instance types optimized for compute, memory, storage, or GPU workloads
+- Lambda: Serverless compute service that runs code in response to events
+- ECS (Elastic Container Service): Container orchestration service
+- EKS (Elastic Kubernetes Service): Managed Kubernetes service
+- Fargate: Serverless compute engine for containers
+
+Storage Services:
+- S3 (Simple Storage Service): Object storage with 99.999999999% durability
+- EBS (Elastic Block Store): Block storage volumes for EC2
+- EFS (Elastic File System): Managed file storage for EC2
+- Glacier: Low-cost archive storage
+
+Database Services:
+- RDS (Relational Database Service): Managed relational databases including MySQL, PostgreSQL, Oracle, SQL Server
+- DynamoDB: Managed NoSQL database with single-digit millisecond latency
+- ElastiCache: In-memory caching with Redis or Memcached
+- Redshift: Data warehouse for analytics
+- DocumentDB: MongoDB-compatible document database
+- Neptune: Graph database service
+
+Networking Services:
+- VPC (Virtual Private Cloud): Isolated cloud resources
+- Route 53: DNS web service
+- CloudFront: Content delivery network
+- API Gateway: Create, publish, and manage APIs
+- ELB (Elastic Load Balancing): Distribute incoming traffic
+
+Security Services:
+- IAM (Identity and Access Management): Control access to AWS services
+- KMS (Key Management Service): Create and control encryption keys
+- WAF (Web Application Firewall): Protect web applications
+- Shield: DDoS protection
+- GuardDuty: Threat detection service
+
+#### Google Cloud Platform (GCP)
+
+GCP offers a suite of cloud computing services running on the same infrastructure Google uses.
+
+Compute Services:
+- Compute Engine: Virtual machines on demand
+- App Engine: Platform for building scalable web applications
+- Cloud Functions: Event-driven serverless compute
+- Cloud Run: Serverless containers
+- GKE (Google Kubernetes Engine): Managed Kubernetes
+
+Storage Services:
+- Cloud Storage: Object storage with multiple storage classes
+- Persistent Disk: Block storage for VMs
+- Filestore: Managed file storage
+- Cloud Storage for Firebase: Mobile app storage
+
+Database Services:
+- Cloud SQL: Managed MySQL, PostgreSQL, SQL Server
+- Cloud Spanner: Horizontally scalable relational database
+- Firestore: NoSQL document database
+- Bigtable: NoSQL wide-column database
+- Memorystore: Managed Redis and Memcached
+
+#### Microsoft Azure
+
+Azure is Microsoft's cloud computing platform with integrated cloud services.
+
+Compute Services:
+- Virtual Machines: Windows and Linux VMs
+- App Service: Platform for web apps and APIs
+- Azure Functions: Serverless compute
+- Azure Kubernetes Service (AKS): Managed Kubernetes
+- Container Instances: Serverless containers
+
+Storage Services:
+- Blob Storage: Object storage for unstructured data
+- Azure Files: Managed file shares
+- Queue Storage: Message storage for communication
+- Disk Storage: Block storage for VMs
+
+Database Services:
+- Azure SQL Database: Managed SQL Server
+- Cosmos DB: Globally distributed multi-model database
+- Azure Cache for Redis: Managed Redis
+- Azure Database for PostgreSQL/MySQL: Managed open-source databases
+
+### Microservices Architecture
+
+Microservices is an architectural style that structures an application as a collection of loosely coupled services.
+
+Key Principles:
+- Single Responsibility: Each service handles a specific business capability
+- Decentralized Data Management: Each service manages its own database
+- Design for Failure: Services must be resilient to failures
+- Infrastructure Automation: Continuous integration and deployment
+- Evolutionary Design: Services can be replaced or upgraded independently
+
+Communication Patterns:
+- Synchronous: REST, gRPC for direct service-to-service calls
+- Asynchronous: Message queues, event streaming for decoupled communication
+- Service Mesh: Sidecar proxy pattern for service-to-service communication
+
+Service Discovery:
+- Client-side Discovery: Clients query service registry and load balance
+- Server-side Discovery: Load balancer queries service registry
+- DNS-based Discovery: Using DNS SRV records
+
+Circuit Breaker Pattern:
+The circuit breaker prevents cascading failures by failing fast when a service is unhealthy.
+- Closed State: Normal operation, requests pass through
+- Open State: Circuit trips after threshold failures, requests fail immediately
+- Half-Open State: Limited requests allowed to test if service recovered
+
+Saga Pattern:
+Managing distributed transactions across multiple services.
+- Choreography: Services publish events, other services react
+- Orchestration: Central coordinator directs services
+
+API Gateway:
+Single entry point for all client requests providing:
+- Request routing and load balancing
+- Authentication and authorization
+- Rate limiting and throttling
+- Request/response transformation
+- Caching and compression
+
+### Machine Learning Fundamentals
+
+#### Supervised Learning
+
+Classification:
+- Binary Classification: Two possible outcomes (spam/not spam)
+- Multi-class Classification: Multiple categories (image recognition)
+- Algorithms: Logistic Regression, Decision Trees, Random Forest, SVM, Neural Networks
+
+Regression:
+- Predicting continuous values (house prices, stock prices)
+- Algorithms: Linear Regression, Polynomial Regression, Ridge, Lasso, Gradient Boosting
+
+Evaluation Metrics:
+- Classification: Accuracy, Precision, Recall, F1-Score, ROC-AUC
+- Regression: MSE, RMSE, MAE, R-squared
+
+#### Unsupervised Learning
+
+Clustering:
+- Grouping similar data points
+- Algorithms: K-Means, Hierarchical Clustering, DBSCAN, Gaussian Mixture Models
+
+Dimensionality Reduction:
+- Reducing number of features while preserving information
+- Algorithms: PCA, t-SNE, UMAP, Autoencoders
+
+Anomaly Detection:
+- Finding unusual patterns in data
+- Algorithms: Isolation Forest, One-class SVM, Local Outlier Factor
+
+#### Deep Learning
+
+Neural Network Architectures:
+- Feedforward Networks: Basic architecture with input, hidden, and output layers
+- Convolutional Neural Networks (CNN): Image processing with convolution and pooling layers
+- Recurrent Neural Networks (RNN): Sequential data processing with memory
+- LSTM/GRU: Handling long-term dependencies in sequences
+- Transformers: Attention-based architecture for NLP and beyond
+- GANs: Generative adversarial networks for data generation
+
+Optimization:
+- Gradient Descent: Finding minimum of loss function
+- Learning Rate Scheduling: Adjusting learning rate during training
+- Batch Normalization: Normalizing layer inputs
+- Dropout: Regularization by randomly dropping neurons
+- Adam, RMSprop, SGD with Momentum: Popular optimizers
+
+### Networking Fundamentals
+
+#### OSI Model
+
+Layer 7 - Application: HTTP, HTTPS, FTP, SMTP, DNS
+Layer 6 - Presentation: SSL/TLS, JPEG, ASCII
+Layer 5 - Session: NetBIOS, RPC
+Layer 4 - Transport: TCP, UDP
+Layer 3 - Network: IP, ICMP, ARP
+Layer 2 - Data Link: Ethernet, WiFi
+Layer 1 - Physical: Cables, Hubs, Repeaters
+
+#### TCP/IP Protocol Suite
+
+IP Addressing:
+- IPv4: 32-bit addresses (e.g., 192.168.1.1)
+- IPv6: 128-bit addresses (e.g., 2001:0db8::1)
+- Subnetting: Dividing networks into smaller segments
+- CIDR: Classless Inter-Domain Routing notation
+
+TCP:
+- Connection-oriented protocol
+- Three-way handshake: SYN, SYN-ACK, ACK
+- Flow control and congestion control
+- Reliable data delivery with acknowledgments
+
+UDP:
+- Connectionless protocol
+- No guaranteed delivery
+- Lower latency than TCP
+- Used for streaming, gaming, DNS queries
+
+#### DNS (Domain Name System)
+
+Record Types:
+- A: Maps domain to IPv4 address
+- AAAA: Maps domain to IPv6 address
+- CNAME: Canonical name alias
+- MX: Mail exchange servers
+- TXT: Text records for verification
+- NS: Name server records
+- SOA: Start of authority
+
+Resolution Process:
+1. Check local cache
+2. Query recursive resolver
+3. Query root name servers
+4. Query TLD name servers
+5. Query authoritative name servers
+
+#### HTTP/HTTPS
+
+HTTP Methods already covered above.
+
+HTTP/2 Features:
+- Binary framing layer
+- Multiplexed streams
+- Server push
+- Header compression (HPACK)
+- Stream prioritization
+
+HTTP/3 Features:
+- QUIC transport protocol
+- Built on UDP
+- Improved connection establishment
+- Better mobile performance
+
+TLS/SSL:
+- Encryption for data in transit
+- Certificate-based authentication
+- TLS 1.3 improvements: fewer round trips, stronger ciphers
+
+### Operating System Concepts
+
+#### Process Management
+
+Process States:
+- New: Process being created
+- Ready: Waiting to be assigned to processor
+- Running: Instructions being executed
+- Waiting: Waiting for event or I/O
+- Terminated: Process finished execution
+
+Process Scheduling:
+- First-Come First-Served (FCFS): Simple queue-based scheduling
+- Shortest Job First (SJF): Prioritize shorter processes
+- Priority Scheduling: Higher priority processes first
+- Round Robin: Time slices for each process
+- Multilevel Queue: Multiple queues with different priorities
+
+Inter-Process Communication:
+- Pipes: Unidirectional data channel
+- Named Pipes (FIFOs): Pipes with filesystem names
+- Message Queues: Linked list of messages
+- Shared Memory: Memory accessible by multiple processes
+- Semaphores: Synchronization mechanism
+- Sockets: Network communication
+
+#### Memory Management
+
+Virtual Memory:
+- Page-based memory management
+- Page tables mapping virtual to physical addresses
+- Page faults when accessing non-resident pages
+- Demand paging: Load pages only when needed
+
+Memory Allocation:
+- Contiguous Allocation: Single contiguous block per process
+- Paging: Fixed-size memory blocks
+- Segmentation: Variable-size logical units
+- Paged Segmentation: Combining both approaches
+
+Page Replacement Algorithms:
+- FIFO: Replace oldest page
+- LRU: Replace least recently used page
+- Optimal: Replace page not needed for longest time
+- Clock: Circular queue with reference bits
+
+#### File Systems
+
+File System Types:
+- FAT32: Simple, widely compatible, 4GB file limit
+- NTFS: Windows default, journaling, large files
+- ext4: Linux default, journaling, large volumes
+- XFS: High-performance journaling file system
+- ZFS: Advanced features, snapshots, data integrity
+
+File System Operations:
+- Create, open, close, read, write files
+- Create, remove, list directories
+- Set and get file attributes
+- Seek to position in file
+
+Disk Scheduling:
+- FCFS: First-come first-served
+- SSTF: Shortest seek time first
+- SCAN (Elevator): Move in one direction, then reverse
+- C-SCAN: Circular SCAN, only one direction
+- LOOK: SCAN without going to disk end
+
+### Compiler Design Basics
+
+#### Compilation Phases
+
+Lexical Analysis (Scanner):
+- Reads source code characters
+- Produces tokens (lexemes)
+- Removes whitespace and comments
+- Uses regular expressions and finite automata
+
+Syntax Analysis (Parser):
+- Builds parse tree from tokens
+- Checks grammar rules
+- Context-free grammars
+- Top-down and bottom-up parsing
+
+Semantic Analysis:
+- Type checking
+- Scope resolution
+- Symbol table management
+- Attribute grammars
+
+Intermediate Code Generation:
+- Three-address code
+- Static single assignment (SSA)
+- Control flow graphs
+
+Optimization:
+- Local optimizations: constant folding, dead code elimination
+- Global optimizations: loop optimization, inlining
+- Machine-independent vs machine-dependent
+
+Code Generation:
+- Instruction selection
+- Register allocation
+- Instruction scheduling
+
+### Cryptography Fundamentals
+
+#### Symmetric Encryption
+
+Block Ciphers:
+- AES (Advanced Encryption Standard): 128/192/256-bit keys
+- DES/3DES: Older standards, less secure
+- Blowfish, Twofish: Alternative algorithms
+
+Modes of Operation:
+- ECB: Electronic Codebook (not recommended)
+- CBC: Cipher Block Chaining
+- CTR: Counter Mode
+- GCM: Galois/Counter Mode (authenticated)
+
+Stream Ciphers:
+- RC4: Older, now deprecated
+- ChaCha20: Modern, secure
+
+#### Asymmetric Encryption
+
+RSA:
+- Based on factoring large primes
+- Key sizes: 2048, 3072, 4096 bits
+- Used for encryption and signatures
+
+Elliptic Curve Cryptography (ECC):
+- Based on elliptic curve discrete logarithm
+- Smaller keys, same security
+- ECDSA for signatures, ECDH for key exchange
+
+#### Hash Functions
+
+Properties:
+- Deterministic: Same input produces same output
+- One-way: Cannot reverse to get input
+- Collision resistant: Hard to find two inputs with same hash
+- Avalanche effect: Small change, completely different hash
+
+Algorithms:
+- MD5: Deprecated, collision attacks found
+- SHA-1: Deprecated, theoretical weaknesses
+- SHA-256/SHA-3: Current standards
+- BLAKE2/BLAKE3: Modern alternatives
+
+#### Key Exchange
+
+Diffie-Hellman:
+- Allows two parties to establish shared secret
+- Based on discrete logarithm problem
+- Vulnerable to man-in-the-middle attacks alone
+
+Key Derivation Functions:
+- PBKDF2: Password-based key derivation
+- bcrypt: Adaptive hash function for passwords
+- scrypt: Memory-hard key derivation
+- Argon2: Winner of Password Hashing Competition
+
+### Software Architecture Patterns
+
+#### Monolithic Architecture
+
+Single deployable unit containing all functionality.
+
+Advantages:
+- Simple to develop and deploy initially
+- Easy debugging and testing
+- Single codebase
+
+Disadvantages:
+- Scaling entire application together
+- Technology stack locked in
+- Large codebase becomes complex
+- Long deployment cycles
+
+#### Service-Oriented Architecture (SOA)
+
+Services communicate via enterprise service bus (ESB).
+
+Key Components:
+- Service Provider: Implements service logic
+- Service Consumer: Uses services
+- Service Registry: Service discovery
+- ESB: Message routing and transformation
+
+#### Event-Driven Architecture
+
+Components communicate through events.
+
+Patterns:
+- Event Notification: Simple alerts about state changes
+- Event-Carried State Transfer: Events contain full state
+- Event Sourcing: Store events, derive state
+- CQRS: Separate read and write models
+
+#### Hexagonal Architecture (Ports and Adapters)
+
+Core business logic isolated from external concerns.
+
+Components:
+- Domain: Core business logic
+- Ports: Interfaces for external communication
+- Adapters: Implementations of ports
+- Primary/Driving Adapters: User interfaces, API
+- Secondary/Driven Adapters: Database, external services
+
+#### Clean Architecture
+
+Dependency rule: Dependencies point inward.
+
+Layers (outer to inner):
+- Frameworks & Drivers: Web, UI, DB, external interfaces
+- Interface Adapters: Controllers, presenters, gateways
+- Application Business Rules: Use cases
+- Enterprise Business Rules: Entities
+
+This comprehensive technical reference guide covers the foundational knowledge needed across web development, databases, algorithms, design patterns, cloud computing, machine learning, networking, operating systems, compilers, cryptography, and software architecture.

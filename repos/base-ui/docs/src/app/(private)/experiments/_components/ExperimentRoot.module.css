@@ -1,0 +1,61 @@
+.root {
+  display: flex;
+  min-height: 100vh;
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI Variable Display',
+    'Segoe UI',
+    Helvetica,
+    'Apple Color Emoji',
+    Arial,
+    sans-serif;
+
+  & h1 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    font-weight: 500;
+  }
+
+  --sidebar-width: 0;
+
+  &.withSidebar {
+    --sidebar-width: 260px;
+
+    @media screen and (max-width: 1300px) {
+      --sidebar-width: max(20vw, 150px);
+    }
+
+    @media screen and (max-width: 650px) {
+      --sidebar-width: 0;
+    }
+  }
+}
+
+.main {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  margin-left: var(--sidebar-width);
+}
+
+.sidebar {
+  box-sizing: border-box;
+  width: var(--sidebar-width);
+  font-size: 0.875rem;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+
+  @media screen and (max-width: 650px) {
+    display: none;
+  }
+}
+
+.landing {
+  padding-top: 30vh;
+}

@@ -1,0 +1,38 @@
+{
+  "id": "v1_ChdVR3NIYXVhR091S3NxdHNQdWI3b3NBWRIXVUdzSGF1YUdPdUtzcXRzUHViN29zQVk",
+  "status": "completed",
+  "usage": {
+    "total_tokens": 111,
+    "total_input_tokens": 95,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 95
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 16,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 0
+  },
+  "created": "2026-05-15T18:52:02Z",
+  "updated": "2026-05-15T18:52:02Z",
+  "service_tier": "standard",
+  "steps": [
+    {
+      "signature": "CiRlMjQ4MzBhNy01Y2Q2LTQyZmUtOTk4Yi1lZTUzOWU3MmI5YzM=",
+      "type": "thought"
+    },
+    {
+      "content": [
+        {
+          "text": "The weather in San Francisco is sunny with a temperature of 8 degrees Celsius.",
+          "type": "text"
+        }
+      ],
+      "type": "model_output"
+    }
+  ],
+  "object": "interaction",
+  "model": "gemini-2.5-flash"
+}

@@ -1,0 +1,224 @@
+---
+description: 'Rsbuild 支持通过 Browserslist 来设置 Web 应用需要兼容的浏览器范围。'
+---
+
+# 浏览器范围
+
+Rsbuild 支持通过 [Browserslist](https://browsersl.ist/) 来设置 Web 应用需要兼容的浏览器范围。
+
+## 什么是 Browserslist
+
+由于各种浏览器对 ECMAScript 和 CSS 的支持程度不同，因此开发者需要根据使用场景，为 Web 应用设置正确的浏览器范围。
+
+[Browserslist](https://browsersl.ist/) 可以指定 Web 应用能够在哪些浏览器中正常运行，它提供了统一的配置格式，并且已经成为了前端社区中的标准。Browserslist 被 SWC, Lightning CSS, Babel, ESLint, PostCSS 和 webpack 等库所使用。
+
+当你通过 Browserslist 指定了一个浏览器范围时，Rsbuild 会将 JavaScript 代码和 CSS 代码编译到指定的语法。
+
+## Polyfill 注入
+
+如果你开启了 [output.polyfill](/config/output/polyfill)，Rsbuild 还会基于 browserslist 注入相应的 polyfill 代码。**当你只需要兼容更现代的浏览器时，构建过程会引入更少的兼容代码和 polyfills，从而减少包体积。**
+
+1. 安装 [core-js](https://github.com/zloirock/core-js) 依赖：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add core-js" />
+
+2. 在配置文件中开启 polyfill 注入：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    polyfill: 'usage',
+  },
+};
+```
+
+比如，当你需要适配 IE11 浏览器时，Rsbuild 会将代码编译至 ES5，并通过 `core-js` 注入 IE11 所需的 polyfill。
+
+> 请参考 [浏览器兼容性](/guide/advanced/browser-compatibility) 了解更多。
+
+## 默认值 \{#default-values}
+
+Rsbuild 会根据 [output.target](/config/output/target) 来设置不同的 Browserslist 默认值，你也可以在项目中显式设置 Browserslist，这会让项目的兼容范围更加明确。
+
+### Web 产物
+
+当 `output.target` 为 `web` 时，Rsbuild 默认使用以下 Browserslist：
+
+```yaml title=".browserslistrc"
+chrome >= 107
+edge >= 107
+firefox >= 104
+safari >= 16
+```
+
+> 该浏览器范围对应 [Baseline](https://web-platform-dx.github.io/web-features/) 在 [2025-05-01](https://browsersl.ist/#q=baseline+widely+available+on+2025-05-01) 达到广泛可用状态。
+
+### Node 产物
+
+当 `output.target` 为 `node` 时，Rsbuild 默认输出运行在 Node.js 20.0 及以上版本的产物。
+
+```yaml title=".browserslistrc"
+node >= 20
+```
+
+### Web Workers 产物
+
+当 `output.target` 为 `web-worker` 时，Rsbuild 默认使用以下 Browserslist（与 `web` 一致）：
+
+```yaml title=".browserslistrc"
+chrome >= 107
+edge >= 107
+firefox >= 104
+safari >= 16
+```
+
+## 设置 Browserslist
+
+你可以在当前项目根目录的 `package.json` 或 `.browserslistrc` 文件里设置 Browserslist 的值。
+
+### 示例
+
+通过 `package.json` 的 `browserslist` 设置：
+
+```json title="package.json"
+{
+  "browserslist": ["iOS >= 9", "Android >= 4.4", "last 2 versions", "> 0.2%", "not dead"]
+}
+```
+
+通过独立的 `.browserslistrc` 文件设置：
+
+```yaml title=".browserslistrc"
+iOS >= 9
+Android >= 4.4
+last 2 versions
+> 0.2%
+not dead
+```
+
+### 生效范围
+
+`.browserslistrc` 文件默认只对浏览器端的构建产物生效，包括 `web` 和 `web-worker` 这两种产物类型。
+
+当你同时构建多种产物，比如 target 包含 `web` 和 `node` 两种产物时，只有 `web` 产物会受到 `.browserslistrc` 文件的影响。如果你希望对 `node` 产物进行修改，可以使用下方的 `output.overrideBrowserslist` 配置。
+
+### 按环境设置
+
+你可以基于 `NODE_ENV` 来设置不同的 browserslist，这样可以为开发模式和生产模式指定不同浏览器范围。
+
+比如在 `package.json` 中基于 key 设置：
+
+```json title="package.json"
+{
+  "browserslist": {
+    "production": ["chrome >= 107", "edge >= 107", "firefox >= 104", "safari >= 16"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+  }
+}
+```
+
+也可以通过 `.browserslistrc`：
+
+```yaml title=".browserslistrc"
+[production]
+chrome >= 107
+edge >= 107
+firefox >= 104
+safari >= 16
+
+[development]
+last 1 chrome version
+last 1 firefox version
+last 1 safari version
+```
+
+### 通过配置覆盖
+
+除了上述的标准用法，Rsbuild 还提供了 [output.overrideBrowserslist](/config/output/override-browserslist) 配置项，同样可以设置 Browserslist 的值。
+
+`overrideBrowserslist` 可以被设置为一个数组，数组的写法与 `browserslistrc` 配置是一样的，但比 `browserslistrc` 拥有更高的优先级。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    overrideBrowserslist: ['iOS >= 9', 'Android >= 4.4', 'last 2 versions', '> 0.2%', 'not dead'],
+  },
+};
+```
+
+大多数场景下，推荐优先使用 `.browserslistrc` 文件，而不是使用 `overrideBrowserslist` 配置。因为 `.browserslistrc` 文件是标准配置文件，通用性更强，可以被社区中的其他库识别。
+
+## 常用的浏览器范围
+
+以下是一些常用的浏览器范围，你可以根据自己的项目类型进行选择。
+
+### 桌面端 Web 应用
+
+对于桌面端 Web 应用，如果你需要兼容 IE 11 浏览器，则可以将 Browserslist 设置为：
+
+```yaml title=".browserslistrc"
+> 0.5%
+not dead
+IE 11
+```
+
+以上浏览器范围会将代码编译至 ES5，具体对应的浏览器列表可以查看 [browserslist.dev](https://browserslist.dev/?q=PiAwLjUlLCBub3QgZGVhZCwgSUUgMTE%3D)。
+
+如果你不需要兼容 IE 11 浏览器，那么可以调整 Browserslist 来获得更高性能的产物，比如：
+
+- 设置为支持原生 ES Modules 的浏览器：
+
+```yaml title=".browserslistrc"
+chrome >= 87
+edge >= 88
+firefox >= 78
+safari >= 14
+```
+
+- 设置为支持 ES6 的浏览器：
+
+```yaml title=".browserslistrc"
+chrome >= 51
+edge >= 15
+firefox >= 54
+safari >= 10
+ios_saf >= 10
+```
+
+### 移动端 Web 应用
+
+移动端 Web 应用主要兼容 `iOS` 和 `Android` 系统，通常我们将 Browserslist 设置为：
+
+```yaml title=".browserslistrc"
+iOS >= 9
+Android >= 4.4
+last 2 versions
+> 0.2%
+not dead
+```
+
+以上浏览器范围会将代码编译至 ES5，可以兼容市面上绝大多数移动端场景，具体对应的浏览器列表可以查看 [browserslist.dev](https://browserslist.dev/?q=aU9TID49IDksIEFuZHJvaWQgPj0gNC40LCBsYXN0IDIgdmVyc2lvbnMsID4gMC4yJSwgbm90IGRlYWQ%3D)。
+
+![](https://assets.rspack.rs/rsbuild/assets/browserslist-dev-example.png)
+
+你也可以选择使用 ES6 或更高版本，这样会让页面的性能表现更好，对应的 Browserslist 如下：
+
+```yaml title=".browserslistrc"
+iOS >= 10
+Chrome >= 51
+> 0.5%
+not dead
+not op_mini all
+```
+
+## 查询浏览器支持情况
+
+在开发时，我们需要了解某些特性或 API 的浏览器支持情况，此时我们可以在 [caniuse](https://caniuse.com/) 网站上进行查询。
+
+比如我们需要知道 `Promise` 的浏览器支持情况，只需要在 [caniuse](https://caniuse.com/) 中输入 `Promise`，就可以看到以下结果：
+
+![](https://assets.rspack.rs/rsbuild/assets/caniuse-promise-example.png)
+
+从上表可以看出，`Promise` 在 Chrome 33 和 iOS 8 中得到了原生支持，但是在 IE 11 中不被支持。

@@ -1,0 +1,10 @@
+{
+  "status": "IN_QUEUE",
+  "request_id": "test-id",
+  "response_url": "https://queue.fal.run/fal-ai/wizper/requests/test-id/result",
+  "status_url": "https://queue.fal.run/fal-ai/wizper/requests/test-id",
+  "cancel_url": "https://queue.fal.run/fal-ai/wizper/requests/test-id/cancel",
+  "logs": null,
+  "metrics": {},
+  "queue_position": 4
+}

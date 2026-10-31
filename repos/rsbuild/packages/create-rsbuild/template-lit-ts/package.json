@@ -1,0 +1,19 @@
+{
+  "name": "rsbuild-lit-ts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rsbuild build",
+    "dev": "rsbuild --open",
+    "preview": "rsbuild preview"
+  },
+  "dependencies": {
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.1.6",
+    "@types/node": "^24.13.3",
+    "typescript": "^6.0.3"
+  }
+}

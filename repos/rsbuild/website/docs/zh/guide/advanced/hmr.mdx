@@ -1,0 +1,77 @@
+---
+description: '模块热更新指南，介绍相关能力、配置方法和实践建议。'
+---
+
+# 模块热更新
+
+模块热更新（HMR - hot module replacement）功能会在应用程序运行过程中，替换、添加或删除模块，而无需重新加载整个页面。主要是通过以下几种方式，来显著加快开发速度：
+
+- 保留在完全重新加载页面期间丢失的应用程序状态。
+- 只更新变更内容，以节省宝贵的开发时间。
+- 在源代码中 CSS / JS 产生修改时，会立刻在浏览器中进行更新，这几乎相当于在浏览器 devtools 直接更改样式。
+
+## HMR 开关
+
+Rsbuild 已内置了对 HMR 的支持，在开发模式下默认启用。
+
+如果你不需要使用 HMR 能力，可以将 [dev.hmr](/config/dev/hmr) 设置为 `false`，此时热更新和 react-refresh 将被禁用，Rsbuild 会自动降级到 [dev.liveReload](/config/dev/live-reload)。
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    hmr: false,
+  },
+};
+```
+
+如果你需要同时禁用 HMR 和 liveReload，可以将 [dev.hmr](/config/dev/hmr) 和 [dev.liveReload](/config/dev/live-reload) 都设置为 `false`，此时页面上不会发起 WebSocket 请求到 dev server，也不会在文件变更时自动刷新页面。
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    hmr: false,
+    liveReload: false,
+  },
+};
+```
+
+## 自定义 HMR URL
+
+在默认情况下，Rsbuild 使用当前页面的 host 和端口号来拼接 HMR 对应的 WebSocket URL。
+
+当出现 HMR 连接失败的情况时，你可以自定义 [dev.client](/config/dev/client) 配置来指定 WebSocket URL。
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    client: {
+      host: 'localhost',
+      protocol: 'ws',
+    },
+  },
+};
+```
+
+## 文件监听 \{#file-watching}
+
+Rsbuild 默认不监听 `.git/` 和 `node_modules/` 目录下的文件，当这些目录下的文件发生变化时，Rsbuild 不会触发重新构建。这有助于减少内存占用和提升构建性能。
+
+如果你希望监听这些目录，可以手动配置 Rspack 的 [watchOptions.ignored](https://rspack.rs/zh/config/watch#watchoptionsignored) 来覆盖默认行为。
+
+例如，监听 `node_modules/` 目录且忽略 `.git/` 目录，可以配置为：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      watchOptions: {
+        ignored: /\.git/,
+      },
+    },
+  },
+};
+```
+
+## 常见问题
+
+请参考 [热更新问题](/guide/faq/hmr)。

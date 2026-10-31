@@ -1,0 +1,117 @@
+---
+title: Secure URL Fetching
+description: How the AI SDK protects server-side fetches of URLs returned by model providers, and how to harden your deployment further.
+---
+
+# Secure URL Fetching
+
+Many providers return a **URL in their response body** — a generated image,
+audio, or video to download, or a polling URL to check job status. The AI SDK
+fetches these server-side and returns the result to your code. Because that URL
+comes from an external service, a malicious or compromised provider (or anyone
+able to tamper with the response) could point it at an internal address such as
+a cloud-metadata endpoint (`http://169.254.169.254/…`), a private host
+(`http://10.0.0.5/…`), or `localhost`.
+
+To prevent that, the SDK validates every response-supplied URL before fetching
+it. This happens automatically inside the provider packages — you don't need to
+configure anything.
+
+## What the SDK protects against
+
+When the SDK fetches a URL taken from a provider response, it:
+
+- **Rejects private, loopback, and link-local targets** — IPv4 (`10/8`,
+  `172.16/12`, `192.168/16`, `127/8`, `169.254/16`, CGNAT, multicast, …) and the
+  equivalent IPv6 ranges, plus `localhost` and `.local`. Non-`http(s)` schemes
+  are rejected too.
+- **Re-validates every redirect hop** — a URL that passes but then redirects to
+  an internal address is blocked; the redirect is never followed blindly.
+- **Strips risky request headers** — proxy-forwarding, cloud-metadata, and
+  cookie headers are removed before the request.
+- **Drops credentials across origins** — caller headers (`Authorization`,
+  `Cookie`, and provider-specific API-key headers alike) are not sent to a host
+  on a different origin than the provider's; a redirect that crosses origin
+  drops all of them except the user-agent.
+
+A blocked URL surfaces as a `DownloadError`.
+
+## Self-hosted and local endpoints
+
+URLs that are same-origin with the provider endpoint **you configured** (e.g. a
+custom `baseURL` pointing at a self-hosted or `localhost` deployment) are
+exempt from these checks — they target exactly the host you told the SDK to
+talk to. Any redirect off that origin is still validated.
+
+## Limitation: DNS resolution and DNS rebinding
+
+The built-in guard inspects the URL **as a string**. It deliberately does
+**not resolve DNS**, so two attacks remain out of scope at this layer:
+
+1. **Hostname that resolves to a private IP** — a literal host that looks public
+   but whose DNS record points at an internal address.
+2. **DNS rebinding** — a host that resolves to a public IP when validated and a
+   private IP a moment later when the socket actually connects (a
+   time-of-check/time-of-use window).
+
+### Why this isn't built in
+
+Closing these requires resolving DNS and pinning the resolved IP **at connect
+time** — Node-only capabilities (`node:dns`, a custom `undici` dispatcher). The
+SDK's provider utilities are **cross-runtime**: they run on the edge, in the
+browser, and on Bun/Deno, with no Node-only dependencies, so those APIs aren't
+available there. The threat is also specifically a **server-side** one — on the
+edge and in the browser, outbound `fetch` cannot reach a host's internal network
+or metadata endpoint in the first place. So connect-time IP pinning is only
+meaningful, and only available, on a Node server — which is exactly where you
+can add it yourself.
+
+## Hardening your deployment
+
+If your server fetches provider-supplied URLs and you want to close the DNS
+gaps, use one (ideally both) of these:
+
+### 1. Restrict outbound egress at the network layer
+
+Deny your server's network egress to `169.254.0.0/16`, RFC-1918 ranges, and
+loopback. This is the most robust control and is independent of application
+code.
+
+### 2. Inject a hardened `fetch`
+
+Every provider accepts a custom `fetch`. On Node, back it with an `undici`
+`Agent` whose `connect.lookup` validates the resolved IP and lets the socket
+connect only to a safe address — closing both the hostname-to-private and the
+DNS-rebinding windows:
+
+```ts
+import { Agent, fetch as undiciFetch } from 'undici';
+import { lookup } from 'node:dns';
+
+// Your own check that returns true for private/loopback/link-local addresses.
+declare function isUnsafeAddress(ip: string): boolean;
+
+const safeLookup: typeof lookup = (hostname, options, callback) => {
+  lookup(hostname, options as any, (err, address, family) => {
+    if (!err && typeof address === 'string' && isUnsafeAddress(address)) {
+      callback(new Error(`Refusing to connect to ${address}`), '', 0);
+      return;
+    }
+    (callback as any)(err, address, family);
+  });
+};
+
+const safeDispatcher = new Agent({ connect: { lookup: safeLookup } });
+
+const safeFetch: typeof fetch = (input, init) =>
+  undiciFetch(input, { ...init, dispatcher: safeDispatcher }) as any;
+```
+
+```ts
+import { createFal } from '@ai-sdk/fal';
+
+const fal = createFal({ fetch: safeFetch });
+```
+
+The SDK's built-in validation and your connect-time pinning are complementary —
+keep both.

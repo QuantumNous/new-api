@@ -1,0 +1,62 @@
+# Direction Provider
+
+<Subtitle>Enables RTL behavior for Base UI components.</Subtitle>
+<Meta
+  name="description"
+  content="A direction provider component that enables RTL behavior for Base UI components."
+/>
+
+import { DemoDirectionProviderHero } from './demos/hero';
+
+<DemoDirectionProviderHero />
+
+## Anatomy
+
+Import the component and wrap it around your app:
+
+```jsx title="Anatomy"
+import { DirectionProvider } from '@base-ui/react/direction-provider';
+
+// prettier-ignore
+<DirectionProvider>
+  {/* Your app or a group of components */}
+</DirectionProvider>
+```
+
+`<DirectionProvider>` enables child Base UI components to adjust behavior based on RTL text direction, but does not affect HTML and CSS. The `dir="rtl"` HTML attribute or `direction: rtl` CSS style must be set additionally by your own application code.
+
+## API reference
+
+import {
+  TypesDirectionProvider,
+  TypesUseDirection,
+  TypesDirectionProviderAdditionalTypes,
+} from './types';
+
+### DirectionProvider
+
+<TypesDirectionProvider />
+
+### useDirection
+
+Use this hook to read the current text direction. This is useful for wrapping portaled components that may be rendered outside your application root and are unaffected by the `dir` attribute set within.
+
+<TypesUseDirection />
+
+<TypesDirectionProviderAdditionalTypes />
+
+export const metadata = {
+  keywords: [
+    'Base UI Direction Provider',
+    'React RTL Context',
+    'Text Direction Hook',
+    'useDirection Base UI',
+    'Headless RTL Components',
+    'Internationalization',
+    'i18n',
+    'Bidirectional Text',
+    'Locale Support',
+    'Arabic Hebrew Support',
+    'LTR RTL Switch',
+  ],
+};

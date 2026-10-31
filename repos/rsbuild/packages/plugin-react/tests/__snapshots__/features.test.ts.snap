@@ -1,0 +1,41 @@
+// Rstest Snapshot v1
+
+exports[`splitChunks > should apply antd/semi/... splitChunks rule when pkg is installed 1`] = `
+{
+  "cacheGroups": {
+    "react": {
+      "name": "lib-react",
+      "priority": 0,
+      "test": /node_modules\\[\\\\\\\\/\\]\\(\\?:react\\|react-dom\\|scheduler\\|react-refresh\\|@rspack\\[\\\\\\\\/\\]plugin-react-refresh\\)\\[\\\\\\\\/\\]/,
+    },
+    "router": {
+      "name": "lib-router",
+      "priority": 0,
+      "test": /node_modules\\[\\\\\\\\/\\]\\(\\?:react-router\\|react-router-dom\\|history\\|@remix-run\\[\\\\\\\\/\\]router\\)\\[\\\\\\\\/\\]/,
+    },
+  },
+  "chunks": "all",
+}
+`;
+
+exports[`splitChunks > should apply splitChunks.react/router plugin option when strategy is split-by-experience 1`] = `
+{
+  "cacheGroups": {},
+  "chunks": "all",
+}
+`;
+
+exports[`splitChunks > should not apply splitChunks rule when strategy is not split-by-experience 1`] = `
+{
+  "cacheGroups": {
+    "singleVendor": {
+      "chunks": "all",
+      "enforce": true,
+      "name": "vendor",
+      "priority": 0,
+      "test": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+    },
+  },
+  "chunks": "all",
+}
+`;

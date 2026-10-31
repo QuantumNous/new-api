@@ -1,0 +1,145 @@
+# v1.3.0
+
+<Subtitle>Mar 12, 2026</Subtitle>
+<Meta name="description" content="v1.3.0 release notes. Mar 12, 2026." />
+
+## General changes
+
+- Warn when a component function is rendered directly ([#4077](https://github.com/mui/base-ui/pull/4077))
+- Reset `openMethod` after close transition ([#4128](https://github.com/mui/base-ui/pull/4128))
+- Fire <kbd>Space</kbd> activation on `keydown` in composite widgets ([#4053](https://github.com/mui/base-ui/pull/4053))
+- Skip CSS-hidden items during keyboard navigation in composite widgets ([#4195](https://github.com/mui/base-ui/pull/4195))
+- Optimize hot paths in `useHover` hooks and `safePolygon` ([#4199](https://github.com/mui/base-ui/pull/4199))
+- Snap `--anchor-width` and `--anchor-height` to device pixel grid ([#4082](https://github.com/mui/base-ui/pull/4082))
+- Fix outside press dismissal when a component is portaled into a shadow DOM ([#4230](https://github.com/mui/base-ui/pull/4230))
+- Fix nested hoverable popups ([#4206](https://github.com/mui/base-ui/pull/4206))
+- Apply `data-base-ui-inert` to highest-level node ([#3955](https://github.com/mui/base-ui/pull/3955))
+- Fix portable types ([#4058](https://github.com/mui/base-ui/pull/4058))
+
+## Accordion
+
+- Add generic `Value` typing ([#4138](https://github.com/mui/base-ui/pull/4138))
+
+## Autocomplete
+
+- Respect a `null` `filter` prop ([#4117](https://github.com/mui/base-ui/pull/4117))
+- Add `InputGroup` part ([#3745](https://github.com/mui/base-ui/pull/3745))
+
+## Avatar
+
+- Remove fallback transition logic and prevent premature image display ([#4110](https://github.com/mui/base-ui/pull/4110))
+
+## Button
+
+- Avoid checking `disabled` twice in `onKeyDown` and `onKeyUp` ([#4132](https://github.com/mui/base-ui/pull/4132))
+
+## Checkbox
+
+- Add automatic `aria-labelledby` support ([#4142](https://github.com/mui/base-ui/pull/4142))
+
+## Combobox
+
+- Avoid applying field attributes to input when it is inside popup ([#4154](https://github.com/mui/base-ui/pull/4154))
+- Preserve inline input on `Enter` when nothing is highlighted ([#4235](https://github.com/mui/base-ui/pull/4235))
+- Fix ARIA attributes during SSR ([#4179](https://github.com/mui/base-ui/pull/4179))
+- Fix wrapping in virtualized grid arrow-key navigation ([#4164](https://github.com/mui/base-ui/pull/4164))
+- Add `InputGroup` part ([#3745](https://github.com/mui/base-ui/pull/3745))
+- Add support for a visually hidden close button and improve modal focus trapping ([#4084](https://github.com/mui/base-ui/pull/4084))
+- Add `Label` part ([#4167](https://github.com/mui/base-ui/pull/4167))
+
+## Context Menu
+
+- Ignore `mouseup` on non-Mac platforms ([#3944](https://github.com/mui/base-ui/pull/3944))
+
+## Drawer
+
+- **Breaking change:** `Drawer` is no longer marked as preview<br />
+  `Drawer` is now stable and should be imported as `{ Drawer } from '@base-ui/react/drawer'` ([#4293](https://github.com/mui/base-ui/pull/4293))
+- Fix React 17 support ([#4178](https://github.com/mui/base-ui/pull/4178))
+- Include border in frontmost height variable ([#4202](https://github.com/mui/base-ui/pull/4202))
+- Improve touch selection ([#4104](https://github.com/mui/base-ui/pull/4104))
+- Preserve cross-axis scrolling during touch gestures ([#4187](https://github.com/mui/base-ui/pull/4187))
+- Prevent swipe dismissal when component is controlled ([#4133](https://github.com/mui/base-ui/pull/4133))
+- Add `SwipeArea` part ([#4102](https://github.com/mui/base-ui/pull/4102))
+- Make `data-base-ui-swipe-ignore` explicit for touch interactions ([#4295](https://github.com/mui/base-ui/pull/4295))
+- Disable inheritance for swipe CSS variables ([#4099](https://github.com/mui/base-ui/pull/4099))
+
+## Field
+
+- Fix field validation when `Form` errors or `invalid` prop are present at same time ([#4112](https://github.com/mui/base-ui/pull/4112))
+
+## Menu
+
+- Prevent `pointerleave` from stealing focus from dialogs ([#4125](https://github.com/mui/base-ui/pull/4125))
+- Optimize `pointer-events` for submenu hover interactions ([#4231](https://github.com/mui/base-ui/pull/4231))
+- Fix `closeDelay` not being applied to `Menu.SubmenuTrigger` ([#4134](https://github.com/mui/base-ui/pull/4134))
+- Implement content transitions with `Viewport` ([#4060](https://github.com/mui/base-ui/pull/4060))
+
+## Meter
+
+- Fix label announcements in NVDA ([#4200](https://github.com/mui/base-ui/pull/4200))
+
+## Navigation Menu
+
+- Fix support for nested inline menus ([#4198](https://github.com/mui/base-ui/pull/4198))
+- Fix close propagation in nested hover menus ([#4285](https://github.com/mui/base-ui/pull/4285))
+- Close parent menus when nested link with `closeOnClick` is clicked ([#4276](https://github.com/mui/base-ui/pull/4276))
+- Fix duplicate `aria-orientation` ([#4309](https://github.com/mui/base-ui/pull/4309))
+- Fix delayed trigger switches in Safari ([#4310](https://github.com/mui/base-ui/pull/4310))
+
+## Number Field
+
+- Fix increment/decrement press `reason` values in `onValueCommitted` ([#4259](https://github.com/mui/base-ui/pull/4259))
+
+## Popover
+
+- Trap focus when `<Popover.Close>` is rendered inside and `modal` is `true`, and add support for a visually hidden close button ([#4084](https://github.com/mui/base-ui/pull/4084))
+- Fix nested hoverable popups ([#3798](https://github.com/mui/base-ui/pull/3798))
+
+## Preview Card
+
+- Fix nested hoverable popups ([#3798](https://github.com/mui/base-ui/pull/3798))
+
+## Progress
+
+- Fix label announcements in NVDA ([#4200](https://github.com/mui/base-ui/pull/4200))
+
+## Radio Group
+
+- Add automatic `aria-labelledby` support ([#4142](https://github.com/mui/base-ui/pull/4142))
+
+## Scroll Area
+
+- Fix focus trapping with a non-scrollable viewport ([#4220](https://github.com/mui/base-ui/pull/4220))
+- Fix thumb size after remounting ([#4107](https://github.com/mui/base-ui/pull/4107))
+
+## Select
+
+- Fix hidden input `id` fallback ([#4135](https://github.com/mui/base-ui/pull/4135))
+- Fix `Value` placeholder not rendering with `Record` items ([#4137](https://github.com/mui/base-ui/pull/4137))
+- Fire `onClick` during drag-to-select ([#3969](https://github.com/mui/base-ui/pull/3969))
+- Fix `items` type definition for groups ([#3884](https://github.com/mui/base-ui/pull/3884))
+- Fix `alignItemWithTrigger` fallback with browser zoom ([#4292](https://github.com/mui/base-ui/pull/4292))
+- Add `Label` part ([#4167](https://github.com/mui/base-ui/pull/4167))
+
+## Slider
+
+- Add `Label` part ([#4167](https://github.com/mui/base-ui/pull/4167))
+- Stop committing validation on `touchend` ([#4091](https://github.com/mui/base-ui/pull/4091))
+
+## Switch
+
+- Add automatic `aria-labelledby` support ([#4142](https://github.com/mui/base-ui/pull/4142))
+
+## Tabs
+
+- Re-render indicator position on tab resize ([#4165](https://github.com/mui/base-ui/pull/4165))
+
+## Toast
+
+- Enable closing all toasts ([#3979](https://github.com/mui/base-ui/pull/3979))
+- Prevent duplicate `onClose` calls for ending toasts ([#4280](https://github.com/mui/base-ui/pull/4280))
+
+## Tooltip
+
+- Add `closeOnClick` prop ([#4140](https://github.com/mui/base-ui/pull/4140))

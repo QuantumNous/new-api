@@ -1,0 +1,101 @@
+---
+description: '通过 tools.htmlPlugin 可以修改 html-rspack-plugin 的配置项。'
+---
+
+# tools.htmlPlugin
+
+- **类型：** `boolean | Object | Function`
+- **默认值：**
+
+```js
+const defaultOptions = {
+  meta, // 对应 `html.meta` 配置
+  title, // 对应 `html.title` 配置
+  inject, // 对应 `html.inject` 配置
+  favicon, // 对应 `html.favicon` 配置
+  template, // 对应 `html.template` 配置
+  filename, // 基于 `output.distPath` 和 `entryName` 生成
+  templateParameters, // 对应 `html.templateParameters` 配置
+  chunks: [entryName],
+};
+```
+
+通过 `tools.htmlPlugin` 可以修改 [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin) 的配置项。
+
+Rsbuild 内部基于 [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin) 实现 HTML 相关的能力。它是 [html-webpack-plugin](https://github.com/jantimon/html-webpack-plugin) 的一个 fork 版本，具备完全一致的功能和选项。
+
+:::tip
+如果你需要修改 `title`、`template`、`templateParameters`、`meta` 等选项，推荐优先使用 Rsbuild 提供的对应 HTML 配置项，如 [html.title](/config/html/title)、[html.template](/config/html/template) 等。
+
+这是因为这些配置间存在一些关联关系，Rsbuild 对于 HTML 配置项提供了一些内部的优化处理，例如，如果当前项目使用的 HTML 模板中已经包含了 `<title>` 标签，那么 `html.title` 将不会生效。
+:::
+
+## Object 类型
+
+当 `tools.htmlPlugin` 的值为 `Object` 类型时，会与默认配置通过 `Object.assign` 合并。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin: {
+      scriptLoading: 'blocking',
+    },
+  },
+};
+```
+
+## Function 类型
+
+当 `tools.htmlPlugin` 为 Function 类型时：
+
+- 第一个参数是默认配置的对象，可以直接修改该对象。
+- 第二个参数是也是一个对象，包含了 entry 的名称和 entry 的值。
+- 函数可以 return 一个新的对象作为最终的配置。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin(config, { entryName, entryValue }) {
+      if (entryName === 'main') {
+        config.scriptLoading = 'blocking';
+      }
+    },
+  },
+};
+```
+
+## 禁用 HTML
+
+将 `tools.htmlPlugin` 配置为 `false`，可以禁用 Rsbuild 内置的 `html-rspack-plugin` 插件，此时将不会生成 HTML 文件。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin: false,
+  },
+};
+```
+
+## 示例
+
+### 修改 HTML 文件名
+
+通过 `filename` 选项可以修改 HTML 产物的文件名。
+
+例如，在生产模式构建时，可以在文件名上添加 `hash`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin(config, { entryName }) {
+      if (process.env.NODE_ENV === 'production') {
+        config.filename = `${entryName}.[contenthash:10].html`;
+      }
+    },
+  },
+};
+```
+
+## HTML 压缩
+
+Rsbuild 目前不对 HTML 文件进行压缩，如果你需要压缩 HTML 文件，可以使用 [rsbuild-plugin-html-minifier-terser 插件](https://github.com/rstackjs/rsbuild-plugin-html-minifier-terser)。

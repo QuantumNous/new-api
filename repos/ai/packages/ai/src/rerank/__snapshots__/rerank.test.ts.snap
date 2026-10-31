@@ -1,0 +1,74 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`rerank > options.onEnd > should send correct event information 1`] = `
+{
+  "callId": "test-call-id",
+  "documents": [
+    "sunny day at the beach",
+    "rainy day in the city",
+    "cloudy day in the mountains",
+  ],
+  "modelId": "mock-model-id",
+  "operationId": "ai.rerank",
+  "provider": "mock-provider",
+  "providerMetadata": {
+    "aProvider": {
+      "someResponseKey": "someResponseValue",
+    },
+  },
+  "query": "rainy day",
+  "ranking": [
+    {
+      "document": "cloudy day in the mountains",
+      "originalIndex": 2,
+      "score": 0.9,
+    },
+    {
+      "document": "sunny day at the beach",
+      "originalIndex": 0,
+      "score": 0.8,
+    },
+    {
+      "document": "rainy day in the city",
+      "originalIndex": 1,
+      "score": 0.7,
+    },
+  ],
+  "response": {
+    "body": {
+      "id": "123",
+    },
+    "headers": {
+      "content-type": "application/json",
+    },
+    "id": "mock-response-id",
+    "modelId": "mock-response-model-id",
+    "timestamp": 2025-06-01T00:00:00.000Z,
+  },
+  "warnings": [
+    {
+      "message": "test warning",
+      "type": "other",
+    },
+  ],
+}
+`;
+
+exports[`rerank > options.onStart > should send correct event information 1`] = `
+{
+  "callId": "test-call-id",
+  "documents": [
+    "sunny day at the beach",
+    "rainy day in the city",
+    "cloudy day in the mountains",
+  ],
+  "headers": undefined,
+  "maxRetries": 2,
+  "modelId": "mock-model-id",
+  "operationId": "ai.rerank",
+  "provider": "mock-provider",
+  "providerOptions": undefined,
+  "query": "rainy day",
+  "topN": 3,
+}
+`;

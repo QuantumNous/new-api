@@ -1,0 +1,64 @@
+.Root {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.Label {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 700;
+  color: var(--color-gray-900);
+}
+
+.Value {
+  grid-column-start: 2;
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-gray-900);
+}
+
+.Control {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 14rem;
+  padding: 0.75rem;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.Track {
+  height: 100%;
+  width: 0.25rem;
+  background-color: var(--color-gray-200);
+  box-shadow: inset 0 0 0 1px var(--color-gray-200);
+  border-radius: 0.25rem;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.Indicator {
+  border-radius: 0.25rem;
+  background-color: var(--color-gray-700);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.Thumb {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 100%;
+  background-color: white;
+  outline: 1px solid var(--color-gray-300);
+  -webkit-user-select: none;
+  user-select: none;
+
+  &:has(:focus-visible) {
+    outline: 2px solid var(--color-blue);
+  }
+}

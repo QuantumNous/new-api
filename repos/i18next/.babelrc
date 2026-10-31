@@ -1,0 +1,9 @@
+{
+  "presets": [["@babel/env", {
+    "targets": {
+      "browsers":[
+        "defaults"
+      ]
+    }
+  }], "@babel/react"]
+}

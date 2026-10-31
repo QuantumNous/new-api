@@ -1,0 +1,6 @@
+@layer components {
+  .TableCode {
+    font-size: 0.8125rem; /* 13px */
+    line-height: 1.25rem; /* 20px */
+  }
+}

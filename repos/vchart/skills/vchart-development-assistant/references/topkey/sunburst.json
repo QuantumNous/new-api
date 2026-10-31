@@ -1,0 +1,170 @@
+{
+  "padding": {
+    "key": "padding",
+    "oneDesc": "布局 padding的配置"
+  },
+  "percent": {
+    "key": "percent",
+    "oneDesc": "是否对数据进行百分比处理"
+  },
+  "name": {
+    "key": "name",
+    "oneDesc": "系列名称"
+  },
+  "id": {
+    "key": "id",
+    "oneDesc": "用户自定义的 series id"
+  },
+  "animation": {
+    "key": "animation",
+    "oneDesc": "是否开启系列动画"
+  },
+  "gap": {
+    "key": "gap",
+    "oneDesc": "对所有层生效"
+  },
+  "innerRadius": {
+    "key": "innerRadius",
+    "oneDesc": "最内层"
+  },
+  "outerRadius": {
+    "key": "outerRadius",
+    "oneDesc": "最外层"
+  },
+  "startAngle": {
+    "key": "startAngle",
+    "oneDesc": "起始角度"
+  },
+  "endAngle": {
+    "key": "endAngle",
+    "oneDesc": "终止角度"
+  },
+  "stack": {
+    "key": "stack",
+    "oneDesc": "是否对数据进行堆叠处理"
+  },
+  "animationEnter": {
+    "key": "animationEnter",
+    "oneDesc": "数据更新 - 新增数据动画"
+  },
+  "animationUpdate": {
+    "key": "animationUpdate",
+    "oneDesc": "数据更新 - 数据更新动画"
+  },
+  "animationExit": {
+    "key": "animationExit",
+    "oneDesc": "数据更新 - 数据删除动画"
+  },
+  "dataIndex": {
+    "key": "dataIndex",
+    "oneDesc": "系列关联的数据索引"
+  },
+  "valueField": {
+    "key": "valueField",
+    "oneDesc": "权重字段"
+  },
+  "animationState": {
+    "key": "animationState",
+    "oneDesc": "状态切换动画"
+  },
+  "support3d": {
+    "key": "support3d",
+    "oneDesc": "是否支持3d视角"
+  },
+  "regionIndex": {
+    "key": "regionIndex",
+    "oneDesc": "系列关联的region索引"
+  },
+  "regionId": {
+    "key": "regionId",
+    "oneDesc": "系列关联的region id"
+  },
+  "drill": {
+    "key": "drill",
+    "oneDesc": "下钻功能开关"
+  },
+  "totalLabel": {
+    "key": "totalLabel",
+    "oneDesc": "堆叠汇总标签"
+  },
+  "offsetX": {
+    "key": "offsetX",
+    "oneDesc": "旭日图中心点, x坐标偏移量."
+  },
+  "offsetY": {
+    "key": "offsetY",
+    "oneDesc": "旭日图中心点, y坐标偏移量."
+  },
+  "animationAppear": {
+    "key": "animationAppear",
+    "oneDesc": "图表入场动画\n支持配置图表内置不同动画效果"
+  },
+  "animationDisappear": {
+    "key": "animationDisappear",
+    "oneDesc": "图表退场动画"
+  },
+  "animationNormal": {
+    "key": "animationNormal",
+    "oneDesc": "循环动画"
+  },
+  "categoryField": {
+    "key": "categoryField",
+    "oneDesc": "分类字段"
+  },
+  "labelLayout": {
+    "key": "labelLayout",
+    "oneDesc": "label布局相关参数"
+  },
+  "label": {
+    "key": "label",
+    "oneDesc": "对所有层生效"
+  },
+  "sunburst": {
+    "key": "sunburst",
+    "oneDesc": "旭日图中单个扇区图元配置.同时可以配置选中，hover等交互状态下的图元和鼠标的样式"
+  },
+  "dataId": {
+    "key": "dataId",
+    "oneDesc": "系列关联的数据id"
+  },
+  "dataKey": {
+    "key": "dataKey",
+    "oneDesc": "dataKey用于绑定数据与Mark的关系, 该配置在动画中非常重要."
+  },
+  "seriesField": {
+    "key": "seriesField",
+    "oneDesc": "分组字段"
+  },
+  "stackOffsetSilhouette": {
+    "key": "stackOffsetSilhouette",
+    "oneDesc": "是否围绕中心轴偏移轮廓"
+  },
+  "invalidType": {
+    "key": "invalidType",
+    "oneDesc": "null，undefined等非法数据点连接方式。"
+  },
+  "extensionMark": {
+    "key": "extensionMark",
+    "oneDesc": "扩展mark"
+  },
+  "interactions": {
+    "key": "interactions",
+    "oneDesc": "其他需要按需注册的类型交互"
+  },
+  "drillField": {
+    "key": "drillField",
+    "oneDesc": "通过API进行钻取, 需要此配置项."
+  },
+  "centerX": {
+    "key": "centerX",
+    "oneDesc": "旭日图中心点, x坐标."
+  },
+  "centerY": {
+    "key": "centerY",
+    "oneDesc": "旭日图中心点, y坐标."
+  },
+  "labelAutoVisible": {
+    "key": "labelAutoVisible",
+    "oneDesc": "自动隐藏密集标签"
+  }
+}

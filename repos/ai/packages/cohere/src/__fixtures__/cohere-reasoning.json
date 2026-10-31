@@ -1,0 +1,28 @@
+{
+  "id": "53bcb235-5179-4a91-a578-cb372b5430bc",
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "thinking",
+        "thinking": "Okay, so I need to figure out what 2 + 2 is. Let me start by recalling what addition means."
+      },
+      {
+        "type": "text",
+        "text": "2 + 2 = 4"
+      }
+    ]
+  },
+  "finish_reason": "COMPLETE",
+  "usage": {
+    "billed_units": {
+      "input_tokens": 8,
+      "output_tokens": 578
+    },
+    "tokens": {
+      "input_tokens": 1394,
+      "output_tokens": 582
+    },
+    "cached_tokens": 1344
+  }
+}

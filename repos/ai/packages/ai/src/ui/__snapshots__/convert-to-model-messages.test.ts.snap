@@ -1,0 +1,419 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`convertToModelMessages > assistant message > should handle assistant message with tool invocations that have multi-part responses 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Let me calculate that for you.",
+        "type": "text",
+      },
+      {
+        "input": {},
+        "providerExecuted": undefined,
+        "toolCallId": "call1",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "text",
+          "value": "imgbase64",
+        },
+        "toolCallId": "call1",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+    ],
+    "role": "tool",
+  },
+]
+`;
+
+exports[`convertToModelMessages > assistant message > should handle conversation with an assistant message that has empty tool invocations 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "text1",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "text": "text2",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`convertToModelMessages > assistant message > should handle conversation with mix of tool invocations and text 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "i am gonna use tool1",
+        "type": "text",
+      },
+      {
+        "input": {
+          "value": "value-1",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-1",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "text",
+          "value": "result-1",
+        },
+        "toolCallId": "call-1",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+    ],
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "text": "i am gonna use tool2 and tool3",
+        "type": "text",
+      },
+      {
+        "input": {
+          "value": "value-2",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-2",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+      {
+        "input": {
+          "value": "value-3",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-3",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "text",
+          "value": "result-2",
+        },
+        "toolCallId": "call-2",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+      {
+        "output": {
+          "type": "text",
+          "value": "result-3",
+        },
+        "toolCallId": "call-3",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+    ],
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "input": {
+          "value": "value-4",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-4",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "text",
+          "value": "result-4",
+        },
+        "toolCallId": "call-4",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+    ],
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "text": "final response",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`convertToModelMessages > assistant message > should handle conversation with multiple tool invocations that have step information 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "response",
+        "type": "text",
+      },
+      {
+        "input": {
+          "value": "value-1",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-1",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "text",
+          "value": "result-1",
+        },
+        "toolCallId": "call-1",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+    ],
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "input": {
+          "value": "value-2",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-2",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+      {
+        "input": {
+          "value": "value-3",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-3",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "text",
+          "value": "result-2",
+        },
+        "toolCallId": "call-2",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+      {
+        "output": {
+          "type": "text",
+          "value": "result-3",
+        },
+        "toolCallId": "call-3",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+    ],
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "input": {
+          "value": "value-4",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-4",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "text",
+          "value": "result-4",
+        },
+        "toolCallId": "call-4",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+    ],
+    "role": "tool",
+  },
+]
+`;
+
+exports[`convertToModelMessages > multiple messages > should handle conversation with multiple tool invocations and user message at the end 1`] = `
+[
+  {
+    "content": [
+      {
+        "input": {
+          "value": "value-1",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-1",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "text",
+          "value": "result-1",
+        },
+        "toolCallId": "call-1",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+    ],
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "input": {
+          "value": "value-2",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-2",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+      {
+        "input": {
+          "value": "value-3",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-3",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "text",
+          "value": "result-2",
+        },
+        "toolCallId": "call-2",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+      {
+        "output": {
+          "type": "text",
+          "value": "result-3",
+        },
+        "toolCallId": "call-3",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+    ],
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "input": {
+          "value": "value-4",
+        },
+        "providerExecuted": undefined,
+        "toolCallId": "call-4",
+        "toolName": "screenshot",
+        "type": "tool-call",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "text",
+          "value": "result-4",
+        },
+        "toolCallId": "call-4",
+        "toolName": "screenshot",
+        "type": "tool-result",
+      },
+    ],
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "text": "response",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "text": "Thanks!",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;

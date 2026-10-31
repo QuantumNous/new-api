@@ -1,0 +1,7 @@
+node_modules
+dist
+.routeTree.gen.ts
+src/routeTree.gen.ts
+test-results
+playwright-report
+port*.txt

@@ -1,0 +1,7 @@
+{
+  "src": [
+    "pages/Home",
+    "pages/Chart",
+    "pages/OhChart"
+  ]
+}

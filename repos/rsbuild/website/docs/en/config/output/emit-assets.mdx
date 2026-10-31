@@ -1,0 +1,34 @@
+---
+description: 'Controls whether to emit static assets such as images, fonts, media, and other file types.'
+---
+
+# output.emitAssets
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+Controls whether to emit static assets such as images, fonts, media, and other file types.
+
+In scenarios such as SSR, you may not need to emit duplicate static assets. You can set `emitAssets` to `false` to avoid emitting assets.
+
+## Example
+
+The following example will emit static assets when building web bundles, and avoid emitting when building node bundles.
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        emitAssets: false,
+      },
+    },
+  },
+};
+```

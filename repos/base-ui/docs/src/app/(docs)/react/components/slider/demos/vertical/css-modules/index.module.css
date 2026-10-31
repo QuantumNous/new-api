@@ -1,0 +1,61 @@
+.Control {
+  box-sizing: border-box;
+  display: flex;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+
+  &[data-orientation='vertical'] {
+    height: 8rem;
+    padding-inline: 0.75rem;
+  }
+}
+
+.Track {
+  background-color: oklch(92.2% 0 0deg);
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (prefers-color-scheme: dark) {
+    background-color: oklch(26.9% 0 0deg);
+  }
+
+  &[data-orientation='vertical'] {
+    height: 100%;
+    width: 0.25rem;
+  }
+}
+
+.Indicator {
+  background-color: oklch(14.5% 0 0deg);
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (prefers-color-scheme: dark) {
+    background-color: white;
+  }
+}
+
+.Thumb {
+  box-sizing: border-box;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid oklch(14.5% 0 0deg);
+  background-color: white;
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+    background-color: oklch(14.5% 0 0deg);
+  }
+
+  &:has(:focus-visible) {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: 2px;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}

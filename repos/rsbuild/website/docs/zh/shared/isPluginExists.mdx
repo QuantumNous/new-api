@@ -1,0 +1,19 @@
+判断某个插件是否已经在当前 Rsbuild 实例中注册。
+
+- 如果未指定 `environment` 参数，则判断全局注册的插件中是否存在该插件。
+- 如果指定了 `environment` 参数，则判断在指定环境中是否存在该插件。
+
+- **类型：**
+
+```ts
+function IsPluginExists(
+  pluginName: string,
+  options?: {
+    /**
+     * Whether it exists in the specified environment.
+     * If environment is not specified, determine whether the plugin is a global plugin.
+     */
+    environment: string;
+  },
+): boolean;
+```

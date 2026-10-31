@@ -1,0 +1,494 @@
+---
+description: 'Rsbuild 的 html.tags 配置项参考，包含作用、默认值、配置行为和使用示例。'
+---
+
+# html.tags
+
+- **类型：**
+
+```ts
+type TagsConfig = HtmlTag | HtmlTagHandler | Array<HtmlTag | HtmlTagHandler>;
+```
+
+- **默认值：** `undefined`
+
+添加和修改最终注入到 HTML 页面的标签。
+
+> 在 Rsbuild 插件中，可以通过 [api.modifyHTMLTags](/plugins/dev/hooks#modifyhtmltags) hook 来修改标签。
+
+## 基础示例
+
+例如，在 `head` 中添加 `script` 标签，并插入到已有标签之后：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+      },
+    ],
+  },
+};
+```
+
+生成的 HTML 文件：
+
+```html
+<html>
+  <head>
+    <!-- some other head tags... -->
+    <script src="https://example.com/script.js"></script>
+  </head>
+  <body>
+    <!-- some other body tags... -->
+  </body>
+</html>
+```
+
+## Tag 对象
+
+`html.tags` 可以传入一个数组，数组中的每个元素都是一个 `HtmlTag` 对象，用于描述需要注入的标签。
+
+```ts
+type HtmlTag = {
+  tag: string;
+  attrs?: Record<string, string | boolean | null | undefined>;
+  children?: string;
+  hash?: boolean | string | ((url: string, hash: string) => string);
+  publicPath?: boolean | string | ((url: string, publicPath: string) => string);
+  append?: boolean;
+  head?: boolean;
+  metadata?: Record<string, any>;
+};
+```
+
+### tag
+
+- **类型：** `string`
+- **默认值：** `undefined`
+
+要生成的 HTML 标签名称，需要设置为一个有效的 HTML 元素名称。
+
+例如，注入一个 `script` 标签和一个 `link` 标签：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      // 结果: <script src="https://example.com/script.js"></script>
+      {
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+      },
+      // 结果: <link href="https://example.com/style.css" rel="stylesheet">
+      {
+        tag: 'link',
+        attrs: { href: 'https://example.com/style.css', rel: 'stylesheet' },
+      },
+    ],
+  },
+};
+```
+
+### attrs
+
+- **类型：** `Record<string, string | boolean | null | undefined>`
+- **默认值：** `undefined`
+
+标签的 HTML 属性。
+
+- `string` 值将渲染为 `attribute="value"`
+- `true` 渲染为布尔属性（例如，`<input disabled>`）
+- `false`、`null` 或 `undefined` 值将不渲染该属性
+
+例如，注入一个带有 `src` 和 `type` 属性的 `script` 标签：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      // 结果: <script src="https://example.com/script.js" type="text/javascript" defer></script>
+      {
+        tag: 'script',
+        attrs: {
+          src: 'https://example.com/script.js',
+          type: 'text/javascript',
+          defer: true,
+        },
+      },
+    ],
+  },
+};
+```
+
+### children
+
+- **类型：** `string`
+- **默认值：** `undefined`
+
+标签的 innerHTML 内容，内容会按原样插入，不进行 HTML 转义，因此请确保内容安全以避免 XSS 漏洞。
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      // 结果: <script>console.log("Hello, world!");</script>
+      {
+        tag: 'script',
+        children: 'console.log("Hello, world!");',
+      },
+    ],
+  },
+};
+```
+
+### hash
+
+- **类型：** `boolean | string | ((url: string, hash: string) => string)`
+- **默认值：** `false`
+
+控制是否为资源的 URL 添加 hash 作为 query 参数，以进行缓存失效，仅影响 `script` 标签的 `src` 属性和 `link` 标签的 `href` 属性。
+
+- `false`：不添加 hash query 参数
+- `true`：基于 HTML 内容生成 hash
+- `string`：使用自定义的 hash 字符串
+- `function`：通过函数自定义 hash 生成
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      // 结果: <script src="https://example.com/script.js?8327ec63"></script>
+      {
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+        hash: true,
+      },
+    ],
+  },
+};
+```
+
+### publicPath
+
+- **类型：** `boolean | string | ((url: string, publicPath: string) => string)`
+- **默认值：** `true`
+
+控制是否为资源的 URL 添加资源前缀，仅影响 `script` 标签的 `src` 属性和 `link` 标签的 `href` 属性。
+
+- `true`：为 URL 添加资源前缀
+- `false`：不添加资源前缀
+- `string`：使用自定义的前缀
+- `function`：通过函数自定义路径转换
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    assetPrefix: 'https://cdn.example.com/',
+  },
+  html: {
+    tags: [
+      // 结果: <script src="https://cdn.example.com/script.js"></script>
+      {
+        tag: 'script',
+        attrs: { src: '/script.js' },
+        publicPath: true,
+      },
+    ],
+  },
+};
+```
+
+### append
+
+- **类型：** `boolean`
+- **默认值：** `true`
+
+控制是否在现有标签之后插入标签。
+
+- `true`：在现有标签之后插入
+- `false`：在现有标签之前插入
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+        append: false,
+      },
+    ],
+  },
+};
+```
+
+查看 [插入位置](#injection-position) 了解更多。
+
+### head
+
+- **类型：** `boolean`
+- **默认值：** 自动检测
+
+指定是否将标签注入到 HTML `<head>` 元素中。
+
+- `true`：注入到 `<head>` 中
+- `false`：注入到 `<body>` 中
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+        head: false,
+      },
+    ],
+  },
+};
+```
+
+对于允许包含在 `<head>` 中的元素，默认值为 `true`；其他元素默认值为 `false`。
+
+允许在 `<head>` 中包含的元素类型包括：
+
+- `title`
+- `base`
+- `link`
+- `style`
+- `meta`
+- `script`
+- `noscript`
+- `template`
+
+查看 [插入位置](#injection-position) 了解更多。
+
+### metadata
+
+- **类型：** `Record<string, any>`
+- **默认值：** `undefined`
+
+标签的元信息对象，用于存储标签的附加信息。`metadata` 不会影响生成的 HTML 内容。
+
+例如，Rsbuild 插件可以为标签添加元信息，用于标识标签的来源；在后续的流程中，你可以基于元信息对标签进行特殊处理：
+
+```ts title="rsbuild.config.ts"
+const myPlugin = {
+  name: 'my-plugin',
+  setup(api) {
+    api.modifyHTMLTags(({ headTags, bodyTags }) => {
+      headTags.push({
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+        metadata: {
+          from: 'my-plugin',
+        },
+      });
+      return { headTags, bodyTags };
+    });
+  },
+};
+
+export default {
+  plugins: [myPlugin],
+  html: {
+    tags: [
+      (tags) => {
+        return tags.map((tag) => {
+          if (tag.metadata?.from === 'my-plugin') {
+            return {
+              ...tag,
+              // ...extra options
+            };
+          }
+          return tag;
+        });
+      },
+    ],
+  },
+};
+```
+
+## 插入位置 \{#injection-position}
+
+标签的插入位置由 [head](#head) 和 [append](#append) 选项决定。
+
+- `append` 定义当前标签相对于已有标签的插入位置，默认值为 `true`
+- `head` 指定是否将当前标签添加到 HTML 的 `<head>` 元素中，对于允许在 `<head>` 中包含的元素类型，默认为 `true`，否则为 `false`
+- 如果两个标签对象的 `head` 和 `append` 选项一致，它们将被插入到相同区域，并且维持彼此之间的相对位置。
+
+```html
+<html>
+  <head>
+    <!-- 设置了 `{ head: true, append: false }` 的标签 -->
+    <!-- 已有的 head tags... -->
+    <!-- 设置了 `{ head: true, append: true }` 的标签 -->
+  </head>
+  <body>
+    <!-- 设置了 `{ head: false, append: false }` 的标签 -->
+    <!-- 已有的 body tags... -->
+    <!-- 设置了 `{ head: false, append: true }` 的标签 -->
+  </body>
+</html>
+```
+
+## 函数形式
+
+```ts
+type HtmlTagContext = {
+  hash: string;
+  entryName: string;
+  outputName: string;
+  publicPath: string;
+};
+
+type HtmlTagHandler = (tags: HtmlTag[], context: HtmlTagContext) => HtmlTag[] | void;
+```
+
+`html.tags` 也支持传入回调函数，通过在回调中编写逻辑可以任意修改标签列表，常用于**修改标签列表**或是**在插入标签的同时确保其相对位置**。
+
+回调函数接受 tags 列表作为参数，并需要修改或直接返回新的 tags 数组：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      (tags) => [{ tag: 'script', attrs: { src: 'a.js' } }, ...tags],
+      (tags) => {
+        // 修改 'a.js' 标签
+        const target = tags.find((tag) => tag.attrs?.src === 'a.js');
+        if (target) {
+          target.attrs ||= {};
+          target.attrs.defer = true;
+        }
+      },
+      (tags) => {
+        // 将 'd.js' 插入到 'a.js' 之后
+        const targetIndex = tags.findIndex((tag) => tag.attrs?.src === 'a.js');
+
+        tags.splice(targetIndex + 1, 0, {
+          tag: 'script',
+          attrs: { src: 'd.js' },
+        });
+      },
+    ],
+  },
+};
+```
+
+最终产物将会类似：
+
+```html
+<html>
+  <head>
+    <script src="/a.js" defer></script>
+    <script src="/d.js"></script>
+    <!-- 其他 head 标签... -->
+  </head>
+  <body>
+    <!-- 其他 body 标签... -->
+  </body>
+</html>
+```
+
+## 限制
+
+这个配置用于在 Rsbuild 构建完成后修改 HTML 产物的内容，并不会引入和解析新的模块。因此，它无法用于引入未编译的源码文件，也无法代替 [source.preEntry](/config/source/pre-entry) 等配置。
+
+例如对于以下项目：
+
+```
+web-app
+├── src
+│   ├── index.tsx
+│   └── polyfill.ts
+└── rsbuild.config.ts
+```
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    assetPrefix: 'https://example.com/',
+  },
+  html: {
+    tags: [{ tag: 'script', attrs: { src: './src/polyfill.ts' } }],
+  },
+};
+```
+
+这里的 tag 对象将会在简单处理后直接添加到 HTML 产物中，但对应的 `polyfill.ts` 将不会被转译、打包，也因此应用会在处理这行脚本时出现 404 错误。
+
+```html
+<body>
+  <script src="https://example.com/src/polyfill.ts"></script>
+</body>
+```
+
+合理的使用场景包括：
+
+- 注入 CDN 上 **路径确定** 的静态资源
+- 注入需要首屏加载的内联脚本
+
+例如以下示例的使用方式：
+
+```
+web-app
+├── src
+│   └── index.tsx
+├── public
+│   └── service-worker.js
+└── rsbuild.config.ts
+```
+
+```ts title="rsbuild.config.ts"
+function report() {
+  fetch('https://www.example.com/report');
+}
+
+export default {
+  html: {
+    output: {
+      assetPrefix: 'https://example.com/',
+    },
+    tags: [
+      // Inject asset from the `public` directory.
+      { tag: 'script', attrs: { src: 'service-worker.js' } },
+      // Inject asset from other CDN url.
+      {
+        tag: 'script',
+        publicPath: false,
+        attrs: { src: 'https://cdn.example.com/foo.js' },
+      },
+      // Inject inline script.
+      {
+        tag: 'script',
+        children: report.toString() + '\nreport()',
+      },
+    ],
+  },
+};
+```
+
+得到的产物将会类似：
+
+```html
+<body>
+  <script src="https://example.com/service-worker.js"></script>
+  <script src="https://cdn.example.com/foo.js"></script>
+  <script>
+    function report() {
+      fetch('https://www.example.com/report');
+    }
+    report();
+  </script>
+</body>
+```
+
+## 版本历史
+
+| 版本   | 变更内容             |
+| ------ | -------------------- |
+| v1.4.7 | 新增 `metadata` 选项 |

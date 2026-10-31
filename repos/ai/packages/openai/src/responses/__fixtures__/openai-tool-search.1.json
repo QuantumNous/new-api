@@ -1,0 +1,188 @@
+{
+  "id": "resp_04bd69550b37ba260069aa689530d0819094482b7c14059a0f",
+  "object": "response",
+  "created_at": 1772775573,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1772775575,
+  "error": null,
+  "frequency_penalty": 0,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5.4-2026-03-05",
+  "output": [
+    {
+      "id": "tsc_04bd69550b37ba260069aa689605cc8190bd2d9bf1199fa630",
+      "type": "tool_search_call",
+      "status": "completed",
+      "arguments": {
+        "paths": ["get_weather"]
+      },
+      "call_id": null,
+      "execution": "server"
+    },
+    {
+      "id": "tso_04bd69550b37ba260069aa68965b508190949d19c05f1b6df9",
+      "type": "tool_search_output",
+      "status": "completed",
+      "call_id": null,
+      "execution": "server",
+      "tools": [
+        {
+          "type": "function",
+          "defer_loading": true,
+          "description": "Get the current weather at a specific location",
+          "name": "get_weather",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string",
+                "description": "The city and state, e.g. San Francisco, CA"
+              },
+              "unit": {
+                "type": "string",
+                "enum": ["celsius", "fahrenheit"],
+                "description": "Temperature unit"
+              }
+            },
+            "required": ["location", "unit"],
+            "additionalProperties": false
+          },
+          "strict": true
+        }
+      ]
+    },
+    {
+      "id": "fc_04bd69550b37ba260069aa68969e088190a5ebe91c1448f693",
+      "type": "function_call",
+      "status": "completed",
+      "arguments": "{\"location\":\"San Francisco, CA\",\"unit\":\"fahrenheit\"}",
+      "call_id": "call_ytqozXvUXG8NN1b0IODxzUaE",
+      "name": "get_weather",
+      "namespace": "get_weather"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "presence_penalty": 0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "none",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "defer_loading": true,
+      "description": "Get the current weather at a specific location",
+      "name": "get_weather",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "The city and state, e.g. San Francisco, CA"
+          },
+          "unit": {
+            "type": "string",
+            "enum": ["celsius", "fahrenheit"],
+            "description": "Temperature unit"
+          }
+        },
+        "required": ["location", "unit"],
+        "additionalProperties": false
+      },
+      "strict": true
+    },
+    {
+      "type": "function",
+      "defer_loading": true,
+      "description": "Search through files in the workspace",
+      "name": "search_files",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query"
+          },
+          "file_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by file types"
+          }
+        },
+        "required": ["query", "file_types"],
+        "additionalProperties": false
+      },
+      "strict": true
+    },
+    {
+      "type": "function",
+      "defer_loading": true,
+      "description": "Send an email to a recipient",
+      "name": "send_email",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "description": "Recipient email address"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Email subject"
+          },
+          "body": {
+            "type": "string",
+            "description": "Email body content"
+          }
+        },
+        "required": ["to", "subject", "body"],
+        "additionalProperties": false
+      },
+      "strict": true
+    },
+    {
+      "type": "tool_search",
+      "description": null,
+      "parameters": null
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 0.98,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 640,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 46,
+    "output_tokens_details": {
+      "reasoning_tokens": 20
+    },
+    "total_tokens": 686
+  },
+  "user": null,
+  "metadata": {}
+}
