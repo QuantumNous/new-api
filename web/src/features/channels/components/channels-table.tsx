@@ -64,6 +64,7 @@ import {
   channelsQueryKeys,
   aggregateChannelsByTag,
   getChannelTableRowId,
+  isChannelSortField,
   isTagAggregateRow,
   getChannelTypeLabel,
 } from '../lib'
@@ -86,15 +87,6 @@ const CHANNELS_COLUMN_VISIBILITY_STORAGE_KEY = 'channels:column-visibility'
 const CHANNELS_COLUMN_SIZING_STORAGE_KEY = 'channels:column-sizing'
 const CHANNELS_VIEW_MODE_STORAGE_KEY = 'channels:view-mode'
 const CHANNELS_STATUS_FILTER_STORAGE_KEY = 'channel-status-filter'
-
-const CHANNEL_SORTABLE_COLUMNS = new Set<ChannelSortBy>([
-  'id',
-  'name',
-  'priority',
-  'balance',
-  'response_time',
-  'test_time',
-])
 
 function isDisabledChannelRow(channel: Channel) {
   return (
@@ -196,15 +188,12 @@ export function ChannelsTable() {
 
   const sortParams = useMemo(() => {
     const activeSort = sorting[0]
-    if (
-      !activeSort ||
-      !CHANNEL_SORTABLE_COLUMNS.has(activeSort.id as ChannelSortBy)
-    ) {
+    if (!activeSort || !isChannelSortField(activeSort.id)) {
       return {}
     }
 
     return {
-      sort_by: activeSort.id as ChannelSortBy,
+      sort_by: activeSort.id,
       sort_order: activeSort.desc ? 'desc' : 'asc',
     } as const
   }, [sorting])
@@ -326,8 +315,9 @@ export function ChannelsTable() {
     defaultMode: 'card',
   })
   const user = useAuthStore((state) => state.auth.user)
-  const sortField = (sorting[0]?.id ??
-    (idSort ? 'id' : 'priority')) as ChannelSortBy
+  const sortField: ChannelSortBy = isChannelSortField(sorting[0]?.id)
+    ? sorting[0].id
+    : 'priority'
   const sortDesc = sorting[0]?.desc ?? true
   const [reorderEnabled, setReorderEnabled] = useState(false)
   const canReorder =
