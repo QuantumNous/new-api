@@ -232,6 +232,10 @@ var (
 	CriticalRateLimitNum            = 20
 	CriticalRateLimitDuration int64 = 20 * 60
 
+	AuthSessionRateLimitEnable         = true
+	AuthSessionRateLimitNum            = 60
+	AuthSessionRateLimitDuration int64 = 60
+
 	UploadRateLimitNum            = 10
 	UploadRateLimitDuration int64 = 60
 
