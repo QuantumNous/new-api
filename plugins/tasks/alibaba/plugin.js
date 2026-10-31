@@ -222,7 +222,7 @@ export const meta = {
     en: "Alibaba Cloud Bailian image and video generation (Wan, Qwen-Image, Z-Image)",
     zh: "阿里云百炼图片与视频生成（万相、千问图像、Z-Image）",
   },
-  version: "1.4.2",
+  version: "1.5.0",
   author: { name: "QuantumNous" },
   channelTypes: [17],
   // Literal metadata also supports the dashboard's static script preview.
@@ -289,12 +289,23 @@ export const meta = {
     { models: Z_IMAGE_MODELS, schema: Z_IMAGE_USAGE_SCHEMA },
     { models: QWEN_IMAGE3_MODELS, schema: QWEN_IMAGE3_USAGE_SCHEMA },
   ].concat(wanVideoUsageProfiles()),
+  // DashScope's own paths, which the gateway also serves under /alibaba, each
+  // beside its /ali address, the form every gateway release serves.
   routes: [
     // Synchronous vendor call with no task to re-query; the response is
     // delivered once and never persisted.
     {
       method: "POST",
       path: "/ali/api/v1/services/aigc/multimodal-generation/generation",
+      type: "submit",
+      models: ["wan2.7-image-pro", "wan2.7-image", "wan2.6-image", "wan2.6-t2i"].concat(Object.keys(QWEN_IMAGE_LIMITS), IMAGE_MODEL_SNAPSHOTS),
+      decode: "createImageTask",
+      render: "imageCreated",
+      retainResult: false,
+    },
+    {
+      method: "POST",
+      path: "/api/v1/services/aigc/multimodal-generation/generation",
       type: "submit",
       models: ["wan2.7-image-pro", "wan2.7-image", "wan2.6-image", "wan2.6-t2i"].concat(Object.keys(QWEN_IMAGE_LIMITS), IMAGE_MODEL_SNAPSHOTS),
       decode: "createImageTask",
@@ -311,7 +322,23 @@ export const meta = {
     },
     {
       method: "POST",
+      path: "/api/v1/services/aigc/image-generation/generation",
+      type: "submit",
+      models: ["wan2.7-image-pro", "wan2.7-image", "wan2.6-image", "wan2.6-t2i"],
+      decode: "createImageTask",
+      render: "taskCreated",
+    },
+    {
+      method: "POST",
       path: "/ali/api/v1/services/aigc/text2image/image-synthesis",
+      type: "submit",
+      models: ["wan2.5-t2i-preview", "wan2.2-t2i-flash", "wan2.2-t2i-plus", "wanx2.1-t2i-turbo", "wanx2.1-t2i-plus", "wanx2.0-t2i-turbo"],
+      decode: "createImageTask",
+      render: "taskCreated",
+    },
+    {
+      method: "POST",
+      path: "/api/v1/services/aigc/text2image/image-synthesis",
       type: "submit",
       models: ["wan2.5-t2i-preview", "wan2.2-t2i-flash", "wan2.2-t2i-plus", "wanx2.1-t2i-turbo", "wanx2.1-t2i-plus", "wanx2.0-t2i-turbo"],
       decode: "createImageTask",
@@ -325,9 +352,20 @@ export const meta = {
       decode: "createImageTask",
       render: "taskCreated",
     },
+    {
+      method: "POST",
+      path: "/api/v1/services/aigc/image2image/image-synthesis",
+      type: "submit",
+      models: ["wan2.5-i2i-preview", "wanx2.1-imageedit"],
+      decode: "createImageTask",
+      render: "taskCreated",
+    },
     { method: "POST", path: "/ali/api/v1/services/aigc/video-generation/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
+    { method: "POST", path: "/api/v1/services/aigc/video-generation/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
     { method: "POST", path: "/ali/api/v1/services/aigc/image2video/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
+    { method: "POST", path: "/api/v1/services/aigc/image2video/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
     { method: "GET", path: "/ali/api/v1/tasks/:task_id", type: "query", render: "taskStatus" },
+    { method: "GET", path: "/api/v1/tasks/:task_id", type: "query", render: "taskStatus" },
   ],
   protocols: [
     { name: "openai_responses", supports: ["stream", "sync", "background"] },
@@ -344,8 +382,53 @@ function viaNewAPI(ctx) {
   return !!(ctx.upstream && ctx.upstream.kind === "new_api");
 }
 
-// Another New API gateway serves the DashScope wire format only on this
-// plugin's /ali native routes; DashScope itself serves the unprefixed paths.
+// A request header by name, compared case-insensitively.
+function headerValue(ctx, name) {
+  const headers = (ctx && ctx.requestHeaders) || {};
+  const wanted = name.toLowerCase();
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === wanted) return trimmed(headers[key]);
+  }
+  return "";
+}
+
+// What a native client asked for, which its decoder records: the DashScope
+// service it called, such as image2video, and whether it takes interleaved
+// output as a stream. Host protocols have none, and their clients cannot set
+// it.
+function nativeRequest(ctx) {
+  const native = (ctx.requestBody || {}).native;
+  return native && typeof native === "object" && !Array.isArray(native) ? native : null;
+}
+
+// A native client takes interleaved output as DashScope's stream only when it
+// asks for SSE; without X-DashScope-Sse its request goes to DashScope as sent.
+function streamsInterleave(ctx) {
+  const native = nativeRequest(ctx);
+  return !native || native.sse === true;
+}
+
+// DashScope's error codes for the statuses the gateway answers with.
+const ERROR_CODES = {
+  400: "InvalidParameter",
+  401: "InvalidApiKey",
+  403: "AccessDenied",
+  404: "NotFound",
+  409: "Conflict",
+  413: "BadRequest.TooLarge",
+  429: "Throttling",
+  503: "ServiceUnavailable",
+};
+
+// The video endpoint of each model kind: first-and-last-frame and speech
+// models are served at image2video, every other model at video-generation.
+function videoService(kind) {
+  return kind === "frames" || kind === "speech" ? "image2video" : "video-generation";
+}
+
+// Another New API gateway serves the DashScope wire format under /ali, the
+// form every gateway release serves; DashScope itself serves the unprefixed
+// paths.
 function apiRoot(ctx) {
   return ctx.baseUrl + (viaNewAPI(ctx) ? "/ali" : "");
 }
@@ -410,8 +493,10 @@ function isFileRef(value) {
   return !!value && typeof value === "object" && !Array.isArray(value) && typeof value.__fileRef === "string";
 }
 
+// oss:// is a DashScope temporary upload, which the client resolves with
+// X-DashScope-OssResourceResolve: enable (help.aliyun.com/zh/model-studio/get-temporary-file-url).
 function isImageInput(value) {
-  return isFileRef(value) || (typeof value === "string" && /^(https?:\/\/|data:image\/)/i.test(value));
+  return isFileRef(value) || (typeof value === "string" && /^(https?:\/\/|data:image\/|oss:\/\/)/i.test(value));
 }
 
 function sizePixels(size) {
@@ -466,7 +551,7 @@ function convertImage(ctx) {
     throw new Error("upstream streaming requires synchronous wan2.6-image interleaved output");
   if (parameters.enable_interleave && profile !== "image26") throw new Error("enable_interleave is only supported by wan2.6-image");
   if (parameters.enable_sequential && profile !== "image27") throw new Error("enable_sequential is only supported by wan2.7-image models");
-  if (parameters.enable_interleave && mode === "sync") parameters.stream = true;
+  if (parameters.enable_interleave && mode === "sync" && streamsInterleave(ctx)) parameters.stream = true;
   const maxN = parameters.enable_interleave ? 1 : parameters.enable_sequential ? 12 : profile === "qwen" ? limits.maxN : 4;
   parameters.n =
     parameters.n ??
@@ -802,7 +887,7 @@ function convert(ctx) {
   if (!profile.resolutions.includes(resolution)) throw new Error(upstreamModel + " resolution must be one of " + profile.resolutions.join(", "));
   if (profile.kind === "size" || profile.kind === "t2v" || profile.kind === "all") {
     const ratios = ["16:9", "9:16", "1:1", "4:3", "3:4"];
-    if (profile.kind === "all") ratios.push("adaptive");
+    if (profile.kind === "all") ratios.push("21:9", "adaptive");
     if (!ratios.includes(ratio)) throw new Error(upstreamModel + " ratio must be one of " + ratios.join(", "));
   }
   if (profile.kind === "size") {
@@ -973,31 +1058,39 @@ function responsesOutputText(ctx, task) {
   return parts.join("\n\n");
 }
 
+// The client's X-DashScope-OssResourceResolve lets DashScope read its oss://
+// uploads; no other DashScope header is the client's to set.
+function dashScopeHeaders(ctx, asynchronous) {
+  const headers = { Authorization: "Bearer " + ctx.apiKey, "Content-Type": "application/json" };
+  if (asynchronous) headers["X-DashScope-Async"] = "enable";
+  if (headerValue(ctx, "X-DashScope-OssResourceResolve") === "enable") headers["X-DashScope-OssResourceResolve"] = "enable";
+  return headers;
+}
+
 export function buildSubmitRequest(ctx) {
   if (imageModel(ctx)) {
     const converted = convertImage(ctx);
-    const headers = { Authorization: "Bearer " + ctx.apiKey, "Content-Type": "application/json" };
-    if (!converted.synchronous) headers["X-DashScope-Async"] = "enable";
-    // A gateway's native route aggregates the vendor stream itself and answers
-    // with one JSON body, so only DashScope is asked for SSE.
-    const streaming = converted.synchronous && converted.body.parameters.enable_interleave === true && !viaNewAPI(ctx);
-    if (streaming) headers["X-DashScope-Sse"] = "enable";
+    const headers = dashScopeHeaders(ctx, !converted.synchronous);
+    // Interleaved output comes as a stream, from DashScope and from a
+    // gateway's native route alike, unless a native client did not ask for one.
+    // A body that asks for a stream takes whichever reply DashScope sends.
+    if (converted.synchronous && converted.body.parameters.enable_interleave === true && streamsInterleave(ctx)) headers["X-DashScope-Sse"] = "enable";
     return {
       url: apiRoot(ctx) + "/api/v1/services/aigc/" + converted.service,
       method: "POST",
       headers: headers,
       body: converted.body,
       action: converted.action,
-      responseType: streaming ? "sse" : "json",
+      responseType: converted.body.parameters.stream === true ? "sse" : "json",
     };
   }
   const body = convert(ctx);
-  const kind = modelProfile(body.model).kind;
-  const service = kind === "frames" || kind === "speech" ? "image2video" : "video-generation";
+  const native = nativeRequest(ctx);
+  // A native request goes to the endpoint its client called.
   return {
-    url: apiRoot(ctx) + "/api/v1/services/aigc/" + service + "/video-synthesis",
+    url: apiRoot(ctx) + "/api/v1/services/aigc/" + ((native && native.service) || videoService(modelProfile(body.model).kind)) + "/video-synthesis",
     method: "POST",
-    headers: { Authorization: "Bearer " + ctx.apiKey, "Content-Type": "application/json", "X-DashScope-Async": "enable" },
+    headers: dashScopeHeaders(ctx, true),
     body: body,
     action: videoAction(body.input),
   };
@@ -1005,13 +1098,20 @@ export function buildSubmitRequest(ctx) {
 
 // DashScope sends text/image deltas but cumulative usage. The host applies
 // generic JSON changes; vendor completion and usage semantics remain here.
+// DashScope ends a failed stream with an error event, which the client of a
+// native route has already received; it ends the result, and
+// parseSubmitResponse decides what it settles.
 export function parseSubmitEventDelta(ctx, event, previousState) {
   const body = JSON.parse(event.data);
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid DashScope stream event");
-  if (body.code || event.event === "error") throw new Error((body.code || "upstream_error") + ": " + (body.message || "stream failed"));
   const state = utils.json.clone(previousState || { choices: [], hasUsage: false });
   const changes = [];
   if (!previousState) changes.push({ op: "set", path: [], value: { output: { choices: [], finished: false } } });
+  if (body.code || event.event === "error") {
+    changes.push({ op: "set", path: ["code"], value: String(body.code || "upstream_error") });
+    changes.push({ op: "set", path: ["message"], value: String(body.message || "stream failed") });
+    return { changes: changes, state: state, done: true };
+  }
   if (body.request_id) changes.push({ op: "set", path: ["request_id"], value: body.request_id });
   if (body.usage) {
     if (!state.hasUsage) {
@@ -1057,21 +1157,30 @@ export function parseSubmitEventDelta(ctx, event, previousState) {
 
 export function parseSubmitResponse(ctx, resp) {
   const body = resp.body || {};
-  if (body.code) throw new Error(body.code + ": " + (body.message || ""));
   if (imageModel(ctx) && convertImage(ctx).synchronous) {
     const content = imageContent(body);
     const images = content.filter(function (part) {
       return part.image;
     });
     const interleaved = convertImage(ctx).body.parameters.enable_interleave === true;
-    if ((!images.length && !(interleaved && content.length)) || (body.output || {}).finished === false)
-      throw new Error("synchronous image response has no completed output");
     // No vendor task exists for a synchronous HTTP response. The host already
     // allocated a public ID; retain that identity without inventing a pollable ID.
     const taskId = ctx.publicTaskId || body.request_id;
+    // An interleaved stream's error event has reached the client, where a
+    // thrown error keeps the reservation. Before any image DashScope made
+    // nothing billable, so the task fails.
+    if (body.code && interleaved && !images.length && taskId)
+      return { taskId: taskId, taskData: body, immediate: { status: "FAILURE", reason: body.code + ": " + (body.message || "") } };
+    if (body.code) throw new Error(body.code + ": " + (body.message || ""));
+    // An interleaved stream that DashScope closed before it finished still
+    // delivered its images, which settle; one that broke off settles at the
+    // reservation, which the host keeps.
+    if ((!images.length && !(interleaved && content.length)) || ((body.output || {}).finished === false && !(interleaved && images.length)))
+      throw new Error("synchronous image response has no completed output");
     if (!taskId) throw new Error("missing synchronous image request id");
     return { taskId: taskId, taskData: body, immediate: { status: "SUCCESS", progress: "100%", url: images.length ? images[0].image : "" } };
   }
+  if (body.code) throw new Error(body.code + ": " + (body.message || ""));
   if (!body.output || !body.output.task_id) throw new Error("task_id is empty");
   return { taskId: body.output.task_id, taskData: body };
 }
@@ -1218,12 +1327,13 @@ export function buildContentRequest(ctx) {
 }
 
 export const native = {
+  // DashScope's own body. The gateway asks the asynchronous endpoints for a
+  // task itself; interleaved output from the synchronous multimodal endpoint
+  // streams back to a client that asks for SSE.
   createImageTask: function (ctx) {
     if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || typeof ctx.body.value !== "object" || Array.isArray(ctx.body.value))
       throw new Error("JSON object required");
     const req = ctx.body.value;
-    if (req.stream !== undefined && req.stream !== false)
-      throw new Error("native task responses are aggregated JSON; configure upstream streaming in parameters");
     const requestBody = {
       model: req.model,
       metadata: {
@@ -1231,21 +1341,27 @@ export const native = {
         parameters: objectValue(req.parameters, "parameters"),
         upstream_mode: String(ctx.path || "").includes("/multimodal-generation/") ? "sync" : "async",
       },
+      native: { sse: headerValue(ctx, "X-DashScope-Sse") === "enable" },
     };
     return { kind: "submit", model: req.model, requestBody: requestBody };
   },
   imageCreated: function (ctx, task) {
     return task.data || {};
   },
+  // DashScope's own body, sent to the endpoint the client called for
+  // DashScope to check.
   createVideoTask: function (ctx) {
     if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || typeof ctx.body.value !== "object" || Array.isArray(ctx.body.value))
       throw new Error("JSON object required");
     const req = ctx.body.value,
       input = objectValue(req.input, "input"),
       parameters = objectValue(req.parameters, "parameters");
+    if (typeof req.model !== "string" || !req.model.trim()) throw new Error("model is required");
+    const service = /\/services\/aigc\/([^/]+)\/video-synthesis$/.exec(String(ctx.path || ""));
     const requestBody = {
       model: req.model,
       metadata: { input: input, parameters: parameters },
+      native: { service: service ? service[1] : "" },
     };
     if (input.prompt !== undefined) requestBody.prompt = input.prompt;
     const image = input.img_url || input.image_url || input.first_frame_url;
@@ -1257,17 +1373,28 @@ export const native = {
       requestBody: normalizeRequest(requestBody),
     };
   },
+  // DashScope's create reply.
   taskCreated: function (ctx, task) {
-    const data = task.data || {};
-    return { request_id: data.request_id || "", output: { task_id: task.task_id, task_status: "PENDING" } };
+    return task.data || {};
   },
+  // DashScope's last task reply; the gateway can fail a task DashScope still
+  // reports as pending or running (poll failures or the task timeout).
   taskStatus: function (ctx, task) {
     const data = task.data || {},
       output = Object.assign({}, data.output || {}, { task_id: task.task_id });
+    if (task.status === "FAILURE" && ["PENDING", "RUNNING", undefined].includes(output.task_status)) {
+      output.task_status = "FAILED";
+      output.code = "InternalError";
+      output.message = task.fail_reason || "task failed";
+    }
     return Object.assign({}, data, { output: output });
   },
+  // DashScope answers a task it does not have with status UNKNOWN.
   error: function (ctx, error) {
-    return { code: error.code, message: error.message, request_id: "" };
+    if (error.httpStatus === 404 && ctx.params && ctx.params.task_id)
+      return { __status: 200, __body: { request_id: error.requestId || "", output: { task_id: ctx.params.task_id, task_status: "UNKNOWN" } } };
+    const code = ERROR_CODES[error.httpStatus] || "InternalError";
+    return { code: code, message: error.message, request_id: error.requestId || "" };
   },
 };
 
@@ -1510,6 +1637,8 @@ export const protocols = {
       if (!req || typeof req !== "object" || Array.isArray(req)) throw new Error("request body must be an object");
       if (req.images !== undefined && !Array.isArray(req.images)) throw new Error("images must be an array");
       const requestBody = normalizeRequest(Object.assign({}, req, { model: ctx.model }));
+      // native records what a native client asked for; clients of this protocol cannot set it.
+      delete requestBody.native;
       return {
         kind: "submit",
         model: ctx.model,

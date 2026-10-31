@@ -738,6 +738,12 @@ func (r *Registry) prepareGeneration(
 	if err != nil {
 		return nil, nil, err
 	}
+	// The preparer decides admission by whether a key is built in, which the
+	// filtered factory passed here no longer tells for a switched-off key.
+	generation.factoryKeys = pluginMapKeys(r.factory)
+	for key := range factory {
+		generation.factoryKeys[key] = struct{}{}
+	}
 	if r.preparer != nil {
 		prepared, prepareErr := r.preparer(generation, current)
 		if prepareErr != nil {
@@ -1296,6 +1302,14 @@ func normalizeV1Meta(meta *Meta) error {
 	}
 	if !ValidPluginKey(meta.Key) {
 		return fmt.Errorf("plugin meta key must match %s", pluginKeyPattern)
+	}
+	// The host serves the plugin's routes under /{key}, so the key must not
+	// name a host namespace.
+	if meta.Key == "api" || slices.ContainsFunc(reservedRouteNamespaces, func(namespace string) bool {
+		first, _, _ := strings.Cut(strings.TrimPrefix(namespace, "/"), "/")
+		return first == meta.Key
+	}) {
+		return fmt.Errorf("plugin meta key %q is a reserved path segment", meta.Key)
 	}
 	if !pluginVersionPattern.MatchString(meta.Version) {
 		return fmt.Errorf("plugin meta version must be semver")

@@ -33,12 +33,13 @@ export type DecodedBody =
   | Readonly<{kind: "multipart"; fields: Readonly<Record<string, readonly string[]>>; files: readonly FileReference[]}>
   | Readonly<{kind: "none"}>;
 
-export interface NativeDecodeContext {method: string; path: string; params: Readonly<Record<string, string>>; query: Readonly<Record<string, readonly string[]>>; body: DecodedBody}
+/** requestHeaders: the client's request headers, as DriverContext.requestHeaders holds them. Older gateways do not pass them to decoders. */
+export interface NativeDecodeContext {method: string; path: string; params: Readonly<Record<string, string>>; query: Readonly<Record<string, readonly string[]>>; requestHeaders: Readonly<Record<string, string>>; body: DecodedBody}
 export interface ProtocolDecodeContext extends NativeDecodeContext {protocol: ProtocolName; operation: string; model: string; upstreamModel?: string; stream: boolean}
 export type SubmitIntent = {kind: "submit"; model: string; action?: string; requestBody?: unknown; originTaskIds?: readonly string[]};
 export type QueryIntent = {kind: "query"; taskIds: readonly string[]};
 export type TaskIntent = SubmitIntent | QueryIntent;
-export interface NativeRoute {method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; path: string; type: "submit" | "query" | "dynamic"; action?: string; taskIdParam?: string; decode?: string; render: string; models?: readonly string[]; retainResult?: boolean}
+export interface NativeRoute {method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; /** The vendor's own path; the host also serves it under /{key} unless its first segment is the key or a proper prefix of it. */ path: string; type: "submit" | "query" | "dynamic"; action?: string; /** Query routes: the path parameter carrying the gateway task id or, when the path has none, the query-string parameter of that name. Default "task_id". */ taskIdParam?: string; decode?: string; render: string; models?: readonly string[]; retainResult?: boolean}
 export type ProtocolName = "openai_responses" | "openai_video" | "openai_image";
 export type ResponsesMode = "stream" | "sync" | "background";
 export type ProtocolClaim =
@@ -63,12 +64,16 @@ export interface DriverContext {requestBody: unknown; /** Client request headers
 export interface TaskQueryContext {taskId: string; publicTaskId: string; action: string; model: string; upstreamModel: string; baseUrl: string; apiKey?: string; authHeader: string; auth?: unknown; upstream: UpstreamContext; data: unknown; state: unknown}
 export interface BatchQueryContext {baseUrl: string; apiKey?: string; authHeader: string; auth?: unknown; upstream: UpstreamContext; tasks: readonly TaskQueryContext[]}
 export type HookHTTPResponse = {readonly status: number; readonly headers: Readonly<Record<string, string>>}
-export interface RequestDescriptor {responseType?: "json" | "sse"; url: string; method?: string; headers?: Record<string, string>; /** JSON body may contain FilePlaceholder objects at any depth; the host replaces each with a Base64 or data-URL string. */ body?: unknown; credentialless?: boolean; action?: string; model?: string; rewriteModel?: string; bodyType?: "json" | "multipart"; parts?: readonly {name: string; value?: unknown; fileRef?: string; filename?: string}[]}
+export interface RequestDescriptor {responseType?: "json" | "sse"; url: string; method?: string; headers?: Record<string, string>; /** JSON body may contain FilePlaceholder objects at any depth; the host replaces each with a Base64 or data-URL string. */ body?: unknown; credentialless?: boolean; action?: string; model?: string; rewriteModel?: string; bodyType?: "json" | "multipart"; parts?: readonly {name: string; value?: unknown; fileRef?: string; filename?: string}[]; /** buildContentRequest only: the artifact's bytes are the base64 string at this path of the JSON reply, a long-running operation. String keys and non-negative integer indices, at most 32 segments. */ contentPath?: readonly (string | number)[]; /** buildContentRequest with contentPath: the artifact's media type, default "video/mp4". */ mimeType?: string}
 export interface UpstreamResponse {statusCode: number; headers: Readonly<Record<string, readonly string[]>>; body: unknown}
 export interface NormalizedTaskResult {taskId?: string; status: "NOT_START" | "SUBMITTED" | "QUEUED" | "IN_PROGRESS" | "SUCCESS" | "FAILURE" | "UNKNOWN"; progress?: string; reason?: string; url?: string; remoteUrl?: string; completionTokens?: number; totalTokens?: number}
 export interface TaskArtifact {key: string; type: "video" | "audio" | "image" | "file"; mimeType?: string}
 export declare const meta: Meta;
-export declare const native: Record<string, ((ctx: NativeDecodeContext) => TaskIntent) | ((ctx: NativeDecodeContext, task: TaskView | readonly TaskView[]) => unknown)> & {error?: (ctx: NativeDecodeContext, error: {code: string; message: string; httpStatus: number; retryable: boolean}) => unknown};
+/** A query presenter's context: artifacts holds the gateway download addresses of one task in SUCCESS (from listArtifacts) and is empty otherwise. Throwing "artifact_not_found" answers 404. */
+export interface NativeQueryContext extends NativeDecodeContext {artifacts: Readonly<Record<string, {key: string; type: string; url: string; mimeType?: string}>>}
+/** A native presenter's reply with the vendor's own HTTP status (200–599); only Location and Retry-After may be set, and a reply without __body has no body. Any other value is the JSON body of a 200 reply, or of the host's status for the error presenter. */
+export type NativeReply = {__status: number; __headers?: {Location?: string; "Retry-After"?: string}; __body?: unknown};
+export declare const native: Record<string, ((ctx: NativeDecodeContext) => TaskIntent) | ((ctx: NativeQueryContext, task: TaskView | readonly TaskView[]) => unknown | NativeReply)> & {error?: (ctx: NativeDecodeContext, error: {code: string; message: string; httpStatus: number; retryable: boolean; requestId: string}) => unknown | NativeReply};
 export declare const protocols: {
   openai_responses?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; renderEvents?(ctx: unknown, task: TaskView, previousState: unknown): unknown; renderFinal?(ctx: unknown, task: TaskView): unknown};
   openai_video?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): unknown};

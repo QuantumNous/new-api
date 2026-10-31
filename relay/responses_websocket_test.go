@@ -16,7 +16,9 @@ import (
 	appdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -159,6 +161,7 @@ func TestSelectResponsesWSChannelAcceptsNativeResponsesChannelTypes(t *testing.T
 		advanced    *dto.AdvancedCustomConfig
 		rejectedBy  appdto.ChannelFilterKind
 	}{
+		{name: "azure", channelType: constant.ChannelTypeAzure},
 		{name: "new api", channelType: constant.ChannelTypeNewAPI},
 		{name: "sub2api", channelType: constant.ChannelTypeSub2API},
 		{name: "advanced custom native responses route", channelType: constant.ChannelTypeAdvancedCustom, advanced: nativeRoute},
@@ -188,6 +191,68 @@ func TestSelectResponsesWSChannelAcceptsNativeResponsesChannelTypes(t *testing.T
 			require.Nil(t, apiErr)
 			require.NotNil(t, selected)
 			assert.Equal(t, channel.Id, selected.Id)
+		})
+	}
+}
+
+func TestResponsesWSAzureDialUsesAzureResponsesURLAndAPIKey(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		host           string
+		responsesVer   string
+		wantPath       string
+		wantAPIVersion string
+		channelAPIVer  string
+	}{
+		{name: "openai v1 default preview", wantPath: "/openai/v1/responses", wantAPIVersion: "preview"},
+		{name: "channel responses version", responsesVer: "2025-04-01-preview", wantPath: "/openai/v1/responses", wantAPIVersion: "2025-04-01-preview"},
+		{name: "cognitiveservices uses channel api version", host: "cognitiveservices.azure.com", channelAPIVer: "2025-03-01-preview", wantPath: "/openai/responses", wantAPIVersion: "2025-03-01-preview"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handshake := make(chan *http.Request, 1)
+			upgrader := websocket.Upgrader{}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				handshake <- r
+				conn, err := upgrader.Upgrade(w, r, nil)
+				if err != nil {
+					return
+				}
+				_ = conn.Close()
+			}))
+			defer server.Close()
+
+			// The host check only inspects the base URL text, so a path segment
+			// is enough to select the cognitiveservices URL form.
+			baseURL := server.URL
+			if tc.host != "" {
+				baseURL += "/" + tc.host
+			}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+			info := &relaycommon.RelayInfo{
+				RelayMode:      relayconstant.RelayModeResponses,
+				RequestURLPath: "/v1/responses",
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelType:          constant.ChannelTypeAzure,
+					ChannelBaseUrl:       baseURL,
+					ApiType:              constant.APITypeOpenAI,
+					ApiVersion:           tc.channelAPIVer,
+					ApiKey:               "azure-key",
+					UpstreamModelName:    "gpt-test",
+					ChannelOtherSettings: dto.ChannelOtherSettings{AzureResponsesVersion: tc.responsesVer},
+				},
+			}
+			adaptor := GetAdaptor(info.ApiType)
+			adaptor.Init(info)
+			target, err := relaychannel.DoWssRequest(adaptor, c, info, nil)
+			require.NoError(t, err)
+			_ = target.Close()
+
+			r := <-handshake
+			assert.Equal(t, strings.TrimPrefix(baseURL, server.URL)+tc.wantPath, r.URL.Path)
+			assert.Equal(t, tc.wantAPIVersion, r.URL.Query().Get("api-version"))
+			assert.Equal(t, "azure-key", r.Header.Get("api-key"))
+			assert.Empty(t, r.Header.Get("Authorization"))
 		})
 	}
 }

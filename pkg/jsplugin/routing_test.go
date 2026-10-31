@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -598,16 +599,6 @@ func TestRegistryExcludesConflictingPluginWithoutBlockingGeneration(t *testing.T
 			second:        mustCompileRoutingPlugin(t, "channel-beta", 0, `["beta"]`, `channelTypes: [1],`, ""),
 			expectedError: "channelType 1 conflicts",
 		},
-		{
-			name: "route shape",
-			first: mustCompileRoutingPlugin(t, "route-alpha", 0, `["alpha"]`,
-				`routes: [{method: "GET", path: "/vendor/jobs/:task_id", type: "query", render: "status"}],`,
-				`export const native = {status: function(ctx, task) { return task; }};`),
-			second: mustCompileRoutingPlugin(t, "route-beta", 0, `["beta"]`,
-				`routes: [{method: "GET", path: "/vendor/jobs/:id", type: "query", render: "status", taskIdParam: "id"}],`,
-				`export const native = {status: function(ctx, task) { return task; }};`),
-			expectedError: "route GET /vendor/jobs/:id conflicts",
-		},
 	}
 
 	for _, testCase := range tests {
@@ -805,9 +796,9 @@ func TestDeclarativeRouteValidationProtectsNamespacesAndCanonicalSyntax(t *testi
 		expectedError string
 	}{
 		{
-			name:          "core API",
-			route:         Route{Method: "POST", Path: "/api/plugin", Type: RouteTypeSubmit},
-			expectedError: "reserved namespace /api",
+			name:          "static assets",
+			route:         Route{Method: "GET", Path: "/assets/x", Type: RouteTypeQuery, Render: "native"},
+			expectedError: "reserved namespace /assets",
 		},
 		{
 			name:          "generic task management",
@@ -848,11 +839,6 @@ func TestDeclarativeRouteValidationProtectsNamespacesAndCanonicalSyntax(t *testi
 			name:          "non-terminal catch-all",
 			route:         Route{Method: "POST", Path: "/vendor/*rest/jobs", Type: RouteTypeSubmit},
 			expectedError: "invalid catch-all",
-		},
-		{
-			name:          "query id mismatch",
-			route:         Route{Method: "GET", Path: "/vendor/jobs/:id", Type: RouteTypeQuery, Render: "native"},
-			expectedError: "must contain :task_id",
 		},
 		{
 			name:          "query declares decoder",
@@ -1067,17 +1053,128 @@ export const protocols = {
 }
 
 func TestReservedNamespaceChecksUseSegmentBoundaries(t *testing.T) {
-	meta := Meta{
-		APIVersion: 1,
-		Key:        "apiary",
-		Name:       "Apiary",
-		Version:    "1.0.0",
-		Author:     AuthorMeta{Name: "Test"},
-		Models:     []string{"model"},
-		FetchMode:  "per_task",
-		Routes:     []Route{{Method: "POST", Path: "/apiary/jobs", Type: RouteTypeSubmit, Decode: "decode", Render: "render"}},
+	// The host namespaces the outer router reveals, /api among them, are
+	// decided at admission, so these routes compile.
+	for _, routePath := range []string{"/apiary/jobs", "/api/plugin", "/api/:version/jobs", "/api/v3/contents/generations/tasks", "/api/common/v3/submit_task_v2"} {
+		meta := Meta{
+			APIVersion: 1,
+			Key:        "apiary",
+			Name:       "Apiary",
+			Version:    "1.0.0",
+			Author:     AuthorMeta{Name: "Test"},
+			Models:     []string{"model"},
+			FetchMode:  "per_task",
+			Routes:     []Route{{Method: "POST", Path: routePath, Type: RouteTypeSubmit, Decode: "decode", Render: "render"}},
+		}
+		require.NoError(t, ValidateV1Meta(meta), routePath)
 	}
-	require.NoError(t, ValidateV1Meta(meta))
+}
+
+// The gateway serves a plugin's routes under /{key}, so a key may not name a
+// host namespace. A plugin may declare one of those addresses itself, as
+// TypeSafe 1.2.0 declares /v1/systemone and /typesafe/v1/systemone; the
+// declaration serves it and the copy is not added again.
+func TestPluginKeyAndKeyAddressesAreValidated(t *testing.T) {
+	for _, key := range []string{"api", "v1", "assets", "console"} {
+		meta := Meta{APIVersion: 1, Key: key, Name: "Key", Version: "1.0.0", Author: AuthorMeta{Name: "Test"}, Models: []string{"model"}, FetchMode: "per_task"}
+		require.ErrorContains(t, ValidateV1Meta(meta), "is a reserved path segment", key)
+	}
+	native := `export const native = {decode: function() { return {}; }, render: function(ctx, task) { return task; }};`
+	plugin := mustCompileRoutingPlugin(t, "copyist", 0, `["model"]`, `routes: [
+		{method: "POST", path: "/v9/jobs", type: "submit", decode: "decode", render: "render"},
+		{method: "POST", path: "/copyist/v9/jobs", type: "submit", decode: "decode", render: "render"},
+	],`, native)
+	bindings := PluginRouteBindings(plugin)
+	require.Len(t, bindings, 2)
+	assert.Equal(t, "/v9/jobs", bindings[0].Route.Path)
+	assert.False(t, bindings[0].Pinned)
+	assert.Equal(t, "/copyist/v9/jobs", bindings[1].Route.Path)
+	assert.True(t, bindings[1].OwnPrefix)
+	registry := NewRegistry()
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{plugin}))
+	require.Empty(t, registry.RoutingErrors())
+	_, ok := registry.Generation().LookupDeclaredRoute("POST", "/copyist/v9/jobs")
+	assert.True(t, ok)
+}
+
+func TestRoutingGenerationServesDeclaredRoutesAndKeyCopies(t *testing.T) {
+	native := `export const native = {status: function(ctx, task) { return task; }, decode: function() { return {}; }};`
+	alibaba := mustCompileRoutingPlugin(t, "alibaba", 0, `["wan"]`, `routes: [
+		{method: "GET", path: "/api/v1/tasks/:task_id", type: "query", render: "status"},
+		{method: "GET", path: "/ali/api/v1/tasks/:task_id", type: "query", render: "status"},
+	],`, native)
+	sunoapi := mustCompileRoutingPlugin(t, "sunoapi", 0, `["suno"]`, `routes: [
+		{method: "GET", path: "/suno/fetch/:task_id", type: "query", render: "status"},
+	],`, native)
+	alpha := mustCompileRoutingPlugin(t, "shared-alpha", 0, `["probe-model"]`, `routes: [
+		{method: "GET", path: "/probe/jobs/:task_id", type: "query", render: "status"},
+		{method: "GET", path: "/probe/files/*rest", type: "query", render: "status", taskIdParam: "file_id"},
+	],`, native)
+	beta := mustCompileRoutingPlugin(t, "shared-beta", 0, `["probe-model"]`, `routes: [
+		{method: "GET", path: "/probe/jobs/:id", type: "query", render: "status", taskIdParam: "id"},
+	],`, native)
+	registry := NewRegistry()
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{sunoapi, beta, alpha, alibaba}))
+	require.Empty(t, registry.RoutingErrors())
+	generation := registry.Generation()
+
+	vendorPath, ok := generation.LookupDeclaredRoute("GET", "/api/v1/tasks/:id")
+	require.True(t, ok)
+	assert.False(t, vendorPath.Pinned)
+	assert.False(t, vendorPath.OwnPrefix)
+	copied, ok := generation.LookupDeclaredRoute("GET", "/alibaba/api/v1/tasks/:id")
+	require.True(t, ok)
+	assert.True(t, copied.Pinned)
+	assert.Equal(t, "/alibaba/api/v1/tasks/:task_id", copied.Route.Path)
+	ownPrefix, ok := generation.LookupDeclaredRoute("GET", "/ali/api/v1/tasks/:id")
+	require.True(t, ok)
+	assert.True(t, ownPrefix.OwnPrefix)
+	suno, ok := generation.LookupDeclaredRoute("GET", "/suno/fetch/:id")
+	require.True(t, ok)
+	assert.True(t, suno.OwnPrefix)
+	for _, path := range []string{"/alibaba/ali/api/v1/tasks/:id", "/sunoapi/suno/fetch/:id"} {
+		_, found := generation.LookupDeclaredRoute("GET", path)
+		assert.False(t, found, path)
+	}
+
+	shared := generation.LookupDeclaredRoutes("GET", "/probe/jobs/:x")
+	require.Len(t, shared, 2)
+	assert.Same(t, alpha, shared[0].Plugin)
+	assert.Same(t, beta, shared[1].Plugin)
+	var group RouteGroup
+	for _, candidate := range generation.RouteGroups() {
+		if candidate.Shape == "/probe/jobs/:" {
+			group = candidate
+		}
+	}
+	assert.Equal(t, "/probe/jobs/:s2", group.GinPath)
+	require.Len(t, group.Bindings, 2)
+	params := gin.Params{{Key: "s2", Value: "task_1"}}
+	assert.Equal(t, map[string]string{"task_id": "task_1"}, RouteParams(params, group.Bindings[0].Route))
+	assert.Equal(t, map[string]string{"id": "task_1"}, RouteParams(params, group.Bindings[1].Route))
+	pinnedBeta, ok := generation.LookupDeclaredRoute("GET", "/shared-beta/probe/jobs/:x")
+	require.True(t, ok)
+	assert.Equal(t, map[string]string{"id": "task_2"}, RouteParams(gin.Params{{Key: "s3", Value: "task_2"}}, pinnedBeta.Route))
+	files, ok := generation.LookupDeclaredRoute("GET", "/probe/files/*rest")
+	require.True(t, ok)
+	assert.Equal(t, map[string]string{"rest": "/a/b"}, RouteParams(gin.Params{{Key: "s2", Value: "/a/b"}}, files.Route))
+	// file_id is not a path parameter, so that query route reads it from the
+	// query string.
+	assert.True(t, files.Route.TaskIDInQuery())
+	assert.False(t, shared[0].Route.TaskIDInQuery())
+
+	skipped := generation.WithSkippedRoutes([]SkippedRoute{{PluginKey: "shared-beta", Route: beta.Meta.Routes[0], Reason: "host_route"}})
+	for _, candidate := range skipped.RouteGroups() {
+		if candidate.Shape == "/probe/jobs/:" {
+			require.Len(t, candidate.Bindings, 1)
+			assert.Same(t, alpha, candidate.Bindings[0].Plugin)
+		}
+	}
+	assert.Equal(t, []SkippedRoute{{PluginKey: "shared-beta", Route: beta.Meta.Routes[0], Reason: "host_route"}}, skipped.SkippedRoutes())
+	assert.Empty(t, generation.SkippedRoutes())
+	alphaOnly := NewRegistry()
+	require.NoError(t, alphaOnly.ReplaceOverrides([]*LoadedPlugin{alpha}))
+	require.NoError(t, PreflightRoutingConflict(alphaOnly.Generation(), beta), "a shared route shape is not a conflict")
 }
 
 func TestResolveRouteActionPrefersResolvedAction(t *testing.T) {

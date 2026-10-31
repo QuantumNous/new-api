@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,6 +56,78 @@ func TestSetUpLoggerMasksQueryCredentials(t *testing.T) {
 			assert.Equal(t, tc.loggedPath, loggedPath)
 			assert.Equal(t, originalURL, *request.URL)
 			assert.Equal(t, tc.target, request.RequestURI)
+		})
+	}
+}
+
+func TestAccessAndPanicLogsFollowLogRotation(t *testing.T) {
+	previousMode, previousWriter, previousErrorWriter := gin.Mode(), gin.DefaultWriter, gin.DefaultErrorWriter
+	previousLogDir := *common.LogDir
+	gin.SetMode(gin.TestMode)
+	*common.LogDir = t.TempDir()
+	t.Cleanup(func() {
+		gin.SetMode(previousMode)
+		gin.DefaultWriter, gin.DefaultErrorWriter = previousWriter, previousErrorWriter
+		*common.LogDir = previousLogDir
+	})
+
+	logger.SetupLogger()
+	router := gin.New()
+	router.Use(PanicRecover())
+	SetUpLogger(router)
+	router.GET("/ok/:step", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.GET("/panic", func(c *gin.Context) { panic("rotation-panic-marker") })
+
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/ok/before-rotation", nil))
+	content, err := os.ReadFile(logger.GetCurrentLogPath())
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "/ok/before-rotation")
+
+	// Rotation closes the file the middleware saw at startup. The new file may
+	// reuse the old name when both calls land in the same second; the checks
+	// below hold either way because only the new descriptor stays open.
+	logger.SetupLogger()
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/ok/after-rotation", nil))
+	panicResponse := httptest.NewRecorder()
+	router.ServeHTTP(panicResponse, httptest.NewRequest(http.MethodGet, "/panic", nil))
+	require.Equal(t, http.StatusInternalServerError, panicResponse.Code)
+
+	content, err = os.ReadFile(logger.GetCurrentLogPath())
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "/ok/after-rotation")
+	assert.Contains(t, string(content), "[Recovery]")
+	assert.Contains(t, string(content), "rotation-panic-marker\n")
+	assert.Contains(t, string(content), "middleware/logger_test.go")
+}
+
+func TestSetUpLoggerOmitsQueryCredentialsTakenOutByHandlers(t *testing.T) {
+	previousMode, previousWriter := gin.Mode(), gin.DefaultWriter
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() {
+		gin.SetMode(previousMode)
+		gin.DefaultWriter = previousWriter
+	})
+
+	for _, tc := range []struct{ target, loggedPath string }{
+		{"/v1beta/models/veo:predictLongRunning?key=sk-secret", "/v1beta/models/veo:predictLongRunning"},
+		{"/v1beta/models/veo:predictLongRunning?key=sk-secret&alt=sse", "/v1beta/models/veo:predictLongRunning?alt=sse"},
+	} {
+		t.Run(tc.target, func(t *testing.T) {
+			var output bytes.Buffer
+			gin.DefaultWriter = &output
+			router := gin.New()
+			SetUpLogger(router)
+			router.POST("/v1beta/models/:action", NativeRouteCredential("google"), func(c *gin.Context) {
+				c.Status(http.StatusNoContent)
+			})
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, tc.target, nil))
+
+			require.Equal(t, http.StatusNoContent, response.Code)
+			assert.NotContains(t, output.String(), "sk-secret")
+			_, loggedPath, found := strings.Cut(strings.TrimSuffix(output.String(), "\n"), "POST ")
+			require.True(t, found)
+			assert.Equal(t, tc.loggedPath, loggedPath)
 		})
 	}
 }

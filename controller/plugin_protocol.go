@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"fmt"
 	"hash/fnv"
 	"net/http"
 	"strconv"
@@ -1182,36 +1181,11 @@ func taskPluginProtocolRendererContext(
 	if pinned.Plugin == nil {
 		return nil, errors.New("task artifact projection is unavailable")
 	}
-
-	artifacts, err := taskjsplugin.New(pinned.Plugin).ListArtifacts(task)
-	if err != nil {
-		return nil, fmt.Errorf("project task artifacts: %w", err)
-	}
-	artifacts, err = validateProjectedTaskArtifacts(artifacts)
+	artifacts, err := taskjsplugin.RendererArtifacts(pinned.Plugin, task, artifactContentURL)
 	if err != nil {
 		return nil, err
 	}
-	if len(artifacts) > 0 && artifactContentURL == nil {
-		return nil, errors.New("task artifact projection is unavailable")
-	}
-
-	rendererArtifacts := make(map[string]any, len(artifacts))
-	for _, artifact := range artifacts {
-		contentURL, buildErr := artifactContentURL(task.TaskID, artifact.Key)
-		if buildErr != nil {
-			return nil, fmt.Errorf("build task artifact content URL: %w", buildErr)
-		}
-		item := map[string]any{
-			"key":  artifact.Key,
-			"type": artifact.Type,
-			"url":  contentURL,
-		}
-		if artifact.MimeType != "" {
-			item["mimeType"] = artifact.MimeType
-		}
-		rendererArtifacts[artifact.Key] = item
-	}
-	rendererContext["artifacts"] = rendererArtifacts
+	rendererContext["artifacts"] = artifacts
 	return rendererContext, nil
 }
 

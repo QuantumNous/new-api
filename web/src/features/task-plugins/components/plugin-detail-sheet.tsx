@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RotateCcw, X } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { CopyButton } from '@/components/copy-button'
 import { EmptyState } from '@/components/empty-state'
@@ -46,6 +45,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/features/system-settings/models/pricing-issues'
 import { handleServerError } from '@/lib/handle-server-error'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
@@ -54,6 +54,7 @@ import {
   getTaskPlugin,
   getTaskPluginVersions,
 } from '../api'
+import { toastPluginChange } from '../lib/plugin-change-toast'
 import type { TaskPluginListItem } from '../types'
 import { JavaScriptViewer } from './javascript-viewer'
 import { PluginIcon } from './plugin-icon'
@@ -105,12 +106,15 @@ function PluginDetailContent(props: { plugin: TaskPluginListItem }) {
   })
   const activateMutation = useMutation({
     mutationFn: (version: string) => activateTaskPlugin(key, version),
-    onSuccess: () => {
+    onSuccess: (notice) => {
       setCompareVersion('')
-      toast.success(t('Plugin version activated'))
+      toastPluginChange(t('Plugin version activated'), notice?.pricing_issues)
       queryClient.invalidateQueries({ queryKey: ['task-plugins'] })
       queryClient.invalidateQueries({ queryKey: ['task-plugin', key] })
       queryClient.invalidateQueries({ queryKey: ['task-plugin-versions', key] })
+      queryClient.invalidateQueries({
+        queryKey: MODEL_PRICING_ISSUES_QUERY_KEY,
+      })
     },
     onError: (error) => handleServerError(error),
   })
@@ -232,7 +236,13 @@ function PluginDetailContent(props: { plugin: TaskPluginListItem }) {
           </TabsList>
         </div>
         <TabsContent value='overview' className={panelClassName}>
-          {detailState ?? (detail && <PluginMetadataCard meta={detail.meta} />)}
+          {detailState ??
+            (detail && (
+              <PluginMetadataCard
+                meta={detail.meta}
+                skippedRoutes={detail.skipped_routes}
+              />
+            ))}
         </TabsContent>
         <TabsContent value='billing' className={panelClassName}>
           {detailState ?? (

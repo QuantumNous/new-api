@@ -20,6 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
+import { Toaster } from 'sonner'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { api } from '@/lib/api'
@@ -29,6 +30,7 @@ import type {
   TaskPluginDetail,
   TaskPluginListItem,
   TaskPluginMeta,
+  TaskPluginRecord,
 } from '../types'
 
 const queryClients: QueryClient[] = []
@@ -55,12 +57,16 @@ function makeItem(): TaskPluginListItem {
   }
 }
 
-function renderSheet(metaOverrides: Partial<TaskPluginMeta>) {
+function renderSheet(
+  metaOverrides: Partial<TaskPluginMeta>,
+  skippedRoutes?: string[]
+) {
   const item = makeItem()
   const detail: TaskPluginDetail = {
     meta: { ...item.meta, ...metaOverrides },
     source: '',
     layer: 'factory',
+    skipped_routes: skippedRoutes,
   }
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -229,7 +235,19 @@ describe('PluginDetailSheet host protocol endpoints', () => {
 })
 
 describe('PluginDetailSheet native routes', () => {
-  test('given declared native routes, each renders its method, path and type', async () => {
+  const vendorAndLegacyRoutes: TaskPluginMeta['routes'] = [
+    {
+      method: 'POST',
+      path: '/v1/videos/text2video',
+      type: 'submit',
+      models: ['kling-v1'],
+    },
+    { method: 'GET', path: '/v1/videos/text2video/:task_id', type: 'query' },
+    { method: 'POST', path: '/kling/v1/jobs', type: 'submit' },
+    { method: 'GET', path: '/kl/v1/jobs/:task_id', type: 'query' },
+  ]
+
+  test('given routes only under the plugin key, each renders its method, path and type without an address toggle', async () => {
     renderSheet({
       routes: [
         {
@@ -250,10 +268,119 @@ describe('PluginDetailSheet native routes', () => {
     ).toBeInTheDocument()
     const submitRow = endpointRow('/kling/v1/videos/text2video')
     expect(submitRow.textContent).toContain('POST')
-    expect(submitRow.textContent).toContain('submit')
+    expect(submitRow).toHaveTextContent('Submit request')
     const queryRow = endpointRow('/kling/v1/videos/text2video/:task_id')
     expect(queryRow.textContent).toContain('GET')
-    expect(queryRow.textContent).toContain('query')
+    expect(queryRow).toHaveTextContent('Retrieve result')
+    expect(screen.queryByRole('group', { name: 'Address format' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /Legacy addresses/ })
+    ).toBeNull()
+  })
+
+  test('given vendor paths, each is listed once and the routes under the plugin key fold into collapsed legacy addresses', async () => {
+    const user = userEvent.setup()
+    renderSheet({ routes: vendorAndLegacyRoutes })
+
+    expect(await screen.findByText('/v1/videos/text2video')).toBeVisible()
+    expect(endpointRow('/v1/videos/text2video')).toHaveTextContent(
+      'Submit request'
+    )
+    expect(
+      within(endpointRow('/v1/videos/text2video')).getByRole('button', {
+        name: 'Model scope',
+      })
+    ).toBeVisible()
+    expect(endpointRow('/v1/videos/text2video/:task_id')).toHaveTextContent(
+      'Retrieve result'
+    )
+    expect(screen.queryByText('/kling/v1/videos/text2video')).toBeNull()
+    const legacy = screen.getByRole('button', {
+      name: 'Legacy addresses (2)',
+    })
+    expect(legacy).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('/kling/v1/jobs')).toBeNull()
+
+    legacy.focus()
+    await user.keyboard('{Enter}')
+
+    expect(legacy).toHaveAttribute('aria-expanded', 'true')
+    expect(endpointRow('/kling/v1/jobs')).toHaveTextContent('Submit request')
+    expect(endpointRow('/kl/v1/jobs/:task_id')).toHaveTextContent(
+      'Retrieve result'
+    )
+  })
+
+  test('given the /{key} form is chosen, every listed path and its copy value switch to the /{key} address while legacy addresses stay as declared', async () => {
+    const user = userEvent.setup()
+    const clipboard = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockResolvedValue()
+    renderSheet({ routes: vendorAndLegacyRoutes })
+
+    const forms = await screen.findByRole('group', { name: 'Address format' })
+    const vendorForm = within(forms).getByRole('button', {
+      name: 'Vendor path',
+    })
+    expect(vendorForm).toHaveAttribute('aria-pressed', 'true')
+    await user.click(
+      within(endpointRow('/v1/videos/text2video')).getByRole('button', {
+        name: 'Copy endpoint path',
+      })
+    )
+    expect(clipboard).toHaveBeenLastCalledWith('/v1/videos/text2video')
+
+    const keyForm = within(forms).getByRole('button', { name: '/kling' })
+    keyForm.focus()
+    await user.keyboard('{Enter}')
+
+    expect(keyForm).toHaveAttribute('aria-pressed', 'true')
+    expect(vendorForm).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByText('/v1/videos/text2video')).toBeNull()
+    expect(
+      endpointRow('/kling/v1/videos/text2video/:task_id')
+    ).toHaveTextContent('Retrieve result')
+    await user.click(
+      within(endpointRow('/kling/v1/videos/text2video')).getByRole('button', {
+        name: 'Copy endpoint path',
+      })
+    )
+    expect(clipboard).toHaveBeenLastCalledWith('/kling/v1/videos/text2video')
+    await user.click(
+      screen.getByRole('button', { name: 'Legacy addresses (2)' })
+    )
+    expect(screen.getByText('/kling/v1/jobs')).toBeVisible()
+    expect(screen.queryByText('/kling/kling/v1/jobs')).toBeNull()
+    expect(screen.queryByText('/kling/kl/v1/jobs/:task_id')).toBeNull()
+  })
+
+  test('given a route served only at /{key}, its vendor path is greyed out with a note and its /{key} address is shown normally', async () => {
+    const user = userEvent.setup()
+    renderSheet({ routes: vendorAndLegacyRoutes }, [
+      'POST /v1/videos/text2video',
+    ])
+
+    expect(await screen.findByText('/v1/videos/text2video')).toHaveClass(
+      'text-muted-foreground'
+    )
+    expect(endpointRow('/v1/videos/text2video')).toHaveTextContent(
+      'Only served at the /kling address'
+    )
+    expect(screen.getByText('/v1/videos/text2video/:task_id')).not.toHaveClass(
+      'text-muted-foreground'
+    )
+    expect(endpointRow('/v1/videos/text2video/:task_id')).not.toHaveTextContent(
+      'Only served'
+    )
+
+    await user.click(screen.getByRole('button', { name: '/kling' }))
+
+    expect(screen.getByText('/kling/v1/videos/text2video')).not.toHaveClass(
+      'text-muted-foreground'
+    )
+    expect(endpointRow('/kling/v1/videos/text2video')).not.toHaveTextContent(
+      'Only served'
+    )
   })
 
   test('given no protocols and no routes, the endpoint section falls back to a single placeholder', async () => {
@@ -444,6 +571,61 @@ test('keeps header and navigation outside the scrolling content with long metada
   expect(screen.getByText('/very-long-path/'.repeat(20))).toHaveClass(
     'break-all'
   )
+})
+
+test('activating a version lists the models it cannot charge', async () => {
+  const user = userEvent.setup()
+  const fixture = renderSheet({})
+  const version = (number: string, active: boolean): TaskPluginRecord => ({
+    id: active ? 2 : 1,
+    key: 'kling',
+    api_version: 1,
+    version: number,
+    source: '',
+    source_hash: number,
+    enabled: true,
+    active,
+    created_at: active ? 2 : 1,
+    remark: '',
+  })
+  const versions = [version('1.2.3', true), version('1.0.0', false)]
+  fixture.queryClient.setQueryData(['task-plugin-versions', 'kling'], versions)
+  vi.spyOn(api, 'get').mockImplementation(async (url) => ({
+    data: {
+      success: true,
+      data: url.endsWith('/versions') ? versions : fixture.detail,
+    },
+  }))
+  const post = vi.spyOn(api, 'post').mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        pricing_issues: [
+          {
+            model_name: 'kling-v1',
+            plugin_key: 'kling',
+            plugin_name: 'Kling',
+            reason: 'unconfigured',
+          },
+        ],
+      },
+    },
+  })
+  render(<Toaster />)
+
+  await user.click(screen.getByRole('tab', { name: 'Version history' }))
+  const row = screen.getByRole('row', { name: /1\.0\.0/ })
+  await user.click(
+    within(row).getByRole('button', { name: 'Activate / Roll back' })
+  )
+
+  expect(post).toHaveBeenCalledWith(
+    '/api/plugin/task/kling/activate',
+    { version: '1.0.0' },
+    expect.any(Object)
+  )
+  expect(await screen.findByText('Plugin version activated')).toBeVisible()
+  expect(screen.getByText('kling-v1: No price set')).toBeVisible()
 })
 
 test('version loading and failure allow retry without hiding the overview', async () => {

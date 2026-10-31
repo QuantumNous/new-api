@@ -24,6 +24,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
+	taskjsplugin "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -56,6 +57,56 @@ const (
 	maxTaskPluginFilenameBytes  = 255
 )
 
+// NativeRouteCredential accepts, on the native routes of the built-in plugins
+// listed here, the vendor's official API-key form as the gateway token and
+// rewrites it into the Bearer form TokenAuth reads: Vidu's
+// "Authorization: Token <key>", and the Gemini API's "x-goog-api-key: <key>"
+// or "?key=<key>". A header the client already sent as Authorization wins.
+// "?key=" is taken out of the URL in every case, so decoders, the stored
+// request path and later handlers never see it. Every other plugin's routes
+// accept the Bearer form only. pluginKeys are the plugins serving the route.
+func NativeRouteCredential(pluginKeys ...string) gin.HandlerFunc {
+	viduToken := slices.Contains(pluginKeys, "vidu")
+	googleKey := slices.Contains(pluginKeys, "google")
+	return func(c *gin.Context) {
+		header := c.Request.Header
+		if viduToken {
+			if scheme, token, found := strings.Cut(header.Get("Authorization"), " "); found && strings.EqualFold(scheme, "Token") {
+				header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+			}
+		}
+		if googleKey {
+			queryKey, removed := "", false
+			kept := make([]string, 0)
+			for part := range strings.SplitSeq(c.Request.URL.RawQuery, "&") {
+				rawName, rawValue, _ := strings.Cut(part, "=")
+				if name, err := url.QueryUnescape(rawName); err != nil || name != "key" {
+					kept = append(kept, part)
+					continue
+				}
+				removed = true
+				if value, err := url.QueryUnescape(rawValue); err == nil && queryKey == "" {
+					queryKey = value
+				}
+			}
+			if removed {
+				c.Request.URL.RawQuery = strings.Join(kept, "&")
+				c.Request.RequestURI = c.Request.URL.RequestURI()
+			}
+			headerKey := header.Get("X-Goog-Api-Key")
+			header.Del("X-Goog-Api-Key")
+			if header.Get("Authorization") == "" {
+				if headerKey != "" {
+					header.Set("Authorization", "Bearer "+headerKey)
+				} else if queryKey != "" {
+					header.Set("Authorization", "Bearer "+queryKey)
+				}
+			}
+		}
+		c.Next()
+	}
+}
+
 // PrepareTaskPluginRoute resolves and executes the pinned declarative route.
 // Query requests terminate here so channel distribution and billing are never
 // entered; submit requests continue through the remaining route handlers.
@@ -75,16 +126,22 @@ func PrepareTaskPluginRoute() gin.HandlerFunc {
 		if pinned.Generation != nil {
 			generation = pinned.Generation.Number
 		}
+		candidates := pinned.Candidates
+		if len(candidates) == 0 {
+			candidates = []pluginruntime.RouteBinding{{Plugin: pinned.Plugin, Route: pinned.Route}}
+		}
 		logger.LogDebug(
 			c,
-			"task_plugin subsystem=route event=prepare_start generation=%d plugin=%q method=%q declared_type=%q",
+			"task_plugin subsystem=route event=prepare_start generation=%d plugin=%q method=%q declared_type=%q candidates=%d",
 			generation,
 			pinned.Plugin.Meta.Key,
 			pinned.Route.Method,
 			pinned.Route.Type,
+			len(candidates),
 		)
 
 		requestContext, err := buildTaskPluginRouteRequest(c)
+		requestContext.Params = pluginruntime.RouteParams(c.Params, pinned.Route)
 		c.Set(pluginruntime.ContextKeyRouteRequest, requestContext)
 		if err != nil {
 			logger.LogWarn(
@@ -106,8 +163,15 @@ func PrepareTaskPluginRoute() gin.HandlerFunc {
 		// Submit routes hand JSON and multipart bodies to the decoder, which
 		// rejects the kinds its vendor format does not use. A route scoped to
 		// models reads the model from a JSON body, so it takes JSON only.
-		submitBody := bodyKind == string(pluginruntime.BodyJSON) || bodyKind == string(pluginruntime.BodyMultipart) && len(pinned.Route.Models) == 0
-		if pinned.Route.Type == pluginruntime.RouteTypeQuery && bodyKind != string(pluginruntime.BodyNone) || pinned.Route.Type != pluginruntime.RouteTypeQuery && !submitBody {
+		// Query routes take no body.
+		eligible := make([]pluginruntime.RouteBinding, 0, len(candidates))
+		for _, candidate := range candidates {
+			submitBody := bodyKind == string(pluginruntime.BodyJSON) || bodyKind == string(pluginruntime.BodyMultipart) && len(candidate.Route.Models) == 0
+			if candidate.Route.Type == pluginruntime.RouteTypeQuery && bodyKind == string(pluginruntime.BodyNone) || candidate.Route.Type != pluginruntime.RouteTypeQuery && submitBody {
+				eligible = append(eligible, candidate)
+			}
+		}
+		if len(eligible) == 0 {
 			logger.LogWarn(
 				c,
 				common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=request_decode reason=body_kind_mismatch body_kind=%q",
@@ -125,217 +189,329 @@ func PrepareTaskPluginRoute() gin.HandlerFunc {
 			abortTaskPluginRouteErrorDetail(c, http.StatusUnsupportedMediaType, detail)
 			return
 		}
-		if pinned.Route.Type == pluginruntime.RouteTypeQuery {
-			taskID := requestContext.Params[pinned.Route.TaskIDParam]
-			logger.LogDebug(
-				c,
-				"task_plugin subsystem=route event=resolved generation=%d plugin=%q kind=query renderer=%q task_count=1 distribute=false",
-				generation,
-				pinned.Plugin.Meta.Key,
-				pinned.Route.Render,
-			)
-			renderTaskPluginQuery(c, pinned, requestContext, []string{taskID}, pinned.Route.Render, false)
+		if eligible[0].Route.Type == pluginruntime.RouteTypeQuery {
+			renderTaskPluginRouteQuery(c, pinned, requestContext, eligible)
 			return
 		}
 
-		if len(pinned.Route.Models) > 0 {
-			bodyValue, _ := bodyObject["value"].(map[string]any)
-			claimedModel, _ := bodyValue["model"].(string)
-			if claimedModel == "" || !slices.Contains(pinned.Route.Models, claimedModel) {
-				logger.LogWarn(
-					c,
-					common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=model_not_allowed model=%q",
-						generation,
-						pinned.Plugin.Meta.Key,
-						claimedModel),
-				)
-				abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, fmt.Sprintf("model %q is not allowed on this route", claimedModel))
-				return
-			}
+		// Every candidate decodes the request; the first that accepts it in
+		// key order names the model, and the candidates that accept the same
+		// model stay eligible for distribution, which picks the executing
+		// plugin by channel.
+		claimedModel := ""
+		if bodyValue, isObject := bodyObject["value"].(map[string]any); isObject {
+			claimedModel, _ = bodyValue["model"].(string)
 		}
-
 		hookStarted := time.Now()
-		resolvedValue, requestBodyText, err := pinned.Plugin.Engine.CallPathWithMemberJSON(
-			c.Request.Context(), 0, pinned.Plugin.Meta.JSONTextMember("requestBody"),
-			"native", []string{pinned.Route.Decode}, requestContext.JSValueFor(pinned.Plugin.Meta),
+		var (
+			accepted         []pluginruntime.RouteBinding
+			resolved         map[string]any
+			resolvedIntent   taskPluginRouteIntent
+			resolvedContext  pluginruntime.RouteRequestContext
+			resolvedBodyText json.RawMessage
+			queryMissed      bool
+			failures         []string
 		)
-		if err != nil {
-			logger.LogWarn(
-				c,
-				common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=hook_failed err=%q elapsed_ms=%d",
-					generation,
-					pinned.Plugin.Meta.Key,
-					err.Error(),
-					time.Since(hookStarted).Milliseconds()),
+		rejectedPlugins := make(map[string][]string)
+		for _, candidate := range eligible {
+			candidateContext := requestContext
+			candidateContext.Params = pluginruntime.RouteParams(c.Params, candidate.Route)
+			var (
+				result   map[string]any
+				bodyText json.RawMessage
+				intent   taskPluginRouteIntent
+				reason   string
+				detail   string
 			)
-			abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, taskPluginHookDetail(err))
-			return
-		}
-		resolved, ok := resolvedValue.(map[string]any)
-		if !ok {
-			logger.LogWarn(
-				c,
-				common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=result_not_object elapsed_ms=%d",
-					generation,
-					pinned.Plugin.Meta.Key,
-					time.Since(hookStarted).Milliseconds()),
-			)
-			abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, taskPluginInvalidRouteResult)
-			return
-		}
-		kind, ok := resolved["kind"].(string)
-		if !ok {
-			logger.LogWarn(
-				c,
-				common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=missing_kind elapsed_ms=%d",
-					generation,
-					pinned.Plugin.Meta.Key,
-					time.Since(hookStarted).Milliseconds()),
-			)
-			abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, taskPluginInvalidRouteResult)
-			return
-		}
-		if _, forbidden := resolved["renderer"]; forbidden {
-			logger.LogWarn(c, common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=forbidden_renderer", generation, pinned.Plugin.Meta.Key))
-			abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, taskPluginInvalidRouteResult)
-			return
-		}
-
-		switch kind {
-		case string(pluginruntime.RouteTypeSubmit):
-			modelName, valid := resolved["model"].(string)
-			if !valid || strings.TrimSpace(modelName) == "" {
-				logger.LogWarn(
-					c,
-					common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=invalid_model",
-						generation,
-						pinned.Plugin.Meta.Key),
-				)
-				abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, "decoded request is missing a model")
-				return
+			// The list names declared models; a case variant or a channel
+			// alias of a listed model is allowed with it.
+			allowed := len(candidate.Route.Models) == 0
+			if !allowed {
+				_, _, allowed = model.ResolveTaskPluginModel(pinned.Generation, claimedModel, candidate.Route.Models)
 			}
-			owned := slices.Contains(pinned.Plugin.Meta.Models, modelName)
-			if !owned {
-				logger.LogWarn(
-					c,
-					common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=model_not_owned model=%q",
-						generation,
-						pinned.Plugin.Meta.Key,
-						modelName),
+			if !allowed {
+				reason, detail = "model_not_allowed", fmt.Sprintf("model %q is not allowed on this route", claimedModel)
+			} else {
+				value, text, callErr := candidate.Plugin.Engine.CallPathWithMemberJSON(
+					c.Request.Context(), 0, candidate.Plugin.Meta.JSONTextMember("requestBody"),
+					"native", []string{candidate.Route.Decode}, candidateContext.JSValueFor(candidate.Plugin.Meta),
 				)
-				abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, fmt.Sprintf("model %q is not served by this plugin", modelName))
-				return
+				if callErr != nil {
+					reason, detail = "hook_failed", taskPluginHookDetail(callErr)
+				} else {
+					result, _ = value.(map[string]any)
+					bodyText = text
+					intent, reason, detail = checkTaskPluginRouteIntent(pinned.Generation, candidate, value)
+				}
 			}
-			if len(pinned.Route.Models) > 0 && !slices.Contains(pinned.Route.Models, modelName) {
-				logger.LogWarn(
-					c,
-					common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=resolved_model_not_allowed model=%q",
-						generation,
-						pinned.Plugin.Meta.Key,
-						modelName),
-				)
-				abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, fmt.Sprintf("model %q is not allowed on this route", modelName))
-				return
-			}
-			action := pinned.Route.Action
-			if resolvedAction, present := resolved["action"]; present {
-				actionValue, actionOK := resolvedAction.(string)
-				if !actionOK {
-					logger.LogWarn(
+			if reason == "" && intent.kind == string(pluginruntime.RouteTypeQuery) {
+				if len(eligible) == 1 {
+					logger.LogDebug(
 						c,
-						common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=invalid_action",
-							generation,
-							pinned.Plugin.Meta.Key),
+						"task_plugin subsystem=route event=resolved generation=%d plugin=%q kind=query renderer=%q task_count=%d distribute=false elapsed_ms=%d",
+						generation,
+						candidate.Plugin.Meta.Key,
+						candidate.Route.Render,
+						len(intent.taskIDs),
+						time.Since(hookStarted).Milliseconds(),
 					)
-					abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, taskPluginInvalidRouteResult)
+					renderTaskPluginQuery(c, pinned, candidateContext, intent.taskIDs, candidate.Route.Render, true)
 					return
 				}
-				if strings.TrimSpace(actionValue) != "" {
-					action = actionValue
+				owned, lookupErr := taskPluginOwnsTasks(c, candidate.Plugin.Meta, intent.taskIDs)
+				if lookupErr != nil {
+					abortTaskPluginRouteError(c, http.StatusInternalServerError)
+					return
+				}
+				if owned {
+					pinned.Plugin, pinned.Route = candidate.Plugin, candidate.Route
+					c.Set(pluginruntime.ContextKeyPinnedRoute, pinned)
+					c.Set(pluginruntime.ContextKeyPinnedPlugin, pluginruntime.PinnedPlugin{Generation: pinned.Generation, Plugin: candidate.Plugin})
+					c.Set(pluginruntime.ContextKeyRouteRequest, candidateContext)
+					renderTaskPluginQuery(c, pinned, candidateContext, intent.taskIDs, candidate.Route.Render, true)
+					return
+				}
+				queryMissed = true
+				continue
+			}
+			if reason == "" && resolved != nil && intent.model != resolvedIntent.model {
+				logger.LogDebug(c, "task_plugin subsystem=route event=candidate_skipped generation=%d plugin=%q reason=other_model model=%q", generation, candidate.Plugin.Meta.Key, intent.model)
+				continue
+			}
+			if reason != "" {
+				if detail == "" {
+					detail = "Invalid request"
+				}
+				logger.LogWarn(
+					c,
+					common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=%s err=%q elapsed_ms=%d",
+						generation,
+						candidate.Plugin.Meta.Key,
+						reason,
+						detail,
+						time.Since(hookStarted).Milliseconds()),
+				)
+				if _, seen := rejectedPlugins[detail]; !seen {
+					failures = append(failures, detail)
+				}
+				rejectedPlugins[detail] = append(rejectedPlugins[detail], candidate.Plugin.Meta.Key)
+				continue
+			}
+			accepted = append(accepted, candidate)
+			if resolved == nil {
+				resolved, resolvedIntent, resolvedContext, resolvedBodyText = result, intent, candidateContext, bodyText
+			}
+		}
+		if len(accepted) == 0 {
+			if queryMissed {
+				abortTaskPluginRouteError(c, http.StatusNotFound)
+				return
+			}
+			if len(eligible) > 1 {
+				for index, detail := range failures {
+					failures[index] = strings.Join(rejectedPlugins[detail], ", ") + ": " + detail
 				}
 			}
-			if replacementBody, present := resolved["requestBody"]; present {
-				requestContext.RequestBody = replacementBody
-				c.Set(pluginruntime.ContextKeyRouteRequest, requestContext)
-			}
-			c.Set("task_request", requestContext.RequestBody)
-			if requestBodyText != nil {
-				c.Set(pluginruntime.ContextKeyRequestBodyText, requestBodyText)
-			}
-			c.Set("resolved_task_model", modelName)
-			c.Set("expected_task_plugin_key", pinned.Plugin.Meta.Key)
-			c.Set("task_plugin_key", pinned.Plugin.Meta.Key)
-			c.Set("platform", pinned.Plugin.Meta.Key)
-			service.AppendTaskPluginIdentityFilter(c, pinned.Plugin.Meta.Key)
-			if action != "" {
-				c.Set("task_action", action)
-			}
-			c.Set("relay_mode", relayconstant.RelayModeVideoSubmit)
-			if intentErr := applyOriginTaskIntent(c, resolved, pinned.Plugin.Meta); intentErr != nil {
-				logger.LogWarn(
-					c,
-					common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=origin_task reason=%s",
-						generation,
-						pinned.Plugin.Meta.Key,
-						intentErr.Code),
-				)
-				abortTaskPluginRouteErrorDetail(c, intentErr.StatusCode, intentErr.Message)
-				return
-			}
-			_, bodyReplaced := resolved["requestBody"]
-			logger.LogDebug(
-				c,
-				"task_plugin subsystem=route event=resolved generation=%d plugin=%q kind=submit model=%q action_present=%t request_body_replaced=%t distribute=true elapsed_ms=%d",
-				generation,
-				pinned.Plugin.Meta.Key,
-				modelName,
-				action != "",
-				bodyReplaced,
-				time.Since(hookStarted).Milliseconds(),
-			)
-			c.Next()
-		case string(pluginruntime.RouteTypeQuery):
-			if pinned.Route.Type != pluginruntime.RouteTypeDynamic {
-				logger.LogWarn(
-					c,
-					common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=query_from_non_dynamic_route",
-						generation,
-						pinned.Plugin.Meta.Key),
-				)
-				abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, taskPluginInvalidRouteResult)
-				return
-			}
-			taskIDs, valid := resolvedTaskPluginIDs(resolved["taskIds"])
-			if !valid {
-				logger.LogWarn(
-					c,
-					common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=invalid_query_result",
-						generation,
-						pinned.Plugin.Meta.Key),
-				)
-				abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, taskPluginInvalidRouteResult)
-				return
-			}
-			logger.LogDebug(
-				c,
-				"task_plugin subsystem=route event=resolved generation=%d plugin=%q kind=query renderer=%q task_count=%d distribute=false elapsed_ms=%d",
-				generation,
-				pinned.Plugin.Meta.Key,
-				pinned.Route.Render,
-				len(taskIDs),
-				time.Since(hookStarted).Milliseconds(),
-			)
-			renderTaskPluginQuery(c, pinned, requestContext, taskIDs, pinned.Route.Render, true)
-		default:
+			abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, strings.Join(failures, "; "))
+			return
+		}
+
+		owner := accepted[0]
+		pinned.Plugin, pinned.Route, pinned.Candidates = owner.Plugin, owner.Route, accepted
+		c.Set(pluginruntime.ContextKeyPinnedRoute, pinned)
+		c.Set(pluginruntime.ContextKeyPinnedPlugin, pluginruntime.PinnedPlugin{Generation: pinned.Generation, Plugin: owner.Plugin})
+		_, bodyReplaced := resolved["requestBody"]
+		if bodyReplaced {
+			resolvedContext.RequestBody = resolved["requestBody"]
+		}
+		c.Set(pluginruntime.ContextKeyRouteRequest, resolvedContext)
+		c.Set("task_request", resolvedContext.RequestBody)
+		if resolvedBodyText != nil {
+			c.Set(pluginruntime.ContextKeyRequestBodyText, resolvedBodyText)
+		}
+		c.Set("resolved_task_model", resolvedIntent.model)
+		c.Set("expected_task_plugin_key", owner.Plugin.Meta.Key)
+		c.Set("task_plugin_key", owner.Plugin.Meta.Key)
+		c.Set("platform", owner.Plugin.Meta.Key)
+		service.AppendTaskPluginIdentityFilter(c, owner.Plugin.Meta.Key)
+		if resolvedIntent.action != "" {
+			c.Set("task_action", resolvedIntent.action)
+		}
+		c.Set("relay_mode", relayconstant.RelayModeVideoSubmit)
+		if intentErr := applyOriginTaskIntent(c, resolved, owner.Plugin.Meta); intentErr != nil {
 			logger.LogWarn(
 				c,
-				common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=resolve_request reason=unsupported_kind",
+				common.LogText("task_plugin subsystem=route event=prepare_rejected generation=%d plugin=%q stage=origin_task reason=%s",
 					generation,
-					pinned.Plugin.Meta.Key),
+					owner.Plugin.Meta.Key,
+					intentErr.Code),
 			)
-			abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, taskPluginInvalidRouteResult)
+			abortTaskPluginRouteErrorDetail(c, intentErr.StatusCode, intentErr.Message)
+			return
+		}
+		logger.LogDebug(
+			c,
+			"task_plugin subsystem=route event=resolved generation=%d plugin=%q kind=submit model=%q action_present=%t request_body_replaced=%t candidates=%d distribute=true elapsed_ms=%d",
+			generation,
+			owner.Plugin.Meta.Key,
+			resolvedIntent.model,
+			resolvedIntent.action != "",
+			bodyReplaced,
+			len(accepted),
+			time.Since(hookStarted).Milliseconds(),
+		)
+		c.Next()
+	}
+}
+
+// taskPluginRouteIntent is what a native route's decoder resolved: a submit
+// (model and action) or, on a dynamic route, a query (task ids).
+type taskPluginRouteIntent struct {
+	kind    string
+	model   string
+	action  string
+	taskIDs []string
+}
+
+// checkTaskPluginRouteIntent validates a native decoder's result against the
+// candidate route. A rejection names a log reason and the client's detail.
+func checkTaskPluginRouteIntent(generation *pluginruntime.RoutingGeneration, candidate pluginruntime.RouteBinding, value any) (intent taskPluginRouteIntent, reason, detail string) {
+	resolved, ok := value.(map[string]any)
+	if !ok {
+		return intent, "result_not_object", taskPluginInvalidRouteResult
+	}
+	kind, ok := resolved["kind"].(string)
+	if !ok {
+		return intent, "missing_kind", taskPluginInvalidRouteResult
+	}
+	if _, forbidden := resolved["renderer"]; forbidden {
+		return intent, "forbidden_renderer", taskPluginInvalidRouteResult
+	}
+	intent.kind = kind
+	switch kind {
+	case string(pluginruntime.RouteTypeSubmit):
+		modelName, valid := resolved["model"].(string)
+		if !valid || strings.TrimSpace(modelName) == "" {
+			return intent, "invalid_model", "decoded request is missing a model"
+		}
+		// The task is named as on the host protocols: a case variant by the
+		// declared spelling, a channel alias by the alias.
+		served, declared, owned := model.ResolveTaskPluginModel(generation, modelName, candidate.Plugin.Meta.Models)
+		if !owned {
+			return intent, "model_not_owned", fmt.Sprintf("model %q is not served by this plugin", modelName)
+		}
+		if len(candidate.Route.Models) > 0 && !slices.Contains(candidate.Route.Models, declared) {
+			return intent, "resolved_model_not_allowed", fmt.Sprintf("model %q is not allowed on this route", modelName)
+		}
+		intent.model = served
+		intent.action = candidate.Route.Action
+		if resolvedAction, present := resolved["action"]; present {
+			actionValue, actionOK := resolvedAction.(string)
+			if !actionOK {
+				return intent, "invalid_action", taskPluginInvalidRouteResult
+			}
+			if strings.TrimSpace(actionValue) != "" {
+				intent.action = actionValue
+			}
+		}
+	case string(pluginruntime.RouteTypeQuery):
+		if candidate.Route.Type != pluginruntime.RouteTypeDynamic {
+			return intent, "query_from_non_dynamic_route", taskPluginInvalidRouteResult
+		}
+		taskIDs, valid := resolvedTaskPluginIDs(resolved["taskIds"])
+		if !valid {
+			return intent, "invalid_query_result", taskPluginInvalidRouteResult
+		}
+		intent.taskIDs = taskIDs
+	default:
+		return intent, "unsupported_kind", taskPluginInvalidRouteResult
+	}
+	return intent, "", ""
+}
+
+// renderTaskPluginRouteQuery answers a native query route. A candidate reads
+// the task id from its path parameter or, when its taskIdParam is not in the
+// path, from the query string. On a path several plugins declare, the task's
+// own plugin answers: the first candidate in key order that owns it. A task
+// none of them owns is not found, like a missing one.
+func renderTaskPluginRouteQuery(c *gin.Context, pinned pluginruntime.PinnedRoute, requestContext pluginruntime.RouteRequestContext, candidates []pluginruntime.RouteBinding) {
+	taskIDs := make([]string, len(candidates))
+	for index, candidate := range candidates {
+		if !candidate.Route.TaskIDInQuery() {
+			taskIDs[index] = pluginruntime.RouteParams(c.Params, candidate.Route)[candidate.Route.TaskIDParam]
+		} else if values := requestContext.Query[candidate.Route.TaskIDParam]; len(values) > 0 {
+			taskIDs[index] = strings.TrimSpace(values[0])
 		}
 	}
+	if !slices.ContainsFunc(taskIDs, func(taskID string) bool { return taskID != "" }) {
+		abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, candidates[0].Route.TaskIDParam+" is required")
+		return
+	}
+	ownerIndex := 0
+	if len(candidates) > 1 {
+		ownerIndex = -1
+		platforms := make([]constant.TaskPlatform, 0, len(candidates))
+		for index, candidate := range candidates {
+			if taskIDs[index] != "" {
+				platforms = append(platforms, taskPluginLegacyPlatforms(candidate.Plugin.Meta)...)
+			}
+		}
+		tasks, err := model.GetByTaskIdsForPlatforms(common.GetContextKeyInt(c, constant.ContextKeyUserId), platforms, slices.Compact(slices.Sorted(slices.Values(taskIDs))))
+		if err != nil {
+			abortTaskPluginRouteError(c, http.StatusInternalServerError)
+			return
+		}
+		for index, candidate := range candidates {
+			if slices.ContainsFunc(tasks, func(task *model.Task) bool {
+				return task.TaskID == taskIDs[index] && task.ResultRetrievable() && slices.Contains(taskPluginLegacyPlatforms(candidate.Plugin.Meta), task.Platform)
+			}) {
+				ownerIndex = index
+				break
+			}
+		}
+		if ownerIndex < 0 {
+			abortTaskPluginRouteError(c, http.StatusNotFound)
+			return
+		}
+	}
+	owner := candidates[ownerIndex]
+	if taskIDs[ownerIndex] == "" {
+		abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, owner.Route.TaskIDParam+" is required")
+		return
+	}
+	requestContext.Params = pluginruntime.RouteParams(c.Params, owner.Route)
+	pinned.Plugin, pinned.Route = owner.Plugin, owner.Route
+	c.Set(pluginruntime.ContextKeyPinnedRoute, pinned)
+	c.Set(pluginruntime.ContextKeyPinnedPlugin, pluginruntime.PinnedPlugin{Generation: pinned.Generation, Plugin: owner.Plugin})
+	c.Set(pluginruntime.ContextKeyRouteRequest, requestContext)
+	generation := uint64(0)
+	if pinned.Generation != nil {
+		generation = pinned.Generation.Number
+	}
+	logger.LogDebug(
+		c,
+		"task_plugin subsystem=route event=resolved generation=%d plugin=%q kind=query renderer=%q task_count=1 candidates=%d distribute=false",
+		generation,
+		owner.Plugin.Meta.Key,
+		owner.Route.Render,
+		len(candidates),
+	)
+	renderTaskPluginQuery(c, pinned, requestContext, []string{taskIDs[ownerIndex]}, owner.Route.Render, false)
+}
+
+// taskPluginOwnsTasks reports whether every task id names a retrievable task
+// of the caller on one of the plugin's platforms.
+func taskPluginOwnsTasks(c *gin.Context, meta pluginruntime.Meta, taskIDs []string) (bool, error) {
+	tasks, err := model.GetByTaskIdsForPlatforms(common.GetContextKeyInt(c, constant.ContextKeyUserId), taskPluginLegacyPlatforms(meta), taskIDs)
+	if err != nil {
+		return false, err
+	}
+	for _, taskID := range taskIDs {
+		if !slices.ContainsFunc(tasks, func(task *model.Task) bool { return task.TaskID == taskID && task.ResultRetrievable() }) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // RouteTaskPluginEndpoint selects between ordinary relay and plugin channels
@@ -819,11 +995,12 @@ func PrepareTaskPluginEndpoint() gin.HandlerFunc {
 
 func buildTaskPluginRouteRequest(c *gin.Context) (pluginruntime.RouteRequestContext, error) {
 	requestContext := pluginruntime.RouteRequestContext{
-		Path:   c.Request.URL.Path,
-		Method: c.Request.Method,
-		Params: make(map[string]string, len(c.Params)),
-		Query:  make(map[string][]string),
-		Body:   map[string]any{"kind": string(pluginruntime.BodyNone)},
+		Path:    c.Request.URL.Path,
+		Method:  c.Request.Method,
+		Params:  make(map[string]string, len(c.Params)),
+		Query:   make(map[string][]string),
+		Headers: taskjsplugin.ClientRequestHeaders(c.Request.Header),
+		Body:    map[string]any{"kind": string(pluginruntime.BodyNone)},
 	}
 	for _, param := range c.Params {
 		requestContext.Params[param.Key] = param.Value
@@ -1275,8 +1452,21 @@ func renderTaskPluginQuery(
 		abortTaskPluginRouteError(c, http.StatusInternalServerError)
 		return
 	}
+	// The presenter of one finished task gets its artifacts as the gateway
+	// addresses host protocol renderers get.
+	presenterContext := requestContext.JSValue()
+	artifacts := map[string]any{}
+	if !multiple {
+		projected, projectErr := taskjsplugin.RendererArtifacts(pinned.Plugin, tasksByID[taskIDs[0]], service.BuildTaskArtifactContentURL)
+		if projectErr != nil {
+			logger.LogWarn(c, common.LogText("task_plugin subsystem=query event=artifacts_unavailable generation=%d plugin=%q err=%q", generation, pinned.Plugin.Meta.Key, projectErr.Error()))
+		} else {
+			artifacts = projected
+		}
+	}
+	presenterContext["artifacts"] = artifacts
 	renderStarted := time.Now()
-	result, err := pinned.Plugin.Engine.CallPath(c.Request.Context(), "native", []string{renderer}, requestContext.JSValue(), pluginruntime.RawJSON(encoded))
+	result, err := pinned.Plugin.Engine.CallPath(c.Request.Context(), "native", []string{renderer}, presenterContext, pluginruntime.RawJSON(encoded))
 	if err != nil {
 		logger.LogDebug(
 			c,
@@ -1286,7 +1476,13 @@ func renderTaskPluginQuery(
 			renderer,
 			time.Since(renderStarted).Milliseconds(),
 		)
-		abortTaskPluginRouteError(c, http.StatusInternalServerError)
+		// A presenter with nothing to deliver for the task, such as a file
+		// it has no artifact for, answers like a missing task.
+		status := http.StatusInternalServerError
+		if taskPluginHookDetail(err) == "artifact_not_found" {
+			status = http.StatusNotFound
+		}
+		abortTaskPluginRouteError(c, status)
 		return
 	}
 	logger.LogDebug(
@@ -1299,11 +1495,85 @@ func renderTaskPluginQuery(
 		time.Since(renderStarted).Milliseconds(),
 	)
 	c.Abort()
-	c.JSON(http.StatusOK, result)
+	if replyErr := WriteNativeReply(c, http.StatusOK, result); replyErr != nil {
+		logger.LogWarn(c, common.LogText("task_plugin subsystem=query event=render_failed generation=%d plugin=%q renderer=%q err=%q", generation, pinned.Plugin.Meta.Key, renderer, replyErr.Error()))
+		abortTaskPluginRouteError(c, http.StatusInternalServerError)
+	}
+}
+
+// nativeReplyHeaders are the headers a reply wrapper may set: a redirect
+// target and a retry hint.
+var nativeReplyHeaders = []string{"Location", "Retry-After"}
+
+// WriteNativeReply writes what a native presenter returned. A value is the
+// JSON body of a reply with the given status (200 for submit and query
+// presenters, the host's status for the error presenter), unless it is an
+// object with a __status member: such a reply wrapper, {__status, __headers?,
+// __body?}, answers with the vendor's own status, as xAI answers a pending
+// video with 202. The status is an integer from 200 to 599, __headers may set
+// only Location and Retry-After, and a wrapper without __body sends no body.
+// An invalid wrapper is an error and writes nothing.
+func WriteNativeReply(c *gin.Context, status int, value any) error {
+	wrapper, ok := value.(map[string]any)
+	if !ok {
+		c.JSON(status, value)
+		return nil
+	}
+	rawStatus, isWrapper := wrapper["__status"]
+	if !isWrapper {
+		c.JSON(status, value)
+		return nil
+	}
+	status = 0
+	switch typed := rawStatus.(type) {
+	case int64:
+		status = int(typed)
+	case int:
+		status = typed
+	case float64:
+		if typed == float64(int(typed)) {
+			status = int(typed)
+		}
+	}
+	if status < 200 || status > 599 {
+		return fmt.Errorf("reply wrapper __status must be an integer from 200 to 599")
+	}
+	headers := map[string]string{}
+	for key, member := range wrapper {
+		switch key {
+		case "__status", "__body":
+		case "__headers":
+			values, ok := member.(map[string]any)
+			if !ok {
+				return fmt.Errorf("reply wrapper __headers must be an object")
+			}
+			for name, headerValue := range values {
+				canonical := http.CanonicalHeaderKey(name)
+				text, isString := headerValue.(string)
+				if !slices.Contains(nativeReplyHeaders, canonical) || !isString {
+					return fmt.Errorf("reply wrapper may set only string Location and Retry-After headers")
+				}
+				headers[canonical] = text
+			}
+		default:
+			return fmt.Errorf("reply wrapper has unknown member %q", key)
+		}
+	}
+	for name, headerValue := range headers {
+		c.Header(name, headerValue)
+	}
+	if body, hasBody := wrapper["__body"]; hasBody {
+		c.JSON(status, body)
+		return nil
+	}
+	c.Status(status)
+	c.Writer.WriteHeaderNow()
+	return nil
 }
 
 // RespondTaskPluginError gives a pinned plugin a sanitized error DTO and writes
-// its native error body. The host-provided status remains authoritative.
+// its native error body with the host's status, unless the body is a reply
+// wrapper that answers with the vendor's own status.
 func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 	if taskErr == nil {
 		return false
@@ -1327,6 +1597,9 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 			"requestId":  requestID,
 		})
 		if callErr == nil {
+			callErr = WriteNativeReply(c, sanitized.HTTPStatus, body)
+		}
+		if callErr == nil {
 			logger.LogDebug(
 				c,
 				"task_plugin subsystem=route event=error_rendered plugin=%q renderer=plugin status=%d code=%q",
@@ -1334,7 +1607,6 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 				sanitized.HTTPStatus,
 				sanitized.Code,
 			)
-			c.JSON(sanitized.HTTPStatus, body)
 			return true
 		}
 		logger.LogWarn(

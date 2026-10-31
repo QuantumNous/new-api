@@ -27,6 +27,38 @@ func HasCapability(name string) bool {
 	return name == CapabilityJSONClone || name == CapabilitySubmitSSEDelta || name == CapabilityJSONOrder || name == CapabilityDurationAuto
 }
 
+// ValidateJSONPath checks a path into a JSON document by the rules of a JSON
+// change path: at most 32 segments, each a string key or a non-negative
+// integer array index.
+func ValidateJSONPath(path []any) error {
+	if len(path) > maxJSONToolDepth {
+		return fmt.Errorf("JSON path must have at most %d segments", maxJSONToolDepth)
+	}
+	for _, segment := range path {
+		switch typed := segment.(type) {
+		case string:
+			if !utf8.ValidString(typed) {
+				return fmt.Errorf("JSON path keys must be valid strings")
+			}
+		case int:
+			if typed < 0 {
+				return fmt.Errorf("JSON path indices must be non-negative integers")
+			}
+		case int64:
+			if typed < 0 {
+				return fmt.Errorf("JSON path indices must be non-negative integers")
+			}
+		case float64:
+			if math.IsNaN(typed) || typed < 0 || typed > math.MaxInt32 || math.Trunc(typed) != typed {
+				return fmt.Errorf("JSON path indices must be non-negative integers")
+			}
+		default:
+			return fmt.Errorf("JSON path segments must be strings or integers")
+		}
+	}
+	return nil
+}
+
 // JSONState owns a request-local JSON result. Appended strings stay in Go and
 // are materialized only when the stream finishes, independently of JS runtimes.
 type JSONState struct {

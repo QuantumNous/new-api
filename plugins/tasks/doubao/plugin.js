@@ -303,24 +303,27 @@ export const meta = {
     en: "Volcengine Doubao Seedance video generation and Seedream image generation",
     zh: "火山引擎豆包 Seedance 视频生成与 Seedream 图片生成",
   },
-  version: "1.3.0",
+  version: "1.4.0",
   author: { name: "QuantumNous" },
   channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
   models: Object.keys(VIDEO_MODELS).concat(Object.keys(IMAGE_MODELS)),
   fetchMode: "per_task",
   upstreams: ["vendor", "new_api"],
+  // Seedream streams its images when asked to (stream: true).
+  submitResponseTypes: ["json", "sse"],
   requiredCapabilities: ["duration-auto@1"],
   usageSchema: seedanceUsageSchema(DEFAULT_VIDEO_PROFILE),
   usageExamples: seedanceUsageExamples(DEFAULT_VIDEO_PROFILE),
   usageProfiles: capabilityUsageProfiles(VIDEO_MODELS, seedanceUsageSchema, seedanceUsageExamples).concat(
     capabilityUsageProfiles(IMAGE_MODELS, seedreamUsageSchema, seedreamUsageExamples)
   ),
+  // Ark's own paths; the gateway also serves each under /doubao.
   routes: [
-    { method: "POST", path: "/doubao/api/v3/contents/generations/tasks", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "GET", path: "/doubao/api/v3/contents/generations/tasks/:task_id", type: "query", render: "taskStatus" },
+    { method: "POST", path: "/api/v3/contents/generations/tasks", type: "submit", decode: "createTask", render: "taskCreated" },
+    { method: "GET", path: "/api/v3/contents/generations/tasks/:task_id", type: "query", render: "taskStatus" },
     // The vendor image API answers synchronously and has no task to re-query;
     // the complete response is delivered once and never persisted.
-    { method: "POST", path: "/doubao/api/v3/images/generations", type: "submit", decode: "createImage", render: "imageCreated", retainResult: false },
+    { method: "POST", path: "/api/v3/images/generations", type: "submit", decode: "createImage", render: "imageCreated", retainResult: false },
   ],
   protocols: [
     { name: "openai_responses", supports: ["stream", "sync", "background"] },
@@ -333,8 +336,8 @@ function trimmed(value) {
   return String(value || "").trim();
 }
 
-// Another New API gateway serves the Ark wire format only on this plugin's
-// prefixed native routes; Ark itself serves the unprefixed paths.
+// Another New API gateway serves the Ark wire format under /doubao, the form
+// every gateway release serves; Ark itself serves the unprefixed paths.
 function apiRoot(ctx) {
   return ctx.baseUrl + (ctx.upstream && ctx.upstream.kind === "new_api" ? "/doubao" : "");
 }
@@ -411,7 +414,7 @@ function videoProfile(ctx) {
 // completion overlays the delivered resolution.
 function videoResolution(ctx) {
   const req = ctx.requestBody || {};
-  const metadata = req.metadata || {};
+  const metadata = req.vendorBody || req.metadata || {};
   const profile = videoProfile(ctx);
   const raw = trimmed(metadata.resolution || req.size).toLowerCase();
   const recognized = SEEDANCE_RESOLUTIONS.includes(raw) || raw.replace("*", "x").split("x").length === 2;
@@ -514,7 +517,8 @@ function imageSize(size, profile, layered) {
 
 // Builds the upstream /api/v3/images/generations body. Unknown fields pass
 // through so the native route mirrors the official API; documented fields are
-// type-checked and model capabilities are enforced here. Live probes (2026-09)
+// type-checked and model capabilities are enforced here, except stream and
+// sequential_image_generation, which Ark checks itself. Live probes (2026-09)
 // confirmed Ark rejects wrong-typed seed/guidance_scale, output_format on 4.0,
 // tools on pro, sequential_image_generation on pro, and non-web_search tools,
 // and accepts `optimize_prompt_options: null` as unset.
@@ -529,6 +533,10 @@ function convertImage(ctx) {
     body[key] = req[key];
   }
   body.model = model;
+  // Seedream 5.0 lite, 4.5 and 4.0 stream each image as it is generated; Ark
+  // answers for the other models.
+  if (req.stream !== undefined && typeof req.stream !== "boolean") throw new Error("stream must be a boolean");
+  if (req.stream === true) body.stream = true;
   for (const key of ["watermark", "optimize_prompt", "layer_decomposition"]) {
     if (body[key] !== undefined && typeof body[key] !== "boolean") throw new Error(key + " must be a boolean");
   }
@@ -547,10 +555,8 @@ function convertImage(ctx) {
   }
   if (layered && images.length !== 1) throw new Error("layer decomposition requires exactly one input image");
   if (images.length > profile.maxReferenceImages) throw new Error("at most " + profile.maxReferenceImages + " reference images are supported");
-  // The host caps the upstream JSON response and the persisted task data at
-  // 1 MiB and serves images through artifact URLs, so it cannot reliably accept
-  // or persist Base64 image payloads; this route is URL-only.
-  if (body.response_format !== undefined && body.response_format !== "url") throw new Error("response_format must be url");
+  if (body.response_format !== undefined && body.response_format !== "url" && body.response_format !== "b64_json")
+    throw new Error("response_format must be url or b64_json");
   if (body.seed !== undefined && !Number.isInteger(body.seed)) throw new Error("seed must be an integer");
   if (body.guidance_scale !== undefined && (typeof body.guidance_scale !== "number" || !Number.isFinite(body.guidance_scale)))
     throw new Error("guidance_scale must be a number");
@@ -581,7 +587,6 @@ function convertImage(ctx) {
   }
   const sequential = body.sequential_image_generation;
   if (sequential !== undefined && sequential !== "auto" && sequential !== "disabled") throw new Error("sequential_image_generation must be auto or disabled");
-  if (sequential !== undefined && !profile.sequential) throw new Error("sequential_image_generation is not supported by this model");
   const options = objectValue(body.sequential_image_generation_options, "sequential_image_generation_options");
   let maxImages = 15;
   if (options.max_images !== undefined) {
@@ -605,17 +610,19 @@ function convertImage(ctx) {
   };
 }
 
-// `data` is an array in the documented response; tolerate an object-shaped
-// payload from compatible upstreams by treating it as one entry.
 function imageEntries(body) {
   const data = body && body.data;
   if (Array.isArray(data)) return data.filter((item) => item && typeof item === "object" && !Array.isArray(item));
-  if (data && typeof data === "object") return [data];
   return [];
 }
 
 function imageURLEntries(body) {
   return imageEntries(body).filter((item) => trimmed(item.url));
+}
+
+// The entries of a result that carry an image.
+function deliveredImages(body) {
+  return imageEntries(body).filter((item) => trimmed(item.url) || trimmed(item.b64_json));
 }
 
 // Delivered image payloads of a synchronous result. Payloads are counted,
@@ -624,7 +631,7 @@ function imageURLEntries(body) {
 // inconsistent with the delivered payloads means the response is not
 // understood; the host then keeps the reservation instead of settling on a guess.
 function imagePayloads(body) {
-  const payloads = imageEntries(body).filter((item) => trimmed(item.url) || trimmed(item.b64_json));
+  const payloads = deliveredImages(body);
   if (payloads.length > MAX_IMAGE_OUTPUTS) throw new Error("too many output images");
   const count = (body.usage || {}).generated_images;
   if (count !== undefined && (!Number.isInteger(count) || count < 0 || count > MAX_IMAGE_OUTPUTS || count !== payloads.length))
@@ -724,36 +731,33 @@ function responsesOutputText(ctx, task) {
   return parts.join("\n\n");
 }
 
+// Ark's error codes for the statuses the gateway answers with
+// (docs.volcengine.com/docs/ark/error-codes).
+const ERROR_CODES = {
+  400: "InvalidParameter",
+  401: "AuthenticationError",
+  403: "AccessDenied",
+  404: "NotFound",
+  408: "RequestTimeout",
+  413: "InvalidParameter",
+  429: "AccountRateLimitExceeded",
+};
+
 export const native = {
+  // Ark's own body, sent as is for Ark to check. Ark would call callback_url
+  // back with its own task ids, which the gateway does not hand out.
   createTask: function (ctx) {
     if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
     const body = ctx.body.value;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("request body must be an object");
     const model = trimmed(body.model);
     if (!model) throw new Error("model is required");
+    if (body.callback_url !== undefined && body.callback_url !== null) throw new Error("callback_url is not supported; query the task instead");
     if (body.content !== undefined && !Array.isArray(body.content)) throw new Error("content must be an array");
-    const content = Array.isArray(body.content) ? body.content : [];
-    const texts = [];
-    let hasReference = false;
-    for (const item of content) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-      if (item.type === "text" && typeof item.text === "string") texts.push(item.text);
-      else hasReference = true;
-    }
-    if (!texts.length && !hasReference) throw new Error("content is required");
-    const requestBody = {
-      model: model,
-      prompt: texts
-        .filter(function (text) {
-          return trimmed(text);
-        })
-        .join("\n"),
-      metadata: body,
-    };
-    const seconds = Number(body.duration);
-    if (Number.isFinite(seconds) && seconds > 0) requestBody.seconds = seconds;
-    const intent = { kind: "submit", model: model, action: hasReference ? "image_to_video" : "text_to_video", requestBody: requestBody };
-    const originTaskIds = draftTaskIds(content);
+    if (!(body.content || []).some((item) => item && typeof item === "object" && !Array.isArray(item))) throw new Error("content is required");
+    const hasReference = body.content.some((item) => item && typeof item === "object" && item.type !== "text");
+    const intent = { kind: "submit", model: model, action: hasReference ? "image_to_video" : "text_to_video", requestBody: { model: model, vendorBody: body } };
+    const originTaskIds = draftTaskIds(body.content);
     if (originTaskIds.length) intent.originTaskIds = originTaskIds;
     return intent;
   },
@@ -761,22 +765,28 @@ export const native = {
     const data = task.data && typeof task.data === "object" && !Array.isArray(task.data) ? task.data : {};
     return Object.assign({}, data, { id: task.task_id });
   },
+  // Ark's last query reply. Before the first poll the task holds the create
+  // reply, {id}, which has no status yet; the gateway can fail a task Ark
+  // still reports as queued or running (poll failures or the task timeout).
   taskStatus: function (ctx, task) {
-    if (task.data && typeof task.data === "object" && !Array.isArray(task.data)) return Object.assign({}, task.data, { id: task.task_id });
     const statusMap = { NOT_START: "queued", SUBMITTED: "queued", QUEUED: "queued", IN_PROGRESS: "running", SUCCESS: "succeeded", FAILURE: "failed" };
-    const output = { id: task.task_id, status: statusMap[task.status] || "queued" };
-    if (task.fail_reason) output.error = { message: task.fail_reason };
+    const data = task.data && typeof task.data === "object" && !Array.isArray(task.data) ? task.data : {};
+    const output = Object.assign({}, data, { id: task.task_id });
+    if (typeof output.status !== "string") output.status = statusMap[task.status] || "queued";
+    if (task.status === "FAILURE" && (output.status === "queued" || output.status === "running")) {
+      output.status = "failed";
+      output.error = { code: "InternalServiceError", message: task.fail_reason || "task failed" };
+    }
     return output;
   },
+  // Seedream's own body: Base64 images and streamed images come back as Ark
+  // sends them.
   createImage: function (ctx) {
     if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
     const body = ctx.body.value;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("request body must be an object");
     const model = trimmed(body.model);
     if (!model) throw new Error("model is required");
-    // The host presents one JSON response after the upstream call completes; upstream SSE is not forwarded.
-    if (body.stream !== undefined && body.stream !== false)
-      throw new Error("stream is not supported on this route; the complete JSON response is returned once all images are generated");
     const requestBody = Object.assign({}, body, { model: model });
     const converted = convertImage({ model: model, requestBody: requestBody });
     return { kind: "submit", model: model, action: converted.action, requestBody: requestBody };
@@ -785,26 +795,41 @@ export const native = {
     return task.data && typeof task.data === "object" && !Array.isArray(task.data) ? task.data : {};
   },
   error: function (ctx, error) {
-    return { error: { code: error.code, message: error.message } };
+    return { error: { code: ERROR_CODES[error.httpStatus] || "InternalServiceError", message: error.message } };
   },
 };
 
 export function buildSubmitRequest(ctx) {
   if (imageTask(ctx)) {
     const converted = convertImage(ctx);
+    const streaming = converted.body.stream === true;
     return {
       url: apiRoot(ctx) + "/api/v3/images/generations",
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
+      headers: { "Content-Type": "application/json", Accept: streaming ? "text/event-stream" : "application/json", Authorization: "Bearer " + ctx.apiKey },
       body: converted.body,
       action: converted.action,
       rewriteModel: converted.body.model,
+      responseType: streaming ? "sse" : "json",
     };
   }
   const req = ctx.requestBody;
-  const metadata = req.metadata || {};
   // Reject output tiers the model does not offer before any quota is reserved.
   videoResolution(ctx);
+  if (req.vendorBody) {
+    const sent = Object.assign({}, req.vendorBody, { model: ctx.upstreamModel || req.vendorBody.model });
+    sent.content = rewriteDraftTaskContent(sent.content, ctx.originTasks);
+    return {
+      url: apiRoot(ctx) + "/api/v3/contents/generations/tasks",
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
+      body: sent,
+      action: sent.content.some((item) => item && typeof item === "object" && item.type !== "text") ? "image_to_video" : "text_to_video",
+      rewriteModel: sent.model,
+    };
+  }
+  // The host protocols map the prompt, images and seconds onto Ark's fields.
+  const metadata = req.metadata || {};
   const body = Object.assign({ model: req.model || "", content: [] }, metadata);
   const imageContent = [];
   const images = Array.isArray(req.images) ? req.images : [];
@@ -828,18 +853,56 @@ export function buildSubmitRequest(ctx) {
   };
 }
 
+// Ark's image stream (docs.volcengine.com/docs/ark/image-generation-streaming-responses):
+// image_generation.partial_succeeded for each image, partial_failed for each
+// image that failed, completed with the usage, a bare error for a request that
+// failed as a whole, and [DONE]. The client receives every event as Ark sent
+// it; the state keeps what settles the request, a Base64 image as a marker
+// standing for the payload the client already has.
+export function parseSubmitEvent(ctx, event, previousState) {
+  const state = previousState ? utils.json.clone(previousState) : { data: [] };
+  if (trimmed(event.data) === "[DONE]") return { state: state, done: true };
+  const body = JSON.parse(event.data);
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid image stream event");
+  if (body.type === "image_generation.partial_succeeded") {
+    const image = { image_index: body.image_index, size: body.size };
+    if (trimmed(body.url)) image.url = body.url;
+    else if (trimmed(body.b64_json)) image.b64_json = "streamed";
+    state.data.push(image);
+  } else if (body.type === "image_generation.partial_failed") {
+    state.data.push({ image_index: body.image_index, error: body.error });
+  } else if (body.type === "image_generation.completed") {
+    state.model = body.model;
+    state.created = body.created;
+    if (body.usage) state.usage = body.usage;
+  } else if (body.error) {
+    state.error = body.error;
+  }
+  return { state: state, done: false };
+}
+
 export function parseSubmitResponse(ctx, resp) {
   if (imageTask(ctx)) {
     const body = resp.body;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid image generation response");
-    if (body.error && typeof body.error === "object")
-      throw new Error((trimmed(body.error.code) || "upstream_error") + ": " + (trimmed(body.error.message) || "image generation failed"));
-    const urls = imageURLEntries(body);
-    if (!urls.length) throw new Error("image generation returned no images");
+    const payloads = deliveredImages(body);
     // The synchronous API has no vendor task; keep the host-issued public id.
     const taskId = trimmed(ctx.publicTaskId);
+    if (!payloads.length) {
+      const failure =
+        body.error && typeof body.error === "object"
+          ? (trimmed(body.error.code) || "upstream_error") + ": " + (trimmed(body.error.message) || "image generation failed")
+          : "image generation returned no images";
+      // A streamed request's events have reached the client, where a thrown
+      // error keeps the reservation. Ark's error event, or its completion
+      // event without an image, says nothing billable was made.
+      if (taskId && (ctx.requestBody || {}).stream === true && (body.error || body.usage))
+        return { taskId: taskId, taskData: body, immediate: { status: "FAILURE", reason: failure } };
+      throw new Error(failure);
+    }
     if (!taskId) throw new Error("missing gateway task id");
-    return { taskId: taskId, taskData: body, immediate: { status: "SUCCESS", progress: "100%", url: trimmed(urls[0].url) } };
+    const url = payloads.find((item) => trimmed(item.url));
+    return { taskId: taskId, taskData: body, immediate: { status: "SUCCESS", progress: "100%", url: url ? trimmed(url.url) : "" } };
   }
   if (!resp.body || !resp.body.id) throw new Error("task_id is empty");
   return { taskId: resp.body.id, taskData: resp.body };
@@ -855,7 +918,7 @@ export function extractUsage(ctx) {
     return facts;
   }
   const req = ctx.requestBody || {};
-  const metadata = req.metadata || {};
+  const metadata = req.vendorBody || req.metadata || {};
   if (ctx.usagePurpose === "billing_ratios") {
     const ratio = videoInputRatio(ctx.upstreamModel || ctx.model, metadata.resolution, metadata.content);
     return ratio === 1 ? null : { video_input_ratio: ratio };
@@ -863,7 +926,8 @@ export function extractUsage(ctx) {
   const profile = videoProfile(ctx);
   // A missing duration or -1 (the model picks the length; Seedance 2.5
   // defaults to it) reserves the longest duration the model can produce.
-  let seconds = Number(req.seconds || req.duration || metadata.duration || 0);
+  const stated = req.seconds || req.duration || metadata.duration;
+  let seconds = typeof stated === "number" || typeof stated === "string" ? Number(stated) : 0;
   if (!Number.isFinite(seconds) || seconds <= 0) {
     const frames = Number(metadata.frames);
     seconds = Number.isFinite(frames) && frames > 0 ? Math.floor(frames / 24) : profile.maxDuration;
@@ -899,8 +963,8 @@ export function buildQueryRequest(ctx) {
 }
 
 export function parseTaskResult(ctx, body) {
-  if (body.status === "pending" || body.status === "queued") return { status: "QUEUED", progress: "10%" };
-  if (body.status === "processing" || body.status === "running") return { status: "IN_PROGRESS", progress: "50%" };
+  if (body.status === "queued") return { status: "QUEUED", progress: "10%" };
+  if (body.status === "running") return { status: "IN_PROGRESS", progress: "50%" };
   if (body.status === "succeeded") {
     const result = { status: "SUCCESS", progress: "100%", url: body.content && body.content.video_url ? body.content.video_url : "" };
     const usage = body.usage || {};
@@ -992,6 +1056,8 @@ export const protocols = {
           if (trimmed(image) && !images.includes(trimmed(image))) images.push(trimmed(image));
         }
         if (!prompt && !images.length) throw new Error("input is required");
+        // Responses serves the images at artifact addresses, which need URLs.
+        if (req.response_format !== undefined && req.response_format !== "url") throw new Error("response_format must be url");
         const requestBody = { model: model };
         if (prompt) requestBody.prompt = prompt;
         if (images.length) requestBody.image = images;
@@ -1163,6 +1229,8 @@ protocols.openai_video = {
       if (seconds !== undefined && Number(seconds) !== -1 && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
         throw new Error("seconds must be -1 or between 1 and 3600");
       const requestBody = Object.assign({}, req, { model: ctx.model });
+      // vendorBody carries a native request's own body; clients of this protocol cannot set it.
+      delete requestBody.vendorBody;
       // buildSubmitRequest reads seconds; duration is accepted as its alias.
       if (seconds !== undefined) requestBody.seconds = seconds;
       return {
@@ -1198,6 +1266,8 @@ protocols.openai_video = {
     const seconds = req.seconds === undefined ? req.duration : req.seconds;
     if (seconds !== undefined && Number(seconds) !== -1 && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
       throw new Error("seconds must be -1 or between 1 and 3600");
+    // vendorBody carries a native request's own body; clients of this protocol cannot set it.
+    delete req.vendorBody;
     return {
       kind: "submit",
       model: ctx.model,

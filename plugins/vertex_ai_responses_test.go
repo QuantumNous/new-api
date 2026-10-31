@@ -1,6 +1,7 @@
 package plugins_test
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -277,4 +278,56 @@ func TestVertexAIThroughNewAPIGateway(t *testing.T) {
 			assert.Equal(t, tc.wantReason, common.Interface2String(result["reason"]))
 		})
 	}
+}
+
+// An inline video does not fit the stored operation, which keeps only its
+// media type: the artifact is downloaded by fetching the operation again and
+// reading the bytes at contentPath. A video written to Cloud Storage stays at
+// its gcsUri.
+func TestVertexAIDeliversInlineVideoByFetchingTheOperationAgain(t *testing.T) {
+	source, err := builtinplugins.Source("vertex-ai")
+	require.NoError(t, err)
+	registry := jsplugin.NewRegistry()
+	plugin, err := registry.RegisterFactory(source, jsplugin.Options{Key: "vertex-ai"})
+	require.NoError(t, err)
+	call := func(hook string, args ...any) any {
+		t.Helper()
+		value, err := plugin.Engine.Call(t.Context(), hook, args...)
+		require.NoError(t, err)
+		return value
+	}
+	const veo = "veo-3.0-generate-001"
+	operation := "projects/p1/locations/us-central1/publishers/google/models/" + veo + "/operations/op-1"
+	inline := map[string]any{"name": operation, "done": true, "response": map[string]any{"videos": []any{map[string]any{"bytesBase64Encoded": "AAAA", "mimeType": "video/webm"}}}}
+	stored := map[string]any{"name": operation, "done": true, "response": map[string]any{"videos": []any{map[string]any{"mimeType": "video/webm"}}}}
+	stored2 := map[string]any{"name": operation, "done": true, "response": map[string]any{"videos": []any{map[string]any{"gcsUri": "gs://bucket/video.mp4", "mimeType": "video/mp4"}}}}
+
+	assert.Equal(t, map[string]any{"status": "SUCCESS", "progress": "100%"}, decodePluginValue(t, call("parseTaskResult", map[string]any{}, inline)))
+	assert.Equal(t, map[string]any{"status": "SUCCESS", "progress": "100%", "remoteUrl": "gs://bucket/video.mp4"}, decodePluginValue(t, call("parseTaskResult", map[string]any{}, stored2)))
+	assert.Equal(t, []any{map[string]any{"key": "video", "type": "video", "mimeType": "video/webm"}}, call("listArtifacts", map[string]any{"status": "SUCCESS", "data": stored}))
+	assert.Empty(t, call("listArtifacts", map[string]any{"status": "SUCCESS", "data": stored2}))
+	assert.Empty(t, call("listArtifacts", map[string]any{"status": "IN_PROGRESS", "data": map[string]any{"name": operation}}))
+
+	descriptor := decodePluginValue(t, call("buildContentRequest", map[string]any{
+		"artifactKey": "video", "upstreamTaskId": base64.RawURLEncoding.EncodeToString([]byte(operation)), "data": stored, "baseUrl": "",
+		"authHeader": "Bearer ya29.vendor", "auth": map[string]any{"authHeader": "Bearer ya29.vendor", "projectId": "p1"},
+		"upstream": map[string]any{"kind": "vendor"}, "clientRequest": map[string]any{"method": "HEAD", "headers": map[string]any{}},
+	}))
+	assert.Equal(t, map[string]any{
+		"url":          "https://us-central1-aiplatform.googleapis.com/v1/projects/p1/locations/us-central1/publishers/google/models/" + veo + ":fetchPredictOperation",
+		"method":       "POST",
+		"headers":      map[string]any{"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer ya29.vendor", "x-goog-user-project": "p1"},
+		"body":         map[string]any{"operationName": operation},
+		"responseType": "json",
+		"contentPath":  []any{"response", "videos", float64(0), "bytesBase64Encoded"},
+		"mimeType":     "video/webm",
+	}, descriptor)
+
+	// v1beta1, google-genai's default version, is the same route.
+	v1 := registry.Generation().LookupDeclaredRoutes("POST", "/v1/projects/:p/locations/:l/publishers/google/models/:m")
+	v1beta1 := registry.Generation().LookupDeclaredRoutes("POST", "/v1beta1/projects/:p/locations/:l/publishers/google/models/:m")
+	require.Len(t, v1, 1)
+	require.Len(t, v1beta1, 1)
+	assert.Equal(t, v1[0].Route.Decode, v1beta1[0].Route.Decode)
+	assert.Equal(t, v1[0].Route.Render, v1beta1[0].Route.Render)
 }
