@@ -1712,6 +1712,7 @@
     "Current pricing conditions": "Conditions tarifaires actuelles",
     "Current quota": "Quota actuel",
     "Current site: {{origin}}": "Site actuel : {{origin}}",
+    "Current tier": "Niveau actuel",
     "Current time": "Heure actuelle",
     "Current token": "Jeton actuel",
     "Current total = used + remaining. Changing the remaining quota updates the total and percentage.": "Total actuel = utilisé + restant. Modifier le quota restant actualise le total et le pourcentage.",

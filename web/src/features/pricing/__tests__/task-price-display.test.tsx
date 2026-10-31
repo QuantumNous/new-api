@@ -76,6 +76,44 @@ it('renders weekday and hour conditions as time windows instead of expression so
   expect(screen.queryByText(/weekday\(/)).not.toBeInTheDocument()
 })
 
+it('marks the time-matched token tier as current when requested by model details', () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-09-07T09:30:00+08:00'))
+  render(
+    <DynamicPricingBreakdown
+      billingExpr='hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12 ? tier("shared", p * 3 + c * 9) : tier("shared", p * 1.5 + c * 4.5)'
+      showCurrentTimeTier
+    />
+  )
+  const badges = screen.getAllByText('Current tier')
+  expect(badges).toHaveLength(2)
+  const mobileTier = badges.find((badge) =>
+    badge.closest('div.rounded-md.border.p-2')
+  )
+  const desktopTier = badges.find((badge) => badge.closest('tr'))
+  expect(mobileTier?.closest('div.rounded-md.border.p-2')).toHaveTextContent(
+    '$3'
+  )
+  expect(
+    mobileTier?.closest('div.rounded-md.border.p-2')
+  ).not.toHaveTextContent('$1.5')
+  expect(desktopTier?.closest('tr')).toHaveTextContent('$3')
+  expect(desktopTier?.closest('tr')).not.toHaveTextContent('$1.5')
+  expect(screen.queryByText('Matched')).not.toBeInTheDocument()
+})
+
+it('does not mark a current tier when the active time branch has multiple usage tiers', () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-09-07T10:00:00Z'))
+  render(
+    <DynamicPricingBreakdown
+      billingExpr='hour("UTC") < 12 ? (len < 1000 ? tier("short", p * 4 + c * 12) : tier("long", p * 2 + c * 6)) : tier("night", p + c * 3)'
+      showCurrentTimeTier
+    />
+  )
+  expect(screen.queryByText('Current tier')).not.toBeInTheDocument()
+})
+
 const model: PricingModel = {
   id: 1,
   model_name: 'incho_music',
@@ -260,6 +298,7 @@ afterEach(async () => {
   cleanup()
   clients.forEach((client) => client.clear())
   clients.length = 0
+  vi.useRealTimers()
   vi.restoreAllMocks()
   await i18next.changeLanguage('en')
 })

@@ -1712,6 +1712,7 @@
     "Current pricing conditions": "Current pricing conditions",
     "Current quota": "Current quota",
     "Current site: {{origin}}": "Current site: {{origin}}",
+    "Current tier": "Current tier",
     "Current time": "Current time",
     "Current token": "Current token",
     "Current total = used + remaining. Changing the remaining quota updates the total and percentage.": "Current total = used + remaining. Changing the remaining quota updates the total and percentage.",

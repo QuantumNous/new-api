@@ -130,14 +130,55 @@ describe('model cards', () => {
     })
     render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
     expect(screen.getByText('Current period price')).toBeVisible()
+    const offPeakTier = screen.getByText('Current tier: off_peak')
+    expect(offPeakTier).toBeVisible()
+    expect(offPeakTier.previousElementSibling).toHaveTextContent(
+      'Current period price'
+    )
+    expect(offPeakTier).toHaveClass('bg-emerald-100', 'text-emerald-700')
     expect(screen.getByText('$1.5')).toBeVisible()
     act(() => vi.advanceTimersByTime(1000))
+    expect(screen.getByText('Current tier: peak')).toBeVisible()
     expect(screen.getByText('$3')).toBeVisible()
     act(() => {
       vi.setSystemTime(new Date('2026-09-07T12:00:00+08:00'))
       fireEvent(document, new Event('visibilitychange'))
     })
+    expect(screen.getByText('Current tier: off_peak')).toBeVisible()
     expect(screen.getByText('$1.5')).toBeVisible()
+  })
+
+  it('does not label a static tier as current', () => {
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr: 'tier("standard", p * 2 + c * 4)',
+    })
+    render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.queryByText(/Current tier:/)).not.toBeInTheDocument()
+  })
+
+  it('does not show a request-billed branch as the current token tier', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T13:00:00Z'))
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr:
+        'hour("UTC") < 12 ? tier("tokens", p * 2 + c * 4) : tier("request", fixed(0.1))',
+    })
+    render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.queryByText(/Current tier:/)).not.toBeInTheDocument()
+  })
+
+  it('does not show a current tier when the active time branch has multiple usage tiers', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T10:00:00Z'))
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr:
+        'hour("UTC") < 12 ? (len < 1000 ? tier("short", p * 4 + c * 12) : tier("long", p * 2 + c * 6)) : tier("night", p + c * 3)',
+    })
+    render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.queryByText(/Current tier:/)).not.toBeInTheDocument()
   })
 
   it('copies the complete long model name without opening details', async () => {
