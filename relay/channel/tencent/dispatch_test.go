@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,4 +70,40 @@ func TestDispatchAdaptorInit(t *testing.T) {
 			assert.Equal(t, tt.wantBaseURL, info.ChannelBaseUrl)
 		})
 	}
+}
+
+// A single-segment TokenHub key keeps the Tencent channel type but is served by
+// the OpenAI-compatible adaptor, which must not strip stream_options.include_usage:
+// TokenHub reports usage in the final streamed chunk only when it is requested.
+func TestTokenHubPreservesStreamOptions(t *testing.T) {
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelType: constant.ChannelTypeTencent,
+		ApiKey:      "sk-tokenhub-fake-key",
+	}}
+
+	dispatch := &DispatchAdaptor{}
+	dispatch.Init(info)
+
+	require.IsType(t, &openai.Adaptor{}, dispatch.Adaptor)
+	// The dispatch must not relabel the channel, otherwise the fix would only
+	// apply to a masqueraded OpenAI channel.
+	require.Equal(t, constant.ChannelTypeTencent, info.ChannelType)
+
+	stream := true
+	request := &dto.GeneralOpenAIRequest{
+		Model:  "hunyuan-turbos-latest",
+		Stream: &stream,
+		StreamOptions: &dto.StreamOptions{
+			IncludeUsage: true,
+		},
+	}
+
+	converted, err := dispatch.Adaptor.ConvertOpenAIRequest(nil, info, request)
+	require.NoError(t, err)
+
+	convertedRequest, ok := converted.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok, "expected *dto.GeneralOpenAIRequest, got %T", converted)
+	require.NotNil(t, convertedRequest.StreamOptions)
+	assert.True(t, convertedRequest.StreamOptions.IncludeUsage)
+	assert.Equal(t, tokenHubBaseURL, info.ChannelBaseUrl)
 }
