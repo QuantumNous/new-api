@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// setupMultiKeyChannelTest opens an isolated SQLite or configured test database
+// and creates a root user for channel management requests.
 func setupMultiKeyChannelTest(t *testing.T) *model.User {
 	t.Helper()
 	previousDB, previousLogDB := model.DB, model.LOG_DB
@@ -53,6 +55,8 @@ func setupMultiKeyChannelTest(t *testing.T) *model.User {
 	return root
 }
 
+// TestMultiKeyEnableRestoresOnlyExhaustedChannels checks that enabling keys
+// restores exhausted channels without overriding a later manual disable.
 func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 	root := setupMultiKeyChannelTest(t)
 	database := model.DB
@@ -118,19 +122,24 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 	}
 }
 
+// TestUpdateChannelMultiKeyState verifies replacement, routing, and preserved
+// disable state through the update handler with and without the memory cache.
 func TestUpdateChannelMultiKeyState(t *testing.T) {
 	root := setupMultiKeyChannelTest(t)
 	const oldKeys = "old-key-one\nold-key-two\nold-key-three"
 	const newKeys = "new-key-one\nnew-key-two\nnew-key-three"
 	for _, cacheEnabled := range []bool{false, true} {
 		for _, tc := range []struct {
-			name            string
-			request         map[string]any
-			wantKeys        string
-			wantSelectable  []string
-			clearState      bool
-			channelDisabled bool
-			denied          bool
+			name           string
+			request        map[string]any
+			wantKeys       string
+			wantSelectable []string
+			clearState     bool
+			initialStatus  int
+			statusReason   string
+			exhaustKeys    bool
+			wantStatus     int
+			denied         bool
 		}{
 			{
 				name: "replace same count", request: map[string]any{"key_mode": "replace", "key": newKeys},
@@ -158,7 +167,47 @@ func TestUpdateChannelMultiKeyState(t *testing.T) {
 			},
 			{
 				name: "replace preserves channel manual disable", request: map[string]any{"key_mode": "replace", "key": newKeys},
-				wantKeys: newKeys, clearState: true, channelDisabled: true,
+				wantKeys: newKeys, clearState: true, initialStatus: common.ChannelStatusManuallyDisabled, statusReason: "manual operation",
+			},
+			{
+				name: "replace restores manually exhausted channel", request: map[string]any{"key_mode": "replace", "key": newKeys, "other_info": "{}"},
+				wantKeys: newKeys, wantSelectable: strings.Split(newKeys, "\n"), clearState: true,
+				initialStatus: common.ChannelStatusManuallyDisabled, statusReason: model.ChannelStatusReasonAllKeysDisabled,
+				exhaustKeys: true, wantStatus: common.ChannelStatusEnabled,
+			},
+			{
+				name: "replace restores automatically exhausted channel", request: map[string]any{"key_mode": "replace", "key": "new-key-one"},
+				wantKeys: "new-key-one", wantSelectable: []string{"new-key-one"}, clearState: true,
+				initialStatus: common.ChannelStatusAutoDisabled, statusReason: model.ChannelStatusReasonAllKeysDisabled,
+				exhaustKeys: true, wantStatus: common.ChannelStatusEnabled,
+			},
+			{
+				name: "replace preserves unrelated automatic disable", request: map[string]any{"key_mode": "replace", "key": newKeys},
+				wantKeys: newKeys, clearState: true, initialStatus: common.ChannelStatusAutoDisabled, statusReason: "upstream unavailable",
+			},
+			{
+				name: "replacement cannot claim channel exhaustion", request: map[string]any{"key_mode": "replace", "key": newKeys, "other_info": `{"status_reason":"All keys are disabled"}`},
+				wantKeys: newKeys, clearState: true, initialStatus: common.ChannelStatusManuallyDisabled, statusReason: "manual operation",
+			},
+			{
+				name: "empty replacement preserves exhaustion", request: map[string]any{"key_mode": "replace", "key": ""},
+				wantKeys: oldKeys, initialStatus: common.ChannelStatusManuallyDisabled,
+				statusReason: model.ChannelStatusReasonAllKeysDisabled, exhaustKeys: true,
+			},
+			{
+				name: "empty array replacement preserves exhaustion", request: map[string]any{"key_mode": "replace", "key": "[]"},
+				wantKeys: "[]", clearState: true, initialStatus: common.ChannelStatusManuallyDisabled,
+				statusReason: model.ChannelStatusReasonAllKeysDisabled, exhaustKeys: true,
+			},
+			{
+				name: "append preserves channel exhaustion", request: map[string]any{"key_mode": "append", "key": "new-key-one"},
+				wantKeys: oldKeys + "\nnew-key-one", initialStatus: common.ChannelStatusManuallyDisabled,
+				statusReason: model.ChannelStatusReasonAllKeysDisabled, exhaustKeys: true,
+			},
+			{
+				name: "unauthorized replacement preserves exhaustion", request: map[string]any{"key_mode": "replace", "key": newKeys},
+				wantKeys: oldKeys, initialStatus: common.ChannelStatusManuallyDisabled,
+				statusReason: model.ChannelStatusReasonAllKeysDisabled, exhaustKeys: true, denied: true,
 			},
 			{
 				name: "unauthorized replacement preserves state", request: map[string]any{"key_mode": "replace", "key": newKeys},
@@ -177,8 +226,18 @@ func TestUpdateChannelMultiKeyState(t *testing.T) {
 						MultiKeyDisabledTime:   map[int]int64{0: 100, 1: 200},
 					},
 				}
-				if tc.channelDisabled {
-					channel.Status = common.ChannelStatusManuallyDisabled
+				if tc.initialStatus != 0 {
+					channel.Status = tc.initialStatus
+				}
+				if tc.exhaustKeys {
+					channel.ChannelInfo.MultiKeyStatusList[2] = common.ChannelStatusManuallyDisabled
+					channel.ChannelInfo.MultiKeyDisabledReason[2] = "manual operation"
+					channel.ChannelInfo.MultiKeyDisabledTime[2] = 300
+				}
+				channel.SetOtherInfo(map[string]any{"status_reason": tc.statusReason, "status_time": 100, "unrelated": "preserved"})
+				wantStatus := channel.Status
+				if tc.wantStatus != 0 {
+					wantStatus = tc.wantStatus
 				}
 				require.NoError(t, channel.Insert())
 				model.InitChannelCache()
@@ -222,11 +281,26 @@ func TestUpdateChannelMultiKeyState(t *testing.T) {
 				if mode, ok := tc.request["multi_key_mode"].(string); ok {
 					wantMode = constant.MultiKeyMode(mode)
 				}
+				wantOtherInfo := channel.GetOtherInfo()
+				if supplied, ok := tc.request["other_info"].(string); ok && !tc.denied {
+					wantOtherInfo = nil
+					require.NoError(t, common.UnmarshalJsonStr(supplied, &wantOtherInfo))
+				}
 				for _, actual := range []*model.Channel{loaded, cached} {
 					assert.Equal(t, tc.wantKeys, actual.Key)
-					assert.Equal(t, channel.Status, actual.Status)
+					assert.Equal(t, wantStatus, actual.Status)
+					otherInfo := actual.GetOtherInfo()
+					if wantStatus != channel.Status {
+						assert.Empty(t, otherInfo["status_reason"])
+						assert.Greater(t, otherInfo["status_time"], float64(100))
+						assert.Equal(t, "preserved", otherInfo["unrelated"])
+					} else {
+						assert.Equal(t, wantOtherInfo, otherInfo)
+					}
 					assert.True(t, actual.ChannelInfo.IsMultiKey)
-					assert.Equal(t, len(strings.Split(tc.wantKeys, "\n")), actual.ChannelInfo.MultiKeySize)
+					if tc.wantKeys != "[]" {
+						assert.Equal(t, len(strings.Split(tc.wantKeys, "\n")), actual.ChannelInfo.MultiKeySize)
+					}
 					assert.Equal(t, wantMode, actual.ChannelInfo.MultiKeyMode)
 					assert.Equal(t, 1, actual.ChannelInfo.MultiKeyPollingIndex)
 					if tc.clearState {
@@ -241,12 +315,21 @@ func TestUpdateChannelMultiKeyState(t *testing.T) {
 				}
 				var ability model.Ability
 				require.NoError(t, model.DB.Where("channel_id = ?", channel.Id).First(&ability).Error)
-				assert.Equal(t, !tc.channelDisabled, ability.Enabled)
+				assert.Equal(t, wantStatus == common.ChannelStatusEnabled, ability.Enabled)
+				routed, err := model.GetRandomSatisfiedChannel(channel.Group, channel.Models, 0, nil)
+				require.NoError(t, err)
+				if wantStatus == common.ChannelStatusEnabled {
+					require.NotNil(t, routed, "updated channel must be available for routing")
+					assert.Equal(t, channel.Id, routed.Id)
+				} else {
+					assert.Nil(t, routed, "disabled channel must stay excluded from routing")
+				}
 
 				var selected []string
 				for range len(tc.wantSelectable) {
-					active, err := model.CacheGetChannel(channel.Id)
+					active, err := model.GetRandomSatisfiedChannel(channel.Group, channel.Models, 0, nil)
 					require.NoError(t, err)
+					require.NotNil(t, active)
 					key, _, apiErr := active.GetNextEnabledKey()
 					require.Nil(t, apiErr)
 					selected = append(selected, key)
