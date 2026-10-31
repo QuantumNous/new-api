@@ -23,6 +23,37 @@ type VertexAIClaudeRequest struct {
 	//Metadata         json.RawMessage     `json:"metadata,omitempty"`
 }
 
+type VertexEmbeddingInstance struct {
+	Content string `json:"content"`
+}
+
+type VertexEmbeddingParameters struct {
+	OutputDimensionality *int `json:"outputDimensionality,omitempty"`
+}
+
+type VertexEmbeddingRequest struct {
+	Instances  []VertexEmbeddingInstance  `json:"instances"`
+	Parameters *VertexEmbeddingParameters `json:"parameters,omitempty"`
+}
+
+type VertexEmbeddingStatistics struct {
+	TokenCount int  `json:"token_count"`
+	Truncated  bool `json:"truncated"`
+}
+
+type VertexEmbedding struct {
+	Values     []float64                 `json:"values"`
+	Statistics VertexEmbeddingStatistics `json:"statistics"`
+}
+
+type VertexEmbeddingPrediction struct {
+	Embeddings VertexEmbedding `json:"embeddings"`
+}
+
+type VertexEmbeddingResponse struct {
+	Predictions []VertexEmbeddingPrediction `json:"predictions"`
+}
+
 func copyRequest(req *dto.ClaudeRequest, version string) *VertexAIClaudeRequest {
 	return &VertexAIClaudeRequest{
 		AnthropicVersion: version,
