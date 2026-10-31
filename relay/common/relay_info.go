@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -78,6 +79,7 @@ type ChannelMeta struct {
 type TokenCountMeta struct {
 	//promptTokens int
 	estimatePromptTokens int
+	promptTokenCounter   func() int
 }
 
 type RelayInfo struct {
@@ -834,9 +836,18 @@ func (info *RelayInfo) SetEstimatePromptTokens(promptTokens int) {
 	info.estimatePromptTokens = promptTokens
 }
 
+// SetPromptTokenCounter defers local counting until a response fallback or
+// format conversion needs it. Pricing snapshots retain the reservation estimate.
+func (info *RelayInfo) SetPromptTokenCounter(counter func() int) {
+	info.promptTokenCounter = sync.OnceValue(counter)
+}
+
 func (info *RelayInfo) GetEstimatePromptTokens() int {
 	if info == nil {
 		return 0
+	}
+	if info.promptTokenCounter != nil {
+		return info.promptTokenCounter()
 	}
 	return info.estimatePromptTokens
 }
