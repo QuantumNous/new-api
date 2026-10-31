@@ -38,7 +38,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok || UseOfficialMessagesAPI(info) {
 		adaptor := claude.Adaptor{}
 		return adaptor.ConvertClaudeRequest(c, info, req)
 	}
@@ -248,6 +248,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
 			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
 		}
+		if UseOfficialMessagesAPI(info) {
+			return officialMessagesURL, nil
+		}
 		if strings.HasPrefix(info.UpstreamModelName, "bot") {
 			return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
 		}
@@ -294,7 +297,14 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		}
 		req.Set("Content-Type", "application/json")
 		return nil
-	} else if info.RelayMode == constant.RelayModeImagesEdits {
+	}
+	if UseOfficialMessagesAPI(info) {
+		req.Set("Content-Type", "application/json")
+		req.Set("x-api-key", info.ApiKey)
+		req.Del("Authorization")
+		return nil
+	}
+	if info.RelayMode == constant.RelayModeImagesEdits {
 		req.Set("Content-Type", gin.MIMEJSON)
 	}
 
@@ -348,7 +358,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayFormat == types.RelayFormatClaude {
-		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok || UseOfficialMessagesAPI(info) {
 			adaptor := claude.Adaptor{}
 			return adaptor.DoResponse(c, resp, info)
 		}
