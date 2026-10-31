@@ -42,7 +42,7 @@ type CustomOAuthProvider struct {
 	Name                  string `json:"name" gorm:"type:varchar(64);not null"`                          // Display name, e.g., "GitHub Enterprise"
 	Slug                  string `json:"slug" gorm:"type:varchar(64);uniqueIndex;not null"`              // URL identifier, e.g., "github-enterprise"
 	Icon                  string `json:"icon" gorm:"type:varchar(128);default:''"`                       // Icon name from @lobehub/icons
-	Enabled               bool   `json:"enabled" gorm:"default:false"`                                   // Whether this provider is enabled
+	Enabled               bool   `json:"enabled"`                                                        // Whether this provider is enabled
 	ClientId              string `json:"client_id" gorm:"type:varchar(256)"`                             // OAuth client ID
 	ClientSecret          string `json:"-" gorm:"type:varchar(512)"`                                     // OAuth client secret (not returned to frontend)
 	AuthorizationEndpoint string `json:"authorization_endpoint" gorm:"type:varchar(512)"`                // Authorization URL
