@@ -38,6 +38,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
 	jspluginadaptor "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
+	"github.com/QuantumNous/new-api/relay/channel/tei"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
@@ -123,6 +124,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &sub2api.Adaptor{}
 	case constant.APITypeNewAPI:
 		return &newapi.Adaptor{}
+	case constant.APITypeTEI:
+		return &tei.Adaptor{}
 	}
 	return nil
 }

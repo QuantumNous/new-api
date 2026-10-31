@@ -43,6 +43,9 @@ type testResult struct {
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
+	if channel != nil && channel.Type == constant.ChannelTypeTEI && strings.TrimSpace(endpointType) == "" {
+		return string(constant.EndpointTypeJinaRerank)
+	}
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
 		return normalized
