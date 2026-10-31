@@ -156,7 +156,11 @@ describe('group settings workspace', () => {
       screen.getByRole('button', { name: 'Save group settings' })
     )
     await waitFor(() => expect(http.patch).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(draft).toHaveAttribute('readonly'))
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole('textbox', { name: 'Group name' })[0]
+      ).toHaveAttribute('readonly')
+    )
     expect(http.patch.mock.calls[1]).toEqual(http.patch.mock.calls[0])
     expect(http.put).not.toHaveBeenCalled()
   })
@@ -164,11 +168,18 @@ describe('group settings workspace', () => {
   it('keeps saved names read-only while new names and attributes remain editable', async () => {
     const user = userEvent.setup()
     render(<Fixture />)
-    for (const input of screen.getAllByRole('textbox', {
+    const savedNames = screen.getAllByRole('textbox', {
       name: 'Group name',
-    })) {
+    })
+    for (const input of savedNames) {
       expect(input).toHaveAttribute('readonly')
+      expect(input).toHaveClass('bg-muted', 'text-muted-foreground')
     }
+    expect(
+      screen.getAllByRole('img', {
+        name: 'Use Group migration to change an existing group name.',
+      })
+    ).toHaveLength(2)
     await user.click(screen.getByRole('button', { name: 'Add group' }))
     const draft = screen.getAllByRole('textbox', { name: 'Group name' })[0]
     expect(draft).not.toHaveAttribute('readonly')

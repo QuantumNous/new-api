@@ -662,24 +662,43 @@ function GroupPricingTable({
                 id: 'group',
                 header: t('Group name'),
                 className: 'min-w-40',
-                cell: (row) => (
-                  <Input
-                    value={row.name}
-                    readOnly={savedGroupNames?.includes(row.name)}
-                    title={
-                      savedGroupNames?.includes(row.name)
-                        ? t(
-                            'Use Group migration to change an existing group name.'
-                          )
-                        : undefined
-                    }
-                    aria-label={t('Group name')}
-                    onChange={(event) =>
-                      updateRow(row._id, 'name', event.target.value)
-                    }
-                    aria-invalid={duplicateNames.includes(row.name.trim())}
-                  />
-                ),
+                cell: (row) => {
+                  const isSavedGroup = savedGroupNames?.includes(row.name)
+                  const migrationHint = t(
+                    'Use Group migration to change an existing group name.'
+                  )
+                  const input = (
+                    <Input
+                      value={row.name}
+                      readOnly={isSavedGroup}
+                      title={isSavedGroup ? migrationHint : undefined}
+                      className={
+                        isSavedGroup
+                          ? 'min-w-0 flex-1 cursor-not-allowed bg-muted text-muted-foreground'
+                          : undefined
+                      }
+                      aria-label={t('Group name')}
+                      onChange={(event) =>
+                        updateRow(row._id, 'name', event.target.value)
+                      }
+                      aria-invalid={duplicateNames.includes(row.name.trim())}
+                    />
+                  )
+                  if (!isSavedGroup) return input
+                  return (
+                    <div className='flex min-w-0 items-center gap-1'>
+                      {input}
+                      <span
+                        aria-label={migrationHint}
+                        className='inline-flex shrink-0 cursor-help text-muted-foreground'
+                        role='img'
+                        title={migrationHint}
+                      >
+                        <Info aria-hidden='true' className='size-4' />
+                      </span>
+                    </div>
+                  )
+                },
               },
               {
                 id: 'ratio',

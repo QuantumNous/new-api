@@ -137,7 +137,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             <HelpCircle className='mr-2 h-4 w-4' />
             {t('Usage guide')}
           </Button>
-          <GroupMigrationEntry />
+          <GroupMigrationEntry groups={savedGroupNames} />
           <Button variant='outline' size='sm' onClick={toggleEditMode}>
             {editMode === 'visual' ? (
               <>
