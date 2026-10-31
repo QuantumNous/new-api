@@ -419,6 +419,7 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		ToolChoice:        toolChoiceRaw,
 		Tools:             toolsRaw,
 		TopP:              topP,
+		TopLogProbs:       req.TopLogProbs,
 		FrequencyPenalty:  frequencyPenaltyRaw,
 		PresencePenalty:   presencePenaltyRaw,
 		User:              req.User,
@@ -428,6 +429,9 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		PromptCacheKey:    promptCacheKeyRaw,
 		EnableThinking:    req.EnableThinking,
 		ThinkingBudget:    req.ThinkingBudget,
+	}
+	if req.LogProbs != nil && *req.LogProbs {
+		out.Include = json.RawMessage(`["message.output_text.logprobs"]`)
 	}
 	if req.MaxTokens != nil || req.MaxCompletionTokens != nil {
 		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)

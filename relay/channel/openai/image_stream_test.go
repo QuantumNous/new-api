@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func newImageTestContext(t *testing.T, body, contentType string, isStream bool) (*gin.Context, *httptest.ResponseRecorder, *http.Response, *relaycommon.RelayInfo) {
@@ -399,29 +400,86 @@ func TestOpenaiImageStreamHandlerWrapsJSONResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Cleanup(func() { gin.SetMode(oldMode) })
 
-	body := `{"created":1710000000,"data":[{"b64_json":"first","revised_prompt":"draw a cat"},{"b64_json":"second"}],"usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7,"input_tokens_details":{"image_tokens":2,"text_tokens":1}}}`
+	for _, eventType := range []string{"image_generation.completed", "image_edit.completed"} {
+		for _, tc := range []struct {
+			name, fields                           string
+			metadata                               map[string]string
+			hasUsage                               bool
+			input, output, textTokens, imageTokens int
+		}{
+			{
+				name:     "actual metadata and nonzero usage",
+				fields:   `,"size":"1024x1024","quality":"high","background":"opaque","output_format":"png","usage":{"input_tokens":3,"output_tokens":4,"total_tokens":7,"input_tokens_details":{"image_tokens":2,"text_tokens":1}}`,
+				metadata: map[string]string{"size": "1024x1024", "quality": "high", "background": "opaque", "output_format": "png"},
+				hasUsage: true, input: 3, output: 4, textTokens: 1, imageTokens: 2,
+			},
+			{
+				name:     "partial metadata and explicit zero usage",
+				fields:   `,"size":"1536x1024","output_format":"webp","usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0,"input_tokens_details":{"image_tokens":0,"text_tokens":0}}`,
+				metadata: map[string]string{"size": "1536x1024", "output_format": "webp"},
+				hasUsage: true,
+			},
+			{name: "missing metadata and usage"},
+			{name: "null usage is unknown, not zero", fields: `,"usage":null`},
+		} {
+			t.Run(eventType+"/"+tc.name, func(t *testing.T) {
+				body := `{"created":1710000000,"data":[{"b64_json":"first","revised_prompt":"draw a cat"},{"b64_json":"second"}]` + tc.fields + `}`
+				c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+				info.RelayMode = relayconstant.RelayModeImagesGenerations
+				if eventType == "image_edit.completed" {
+					info.RelayMode = relayconstant.RelayModeImagesEdits
+					c.Request.URL.Path = "/v1/images/edits"
+				}
+				info.Request = &dto.ImageRequest{Size: "auto", Quality: "low", Background: []byte(`"transparent"`), OutputFormat: []byte(`"jpeg"`)}
+				info.PriceData.UsePrice = true
+				info.PriceData.AddOtherRatio("n", 3)
 
-	c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
-	info.PriceData.UsePrice = true
-	info.PriceData.AddOtherRatio("n", 3)
-
-	usage, err := OpenaiImageStreamHandler(c, info, resp)
-	require.Nil(t, err)
-	require.Equal(t, 3, usage.PromptTokens)
-	require.Equal(t, 4, usage.CompletionTokens)
-	require.Equal(t, 7, usage.TotalTokens)
-	require.Equal(t, 2, usage.PromptTokensDetails.ImageTokens)
-	require.Equal(t, 1, usage.PromptTokensDetails.TextTokens)
-	require.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
-	require.Empty(t, recorder.Header().Get("Content-Length"))
-	require.Contains(t, recorder.Body.String(), `event: image_generation.completed`)
-	require.Contains(t, recorder.Body.String(), `"type":"image_generation.completed"`)
-	require.Contains(t, recorder.Body.String(), `"b64_json":"first"`)
-	require.Contains(t, recorder.Body.String(), `"b64_json":"second"`)
-	require.Contains(t, recorder.Body.String(), `"revised_prompt":"draw a cat"`)
-	require.Contains(t, recorder.Body.String(), `data: [DONE]`)
-	require.Equal(t, 2, strings.Count(recorder.Body.String(), `event: image_generation.completed`))
-	require.Equal(t, 2.0, info.PriceData.OtherRatios()["n"])
+				result, apiErr := (&Adaptor{}).DoResponse(c, resp, info)
+				require.Nil(t, apiErr)
+				usage := result.(*dto.Usage)
+				assert.Equal(t, tc.input, usage.PromptTokens)
+				assert.Equal(t, tc.output, usage.CompletionTokens)
+				assert.Equal(t, tc.input+tc.output, usage.TotalTokens)
+				assert.Equal(t, tc.imageTokens, usage.PromptTokensDetails.ImageTokens)
+				assert.Equal(t, tc.textTokens, usage.PromptTokensDetails.TextTokens)
+				assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+				assert.Empty(t, recorder.Header().Get("Content-Length"))
+				out := recorder.Body.String()
+				assert.Contains(t, out, `"b64_json":"first"`)
+				assert.Contains(t, out, `"b64_json":"second"`)
+				assert.Contains(t, out, `"revised_prompt":"draw a cat"`)
+				assert.True(t, strings.HasSuffix(out, "data: [DONE]\n\n"))
+				assert.Equal(t, 2, strings.Count(out, "event: "+eventType))
+				assert.Equal(t, 2.0, info.PriceData.OtherRatios()["n"])
+				for frame := range strings.SplitSeq(out, "\n\n") {
+					event, data, ok := strings.Cut(frame, "\ndata: ")
+					if !ok {
+						continue
+					}
+					assert.Equal(t, "event: "+eventType, event)
+					require.True(t, gjson.Valid(data))
+					payload := gjson.Parse(data)
+					assert.Equal(t, eventType, payload.Get("type").String())
+					assert.Equal(t, int64(1710000000), payload.Get("created_at").Int())
+					for _, field := range []string{"size", "quality", "background", "output_format"} {
+						value := payload.Get(field)
+						want, exists := tc.metadata[field]
+						assert.Equal(t, exists, value.Exists(), field)
+						assert.Equal(t, want, value.String(), field)
+					}
+					assert.Equal(t, tc.hasUsage, payload.Get("usage").Exists())
+					if tc.hasUsage {
+						assert.True(t, payload.Get("usage.input_tokens").Exists())
+						assert.True(t, payload.Get("usage.output_tokens").Exists())
+						assert.True(t, payload.Get("usage.total_tokens").Exists())
+						assert.Equal(t, int64(tc.input), payload.Get("usage.input_tokens").Int())
+						assert.Equal(t, int64(tc.output), payload.Get("usage.output_tokens").Int())
+						assert.Equal(t, int64(tc.input+tc.output), payload.Get("usage.total_tokens").Int())
+					}
+				}
+			})
+		}
+	}
 }
 
 func TestOpenaiImageHandlerUsesPositiveActualCountForFixedPrice(t *testing.T) {

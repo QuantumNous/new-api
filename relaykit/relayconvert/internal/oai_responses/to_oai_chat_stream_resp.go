@@ -1,7 +1,9 @@
 package oairesponses
 
 import (
+	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -20,7 +22,7 @@ type ResponsesToChatStreamState struct {
 
 	sentStart                  bool
 	finalized                  bool
-	hasSentText                bool
+	contentByIndex             map[[2]int]*responsesStreamContent
 	sentAnnotationCount        int
 	sawToolCall                bool
 	hasSentReasoning           bool
@@ -33,6 +35,12 @@ type ResponsesToChatStreamState struct {
 	pendingArgsByOutputIndex   map[int]string
 	pendingArgsByItemID        map[string]string
 	usageText                  strings.Builder
+}
+
+type responsesStreamContent struct {
+	TextBytes    int
+	RefusalBytes int
+	Logprobs     int
 }
 
 type responsesStreamTool struct {
@@ -99,11 +107,35 @@ func ResponsesStreamEventToChatChunks(event *dto.ResponsesStreamResponse, state 
 		}
 		return nil, nil
 	case responsesEventOutputTextDelta:
-		return state.textDelta(event.Delta), nil
+		return state.contentDelta(event, event.Delta, "", false), nil
+	case "response.output_text.done":
+		text := ""
+		if event.Text != nil {
+			text = *event.Text
+		}
+		return state.contentDelta(event, text, "", true), nil
+	case "response.refusal.delta":
+		return state.contentDelta(event, "", event.Delta, false), nil
+	case "response.refusal.done":
+		refusal := ""
+		if event.Refusal != nil {
+			refusal = *event.Refusal
+		}
+		return state.contentDelta(event, "", refusal, true), nil
 	case responsesEventOutputTextAnnotationAdded:
 		return state.annotationRawDelta(event.Annotation)
 	case responsesEventOutputItemAdded, responsesEventOutputItemDone:
-		if event.Item == nil || !isResponsesToolOutputType(event.Item.Type) {
+		if event.Item == nil {
+			return nil, nil
+		}
+		if event.Type == responsesEventOutputItemDone && event.Item.Type == responsesOutputTypeMessage {
+			outputIndex := 0
+			if event.OutputIndex != nil {
+				outputIndex = *event.OutputIndex
+			}
+			return state.outputContentChunks(event.Item, outputIndex), nil
+		}
+		if !isResponsesToolOutputType(event.Item.Type) {
 			return nil, nil
 		}
 		return state.toolItem(event), nil
@@ -166,16 +198,65 @@ func (s *ResponsesToChatStreamState) ensureStart() []dto.ChatCompletionsStreamRe
 	}, nil)}
 }
 
-func (s *ResponsesToChatStreamState) textDelta(delta string) []dto.ChatCompletionsStreamResponse {
-	if delta == "" {
+// contentDelta tracks each content part separately: done and terminal snapshots
+// may repeat its text and probabilities, or supply the missing suffix.
+func (s *ResponsesToChatStreamState) contentDelta(event *dto.ResponsesStreamResponse, text, refusal string, cumulative bool) []dto.ChatCompletionsStreamResponse {
+	key := [2]int{}
+	if event.OutputIndex != nil {
+		key[0] = *event.OutputIndex
+	}
+	if event.ContentIndex != nil {
+		key[1] = *event.ContentIndex
+	}
+	if s.contentByIndex == nil {
+		s.contentByIndex = make(map[[2]int]*responsesStreamContent)
+	}
+	content := s.contentByIndex[key]
+	if content == nil {
+		content = &responsesStreamContent{}
+		s.contentByIndex[key] = content
+	}
+	logprobs := event.Logprobs
+	if cumulative {
+		text = text[min(len(text), content.TextBytes):]
+		refusal = refusal[min(len(refusal), content.RefusalBytes):]
+		logprobs = logprobs[min(len(logprobs), content.Logprobs):]
+	}
+	if text == "" && refusal == "" && len(logprobs) == 0 {
 		return nil
 	}
-	s.usageText.WriteString(delta)
-	s.hasSentText = true
+	content.TextBytes += len(text)
+	content.RefusalBytes += len(refusal)
+	content.Logprobs += len(logprobs)
+	delta := dto.ChatCompletionsStreamResponseChoiceDelta{}
+	if text != "" {
+		delta.Content = &text
+		s.usageText.WriteString(text)
+	}
+	if refusal != "" {
+		delta.Refusal = &refusal
+		s.usageText.WriteString(refusal)
+	}
 	chunks := s.ensureStart()
-	chunks = append(chunks, s.makeChunk(dto.ChatCompletionsStreamResponseChoiceDelta{
-		Content: &delta,
-	}, nil))
+	chunk := s.makeChunk(delta, nil)
+	if len(logprobs) > 0 {
+		var probabilities any = dto.ChatLogprobs{Content: logprobs}
+		chunk.Choices[0].Logprobs = &probabilities
+	}
+	return append(chunks, chunk)
+}
+
+func (s *ResponsesToChatStreamState) outputContentChunks(output *dto.ResponsesOutput, outputIndex int) []dto.ChatCompletionsStreamResponse {
+	var chunks []dto.ChatCompletionsStreamResponse
+	for contentIndex, content := range output.Content {
+		if content.Type != "output_text" && content.Type != "refusal" {
+			continue
+		}
+		event := &dto.ResponsesStreamResponse{
+			OutputIndex: &outputIndex, ContentIndex: &contentIndex, Logprobs: content.Logprobs,
+		}
+		chunks = append(chunks, s.contentDelta(event, content.Text, content.Refusal, true)...)
+	}
 	return chunks
 }
 
@@ -185,27 +266,13 @@ func (s *ResponsesToChatStreamState) terminalOutputChunks(response *dto.OpenAIRe
 	}
 
 	var chunks []dto.ChatCompletionsStreamResponse
-	hadSentText := s.hasSentText
 	hadSentReasoning := s.hasSentReasoning
 	annotationOffset := 0
 	for i := range response.Output {
 		out := &response.Output[i]
 		switch {
-		case out.Type == responsesOutputTypeMessage && !hadSentText:
-			var text strings.Builder
-			for _, c := range out.Content {
-				if c.Type == "output_text" && c.Text != "" {
-					text.WriteString(c.Text)
-				}
-			}
-			chunks = append(chunks, s.textDelta(text.String())...)
-			annotationChunks, err := s.remainingAnnotationChunks(out, annotationOffset)
-			if err != nil {
-				return nil, err
-			}
-			chunks = append(chunks, annotationChunks...)
-			annotationOffset += responsesOutputAnnotationCount(out)
 		case out.Type == responsesOutputTypeMessage:
+			chunks = append(chunks, s.outputContentChunks(out, i)...)
 			annotationChunks, err := s.remainingAnnotationChunks(out, annotationOffset)
 			if err != nil {
 				return nil, err
@@ -657,9 +724,43 @@ type responsesBufferedItem struct {
 	Type                string
 	ID                  string
 	Text                strings.Builder
-	Annotations         []any
+	Content             map[int]*responsesBufferedContent
 	ToolIndex           int
 	NeedsReasoningBreak bool
+}
+
+type responsesBufferedContent struct {
+	Type        string
+	Text        strings.Builder
+	Refusal     strings.Builder
+	Logprobs    []json.RawMessage
+	Annotations []any
+}
+
+func (i *responsesBufferedItem) contentPart(index int) *responsesBufferedContent {
+	if i.Content == nil {
+		i.Content = make(map[int]*responsesBufferedContent)
+	}
+	if i.Content[index] == nil {
+		i.Content[index] = &responsesBufferedContent{}
+	}
+	return i.Content[index]
+}
+
+func (c *responsesBufferedContent) supplement(part dto.ResponsesOutputContent) {
+	c.Type = part.Type
+	if len(part.Text) > c.Text.Len() {
+		c.Text.WriteString(part.Text[c.Text.Len():])
+	}
+	if len(part.Refusal) > c.Refusal.Len() {
+		c.Refusal.WriteString(part.Refusal[c.Refusal.Len():])
+	}
+	if len(part.Logprobs) > len(c.Logprobs) {
+		c.Logprobs = append(c.Logprobs, part.Logprobs[len(c.Logprobs):]...)
+	}
+	if len(c.Annotations) == 0 {
+		c.Annotations = part.Annotations
+	}
 }
 
 type responsesBufferedTool struct {
@@ -686,14 +787,45 @@ func (a *ResponsesBufferedAccumulator) ProcessEvent(event *dto.ResponsesStreamRe
 		return
 	}
 	switch event.Type {
-	case responsesEventOutputTextDelta:
+	case responsesEventOutputTextDelta, "response.output_text.done", "response.refusal.delta", "response.refusal.done":
 		item := a.ensureItem(event, responsesOutputTypeMessage)
-		item.Text.WriteString(event.Delta)
+		index := 0
+		if event.ContentIndex != nil {
+			index = *event.ContentIndex
+		}
+		content := item.contentPart(index)
+		switch event.Type {
+		case responsesEventOutputTextDelta:
+			content.Type = "output_text"
+			content.Text.WriteString(event.Delta)
+			content.Logprobs = append(content.Logprobs, event.Logprobs...)
+		case "response.refusal.delta":
+			content.Type = "refusal"
+			content.Refusal.WriteString(event.Delta)
+		case "response.output_text.done":
+			part := dto.ResponsesOutputContent{Type: "output_text", Logprobs: event.Logprobs}
+			if event.Text != nil {
+				part.Text = *event.Text
+			}
+			content.supplement(part)
+		case "response.refusal.done":
+			part := dto.ResponsesOutputContent{Type: "refusal"}
+			if event.Refusal != nil {
+				part.Refusal = *event.Refusal
+			}
+			content.supplement(part)
+		}
 	case responsesEventOutputTextAnnotationAdded:
 		item := a.ensureItem(event, responsesOutputTypeMessage)
+		index := 0
+		if event.ContentIndex != nil {
+			index = *event.ContentIndex
+		}
+		content := item.contentPart(index)
+		content.Type = "output_text"
 		var annotation any
 		if err := kitutil.Unmarshal(event.Annotation, &annotation); err == nil && annotation != nil {
-			item.Annotations = append(item.Annotations, annotation)
+			content.Annotations = append(content.Annotations, annotation)
 		}
 	case responsesEventReasoningSummaryDelta, responsesEventReasoningTextDelta:
 		item := a.ensureItem(event, responsesOutputTypeReasoning)
@@ -723,16 +855,9 @@ func (a *ResponsesBufferedAccumulator) ProcessEvent(event *dto.ResponsesStreamRe
 			}
 		case event.Item.Type == responsesOutputTypeMessage:
 			item := a.ensureItem(event, event.Item.Type)
-			seedText := item.Text.Len() == 0
-			seedAnnotations := len(item.Annotations) == 0
-			for _, content := range event.Item.Content {
-				if content.Type == "output_text" {
-					if seedText {
-						item.Text.WriteString(content.Text)
-					}
-					if seedAnnotations {
-						item.Annotations = append(item.Annotations, content.Annotations...)
-					}
+			for index, content := range event.Item.Content {
+				if content.Type == "output_text" || content.Type == "refusal" {
+					item.contentPart(index).supplement(content)
 				}
 			}
 		case isResponsesToolOutputType(event.Item.Type):
@@ -784,17 +909,26 @@ func (a *ResponsesBufferedAccumulator) BuildOutput() []dto.ResponsesOutput {
 				},
 			})
 		case responsesOutputTypeMessage:
-			if item.Text.Len() == 0 {
+			indices := make([]int, 0, len(item.Content))
+			for index := range item.Content {
+				indices = append(indices, index)
+			}
+			slices.Sort(indices)
+			content := make([]dto.ResponsesOutputContent, 0, len(indices))
+			for _, index := range indices {
+				part := item.Content[index]
+				if part.Type == "" {
+					continue
+				}
+				content = append(content, dto.ResponsesOutputContent{
+					Type: part.Type, Text: part.Text.String(), Refusal: part.Refusal.String(),
+					Logprobs: part.Logprobs, Annotations: part.Annotations,
+				})
+			}
+			if len(content) == 0 {
 				continue
 			}
-			out = append(out, dto.ResponsesOutput{
-				Type: item.Type,
-				ID:   item.ID,
-				Role: "assistant",
-				Content: []dto.ResponsesOutputContent{
-					{Type: "output_text", Text: item.Text.String(), Annotations: item.Annotations},
-				},
-			})
+			out = append(out, dto.ResponsesOutput{Type: item.Type, ID: item.ID, Role: "assistant", Content: content})
 		case responsesOutputTypeFunctionCall, responsesOutputTypeCustomToolCall:
 			if item.ToolIndex < 0 || item.ToolIndex >= len(a.tools) || a.tools[item.ToolIndex] == nil {
 				continue

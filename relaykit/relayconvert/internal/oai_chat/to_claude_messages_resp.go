@@ -242,6 +242,57 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			state.FinishReason = *chosenChoice.FinishReason
 		}
 
+		// A Chat chunk can carry reasoning, text, and tool calls together.
+		// Emit their Claude blocks in that order, closing each before the next opens.
+		reasoning := chosenChoice.Delta.GetReasoningContent()
+		textContent := chosenChoice.Delta.GetContentString()
+		if reasoning != "" {
+			if state.LastMessagesType != convmeta.LastMessageTypeThinking {
+				stopOpenBlocksAndAdvance()
+				idx := state.Index
+				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+					Index: &idx,
+					Type:  "content_block_start",
+					ContentBlock: &dto.ClaudeMediaMessage{
+						Type:     "thinking",
+						Thinking: kitutil.GetPointer[string](""),
+					},
+				})
+			}
+			state.LastMessagesType = convmeta.LastMessageTypeThinking
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Index: kitutil.GetPointer[int](state.Index),
+				Type:  "content_block_delta",
+				Delta: &dto.ClaudeMediaMessage{
+					Type:     "thinking_delta",
+					Thinking: &reasoning,
+				},
+			})
+		}
+		if textContent != "" {
+			if state.LastMessagesType != convmeta.LastMessageTypeText {
+				stopOpenBlocksAndAdvance()
+				idx := state.Index
+				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+					Index: &idx,
+					Type:  "content_block_start",
+					ContentBlock: &dto.ClaudeMediaMessage{
+						Type: "text",
+						Text: kitutil.GetPointer[string](""),
+					},
+				})
+			}
+			state.LastMessagesType = convmeta.LastMessageTypeText
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Index: kitutil.GetPointer[int](state.Index),
+				Type:  "content_block_delta",
+				Delta: &dto.ClaudeMediaMessage{
+					Type: "text_delta",
+					Text: kitutil.GetPointer[string](textContent),
+				},
+			})
+		}
+
 		if len(chosenChoice.Delta.ToolCalls) > 0 {
 			toolCalls := chosenChoice.Delta.ToolCalls
 			if state.LastMessagesType != convmeta.LastMessageTypeTools {
@@ -335,57 +386,6 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			state.ToolCallMaxIndexOffset = len(state.ToolCalls) - 1
 			if len(state.ToolCalls) > 0 {
 				state.Index = state.ToolCallBaseIndex + len(state.ToolCalls) - 1
-			}
-		} else {
-			// Some upstreams put the last reasoning token and the first answer
-			// text in one chunk: the thinking block closes before the text block opens.
-			reasoning := chosenChoice.Delta.GetReasoningContent()
-			textContent := chosenChoice.Delta.GetContentString()
-			if reasoning != "" {
-				if state.LastMessagesType != convmeta.LastMessageTypeThinking {
-					stopOpenBlocksAndAdvance()
-					idx := state.Index
-					claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-						Index: &idx,
-						Type:  "content_block_start",
-						ContentBlock: &dto.ClaudeMediaMessage{
-							Type:     "thinking",
-							Thinking: kitutil.GetPointer[string](""),
-						},
-					})
-				}
-				state.LastMessagesType = convmeta.LastMessageTypeThinking
-				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-					Index: kitutil.GetPointer[int](state.Index),
-					Type:  "content_block_delta",
-					Delta: &dto.ClaudeMediaMessage{
-						Type:     "thinking_delta",
-						Thinking: &reasoning,
-					},
-				})
-			}
-			if textContent != "" {
-				if state.LastMessagesType != convmeta.LastMessageTypeText {
-					stopOpenBlocksAndAdvance()
-					idx := state.Index
-					claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-						Index: &idx,
-						Type:  "content_block_start",
-						ContentBlock: &dto.ClaudeMediaMessage{
-							Type: "text",
-							Text: kitutil.GetPointer[string](""),
-						},
-					})
-				}
-				state.LastMessagesType = convmeta.LastMessageTypeText
-				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-					Index: kitutil.GetPointer[int](state.Index),
-					Type:  "content_block_delta",
-					Delta: &dto.ClaudeMediaMessage{
-						Type: "text_delta",
-						Text: kitutil.GetPointer[string](textContent),
-					},
-				})
 			}
 		}
 
