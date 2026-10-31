@@ -75,6 +75,19 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 func textRequestViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request any) (*dto.Usage, *types.NewAPIError) {
 	paramOverrideApplied := false
 	if chatRequest, ok := request.(*dto.GeneralOpenAIRequest); ok {
+		// Same sampling-parameter rules the Chat adaptor applies; this path
+		// bypasses ConvertOpenAIRequest.
+		capabilities := dto.GetOpenAIChatCapabilities(info.UpstreamModelName, chatRequest.ReasoningEffort)
+		if !capabilities.SupportsTemperature {
+			chatRequest.Temperature = nil
+		}
+		if !capabilities.SupportsTopP {
+			chatRequest.TopP = nil
+		}
+		if !capabilities.SupportsLogProbs {
+			chatRequest.LogProbs = nil
+			chatRequest.TopLogProbs = nil
+		}
 		chatJSON, err := common.Marshal(chatRequest)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
