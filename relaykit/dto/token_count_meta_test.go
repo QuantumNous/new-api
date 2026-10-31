@@ -115,3 +115,40 @@ func TestEmbeddingTokenCountMetaCountsChatStyleParts(t *testing.T) {
 		{FileType: types.FileTypeVideo, Source: types.NewURLFileSource("https://example.com/cat.mp4")},
 	}, meta.Files)
 }
+
+// gemini-embedding-2 embeds inline media. The Gemini relay never fetches media
+// to detect its type, so the MIME type must set it for the estimate to apply.
+func TestGeminiEmbeddingTokenCountMetaCountsInlineMedia(t *testing.T) {
+	const imagePart = `{"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgo="}}`
+	const audioPart = `{"inline_data":{"mime_type":"audio/wav","data":"UklGRg=="}}`
+	image := &types.FileMeta{FileType: types.FileTypeImage, Source: types.NewBase64FileSource("iVBORw0KGgo=", "image/png")}
+	audio := &types.FileMeta{FileType: types.FileTypeAudio, Source: types.NewBase64FileSource("UklGRg==", "audio/wav")}
+
+	for _, tc := range []struct {
+		name    string
+		raw     string
+		request interface{ GetTokenCountMeta() *types.TokenCountMeta }
+		files   []*types.FileMeta
+	}{
+		{
+			name: "single",
+			// fileData URIs point at authenticated uploads and stay uncounted.
+			raw:     `{"content":{"parts":[{"text":"a cat"},` + imagePart + `,{"fileData":{"mimeType":"video/mp4","fileUri":"https://example.com/f"}}]}}`,
+			request: &GeminiEmbeddingRequest{},
+			files:   []*types.FileMeta{image},
+		},
+		{
+			name:    "batch",
+			raw:     `{"requests":[{"content":{"parts":[{"text":"a cat"},` + imagePart + `]}},{"content":{"parts":[` + audioPart + `]}}]}`,
+			request: &GeminiBatchEmbeddingRequest{},
+			files:   []*types.FileMeta{image, audio},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.NoError(t, kitutil.UnmarshalJsonStr(tc.raw, tc.request))
+			meta := tc.request.GetTokenCountMeta()
+			assert.Equal(t, "a cat", meta.CombineText)
+			assert.Equal(t, tc.files, meta.Files)
+		})
+	}
+}

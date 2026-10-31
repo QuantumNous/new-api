@@ -112,21 +112,6 @@ func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				}
 			}
 			for _, media := range mediaParts {
-				source := media.InlineData.ToFileSource()
-				if source == nil {
-					continue
-				}
-				mimeType := media.InlineData.MimeType
-				var fileType types.FileType
-				if strings.HasPrefix(mimeType, "image/") {
-					fileType = types.FileTypeImage
-				} else if strings.HasPrefix(mimeType, "audio/") {
-					fileType = types.FileTypeAudio
-				} else if strings.HasPrefix(mimeType, "video/") {
-					fileType = types.FileTypeVideo
-				} else {
-					fileType = types.FileTypeFile
-				}
 				// Image cost depends on the media resolution; a part's own level
 				// overrides the request-wide one.
 				detail := string(r.GenerationConfig.MediaResolution)
@@ -136,11 +121,9 @@ func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				if kitutil.Unmarshal(media.MediaResolution, &partResolution) == nil && partResolution.Level != "" {
 					detail = partResolution.Level
 				}
-				files = append(files, &types.FileMeta{
-					FileType: fileType,
-					Source:   source,
-					Detail:   detail,
-				})
+				if file := media.InlineData.tokenCountFile(detail); file != nil {
+					files = append(files, file)
+				}
 			}
 		}
 	}
@@ -262,6 +245,25 @@ func (d *GeminiInlineData) ToFileSource() types.FileSource {
 		return nil
 	}
 	return types.NewFileSourceFromData(d.Data, d.MimeType)
+}
+
+// tokenCountFile describes inline media for the request token estimate. The
+// host never fetches Gemini media to detect its type, so the MIME type picks
+// the per-type estimate here.
+func (d *GeminiInlineData) tokenCountFile(detail string) *types.FileMeta {
+	source := d.ToFileSource()
+	if source == nil {
+		return nil
+	}
+	fileType := types.FileTypeFile
+	if strings.HasPrefix(d.MimeType, "image/") {
+		fileType = types.FileTypeImage
+	} else if strings.HasPrefix(d.MimeType, "audio/") {
+		fileType = types.FileTypeAudio
+	} else if strings.HasPrefix(d.MimeType, "video/") {
+		fileType = types.FileTypeVideo
+	}
+	return &types.FileMeta{FileType: fileType, Source: source, Detail: detail}
 }
 
 // UnmarshalJSON custom unmarshaler for GeminiInlineData to support snake_case and camelCase for MimeType
@@ -639,16 +641,23 @@ func (r *GeminiEmbeddingRequest) IsStream(c *http.Request) bool {
 	return false
 }
 
+// GetTokenCountMeta counts text and inline media; gemini-embedding-2 embeds
+// images, audio, video and PDFs. fileData URIs are not counted, as in chat,
+// because estimating them would require fetching authenticated uploads.
 func (r *GeminiEmbeddingRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var inputTexts []string
+	var files []*types.FileMeta
 	for _, part := range r.Content.Parts {
 		if part.Text != "" {
 			inputTexts = append(inputTexts, part.Text)
 		}
+		if file := part.InlineData.tokenCountFile(""); file != nil {
+			files = append(files, file)
+		}
 	}
-	inputText := strings.Join(inputTexts, "\n")
 	return &types.TokenCountMeta{
-		CombineText: inputText,
+		CombineText: strings.Join(inputTexts, "\n"),
+		Files:       files,
 	}
 }
 
@@ -669,15 +678,17 @@ func (r *GeminiBatchEmbeddingRequest) IsStream(c *http.Request) bool {
 
 func (r *GeminiBatchEmbeddingRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	var inputTexts []string
+	var files []*types.FileMeta
 	for _, request := range r.Requests {
 		meta := request.GetTokenCountMeta()
-		if meta != nil && meta.CombineText != "" {
+		if meta.CombineText != "" {
 			inputTexts = append(inputTexts, meta.CombineText)
 		}
+		files = append(files, meta.Files...)
 	}
-	inputText := strings.Join(inputTexts, "\n")
 	return &types.TokenCountMeta{
-		CombineText: inputText,
+		CombineText: strings.Join(inputTexts, "\n"),
+		Files:       files,
 	}
 }
 
@@ -690,11 +701,43 @@ func (r *GeminiBatchEmbeddingRequest) SetModelName(modelName string) {
 }
 
 type GeminiEmbeddingResponse struct {
-	Embedding ContentEmbedding `json:"embedding"`
+	Embedding     ContentEmbedding              `json:"embedding"`
+	UsageMetadata *GeminiEmbeddingUsageMetadata `json:"usageMetadata,omitempty"`
 }
 
 type GeminiBatchEmbeddingResponse struct {
-	Embeddings []*ContentEmbedding `json:"embeddings"`
+	Embeddings    []*ContentEmbedding           `json:"embeddings"`
+	UsageMetadata *GeminiEmbeddingUsageMetadata `json:"usageMetadata,omitempty"`
+}
+
+// GeminiEmbeddingUsageMetadata is the EmbeddingUsageMetadata of embedContent
+// and batchEmbedContents (https://ai.google.dev/api/embeddings). Its detail
+// list is promptTokenDetails, unlike promptTokensDetails in generateContent.
+// gemini-embedding-001 omits it.
+type GeminiEmbeddingUsageMetadata struct {
+	PromptTokenCount   int                         `json:"promptTokenCount"`
+	PromptTokenDetails []GeminiPromptTokensDetails `json:"promptTokenDetails"`
+}
+
+// GeminiUsageMetadata maps embedding usage onto the generateContent shape so
+// it settles through the shared Gemini usage rules. Google bills the DOCUMENT
+// tokens of an embedded PDF at the image price, so they count as IMAGE. It
+// returns nil when upstream reported no prompt tokens.
+func (m *GeminiEmbeddingUsageMetadata) GeminiUsageMetadata() *GeminiUsageMetadata {
+	if m == nil || m.PromptTokenCount <= 0 {
+		return nil
+	}
+	metadata := &GeminiUsageMetadata{
+		PromptTokenCount: m.PromptTokenCount,
+		TotalTokenCount:  m.PromptTokenCount,
+	}
+	for _, detail := range m.PromptTokenDetails {
+		if normalizeGeminiModality(detail.Modality) == "DOCUMENT" {
+			detail.Modality = "IMAGE"
+		}
+		metadata.PromptTokensDetails = append(metadata.PromptTokensDetails, detail)
+	}
+	return metadata
 }
 
 type ContentEmbedding struct {

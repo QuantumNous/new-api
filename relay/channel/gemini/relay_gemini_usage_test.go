@@ -754,3 +754,146 @@ func TestGeminiHandlersCountGroundingQueries(t *testing.T) {
 		})
 	}
 }
+
+// gemini-embedding-2 reports usageMetadata (promptTokenDetails, not
+// promptTokensDetails) on embedContent and batchEmbedContents; it must be
+// billed instead of the text-only estimate, which counts media as zero.
+// gemini-embedding-001 reports none and keeps the estimate.
+func TestGeminiEmbeddingHandlersBillUpstreamUsageMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousCountToken := constant.CountToken
+	constant.CountToken = true
+	t.Cleanup(func() { constant.CountToken = previousCountToken })
+	const vector = `{"values":[0.1,0.2]}`
+	const embedModel = "gemini-embedding-001"
+	textTokens := tokenkit.Count(embedModel, "a cat")
+	require.Positive(t, textTokens)
+	pngPart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "image/png", Data: "iVBORw0KGgo="}}
+
+	tests := []struct {
+		name     string
+		batch    bool
+		openAI   bool
+		request  dto.Request
+		body     string
+		prompt   int
+		image    int
+		audio    int
+		upstream bool
+	}{
+		{
+			name:     "embedContent text and image",
+			body:     `{"embedding":` + vector + `,"usageMetadata":{"promptTokenCount":268,"promptTokenDetails":[{"modality":"IMAGE","tokenCount":258},{"modality":"TEXT","tokenCount":10}]}}`,
+			prompt:   268,
+			image:    258,
+			upstream: true,
+		},
+		{
+			name:     "batchEmbedContents audio",
+			batch:    true,
+			body:     `{"embeddings":[` + vector + `],"usageMetadata":{"promptTokenCount":50,"promptTokenDetails":[{"modality":"AUDIO","tokenCount":50}]}}`,
+			prompt:   50,
+			audio:    50,
+			upstream: true,
+		},
+		{
+			name:     "embedContent pdf bills as image",
+			body:     `{"embedding":` + vector + `,"usageMetadata":{"promptTokenCount":258,"promptTokenDetails":[{"modality":"DOCUMENT","tokenCount":258}]}}`,
+			prompt:   258,
+			image:    258,
+			upstream: true,
+		},
+		{
+			name:     "openai embeddings",
+			openAI:   true,
+			body:     `{"embeddings":[` + vector + `],"usageMetadata":{"promptTokenCount":10,"promptTokenDetails":[{"modality":"TEXT","tokenCount":10}]}}`,
+			prompt:   10,
+			upstream: true,
+		},
+		{
+			name:   "embedContent without usage falls back to estimate",
+			body:   `{"embedding":` + vector + `}`,
+			prompt: 9,
+		},
+		{
+			// 001 ignores media parts, so the image estimate in the
+			// pre-consume (9 here) must not be settled.
+			name: "embedContent without usage settles only the text of a media request",
+			request: &dto.GeminiEmbeddingRequest{Content: dto.GeminiChatContent{
+				Parts: []dto.GeminiPart{{Text: "a cat"}, pngPart},
+			}},
+			body:   `{"embedding":` + vector + `}`,
+			prompt: textTokens,
+		},
+		{
+			name:  "batchEmbedContents without usage settles only the text of a media request",
+			batch: true,
+			request: &dto.GeminiBatchEmbeddingRequest{Requests: []*dto.GeminiEmbeddingRequest{
+				{Content: dto.GeminiChatContent{Parts: []dto.GeminiPart{pngPart}}},
+				{Content: dto.GeminiChatContent{Parts: []dto.GeminiPart{{Text: "a cat"}}}},
+			}},
+			body:   `{"embeddings":[` + vector + `,` + vector + `]}`,
+			prompt: textTokens,
+		},
+		{
+			name:   "openai embeddings without usage falls back to estimate",
+			openAI: true,
+			body:   `{"embeddings":[` + vector + `]}`,
+			prompt: 9,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-embedding-2:embedContent", nil)
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, embedModel)
+			info := &relaycommon.RelayInfo{
+				OriginModelName:        embedModel,
+				IsGeminiBatchEmbedding: tt.batch,
+				RelayFormat:            types.RelayFormatGemini,
+				Request:                tt.request,
+				ChannelMeta:            &relaycommon.ChannelMeta{UpstreamModelName: embedModel},
+			}
+			info.SetEstimatePromptTokens(9)
+			resp := &http.Response{Body: io.NopCloser(strings.NewReader(tt.body))}
+
+			var usage *dto.Usage
+			var apiErr *types.NewAPIError
+			if tt.openAI {
+				usage, apiErr = GeminiEmbeddingHandler(c, info, resp)
+			} else {
+				usage, apiErr = NativeGeminiEmbeddingHandler(c, resp, info)
+			}
+			require.Nil(t, apiErr)
+			require.NotNil(t, usage)
+			assert.Equal(t, tt.prompt, usage.PromptTokens)
+			assert.Equal(t, 0, usage.CompletionTokens)
+			assert.Equal(t, tt.prompt, usage.TotalTokens)
+			assert.Equal(t, tt.image, usage.PromptTokensDetails.ImageTokens)
+			assert.Equal(t, tt.audio, usage.PromptTokensDetails.AudioTokens)
+			if tt.openAI {
+				var body dto.OpenAIEmbeddingResponse
+				require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &body))
+				assert.Equal(t, tt.prompt, body.Usage.PromptTokens)
+			}
+
+			if !tt.upstream {
+				assert.Nil(t, usage.BillingUsage)
+				assert.True(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+				return
+			}
+			// Settlement prefers the BillingUsage snapshot, so it must carry
+			// the same modality split.
+			require.NotNil(t, usage.BillingUsage)
+			assert.False(t, usage.BillingUsage.Estimated)
+			settled, ok := usage.BillingUsage.CanonicalUsage()
+			require.True(t, ok)
+			assert.Equal(t, tt.prompt, settled.PromptTokens)
+			assert.Equal(t, 0, settled.CompletionTokens)
+			assert.Equal(t, tt.image, settled.PromptTokensDetails.ImageTokens)
+			assert.Equal(t, tt.audio, settled.PromptTokensDetails.AudioTokens)
+			assert.False(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+		})
+	}
+}
