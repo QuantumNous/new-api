@@ -101,6 +101,10 @@ type ResponsesToolState struct {
 	// Namespaces maps an upstream function name to the Responses tool
 	// namespace it was flattened from; see NamespacedToolName.
 	Namespaces map[string]string
+	// ToolSearchNames lists client-executed Responses tool_search tools that
+	// were sent upstream as function tools. Function calls with these names are
+	// restored as tool_search_call items.
+	ToolSearchNames map[string]struct{}
 }
 
 // CustomToolInputArgument is the single function argument that carries a
@@ -128,6 +132,16 @@ func (s *ResponsesToolState) IsCustomTool(name string) bool {
 		return false
 	}
 	_, ok := s.CustomToolNames[name]
+	return ok
+}
+
+// IsToolSearchTool reports whether name was encoded from a client-executed
+// Responses tool_search tool.
+func (s *ResponsesToolState) IsToolSearchTool(name string) bool {
+	if s == nil {
+		return false
+	}
+	_, ok := s.ToolSearchNames[name]
 	return ok
 }
 
