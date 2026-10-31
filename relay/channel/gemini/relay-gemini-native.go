@@ -18,6 +18,10 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+/** GeminiTextGenerationHandler reads a non-streaming Gemini response, records
+ * its provider ID and metadata, and forwards the original body to the client.
+ * It closes the upstream body and returns usage or a body read/decode error.
+ */
 func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -35,6 +39,7 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	captureGeminiResponseID(c, geminiResponse.ResponseID)
 	info.ObserveResponseModel(gjson.GetBytes(responseBody, "modelVersion").Str)
 	var grounding geminiGroundingCounter
 	grounding.observe(&geminiResponse)
