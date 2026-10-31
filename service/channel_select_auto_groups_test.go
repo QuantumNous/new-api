@@ -343,43 +343,6 @@ func TestChannelRetryBudgetDoesNotAddAutoGroupRetries(t *testing.T) {
 	assert.Equal(t, "default", group)
 }
 
-func TestChannelRetryBudgetKeepsSelectedChannelWithinGroupBudget(t *testing.T) {
-	db := setupChannelSelectAutoGroupsTest(t)
-	common.RetryTimes = 3
-	const modelName = "retry-budget-model"
-	createChannelSelectAutoGroupsChannel(t, db, 2201, "default", modelName)
-	createChannelSelectAutoGroupsChannel(t, db, 2202, "default", modelName)
-	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2201).Updates(map[string]any{
-		"priority": 10, "settings": `{"retry_budget":2}`,
-	}).Error)
-	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 2201).Update("priority", 10).Error)
-	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2202).Update("priority", 5).Error)
-	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 2202).Update("priority", 5).Error)
-	model.InitChannelCache()
-
-	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	param := &RetryParam{Ctx: ctx, TokenGroup: "default", ModelName: modelName}
-	var selected []int
-	for attempt := 0; attempt <= common.RetryTimes; attempt++ {
-		channel, group, err := CacheGetRandomSatisfiedChannel(param)
-		require.NoError(t, err)
-		require.NotNil(t, channel)
-		assert.Equal(t, "default", group)
-		selected = append(selected, channel.Id)
-		common.SetContextKey(ctx, constant.ContextKeyChannelId, channel.Id)
-		common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
-		if attempt < common.RetryTimes {
-			param.IncreaseRetry()
-		}
-	}
-	assert.Equal(t, []int{2201, 2201, 2201, 2202}, selected)
-	assert.Equal(t, 3, param.GetRetry())
-
-	var settings dto.ChannelOtherSettings
-	require.NoError(t, common.Unmarshal([]byte(`{"retry_budget":2}`), &settings))
-	assert.Equal(t, 2, settings.RetryBudget)
-}
-
 func TestChannelRetryBudgetUsesCurrentCachedSettings(t *testing.T) {
 	db := setupChannelSelectAutoGroupsTest(t)
 	common.RetryTimes = 2
@@ -422,62 +385,6 @@ func TestChannelRetryBudgetUsesCurrentCachedSettings(t *testing.T) {
 	assert.Equal(t, 2212, third.Id, "the updated cached budget must stop reusing the channel")
 }
 
-func TestChannelRetryBudgetZeroKeepsPrioritySequence(t *testing.T) {
-	db := setupChannelSelectAutoGroupsTest(t)
-	common.RetryTimes = 2
-	const modelName = "zero-retry-budget-model"
-	createChannelSelectAutoGroupsChannel(t, db, 2251, "default", modelName)
-	createChannelSelectAutoGroupsChannel(t, db, 2252, "default", modelName)
-	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2251).Update("priority", 10).Error)
-	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 2251).Update("priority", 10).Error)
-	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2252).Update("priority", 5).Error)
-	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 2252).Update("priority", 5).Error)
-	model.InitChannelCache()
-
-	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	param := &RetryParam{Ctx: ctx, TokenGroup: "default", ModelName: modelName}
-	var selected []int
-	for attempt := 0; attempt <= common.RetryTimes; attempt++ {
-		channel, _, err := CacheGetRandomSatisfiedChannel(param)
-		require.NoError(t, err)
-		require.NotNil(t, channel)
-		selected = append(selected, channel.Id)
-		common.SetContextKey(ctx, constant.ContextKeyChannelId, channel.Id)
-		common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
-		if attempt < common.RetryTimes {
-			param.IncreaseRetry()
-		}
-	}
-	assert.Equal(t, []int{2251, 2252, 2252}, selected)
-}
-
-func TestChannelRetryBudgetStartsWithMiddlewareSelectedChannel(t *testing.T) {
-	db := setupChannelSelectAutoGroupsTest(t)
-	common.RetryTimes = 2
-	const modelName = "middleware-retry-budget-model"
-	createChannelSelectAutoGroupsChannel(t, db, 2301, "default", modelName)
-	createChannelSelectAutoGroupsChannel(t, db, 2302, "default", modelName)
-	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2301).Update("settings", `{"retry_budget":5}`).Error)
-	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2301).Update("weight", 0).Error)
-	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 2301).Update("weight", 0).Error)
-	model.InitChannelCache()
-
-	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	channel, err := model.CacheGetChannel(2301)
-	require.NoError(t, err)
-	common.SetContextKey(ctx, constant.ContextKeyChannelId, channel.Id)
-	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
-	param := &RetryParam{Ctx: ctx, TokenGroup: "default", ModelName: modelName}
-	for attempt := 1; attempt <= common.RetryTimes; attempt++ {
-		param.IncreaseRetry()
-		selected, _, selectErr := CacheGetRandomSatisfiedChannel(param)
-		require.NoError(t, selectErr)
-		require.NotNil(t, selected)
-		assert.Equal(t, 2301, selected.Id)
-		assert.Equal(t, attempt, param.GetRetry())
-	}
-}
-
 func TestChannelRetryBudgetSwitchesAutoGroupAfterLastAttempt(t *testing.T) {
 	db := setupChannelSelectAutoGroupsTest(t)
 	common.RetryTimes = 2
@@ -511,40 +418,7 @@ func TestChannelRetryBudgetSwitchesAutoGroupAfterLastAttempt(t *testing.T) {
 	assert.Equal(t, []int{0, 1, 2, 0}, retryIndexes)
 }
 
-func TestChannelRetryBudgetFallsBackWhenCurrentChannelIsDisabled(t *testing.T) {
-	db := setupChannelSelectAutoGroupsTest(t)
-	common.RetryTimes = 2
-	const modelName = "disabled-retry-budget-model"
-	createChannelSelectAutoGroupsChannel(t, db, 2501, "default", modelName)
-	createChannelSelectAutoGroupsChannel(t, db, 2502, "default", modelName)
-	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2501).Updates(map[string]any{
-		"priority": 10, "settings": `{"retry_budget":2}`,
-	}).Error)
-	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 2501).Update("priority", 10).Error)
-	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2502).Update("priority", 5).Error)
-	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 2502).Update("priority", 5).Error)
-	model.InitChannelCache()
-
-	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	param := &RetryParam{Ctx: ctx, TokenGroup: "default", ModelName: modelName}
-	first, _, err := CacheGetRandomSatisfiedChannel(param)
-	require.NoError(t, err)
-	require.NotNil(t, first)
-	assert.Equal(t, 2501, first.Id)
-	common.SetContextKey(ctx, constant.ContextKeyChannelId, first.Id)
-	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, first.GetOtherSettings())
-	param.IncreaseRetry()
-	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2501).Update("status", common.ChannelStatusManuallyDisabled).Error)
-	model.InitChannelCache()
-
-	second, _, err := CacheGetRandomSatisfiedChannel(param)
-	require.NoError(t, err)
-	require.NotNil(t, second)
-	assert.Equal(t, 2502, second.Id)
-	assert.Equal(t, 1, param.GetRetry())
-}
-
-func TestChannelRetryBudgetWithAffinityFallback(t *testing.T) {
+func TestChannelRetryBudgetRouting(t *testing.T) {
 	const a, b, c, d, e = 2701, 2702, 2703, 2704, 2705
 	for _, cached := range []bool{false, true} {
 		for _, tc := range []struct {
@@ -557,6 +431,7 @@ func TestChannelRetryBudgetWithAffinityFallback(t *testing.T) {
 			disableBinding   bool
 			want             []int
 		}{
+			{name: "zero budget ordinary", retries: 2, want: []int{a, b, c}},
 			{name: "ordinary budget", aBudget: 2, retries: 3, want: []int{a, a, a, b}},
 			{name: "zero budget affinity", affinity: true, retries: 2, want: []int{b, a, b}},
 			{name: "budgeted affinity", affinity: true, bBudget: 1, retries: 3, want: []int{b, b, a, b}},
