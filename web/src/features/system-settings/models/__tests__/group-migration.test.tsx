@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { CanceledError } from 'axios'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -34,24 +35,29 @@ vi.mock('@/lib/api', () => ({
   api: {
     get: (url: string, ...args: unknown[]) =>
       url === '/api/option/group_migration'
-        ? Promise.resolve({
-            data: { success: true, data: http.history() ?? [] },
-          })
+        ? Promise.resolve(http.history() ?? []).then((data) => ({
+            data: { success: true, data },
+          }))
         : http.get(url, ...args),
     post: http.post,
   },
 }))
 
-function renderEntry(role = 100) {
+function renderEntry(role = 100, groups = ['vip']) {
   useAuthStore.getState().auth.setUser({ id: 1, username: 'operator', role })
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   return render(
     <QueryClientProvider client={client}>
-      <GroupMigrationEntry />
+      <GroupMigrationEntry groups={groups} />
     </QueryClientProvider>
   )
+}
+
+async function enterMigration(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Group migration' }))
+  await user.click(await screen.findByRole('button', { name: 'Continue' }))
 }
 
 afterEach(() => {
@@ -62,6 +68,121 @@ afterEach(() => {
 })
 
 describe('group migration preview', () => {
+  it('shows loading while migration history is being fetched', async () => {
+    http.get.mockResolvedValue({ data: { success: true, data: ['vip'] } })
+    http.history.mockImplementation(() => new Promise(() => {}))
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
+
+    expect(await screen.findByText('Loading...')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+  })
+
+  it('retries a canceled migration-history request when history is opened', async () => {
+    http.get.mockResolvedValue({ data: { success: true, data: ['vip'] } })
+    http.history
+      .mockRejectedValueOnce(new CanceledError())
+      .mockResolvedValueOnce([])
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
+
+    expect(await screen.findByText('No migration history yet.')).toBeVisible()
+    expect(screen.queryByText('canceled')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+    expect(http.history).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not disable migration when the history request was canceled', async () => {
+    http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
+    http.get.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: {
+          source: 'vip',
+          target: 'premium',
+          version: 'current-v1',
+          counts: {},
+          unfinished_tasks: 0,
+          blockers: [],
+          execution_blockers: [],
+          warnings: [],
+        },
+      },
+    })
+    http.history.mockRejectedValueOnce(new CanceledError())
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    await user.selectOptions(
+      await screen.findByLabelText('Source group'),
+      'vip'
+    )
+    await user.type(screen.getByLabelText('Target group name'), 'premium')
+    await user.click(screen.getByRole('button', { name: 'Preview impact' }))
+
+    expect(await screen.findByText('current-v1')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Migrate group' })).toBeEnabled()
+  })
+
+  it('keeps migration available when loading migration history fails', async () => {
+    http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
+    http.get.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: {
+          source: 'vip',
+          target: 'premium',
+          version: 'current-v1',
+          counts: {},
+          unfinished_tasks: 0,
+          blockers: [],
+          execution_blockers: [],
+          warnings: [],
+        },
+      },
+    })
+    http.history.mockRejectedValue(new Error('history unavailable'))
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    await user.selectOptions(
+      await screen.findByLabelText('Source group'),
+      'vip'
+    )
+    await user.type(screen.getByLabelText('Target group name'), 'premium')
+    await user.click(screen.getByRole('button', { name: 'Preview impact' }))
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
+
+    expect(await screen.findByText('history unavailable')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Migrate group' })).toBeEnabled()
+  })
+
+  it('asks whether settings are saved before opening migration and allows cancel', async () => {
+    const user = userEvent.setup()
+    renderEntry()
+
+    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    expect(
+      await screen.findByText(
+        'Make sure group settings are saved before continuing.'
+      )
+    ).toBeVisible()
+    expect(screen.queryByLabelText('Source group')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('Source group')).not.toBeInTheDocument()
+  })
+
   it('shows missing participant readiness and prevents confirmation', async () => {
     http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
     http.get.mockResolvedValueOnce({
@@ -89,7 +210,7 @@ describe('group migration preview', () => {
     })
     const user = userEvent.setup()
     renderEntry()
-    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    await enterMigration(user)
     await screen.findByRole('option', { name: 'vip' })
     await user.selectOptions(screen.getByLabelText('Source group'), 'vip')
     await user.type(screen.getByLabelText('Target group name'), 'premium')
@@ -120,7 +241,7 @@ describe('group migration preview', () => {
     ])
     const user = userEvent.setup()
     renderEntry()
-    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    await enterMigration(user)
     expect(await screen.findByText('Waiting for node-b')).toBeVisible()
     expect(
       screen.getByRole('row', { name: /node-a Configuration synchronized 3/ })
@@ -150,6 +271,42 @@ describe('group migration preview', () => {
         data: { ...preview, confirmation: 'renewed-signature' },
       },
     })
+    http.history
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([
+        {
+          id: 'aborted-01',
+          source: 'vip',
+          target: 'premium',
+          state: 'aborted',
+          reason: '',
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          id: 'aborted-01',
+          source: 'vip',
+          target: 'premium',
+          state: 'aborted',
+          reason: '',
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          id: 'completed-02',
+          source: 'vip',
+          target: 'premium',
+          state: 'completed',
+          reason: '',
+        },
+        {
+          id: 'aborted-01',
+          source: 'vip',
+          target: 'premium',
+          state: 'aborted',
+          reason: '',
+        },
+      ])
     http.post.mockResolvedValueOnce({
       data: {
         success: true,
@@ -176,7 +333,7 @@ describe('group migration preview', () => {
     })
     const user = userEvent.setup()
     renderEntry()
-    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    await enterMigration(user)
     await screen.findByRole('option', { name: 'vip' })
     await user.selectOptions(screen.getByLabelText('Source group'), 'vip')
     await user.type(screen.getByLabelText('Target group name'), 'premium')
@@ -185,6 +342,9 @@ describe('group migration preview', () => {
       await screen.findByRole('button', { name: 'Migrate group' })
     )
     await user.click(screen.getByRole('button', { name: 'Confirm migration' }))
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
     expect(
       await screen.findByText('Migration aborted; preview and confirm again')
     ).toBeVisible()
@@ -197,13 +357,54 @@ describe('group migration preview', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Migrate group' }))
     await user.click(screen.getByRole('button', { name: 'Confirm migration' }))
-    expect(await screen.findByText('Migration completed')).toBeVisible()
+    expect(
+      await screen.findByText('Migration completed', { selector: 'span' })
+    ).toBeVisible()
     expect(http.post.mock.calls[1][1].confirmation).toBe('renewed-signature')
     expect(http.post.mock.calls[1][1].operation_id).not.toBe(
       http.post.mock.calls[0][1].operation_id
     )
   })
-  it('lets the operator verify a terminal operation after a lost response', async () => {
+  it('allows migrating a recreated source group after an earlier migration completed', async () => {
+    http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
+    http.get.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: {
+          source: 'vip',
+          target: 'premium',
+          version: 'current-v1',
+          counts: {},
+          unfinished_tasks: 0,
+          blockers: [],
+          execution_blockers: [],
+          warnings: [],
+        },
+      },
+    })
+    http.history.mockReturnValue([
+      {
+        id: 'previous-vip-migration',
+        source: 'vip',
+        target: 'premium',
+        state: 'completed',
+        reason: '',
+      },
+    ])
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    await user.selectOptions(
+      await screen.findByLabelText('Source group'),
+      'vip'
+    )
+    await user.type(screen.getByLabelText('Target group name'), 'premium')
+    await user.click(screen.getByRole('button', { name: 'Preview impact' }))
+
+    expect(await screen.findByText('current-v1')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Migrate group' })).toBeEnabled()
+  })
+  it('lets the operator verify a terminal operation after a lost response by refreshing it', async () => {
     http.get.mockResolvedValue({ data: { success: true, data: ['vip'] } })
     const operation = {
       id: 'lost-response',
@@ -213,23 +414,143 @@ describe('group migration preview', () => {
       reason: '',
     }
     http.history.mockReturnValue([operation])
-    http.post.mockResolvedValue({ data: { success: true, data: operation } })
     const user = userEvent.setup()
     renderEntry()
-    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    await enterMigration(user)
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
     await user.click(
       await screen.findByRole('button', { name: 'Verify migration status' })
     )
-    await waitFor(() =>
-      expect(http.post).toHaveBeenCalledWith(
-        '/api/option/group_migration/lost-response/resume',
-        undefined,
-        expect.any(Object)
-      )
+    expect(http.history).toHaveBeenCalledTimes(2)
+    expect(http.post).not.toHaveBeenCalled()
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /Migration status: Migration aborted; preview and confirm again\. Last checked at \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\./
     )
     expect(
       screen.getByText('Migration aborted; preview and confirm again')
     ).toBeVisible()
+  })
+  it('checks terminal operation status without resuming and confirms the check', async () => {
+    http.get.mockResolvedValue({ data: { success: true, data: ['vip'] } })
+    http.history
+      .mockReturnValueOnce([
+        {
+          id: 'completed-operation',
+          source: 'vip',
+          target: 'premium',
+          state: 'completed',
+          reason: '',
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          id: 'completed-operation',
+          source: 'vip',
+          target: 'premium',
+          state: 'completed',
+          reason: '',
+        },
+      ])
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
+    await screen.findByRole('table', { name: 'Migration history' })
+    await user.click(
+      screen.getByRole('button', { name: 'Verify migration status' })
+    )
+    expect(http.history).toHaveBeenCalledTimes(2)
+    expect(http.post).not.toHaveBeenCalled()
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /Migration status: Migration completed\. Last checked at \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\./
+    )
+  })
+  it('reports when the checked operation is no longer in the operation list', async () => {
+    http.get.mockResolvedValue({ data: { success: true, data: ['vip'] } })
+    http.history
+      .mockReturnValueOnce([
+        {
+          id: 'completed-operation',
+          source: 'vip',
+          target: 'premium',
+          state: 'completed',
+          reason: '',
+        },
+      ])
+      .mockReturnValueOnce([])
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
+    await screen.findByRole('table', { name: 'Migration history' })
+    await user.click(
+      screen.getByRole('button', { name: 'Verify migration status' })
+    )
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /No migration operation found\. Last checked at \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\./
+    )
+    expect(http.post).not.toHaveBeenCalled()
+  })
+  it('does not show a status-check action when there is no migration operation', async () => {
+    http.get.mockResolvedValue({ data: { success: true, data: ['vip'] } })
+    http.history.mockReturnValue([])
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'Verify migration status' })
+    ).not.toBeInTheDocument()
+  })
+  it('shows multiple migration records in history instead of only the latest one', async () => {
+    http.get.mockResolvedValue({ data: { success: true, data: ['vip'] } })
+    http.history.mockReturnValue([
+      {
+        id: 'migration-new',
+        source: 'vip',
+        target: 'premium',
+        state: 'completed',
+        created_at: 1782912000,
+        updated_at: 1782912060,
+        reason: '',
+      },
+      {
+        id: 'migration-old',
+        source: 'basic',
+        target: 'standard',
+        state: 'aborted',
+        created_at: 1782825600,
+        updated_at: 1782825660,
+        reason: '',
+      },
+    ])
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
+
+    const history = await screen.findByRole('table', {
+      name: 'Migration history',
+    })
+    expect(history).toHaveTextContent('vip → premium')
+    expect(history).toHaveTextContent('basic → standard')
+    expect(history).toHaveTextContent('migration-new')
+    expect(history).toHaveTextContent('migration-old')
+    expect(
+      screen.getAllByRole('button', { name: 'Verify migration status' })
+    ).toHaveLength(2)
   })
   it('confirms an unused group, preserves the rejection reason, and retries the same operation', async () => {
     http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
@@ -268,7 +589,7 @@ describe('group migration preview', () => {
     })
     const user = userEvent.setup()
     renderEntry()
-    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    await enterMigration(user)
     await screen.findByRole('option', { name: 'vip' })
     await user.selectOptions(screen.getByLabelText('Source group'), 'vip')
     await user.type(screen.getByLabelText('Target group name'), 'premium')
@@ -280,7 +601,12 @@ describe('group migration preview', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm migration' }))
     expect(await screen.findByText(reason)).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Confirm migration' }))
-    expect(await screen.findByText('Migration completed')).toBeVisible()
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
+    expect(
+      await screen.findByText('Migration completed', { selector: 'span' })
+    ).toBeVisible()
     expect(http.post).toHaveBeenCalledTimes(2)
     expect(http.post.mock.calls[0][1]).toEqual(
       expect.objectContaining({
@@ -301,9 +627,34 @@ describe('group migration preview', () => {
         source: 'vip',
         target: 'premium',
         state: 'committed',
+        created_at: 1782912000,
+        updated_at: 1782912000,
         reason: '',
       },
     ])
+    http.history
+      .mockReturnValueOnce([
+        {
+          id: 'recover-01',
+          source: 'vip',
+          target: 'premium',
+          state: 'committed',
+          created_at: 1782912000,
+          updated_at: 1782912000,
+          reason: '',
+        },
+      ])
+      .mockReturnValueOnce([
+        {
+          id: 'recover-01',
+          source: 'vip',
+          target: 'premium',
+          state: 'completed',
+          created_at: 1782912000,
+          updated_at: 1782912060,
+          reason: '',
+        },
+      ])
     http.post.mockResolvedValue({
       data: {
         success: true,
@@ -318,12 +669,17 @@ describe('group migration preview', () => {
     })
     const user = userEvent.setup()
     renderEntry()
-    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    await enterMigration(user)
     expect(
       await screen.findByText('Database committed; synchronization pending')
     ).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Resume migration' }))
-    expect(await screen.findByText('Migration completed')).toBeVisible()
+    await user.click(
+      screen.getByRole('button', { name: 'View migration history' })
+    )
+    expect(
+      await screen.findByText('Migration completed', { selector: 'span' })
+    ).toBeVisible()
     expect(http.post).toHaveBeenCalledWith(
       '/api/option/group_migration/recover-01/resume',
       undefined,
@@ -334,7 +690,7 @@ describe('group migration preview', () => {
     http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
     const user = userEvent.setup()
     renderEntry()
-    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    await enterMigration(user)
     await screen.findByRole('option', { name: 'vip' })
     await user.selectOptions(screen.getByLabelText('Source group'), 'vip')
     await user.type(screen.getByLabelText('Target group name'), 'bad,name')
@@ -350,7 +706,7 @@ describe('group migration preview', () => {
     )
     expect(http.get).toHaveBeenCalledTimes(1)
   })
-  it('keeps preview disabled while loading, after failure, and when no ordinary groups exist', async () => {
+  it('shows saved groups immediately while refreshing the live group list', async () => {
     let fail!: (reason: Error) => void
     http.get.mockImplementationOnce(
       () =>
@@ -360,22 +716,28 @@ describe('group migration preview', () => {
     )
     const user = userEvent.setup()
     renderEntry()
-    await user.click(screen.getByRole('button', { name: 'Group migration' }))
-    expect(screen.getByRole('status')).toHaveTextContent('Loading...')
+    await enterMigration(user)
+    expect(screen.getByRole('option', { name: 'vip' })).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'Preview impact' })
     ).toBeDisabled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
     fail(new Error('network unavailable'))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Unable to inspect group references. Please try again.'
-    )
-    expect(
-      screen.getByRole('button', { name: 'Preview impact' })
-    ).toBeDisabled()
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'vip' })).toBeVisible()
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+  it('disables preview when the refreshed list has no ordinary groups', async () => {
     http.get.mockResolvedValueOnce({
       data: { success: true, data: ['default', 'auto'] },
     })
-    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    const user = userEvent.setup()
+    renderEntry(100, [])
+    await enterMigration(user)
+    http.get.mockResolvedValueOnce({
+      data: { success: true, data: ['default', 'auto'] },
+    })
     expect(
       await screen.findByText('No groups are available for migration.')
     ).toBeVisible()
@@ -383,6 +745,57 @@ describe('group migration preview', () => {
     expect(
       screen.getByRole('button', { name: 'Preview impact' })
     ).toBeDisabled()
+  })
+  it('keeps saved source groups available when the live list refresh is unauthorized', async () => {
+    http.get.mockRejectedValueOnce({
+      response: { status: 401, data: { message: 'Unauthorized' } },
+    })
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    expect(await screen.findByRole('option', { name: 'vip' })).toBeVisible()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Preview impact' })
+    ).toBeDisabled()
+  })
+  it('shows the preview API message and retries the failed preview request', async () => {
+    http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
+    http.get.mockRejectedValueOnce({
+      response: {
+        status: 500,
+        data: { message: 'Database unavailable' },
+      },
+    })
+    http.get.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: {
+          source: 'vip',
+          target: 'premium',
+          version: 'v1',
+          counts: {},
+          unfinished_tasks: 0,
+          blockers: [],
+          execution_blockers: [],
+          warnings: [],
+        },
+      },
+    })
+    const user = userEvent.setup()
+    renderEntry()
+    await enterMigration(user)
+    await user.selectOptions(
+      await screen.findByLabelText('Source group'),
+      'vip'
+    )
+    await user.type(screen.getByLabelText('Target group name'), 'premium')
+    await user.click(screen.getByRole('button', { name: 'Preview impact' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Database unavailable'
+    )
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('vip → premium')).toBeVisible()
   })
   it('uses saved groups, shows impact and blockers, and never executes migration', async () => {
     http.get.mockResolvedValueOnce({
@@ -406,7 +819,7 @@ describe('group migration preview', () => {
     })
     const user = userEvent.setup()
     renderEntry()
-    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    await enterMigration(user)
     await screen.findByRole('option', { name: 'vip' })
     expect(
       screen.queryByRole('option', { name: 'default' })
@@ -458,7 +871,7 @@ describe('group migration preview', () => {
     )
     const user = userEvent.setup()
     renderEntry()
-    await user.click(screen.getByRole('button', { name: 'Group migration' }))
+    await enterMigration(user)
     await screen.findByRole('option', { name: 'vip' })
     await user.selectOptions(screen.getByLabelText('Source group'), 'vip')
     await user.type(screen.getByLabelText('Target group name'), 'premium')

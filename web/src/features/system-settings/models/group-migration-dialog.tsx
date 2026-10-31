@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { History } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -49,12 +50,13 @@ import {
 import { toIntlLocale } from '@/i18n/languages'
 import { api } from '@/lib/api'
 import { formatNumber } from '@/lib/format'
-import {
-  getServerErrorMessage,
-  requireServerSuccess,
-} from '@/lib/server-error-message'
+import { getServerErrorMessage, getServerErrorStatus, isServerErrorCancelled, requireServerSuccess } from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
+import {
+  GroupMigrationHistory,
+  type MigrationOperation,
+} from './group-migration-history'
 import {
   createGroupMigrationSchema,
   type GroupMigrationNames,
@@ -80,19 +82,11 @@ type GroupMigrationPreview = {
   coordination?: MigrationCoordination
 }
 
-type MigrationOperation = {
-  id: string
-  source: string
-  target: string
-  state: 'paused' | 'committed' | 'completed' | 'aborted'
-  reason: string
-  coordination?: MigrationCoordination
-}
-
-export function GroupMigrationEntry() {
+export function GroupMigrationEntry(props: { groups: readonly string[] }) {
   const { t } = useTranslation()
   const isRoot = useAuthStore((state) => (state.auth.user?.role ?? 0) >= 100)
   const [open, setOpen] = useState(false)
+  const [confirmSaved, setConfirmSaved] = useState(false)
   if (!isRoot) return null
   return (
     <>
@@ -100,16 +94,35 @@ export function GroupMigrationEntry() {
         type='button'
         variant='outline'
         size='sm'
-        onClick={() => setOpen(true)}
+        onClick={() => setConfirmSaved(true)}
       >
         {t('Group migration')}
       </Button>
-      {open && <GroupMigrationDialog onClose={() => setOpen(false)} />}
+      <ConfirmDialog
+        open={confirmSaved}
+        onOpenChange={setConfirmSaved}
+        title={t('Confirm group migration')}
+        desc={t('Make sure group settings are saved before continuing.')}
+        confirmText={t('Continue')}
+        handleConfirm={() => {
+          setConfirmSaved(false)
+          setOpen(true)
+        }}
+      />
+      {open && (
+        <GroupMigrationDialog
+          groups={props.groups}
+          onClose={() => setOpen(false)}
+        />
+      )}
     </>
   )
 }
 
-function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
+function GroupMigrationDialog(props: {
+  groups: readonly string[]
+  onClose: () => void
+}) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const client = useQueryClient()
@@ -117,6 +130,7 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
   const [submission, setSubmission] = useState<
     GroupMigrationPreview & { operation_id: string }
   >()
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [observed, setObserved] = useState<MigrationOperation>()
   const operations = useQuery({
     queryKey: ['group-migration', 'operations'],
@@ -127,7 +141,13 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
       }>('/api/option/group_migration', { signal, skipErrorHandler: true })
       return requireServerSuccess(response.data).data
     },
-    refetchInterval: 2000,
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (operation) =>
+          operation.state === 'paused' || operation.state === 'committed'
+      )
+        ? 2000
+        : false,
     retry: false,
     meta: { errorToast: false },
   })
@@ -182,14 +202,26 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
       void operations.refetch()
     },
   })
-  const current = operations.data?.find((op) => op.id === observed?.id)
-  const operation =
-    observed?.state === 'completed' || observed?.state === 'aborted'
-      ? observed
-      : (current ?? observed ?? operations.data?.[0])
-  const active = operations.data?.find(
+  const historyOperations =
+    observed &&
+    !(operations.data ?? []).some((operation) => operation.id === observed.id)
+      ? [observed, ...(operations.data ?? [])]
+      : (operations.data ?? [])
+  const operationsCancelled =
+    operations.isError && isServerErrorCancelled(operations.error)
+  const historyLoading = operations.isFetching && historyOperations.length === 0
+  const historyError = operations.isError && !operationsCancelled
+  const active = historyOperations.find(
     (op) => op.state === 'paused' || op.state === 'committed'
   )
+  const verifyStatus = async (operationId: string) => {
+    const refreshed = await operations.refetch()
+    if (!refreshed.isSuccess) return undefined
+    return {
+      operation: refreshed.data?.find((item) => item.id === operationId),
+      checkedAt: Date.now(),
+    }
+  }
   const states = {
     paused: t('Migration paused before commit'),
     committed: t('Database committed; synchronization pending'),
@@ -211,6 +243,7 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
       )
       return requireServerSuccess(response.data).data
     },
+    initialData: [...props.groups],
     staleTime: 0,
     retry: false,
     meta: { errorToast: false },
@@ -234,17 +267,31 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
     preview.data?.source === source && preview.data.target === target
       ? preview.data
       : undefined
+  const groupListUnavailable = groups.isError && groups.data === undefined
   const error =
-    groups.isError ||
+    groupListUnavailable ||
     (preview.isError &&
       preview.variables?.source === source &&
       preview.variables.target === target)
+  const inspectionError = groupListUnavailable ? groups.error : preview.error
+  const inspectionErrorStatus = getServerErrorStatus(inspectionError)
+  let inspectionErrorMessage = t(
+    'Unable to inspect group references. Please try again.'
+  )
+  if (inspectionErrorStatus === 401) {
+    inspectionErrorMessage = t('Session expired!')
+  } else if (inspectionErrorStatus) {
+    inspectionErrorMessage = getServerErrorMessage(
+      inspectionError,
+      inspectionErrorMessage
+    )
+  }
   const blockers = [
     ...(result?.blockers ?? []),
     ...(result?.execution_blockers ?? []),
   ]
   const coordination =
-    active?.coordination ?? result?.coordination ?? operation?.coordination
+    active?.coordination ?? result?.coordination
   const phases: Record<string, string> = {
     ready: t('Ready'),
     draining: t('Draining requests'),
@@ -265,20 +312,40 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) onClose()
+        if (!open) props.onClose()
       }}
       title={t('Group migration')}
       description={t(
         'Preview group references, then confirm migration. Related requests briefly pause during migration.'
       )}
     >
-      {operation && (
+      <Button
+        type='button'
+        variant='outline'
+        size='sm'
+        aria-expanded={historyOpen}
+        onClick={() => {
+          const nextOpen = !historyOpen
+          setHistoryOpen(nextOpen)
+          if (
+            nextOpen &&
+            !operations.isFetching &&
+            (operations.isError || operations.data === undefined)
+          ) {
+            void operations.refetch()
+          }
+        }}
+      >
+        <History className='mr-2 size-4' aria-hidden='true' />
+        {historyOpen ? t('Hide migration history') : t('View migration history')}
+      </Button>
+      {active && (
         <section className='mb-4 flex flex-col gap-2' aria-live='polite'>
           <p className='text-sm break-all'>
-            {operation.id}: {operation.source} → {operation.target}
+            {active.id}: {active.source} → {active.target}
           </p>
-          <p>{states[operation.state]}</p>
-          {operation.reason && <p>{t(operation.reason)}</p>}
+          <p>{states[active.state]}</p>
+          {active.reason && <p>{t(active.reason)}</p>}
         </section>
       )}
       {active && (
@@ -290,20 +357,24 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
           {t('Resume migration')}
         </Button>
       )}
-      {!active && operation && (
-        <Button
-          type='button'
-          disabled={execution.isPending}
-          onClick={() => execution.mutate({ resume: operation.id })}
-        >
-          {t('Verify migration status')}
-        </Button>
+      {historyOpen && (
+        <GroupMigrationHistory
+          operations={historyOperations}
+          isLoading={historyLoading}
+          isError={historyError}
+          errorMessage={getServerErrorMessage(
+            operations.error,
+            t('Unable to load migration status. Please retry.')
+          )}
+          onRetry={() => void operations.refetch()}
+          onVerifyStatus={verifyStatus}
+        />
       )}
-      {(execution.isError || operations.isError) && (
+      {execution.isError && !isServerErrorCancelled(execution.error) && (
         <ErrorState
           className='min-h-0'
           title={getServerErrorMessage(
-            execution.error ?? operations.error,
+            execution.error,
             t(
               'Unable to execute group migration. Check operation status before retrying.'
             )
@@ -359,7 +430,7 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
                   <NativeSelect
                     {...field}
                     required
-                    disabled={groups.isPending || groups.isError}
+                    disabled={groups.data === undefined}
                   >
                     <NativeSelectOption value=''>
                       {t('Select a group')}
@@ -393,12 +464,12 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
               </FormItem>
             )}
           />
-          {groups.isPending && (
+          {groups.data === undefined && groups.isPending && (
             <div role='status'>
               <LoadingState inline message={t('Loading...')} />
             </div>
           )}
-          {groups.isSuccess &&
+          {groups.data !== undefined &&
             !(groups.data ?? []).some(
               (group) => group !== 'default' && group !== 'auto'
             ) && (
@@ -411,19 +482,24 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
             <div role='alert'>
               <ErrorState
                 className='min-h-0'
-                title={t(
-                  'Unable to inspect group references. Please try again.'
-                )}
-                onRetry={
-                  groups.isError ? () => void groups.refetch() : undefined
-                }
+                title={inspectionErrorMessage}
+                onRetry={() => {
+                  if (groupListUnavailable) {
+                    void groups.refetch()
+                  } else if (preview.variables) {
+                    preview.mutate(preview.variables)
+                  }
+                }}
               />
             </div>
           )}
           <Button
             type='submit'
             disabled={
-              !source || !target || preview.isPending || !groups.isSuccess
+              !source ||
+              !target ||
+              preview.isPending ||
+              groups.data === undefined
             }
           >
             {preview.isPending ? t('Loading...') : t('Preview impact')}
@@ -488,7 +564,7 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
         </section>
       )}
       <div className='mt-4 flex flex-wrap justify-end gap-2'>
-        <Button type='button' variant='outline' onClick={onClose}>
+        <Button type='button' variant='outline' onClick={props.onClose}>
           {t('Close')}
         </Button>
         <Button
@@ -496,12 +572,7 @@ function GroupMigrationDialog({ onClose }: { onClose: () => void }) {
           disabled={
             !result ||
             blockers.length > 0 ||
-            coordination?.ready === false ||
-            !!active ||
-            execution.isPending ||
-            operations.isError ||
-            operations.isPending ||
-            (operation?.state === 'completed' && operation.source === source)
+            coordination?.ready === false
           }
           onClick={() => setConfirmation(result)}
         >
