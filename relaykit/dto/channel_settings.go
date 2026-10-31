@@ -139,6 +139,10 @@ type ChannelOtherSettings struct {
 	// rejection. Empty follows the default allow policy. Accepted values:
 	// "", "allow", "safe", "strict".
 	ToolLossPolicy string `json:"tool_loss_policy,omitempty"`
+
+	// Claude Messages plaintext assistant thinking may be forwarded to OpenAI
+	// Chat reasoning_content only when the upstream channel is explicitly opted in.
+	ClaudeThinkingToReasoningContent bool `json:"claude_thinking_to_reasoning_content,omitempty"`
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

@@ -160,6 +160,7 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		index int
 		id    string
 	}
+	preserveAssistantReasoning := convmeta.OptionsOf(info).PreserveAssistantReasoning
 	toolNames := make(map[string]string)
 	var unnamedToolResults []unnamedToolResult
 	for messageIndex, claudeMessage := range claudeRequest.Messages {
@@ -175,6 +176,8 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 			}
 			var toolCalls []dto.ToolCallRequest
 			mediaMessages := make([]dto.MediaContent, 0, len(content))
+			var assistantReasoning strings.Builder
+			hasAssistantReasoning := false
 
 			for blockIndex, mediaMsg := range content {
 				if _, exists := toolNames[mediaMsg.Id]; !exists {
@@ -188,6 +191,11 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 						CacheControl: mediaMsg.CacheControl,
 					}
 					mediaMessages = append(mediaMessages, message)
+				case "thinking":
+					if preserveAssistantReasoning && claudeMessage.Role == "assistant" && mediaMsg.Thinking != nil {
+						assistantReasoning.WriteString(*mediaMsg.Thinking)
+						hasAssistantReasoning = true
+					}
 				case "image":
 					url := claudeImageSourceURL(mediaMsg.Source)
 					if url == "" {
@@ -273,8 +281,12 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 			if len(mediaMessages) > 0 {
 				openAIMessage.SetMediaContent(mediaMessages)
 			}
+			if hasAssistantReasoning {
+				reasoningContent := assistantReasoning.String()
+				openAIMessage.ReasoningContent = &reasoningContent
+			}
 		}
-		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
+		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 || openAIMessage.ReasoningContent != nil {
 			openAIMessages = append(openAIMessages, openAIMessage)
 		}
 	}
