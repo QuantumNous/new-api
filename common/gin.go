@@ -267,6 +267,11 @@ func GetContextKeyType[T any](c *gin.Context, key constant.ContextKey) (T, bool)
 // ApiError responds with err's text. When err is or wraps a *Message, the
 // response also carries message_key and message_params for the web console.
 func ApiError(c *gin.Context, err error) {
+	var statusError interface{ HTTPStatus() int }
+	if errors.As(err, &statusError) {
+		ApiErrorStatus(c, statusError.HTTPStatus(), err)
+		return
+	}
 	ApiErrorStatus(c, http.StatusOK, err)
 }
 

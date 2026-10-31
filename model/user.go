@@ -622,6 +622,9 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 }
 
 func (user *User) prepareForInsert(tx *gorm.DB) error {
+	if err := ValidateGroupReference(user.Group, true, false); err != nil {
+		return err
+	}
 	user.Email = NormalizeEmail(user.Email)
 	if err := ensureEmailAvailableWithTx(tx, user.Email, 0); err != nil {
 		return err
@@ -807,6 +810,9 @@ func (user *User) Update(updatePassword bool) error {
 }
 
 func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
+	if err := ValidateGroupReference(user.Group, true, false); err != nil {
+		return err
+	}
 	var err error
 	if updatePassword {
 		user.Password, err = common.HashAccountPassword(user.Password)
@@ -868,6 +874,9 @@ func (user *User) Edit(updatePassword bool) error {
 }
 
 func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
+	if err := ValidateGroupReference(user.Group, false, false); err != nil {
+		return err
+	}
 	var err error
 	if updatePassword {
 		user.Password, err = common.HashAccountPassword(user.Password)

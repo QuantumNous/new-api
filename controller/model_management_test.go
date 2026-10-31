@@ -39,6 +39,8 @@ func modelManagementDB(t *testing.T, kind, dsn string) *gorm.DB {
 	previousRedis, previousMemory := common.RedisEnabled, common.MemoryCacheEnabled
 	previousOptions := common.OptionMap
 	previousConfig := config.GlobalConfig.ExportAllConfigs()
+	previousGroups := ratio_setting.GroupRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"a":1,"b":1}`))
 	restoreRatios := []struct {
 		value   string
 		restore func(string) error
@@ -77,6 +79,7 @@ func modelManagementDB(t *testing.T, kind, dsn string) *gorm.DB {
 	require.NoError(t, database.Raw(query).Scan(&version).Error)
 	t.Logf("database version: %s", version)
 	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(previousGroups))
 		for _, value := range restoreRatios {
 			require.NoError(t, value.restore(value.value))
 		}

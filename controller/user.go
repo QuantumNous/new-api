@@ -1012,6 +1012,10 @@ func CreateUser(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
+	if err := model.ValidateGroupReference(user.Group, true, false); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if user.DisplayName == "" {
 		user.DisplayName = user.Username
 	}

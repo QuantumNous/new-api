@@ -1,7 +1,9 @@
 package model
 
 import (
+	"context"
 	"maps"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -199,6 +201,10 @@ func InitOptionMap() {
 }
 
 func loadOptionsFromDatabase() {
+	groupOptionMutex.Lock()
+	defer groupOptionMutex.Unlock()
+	groupViewMutex.RLock()
+	defer groupViewMutex.RUnlock()
 	requestPolicyOptionMutex.Lock()
 	defer requestPolicyOptionMutex.Unlock()
 	defer func() {
@@ -275,6 +281,9 @@ func validateOptionValue(key string, value string) error {
 }
 
 func UpdateOption(key string, value string) error {
+	if canonicalGroupOption(key) != "" {
+		return UpdateOptionsBulk(map[string]string{key: value})
+	}
 	if IsRequestPolicyOption(key) {
 		return UpdateRequestPolicyOptions(map[string]string{key: value})
 	}
@@ -312,6 +321,33 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
+	revision := groupMigrationNodeRevision.Load()
+	if os.Getenv("GROUP_MIGRATION_NODES") != "" {
+		if err := SyncGroupMigrationNode(context.Background()); err != nil {
+			return err
+		}
+		revision = groupMigrationNodeRevision.Load()
+	}
+	for key := range values {
+		if canonicalGroupOption(key) != "" {
+			groupMigrationTraffic.Lock()
+			paused := groupMigrationTraffic.operation != ""
+			groupMigrationTraffic.Unlock()
+			if paused {
+				return ErrGroupMigrationPaused
+			}
+			groupOptionMutex.Lock()
+			defer groupOptionMutex.Unlock()
+			groupViewMutex.RLock()
+			defer groupViewMutex.RUnlock()
+			var err error
+			values, err = prepareGroupOptions(values)
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
 	for key := range values {
 		if IsPasskeyDomainOption(key) {
 			_, err := UpdatePasskeyDomainOptions(values, false, "")
@@ -344,6 +380,26 @@ func UpdateOptionsBulk(values map[string]string) error {
 	}
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		for key := range values {
+			if canonicalGroupOption(key) != "" && tx.Migrator().HasTable(&GroupMigrationControl{}) {
+				var control GroupMigrationControl
+				if err := control.lock(tx); err != nil {
+					return err
+				}
+				if control.OperationID != "" {
+					return ErrGroupMigrationPaused
+				}
+				if os.Getenv("GROUP_MIGRATION_NODES") != "" && control.Revision != revision {
+					return ErrGroupMigrationPaused
+				}
+				if os.Getenv("GROUP_MIGRATION_NODES") != "" {
+					if err := verifyGroupMigrationGeneration(tx); err != nil {
+						return err
+					}
+				}
+				break
+			}
+		}
 		for k, v := range values {
 			option := Option{Key: k}
 			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {

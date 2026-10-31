@@ -44,6 +44,14 @@ export async function updateSystemOption(request: UpdateOptionRequest) {
   return res.data
 }
 
+export async function updateGroupOptions(values: Record<string, string>) {
+  const res = await api.patch<UpdateOptionResponse>(
+    '/api/option/group_settings',
+    values
+  )
+  return res.data
+}
+
 export async function updatePasskeyDomains(
   request: UpdatePasskeyDomainsRequest
 ) {

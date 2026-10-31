@@ -145,6 +145,12 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 
 	// router/api-router.go: /api/option
 	"GET /api/option/":                                           accessTokenScopeRule("option:read"),
+	"GET /api/option/group_migration/preview":                    accessTokenScopeRule("option:read"),
+	"POST /api/option/group_migration":                           accessTokenScopeRule("option:write"),
+	"GET /api/option/group_migration":                            accessTokenScopeRule("option:read"),
+	"GET /api/option/group_migration/:id":                        accessTokenScopeRule("option:read"),
+	"POST /api/option/group_migration/:id/resume":                accessTokenScopeRule("option:write"),
+	"PATCH /api/option/group_settings":                           accessTokenScopeRule("option:write"),
 	"GET /api/option/request_policy":                             accessTokenScopeRule("option:read"),
 	"PATCH /api/option/request_policy":                           accessTokenScopeRule("option:write"),
 	"PUT /api/option/":                                           accessTokenScopeRule("option:write"),

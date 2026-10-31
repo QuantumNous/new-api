@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Code2, Eye, HelpCircle } from 'lucide-react'
-import { memo, useCallback, useState, type ReactNode } from 'react'
+import { memo, useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useWatch, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -60,6 +60,7 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeNumberFieldProps } from '../utils/numeric-field'
+import { GroupMigrationEntry } from './group-migration-dialog'
 import {
   GroupRatioVisualEditor,
   type GroupSettingsSection,
@@ -89,6 +90,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
 }: GroupRatioFormProps) {
   const { t } = useTranslation()
   const values = useWatch({ control: form.control })
+  const savedGroupRatio = form.formState.defaultValues?.GroupRatio
+  const savedGroupNames = useMemo(() => {
+    try {
+      return Object.keys(JSON.parse(savedGroupRatio || '{}'))
+    } catch {
+      return []
+    }
+  }, [savedGroupRatio])
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
   const [guideOpen, setGuideOpen] = useState(false)
   const [section, setSection] = useState<GroupSettingsSection>('pricing')
@@ -128,6 +137,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             <HelpCircle className='mr-2 h-4 w-4' />
             {t('Usage guide')}
           </Button>
+          <GroupMigrationEntry groups={savedGroupNames} />
           <Button variant='outline' size='sm' onClick={toggleEditMode}>
             {editMode === 'visual' ? (
               <>
@@ -165,6 +175,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
         </SettingsPageActionsPortal>
         {editMode === 'visual' ? (
           <GroupRatioVisualEditor
+            savedGroupNames={savedGroupNames}
             section={section}
             onSectionChange={setSection}
             groupRatio={values.GroupRatio ?? ''}

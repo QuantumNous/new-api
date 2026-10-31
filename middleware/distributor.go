@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -33,6 +34,18 @@ type ModelRequest struct {
 
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		groupVersion := model.GroupRequestVersion()
+		if value, exists := c.Get("group_migration_version"); exists {
+			groupVersion = value.(uint64)
+		}
+		if !c.GetBool("group_migration_admitted") {
+			release, admissionErr := model.AdmitGroupRequestAtVersion(groupVersion, common.GetContextKeyString(c, constant.ContextKeyUsingGroup), c.GetString("user_group"))
+			if admissionErr != nil {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
+				return
+			}
+			defer release()
+		}
 		var channel *model.Channel
 		defer func() {
 			if c.Writer.Status() >= 400 {
@@ -49,6 +62,22 @@ func Distribute() func(c *gin.Context) {
 		if err != nil {
 			abortWithOpenAiMessage(c, invalidRequestStatus(err), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
+		}
+		if !c.GetBool("group_migration_admitted") {
+			requestedGroup := modelRequest.Group
+			if requestedGroup == "" {
+				requestedGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+			}
+			groups := []string{requestedGroup}
+			if requestedGroup == "auto" {
+				groups = append(groups, setting.GetAutoGroups()...)
+			}
+			releaseRequested, admissionErr := model.AdmitGroupRequestAtVersion(groupVersion, groups...)
+			if admissionErr != nil {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
+				return
+			}
+			defer releaseRequested()
 		}
 		_, pinned, _ := constraints.ResolvedPin()
 		if !pinned {
