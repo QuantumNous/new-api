@@ -44,7 +44,7 @@ func insertPreferredOwnerCandidate(
 	}).Error)
 }
 
-func TestGetPreferredModelOwnerChannelTypes(t *testing.T) {
+func TestGetPreferredModelOwners(t *testing.T) {
 	const modelName = "gpt-5.4"
 
 	tests := []struct {
@@ -128,13 +128,13 @@ func TestGetPreferredModelOwnerChannelTypes(t *testing.T) {
 			clearPreferredOwnerTables(t)
 			tt.setup(t)
 
-			owners, err := GetPreferredModelOwnerChannelTypes([]string{modelName}, tt.groups)
+			owners, err := GetPreferredModelOwners([]string{modelName}, tt.groups)
 			require.NoError(t, err)
 
 			got, ok := owners[modelName]
 			require.Equal(t, tt.found, ok)
 			if tt.found {
-				require.Equal(t, tt.expected, got)
+				require.Equal(t, tt.expected, got.ChannelType)
 			}
 		})
 	}
