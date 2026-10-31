@@ -151,6 +151,7 @@ import {
   FIELD_PASSTHROUGH_TYPES,
   FIELD_DESCRIPTIONS,
   FIELD_PLACEHOLDERS,
+  SCHEDULED_TEST_ENDPOINT_OPTIONS,
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../../constants'
@@ -318,6 +319,7 @@ const SENSITIVE_FORM_FIELDS = [
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
+  'test_endpoint_type',
 ] satisfies (keyof ChannelFormValues)[]
 
 function parseSettingsRecord(
@@ -2261,6 +2263,44 @@ export function ChannelMutateDrawer({
             </FormControl>
             <FormDescription>
               {t(FIELD_DESCRIPTIONS.TEST_MODEL)}
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
+        name='test_endpoint_type'
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('Scheduled test endpoint')}</FormLabel>
+            <Select
+              disabled={sensitiveLocked}
+              items={SCHEDULED_TEST_ENDPOINT_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.label),
+              }))}
+              value={field.value || 'auto'}
+              onValueChange={field.onChange}
+            >
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent alignItemWithTrigger={false}>
+                <SelectGroup>
+                  {SCHEDULED_TEST_ENDPOINT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {t(option.label)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <FormDescription>
+              {t(FIELD_DESCRIPTIONS.SCHEDULED_TEST_ENDPOINT)}
             </FormDescription>
             <FormMessage />
           </FormItem>

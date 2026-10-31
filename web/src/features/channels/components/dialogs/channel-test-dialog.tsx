@@ -83,6 +83,10 @@ import { handleServerError } from '@/lib/handle-server-error'
 
 import { updateChannel } from '../../api'
 import {
+  normalizeScheduledTestEndpoint,
+  SCHEDULED_TEST_ENDPOINT_OPTIONS,
+} from '../../constants'
+import {
   channelsQueryKeys,
   formatResponseTime,
   handleTestChannel,
@@ -172,26 +176,17 @@ function getLatestChannelTestCachePatch(
   return latest?.patch
 }
 
-const endpointTypeOptions: Array<{ value: string; label: string }> = [
-  { value: 'auto', label: 'Auto detect (default)' },
-  { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
-  { value: 'openai-response', label: 'OpenAI Responses (/v1/responses)' },
-  {
-    value: 'openai-response-compact',
-    label: 'OpenAI Response Compaction (/v1/responses/compact)',
-  },
-  { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
-  {
-    value: 'gemini',
-    label: 'Gemini (/v1beta/models/{model}:generateContent)',
-  },
-  { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
-  {
-    value: 'image-generation',
-    label: 'Image Generation (/v1/images/generations)',
-  },
-  { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
-]
+const endpointTypeOptions = SCHEDULED_TEST_ENDPOINT_OPTIONS
+
+function savedTestEndpoint(settings: string | undefined): string {
+  if (!settings?.trim()) return 'auto'
+  try {
+    const parsed = JSON.parse(settings) as { test_endpoint_type?: unknown }
+    return normalizeScheduledTestEndpoint(parsed.test_endpoint_type)
+  } catch {
+    return 'auto'
+  }
+}
 
 const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
   'embeddings',
@@ -322,7 +317,9 @@ function ChannelTestDialogContent({
   const batchProgressToastIdRef = useRef<ReturnType<
     typeof toast.loading
   > | null>(null)
-  const [endpointType, setEndpointType] = useState('auto')
+  const savedEndpoint = savedTestEndpoint(currentRow.settings)
+  const [endpointType, setEndpointType] = useState(savedEndpoint)
+  const [seenOpen, setSeenOpen] = useState(open)
   const [isStreamTest, setIsStreamTest] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
@@ -345,6 +342,12 @@ function ChannelTestDialogContent({
     pageIndex: 0,
     pageSize: 30,
   })
+  // Content stays mounted across close and reopen. Apply the current saved
+  // endpoint when the dialog opens, including a save made while it was closed.
+  if (open !== seenOpen) {
+    setSeenOpen(open)
+    if (open) setEndpointType(savedEndpoint)
+  }
   const endpointSelectItems = useMemo(
     () =>
       endpointTypeOptions.map((option) => ({
@@ -389,7 +392,7 @@ function ChannelTestDialogContent({
 
   const resetState = useCallback(() => {
     batchStopRequestedRef.current = true
-    setEndpointType('auto')
+    setEndpointType(savedTestEndpoint(currentRow.settings))
     setIsStreamTest(false)
     setSearchTerm('')
     setTestResults({})
@@ -403,7 +406,7 @@ function ChannelTestDialogContent({
     setIsDeletingFailed(false)
     setFailureDetails(null)
     setPagination({ pageIndex: 0, pageSize: 30 })
-  }, [])
+  }, [currentRow.settings])
 
   const streamDisabled = STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
   const effectiveStreamTest = !streamDisabled && isStreamTest
