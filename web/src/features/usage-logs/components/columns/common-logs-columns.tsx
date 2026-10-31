@@ -70,6 +70,7 @@ import {
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
+  getUseTimeSeconds,
   isPerCallBilling,
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
@@ -802,7 +803,7 @@ export function useCommonLogsColumns(
 
           return (
             <TimingMetricsCell
-              useTimeSec={useTime}
+              useTimeSec={getUseTimeSeconds(useTime, other)}
               completionTokens={log.completion_tokens}
               frtMs={other?.frt}
               isStream={log.is_stream}
