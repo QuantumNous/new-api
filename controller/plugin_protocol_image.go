@@ -93,6 +93,13 @@ func serveTaskPluginImageProtocol(c *gin.Context, pinned pluginruntime.PinnedEnd
 		respondPluginProtocolError(c, http.StatusInternalServerError, "task_protocol_error", "Task protocol request failed")
 		return
 	}
+	// Submission may retry with a different channel's rules. Render and inline
+	// images using the final attempt's request, not the original client body.
+	if value, exists := c.Get(pluginruntime.ContextKeyEffectiveImageRequest); exists {
+		if effective, ok := value.(pluginruntime.ProtocolRequestContext); ok {
+			protocolRequest = effective
+		}
+	}
 	task := outcome.Task
 	if task.Status != model.TaskStatusSuccess && task.Status != model.TaskStatusFailure {
 		if taskErr = waitTaskPluginImageTask(c, task, deps); taskErr != nil {

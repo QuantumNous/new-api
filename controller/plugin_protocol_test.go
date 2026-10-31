@@ -1,10 +1,12 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -17,7 +19,9 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/relay"
+	taskjsplugin "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
@@ -1711,6 +1715,308 @@ func TestServeTaskPluginImageProtocolRendersImmediateResultAndInlinesBase64(t *t
 			}
 		})
 	}
+}
+
+func TestServeTaskPluginImageProtocolAppliesChannelOverrides(t *testing.T) {
+	loaded := make(map[string]*pluginruntime.LoadedPlugin)
+	for _, key := range []string{"doubao", "alibaba"} {
+		source, err := plugins.Source(key)
+		require.NoError(t, err)
+		loaded[key], err = pluginruntime.NewRegistry().RegisterFactory(source, pluginruntime.Options{Key: key})
+		require.NoError(t, err)
+	}
+	force := `{"operations":[{"mode":"set","path":"response_format","value":"b64_json","conditions":[{"path":"original_model","mode":"contains","value":"seedream"}]}]}`
+	keep := strings.Replace(force, `"mode":"set"`, `"keep_origin":true,"mode":"set"`, 1)
+	bailian := strings.Replace(force, `"value":"seedream"`, `"value":"bailian"`, 1)
+	for _, tc := range []struct {
+		name, clientFormat string
+		pluginKey          string
+		model              string
+		overrides          []string
+		prompts            []string
+		multipart          bool
+		async              bool
+		wantParameters     map[string]any
+		wantB64            bool
+		wantCount          float64
+		wantStatus         int
+		wantCode           string
+		wantNoRetry        bool
+	}{
+		{name: "original model fills missing format", overrides: []string{force}, wantB64: true},
+		{name: "force replaces URL", clientFormat: "url", overrides: []string{force}, wantB64: true},
+		{name: "keep origin preserves URL", clientFormat: "url", overrides: []string{keep}},
+		{name: "keep origin fills missing format", overrides: []string{keep}, wantB64: true},
+		{name: "unmatched condition", overrides: []string{strings.Replace(force, `"value":"seedream"`, `"value":"other"`, 1)}},
+		{name: "condition uses mapped model", overrides: []string{strings.Replace(strings.Replace(force, `"original_model"`, `"model"`, 1), `"value":"seedream"`, `"value":"5-0-lite"`, 1)}, wantB64: true},
+		{name: "legacy override", overrides: []string{`{"response_format":"b64_json"}`}, wantB64: true},
+		{name: "multipart edit preserves upload", multipart: true, overrides: []string{`{"response_format":"b64_json","seed":7}`}, wantB64: true},
+		{name: "usage follows overridden group count", overrides: []string{`{"response_format":"b64_json","sequential_image_generation":"auto","sequential_image_generation_options":{"max_images":3}}`}, wantB64: true, wantCount: 3},
+		{name: "retry starts from original request", overrides: []string{
+			`{"response_format":"b64_json","operations":[{"mode":"append","path":"prompt","value":" first"}]}`,
+			`{"operations":[{"mode":"append","path":"prompt","value":" second"}]}`,
+		}, prompts: []string{"a cat first", "a cat second"}},
+		{name: "retry without rules restores client format", clientFormat: "b64_json", overrides: []string{`{"response_format":"url"}`, `{}`}, wantB64: true},
+		{name: "decoder rejects overridden count", overrides: []string{`{"n":129}`}, wantStatus: 400, wantCode: "plugin_request_invalid"},
+		{name: "decoder rejects overridden format", overrides: []string{`{"response_format":"invalid"}`}, wantStatus: 400, wantCode: "plugin_request_invalid"},
+		{name: "model pin cannot change", overrides: []string{`{"model":"another-model"}`}, wantStatus: 400, wantCode: "channel_param_override_invalid", wantNoRetry: true},
+		{name: "invalid rule stops submission", overrides: []string{`{"operations":[{"mode":"invalid","path":"response_format"}]}`}, wantStatus: 400, wantCode: "channel_param_override_invalid", wantNoRetry: true},
+		{name: "return error stops submission", overrides: []string{`{"operations":[{"mode":"return_error","value":{"message":"blocked by image rule","status_code":429,"code":"image_rule_blocked"}}]}`}, wantStatus: 429, wantCode: "image_rule_blocked", wantNoRetry: true},
+		{name: "alibaba/no overrides preserves URL", pluginKey: "alibaba", overrides: []string{`{}`}},
+		{name: "alibaba/client Base64 without overrides", pluginKey: "alibaba", clientFormat: "b64_json", overrides: []string{`{}`}, wantB64: true},
+		{name: "alibaba/Seedream condition does not match", pluginKey: "alibaba", overrides: []string{force}},
+		{name: "alibaba/original alias condition", pluginKey: "alibaba", model: "bailian-image", overrides: []string{bailian}, wantB64: true},
+		{name: "alibaba/mapped model condition", pluginKey: "alibaba", model: "bailian-image", overrides: []string{strings.Replace(strings.Replace(force, `"original_model"`, `"model"`, 1), `"value":"seedream"`, `"value":"qwen-image"`, 1)}, wantB64: true},
+		{name: "alibaba/force replaces URL", pluginKey: "alibaba", clientFormat: "url", overrides: []string{`{"response_format":"b64_json"}`}, wantB64: true},
+		{name: "alibaba/keep origin preserves URL", pluginKey: "alibaba", model: "bailian-image", clientFormat: "url", overrides: []string{strings.Replace(bailian, `"mode":"set"`, `"keep_origin":true,"mode":"set"`, 1)}},
+		{name: "alibaba/Qwen parameters and usage", pluginKey: "alibaba", overrides: []string{`{"response_format":"b64_json","n":2,"size":"1024x1024"}`}, wantB64: true, wantCount: 2, wantParameters: map[string]any{"n": 2, "size": "1024*1024"}},
+		{name: "alibaba/nested provider parameters and usage", pluginKey: "alibaba", overrides: []string{`{"response_format":"b64_json","operations":[{"mode":"set","path":"parameters.n","value":2},{"mode":"set","path":"parameters.size","value":"1024x1024"},{"mode":"set","path":"parameters.watermark","value":false}]}`}, wantB64: true, wantCount: 2, wantParameters: map[string]any{"n": 2, "size": "1024*1024", "watermark": false}},
+		{name: "alibaba/multipart Qwen edit", pluginKey: "alibaba", model: "qwen-image-edit-plus", multipart: true, overrides: []string{`{"response_format":"b64_json","n":2,"seed":7,"watermark":false}`}, wantB64: true, wantCount: 2, wantParameters: map[string]any{"n": 2, "seed": 7, "watermark": false}},
+		{name: "alibaba/legacy Wan async result", pluginKey: "alibaba", model: "wan2.2-t2i-flash", async: true, overrides: []string{`{"response_format":"b64_json","n":2,"size":"1024x1024"}`}, wantB64: true, wantCount: 2, wantParameters: map[string]any{"n": 2, "size": "1024*1024"}},
+		{name: "alibaba/modern Wan async result", pluginKey: "alibaba", model: "wan2.6-t2i", async: true, overrides: []string{`{"response_format":"b64_json","n":2}`}, wantB64: true, wantCount: 2, wantParameters: map[string]any{"n": 2}},
+		{name: "alibaba/provider rejects oversized count", pluginKey: "alibaba", overrides: []string{`{"n":129}`}, wantStatus: 400, wantCode: "plugin_request_invalid"},
+		{name: "alibaba/provider rejects oversized nested count", pluginKey: "alibaba", overrides: []string{`{"operations":[{"mode":"set","path":"parameters.n","value":129}]}`}, wantStatus: 400, wantCode: "plugin_request_invalid"},
+		{name: "alibaba/fixed count model remains restricted", pluginKey: "alibaba", model: "qwen-image-plus", overrides: []string{`{"n":2}`}, wantStatus: 400, wantCode: "plugin_request_invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pluginKey, clientModel := tc.pluginKey, tc.model
+			if pluginKey == "" {
+				pluginKey = "doubao"
+			}
+			if clientModel == "" {
+				clientModel = "doubao-seedream"
+				if pluginKey == "alibaba" {
+					clientModel = "qwen-image-3.0-pro"
+				}
+			}
+			upstreamModel := "doubao-seedream-5-0-lite-260128"
+			if pluginKey == "alibaba" {
+				upstreamModel = clientModel
+				if clientModel == "bailian-image" {
+					upstreamModel = "qwen-image-3.0-pro"
+				}
+			}
+			plugin := loaded[pluginKey]
+			pinned := pluginruntime.PinnedEndpoint{Plugin: plugin, Model: clientModel, Protocol: pluginruntime.ProtocolOpenAIImage}
+			c, recorder := newImageProtocolTestContext("")
+			c.Set("resolved_task_model", pinned.Model)
+			c.Set(pluginruntime.ContextKeyPinnedEndpoint, pinned)
+			value := map[string]any{"model": pinned.Model, "prompt": "a cat", "n": 1}
+			if tc.clientFormat != "" {
+				value["response_format"] = tc.clientFormat
+			}
+			raw, err := common.Marshal(value)
+			require.NoError(t, err)
+			request := pluginruntime.ProtocolRequestContext{
+				RouteRequestContext: pluginruntime.RouteRequestContext{Body: map[string]any{"kind": "json", "value": value}, BodyText: raw},
+				Protocol:            pluginruntime.ProtocolOpenAIImage, Operation: "generate", Model: pinned.Model,
+			}
+			if tc.multipart {
+				var body bytes.Buffer
+				writer := multipart.NewWriter(&body)
+				fields := map[string][]string{"model": {pinned.Model}, "prompt": {"a cat"}, "n": {"1"}}
+				for key, values := range fields {
+					require.NoError(t, writer.WriteField(key, values[0]))
+				}
+				file, err := writer.CreateFormFile("image", "reference.png")
+				require.NoError(t, err)
+				_, err = file.Write([]byte("AAA"))
+				require.NoError(t, err)
+				require.NoError(t, writer.Close())
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+				c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+				request.Operation, request.BodyText = "edit", nil
+				request.Body = map[string]any{"kind": "multipart", "fields": fields, "files": []any{map[string]any{"ref": "request_file:image", "field": "image", "filename": "reference.png", "mimeType": "image/png", "size": 3}}}
+			}
+			original, err := common.Marshal(request)
+			require.NoError(t, err)
+			originalText := string(request.BodyText)
+			c.Set(pluginruntime.ContextKeyProtocolRequest, request)
+			deps := pluginProtocolTestDeps()
+			downloads, built, polls := 0, 0, 0
+			var finalAdaptor *taskjsplugin.TaskAdaptor
+			deps.downloadImage = func(string) (string, string, error) {
+				downloads++
+				return "image/png", "QUFB", nil
+			}
+			deps.submit = func(c *gin.Context, info *relaycommon.RelayInfo) (*taskSubmissionOutcome, *dto.TaskError) {
+				info.PublicTaskID = "task_image"
+				for index, rawOverride := range tc.overrides {
+					var override map[string]any
+					require.NoError(t, common.UnmarshalJsonStr(rawOverride, &override))
+					info.ChannelMeta = &relaycommon.ChannelMeta{
+						ChannelBaseUrl: "https://provider.example", UpstreamModelName: upstreamModel, ParamOverride: override,
+					}
+					adaptor := taskjsplugin.New(plugin)
+					adaptor.Init(info)
+					if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+						assert.Equal(t, tc.wantNoRetry, taskErr.NoRetry)
+						return nil, taskErr
+					}
+					body, err := adaptor.BuildRequestBody(c, info)
+					require.NoError(t, err)
+					var upstream map[string]any
+					require.NoError(t, common.DecodeJson(body, &upstream))
+					built++
+					assert.NotContains(t, upstream, "response_format", "the host owns Base64 conversion")
+					assert.Equal(t, info.UpstreamModelName, upstream["model"])
+					wantPrompt := "a cat"
+					if len(tc.prompts) > 0 {
+						wantPrompt = tc.prompts[index]
+					}
+					if pluginKey == "alibaba" {
+						input := upstream["input"].(map[string]any)
+						parameters := upstream["parameters"].(map[string]any)
+						assert.NotContains(t, parameters, "response_format")
+						assert.EqualValues(t, max(1, tc.wantCount), parameters["n"])
+						for key, expected := range tc.wantParameters {
+							assert.EqualValues(t, expected, parameters[key], key)
+						}
+						if tc.model == "wan2.2-t2i-flash" {
+							assert.Equal(t, wantPrompt, input["prompt"])
+						} else {
+							messages := input["messages"].([]any)
+							require.Len(t, messages, 1)
+							content := messages[0].(map[string]any)["content"].([]any)
+							assert.Equal(t, wantPrompt, content[len(content)-1].(map[string]any)["text"])
+							if tc.multipart {
+								require.Len(t, content, 2)
+								assert.Equal(t, "data:image/png;base64,QUFB", content[0].(map[string]any)["image"])
+							}
+						}
+					} else {
+						assert.Equal(t, wantPrompt, upstream["prompt"])
+						if tc.multipart {
+							assert.Equal(t, []any{"data:image/png;base64,QUFB"}, upstream["image"])
+							assert.EqualValues(t, 7, upstream["seed"])
+						}
+					}
+					ratios, err := adaptor.EstimateBillingValidated(c, info)
+					require.NoError(t, err)
+					assert.Equal(t, max(1, tc.wantCount), ratios["image_count"], "usage follows the submitted request")
+					finalAdaptor = adaptor
+				}
+				task := &model.Task{TaskID: "task_image", Platform: constant.TaskPlatform(pluginKey), UserId: info.UserId, Status: model.TaskStatusSuccess,
+					Properties: model.Properties{OriginModelName: clientModel, UpstreamModelName: upstreamModel}}
+				task.SetData(map[string]any{"data": []any{map[string]any{"url": "https://cdn.example/image.png"}}})
+				if pluginKey == "alibaba" {
+					result := `{"request_id":"request_image","output":{"choices":[{"message":{"content":[{"image":"https://cdn.example/image.png"}]}}]},"usage":{"output_image_count":1}}`
+					if tc.async {
+						result = `{"output":{"task_id":"upstream_image","task_status":"PENDING"}}`
+					}
+					parsed, taskErr := finalAdaptor.ParseResponse(c, &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(result))}, info)
+					require.Nil(t, taskErr)
+					require.NotNil(t, parsed)
+					task.PrivateData.UpstreamTaskID, task.Data = parsed.UpstreamTaskID, parsed.TaskData
+					if tc.async {
+						require.Nil(t, parsed.Immediate)
+						assert.Equal(t, "upstream_image", parsed.UpstreamTaskID)
+						task.Status = model.TaskStatusSubmitted
+					} else {
+						require.NotNil(t, parsed.Immediate)
+						assert.Equal(t, "SUCCESS", parsed.Immediate.Status)
+						assert.EqualValues(t, 1, parsed.Immediate.UsageFacts["image_count"], "completion uses the delivered count rather than the overridden reservation")
+						assert.EqualValues(t, 1, finalAdaptor.AdjustBillingOnSubmit(info, parsed.TaskData)["image_count"])
+					}
+				}
+				return &taskSubmissionOutcome{Task: task, RelayInfo: info}, nil
+			}
+			if tc.async {
+				deps.imagePollInterval = time.Nanosecond
+				deps.pollTask = func(_ context.Context, task *model.Task) error {
+					polls++
+					assert.Equal(t, model.TaskStatusSubmitted, string(task.Status))
+					completed := []byte(`{"output":{"task_id":"upstream_image","task_status":"SUCCEEDED","results":[{"url":"https://cdn.example/image.png"}]},"usage":{"image_count":1}}`)
+					result, err := finalAdaptor.ParseTaskResult(task, &http.Response{StatusCode: http.StatusOK}, completed)
+					require.NoError(t, err)
+					assert.Equal(t, "SUCCESS", result.Status)
+					assert.EqualValues(t, 1, result.UsageFacts["image_count"])
+					task.Status, task.Data = model.TaskStatus(result.Status), completed
+					return nil
+				}
+			}
+			serveTaskPluginImageProtocol(c, pinned, deps)
+			current, err := common.Marshal(request)
+			require.NoError(t, err)
+			assert.Equal(t, string(original), string(current), "original request maps remain unchanged")
+			assert.Equal(t, originalText, string(request.BodyText), "original JSON bytes remain unchanged")
+			wantStatus := tc.wantStatus
+			if wantStatus == 0 {
+				wantStatus = http.StatusOK
+			}
+			require.Equal(t, wantStatus, recorder.Code, recorder.Body.String())
+			if tc.wantCode != "" {
+				var response struct {
+					Error struct{ Code string } `json:"error"`
+				}
+				require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+				assert.Equal(t, tc.wantCode, response.Error.Code)
+				assert.Zero(t, built)
+				assert.Zero(t, downloads)
+				return
+			}
+			assert.Equal(t, len(tc.overrides), built)
+			wantPolls := 0
+			if tc.async {
+				wantPolls = 1
+			}
+			assert.Equal(t, wantPolls, polls)
+			var response struct {
+				Data []struct {
+					URL string `json:"url"`
+					B64 string `json:"b64_json"`
+				} `json:"data"`
+				Metadata map[string]any `json:"metadata"`
+			}
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+			require.Len(t, response.Data, 1)
+			wantB64, wantDownloads := "", 0
+			if tc.wantB64 {
+				wantB64, wantDownloads = "QUFB", 1
+			}
+			assert.Equal(t, wantDownloads, downloads)
+			assert.Equal(t, wantB64, response.Data[0].B64)
+			assert.Equal(t, "https://cdn.example/image.png", response.Data[0].URL)
+			if pluginKey == "alibaba" {
+				assert.Contains(t, response.Metadata, "output", "vendor metadata remains available with Base64 output")
+				usage, ok := response.Metadata["usage"].(map[string]any)
+				require.True(t, ok)
+				countKey := "output_image_count"
+				if tc.async {
+					countKey = "image_count"
+				}
+				assert.EqualValues(t, 1, usage[countKey])
+			}
+		})
+	}
+}
+
+func TestImageProtocolOverridesPreservePluginJSONOrder(t *testing.T) {
+	source := strings.Replace(imageProtocolTestPlugin, `protocols:["openai_image"]`, `requiredCapabilities:["json-order@1"],protocols:["openai_image"]`, 1)
+	source = strings.Replace(source, `return {url:ctx.baseUrl+"/images"}`, `return {url:ctx.baseUrl+"/images",body:ctx.requestBody}`, 1)
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	c, _ := newImageProtocolTestContext("")
+	client := `{"model":"image-model","prompt":"a cat","metadata":{"zeta":1,"alpha":2}}`
+	var value map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(client, &value))
+	c.Set(pluginruntime.ContextKeyProtocolRequest, pluginruntime.ProtocolRequestContext{
+		RouteRequestContext: pluginruntime.RouteRequestContext{Body: map[string]any{"kind": "json", "value": value}, BodyText: []byte(client)},
+		Protocol:            pluginruntime.ProtocolOpenAIImage, Model: "image-model",
+	})
+	c.Set(pluginruntime.ContextKeyPinnedEndpoint, pluginruntime.PinnedEndpoint{Plugin: plugin, Protocol: pluginruntime.ProtocolOpenAIImage, Model: "image-model"})
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example", UpstreamModelName: "image-model", ParamOverride: map[string]any{"response_format": "b64_json"}},
+		OriginModelName: "image-model", TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+	}
+	adaptor := taskjsplugin.New(plugin)
+	adaptor.Init(info)
+	require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+	body, err := adaptor.BuildRequestBody(c, info)
+	require.NoError(t, err)
+	raw, err := io.ReadAll(body)
+	require.NoError(t, err)
+	assert.Equal(t, `{"model":"image-model","prompt":"a cat","metadata":{"zeta":1,"alpha":2},"response_format":"b64_json"}`, string(raw))
 }
 
 // An asynchronous vendor task is polled inside the request until it is
