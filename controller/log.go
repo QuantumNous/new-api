@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -259,5 +260,72 @@ func GetLogsSelfStat(c *gin.Context) {
 			//"token": tokenNum,
 		},
 	})
+	return
+}
+
+// parseUnixBound parses an optional unix-second query parameter. An absent or
+// empty value means an open bound (0); a malformed value is a client error.
+func parseUnixBound(c *gin.Context, name string) (int64, bool) {
+	v := c.Query(name)
+	if v == "" {
+		return 0, true
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("invalid %s", name))
+		return 0, false
+	}
+	return n, true
+}
+
+// GetExternalBillingStat returns per-user external-channel usage for all users (admin).
+func GetExternalBillingStat(c *gin.Context) {
+	startTimestamp, ok := parseUnixBound(c, "start_timestamp")
+	if !ok {
+		return
+	}
+	endTimestamp, ok := parseUnixBound(c, "end_timestamp")
+	if !ok {
+		return
+	}
+	username := c.Query("username")
+	rows, err := model.SumExternalByUser(startTimestamp, endTimestamp, username)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if rows == nil {
+		rows = []model.ExternalBillingRow{}
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": rows})
+	return
+}
+
+// GetExternalBillingSelfStat returns the caller's own external-channel usage.
+func GetExternalBillingSelfStat(c *gin.Context) {
+	startTimestamp, ok := parseUnixBound(c, "start_timestamp")
+	if !ok {
+		return
+	}
+	endTimestamp, ok := parseUnixBound(c, "end_timestamp")
+	if !ok {
+		return
+	}
+	// Scope by the authenticated user ID (not username) so a username rename
+	// or reuse cannot drop history or leak another accounts external totals.
+	userId := c.GetInt("id")
+	username := c.GetString("username")
+	row, err := model.SumExternalSelfStat(startTimestamp, endTimestamp, userId, username)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Keep the array contract: no row means no usage, so return an empty array
+	// (the page then shows its empty state) instead of a zeroed phantom account.
+	rows := []model.ExternalBillingRow{}
+	if row != nil {
+		rows = append(rows, *row)
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": rows})
 	return
 }
