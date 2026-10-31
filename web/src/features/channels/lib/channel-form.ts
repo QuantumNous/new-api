@@ -871,7 +871,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     name: formData.name,
     type: formData.type,
     base_url: normalizeBaseUrl(formData.base_url) || null,
-    key: formData.key,
+    key: formData.key?.trim() ?? '',
     openai_organization: formData.openai_organization || null,
     models: formData.models,
     group: formatGroups(formData.group),
@@ -940,7 +940,7 @@ export function transformFormDataToUpdatePayload(
 
   // Only include key if it was changed (not empty)
   if (formData.key && formData.key.trim()) {
-    payload.key = formData.key
+    payload.key = formData.key.trim()
   }
 
   // Clean up empty strings to null for optional fields
