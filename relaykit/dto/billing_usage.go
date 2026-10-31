@@ -212,6 +212,15 @@ func newGeminiChatBillingUsage(metadata *GeminiUsageMetadata, estimated bool) *B
 		return nil
 	}
 	usageMetadata := cloneGeminiUsageMetadata(*metadata)
+	if inputTokens, derived := usageMetadata.InputTokenCount(); derived {
+		// Settlement reads this snapshot instead of the converted Usage, so a
+		// derived input side has to be written here or the caller's computed
+		// PromptTokens is discarded and the input bills as zero. The total does
+		// not separate prompt from tool-use prompt; only a reported tool-use
+		// count is taken out, and never below zero.
+		usageMetadata.PromptTokenCount = max(inputTokens-usageMetadata.ToolUsePromptTokenCount, 0)
+		estimated = true
+	}
 	return &BillingUsage{
 		Source:              BillingUsageSourceGeminiChat,
 		Semantic:            BillingUsageSemanticGemini,
@@ -332,7 +341,9 @@ func (usage *BillingUsage) canonicalClaudeUsage() *Usage {
 
 func (usage *BillingUsage) canonicalGeminiUsage() *Usage {
 	metadata := usage.GeminiUsageMetadata
-	promptTokens := metadata.PromptTokenCount + metadata.ToolUsePromptTokenCount
+	// Derived again here because a snapshot built before the derivation existed
+	// (or relayed from a peer running an older version) still carries zero.
+	promptTokens, _ := metadata.InputTokenCount()
 	canonical := &Usage{
 		PromptTokens:     promptTokens,
 		CompletionTokens: metadata.CandidatesTokenCount + metadata.ThoughtsTokenCount,
@@ -420,6 +431,31 @@ func cloneGeminiUsageMetadata(metadata GeminiUsageMetadata) GeminiUsageMetadata 
 	metadata.CandidatesTokensDetails = append([]GeminiPromptTokensDetails{}, metadata.CandidatesTokensDetails...)
 	metadata.BillingUsage = nil
 	return metadata
+}
+
+// InputTokenCount returns the billable input side of a Gemini usage snapshot and
+// whether it had to be derived. Google reports totalTokenCount as the sum of
+// promptTokenCount, toolUsePromptTokenCount, candidatesTokenCount and
+// thoughtsTokenCount, so a zero input side with a non-zero total lets the input
+// be recovered from the total once the output side is removed. Thoughts tokens
+// are output here as well (canonicalGeminiUsage folds them into CompletionTokens),
+// so they must come out of the remainder or they bill twice. Cached tokens are a
+// subset of promptTokenCount and never subtracted.
+func (metadata *GeminiUsageMetadata) InputTokenCount() (int, bool) {
+	if metadata == nil {
+		return 0, false
+	}
+	if reported := metadata.PromptTokenCount + metadata.ToolUsePromptTokenCount; reported > 0 {
+		return reported, false
+	}
+	if metadata.TotalTokenCount <= 0 {
+		return 0, false
+	}
+	derived := metadata.TotalTokenCount - metadata.CandidatesTokenCount - metadata.ThoughtsTokenCount
+	if derived <= 0 {
+		return 0, false
+	}
+	return derived, true
 }
 
 func HasGeminiUsageMetadataTokens(metadata *GeminiUsageMetadata) bool {

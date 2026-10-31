@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestStreamResponseGeminiChat2OpenAIAttachesUsageMetadata(t *testing.T) {
@@ -301,11 +302,12 @@ func TestGeminiTextGenerationHandlerPromptTokensIncludeToolUsePromptTokens(t *te
 	require.Equal(t, 1120, usage.CompletionTokenDetails.ReasoningTokens)
 }
 
-func TestGeminiChatHandlerUsesEstimatedPromptTokensWhenUsagePromptMissing(t *testing.T) {
+func TestGeminiChatHandlerDerivesPromptTokensFromTotalWhenUsagePromptMissing(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
 	info := &relaycommon.RelayInfo{
@@ -347,12 +349,16 @@ func TestGeminiChatHandlerUsesEstimatedPromptTokensWhenUsagePromptMissing(t *tes
 	usage, newAPIError := GeminiChatHandler(c, info, resp)
 	require.Nil(t, newAPIError)
 	require.NotNil(t, usage)
-	require.Equal(t, 20, usage.PromptTokens)
+	require.Equal(t, 10, usage.PromptTokens)
 	require.Equal(t, 100, usage.CompletionTokens)
 	require.Equal(t, 110, usage.TotalTokens)
+
+	// RelayFormatGemini forwards the upstream body, so the derived input has to be
+	// written into it as well.
+	assert.Equal(t, int64(10), gjson.GetBytes(recorder.Body.Bytes(), "usageMetadata.promptTokenCount").Int())
 }
 
-func TestGeminiStreamHandlerUsesEstimatedPromptTokensWhenUsagePromptMissing(t *testing.T) {
+func TestGeminiStreamHandlerDerivesPromptTokensFromTotalWhenUsagePromptMissing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
@@ -404,16 +410,17 @@ func TestGeminiStreamHandlerUsesEstimatedPromptTokensWhenUsagePromptMissing(t *t
 	})
 	require.Nil(t, newAPIError)
 	require.NotNil(t, usage)
-	require.Equal(t, 20, usage.PromptTokens)
+	require.Equal(t, 10, usage.PromptTokens)
 	require.Equal(t, 100, usage.CompletionTokens)
 	require.Equal(t, 110, usage.TotalTokens)
 }
 
-func TestGeminiTextGenerationHandlerUsesEstimatedPromptTokensWhenUsagePromptMissing(t *testing.T) {
+func TestGeminiTextGenerationHandlerDerivesPromptTokensFromTotalWhenUsagePromptMissing(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-3-flash-preview:generateContent", nil)
 
 	info := &relaycommon.RelayInfo{
@@ -424,23 +431,135 @@ func TestGeminiTextGenerationHandlerUsesEstimatedPromptTokensWhenUsagePromptMiss
 	}
 	info.SetEstimatePromptTokens(20)
 
+	// Raw upstream shape: the input side is zero, and modelVersion is a field this
+	// gateway does not model, so it must survive the rewrite untouched.
+	body := []byte(`{"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]}}],` +
+		`"modelVersion":"gemini-3-flash-preview",` +
+		`"usageMetadata":{"promptTokenCount":0,"candidatesTokenCount":90,"totalTokenCount":110,"thoughtsTokenCount":10}}`)
+
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewReader(body)),
+	}
+
+	usage, newAPIError := GeminiTextGenerationHandler(c, info, resp)
+	require.Nil(t, newAPIError)
+	require.NotNil(t, usage)
+	require.Equal(t, 10, usage.PromptTokens)
+	require.Equal(t, 100, usage.CompletionTokens)
+	require.Equal(t, 110, usage.TotalTokens)
+
+	// Downstream sees the same input the gateway bills, spliced into the original
+	// body rather than re-marshaled from the typed response.
+	assert.Equal(t, "gemini-3-flash-preview", gjson.GetBytes(recorder.Body.Bytes(), "modelVersion").Str)
+	assert.Equal(t, int64(10), gjson.GetBytes(recorder.Body.Bytes(), "usageMetadata.promptTokenCount").Int())
+	assert.Equal(t, gjson.Number, gjson.GetBytes(recorder.Body.Bytes(), "usageMetadata.promptTokenCount").Type)
+	assert.Equal(t, int64(110), gjson.GetBytes(recorder.Body.Bytes(), "usageMetadata.totalTokenCount").Int())
+}
+
+func TestGeminiTextGenerationStreamHandlerWritesDerivedPromptTokensIntoFrames(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-3-flash-preview:streamGenerateContent", nil)
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldStreamingTimeout
+	})
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-3-flash-preview",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gemini-3-flash-preview",
+		},
+	}
+	info.SetEstimatePromptTokens(20)
+
+	chunkData, err := common.Marshal(dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			Content: dto.GeminiChatContent{
+				Role:  "model",
+				Parts: []dto.GeminiPart{{Text: "partial"}},
+			},
+		}},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:     0,
+			CandidatesTokenCount: 90,
+			ThoughtsTokenCount:   10,
+			TotalTokenCount:      110,
+		},
+	})
+	require.NoError(t, err)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewReader([]byte("data: " + string(chunkData) + "\n\n"))),
+	}
+
+	usage, newAPIError := GeminiTextGenerationStreamHandler(c, info, resp)
+	require.Nil(t, newAPIError)
+	require.NotNil(t, usage)
+	require.Equal(t, 10, usage.PromptTokens)
+
+	// The native stream forwards upstream frames verbatim, so every frame that
+	// carried a zero input side must now carry the derived one.
+	var frame *dto.GeminiChatResponse
+	for line := range strings.SplitSeq(recorder.Body.String(), "\n") {
+		payload, ok := strings.CutPrefix(strings.TrimSpace(line), "data: ")
+		if !ok {
+			continue
+		}
+		var parsed dto.GeminiChatResponse
+		if err := common.UnmarshalJsonStr(payload, &parsed); err != nil {
+			continue
+		}
+		if parsed.HasUsageMetadata {
+			frame = &parsed
+		}
+	}
+	require.NotNil(t, frame, "no stream frame carried usageMetadata")
+	assert.Equal(t, 10, frame.UsageMetadata.PromptTokenCount)
+	assert.Equal(t, 110, frame.UsageMetadata.TotalTokenCount)
+	// A quoted count would decode as a string for typed clients, so the spliced
+	// field has to stay a JSON number.
+	for line := range strings.SplitSeq(recorder.Body.String(), "\n") {
+		payload, ok := strings.CutPrefix(strings.TrimSpace(line), "data: ")
+		if !ok {
+			continue
+		}
+		assert.Equal(t, gjson.Number, gjson.Get(payload, "usageMetadata.promptTokenCount").Type)
+	}
+}
+
+func TestGeminiChatHandlerUsesEstimatedPromptTokensWhenTotalMissing(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatGemini,
+		OriginModelName: "gemini-3-flash-preview",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gemini-3-flash-preview",
+		},
+	}
+	info.SetEstimatePromptTokens(20)
+
+	// No total means the input side cannot be recovered from upstream, so the
+	// local estimate stays the only source.
 	payload := dto.GeminiChatResponse{
 		Candidates: []dto.GeminiChatCandidate{
 			{
 				Content: dto.GeminiChatContent{
-					Role: "model",
-					Parts: []dto.GeminiPart{
-						{Text: "ok"},
-					},
+					Role:  "model",
+					Parts: []dto.GeminiPart{{Text: "ok"}},
 				},
 			},
 		},
 		UsageMetadata: dto.GeminiUsageMetadata{
-			PromptTokenCount:        0,
-			ToolUsePromptTokenCount: 0,
-			CandidatesTokenCount:    90,
-			ThoughtsTokenCount:      10,
-			TotalTokenCount:         110,
+			CandidatesTokenCount: 90,
+			ThoughtsTokenCount:   10,
 		},
 	}
 
@@ -451,12 +570,11 @@ func TestGeminiTextGenerationHandlerUsesEstimatedPromptTokensWhenUsagePromptMiss
 		Body: io.NopCloser(bytes.NewReader(body)),
 	}
 
-	usage, newAPIError := GeminiTextGenerationHandler(c, info, resp)
+	usage, newAPIError := GeminiChatHandler(c, info, resp)
 	require.Nil(t, newAPIError)
 	require.NotNil(t, usage)
 	require.Equal(t, 20, usage.PromptTokens)
 	require.Equal(t, 100, usage.CompletionTokens)
-	require.Equal(t, 110, usage.TotalTokens)
 }
 
 func TestGeminiChatHandlerMissingUsageMetadataBuildsEstimatedBillingUsage(t *testing.T) {
