@@ -35,6 +35,26 @@ func TestDoubaoVideoProtocolDeclaresOriginTaskIDs(t *testing.T) {
 	assert.Equal(t, []any{"task_origin"}, decoded["originTaskIds"])
 }
 
+// The multipart branch declares originTaskIds on its own code path; without a
+// test here, dropping that assignment would still leave the suite green.
+func TestDoubaoVideoProtocolMultipartDeclaresOriginTaskIDs(t *testing.T) {
+	_, plugin := newDoubaoPlugin(t)
+
+	value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_video", "decodeRequest"}, map[string]any{
+		"model": "doubao-seedance-2-0-mini-260615",
+		"body": map[string]any{"kind": "multipart", "fields": map[string][]string{
+			"model":    {"doubao-seedance-2-0-mini-260615"},
+			"prompt":   {"同样的镜头，输出 480p 正式片"},
+			"seconds":  {"5"},
+			"metadata": {`{"resolution":"480p","content":[{"type":"draft_task","draft_task":{"id":"task_origin"}}]}`},
+		}},
+	})
+	require.NoError(t, err)
+
+	decoded := alibabaObject(t, value)
+	assert.Equal(t, []any{"task_origin"}, decoded["originTaskIds"])
+}
+
 // The upstream draft_task id is the vendor id, never the gateway public id.
 func TestDoubaoVideoSubmitRewritesDraftTaskToUpstreamID(t *testing.T) {
 	_, plugin := newDoubaoPlugin(t)
