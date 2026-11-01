@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"io"
 	"maps"
@@ -96,6 +97,7 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 			require.NoError(t, db.Create(&token).Error)
 		}
 		require.NoError(t, db.Create(&model.Token{UserId: root.Id, Key: strings.Repeat("5", 48), Group: "default", Status: common.TokenStatusEnabled, ExpiredTime: -1, UnlimitedQuota: true}).Error)
+		require.NoError(t, db.Create(&model.Token{UserId: root.Id, Key: strings.Repeat("6", 48), Group: "auto", AutoGroups: `["routing"]`, Status: common.TokenStatusEnabled, ExpiredTime: -1, UnlimitedQuota: true}).Error)
 		plan := model.SubscriptionPlan{Title: "cluster-plan", UpgradeGroup: "routing", DowngradeGroup: "routing", Enabled: true, DurationUnit: model.SubscriptionDurationDay, DurationValue: 1}
 		require.NoError(t, db.Create(&plan).Error)
 		require.NoError(t, db.Create(&model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", UpgradeGroup: "routing", DowngradeGroup: "routing", PrevUserGroup: "routing", EndTime: time.Now().Unix() + 3600}).Error)
@@ -114,8 +116,10 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	}
 	model.InitChannelCache()
 	require.NoError(t, model.SyncGroupMigrationNode(context.Background()))
+	pool := &migrationCommitFaultPool{ConnPool: db.ConnPool}
+	db.ConnPool, db.Statement.ConnPool = pool, pool
 	var storageUnavailable atomic.Bool
-	var coordinationReads, controlWrites, controlWriteNanos atomic.Int64
+	var coordinationReads, coordinationWrites, controlWrites, controlWriteNanos, inflightWrites, completedRelays atomic.Int64
 	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:coordination-storage", func(tx *gorm.DB) {
 		switch tx.Statement.Table {
 		case "group_migration_controls", "group_migration_nodes", "group_migration_operations":
@@ -129,6 +133,17 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	// UPDATE elapsed time includes execution and any lock wait; it is not a
 	// measurement of lock wait alone. The fixture has no background poller.
 	require.NoError(t, db.Callback().Update().Before("gorm:update").Register("test:coordination-write-start", func(tx *gorm.DB) {
+		switch tx.Statement.Table {
+		case "group_migration_controls", "group_migration_nodes", "group_migration_operations":
+			coordinationWrites.Add(1)
+		}
+		if tx.Statement.Table == "group_migration_nodes" {
+			if changes, ok := tx.Statement.Dest.(map[string]any); ok {
+				if _, updatesInflight := changes["inflight"]; updatesInflight {
+					inflightWrites.Add(1)
+				}
+			}
+		}
 		if tx.Statement.Table == "group_migration_controls" {
 			controlWrites.Add(1)
 			tx.InstanceSet("test:coordination-write-start", time.Now())
@@ -144,8 +159,16 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	credential, _, err := service.IssueAccessToken(service.AuthIdentity{UserID: root.Id, SessionID: "cluster-session", UserAuthVersion: 1, SessionVersion: 1})
 	require.NoError(t, err)
 	engine := gin.New()
+	engine.Use(gin.RecoveryWithWriter(io.Discard))
 	SetApiRouter(engine)
-	engine.POST("/v1/chat/completions", middleware.TokenAuth(), middleware.Distribute(), func(c *gin.Context) {
+	engine.POST("/v1/chat/completions", func(c *gin.Context) {
+		// Observe completion after authentication's deferred release has run.
+		defer completedRelays.Add(1)
+		c.Next()
+	}, middleware.TokenAuth(), middleware.Distribute(), func(c *gin.Context) {
+		if c.GetHeader("X-Migration-Panic") == "true" {
+			panic("request lifecycle fixture")
+		}
 		group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 		if group == "auto" {
 			group = common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
@@ -169,6 +192,21 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 		storageUnavailable.Store(c.Param("state") == "offline")
 		c.Status(http.StatusOK)
 	})
+	// Exercise the public admission/release contract, including a driver commit
+	// failure after local registration. All queries still use the real database.
+	engine.POST("/test/admission", func(c *gin.Context) {
+		pool.failCommit.Store(c.Query("fail_commit") == "true")
+		groups := []string{"routing", "routing"}
+		done, err := model.AdmitGroupRequest(groups...)
+		if err != nil {
+			c.Status(http.StatusServiceUnavailable)
+			return
+		}
+		groups[0] = "default"
+		done()
+		done()
+		c.Status(http.StatusOK)
+	})
 	// Fault injection at the durable acknowledgement boundary, used to replay
 	// delayed confirmations without replacing the real process coordinator.
 	engine.POST("/test/acknowledgement", func(c *gin.Context) {
@@ -180,6 +218,8 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	engine.GET("/test/coordination-access", func(c *gin.Context) {
 		c.JSON(http.StatusOK, migrationCoordinationAccess{
 			Reads: coordinationReads.Load(), ControlWrites: controlWrites.Load(), ControlWriteNanos: controlWriteNanos.Load(),
+			InflightWrites: inflightWrites.Load(), CompletedRelays: completedRelays.Load(),
+			CoordinationWrites: coordinationWrites.Load(), Transactions: pool.transactions.Load(),
 		})
 	})
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -198,12 +238,46 @@ type migrationProcess struct {
 	url, credential, generation string
 }
 
+// migrationCommitFaultPool injects a failed commit at the database boundary;
+// rollback must also release any local request registered by that transaction.
+type migrationCommitFaultPool struct {
+	gorm.ConnPool
+	failCommit   atomic.Bool
+	transactions atomic.Int64
+}
+
+func (pool *migrationCommitFaultPool) BeginTx(ctx context.Context, options *sql.TxOptions) (gorm.ConnPool, error) {
+	pool.transactions.Add(1)
+	tx, err := pool.ConnPool.(gorm.TxBeginner).BeginTx(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	return &migrationCommitFaultTx{Tx: tx, failCommit: &pool.failCommit}, nil
+}
+
+type migrationCommitFaultTx struct {
+	*sql.Tx
+	failCommit *atomic.Bool
+}
+
+func (tx *migrationCommitFaultTx) Commit() error {
+	if tx.failCommit.Swap(false) {
+		_ = tx.Tx.Rollback()
+		return errors.New("injected admission commit failure")
+	}
+	return tx.Tx.Commit()
+}
+
 // migrationCoordinationAccess provides comparable diagnostics across protocol
 // changes without making today's per-request write count a required contract.
 type migrationCoordinationAccess struct {
-	Reads             int64 `json:"reads"`
-	ControlWrites     int64 `json:"control_writes"`
-	ControlWriteNanos int64 `json:"control_write_nanos"`
+	Reads              int64 `json:"reads"`
+	ControlWrites      int64 `json:"control_writes"`
+	ControlWriteNanos  int64 `json:"control_write_nanos"`
+	InflightWrites     int64 `json:"inflight_writes"`
+	CompletedRelays    int64 `json:"completed_relays"`
+	CoordinationWrites int64 `json:"coordination_writes"`
+	Transactions       int64 `json:"transactions"`
 }
 
 func startMigrationProcess(t *testing.T, database, name, upstream string, seed bool, replacement string) *migrationProcess {
@@ -342,26 +416,29 @@ func awaitMigrationRecovery(t *testing.T, result <-chan migrationHTTPResult, par
 }
 
 func TestGroupMigrationCluster(t *testing.T) {
-	held, release := make(chan struct{}, 1), make(chan struct{})
-	var once sync.Once
+	held := make(chan chan struct{}, 1)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Migration-Hold") == "true" {
 			w.Header().Set("Content-Type", "text/event-stream")
 			_, _ = w.Write([]byte("data: first\n\n"))
 			w.(http.Flusher).Flush()
-			held <- struct{}{}
-			<-release
+			release := make(chan struct{})
+			held <- release
+			select {
+			case <-release:
+			case <-r.Context().Done():
+				return
+			}
 		}
 		_, _ = w.Write([]byte(`{"upstream":"original"}`))
 	}))
 	t.Cleanup(upstream.Close)
-	t.Cleanup(func() { once.Do(func() { close(release) }) })
 	database := filepath.Join(t.TempDir(), "cluster.db")
 	// Go byte ordering differs from common database collations for this roster.
 	a := startMigrationProcess(t, database, "Migration-B", upstream.URL, true, "")
 	b := startMigrationProcess(t, database, "migration-a", upstream.URL, false, "")
 	for _, process := range []*migrationProcess{a, b} {
-		for _, key := range []string{"1", "2", "3", "4"} {
+		for _, key := range []string{"1", "2", "3", "4", "6"} {
 			response := process.relay(false, key)
 			require.NoError(t, response.err)
 			require.Equal(t, http.StatusOK, response.status, string(response.body))
@@ -376,9 +453,13 @@ func TestGroupMigrationCluster(t *testing.T) {
 	require.NoError(t, response.err)
 	require.Equal(t, http.StatusOK, response.status, string(response.body))
 	require.Equal(t, "routing", response.header.Get("X-Routed-Group"))
-	status, body, _ = a.request(t, http.MethodGet, "/test/coordination-access", nil)
-	require.Equal(t, http.StatusOK, status)
-	require.NoError(t, common.Unmarshal(body, &after))
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		status, body, _ = a.request(t, http.MethodGet, "/test/coordination-access", nil)
+		require.Equal(t, http.StatusOK, status)
+		require.NoError(t, common.Unmarshal(body, &after))
+		assert.Equal(c, before.CompletedRelays+1, after.CompletedRelays)
+	}, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, before.InflightWrites, after.InflightWrites, "ordinary admission and release must not persist per-request counts")
 	t.Logf("ordinary relay coordination: reads=%d control_writes=%d control_update_elapsed=%s (includes execution and lock wait)",
 		after.Reads-before.Reads, after.ControlWrites-before.ControlWrites, time.Duration(after.ControlWriteNanos-before.ControlWriteNanos))
 	// Zero admitted requests does not prove an old process has stopped: it may
@@ -391,11 +472,56 @@ func TestGroupMigrationCluster(t *testing.T) {
 	// A replacement cannot claim an old generation's outstanding requests drained.
 	relayFinished := make(chan migrationHTTPResult, 1)
 	go func() { relayFinished <- b.relay(true, "1") }()
+	var releaseStream func()
 	select {
-	case <-held:
+	case release := <-held:
+		releaseStream = sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseStream)
 	case <-time.After(5 * time.Second):
 		t.Fatal("remote request was not admitted")
 	}
+	status, body, _ = b.request(t, http.MethodPost, "/test/admission?fail_commit=true", nil)
+	require.Equal(t, http.StatusServiceUnavailable, status, string(body))
+	status, body, _ = b.request(t, http.MethodPost, "/test/admission", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	// All these accepted requests must unwind their registration before the
+	// surviving stream can become the only reason for the upcoming drain wait.
+	for _, failure := range []struct {
+		name, body string
+		status     int
+	}{
+		{"invalid body", `{"model":`, http.StatusBadRequest},
+		{"panic", `{"model":"migration-probe","messages":[]}`, http.StatusInternalServerError},
+	} {
+		t.Run(failure.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodPost, b.url+"/v1/chat/completions", strings.NewReader(failure.body))
+			require.NoError(t, err)
+			req.Header.Set("Authorization", "Bearer sk-"+strings.Repeat("1", 48))
+			req.Header.Set("Content-Type", "application/json")
+			if failure.name == "panic" {
+				req.Header.Set("X-Migration-Panic", "true")
+			}
+			response := migrationHTTP(req)
+			require.NoError(t, response.err)
+			require.Equal(t, failure.status, response.status, string(response.body))
+		})
+	}
+	cancelContext, cancelRequest := context.WithCancel(context.Background())
+	t.Cleanup(cancelRequest)
+	cancelled, err := http.NewRequestWithContext(cancelContext, http.MethodPost, b.url+"/v1/chat/completions", strings.NewReader(`{"model":"migration-probe","messages":[]}`))
+	require.NoError(t, err)
+	cancelled.Header.Set("Authorization", "Bearer sk-"+strings.Repeat("1", 48))
+	cancelled.Header.Set("Content-Type", "application/json")
+	cancelled.Header.Set("X-Migration-Hold", "true")
+	cancelledResult := make(chan migrationHTTPResult, 1)
+	go func() { cancelledResult <- migrationHTTP(cancelled) }()
+	select {
+	case <-held:
+	case <-time.After(5 * time.Second):
+		t.Fatal("cancellable stream was not admitted")
+	}
+	cancelRequest()
+	require.ErrorIs(t, (<-cancelledResult).err, context.Canceled)
 	replacement := exec.Command(os.Args[0], "-test.run=^TestGroupMigrationNodeProcess$")
 	replacement.Env = append(b.cmd.Env, "TEST_MIGRATION_REGISTER_ONLY=true")
 	output, err := replacement.CombinedOutput()
@@ -414,18 +540,38 @@ func TestGroupMigrationCluster(t *testing.T) {
 	op := b.waitState(t, submission.OperationID, "paused")
 	require.False(t, op.Coordination.Ready)
 	require.Equal(t, "draining", op.Coordination.Nodes[1].Phase)
+	assert.Zero(t, op.Coordination.Nodes[1].Inflight, "a zero diagnostic count must not substitute for local drain")
 	unrelated := b.relay(false, "5")
 	require.NoError(t, unrelated.err)
 	require.Equal(t, http.StatusOK, unrelated.status, string(unrelated.body))
 	require.Equal(t, "default", unrelated.header.Get("X-Routed-Group"))
-	blocked := b.relay(false, "2")
-	require.NoError(t, blocked.err)
-	require.Equal(t, http.StatusServiceUnavailable, blocked.status)
+	var blocked migrationHTTPResult
+	for _, key := range []string{"1", "2", "3", "4", "6"} {
+		blocked = b.relay(false, key)
+		require.NoError(t, blocked.err)
+		require.Equal(t, http.StatusServiceUnavailable, blocked.status, "closed dependency must reject key %s", key)
+	}
 	require.NoError(t, a.cmd.Process.Kill())
 	require.Error(t, (<-abandoned).err)
 	a = startMigrationProcess(t, database, "Migration-B", upstream.URL, false, a.generation)
-	once.Do(func() { close(release) })
+	// No background poller runs in b. Ending an accepted response while storage
+	// is offline must release locally without even attempting coordination I/O.
+	b.request(t, http.MethodPost, "/test/storage/offline", nil)
+	_, body, _ = b.request(t, http.MethodGet, "/test/coordination-access", nil)
+	require.NoError(t, common.Unmarshal(body, &before))
+	releaseStream()
 	require.Equal(t, http.StatusOK, (<-relayFinished).status)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		_, body, _ = b.request(t, http.MethodGet, "/test/coordination-access", nil)
+		require.NoError(t, common.Unmarshal(body, &after))
+		assert.Equal(c, before.CompletedRelays+1, after.CompletedRelays)
+	}, 5*time.Second, 10*time.Millisecond)
+	assert.Equal(t, before.Reads, after.Reads, "release must not query coordination storage")
+	assert.Equal(t, before.ControlWrites, after.ControlWrites, "release must not enter a control transaction")
+	assert.Equal(t, before.CoordinationWrites, after.CoordinationWrites, "release must not write coordination storage")
+	assert.Equal(t, before.Transactions, after.Transactions, "release must not open a database transaction")
+	assert.Equal(t, before.InflightWrites, after.InflightWrites, "release must not persist a count")
+	b.request(t, http.MethodPost, "/test/storage/online", nil)
 	b.request(t, http.MethodPost, "/test/sync", nil)
 	abortRecovery := awaitMigrationRecovery(t, a.begin(t, "/api/option/group_migration/cluster-abort/resume", nil), b)
 	status, body = abortRecovery.status, abortRecovery.body
@@ -441,6 +587,20 @@ func TestGroupMigrationCluster(t *testing.T) {
 	require.NoError(t, common.Unmarshal(body, &preview))
 	require.Empty(t, preview.Data.ExecutionBlockers)
 	submission.OperationID, submission.Version, submission.Confirmation = "cluster-cutover", preview.Data.Version, preview.Data.Confirmation
+	// Hold unrelated traffic across the entire cutover: node-wide activity must
+	// not stand in for the affected routing dependencies' drain acknowledgements.
+	unrelatedFinished := make(chan migrationHTTPResult, 1)
+	go func() { unrelatedFinished <- b.relay(true, "5") }()
+	var releaseUnrelated func()
+	select {
+	case release := <-held:
+		releaseUnrelated = sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseUnrelated)
+	case <-time.After(5 * time.Second):
+		t.Fatal("unrelated stream was not admitted")
+	}
+	status, body, _ = b.request(t, http.MethodPost, "/test/acknowledgement", map[string]any{"inflight": 12})
+	require.Equal(t, http.StatusOK, status, string(body))
 	finished := a.begin(t, "/api/option/group_migration", submission)
 	b.waitState(t, submission.OperationID, "paused")
 	// Merely observing a heartbeat never substitutes for a barrier acknowledgement.
@@ -449,6 +609,10 @@ func TestGroupMigrationCluster(t *testing.T) {
 	b.request(t, http.MethodPost, "/test/sync", nil)
 	op = b.waitState(t, submission.OperationID, "committed")
 	require.False(t, op.Coordination.Ready)
+	// The unrelated stream remained open while the affected group drained and
+	// committed; it does not need to end before the data transition.
+	releaseUnrelated()
+	require.Equal(t, http.StatusOK, (<-unrelatedFinished).status)
 	// The committed operation survives coordinator loss and a participant restart.
 	require.NoError(t, a.cmd.Process.Kill())
 	require.Error(t, (<-finished).err)
@@ -495,7 +659,7 @@ func TestGroupMigrationCluster(t *testing.T) {
 	require.Equal(t, http.StatusOK, status, string(body))
 	require.Contains(t, string(body), `"state":"completed"`)
 	for _, process := range []*migrationProcess{a, b} {
-		for _, key := range []string{"1", "2", "3", "4"} {
+		for _, key := range []string{"1", "2", "3", "4", "6"} {
 			response := process.relay(false, key)
 			require.NoError(t, response.err)
 			require.Equal(t, http.StatusOK, response.status, string(response.body))

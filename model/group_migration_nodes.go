@@ -28,8 +28,10 @@ type GroupMigrationNode struct {
 	Revision            int64  `json:"revision"`
 	CoordinationVersion int64  `json:"coordination_version"`
 	ProtocolVersion     int    `json:"-"`
-	Inflight            int64  `json:"inflight"`
-	LastSeenAt          int64  `json:"last_seen_at"`
+	// Inflight is retained for legacy diagnostic compatibility. It is no longer
+	// maintained by requests and cannot prove drain or a stopped generation.
+	Inflight   int64 `json:"inflight"`
+	LastSeenAt int64 `json:"last_seen_at"`
 }
 
 type GroupMigrationCoordination struct {

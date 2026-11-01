@@ -266,9 +266,6 @@ func AdmitGroupRequestAtVersion(version uint64, groups ...string) (func(), error
 		groupViewMutex.Lock()
 		defer groupViewMutex.Unlock()
 		var release func()
-		groupMigrationTraffic.Lock()
-		owner := groupMigrationTraffic.owner
-		groupMigrationTraffic.Unlock()
 		err := DB.Transaction(func(tx *gorm.DB) error {
 			var control GroupMigrationControl
 			if err := control.lock(tx); err != nil {
@@ -279,10 +276,7 @@ func AdmitGroupRequestAtVersion(version uint64, groups ...string) (func(), error
 			}
 			var err error
 			release, err = admitGroupRequest(version, groups...)
-			if err != nil {
-				return err
-			}
-			return tx.Model(&GroupMigrationNode{}).Where("name = ? AND generation = ?", common.NodeName, owner).Update("inflight", gorm.Expr("inflight + 1")).Error
+			return err
 		})
 		if err != nil && release != nil {
 			release()
@@ -290,21 +284,9 @@ func AdmitGroupRequestAtVersion(version uint64, groups ...string) (func(), error
 		if err != nil {
 			return nil, err
 		}
-		return sync.OnceFunc(func() {
-			release()
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			// A lost release acknowledgement conservatively retains the count.
-			// Replacing that generation then requires an explicit stopped-process
-			// declaration instead of an unsafe expiry-based drain assumption.
-			_ = DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-				var control GroupMigrationControl
-				if err := control.lock(tx); err != nil {
-					return err
-				}
-				return tx.Model(&GroupMigrationNode{}).Where("name = ? AND generation = ? AND inflight > 0", common.NodeName, owner).Update("inflight", gorm.Expr("inflight - 1")).Error
-			})
-		}), nil
+		// The returned release only touches local counters, even if storage is
+		// unavailable. Only a later valid phase acknowledgement proves drain.
+		return release, nil
 	}
 	return admitGroupRequest(version, groups...)
 }
@@ -312,6 +294,11 @@ func AdmitGroupRequestAtVersion(version uint64, groups ...string) (func(), error
 // admitGroupRequest rejects paused or changed routing dependencies and counts
 // admitted work until the caller invokes the idempotent release function.
 func admitGroupRequest(version uint64, groups ...string) (func(), error) {
+	// Own the dependency snapshot until release; repeated dependencies describe
+	// one request, and callers may reuse their input slice after admission.
+	groups = slices.Clone(groups)
+	slices.Sort(groups)
+	groups = slices.Compact(groups)
 	groupMigrationTraffic.Lock()
 	defer groupMigrationTraffic.Unlock()
 	if os.Getenv("GROUP_MIGRATION_NODES") != "" && !groupMigrationTraffic.ready {
