@@ -40,6 +40,7 @@ func flushCompletedBuckets() {
 		err := model.UpsertPerfMetric(&model.PerfMetric{
 			ModelName:      k.model,
 			Group:          k.group,
+			ChannelId:      k.channelId,
 			BucketTs:       k.bucketTs,
 			RequestCount:   drained.requestCount,
 			SuccessCount:   drained.successCount,
@@ -51,7 +52,7 @@ func flushCompletedBuckets() {
 		})
 		if err != nil {
 			bucket.addCounters(drained)
-			common.SysError(common.LogText("failed to flush perf metric bucket model=%s group=%s bucket=%d: %s", k.model, k.group, k.bucketTs, err.Error()))
+			common.SysError(common.LogText("failed to flush perf metric bucket model=%s group=%s channel=%d bucket=%d: %s", k.model, k.group, k.channelId, k.bucketTs, err.Error()))
 			return true
 		}
 
