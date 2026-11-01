@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,28 +22,34 @@ import (
 // The singleton control row serializes reference writers with migration commits.
 // Owner is a process generation, never an expiring heartbeat lease.
 type GroupMigrationControl struct {
-	ID              int `gorm:"primaryKey;autoIncrement:false"`
-	Fence           int64
-	OperationID     string `gorm:"type:varchar(64)"`
-	Owner           string `gorm:"type:varchar(64)"`
-	Revision        int64
-	LastOperationID string `gorm:"type:varchar(64)"`
+	ID    int `gorm:"primaryKey;autoIncrement:false"`
+	Fence int64
+	// CoordinationVersion changes only when authority, stage or participants
+	// change. Fence is lock bookkeeping; Revision identifies committed data.
+	CoordinationVersion int64
+	Stage               string `gorm:"type:varchar(16)"`
+	OperationID         string `gorm:"type:varchar(64)"`
+	Owner               string `gorm:"type:varchar(64)"`
+	Revision            int64
+	LastOperationID     string `gorm:"type:varchar(64)"`
 }
 
 type GroupMigrationOperation struct {
-	ID           string                      `json:"id" gorm:"type:varchar(64);primaryKey"`
-	Source       string                      `json:"source" gorm:"type:varchar(50)"`
-	Target       string                      `json:"target" gorm:"type:varchar(50)"`
-	Version      string                      `json:"version" gorm:"type:varchar(64)"`
-	ActorID      int                         `json:"actor_id"`
-	State        string                      `json:"state" gorm:"type:varchar(32)"`
-	CreatedAt    int64                       `json:"created_at"`
-	UpdatedAt    int64                       `json:"updated_at"`
-	Reason       string                      `json:"reason" gorm:"type:text"`
-	Counts       string                      `json:"counts" gorm:"type:text"`
-	Values       string                      `json:"-" gorm:"type:text"`
-	Participants string                      `json:"-" gorm:"type:text"`
-	Coordination *GroupMigrationCoordination `json:"coordination,omitempty" gorm:"-"`
+	ID                  string                      `json:"id" gorm:"type:varchar(64);primaryKey"`
+	Source              string                      `json:"source" gorm:"type:varchar(50)"`
+	Target              string                      `json:"target" gorm:"type:varchar(50)"`
+	Version             string                      `json:"version" gorm:"type:varchar(64)"`
+	ActorID             int                         `json:"actor_id"`
+	State               string                      `json:"state" gorm:"type:varchar(32)"`
+	CreatedAt           int64                       `json:"created_at"`
+	UpdatedAt           int64                       `json:"updated_at"`
+	Reason              string                      `json:"reason" gorm:"type:text"`
+	Counts              string                      `json:"counts" gorm:"type:text"`
+	Values              string                      `json:"-" gorm:"type:text"`
+	Participants        string                      `json:"-" gorm:"type:text"`
+	ProtocolVersion     int                         `json:"-"`
+	CoordinationVersion int64                       `json:"-"`
+	Coordination        *GroupMigrationCoordination `json:"coordination,omitempty" gorm:"-"`
 }
 
 type GroupMigrationSubmission struct {
@@ -60,6 +67,9 @@ var groupMigrationTraffic = struct {
 	inflight                                        map[string]int
 	epoch                                           uint64
 	changed                                         map[string]uint64
+	observation                                     *groupMigrationLocalObservation
+	ready                                           bool
+	conflicted                                      bool
 }{inflight: map[string]int{}, changed: map[string]uint64{}}
 
 type groupMigrationPausedError struct{ *common.Message }
@@ -146,7 +156,12 @@ func InitGroupMigrations(ctx context.Context) error {
 	if err := DB.AutoMigrate(&GroupMigrationControl{}, &GroupMigrationOperation{}, &GroupMigrationNode{}); err != nil {
 		return err
 	}
-	if err := DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&GroupMigrationControl{ID: 1}).Error; err != nil {
+	if err := DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&GroupMigrationControl{ID: 1, CoordinationVersion: 1, Stage: "idle"}).Error; err != nil {
+		return err
+	}
+	// Only an idle legacy control can be initialized. Active legacy records
+	// retain their barrier: old name-only acknowledgements are never upgraded.
+	if err := DB.Model(&GroupMigrationControl{}).Where("id = ? AND operation_id = ? AND (coordination_version IS NULL OR coordination_version = 0)", 1, "").Updates(map[string]any{"coordination_version": 1, "stage": "idle"}).Error; err != nil {
 		return err
 	}
 	owner := common.GetRandomString(32)
@@ -158,6 +173,8 @@ func InitGroupMigrations(ctx context.Context) error {
 	groupMigrationTraffic.owner = owner
 	groupMigrationTraffic.recoveryOwner = control.Owner
 	groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = "", "", ""
+	groupMigrationTraffic.observation, groupMigrationTraffic.ready = nil, false
+	groupMigrationTraffic.conflicted = false
 	groupMigrationTraffic.Unlock()
 	if err := installGroupMigrationWriteBarrier(DB); err != nil {
 		return err
@@ -184,22 +201,33 @@ func InitGroupMigrations(ctx context.Context) error {
 		return err
 	}
 	setGroupMigrationPause(op)
+	if err := validateGroupMigrationProtocol(&control, op); err != nil {
+		return nil // Preserve the barrier and allow root to inspect recovery requirements.
+	}
 	if err := groupMigrationQualification(DB); err != nil {
 		return nil
 	}
-	result := DB.Model(&GroupMigrationControl{}).Where("id = ? AND owner = ? AND operation_id = ?", 1, control.Owner, op.ID).Update("owner", owner)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected != 1 {
-		return errors.New("group migration recovery ownership changed")
-	}
 	groupOptionMutex.Lock()
 	defer groupOptionMutex.Unlock()
+	takeover := *op
+	if err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current GroupMigrationControl
+		if err := current.lock(tx); err != nil {
+			return err
+		}
+		if current.Owner != control.Owner || current.OperationID != op.ID || current.CoordinationVersion != op.CoordinationVersion {
+			return ErrGroupMigrationPaused
+		}
+		current.Owner = owner
+		return advanceGroupMigrationCoordination(tx, &current, &takeover, current.Stage)
+	}); err != nil {
+		return err
+	}
+	op.CoordinationVersion = takeover.CoordinationVersion
 	if op.State == "committed" {
 		return finishGroupMigration(ctx, op, owner)
 	}
-	return releaseGroupMigration(ctx, op, owner, "aborted", "Migration stopped before commit; preview and confirm again.")
+	return abortGroupMigration(ctx, op, owner, "Migration stopped before commit; preview and confirm again.")
 }
 
 func setGroupMigrationPause(op *GroupMigrationOperation) {
@@ -286,6 +314,9 @@ func AdmitGroupRequestAtVersion(version uint64, groups ...string) (func(), error
 func admitGroupRequest(version uint64, groups ...string) (func(), error) {
 	groupMigrationTraffic.Lock()
 	defer groupMigrationTraffic.Unlock()
+	if os.Getenv("GROUP_MIGRATION_NODES") != "" && !groupMigrationTraffic.ready {
+		return nil, ErrGroupMigrationPaused
+	}
 	for _, group := range groups {
 		if groupMigrationTraffic.changed[group] > version {
 			return nil, ErrGroupMigrationPaused
@@ -344,16 +375,7 @@ func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmissi
 	if owner == "" {
 		return nil, common.NewMessage("Group migration coordination is unavailable.")
 	}
-	op := &GroupMigrationOperation{ID: submission.OperationID, Source: submission.Source, Target: submission.Target, Version: submission.Version, ActorID: actor, State: "paused", CreatedAt: time.Now().Unix(), UpdatedAt: time.Now().Unix()}
-	if roster, err := groupMigrationRoster(); err != nil {
-		return nil, err
-	} else if roster != nil {
-		encoded, err := common.Marshal(roster)
-		if err != nil {
-			return nil, err
-		}
-		op.Participants = string(encoded)
-	}
+	op := &GroupMigrationOperation{ID: submission.OperationID, Source: submission.Source, Target: submission.Target, Version: submission.Version, ActorID: actor, State: "paused", ProtocolVersion: groupMigrationProtocolVersion, CreatedAt: time.Now().Unix(), UpdatedAt: time.Now().Unix()}
 	err = DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var control GroupMigrationControl
 		if err := control.lock(tx); err != nil {
@@ -361,6 +383,27 @@ func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmissi
 		}
 		if control.OperationID != "" {
 			return ErrGroupMigrationPaused
+		}
+		if roster, err := groupMigrationRoster(); err != nil {
+			return err
+		} else if roster != nil {
+			if err := qualifyGroupMigrationNodes(tx, roster); err != nil {
+				return err
+			}
+			var participants []groupMigrationParticipant
+			if err := tx.Model(&GroupMigrationNode{}).Select("name", "generation").Where("name IN ?", roster).Find(&participants).Error; err != nil {
+				return err
+			}
+			// Database collations need not use the byte ordering of the declared
+			// roster. Persist the same canonical order used to validate snapshots.
+			slices.SortFunc(participants, func(a, b groupMigrationParticipant) int {
+				return strings.Compare(a.Name, b.Name)
+			})
+			encoded, err := common.Marshal(participants)
+			if err != nil {
+				return err
+			}
+			op.Participants = string(encoded)
 		}
 		preview, err := previewGroupMigration(tx, op.Source, op.Target)
 		if err != nil {
@@ -374,10 +417,11 @@ func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmissi
 			return err
 		}
 		op.Counts = string(counts)
+		op.CoordinationVersion = control.CoordinationVersion + 1
 		if err := tx.Create(op).Error; err != nil {
 			return err
 		}
-		return tx.Model(&control).Updates(map[string]any{"operation_id": op.ID, "owner": owner}).Error
+		return tx.Model(&control).Updates(map[string]any{"operation_id": op.ID, "owner": owner, "coordination_version": op.CoordinationVersion, "stage": "draining"}).Error
 	})
 	if err != nil {
 		// Commit acknowledgement can be lost after the barrier was persisted.
@@ -419,7 +463,7 @@ func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmissi
 		}
 		select {
 		case <-drain.Done():
-			return op, releaseGroupMigration(context.Background(), op, owner, "aborted", "Accepted requests did not drain; preview and confirm again.")
+			return op, abortGroupMigration(context.Background(), op, owner, "Accepted requests did not drain; preview and confirm again.")
 		case <-ticker.C:
 		}
 	}
@@ -428,7 +472,7 @@ func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmissi
 		if err := control.lock(tx); err != nil {
 			return err
 		}
-		if control.Owner != owner || control.OperationID != op.ID {
+		if control.Owner != owner || control.OperationID != op.ID || control.CoordinationVersion != op.CoordinationVersion || control.Stage != "draining" {
 			return ErrGroupMigrationPaused
 		}
 		if op.Participants != "" {
@@ -469,7 +513,8 @@ func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmissi
 		if err := tx.Save(op).Error; err != nil {
 			return err
 		}
-		return tx.Model(&control).Update("revision", gorm.Expr("revision + 1")).Error
+		control.Revision++
+		return advanceGroupMigrationCoordination(tx, &control, op, "syncing")
 	})
 	if err != nil {
 		// A commit error can be ambiguous. Only the durable state decides whether
@@ -481,7 +526,7 @@ func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmissi
 		if op.State == "committed" {
 			return op, err
 		}
-		if releaseErr := releaseGroupMigration(context.Background(), op, owner, "aborted", "Migration stopped before commit; preview and confirm again."); releaseErr != nil {
+		if releaseErr := abortGroupMigration(context.Background(), op, owner, "Migration stopped before commit; preview and confirm again."); releaseErr != nil {
 			return op, releaseErr
 		}
 		return op, err
@@ -501,6 +546,54 @@ func finishGroupMigration(ctx context.Context, op *GroupMigrationOperation, owne
 	return releaseGroupMigration(ctx, op, owner, "completed", "")
 }
 
+// abortGroupMigration never rolls committed data back. Before releasing a
+// precommit barrier, all participants drain and then confirm the unchanged
+// durable view at a new version, including after coordinator recovery.
+func abortGroupMigration(ctx context.Context, op *GroupMigrationOperation, owner, reason string) error {
+	var control GroupMigrationControl
+	if err := DB.WithContext(ctx).First(&control, 1).Error; err != nil {
+		return err
+	}
+	if control.Stage == "draining" {
+		transition := *op
+		if op.Participants != "" {
+			if err := waitGroupMigrationNodes(ctx, op, owner, "drained"); err != nil {
+				return err
+			}
+		}
+		if err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := control.lock(tx); err != nil {
+				return err
+			}
+			if control.Owner != owner || control.OperationID != op.ID || control.CoordinationVersion != op.CoordinationVersion || control.Stage != "draining" {
+				return ErrGroupMigrationPaused
+			}
+			if op.Participants != "" {
+				if err := groupMigrationNodesAcknowledged(tx, op, "drained"); err != nil {
+					return err
+				}
+			} else {
+				groupMigrationTraffic.Lock()
+				active := groupMigrationTraffic.inflight[op.Source] + groupMigrationTraffic.inflight[op.Target]
+				groupMigrationTraffic.Unlock()
+				if active != 0 {
+					return ErrGroupMigrationPaused
+				}
+			}
+			return advanceGroupMigrationCoordination(tx, &control, &transition, "aborting")
+		}); err != nil {
+			return err
+		}
+		op.CoordinationVersion = transition.CoordinationVersion
+	}
+	if op.Participants != "" {
+		if err := waitGroupMigrationNodes(ctx, op, owner, "synced"); err != nil {
+			return err
+		}
+	}
+	return releaseGroupMigration(ctx, op, owner, "aborted", reason)
+}
+
 // releaseGroupMigration checks durable ownership and deployment readiness before
 // clearing the barrier. Single-node completion publishes caches while fenced;
 // a failed transaction retains the barrier for a later recovery attempt.
@@ -509,12 +602,13 @@ func releaseGroupMigration(ctx context.Context, op *GroupMigrationOperation, own
 		groupViewMutex.Lock()
 		defer groupViewMutex.Unlock()
 	}
+	var released GroupMigrationOperation
 	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var control GroupMigrationControl
 		if err := control.lock(tx); err != nil {
 			return err
 		}
-		if control.Owner != owner || control.OperationID != op.ID {
+		if control.Owner != owner || control.OperationID != op.ID || control.CoordinationVersion != op.CoordinationVersion {
 			return ErrGroupMigrationPaused
 		}
 		var current GroupMigrationOperation
@@ -524,15 +618,17 @@ func releaseGroupMigration(ctx context.Context, op *GroupMigrationOperation, own
 		if state == "aborted" && current.State != "paused" || state == "completed" && current.State != "committed" {
 			return ErrGroupMigrationPaused
 		}
+		if err := validateGroupMigrationProtocol(&control, &current); err != nil {
+			return err
+		}
+		if state == "aborted" && control.Stage != "aborting" || state == "completed" && control.Stage != "syncing" {
+			return ErrGroupMigrationPaused
+		}
 		if err := groupMigrationQualification(tx); err != nil {
 			return err
 		}
 		if op.Participants != "" {
-			phase := "drained"
-			if state == "completed" {
-				phase = "synced"
-			}
-			if err := groupMigrationNodesAcknowledged(tx, op, phase); err != nil {
+			if err := groupMigrationNodesAcknowledged(tx, op, "synced"); err != nil {
 				return err
 			}
 		}
@@ -558,11 +654,22 @@ func releaseGroupMigration(ctx context.Context, op *GroupMigrationOperation, own
 				return err
 			}
 		}
-		if err := tx.Model(op).Updates(map[string]any{"state": state, "reason": reason, "updated_at": time.Now().Unix()}).Error; err != nil {
+		if err := tx.Model(&current).Updates(map[string]any{"state": state, "reason": reason, "updated_at": time.Now().Unix()}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&control).Updates(map[string]any{"operation_id": "", "owner": "", "last_operation_id": op.ID}).Error
+		control.OperationID, control.Owner, control.LastOperationID = "", "", op.ID
+		if err := advanceGroupMigrationCoordination(tx, &control, &current, "idle"); err != nil {
+			return err
+		}
+		released = current
+		return nil
 	})
+	if err == nil {
+		op.State, op.Reason, op.UpdatedAt, op.CoordinationVersion = released.State, released.Reason, released.UpdatedAt, released.CoordinationVersion
+	}
+	if err == nil && op.Participants != "" {
+		return SyncGroupMigrationNode(ctx) // Observe durable release before reopening locally.
+	}
 	if err == nil {
 		groupMigrationTraffic.Lock()
 		if groupMigrationTraffic.owner == owner && groupMigrationTraffic.operation == op.ID {
@@ -593,6 +700,9 @@ func ResumeGroupMigration(ctx context.Context, id string) (*GroupMigrationOperat
 	recoveryOwner, operation := groupMigrationTraffic.recoveryOwner, groupMigrationTraffic.operation
 	groupMigrationTraffic.Unlock()
 	if op.State == "completed" || op.State == "aborted" {
+		if os.Getenv("GROUP_MIGRATION_NODES") != "" {
+			return op, SyncGroupMigrationNode(ctx)
+		}
 		if operation != id {
 			return op, nil
 		}
@@ -623,6 +733,7 @@ func ResumeGroupMigration(ctx context.Context, id string) (*GroupMigrationOperat
 	}
 	// A restart without the declaration retains the old owner. Only the owner
 	// observed at startup may be reclaimed; a later replacement stays fenced.
+	var recovered GroupMigrationOperation
 	err = DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var control GroupMigrationControl
 		if err := control.lock(tx); err != nil {
@@ -631,23 +742,40 @@ func ResumeGroupMigration(ctx context.Context, id string) (*GroupMigrationOperat
 		if err := groupMigrationQualification(tx); err != nil {
 			return err
 		}
-		if control.OperationID != id || owner == "" || op.Participants == "" && (operation != id || control.Owner != owner && control.Owner != recoveryOwner) {
+		// Re-read under the transition lock: an earlier status response is not
+		// authority to take over a later stage or a newer participant snapshot.
+		if err := tx.First(&recovered, "id = ?", id).Error; err != nil {
+			return err
+		}
+		if err := validateGroupMigrationProtocol(&control, &recovered); err != nil {
+			return err
+		}
+		if control.OperationID != id || owner == "" || recovered.Participants == "" && (operation != id || control.Owner != owner && control.Owner != recoveryOwner) {
 			return ErrGroupMigrationPaused
 		}
-		return tx.Model(&control).Update("owner", owner).Error
+		if control.Owner == owner {
+			return nil
+		}
+		if recovered.Participants != "" {
+			var owners int64
+			if err := tx.Model(&GroupMigrationNode{}).Where("generation = ?", control.Owner).Count(&owners).Error; err != nil {
+				return err
+			}
+			if owners != 0 || control.Owner != recoveryOwner {
+				return ErrGroupMigrationPaused
+			}
+		}
+		control.Owner = owner
+		return advanceGroupMigrationCoordination(tx, &control, &recovered, control.Stage)
 	})
 	if err != nil {
 		return op, err
 	}
+	*op = recovered
 	if op.State == "committed" {
 		err = finishGroupMigration(ctx, op, owner)
 	} else {
-		if op.Participants != "" {
-			if err = waitGroupMigrationNodes(ctx, op, owner, "drained"); err != nil {
-				return op, err
-			}
-		}
-		err = releaseGroupMigration(ctx, op, owner, "aborted", "Migration stopped before commit; preview and confirm again.")
+		err = abortGroupMigration(ctx, op, owner, "Migration stopped before commit; preview and confirm again.")
 	}
 	return op, err
 }

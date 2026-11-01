@@ -49,9 +49,10 @@ func TestInitResourcesRecoversCommittedGroupMigration(t *testing.T) {
 			require.NoError(t, db.Create(&model.Option{Key: "GroupRatio", Value: `{"default":1,"renamed":0.75}`}).Error)
 			require.NoError(t, db.Create(&model.GroupMigrationOperation{
 				ID: "startup-recovery", Source: "old-group", Target: "renamed", State: "committed",
+				ProtocolVersion: 2, CoordinationVersion: 2,
 				Values: `{"GroupRatio":"{\"default\":1,\"renamed\":0.75}"}`,
 			}).Error)
-			require.NoError(t, db.Create(&model.GroupMigrationControl{ID: 1, Owner: "previous-process", OperationID: "startup-recovery"}).Error)
+			require.NoError(t, db.Create(&model.GroupMigrationControl{ID: 1, Owner: "previous-process", OperationID: "startup-recovery", CoordinationVersion: 2, Stage: "syncing"}).Error)
 			sqlDB, err := db.DB()
 			require.NoError(t, err)
 			require.NoError(t, sqlDB.Close())

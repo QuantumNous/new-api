@@ -258,6 +258,8 @@ func TestRefreshGroupMigrationCaches(t *testing.T) {
 		previousSource, previousTarget := groupMigrationTraffic.source, groupMigrationTraffic.target
 		previousEpoch, previousChanged := groupMigrationTraffic.epoch, groupMigrationTraffic.changed
 		previousInflight := groupMigrationTraffic.inflight
+		previousObservation, previousReady := groupMigrationTraffic.observation, groupMigrationTraffic.ready
+		previousConflicted := groupMigrationTraffic.conflicted
 		groupMigrationTraffic.changed = map[string]uint64{}
 		groupMigrationTraffic.inflight = map[string]int{}
 		groupMigrationTraffic.Unlock()
@@ -270,17 +272,19 @@ func TestRefreshGroupMigrationCaches(t *testing.T) {
 			groupMigrationTraffic.source, groupMigrationTraffic.target = previousSource, previousTarget
 			groupMigrationTraffic.epoch, groupMigrationTraffic.changed = previousEpoch, previousChanged
 			groupMigrationTraffic.inflight = previousInflight
+			groupMigrationTraffic.observation, groupMigrationTraffic.ready = previousObservation, previousReady
+			groupMigrationTraffic.conflicted = previousConflicted
 			groupMigrationTraffic.Unlock()
 			group2model2channels, channelsIDM, channel2advancedCustomConfig = previousGroups, previousChannels, previousAdvanced
 		})
 		common.MemoryCacheEnabled = true
 		require.NoError(t, DB.Create(&Channel{Id: 1, Group: "vip", Models: "cache-model", Status: common.ChannelStatusEnabled}).Error)
 		require.NoError(t, DB.Create(&Ability{ChannelId: 1, Group: "vip", Model: "cache-model", Enabled: true}).Error)
-		op := GroupMigrationOperation{ID: "cache-operation", Source: "old", Target: "vip", State: "committed", Values: `{}`}
+		op := GroupMigrationOperation{ID: "cache-operation", Source: "old", Target: "vip", State: "committed", Values: `{}`, ProtocolVersion: groupMigrationProtocolVersion, CoordinationVersion: 1, Participants: `[{"name":"cache-a","generation":"cache-a"},{"name":"cache-b","generation":"cache-b"}]`}
 		require.NoError(t, DB.Create(&op).Error)
-		require.NoError(t, DB.Create(&GroupMigrationControl{ID: 1, Revision: 1, OperationID: op.ID}).Error)
+		require.NoError(t, DB.Create(&GroupMigrationControl{ID: 1, Revision: 1, OperationID: op.ID, CoordinationVersion: 1, Stage: "syncing"}).Error)
 		for _, name := range []string{"cache-a", "cache-b"} {
-			require.NoError(t, DB.Create(&GroupMigrationNode{Name: name, Generation: name, Roster: "cache-a,cache-b", Revision: -1}).Error)
+			require.NoError(t, DB.Create(&GroupMigrationNode{Name: name, Generation: name, Roster: "cache-a,cache-b", Revision: -1, ProtocolVersion: groupMigrationProtocolVersion}).Error)
 		}
 		// Each call starts with independent local routing/revision state, as on
 		// separate processes or replacement generations sharing the same Redis.
@@ -288,6 +292,8 @@ func TestRefreshGroupMigrationCaches(t *testing.T) {
 			common.NodeName = name
 			groupMigrationTraffic.Lock()
 			groupMigrationTraffic.owner = name
+			groupMigrationTraffic.observation, groupMigrationTraffic.ready = nil, false
+			groupMigrationTraffic.conflicted = false
 			groupMigrationTraffic.Unlock()
 			groupMigrationNodeRevision.Store(-1)
 			group2model2channels, channelsIDM = nil, nil
@@ -310,7 +316,8 @@ func TestRefreshGroupMigrationCaches(t *testing.T) {
 
 		// A later revision fails partway through; it must not publish completion
 		// or acknowledge the node, and another participant must be able to retry.
-		require.NoError(t, DB.Model(&GroupMigrationControl{}).Where("id = ?", 1).Update("revision", 2).Error)
+		require.NoError(t, DB.Model(&GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"revision": 2, "coordination_version": 2}).Error)
+		require.NoError(t, DB.Model(&op).Update("coordination_version", 2).Error)
 		server.HSet(getTokenCacheKey(tokens[0].Key), "Group", "interrupted")
 		*hook = migrationCacheRefreshHook{failBatch: 3}
 		require.ErrorContains(t, syncNode("cache-a"), "interrupted migration cache batch")
@@ -325,7 +332,8 @@ func TestRefreshGroupMigrationCaches(t *testing.T) {
 		require.NoError(t, syncNode("cache-a"))
 		assert.Empty(t, hook.batches)
 
-		require.NoError(t, DB.Model(&GroupMigrationControl{}).Where("id = ?", 1).Update("revision", 3).Error)
+		require.NoError(t, DB.Model(&GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"revision": 3, "coordination_version": 3}).Error)
+		require.NoError(t, DB.Model(&op).Update("coordination_version", 3).Error)
 		*hook = migrationCacheRefreshHook{failSet: true}
 		require.ErrorContains(t, syncNode("cache-a"), "interrupted cache completion write")
 		*hook = migrationCacheRefreshHook{}
@@ -345,7 +353,7 @@ func TestRefreshGroupMigrationCaches(t *testing.T) {
 		// not reuse a completion belonging to a different operation.
 		op.ID, op.State = "cache-aborted", "aborted"
 		require.NoError(t, DB.Create(&op).Error)
-		require.NoError(t, DB.Model(&GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": "", "last_operation_id": op.ID}).Error)
+		require.NoError(t, DB.Model(&GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": "", "last_operation_id": op.ID, "coordination_version": 4, "stage": "idle"}).Error)
 		*hook = migrationCacheRefreshHook{}
 		require.NoError(t, syncNode("cache-b"))
 		assert.NotEmpty(t, hook.batches)
@@ -375,5 +383,53 @@ func TestRefreshGroupMigrationCaches(t *testing.T) {
 			assert.False(t, found)
 			assert.Equal(t, []int{1}, group2model2channels["vip"]["cache-model"])
 		}
+
+		// The approved observation seam deterministically delivers an older idle
+		// snapshot after a new barrier. Real cache publication remains in use.
+		idle, err := readGroupMigrationNodeObservation(DB, &GroupMigrationControl{ID: 1, CoordinationVersion: 4, Revision: 3, LastOperationID: op.ID, Stage: "idle"})
+		require.NoError(t, err)
+		barrier := *idle
+		barrier.operation = &GroupMigrationOperation{ID: "ordered-barrier", Source: "vip", Target: "next", State: "paused"}
+		barrier.control.OperationID, barrier.control.Stage, barrier.control.CoordinationVersion = barrier.operation.ID, "draining", 5
+		groupMigrationTraffic.Lock()
+		groupMigrationTraffic.inflight["vip"] = 1
+		groupMigrationTraffic.Unlock()
+		phase, err := barrier.applyLocalState(DB)
+		require.NoError(t, err)
+		assert.Equal(t, "draining", phase)
+		epoch := GroupRequestVersion()
+		_, err = barrier.applyLocalState(DB)
+		require.NoError(t, err)
+		assert.Equal(t, epoch, GroupRequestVersion(), "same observation must be idempotent")
+		_, err = idle.applyLocalState(DB)
+		require.ErrorIs(t, err, ErrGroupMigrationPaused)
+		_, err = admitGroupRequest(GroupRequestVersion(), "vip")
+		require.ErrorIs(t, err, ErrGroupMigrationPaused, "delayed idle must not reopen admission")
+		conflict := barrier
+		conflict.control.Revision++
+		_, err = conflict.applyLocalState(DB)
+		require.ErrorIs(t, err, ErrGroupMigrationPaused)
+		_, err = barrier.applyLocalState(DB)
+		require.ErrorIs(t, err, ErrGroupMigrationPaused, "same-version retries cannot erase a conflict")
+		groupMigrationTraffic.Lock()
+		groupMigrationTraffic.inflight["vip"] = 0
+		groupMigrationTraffic.Unlock()
+		barrier.control.CoordinationVersion++
+		phase, err = barrier.applyLocalState(DB)
+		require.NoError(t, err)
+		assert.Equal(t, "drained", phase)
+		_, err = admitGroupRequest(GroupRequestVersion(), "vip")
+		require.ErrorIs(t, err, ErrGroupMigrationPaused, "restored view alone cannot release a barrier")
+		done, err := admitGroupRequest(GroupRequestVersion(), "unrelated")
+		require.NoError(t, err)
+		done()
+		idle.control.CoordinationVersion = 7
+		_, err = idle.applyLocalState(DB)
+		require.NoError(t, err)
+		_, err = barrier.applyLocalState(DB)
+		require.ErrorIs(t, err, ErrGroupMigrationPaused)
+		done, err = admitGroupRequest(GroupRequestVersion(), "vip")
+		require.NoError(t, err, "newer durable release remains authoritative")
+		done()
 	})
 }

@@ -20,14 +20,16 @@ import (
 // The roster is an operator declaration, not a count inferred from heartbeats.
 // Generations fence a replaced process even if it later regains connectivity.
 type GroupMigrationNode struct {
-	Name        string `json:"name" gorm:"type:varchar(128);primaryKey"`
-	Generation  string `json:"generation" gorm:"type:varchar(64)"`
-	Roster      string `json:"roster" gorm:"type:text"`
-	OperationID string `json:"operation_id" gorm:"type:varchar(64)"`
-	Phase       string `json:"phase" gorm:"type:varchar(16)"`
-	Revision    int64  `json:"revision"`
-	Inflight    int64  `json:"inflight"`
-	LastSeenAt  int64  `json:"last_seen_at"`
+	Name                string `json:"name" gorm:"type:varchar(128);primaryKey"`
+	Generation          string `json:"generation" gorm:"type:varchar(64)"`
+	Roster              string `json:"roster" gorm:"type:text"`
+	OperationID         string `json:"operation_id" gorm:"type:varchar(64)"`
+	Phase               string `json:"phase" gorm:"type:varchar(16)"`
+	Revision            int64  `json:"revision"`
+	CoordinationVersion int64  `json:"coordination_version"`
+	ProtocolVersion     int    `json:"-"`
+	Inflight            int64  `json:"inflight"`
+	LastSeenAt          int64  `json:"last_seen_at"`
 }
 
 type GroupMigrationCoordination struct {
@@ -43,6 +45,22 @@ func readGroupMigrationCoordination(db *gorm.DB) *GroupMigrationCoordination {
 	if err := groupMigrationQualification(db); err != nil {
 		status.Ready = false
 		status.Reason = err.Error()
+	}
+	var control GroupMigrationControl
+	if err := db.First(&control, 1).Error; err != nil {
+		status.Ready, status.Reason = false, "Group migration coordination storage is unavailable."
+		return status
+	}
+	var op GroupMigrationOperation
+	if control.OperationID != "" {
+		if err := db.First(&op, "id = ?", control.OperationID).Error; err != nil {
+			status.Ready, status.Reason = false, "Group migration coordination storage is unavailable."
+			return status
+		}
+		if err := validateGroupMigrationProtocol(&control, &op); err != nil {
+			status.Ready, status.Reason = false, err.Error()
+			return status
+		}
 	}
 	roster, err := groupMigrationRoster()
 	if err != nil || len(roster) == 0 {
@@ -64,19 +82,9 @@ func readGroupMigrationCoordination(db *gorm.DB) *GroupMigrationCoordination {
 		}
 		status.Nodes = append(status.Nodes, node)
 	}
-	var control GroupMigrationControl
-	if err := db.First(&control, 1).Error; err != nil {
-		status.Ready, status.Reason = false, "Group migration coordination storage is unavailable."
-		return status
-	}
 	if control.OperationID != "" {
-		var op GroupMigrationOperation
-		if err := db.First(&op, "id = ?", control.OperationID).Error; err != nil {
-			status.Ready, status.Reason = false, "Group migration coordination storage is unavailable."
-			return status
-		}
 		phase := "drained"
-		if op.State == "committed" {
+		if control.Stage != "draining" {
 			phase = "synced"
 		}
 		if err := groupMigrationNodesAcknowledged(db, &op, phase); err != nil {
@@ -124,7 +132,7 @@ func qualifyGroupMigrationNodes(db *gorm.DB, roster []string) error {
 		return common.NewMessage("Group migration participants are not all ready. Check the declared roster and node status.")
 	}
 	for _, node := range nodes {
-		if node.Roster != strings.Join(roster, ",") || node.LastSeenAt < time.Now().Unix()-10 || node.Phase == "" {
+		if node.ProtocolVersion != groupMigrationProtocolVersion || node.Generation == "" || node.Roster != strings.Join(roster, ",") || node.LastSeenAt < time.Now().Unix()-10 || node.Phase == "" {
 			return common.NewMessage("Group migration participants are not all ready. Check the declared roster and node status.")
 		}
 	}
@@ -161,8 +169,46 @@ func registerGroupMigrationNode(ctx context.Context, roster []string, owner stri
 		if previous.Generation != "" && os.Getenv("GROUP_MIGRATION_REPLACE_GENERATION") != previous.Generation {
 			return common.NewMessage("Stop the previous node generation and its pending cache writes, then set GROUP_MIGRATION_REPLACE_GENERATION to its generation before restarting.")
 		}
+		if control.OperationID != "" {
+			var op GroupMigrationOperation
+			if err := tx.First(&op, "id = ?", control.OperationID).Error; err != nil {
+				return err
+			}
+			if err := validateGroupMigrationProtocol(&control, &op); err != nil {
+				return err
+			}
+			participants, err := readGroupMigrationParticipants(&op, roster)
+			if err != nil {
+				return err
+			}
+			for i := range participants {
+				if participants[i].Name != common.NodeName {
+					continue
+				}
+				if participants[i].Generation != previous.Generation || previous.Roster != strings.Join(roster, ",") {
+					return ErrGroupMigrationPaused
+				}
+				participants[i].Generation = owner
+			}
+			encoded, err := common.Marshal(participants)
+			if err != nil {
+				return err
+			}
+			if err := tx.Model(&op).Update("participants", string(encoded)).Error; err != nil {
+				return err
+			}
+			if err := advanceGroupMigrationCoordination(tx, &control, &op, control.Stage); err != nil {
+				return err
+			}
+		} else {
+			// Identity changes are visible even while idle; stale idle observations
+			// from the previous process cannot be accepted as current authority.
+			if err := tx.Model(&control).Update("coordination_version", gorm.Expr("coordination_version + 1")).Error; err != nil {
+				return err
+			}
+		}
 		return tx.Clauses(clause.OnConflict{UpdateAll: true}).Create(&GroupMigrationNode{
-			Name: common.NodeName, Generation: owner, Roster: strings.Join(roster, ","), Revision: -1,
+			Name: common.NodeName, Generation: owner, Roster: strings.Join(roster, ","), Revision: -1, ProtocolVersion: groupMigrationProtocolVersion,
 		}).Error
 	})
 }
@@ -214,8 +260,22 @@ func syncGroupMigrationNode(tx *gorm.DB, control *GroupMigrationControl) error {
 	if err != nil {
 		return err
 	}
+	now := time.Now().Unix()
+	node := observation.node
+	// MySQL reports changed rows rather than matched rows. An identical ack
+	// already read under this control lock is valid without another write.
+	if node.OperationID == observation.control.OperationID && node.CoordinationVersion == observation.control.CoordinationVersion && node.Phase == phase && node.Revision == observation.control.Revision && node.LastSeenAt == now {
+		return nil
+	}
 	// A failed local refresh must never publish a successful acknowledgement.
-	return tx.Model(&observation.node).Updates(map[string]any{"operation_id": observation.control.OperationID, "phase": phase, "revision": observation.control.Revision, "last_seen_at": time.Now().Unix()}).Error
+	result := tx.Model(&GroupMigrationNode{}).Where("name = ? AND generation = ? AND protocol_version = ? AND coordination_version <= ?", node.Name, node.Generation, groupMigrationProtocolVersion, observation.control.CoordinationVersion).Updates(map[string]any{"operation_id": observation.control.OperationID, "coordination_version": observation.control.CoordinationVersion, "phase": phase, "revision": observation.control.Revision, "last_seen_at": now})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return ErrGroupMigrationPaused
+	}
+	return nil
 }
 
 // groupMigrationNodeObservation holds the control, process identity and optional
@@ -242,7 +302,7 @@ func readGroupMigrationNodeObservation(tx *gorm.DB, control *GroupMigrationContr
 	if err := tx.First(&node, "name = ?", common.NodeName).Error; err != nil {
 		return nil, err
 	}
-	if node.Generation != owner || node.Roster != strings.Join(roster, ",") || owner == "" {
+	if node.ProtocolVersion != groupMigrationProtocolVersion || node.Generation != owner || node.Roster != strings.Join(roster, ",") || owner == "" {
 		return nil, ErrGroupMigrationPaused
 	}
 	observation := &groupMigrationNodeObservation{control: *control, node: node}
@@ -257,6 +317,20 @@ func readGroupMigrationNodeObservation(tx *gorm.DB, control *GroupMigrationContr
 		}
 		observation.operation = &op
 	}
+	if err := validateGroupMigrationProtocol(control, observation.operation); err != nil {
+		return nil, err
+	}
+	if control.OperationID != "" {
+		participants, err := readGroupMigrationParticipants(observation.operation, roster)
+		if err != nil {
+			return nil, err
+		}
+		for _, participant := range participants {
+			if participant.Name == node.Name && participant.Generation != owner {
+				return nil, ErrGroupMigrationPaused
+			}
+		}
+	}
 	return observation, nil
 }
 
@@ -265,16 +339,39 @@ func readGroupMigrationNodeObservation(tx *gorm.DB, control *GroupMigrationContr
 // returns the phase to acknowledge; publishing that phase belongs to the caller.
 func (observation *groupMigrationNodeObservation) applyLocalState(tx *gorm.DB) (string, error) {
 	control, op := &observation.control, observation.operation
-	if op == nil {
-		groupMigrationNodeRevision.Store(control.Revision)
-		return "ready", nil
+	view := groupMigrationLocalObservation{version: control.CoordinationVersion, revision: control.Revision,
+		operation: control.OperationID, lastOperation: control.LastOperationID, owner: control.Owner,
+		generation: observation.node.Generation, stage: control.Stage}
+	if op != nil {
+		view.state, view.source, view.target, view.participants, view.values = op.State, op.Source, op.Target, op.Participants, op.Values
 	}
 	groupMigrationTraffic.Lock()
-	if groupMigrationTraffic.operation != op.ID && control.OperationID != "" {
+	previous := groupMigrationTraffic.observation
+	if previous != nil && (view.version < previous.version || view.version == previous.version && (view != *previous || groupMigrationTraffic.conflicted)) {
+		if view.version == previous.version {
+			groupMigrationTraffic.ready = false
+			groupMigrationTraffic.conflicted = true
+		}
+		groupMigrationTraffic.Unlock()
+		return "", ErrGroupMigrationPaused
+	}
+	if control.OperationID != "" && groupMigrationTraffic.operation != op.ID {
 		groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = op.ID, op.Source, op.Target
 		advanceGroupMigrationVersion(op.Source, op.Target)
 	}
-	active := groupMigrationTraffic.inflight[op.Source] + groupMigrationTraffic.inflight[op.Target]
+	active := 0
+	if op != nil {
+		active = groupMigrationTraffic.inflight[op.Source] + groupMigrationTraffic.inflight[op.Target]
+	}
+	// A draining barrier changes authority without changing the current data
+	// view. Already-ready nodes can keep serving unrelated groups while source
+	// requests drain; new processes and every publication still refresh first.
+	refresh := !groupMigrationTraffic.ready || previous == nil || groupMigrationNodeRevision.Load() != control.Revision || previous.version != view.version && control.Stage != "draining"
+	groupMigrationTraffic.conflicted = false
+	groupMigrationTraffic.observation = &view
+	if refresh {
+		groupMigrationTraffic.ready = false
+	}
 	groupMigrationTraffic.Unlock()
 	phase := "ready"
 	if control.OperationID != "" {
@@ -283,24 +380,32 @@ func (observation *groupMigrationNodeObservation) applyLocalState(tx *gorm.DB) (
 			phase = "drained"
 		}
 	}
-	if (op.State == "committed" || control.OperationID == "") && active == 0 {
-		if groupMigrationNodeRevision.Load() != control.Revision {
+	if active == 0 {
+		if refresh {
 			if err := restoreGroupMigrationView(tx, op, control); err != nil {
 				return "", err
 			}
 			groupMigrationNodeRevision.Store(control.Revision)
 		}
-		phase = "synced"
+		if control.Stage != "draining" {
+			phase = "synced"
+		}
 	}
 	if control.OperationID == "" {
+		if active != 0 {
+			return "", ErrGroupMigrationPaused
+		}
 		groupMigrationTraffic.Lock()
 		if groupMigrationTraffic.operation != "" {
-			advanceGroupMigrationVersion(op.Source, op.Target)
+			advanceGroupMigrationVersion(groupMigrationTraffic.source, groupMigrationTraffic.target)
 			groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = "", "", ""
 		}
 		groupMigrationTraffic.Unlock()
 		phase = "ready"
 	}
+	groupMigrationTraffic.Lock()
+	groupMigrationTraffic.ready = active == 0 || !refresh
+	groupMigrationTraffic.Unlock()
 	return phase, nil
 }
 
@@ -310,7 +415,7 @@ func (observation *groupMigrationNodeObservation) applyLocalState(tx *gorm.DB) (
 // refreshes. Every node must rebuild its local view before acknowledging sync.
 func restoreGroupMigrationView(tx *gorm.DB, op *GroupMigrationOperation, control *GroupMigrationControl) error {
 	values := map[string]string{}
-	if control.OperationID != "" {
+	if control.Stage == "syncing" {
 		if err := common.UnmarshalJsonStr(op.Values, &values); err != nil {
 			return err
 		}
@@ -337,7 +442,11 @@ func restoreGroupMigrationView(tx *gorm.DB, op *GroupMigrationOperation, control
 		// loses this optimization. Include operation ID because aborts do not
 		// advance the revision. Only successful shared refreshes publish it.
 		const completionKey = "group_migration:shared_cache:v1"
-		completion := op.ID + ":" + strconv.FormatInt(control.Revision, 10)
+		operation := "initial"
+		if op != nil {
+			operation = op.ID
+		}
+		completion := operation + ":" + strconv.FormatInt(control.Revision, 10)
 		ctx := tx.Statement.Context
 		previous, err := common.RDB.Get(ctx, completionKey).Result()
 		if err != nil && !errors.Is(err, redis.Nil) {
@@ -377,28 +486,62 @@ func RunGroupMigrationCoordination(ctx context.Context) {
 	}
 }
 
-// groupMigrationNodesAcknowledged requires fresh acknowledgements for the exact
-// operation, phase and control revision from every originally declared node.
-// Changing the deployment roster cannot silently shrink an ongoing migration.
-func groupMigrationNodesAcknowledged(tx *gorm.DB, op *GroupMigrationOperation, phase string) error {
-	var roster []string
-	if err := common.UnmarshalJsonStr(op.Participants, &roster); err != nil || len(roster) == 0 {
-		return errors.New("group migration participant snapshot is unavailable")
+// readGroupMigrationParticipants rejects legacy name-only snapshots, duplicates,
+// missing generations and roster changes instead of shrinking the barrier.
+func readGroupMigrationParticipants(op *GroupMigrationOperation, roster []string) ([]groupMigrationParticipant, error) {
+	var participants []groupMigrationParticipant
+	if err := common.UnmarshalJsonStr(op.Participants, &participants); err != nil || len(participants) == 0 {
+		return nil, errGroupMigrationLegacyProtocol
 	}
-	declared, err := groupMigrationRoster()
-	if err != nil || !slices.Equal(declared, roster) {
-		return common.NewMessage("Group migration participant roster changed. Restore the original roster before recovery.")
+	names := make([]string, len(participants))
+	for i, participant := range participants {
+		if participant.Generation == "" {
+			return nil, errGroupMigrationLegacyProtocol
+		}
+		names[i] = participant.Name
+	}
+	if !slices.Equal(names, roster) {
+		return nil, common.NewMessage("Group migration participant roster changed. Restore the original roster before recovery.")
+	}
+	return participants, nil
+}
+
+// groupMigrationNodesAcknowledged verifies the exact operation, coordination
+// version, stage, data revision and process generation for every participant.
+// A fresh heartbeat or a diagnostic inflight count cannot replace an ack.
+func groupMigrationNodesAcknowledged(tx *gorm.DB, op *GroupMigrationOperation, phase string) error {
+	roster, err := groupMigrationRoster()
+	if err != nil {
+		return err
+	}
+	participants, err := readGroupMigrationParticipants(op, roster)
+	if err != nil {
+		return err
 	}
 	var control GroupMigrationControl
 	if err := tx.First(&control, 1).Error; err != nil {
 		return err
 	}
-	var count int64
-	if err := tx.Model(&GroupMigrationNode{}).Where("name IN ? AND roster = ? AND operation_id = ? AND phase = ? AND revision = ? AND last_seen_at >= ?", roster, strings.Join(roster, ","), op.ID, phase, control.Revision, time.Now().Unix()-10).Count(&count).Error; err != nil {
+	if err := validateGroupMigrationProtocol(&control, op); err != nil {
 		return err
 	}
-	if count != int64(len(roster)) {
+	if phase == "drained" && control.Stage != "draining" || phase == "synced" && control.Stage != "syncing" && control.Stage != "aborting" {
+		return ErrGroupMigrationPaused
+	}
+	var nodes []GroupMigrationNode
+	if err := tx.Where("name IN ? AND roster = ? AND operation_id = ? AND phase = ? AND revision = ? AND coordination_version = ? AND protocol_version = ? AND last_seen_at >= ?", roster, strings.Join(roster, ","), op.ID, phase, control.Revision, control.CoordinationVersion, groupMigrationProtocolVersion, time.Now().Unix()-10).Find(&nodes).Error; err != nil {
+		return err
+	}
+	if len(nodes) != len(participants) {
 		return common.NewMessage("Group migration is waiting for every participant to drain or synchronize. Resume the same operation after recovery.")
+	}
+	for _, participant := range participants {
+		matched := slices.ContainsFunc(nodes, func(node GroupMigrationNode) bool {
+			return node.Name == participant.Name && node.Generation == participant.Generation
+		})
+		if !matched {
+			return common.NewMessage("Group migration is waiting for every participant to drain or synchronize. Resume the same operation after recovery.")
+		}
 	}
 	return nil
 }
@@ -420,7 +563,7 @@ func waitGroupMigrationNodes(ctx context.Context, op *GroupMigrationOperation, o
 			if err := control.lock(tx); err != nil {
 				return err
 			}
-			if control.Owner != owner || control.OperationID != op.ID {
+			if control.Owner != owner || control.OperationID != op.ID || control.CoordinationVersion != op.CoordinationVersion {
 				return ErrGroupMigrationPaused
 			}
 			return groupMigrationNodesAcknowledged(tx, op, phase)

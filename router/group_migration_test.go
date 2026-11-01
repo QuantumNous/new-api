@@ -95,13 +95,15 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 			token.Status, token.ExpiredTime, token.UnlimitedQuota = common.TokenStatusEnabled, -1, true
 			require.NoError(t, db.Create(&token).Error)
 		}
+		require.NoError(t, db.Create(&model.Token{UserId: root.Id, Key: strings.Repeat("5", 48), Group: "default", Status: common.TokenStatusEnabled, ExpiredTime: -1, UnlimitedQuota: true}).Error)
 		plan := model.SubscriptionPlan{Title: "cluster-plan", UpgradeGroup: "routing", DowngradeGroup: "routing", Enabled: true, DurationUnit: model.SubscriptionDurationDay, DurationValue: 1}
 		require.NoError(t, db.Create(&plan).Error)
 		require.NoError(t, db.Create(&model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", UpgradeGroup: "routing", DowngradeGroup: "routing", PrevUserGroup: "routing", EndTime: time.Now().Unix() + 3600}).Error)
 		baseURL := os.Getenv("TEST_MIGRATION_UPSTREAM")
-		channel := model.Channel{Type: constant.ChannelTypeOpenAI, Key: "fixture-upstream-key", Name: "cluster-routing", Status: common.ChannelStatusEnabled, Group: "routing", Models: "migration-probe", BaseURL: &baseURL}
+		channel := model.Channel{Type: constant.ChannelTypeOpenAI, Key: "fixture-upstream-key", Name: "cluster-routing", Status: common.ChannelStatusEnabled, Group: "routing,default", Models: "migration-probe", BaseURL: &baseURL}
 		require.NoError(t, db.Create(&channel).Error)
 		require.NoError(t, db.Create(&model.Ability{Group: "routing", Model: "migration-probe", ChannelId: channel.Id, Enabled: true}).Error)
+		require.NoError(t, db.Create(&model.Ability{Group: "default", Model: "migration-probe", ChannelId: channel.Id, Enabled: true}).Error)
 		now := time.Now().Unix()
 		require.NoError(t, model.CreateUserSession(&model.UserSession{SID: "cluster-session", UserID: root.Id, Version: 1, UserAuthVersion: 1, Status: model.UserSessionStatusActive, RefreshHash: "test-refresh", LoginMethod: "password", LastActiveAt: now, ExpiresAt: now + 3600}))
 	}
@@ -167,6 +169,14 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 		storageUnavailable.Store(c.Param("state") == "offline")
 		c.Status(http.StatusOK)
 	})
+	// Fault injection at the durable acknowledgement boundary, used to replay
+	// delayed confirmations without replacing the real process coordinator.
+	engine.POST("/test/acknowledgement", func(c *gin.Context) {
+		var changes map[string]any
+		require.NoError(t, common.DecodeJson(c.Request.Body, &changes))
+		require.NoError(t, db.Model(&model.GroupMigrationNode{}).Where("name = ?", common.NodeName).Updates(changes).Error)
+		c.Status(http.StatusOK)
+	})
 	engine.GET("/test/coordination-access", func(c *gin.Context) {
 		c.JSON(http.StatusOK, migrationCoordinationAccess{
 			Reads: coordinationReads.Load(), ControlWrites: controlWrites.Load(), ControlWriteNanos: controlWriteNanos.Load(),
@@ -199,16 +209,22 @@ type migrationCoordinationAccess struct {
 func startMigrationProcess(t *testing.T, database, name, upstream string, seed bool, replacement string) *migrationProcess {
 	t.Helper()
 	process := &migrationProcess{cmd: exec.Command(os.Args[0], "-test.run=^TestGroupMigrationNodeProcess$", "-test.v")}
-	process.cmd.Env = append(os.Environ(), "TEST_MIGRATION_CHILD="+name, "TEST_MIGRATION_SQLITE="+database, "TEST_MIGRATION_UPSTREAM="+upstream, "TEST_MIGRATION_SEED="+strconv.FormatBool(seed), "GROUP_MIGRATION_NODES=migration-a,migration-b", "GROUP_MIGRATION_SINGLE_NODE=", "GROUP_MIGRATION_REPLACE_GENERATION="+replacement)
+	process.cmd.Env = append(os.Environ(), "TEST_MIGRATION_CHILD="+name, "TEST_MIGRATION_SQLITE="+database, "TEST_MIGRATION_UPSTREAM="+upstream, "TEST_MIGRATION_SEED="+strconv.FormatBool(seed), "GROUP_MIGRATION_NODES=Migration-B,migration-a", "GROUP_MIGRATION_SINGLE_NODE=", "GROUP_MIGRATION_REPLACE_GENERATION="+replacement)
 	pipe, err := process.cmd.StdoutPipe()
 	require.NoError(t, err)
 	process.cmd.Stderr = process.cmd.Stdout
 	require.NoError(t, process.cmd.Start())
 	t.Cleanup(func() { _ = process.cmd.Process.Kill(); _ = process.cmd.Wait() })
 	ready := make(chan map[string]string, 1)
+	var failures []string
 	go func() {
 		scanner := bufio.NewScanner(pipe)
 		for scanner.Scan() {
+			// Keep assertion diagnostics, never the readiness line (access token)
+			// or SQL output that might include credential-bearing fixture rows.
+			if strings.Contains(scanner.Text(), "Error:") || strings.Contains(scanner.Text(), "Messages:") {
+				failures = append(failures, scanner.Text())
+			}
 			if value, ok := strings.CutPrefix(scanner.Text(), "MIGRATION_READY "); ok {
 				var data map[string]string
 				if common.UnmarshalJsonStr(value, &data) == nil {
@@ -220,7 +236,10 @@ func startMigrationProcess(t *testing.T, database, name, upstream string, seed b
 	}()
 	select {
 	case data := <-ready:
-		require.NotEmpty(t, data, "child process failed before serving")
+		if len(data) == 0 {
+			// A closed channel proves the scanner finished writing diagnostics.
+			require.FailNow(t, "child process failed before serving", strings.Join(failures, "\n"))
+		}
 		process.url, process.credential = data["url"], data["credential"]
 		process.generation = data["generation"]
 	case <-time.After(30 * time.Second):
@@ -299,6 +318,29 @@ func (process *migrationProcess) waitState(t *testing.T, id, state string) model
 	return observed.Data
 }
 
+// awaitMigrationRecovery supplies explicit remote synchronization events until
+// the coordinator finishes. Recovery may establish several new versioned stages;
+// the fixture intentionally has no background poller to acknowledge them for us.
+func awaitMigrationRecovery(t *testing.T, result <-chan migrationHTTPResult, participant *migrationProcess) migrationHTTPResult {
+	t.Helper()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.NewTimer(25 * time.Second)
+	defer timeout.Stop()
+	for {
+		select {
+		case response := <-result:
+			require.NoError(t, response.err)
+			return response
+		case <-ticker.C:
+			status, body, _ := participant.request(t, http.MethodPost, "/test/sync", nil)
+			require.Equal(t, http.StatusOK, status, string(body))
+		case <-timeout.C:
+			t.Fatal("recovery did not finish after participant synchronization")
+		}
+	}
+}
+
 func TestGroupMigrationCluster(t *testing.T) {
 	held, release := make(chan struct{}, 1), make(chan struct{})
 	var once sync.Once
@@ -315,8 +357,9 @@ func TestGroupMigrationCluster(t *testing.T) {
 	t.Cleanup(upstream.Close)
 	t.Cleanup(func() { once.Do(func() { close(release) }) })
 	database := filepath.Join(t.TempDir(), "cluster.db")
-	a := startMigrationProcess(t, database, "migration-a", upstream.URL, true, "")
-	b := startMigrationProcess(t, database, "migration-b", upstream.URL, false, "")
+	// Go byte ordering differs from common database collations for this roster.
+	a := startMigrationProcess(t, database, "Migration-B", upstream.URL, true, "")
+	b := startMigrationProcess(t, database, "migration-a", upstream.URL, false, "")
 	for _, process := range []*migrationProcess{a, b} {
 		for _, key := range []string{"1", "2", "3", "4"} {
 			response := process.relay(false, key)
@@ -371,21 +414,26 @@ func TestGroupMigrationCluster(t *testing.T) {
 	op := b.waitState(t, submission.OperationID, "paused")
 	require.False(t, op.Coordination.Ready)
 	require.Equal(t, "draining", op.Coordination.Nodes[1].Phase)
+	unrelated := b.relay(false, "5")
+	require.NoError(t, unrelated.err)
+	require.Equal(t, http.StatusOK, unrelated.status, string(unrelated.body))
+	require.Equal(t, "default", unrelated.header.Get("X-Routed-Group"))
 	blocked := b.relay(false, "2")
 	require.NoError(t, blocked.err)
 	require.Equal(t, http.StatusServiceUnavailable, blocked.status)
 	require.NoError(t, a.cmd.Process.Kill())
 	require.Error(t, (<-abandoned).err)
-	a = startMigrationProcess(t, database, "migration-a", upstream.URL, false, a.generation)
+	a = startMigrationProcess(t, database, "Migration-B", upstream.URL, false, a.generation)
 	once.Do(func() { close(release) })
 	require.Equal(t, http.StatusOK, (<-relayFinished).status)
 	b.request(t, http.MethodPost, "/test/sync", nil)
-	status, body, _ = a.request(t, http.MethodPost, "/api/option/group_migration/cluster-abort/resume", nil)
+	abortRecovery := awaitMigrationRecovery(t, a.begin(t, "/api/option/group_migration/cluster-abort/resume", nil), b)
+	status, body = abortRecovery.status, abortRecovery.body
 	require.Equal(t, http.StatusOK, status, string(body))
 	require.Contains(t, string(body), `"state":"aborted"`)
 	// Restart after an abort must load the old configuration and allow writers.
 	require.NoError(t, b.cmd.Process.Kill())
-	b = startMigrationProcess(t, database, "migration-b", upstream.URL, false, b.generation)
+	b = startMigrationProcess(t, database, "migration-a", upstream.URL, false, b.generation)
 	status, body, _ = b.request(t, http.MethodPost, "/api/token/", map[string]any{"name": "after-abort", "group": "routing", "expired_time": -1, "unlimited_quota": true})
 	require.Equal(t, http.StatusOK, status, string(body))
 	require.Contains(t, string(body), `"success":true`)
@@ -405,12 +453,45 @@ func TestGroupMigrationCluster(t *testing.T) {
 	require.NoError(t, a.cmd.Process.Kill())
 	require.Error(t, (<-finished).err)
 	require.NoError(t, b.cmd.Process.Kill())
-	b = startMigrationProcess(t, database, "migration-b", upstream.URL, false, b.generation)
+	b = startMigrationProcess(t, database, "migration-a", upstream.URL, false, b.generation)
 	blocked = b.relay(false, "1")
 	require.NoError(t, blocked.err)
 	require.Equal(t, http.StatusServiceUnavailable, blocked.status)
-	a = startMigrationProcess(t, database, "migration-a", upstream.URL, false, a.generation)
-	status, body, _ = a.request(t, http.MethodPost, "/api/option/group_migration/cluster-cutover/resume", nil)
+	a = startMigrationProcess(t, database, "Migration-B", upstream.URL, false, a.generation)
+	// Replacing a participant invalidates every acknowledgement, including b's
+	// successful refresh from before a's replacement. Both must confirm again.
+	op = a.waitState(t, submission.OperationID, "committed")
+	require.False(t, op.Coordination.Ready, "replacement must invalidate the other participant's earlier acknowledgement")
+	status, body, _ = b.request(t, http.MethodPost, "/test/sync", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	op = a.waitState(t, submission.OperationID, "committed")
+	require.True(t, op.Coordination.Ready)
+	confirmed := op.Coordination.Nodes[1]
+	for name, changes := range map[string]map[string]any{
+		"old operation":        {"operation_id": "cluster-abort"},
+		"old version":          {"coordination_version": confirmed.CoordinationVersion - 1},
+		"wrong generation":     {"generation": "replaced-process"},
+		"wrong revision":       {"revision": confirmed.Revision - 1},
+		"wrong phase":          {"phase": "drained"},
+		"expired confirmation": {"last_seen_at": time.Now().Unix() - 11},
+		"different roster":     {"roster": "migration-b,migration-c"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			status, body, _ := b.request(t, http.MethodPost, "/test/acknowledgement", changes)
+			require.Equal(t, http.StatusOK, status, string(body))
+			observed := a.waitState(t, submission.OperationID, "committed")
+			assert.False(t, observed.Coordination.Ready, "a stale acknowledgement must not authorize release")
+			status, body, _ = b.request(t, http.MethodPost, "/test/acknowledgement", map[string]any{
+				"operation_id": confirmed.OperationID, "coordination_version": confirmed.CoordinationVersion,
+				"generation": confirmed.Generation, "revision": confirmed.Revision, "phase": confirmed.Phase,
+				"roster": confirmed.Roster, "last_seen_at": time.Now().Unix(),
+			})
+			require.Equal(t, http.StatusOK, status, string(body))
+		})
+	}
+	recovered := a.begin(t, "/api/option/group_migration/cluster-cutover/resume", nil)
+	recovery := awaitMigrationRecovery(t, recovered, b)
+	status, body = recovery.status, recovery.body
 	require.Equal(t, http.StatusOK, status, string(body))
 	require.Contains(t, string(body), `"state":"completed"`)
 	for _, process := range []*migrationProcess{a, b} {
@@ -426,7 +507,7 @@ func TestGroupMigrationCluster(t *testing.T) {
 	oldB := b
 	// Deliberately violate the stopped-process declaration to verify that a
 	// replaced process is still fenced at request admission and reference writes.
-	b = startMigrationProcess(t, database, "migration-b", upstream.URL, false, b.generation)
+	b = startMigrationProcess(t, database, "migration-a", upstream.URL, false, b.generation)
 	blocked = oldB.relay(false, "1")
 	require.NoError(t, blocked.err)
 	require.Equal(t, http.StatusServiceUnavailable, blocked.status)
@@ -610,9 +691,11 @@ func TestUnusedGroupMigration(t *testing.T) {
 		key := model.Token{UserId: root.Id, Key: strings.Repeat("c", 48), Group: "unused", UnlimitedQuota: true, ExpiredTime: -1}
 		require.NoError(t, db.Create(&key).Error)
 		engine.POST("/v1/chat/completions", middleware.TokenAuth(), middleware.Distribute(), func(c *gin.Context) { c.Status(http.StatusOK) })
-		op := model.GroupMigrationOperation{ID: "interrupted-01", Source: "unused", Target: "premium", State: "paused", ActorID: root.Id}
+		var before model.GroupMigrationControl
+		require.NoError(t, db.First(&before, 1).Error)
+		op := model.GroupMigrationOperation{ID: "interrupted-01", Source: "unused", Target: "premium", State: "paused", ActorID: root.Id, ProtocolVersion: 2, CoordinationVersion: before.CoordinationVersion + 1}
 		require.NoError(t, db.Create(&op).Error)
-		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": op.ID, "owner": "previous-process"}).Error)
+		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": op.ID, "owner": "previous-process", "coordination_version": op.CoordinationVersion, "stage": "draining"}).Error)
 		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "")
 		require.NoError(t, model.InitGroupMigrations(context.Background()))
 		response := request(http.MethodPost, "/api/token/", map[string]any{"name": "blocked", "group": "unused", "expired_time": -1, "unlimited_quota": true})
@@ -749,9 +832,11 @@ func TestUnusedGroupMigration(t *testing.T) {
 		assert.Contains(t, request(http.MethodPost, "/api/option/group_migration/drain-test-01/resume", nil).Body.String(), `"state":"aborted"`)
 	})
 	t.Run("a replaced owner cannot commit or clear the durable pause", func(t *testing.T) {
-		op := model.GroupMigrationOperation{ID: "fenced-owner-01", Source: "unused", Target: "premium", State: "paused", ActorID: root.Id}
+		var before model.GroupMigrationControl
+		require.NoError(t, db.First(&before, 1).Error)
+		op := model.GroupMigrationOperation{ID: "fenced-owner-01", Source: "unused", Target: "premium", State: "paused", ActorID: root.Id, ProtocolVersion: 2, CoordinationVersion: before.CoordinationVersion + 1}
 		require.NoError(t, db.Create(&op).Error)
-		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": op.ID, "owner": "original-process"}).Error)
+		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": op.ID, "owner": "original-process", "coordination_version": op.CoordinationVersion, "stage": "draining"}).Error)
 		t.Setenv("GROUP_MIGRATION_SINGLE_NODE", "")
 		require.NoError(t, model.InitGroupMigrations(context.Background()))
 		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Update("owner", "replacement-process").Error)
