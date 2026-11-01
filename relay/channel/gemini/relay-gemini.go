@@ -201,6 +201,19 @@ func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.Ch
 	return nil
 }
 
+/** captureGeminiResponseID uses the provider's response identifier as a log
+ * correlation fallback, preserving header IDs and the first non-empty stream ID.
+ */
+func captureGeminiResponseID(c *gin.Context, responseID string) {
+	if responseID != "" && c.GetString(common.UpstreamRequestIdKey) == "" {
+		c.Set(common.UpstreamRequestIdKey, responseID)
+	}
+}
+
+/** geminiStreamHandler parses upstream Gemini frames and passes each decoded frame
+ * to callback. It records provider IDs and response metadata in the request context
+ * and relay info, then returns accumulated usage and any parsing or callback error.
+ */
 func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, callback func(data string, geminiResponse *dto.GeminiChatResponse) bool) (*dto.Usage, *types.NewAPIError) {
 	var usage = &dto.Usage{}
 	var imageCount int
@@ -217,6 +230,8 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			sr.Stop(streamErr)
 			return
 		}
+
+		captureGeminiResponseID(c, geminiResponse.ResponseID)
 
 		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
 			info.PerformanceBusinessRejection = true
@@ -409,6 +424,10 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 	return usage, nil
 }
 
+/** GeminiChatHandler reads a non-streaming Gemini response, records its provider
+ * ID and metadata, and writes the requested downstream response format. It returns
+ * usage and relay errors, writing blocked or empty-response errors to the client.
+ */
 func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -421,6 +440,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	captureGeminiResponseID(c, geminiResponse.ResponseID)
 	info.ObserveResponseModel(gjson.GetBytes(responseBody, "modelVersion").Str)
 	var grounding geminiGroundingCounter
 	grounding.observe(&geminiResponse)

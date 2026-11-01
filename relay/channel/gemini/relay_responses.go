@@ -19,6 +19,10 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+/** GeminiResponsesHandler reads a non-streaming Gemini response, records its
+ * provider ID and metadata, and writes an OpenAI Responses payload using the
+ * gateway response ID. It closes the upstream body and returns usage or relay errors.
+ */
 func GeminiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -32,6 +36,7 @@ func GeminiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	if err := common.Unmarshal(responseBody, &geminiResponse); err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	captureGeminiResponseID(c, geminiResponse.ResponseID)
 	info.ObserveResponseModel(gjson.GetBytes(responseBody, "modelVersion").Str)
 	var grounding geminiGroundingCounter
 	grounding.observe(&geminiResponse)

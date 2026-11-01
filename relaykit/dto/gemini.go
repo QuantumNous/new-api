@@ -537,6 +537,7 @@ type GeminiChatPromptFeedback struct {
 }
 
 type GeminiChatResponse struct {
+	ResponseID       string                    `json:"responseId,omitempty"`
 	Candidates       []GeminiChatCandidate     `json:"candidates"`
 	PromptFeedback   *GeminiChatPromptFeedback `json:"promptFeedback,omitempty"`
 	UsageMetadata    GeminiUsageMetadata       `json:"usageMetadata"`
@@ -551,6 +552,7 @@ type GeminiChatResponse struct {
 // is silently dropped during unmarshal.
 func (r *GeminiChatResponse) UnmarshalJSON(data []byte) error {
 	var aux struct {
+		ResponseID     string                    `json:"responseId,omitempty"`
 		Candidates     []GeminiChatCandidate     `json:"candidates"`
 		PromptFeedback *GeminiChatPromptFeedback `json:"promptFeedback,omitempty"`
 		UsageMetadata  *GeminiUsageMetadata      `json:"usageMetadata"`
@@ -558,6 +560,7 @@ func (r *GeminiChatResponse) UnmarshalJSON(data []byte) error {
 	if err := kitutil.Unmarshal(data, &aux); err != nil {
 		return err
 	}
+	r.ResponseID = aux.ResponseID
 	r.Candidates = aux.Candidates
 	r.PromptFeedback = aux.PromptFeedback
 	r.HasUsageMetadata = aux.UsageMetadata != nil
