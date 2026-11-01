@@ -117,6 +117,16 @@ func TestChannelTestOpenAIChatCompatibility(t *testing.T) {
 	}
 }
 
+func TestNovelAIChannelTestDefaultsToImageGenerationForAliases(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeNovelAI}
+	endpoint := normalizeChannelTestEndpoint(channel, "")
+	assert.Equal(t, string(constant.EndpointTypeImageGeneration), endpoint)
+	request, ok := buildTestRequest("image-alias", endpoint, channel, false).(*dto.ImageRequest)
+	require.True(t, ok)
+	assert.Equal(t, "image-alias", request.Model)
+	assert.Equal(t, uint(1), *request.N)
+}
+
 func TestOpenAIChatSamplingCompatibility(t *testing.T) {
 	const sampling = `{"temperature":0.2,"top_p":0.8,"logprobs":true,"top_logprobs":5}`
 	for _, tt := range []struct {

@@ -212,6 +212,24 @@ export interface ChannelBalanceResponse {
   balance?: number
   currency?: string
   raw_response?: string
+  novelai?: NovelAIBalance
+}
+
+export interface NovelAIBalance {
+  active: boolean
+  tier: number
+  expiresAt: number | null
+  trainingStepsLeft: {
+    fixedTrainingStepsLeft: number | null
+    purchasedTrainingSteps: number | null
+  } | null
+  usage: {
+    isNegative: boolean | null
+    percent: number | null
+    purchasedPercent: number | null
+    timeUntilNextPercent: number | null
+  } | null
+  sampled_at: number
 }
 
 export interface FetchModelsResponse {

@@ -7370,6 +7370,17 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "V5 allowance": "V5 残量",
+    "Subscription Anlas": "サブスク Anlas",
+    "Purchased Anlas": "購入 Anlas",
+    "Purchased V5 allowance": "購入した V5 残量",
+    "Next +1%": "次の 1% 回復",
+    "Refill paused": "回復停止中",
+    "Refresh NovelAI resources": "NovelAI の残量を更新",
+    "NovelAI balance request failed": "NovelAI の残高取得に失敗しました",
+    "NovelAI balance request failed (HTTP {{status}})": "NovelAI の残高取得に失敗しました (HTTP {{status}})",
+    "Invalid NovelAI subscription response": "NovelAI のサブスクリプション応答が無効です",
+    "Inactive": "無効"
   }
 }

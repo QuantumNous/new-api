@@ -58,6 +58,11 @@ const maxAdvancedCustomBalanceResponseBytes = 256 << 10
 type channelBalanceResult struct {
 	Balance     float64
 	RawResponse string
+	NovelAI     *novelAIBalance
+}
+
+func (r channelBalanceResult) hasMonetaryBalance() bool {
+	return r.RawResponse == "" && r.NovelAI == nil
 }
 
 type OpenAIUsageResponse struct {
@@ -622,6 +627,9 @@ func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, e
 }
 
 func updateChannelBalance(channel *model.Channel) (channelBalanceResult, error) {
+	if channel.Type == constant.ChannelTypeNovelAI {
+		return fetchNovelAIBalance(channel)
+	}
 	if channel.Type == constant.ChannelTypeAdvancedCustom {
 		return fetchAdvancedCustomBalance(channel)
 	}
@@ -726,7 +734,9 @@ func UpdateChannelBalance(c *gin.Context) {
 		"success": true,
 		"message": "",
 	}
-	if result.RawResponse == "" {
+	if result.NovelAI != nil {
+		response["novelai"] = result.NovelAI
+	} else if result.RawResponse == "" {
 		response["balance"] = result.Balance
 	} else {
 		response["raw_response"] = result.RawResponse
@@ -753,7 +763,7 @@ func updateAllChannelsBalance() error {
 		result, err := updateChannelBalance(channel)
 		if err != nil {
 			continue
-		} else if result.RawResponse == "" {
+		} else if result.hasMonetaryBalance() {
 			// err is nil & balance <= 0 means quota is used up
 			if result.Balance <= 0 {
 				service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), "Insufficient balance")

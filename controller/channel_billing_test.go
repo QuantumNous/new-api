@@ -4,6 +4,8 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -12,6 +14,88 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNovelAIResourceBalance(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		status     int
+		wantError  string
+	}{
+		{"Opus with separate Anlas wallets and overflow allowance", `{"active":true,"tier":3,"expiresAt":2000000000,"trainingStepsLeft":{"fixedTrainingStepsLeft":9911,"purchasedTrainingSteps":10},"usage":{"percent":135,"purchasedPercent":200,"isNegative":false,"timeUntilNextPercent":0},"paymentProcessorData":{"secret":"pst-test-secret"},"sampled_at":1}`, 200, ""},
+		{"zero Anlas does not disable free subscription", `{"active":true,"tier":3,"trainingStepsLeft":{"fixedTrainingStepsLeft":0,"purchasedTrainingSteps":0},"usage":{"percent":0,"isNegative":false}}`, 200, ""},
+		{"exhausted allowance", `{"active":true,"tier":3,"usage":{"percent":0,"isNegative":true}}`, 200, ""},
+		{"missing usage and purchased wallet stay unknown", `{"active":false,"tier":0,"trainingStepsLeft":{"fixedTrainingStepsLeft":0}}`, 200, ""},
+		{"missing identity", `{}`, 200, "Invalid NovelAI subscription response"},
+		{"invalid JSON cannot echo credentials", `pst-test-secret`, 200, "Invalid NovelAI subscription response"},
+		{"negative points", `{"active":true,"tier":3,"trainingStepsLeft":{"fixedTrainingStepsLeft":-1}}`, 200, "Invalid NovelAI subscription response"},
+		{"negative allowance", `{"active":true,"tier":3,"usage":{"percent":-1}}`, 200, "Invalid NovelAI subscription response"},
+		{"oversized response", strings.Repeat(" ", maxAdvancedCustomBalanceResponseBytes+1), 200, "Invalid NovelAI subscription response"},
+		{"upstream authentication failure", `{"message":"pst-test-secret"}`, 401, "HTTP"},
+		{"redirect is not followed", "", 302, "HTTP"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, http.MethodGet, r.Method)
+				assert.Equal(t, "/user/subscription", r.URL.Path)
+				assert.Equal(t, "Bearer pst-test-secret", r.Header.Get("Authorization"))
+				assert.Equal(t, "test-value", r.Header.Get("X-Resource-Test"))
+				w.Header().Set("Location", "/must-not-follow")
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+			baseURL := server.URL + "/"
+			headerOverride := `{"X-Resource-Test":"test-value"}`
+			channel := &model.Channel{
+				Type: constant.ChannelTypeNovelAI, BaseURL: &baseURL,
+				Key: "pst-test-secret", Balance: 12.5, BalanceUpdatedTime: 123,
+				HeaderOverride: &headerOverride,
+			}
+			result, err := updateChannelBalance(channel)
+			assert.Equal(t, 12.5, channel.Balance, "Anlas must never overwrite USD")
+			assert.EqualValues(t, 123, channel.BalanceUpdatedTime)
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+				assert.NotContains(t, err.Error(), channel.Key)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, result.NovelAI)
+			assert.False(t, result.hasMonetaryBalance(), "resource balances must never trigger USD auto-disable")
+			assert.Empty(t, result.RawResponse)
+			sanitized, err := common.Marshal(result.NovelAI)
+			require.NoError(t, err)
+			assert.NotContains(t, string(sanitized), "pst-test-secret")
+			assert.NotContains(t, string(sanitized), "paymentProcessorData")
+			assert.Greater(t, result.NovelAI.SampledAt, int64(1))
+			var upstream novelAIBalance
+			require.NoError(t, common.UnmarshalJsonStr(tc.body, &upstream))
+			assert.Equal(t, upstream.Points, result.NovelAI.Points)
+			assert.Equal(t, upstream.Usage, result.NovelAI.Usage)
+		})
+	}
+	assert.True(t, (channelBalanceResult{}).hasMonetaryBalance(), "zero USD retains existing auto-disable behavior")
+	assert.False(t, (channelBalanceResult{RawResponse: "{}"}).hasMonetaryBalance())
+}
+
+// This opt-in check uses the production resource query and never generates images.
+func TestLiveNovelAIResourceBalance(t *testing.T) {
+	if os.Getenv("NAI_SUBSCRIPTION_TEST") != "1" {
+		t.Skip("set NAI_SUBSCRIPTION_TEST=1 and NAI_TOKEN for a read-only query")
+	}
+	key := os.Getenv("NAI_TOKEN")
+	require.NotEmpty(t, key)
+	result, err := updateChannelBalance(&model.Channel{Type: constant.ChannelTypeNovelAI, Key: key})
+	require.NoError(t, err)
+	require.NotNil(t, result.NovelAI)
+	require.NotNil(t, result.NovelAI.Points)
+	require.NotNil(t, result.NovelAI.Points.Fixed)
+	require.NotNil(t, result.NovelAI.Points.Purchased)
+	require.NotNil(t, result.NovelAI.Usage)
+	require.NotNil(t, result.NovelAI.Usage.Percent)
+	t.Logf("NovelAI resources: subscription Anlas=%v; purchased Anlas=%v; V5 allowance=%d%%",
+		*result.NovelAI.Points.Fixed, *result.NovelAI.Points.Purchased, *result.NovelAI.Usage.Percent)
+}
 
 func TestGetDeepSeekBalanceUSD(t *testing.T) {
 	tests := []struct {
