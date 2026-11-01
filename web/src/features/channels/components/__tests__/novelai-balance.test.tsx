@@ -251,9 +251,14 @@ it('shows query failures, retries from the refresh icon and labels stale snapsho
   })
   const user = userEvent.setup()
   render(panel(false, true))
-  expect(await screen.findByRole('status')).toHaveTextContent(
-    'Failed to query balance'
-  )
+  expect(await screen.findByRole('status')).toHaveTextContent('Query failed')
+  await user.hover(screen.getByLabelText('V5 allowance'))
+  const tooltip = (await screen.findByText('V5 allowance: Unknown'))
+    .parentElement
+  if (!tooltip) throw new Error('Missing NovelAI allowance tooltip')
+  expect(within(tooltip).queryByText('Inactive')).not.toBeInTheDocument()
+  expect(within(tooltip).getAllByText('Unknown').length).toBeGreaterThan(0)
+  await user.unhover(screen.getByLabelText('V5 allowance'))
   get.mockResolvedValueOnce({ data: { success: true, novelai: fixture() } })
   await user.click(
     screen.getByRole('button', { name: 'Refresh NovelAI resources' })
@@ -267,6 +272,70 @@ it('shows query failures, retries from the refresh icon and labels stale snapsho
     'Refresh failed. Showing the last successful snapshot.'
   )
   expect(screen.getByLabelText('10,011 Anlas')).toBeInTheDocument()
+})
+
+it.each([
+  { active: true, expected: 'Active' },
+  { active: false, expected: 'Inactive' },
+  { active: null, expected: 'Unknown' },
+  { active: undefined, expected: 'Unknown' },
+])(
+  'shows subscription status $expected for active=$active in details and the allowance tooltip',
+  async ({ active, expected }) => {
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, novelai: { ...fixture(), active } },
+    })
+    const user = userEvent.setup()
+    render(panel(false, true))
+    await screen.findByLabelText('10,011 Anlas')
+    expect(screen.getByText('Status').nextElementSibling).toHaveTextContent(
+      expected
+    )
+    await user.hover(screen.getByLabelText('V5 allowance'))
+    const tooltip = (await screen.findByText('V5 allowance: 64%')).parentElement
+    if (!tooltip) throw new Error('Missing NovelAI allowance tooltip')
+    expect(within(tooltip).getByText(expected)).toBeInTheDocument()
+    if (active !== false) {
+      expect(within(tooltip).queryByText('Inactive')).not.toBeInTheDocument()
+    }
+  }
+)
+
+it('preserves the server response message instead of a generic transport error on an initial failure', async () => {
+  vi.spyOn(api, 'get').mockRejectedValue({
+    isAxiosError: true,
+    message: 'Request failed with status code 502',
+    response: {
+      status: 502,
+      data: { message: 'NovelAI subscription request timed out' },
+    },
+  })
+  render(panel(false, true))
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'NovelAI subscription request timed out'
+  )
+  expect(screen.getByRole('status')).not.toHaveTextContent(
+    'Request failed with status code 502'
+  )
+})
+
+it('uses the translated fallback when an initial failure has no server message', async () => {
+  const i18n = createInstance()
+  await i18n.init({
+    lng: 'zhCN',
+    resources: {
+      zhCN: {
+        translation: {
+          'Failed to query balance': '\u4f59\u989d\u67e5\u8be2\u5931\u8d25',
+        },
+      },
+    },
+  })
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { success: false } })
+  render(<I18nextProvider i18n={i18n}>{panel(false, true)}</I18nextProvider>)
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    '\u4f59\u989d\u67e5\u8be2\u5931\u8d25'
+  )
 })
 
 it('disables duplicate refresh requests while loading and allows refreshing after completion', async () => {

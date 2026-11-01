@@ -33,6 +33,7 @@ import { toIntlLocale } from '@/i18n/languages'
 import { formatNumber, formatTimestampToDate } from '@/lib/format'
 import {
   createServerError,
+  getServerErrorMessage,
   requireServerSuccess,
 } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -79,6 +80,9 @@ export function NovelAIBalance(props: {
   }
 
   const data = query.data
+  let subscriptionStatus = t('Unknown')
+  if (data?.active === true) subscriptionStatus = t('Active')
+  else if (data?.active === false) subscriptionStatus = t('Inactive')
   const points = data?.trainingStepsLeft
   const usage = data?.usage
   const fixed = points?.fixedTrainingStepsLeft
@@ -118,9 +122,7 @@ export function NovelAIBalance(props: {
       {props.detailed && (
         <>
           <dt>{t('Status')}</dt>
-          <dd className='text-right'>
-            {data?.active ? t('Active') : t('Inactive')}
-          </dd>
+          <dd className='text-right'>{subscriptionStatus}</dd>
           <dt>{t('Expires at')}</dt>
           <dd className='text-right'>
             {formatTimestampToDate(data?.expiresAt ?? undefined)}
@@ -193,7 +195,7 @@ export function NovelAIBalance(props: {
                       {t('Next +1%')}: {nextPercentLabel}
                     </span>
                     {usage?.isNegative == null && <span>{t('Unknown')}</span>}
-                    {!data?.active && <span>{t('Inactive')}</span>}
+                    <span>{subscriptionStatus}</span>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -227,7 +229,10 @@ export function NovelAIBalance(props: {
           >
             {data
               ? t('Refresh failed. Showing the last successful snapshot.')
-              : t('Failed to query balance')}
+              : getServerErrorMessage(
+                  query.error,
+                  t('Failed to query balance')
+                )}
           </span>
         )}
         {props.detailed && data && details}
