@@ -165,3 +165,35 @@
 ### Next Steps
 
 - 推送与合入按用户指令
+
+
+## Session 6: 合作商账号与不限量套餐提交及远端整合
+<!-- trellis-session: v=2 fp=18f44a535330b834 -->
+
+**Date**: 2026-11-02
+**Task**: 合作商账号与不限量套餐提交及远端整合
+**Branch**: `feat/partner-accounts`
+
+### Summary
+
+Implemented partner tenant accounts, unlimited quota and per-user RPM; fixed review items 3 and 4 and preserved the existing remote partner server account implementation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d2e908664` | feat(partner): add isolated accounts and rate-limited unlimited plans |
+| `2f465c900` | merge: integrate remote partner server accounts with tenant subscription plans |
+
+### Testing
+
+- [OK] Merged tree: go test and go vet for model, middleware, router, controller and service passed.
+- [OK] Merged frontend: 34 tests in 9 files, typecheck, affected-module lint and build:check passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Review items 1 (video remix limiter coverage) and 2 (partner plan compliance UI gate) remain open; the user requested only fixes 3/4 and commit/push.
