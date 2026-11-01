@@ -338,6 +338,11 @@ func migrateDB() error {
 	if err := migrateOptionPrimaryKey(DB); err != nil {
 		common.SysError(common.LogText("failed to migrate options primary key: %s", err.Error()))
 	}
+	// perf_metrics 增加渠道维度：先删旧的 (model,group,bucket) 唯一索引，
+	// 否则同一模型/组在不同渠道的同一小时会撞唯一约束导致写入失败。
+	if err := migratePerfMetricDropLegacyIndex(DB); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -380,6 +385,13 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+
+	// AutoMigrate 之后补历史行的 channel_id —— 该列在上一步才被创建，
+	// 所以归零必须放在这里，而不是迁移入口。
+	if err := migratePerfMetricBackfillChannel(DB); err != nil {
+		common.SysError(common.LogText("failed to backfill perf_metrics channel_id: %s", err.Error()))
+	}
+
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err
 	}

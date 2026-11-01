@@ -10,6 +10,8 @@ type Store interface {
 type Sample struct {
 	Model        string
 	Group        string
+	// ChannelId 是产生该样本的渠道 ID，0 表示未知（暂不计入按渠道统计）。
+	ChannelId    int
 	LatencyMs    int64
 	TtftMs       int64
 	HasTtft      bool
@@ -21,7 +23,9 @@ type Sample struct {
 type QueryParams struct {
 	Model string
 	Group string
-	Hours int
+	// ChannelId 非 0 时只统计该渠道；0 表示跨渠道合并（默认，保持原有语义）。
+	ChannelId int
+	Hours     int
 	// AllowedGroups restricts both the per-group results and the model summary;
 	// nil allows every group.
 	AllowedGroups []string
@@ -86,9 +90,10 @@ type SummaryAllResult struct {
 }
 
 type bucketKey struct {
-	model    string
-	group    string
-	bucketTs int64
+	model     string
+	group     string
+	channelId int
+	bucketTs  int64
 }
 
 type counters struct {

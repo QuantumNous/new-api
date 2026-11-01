@@ -60,6 +60,7 @@ func RecordRelayResult(ctx context.Context, info *relaycommon.RelayInfo, apiErr 
 	Record(Sample{
 		Model:        info.OriginModelName,
 		Group:        info.UsingGroup,
+		ChannelId:    info.ChannelId,
 		LatencyMs:    latencyMs,
 		TtftMs:       ttftMs,
 		HasTtft:      hasTtft,
@@ -86,9 +87,10 @@ func RecordTaskResult(task *model.Task, result *relaycommon.TaskInfo) {
 		endTs = time.Now().Unix()
 	}
 	sample := Sample{
-		Model:   modelName,
-		Group:   task.Group,
-		Success: task.Status == model.TaskStatusSuccess,
+		Model:     modelName,
+		Group:     task.Group,
+		ChannelId: task.ChannelId,
+		Success:   task.Status == model.TaskStatusSuccess,
 	}
 	if task.SubmitTime > 0 && endTs > task.SubmitTime {
 		sample.LatencyMs = (endTs - task.SubmitTime) * 1000
@@ -135,9 +137,10 @@ func Record(sample Sample) {
 	}
 
 	key := bucketKey{
-		model:    sample.Model,
-		group:    sample.Group,
-		bucketTs: bucketStart(time.Now().Unix()),
+		model:     sample.Model,
+		group:     sample.Group,
+		channelId: sample.ChannelId,
+		bucketTs:  bucketStart(time.Now().Unix()),
 	}
 	actual, _ := hotBuckets.LoadOrStore(key, &atomicBucket{})
 	actual.(*atomicBucket).add(sample)
@@ -172,10 +175,12 @@ func Query(params QueryParams) (QueryResult, error) {
 				continue
 			}
 		}
+		// 按模型查询时跨渠道合并：channelId 归 0，使同一小时只产生一个时间点。
 		mergeCounters(merged, bucketKey{
-			model:    row.ModelName,
-			group:    row.Group,
-			bucketTs: row.BucketTs,
+			model:     row.ModelName,
+			group:     row.Group,
+			channelId: 0,
+			bucketTs:  row.BucketTs,
 		}, counters{
 			requestCount:   row.RequestCount,
 			successCount:   row.SuccessCount,
@@ -200,7 +205,10 @@ func Query(params QueryParams) (QueryResult, error) {
 				return true
 			}
 		}
-		mergeCounters(merged, k, value.(*atomicBucket).snapshot())
+		// 实时桶同样跨渠道合并，与 DB 行口径一致。
+		mergedKey := k
+		mergedKey.channelId = 0
+		mergeCounters(merged, mergedKey, value.(*atomicBucket).snapshot())
 		return true
 	})
 
@@ -603,16 +611,19 @@ func mergeRedisActiveBuckets(merged map[bucketKey]counters, params QueryParams, 
 	if active < startTs || active > endTs {
 		return
 	}
-	key := bucketKey{model: params.Model, group: params.Group, bucketTs: active}
+	key := bucketKey{model: params.Model, group: params.Group, channelId: params.ChannelId, bucketTs: active}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	values, err := common.RDB.HGetAll(ctx, redisBucketKey(key)).Result()
 	if err != nil || len(values) == 0 {
 		return
 	}
-	mergeCounters(merged, key, redisCounters(values))
+	// 合并进结果时遵循 params.ChannelId 的口径（0 = 跨渠道合并）。
+	mergedKey := key
+	mergedKey.channelId = params.ChannelId
+	mergeCounters(merged, mergedKey, redisCounters(values))
 }
 
 func redisBucketKey(key bucketKey) string {
-	return fmt.Sprintf("perf:%s:%s:%d", key.model, key.group, key.bucketTs)
+	return fmt.Sprintf("perf:%s:%s:%d:%d", key.model, key.group, key.channelId, key.bucketTs)
 }
