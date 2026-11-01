@@ -37,6 +37,12 @@ type ModelRequest struct {
 // own group admission, preventing paused or stale routing views from being used.
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		if !c.GetBool("group_migration_admitted") {
+			if err := model.CheckGroupMigrationNode(c.Request.Context()); err != nil {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
+				return
+			}
+		}
 		groupVersion := model.GroupRequestVersion()
 		if value, exists := c.Get("group_migration_version"); exists {
 			groupVersion = value.(uint64)

@@ -434,7 +434,7 @@ func WssAuth(c *gin.Context) {
 // Used for endpoints that need to be accessible from both the dashboard and API clients.
 func TokenOrUserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		if err := model.SyncGroupMigrationNode(c.Request.Context()); err != nil {
+		if err := model.CheckGroupMigrationNode(c.Request.Context()); err != nil {
 			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
 			return
 		}
@@ -485,10 +485,11 @@ func TokenOrUserAuth() func(c *gin.Context) {
 // 仍然检查令牌 IP 白名单和用户是否被封禁。
 func TokenAuthReadOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		if err := model.SyncGroupMigrationNode(c.Request.Context()); err != nil {
+		if err := model.CheckGroupMigrationNode(c.Request.Context()); err != nil {
 			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
 			return
 		}
+		groupVersion := model.GroupRequestVersion()
 		key := c.Request.Header.Get("Authorization")
 		if key == "" {
 			common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenNotProvided)))
@@ -552,6 +553,23 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		c.Set("id", token.UserId)
 		c.Set("token_id", token.Id)
 		c.Set("token_key", token.Key)
+		dependencies := []string{userCache.Group, token.Group}
+		if token.Group == "auto" || token.Group == "" && userCache.Group == "auto" {
+			// Read-only access keeps its existing permissive token policy. An
+			// invalid routing override conservatively depends on global candidates.
+			groups, parseErr := token.GetAutoGroups()
+			if parseErr != nil || len(groups) == 0 {
+				groups = setting.GetAutoGroups()
+			}
+			dependencies = append(dependencies, groups...)
+		}
+		release, err := model.AdmitGroupRequestAtVersion(groupVersion, dependencies...)
+		if err != nil {
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
+			return
+		}
+		defer release()
+		c.Set("group_migration_admitted", true)
 		c.Next()
 	}
 }
@@ -561,7 +579,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 // that admission through the downstream response, including streaming work.
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		if err := model.SyncGroupMigrationNode(c.Request.Context()); err != nil {
+		if err := model.CheckGroupMigrationNode(c.Request.Context()); err != nil {
 			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
 			return
 		}

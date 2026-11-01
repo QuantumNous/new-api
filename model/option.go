@@ -329,7 +329,7 @@ func UpdateOptionsBulk(values map[string]string) error {
 	}
 	revision := groupMigrationNodeRevision.Load()
 	if os.Getenv("GROUP_MIGRATION_NODES") != "" {
-		if err := SyncGroupMigrationNode(context.Background()); err != nil {
+		if err := CheckGroupMigrationNode(context.Background()); err != nil {
 			return err
 		}
 		revision = groupMigrationNodeRevision.Load()

@@ -231,14 +231,71 @@ func verifyGroupMigrationGeneration(tx *gorm.DB) error {
 	return nil
 }
 
-// SyncGroupMigrationNode is also called before reading authentication/routing
-// snapshots. Polling supplies acknowledgements, but is never an admission lease.
+// CheckGroupMigrationNode validates primary-database authority without writes,
+// exclusive locks, cache refreshes or phase acknowledgements. A successful check
+// is not a lease: failures occurring after it are detected by subsequent checks.
+func CheckGroupMigrationNode(ctx context.Context) error {
+	if os.Getenv("GROUP_MIGRATION_NODES") == "" {
+		return nil
+	}
+	observation, err := observeGroupMigrationNode(DB.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	refresh, err := observation.applyBarrier()
+	if err != nil {
+		return err
+	}
+	if refresh {
+		return ErrGroupMigrationPaused
+	}
+	return nil
+}
+
+// observeGroupMigrationNode brackets the identity/operation reads with control
+// reads on the primary DB. Every authority transition advances its version;
+// Fence alone is excluded because ordinary reference writers also change it.
+func observeGroupMigrationNode(db *gorm.DB) (*groupMigrationNodeObservation, error) {
+	var control GroupMigrationControl
+	if err := db.First(&control, 1).Error; err != nil {
+		return nil, err
+	}
+	observation, err := readGroupMigrationNodeObservation(db, &control)
+	if err != nil {
+		return nil, err
+	}
+	var current GroupMigrationControl
+	if err := db.First(&current, 1).Error; err != nil {
+		return nil, err
+	}
+	control.Fence, current.Fence = 0, 0
+	if control != current {
+		return nil, ErrGroupMigrationPaused
+	}
+	return observation, nil
+}
+
+// SyncGroupMigrationNode runs in the background or migration coordinator. Idle
+// heartbeats update only this node; view publication and active acknowledgements
+// retain the durable control lock, including shared-cache refresh deduplication.
 func SyncGroupMigrationNode(ctx context.Context) error {
 	if os.Getenv("GROUP_MIGRATION_NODES") == "" {
 		return nil
 	}
 	groupMigrationNodeSync.Lock()
 	defer groupMigrationNodeSync.Unlock()
+	db := DB.WithContext(ctx)
+	observation, err := observeGroupMigrationNode(db)
+	if err != nil {
+		return err
+	}
+	refresh, err := observation.applyBarrier()
+	if err != nil {
+		return err
+	}
+	if observation.control.OperationID == "" && !refresh {
+		return observation.acknowledge(db, "ready")
+	}
 	groupViewMutex.Lock()
 	defer groupViewMutex.Unlock()
 	return DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -252,7 +309,7 @@ func SyncGroupMigrationNode(ctx context.Context) error {
 
 // syncGroupMigrationNode observes authority, applies the local barrier/view,
 // then persists the acknowledgement. All steps retain the caller's transaction,
-// durable control lock, node mutex and view lock, including on request paths.
+// durable control lock, node mutex and view lock. Requests never call this path.
 func syncGroupMigrationNode(tx *gorm.DB, control *GroupMigrationControl) error {
 	observation, err := readGroupMigrationNodeObservation(tx, control)
 	if err != nil {
@@ -262,10 +319,16 @@ func syncGroupMigrationNode(tx *gorm.DB, control *GroupMigrationControl) error {
 	if err != nil {
 		return err
 	}
+	return observation.acknowledge(tx, phase)
+}
+
+// acknowledge publishes only this process's matching-version phase. A delayed
+// idle heartbeat cannot overwrite a newer acknowledgement or a replacement.
+func (observation *groupMigrationNodeObservation) acknowledge(tx *gorm.DB, phase string) error {
 	now := time.Now().Unix()
 	node := observation.node
 	// MySQL reports changed rows rather than matched rows. An identical ack
-	// already read under this control lock is valid without another write.
+	// from this observation is valid without another write; it grants no lease.
 	if node.OperationID == observation.control.OperationID && node.CoordinationVersion == observation.control.CoordinationVersion && node.Phase == phase && node.Revision == observation.control.Revision && node.LastSeenAt == now {
 		return nil
 	}
@@ -281,8 +344,8 @@ func syncGroupMigrationNode(tx *gorm.DB, control *GroupMigrationControl) error {
 }
 
 // groupMigrationNodeObservation holds the control, process identity and optional
-// operation read under the same durable lock. It is not an admission lease and
-// must be applied and acknowledged before that transaction releases the lock.
+// operation read under a durable lock or bracketed by matching control reads.
+// It is an immutable observation, never an admission lease.
 type groupMigrationNodeObservation struct {
 	control   GroupMigrationControl
 	node      GroupMigrationNode
@@ -291,7 +354,7 @@ type groupMigrationNodeObservation struct {
 
 // readGroupMigrationNodeObservation only reads and validates authority. It does
 // not change local readiness, refresh caches or acknowledge a migration phase.
-// The caller supplies the already locked control record from this transaction.
+// The caller must lock control or verify that it remained unchanged afterwards.
 func readGroupMigrationNodeObservation(tx *gorm.DB, control *GroupMigrationControl) (*groupMigrationNodeObservation, error) {
 	roster, err := groupMigrationRoster()
 	if err != nil {
@@ -336,10 +399,10 @@ func readGroupMigrationNodeObservation(tx *gorm.DB, control *GroupMigrationContr
 	return observation, nil
 }
 
-// applyLocalState closes related admission before checking existing inflight
-// requests, and refreshes the view before clearing a completed barrier. It only
-// returns the phase to acknowledge; publishing that phase belongs to the caller.
-func (observation *groupMigrationNodeObservation) applyLocalState(tx *gorm.DB) (string, error) {
+// applyBarrier is the shared monotonic observation rule for requests and the
+// background. Its short local critical section closes admission without I/O;
+// only background publication may restore readiness or clear an old barrier.
+func (observation *groupMigrationNodeObservation) applyBarrier() (bool, error) {
 	control, op := &observation.control, observation.operation
 	view := groupMigrationLocalObservation{version: control.CoordinationVersion, revision: control.Revision,
 		operation: control.OperationID, lastOperation: control.LastOperationID, owner: control.Owner,
@@ -355,15 +418,11 @@ func (observation *groupMigrationNodeObservation) applyLocalState(tx *gorm.DB) (
 			groupMigrationTraffic.conflicted = true
 		}
 		groupMigrationTraffic.Unlock()
-		return "", ErrGroupMigrationPaused
+		return false, ErrGroupMigrationPaused
 	}
 	if control.OperationID != "" && groupMigrationTraffic.operation != op.ID {
 		groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = op.ID, op.Source, op.Target
 		advanceGroupMigrationVersion(op.Source, op.Target)
-	}
-	active := 0
-	if op != nil {
-		active = groupMigrationTraffic.inflight[op.Source] + groupMigrationTraffic.inflight[op.Target]
 	}
 	// A draining barrier changes authority without changing the current data
 	// view. Already-ready nodes can keep serving unrelated groups while source
@@ -373,6 +432,23 @@ func (observation *groupMigrationNodeObservation) applyLocalState(tx *gorm.DB) (
 	groupMigrationTraffic.observation = &view
 	if refresh {
 		groupMigrationTraffic.ready = false
+	}
+	groupMigrationTraffic.Unlock()
+	return refresh, nil
+}
+
+// applyLocalState refreshes the view after closing admission and draining. It
+// returns the phase to acknowledge while retaining the durable control lock.
+func (observation *groupMigrationNodeObservation) applyLocalState(tx *gorm.DB) (string, error) {
+	refresh, err := observation.applyBarrier()
+	if err != nil {
+		return "", err
+	}
+	control, op := &observation.control, observation.operation
+	groupMigrationTraffic.Lock()
+	active := 0
+	if op != nil {
+		active = groupMigrationTraffic.inflight[op.Source] + groupMigrationTraffic.inflight[op.Target]
 	}
 	groupMigrationTraffic.Unlock()
 	phase := "ready"
@@ -393,21 +469,24 @@ func (observation *groupMigrationNodeObservation) applyLocalState(tx *gorm.DB) (
 			phase = "synced"
 		}
 	}
+	groupMigrationTraffic.Lock()
+	defer groupMigrationTraffic.Unlock()
+	// A delayed observation or same-version conflict may arrive during I/O.
+	// Neither is allowed to publish readiness or release a newer local barrier.
+	if groupMigrationTraffic.observation.version != control.CoordinationVersion || groupMigrationTraffic.conflicted {
+		return "", ErrGroupMigrationPaused
+	}
 	if control.OperationID == "" {
 		if active != 0 {
 			return "", ErrGroupMigrationPaused
 		}
-		groupMigrationTraffic.Lock()
 		if groupMigrationTraffic.operation != "" {
 			advanceGroupMigrationVersion(groupMigrationTraffic.source, groupMigrationTraffic.target)
 			groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = "", "", ""
 		}
-		groupMigrationTraffic.Unlock()
 		phase = "ready"
 	}
-	groupMigrationTraffic.Lock()
 	groupMigrationTraffic.ready = active == 0 || !refresh
-	groupMigrationTraffic.Unlock()
 	return phase, nil
 }
 

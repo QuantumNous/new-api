@@ -261,32 +261,11 @@ func GroupRequestVersion() uint64 {
 // A request straddling a cutover retries instead of using a retired group.
 func AdmitGroupRequestAtVersion(version uint64, groups ...string) (func(), error) {
 	if os.Getenv("GROUP_MIGRATION_NODES") != "" {
-		groupMigrationNodeSync.Lock()
-		defer groupMigrationNodeSync.Unlock()
-		groupViewMutex.Lock()
-		defer groupViewMutex.Unlock()
-		var release func()
-		err := DB.Transaction(func(tx *gorm.DB) error {
-			var control GroupMigrationControl
-			if err := control.lock(tx); err != nil {
-				return err
-			}
-			if err := syncGroupMigrationNode(tx, &control); err != nil {
-				return err
-			}
-			var err error
-			release, err = admitGroupRequest(version, groups...)
-			return err
-		})
-		if err != nil && release != nil {
-			release()
-		}
-		if err != nil {
+		// Revalidate authority after reading routing snapshots. A barrier racing
+		// this check either closes local admission first or waits for our count.
+		if err := CheckGroupMigrationNode(context.Background()); err != nil {
 			return nil, err
 		}
-		// The returned release only touches local counters, even if storage is
-		// unavailable. Only a later valid phase acknowledgement proves drain.
-		return release, nil
 	}
 	return admitGroupRequest(version, groups...)
 }

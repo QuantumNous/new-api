@@ -98,6 +98,17 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 		}
 		require.NoError(t, db.Create(&model.Token{UserId: root.Id, Key: strings.Repeat("5", 48), Group: "default", Status: common.TokenStatusEnabled, ExpiredTime: -1, UnlimitedQuota: true}).Error)
 		require.NoError(t, db.Create(&model.Token{UserId: root.Id, Key: strings.Repeat("6", 48), Group: "auto", AutoGroups: `["routing"]`, Status: common.TokenStatusEnabled, ExpiredTime: -1, UnlimitedQuota: true}).Error)
+		banned := model.User{Username: "cluster-banned", AffCode: "cluster-banned", Status: common.UserStatusDisabled, Group: "default"}
+		require.NoError(t, db.Create(&banned).Error)
+		for _, token := range []model.Token{
+			{UserId: root.Id, Key: strings.Repeat("7", 48), Group: "auto", Status: common.TokenStatusExpired, ExpiredTime: time.Now().Unix() - 1},
+			{UserId: root.Id, Key: strings.Repeat("8", 48), Group: "default", Status: common.TokenStatusExhausted},
+			{UserId: root.Id, Key: strings.Repeat("9", 48), Group: "default", Status: common.TokenStatusDisabled},
+			{UserId: root.Id, Key: strings.Repeat("a", 48), Group: "default", Status: common.TokenStatusEnabled, AllowIps: common.GetPointer("192.0.2.1")},
+			{UserId: banned.Id, Key: strings.Repeat("b", 48), Group: "default", Status: common.TokenStatusEnabled},
+		} {
+			require.NoError(t, db.Create(&token).Error)
+		}
 		plan := model.SubscriptionPlan{Title: "cluster-plan", UpgradeGroup: "routing", DowngradeGroup: "routing", Enabled: true, DurationUnit: model.SubscriptionDurationDay, DurationValue: 1}
 		require.NoError(t, db.Create(&plan).Error)
 		require.NoError(t, db.Create(&model.UserSubscription{UserId: user.Id, PlanId: plan.Id, Status: "active", UpgradeGroup: "routing", DowngradeGroup: "routing", PrevUserGroup: "routing", EndTime: time.Now().Unix() + 3600}).Error)
@@ -116,10 +127,11 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	}
 	model.InitChannelCache()
 	require.NoError(t, model.SyncGroupMigrationNode(context.Background()))
-	pool := &migrationCommitFaultPool{ConnPool: db.ConnPool}
+	pool := &migrationTransactionPool{ConnPool: db.ConnPool}
 	db.ConnPool, db.Statement.ConnPool = pool, pool
 	var storageUnavailable atomic.Bool
-	var coordinationReads, coordinationWrites, controlWrites, controlWriteNanos, inflightWrites, completedRelays atomic.Int64
+	var observationGate atomic.Pointer[migrationObservationGate]
+	var coordinationReads, coordinationWrites, controlWrites, controlWriteNanos, inflightWrites, completedRelays, exclusiveLocks atomic.Int64
 	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:coordination-storage", func(tx *gorm.DB) {
 		switch tx.Statement.Table {
 		case "group_migration_controls", "group_migration_nodes", "group_migration_operations":
@@ -127,6 +139,23 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 		}
 		if storageUnavailable.Load() && (tx.Statement.Table == "group_migration_controls" || tx.Statement.Table == "group_migration_nodes") {
 			tx.AddError(errors.New("coordination database connection lost"))
+		}
+	}))
+	require.NoError(t, db.Callback().Query().After("gorm:query").Register("test:coordination-lock", func(tx *gorm.DB) {
+		if strings.HasPrefix(tx.Statement.Table, "group_migration_") && strings.Contains(strings.ToUpper(tx.Statement.SQL.String()), "FOR UPDATE") {
+			exclusiveLocks.Add(1)
+		}
+		gate, _ := tx.Statement.Context.Value(migrationObservationGateKey{}).(*migrationObservationGate)
+		if gate != nil && tx.Statement.Table == "group_migration_controls" {
+			gate.reads++
+			if gate.reads == gate.at {
+				close(gate.reached)
+				select {
+				case <-gate.release:
+				case <-tx.Statement.Context.Done():
+					tx.AddError(tx.Statement.Context.Err())
+				}
+			}
 		}
 	}))
 	// Record aggregate access only, never SQL, bindings, credentials or DSNs.
@@ -160,7 +189,19 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	require.NoError(t, err)
 	engine := gin.New()
 	engine.Use(gin.RecoveryWithWriter(io.Discard))
+	engine.Use(func(c *gin.Context) {
+		if c.GetHeader("X-Migration-Observe") == "true" {
+			c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), migrationObservationGateKey{}, observationGate.Load()))
+		}
+		c.Next()
+	})
 	SetApiRouter(engine)
+	engine.GET("/test/compatible", middleware.TokenOrUserAuth(), func(c *gin.Context) { c.Status(http.StatusOK) })
+	engine.POST("/test/fallback", func(c *gin.Context) {
+		c.Set("user_group", "default")
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, c.Query("group"))
+		c.Next()
+	}, middleware.Distribute(), func(c *gin.Context) { c.Status(http.StatusOK) })
 	engine.POST("/v1/chat/completions", func(c *gin.Context) {
 		// Observe completion after authentication's deferred release has run.
 		defer completedRelays.Add(1)
@@ -192,10 +233,34 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 		storageUnavailable.Store(c.Param("state") == "offline")
 		c.Status(http.StatusOK)
 	})
-	// Exercise the public admission/release contract, including a driver commit
-	// failure after local registration. All queries still use the real database.
+	// Delay actual query results, keeping their original primary DB contents.
+	// The first read exercises mixed observations; the second delays a complete
+	// old observation until a concurrent request has installed a newer barrier.
+	engine.POST("/test/observation/:action", func(c *gin.Context) {
+		if c.Param("action") == "arm" {
+			at, err := strconv.Atoi(c.Query("at"))
+			require.NoError(t, err)
+			observationGate.Store(&migrationObservationGate{at: at, reached: make(chan struct{}), release: make(chan struct{})})
+			c.Status(http.StatusOK)
+			return
+		}
+		gate := observationGate.Load()
+		require.NotNil(t, gate)
+		if c.Param("action") == "reached" {
+			select {
+			case <-gate.reached:
+			case <-time.After(5 * time.Second):
+				c.Status(http.StatusGatewayTimeout)
+				return
+			}
+		} else {
+			close(gate.release)
+		}
+		c.Status(http.StatusOK)
+	})
+	// Exercise the public local admission/release contract. The real DB pool
+	// records transactions so a request cannot silently regain a write path.
 	engine.POST("/test/admission", func(c *gin.Context) {
-		pool.failCommit.Store(c.Query("fail_commit") == "true")
 		groups := []string{"routing", "routing"}
 		done, err := model.AdmitGroupRequest(groups...)
 		if err != nil {
@@ -220,6 +285,7 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 			Reads: coordinationReads.Load(), ControlWrites: controlWrites.Load(), ControlWriteNanos: controlWriteNanos.Load(),
 			InflightWrites: inflightWrites.Load(), CompletedRelays: completedRelays.Load(),
 			CoordinationWrites: coordinationWrites.Load(), Transactions: pool.transactions.Load(),
+			ExclusiveLocks: exclusiveLocks.Load(),
 		})
 	})
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -238,34 +304,23 @@ type migrationProcess struct {
 	url, credential, generation string
 }
 
-// migrationCommitFaultPool injects a failed commit at the database boundary;
-// rollback must also release any local request registered by that transaction.
-type migrationCommitFaultPool struct {
+type migrationObservationGateKey struct{}
+
+type migrationObservationGate struct {
+	at, reads        int
+	reached, release chan struct{}
+}
+
+// migrationTransactionPool observes real database transactions without logging
+// SQL or credentials or replacing the database's concurrency behavior.
+type migrationTransactionPool struct {
 	gorm.ConnPool
-	failCommit   atomic.Bool
 	transactions atomic.Int64
 }
 
-func (pool *migrationCommitFaultPool) BeginTx(ctx context.Context, options *sql.TxOptions) (gorm.ConnPool, error) {
+func (pool *migrationTransactionPool) BeginTx(ctx context.Context, options *sql.TxOptions) (gorm.ConnPool, error) {
 	pool.transactions.Add(1)
-	tx, err := pool.ConnPool.(gorm.TxBeginner).BeginTx(ctx, options)
-	if err != nil {
-		return nil, err
-	}
-	return &migrationCommitFaultTx{Tx: tx, failCommit: &pool.failCommit}, nil
-}
-
-type migrationCommitFaultTx struct {
-	*sql.Tx
-	failCommit *atomic.Bool
-}
-
-func (tx *migrationCommitFaultTx) Commit() error {
-	if tx.failCommit.Swap(false) {
-		_ = tx.Tx.Rollback()
-		return errors.New("injected admission commit failure")
-	}
-	return tx.Tx.Commit()
+	return pool.ConnPool.(gorm.TxBeginner).BeginTx(ctx, options)
 }
 
 // migrationCoordinationAccess provides comparable diagnostics across protocol
@@ -278,6 +333,7 @@ type migrationCoordinationAccess struct {
 	CompletedRelays    int64 `json:"completed_relays"`
 	CoordinationWrites int64 `json:"coordination_writes"`
 	Transactions       int64 `json:"transactions"`
+	ExclusiveLocks     int64 `json:"exclusive_locks"`
 }
 
 func startMigrationProcess(t *testing.T, database, name, upstream string, seed bool, replacement string) *migrationProcess {
@@ -358,6 +414,37 @@ func (process *migrationProcess) relay(hold bool, key string) migrationHTTPResul
 	return migrationHTTP(req)
 }
 
+// keyQuery exercises the existing read-only and compatible authentication
+// boundaries with the same original relay credential used throughout migration.
+func (process *migrationProcess) keyQuery(t *testing.T, path, key string) migrationHTTPResult {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, process.url+path, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer sk-"+strings.Repeat(key, 48))
+	return migrationHTTP(req)
+}
+
+// delayObservation holds an actual primary DB result on an unrelated request.
+// Its return function releases the result after the parent establishes a barrier.
+func (process *migrationProcess) delayObservation(t *testing.T, at int) (<-chan migrationHTTPResult, func()) {
+	t.Helper()
+	status, body, _ := process.request(t, http.MethodPost, "/test/observation/arm?at="+strconv.Itoa(at), nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	req, err := http.NewRequest(http.MethodPost, process.url+"/v1/chat/completions", strings.NewReader(`{"model":"migration-probe","messages":[]}`))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer sk-"+strings.Repeat("5", 48))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Migration-Observe", "true")
+	result := make(chan migrationHTTPResult, 1)
+	go func() { result <- migrationHTTP(req) }()
+	status, body, _ = process.request(t, http.MethodPost, "/test/observation/reached", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	return result, func() {
+		status, body, _ := process.request(t, http.MethodPost, "/test/observation/release", nil)
+		require.Equal(t, http.StatusOK, status, string(body))
+	}
+}
+
 func migrationHTTP(req *http.Request) migrationHTTPResult {
 	response, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
 	if err != nil {
@@ -408,7 +495,9 @@ func awaitMigrationRecovery(t *testing.T, result <-chan migrationHTTPResult, par
 			return response
 		case <-ticker.C:
 			status, body, _ := participant.request(t, http.MethodPost, "/test/sync", nil)
-			require.Equal(t, http.StatusOK, status, string(body))
+			// A recovery transition can invalidate the background's bracketed
+			// read. Production polling retries that fail-closed observation too.
+			require.Contains(t, []int{http.StatusOK, http.StatusServiceUnavailable}, status, string(body))
 		case <-timeout.C:
 			t.Fatal("recovery did not finish after participant synchronization")
 		}
@@ -438,6 +527,8 @@ func TestGroupMigrationCluster(t *testing.T) {
 	a := startMigrationProcess(t, database, "Migration-B", upstream.URL, true, "")
 	b := startMigrationProcess(t, database, "migration-a", upstream.URL, false, "")
 	for _, process := range []*migrationProcess{a, b} {
+		status, body, _ := process.request(t, http.MethodPost, "/test/sync", nil)
+		require.Equal(t, http.StatusOK, status, string(body))
 		for _, key := range []string{"1", "2", "3", "4", "6"} {
 			response := process.relay(false, key)
 			require.NoError(t, response.err)
@@ -460,8 +551,42 @@ func TestGroupMigrationCluster(t *testing.T) {
 		assert.Equal(c, before.CompletedRelays+1, after.CompletedRelays)
 	}, 5*time.Second, 10*time.Millisecond)
 	assert.Equal(t, before.InflightWrites, after.InflightWrites, "ordinary admission and release must not persist per-request counts")
+	assert.Equal(t, before.ControlWrites, after.ControlWrites, "ordinary requests must not write the global control row")
+	assert.Equal(t, before.CoordinationWrites, after.CoordinationWrites, "ordinary requests must not publish coordination acknowledgements")
+	assert.Equal(t, before.Transactions, after.Transactions, "ordinary admission must not start coordination transactions")
+	assert.Equal(t, before.ExclusiveLocks, after.ExclusiveLocks, "ordinary requests must not acquire exclusive coordination locks")
 	t.Logf("ordinary relay coordination: reads=%d control_writes=%d control_update_elapsed=%s (includes execution and lock wait)",
 		after.Reads-before.Reads, after.ControlWrites-before.ControlWrites, time.Duration(after.ControlWriteNanos-before.ControlWriteNanos))
+	for _, path := range []string{"/api/usage/token/", "/test/compatible"} {
+		query := a.keyQuery(t, path, "1")
+		require.NoError(t, query.err)
+		require.Equal(t, http.StatusOK, query.status, string(query.body))
+	}
+	// Coordination admission must preserve the read-only endpoint's policy:
+	// expired/depleted credentials remain usable, disabled/IP/banned do not.
+	for _, tc := range []struct {
+		key    string
+		status int
+	}{{"7", http.StatusOK}, {"8", http.StatusOK}, {"9", http.StatusUnauthorized}, {"a", http.StatusForbidden}, {"b", http.StatusForbidden}} {
+		query := a.keyQuery(t, "/api/usage/token/", tc.key)
+		require.NoError(t, query.err)
+		require.Equal(t, tc.status, query.status, string(query.body))
+	}
+	status, body, _ = a.request(t, http.MethodGet, "/test/compatible", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	status, body, _ = a.request(t, http.MethodPost, "/test/fallback?group=routing", map[string]any{"model": "migration-probe"})
+	require.Equal(t, http.StatusOK, status, string(body))
+	_, body, _ = a.request(t, http.MethodGet, "/test/coordination-access", nil)
+	require.NoError(t, common.Unmarshal(body, &after))
+	assert.Equal(t, before.CoordinationWrites, after.CoordinationWrites, "all authentication entry points must keep coordination read-only")
+	assert.Equal(t, before.ExclusiveLocks, after.ExclusiveLocks)
+	// Idle background work can update its own heartbeat, never global control.
+	status, body, _ = a.request(t, http.MethodPost, "/test/sync", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	_, body, _ = a.request(t, http.MethodGet, "/test/coordination-access", nil)
+	require.NoError(t, common.Unmarshal(body, &after))
+	assert.Equal(t, before.ControlWrites, after.ControlWrites, "idle polling must not lock or update global control")
+	assert.Equal(t, before.ExclusiveLocks, after.ExclusiveLocks)
 	// Zero admitted requests does not prove an old process has stopped: it may
 	// still be publishing an authentication snapshot to the shared cache.
 	idleReplacement := exec.Command(os.Args[0], "-test.run=^TestGroupMigrationNodeProcess$")
@@ -480,8 +605,6 @@ func TestGroupMigrationCluster(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("remote request was not admitted")
 	}
-	status, body, _ = b.request(t, http.MethodPost, "/test/admission?fail_commit=true", nil)
-	require.Equal(t, http.StatusServiceUnavailable, status, string(body))
 	status, body, _ = b.request(t, http.MethodPost, "/test/admission", nil)
 	require.Equal(t, http.StatusOK, status, string(body))
 	// All these accepted requests must unwind their registration before the
@@ -534,8 +657,18 @@ func TestGroupMigrationCluster(t *testing.T) {
 	require.NoError(t, common.Unmarshal(body, &preview))
 	require.Empty(t, preview.Data.ExecutionBlockers)
 	submission := model.GroupMigrationSubmission{OperationID: "cluster-abort", Source: "routing", Target: "premium", Version: preview.Data.Version, Confirmation: preview.Data.Confirmation}
+	mixedRead, releaseMixedRead := b.delayObservation(t, 1)
 	abandoned := a.begin(t, "/api/option/group_migration", submission)
 	b.waitState(t, submission.OperationID, "paused")
+	// Request observation closes admission, but cannot acknowledge drain. The
+	// old partial read must also fail even though it uses an unrelated group.
+	require.Equal(t, http.StatusServiceUnavailable, b.relay(false, "1").status)
+	releaseMixedRead()
+	mixedResult := <-mixedRead
+	require.NoError(t, mixedResult.err)
+	require.Equal(t, http.StatusServiceUnavailable, mixedResult.status)
+	observed := b.waitState(t, submission.OperationID, "paused")
+	require.NotEqual(t, submission.OperationID, observed.Coordination.Nodes[1].OperationID, "requests must not persist a phase acknowledgement")
 	b.request(t, http.MethodPost, "/test/sync", nil)
 	op := b.waitState(t, submission.OperationID, "paused")
 	require.False(t, op.Coordination.Ready)
@@ -550,7 +683,23 @@ func TestGroupMigrationCluster(t *testing.T) {
 		blocked = b.relay(false, key)
 		require.NoError(t, blocked.err)
 		require.Equal(t, http.StatusServiceUnavailable, blocked.status, "closed dependency must reject key %s", key)
+		for _, path := range []string{"/api/usage/token/", "/test/compatible"} {
+			query := b.keyQuery(t, path, key)
+			require.NoError(t, query.err)
+			require.Equal(t, http.StatusServiceUnavailable, query.status, path)
+		}
 	}
+	status, body, _ = b.request(t, http.MethodGet, "/test/compatible", nil)
+	require.Equal(t, http.StatusServiceUnavailable, status, "dashboard model views depend on permitted groups: %s", body)
+	query := b.keyQuery(t, "/api/usage/token/", "7")
+	require.NoError(t, query.err)
+	require.Equal(t, http.StatusServiceUnavailable, query.status, "expired auto tokens must still depend on global candidates")
+	for _, group := range []string{"routing", "auto"} {
+		status, body, _ = b.request(t, http.MethodPost, "/test/fallback?group="+group, map[string]any{"model": "migration-probe"})
+		require.Equal(t, http.StatusServiceUnavailable, status, string(body))
+	}
+	status, body, _ = b.request(t, http.MethodPost, "/test/fallback?group=default", map[string]any{"model": "migration-probe"})
+	require.Equal(t, http.StatusOK, status, string(body))
 	require.NoError(t, a.cmd.Process.Kill())
 	require.Error(t, (<-abandoned).err)
 	a = startMigrationProcess(t, database, "Migration-B", upstream.URL, false, a.generation)
@@ -601,14 +750,23 @@ func TestGroupMigrationCluster(t *testing.T) {
 	}
 	status, body, _ = b.request(t, http.MethodPost, "/test/acknowledgement", map[string]any{"inflight": 12})
 	require.Equal(t, http.StatusOK, status, string(body))
+	delayedRead, releaseDelayedRead := b.delayObservation(t, 2)
 	finished := a.begin(t, "/api/option/group_migration", submission)
 	b.waitState(t, submission.OperationID, "paused")
 	// Merely observing a heartbeat never substitutes for a barrier acknowledgement.
 	op = b.waitState(t, submission.OperationID, "paused")
 	require.False(t, op.Coordination.Ready)
+	require.Equal(t, http.StatusServiceUnavailable, b.relay(false, "1").status)
+	releaseDelayedRead()
+	delayedResult := <-delayedRead
+	require.NoError(t, delayedResult.err)
+	require.Equal(t, http.StatusServiceUnavailable, delayedResult.status, "a complete old observation must not replace a newer local barrier")
 	b.request(t, http.MethodPost, "/test/sync", nil)
 	op = b.waitState(t, submission.OperationID, "committed")
 	require.False(t, op.Coordination.Ready)
+	require.Equal(t, http.StatusServiceUnavailable, b.relay(false, "1").status)
+	op = b.waitState(t, submission.OperationID, "committed")
+	require.Equal(t, "drained", op.Coordination.Nodes[1].Phase, "requests cannot refresh the view or acknowledge sync")
 	// The unrelated stream remained open while the affected group drained and
 	// committed; it does not need to end before the data transition.
 	releaseUnrelated()
@@ -618,6 +776,8 @@ func TestGroupMigrationCluster(t *testing.T) {
 	require.Error(t, (<-finished).err)
 	require.NoError(t, b.cmd.Process.Kill())
 	b = startMigrationProcess(t, database, "migration-a", upstream.URL, false, b.generation)
+	// Startup has refreshed and acknowledged this node, but the coordinator is
+	// stopped and has not persisted release. Local sync alone cannot reopen it.
 	blocked = b.relay(false, "1")
 	require.NoError(t, blocked.err)
 	require.Equal(t, http.StatusServiceUnavailable, blocked.status)
@@ -659,6 +819,8 @@ func TestGroupMigrationCluster(t *testing.T) {
 	require.Equal(t, http.StatusOK, status, string(body))
 	require.Contains(t, string(body), `"state":"completed"`)
 	for _, process := range []*migrationProcess{a, b} {
+		status, body, _ := process.request(t, http.MethodPost, "/test/sync", nil)
+		require.Equal(t, http.StatusOK, status, string(body))
 		for _, key := range []string{"1", "2", "3", "4", "6"} {
 			response := process.relay(false, key)
 			require.NoError(t, response.err)
@@ -677,11 +839,25 @@ func TestGroupMigrationCluster(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, blocked.status)
 	status, body, _ = oldB.request(t, http.MethodPost, "/api/token/", map[string]any{"name": "fenced", "group": "premium", "expired_time": -1, "unlimited_quota": true})
 	require.Equal(t, http.StatusServiceUnavailable, status, string(body))
+	for _, path := range []string{"/api/usage/token/", "/test/compatible"} {
+		query := oldB.keyQuery(t, path, "1")
+		require.NoError(t, query.err)
+		require.Equal(t, http.StatusServiceUnavailable, query.status, path)
+	}
+	status, body, _ = oldB.request(t, http.MethodPost, "/test/fallback?group=default", map[string]any{"model": "migration-probe"})
+	require.Equal(t, http.StatusServiceUnavailable, status, string(body))
 	// Loss of coordination storage must fail closed even with warm caches.
 	b.request(t, http.MethodPost, "/test/storage/offline", nil)
 	blocked = b.relay(false, "1")
 	require.NoError(t, blocked.err)
 	require.Equal(t, http.StatusServiceUnavailable, blocked.status)
+	for _, path := range []string{"/api/usage/token/", "/test/compatible"} {
+		query := b.keyQuery(t, path, "1")
+		require.NoError(t, query.err)
+		require.Equal(t, http.StatusServiceUnavailable, query.status, path)
+	}
+	status, body, _ = b.request(t, http.MethodPost, "/test/fallback?group=default", map[string]any{"model": "migration-probe"})
+	require.Equal(t, http.StatusServiceUnavailable, status, string(body))
 	b.request(t, http.MethodPost, "/test/storage/online", nil)
 	b.request(t, http.MethodPost, "/test/sync", nil)
 	require.Equal(t, http.StatusOK, b.relay(false, "1").status)
