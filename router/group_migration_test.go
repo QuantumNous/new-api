@@ -52,6 +52,9 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	gin.SetMode(gin.ReleaseMode)
 	common.NodeName = os.Getenv("TEST_MIGRATION_CHILD")
 	common.SessionSecret = "group-migration-process-test-session-secret"
+	// Match production initialization: shared Redis token keys require the same
+	// crypto secret on every node, including replacement processes.
+	common.CryptoSecret = common.SessionSecret
 	common.RedisEnabled = false
 	common.MemoryCacheEnabled = os.Getenv("TEST_GROUP_MIGRATION_MEMORY_CACHE") == "true"
 	common.IsMasterNode = false
@@ -130,15 +133,21 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	pool := &migrationTransactionPool{ConnPool: db.ConnPool}
 	db.ConnPool, db.Statement.ConnPool = pool, pool
 	var storageUnavailable atomic.Bool
+	var localCacheUnavailable atomic.Bool
+	var failedConfirmation atomic.Pointer[string]
 	var observationGate atomic.Pointer[migrationObservationGate]
-	var coordinationReads, coordinationWrites, controlWrites, controlWriteNanos, inflightWrites, completedRelays, exclusiveLocks atomic.Int64
+	var databaseReads, coordinationReads, coordinationWrites, controlWrites, controlWriteNanos, inflightWrites, completedRelays, exclusiveLocks atomic.Int64
 	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:coordination-storage", func(tx *gorm.DB) {
+		databaseReads.Add(1)
 		switch tx.Statement.Table {
 		case "group_migration_controls", "group_migration_nodes", "group_migration_operations":
 			coordinationReads.Add(1)
 		}
 		if storageUnavailable.Load() && (tx.Statement.Table == "group_migration_controls" || tx.Statement.Table == "group_migration_nodes") {
 			tx.AddError(errors.New("coordination database connection lost"))
+		}
+		if localCacheUnavailable.Load() && tx.Statement.Table == "channels" {
+			tx.AddError(errors.New("local channel cache rebuild failed"))
 		}
 	}))
 	require.NoError(t, db.Callback().Query().After("gorm:query").Register("test:coordination-lock", func(tx *gorm.DB) {
@@ -162,6 +171,11 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	// UPDATE elapsed time includes execution and any lock wait; it is not a
 	// measurement of lock wait alone. The fixture has no background poller.
 	require.NoError(t, db.Callback().Update().Before("gorm:update").Register("test:coordination-write-start", func(tx *gorm.DB) {
+		if phase := failedConfirmation.Load(); phase != nil && tx.Statement.Table == "group_migration_nodes" {
+			if changes, ok := tx.Statement.Dest.(map[string]any); ok && changes["phase"] == *phase {
+				tx.AddError(errors.New("node confirmation write failed"))
+			}
+		}
 		switch tx.Statement.Table {
 		case "group_migration_controls", "group_migration_nodes", "group_migration_operations":
 			coordinationWrites.Add(1)
@@ -233,6 +247,15 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 		storageUnavailable.Store(c.Param("state") == "offline")
 		c.Status(http.StatusOK)
 	})
+	engine.POST("/test/cache/:state", func(c *gin.Context) {
+		localCacheUnavailable.Store(c.Param("state") == "offline")
+		c.Status(http.StatusOK)
+	})
+	engine.POST("/test/confirmation/:phase", func(c *gin.Context) {
+		phase := c.Param("phase")
+		failedConfirmation.Store(&phase)
+		c.Status(http.StatusOK)
+	})
 	// Delay actual query results, keeping their original primary DB contents.
 	// The first read exercises mixed observations; the second delays a complete
 	// old observation until a concurrent request has installed a newer barrier.
@@ -282,7 +305,8 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	})
 	engine.GET("/test/coordination-access", func(c *gin.Context) {
 		c.JSON(http.StatusOK, migrationCoordinationAccess{
-			Reads: coordinationReads.Load(), ControlWrites: controlWrites.Load(), ControlWriteNanos: controlWriteNanos.Load(),
+			DatabaseReads: databaseReads.Load(),
+			Reads:         coordinationReads.Load(), ControlWrites: controlWrites.Load(), ControlWriteNanos: controlWriteNanos.Load(),
 			InflightWrites: inflightWrites.Load(), CompletedRelays: completedRelays.Load(),
 			CoordinationWrites: coordinationWrites.Load(), Transactions: pool.transactions.Load(),
 			ExclusiveLocks: exclusiveLocks.Load(),
@@ -326,6 +350,7 @@ func (pool *migrationTransactionPool) BeginTx(ctx context.Context, options *sql.
 // migrationCoordinationAccess provides comparable diagnostics across protocol
 // changes without making today's per-request write count a required contract.
 type migrationCoordinationAccess struct {
+	DatabaseReads      int64 `json:"database_reads"`
 	Reads              int64 `json:"reads"`
 	ControlWrites      int64 `json:"control_writes"`
 	ControlWriteNanos  int64 `json:"control_write_nanos"`
@@ -505,6 +530,7 @@ func awaitMigrationRecovery(t *testing.T, result <-chan migrationHTTPResult, par
 }
 
 func TestGroupMigrationCluster(t *testing.T) {
+	t.Setenv("TEST_GROUP_MIGRATION_MEMORY_CACHE", "true")
 	held := make(chan chan struct{}, 1)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Migration-Hold") == "true" {
@@ -761,12 +787,45 @@ func TestGroupMigrationCluster(t *testing.T) {
 	delayedResult := <-delayedRead
 	require.NoError(t, delayedResult.err)
 	require.Equal(t, http.StatusServiceUnavailable, delayedResult.status, "a complete old observation must not replace a newer local barrier")
-	b.request(t, http.MethodPost, "/test/sync", nil)
+	status, body, _ = b.request(t, http.MethodPost, "/test/confirmation/drained", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	status, body, _ = b.request(t, http.MethodPost, "/test/sync", nil)
+	require.Equal(t, http.StatusServiceUnavailable, status, string(body))
+	op = a.waitState(t, submission.OperationID, "paused")
+	require.False(t, op.Coordination.Ready)
+	require.NotEqual(t, "drained", op.Coordination.Nodes[1].Phase, "local drain without a durable acknowledgement cannot authorize commit")
+	require.Equal(t, http.StatusServiceUnavailable, b.relay(false, "1").status)
+	status, body, _ = b.request(t, http.MethodPost, "/test/confirmation/online", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	status, body, _ = b.request(t, http.MethodPost, "/test/sync", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
 	op = b.waitState(t, submission.OperationID, "committed")
 	require.False(t, op.Coordination.Ready)
 	require.Equal(t, http.StatusServiceUnavailable, b.relay(false, "1").status)
 	op = b.waitState(t, submission.OperationID, "committed")
 	require.Equal(t, "drained", op.Coordination.Nodes[1].Phase, "requests cannot refresh the view or acknowledge sync")
+	// A completed shared Redis refresh cannot substitute for this process's
+	// own channel view. A local rebuild failure must retain the durable barrier.
+	status, body, _ = b.request(t, http.MethodPost, "/test/cache/offline", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	status, body, _ = b.request(t, http.MethodPost, "/test/sync", nil)
+	require.Equal(t, http.StatusServiceUnavailable, status, string(body))
+	op = a.waitState(t, submission.OperationID, "committed")
+	require.False(t, op.Coordination.Ready)
+	require.Equal(t, "drained", op.Coordination.Nodes[1].Phase, "failed local refresh must not publish a sync acknowledgement")
+	require.Equal(t, http.StatusServiceUnavailable, b.relay(false, "1").status)
+	status, body, _ = b.request(t, http.MethodPost, "/test/cache/online", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	status, body, _ = b.request(t, http.MethodPost, "/test/confirmation/synced", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
+	status, body, _ = b.request(t, http.MethodPost, "/test/sync", nil)
+	require.Equal(t, http.StatusServiceUnavailable, status, string(body))
+	op = a.waitState(t, submission.OperationID, "committed")
+	require.False(t, op.Coordination.Ready)
+	require.Equal(t, "drained", op.Coordination.Nodes[1].Phase, "a refreshed local view without a durable acknowledgement cannot authorize release")
+	require.Equal(t, http.StatusServiceUnavailable, b.relay(false, "1").status)
+	status, body, _ = b.request(t, http.MethodPost, "/test/confirmation/online", nil)
+	require.Equal(t, http.StatusOK, status, string(body))
 	// The unrelated stream remained open while the affected group drained and
 	// committed; it does not need to end before the data transition.
 	releaseUnrelated()
@@ -861,6 +920,31 @@ func TestGroupMigrationCluster(t *testing.T) {
 	b.request(t, http.MethodPost, "/test/storage/online", nil)
 	b.request(t, http.MethodPost, "/test/sync", nil)
 	require.Equal(t, http.StatusOK, b.relay(false, "1").status)
+	require.NoError(t, oldB.cmd.Process.Kill())
+	// Complete another migration without process loss, retaining every original
+	// explicit, inherited and automatic key in both independent routing caches.
+	_, body, _ = a.request(t, http.MethodGet, "/api/option/group_migration/preview?source=premium&target=routing", nil)
+	require.NoError(t, common.Unmarshal(body, &preview))
+	require.Empty(t, preview.Data.ExecutionBlockers)
+	submission.OperationID, submission.Source, submission.Target = "cluster-return", "premium", "routing"
+	submission.Version, submission.Confirmation = preview.Data.Version, preview.Data.Confirmation
+	returned := awaitMigrationRecovery(t, a.begin(t, "/api/option/group_migration", submission), b)
+	require.Equal(t, http.StatusOK, returned.status, string(returned.body))
+	require.Contains(t, string(returned.body), `"state":"completed"`)
+	for _, process := range []*migrationProcess{a, b} {
+		status, body, _ = process.request(t, http.MethodPost, "/test/sync", nil)
+		require.Equal(t, http.StatusOK, status, string(body))
+		for _, key := range []string{"1", "2", "3", "4", "6"} {
+			response := process.relay(false, key)
+			require.NoError(t, response.err)
+			require.Equal(t, http.StatusOK, response.status, string(response.body))
+			require.Equal(t, "routing", response.header.Get("X-Routed-Group"))
+			require.Equal(t, "0.6", response.header.Get("X-Routing-Ratio"))
+		}
+	}
+	retried := awaitMigrationRecovery(t, a.begin(t, "/api/option/group_migration", submission), b)
+	require.Equal(t, http.StatusOK, retried.status, string(retried.body))
+	require.Contains(t, string(retried.body), `"state":"completed"`, "completed operation retry remains idempotent")
 }
 
 func TestUnusedGroupMigration(t *testing.T) {
