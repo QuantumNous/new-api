@@ -31,6 +31,7 @@ describe('partner OAuth client permission gating', () => {
         onToggle={vi.fn()}
         onRotate={vi.fn()}
         onDelete={vi.fn()}
+        onServerAccess={vi.fn()}
       />
     )
     expect(
@@ -45,6 +46,7 @@ describe('partner OAuth client permission gating', () => {
     expect(
       screen.queryByRole('button', { name: 'Delete' })
     ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Server access' })).toBeVisible()
   })
 
   it('shows operate and write actions when those permissions are granted', () => {
@@ -58,6 +60,7 @@ describe('partner OAuth client permission gating', () => {
         onToggle={vi.fn()}
         onRotate={vi.fn()}
         onDelete={vi.fn()}
+        onServerAccess={vi.fn()}
       />
     )
     expect(screen.getByRole('button', { name: 'Create client' })).toBeVisible()

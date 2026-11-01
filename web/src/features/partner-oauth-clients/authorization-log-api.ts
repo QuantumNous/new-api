@@ -15,6 +15,21 @@ export const AUTHORIZATION_LOG_ACTIONS = [
   'partner_oauth.binding.client_delete',
   'partner_oauth.credential.issue',
   'partner_oauth.payment.order_create',
+  'partner_server.token_issue',
+  'partner_server.token_issue_failed',
+  'partner_server.auth_denied',
+  'partner_server.secret_issue',
+  'partner_server.secret_revoke',
+  'partner_server.suspend',
+  'partner_server.resume',
+  'partner_server.keys_revoke_all',
+  'partner_account.create',
+  'partner_account.credential_issue',
+  'partner_account.credential_rotate',
+  'partner_account.credential_rate_limited',
+  'partner_account.disable',
+  'partner_account.enable',
+  'partner_account.payment_order_create',
 ] as const
 
 export interface AuthorizationLog {

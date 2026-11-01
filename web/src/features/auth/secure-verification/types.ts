@@ -94,7 +94,21 @@ export type VerificationOperation =
       scope: 'partner_oauth.client.sensitive_write'
       context:
         | { action: 'create' }
-        | { action: 'update' | 'rotate_secret' | 'delete'; client_id: string }
+        | {
+            action:
+              | 'update'
+              | 'rotate_secret'
+              | 'delete'
+              | 'update_server'
+              | 'issue_server_secret'
+              | 'revoke_server_keys'
+            client_id: string
+          }
+        | {
+            action: 'revoke_server_secret'
+            client_id: string
+            secret_id: number
+          }
     }
   | {
       scope: 'partner_tenant.sensitive_write'

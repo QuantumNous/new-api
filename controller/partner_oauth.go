@@ -328,6 +328,12 @@ func PartnerOAuthToken(c *gin.Context) {
 		writePartnerOAuthError(c, err)
 		return
 	}
+	// Partner servers authenticate with server secrets, never the OAuth
+	// client secret, so this grant bypasses OAuth client authentication.
+	if form["grant_type"] == "client_credentials" {
+		partnerServerClientCredentials(c, form)
+		return
+	}
 	client, authErr := authenticatePartnerOAuthClient(c, form)
 	if c.IsAborted() {
 		return

@@ -457,7 +457,7 @@ func GetAllUsers(pageInfo *common.PageInfo, sortOptions ...UserSortOptions) (use
 	return users, total, nil
 }
 
-func SearchUsers(keyword string, group string, role *int, status *int, startIdx int, num int, sortOptions ...UserSortOptions) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, role *int, status *int, partnerClientID string, startIdx int, num int, sortOptions ...UserSortOptions) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -491,6 +491,9 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	query = query.Where("("+likeCondition+")", likeArgs...)
 	if group != "" {
 		query = query.Where(commonGroupCol+" = ?", group)
+	}
+	if partnerClientID != "" {
+		query = query.Where("id IN (?)", tx.Model(&PartnerAccount{}).Select("user_id").Where("client_id = ?", partnerClientID))
 	}
 	if role != nil {
 		query = query.Where("role = ?", *role)

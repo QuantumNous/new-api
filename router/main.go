@@ -15,6 +15,9 @@ import (
 func SetRouter(router *gin.Engine, assets WebAssets) {
 	SetApiRouter(router)
 	SetDashboardRouter(router)
+	// Registered before SetRelayRouter adds the engine-wide CORS middleware:
+	// partner server endpoints are for servers and must not allow browsers.
+	SetPartnerServerRouter(router)
 	SetRelayRouter(router)
 	SetPartnerOAuthRouter(router)
 	SetTaskPluginProtocolRouter(router)

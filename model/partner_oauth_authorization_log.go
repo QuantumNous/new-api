@@ -63,7 +63,13 @@ func ValidPartnerOAuthLogAction(action string) bool {
 		"partner_oauth.token.issue", "partner_oauth.code.replay_detected",
 		"partner_oauth.refresh.reuse_detected", "partner_oauth.binding.revoke",
 		"partner_oauth.binding.admin_revoke", "partner_oauth.binding.client_delete",
-		"partner_oauth.credential.issue", "partner_oauth.payment.order_create":
+		"partner_oauth.credential.issue", "partner_oauth.payment.order_create",
+		"partner_server.token_issue", "partner_server.token_issue_failed", "partner_server.auth_denied",
+		"partner_server.secret_issue", "partner_server.secret_revoke",
+		"partner_server.suspend", "partner_server.resume", "partner_server.keys_revoke_all",
+		"partner_account.create", "partner_account.credential_issue", "partner_account.credential_rotate",
+		"partner_account.credential_rate_limited", "partner_account.disable", "partner_account.enable",
+		"partner_account.payment_order_create":
 		return true
 	}
 	return false
@@ -71,7 +77,9 @@ func ValidPartnerOAuthLogAction(action string) bool {
 
 func ValidPartnerOAuthLogReason(reason string) bool {
 	switch reason {
-	case "", "code_replay", "refresh_reuse", "revoked", "user_revoked", "admin_revoked", "client_deleted":
+	case "", "code_replay", "refresh_reuse", "revoked", "user_revoked", "admin_revoked", "client_deleted",
+		"invalid_secret", "ip_not_allowed", "partner_unavailable", "invalid_token", "rate_limited",
+		"immediately", "after_grace":
 		return true
 	}
 	return false

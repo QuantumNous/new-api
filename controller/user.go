@@ -378,11 +378,41 @@ func GetAllUsers(c *gin.Context) {
 		return
 	}
 
+	items, err := withPartnerAccountOwners(users)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(users)
+	pageInfo.SetItems(items)
 
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+// adminUserListItem is a listed user plus, for partner sub-accounts, the
+// partner that owns it.
+type adminUserListItem struct {
+	*model.User
+	PartnerClientId   string `json:"partner_client_id,omitempty"`
+	PartnerClientName string `json:"partner_client_name,omitempty"`
+}
+
+func withPartnerAccountOwners(users []*model.User) ([]adminUserListItem, error) {
+	ids := make([]int, 0, len(users))
+	for _, user := range users {
+		ids = append(ids, user.Id)
+	}
+	owners, err := model.PartnerAccountOwners(ids)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]adminUserListItem, 0, len(users))
+	for _, user := range users {
+		owner := owners[user.Id]
+		items = append(items, adminUserListItem{User: user, PartnerClientId: owner.ClientId, PartnerClientName: owner.Name})
+	}
+	return items, nil
 }
 
 func SearchUsers(c *gin.Context) {
@@ -402,14 +432,18 @@ func SearchUsers(c *gin.Context) {
 	}
 	pageInfo := common.GetPageQuery(c)
 	sortOptions := model.NewUserSortOptions(c.Query("sort_by"), c.Query("sort_order"))
-	users, total, err := model.SearchUsers(keyword, group, role, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), sortOptions)
+	users, total, err := model.SearchUsers(keyword, group, role, status, c.Query("partner_client_id"), pageInfo.GetStartIdx(), pageInfo.GetPageSize(), sortOptions)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-
+	items, err := withPartnerAccountOwners(users)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(users)
+	pageInfo.SetItems(items)
 	common.ApiSuccess(c, pageInfo)
 	return
 }
@@ -715,6 +749,18 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 	updatePassword := updatedUser.Password != ""
+	if updatePassword {
+		// A partner sub-account has no password so no sign-in path can reach it.
+		isSubAccount, err := model.IsPartnerSubAccount(updatedUser.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if isSubAccount {
+			common.ApiErrorT(c, "Partner sub-accounts cannot sign in, so they cannot have a password")
+			return
+		}
+	}
 	auditParams := map[string]any{
 		"username": originUser.Username,
 		"id":       updatedUser.Id,
@@ -975,6 +1021,9 @@ func DeleteUser(c *gin.Context) {
 		common.ApiErrorT(c, "No permission to update users of same or higher permission level")
 		return
 	}
+	if refusePartnerSubAccountDelete(c, originUser.Id) {
+		return
+	}
 	authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserDelete, service.AdminUserContext{UserID: originUser.Id})
 	if authorization == nil {
 		return
@@ -1164,6 +1213,9 @@ func ManageUser(c *gin.Context) {
 			common.ApiErrorT(c, "Cannot delete super administrator account")
 			return
 		}
+		if refusePartnerSubAccountDelete(c, user.Id) {
+			return
+		}
 		authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserDelete, service.AdminUserContext{UserID: user.Id})
 		if authorization == nil {
 			return
@@ -1240,6 +1292,16 @@ func ManageUser(c *gin.Context) {
 		if _, err := model.RevokeAllUserSessions(user.Id, "admin_demote"); err != nil {
 			common.ApiError(c, err)
 			return
+		}
+	} else if handled, err := managePartnerSubAccountStatus(user.Id, req.Action); handled || err != nil {
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		// Report the status that applies, which a partner disable or
+		// suspension may keep at disabled.
+		if fresh, err := model.GetUserById(user.Id, true); err == nil {
+			user.Status = fresh.Status
 		}
 	} else {
 		if err := user.Update(false); err != nil {
@@ -1504,4 +1566,37 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	common.ApiSuccessT(c, "Settings updated", nil)
+}
+
+// managePartnerSubAccountStatus applies an administrator's disable or enable
+// of a partner sub-account as the account's admin switch, in one transaction
+// with the user status it implies; a partner disable or suspension still
+// keeps an enabled sub-account off. It reports false for other users and
+// actions, which take the normal path.
+func managePartnerSubAccountStatus(userID int, action string) (bool, error) {
+	if action != "disable" && action != "enable" {
+		return false, nil
+	}
+	isSubAccount, changed, err := model.SetPartnerAccountAdminDisabled(userID, action == "disable")
+	if err != nil || !isSubAccount {
+		return isSubAccount, err
+	}
+	model.FinalizePartnerAccountUserStatusChanges(changed)
+	return true, nil
+}
+
+// refusePartnerSubAccountDelete answers a delete of a partner sub-account:
+// its mapping is permanent, so deleting the user would strand the partner's
+// external user ID. Administrators disable it instead.
+func refusePartnerSubAccountDelete(c *gin.Context, userID int) bool {
+	isSubAccount, err := model.IsPartnerSubAccount(userID)
+	if err != nil {
+		common.ApiError(c, err)
+		return true
+	}
+	if isSubAccount {
+		common.ApiErrorT(c, "Partner sub-accounts cannot be deleted; disable them instead")
+		return true
+	}
+	return false
 }

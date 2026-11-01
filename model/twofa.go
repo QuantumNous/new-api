@@ -335,8 +335,9 @@ func (t *TwoFA) ValidateBackupCodeAndUpdateUsage(code string) (bool, error) {
 func GetTwoFAStats() (map[string]any, error) {
 	var totalUsers, enabledUsers int64
 
-	// 总用户数
-	if err := DB.Model(&User{}).Count(&totalUsers).Error; err != nil {
+	// 总用户数。合作方子账号无法登录、也无法开启 2FA，不计入分母。
+	subAccounts := DB.Model(&PartnerAccount{}).Select("user_id")
+	if err := DB.Model(&User{}).Where("id NOT IN (?)", subAccounts).Count(&totalUsers).Error; err != nil {
 		return nil, err
 	}
 

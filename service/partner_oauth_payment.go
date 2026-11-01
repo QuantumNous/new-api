@@ -42,22 +42,41 @@ func PartnerOAuthDisplayCurrency() (currency, symbol string, usdRate decimal.Dec
 	}
 }
 
-func BuildPartnerOAuthBalance(principal *PartnerOAuthAccessPrincipal) (*PartnerOAuthBalanceResponse, error) {
+// PartnerWalletAmount is a wallet quota converted to the site display
+// currency, as partners receive it.
+type PartnerWalletAmount struct {
+	Amount         string
+	Currency       string
+	CurrencySymbol string
+	QuotaPerUnit   string
+}
+
+// ConvertPartnerWalletQuota converts wallet quota to a decimal-string amount
+// in the site display currency, rounded to 6 places.
+func ConvertPartnerWalletQuota(quota int) (*PartnerWalletAmount, error) {
 	if common.QuotaPerUnit <= 0 {
 		return nil, partnerOAuthErr(http.StatusServiceUnavailable, "temporarily_unavailable", "balance is unavailable")
 	}
 	currency, symbol, rate := PartnerOAuthDisplayCurrency()
 	quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-	amount := decimal.NewFromInt(int64(principal.User.Quota)).Div(quotaPerUnit).Mul(rate).Round(6)
+	amount := decimal.NewFromInt(int64(quota)).Div(quotaPerUnit).Mul(rate).Round(6)
+	return &PartnerWalletAmount{Amount: amount.String(), Currency: currency, CurrencySymbol: symbol, QuotaPerUnit: quotaPerUnit.String()}, nil
+}
+
+func BuildPartnerOAuthBalance(principal *PartnerOAuthAccessPrincipal) (*PartnerOAuthBalanceResponse, error) {
+	wallet, err := ConvertPartnerWalletQuota(principal.User.Quota)
+	if err != nil {
+		return nil, err
+	}
 	return &PartnerOAuthBalanceResponse{
 		AccountID:      model.PartnerOAuthAccountID(principal.User.Id),
 		BindingID:      principal.Binding.BindingId,
 		Quota:          principal.User.Quota,
 		UsedQuota:      principal.User.UsedQuota,
-		Amount:         amount.String(),
-		Currency:       currency,
-		CurrencySymbol: symbol,
-		QuotaPerUnit:   quotaPerUnit.String(),
+		Amount:         wallet.Amount,
+		Currency:       wallet.Currency,
+		CurrencySymbol: wallet.CurrencySymbol,
+		QuotaPerUnit:   wallet.QuotaPerUnit,
 	}, nil
 }
 

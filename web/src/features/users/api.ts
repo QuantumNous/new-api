@@ -85,6 +85,7 @@ export async function searchUsers(
   const queryParams = new URLSearchParams()
   queryParams.set('keyword', keyword)
   queryParams.set('group', group)
+  if (params.partner) queryParams.set('partner_client_id', params.partner)
   if (role) queryParams.set('role', role)
   if (status) queryParams.set('status', status)
   queryParams.set('p', String(p))

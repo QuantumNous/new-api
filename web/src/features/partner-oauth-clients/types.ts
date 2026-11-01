@@ -105,3 +105,93 @@ export function parseRedirectURIs(value: string): string[] {
     .map((item) => item.trim())
     .filter(Boolean)
 }
+
+export interface PartnerServerJobProgress {
+  running: boolean
+  processed: number
+  error?: string
+}
+
+export interface PartnerServerSecret {
+  id: number
+  status: 'active' | 'revoked'
+  created_at: number
+  revoked_at: number
+}
+
+export interface PartnerServerConfig {
+  client_id: string
+  configured: boolean
+  enabled: boolean
+  account_group: string
+  ip_allowlist: string[]
+  max_accounts: number
+  accounts_per_minute: number
+  suspended: boolean
+  account_count: number
+  jobs: Record<'suspension' | 'key_revocation', PartnerServerJobProgress>
+  secrets: PartnerServerSecret[]
+}
+
+export interface PartnerServerConfigInput {
+  enabled: boolean
+  account_group: string
+  ip_allowlist: string[]
+  max_accounts: number
+  accounts_per_minute: number
+}
+
+export interface PartnerServerAccount {
+  id: number
+  external_user_id: string
+  user_id: number
+  status: 'active' | 'disabled' | 'admin_disabled'
+  suspended_by_partner: boolean
+  quota: number
+  used_quota: number
+  created_at: number
+}
+
+export interface PartnerServerAccountPage {
+  items: PartnerServerAccount[]
+  total: number
+  page: number
+  page_size: number
+}
+
+// A coarse shape check; the server parses each entry strictly.
+const ipEntryPattern = /^[0-9A-Fa-f:.]+(\/\d{1,3})?$/
+
+export function parseIPAllowlist(value: string): string[] {
+  return value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+export const partnerServerConfigFormSchema = z.object({
+  enabled: z.boolean(),
+  account_group: z.string().trim().min(1, 'Select a user group'),
+  ip_allowlist: z.string().superRefine((value, ctx) => {
+    const entries = parseIPAllowlist(value)
+    if (entries.length > 64) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'At most 64 entries',
+      })
+      return
+    }
+    if (entries.some((entry) => !ipEntryPattern.test(entry))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter IP addresses or CIDR ranges, one per line',
+      })
+    }
+  }),
+  max_accounts: z.number().int().min(1).max(1_000_000),
+  accounts_per_minute: z.number().int().min(1).max(10_000),
+})
+
+export type PartnerServerConfigFormValues = z.infer<
+  typeof partnerServerConfigFormSchema
+>

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/partner-oauth.md", "reason": "现有 Partner OAuth 契约，新接入需复用客户端/审计/限流并保持旧行为"}
+{"file": ".trellis/spec/backend/referral-recharge-cashback.md", "reason": "子账号入账的返现排除、quota fence、WalletRefundCreditEvent 账本要求"}
+{"file": ".agents/rules/billing.md", "reason": "额度换算与计费安全不变量"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "迁移与一次性 Docker 数据库验证要求"}

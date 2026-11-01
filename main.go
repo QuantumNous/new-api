@@ -395,6 +395,7 @@ func InitResources() error {
 	}
 
 	service.StartAuthArtifactCleanup()
+	service.StartPartnerServerJobRecovery()
 
 	return nil
 }

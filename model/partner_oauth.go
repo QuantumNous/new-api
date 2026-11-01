@@ -184,6 +184,15 @@ func DeletePartnerOAuthClient(clientID string) ([]PartnerOAuthBinding, error) {
 			}
 			return err
 		}
+		// A partner's sub-accounts hold user wallets and live keys; deleting
+		// the client would orphan them, so it can only be disabled.
+		var accounts int64
+		if err := tx.Model(&PartnerAccount{}).Where("client_id = ?", clientID).Count(&accounts).Error; err != nil {
+			return err
+		}
+		if accounts > 0 {
+			return ErrPartnerOAuthClientHasAccounts
+		}
 		var bindings []PartnerOAuthBinding
 		if err := tx.Where("client_id = ? AND status = ?", clientID, PartnerOAuthBindingStatusActive).Find(&bindings).Error; err != nil {
 			return err

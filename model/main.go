@@ -394,6 +394,11 @@ func migrateDB() error {
 		&PartnerTenant{},
 		&PartnerTenantAccount{},
 		&PartnerTenantSubscriptionGrant{},
+		&PartnerServerConfig{},
+		&PartnerServerSecret{},
+		&PartnerServerToken{},
+		&PartnerAccount{},
+		&PartnerAccountPaymentOrder{},
 		&UserAccessToken{},
 	)
 	if err != nil {

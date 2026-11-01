@@ -135,6 +135,12 @@ func PartnerOAuthPaymentOptions(c *gin.Context) {
 		return
 	}
 	principal := middleware.PartnerOAuthPrincipal(c)
+	c.JSON(http.StatusOK, buildPartnerPaymentOptions(principal.User.Group))
+}
+
+// buildPartnerPaymentOptions lists the Epay methods and preset amounts a
+// partner may offer, priced for the payer's user group.
+func buildPartnerPaymentOptions(group string) partnerPaymentOptionsResponse {
 	response := partnerPaymentOptionsResponse{
 		Currency:        partnerPaymentCurrency(),
 		AmountUnitQuota: partnerPaymentAmountUnitQuota(),
@@ -155,11 +161,11 @@ func PartnerOAuthPaymentOptions(c *gin.Context) {
 			}
 			response.AmountOptions = append(response.AmountOptions, partnerPaymentAmountOption{
 				Amount:   int64(amount),
-				PayMoney: strconv.FormatFloat(getPayMoney(int64(amount), principal.User.Group), 'f', 2, 64),
+				PayMoney: strconv.FormatFloat(getPayMoney(int64(amount), group), 'f', 2, 64),
 			})
 		}
 	}
-	c.JSON(http.StatusOK, response)
+	return response
 }
 
 func parsePartnerPaymentOrderRequest(c *gin.Context) (*partnerPaymentOrderRequest, error) {
@@ -321,22 +327,15 @@ func PartnerOAuthCreatePaymentOrder(c *gin.Context) {
 			return
 		}
 	}
-	invalidAmount := func(description string) {
-		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_amount", Description: description})
-	}
 	userID := principal.User.Id
-	if req.Amount < getMinTopup() {
-		invalidAmount(fmt.Sprintf("amount must be at least %d", getMinTopup()))
-		return
-	}
-	creditedQuota, err := validateTopUpQuota(req.Amount)
+	quote, err := quotePartnerTopUp(req.Amount)
 	if err != nil {
-		invalidAmount(err.Error())
+		writePartnerIntegrationAPIError(c, err)
 		return
 	}
-	if err := model.ValidateTopUpQuotaCapacity(userID, creditedQuota); err != nil {
+	if err := model.ValidateTopUpQuotaCapacity(userID, quote.CreditedQuota); err != nil {
 		if errors.Is(err, model.ErrTopUpQuotaLimitExceeded) {
-			invalidAmount("the account balance would exceed the top-up limit")
+			writePartnerIntegrationAPIError(c, partnerInvalidAmount("the account balance would exceed the top-up limit"))
 			return
 		}
 		writePartnerIntegrationAPIError(c, err)
@@ -347,23 +346,15 @@ func PartnerOAuthCreatePaymentOrder(c *gin.Context) {
 	bindingID := principal.Binding.BindingId
 
 	// The bearer middleware read this user row from the database for this request.
-	payMoney := getPayMoney(req.Amount, principal.User.Group)
-	if payMoney < 0.01 {
-		invalidAmount("payment amount is too low")
+	payMoney, err := partnerTopUpPayMoney(req.Amount, principal.User.Group)
+	if err != nil {
+		writePartnerIntegrationAPIError(c, err)
 		return
 	}
-	baseQuota, err := cashbackBaseQuotaFromTopUpAmount(req.Amount)
-	if err != nil || baseQuota <= 0 {
-		invalidAmount("invalid top-up amount")
-		return
-	}
-	storedAmount := req.Amount
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		storedAmount = decimal.NewFromInt(req.Amount).Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
-	}
+	baseQuota := quote.BaseQuota
 	topUp := &model.TopUp{
 		UserId:          userID,
-		Amount:          storedAmount,
+		Amount:          quote.StoredAmount,
 		Money:           payMoney,
 		TradeNo:         fmt.Sprintf("USR%dNO%s%d", userID, common.GetRandomString(6), now.Unix()),
 		PaymentMethod:   req.PaymentMethod,
@@ -467,4 +458,47 @@ func partnerPaymentReturnTarget(topUp *model.TopUp, paid bool) string {
 	query.Set("status", status)
 	parsed.RawQuery = query.Encode()
 	return parsed.String()
+}
+
+// partnerTopUpQuote is a partner top-up amount checked against the web Epay
+// checkout rules: minimum, quota conversion and wallet bounds.
+type partnerTopUpQuote struct {
+	CreditedQuota int
+	BaseQuota     int
+	StoredAmount  int64
+}
+
+func partnerInvalidAmount(description string) *service.PartnerOAuthError {
+	return &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_amount", Description: description}
+}
+
+// quotePartnerTopUp validates a requested top-up amount the way the web Epay
+// checkout does and converts it for storage.
+func quotePartnerTopUp(amount int64) (*partnerTopUpQuote, error) {
+	if amount < getMinTopup() {
+		return nil, partnerInvalidAmount(fmt.Sprintf("amount must be at least %d", getMinTopup()))
+	}
+	creditedQuota, err := validateTopUpQuota(amount)
+	if err != nil {
+		return nil, partnerInvalidAmount(err.Error())
+	}
+	baseQuota, err := cashbackBaseQuotaFromTopUpAmount(amount)
+	if err != nil || baseQuota <= 0 {
+		return nil, partnerInvalidAmount("invalid top-up amount")
+	}
+	storedAmount := amount
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		storedAmount = decimal.NewFromInt(amount).Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
+	}
+	return &partnerTopUpQuote{CreditedQuota: creditedQuota, BaseQuota: baseQuota, StoredAmount: storedAmount}, nil
+}
+
+// partnerTopUpPayMoney prices a top-up for the payer's user group, including
+// the group top-up ratio and preset discounts.
+func partnerTopUpPayMoney(amount int64, group string) (float64, error) {
+	payMoney := getPayMoney(amount, group)
+	if payMoney < 0.01 {
+		return 0, partnerInvalidAmount("payment amount is too low")
+	}
+	return payMoney, nil
 }

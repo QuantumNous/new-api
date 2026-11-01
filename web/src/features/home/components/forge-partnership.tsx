@@ -227,7 +227,8 @@ export function ForgeSpotlight(props: { primaryTo: string; baseUrl: string }) {
                 </Link>
               </div>
               <p className='ci-forgeNote'>
-                {t('Free entry')} · {t('Solo or teams of up to 4')}
+                {t('Free entry')} · {t('Solo or teams of up to 4')} ·{' '}
+                {t('Accommodation at your own expense')}
               </p>
             </div>
 

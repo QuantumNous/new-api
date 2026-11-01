@@ -8,6 +8,10 @@ import type {
   PartnerOAuthClient,
   PartnerOAuthClientCreateInput,
   PartnerOAuthClientUpdateInput,
+  PartnerServerAccountPage,
+  PartnerServerConfig,
+  PartnerServerConfigInput,
+  PartnerServerSecret,
 } from './types'
 
 interface ApiResponse<T = unknown> {
@@ -94,5 +98,85 @@ export function deletePartnerOAuthClient(
       singleUseAuthorization: true,
     }),
     'Failed to delete partner OAuth client'
+  )
+}
+
+export function getPartnerServerConfig(
+  id: number
+): Promise<PartnerServerConfig> {
+  return unwrap(
+    api.get(`/api/partner-oauth/clients/${id}/server`),
+    'Failed to load server access settings'
+  )
+}
+
+export function updatePartnerServerConfig(
+  id: number,
+  input: PartnerServerConfigInput,
+  proofToken: string
+): Promise<PartnerServerConfig> {
+  return unwrap(
+    api.put(`/api/partner-oauth/clients/${id}/server`, input, {
+      headers: { 'X-Security-Proof': proofToken },
+      singleUseAuthorization: true,
+    }),
+    'Failed to save server access settings'
+  )
+}
+
+export function issuePartnerServerSecret(
+  id: number,
+  proofToken: string
+): Promise<{ secret: PartnerServerSecret; value: string }> {
+  return unwrap(
+    api.post(`/api/partner-oauth/clients/${id}/server-secrets`, undefined, {
+      headers: { 'X-Security-Proof': proofToken },
+      singleUseAuthorization: true,
+    }),
+    'Failed to issue server secret'
+  )
+}
+
+export function revokePartnerServerSecret(
+  id: number,
+  secretId: number,
+  proofToken: string
+): Promise<void> {
+  return unwrap(
+    api.delete(`/api/partner-oauth/clients/${id}/server-secrets/${secretId}`, {
+      headers: { 'X-Security-Proof': proofToken },
+      singleUseAuthorization: true,
+    }),
+    'Failed to revoke server secret'
+  )
+}
+
+export function revokePartnerServerKeys(
+  id: number,
+  proofToken: string
+): Promise<void> {
+  return unwrap(
+    api.post(
+      `/api/partner-oauth/clients/${id}/server-keys/revoke-all`,
+      undefined,
+      {
+        headers: { 'X-Security-Proof': proofToken },
+        singleUseAuthorization: true,
+      }
+    ),
+    'Failed to revoke partner keys'
+  )
+}
+
+export function listPartnerServerAccounts(
+  id: number,
+  page: number,
+  pageSize: number
+): Promise<PartnerServerAccountPage> {
+  return unwrap(
+    api.get(`/api/partner-oauth/clients/${id}/accounts`, {
+      params: { p: page, page_size: pageSize },
+    }),
+    'Failed to load partner sub-accounts'
   )
 }

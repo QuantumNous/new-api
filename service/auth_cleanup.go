@@ -55,4 +55,7 @@ func cleanupAuthArtifacts() {
 	if err := CleanupExpiredPartnerOAuthTokens(); err != nil {
 		common.SysError("failed to delete expired partner oauth tokens: " + err.Error())
 	}
+	if err := CleanupExpiredPartnerServerTokens(); err != nil {
+		common.SysError("failed to delete expired partner server tokens: " + err.Error())
+	}
 }

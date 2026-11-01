@@ -41,6 +41,7 @@ import {
 import { PartnerOAuthClientFormDialog } from './components/client-form-dialog'
 import { PartnerOAuthClientSecretDialog } from './components/client-secret-dialog'
 import { PartnerOAuthClientsTable } from './components/clients-table'
+import { PartnerServerAccessDialog } from './components/server-access-dialog'
 import {
   parseRedirectURIs,
   type PartnerOAuthClient,
@@ -61,6 +62,9 @@ export function PartnerOAuthClients() {
     null
   )
   const [rotateTarget, setRotateTarget] = useState<PartnerOAuthClient | null>(
+    null
+  )
+  const [serverTarget, setServerTarget] = useState<PartnerOAuthClient | null>(
     null
   )
   const [revealedSecret, setRevealedSecret] = useState<{
@@ -249,6 +253,7 @@ export function PartnerOAuthClients() {
         onToggle={(client) => statusMutation.mutate(client)}
         onRotate={setRotateTarget}
         onDelete={setDeleteTarget}
+        onServerAccess={setServerTarget}
       />
     )
   }
@@ -312,7 +317,7 @@ export function PartnerOAuthClients() {
         }}
         title={t('Delete partner OAuth client?')}
         desc={t(
-          'This revokes every active binding and disables the issued API keys.'
+          'This revokes every active binding and disables the issued API keys. A client that owns server sub-accounts cannot be deleted; disable it instead.'
         )}
         confirmText={t('Delete')}
         destructive
@@ -320,6 +325,14 @@ export function PartnerOAuthClients() {
           if (deleteTarget) deleteMutation.mutate(deleteTarget)
         }}
         isLoading={deleteMutation.isPending}
+      />
+      <PartnerServerAccessDialog
+        client={serverTarget}
+        canWrite={canWrite}
+        requestVerification={verification.requestVerification}
+        onOpenChange={(open) => {
+          if (!open) setServerTarget(null)
+        }}
       />
       <SecureVerificationDialog {...verification.dialogProps} />
     </>

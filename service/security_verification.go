@@ -87,6 +87,7 @@ type AccountUnbindingContext struct {
 type PartnerOAuthClientSensitiveWriteContext struct {
 	Action   string `json:"action"`
 	ClientID string `json:"client_id,omitempty"`
+	SecretID int64  `json:"secret_id,omitempty"`
 }
 
 type PartnerTenantSensitiveWriteContext struct {
@@ -223,8 +224,12 @@ func BindVerificationOperation(operation VerificationOperation) (VerificationBin
 			if len(fields) != 1 || context.ClientID != "" {
 				return VerificationBinding{}, ErrVerificationContextInvalid
 			}
-		case "update", "rotate_secret", "delete":
+		case "update", "rotate_secret", "delete", "update_server", "issue_server_secret", "revoke_server_keys":
 			if len(fields) != 2 || !validPartnerOAuthClientID(context.ClientID) {
+				return VerificationBinding{}, ErrVerificationContextInvalid
+			}
+		case "revoke_server_secret":
+			if len(fields) != 3 || !validPartnerOAuthClientID(context.ClientID) || context.SecretID <= 0 {
 				return VerificationBinding{}, ErrVerificationContextInvalid
 			}
 		default:
