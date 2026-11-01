@@ -202,68 +202,106 @@ func SyncGroupMigrationNode(ctx context.Context) error {
 	})
 }
 
-// Caller holds both the durable control lock and this process's node mutex.
+// syncGroupMigrationNode observes authority, applies the local barrier/view,
+// then persists the acknowledgement. All steps retain the caller's transaction,
+// durable control lock, node mutex and view lock, including on request paths.
 func syncGroupMigrationNode(tx *gorm.DB, control *GroupMigrationControl) error {
-	roster, err := groupMigrationRoster()
+	observation, err := readGroupMigrationNodeObservation(tx, control)
 	if err != nil {
 		return err
+	}
+	phase, err := observation.applyLocalState(tx)
+	if err != nil {
+		return err
+	}
+	// A failed local refresh must never publish a successful acknowledgement.
+	return tx.Model(&observation.node).Updates(map[string]any{"operation_id": observation.control.OperationID, "phase": phase, "revision": observation.control.Revision, "last_seen_at": time.Now().Unix()}).Error
+}
+
+// groupMigrationNodeObservation holds the control, process identity and optional
+// operation read under the same durable lock. It is not an admission lease and
+// must be applied and acknowledged before that transaction releases the lock.
+type groupMigrationNodeObservation struct {
+	control   GroupMigrationControl
+	node      GroupMigrationNode
+	operation *GroupMigrationOperation
+}
+
+// readGroupMigrationNodeObservation only reads and validates authority. It does
+// not change local readiness, refresh caches or acknowledge a migration phase.
+// The caller supplies the already locked control record from this transaction.
+func readGroupMigrationNodeObservation(tx *gorm.DB, control *GroupMigrationControl) (*groupMigrationNodeObservation, error) {
+	roster, err := groupMigrationRoster()
+	if err != nil {
+		return nil, err
 	}
 	groupMigrationTraffic.Lock()
 	owner := groupMigrationTraffic.owner
 	groupMigrationTraffic.Unlock()
 	var node GroupMigrationNode
 	if err := tx.First(&node, "name = ?", common.NodeName).Error; err != nil {
-		return err
+		return nil, err
 	}
 	if node.Generation != owner || node.Roster != strings.Join(roster, ",") || owner == "" {
-		return ErrGroupMigrationPaused
+		return nil, ErrGroupMigrationPaused
 	}
+	observation := &groupMigrationNodeObservation{control: *control, node: node}
 	id := control.OperationID
 	if id == "" {
 		id = control.LastOperationID
 	}
-	phase := "ready"
-	if id == "" {
-		groupMigrationNodeRevision.Store(control.Revision)
-	}
 	if id != "" {
 		var op GroupMigrationOperation
 		if err := tx.First(&op, "id = ?", id).Error; err != nil {
-			return err
+			return nil, err
 		}
-		groupMigrationTraffic.Lock()
-		if groupMigrationTraffic.operation != op.ID && control.OperationID != "" {
-			groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = op.ID, op.Source, op.Target
-			advanceGroupMigrationVersion(op.Source, op.Target)
-		}
-		active := groupMigrationTraffic.inflight[op.Source] + groupMigrationTraffic.inflight[op.Target]
-		groupMigrationTraffic.Unlock()
-		if control.OperationID != "" {
-			phase = "draining"
-			if active == 0 {
-				phase = "drained"
-			}
-		}
-		if (op.State == "committed" || control.OperationID == "") && active == 0 {
-			if groupMigrationNodeRevision.Load() != control.Revision {
-				if err := restoreGroupMigrationView(tx, &op, control); err != nil {
-					return err
-				}
-				groupMigrationNodeRevision.Store(control.Revision)
-			}
-			phase = "synced"
-		}
-		if control.OperationID == "" {
-			groupMigrationTraffic.Lock()
-			if groupMigrationTraffic.operation != "" {
-				advanceGroupMigrationVersion(op.Source, op.Target)
-				groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = "", "", ""
-			}
-			groupMigrationTraffic.Unlock()
-			phase = "ready"
+		observation.operation = &op
+	}
+	return observation, nil
+}
+
+// applyLocalState closes related admission before checking existing inflight
+// requests, and refreshes the view before clearing a completed barrier. It only
+// returns the phase to acknowledge; publishing that phase belongs to the caller.
+func (observation *groupMigrationNodeObservation) applyLocalState(tx *gorm.DB) (string, error) {
+	control, op := &observation.control, observation.operation
+	if op == nil {
+		groupMigrationNodeRevision.Store(control.Revision)
+		return "ready", nil
+	}
+	groupMigrationTraffic.Lock()
+	if groupMigrationTraffic.operation != op.ID && control.OperationID != "" {
+		groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = op.ID, op.Source, op.Target
+		advanceGroupMigrationVersion(op.Source, op.Target)
+	}
+	active := groupMigrationTraffic.inflight[op.Source] + groupMigrationTraffic.inflight[op.Target]
+	groupMigrationTraffic.Unlock()
+	phase := "ready"
+	if control.OperationID != "" {
+		phase = "draining"
+		if active == 0 {
+			phase = "drained"
 		}
 	}
-	return tx.Model(&node).Updates(map[string]any{"operation_id": control.OperationID, "phase": phase, "revision": control.Revision, "last_seen_at": time.Now().Unix()}).Error
+	if (op.State == "committed" || control.OperationID == "") && active == 0 {
+		if groupMigrationNodeRevision.Load() != control.Revision {
+			if err := restoreGroupMigrationView(tx, op, control); err != nil {
+				return "", err
+			}
+			groupMigrationNodeRevision.Store(control.Revision)
+		}
+		phase = "synced"
+	}
+	if control.OperationID == "" {
+		groupMigrationTraffic.Lock()
+		if groupMigrationTraffic.operation != "" {
+			advanceGroupMigrationVersion(op.Source, op.Target)
+			groupMigrationTraffic.operation, groupMigrationTraffic.source, groupMigrationTraffic.target = "", "", ""
+		}
+		groupMigrationTraffic.Unlock()
+		phase = "ready"
+	}
+	return phase, nil
 }
 
 // An active commit uses its atomic snapshot; a joining node after completion or

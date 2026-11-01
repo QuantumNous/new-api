@@ -113,9 +113,28 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 	model.InitChannelCache()
 	require.NoError(t, model.SyncGroupMigrationNode(context.Background()))
 	var storageUnavailable atomic.Bool
+	var coordinationReads, controlWrites, controlWriteNanos atomic.Int64
 	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:coordination-storage", func(tx *gorm.DB) {
+		switch tx.Statement.Table {
+		case "group_migration_controls", "group_migration_nodes", "group_migration_operations":
+			coordinationReads.Add(1)
+		}
 		if storageUnavailable.Load() && (tx.Statement.Table == "group_migration_controls" || tx.Statement.Table == "group_migration_nodes") {
 			tx.AddError(errors.New("coordination database connection lost"))
+		}
+	}))
+	// Record aggregate access only, never SQL, bindings, credentials or DSNs.
+	// UPDATE elapsed time includes execution and any lock wait; it is not a
+	// measurement of lock wait alone. The fixture has no background poller.
+	require.NoError(t, db.Callback().Update().Before("gorm:update").Register("test:coordination-write-start", func(tx *gorm.DB) {
+		if tx.Statement.Table == "group_migration_controls" {
+			controlWrites.Add(1)
+			tx.InstanceSet("test:coordination-write-start", time.Now())
+		}
+	}))
+	require.NoError(t, db.Callback().Update().After("gorm:update").Register("test:coordination-write-end", func(tx *gorm.DB) {
+		if started, ok := tx.InstanceGet("test:coordination-write-start"); ok {
+			controlWriteNanos.Add(time.Since(started.(time.Time)).Nanoseconds())
 		}
 	}))
 	var root model.User
@@ -148,6 +167,11 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 		storageUnavailable.Store(c.Param("state") == "offline")
 		c.Status(http.StatusOK)
 	})
+	engine.GET("/test/coordination-access", func(c *gin.Context) {
+		c.JSON(http.StatusOK, migrationCoordinationAccess{
+			Reads: coordinationReads.Load(), ControlWrites: controlWrites.Load(), ControlWriteNanos: controlWriteNanos.Load(),
+		})
+	})
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	var node model.GroupMigrationNode
@@ -162,6 +186,14 @@ func TestGroupMigrationNodeProcess(t *testing.T) {
 type migrationProcess struct {
 	cmd                         *exec.Cmd
 	url, credential, generation string
+}
+
+// migrationCoordinationAccess provides comparable diagnostics across protocol
+// changes without making today's per-request write count a required contract.
+type migrationCoordinationAccess struct {
+	Reads             int64 `json:"reads"`
+	ControlWrites     int64 `json:"control_writes"`
+	ControlWriteNanos int64 `json:"control_write_nanos"`
 }
 
 func startMigrationProcess(t *testing.T, database, name, upstream string, seed bool, replacement string) *migrationProcess {
@@ -293,6 +325,19 @@ func TestGroupMigrationCluster(t *testing.T) {
 			require.Equal(t, "routing", response.header.Get("X-Routed-Group"))
 		}
 	}
+	var before, after migrationCoordinationAccess
+	status, body, _ := a.request(t, http.MethodGet, "/test/coordination-access", nil)
+	require.Equal(t, http.StatusOK, status)
+	require.NoError(t, common.Unmarshal(body, &before))
+	response := a.relay(false, "1")
+	require.NoError(t, response.err)
+	require.Equal(t, http.StatusOK, response.status, string(response.body))
+	require.Equal(t, "routing", response.header.Get("X-Routed-Group"))
+	status, body, _ = a.request(t, http.MethodGet, "/test/coordination-access", nil)
+	require.Equal(t, http.StatusOK, status)
+	require.NoError(t, common.Unmarshal(body, &after))
+	t.Logf("ordinary relay coordination: reads=%d control_writes=%d control_update_elapsed=%s (includes execution and lock wait)",
+		after.Reads-before.Reads, after.ControlWrites-before.ControlWrites, time.Duration(after.ControlWriteNanos-before.ControlWriteNanos))
 	// Zero admitted requests does not prove an old process has stopped: it may
 	// still be publishing an authentication snapshot to the shared cache.
 	idleReplacement := exec.Command(os.Args[0], "-test.run=^TestGroupMigrationNodeProcess$")
@@ -314,7 +359,7 @@ func TestGroupMigrationCluster(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, string(output), "Stop the previous node generation")
 	// The coordinator can crash before commit while a remote response is open.
-	status, body, _ := a.request(t, http.MethodGet, "/api/option/group_migration/preview?source=routing&target=premium", nil)
+	status, body, _ = a.request(t, http.MethodGet, "/api/option/group_migration/preview?source=routing&target=premium", nil)
 	require.Equal(t, http.StatusOK, status, string(body))
 	var preview struct{ Data model.GroupMigrationPreview }
 	require.NoError(t, common.Unmarshal(body, &preview))
