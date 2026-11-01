@@ -765,7 +765,7 @@ func (m *Message) ParseContent() []MediaContent {
 	}
 
 	// 尝试解析为数组
-	//var arrayContent []map[string]interface{}
+	//var arrayContent []map[string]any
 
 	arrayContent, ok := m.Content.([]any)
 	if !ok {
@@ -953,7 +953,7 @@ func (m *Message) ParseContent() []MediaContent {
 	}
 
 	// 尝试解析为数组
-	var arrayContent []map[string]interface{}
+	var arrayContent []map[string]any
 	if err := kitutil.Unmarshal(m.Content, &arrayContent); err == nil {
 		for _, contentItem := range arrayContent {
 			contentType, ok := contentItem["type"].(string)
@@ -978,7 +978,7 @@ func (m *Message) ParseContent() []MediaContent {
 				switch v := imageUrl.(type) {
 				case string:
 					temp.Url = v
-				case map[string]interface{}:
+				case map[string]any:
 					url, ok1 := v["url"].(string)
 					detail, ok2 := v["detail"].(string)
 					if ok2 {
@@ -994,7 +994,7 @@ func (m *Message) ParseContent() []MediaContent {
 				})
 
 			case ContentTypeInputAudio:
-				if audioData, ok := contentItem["input_audio"].(map[string]interface{}); ok {
+				if audioData, ok := contentItem["input_audio"].(map[string]any); ok {
 					data, ok1 := audioData["data"].(string)
 					format, ok2 := audioData["format"].(string)
 					if ok1 && ok2 {
@@ -1009,7 +1009,7 @@ func (m *Message) ParseContent() []MediaContent {
 					}
 				}
 			case ContentTypeFile:
-				if fileData, ok := contentItem["file"].(map[string]interface{}); ok {
+				if fileData, ok := contentItem["file"].(map[string]any); ok {
 					fileId, ok3 := fileData["file_id"].(string)
 					if ok3 {
 						contentList = append(contentList, MediaContent{

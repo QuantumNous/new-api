@@ -31,7 +31,7 @@ var Cache = asynccache.NewAsyncCache(asynccache.Options{
 	RefreshDuration: time.Minute * 35,
 	EnableExpire:    true,
 	ExpireDuration:  time.Minute * 30,
-	Fetcher: func(key string) (interface{}, error) {
+	Fetcher: func(key string) (any, error) {
 		return nil, errors.New("not found")
 	},
 })

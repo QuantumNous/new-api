@@ -126,7 +126,7 @@ func uploadDifyFile(c *gin.Context, info *relaycommon.RelayInfo, user string, me
 
 func requestOpenAI2Dify(c *gin.Context, info *relaycommon.RelayInfo, request dto.GeneralOpenAIRequest) *DifyChatRequest {
 	difyReq := DifyChatRequest{
-		Inputs:           make(map[string]interface{}),
+		Inputs:           make(map[string]any),
 		AutoGenerateName: false,
 	}
 

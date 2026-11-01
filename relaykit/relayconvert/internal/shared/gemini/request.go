@@ -256,7 +256,7 @@ func ParseStopSequences(stop any) []string {
 		}
 	case []string:
 		return v
-	case []interface{}:
+	case []any:
 		sequences := make([]string, 0, len(v))
 		for _, item := range v {
 			if str, ok := item.(string); ok && str != "" {
@@ -281,9 +281,9 @@ func HasFunctionCallContent(call *dto.FunctionCall) bool {
 		return false
 	case string:
 		return strings.TrimSpace(v) != ""
-	case map[string]interface{}:
+	case map[string]any:
 		return len(v) > 0
-	case []interface{}:
+	case []any:
 		return len(v) > 0
 	default:
 		return true

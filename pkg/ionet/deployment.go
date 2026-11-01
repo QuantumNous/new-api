@@ -54,7 +54,7 @@ func (c *Client) DeployContainer(req *DeploymentRequest) (*DeploymentResponse, e
 
 // ListDeployments retrieves a list of deployments with optional filtering
 func (c *Client) ListDeployments(opts *ListDeploymentsOptions) (*DeploymentList, error) {
-	params := make(map[string]interface{})
+	params := make(map[string]any)
 
 	if opts != nil {
 		params["status"] = opts.Status
@@ -254,7 +254,7 @@ func (c *Client) GetPriceEstimation(req *PriceEstimationRequest) (*PriceEstimati
 		apiDurationType = "hourly"
 	}
 
-	params := map[string]interface{}{
+	params := map[string]any{
 		"location_ids":       req.LocationIDs,
 		"hardware_id":        req.HardwareID,
 		"hardware_qty":       hardwareQty,
@@ -329,7 +329,7 @@ func (c *Client) CheckClusterNameAvailability(clusterName string) (bool, error) 
 		return false, fmt.Errorf("cluster name cannot be empty")
 	}
 
-	params := map[string]interface{}{
+	params := map[string]any{
 		"cluster_name": clusterName,
 	}
 

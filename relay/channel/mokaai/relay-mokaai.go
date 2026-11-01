@@ -22,7 +22,7 @@ func embeddingRequestOpenAI2Moka(request dto.GeneralOpenAIRequest) *dto.Embeddin
 		input = []string{v} // Convert string to []string
 	case []string:
 		input = v // Already a []string, no conversion needed
-	case []interface{}:
+	case []any:
 		for _, part := range v {
 			if str, ok := part.(string); ok {
 				input = append(input, str) // Append each string to the slice
