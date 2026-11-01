@@ -224,6 +224,16 @@ func (e *NewAPIError) ToClaudeError(upstreamURLs ...string) ClaudeError {
 				Message: e.Error(),
 				Type:    openAIError.Type,
 			}
+			if result.Type == string(ErrorTypeUpstreamError) {
+				// Only documented Claude categories may refine the constructor's generic fallback.
+				code, _ := openAIError.Code.(string)
+				switch code {
+				case "invalid_request_error", "authentication_error", "billing_error",
+					"permission_error", "not_found_error", "conflict_error", "request_too_large",
+					"rate_limit_error", "api_error", "timeout_error", "overloaded_error":
+					result.Type = code
+				}
+			}
 		}
 	case ErrorTypeClaudeError:
 		if claudeError, ok := e.RelayError.(ClaudeError); ok {
