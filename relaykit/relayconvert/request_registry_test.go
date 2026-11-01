@@ -15,6 +15,50 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestConvertRequestPreservesPromptCacheOptions(t *testing.T) {
+	for _, format := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses} {
+		t.Run(string(format), func(t *testing.T) {
+			for _, tc := range []struct {
+				name    string
+				options json.RawMessage
+			}{
+				{name: "absent"},
+				{name: "null", options: json.RawMessage(`null`)},
+				{name: "empty object", options: json.RawMessage(`{}`)},
+				{name: "explicit", options: json.RawMessage(`{"mode":"explicit","ttl":"30m"}`)},
+				{name: "implicit", options: json.RawMessage(`{"ttl":"30m","mode":"implicit","comparison_response_id":"cache-test"}`)},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					var request any
+					var target types.RelayFormat = types.RelayFormatOpenAIResponses
+					if format == types.RelayFormatOpenAI {
+						request = &dto.GeneralOpenAIRequest{
+							Model:              "gpt-test",
+							Messages:           []dto.Message{{Role: "user", Content: "hello"}},
+							PromptCacheOptions: tc.options,
+						}
+					} else {
+						request = &dto.OpenAIResponsesRequest{
+							Model:              "gpt-test",
+							Input:              json.RawMessage(`"hello"`),
+							PromptCacheOptions: tc.options,
+						}
+						target = types.RelayFormatOpenAI
+					}
+
+					result, err := ConvertRequest(context.Background(), nil, target, request)
+					require.NoError(t, err)
+					encoded, err := kitutil.Marshal(result.Value)
+					require.NoError(t, err)
+					var fields map[string]json.RawMessage
+					require.NoError(t, kitutil.Unmarshal(encoded, &fields))
+					assert.Equal(t, tc.options, fields["prompt_cache_options"])
+				})
+			}
+		})
+	}
+}
+
 func TestClaudeMessagesToOpenAIChatPreservesAssistantTextWithToolCalls(t *testing.T) {
 	text := "I will look that up."
 	request := dto.ClaudeRequest{
