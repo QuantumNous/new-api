@@ -1,11 +1,13 @@
 package relayconvert
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -798,6 +800,275 @@ func TestConvertResponseToResponsesRestoresRecordedCustomTools(t *testing.T) {
 				"response.custom_tool_call_input.done ls",
 				`response.output_item.done custom_tool_call "ls"`,
 			}, toolEvents)
+		})
+	}
+}
+
+const bridgeLogprobs = `[{"token":"x","logprob":0,"bytes":[120],"top_logprobs":[{"token":"x","logprob":0,"bytes":[120]}]}]`
+
+func TestChatResponsesProbabilityRequestsAndImageDetail(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		chat   bool
+		fields string
+		want   string
+	}{
+		{"chat quantity zero", true, `"logprobs":true,"top_logprobs":0`, `"top_logprobs":0,"include":["message.output_text.logprobs"]`},
+		{"chat quantity three", true, `"logprobs":true,"top_logprobs":3`, `"top_logprobs":3,"include":["message.output_text.logprobs"]`},
+		{"chat probabilities only", true, `"logprobs":true`, `"include":["message.output_text.logprobs"]`},
+		{"chat disabled", true, `"logprobs":false`, ""},
+		{"responses quantity zero", false, `"top_logprobs":0`, `"logprobs":true,"top_logprobs":0`},
+		{"responses quantity three", false, `"top_logprobs":3`, `"logprobs":true,"top_logprobs":3`},
+		{"responses probabilities only", false, `"include":["message.output_text.logprobs"]`, `"logprobs":true`},
+		{"responses unrelated include", false, `"include":["reasoning.encrypted_content"]`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var request any = &dto.OpenAIResponsesRequest{}
+			target := types.RelayFormat(types.RelayFormatOpenAI)
+			input := `"input":"x"`
+			wantInput := `"messages":[{"role":"user","content":"x"}]`
+			if tc.chat {
+				request = &dto.GeneralOpenAIRequest{}
+				target = types.RelayFormatOpenAIResponses
+				input = `"messages":[{"role":"user","content":"x"}]`
+				wantInput = `"input":[{"role":"user","content":"x"}]`
+			}
+			require.NoError(t, kitutil.UnmarshalJsonStr(`{"model":"gpt-4o",`+input+","+tc.fields+"}", request))
+			converted, err := ConvertRequest(nil, nil, target, request)
+			require.NoError(t, err)
+			encoded, err := kitutil.Marshal(converted.Value)
+			require.NoError(t, err)
+			want := `{"model":"gpt-4o",` + wantInput
+			if tc.want != "" {
+				want += "," + tc.want
+			}
+			assert.JSONEq(t, want+"}", string(encoded))
+		})
+	}
+	for _, detail := range []string{"high", "low", "auto", "original"} {
+		t.Run("image "+detail, func(t *testing.T) {
+			request := &dto.OpenAIResponsesRequest{}
+			require.NoError(t, kitutil.UnmarshalJsonStr(`{"model":"gpt-4o","input":[{"role":"user","content":[{"type":"input_image","image_url":"data:image/png;base64,eA==","detail":"`+detail+`"}]}]}`, request))
+			converted, err := ConvertRequest(nil, nil, types.RelayFormatOpenAI, request)
+			require.NoError(t, err)
+			encoded, err := kitutil.Marshal(converted.Value)
+			require.NoError(t, err)
+			wantDetail := ""
+			if detail != "original" {
+				wantDetail = `,"detail":"` + detail + `"`
+			}
+			assert.JSONEq(t, `{"model":"gpt-4o","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,eA=="`+wantDetail+`}}]}]}`, string(encoded))
+		})
+	}
+}
+
+func TestChatResponsesRefusalAndLogprobsJSON(t *testing.T) {
+	for _, tc := range []struct{ name, choice, content, chat string }{
+		{"refusal", `"message":{"role":"assistant","content":null,"refusal":"no"}`, `[{"type":"refusal","refusal":"no"}]`, `{"role":"assistant","content":"","refusal":"no"}`},
+		{"refusal probabilities", `"message":{"role":"assistant","content":null,"refusal":"no"},"logprobs":{"content":null,"refusal":` + bridgeLogprobs + `}`, `[{"type":"refusal","refusal":"no"}]`, `{"role":"assistant","content":"","refusal":"no"}`},
+		{"probabilities", `"message":{"role":"assistant","content":"x"},"logprobs":{"content":` + bridgeLogprobs + `}`, `[{"type":"output_text","text":"x","annotations":[],"logprobs":` + bridgeLogprobs + `}]`, `{"role":"assistant","content":"x"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			chat := &dto.OpenAITextResponse{}
+			require.NoError(t, kitutil.UnmarshalJsonStr(`{"id":"chat1","model":"gpt-4o","choices":[{"index":0,"finish_reason":"stop",`+tc.choice+`}],"usage":{"prompt_tokens":8,"completion_tokens":1,"total_tokens":9}}`, chat))
+			result, err := ConvertResponse(nil, nil, types.RelayFormatOpenAIResponses, chat)
+			require.NoError(t, err)
+			response := result.Value.(*dto.OpenAIResponsesResponse)
+			require.Len(t, response.Output, 1)
+			encoded, err := kitutil.Marshal(response.Output[0].Content)
+			require.NoError(t, err)
+			assert.JSONEq(t, tc.content, string(encoded))
+			reversed, err := ConvertResponse(nil, nil, types.RelayFormatOpenAI, response)
+			require.NoError(t, err)
+			back := reversed.Value.(*dto.OpenAITextResponse)
+			require.Len(t, back.Choices, 1)
+			encoded, err = kitutil.Marshal(back.Choices[0].Message)
+			require.NoError(t, err)
+			assert.JSONEq(t, tc.chat, string(encoded))
+			if tc.name == "probabilities" {
+				require.NotNil(t, back.Choices[0].Logprobs)
+				encoded, err = kitutil.Marshal(back.Choices[0].Logprobs.Content)
+				require.NoError(t, err)
+				assert.JSONEq(t, bridgeLogprobs, string(encoded))
+			}
+			assert.Equal(t, 9, back.Usage.TotalTokens)
+		})
+	}
+}
+
+func TestChatResponsesRefusalAndLogprobsStreamLifecycle(t *testing.T) {
+	for _, mode := range []string{"text first", "refusal first", "separate probabilities"} {
+		refusalFirst := mode == "refusal first"
+		t.Run(mode, func(t *testing.T) {
+			state, err := NewResponseStreamState(types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses, ResponseStreamOptions{ID: "resp1", Model: "gpt-4o", EmitSequenceNumber: true})
+			require.NoError(t, err)
+			text := `{"choices":[{"index":0,"delta":{"content":"x"},"logprobs":{"content":` + bridgeLogprobs + `}}]}`
+			refusal := `{"choices":[{"index":0,"delta":{"refusal":"no"}}]}`
+			inputs := []string{text, refusal}
+			if refusalFirst {
+				inputs = []string{refusal, text}
+			}
+			if mode == "separate probabilities" {
+				inputs = []string{
+					`{"choices":[{"index":0,"delta":{"role":"assistant"},"logprobs":[]}]}`,
+					`{"choices":[{"index":0,"delta":{"content":"x"}}]}`,
+					`{"choices":[{"index":0,"delta":{},"logprobs":{"content":` + bridgeLogprobs + `}}]}`,
+					refusal,
+				}
+			}
+			inputs = append(inputs, `{"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`)
+			var events []ChatToResponsesStreamEvent
+			for _, raw := range inputs {
+				chunk := &dto.ChatCompletionsStreamResponse{}
+				require.NoError(t, kitutil.UnmarshalJsonStr(raw, chunk))
+				results, err := ConvertStreamResponseChunk(nil, nil, state, chunk)
+				require.NoError(t, err)
+				for _, result := range results {
+					events = append(events, result.Value.(ChatToResponsesStreamEvent))
+				}
+			}
+			finals, err := FinalizeStreamResponse(nil, nil, state)
+			require.NoError(t, err)
+			for _, result := range finals {
+				events = append(events, result.Value.(ChatToResponsesStreamEvent))
+			}
+			var final *dto.OpenAIResponsesResponse
+			seen := map[string]int{}
+			for _, event := range events {
+				seen[event.Type]++
+				switch event.Type {
+				case "response.output_text.delta", "response.output_text.done":
+					if event.Type == "response.output_text.done" || len(event.Payload.Logprobs) > 0 {
+						encoded, err := kitutil.Marshal(event.Payload.Logprobs)
+						require.NoError(t, err)
+						assert.JSONEq(t, bridgeLogprobs, string(encoded))
+					}
+					if event.Type == "response.output_text.delta" && event.Payload.Delta == "" {
+						encoded, err := kitutil.Marshal(event.Payload)
+						require.NoError(t, err)
+						var fields map[string]json.RawMessage
+						require.NoError(t, kitutil.Unmarshal(encoded, &fields))
+						assert.JSONEq(t, `""`, string(fields["delta"]))
+					}
+				case "response.refusal.done":
+					require.NotNil(t, event.Payload.Refusal)
+					assert.Equal(t, "no", *event.Payload.Refusal)
+				case "response.completed":
+					final = event.Payload.Response
+				}
+			}
+			assert.Equal(t, 1, seen["response.refusal.delta"])
+			assert.Equal(t, 1, seen["response.refusal.done"])
+			require.NotNil(t, final)
+			require.Len(t, final.Output, 1)
+			require.Len(t, final.Output[0].Content, 2)
+			if refusalFirst {
+				assert.Equal(t, "refusal", final.Output[0].Content[0].Type)
+			} else {
+				assert.Equal(t, "output_text", final.Output[0].Content[0].Type)
+			}
+			back, err := NewResponseStreamState(types.RelayFormatOpenAIResponses, types.RelayFormatOpenAI, ResponseStreamOptions{})
+			require.NoError(t, err)
+			accumulator := NewResponsesBufferedAccumulator()
+			var textOut, refusalOut strings.Builder
+			var logprobs []json.RawMessage
+			for _, event := range events {
+				accumulator.ProcessEvent(&event.Payload)
+				results, err := ConvertStreamResponseChunk(nil, nil, back, &event.Payload)
+				require.NoError(t, err)
+				for _, result := range results {
+					chunk := result.Value.(dto.ChatCompletionsStreamResponse)
+					for _, choice := range chunk.Choices {
+						textOut.WriteString(choice.Delta.GetContentString())
+						if choice.Delta.Refusal != nil {
+							refusalOut.WriteString(*choice.Delta.Refusal)
+						}
+						if choice.Logprobs != nil {
+							encoded, err := kitutil.Marshal(*choice.Logprobs)
+							require.NoError(t, err)
+							var probabilities dto.ChatLogprobs
+							require.NoError(t, kitutil.Unmarshal(encoded, &probabilities))
+							logprobs = append(logprobs, probabilities.Content...)
+						}
+					}
+				}
+			}
+			assert.Equal(t, "x", textOut.String())
+			assert.Equal(t, "no", refusalOut.String())
+			encoded, err := kitutil.Marshal(logprobs)
+			require.NoError(t, err)
+			assert.JSONEq(t, bridgeLogprobs, string(encoded))
+			buffered := &dto.OpenAIResponsesResponse{}
+			accumulator.SupplementResponseOutput(buffered)
+			// Buffered items preserve content, but do not synthesize completion status.
+			require.Len(t, buffered.Output, 1)
+			encoded, err = kitutil.Marshal(buffered.Output[0].Content)
+			require.NoError(t, err)
+			want, err := kitutil.Marshal(final.Output[0].Content)
+			require.NoError(t, err)
+			assert.JSONEq(t, string(want), string(encoded))
+		})
+	}
+}
+
+func TestResponsesRefusalAndLogprobsDoneAndTerminalFallback(t *testing.T) {
+	for _, mode := range []string{"terminal only", "done only", "late probabilities", "item done only"} {
+		t.Run(mode, func(t *testing.T) {
+			state, err := NewResponseStreamState(types.RelayFormatOpenAIResponses, types.RelayFormatOpenAI, ResponseStreamOptions{})
+			require.NoError(t, err)
+			var events []string
+			if mode == "late probabilities" {
+				events = append(events, `{"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"x"}`)
+			}
+			content := `[{"type":"output_text","text":"x","annotations":null,"logprobs":` + bridgeLogprobs + `},{"type":"refusal","refusal":"no"}]`
+			output := `[{"type":"message","role":"assistant","content":` + content + `}]`
+			if mode == "item done only" {
+				events = append(events, `{"type":"response.output_item.done","output_index":0,"item":{"type":"message","role":"assistant","content":`+content+`}}`)
+			} else if mode != "terminal only" {
+				events = append(events, `{"type":"response.output_text.done","output_index":0,"content_index":0,"text":"x","logprobs":`+bridgeLogprobs+`}`, `{"type":"response.refusal.done","output_index":0,"content_index":1,"refusal":"no"}`)
+			}
+			if mode != "terminal only" {
+				output = `[]`
+			}
+			events = append(events, `{"type":"response.completed","response":{"status":"completed","output":`+output+`}}`)
+			var text, refusal strings.Builder
+			var probabilities []json.RawMessage
+			accumulator := NewResponsesBufferedAccumulator()
+			for _, raw := range events {
+				event := &dto.ResponsesStreamResponse{}
+				require.NoError(t, kitutil.UnmarshalJsonStr(raw, event))
+				accumulator.ProcessEvent(event)
+				results, err := ConvertStreamResponseChunk(nil, nil, state, event)
+				require.NoError(t, err)
+				for _, result := range results {
+					for _, choice := range result.Value.(dto.ChatCompletionsStreamResponse).Choices {
+						text.WriteString(choice.Delta.GetContentString())
+						if choice.Delta.Refusal != nil {
+							refusal.WriteString(*choice.Delta.Refusal)
+						}
+						if choice.Logprobs != nil {
+							raw, err := kitutil.Marshal(*choice.Logprobs)
+							require.NoError(t, err)
+							var logs dto.ChatLogprobs
+							require.NoError(t, kitutil.Unmarshal(raw, &logs))
+							probabilities = append(probabilities, logs.Content...)
+						}
+					}
+				}
+			}
+			assert.Equal(t, "x", text.String())
+			assert.Equal(t, "no", refusal.String())
+			encoded, err := kitutil.Marshal(probabilities)
+			require.NoError(t, err)
+			assert.JSONEq(t, bridgeLogprobs, string(encoded))
+			if mode != "terminal only" {
+				buffered := &dto.OpenAIResponsesResponse{}
+				accumulator.SupplementResponseOutput(buffered)
+				require.Len(t, buffered.Output, 1)
+				encoded, err := kitutil.Marshal(buffered.Output[0].Content)
+				require.NoError(t, err)
+				assert.JSONEq(t, content, string(encoded))
+			}
 		})
 	}
 }

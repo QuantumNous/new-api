@@ -84,23 +84,25 @@ func ChatCompletionsResponseToResponsesResponseWithTools(resp *dto.OpenAITextRes
 			},
 		})
 	}
-	if text := choice.Message.StringContent(); text != "" {
+	var content []dto.ResponsesOutputContent
+	if text := choice.Message.StringContent(); text != "" || (choice.Logprobs != nil && len(choice.Logprobs.Content) > 0) {
 		annotations, err := chatAnnotationsToResponses(choice.Message.Annotations)
 		if err != nil {
 			return nil, nil, err
 		}
+		part := dto.ResponsesOutputContent{Type: "output_text", Text: text, Annotations: annotations}
+		if choice.Logprobs != nil {
+			part.Logprobs = choice.Logprobs.Content
+		}
+		content = append(content, part)
+	}
+	if choice.Message.Refusal != nil {
+		content = append(content, dto.ResponsesOutputContent{Type: "refusal", Refusal: *choice.Message.Refusal})
+	}
+	if len(content) > 0 {
 		out.Output = append(out.Output, dto.ResponsesOutput{
-			Type:   responsesOutputTypeMessage,
-			ID:     fmt.Sprintf("%s_msg_0", id),
-			Status: responseOutputStatus(out),
-			Role:   "assistant",
-			Content: []dto.ResponsesOutputContent{
-				{
-					Type:        "output_text",
-					Text:        text,
-					Annotations: annotations,
-				},
-			},
+			Type: responsesOutputTypeMessage, ID: fmt.Sprintf("%s_msg_0", id),
+			Status: responseOutputStatus(out), Role: "assistant", Content: content,
 		})
 	}
 

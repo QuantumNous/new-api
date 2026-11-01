@@ -1,6 +1,7 @@
 package oaichat
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -227,6 +228,112 @@ func TestStreamResponseOpenAI2ClaudeClosesTextThinkingAndToolBlocks(t *testing.T
 	assert.Equal(t, 7, finishResponses[1].Usage.BillingUsage.OpenAIUsage.PromptTokens)
 	assert.Equal(t, 3, finishResponses[1].Usage.BillingUsage.OpenAIUsage.CompletionTokens)
 	assert.Equal(t, "message_stop", finishResponses[2].Type)
+}
+
+func TestStreamResponseOpenAI2ClaudePreservesTextWithToolCalls(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		splitText bool
+		reasoning string
+	}{
+		{name: "text and tool in the same chunk"},
+		{name: "text and tool in separate chunks", splitText: true},
+		{name: "reasoning text and tool in the same chunk", reasoning: "Need to look up the value."},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			textDelta := dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("正在查询。")}
+			toolDelta := dto.ChatCompletionsStreamResponseChoiceDelta{
+				ToolCalls: []dto.ToolCallResponse{{
+					Index: ptr(0), ID: "call_test", Type: "function",
+					Function: dto.FunctionResponse{Name: "echo", Arguments: `{"value":`},
+				}},
+			}
+			var deltas []dto.ChatCompletionsStreamResponseChoiceDelta
+			if tt.splitText {
+				deltas = append(deltas, textDelta, toolDelta)
+			} else {
+				toolDelta.Content = textDelta.Content
+				if tt.reasoning != "" {
+					toolDelta.ReasoningContent = &tt.reasoning
+				}
+				deltas = append(deltas, toolDelta)
+			}
+			deltas = append(deltas, dto.ChatCompletionsStreamResponseChoiceDelta{
+				ToolCalls: []dto.ToolCallResponse{{
+					Index: ptr(0), Function: dto.FunctionResponse{Arguments: `"x"}`},
+				}},
+			})
+
+			info := &convmeta.Values{}
+			var events []*dto.ClaudeResponse
+			for _, delta := range deltas {
+				info.IncrSendResponseCount()
+				events = append(events, StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+					Id: "chatcmpl-test", Model: "gpt-4o",
+					Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: delta}},
+				}, info)...)
+			}
+			info.IncrSendResponseCount()
+			events = append(events, StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+				Choices: []dto.ChatCompletionsStreamResponseChoice{{FinishReason: ptr("tool_calls")}},
+				Usage:   &dto.Usage{PromptTokens: 7, CompletionTokens: 3, TotalTokens: 10},
+			}, info)...)
+
+			var got []string
+			for _, event := range events {
+				switch event.Type {
+				case "content_block_start":
+					require.NotNil(t, event.ContentBlock)
+					got = append(got, fmt.Sprintf("start:%d:%s", event.GetIndex(), event.ContentBlock.Type))
+					if event.ContentBlock.Type == "tool_use" {
+						assert.Equal(t, "call_test", event.ContentBlock.Id)
+						assert.Equal(t, "echo", event.ContentBlock.Name)
+						assert.Equal(t, map[string]any{}, event.ContentBlock.Input)
+					}
+				case "content_block_delta":
+					require.NotNil(t, event.Delta)
+					switch event.Delta.Type {
+					case "thinking_delta":
+						require.NotNil(t, event.Delta.Thinking)
+						got = append(got, fmt.Sprintf("thinking:%d:%s", event.GetIndex(), *event.Delta.Thinking))
+					case "text_delta":
+						got = append(got, fmt.Sprintf("text:%d:%s", event.GetIndex(), event.Delta.GetText()))
+					case "input_json_delta":
+						require.NotNil(t, event.Delta.PartialJson)
+						got = append(got, fmt.Sprintf("arguments:%d:%s", event.GetIndex(), *event.Delta.PartialJson))
+					default:
+						require.FailNowf(t, "unexpected delta type", "%q", event.Delta.Type)
+					}
+				case "content_block_stop":
+					got = append(got, fmt.Sprintf("stop:%d", event.GetIndex()))
+				case "message_delta":
+					require.NotNil(t, event.Delta)
+					require.NotNil(t, event.Delta.StopReason)
+					got = append(got, "finish:"+*event.Delta.StopReason)
+				default:
+					got = append(got, event.Type)
+				}
+			}
+			want := []string{"message_start"}
+			textIndex := 0
+			if tt.reasoning != "" {
+				want = append(want, "start:0:thinking", "thinking:0:"+tt.reasoning, "stop:0")
+				textIndex++
+			}
+			toolIndex := textIndex + 1
+			want = append(want,
+				fmt.Sprintf("start:%d:text", textIndex),
+				fmt.Sprintf("text:%d:正在查询。", textIndex),
+				fmt.Sprintf("stop:%d", textIndex),
+				fmt.Sprintf("start:%d:tool_use", toolIndex),
+				fmt.Sprintf(`arguments:%d:{"value":`, toolIndex),
+				fmt.Sprintf(`arguments:%d:"x"}`, toolIndex),
+				fmt.Sprintf("stop:%d", toolIndex),
+				"finish:tool_use", "message_stop",
+			)
+			assert.Equal(t, want, got)
+		})
+	}
 }
 
 func TestStreamResponseOpenAI2ClaudeFirstFrameUsesUpstreamUsageWhenPresent(t *testing.T) {

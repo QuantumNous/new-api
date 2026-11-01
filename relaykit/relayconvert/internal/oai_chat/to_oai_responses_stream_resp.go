@@ -30,24 +30,29 @@ type ChatToResponsesStreamState struct {
 	// they are streamed back as custom_tool_call items.
 	Tools *convmeta.ResponsesToolState
 
-	status             string
-	incompleteDetails  *dto.IncompleteDetails
-	sentCreated        bool
-	textOutputIndex    int
-	textStarted        bool
-	textDone           bool
-	reasoningIndex     int
-	reasoningStarted   bool
-	reasoningDone      bool
-	finalized          bool
-	nextSequenceNumber int
-	nextOutputIndex    int
-	toolsByIndex       map[int]*chatToResponsesStreamTool
-	hostedByID         map[string]*chatToResponsesHostedTool
-	outputOrder        []chatToResponsesOutputRef
-	text               strings.Builder
-	annotations        []any
-	reasoning          strings.Builder
+	status              string
+	incompleteDetails   *dto.IncompleteDetails
+	sentCreated         bool
+	textOutputIndex     int
+	textStarted         bool
+	textDone            bool
+	reasoningIndex      int
+	reasoningStarted    bool
+	reasoningDone       bool
+	finalized           bool
+	nextSequenceNumber  int
+	nextOutputIndex     int
+	toolsByIndex        map[int]*chatToResponsesStreamTool
+	hostedByID          map[string]*chatToResponsesHostedTool
+	outputOrder         []chatToResponsesOutputRef
+	text                strings.Builder
+	refusal             strings.Builder
+	logprobs            []json.RawMessage
+	contentOrder        []string
+	textContentIndex    int
+	refusalContentIndex int
+	annotations         []any
+	reasoning           strings.Builder
 	// usageText collects every text, reasoning, and tool argument delta sent
 	// to the client. It is the missing-usage estimate and tells whether any
 	// output reached the client.
@@ -111,15 +116,17 @@ type chatToResponsesHostedTool struct {
 
 func NewChatToResponsesStreamState(id string, model string) *ChatToResponsesStreamState {
 	return &ChatToResponsesStreamState{
-		ID:              id,
-		Model:           model,
-		Created:         time.Now().Unix(),
-		Usage:           &dto.Usage{},
-		status:          "completed",
-		textOutputIndex: -1,
-		reasoningIndex:  -1,
-		toolsByIndex:    make(map[int]*chatToResponsesStreamTool),
-		hostedByID:      make(map[string]*chatToResponsesHostedTool),
+		ID:                  id,
+		Model:               model,
+		Created:             time.Now().Unix(),
+		Usage:               &dto.Usage{},
+		status:              "completed",
+		textOutputIndex:     -1,
+		textContentIndex:    -1,
+		refusalContentIndex: -1,
+		reasoningIndex:      -1,
+		toolsByIndex:        make(map[int]*chatToResponsesStreamTool),
+		hostedByID:          make(map[string]*chatToResponsesHostedTool),
 	}
 }
 
@@ -348,8 +355,24 @@ func ChatCompletionsStreamChunkToResponsesEvents(chunk *dto.ChatCompletionsStrea
 		if choice.Delta.GetReasoningContent() != "" {
 			events = append(events, state.appendReasoningDelta(choice.Delta.GetReasoningContent())...)
 		}
-		if choice.Delta.GetContentString() != "" {
-			events = append(events, state.appendTextDelta(choice.Delta.GetContentString())...)
+		var logprobs dto.ChatLogprobs
+		if choice.Logprobs != nil {
+			raw, err := kitutil.Marshal(*choice.Logprobs)
+			if err != nil {
+				return nil, fmt.Errorf("marshal Chat logprobs: %w", err)
+			}
+			// Some compatible providers send an empty array instead of null.
+			if kitutil.GetJsonType(raw) == "object" {
+				if err := kitutil.Unmarshal(raw, &logprobs); err != nil {
+					return nil, fmt.Errorf("invalid Chat logprobs: %w", err)
+				}
+			}
+		}
+		if choice.Delta.GetContentString() != "" || len(logprobs.Content) > 0 {
+			events = append(events, state.appendTextDelta(choice.Delta.GetContentString(), logprobs.Content)...)
+		}
+		if choice.Delta.Refusal != nil {
+			events = append(events, state.appendRefusalDelta(*choice.Delta.Refusal)...)
 		}
 		if len(choice.Delta.Annotations) > 0 {
 			annotationEvents, err := state.appendAnnotationDelta(choice.Delta.Annotations)
@@ -409,26 +432,52 @@ func (s *ChatToResponsesStreamState) UsageText() string {
 	return s.usageText.String()
 }
 
-func (s *ChatToResponsesStreamState) appendTextDelta(delta string) []ChatToResponsesStreamEvent {
-	events := s.startText()
+func (s *ChatToResponsesStreamState) appendTextDelta(delta string, logprobs []json.RawMessage) []ChatToResponsesStreamEvent {
+	events, contentIndex := s.startContent("output_text")
 	s.text.WriteString(delta)
+	s.logprobs = append(s.logprobs, logprobs...)
 	s.usageText.WriteString(delta)
 	events = append(events, s.event(responsesEventOutputTextDelta, dto.ResponsesStreamResponse{
-		Type:         responsesEventOutputTextDelta,
-		OutputIndex:  intPtr(s.textOutputIndex),
-		ContentIndex: intPtr(0),
-		Delta:        delta,
-		ItemID:       s.messageID(),
+		Type: responsesEventOutputTextDelta, OutputIndex: intPtr(s.textOutputIndex),
+		ContentIndex: intPtr(contentIndex), Delta: delta, Logprobs: logprobs, ItemID: s.messageID(),
 	}))
 	return events
 }
 
-func (s *ChatToResponsesStreamState) startText() []ChatToResponsesStreamEvent {
+func (s *ChatToResponsesStreamState) appendRefusalDelta(delta string) []ChatToResponsesStreamEvent {
+	events, contentIndex := s.startContent("refusal")
+	s.refusal.WriteString(delta)
+	s.usageText.WriteString(delta)
+	return append(events, s.event("response.refusal.delta", dto.ResponsesStreamResponse{
+		OutputIndex: intPtr(s.textOutputIndex), ContentIndex: intPtr(contentIndex),
+		Delta: delta, ItemID: s.messageID(),
+	}))
+}
+
+func (s *ChatToResponsesStreamState) startContent(contentType string) ([]ChatToResponsesStreamEvent, int) {
+	events := s.startMessage()
+	index := &s.textContentIndex
+	if contentType == "refusal" {
+		index = &s.refusalContentIndex
+	}
+	if *index < 0 {
+		*index = len(s.contentOrder)
+		s.contentOrder = append(s.contentOrder, contentType)
+	}
+	return events, *index
+}
+
+func (s *ChatToResponsesStreamState) startMessage() []ChatToResponsesStreamEvent {
 	if s.textDone {
 		s.textSegment++
 		s.textStarted = false
 		s.textDone = false
 		s.text.Reset()
+		s.refusal.Reset()
+		s.logprobs = nil
+		s.contentOrder = nil
+		s.textContentIndex = -1
+		s.refusalContentIndex = -1
 		s.annotations = nil
 	}
 	if !s.textStarted {
@@ -454,7 +503,7 @@ func (s *ChatToResponsesStreamState) appendAnnotationDelta(raw []byte) ([]ChatTo
 	if err != nil {
 		return nil, err
 	}
-	events := s.startText()
+	events, contentIndex := s.startContent("output_text")
 	for _, annotation := range annotations {
 		annotationJSON, err := kitutil.Marshal(annotation)
 		if err != nil {
@@ -465,7 +514,7 @@ func (s *ChatToResponsesStreamState) appendAnnotationDelta(raw []byte) ([]ChatTo
 		events = append(events, s.event(responsesEventOutputTextAnnotationAdded, dto.ResponsesStreamResponse{
 			Type:            responsesEventOutputTextAnnotationAdded,
 			OutputIndex:     intPtr(s.textOutputIndex),
-			ContentIndex:    intPtr(0),
+			ContentIndex:    intPtr(contentIndex),
 			AnnotationIndex: intPtr(annotationIndex),
 			Annotation:      annotationJSON,
 			ItemID:          s.messageID(),
@@ -612,16 +661,21 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 	status := s.outputStatus()
 	if s.textStarted && !s.textDone {
 		s.textDone = true
-		textDone := dto.ResponsesStreamResponse{
-			Type:         "response.output_text.done",
-			OutputIndex:  intPtr(s.textOutputIndex),
-			ContentIndex: intPtr(0),
-			ItemID:       s.messageID(),
+		for contentIndex, contentType := range s.contentOrder {
+			done := dto.ResponsesStreamResponse{
+				OutputIndex: intPtr(s.textOutputIndex), ContentIndex: intPtr(contentIndex), ItemID: s.messageID(),
+			}
+			if contentType == "refusal" {
+				done.Refusal = kitutil.GetPointer(s.refusal.String())
+				events = append(events, s.event("response.refusal.done", done))
+				continue
+			}
+			done.Logprobs = s.logprobs
+			if s.EmitSequenceNumber {
+				done.Text = kitutil.GetPointer(s.text.String())
+			}
+			events = append(events, s.event("response.output_text.done", done))
 		}
-		if s.EmitSequenceNumber {
-			textDone.Text = kitutil.GetPointer(s.text.String())
-		}
-		events = append(events, s.event("response.output_text.done", textDone))
 		closedMessage := s.messageOutput(status)
 		events = append(events, s.event(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemDone,
@@ -862,18 +916,19 @@ func (s *ChatToResponsesStreamState) messageOutput(status string) *dto.Responses
 	if annotations == nil {
 		annotations = []any{}
 	}
+	content := make([]dto.ResponsesOutputContent, 0, len(s.contentOrder))
+	for _, contentType := range s.contentOrder {
+		if contentType == "refusal" {
+			content = append(content, dto.ResponsesOutputContent{Type: "refusal", Refusal: s.refusal.String()})
+			continue
+		}
+		content = append(content, dto.ResponsesOutputContent{
+			Type: "output_text", Text: s.text.String(), Annotations: annotations, Logprobs: s.logprobs,
+		})
+	}
 	return &dto.ResponsesOutput{
-		Type:   responsesOutputTypeMessage,
-		ID:     s.messageID(),
-		Status: status,
-		Role:   "assistant",
-		Content: []dto.ResponsesOutputContent{
-			{
-				Type:        "output_text",
-				Text:        s.text.String(),
-				Annotations: annotations,
-			},
-		},
+		Type: responsesOutputTypeMessage, ID: s.messageID(), Status: status,
+		Role: "assistant", Content: content,
 	}
 }
 

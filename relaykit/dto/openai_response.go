@@ -35,7 +35,15 @@ type TextResponse struct {
 type OpenAITextResponseChoice struct {
 	Index        int `json:"index"`
 	Message      `json:"message"`
-	FinishReason string `json:"finish_reason"`
+	FinishReason string        `json:"finish_reason"`
+	Logprobs     *ChatLogprobs `json:"logprobs,omitempty"`
+}
+
+// ChatLogprobs keeps token entries raw so bytes, zero probabilities, and
+// provider extensions survive conversion without numeric coercion.
+type ChatLogprobs struct {
+	Content []json.RawMessage `json:"content,omitempty"`
+	Refusal []json.RawMessage `json:"refusal,omitempty"`
 }
 
 type OpenAITextResponse struct {
@@ -87,6 +95,7 @@ type ChatCompletionsStreamResponseChoice struct {
 }
 
 type ChatCompletionsStreamResponseChoiceDelta struct {
+	Refusal          *string            `json:"refusal,omitempty"`
 	Content          *string            `json:"content,omitempty"`
 	ReasoningContent *string            `json:"reasoning_content,omitempty"`
 	Reasoning        *string            `json:"reasoning,omitempty"`
@@ -574,9 +583,22 @@ func ResponsesArgumentsString(arguments json.RawMessage) string {
 }
 
 type ResponsesOutputContent struct {
-	Type        string `json:"type"`
-	Text        string `json:"text"`
-	Annotations []any  `json:"annotations"`
+	Type        string            `json:"type"`
+	Text        string            `json:"text"`
+	Annotations []any             `json:"annotations"`
+	Refusal     string            `json:"refusal,omitempty"`
+	Logprobs    []json.RawMessage `json:"logprobs,omitempty"`
+}
+
+func (c ResponsesOutputContent) MarshalJSON() ([]byte, error) {
+	if c.Type == "refusal" {
+		return kitutil.Marshal(struct {
+			Type    string `json:"type"`
+			Refusal string `json:"refusal"`
+		}{Type: c.Type, Refusal: c.Refusal})
+	}
+	type content ResponsesOutputContent
+	return kitutil.Marshal(content(c))
 }
 
 type ResponsesReasoningSummaryPart struct {
@@ -612,6 +634,8 @@ type ResponsesStreamResponse struct {
 	Message         string                   `json:"message,omitempty"`
 	Param           string                   `json:"param,omitempty"`
 	Delta           string                   `json:"delta,omitempty"`
+	Refusal         *string                  `json:"refusal,omitempty"`
+	Logprobs        []json.RawMessage        `json:"logprobs,omitempty"`
 	Arguments       *string                  `json:"arguments,omitempty"`
 	Input           *string                  `json:"input,omitempty"`
 	Name            string                   `json:"name,omitempty"`
@@ -630,6 +654,17 @@ type ResponsesStreamResponse struct {
 	SummaryIndex *int                           `json:"summary_index,omitempty"`
 	ItemID       string                         `json:"item_id,omitempty"`
 	Part         *ResponsesReasoningSummaryPart `json:"part,omitempty"`
+}
+
+func (r ResponsesStreamResponse) MarshalJSON() ([]byte, error) {
+	type response ResponsesStreamResponse
+	if r.Delta == "" && (r.Type == "response.output_text.delta" || r.Type == "response.refusal.delta") {
+		return kitutil.Marshal(struct {
+			*response
+			Delta string `json:"delta"`
+		}{response: (*response)(&r), Delta: r.Delta})
+	}
+	return kitutil.Marshal(response(r))
 }
 
 // GetOpenAIError 从动态错误类型中提取OpenAIError结构
