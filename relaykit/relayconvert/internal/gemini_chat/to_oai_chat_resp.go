@@ -21,7 +21,10 @@ func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTo
 		return usage
 	}
 
-	promptTokens := metadata.PromptTokenCount + metadata.ToolUsePromptTokenCount
+	// Derive the input side from the total before falling back to the local
+	// estimate: the upstream total is exact for this request, while the estimate
+	// depends on our tokenizer and can exceed what the upstream billed.
+	promptTokens, _ := metadata.InputTokenCount()
 	if promptTokens <= 0 && fallbackPromptTokens > 0 {
 		promptTokens = fallbackPromptTokens
 	}

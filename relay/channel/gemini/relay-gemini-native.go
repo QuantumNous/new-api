@@ -49,6 +49,9 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	// 计算使用量（优先上游 UsageMetadata，缺失时本地估算并保留 Gemini 计费语义）
 	usage := buildUsageFromGeminiResponse(c, info, &geminiResponse)
 
+	// 上游把输入侧报成 0 时，把派生出的输入写回透传给下游的原始响应体
+	responseBody = []byte(patchGeminiPromptTokenCount(string(responseBody), derivedGeminiPromptTokenCount(geminiResponse.GetUsageMetadata())))
+
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	return &usage, nil
@@ -89,6 +92,9 @@ func GeminiTextGenerationStreamHandler(c *gin.Context, info *relaycommon.RelayIn
 	helper.SetEventStreamHeaders(c)
 
 	return geminiStreamHandler(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
+		// 每个分片的 usageMetadata 都是累计快照，按片写回派生输入，下游看到的
+		// 输入与结算口径保持一致
+		data = patchGeminiPromptTokenCount(data, derivedGeminiPromptTokenCount(geminiResponse.GetUsageMetadata()))
 		err := helper.StringData(c, data)
 		if err != nil {
 			logger.LogError(c, common.LogText("failed to write stream data: %s", err.Error()))

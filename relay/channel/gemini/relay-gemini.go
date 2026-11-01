@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 func buildUsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) dto.Usage {
@@ -30,6 +32,39 @@ func buildUsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPro
 		return dto.Usage{}
 	}
 	return *usage
+}
+
+// patchGeminiPromptTokenCount writes the derived input side back into the raw
+// upstream JSON. Google occasionally reports promptTokenCount as zero while the
+// total still carries the input, and the gateway already bills the derived
+// figure; forwarding the raw zero leaves downstream clients with an input they
+// cannot bill or display. The body is spliced rather than re-marshaled so
+// upstream fields this gateway does not model survive unchanged. totalTokenCount
+// needs no repair because the derivation only fires when the total already
+// equals the sum of its parts.
+func patchGeminiPromptTokenCount(body, promptTokenCount string) string {
+	if promptTokenCount == "" {
+		return body
+	}
+	// SetRaw keeps the field a JSON number; sjson.Set would write it as a quoted
+	// string, which downstream SDKs typed on promptTokenCount:number reject.
+	patched, err := sjson.SetRaw(body, "usageMetadata.promptTokenCount", promptTokenCount)
+	if err != nil {
+		return body
+	}
+	return patched
+}
+
+// derivedGeminiPromptTokenCount returns the input side to write into a raw
+// response body, or "" when upstream reported the input itself. The derivation
+// only fires when both prompt sides read zero, so the count is what remains of
+// the total and matches the figure settlement bills.
+func derivedGeminiPromptTokenCount(metadata *dto.GeminiUsageMetadata) string {
+	inputTokens, derived := metadata.InputTokenCount()
+	if !derived {
+		return ""
+	}
+	return strconv.Itoa(max(inputTokens-metadata.ToolUsePromptTokenCount, 0))
 }
 
 func attachEstimatedGeminiBillingUsage(usage *dto.Usage) *dto.Usage {
@@ -485,7 +520,8 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		}
 		responseBody = claudeRespStr
 	case types.RelayFormatGemini:
-		break
+		// 原生格式直接透传上游响应体，输入侧需要按派生值修正后再下发
+		responseBody = []byte(patchGeminiPromptTokenCount(string(responseBody), derivedGeminiPromptTokenCount(geminiResponse.GetUsageMetadata())))
 	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)

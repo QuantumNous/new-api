@@ -121,6 +121,78 @@ func TestNewEstimatedGeminiChatBillingUsage(t *testing.T) {
 	assert.Equal(t, 18, billingUsage.GeminiUsageMetadata.TotalTokenCount)
 }
 
+func TestGeminiInputTokenCount(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		metadata   GeminiUsageMetadata
+		wantTokens int
+		wantDerive bool
+	}{
+		{
+			name:       "reported input wins over the total",
+			metadata:   GeminiUsageMetadata{PromptTokenCount: 100, ToolUsePromptTokenCount: 5, CandidatesTokenCount: 20, TotalTokenCount: 128},
+			wantTokens: 105,
+		},
+		{
+			name:       "derived from total minus output side",
+			metadata:   GeminiUsageMetadata{CandidatesTokenCount: 90, ThoughtsTokenCount: 10, TotalTokenCount: 110},
+			wantTokens: 10,
+			wantDerive: true,
+		},
+		{
+			// Upstream sample with an image input sent as fileData+fileUri:
+			// promptTokenCount reported as 0 while the total still carries it.
+			name: "image file uri input recovered from the total",
+			metadata: GeminiUsageMetadata{
+				CandidatesTokenCount: 1258,
+				ThoughtsTokenCount:   178,
+				TotalTokenCount:      1947,
+			},
+			wantTokens: 511,
+			wantDerive: true,
+		},
+		{
+			name:       "thoughts stay on the output side",
+			metadata:   GeminiUsageMetadata{CandidatesTokenCount: 40, ThoughtsTokenCount: 60, TotalTokenCount: 130},
+			wantTokens: 30,
+			wantDerive: true,
+		},
+		{
+			name:     "no total leaves the input unknown",
+			metadata: GeminiUsageMetadata{CandidatesTokenCount: 90, ThoughtsTokenCount: 10},
+		},
+		{
+			name:     "output side covering the total yields nothing",
+			metadata: GeminiUsageMetadata{CandidatesTokenCount: 90, ThoughtsTokenCount: 20, TotalTokenCount: 110},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tokens, derived := tc.metadata.InputTokenCount()
+			assert.Equal(t, tc.wantTokens, tokens)
+			assert.Equal(t, tc.wantDerive, derived)
+		})
+	}
+}
+
+func TestDerivedGeminiBillingUsageSettlesTheRecoveredInput(t *testing.T) {
+	billingUsage := NewGeminiChatBillingUsage(&GeminiUsageMetadata{
+		PromptTokenCount:     0,
+		CandidatesTokenCount: 90,
+		ThoughtsTokenCount:   10,
+		TotalTokenCount:      110,
+	})
+	require.NotNil(t, billingUsage)
+	require.NotNil(t, billingUsage.GeminiUsageMetadata)
+	assert.True(t, billingUsage.Estimated)
+	assert.Equal(t, 10, billingUsage.GeminiUsageMetadata.PromptTokenCount)
+
+	canonical, ok := billingUsage.CanonicalUsage()
+	require.True(t, ok)
+	assert.Equal(t, 10, canonical.PromptTokens)
+	assert.Equal(t, 100, canonical.CompletionTokens)
+	assert.Equal(t, 110, canonical.TotalTokens)
+}
+
 func TestCanonicalGeminiUsageClampsNegativeCompletionFromTotalMinusPrompt(t *testing.T) {
 	usage, ok := NewGeminiChatBillingUsage(&GeminiUsageMetadata{
 		PromptTokenCount: 50,
