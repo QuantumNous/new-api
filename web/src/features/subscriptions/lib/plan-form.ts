@@ -25,6 +25,7 @@ import type { SubscriptionPlan, PlanPayload } from '../types'
 
 export function getPlanFormSchema(t: TFunction) {
   return z.object({
+    partner_tenant_id: z.coerce.number().min(0),
     title: z.string().min(1, t('Please enter plan title')),
     subtitle: z.string().optional(),
     price_amount: z.coerce.number().min(0, t('Please enter amount')),
@@ -45,6 +46,7 @@ export function getPlanFormSchema(t: TFunction) {
     allow_wallet_overflow: z.boolean(),
     max_purchase_per_user: z.coerce.number().min(0),
     total_amount: z.coerce.number().min(0),
+    requests_per_minute: z.coerce.number().int().min(0).max(1000000),
     upgrade_group: z.string().optional(),
     applicable_group: z.string().optional(),
     downgrade_group: z.string().optional(),
@@ -57,6 +59,7 @@ export function getPlanFormSchema(t: TFunction) {
 export type PlanFormValues = z.infer<ReturnType<typeof getPlanFormSchema>>
 
 export const PLAN_FORM_DEFAULTS: PlanFormValues = {
+  partner_tenant_id: 0,
   title: '',
   subtitle: '',
   price_amount: 0,
@@ -71,6 +74,7 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   allow_wallet_overflow: true,
   max_purchase_per_user: 0,
   total_amount: 0,
+  requests_per_minute: 0,
   upgrade_group: '',
   applicable_group: '',
   downgrade_group: '',
@@ -81,6 +85,7 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
 
 export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
   return {
+    partner_tenant_id: Number(plan.partner_tenant_id || 0),
     title: plan.title || '',
     subtitle: plan.subtitle || '',
     price_amount: Number(plan.price_amount || 0),
@@ -95,6 +100,7 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     allow_wallet_overflow: plan.allow_wallet_overflow !== false,
     max_purchase_per_user: Number(plan.max_purchase_per_user || 0),
     total_amount: quotaUnitsToDollars(Number(plan.total_amount || 0)),
+    requests_per_minute: Number(plan.requests_per_minute || 0),
     upgrade_group: plan.upgrade_group || '',
     applicable_group: plan.applicable_group || '',
     downgrade_group: plan.downgrade_group || '',
@@ -105,24 +111,34 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
 }
 
 export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
+  const isPartnerPlan = Number(values.partner_tenant_id || 0) > 0
   return {
     plan: {
       ...values,
+      partner_tenant_id: Number(values.partner_tenant_id || 0),
       price_amount: Number(values.price_amount || 0),
       currency: 'USD',
-      duration_value: Number(values.duration_value || 0),
-      custom_seconds: Number(values.custom_seconds || 0),
-      quota_reset_period: values.quota_reset_period || 'never',
+      duration_unit: isPartnerPlan ? 'month' : values.duration_unit,
+      duration_value: isPartnerPlan ? 1 : Number(values.duration_value || 0),
+      custom_seconds: isPartnerPlan ? 0 : Number(values.custom_seconds || 0),
+      allow_balance_pay: isPartnerPlan ? false : values.allow_balance_pay,
+      allow_wallet_overflow: isPartnerPlan
+        ? false
+        : values.allow_wallet_overflow,
+      quota_reset_period: isPartnerPlan
+        ? 'monthly'
+        : values.quota_reset_period || 'never',
       quota_reset_custom_seconds:
-        values.quota_reset_period === 'custom'
+        !isPartnerPlan && values.quota_reset_period === 'custom'
           ? Number(values.quota_reset_custom_seconds || 0)
           : 0,
       sort_order: Number(values.sort_order || 0),
       max_purchase_per_user: Number(values.max_purchase_per_user || 0),
       total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
-      upgrade_group: values.upgrade_group || '',
+      requests_per_minute: Number(values.requests_per_minute || 0),
+      upgrade_group: isPartnerPlan ? '' : values.upgrade_group || '',
       applicable_group: values.applicable_group || '',
-      downgrade_group: values.downgrade_group || '',
+      downgrade_group: isPartnerPlan ? '' : values.downgrade_group || '',
     },
   }
 }

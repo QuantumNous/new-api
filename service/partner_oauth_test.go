@@ -100,9 +100,9 @@ func TestPartnerOAuthRedirectMatrix(t *testing.T) {
 }
 
 func TestPartnerOAuthScopeMatrix(t *testing.T) {
-	canonical, err := CanonicalPartnerOAuthScopes("offline_access credential:read account:read")
+	canonical, err := CanonicalPartnerOAuthScopes("offline_access payment:read credential:read account:read")
 	require.NoError(t, err)
-	assert.Equal(t, "account:read credential:read offline_access", canonical)
+	assert.Equal(t, "account:read credential:read payment:read offline_access", canonical)
 	_, err = CanonicalPartnerOAuthScopes("account:read account:read")
 	assert.Error(t, err)
 	_, err = CanonicalPartnerOAuthScopes("profile")

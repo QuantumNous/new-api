@@ -23,9 +23,9 @@ func SetPartnerOAuthRouter(router *gin.Engine) {
 		integration.GET("/account", middleware.PartnerOAuthBearer(service.PartnerOAuthScopeAccountRead), controller.PartnerOAuthAccount)
 		integration.POST("/credential", middleware.PartnerOAuthBearer(service.PartnerOAuthScopeCredentialRead), controller.PartnerOAuthCredential)
 		integration.GET("/balance", middleware.PartnerOAuthBearer(service.PartnerOAuthScopeAccountRead), controller.PartnerOAuthBalance)
-		integration.GET("/payment/options", middleware.PartnerOAuthBearer(service.PartnerOAuthScopePaymentWrite), controller.PartnerOAuthPaymentOptions)
+		integration.GET("/payment/options", middleware.PartnerOAuthBearer(service.PartnerOAuthScopePaymentRead), controller.PartnerOAuthPaymentOptions)
 		integration.POST("/payment/orders", middleware.PartnerOAuthBearer(service.PartnerOAuthScopePaymentWrite), controller.PartnerOAuthCreatePaymentOrder)
-		integration.GET("/payment/orders/:order_id", middleware.PartnerOAuthBearer(service.PartnerOAuthScopePaymentWrite), controller.PartnerOAuthGetPaymentOrder)
+		integration.GET("/payment/orders/:order_id", middleware.PartnerOAuthBearer(service.PartnerOAuthScopePaymentRead), controller.PartnerOAuthGetPaymentOrder)
 	}
 
 	consent := router.Group("/api/partner-oauth")
@@ -34,4 +34,6 @@ func SetPartnerOAuthRouter(router *gin.Engine) {
 		consent.GET("/authorization", controller.PartnerOAuthInspectAuthorization)
 		consent.POST("/authorization/decision", controller.PartnerOAuthDecideAuthorization)
 	}
+
+	SetPartnerTenantRouter(router)
 }

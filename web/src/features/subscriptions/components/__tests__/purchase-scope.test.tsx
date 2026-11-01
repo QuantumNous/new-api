@@ -27,6 +27,7 @@ afterEach(cleanup)
 
 const basePlan: SubscriptionPlan = {
   id: 8,
+  partner_tenant_id: 0,
   title: 'Scoped plan',
   price_amount: 10,
   currency: 'USD',

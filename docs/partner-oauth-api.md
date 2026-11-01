@@ -2,6 +2,8 @@
 
 给第三方 AI 助手接入用。助手保留自己的登录体系；用户在浏览器里授权野菜API账号后，助手领取一把专用于本次绑定的模型 API Key，再调用模型。
 
+如果集成方是由野菜API直接交付**服务端密钥**、负责旗下用户登录和收款的合作商户，请使用 [Partner Tenant API](./partner-tenant-api.md)。该接口按商户隔离账号、专属分组、月度订阅和订阅额度；不要用本文的 OAuth 余额/充值接口承载商户用户。
+
 本文只描述第三方助手的 OAuth 2.0 授权码流程，对应中转平台开放接口 v0.2。示例里的域名、客户端和令牌都是占位值，以平台实际交付的配置为准。
 
 ## 不要和设备码授权混用
@@ -72,16 +74,17 @@ GET  /api/integrations/v1/payment/orders/{order_id}   轮询到账
 
 ## 权限
 
-`scope` 用空格分隔，只能是下面四个，且必须落在该客户端被允许的子集里。
+`scope` 用空格分隔，只能是下面五个，且必须落在该客户端被允许的子集里。
 
 | scope | 作用 |
 | --- | --- |
 | `account:read` | 读取本次授权对应的账号和钱包余额 |
 | `credential:read` | 领取本次授权的模型 API Key |
-| `payment:write` | 为该账号创建充值订单。用户仍需在支付页面亲自付款 |
+| `payment:read` | 查询可用支付方式和本次绑定创建的充值订单 |
+| `payment:write` | 查询支付方式和订单，并为该账号创建充值订单。用户仍需在支付页面亲自付款 |
 | `offline_access` | 发放刷新令牌。需要在访问令牌过期后继续使用时必须申请 |
 
-完整绑定使用 `account:read credential:read offline_access`；需要在助手里充值时再加 `payment:write`。`payment:write` 要平台在客户端配置里单独开通，已有绑定不会自动获得，需要用户重新授权；平台关闭该客户端的 `payment:write` 后，已有绑定的充值接口立即返回 `403 insufficient_scope`。不返回 `id_token`。
+完整绑定使用 `account:read credential:read offline_access`；只需查看支付方式和订单时申请 `payment:read`；需要在助手里发起充值时申请 `payment:write`。`payment:write` 向后兼容 `payment:read` 的查询能力，但 `payment:read` 不能创建订单。客户端必须单独开放对应 scope；新 scope 不会自动加入已有绑定，需要用户重新授权。平台关闭客户端的 `payment:write` 后，已有写权限及从旧 `payment:write` 继承的查询权限立即返回 `403 insufficient_scope`。不返回 `id_token`。
 
 ## 时效
 
@@ -332,7 +335,7 @@ Authorization: Bearer {access_token}
 
 ## 9. 充值
 
-充值分三步：查询可用支付方式，下单拿到收银台地址交给用户付款，轮询订单直到到账。需要 `payment:write`。当前只支持易支付（支付宝、微信等，以 `methods` 为准）。
+充值分三步：查询可用支付方式，下单拿到收银台地址交给用户付款，轮询订单直到到账。查询支付方式和订单需要 `payment:read` 或 `payment:write`；创建订单需要 `payment:write`。当前只支持易支付（支付宝、微信等，以 `methods` 为准）。
 
 ### 9.1 支付方式
 

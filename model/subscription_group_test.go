@@ -82,6 +82,8 @@ func TestSubscriptionApplicableGroupDatabaseMatrix(t *testing.T) {
 				}
 			}
 			require.True(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "applicable_group"))
+			require.True(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "partner_tenant_id"))
+			require.True(t, db.Migrator().HasColumn(&SubscriptionPlan{}, "requests_per_minute"))
 			require.NoError(t, db.Create(&SubscriptionPlan{Title: "fresh", PriceAmount: 2, DurationUnit: SubscriptionDurationMonth, DurationValue: 1}).Error)
 			var fresh SubscriptionPlan
 			require.NoError(t, db.Where("title = ?", "fresh").First(&fresh).Error)
@@ -163,6 +165,8 @@ PRIMARY KEY (id)
 			assert.Equal(t, 4.5, legacy.PriceAmount)
 			assert.EqualValues(t, 900, legacy.TotalAmount)
 			assert.Empty(t, legacy.ApplicableGroup)
+			assert.Zero(t, legacy.PartnerTenantId)
+			assert.Zero(t, legacy.RequestsPerMinute)
 			upgradedIndexes, err := db.Migrator().GetIndexes("subscription_plans")
 			require.NoError(t, err)
 			assert.Equal(t, len(originalIndexes), len(upgradedIndexes), "upgrade must preserve indexes")

@@ -15,7 +15,8 @@ import (
 // ---- Shared types ----
 
 type SubscriptionPlanDTO struct {
-	Plan model.SubscriptionPlan `json:"plan"`
+	Plan              model.SubscriptionPlan `json:"plan"`
+	PartnerTenantName string                 `json:"partner_tenant_name,omitempty"`
 }
 
 type BillingPreferenceRequest struct {
@@ -35,7 +36,7 @@ func GetSubscriptionPlans(c *gin.Context) {
 	}
 
 	var plans []model.SubscriptionPlan
-	if err := model.DB.Where("enabled = ?", true).Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
+	if err := model.DB.Where("enabled = ? AND partner_tenant_id = 0", true).Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -125,18 +126,52 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	tenants, err := model.ListPartnerTenants()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	tenantNames := make(map[int64]string, len(tenants))
+	for _, tenant := range tenants {
+		tenantNames[tenant.Id] = tenant.Name
+	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
 		p.NormalizeDefaults()
-		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
-		})
+		result = append(result, SubscriptionPlanDTO{Plan: p, PartnerTenantName: tenantNames[p.PartnerTenantId]})
 	}
 	common.ApiSuccess(c, result)
 }
 
 type AdminUpsertSubscriptionPlanRequest struct {
 	Plan model.SubscriptionPlan `json:"plan"`
+}
+
+func normalizePartnerSubscriptionPlan(c *gin.Context, plan *model.SubscriptionPlan) bool {
+	if plan.PartnerTenantId == 0 {
+		return true
+	}
+	if c.GetInt("role") != common.RoleRootUser {
+		return false
+	}
+	tenant, err := model.GetPartnerTenantById(plan.PartnerTenantId)
+	if err != nil || tenant.Status != model.PartnerTenantStatusEnabled {
+		return false
+	}
+	if plan.TotalAmount < 0 {
+		return false
+	}
+	plan.DurationUnit = model.SubscriptionDurationMonth
+	plan.DurationValue = 1
+	plan.CustomSeconds = 0
+	plan.QuotaResetPeriod = model.SubscriptionResetMonthly
+	plan.QuotaResetCustomSeconds = 0
+	plan.AllowBalancePay = common.GetPointer(false)
+	plan.AllowWalletOverflow = common.GetPointer(false)
+	plan.UpgradeGroup = ""
+	plan.DowngradeGroup = ""
+	plan.ApplicableGroup = tenant.Group
+	return true
 }
 
 func validateApplicableGroup(plan *model.SubscriptionPlan) bool {
@@ -151,14 +186,21 @@ func validateApplicableGroup(plan *model.SubscriptionPlan) bool {
 	return ok
 }
 
-func AdminCreateSubscriptionPlan(c *gin.Context) {
-	if !requirePaymentCompliance(c) {
-		return
+func rejectPartnerOwnedPlanForCheckout(c *gin.Context, plan *model.SubscriptionPlan) bool {
+	if plan == nil || plan.PartnerTenantId == 0 {
+		return false
 	}
+	common.ApiErrorT(c, "This plan can only be activated through its partner")
+	return true
+}
 
+func AdminCreateSubscriptionPlan(c *gin.Context) {
 	var req AdminUpsertSubscriptionPlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	if req.Plan.PartnerTenantId == 0 && !requirePaymentCompliance(c) {
 		return
 	}
 	req.Plan.Id = 0
@@ -198,6 +240,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorT(c, "Total quota cannot be negative")
 		return
 	}
+	if req.Plan.RequestsPerMinute < 0 || req.Plan.RequestsPerMinute > 1000000 {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -211,6 +257,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 			common.ApiErrorT(c, "Downgrade group does not exist")
 			return
 		}
+	}
+	if !normalizePartnerSubscriptionPlan(c, &req.Plan) {
+		common.ApiErrorT(c, "Partner plans require root access, an enabled partner, and a non-negative monthly quota")
+		return
 	}
 	if !validateApplicableGroup(&req.Plan) {
 		common.ApiErrorMsg(c, "适用分组不存在或不是有效真实分组")
@@ -231,10 +281,6 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 }
 
 func AdminUpdateSubscriptionPlan(c *gin.Context) {
-	if !requirePaymentCompliance(c) {
-		return
-	}
-
 	id, _ := strconv.Atoi(c.Param("id"))
 	if id <= 0 {
 		common.ApiErrorT(c, "Invalid ID")
@@ -243,6 +289,21 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	var req AdminUpsertSubscriptionPlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	existingPlan, err := model.GetSubscriptionPlanById(id)
+	if err != nil {
+		common.ApiErrorMsg(c, "Subscription plan not found")
+		return
+	}
+	if req.Plan.PartnerTenantId == 0 {
+		req.Plan.PartnerTenantId = existingPlan.PartnerTenantId
+	}
+	if req.Plan.PartnerTenantId != existingPlan.PartnerTenantId {
+		common.ApiErrorT(c, "Partner plan ownership cannot be changed")
+		return
+	}
+	if req.Plan.PartnerTenantId == 0 && !requirePaymentCompliance(c) {
 		return
 	}
 	if strings.TrimSpace(req.Plan.Title) == "" {
@@ -276,6 +337,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorT(c, "Total quota cannot be negative")
 		return
 	}
+	if req.Plan.RequestsPerMinute < 0 || req.Plan.RequestsPerMinute > 1000000 {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -290,6 +355,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	if !normalizePartnerSubscriptionPlan(c, &req.Plan) {
+		common.ApiErrorT(c, "Partner plans require root access, an enabled partner, and a non-negative monthly quota")
+		return
+	}
 	if !validateApplicableGroup(&req.Plan) {
 		common.ApiErrorMsg(c, "适用分组不存在或不是有效真实分组")
 		return
@@ -300,9 +369,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]any{
+			"partner_tenant_id":          req.Plan.PartnerTenantId,
 			"title":                      req.Plan.Title,
 			"subtitle":                   req.Plan.Subtitle,
 			"price_amount":               req.Plan.PriceAmount,
@@ -317,6 +387,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
+			"requests_per_minute":        req.Plan.RequestsPerMinute,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"applicable_group":           req.Plan.ApplicableGroup,
 			"downgrade_group":            req.Plan.DowngradeGroup,

@@ -282,6 +282,14 @@ func SetApiRouter(router *gin.Engine) {
 			handlePermissionRoute(partnerOAuthClientRoute, http.MethodPost, "/:id/status", authz.PartnerOAuthClientOperate, controller.UpdatePartnerOAuthClientStatus)
 			handlePermissionRoute(partnerOAuthClientRoute, http.MethodDelete, "/:id", authz.PartnerOAuthClientSensitiveWrite, controller.DeletePartnerOAuthClient)
 		}
+		partnerTenantRoute := apiRouter.Group("/partner-tenants")
+		partnerTenantRoute.Use(middleware.RootAuth())
+		{
+			partnerTenantRoute.GET("", controller.AdminListPartnerTenants)
+			partnerTenantRoute.POST("", controller.AdminCreatePartnerTenant)
+			partnerTenantRoute.POST("/:id/secret", controller.AdminRotatePartnerTenantSecret)
+			partnerTenantRoute.PATCH("/:id/status", controller.AdminUpdatePartnerTenantStatus)
+		}
 
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")

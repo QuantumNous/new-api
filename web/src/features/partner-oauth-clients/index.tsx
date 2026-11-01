@@ -20,12 +20,14 @@ import {
   SecureVerificationDialog,
   useSecureVerification,
 } from '@/features/auth/secure-verification'
+import { PartnerTenantsManager } from '@/features/partner-tenants'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
 import { handleServerError } from '@/lib/handle-server-error'
+import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -50,6 +52,7 @@ const clientsQueryKey = ['admin', 'partner-oauth-clients'] as const
 export function PartnerOAuthClients() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
+  const isRoot = user?.role === ROLE.SUPER_ADMIN
   const queryClient = useQueryClient()
   const verification = useSecureVerification()
   const [formOpen, setFormOpen] = useState(false)
@@ -257,7 +260,10 @@ export function PartnerOAuthClients() {
           {t('Partner OAuth Clients')}
         </SectionPageLayout.Title>
         <SectionPageLayout.Content>
-          <div className='mx-auto w-full max-w-7xl space-y-4'>{content}</div>
+          <div className='mx-auto w-full max-w-7xl space-y-5'>
+            {isRoot && <PartnerTenantsManager />}
+            {content}
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
       <PartnerOAuthClientFormDialog

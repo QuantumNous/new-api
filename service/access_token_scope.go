@@ -240,6 +240,7 @@ var accessTokenVerificationScopes = map[string]string{
 	VerificationScopeAccessTokenRevoke:                "",
 	VerificationScopeLogin:                            "",
 	VerificationScopePartnerOAuthClientSensitiveWrite: AccessTokenScopeOf(authz.PartnerOAuthClientSensitiveWrite),
+	VerificationScopePartnerTenantSensitiveWrite:      "",
 }
 
 // AccessTokenVerificationScope returns the token scope a PAT needs for a

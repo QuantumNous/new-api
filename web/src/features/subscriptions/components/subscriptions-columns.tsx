@@ -64,6 +64,17 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         size: 200,
       },
       {
+        id: 'partner_tenant',
+        header: t('Partner tenant'),
+        meta: { mobileHidden: true },
+        cell: ({ row }) => (
+          <span className='text-muted-foreground'>
+            {row.original.partner_tenant_name || t('Platform-wide')}
+          </span>
+        ),
+        size: 150,
+      },
+      {
         accessorFn: (row) => row.plan.price_amount,
         id: 'price',
         header: t('Price'),

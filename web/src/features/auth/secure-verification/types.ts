@@ -40,6 +40,7 @@ export type SecurityProofScope =
   | 'account.password.change'
   | 'account.delete'
   | 'partner_oauth.client.sensitive_write'
+  | 'partner_tenant.sensitive_write'
   | 'admin.user.create'
   | 'admin.user.update'
   | 'admin.user.delete'
@@ -96,12 +97,19 @@ export type VerificationOperation =
         | { action: 'update' | 'rotate_secret' | 'delete'; client_id: string }
     }
   | {
+      scope: 'partner_tenant.sensitive_write'
+      context:
+        | { action: 'create'; group: string }
+        | { action: 'rotate_secret'; tenant_id: number }
+    }
+  | {
       scope: Exclude<
         SecurityProofScope,
         | 'channel.key.read'
         | 'account.binding.bind'
         | 'account.binding.unbind'
         | 'partner_oauth.client.sensitive_write'
+        | 'partner_tenant.sensitive_write'
         | 'access_token.generate'
         | 'access_token.update'
         | 'access_token.revoke'

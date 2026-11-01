@@ -77,9 +77,9 @@ func setupPartnerOAuthPaymentController(t *testing.T) *gin.Engine {
 	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
 
 	engine.GET("/api/integrations/v1/balance", middleware.PartnerOAuthBearer(service.PartnerOAuthScopeAccountRead), PartnerOAuthBalance)
-	engine.GET("/api/integrations/v1/payment/options", middleware.PartnerOAuthBearer(service.PartnerOAuthScopePaymentWrite), PartnerOAuthPaymentOptions)
+	engine.GET("/api/integrations/v1/payment/options", middleware.PartnerOAuthBearer(service.PartnerOAuthScopePaymentRead), PartnerOAuthPaymentOptions)
 	engine.POST("/api/integrations/v1/payment/orders", middleware.PartnerOAuthBearer(service.PartnerOAuthScopePaymentWrite), PartnerOAuthCreatePaymentOrder)
-	engine.GET("/api/integrations/v1/payment/orders/:order_id", middleware.PartnerOAuthBearer(service.PartnerOAuthScopePaymentWrite), PartnerOAuthGetPaymentOrder)
+	engine.GET("/api/integrations/v1/payment/orders/:order_id", middleware.PartnerOAuthBearer(service.PartnerOAuthScopePaymentRead), PartnerOAuthGetPaymentOrder)
 	engine.GET("/api/user/epay/return", EpayBrowserReturn)
 	return engine
 }
@@ -145,6 +145,34 @@ func partnerIntegrationErrorCode(t *testing.T, rec *httptest.ResponseRecorder) s
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), rec.Body.String())
 	return body.Error.Code
+}
+
+func TestPartnerOAuthPaymentReadScope(t *testing.T) {
+	engine := setupPartnerOAuthPaymentController(t)
+	user := &model.User{Username: "payment-reader", Password: "unused", Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1}
+	require.NoError(t, model.DB.Create(user).Error)
+	client, _ := createPartnerTestClient(t, model.PartnerOAuthTokenAuthMethodBasic, []string{"https://assistant.example.com/oauth/callback"})
+	client.Scopes = "account:read credential:read payment:read offline_access"
+	require.NoError(t, model.DB.Model(client).Update("scopes", client.Scopes).Error)
+	seedPartnerPaymentBinding(t, user, client, "payment:read", "oa_payment_reader")
+	legacyClient, _ := createPartnerTestClient(t, model.PartnerOAuthTokenAuthMethodBasic, []string{"https://assistant.example.com/oauth/callback"})
+	legacyClient.Scopes = "account:read credential:read payment:write offline_access"
+	require.NoError(t, model.DB.Model(legacyClient).Update("scopes", legacyClient.Scopes).Error)
+	seedPartnerPaymentBinding(t, user, legacyClient, "payment:write", "oa_payment_legacy_writer")
+
+	options := partnerIntegrationRequest(engine, http.MethodGet, "/api/integrations/v1/payment/options", "oa_payment_reader", "", "")
+	assert.Equal(t, http.StatusOK, options.Code, options.Body.String())
+
+	order := partnerIntegrationRequest(engine, http.MethodGet, "/api/integrations/v1/payment/orders/not-owned", "oa_payment_reader", "", "")
+	assert.Equal(t, http.StatusNotFound, order.Code, order.Body.String())
+	assert.Equal(t, "order_not_found", partnerIntegrationErrorCode(t, order))
+
+	create := partnerIntegrationRequest(engine, http.MethodPost, "/api/integrations/v1/payment/orders", "oa_payment_reader", "payment-read-write-blocked-01", `{"amount":10,"payment_method":"alipay"}`)
+	assert.Equal(t, http.StatusForbidden, create.Code, create.Body.String())
+	assert.Equal(t, "insufficient_scope", partnerIntegrationErrorCode(t, create))
+
+	legacyOptions := partnerIntegrationRequest(engine, http.MethodGet, "/api/integrations/v1/payment/options", "oa_payment_legacy_writer", "", "")
+	assert.Equal(t, http.StatusOK, legacyOptions.Code, legacyOptions.Body.String())
 }
 
 func TestPartnerOAuthBalanceFollowsDisplayCurrency(t *testing.T) {
