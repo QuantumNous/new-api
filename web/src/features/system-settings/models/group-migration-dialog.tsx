@@ -51,17 +51,22 @@ import {
 import { toIntlLocale } from '@/i18n/languages'
 import { api } from '@/lib/api'
 import { formatNumber } from '@/lib/format'
-import { getServerErrorMessage, getServerErrorStatus, isServerErrorCancelled, requireServerSuccess } from '@/lib/server-error-message'
+import {
+  getServerErrorMessage,
+  getServerErrorStatus,
+  isServerErrorCancelled,
+  requireServerSuccess,
+} from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
-import {
-  GroupMigrationHistory,
-  type MigrationOperation,
-} from './group-migration-history'
 import {
   createGroupMigrationSchema,
   type GroupMigrationNames,
 } from '../lib/group-migration-schema'
+import {
+  GroupMigrationHistory,
+  type MigrationOperation,
+} from './group-migration-history'
 
 type MigrationCoordination = {
   ready: boolean
@@ -133,6 +138,8 @@ function GroupMigrationDialog(props: {
   >()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [observed, setObserved] = useState<MigrationOperation>()
+  const [resultOperation, setResultOperation] = useState<MigrationOperation>()
+  const [resultError, setResultError] = useState<unknown>()
   const operations = useQuery({
     queryKey: ['group-migration', 'operations'],
     queryFn: async ({ signal }) => {
@@ -189,6 +196,8 @@ function GroupMigrationDialog(props: {
     },
     onSuccess: (operation) => {
       setObserved(operation)
+      setResultOperation(operation)
+      setResultError(undefined)
       setConfirmation(undefined)
       if (operation.state === 'aborted') preview.reset()
       if (operation.state === 'completed') {
@@ -199,7 +208,9 @@ function GroupMigrationDialog(props: {
       }
       void operations.refetch()
     },
-    onError: () => {
+    onError: (error) => {
+      setResultOperation(undefined)
+      setResultError(error)
       void operations.refetch()
     },
   })
@@ -291,8 +302,7 @@ function GroupMigrationDialog(props: {
     ...(result?.blockers ?? []),
     ...(result?.execution_blockers ?? []),
   ]
-  const coordination =
-    active?.coordination ?? result?.coordination
+  const coordination = active?.coordination ?? result?.coordination
   const phases: Record<string, string> = {
     ready: t('Ready'),
     draining: t('Draining requests'),
@@ -338,7 +348,9 @@ function GroupMigrationDialog(props: {
         }}
       >
         <History className='mr-2 size-4' aria-hidden='true' />
-        {historyOpen ? t('Hide migration history') : t('View migration history')}
+        {historyOpen
+          ? t('Hide migration history')
+          : t('View migration history')}
       </Button>
       {active && (
         <section className='mb-4 flex flex-col gap-2' aria-live='polite'>
@@ -369,18 +381,6 @@ function GroupMigrationDialog(props: {
           )}
           onRetry={() => void operations.refetch()}
           onVerifyStatus={verifyStatus}
-        />
-      )}
-      {execution.isError && !isServerErrorCancelled(execution.error) && (
-        <ErrorState
-          className='min-h-0'
-          title={getServerErrorMessage(
-            execution.error,
-            t(
-              'Unable to execute group migration. Check operation status before retrying.'
-            )
-          )}
-          onRetry={() => void operations.refetch()}
         />
       )}
       {coordination && (
@@ -571,9 +571,7 @@ function GroupMigrationDialog(props: {
         <Button
           type='button'
           disabled={
-            !result ||
-            blockers.length > 0 ||
-            coordination?.ready === false
+            !result || blockers.length > 0 || coordination?.ready === false
           }
           onClick={() => setConfirmation(result)}
         >
@@ -608,6 +606,71 @@ function GroupMigrationDialog(props: {
           execution.mutate({ preview: pending })
         }}
       />
+      {Boolean(resultOperation || resultError) && (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setResultOperation(undefined)
+              setResultError(undefined)
+            }
+          }}
+          title={
+            resultOperation
+              ? states[resultOperation.state]
+              : t(
+                  'Unable to execute group migration. Check operation status before retrying.'
+                )
+          }
+          description={
+            resultOperation ? (
+              <span>
+                {resultOperation.source} → {resultOperation.target}
+                {resultOperation.reason && (
+                  <>
+                    <br />
+                    {t(resultOperation.reason)}
+                  </>
+                )}
+              </span>
+            ) : (
+              getServerErrorMessage(
+                resultError,
+                t(
+                  'Unable to execute group migration. Check operation status before retrying.'
+                )
+              )
+            )
+          }
+          footer={
+            <>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => {
+                  setConfirmation(undefined)
+                  setResultOperation(undefined)
+                  setResultError(undefined)
+                  setHistoryOpen(true)
+                }}
+              >
+                {t('View migration history')}
+              </Button>
+              <Button
+                type='button'
+                onClick={() => {
+                  setResultOperation(undefined)
+                  setResultError(undefined)
+                }}
+              >
+                {t('Close')}
+              </Button>
+            </>
+          }
+        >
+          <div />
+        </Dialog>
+      )}
     </Dialog>
   )
 }
