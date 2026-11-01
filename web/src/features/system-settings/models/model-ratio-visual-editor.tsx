@@ -59,6 +59,10 @@ import { useMediaQuery } from '@/hooks'
 import { safeJsonParse } from '../utils/json-parser'
 import type { PricingMode } from './model-pricing-core'
 import {
+  ModelPricingIssueDetails,
+  ModelPricingIssueSummary,
+} from './model-pricing-issue-alerts'
+import {
   ModelPricingEditorPanel,
   type ModelPricingEditorPanelHandle,
   ModelPricingSheet,
@@ -162,8 +166,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
   )
   const pricingIssuesQuery = useModelPricingIssues()
   const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [columnFiltersOverride, setColumnFiltersOverride] =
+    useState<ColumnFiltersState | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
+  const [toolbarVersion, setToolbarVersion] = useState(0)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const editorPanelRef = useRef<ModelPricingEditorPanelHandle>(null)
   // Read through a ref so the table column definitions (and therefore every
@@ -358,6 +364,31 @@ const ModelRatioVisualEditorComponent = forwardRef<
   const attentionCount = useMemo(
     () => models.filter((model) => pricingIssues.has(model.name)).length,
     [models, pricingIssues]
+  )
+  const defaultColumnFilters = useMemo<ColumnFiltersState>(
+    () =>
+      filterMode === 'all' && attentionCount > 0
+        ? [{ id: 'name', value: [PRICE_ATTENTION_FILTER] }]
+        : [],
+    [filterMode, attentionCount]
+  )
+  const columnFilters = columnFiltersOverride ?? defaultColumnFilters
+  const handleColumnFiltersChange = useCallback<OnChangeFn<ColumnFiltersState>>(
+    (updater) => {
+      setColumnFiltersOverride((previous) =>
+        typeof updater === 'function'
+          ? updater(previous ?? defaultColumnFilters)
+          : updater
+      )
+      setPagination((previous) => ({ ...previous, pageIndex: 0 }))
+    },
+    [defaultColumnFilters]
+  )
+  const showingAttention = columnFilters.some(
+    (filter) =>
+      filter.id === 'name' &&
+      Array.isArray(filter.value) &&
+      filter.value.includes(PRICE_ATTENTION_FILTER)
   )
 
   const handleEdit = useCallback(
@@ -554,7 +585,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     rowSelection,
     enableRowSelection: true,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: handleColumnFiltersChange,
     onGlobalFilterChange: handleGlobalFilterChange,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
@@ -665,8 +696,36 @@ const ModelRatioVisualEditorComponent = forwardRef<
       : t('No models with unset prices')
   }
 
+  const editIssues = editData ? pricingIssues.get(editData.name) : undefined
+  const issueDetails = editIssues ? (
+    <ModelPricingIssueDetails issues={editIssues} />
+  ) : undefined
+
   return (
     <div className='flex min-h-0 flex-1 flex-col gap-4'>
+      {filterMode === 'all' && (
+        <ModelPricingIssueSummary
+          count={attentionCount}
+          showingAttention={showingAttention}
+          onShowAll={() => {
+            setToolbarVersion((version) => version + 1)
+            table.setColumnFilters([])
+            table.setGlobalFilter('')
+            table.setPageIndex(0)
+          }}
+          onReview={() => {
+            const model = models.find((row) => pricingIssues.has(row.name))
+            if (!model) return
+            setToolbarVersion((version) => version + 1)
+            setGlobalFilter('')
+            table.setColumnFilters([
+              { id: 'name', value: [PRICE_ATTENTION_FILTER] },
+            ])
+            table.setPageIndex(0)
+            handleEdit(model)
+          }}
+        />
+      )}
       <div
         role='region'
         aria-label={t('Model prices')}
@@ -674,6 +733,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       >
         <div className='flex min-h-0 min-w-0 flex-col gap-3'>
           <DataTableToolbar
+            key={toolbarVersion}
             table={table}
             searchPlaceholder={t('Search models...')}
             searchDebounceMs={250}
@@ -788,6 +848,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
             <ModelPricingEditorPanel
               ref={editorPanelRef}
               editData={editData}
+              scrollHeader={issueDetails}
               pluginVariants={
                 pricingConfig.data?.entries.find(
                   (entry) => entry.model_name === editData?.name
@@ -838,6 +899,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           editData={editData}
+          scrollHeader={issueDetails}
           pluginVariants={
             pricingConfig.data?.entries.find(
               (entry) => entry.model_name === editData?.name
