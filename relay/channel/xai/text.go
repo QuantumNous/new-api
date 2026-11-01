@@ -54,9 +54,18 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		// 把 xAI 的usage转换为 OpenAI 的usage
 		if xAIResp.Usage != nil {
 			containStreamUsage = true
-			usage.PromptTokens = xAIResp.Usage.PromptTokens
-			usage.TotalTokens = xAIResp.Usage.TotalTokens
-			usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+			// Keep the full upstream usage instead of rebuilding a bare
+			// *dto.Usage with only prompt/total/completion.  xAI reports
+			// prompt-cache hits via the standard path
+			// usage.prompt_tokens_details.cached_tokens; copying the whole
+			// struct (like openai.handleLastResponse does) preserves it so
+			// that cache tokens are recorded for billing/logs.  Rebuilding
+			// only the three scalars silently dropped CachedTokens for every
+			// streaming request.
+			*usage = *xAIResp.Usage
+			if usage.CompletionTokens == 0 && usage.TotalTokens > usage.PromptTokens {
+				usage.CompletionTokens = usage.TotalTokens - usage.PromptTokens
+			}
 		}
 
 		openaiResponse := streamResponseXAI2OpenAI(xAIResp, usage)
