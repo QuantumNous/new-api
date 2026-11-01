@@ -30,6 +30,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@/stores/auth-store'
 
+import { useSystemOptions } from '../../hooks/use-system-options'
 import { GroupMigrationEntry } from '../group-migration-dialog'
 
 const http = vi.hoisted(() => ({
@@ -49,15 +50,27 @@ vi.mock('@/lib/api', () => ({
   },
 }))
 
-function renderEntry(role = 100, groups = ['vip']) {
-  useAuthStore.getState().auth.setUser({ id: 1, username: 'operator', role })
-  const client = new QueryClient({
+function renderEntry(
+  role = 100,
+  groups = ['vip'],
+  client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
+) {
+  useAuthStore.getState().auth.setUser({ id: 1, username: 'operator', role })
   return render(
     <QueryClientProvider client={client}>
       <GroupMigrationEntry groups={groups} />
     </QueryClientProvider>
+  )
+}
+
+function SavedGroupSettings() {
+  const { data } = useSystemOptions()
+  return (
+    <output aria-label='Saved group ratios'>
+      {data?.data.find((option) => option.key === 'GroupRatio')?.value}
+    </output>
   )
 }
 
@@ -75,6 +88,94 @@ afterEach(() => {
 })
 
 describe('group migration preview', () => {
+  it.each(['polling', 'manual verification'] as const)(
+    'refreshes group choices and saved settings when %s observes completion',
+    async (refresh) => {
+      let completed = false
+      http.get.mockImplementation(async (url: string) => ({
+        data: {
+          success: true,
+          data:
+            url === '/api/option/'
+              ? [
+                  {
+                    key: 'GroupRatio',
+                    value: completed ? '{"premium":0.8}' : '{"vip":0.8}',
+                  },
+                ]
+              : [completed ? 'premium' : 'vip'],
+        },
+      }))
+      http.history.mockImplementation(() => [
+        {
+          id: 'background-migration',
+          source: 'vip',
+          target: 'premium',
+          state: completed ? 'completed' : 'committed',
+          reason: '',
+        },
+      ])
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      })
+      render(
+        <QueryClientProvider client={client}>
+          <SavedGroupSettings />
+        </QueryClientProvider>
+      )
+      const savedSettings = screen.getByLabelText('Saved group ratios')
+      await waitFor(() =>
+        expect(savedSettings).toHaveTextContent('{"vip":0.8}')
+      )
+      const user = userEvent.setup()
+      renderEntry(100, ['vip'], client)
+      await enterMigration(user)
+      await user.click(
+        screen.getByRole('button', { name: 'View migration history' })
+      )
+      const history = await screen.findByRole('table', {
+        name: 'Migration history',
+      })
+      expect(
+        within(history).getByText('Database committed; synchronization pending')
+      ).toBeVisible()
+      expect(screen.getByRole('option', { name: 'vip' })).toBeInTheDocument()
+
+      completed = true
+      if (refresh === 'manual verification') {
+        await user.click(
+          screen.getByRole('button', { name: 'Verify migration status' })
+        )
+      }
+
+      expect(
+        await within(history).findByText('Migration completed')
+      ).toBeVisible()
+      await waitFor(() =>
+        expect(savedSettings).toHaveTextContent('{"premium":0.8}')
+      )
+      expect(
+        await screen.findByRole('option', { name: 'premium' })
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('option', { name: 'vip' })
+      ).not.toBeInTheDocument()
+
+      await user.click(
+        screen.getByRole('button', { name: 'Verify migration status' })
+      )
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Migration status: Migration completed.'
+      )
+      expect(
+        http.get.mock.calls.filter(([url]) => url === '/api/option/')
+      ).toHaveLength(2)
+      expect(
+        http.get.mock.calls.filter(([url]) => url === '/api/group/')
+      ).toHaveLength(2)
+    }
+  )
+
   it('shows loading while migration history is being fetched', async () => {
     http.get.mockResolvedValue({ data: { success: true, data: ['vip'] } })
     http.history.mockImplementation(() => new Promise(() => {}))
@@ -493,22 +594,24 @@ describe('group migration preview', () => {
     )
   })
   it('allows migrating a recreated source group after an earlier migration completed', async () => {
-    http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
-    http.get.mockResolvedValueOnce({
+    http.get.mockImplementation(async (url: string) => ({
       data: {
         success: true,
-        data: {
-          source: 'vip',
-          target: 'premium',
-          version: 'current-v1',
-          counts: {},
-          unfinished_tasks: 0,
-          blockers: [],
-          execution_blockers: [],
-          warnings: [],
-        },
+        data:
+          url === '/api/group/'
+            ? ['vip']
+            : {
+                source: 'vip',
+                target: 'premium',
+                version: 'current-v1',
+                counts: {},
+                unfinished_tasks: 0,
+                blockers: [],
+                execution_blockers: [],
+                warnings: [],
+              },
       },
-    })
+    }))
     http.history.mockReturnValue([
       {
         id: 'previous-vip-migration',

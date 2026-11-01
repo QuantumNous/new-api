@@ -20,7 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { History } from 'lucide-react'
 import { nanoid } from 'nanoid'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -140,6 +140,7 @@ function GroupMigrationDialog(props: {
   const [observed, setObserved] = useState<MigrationOperation>()
   const [resultOperation, setResultOperation] = useState<MigrationOperation>()
   const [resultError, setResultError] = useState<unknown>()
+  const operationStates = useRef(new Map<string, MigrationOperation['state']>())
   const operations = useQuery({
     queryKey: ['group-migration', 'operations'],
     queryFn: async ({ signal }) => {
@@ -159,6 +160,23 @@ function GroupMigrationDialog(props: {
     retry: false,
     meta: { errorToast: false },
   })
+  useEffect(() => {
+    let newlyCompleted = false
+    for (const operation of operations.data ?? []) {
+      if (
+        operation.state === 'completed' &&
+        operationStates.current.get(operation.id) !== 'completed'
+      ) {
+        newlyCompleted = true
+      }
+      operationStates.current.set(operation.id, operation.state)
+    }
+    // Completion can arrive through polling or verification after a lost response.
+    if (newlyCompleted) {
+      void client.invalidateQueries({ queryKey: ['group-migration', 'groups'] })
+      void client.invalidateQueries({ queryKey: ['system-options'] })
+    }
+  }, [client, operations.data])
   const execution = useMutation({
     meta: { errorToast: false },
     mutationFn: async (
@@ -201,6 +219,7 @@ function GroupMigrationDialog(props: {
       setConfirmation(undefined)
       if (operation.state === 'aborted') preview.reset()
       if (operation.state === 'completed') {
+        operationStates.current.set(operation.id, operation.state)
         void client.invalidateQueries({
           queryKey: ['group-migration', 'groups'],
         })
