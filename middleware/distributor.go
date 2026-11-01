@@ -32,6 +32,9 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+// Distribute resolves request models and channel constraints before selecting a
+// permitted upstream. Requests not admitted by token authentication acquire their
+// own group admission, preventing paused or stale routing views from being used.
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		groupVersion := model.GroupRequestVersion()

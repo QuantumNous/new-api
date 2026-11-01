@@ -18,6 +18,8 @@ var groupOptionAliases = map[string]string{
 	"group_ratio_setting.group_special_usable_group": "GroupSpecialUsableGroup",
 }
 
+// canonicalGroupOption resolves supported group-setting aliases and returns an
+// empty string for keys outside group-reference validation.
 func canonicalGroupOption(key string) string {
 	if canonical, ok := groupOptionAliases[key]; ok {
 		return canonical
@@ -47,6 +49,8 @@ func ValidateGroupReference(group string, allowEmpty, allowAuto bool) error {
 	return nil
 }
 
+// ValidateChannelGroups checks each comma-separated routing group, treating an
+// empty channel group list as the default group.
 func ValidateChannelGroups(groups string) error {
 	if groups == "" {
 		return ValidateGroupReference("default", false, false)
@@ -59,6 +63,8 @@ func ValidateChannelGroups(groups string) error {
 	return nil
 }
 
+// ValidateGroupReferences allows inherited groups and the auto selector, while
+// requiring every explicitly configured auto fallback to name an existing group.
 func (token *Token) ValidateGroupReferences() error {
 	if err := ValidateGroupReference(token.Group, true, true); err != nil {
 		return err
@@ -187,6 +193,8 @@ func prepareGroupOptions(values map[string]string) (map[string]string, error) {
 	return result, nil
 }
 
+// UpdateGroupOptions limits bulk updates to group settings and their auto-group
+// controls, then uses the shared atomic validation and persistence path.
 func UpdateGroupOptions(values map[string]string) error {
 	for key, value := range values {
 		if canonicalGroupOption(key) != "" || key == "MaxTokenAutoGroups" {

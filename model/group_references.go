@@ -56,6 +56,8 @@ type GroupMigrationPreview struct {
 	Coordination      *GroupMigrationCoordination    `json:"coordination"`
 }
 
+// add records a nonempty complete name and its location, preserving repeated
+// occurrences for reference counts while leaving inherited empty groups out.
 func (inventory *GroupReferenceInventory) add(category, record, group string, path ...string) {
 	if group != "" {
 		inventory.References = append(inventory.References, GroupReference{category, record, path, group})
@@ -69,6 +71,9 @@ func ReadGroupReferenceInventory(ctx context.Context) (*GroupReferenceInventory,
 	return readGroupReferenceInventory(DB.WithContext(ctx))
 }
 
+// readGroupReferenceInventory gathers durable references plus saved and effective
+// settings through the supplied connection, allowing execution to inspect them
+// again inside its transaction. Malformed configuration is counted as a blocker.
 func readGroupReferenceInventory(db *gorm.DB) (*GroupReferenceInventory, error) {
 	inventory := &GroupReferenceInventory{channelGroups: map[string]string{}, configuration: map[string]string{}}
 	var users []User
@@ -197,6 +202,9 @@ func readGroupReferenceInventory(db *gorm.DB) (*GroupReferenceInventory, error) 
 	return inventory, nil
 }
 
+// readConfiguration retains the raw setting and indexes group keys or ordered
+// array entries. Special usable-group rule prefixes are removed from names but
+// retained in paths; malformed structures increase the invalid-record count.
 func (inventory *GroupReferenceInventory) readConfiguration(category, key, kind, value string) {
 	inventory.configuration[category+":"+key] = value
 	if kind == "AutoGroups" {
@@ -257,6 +265,9 @@ func PreviewGroupMigration(ctx context.Context, source, target string) (*GroupMi
 	return previewGroupMigration(DB.WithContext(ctx), source, target)
 }
 
+// previewGroupMigration counts affected references, checks data and deployment
+// blockers, and signs a short-lived confirmation tied to the inventory version.
+// Execution must validate that version again after acquiring its write barrier.
 func previewGroupMigration(db *gorm.DB, source, target string) (*GroupMigrationPreview, error) {
 	inventory, err := readGroupReferenceInventory(db)
 	if err != nil {
@@ -364,6 +375,8 @@ func previewGroupMigration(db *gorm.DB, source, target string) (*GroupMigrationP
 	return preview, nil
 }
 
+// validMigrationGroupName enforces the migration name length and encoding rules,
+// excluding separators, whitespace, controls and usable-group rule prefixes.
 func validMigrationGroupName(name string) bool {
 	if !utf8.ValidString(name) || utf8.RuneCountInString(name) == 0 || utf8.RuneCountInString(name) > 50 || strings.Contains(name, ",") || strings.HasPrefix(name, "+:") || strings.HasPrefix(name, "-:") {
 		return false

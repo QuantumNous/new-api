@@ -322,6 +322,8 @@ func is64BitIntegerType(dbType common.DatabaseType, dataType string) bool {
 	}
 }
 
+// migrateDB runs compatibility migrations and initializes the primary schema,
+// including durable group migration state, before runtime services use it.
 func migrateDB() error {
 	if err := migrateTokenKeyUniqueness(DB); err != nil {
 		return err

@@ -69,6 +69,8 @@ func (err *groupMigrationPausedError) Unwrap() error   { return err.Message }
 
 var ErrGroupMigrationPaused = &groupMigrationPausedError{common.NewMessage("Group migration is in progress. Please retry later.")}
 
+// groupMigrationQualification requires an explicit deployment declaration and
+// rejects known conflicts; heartbeats alone cannot prove single-node deployment.
 func groupMigrationQualification(db *gorm.DB) error {
 	roster, err := groupMigrationRoster()
 	if err != nil {
@@ -97,6 +99,8 @@ func groupMigrationConfirmation(p *GroupMigrationPreview) string {
 	return fmt.Sprintf("%s.%x", expiry, mac.Sum(nil))
 }
 
+// lock serializes reference writes and migration transitions until tx finishes,
+// using a real write to obtain the same protection on SQLite.
 func (control *GroupMigrationControl) lock(tx *gorm.DB) error {
 	// A real UPDATE also acquires SQLite's writer lock. Row locks alone would
 	// leave a read/check/write race on that dialect. Explicit caller transactions
@@ -107,6 +111,8 @@ func (control *GroupMigrationControl) lock(tx *gorm.DB) error {
 	return lockForUpdate(tx).First(control, 1).Error
 }
 
+// GetGroupMigration reads a durable operation with current deployment readiness,
+// rather than the readiness snapshot from when the operation was created.
 func GetGroupMigration(ctx context.Context, id string) (*GroupMigrationOperation, error) {
 	var op GroupMigrationOperation
 	err := DB.WithContext(ctx).First(&op, "id = ?", id).Error
@@ -117,6 +123,8 @@ func GetGroupMigration(ctx context.Context, id string) (*GroupMigrationOperation
 	return &op, nil
 }
 
+// ListGroupMigrations returns the newest twenty operations, each annotated with
+// the current shared coordination state for status reconciliation.
 func ListGroupMigrations(ctx context.Context) ([]GroupMigrationOperation, error) {
 	operations := []GroupMigrationOperation{}
 	err := DB.WithContext(ctx).Order("created_at DESC").Order("id DESC").Limit(20).Find(&operations).Error
@@ -129,8 +137,9 @@ func ListGroupMigrations(ctx context.Context) ([]GroupMigrationOperation, error)
 	return operations, err
 }
 
-// InitGroupMigrations runs before traffic and background business writers. A
-// missing deployment declaration preserves outstanding barriers for inspection.
+// InitGroupMigrations requires loaded options and an initialized or disabled
+// Redis client, and must run before traffic and background business writers.
+// A missing deployment declaration preserves outstanding barriers for inspection.
 func InitGroupMigrations(ctx context.Context) error {
 	groupMigrationExecutor.Lock()
 	defer groupMigrationExecutor.Unlock()
@@ -272,6 +281,8 @@ func AdmitGroupRequestAtVersion(version uint64, groups ...string) (func(), error
 	return admitGroupRequest(version, groups...)
 }
 
+// admitGroupRequest rejects paused or changed routing dependencies and counts
+// admitted work until the caller invokes the idempotent release function.
 func admitGroupRequest(version uint64, groups ...string) (func(), error) {
 	groupMigrationTraffic.Lock()
 	defer groupMigrationTraffic.Unlock()
@@ -295,6 +306,9 @@ func admitGroupRequest(version uint64, groups ...string) (func(), error) {
 	}), nil
 }
 
+// SubmitGroupMigration revalidates the confirmed preview behind a write barrier,
+// drains affected traffic, and atomically migrates references before publishing
+// caches. Reusing an operation ID returns its record without executing it again.
 func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmission, actor int) (*GroupMigrationOperation, error) {
 	if !groupMigrationExecutor.TryLock() {
 		return nil, ErrGroupMigrationPaused
@@ -476,6 +490,8 @@ func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmissi
 	return op, err
 }
 
+// finishGroupMigration waits for participating nodes to publish committed views
+// before marking the operation complete and releasing its barriers.
 func finishGroupMigration(ctx context.Context, op *GroupMigrationOperation, owner string) error {
 	if op.Participants != "" {
 		if err := waitGroupMigrationNodes(ctx, op, owner, "synced"); err != nil {
@@ -485,6 +501,9 @@ func finishGroupMigration(ctx context.Context, op *GroupMigrationOperation, owne
 	return releaseGroupMigration(ctx, op, owner, "completed", "")
 }
 
+// releaseGroupMigration checks durable ownership and deployment readiness before
+// clearing the barrier. Single-node completion publishes caches while fenced;
+// a failed transaction retains the barrier for a later recovery attempt.
 func releaseGroupMigration(ctx context.Context, op *GroupMigrationOperation, owner, state, reason string) error {
 	if op.Participants == "" {
 		groupViewMutex.Lock()
@@ -555,6 +574,9 @@ func releaseGroupMigration(ctx context.Context, op *GroupMigrationOperation, own
 	return err
 }
 
+// ResumeGroupMigration reconciles a recorded operation under ownership fencing:
+// committed work finishes publication, pre-commit work aborts, and terminal work
+// only clears a matching local pause after checking the durable control row.
 func ResumeGroupMigration(ctx context.Context, id string) (*GroupMigrationOperation, error) {
 	if !groupMigrationExecutor.TryLock() {
 		return nil, ErrGroupMigrationPaused

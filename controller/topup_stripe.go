@@ -161,6 +161,9 @@ func RequestStripePay(c *gin.Context) {
 	stripeAdaptor.RequestPay(c, &req)
 }
 
+// StripeWebhook verifies enabled Stripe callbacks before dispatching payment
+// events. Fulfillment failures return a retryable status so temporary group
+// migration barriers do not acknowledge an order that was not completed.
 func StripeWebhook(c *gin.Context) {
 	ctx := c.Request.Context()
 	if !isStripeWebhookEnabled() {
@@ -210,6 +213,8 @@ func StripeWebhook(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
+// sessionCompleted fulfills only completed, paid checkouts. Unpaid sessions wait
+// for asynchronous confirmation, and fulfillment errors propagate for retry.
 func sessionCompleted(ctx context.Context, event stripe.Event, callerIp string) error {
 	customerId := event.GetObjectValue("customer")
 	referenceId := event.GetObjectValue("client_reference_id")

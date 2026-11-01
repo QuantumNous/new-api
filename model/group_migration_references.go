@@ -17,6 +17,9 @@ var groupViewMutex sync.RWMutex
 type groupMigrationWriterKey struct{}
 type groupMigrationWriter struct{ operation, owner string }
 
+// migrateGroupReferences replaces exact group names in durable references,
+// including restorable soft deletes, ordered token fallbacks and subscription
+// snapshots. The caller owns the migration transaction and write barrier.
 func migrateGroupReferences(tx *gorm.DB, op *GroupMigrationOperation) error {
 	for _, resource := range []struct {
 		model   any
@@ -151,6 +154,10 @@ func migrateGroupConfiguration(inventory *GroupReferenceInventory, source, targe
 	return values, nil
 }
 
+// refreshGroupMigrationCaches invalidates subscription views and refreshes
+// routing metadata without overwriting cached quota. An empty target refreshes
+// all users. Callers hold groupViewMutex for writing, with Redis initialized or
+// disabled before the lazy subscription caches are first accessed.
 func refreshGroupMigrationCaches(tx *gorm.DB, target string) error {
 	if err := getSubscriptionPlanCache().Purge(); err != nil {
 		return err

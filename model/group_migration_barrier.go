@@ -82,6 +82,9 @@ func guardSubscriptionGroupTransition(tx *gorm.DB, userID, planID, subscriptionI
 	return nil
 }
 
+// guardGroupReferenceWrite is the ORM callback fencing reference-bearing writes
+// against migration commits. Only the matching migration owner may bypass the
+// pause; ordinary writers must use current generations and valid group names.
 func guardGroupReferenceWrite(tx *gorm.DB) {
 	if tx.Error != nil || tx.Statement.Schema == nil {
 		return
@@ -159,6 +162,9 @@ func guardGroupReferenceWrite(tx *gorm.DB) {
 	}
 }
 
+// validateGroupWriteValue checks assigned reference columns across GORM map,
+// struct and batch destinations. Expressions are rejected because their eventual
+// group names cannot be validated before persistence.
 func validateGroupWriteValue(tx *gorm.DB, value reflect.Value, columns []string, op *GroupMigrationOperation) error {
 	for value.IsValid() && (value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface) {
 		if value.IsNil() {

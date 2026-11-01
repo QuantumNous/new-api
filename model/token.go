@@ -302,6 +302,8 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 	return token, nil
 }
 
+// Insert validates the token's selected group and explicit auto fallbacks before
+// persistence; inherited groups remain empty rather than creating definitions.
 func (token *Token) Insert() error {
 	if err := token.ValidateGroupReferences(); err != nil {
 		return err

@@ -25,6 +25,8 @@ var channelsIDM map[int]*Channel                     // all channels include dis
 var channel2advancedCustomConfig map[int]*kitdto.AdvancedCustomConfig
 var channelSyncLock sync.RWMutex
 
+// InitChannelCache rebuilds routing and task aliases without allowing stale
+// group snapshots to be published across a migration cache refresh.
 func InitChannelCache() {
 	groupViewMutex.RLock()
 	defer groupViewMutex.RUnlock()
@@ -35,6 +37,9 @@ func InitChannelCache() {
 	rebuildTaskAliasView()
 }
 
+// initChannelCache rebuilds channel indexes from the supplied database view,
+// preserving multi-key polling positions. With memory caching disabled it only
+// invalidates pricing. The caller coordinates publication with groupViewMutex.
 func initChannelCache(db *gorm.DB) error {
 	if !common.MemoryCacheEnabled {
 		InvalidatePricingCache()
@@ -287,6 +292,9 @@ func CacheUpdateChannelStatus(id int, status int) {
 	}
 }
 
+// CacheUpdateChannel publishes a channel edit using its authoritative saved
+// group, preventing an older caller snapshot from restoring a migrated name.
+// Missing channels and disabled memory caching leave the cache untouched.
 func CacheUpdateChannel(channel *Channel) {
 	if !common.MemoryCacheEnabled || channel == nil {
 		return

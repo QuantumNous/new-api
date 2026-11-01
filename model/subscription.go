@@ -386,6 +386,9 @@ func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
 	return getSubscriptionPlanByIdTx(nil, id)
 }
 
+// getSubscriptionPlanByIdTx reads plans directly inside a transaction so neither
+// uncommitted plans nor stale group snapshots reach the shared cache. Outside a
+// transaction it uses the cache while fencing publication against migration.
 func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	if id <= 0 {
 		return nil, errors.New("invalid plan id")
@@ -431,6 +434,8 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 	return count, nil
 }
 
+// getUserGroupByIdTx reads the authoritative user group with the shared row-lock
+// convention; callers needing a lock through subsequent writes must supply tx.
 func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	if userId <= 0 {
 		return "", errors.New("invalid userId")
@@ -445,6 +450,10 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	return group, nil
 }
 
+// downgradeUserGroupForSubscriptionTx keeps the group while another upgraded
+// subscription is active. Otherwise it validates and applies the explicit
+// downgrade group or eligible legacy previous-group snapshot, returning any
+// changed group for cache publication after commit.
 func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now int64) (string, error) {
 	if tx == nil || sub == nil {
 		return "", errors.New("invalid downgrade args")
@@ -492,6 +501,10 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 	return target, nil
 }
 
+// CreateUserSubscriptionFromPlanTx creates a subscription in the caller's
+// transaction after taking the migration barrier and reloading the saved plan.
+// It enforces purchase limits and captures validated upgrade/downgrade groups
+// together with the user's previous group for later lifecycle transitions.
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
@@ -1143,6 +1156,9 @@ func adminResetPlanSubscriptionsTx(tx *gorm.DB, plan *SubscriptionPlan, now int6
 	return buildSubscriptionResetResult(plan, subs, advanceResetTime), nil
 }
 
+// AdminResetUserSubscriptionsByPlan resets a user's eligible subscriptions using
+// a fresh plan inside one migration-guarded transaction. advanceResetTime selects
+// whether reset scheduling advances along with the quota reset.
 func AdminResetUserSubscriptionsByPlan(userId int, planId int, advanceResetTime bool) (*SubscriptionResetResult, error) {
 	if userId <= 0 || planId <= 0 {
 		return nil, errors.New("invalid userId or planId")
@@ -1166,6 +1182,8 @@ func AdminResetUserSubscriptionsByPlan(userId int, planId int, advanceResetTime 
 	return result, nil
 }
 
+// AdminResetPlanSubscriptions resets eligible subscriptions for a plan in one
+// migration-guarded transaction, optionally advancing their reset schedules.
 func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*SubscriptionResetResult, error) {
 	if planId <= 0 {
 		return nil, errors.New("invalid planId")
@@ -1327,6 +1345,9 @@ func (r *SubscriptionPreConsumeRecord) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+// maybeResetUserSubscriptionWithPlanTx advances elapsed reset periods and clears
+// used quota only when a boundary has passed. It writes only accounting and
+// schedule columns, preserving group snapshots held by migration coordination.
 func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64) error {
 	if tx == nil || sub == nil || plan == nil {
 		return errors.New("invalid reset args")
@@ -1595,6 +1616,9 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 	})
 }
 
+// postConsumeUserSubscriptionDeltaTx settles a quota delta under the subscription
+// row lock, flooring usage at zero and rejecting a finite-total overrun. Only
+// usage is written so admitted requests can settle while migration drains.
 func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64) error {
 	var sub UserSubscription
 	if err := lockForUpdate(tx).Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {

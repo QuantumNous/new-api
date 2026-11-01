@@ -200,6 +200,9 @@ func InitOptionMap() {
 	loadOptionsFromDatabase()
 }
 
+// loadOptionsFromDatabase reloads saved settings while serializing group edits
+// and cache publication with migration. Invalid entries are logged; request
+// policy snapshots and Passkey domain settings use their coordinated paths.
 func loadOptionsFromDatabase() {
 	groupOptionMutex.Lock()
 	defer groupOptionMutex.Unlock()
@@ -280,6 +283,9 @@ func validateOptionValue(key string, value string) error {
 	return nil
 }
 
+// UpdateOption routes settings that need coordinated validation to their domain
+// update paths. Other values are validated, saved, and applied to the option map.
+// Group settings use the bulk path so aliases and reference checks stay aligned.
 func UpdateOption(key string, value string) error {
 	if canonicalGroupOption(key) != "" {
 		return UpdateOptionsBulk(map[string]string{key: value})

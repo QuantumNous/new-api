@@ -454,6 +454,8 @@ func GetChannelById(id int, selectAll bool) (*Channel, error) {
 	return channel, nil
 }
 
+// BatchInsertChannels validates routing groups before inserting channels and
+// their abilities in one transaction; an empty batch performs no writes.
 func BatchInsertChannels(channels []Channel) error {
 	for _, channel := range channels {
 		if err := ValidateChannelGroups(channel.Group); err != nil {
@@ -555,6 +557,8 @@ func (channel *Channel) GetStatusCodeMapping() string {
 	return *channel.StatusCodeMapping
 }
 
+// Insert validates routing groups before saving the channel and creating its
+// abilities. Ability creation errors are returned to the caller.
 func (channel *Channel) Insert() error {
 	if err := ValidateChannelGroups(channel.Group); err != nil {
 		return err
@@ -568,6 +572,8 @@ func (channel *Channel) Insert() error {
 	return err
 }
 
+// Update validates supplied routing groups, recalculates multi-key metadata and
+// saves channel edits before rebuilding the channel's abilities.
 func (channel *Channel) Update() error {
 	if channel.Group != "" {
 		if err := ValidateChannelGroups(channel.Group); err != nil {
@@ -865,6 +871,9 @@ func DisableChannelByTag(tag string) error {
 	return err
 }
 
+// EditChannelByTag applies supplied edits to matching channels, validating group
+// changes first. Model or group edits rebuild abilities; other edits update
+// existing ability metadata without recreating it.
 func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
 	if group != nil && *group != "" {
 		if err := ValidateChannelGroups(*group); err != nil {

@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ExecuteGroupMigration submits a confirmed preview using the authenticated
+// actor and returns the durable operation for retries or status inspection.
 func ExecuteGroupMigration(c *gin.Context) {
 	var submission model.GroupMigrationSubmission
 	if err := c.ShouldBindJSON(&submission); err != nil {
@@ -24,11 +26,13 @@ func ExecuteGroupMigration(c *gin.Context) {
 	respondGroupMigration(c, op, err)
 }
 
+// GetGroupMigration returns one operation together with current node readiness.
 func GetGroupMigration(c *gin.Context) {
 	op, err := model.GetGroupMigration(c.Request.Context(), c.Param("id"))
 	respondGroupMigration(c, op, err)
 }
 
+// ListGroupMigrations returns recent operations or a retryable availability error.
 func ListGroupMigrations(c *gin.Context) {
 	operations, err := model.ListGroupMigrations(c.Request.Context())
 	if err != nil {
@@ -38,11 +42,15 @@ func ListGroupMigrations(c *gin.Context) {
 	common.ApiSuccess(c, operations)
 }
 
+// ResumeGroupMigration reconciles an existing operation without submitting a new
+// migration or replaying an already committed reference update.
 func ResumeGroupMigration(c *gin.Context) {
 	op, err := model.ResumeGroupMigration(c.Request.Context(), c.Param("id"))
 	respondGroupMigration(c, op, err)
 }
 
+// respondGroupMigration prefers the latest durable status even after execution
+// errors, exposes only safe failure messages, and audits mutation requests.
 func respondGroupMigration(c *gin.Context, op *model.GroupMigrationOperation, err error) {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		common.ApiErrorStatus(c, http.StatusNotFound, common.NewMessage("Migration operation was not found."))
@@ -77,6 +85,8 @@ func respondGroupMigration(c *gin.Context, op *model.GroupMigrationOperation, er
 	common.ApiErrorStatus(c, http.StatusNotFound, common.NewMessage("Migration operation was not found."))
 }
 
+// PreviewGroupMigration inspects references and blockers without changing group
+// definitions, returning a confirmation token for the observed inventory.
 func PreviewGroupMigration(c *gin.Context) {
 	preview, err := model.PreviewGroupMigration(c.Request.Context(), c.Query("source"), c.Query("target"))
 	if err != nil {

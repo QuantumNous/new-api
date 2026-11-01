@@ -42,6 +42,9 @@ func userAuthFenceTTLSeconds() int {
 	return cacheTTL + extra
 }
 
+// writeUserCache publishes an auth-version-fenced user snapshot using the saved
+// routing group under the migration view lock. Quota is initialized only when
+// requested and missing, preserving balances already changed by admitted work.
 func writeUserCache(user *UserBase, includeQuota bool) error {
 	if user == nil || user.Id <= 0 || !common.RedisEnabled {
 		return nil
@@ -243,6 +246,9 @@ func InitializeUserAuthVersions() error {
 	return DB.Model(&User{}).Where("auth_version IS NULL OR auth_version < ?", 1).Update("auth_version", 1).Error
 }
 
+// updateUserCacheFieldAtVersion updates an existing matching-version user hash
+// without recreating a missing cache entry. Group updates re-read the saved name
+// under the migration view lock, and newer auth fences reject stale writes.
 func updateUserCacheFieldAtVersion(userId int, field string, value any, authVersion int64) error {
 	if !common.RedisEnabled {
 		return nil

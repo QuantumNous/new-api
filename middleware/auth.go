@@ -50,6 +50,9 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
+// authHelper authenticates dashboard credentials, enforces user status, role and
+// token route grants, and installs audit context. It captures the group version
+// before reading identity snapshots so later routing rejects a stale cutover view.
 func authHelper(c *gin.Context, minRole int) {
 	// Distribution must reject an authentication snapshot read before cutover.
 	// Management requests do not acquire a routing admission themselves.
@@ -553,6 +556,9 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 	}
 }
 
+// TokenAuth validates relay credentials, IP restrictions and user/group access.
+// It admits all routing dependencies at the captured migration version and holds
+// that admission through the downstream response, including streaming work.
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		if err := model.SyncGroupMigrationNode(c.Request.Context()); err != nil {

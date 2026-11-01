@@ -5,6 +5,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -46,6 +47,8 @@ var buildFS embed.FS
 //go:embed web/dist/index.html
 var indexPage []byte
 
+// main initializes shared resources before starting business workers and serving
+// requests; the plugin subcommand runs independently of gateway startup.
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "plugin" {
 		os.Exit(jsplugin.RunCLI(os.Args[2:], os.Stdout, os.Stderr))
@@ -280,9 +283,9 @@ func InjectGoogleAnalytics() {
 	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
 }
 
+// InitResources loads settings and storage clients, then recovers migrations
+// before any request handlers or background business writers can start.
 func InitResources() error {
-	// Initialize resources here if needed
-	// This is a placeholder function for future resource initialization
 	err := godotenv.Load(".env")
 	if err != nil {
 		if common.DebugEnabled {
@@ -326,9 +329,6 @@ func InitResources() error {
 		}
 	}
 	model.InitOptionMap()
-	if err := model.InitGroupMigrations(context.Background()); err != nil {
-		return fmt.Errorf("initialize group migration recovery: %w", err)
-	}
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()
@@ -343,6 +343,12 @@ func InitResources() error {
 	err = common.InitRedisClient()
 	if err != nil {
 		return err
+	}
+
+	// Recovery refreshes routing and subscription caches. Redis must already be
+	// initialized or explicitly disabled before those caches are first accessed.
+	if err := model.InitGroupMigrations(context.Background()); err != nil {
+		return fmt.Errorf("initialize group migration recovery: %w", err)
 	}
 
 	perfmetrics.Init()

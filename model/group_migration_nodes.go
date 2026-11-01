@@ -87,6 +87,8 @@ func readGroupMigrationCoordination(db *gorm.DB) *GroupMigrationCoordination {
 var groupMigrationNodeSync sync.Mutex
 var groupMigrationNodeRevision atomic.Int64
 
+// groupMigrationRoster returns a sorted, unique declared participant list that
+// includes this node. An absent declaration selects single-node qualification.
 func groupMigrationRoster() ([]string, error) {
 	declaration := os.Getenv("GROUP_MIGRATION_NODES")
 	if declaration == "" {
@@ -106,6 +108,8 @@ func groupMigrationRoster() ([]string, error) {
 	return nodes, nil
 }
 
+// qualifyGroupMigrationNodes requires a current local generation and fresh,
+// matching registrations for every declared node, with no known outside writers.
 func qualifyGroupMigrationNodes(db *gorm.DB, roster []string) error {
 	if err := verifyGroupMigrationGeneration(db); err != nil {
 		return err
@@ -132,6 +136,9 @@ func qualifyGroupMigrationNodes(db *gorm.DB, roster []string) error {
 	return nil
 }
 
+// registerGroupMigrationNode records a new process generation behind the control
+// lock. Replacing an existing generation requires the operator's explicit
+// declaration that the previous process and its pending cache writes stopped.
 func registerGroupMigrationNode(ctx context.Context, roster []string, owner string) error {
 	groupMigrationNodeSync.Lock()
 	defer groupMigrationNodeSync.Unlock()
@@ -158,6 +165,8 @@ func registerGroupMigrationNode(ctx context.Context, roster []string, owner stri
 	})
 }
 
+// verifyGroupMigrationGeneration fences superseded processes even if they
+// reconnect with a node name that still appears in the declared roster.
 func verifyGroupMigrationGeneration(tx *gorm.DB) error {
 	groupMigrationTraffic.Lock()
 	owner := groupMigrationTraffic.owner
@@ -302,6 +311,9 @@ func RunGroupMigrationCoordination(ctx context.Context) {
 	}
 }
 
+// groupMigrationNodesAcknowledged requires fresh acknowledgements for the exact
+// operation, phase and control revision from every originally declared node.
+// Changing the deployment roster cannot silently shrink an ongoing migration.
 func groupMigrationNodesAcknowledged(tx *gorm.DB, op *GroupMigrationOperation, phase string) error {
 	var roster []string
 	if err := common.UnmarshalJsonStr(op.Participants, &roster); err != nil || len(roster) == 0 {
@@ -325,6 +337,9 @@ func groupMigrationNodesAcknowledged(tx *gorm.DB, op *GroupMigrationOperation, p
 	return nil
 }
 
+// waitGroupMigrationNodes synchronizes this node and waits up to twenty seconds
+// for all participant acknowledgements. Ownership loss stops the wait; timeout
+// leaves the durable barrier in place so the same operation can be recovered.
 func waitGroupMigrationNodes(ctx context.Context, op *GroupMigrationOperation, owner, phase string) error {
 	wait, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
