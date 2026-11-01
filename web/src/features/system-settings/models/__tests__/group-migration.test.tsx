@@ -61,6 +61,7 @@ async function enterMigration(user: ReturnType<typeof userEvent.setup>) {
 }
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   http.get.mockReset()
   http.post.mockReset()
   http.history.mockReset()
@@ -552,7 +553,7 @@ describe('group migration preview', () => {
       screen.getAllByRole('button', { name: 'Verify migration status' })
     ).toHaveLength(2)
   })
-  it('confirms an unused group, preserves the rejection reason, and retries the same operation', async () => {
+  it('confirms an unused group without randomUUID and reuses the operation after rejection', async () => {
     http.get.mockResolvedValueOnce({ data: { success: true, data: ['vip'] } })
     http.get.mockResolvedValueOnce({
       data: {
@@ -598,6 +599,10 @@ describe('group migration preview', () => {
       await screen.findByRole('button', { name: 'Migrate group' })
     )
     expect(http.post).not.toHaveBeenCalled()
+    const cryptoProvider = globalThis.crypto
+    vi.stubGlobal('crypto', {
+      getRandomValues: cryptoProvider.getRandomValues.bind(cryptoProvider),
+    })
     await user.click(screen.getByRole('button', { name: 'Confirm migration' }))
     expect(await screen.findByText(reason)).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Confirm migration' }))

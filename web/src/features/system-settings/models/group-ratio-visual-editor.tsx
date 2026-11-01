@@ -109,6 +109,7 @@ type GroupRatioVisualEditorProps = {
 type GroupPricingRow = {
   _id: string
   name: string
+  isSaved: boolean
   ratio: string
   topupRatio: string
   selectable: boolean
@@ -160,7 +161,8 @@ function parseNestedRatioMap(
 function buildGroupPricingRows(
   groupRatio: string,
   userUsableGroups: string,
-  topupGroupRatio: string
+  topupGroupRatio: string,
+  savedGroupNames?: readonly string[]
 ): GroupPricingRow[] {
   const ratioMap = parseRatioMap(groupRatio)
   const usableMap = parseUsableMap(userUsableGroups)
@@ -174,6 +176,7 @@ function buildGroupPricingRows(
   return [...names].map((name) => ({
     _id: createGroupPricingId(),
     name,
+    isSaved: savedGroupNames?.includes(name) ?? false,
     ratio: String(normalizeRatio(ratioMap[name])),
     topupRatio: Object.hasOwn(topupMap, name) ? String(topupMap[name]) : '',
     selectable: Object.hasOwn(usableMap, name),
@@ -494,7 +497,12 @@ function GroupPricingTable({
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
-    buildGroupPricingRows(groupRatio, userUsableGroups, topupGroupRatio)
+    buildGroupPricingRows(
+      groupRatio,
+      userUsableGroups,
+      topupGroupRatio,
+      savedGroupNames
+    )
   )
 
   useEffect(() => {
@@ -510,10 +518,24 @@ function GroupPricingTable({
       return buildGroupPricingRows(
         groupRatio,
         userUsableGroups,
-        topupGroupRatio
+        topupGroupRatio,
+        savedGroupNames
       )
     })
-  }, [groupRatio, userUsableGroups, topupGroupRatio])
+  }, [groupRatio, userUsableGroups, topupGroupRatio, savedGroupNames])
+
+  useEffect(() => {
+    setRows((currentRows) => {
+      let changed = false
+      const nextRows = currentRows.map((row) => {
+        const isSaved = savedGroupNames?.includes(row.name) ?? false
+        if (row.isSaved === isSaved) return row
+        changed = true
+        return { ...row, isSaved }
+      })
+      return changed ? nextRows : currentRows
+    })
+  }, [savedGroupNames])
 
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
@@ -529,7 +551,7 @@ function GroupPricingTable({
   const updateRow = useCallback(
     (
       id: string,
-      field: Exclude<keyof GroupPricingRow, '_id'>,
+      field: Exclude<keyof GroupPricingRow, '_id' | 'isSaved'>,
       value: string | number | boolean
     ) => {
       emitRows(
@@ -552,6 +574,7 @@ function GroupPricingTable({
       {
         _id: createGroupPricingId(),
         name,
+        isSaved: false,
         ratio: '1',
         topupRatio: '',
         selectable: true,
@@ -663,7 +686,7 @@ function GroupPricingTable({
                 header: t('Group name'),
                 className: 'min-w-40',
                 cell: (row) => {
-                  const isSavedGroup = savedGroupNames?.includes(row.name)
+                  const isSavedGroup = row.isSaved
                   const migrationHint = t(
                     'Use Group migration to change an existing group name.'
                   )
@@ -674,7 +697,7 @@ function GroupPricingTable({
                       title={isSavedGroup ? migrationHint : undefined}
                       className={
                         isSavedGroup
-                          ? 'min-w-0 flex-1 cursor-not-allowed bg-muted text-muted-foreground'
+                          ? 'bg-muted text-muted-foreground min-w-0 flex-1 cursor-not-allowed'
                           : undefined
                       }
                       aria-label={t('Group name')}
@@ -690,7 +713,7 @@ function GroupPricingTable({
                       {input}
                       <span
                         aria-label={migrationHint}
-                        className='inline-flex shrink-0 cursor-help text-muted-foreground'
+                        className='text-muted-foreground inline-flex shrink-0 cursor-help'
                         role='img'
                         title={migrationHint}
                       >

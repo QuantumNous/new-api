@@ -332,7 +332,7 @@ func (token *Token) SelectUpdate() (err error) {
 		common.SysLog(common.LogText("failed to invalidate token cache before status update: %s", cacheErr.Error()))
 	}
 	// This can update zero values
-	return DB.Model(token).Select("accessed_time", "status").Updates(token).Error
+	return DB.Model(token).Select("status").Updates(token).Error
 }
 
 func (token *Token) Delete() (err error) {

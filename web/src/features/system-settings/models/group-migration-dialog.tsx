@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { History } from 'lucide-react'
+import { nanoid } from 'nanoid'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -602,7 +603,7 @@ function GroupMigrationDialog(props: {
             submission.source === confirmation.source &&
             submission.target === confirmation.target
               ? submission
-              : { ...confirmation, operation_id: crypto.randomUUID() }
+              : { ...confirmation, operation_id: nanoid() }
           setSubmission(pending)
           execution.mutate({ preview: pending })
         }}

@@ -192,6 +192,22 @@ describe('group settings workspace', () => {
     ).not.toHaveAttribute('readonly')
   })
 
+  it('lets a new group name continue past an existing group name', async () => {
+    const user = userEvent.setup()
+    render(<Fixture />)
+
+    await user.click(screen.getByRole('button', { name: 'Add group' }))
+    const draft = screen.getAllByRole('textbox', { name: 'Group name' })[0]
+    await user.clear(draft)
+    await user.type(draft, 'default')
+
+    expect(draft).not.toHaveAttribute('readonly')
+    await user.type(draft, '-draft')
+
+    expect(draft).toHaveValue('default-draft')
+    expect(draft).not.toHaveAttribute('readonly')
+  })
+
   it('filters by description and clears search without discarding edits', async () => {
     const user = userEvent.setup()
     render(<Fixture />)
