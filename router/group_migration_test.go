@@ -1139,6 +1139,32 @@ func TestUnusedGroupMigration(t *testing.T) {
 		assert.Contains(t, request(http.MethodGet, "/api/option/group_migration/interrupted-01", nil).Body.String(), `"state":"aborted"`)
 		require.NoError(t, db.Unscoped().Delete(&key).Error)
 	})
+	t.Run("records the drain reason while accepted requests keep the migration paused", func(t *testing.T) {
+		release, err := model.AdmitGroupRequest("unused")
+		require.NoError(t, err)
+		defer release()
+
+		var before model.GroupMigrationControl
+		require.NoError(t, db.First(&before, 1).Error)
+		op := model.GroupMigrationOperation{ID: "drain-reason-01", Source: "unused", Target: "premium", State: "paused", ActorID: root.Id, ProtocolVersion: 2, CoordinationVersion: before.CoordinationVersion + 1}
+		require.NoError(t, db.Create(&op).Error)
+		require.NoError(t, db.Model(&model.GroupMigrationControl{}).Where("id = ?", 1).Updates(map[string]any{"operation_id": op.ID, "owner": "previous-process", "coordination_version": op.CoordinationVersion, "stage": "draining"}).Error)
+
+		err = model.InitGroupMigrations(context.Background())
+		require.ErrorIs(t, err, model.ErrGroupMigrationPaused)
+
+		status := request(http.MethodGet, "/api/option/group_migration/"+op.ID, nil)
+		var observed struct{ Data model.GroupMigrationOperation }
+		require.NoError(t, common.Unmarshal(status.Body.Bytes(), &observed))
+		assert.Equal(t, "paused", observed.Data.State)
+		assert.Equal(t, "Accepted requests did not drain; preview and confirm again.", observed.Data.Reason)
+		assert.ErrorIs(t, model.ValidateGroupReference("unused", false, false), model.ErrGroupMigrationPaused)
+
+		release()
+		_, err = model.ResumeGroupMigration(context.Background(), op.ID)
+		require.NoError(t, err)
+		assert.NoError(t, model.ValidateGroupReference("unused", false, false))
+	})
 	t.Run("known conflicting instance refuses execution", func(t *testing.T) {
 		instance := model.SystemInstance{NodeName: "other-serving-node", LastSeenAt: time.Now().Unix()}
 		require.NoError(t, db.Create(&instance).Error)

@@ -79,6 +79,8 @@ func (err *groupMigrationPausedError) Unwrap() error   { return err.Message }
 
 var ErrGroupMigrationPaused = &groupMigrationPausedError{common.NewMessage("Group migration is in progress. Please retry later.")}
 
+const groupMigrationDrainTimeoutReason = "Accepted requests did not drain; preview and confirm again."
+
 // groupMigrationQualification requires an explicit deployment declaration and
 // rejects known conflicts; heartbeats alone cannot prove single-node deployment.
 func groupMigrationQualification(db *gorm.DB) error {
@@ -429,7 +431,7 @@ func SubmitGroupMigration(ctx context.Context, submission GroupMigrationSubmissi
 		}
 		select {
 		case <-drain.Done():
-			return op, abortGroupMigration(context.Background(), op, owner, "Accepted requests did not drain; preview and confirm again.")
+			return op, abortGroupMigration(context.Background(), op, owner, groupMigrationDrainTimeoutReason)
 		case <-ticker.C:
 		}
 	}
@@ -522,6 +524,7 @@ func abortGroupMigration(ctx context.Context, op *GroupMigrationOperation, owner
 	}
 	if control.Stage == "draining" {
 		transition := *op
+		pausedForInflight := false
 		if op.Participants != "" {
 			if err := waitGroupMigrationNodes(ctx, op, owner, "drained"); err != nil {
 				return err
@@ -543,12 +546,20 @@ func abortGroupMigration(ctx context.Context, op *GroupMigrationOperation, owner
 				active := groupMigrationTraffic.inflight[op.Source] + groupMigrationTraffic.inflight[op.Target]
 				groupMigrationTraffic.Unlock()
 				if active != 0 {
-					return ErrGroupMigrationPaused
+					pausedForInflight = true
+					return tx.Model(&GroupMigrationOperation{}).Where("id = ?", op.ID).Updates(map[string]any{
+						"reason":     groupMigrationDrainTimeoutReason,
+						"updated_at": time.Now().Unix(),
+					}).Error
 				}
 			}
 			return advanceGroupMigrationCoordination(tx, &control, &transition, "aborting")
 		}); err != nil {
 			return err
+		}
+		if pausedForInflight {
+			op.Reason, op.UpdatedAt = groupMigrationDrainTimeoutReason, time.Now().Unix()
+			return ErrGroupMigrationPaused
 		}
 		op.CoordinationVersion = transition.CoordinationVersion
 	}
