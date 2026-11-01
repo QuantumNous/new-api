@@ -1,12 +1,13 @@
 package model
 
 import (
-	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
 
@@ -154,11 +155,22 @@ func migrateGroupConfiguration(inventory *GroupReferenceInventory, source, targe
 	return values, nil
 }
 
-// refreshGroupMigrationCaches invalidates subscription views and refreshes
-// routing metadata without overwriting cached quota. An empty target refreshes
-// all users. Callers hold groupViewMutex for writing, with Redis initialized or
-// disabled before the lazy subscription caches are first accessed.
+// refreshGroupMigrationCaches refreshes shared routing/subscription caches and
+// this node's channel/pricing view during single-node migration and recovery.
+// Callers hold groupViewMutex for writing, with Redis initialized or disabled
+// before the lazy subscription caches are first accessed.
 func refreshGroupMigrationCaches(tx *gorm.DB, target string) error {
+	if err := refreshGroupMigrationSharedCaches(tx, target); err != nil {
+		return err
+	}
+	return initChannelCache(tx)
+}
+
+// refreshGroupMigrationSharedCaches invalidates subscription views and refreshes
+// routing metadata in bounded database and Redis batches without overwriting
+// cached quota. An empty target refreshes all users and tokens for recovery.
+// With Redis disabled, subscription invalidation applies to this node's memory.
+func refreshGroupMigrationSharedCaches(tx *gorm.DB, target string) error {
 	if err := getSubscriptionPlanCache().Purge(); err != nil {
 		return err
 	}
@@ -166,32 +178,67 @@ func refreshGroupMigrationCaches(tx *gorm.DB, target string) error {
 		return err
 	}
 	if common.RedisEnabled {
-		var users []User
-		query := tx.Unscoped().Select("id", "group")
-		if target != "" {
-			query = query.Where(commonGroupCol+" = ?", target)
-		}
-		if err := query.Find(&users).Error; err != nil {
-			return err
-		}
+		const batchSize = 500
+		ctx := tx.Statement.Context
 		const userScript = `if redis.call('EXISTS', KEYS[1]) == 1 then redis.call('HSET', KEYS[1], 'Group', ARGV[1]) end return 1`
-		for _, user := range users {
-			if err := common.RDB.Eval(context.Background(), userScript, []string{getUserCacheKey(user.Id)}, user.Group).Err(); err != nil {
+		for lastID := 0; ; {
+			var users []User
+			query := tx.Unscoped().Select("id", "group").Where("id > ?", lastID).Order("id").Limit(batchSize)
+			if target != "" {
+				query = query.Where(commonGroupCol+" = ?", target)
+			}
+			if err := query.Find(&users).Error; err != nil {
 				return err
 			}
-		}
-		var tokens []Token
-		if err := tx.Unscoped().Select("key", "group", "auto_groups").Find(&tokens).Error; err != nil {
-			return err
+			if len(users) == 0 {
+				break
+			}
+			if _, err := common.RDB.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+				for _, user := range users {
+					pipe.Eval(ctx, userScript, []string{getUserCacheKey(user.Id)}, user.Group)
+				}
+				return nil
+			}); err != nil {
+				return err
+			}
+			lastID = users[len(users)-1].Id
 		}
 		// Update routing metadata only: Redis balances may already include pending
 		// quota deltas and must survive refresh and recovery retries unchanged.
 		const tokenScript = `if redis.call('EXISTS', KEYS[1]) == 1 then redis.call('HSET', KEYS[1], 'Group', ARGV[1], 'AutoGroups', ARGV[2]) end return 1`
-		for _, token := range tokens {
-			if err := common.RDB.Eval(context.Background(), tokenScript, []string{getTokenCacheKey(token.Key)}, token.Group, token.AutoGroups).Err(); err != nil {
+		for lastID := 0; ; {
+			var tokens []Token
+			query := tx.Unscoped().Select("id", "key", "group", "auto_groups").Where("id > ?", lastID).Order("id").Limit(batchSize)
+			if target != "" {
+				// AutoGroups is JSON stored as text on all supported databases.
+				// Read candidates here, then compare decoded names exactly below.
+				query = query.Where("("+commonGroupCol+" = ? OR auto_groups <> ?)", target, "")
+			}
+			if err := query.Find(&tokens).Error; err != nil {
 				return err
 			}
+			if len(tokens) == 0 {
+				break
+			}
+			if _, err := common.RDB.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+				for _, token := range tokens {
+					if target != "" && token.Group != target {
+						var groups []string
+						if err := common.UnmarshalJsonStr(token.AutoGroups, &groups); err != nil {
+							return err
+						}
+						if !slices.Contains(groups, target) {
+							continue
+						}
+					}
+					pipe.Eval(ctx, tokenScript, []string{getTokenCacheKey(token.Key)}, token.Group, token.AutoGroups)
+				}
+				return nil
+			}); err != nil {
+				return err
+			}
+			lastID = tokens[len(tokens)-1].Id
 		}
 	}
-	return initChannelCache(tx)
+	return nil
 }

@@ -5,12 +5,14 @@ import (
 	"errors"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -244,7 +246,7 @@ func syncGroupMigrationNode(tx *gorm.DB, control *GroupMigrationControl) error {
 		}
 		if (op.State == "committed" || control.OperationID == "") && active == 0 {
 			if groupMigrationNodeRevision.Load() != control.Revision {
-				if err := restoreGroupMigrationView(tx, &op, control.OperationID != ""); err != nil {
+				if err := restoreGroupMigrationView(tx, &op, control); err != nil {
 					return err
 				}
 				groupMigrationNodeRevision.Store(control.Revision)
@@ -266,9 +268,11 @@ func syncGroupMigrationNode(tx *gorm.DB, control *GroupMigrationControl) error {
 
 // An active commit uses its atomic snapshot; a joining node after completion or
 // abort loads current saved options so it also sees subsequent ordinary edits.
-func restoreGroupMigrationView(tx *gorm.DB, op *GroupMigrationOperation, active bool) error {
+// Caller holds the durable control lock, which also serializes shared Redis
+// refreshes. Every node must rebuild its local view before acknowledging sync.
+func restoreGroupMigrationView(tx *gorm.DB, op *GroupMigrationOperation, control *GroupMigrationControl) error {
 	values := map[string]string{}
-	if active {
+	if control.OperationID != "" {
 		if err := common.UnmarshalJsonStr(op.Values, &values); err != nil {
 			return err
 		}
@@ -290,7 +294,31 @@ func restoreGroupMigrationView(tx *gorm.DB, op *GroupMigrationOperation, active 
 			return err
 		}
 	}
-	return refreshGroupMigrationCaches(tx, "")
+	if common.RedisEnabled {
+		// Keep completion in the cache being refreshed: loss of Redis data also
+		// loses this optimization. Include operation ID because aborts do not
+		// advance the revision. Only successful shared refreshes publish it.
+		const completionKey = "group_migration:shared_cache:v1"
+		completion := op.ID + ":" + strconv.FormatInt(control.Revision, 10)
+		ctx := tx.Statement.Context
+		previous, err := common.RDB.Get(ctx, completionKey).Result()
+		if err != nil && !errors.Is(err, redis.Nil) {
+			return err
+		}
+		if previous != completion {
+			// A returning node may have missed several migrations, so the first
+			// participant repairs the full shared routing view, not just op.Target.
+			if err := refreshGroupMigrationSharedCaches(tx, ""); err != nil {
+				return err
+			}
+			if err := common.RDB.Set(ctx, completionKey, completion, 0).Err(); err != nil {
+				return err
+			}
+		}
+	} else if err := refreshGroupMigrationSharedCaches(tx, ""); err != nil {
+		return err
+	}
+	return initChannelCache(tx)
 }
 
 // RunGroupMigrationCoordination starts only after Redis and all runtime caches
