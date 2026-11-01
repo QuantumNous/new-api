@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -144,7 +145,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			resultErr = types.NewError(fmt.Errorf("relay panic: %v", recovered), types.ErrorCodeBadResponse)
 		}
 		if relayFormat != types.RelayFormatOpenAIRealtime {
-			perfmetrics.RecordRelayResult(c.Request.Context(), relayInfo, resultErr)
+			perfmetrics.RecordRelayResult(context.Background(), relayInfo, resultErr)
 		}
 		if recovered != nil {
 			panic(recovered)
