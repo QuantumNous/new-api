@@ -154,6 +154,13 @@ func Distribute() func(c *gin.Context) {
 				message := selectErr.Message
 				if selectErr.NoAvailableChannel {
 					message = noAvailableChannelMessage(c, usingGroup, modelRequest.Model)
+					// A distributor refusal never reaches the relay error
+					// handler, so before HIS-4837 it lived only in the
+					// container log: a database-only check could not see that
+					// this 503 happened (HIS-4413). Write the same type-5
+					// error row relay errors get, with the model and the
+					// group, without a key or customer data.
+					recordDistributorRefusal(c, selectErr.StatusCode, selectErr.Code, usingGroup, modelRequest.Model, message)
 				} else if selectErr.MessageID != "" {
 					message = i18n.T(c, selectErr.MessageID, selectErr.Params)
 				}
@@ -192,6 +199,28 @@ func noAvailableChannelMessage(c *gin.Context, group, modelName string) string {
 		return i18n.T(c, i18n.MsgDistributorNoAvailableChannelTaskPlugin, map[string]any{"Group": group, "Model": modelName})
 	}
 	return i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": group, "Model": modelName})
+}
+
+// recordDistributorRefusal writes the distributor's "no available channel"
+// rejection to the log table as an error row (type 5) in the same shape the
+// relay error handler writes (service.ProcessChannelError), so the refusal is
+// provable from the database instead of only the container log (HIS-4837,
+// HIS-4413). No channel was selected, so the channel id stays 0.
+func recordDistributorRefusal(c *gin.Context, statusCode int, code types.ErrorCode, group, modelName, message string) {
+	// The HisarWeb status meter counts failed customer requests from these
+	// error rows, so customer groups always write one, also without
+	// ERROR_LOG_ENABLED (same gate as service.ProcessChannelError).
+	if !(constant.ErrorLogEnabled || model.HwIsCustomerGroup(group)) {
+		return
+	}
+	other := model.NewLogOther()
+	if c.Request != nil && c.Request.URL != nil {
+		other.SetPublic("request_path", c.Request.URL.Path)
+	}
+	other.SetPublic("error_type", string(types.ErrorTypeNewAPIError))
+	other.SetPublic("error_code", string(code))
+	other.SetPublic("status_code", statusCode)
+	model.RecordErrorLog(c, c.GetInt("id"), 0, modelName, c.GetString("token_name"), message, c.GetInt("token_id"), 0, false, group, other)
 }
 
 func channelMatchesExpectedTaskPlugin(c *gin.Context, channel *model.Channel, expected string) bool {
