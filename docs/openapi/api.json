@@ -2727,8 +2727,85 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
-            "headers": {}
+            "description": "创建成功时返回本次新建渠道的 ID；业务失败仍使用 HTTP 200，success 为 false 且不返回 data。",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "仅创建成功时返回，不包含渠道凭证。",
+                      "properties": {
+                        "ids": {
+                          "type": "array",
+                          "description": "本次实际新建渠道的 ID，按创建顺序排列。single 和 multi_to_single 创建一个渠道；batch 可创建多个，忽略空 Key 后未创建渠道时为 []。",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "id": {
+                          "type": "integer",
+                          "description": "仅本次恰好新建一个渠道时返回，与 ids[0] 相同。"
+                        }
+                      },
+                      "required": [
+                        "ids"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message"
+                  ]
+                },
+                "examples": {
+                  "single": {
+                    "summary": "新建一个渠道",
+                    "value": {
+                      "success": true,
+                      "message": "",
+                      "data": {
+                        "ids": [
+                          12345
+                        ],
+                        "id": 12345
+                      }
+                    }
+                  },
+                  "batch": {
+                    "summary": "批量新建渠道",
+                    "value": {
+                      "success": true,
+                      "message": "",
+                      "data": {
+                        "ids": [
+                          12345,
+                          12346
+                        ]
+                      }
+                    }
+                  },
+                  "empty": {
+                    "summary": "批次过滤空 Key 后未创建渠道",
+                    "value": {
+                      "success": true,
+                      "message": "",
+                      "data": {
+                        "ids": []
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [

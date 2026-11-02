@@ -833,9 +833,18 @@ func AddChannel(c *gin.Context) {
 		createAudit["base_url_source"] = "plugin_default"
 	}
 	recordManageAudit(c, "channel.create", createAudit)
+	ids := make([]int, len(channels))
+	for i, channel := range channels {
+		ids[i] = channel.Id
+	}
+	data := gin.H{"ids": ids}
+	if len(ids) == 1 {
+		data["id"] = ids[0]
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data":    data,
 	})
 	return
 }
