@@ -1,13 +1,42 @@
 package deepseek
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
+
+// FinalizeResponsesRequest normalizes the effective history and thinking mode
+// after channel parameter overrides, preserving unrelated raw JSON fields.
+func (a *Adaptor) FinalizeResponsesRequest(info *relaycommon.RelayInfo, body []byte) ([]byte, error) {
+	baseURL := "https://api.deepseek.com"
+	if info != nil && info.ChannelMeta != nil && info.ChannelBaseUrl != "" {
+		baseURL = info.ChannelBaseUrl
+	}
+	upstream, parseErr := url.Parse(baseURL)
+	official := parseErr == nil && upstream.Scheme == "https" &&
+		strings.EqualFold(upstream.Hostname(), "api.deepseek.com") &&
+		(upstream.Port() == "" || upstream.Port() == "443")
+	if !official || gjson.GetBytes(body, "reasoning.effort").String() == "none" {
+		return body, nil
+	}
+	input := []byte(gjson.GetBytes(body, "input").Raw)
+	normalized, err := normalizeResponsesReasoningReplay(input)
+	if err != nil {
+		return nil, err
+	}
+	if bytes.Equal(input, normalized) {
+		return body, nil
+	}
+	return sjson.SetRawBytes(body, "input", normalized)
+}
 
 // DeepSeek's stateless Responses API requires plaintext reasoning before an
 // assistant tool step, including a step resumed after a tool result.

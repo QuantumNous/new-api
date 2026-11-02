@@ -273,6 +273,20 @@ func TestModelModifiersUpstreamFields(t *testing.T) {
 // 2026-10-28; see also https://github.com/yetone/magpie/issues/1822.
 // An empty string fails while a space before the assistant step succeeds.
 func TestResponsesReasoningReplay(t *testing.T) {
+	// Exercise the final wire-body hook without dropping unknown JSON fields.
+	finalize := func(info *relaycommon.RelayInfo, req dto.OpenAIResponsesRequest) (any, error) {
+		data, err := common.Marshal(req)
+		if err != nil {
+			return nil, err
+		}
+		data, err = (&Adaptor{}).FinalizeResponsesRequest(info, data)
+		if err != nil {
+			return nil, err
+		}
+		var out dto.OpenAIResponsesRequest
+		err = common.Unmarshal(data, &out)
+		return out, err
+	}
 	const r = `{"type":"reasoning","summary":[],"content":[{"type":"reasoning_text","text":" "}]}`
 	const note = `{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Checking."}]}`
 	const call = `{"type":"function_call","call_id":"c1","name":"probe","arguments":"{}"}`
@@ -307,7 +321,7 @@ func TestResponsesReasoningReplay(t *testing.T) {
 			var req dto.OpenAIResponsesRequest
 			require.NoError(t, common.Unmarshal([]byte(`{"model":"deepseek-flash","input":`+tt.input+`}`), &req))
 			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://api.deepseek.com"}}
-			converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, info, req)
+			converted, err := finalize(info, req)
 			require.NoError(t, err)
 			out := converted.(dto.OpenAIResponsesRequest)
 			assert.JSONEq(t, tt.want, string(out.Input))
@@ -315,7 +329,7 @@ func TestResponsesReasoningReplay(t *testing.T) {
 				assert.Contains(t, string(out.Input), `"extra":9007199254740993`)
 			}
 			assert.Equal(t, tt.input, string(req.Input), "input belongs to the caller")
-			again, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, info, out)
+			again, err := finalize(info, out)
 			require.NoError(t, err)
 			assert.Equal(t, string(out.Input), string(again.(dto.OpenAIResponsesRequest).Input))
 		})
@@ -328,7 +342,7 @@ func TestResponsesReasoningReplay(t *testing.T) {
 			var req dto.OpenAIResponsesRequest
 			require.NoError(t, common.Unmarshal([]byte(`{"model":"deepseek-flash","input":[`+call+`]}`), &req))
 			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: endpoint}}
-			converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, info, req)
+			converted, err := finalize(info, req)
 			require.NoError(t, err)
 			assert.JSONEq(t, "["+r+","+call+"]", string(converted.(dto.OpenAIResponsesRequest).Input))
 		})
@@ -341,7 +355,7 @@ func TestResponsesReasoningReplay(t *testing.T) {
 			var req dto.OpenAIResponsesRequest
 			require.NoError(t, common.Unmarshal([]byte(`{"model":"deepseek-flash","input":[`+call+`]}`), &req))
 			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: endpoint}}
-			converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, info, req)
+			converted, err := finalize(info, req)
 			require.NoError(t, err)
 			assert.Equal(t, req.Input, converted.(dto.OpenAIResponsesRequest).Input)
 		})
@@ -349,7 +363,7 @@ func TestResponsesReasoningReplay(t *testing.T) {
 	t.Run("thinking disabled", func(t *testing.T) {
 		var req dto.OpenAIResponsesRequest
 		require.NoError(t, common.Unmarshal([]byte(`{"model":"deepseek-flash","reasoning":{"effort":"none"},"input":[`+call+`]}`), &req))
-		converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, nil, req)
+		converted, err := finalize(nil, req)
 		require.NoError(t, err)
 		assert.Equal(t, req.Input, converted.(dto.OpenAIResponsesRequest).Input)
 	})
