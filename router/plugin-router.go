@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/gin-gonic/gin"
 )
@@ -37,13 +38,16 @@ func (s *pluginDispatchState) markHit() {
 	s.writer.activate()
 }
 
-type pluginRouteHandlers func(*jsplugin.RoutingGeneration, jsplugin.RouteBinding) []gin.HandlerFunc
+type pluginRouteHandlers func(*jsplugin.RoutingGeneration, jsplugin.RouteGroup) []gin.HandlerFunc
 
 type pluginGenerationBuilder struct {
-	staticRoutes   []gin.RouteInfo
+	staticRoutes []gin.RouteInfo
+	// hostSegments are the first path segments the host serves: api and the
+	// literal first segment of every static route.
+	hostSegments   map[string]struct{}
 	trustedProxies []string
 	routeHandlers  pluginRouteHandlers
-	registerRoute  func(*gin.Engine, jsplugin.RouteBinding, []gin.HandlerFunc)
+	registerRoute  func(*gin.Engine, jsplugin.RouteGroup, []gin.HandlerFunc)
 	configure      func(*gin.Engine) error
 }
 
@@ -51,9 +55,23 @@ type pluginRouteDispatcher struct {
 	registry *jsplugin.Registry
 }
 
+// defaultPluginDispatcher serves the default registry's plugin routes from the
+// outer engine's NoRoute and from the host routes that hand requests to plugin
+// routes first.
+var defaultPluginDispatcher = &pluginRouteDispatcher{registry: jsplugin.DefaultRegistry}
+
+// pluginHandoffRoutes are the host routes that offer matching requests to the
+// plugin routes before their own handlers run, so a plugin route may overlap
+// them: GET /v1/videos/:task_id offers a task to its own plugin's query route
+// (handOffNativeTaskQuery) and the Gemini relay offers :predictLongRunning.
+var pluginHandoffRoutes = map[string]struct{}{
+	http.MethodGet + " /v1/videos/:task_id":   {},
+	http.MethodPost + " /v1beta/models/*path": {},
+}
+
 func SetPluginRouter(outer *gin.Engine) gin.HandlerFunc {
 	trustedProxies, _, err := common.ResolveTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
-	dispatcher := &pluginRouteDispatcher{registry: jsplugin.DefaultRegistry}
+	dispatcher := defaultPluginDispatcher
 	if err != nil {
 		common.SysError(common.LogText("configure plugin router trusted proxies: %s", err.Error()))
 		return dispatcher.dispatch
@@ -68,11 +86,18 @@ func SetPluginRouter(outer *gin.Engine) gin.HandlerFunc {
 func newPluginGenerationBuilder(staticRoutes []gin.RouteInfo, trustedProxies []string, handlers pluginRouteHandlers) *pluginGenerationBuilder {
 	builder := &pluginGenerationBuilder{
 		staticRoutes:   append([]gin.RouteInfo(nil), staticRoutes...),
+		hostSegments:   map[string]struct{}{"api": {}},
 		trustedProxies: append([]string(nil), trustedProxies...),
 		routeHandlers:  handlers,
 	}
-	builder.registerRoute = func(engine *gin.Engine, binding jsplugin.RouteBinding, routeHandlers []gin.HandlerFunc) {
-		engine.Handle(binding.Route.Method, binding.Route.Path, routeHandlers...)
+	for _, staticRoute := range staticRoutes {
+		first, _, _ := strings.Cut(strings.TrimPrefix(staticRoute.Path, "/"), "/")
+		if first != "" && !strings.HasPrefix(first, ":") && !strings.HasPrefix(first, "*") {
+			builder.hostSegments[first] = struct{}{}
+		}
+	}
+	builder.registerRoute = func(engine *gin.Engine, group jsplugin.RouteGroup, routeHandlers []gin.HandlerFunc) {
+		engine.Handle(group.Method, group.GinPath, routeHandlers...)
 	}
 	builder.configure = func(engine *gin.Engine) error {
 		return common.ConfigureTrustedProxies(engine, builder.trustedProxies)
@@ -80,7 +105,12 @@ func newPluginGenerationBuilder(staticRoutes []gin.RouteInfo, trustedProxies []s
 	return builder
 }
 
-func productionPluginRouteHandlers(generation *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) []gin.HandlerFunc {
+func productionPluginRouteHandlers(generation *jsplugin.RoutingGeneration, group jsplugin.RouteGroup) []gin.HandlerFunc {
+	binding := group.Bindings[0]
+	keys := make([]string, 0, len(group.Bindings))
+	for _, candidate := range group.Bindings {
+		keys = append(keys, candidate.Plugin.Meta.Key)
+	}
 	pinRoute := func(c *gin.Context) {
 		pinnedGeneration := generation
 		if state, _ := c.Request.Context().Value(pluginDispatchStateKey{}).(*pluginDispatchState); state != nil && state.generation != nil {
@@ -94,6 +124,7 @@ func productionPluginRouteHandlers(generation *jsplugin.RoutingGeneration, bindi
 			Generation: pinnedGeneration,
 			Plugin:     binding.Plugin,
 			Route:      binding.Route,
+			Candidates: group.Bindings,
 		})
 		logger.LogDebug(
 			c,
@@ -116,6 +147,7 @@ func productionPluginRouteHandlers(generation *jsplugin.RoutingGeneration, bindi
 	}
 	return []gin.HandlerFunc{
 		pinRoute,
+		middleware.NativeRouteCredential(keys...),
 		middleware.TokenAuth(),
 		middleware.SystemPerformanceCheck(),
 		middleware.ModelRequestRateLimit(),
@@ -128,12 +160,13 @@ func productionPluginRouteHandlers(generation *jsplugin.RoutingGeneration, bindi
 func (b *pluginGenerationBuilder) prepare(candidate, current *jsplugin.RoutingGeneration) (jsplugin.PreparedRoutingGeneration, error) {
 	blocked := make(map[*jsplugin.LoadedPlugin]string)
 	for {
-		accepted, routingErrors := b.admitPlugins(candidate, current, blocked)
+		accepted, skipped, routingErrors := b.admitPlugins(candidate, current, blocked)
 		plugins := sortedPlugins(accepted)
 		filtered, err := candidate.RebuildWithPlugins(plugins)
 		if err != nil {
 			return jsplugin.PreparedRoutingGeneration{}, err
 		}
+		filtered = filtered.WithSkippedRoutes(skipped)
 		engine, offender, buildErr := b.buildInnerEngine(filtered)
 		if buildErr == nil {
 			return jsplugin.PreparedRoutingGeneration{
@@ -156,8 +189,9 @@ func (b *pluginGenerationBuilder) prepare(candidate, current *jsplugin.RoutingGe
 func (b *pluginGenerationBuilder) admitPlugins(
 	candidate, current *jsplugin.RoutingGeneration,
 	blocked map[*jsplugin.LoadedPlugin]string,
-) (map[string]*jsplugin.LoadedPlugin, map[string]string) {
+) (map[string]*jsplugin.LoadedPlugin, []jsplugin.SkippedRoute, map[string]string) {
 	accepted := make(map[string]*jsplugin.LoadedPlugin)
+	var skipped []jsplugin.SkippedRoute
 	currentByKey := make(map[string]*jsplugin.LoadedPlugin)
 	if current != nil && current.RuntimeHandler() != nil {
 		for _, plugin := range current.Plugins() {
@@ -191,10 +225,11 @@ func (b *pluginGenerationBuilder) admitPlugins(
 		plugin, _ := candidate.Get(key)
 		if blockedError := blocked[plugin]; blockedError != "" {
 			routingErrors[key] = blockedError
-		} else if err := b.validatePlugin(plugin, accepted); err != nil {
+		} else if pluginSkipped, err := b.validatePlugin(plugin, candidate); err != nil {
 			routingErrors[key] = fmt.Sprintf("plugin %s rejected from public routes: %v", key, err)
 		} else {
 			accepted[key] = plugin
+			skipped = append(skipped, pluginSkipped...)
 			continue
 		}
 		rejectedKeys = append(rejectedKeys, key)
@@ -210,50 +245,93 @@ func (b *pluginGenerationBuilder) admitPlugins(
 			routingErrors[key] = blockedError
 			continue
 		}
-		if err := b.validatePlugin(incumbent, accepted); err == nil {
+		if incumbentSkipped, err := b.validatePlugin(incumbent, candidate); err == nil {
 			accepted[key] = incumbent
+			skipped = append(skipped, incumbentSkipped...)
 		}
 	}
-	return accepted, routingErrors
+	return accepted, skipped, routingErrors
 }
 
-func (b *pluginGenerationBuilder) validatePlugin(plugin *jsplugin.LoadedPlugin, accepted map[string]*jsplugin.LoadedPlugin) error {
-	for _, route := range plugin.Meta.Routes {
-		for _, staticRoute := range b.staticRoutes {
-			if routeIntersectsStaticRoute(route.Path, staticRoute.Path) {
-				return fmt.Errorf("route %s %s intersects static route %s %s", route.Method, route.Path, staticRoute.Method, staticRoute.Path)
-			}
-		}
+// validatePlugin returns the declared top-level routes the gateway does not
+// register for plugin; their /{key} copies still serve them. A key that names
+// a host path segment, or a built-in plugin's own prefix, rejects the plugin:
+// its /{key} address would not reach it.
+//
+// A top-level route is skipped when its first segment is a host namespace and
+// the plugin is not built in (host_namespace), when a host route of the same
+// method answers it first (host_route), or when its first segment is another
+// plugin's key or a built-in plugin's own prefix (key_namespace). A route
+// under the plugin's own prefix meets only the first two checks.
+func (b *pluginGenerationBuilder) validatePlugin(plugin *jsplugin.LoadedPlugin, candidate *jsplugin.RoutingGeneration) ([]jsplugin.SkippedRoute, error) {
+	key := plugin.Meta.Key
+	if _, hostSegment := b.hostSegments[key]; hostSegment {
+		return nil, fmt.Errorf("plugin key %q is a host path segment", key)
 	}
-	for index, left := range plugin.Meta.Routes {
-		for _, right := range plugin.Meta.Routes[index+1:] {
-			if left.Method != right.Method {
-				continue
-			}
-			if routePatternsIntersect(left.Path, right.Path) {
-				return fmt.Errorf("routes %s %s and %s overlap", left.Method, left.Path, right.Path)
-			}
-			if !routesGinCompatible(left.Path, right.Path) {
-				return fmt.Errorf("routes %s %s and %s use incompatible wildcard names", left.Method, left.Path, right.Path)
-			}
-		}
-	}
-	for _, other := range accepted {
-		if other.Meta.Key == plugin.Meta.Key {
+	// Taken from the whole candidate generation, so the outcome does not
+	// depend on the admission order.
+	otherKeys := make(map[string]struct{})
+	builtInPrefixes := make(map[string]string)
+	for _, other := range candidate.Plugins() {
+		if other.Meta.Key == key {
 			continue
 		}
-		for _, route := range plugin.Meta.Routes {
-			for _, otherRoute := range other.Meta.Routes {
-				if routePatternsIntersect(route.Path, otherRoute.Path) {
-					return fmt.Errorf("route %s %s overlaps plugin %s route %s %s", route.Method, route.Path, other.Meta.Key, otherRoute.Method, otherRoute.Path)
-				}
-				if route.Method == otherRoute.Method && !routesGinCompatible(route.Path, otherRoute.Path) {
-					return fmt.Errorf("route %s %s is structurally incompatible with plugin %s route %s", route.Method, route.Path, other.Meta.Key, otherRoute.Path)
-				}
+		otherKeys[other.Meta.Key] = struct{}{}
+		if !candidate.FactoryKey(other.Meta.Key) {
+			continue
+		}
+		for _, binding := range jsplugin.PluginRouteBindings(other) {
+			if binding.OwnPrefix {
+				first, _, _ := strings.Cut(strings.TrimPrefix(binding.Route.Path, "/"), "/")
+				builtInPrefixes[first] = other.Meta.Key
 			}
 		}
 	}
-	return nil
+	if owner, owned := builtInPrefixes[key]; owned {
+		return nil, fmt.Errorf("plugin key %q is a prefix owned by built-in plugin %s", key, owner)
+	}
+
+	var skipped []jsplugin.SkippedRoute
+	for _, binding := range jsplugin.PluginRouteBindings(plugin) {
+		if binding.Pinned {
+			continue
+		}
+		route := binding.Route
+		first, _, _ := strings.Cut(strings.TrimPrefix(route.Path, "/"), "/")
+		_, hostSegment := b.hostSegments[first]
+		_, otherKey := otherKeys[first]
+		_, builtInPrefix := builtInPrefixes[first]
+		reason := ""
+		switch {
+		case hostSegment && !candidate.FactoryKey(key):
+			reason = "host_namespace"
+		case b.routeAnsweredByHost(route):
+			reason = "host_route"
+		case (otherKey || builtInPrefix) && !binding.OwnPrefix:
+			reason = "key_namespace"
+		}
+		if reason != "" {
+			skipped = append(skipped, jsplugin.SkippedRoute{PluginKey: key, Route: route, Reason: reason})
+		}
+	}
+	return skipped, nil
+}
+
+// routeAnsweredByHost reports whether a static route of the same method, or
+// the trailing-slash redirect it causes, answers requests the plugin route
+// could serve. The handoff routes offer matching requests to plugin routes
+// first, so only their redirect counts.
+func (b *pluginGenerationBuilder) routeAnsweredByHost(route jsplugin.Route) bool {
+	for _, staticRoute := range b.staticRoutes {
+		if route.Method != staticRoute.Method {
+			continue
+		}
+		_, offersToPlugins := pluginHandoffRoutes[staticRoute.Method+" "+staticRoute.Path]
+		if routeIntersectsStaticRoute(route, staticRoute.Path, offersToPlugins) {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *pluginGenerationBuilder) buildInnerEngine(generation *jsplugin.RoutingGeneration) (engine *gin.Engine, offender string, err error) {
@@ -291,9 +369,9 @@ func (b *pluginGenerationBuilder) buildInnerEngine(generation *jsplugin.RoutingG
 		c.AbortWithStatus(http.StatusMethodNotAllowed)
 	})
 
-	for _, binding := range generation.Routes() {
-		currentPlugin = binding.Plugin.Meta.Key
-		b.registerRoute(engine, binding, b.routeHandlers(generation, binding))
+	for _, group := range generation.RouteGroups() {
+		currentPlugin = group.Bindings[0].Plugin.Meta.Key
+		b.registerRoute(engine, group, b.routeHandlers(generation, group))
 	}
 	currentPlugin = ""
 	return engine, "", nil
@@ -394,6 +472,40 @@ func (d *pluginRouteDispatcher) dispatch(c *gin.Context) {
 	c.Next()
 }
 
+// handOffNativeTaskQuery answers GET /v1/videos/:task_id in the task's own wire
+// format when the task was submitted through one of its plugin's native routes
+// (at the vendor path, under /{key} or under the plugin's own prefix) and that
+// plugin serves a query route matching this request, as xAI does at its vendor
+// path. Every other task keeps the OpenAI video response.
+func (d *pluginRouteDispatcher) handOffNativeTaskQuery(c *gin.Context) {
+	generation := d.registry.Generation()
+	if generation == nil || generation.RuntimeHandler() == nil {
+		return
+	}
+	task, exists, err := model.GetByTaskId(c.GetInt("id"), c.Param("task_id"))
+	if err != nil || !exists || task.PrivateData.Execution == nil || task.PrivateData.Execution.TaskPlugin == nil {
+		return
+	}
+	plugin, found := generation.Get(task.PrivateData.Execution.TaskPlugin.Key)
+	if !found {
+		return
+	}
+	submittedNatively := false
+	queryMatches := false
+	for _, binding := range jsplugin.PluginRouteBindings(plugin) {
+		route := binding.Route
+		switch {
+		case route.Type != jsplugin.RouteTypeQuery:
+			submittedNatively = submittedNatively || routePatternsIntersect(route.Path, task.PrivateData.Execution.RequestPath)
+		case route.Method == c.Request.Method && routePatternsIntersect(route.Path, c.Request.URL.Path):
+			queryMatches = true
+		}
+	}
+	if submittedNatively && queryMatches {
+		d.dispatch(c)
+	}
+}
+
 type gatedResponseWriter struct {
 	underlying    gin.ResponseWriter
 	privateHeader http.Header
@@ -462,6 +574,16 @@ func (w *gatedResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return w.underlying.Hijack()
 }
 
+// Unwrap lets http.ResponseController reach the client connection once a
+// plugin route answers, as a relayed stream that stopped early needs to cut it
+// off.
+func (w *gatedResponseWriter) Unwrap() http.ResponseWriter {
+	if !w.active.Load() {
+		return nil
+	}
+	return w.underlying
+}
+
 func (w *gatedResponseWriter) CloseNotify() <-chan bool {
 	if w.active.Load() {
 		return w.underlying.CloseNotify()
@@ -503,6 +625,9 @@ type routePatternSegment struct {
 	value    string
 	dynamic  bool
 	catchAll bool
+	// taskID marks a query route's task-id parameter, which only ever
+	// receives gateway task ids and so never equals a literal segment.
+	taskID bool
 }
 
 func parseRoutePattern(routePath string) []routePatternSegment {
@@ -519,8 +644,10 @@ func parseRoutePattern(routePath string) []routePatternSegment {
 }
 
 func routePatternsIntersect(leftPath, rightPath string) bool {
-	left := parseRoutePattern(leftPath)
-	right := parseRoutePattern(rightPath)
+	return routeSegmentsIntersect(parseRoutePattern(leftPath), parseRoutePattern(rightPath))
+}
+
+func routeSegmentsIntersect(left, right []routePatternSegment) bool {
 	for index := 0; ; index++ {
 		leftDone := index >= len(left)
 		rightDone := index >= len(right)
@@ -536,43 +663,30 @@ func routePatternsIntersect(leftPath, rightPath string) bool {
 		if (left[index].dynamic && right[index].value == "") || (right[index].dynamic && left[index].value == "") {
 			return false
 		}
+		if (left[index].taskID && !right[index].dynamic) || (right[index].taskID && !left[index].dynamic) {
+			return false
+		}
 	}
 }
 
-func routesGinCompatible(leftPath, rightPath string) bool {
-	left := parseRoutePattern(leftPath)
-	right := parseRoutePattern(rightPath)
-	limit := min(len(right), len(left))
-	for index := range limit {
-		leftSegment := left[index]
-		rightSegment := right[index]
-		if !leftSegment.dynamic && !rightSegment.dynamic {
-			if leftSegment.value != rightSegment.value {
-				return true
-			}
-			continue
+// routeIntersectsStaticRoute reports whether a request the plugin route could
+// serve is answered first by the static route or by the trailing-slash
+// redirect it causes. A query route's task-id parameter meets only the static
+// route's wildcards. A static route that offers matching requests to the
+// plugin routes first does not answer them itself, but its redirect still does.
+func routeIntersectsStaticRoute(route jsplugin.Route, staticPath string, offersToPlugins bool) bool {
+	pluginSegments := parseRoutePattern(route.Path)
+	if route.Type == jsplugin.RouteTypeQuery {
+		for index := range pluginSegments {
+			pluginSegments[index].taskID = pluginSegments[index].value == ":"+route.TaskIDParam
 		}
-		if leftSegment.dynamic && rightSegment.dynamic {
-			if leftSegment.value != rightSegment.value {
-				return false
-			}
-			continue
-		}
-		return true
 	}
-	return true
-}
-
-func routeIntersectsStaticRoute(pluginPath, staticPath string) bool {
-	if routePatternsIntersect(pluginPath, staticPath) {
+	if !offersToPlugins && routeSegmentsIntersect(pluginSegments, parseRoutePattern(staticPath)) {
 		return true
 	}
 	if catchAllIndex := strings.LastIndex(staticPath, "/*"); catchAllIndex >= 0 && catchAllIndex+2 < len(staticPath) {
 		prefix := staticPath[:catchAllIndex]
-		if routePatternsIntersect(pluginPath, prefix) || routePatternsIntersect(pluginPath, prefix+"/") {
-			return true
-		}
-		return false
+		return routeSegmentsIntersect(pluginSegments, parseRoutePattern(prefix)) || routeSegmentsIntersect(pluginSegments, parseRoutePattern(prefix+"/"))
 	}
 	if staticPath == "/" {
 		return false
@@ -581,5 +695,5 @@ func routeIntersectsStaticRoute(pluginPath, staticPath string) bool {
 	if alternate == staticPath {
 		alternate += "/"
 	}
-	return routePatternsIntersect(pluginPath, alternate)
+	return routeSegmentsIntersect(pluginSegments, parseRoutePattern(alternate))
 }

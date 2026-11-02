@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,9 +15,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/controller"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/plugins"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -64,8 +68,8 @@ func TestPluginDebugLogsOnlyOwnedRoutes(t *testing.T) {
 	plugin := compileRouterPlugin(t, "debug-owner", "1.0.0", `[
 		{method: "GET", path: "/vendor/debug", type: "dynamic"}
 	]`)
-	handlers := func(generation *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) []gin.HandlerFunc {
-		production := productionPluginRouteHandlers(generation, binding)
+	handlers := func(generation *jsplugin.RoutingGeneration, group jsplugin.RouteGroup) []gin.HandlerFunc {
+		production := productionPluginRouteHandlers(generation, group)
 		return []gin.HandlerFunc{
 			production[0],
 			func(c *gin.Context) { c.Status(http.StatusNoContent) },
@@ -198,6 +202,32 @@ func TestPluginSSEFlushesWithoutFallbackBuffering(t *testing.T) {
 	assert.Empty(t, recorder.Header().Get("Cache-Version"))
 }
 
+// A plugin route reaches the client connection through the gated writer: a
+// relayed stream that stopped early cuts it off, and the client sees the
+// stream end as the vendor's did.
+func TestPluginRouteCanCutOffItsClientStream(t *testing.T) {
+	plugin := compileRouterPlugin(t, "cut-owner", "1.0.0", `[
+		{method: "GET", path: "/vendor/stream", type: "dynamic"}
+	]`)
+	handlers := testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, _ jsplugin.RouteBinding) {
+		c.Header("Content-Type", "text/event-stream")
+		_, _ = c.Writer.WriteString("data: ready\n\n")
+		c.Writer.Flush()
+		assert.NoError(t, http.NewResponseController(c.Writer).SetWriteDeadline(time.Now()))
+	})
+	outer, registry := newPluginRouterTest(t, []*jsplugin.LoadedPlugin{plugin}, handlers)
+	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
+	server := httptest.NewServer(outer)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/vendor/stream")
+	require.NoError(t, err)
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	assert.Equal(t, "data: ready\n\n", string(body))
+	assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+}
+
 func TestWebCacheHeadersDoNotLeakOntoPluginRoutes(t *testing.T) {
 	plugin := compileRouterPlugin(t, "cache-owner", "1.0.0", `[
 		{method: "GET", path: "/vendor/status/:task_id", type: "query", render: "native"}
@@ -324,25 +354,31 @@ func TestPluginRequestPinsGenerationAcrossHotSwap(t *testing.T) {
 	}`, secondGeneration, secondGeneration, secondGeneration), second.Body.String())
 }
 
+// A host route, or the trailing-slash redirect it causes, shadows only the
+// top-level route of a built-in plugin; the /{key} copy still serves it.
 func TestPluginStaticRouteConflictsAreExcluded(t *testing.T) {
 	tests := []struct {
-		name       string
-		staticPath string
-		pluginPath string
+		name        string
+		staticPath  string
+		route       string
+		requestPath string
+		served      bool
 	}{
-		{name: "parameter intersection", staticPath: "/core/:id", pluginPath: "/core/fixed"},
-		{name: "trailing slash redirect shadow", staticPath: "/fixed", pluginPath: "/fixed/"},
-		{name: "catchall redirect shadow", staticPath: "/files/*filepath", pluginPath: "/files"},
+		{name: "parameter intersection", staticPath: "/core/:id", route: `{method: "GET", path: "/core/fixed", type: "dynamic"}`, requestPath: "/core/fixed"},
+		{name: "trailing slash redirect shadow", staticPath: "/fixed", route: `{method: "GET", path: "/fixed/", type: "dynamic"}`, requestPath: "/fixed/"},
+		{name: "catchall redirect shadow", staticPath: "/files/*filepath", route: `{method: "GET", path: "/files", type: "dynamic"}`, requestPath: "/files"},
+		{name: "literal against a host parameter", staticPath: "/jobs/:id/content", route: `{method: "GET", path: "/jobs/fixed/:name", type: "dynamic"}`, requestPath: "/jobs/fixed/content"},
+		{name: "query task id against a host parameter", staticPath: "/jobs/:id/content", route: `{method: "GET", path: "/jobs/:task_id/content", type: "query"}`, requestPath: "/jobs/task_1/content"},
+		{name: "other method", staticPath: "/core/:id", route: `{method: "POST", path: "/core/fixed", type: "submit"}`, requestPath: "/core/fixed", served: true},
+		{name: "query task id against a host literal", staticPath: "/jobs/:id/content", route: `{method: "GET", path: "/jobs/fixed/:task_id", type: "query"}`, requestPath: "/jobs/fixed/task_1", served: true},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			outer := newOuterPluginTestEngine()
 			outer.GET(testCase.staticPath, func(c *gin.Context) { c.String(http.StatusOK, "static") })
 			registry := jsplugin.NewRegistry()
-			plugin := compileRouterPlugin(t, "static-conflict", "1.0.0", fmt.Sprintf(`[
-				{method: "POST", path: %q, type: "submit"}
-			]`, testCase.pluginPath))
-			require.NoError(t, registry.ReplaceOverrides([]*jsplugin.LoadedPlugin{plugin}))
+			plugin, err := registry.RegisterFactory(routerPluginSource("static-conflict", "1.0.0", "["+testCase.route+"]"), jsplugin.Options{})
+			require.NoError(t, err)
 			builder := newPluginGenerationBuilder(outer.Routes(), nil, testPluginRouteHandlers(
 				func(c *gin.Context, _ *jsplugin.RoutingGeneration, _ jsplugin.RouteBinding) {
 					c.String(http.StatusOK, "plugin")
@@ -354,80 +390,213 @@ func TestPluginStaticRouteConflictsAreExcluded(t *testing.T) {
 				func(c *gin.Context) { c.String(http.StatusOK, "fallback") },
 			)
 
-			recorder := performPluginRequest(outer, http.MethodPost, testCase.pluginPath)
-			assert.Equal(t, "fallback", recorder.Body.String())
-			assert.Contains(t, registry.RoutingErrors()["static-conflict"], "intersects static route")
+			method := plugin.Meta.Routes[0].Method
+			_, active := registry.Get("static-conflict")
+			assert.True(t, active)
+			assert.Empty(t, registry.RoutingErrors())
+			assert.Equal(t, "plugin", performPluginRequest(outer, method, "/static-conflict"+testCase.requestPath).Body.String())
+			recorder := performPluginRequest(outer, method, testCase.requestPath)
+			if testCase.served {
+				assert.Equal(t, "plugin", recorder.Body.String())
+				assert.Empty(t, registry.Generation().SkippedRoutes())
+				return
+			}
+			assert.NotEqual(t, "plugin", recorder.Body.String())
+			assert.Equal(t, []jsplugin.SkippedRoute{{PluginKey: "static-conflict", Route: plugin.Meta.Routes[0], Reason: "host_route"}}, registry.Generation().SkippedRoutes())
 		})
 	}
 }
 
-func TestStaticConflictingUpdateRetainsIncumbentAndPublishesHealthyPeer(t *testing.T) {
+// The host's namespaces (api and the first segment of every static route)
+// carry the top-level routes of built-in plugins only. Every plugin keeps its
+// /{key} address, so a key may not name a host segment or a built-in plugin's
+// own prefix.
+func TestHostNamespacesCarryOnlyBuiltInTopLevelRoutes(t *testing.T) {
 	outer := newOuterPluginTestEngine()
-	outer.GET("/core/:id", func(c *gin.Context) { c.String(http.StatusOK, "static") })
+	outer.GET("/v1/models", func(c *gin.Context) { c.String(http.StatusOK, "host models") })
+	outer.GET("/v1beta/models", func(c *gin.Context) { c.String(http.StatusOK, "host gemini") })
+	outer.POST("/pg/chat/completions", func(c *gin.Context) { c.String(http.StatusOK, "host playground") })
 	registry := jsplugin.NewRegistry()
-	incumbent := compileRouterPlugin(t, "static-update", "1.0.0", `[
-		{method: "GET", path: "/safe/incumbent", type: "dynamic"}
+	builtIn, err := registry.RegisterFactory(routerPluginSource("builtin-probe", "1.0.0", `[
+		{method: "POST", path: "/v1/videos/foo", type: "submit"},
+		{method: "GET", path: "/v1/models", type: "query"}
+	]`), jsplugin.Options{})
+	require.NoError(t, err)
+	for _, key := range []string{"alibaba", "sunoapi"} {
+		prefix := map[string]string{"alibaba": "ali", "sunoapi": "suno"}[key]
+		_, err = registry.RegisterFactory(routerPluginSource(key, "1.0.0", `[{method: "POST", path: "/`+prefix+`/jobs", type: "submit"}]`), jsplugin.Options{})
+		require.NoError(t, err)
+	}
+	third := compileRouterPlugin(t, "third-probe", "1.0.0", `[
+		{method: "POST", path: "/v1/videos/foo", type: "submit"},
+		{method: "POST", path: "/ent/v2/text2video", type: "submit"},
+		{method: "POST", path: "/beta/jobs", type: "submit"}
 	]`)
-	conflictingUpdate := compileRouterPlugin(t, "static-update", "2.0.0", `[
-		{method: "POST", path: "/core/fixed", type: "submit"}
-	]`)
-	healthyV1 := compileRouterPlugin(t, "healthy-peer", "1.0.0", `[
-		{method: "GET", path: "/safe/healthy", type: "dynamic"}
-	]`)
-	healthyV2 := compileRouterPlugin(t, "healthy-peer", "2.0.0", `[
-		{method: "GET", path: "/safe/healthy", type: "dynamic"}
-	]`)
-	require.NoError(t, registry.ReplaceOverrides([]*jsplugin.LoadedPlugin{incumbent, healthyV1}))
-	handlers := testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) {
-		c.String(http.StatusOK, binding.Plugin.Meta.Version)
-	})
-	builder := newPluginGenerationBuilder(outer.Routes(), nil, handlers)
+	overrides := []*jsplugin.LoadedPlugin{third, compileRouterPlugin(t, "beta", "1.0.0", `[{method: "POST", path: "/own/jobs", type: "submit"}]`)}
+	for _, key := range []string{"pg", "v1beta", "ali", "suno"} {
+		overrides = append(overrides, compileRouterPlugin(t, key, "1.0.0", `[{method: "POST", path: "/own/jobs", type: "submit"}]`))
+	}
+	require.NoError(t, registry.ReplaceOverrides(overrides))
+	builder := newPluginGenerationBuilder(outer.Routes(), nil, testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) {
+		c.String(http.StatusOK, binding.Plugin.Meta.Key)
+	}))
 	require.NoError(t, registry.SetGenerationPreparer(builder.prepare))
 	outer.NoRoute(
 		(&pluginRouteDispatcher{registry: registry}).dispatch,
 		func(c *gin.Context) { c.String(http.StatusOK, "fallback") },
 	)
 
-	require.NoError(t, registry.ReplaceOverrides([]*jsplugin.LoadedPlugin{conflictingUpdate, healthyV2}))
-
-	activeIncumbent, ok := registry.Get("static-update")
-	require.True(t, ok)
-	assert.Same(t, incumbent, activeIncumbent)
-	activeHealthy, ok := registry.Get("healthy-peer")
-	require.True(t, ok)
-	assert.Same(t, healthyV2, activeHealthy)
-	assert.Equal(t, "1.0.0", performPluginRequest(outer, http.MethodGet, "/safe/incumbent").Body.String())
-	assert.Equal(t, "2.0.0", performPluginRequest(outer, http.MethodGet, "/safe/healthy").Body.String())
-	assert.Contains(t, registry.RoutingErrors()["static-update"], "intersects static route")
+	for _, request := range []struct{ method, path, answer string }{
+		{http.MethodPost, "/v1/videos/foo", "builtin-probe"},
+		{http.MethodPost, "/builtin-probe/v1/videos/foo", "builtin-probe"},
+		{http.MethodPost, "/third-probe/v1/videos/foo", "third-probe"},
+		{http.MethodGet, "/v1/models", "host models"},
+		{http.MethodGet, "/builtin-probe/v1/models", "builtin-probe"},
+		{http.MethodPost, "/ent/v2/text2video", "third-probe"},
+		{http.MethodPost, "/beta/jobs", "fallback"},
+		{http.MethodPost, "/third-probe/beta/jobs", "third-probe"},
+		{http.MethodPost, "/beta/own/jobs", "beta"},
+	} {
+		assert.Equal(t, request.answer, performPluginRequest(outer, request.method, request.path).Body.String(), request.method+" "+request.path)
+	}
+	assert.ElementsMatch(t, []jsplugin.SkippedRoute{
+		{PluginKey: "builtin-probe", Route: builtIn.Meta.Routes[1], Reason: "host_route"},
+		{PluginKey: "third-probe", Route: third.Meta.Routes[0], Reason: "host_namespace"},
+		{PluginKey: "third-probe", Route: third.Meta.Routes[2], Reason: "key_namespace"},
+	}, registry.Generation().SkippedRoutes())
+	routingErrors := registry.RoutingErrors()
+	assert.Len(t, routingErrors, 4)
+	assert.Contains(t, routingErrors["pg"], `plugin key "pg" is a host path segment`)
+	assert.Contains(t, routingErrors["v1beta"], `plugin key "v1beta" is a host path segment`)
+	assert.Contains(t, routingErrors["ali"], `plugin key "ali" is a prefix owned by built-in plugin alibaba`)
+	assert.Contains(t, routingErrors["suno"], `plugin key "suno" is a prefix owned by built-in plugin sunoapi`)
 }
 
-func TestStaticConflictingNewOverrideRetainsFactoryRoute(t *testing.T) {
-	outer := newOuterPluginTestEngine()
-	outer.GET("/core/:id", func(c *gin.Context) { c.String(http.StatusOK, "static") })
-	registry := jsplugin.NewRegistry()
-	factory, err := registry.RegisterFactory(routerPluginSource("factory-route", "1.0.0", `[
-		{method: "GET", path: "/factory-route/safe", type: "dynamic"}
-	]`), jsplugin.Options{})
-	require.NoError(t, err)
-	handlers := testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) {
-		c.String(http.StatusOK, binding.Plugin.Meta.Version)
-	})
-	builder := newPluginGenerationBuilder(outer.Routes(), nil, handlers)
-	require.NoError(t, registry.SetGenerationPreparer(builder.prepare))
-	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
-	conflictingOverride := compileRouterPlugin(t, "factory-route", "2.0.0", `[
-		{method: "POST", path: "/core/fixed", type: "submit"}
+// Plugins declaring the same path shape share one registration whose
+// candidates are all of them; each candidate reads the parameters under the
+// names it declares, and /{key} reaches one plugin only.
+func TestSharedPluginRoutesRegisterOnceWithEveryCandidate(t *testing.T) {
+	alpha := compileRouterPlugin(t, "shared-alpha", "1.0.0", `[
+		{method: "POST", path: "/probe/v1/jobs", type: "submit"},
+		{method: "GET", path: "/probe/v1/jobs/:task_id", type: "query"}
 	]`)
+	beta := compileRouterPlugin(t, "shared-beta", "1.0.0", `[
+		{method: "POST", path: "/probe/v1/jobs", type: "submit"},
+		{method: "GET", path: "/probe/v1/jobs/:job_id", type: "query", taskIdParam: "job_id"}
+	]`)
+	handlers := testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, _ jsplugin.RouteBinding) {
+		pinned := c.MustGet(jsplugin.ContextKeyPinnedRoute).(jsplugin.PinnedRoute)
+		answers := make([]string, 0, len(pinned.Candidates))
+		for _, candidate := range pinned.Candidates {
+			answers = append(answers, fmt.Sprintf("%s %v", candidate.Plugin.Meta.Key, jsplugin.RouteParams(c.Params, candidate.Route)))
+		}
+		c.String(http.StatusOK, strings.Join(answers, " "))
+	})
+	outer, registry := newPluginRouterTest(t, []*jsplugin.LoadedPlugin{beta, alpha}, handlers)
+	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
+	require.Empty(t, registry.RoutingErrors())
 
-	require.NoError(t, registry.ReplaceOverrides([]*jsplugin.LoadedPlugin{conflictingOverride}))
-
-	active, ok := registry.Get("factory-route")
-	require.True(t, ok)
-	assert.Same(t, factory, active)
-	assert.Equal(t, "1.0.0", performPluginRequest(outer, http.MethodGet, "/factory-route/safe").Body.String())
-	assert.Contains(t, registry.RoutingErrors()["factory-route"], "intersects static route")
+	registrations := 0
+	for _, group := range registry.Generation().RouteGroups() {
+		if group.Method == http.MethodPost && group.Shape == "/probe/v1/jobs" {
+			registrations++
+			assert.Len(t, group.Bindings, 2)
+		}
+	}
+	assert.Equal(t, 1, registrations)
+	assert.Equal(t, "shared-alpha map[] shared-beta map[]", performPluginRequest(outer, http.MethodPost, "/probe/v1/jobs").Body.String())
+	assert.Equal(t, "shared-alpha map[task_id:task_1] shared-beta map[job_id:task_1]", performPluginRequest(outer, http.MethodGet, "/probe/v1/jobs/task_1").Body.String())
+	assert.Equal(t, "shared-beta map[]", performPluginRequest(outer, http.MethodPost, "/shared-beta/probe/v1/jobs").Body.String())
+	assert.Equal(t, "shared-beta map[job_id:task_2]", performPluginRequest(outer, http.MethodGet, "/shared-beta/probe/v1/jobs/task_2").Body.String())
 }
 
+func TestBuiltInPluginRoutesAreServedBesideHostRoutes(t *testing.T) {
+	require.Empty(t, jsplugin.DefaultRegistry.RoutingErrors())
+	builtIns := jsplugin.DefaultRegistry.Generation().Plugins()
+	require.NotEmpty(t, builtIns)
+
+	// The static routes SetRouter registers before the plugin router.
+	outer := gin.New()
+	SetApiRouter(outer)
+	SetDashboardRouter(outer)
+	SetRelayRouter(outer)
+	SetTaskPluginProtocolRouter(outer)
+	SetVideoRouter(outer)
+	SetTaskRouter(outer)
+	registry := jsplugin.NewRegistry()
+	for _, plugin := range builtIns {
+		source, err := plugins.Source(plugin.Meta.Key)
+		require.NoError(t, err)
+		_, err = registry.RegisterFactory(source, jsplugin.Options{Key: plugin.Meta.Key})
+		require.NoError(t, err)
+	}
+	builder := newPluginGenerationBuilder(outer.Routes(), nil, testPluginRouteHandlers(
+		func(c *gin.Context, _ *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) {
+			c.String(http.StatusOK, binding.Plugin.Meta.Key)
+		},
+	))
+	require.NoError(t, registry.SetGenerationPreparer(builder.prepare))
+	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch, controller.RelayNotFound)
+
+	require.Empty(t, registry.RoutingErrors())
+	require.Empty(t, registry.Generation().SkippedRoutes())
+	for _, plugin := range builtIns {
+		_, active := registry.Get(plugin.Meta.Key)
+		assert.True(t, active, plugin.Meta.Key)
+	}
+	const vertexModel = "/projects/sample/locations/us-central1/publishers/google/models/veo-3.1-generate-preview"
+	for _, request := range []struct{ method, path, plugin string }{
+		{http.MethodPost, "/api/v3/contents/generations/tasks", "doubao"},
+		{http.MethodGet, "/api/v3/contents/generations/tasks/task_sample", "doubao"},
+		{http.MethodPost, "/api/v3/images/generations", "doubao"},
+		{http.MethodPost, "/doubao/api/v3/contents/generations/tasks", "doubao"},
+		{http.MethodPost, "/api/v1/services/aigc/multimodal-generation/generation", "alibaba"},
+		{http.MethodPost, "/api/v1/services/aigc/video-generation/video-synthesis", "alibaba"},
+		{http.MethodGet, "/api/v1/tasks/task_sample", "alibaba"},
+		{http.MethodPost, "/alibaba/api/v1/services/aigc/video-generation/video-synthesis", "alibaba"},
+		{http.MethodPost, "/ali/api/v1/services/aigc/video-generation/video-synthesis", "alibaba"},
+		{http.MethodGet, "/ali/api/v1/tasks/task_sample", "alibaba"},
+		{http.MethodPost, "/v1/videos/text2video", "kling"},
+		{http.MethodGet, "/v1/videos/image2video/task_sample", "kling"},
+		{http.MethodPost, "/kling/v1/videos/text2video", "kling"},
+		{http.MethodPost, "/v1/videos/generations", "xai"},
+		{http.MethodPost, "/v1/videos/extensions", "xai"},
+		{http.MethodGet, "/xai/v1/videos/task_sample", "xai"},
+		{http.MethodGet, "/v1beta/models/veo-3.1-generate-preview/operations/task_sample", "google"},
+		{http.MethodPost, "/google/v1beta/models/veo-3.1-generate-preview:predictLongRunning", "google"},
+		{http.MethodPost, "/ent/v2/reference2video", "vidu"},
+		{http.MethodGet, "/ent/v2/tasks/task_sample/creations", "vidu"},
+		{http.MethodPost, "/vidu/ent/v2/text2video", "vidu"},
+		{http.MethodPost, "/v1" + vertexModel + ":predictLongRunning", "vertex-ai"},
+		{http.MethodPost, "/v1beta1" + vertexModel + ":predictLongRunning", "vertex-ai"},
+		{http.MethodPost, "/vertex-ai/v1beta1" + vertexModel + ":fetchPredictOperation", "vertex-ai"},
+		{http.MethodPost, "/v1/video_generation", "hailuo"},
+		{http.MethodGet, "/v1/query/video_generation?task_id=task_sample", "hailuo"},
+		{http.MethodGet, "/hailuo/v1/query/video_generation?task_id=task_sample", "hailuo"},
+		{http.MethodGet, "/hailuo/v1/query/video_generation/task_sample", "hailuo"},
+		{http.MethodGet, "/v1/files/retrieve?file_id=task_sample", "hailuo"},
+		{http.MethodPost, "/v2/video_generation", "hailuo"},
+		{http.MethodGet, "/v2/query/video_generation/task_sample", "hailuo"},
+		{http.MethodPost, "/api/common/v3/submit_task_v2", "jimeng"},
+		{http.MethodPost, "/api/common/v3/get_result_v2", "jimeng"},
+		{http.MethodPost, "/jimeng/api/common/v3/submit_task_v2", "jimeng"},
+		{http.MethodPost, "/suno/fetch", "sunoapi"},
+		{http.MethodGet, "/suno/fetch/task_sample", "sunoapi"},
+	} {
+		recorder := performPluginRequest(outer, request.method, request.path)
+		assert.Equal(t, request.plugin, recorder.Body.String(), request.method+" "+request.path)
+	}
+	// A prefix is never doubled, and GET /v1/files/:id is no longer a host route.
+	for _, request := range []struct{ method, path string }{
+		{http.MethodPost, "/sunoapi/suno/fetch"},
+		{http.MethodPost, "/alibaba/ali/api/v1/services/aigc/video-generation/video-synthesis"},
+		{http.MethodGet, "/v1/files/file_sample"},
+	} {
+		recorder := performPluginRequest(outer, request.method, request.path)
+		assert.Equal(t, http.StatusNotFound, recorder.Code, request.method+" "+request.path)
+		assert.Contains(t, recorder.Body.String(), "Invalid URL", request.method+" "+request.path)
+	}
+}
 func TestPluginRouteOwnershipCanSwapWithinOneGeneration(t *testing.T) {
 	alphaV1 := compileRouterPlugin(t, "route-swap-alpha", "1.0.0", `[
 		{method: "GET", path: "/route-swap/alpha", type: "dynamic"}
@@ -454,67 +623,35 @@ func TestPluginRouteOwnershipCanSwapWithinOneGeneration(t *testing.T) {
 	assert.Empty(t, registry.RoutingErrors())
 }
 
-func TestRejectedRouteUpdateDoesNotFreezeHealthyPeer(t *testing.T) {
-	alphaV1 := compileRouterPlugin(t, "route-fallback-alpha", "1.0.0", `[
-		{method: "GET", path: "/route-fallback/alpha", type: "dynamic"}
-	]`)
-	betaV1 := compileRouterPlugin(t, "route-fallback-beta", "1.0.0", `[
-		{method: "GET", path: "/route-fallback/beta", type: "dynamic"}
-	]`)
-	owner := compileRouterPlugin(t, "route-fallback-owner", "1.0.0", `[
-		{method: "GET", path: "/route-fallback/owner", type: "dynamic"}
-	]`)
-	alphaV2 := compileRouterPlugin(t, "route-fallback-alpha", "2.0.0", `[
-		{method: "POST", path: "/route-fallback/owner", type: "submit"}
-	]`)
-	betaV2 := compileRouterPlugin(t, "route-fallback-beta", "2.0.0", `[
-		{method: "GET", path: "/route-fallback/alpha", type: "dynamic"}
-	]`)
-	handlers := testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) {
-		c.String(http.StatusOK, binding.Plugin.Meta.Key+"@"+binding.Plugin.Meta.Version)
-	})
-	outer, registry := newPluginRouterTest(t, []*jsplugin.LoadedPlugin{alphaV1, betaV1, owner}, handlers)
-	outer.NoRoute(
-		(&pluginRouteDispatcher{registry: registry}).dispatch,
-		func(c *gin.Context) { c.String(http.StatusOK, "fallback") },
-	)
-
-	require.NoError(t, registry.ReplaceOverrides([]*jsplugin.LoadedPlugin{alphaV2, betaV2, owner}))
-
-	_, alphaActive := registry.Get("route-fallback-alpha")
-	assert.False(t, alphaActive)
-	activeBeta, ok := registry.Get("route-fallback-beta")
-	require.True(t, ok)
-	assert.Same(t, betaV2, activeBeta)
-	assert.Equal(t, "route-fallback-beta@2.0.0", performPluginRequest(outer, http.MethodGet, "/route-fallback/alpha").Body.String())
-	assert.Contains(t, registry.RoutingErrors()["route-fallback-alpha"], "overlaps plugin route-fallback-owner")
-	assert.NotContains(t, registry.RoutingErrors(), "route-fallback-beta")
-}
-
-func TestPluginPathOwnershipIsExclusiveAcrossMethods(t *testing.T) {
+// Overlapping routes of different plugins are all admitted: per method, Gin
+// answers a literal segment before a parameter.
+func TestPluginPathOwnershipIsExclusivePerMethod(t *testing.T) {
 	alpha := compileRouterPlugin(t, "alpha-owner", "1.0.0", `[
 		{method: "GET", path: "/shared/jobs/:task_id", type: "query", render: "native"}
 	]`)
 	beta := compileRouterPlugin(t, "beta-owner", "1.0.0", `[
 		{method: "POST", path: "/shared/jobs/:task_id", type: "submit"}
 	]`)
-	// Display priority must not change exclusive route ownership.
+	gamma := compileRouterPlugin(t, "gamma-owner", "1.0.0", `[
+		{method: "GET", path: "/shared/jobs/fixed", type: "dynamic"}
+	]`)
+	// Display priority must not change route ownership.
 	alpha.Meta.SortPriority = -100
-	beta.Meta.SortPriority = 100
+	gamma.Meta.SortPriority = 100
 	handlers := testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) {
 		c.String(http.StatusOK, binding.Plugin.Meta.Key)
 	})
-	outer, registry := newPluginRouterTest(t, []*jsplugin.LoadedPlugin{beta, alpha}, handlers)
+	outer, registry := newPluginRouterTest(t, []*jsplugin.LoadedPlugin{gamma, beta, alpha}, handlers)
 	outer.NoRoute(
 		(&pluginRouteDispatcher{registry: registry}).dispatch,
 		func(c *gin.Context) { c.String(http.StatusOK, "fallback") },
 	)
 
-	getResponse := performPluginRequest(outer, http.MethodGet, "/shared/jobs/task-1")
-	assert.Equal(t, "alpha-owner", getResponse.Body.String())
-	postResponse := performPluginRequest(outer, http.MethodPost, "/shared/jobs/task-1")
-	assert.Equal(t, http.StatusMethodNotAllowed, postResponse.Code)
-	assert.Contains(t, registry.RoutingErrors()["beta-owner"], "overlaps plugin alpha-owner")
+	assert.Equal(t, "alpha-owner", performPluginRequest(outer, http.MethodGet, "/shared/jobs/task-1").Body.String())
+	assert.Equal(t, "beta-owner", performPluginRequest(outer, http.MethodPost, "/shared/jobs/task-1").Body.String())
+	assert.Equal(t, "gamma-owner", performPluginRequest(outer, http.MethodGet, "/shared/jobs/fixed").Body.String())
+	assert.Equal(t, http.StatusMethodNotAllowed, performPluginRequest(outer, http.MethodPut, "/shared/jobs/task-1").Code)
+	assert.Empty(t, registry.RoutingErrors())
 }
 
 func TestOnePluginMayOwnMultipleMethodsForSamePath(t *testing.T) {
@@ -533,23 +670,27 @@ func TestOnePluginMayOwnMultipleMethodsForSamePath(t *testing.T) {
 	assert.NotContains(t, registry.RoutingErrors(), "multi-method")
 }
 
-func TestGinWildcardNameConflictRejectsWholePlugin(t *testing.T) {
-	plugin := compileRouterPlugin(t, "wildcard-conflict", "1.0.0", `[
+// The inner router names wildcards by position, so routes may name the same
+// position differently; each reads its own parameter names.
+func TestPositionalWildcardsKeepDeclaredParameterNames(t *testing.T) {
+	plugin := compileRouterPlugin(t, "wildcard-names", "1.0.0", `[
 		{method: "GET", path: "/vendor/:id/first", type: "query", render: "native", taskIdParam: "id"},
 		{method: "GET", path: "/vendor/:name/second", type: "query", render: "native", taskIdParam: "name"}
 	]`)
-	outer, registry := newPluginRouterTest(t, []*jsplugin.LoadedPlugin{plugin}, testPluginRouteHandlers(
-		func(c *gin.Context, _ *jsplugin.RoutingGeneration, _ jsplugin.RouteBinding) {
-			c.String(http.StatusOK, "plugin")
-		},
-	))
+	outer, registry := newPluginRouterTest(t, []*jsplugin.LoadedPlugin{plugin}, func(generation *jsplugin.RoutingGeneration, group jsplugin.RouteGroup) []gin.HandlerFunc {
+		return []gin.HandlerFunc{func(c *gin.Context) {
+			c.String(http.StatusOK, fmt.Sprint(jsplugin.RouteParams(c.Params, group.Bindings[0].Route)))
+		}}
+	})
 	outer.NoRoute(
 		(&pluginRouteDispatcher{registry: registry}).dispatch,
 		func(c *gin.Context) { c.String(http.StatusOK, "fallback") },
 	)
 
-	assert.Equal(t, "fallback", performPluginRequest(outer, http.MethodGet, "/vendor/1/first").Body.String())
-	assert.Contains(t, registry.RoutingErrors()["wildcard-conflict"], "incompatible wildcard names")
+	assert.Equal(t, "map[id:1]", performPluginRequest(outer, http.MethodGet, "/vendor/1/first").Body.String())
+	assert.Equal(t, "map[name:2]", performPluginRequest(outer, http.MethodGet, "/vendor/2/second").Body.String())
+	assert.Equal(t, "map[name:3]", performPluginRequest(outer, http.MethodGet, "/wildcard-names/vendor/3/second").Body.String())
+	assert.Empty(t, registry.RoutingErrors())
 }
 
 func TestGinRegistrationPanicRebuildsWithoutOffender(t *testing.T) {
@@ -568,11 +709,11 @@ func TestGinRegistrationPanicRebuildsWithoutOffender(t *testing.T) {
 		},
 	))
 	normalRegister := builder.registerRoute
-	builder.registerRoute = func(engine *gin.Engine, binding jsplugin.RouteBinding, handlers []gin.HandlerFunc) {
-		if binding.Plugin.Meta.Key == "panic-beta" {
+	builder.registerRoute = func(engine *gin.Engine, group jsplugin.RouteGroup, handlers []gin.HandlerFunc) {
+		if group.Bindings[0].Plugin.Meta.Key == "panic-beta" {
 			panic("registration failed")
 		}
-		normalRegister(engine, binding, handlers)
+		normalRegister(engine, group, handlers)
 	}
 	require.NoError(t, registry.SetGenerationPreparer(builder.prepare))
 	outer.NoRoute(
@@ -590,7 +731,7 @@ func TestGinRegistrationPanicReadmitsPluginBlockedByOffender(t *testing.T) {
 		{method: "GET", path: "/panic/reconsider", type: "dynamic"}
 	]`)
 	beta := compileRouterPlugin(t, "panic-owner-beta", "1.0.0", `[
-		{method: "POST", path: "/panic/reconsider", type: "submit"}
+		{method: "GET", path: "/panic/:name", type: "dynamic"}
 	]`)
 	registry := jsplugin.NewRegistry()
 	require.NoError(t, registry.ReplaceOverrides([]*jsplugin.LoadedPlugin{alpha, beta}))
@@ -601,11 +742,11 @@ func TestGinRegistrationPanicReadmitsPluginBlockedByOffender(t *testing.T) {
 		},
 	))
 	normalRegister := builder.registerRoute
-	builder.registerRoute = func(engine *gin.Engine, binding jsplugin.RouteBinding, handlers []gin.HandlerFunc) {
-		if binding.Plugin.Meta.Key == "panic-owner-alpha" {
+	builder.registerRoute = func(engine *gin.Engine, group jsplugin.RouteGroup, handlers []gin.HandlerFunc) {
+		if group.Bindings[0].Plugin.Meta.Key == "panic-owner-alpha" {
 			panic("registration failed")
 		}
-		normalRegister(engine, binding, handlers)
+		normalRegister(engine, group, handlers)
 	}
 	require.NoError(t, registry.SetGenerationPreparer(builder.prepare))
 	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
@@ -615,7 +756,7 @@ func TestGinRegistrationPanicReadmitsPluginBlockedByOffender(t *testing.T) {
 	activeBeta, ok := registry.Get("panic-owner-beta")
 	require.True(t, ok)
 	assert.Same(t, beta, activeBeta)
-	assert.Equal(t, "panic-owner-beta", performPluginRequest(outer, http.MethodPost, "/panic/reconsider").Body.String())
+	assert.Equal(t, "panic-owner-beta", performPluginRequest(outer, http.MethodGet, "/panic/reconsider").Body.String())
 	assert.Contains(t, registry.RoutingErrors()["panic-owner-alpha"], "registration panic")
 	assert.NotContains(t, registry.RoutingErrors(), "panic-owner-beta")
 }
@@ -635,11 +776,11 @@ func TestUpdatedRegistrationPanicRestoresIncumbent(t *testing.T) {
 	})
 	builder := newPluginGenerationBuilder(outer.Routes(), nil, handlers)
 	normalRegister := builder.registerRoute
-	builder.registerRoute = func(engine *gin.Engine, binding jsplugin.RouteBinding, routeHandlers []gin.HandlerFunc) {
-		if binding.Plugin.Meta.Version == "2.0.0" {
+	builder.registerRoute = func(engine *gin.Engine, group jsplugin.RouteGroup, routeHandlers []gin.HandlerFunc) {
+		if group.Bindings[0].Plugin.Meta.Version == "2.0.0" {
 			panic("new version registration failed")
 		}
-		normalRegister(engine, binding, routeHandlers)
+		normalRegister(engine, group, routeHandlers)
 	}
 	require.NoError(t, registry.SetGenerationPreparer(builder.prepare))
 	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
@@ -748,9 +889,9 @@ func TestProductionPluginNativeQueryTraversesInnerRouter(t *testing.T) {
 	require.True(t, found)
 	authenticatedProductionHandlers := func(
 		generation *jsplugin.RoutingGeneration,
-		binding jsplugin.RouteBinding,
+		group jsplugin.RouteGroup,
 	) []gin.HandlerFunc {
-		production := productionPluginRouteHandlers(generation, binding)
+		production := productionPluginRouteHandlers(generation, group)
 		return []gin.HandlerFunc{
 			production[0],
 			func(c *gin.Context) {
@@ -759,11 +900,11 @@ func TestProductionPluginNativeQueryTraversesInnerRouter(t *testing.T) {
 				common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
 				c.Next()
 			},
-			production[2],
 			production[3],
 			production[4],
 			production[5],
 			production[6],
+			production[7],
 		}
 	}
 	outer, registry := newPluginRouterTest(t, []*jsplugin.LoadedPlugin{kling}, authenticatedProductionHandlers)
@@ -778,6 +919,87 @@ func TestProductionPluginNativeQueryTraversesInnerRouter(t *testing.T) {
 	assert.Contains(t, recorder.Body.String(), `"task_status":"succeed"`)
 	assert.NotContains(t, recorder.Body.String(), "private_upstream_id")
 	assert.NotContains(t, recorder.Body.String(), "secret.example")
+}
+
+// On the built-in plugin whose vendor uses it, a native route takes the
+// gateway token in that vendor's API-key form; everywhere else only the Bearer
+// form works. TokenAuth validates the token whatever form carried it.
+func TestNativeRouteCredentialFormsAuthenticateThroughTokenAuth(t *testing.T) {
+	setupRelayRouterTestDB(t)
+	require.NoError(t, i18n.Init())
+	user := model.User{Username: "native-auth-user", Status: common.UserStatusEnabled, Group: "default", Quota: 100}
+	require.NoError(t, model.DB.Create(&user).Error)
+	allowedIPs := "10.9.8.0/24"
+	require.NoError(t, model.DB.Create(&model.Token{UserId: user.Id, Key: "nativeauthkey", Status: common.TokenStatusEnabled, ExpiredTime: -1, UnlimitedQuota: true}).Error)
+	require.NoError(t, model.DB.Create(&model.Token{UserId: user.Id, Key: "nativeiplimited", Status: common.TokenStatusEnabled, ExpiredTime: -1, UnlimitedQuota: true, AllowIps: &allowedIPs}).Error)
+
+	outer := gin.New()
+	SetTaskPluginProtocolRouter(outer)
+	registry := jsplugin.NewRegistry()
+	for _, key := range []string{"vidu", "google", "doubao"} {
+		source, err := plugins.Source(key)
+		require.NoError(t, err)
+		_, err = registry.RegisterFactory(source, jsplugin.Options{Key: key})
+		require.NoError(t, err)
+	}
+	handlers := func(generation *jsplugin.RoutingGeneration, group jsplugin.RouteGroup) []gin.HandlerFunc {
+		production := productionPluginRouteHandlers(generation, group)
+		return []gin.HandlerFunc{production[0], production[1], production[2], func(c *gin.Context) {
+			c.String(http.StatusOK, "user %d %s", c.GetInt("id"), c.Request.RequestURI)
+		}}
+	}
+	require.NoError(t, registry.SetGenerationPreparer(newPluginGenerationBuilder(outer.Routes(), nil, handlers).prepare))
+	require.Empty(t, registry.RoutingErrors())
+	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
+
+	const operation = "/v1beta/models/veo-3.1-generate-preview/operations/task_1"
+	for _, testCase := range []struct {
+		name          string
+		method        string
+		path          string
+		header, value string
+		status        int
+		requestURI    string
+	}{
+		{name: "Vidu Token form", method: http.MethodPost, path: "/ent/v2/text2video", header: "Authorization", value: "Token nativeauthkey", status: http.StatusOK},
+		{name: "Vidu Token form under /vidu", method: http.MethodPost, path: "/vidu/ent/v2/text2video", header: "Authorization", value: "token nativeauthkey", status: http.StatusOK},
+		{name: "Token form on another plugin", method: http.MethodPost, path: "/doubao/api/v3/contents/generations/tasks", header: "Authorization", value: "Token nativeauthkey", status: http.StatusUnauthorized},
+		{name: "Token form on a host protocol", method: http.MethodPost, path: "/v1/videos", header: "Authorization", value: "Token nativeauthkey", status: http.StatusUnauthorized},
+		{name: "Gemini header form", method: http.MethodPost, path: "/google/v1beta/models/veo-3.1-generate-preview:predictLongRunning", header: "X-Goog-Api-Key", value: "nativeauthkey", status: http.StatusOK},
+		{name: "Gemini header form on a query", method: http.MethodGet, path: "/google" + operation, header: "X-Goog-Api-Key", value: "nativeauthkey", status: http.StatusOK},
+		{name: "Gemini query form", method: http.MethodGet, path: "/google" + operation + "?key=nativeauthkey&alt=json", status: http.StatusOK, requestURI: "/google" + operation + "?alt=json"},
+		{name: "Gemini query form at the vendor path", method: http.MethodGet, path: operation + "?key=nativeauthkey", status: http.StatusOK, requestURI: operation},
+		{name: "Gemini header form on another plugin", method: http.MethodPost, path: "/vidu/ent/v2/text2video", header: "X-Goog-Api-Key", value: "nativeauthkey", status: http.StatusUnauthorized},
+		{name: "Gemini query form on another plugin", method: http.MethodPost, path: "/vidu/ent/v2/text2video?key=nativeauthkey", status: http.StatusUnauthorized},
+		{name: "invalid token in the Token form", method: http.MethodPost, path: "/ent/v2/text2video", header: "Authorization", value: "Token nativewrongkey", status: http.StatusUnauthorized},
+		{name: "empty token in the Token form", method: http.MethodPost, path: "/ent/v2/text2video", header: "Authorization", value: "Token ", status: http.StatusUnauthorized},
+		{name: "invalid token in the Gemini header form", method: http.MethodGet, path: "/google" + operation, header: "X-Goog-Api-Key", value: "nativewrongkey", status: http.StatusUnauthorized},
+		{name: "invalid token in the Gemini query form", method: http.MethodGet, path: "/google" + operation + "?key=nativewrongkey", status: http.StatusUnauthorized},
+		{name: "IP limits apply to the Token form", method: http.MethodPost, path: "/ent/v2/text2video", header: "Authorization", value: "Token nativeiplimited", status: http.StatusForbidden},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			request := httptest.NewRequest(testCase.method, testCase.path, strings.NewReader(`{}`))
+			request.RemoteAddr = "192.0.2.10:1234"
+			if testCase.header != "" {
+				request.Header.Set(testCase.header, testCase.value)
+			}
+			recorder := httptest.NewRecorder()
+			outer.ServeHTTP(recorder, request)
+
+			assert.Equal(t, testCase.status, recorder.Code, recorder.Body.String())
+			if testCase.status == http.StatusOK {
+				requestURI := testCase.requestURI
+				if requestURI == "" {
+					requestURI = testCase.path
+				}
+				assert.Equal(t, fmt.Sprintf("user %d %s", user.Id, requestURI), recorder.Body.String())
+				return
+			}
+			for _, secret := range []string{"nativeauthkey", "nativewrongkey", "nativeiplimited"} {
+				assert.NotContains(t, recorder.Body.String(), secret)
+			}
+		})
+	}
 }
 
 func newPluginRouterTest(
@@ -826,7 +1048,8 @@ func newOuterPluginTestEngine() *gin.Engine {
 func testPluginRouteHandlers(
 	handler func(*gin.Context, *jsplugin.RoutingGeneration, jsplugin.RouteBinding),
 ) pluginRouteHandlers {
-	return func(generation *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) []gin.HandlerFunc {
+	return func(generation *jsplugin.RoutingGeneration, group jsplugin.RouteGroup) []gin.HandlerFunc {
+		binding := group.Bindings[0]
 		return []gin.HandlerFunc{func(c *gin.Context) {
 			pinnedGeneration := generation
 			if state, _ := c.Request.Context().Value(pluginDispatchStateKey{}).(*pluginDispatchState); state != nil && state.generation != nil {
@@ -836,6 +1059,7 @@ func testPluginRouteHandlers(
 				Generation: pinnedGeneration,
 				Plugin:     binding.Plugin,
 				Route:      binding.Route,
+				Candidates: group.Bindings,
 			})
 			handler(c, pinnedGeneration, binding)
 		}}

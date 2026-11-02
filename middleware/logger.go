@@ -39,6 +39,11 @@ func SetUpLogger(server *gin.Engine) {
 			} else if param.Request.URL.RawQuery != "" {
 				query := param.Request.URL.Query().Encode()
 				path = param.Request.URL.EscapedPath() + relaycommon.SanitizeURLForLog("?"+query)
+			} else {
+				// param.Path keeps the query the request arrived with, including a
+				// credential a handler took out of it, as the Gemini API routes do
+				// with ?key=.
+				path = param.Request.URL.Path
 			}
 			return fmt.Sprintf("[GIN] %s | %s | %s | %3d | %13v | %15s | %7s %s\n",
 				param.TimeStamp.Format("2006/01/02 - 15:04:05"),

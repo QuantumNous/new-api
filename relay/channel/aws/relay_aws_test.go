@@ -222,6 +222,21 @@ func TestDoAwsClientRequest_ForwardsThinkingBlockBindingAndBetaList(t *testing.T
 	assert.JSONEq(t, `{"type":"adaptive","display":"summarized","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`, string(payload.Thinking))
 }
 
+// InvokeModel takes the model and streaming from the request, so the
+// pass-through body keeps no copy of either, even when the client repeats them.
+func TestBuildAwsRequestBodyPassThroughDropsRepeatedModelAndStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"a","stream":true,"max_tokens":8,"stream":false,"model":"b"}`))
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	info.ChannelSetting.PassThroughBodyEnabled = true
+
+	body, err := buildAwsRequestBody(c, info, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, `{"max_tokens":8}`, string(body))
+}
+
 func TestDoAwsClientRequest_PreservesSafeguards(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	settings := model_setting.GetGlobalSettings()

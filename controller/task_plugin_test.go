@@ -1077,10 +1077,10 @@ func TestUploadTaskPluginPreflightConflict(t *testing.T) {
 			wantError: "channelType 50 conflicts",
 		},
 		{
-			name:        "force saves despite conflict",
-			key:         "preflight-force",
-			force:       true,
-			wantSuccess: true,
+			name:      "force does not bypass a conflict",
+			key:       "preflight-force",
+			force:     true,
+			wantError: "channelType 50 conflicts",
 		},
 		{
 			name:        "disabled skips preflight",
@@ -1111,8 +1111,9 @@ func TestUploadTaskPluginPreflightConflict(t *testing.T) {
 
 			if testCase.wantSuccess {
 				assert.Contains(t, recorder.Body.String(), `"success":true`)
-				_, err = model.GetTaskPluginVersion(testCase.key, "")
+				stored, err := model.GetTaskPluginVersion(testCase.key, "")
 				require.NoError(t, err)
+				assert.False(t, stored.Enabled)
 				return
 			}
 			assert.Contains(t, recorder.Body.String(), `"success":false`)
@@ -1123,6 +1124,197 @@ func TestUploadTaskPluginPreflightConflict(t *testing.T) {
 			assert.Zero(t, count)
 		})
 	}
+}
+
+func taskPluginControllerRouteSource(key, version, routePath string) string {
+	return fmt.Sprintf(`
+export const meta = {apiVersion: 1, key: %q, name: "Test", version: %q, author: {name: "Test"}, models: ["doc-1"], fetchMode: "per_task",
+	routes: [{method: "POST", path: %q, type: "submit", decode: "createJob", render: "jobCreated"}]};
+export const native = {
+	createJob(ctx) { return {kind: "submit", model: ctx.body.value.model, requestBody: ctx.body.value}; },
+	jobCreated(ctx, task) { return {id: task.task_id}; },
+};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`, key, version, routePath)
+}
+
+func postTaskPluginUpload(t *testing.T, payload map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := common.Marshal(payload)
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task", strings.NewReader(string(body)))
+	context.Request.Header.Set("Content-Type", "application/json")
+	UploadTaskPlugin(context)
+	return recorder
+}
+
+func deleteTaskPluginVersionRequest(t *testing.T, key, version string) *httptest.ResponseRecorder {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Params = gin.Params{{Key: "key", Value: key}, {Key: "version", Value: version}}
+	context.Request = httptest.NewRequest(http.MethodDelete, "/api/plugin/task/"+key+"/versions/"+version, nil)
+	DeleteTaskPluginVersion(context)
+	return recorder
+}
+
+// The plugin list and detail name the declared routes the gateway leaves to
+// the /{key} address, for the version that serves.
+func TestTaskPluginListAndDetailReportSkippedRoutes(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	cleanupTaskPluginControllerRuntime(t, "skipped-probe")
+	// Stands in for the router, which skips a third-party plugin's routes
+	// under the host's namespaces.
+	require.NoError(t, jsplugin.DefaultRegistry.SetGenerationPreparer(func(candidate, _ *jsplugin.RoutingGeneration) (jsplugin.PreparedRoutingGeneration, error) {
+		var skipped []jsplugin.SkippedRoute
+		if plugin, ok := candidate.Get("skipped-probe"); ok {
+			skipped = append(skipped, jsplugin.SkippedRoute{PluginKey: "skipped-probe", Route: plugin.Meta.Routes[0], Reason: "host_namespace"})
+		}
+		return jsplugin.PreparedRoutingGeneration{Generation: candidate.WithSkippedRoutes(skipped)}, nil
+	}))
+	t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.SetGenerationPreparer(nil)) })
+	require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerRouteSource("skipped-probe", "1.0.0", "/v1/videos/probe")}).Body.String(), `"success":true`)
+
+	assert.Equal(t, []string{"POST /v1/videos/probe"}, listTaskPluginItem(t, "skipped-probe").SkippedRoutes)
+	assert.Equal(t, []string{}, listTaskPluginItem(t, "doubao").SkippedRoutes)
+	for key, want := range map[string][]string{"skipped-probe": {"POST /v1/videos/probe"}, "doubao": {}} {
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Params = gin.Params{{Key: "key", Value: key}}
+		context.Request = httptest.NewRequest(http.MethodGet, "/api/plugin/task/"+key, nil)
+		GetTaskPlugin(context)
+		var response struct {
+			Data taskPluginDetail `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		assert.Equal(t, want, response.Data.SkippedRoutes, key)
+	}
+}
+
+// With two enabled plugins whose routing conflicts, the restart order would
+// pick the one that serves. Every path that puts a plugin into service refuses
+// a conflict and changes nothing.
+func TestTaskPluginSwitchOnPathsRejectRoutingConflicts(t *testing.T) {
+	t.Run("switching on a stored plugin", func(t *testing.T) {
+		setupTaskPluginControllerTest(t)
+		cleanupTaskPluginControllerRuntime(t, "conflict-zeta")
+		cleanupTaskPluginControllerRuntime(t, "conflict-alpha")
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("conflict-zeta", "1.0.0", 990)}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("conflict-alpha", "1.0.0", 990), "enabled": false}).Body.String(), `"success":true`)
+
+		recorder := postTaskPluginStatus(t, "conflict-alpha", "", `{"enabled":true}`)
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "channelType 990 conflicts")
+		assert.Contains(t, recorder.Body.String(), "conflict-zeta")
+		stored, err := model.GetTaskPluginVersion("conflict-alpha", "")
+		require.NoError(t, err)
+		assert.False(t, stored.Enabled)
+
+		require.Contains(t, postTaskPluginStatus(t, "conflict-zeta", "", `{"enabled":false}`).Body.String(), `"success":true`)
+		assert.Contains(t, postTaskPluginStatus(t, "conflict-alpha", "", `{"enabled":true}`).Body.String(), `"success":true`)
+		serving, ok := jsplugin.DefaultRegistry.GetByChannelType(990)
+		require.True(t, ok)
+		assert.Equal(t, "conflict-alpha", serving.Meta.Key)
+	})
+
+	t.Run("switching on a factory built-in", func(t *testing.T) {
+		setupTaskPluginFactoryDisableTest(t)
+		cleanupTaskPluginControllerRuntime(t, "kling-rival")
+		require.Contains(t, postTaskPluginStatus(t, "kling", "", `{"enabled":false}`).Body.String(), `"success":true`)
+		// With the built-in off, another plugin may take its channel type.
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("kling-rival", "1.0.0", 50)}).Body.String(), `"success":true`)
+
+		recorder := postTaskPluginStatus(t, "kling", "", `{"enabled":true}`)
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "channelType 50 conflicts")
+		assert.Equal(t, []string{"kling"}, setting.GetTaskPluginDisabledFactoryKeys())
+		_, ok := jsplugin.DefaultRegistry.Get("kling")
+		assert.False(t, ok)
+
+		require.Contains(t, postTaskPluginStatus(t, "kling-rival", "", `{"enabled":false}`).Body.String(), `"success":true`)
+		assert.Contains(t, postTaskPluginStatus(t, "kling", "", `{"enabled":true}`).Body.String(), `"success":true`)
+		_, ok = jsplugin.DefaultRegistry.Get("kling")
+		assert.True(t, ok)
+	})
+
+	t.Run("activating a version", func(t *testing.T) {
+		setupTaskPluginControllerTest(t)
+		cleanupTaskPluginControllerRuntime(t, "activate-conflict")
+		cleanupTaskPluginControllerRuntime(t, "activate-rival")
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("activate-rival", "1.0.0", 991)}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerTestSource("activate-conflict", "1.0.0")}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("activate-conflict", "2.0.0", 991), "enabled": false}).Body.String(), `"success":true`)
+
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Params = gin.Params{{Key: "key", Value: "activate-conflict"}}
+		context.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task/activate-conflict/activate", strings.NewReader(`{"version":"2.0.0"}`))
+		context.Request.Header.Set("Content-Type", "application/json")
+		ActivateTaskPlugin(context)
+
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "activate-rival")
+		active, err := model.GetTaskPluginVersion("activate-conflict", "")
+		require.NoError(t, err)
+		assert.Equal(t, "1.0.0", active.Version)
+		runtimePlugin, ok := jsplugin.DefaultRegistry.Get("activate-conflict")
+		require.True(t, ok)
+		assert.Equal(t, "1.0.0", runtimePlugin.Meta.Version)
+	})
+
+	t.Run("deleting the active version promotes a conflicting one", func(t *testing.T) {
+		setupTaskPluginControllerTest(t)
+		cleanupTaskPluginControllerRuntime(t, "delete-conflict")
+		cleanupTaskPluginControllerRuntime(t, "delete-rival")
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerTestSource("delete-conflict", "1.0.0")}).Body.String(), `"success":true`)
+		// Stored switched on before the rival existed, so its own check passed.
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("delete-conflict", "2.0.0", 992)}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("delete-rival", "1.0.0", 992)}).Body.String(), `"success":true`)
+
+		recorder := deleteTaskPluginVersionRequest(t, "delete-conflict", "1.0.0")
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "delete-rival")
+		active, err := model.GetTaskPluginVersion("delete-conflict", "")
+		require.NoError(t, err)
+		assert.Equal(t, "1.0.0", active.Version)
+
+		// Deleting a version that promotes nothing is unaffected.
+		assert.Contains(t, deleteTaskPluginVersionRequest(t, "delete-conflict", "2.0.0").Body.String(), `"success":true`)
+		versions, err := model.ListTaskPluginVersions("delete-conflict")
+		require.NoError(t, err)
+		require.Len(t, versions, 1)
+		assert.Equal(t, "1.0.0", versions[0].Version)
+	})
+
+	t.Run("deleting or switching off the active version hands back a conflicting built-in", func(t *testing.T) {
+		setupTaskPluginFactoryDisableTest(t)
+		cleanupTaskPluginControllerRuntime(t, "kling")
+		cleanupTaskPluginControllerRuntime(t, "kling-rival")
+		const overrideVersion = "9.9.9-no-channel-type"
+		overrideSource := taskPluginControllerTestSource("kling", overrideVersion)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": overrideSource}).Body.String(), `"success":true`)
+		// The override serving kling does not claim channel type 50, so the rival may.
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("kling-rival", "1.0.0", 50)}).Body.String(), `"success":true`)
+
+		recorder := deleteTaskPluginVersionRequest(t, "kling", overrideVersion)
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "channelType 50 conflicts")
+		recorder = postTaskPluginUpload(t, map[string]any{"source": overrideSource, "enabled": false})
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "channelType 50 conflicts")
+
+		active, err := model.GetTaskPluginVersion("kling", "")
+		require.NoError(t, err)
+		assert.True(t, active.Enabled)
+		runtimePlugin, ok := jsplugin.DefaultRegistry.Get("kling")
+		require.True(t, ok)
+		assert.Equal(t, overrideVersion, runtimePlugin.Meta.Version)
+	})
 }
 
 func TestUploadTaskPluginReportsUnknownMetaField(t *testing.T) {

@@ -100,6 +100,8 @@ export type TaskPluginListItem = {
   factory_meta?: TaskPluginMeta
   channel_count: number
   in_flight_count: number
+  /** Declared routes the gateway serves only under /{key}, as "METHOD /path". */
+  skipped_routes?: string[]
 }
 
 export type TaskPluginUsage = {
@@ -113,6 +115,8 @@ export type TaskPluginDetail = {
   source: string
   layer: 'factory' | 'override'
   has_icon?: boolean
+  /** Declared routes the gateway serves only under /{key}, as "METHOD /path". */
+  skipped_routes?: string[]
   /** Set when the upload put this version into service. */
   pricing_issues?: ModelPricingIssue[]
 }
@@ -194,6 +198,7 @@ export type PluginPreviewField<T> =
   | { state: 'unknown' }
 
 export type PluginPreviewValues = {
+  key: string
   models: string[]
   protocols: TaskPluginProtocolClaim[]
   routes: TaskPluginRoute[]

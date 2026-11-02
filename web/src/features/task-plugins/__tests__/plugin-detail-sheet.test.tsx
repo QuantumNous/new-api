@@ -57,12 +57,16 @@ function makeItem(): TaskPluginListItem {
   }
 }
 
-function renderSheet(metaOverrides: Partial<TaskPluginMeta>) {
+function renderSheet(
+  metaOverrides: Partial<TaskPluginMeta>,
+  skippedRoutes?: string[]
+) {
   const item = makeItem()
   const detail: TaskPluginDetail = {
     meta: { ...item.meta, ...metaOverrides },
     source: '',
     layer: 'factory',
+    skipped_routes: skippedRoutes,
   }
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -231,7 +235,19 @@ describe('PluginDetailSheet host protocol endpoints', () => {
 })
 
 describe('PluginDetailSheet native routes', () => {
-  test('given declared native routes, each renders its method, path and type', async () => {
+  const vendorAndLegacyRoutes: TaskPluginMeta['routes'] = [
+    {
+      method: 'POST',
+      path: '/v1/videos/text2video',
+      type: 'submit',
+      models: ['kling-v1'],
+    },
+    { method: 'GET', path: '/v1/videos/text2video/:task_id', type: 'query' },
+    { method: 'POST', path: '/kling/v1/jobs', type: 'submit' },
+    { method: 'GET', path: '/kl/v1/jobs/:task_id', type: 'query' },
+  ]
+
+  test('given routes only under the plugin key, each renders its method, path and type without an address toggle', async () => {
     renderSheet({
       routes: [
         {
@@ -252,10 +268,119 @@ describe('PluginDetailSheet native routes', () => {
     ).toBeInTheDocument()
     const submitRow = endpointRow('/kling/v1/videos/text2video')
     expect(submitRow.textContent).toContain('POST')
-    expect(submitRow.textContent).toContain('submit')
+    expect(submitRow).toHaveTextContent('Submit request')
     const queryRow = endpointRow('/kling/v1/videos/text2video/:task_id')
     expect(queryRow.textContent).toContain('GET')
-    expect(queryRow.textContent).toContain('query')
+    expect(queryRow).toHaveTextContent('Retrieve result')
+    expect(screen.queryByRole('group', { name: 'Address format' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /Legacy addresses/ })
+    ).toBeNull()
+  })
+
+  test('given vendor paths, each is listed once and the routes under the plugin key fold into collapsed legacy addresses', async () => {
+    const user = userEvent.setup()
+    renderSheet({ routes: vendorAndLegacyRoutes })
+
+    expect(await screen.findByText('/v1/videos/text2video')).toBeVisible()
+    expect(endpointRow('/v1/videos/text2video')).toHaveTextContent(
+      'Submit request'
+    )
+    expect(
+      within(endpointRow('/v1/videos/text2video')).getByRole('button', {
+        name: 'Model scope',
+      })
+    ).toBeVisible()
+    expect(endpointRow('/v1/videos/text2video/:task_id')).toHaveTextContent(
+      'Retrieve result'
+    )
+    expect(screen.queryByText('/kling/v1/videos/text2video')).toBeNull()
+    const legacy = screen.getByRole('button', {
+      name: 'Legacy addresses (2)',
+    })
+    expect(legacy).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('/kling/v1/jobs')).toBeNull()
+
+    legacy.focus()
+    await user.keyboard('{Enter}')
+
+    expect(legacy).toHaveAttribute('aria-expanded', 'true')
+    expect(endpointRow('/kling/v1/jobs')).toHaveTextContent('Submit request')
+    expect(endpointRow('/kl/v1/jobs/:task_id')).toHaveTextContent(
+      'Retrieve result'
+    )
+  })
+
+  test('given the /{key} form is chosen, every listed path and its copy value switch to the /{key} address while legacy addresses stay as declared', async () => {
+    const user = userEvent.setup()
+    const clipboard = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockResolvedValue()
+    renderSheet({ routes: vendorAndLegacyRoutes })
+
+    const forms = await screen.findByRole('group', { name: 'Address format' })
+    const vendorForm = within(forms).getByRole('button', {
+      name: 'Vendor path',
+    })
+    expect(vendorForm).toHaveAttribute('aria-pressed', 'true')
+    await user.click(
+      within(endpointRow('/v1/videos/text2video')).getByRole('button', {
+        name: 'Copy endpoint path',
+      })
+    )
+    expect(clipboard).toHaveBeenLastCalledWith('/v1/videos/text2video')
+
+    const keyForm = within(forms).getByRole('button', { name: '/kling' })
+    keyForm.focus()
+    await user.keyboard('{Enter}')
+
+    expect(keyForm).toHaveAttribute('aria-pressed', 'true')
+    expect(vendorForm).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByText('/v1/videos/text2video')).toBeNull()
+    expect(
+      endpointRow('/kling/v1/videos/text2video/:task_id')
+    ).toHaveTextContent('Retrieve result')
+    await user.click(
+      within(endpointRow('/kling/v1/videos/text2video')).getByRole('button', {
+        name: 'Copy endpoint path',
+      })
+    )
+    expect(clipboard).toHaveBeenLastCalledWith('/kling/v1/videos/text2video')
+    await user.click(
+      screen.getByRole('button', { name: 'Legacy addresses (2)' })
+    )
+    expect(screen.getByText('/kling/v1/jobs')).toBeVisible()
+    expect(screen.queryByText('/kling/kling/v1/jobs')).toBeNull()
+    expect(screen.queryByText('/kling/kl/v1/jobs/:task_id')).toBeNull()
+  })
+
+  test('given a route served only at /{key}, its vendor path is greyed out with a note and its /{key} address is shown normally', async () => {
+    const user = userEvent.setup()
+    renderSheet({ routes: vendorAndLegacyRoutes }, [
+      'POST /v1/videos/text2video',
+    ])
+
+    expect(await screen.findByText('/v1/videos/text2video')).toHaveClass(
+      'text-muted-foreground'
+    )
+    expect(endpointRow('/v1/videos/text2video')).toHaveTextContent(
+      'Only served at the /kling address'
+    )
+    expect(screen.getByText('/v1/videos/text2video/:task_id')).not.toHaveClass(
+      'text-muted-foreground'
+    )
+    expect(endpointRow('/v1/videos/text2video/:task_id')).not.toHaveTextContent(
+      'Only served'
+    )
+
+    await user.click(screen.getByRole('button', { name: '/kling' }))
+
+    expect(screen.getByText('/kling/v1/videos/text2video')).not.toHaveClass(
+      'text-muted-foreground'
+    )
+    expect(endpointRow('/kling/v1/videos/text2video')).not.toHaveTextContent(
+      'Only served'
+    )
   })
 
   test('given no protocols and no routes, the endpoint section falls back to a single placeholder', async () => {
