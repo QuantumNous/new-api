@@ -74,15 +74,15 @@ func GeminiHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError 
 
 	adaptor.Init(info)
 
-	if info.ChannelSetting.SystemPrompt != "" {
+	if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
 		if request.SystemInstructions == nil {
 			request.SystemInstructions = &dto.GeminiChatContent{
 				Parts: []dto.GeminiPart{
-					{Text: info.ChannelSetting.SystemPrompt},
+					{Text: systemPrompt},
 				},
 			}
 		} else if len(request.SystemInstructions.Parts) == 0 {
-			request.SystemInstructions.Parts = []dto.GeminiPart{{Text: info.ChannelSetting.SystemPrompt}}
+			request.SystemInstructions.Parts = []dto.GeminiPart{{Text: systemPrompt}}
 		} else if info.ChannelSetting.SystemPromptOverride {
 			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
 			merged := false
@@ -90,12 +90,12 @@ func GeminiHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError 
 				if request.SystemInstructions.Parts[i].Text == "" {
 					continue
 				}
-				request.SystemInstructions.Parts[i].Text = info.ChannelSetting.SystemPrompt + "\n" + request.SystemInstructions.Parts[i].Text
+				request.SystemInstructions.Parts[i].Text = systemPrompt + "\n" + request.SystemInstructions.Parts[i].Text
 				merged = true
 				break
 			}
 			if !merged {
-				request.SystemInstructions.Parts = append([]dto.GeminiPart{{Text: info.ChannelSetting.SystemPrompt}}, request.SystemInstructions.Parts...)
+				request.SystemInstructions.Parts = append([]dto.GeminiPart{{Text: systemPrompt}}, request.SystemInstructions.Parts...)
 			}
 		}
 	}

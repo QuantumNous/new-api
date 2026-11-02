@@ -25,6 +25,7 @@ import {
   ChevronRight,
   ListOrdered,
   Shuffle,
+  ShieldAlert,
   SlidersHorizontal,
 } from 'lucide-react'
 import { memo, useState, useMemo, useContext } from 'react'
@@ -71,7 +72,6 @@ import {
   isTagAggregateRow,
   type TagRow,
 } from '../lib'
-import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
 import type { Channel } from '../types'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
 import { useChannels } from './channels-provider'
@@ -82,68 +82,6 @@ import {
   type CodexUsageDialogData,
 } from './dialogs/codex-usage-dialog'
 
-/**
- */
-function UpstreamUpdateTags({ channel }: { channel: Channel }) {
-  const { upstream, setCurrentRow } = useChannels()
-  if (!MODEL_FETCHABLE_TYPES.has(channel.type)) {
-    return null
-  }
-
-  const meta = parseUpstreamUpdateMeta(channel.settings)
-  if (!meta.enabled) {
-    return null
-  }
-
-  const addCount = meta.pendingAddModels.length
-  const removeCount = meta.pendingRemoveModels.length
-  if (addCount === 0 && removeCount === 0) {
-    return null
-  }
-
-  return (
-    <div className='flex items-center gap-0.5'>
-      {addCount > 0 && (
-        <StatusBadge
-          label={`+${addCount}`}
-          variant='success'
-          size='sm'
-          copyable={false}
-          className='cursor-pointer'
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation()
-            setCurrentRow(channel)
-            upstream.openModal(
-              channel,
-              meta.pendingAddModels,
-              meta.pendingRemoveModels,
-              'add'
-            )
-          }}
-        />
-      )}
-      {removeCount > 0 && (
-        <StatusBadge
-          label={`-${removeCount}`}
-          variant='danger'
-          size='sm'
-          copyable={false}
-          className='cursor-pointer'
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation()
-            setCurrentRow(channel)
-            upstream.openModal(
-              channel,
-              meta.pendingAddModels,
-              meta.pendingRemoveModels,
-              'remove'
-            )
-          }}
-        />
-      )}
-    </div>
-  )
-}
 
 /**
  * Inline balance/used values longer than this switch to locale-aware compact
@@ -520,7 +458,9 @@ export function useChannelsColumns(
           const settings = parseChannelSettings(channel.setting)
           const isPassThrough = settings.pass_through_body_enabled === true
           const hasParamOverride = Boolean(channel.param_override?.trim())
-
+          const hasModelPrompt =
+            Object.keys(settings.system_prompt_models ?? {}).length > 0 ||
+            Boolean(settings.system_prompt_preset)
           return (
             <div className='flex max-w-full min-w-0 items-center gap-2'>
               <div className='flex max-w-full min-w-0 flex-col gap-1'>
@@ -560,7 +500,20 @@ export function useChannelsColumns(
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  <UpstreamUpdateTags channel={channel} />
+                  {hasModelPrompt && (
+                    <TooltipProvider delay={100}>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <ShieldAlert className='text-destructive h-3.5 w-3.5 flex-shrink-0' />
+                          }
+                        />
+                        <TooltipContent side='top'>
+                          {t('Model-bound system prompt is configured for this channel')}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
                 {channel.remark && (
                   <TooltipProvider delay={200}>

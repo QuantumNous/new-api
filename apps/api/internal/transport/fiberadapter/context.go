@@ -31,6 +31,7 @@ import (
 
 	"github.com/QuantumNous/new-api/internal/common"
 	"github.com/QuantumNous/new-api/internal/transport/contract"
+	"github.com/QuantumNous/new-api/internal/transport/fiberadapter/connwatch"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -221,10 +222,30 @@ func newRequestContext(c *fiber.Ctx, mode dispatchMode, chain []contract.Handler
 	// The request lifetime is built here rather than taken from fasthttp:
 	// RequestCtx.Done() is closed only when the server shuts down (its own doc
 	// says so), never when a client disconnects, so five production mechanisms
-	// that poll it would never fire. The stream writer cancels this when a write
-	// reports the connection gone.
+	// that poll it would never fire. Two signals cancel this context: the
+	// kernel-level watch on the accepted connection (installed by Serve; fires
+	// on FIN/RST within milliseconds), and the stream writer when a write
+	// reports the connection gone -- the fallback wherever the watch is
+	// unavailable.
 	adapted.ctx, adapted.cancel = context.WithCancel(context.Background())
 	adapted.req = adapted.req.WithContext(adapted.ctx)
+
+	// Bridge the connection's disconnect signal into the request lifetime.
+	// The bridge goroutine lives exactly as long as the request: the chain's
+	// own goroutine cancels adapted.ctx when it finishes (see run), which
+	// releases this select either way, and cancel is idempotent, so a
+	// disconnect that races the chain's end is harmless. On a platform or
+	// listener without the watch, Done reports nil and nothing is attached:
+	// write-failure detection remains the only signal, as before.
+	if done := connwatch.Done(c.Context().Conn()); done != nil {
+		go func() {
+			select {
+			case <-done:
+				adapted.cancel()
+			case <-adapted.ctx.Done():
+			}
+		}()
+	}
 
 	adapted.resp = newResponseState(c, mode)
 	return adapted
@@ -545,11 +566,13 @@ func (r *requestContext) SetContextValue(key, value any) {
 //
 // It is a hand-built cancellable context rather than fasthttp's: RequestCtx.Done
 // is closed only on server shutdown, so streaming code polling it would never
-// observe a gone client. The disconnect signal arrives from the stream writer,
-// whose pipe write fails once the server closed the read end. Detection therefore
-// moves from "the read side saw FIN" to "the next write failed". The relay's
-// keep-alive ping (gateway.PingData, on by default) probes an idle stream; the
-// buffered response path writes nothing until the chain returns and has no probe.
+// observe a gone client. The primary disconnect signal is the kernel-level
+// connection watch bridged in newRequestContext, which fires on FIN/RST even
+// while nothing is being written. Where that watch is unavailable (no poller,
+// an unwrapped listener), the fallback is the stream writer's pipe write
+// failing once the server closed the read end; the relay's keep-alive ping
+// (gateway.PingData, on by default) bounds that fallback's delay on an idle
+// stream.
 func (r *requestContext) Context() context.Context { return r.ctx }
 
 // ResponseWriter exposes the staged response as a standard-library writer, for

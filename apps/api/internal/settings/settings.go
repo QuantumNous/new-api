@@ -130,6 +130,15 @@ func ValidateOptionValue(key string, value string) error {
 		}
 		return nil
 	}
+	if key == "ResponseCacheTtlSeconds" || key == "ResponseCacheMaxEntries" || key == "ResponseCacheMaxBodySize" {
+		// Pure numeric check, no domain state: 0 is accepted for TTL/size
+		// (resets to defaults in responsecache.SetConfig), but negative values
+		// are invalid configuration.
+		if n, convErr := strconv.Atoi(value); convErr != nil || n < 0 {
+			return fmt.Errorf("%s must be a non-negative integer", key)
+		}
+		return nil
+	}
 	if key == "SMTPAccountPool" {
 		// Validated here rather than through a domain hook: the rule is a pure
 		// JSON shape check with no catalog state.
@@ -249,6 +258,10 @@ func SeedOptionMap() {
 	common.OptionMap["DefaultCollapseSidebar"] = strconv.FormatBool(common.DefaultCollapseSidebar)
 	common.OptionMap["CheckSensitiveEnabled"] = strconv.FormatBool(sensitive.CheckSensitiveEnabled)
 	common.OptionMap["ModelRequestRateLimitEnabled"] = strconv.FormatBool(rate_limit.ModelRequestRateLimitEnabled)
+	common.OptionMap["ResponseCacheEnabled"] = strconv.FormatBool(common.ResponseCacheEnabled)
+	common.OptionMap["ResponseCacheTtlSeconds"] = strconv.Itoa(common.ResponseCacheTtlSeconds)
+	common.OptionMap["ResponseCacheMaxEntries"] = strconv.Itoa(common.ResponseCacheMaxEntries)
+	common.OptionMap["ResponseCacheMaxBodySize"] = strconv.Itoa(common.ResponseCacheMaxBodySize)
 	common.OptionMap["CheckSensitiveOnPromptEnabled"] = strconv.FormatBool(sensitive.CheckSensitiveOnPromptEnabled)
 	common.OptionMap["CheckSensitiveOnCompletionEnabled"] = strconv.FormatBool(sensitive.CheckSensitiveOnCompletionEnabled)
 	common.OptionMap["StopOnSensitiveEnabled"] = strconv.FormatBool(sensitive.StopOnSensitiveEnabled)
@@ -425,6 +438,8 @@ func ApplyOption(key string, value string) (err error) {
 			sensitive.CheckSensitiveOnCompletionEnabled = boolValue
 		case "ModelRequestRateLimitEnabled":
 			rate_limit.ModelRequestRateLimitEnabled = boolValue
+		case "ResponseCacheEnabled":
+			common.ResponseCacheEnabled = boolValue
 		case "StopOnSensitiveEnabled":
 			sensitive.StopOnSensitiveEnabled = boolValue
 		case "SMTPSSLEnabled":
@@ -475,6 +490,15 @@ func ApplyOption(key string, value string) (err error) {
 	case "SMTPPort":
 		intValue, _ := strconv.Atoi(value)
 		common.SMTPPort = intValue
+	case "ResponseCacheTtlSeconds":
+		intValue, _ := strconv.Atoi(value)
+		common.ResponseCacheTtlSeconds = intValue
+	case "ResponseCacheMaxEntries":
+		intValue, _ := strconv.Atoi(value)
+		common.ResponseCacheMaxEntries = intValue
+	case "ResponseCacheMaxBodySize":
+		intValue, _ := strconv.Atoi(value)
+		common.ResponseCacheMaxBodySize = intValue
 	case "SMTPAccount":
 		common.SMTPAccount = value
 	case "SMTPFrom":

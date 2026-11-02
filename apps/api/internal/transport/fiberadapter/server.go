@@ -2,8 +2,11 @@ package fiberadapter
 
 import (
 	"context"
+	"fmt"
+	"net"
 
 	"github.com/QuantumNous/new-api/internal/transport/contract"
+	"github.com/QuantumNous/new-api/internal/transport/fiberadapter/connwatch"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -64,12 +67,24 @@ func NewEngine(onPanic func(c contract.Context, recovered any)) contract.Engine 
 
 // Serve listens on addr and blocks.
 //
+// The listener is wrapped by connwatch so each accepted connection is
+// watched for a client disconnect at the kernel level; the request context
+// bridges that signal (see newRequestContext). Fiber v2's Listen owns the
+// net.Listen call, which is precisely the hook the wrap needs, so the same
+// steps happen here and the wrapped listener goes through app.Listener --
+// the documented entry point for custom listeners, and the same fasthttp
+// Serve path app.Listen takes, so Shutdown still closes it.
+//
 // A graceful shutdown is not an error under the contract. fasthttp already
 // reports one as a nil error from Serve -- its accept loop translates the closed
 // listener into io.EOF and returns nil -- so unlike the net/http implementation
 // there is no sentinel to swallow here.
 func (e engine) Serve(addr string) error {
-	return e.app.Listen(addr)
+	ln, err := net.Listen(e.app.Config().Network, addr)
+	if err != nil {
+		return fmt.Errorf("failed to listen: %w", err)
+	}
+	return e.app.Listener(connwatch.Listener(ln))
 }
 
 // Shutdown stops accepting connections and waits for in-flight requests until

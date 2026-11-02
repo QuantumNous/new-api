@@ -106,7 +106,7 @@ export function ModelSettings() {
         defaultSection={MODELS_DEFAULT_SECTION}
         getSectionContent={getModelsSectionContent}
         getSectionMeta={getModelsSectionMeta}
-        titleExtras={(t, activeSection) => {
+        titleExtras={(_t, activeSection) => {
           if (activeSection !== 'routing') return null
           return <RoutingTabs />
         }}

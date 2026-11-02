@@ -137,7 +137,7 @@ func DispatchTextRequest(c contract.Context, info *relaycommon.RelayInfo) (newAP
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
-		if info.ChannelSetting.SystemPrompt != "" {
+		if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
 			// 如果有系统提示，则将其添加到请求中
 			request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
 			if ok {
@@ -152,7 +152,7 @@ func DispatchTextRequest(c contract.Context, info *relaycommon.RelayInfo) (newAP
 					// 如果没有系统提示，则添加系统提示
 					systemMessage := dto.Message{
 						Role:    request.GetSystemRoleName(),
-						Content: info.ChannelSetting.SystemPrompt,
+						Content: systemPrompt,
 					}
 					request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
 				} else if info.ChannelSetting.SystemPromptOverride {
@@ -161,13 +161,13 @@ func DispatchTextRequest(c contract.Context, info *relaycommon.RelayInfo) (newAP
 					for i, message := range request.Messages {
 						if message.Role == request.GetSystemRoleName() {
 							if message.IsStringContent() {
-								request.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
+								request.Messages[i].SetStringContent(systemPrompt + "\n" + message.StringContent())
 							} else {
 								contents := message.ParseContent()
 								contents = append([]dto.MediaContent{
 									{
 										Type: dto.ContentTypeText,
-										Text: info.ChannelSetting.SystemPrompt,
+										Text: systemPrompt,
 									},
 								}, contents...)
 								request.Messages[i].Content = contents
@@ -248,7 +248,8 @@ func DispatchTextRequest(c contract.Context, info *relaycommon.RelayInfo) (newAP
 
 // applySystemPromptIfNeeded moved verbatim from relay/chat_completions_via_responses.go.
 func applySystemPromptIfNeeded(c contract.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
-	if info.ChannelSetting.SystemPrompt == "" {
+	systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName)
+	if systemPrompt == "" {
 		return
 	}
 	containSystemPrompt := false
@@ -261,7 +262,7 @@ func applySystemPromptIfNeeded(c contract.Context, info *relaycommon.RelayInfo, 
 	if !containSystemPrompt {
 		systemMessage := dto.Message{
 			Role:    request.GetSystemRoleName(),
-			Content: info.ChannelSetting.SystemPrompt,
+			Content: systemPrompt,
 		}
 		request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
 	} else if info.ChannelSetting.SystemPromptOverride {
@@ -269,13 +270,13 @@ func applySystemPromptIfNeeded(c contract.Context, info *relaycommon.RelayInfo, 
 		for i, message := range request.Messages {
 			if message.Role == request.GetSystemRoleName() {
 				if message.IsStringContent() {
-					message.SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
+					message.SetStringContent(systemPrompt + "\n" + message.StringContent())
 				} else {
 					contents := message.ParseContent()
 					contents = append([]dto.MediaContent{
 						{
 							Type: dto.ContentTypeText,
-							Text: info.ChannelSetting.SystemPrompt,
+							Text: systemPrompt,
 						},
 					}, contents...)
 					request.Messages[i].Content = contents

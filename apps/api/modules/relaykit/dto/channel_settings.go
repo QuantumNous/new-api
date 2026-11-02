@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/QuantumNous/new-api/relaykit/dto/prompt_presets"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
@@ -14,18 +15,45 @@ type ChannelSettings struct {
 	ForceFormat       bool `json:"force_format,omitempty"`
 	ThinkingToContent bool `json:"thinking_to_content,omitempty"`
 	// BypassProxy bypasses the global proxy and connects directly.
-	BypassProxy            bool   `json:"bypass_proxy,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SessionAffinityEnabled bool   `json:"session_affinity_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	BypassProxy            bool              `json:"bypass_proxy,omitempty"`
+	Proxy                  string            `json:"proxy"`
+	PassThroughBodyEnabled bool              `json:"pass_through_body_enabled,omitempty"`
+	SessionAffinityEnabled bool              `json:"session_affinity_enabled,omitempty"`
+	SystemPrompt           string            `json:"system_prompt,omitempty"`
+	SystemPromptOverride   bool              `json:"system_prompt_override,omitempty"`
+	SystemPromptModels     map[string]string `json:"system_prompt_models,omitempty"`
+	// SystemPromptPreset selects a built-in system prompt preset embedded in
+	// the binary. Accepted values: "", "silly_tavern", "tavern_card". When set,
+	// it takes priority over SystemPrompt but is overridden by
+	// SystemPromptModels for specific models.
+	SystemPromptPreset string `json:"system_prompt_preset,omitempty"`
 	// HTTPProtocol controls outbound HTTP version negotiation for this channel.
 	// Accepted values: "", "auto" (default), "http1".
 	HTTPProtocol string `json:"http_protocol,omitempty"`
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+}
+
+// ResolveSystemPrompt returns the effective system prompt for the given model
+// by priority: per-model SystemPromptModels entry first, then the built-in
+// SystemPromptPreset, then the channel-level SystemPrompt. A nil receiver
+// resolves to "".
+func (s *ChannelSettings) ResolveSystemPrompt(modelName string) string {
+	if s == nil {
+		return ""
+	}
+	if s.SystemPromptModels != nil {
+		if p, ok := s.SystemPromptModels[modelName]; ok && p != "" {
+			return p
+		}
+	}
+	if s.SystemPromptPreset != "" {
+		if p := promptpresets.Get(s.SystemPromptPreset); p != "" {
+			return p
+		}
+	}
+	return s.SystemPrompt
 }
 
 const (
