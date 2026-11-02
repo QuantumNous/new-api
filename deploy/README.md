@@ -140,27 +140,95 @@ gh secret set PROD_SERVER_USER -b "root" --repo <owner>/<repo>
 5. **健康检查轮询**：连续 15 次（每 3 秒一次，共 45 秒）探测 `http://127.0.0.1:3000/api/status` 是否返回 `HTTP 200`。
 6. **自动故障回滚**：若 45 秒内未就绪，工作流自动恢复先前的镜像 Tag 并重新拉起旧版本，向 GitHub 汇报失败，防止生产环境陷入不可用状态。
 
-### Caddy 配置重载的已知陷阱
+### Caddy 改配置后必须 restart，reload 不可用
 
 若生产服务器已由 Nginx 切换到 Caddy（见 `../.agents/skills/newapi-production-upgrade/SKILL.md` 第 4 节），
-**不要使用 `systemctl reload caddy`**，该操作在本项目的 unit 配置下必然失败。
+改完 `Caddyfile` 后**用 `systemctl restart caddy`，不要用 `systemctl reload caddy`**。
+
+本项目的 Caddyfile 在全局块里显式关闭了 admin API：
+
+```caddyfile
+{
+	admin off        # 关闭 2019 管理端点，属于有意的加固
+	...
+}
+```
+
+而 `caddy reload` 的实现是把新配置 POST 到 admin API（`localhost:2019/load`）。
+admin 关掉之后，reload 必然失败：
+
+```
+Job for caddy.service failed.
+# journal 中只有：
+error  sending configuration to instance: performing request:
+       Post "http://localhost:2019/load": dial tcp ...: connection refused
+```
+
+确认端口是否真的关着：`ss -tlnH | grep -c ':2019'` 返回 `0`。
+
+**最危险的一点**：失败的 reload 不会杀掉运行中的 caddy。旧进程继续用**旧配置**对外服务，
+站点照常返回 200，很容易误判成"配置已生效"。改完 Caddyfile 务必验证真实生效，
+例如比对页面引用的静态资源指纹是否已切换：
 
 ```bash
-# Caddyfile 中使用了 Cloudflare DNS-01 挑战：
+curl -s https://<domain>/ | grep -oE 'static/js/index\.[a-f0-9]+'   # 与目标容器的一致才算生效
+```
+
+#### 一个叠加原因：CF_API_TOKEN 解析
+
+本项目的 Caddyfile 使用 Cloudflare DNS-01 挑战：
+
+```bash
+# Caddyfile 中：
 #   tls {
 #     dns cloudflare {env.CF_API_TOKEN}
 #   }
 ```
 
-`caddy reload` 会自行重新解析一遍 Caddyfile 以便适配 admin API。而 unit 的
-`ExecStart` 带 `--environ`（由 systemd 以 root 读取 `EnvironmentFile` 后降权到
-`User=caddy`），`ExecReload` 却不带该参数。结果是 reload 子进程解析
-`{env.CF_API_TOKEN}` 时取到空串，provision 阶段直接报：
+unit 的 `ExecStart` 带 `--environ`（由 systemd 以 root 读取 `EnvironmentFile` 后降权到
+`User=caddy`），`ExecReload` 却不带该参数。因此即使 admin API 没有关闭，
+`caddy reload` 自行重新解析 Caddyfile 时 `{env.CF_API_TOKEN}` 也取到空串，
+provision 阶段同样失败：
 
 ```
 loading module 'cloudflare': ... API token '' appears invalid
 ```
 
+#### `caddy validate` 与 reload 失败是两回事
+
+手动跑 `caddy validate` 时若当前 shell 没有 `CF_API_TOKEN`，也会报上面的
+"API token ''"。这是 validate 自己做完整 provision 时展开环境变量取到空串，
+**与 reload 失败原因无关**，排查时不要混淆。validate 前先导入环境变量：
+
+```bash
+set -a; . /etc/caddy/cloudflare.env; set +a
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+> 注意：`/etc/caddy/cloudflare.env` 权限是 `600 root:root`，`caddy` 用户读不到。
+> systemd 的 `EnvironmentFile=` 由 PID 1 以 root 读取后再降权，因此服务本身正常；
+> 但以 `caddy` 身份手动执行命令时需要自己导入。
+
+#### 正确操作与代价
+
+```bash
+systemctl restart caddy    # 走 ExecStart，能拿到 --environ 注入的 token
+```
+
+代价是 443 中断数秒。证书已缓存在本地，不会重新触发 DNS-01 挑战。
+
+#### 安全提醒
+
+unit 的 `ExecStart` 带 `--environ`，caddy 会把继承到的**全部**环境变量明文 echo 进
+journal，其中包括 `CF_API_TOKEN`。排查日志时不要整段复制外泄，若该 token 已出现在
+日志或终端记录中应尽快在 Cloudflare 侧轮换。
+ (docs: remove host-specific names from deploy docs)
+
+```
+loading module 'cloudflare': ... API token '' appears invalid
+```
+
+<<<<<<< HEAD
 失败的 `systemctl reload` **不会杀掉运行中的 caddy**，旧进程继续用旧配置对外服务，
 因此表面上站点仍是 200 —— 容易误判为"配置已生效"。
 
@@ -174,3 +242,20 @@ systemctl restart caddy    # 走 ExecStart，能拿到 --environ 注入的 token
 
 > 另注：unit 的 `--environ` 会把 caddy 继承到的**全部**环境变量明文 echo 到
 > journal，包括 `CF_API_TOKEN`。排查日志时注意不要复制外泄，必要时轮换该 token。
+=======
+这是 `validate` 自己做完整 provision 时展开 `{env.CF_API_TOKEN}` 取到空串，
+**与 `reload` 失败无关**，别把两者混为一谈。validate 前先导入环境变量：
+
+```bash
+set -a; . /etc/caddy/cloudflare.env; set +a
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+> 注意：`/etc/caddy/cloudflare.env` 权限是 `600 root:root`，`caddy` 用户读不到。
+> systemd 的 `EnvironmentFile=` 由 PID 1 以 root 读取后再降权，因此服务本身正常；
+> 但以 `caddy` 身份手动执行命令时需要自己导入。
+
+> 安全提醒：unit 的 `ExecStart` 带 `--environ`，caddy 会把继承到的**全部**环境变量
+> 明文 echo 进 journal，其中包括 `CF_API_TOKEN`。排查日志时不要整段复制外泄，
+> 若该 token 已出现在日志或终端记录中应尽快在 Cloudflare 侧轮换。
+>>>>>>> 43aca3d8b (docs: remove host-specific names from deploy docs)
