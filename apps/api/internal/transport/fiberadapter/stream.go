@@ -445,7 +445,8 @@ func (s *responseState) flush() error {
 // This is the only disconnect signal fasthttp offers: a pipe write fails once the
 // server closed the read end, which it does when the connection went away. The
 // cost is that detection moves from "the read side saw FIN" to "the next write
-// failed"; the 10s keep-alive ping bounds the delay.
+// failed"; the relay's keep-alive ping (on by default) bounds the delay for
+// streamed responses.
 func (s *responseState) markDisconnected() {
 	if s.disconnected {
 		return

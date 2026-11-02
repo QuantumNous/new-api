@@ -108,7 +108,7 @@ func (a *Adaptor) DoRequest(c contract.Context, info *relaycommon.RelayInfo, req
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
-	req, err := http.NewRequest(c.Method(), fullRequestURL, requestBody)
+	req, err := http.NewRequestWithContext(c.Context(), c.Method(), fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}

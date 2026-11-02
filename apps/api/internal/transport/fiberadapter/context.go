@@ -547,8 +547,9 @@ func (r *requestContext) SetContextValue(key, value any) {
 // is closed only on server shutdown, so streaming code polling it would never
 // observe a gone client. The disconnect signal arrives from the stream writer,
 // whose pipe write fails once the server closed the read end. Detection therefore
-// moves from "the read side saw FIN" to "the next write failed", with the 10s
-// keep-alive ping as the upper bound on how long that takes.
+// moves from "the read side saw FIN" to "the next write failed". The relay's
+// keep-alive ping (gateway.PingData, on by default) probes an idle stream; the
+// buffered response path writes nothing until the chain returns and has no probe.
 func (r *requestContext) Context() context.Context { return r.ctx }
 
 // ResponseWriter exposes the staged response as a standard-library writer, for
