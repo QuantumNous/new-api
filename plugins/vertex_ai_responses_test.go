@@ -2,6 +2,8 @@ package plugins_test
 
 import (
 	"encoding/base64"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -51,7 +53,7 @@ func TestVertexAIResponsesProtocol(t *testing.T) {
 			require.True(t, exists, key)
 			assert.NotEmpty(t, schema.Description, key)
 		}
-		assert.Equal(t, []string{"360p", "720p", "1080p", "4k"}, plugin.Meta.UsageSchema["resolution"].Enum)
+		assert.Equal(t, []string{"720p", "1080p", "4k"}, plugin.Meta.UsageSchema["resolution"].Enum)
 		assert.Equal(t, "boolean", plugin.Meta.UsageSchema["generate_audio"].Type)
 	})
 
@@ -459,7 +461,26 @@ func TestVertexAIOmniUsageAndVideoDecoder(t *testing.T) {
 	const omni = "gemini-omni-1.1-flash-preview"
 	usage, err := plugin.Engine.Call(t.Context(), "extractUsage", map[string]any{"upstreamModel": omni, "requestBody": map[string]any{"prompt": "x", "size": "1920x1080"}})
 	require.NoError(t, err)
-	assert.Equal(t, map[string]any{"seconds": float64(8), "resolution": "1080p", "generate_audio": true}, decodePluginValue(t, usage))
+	assert.Equal(t, map[string]any{"input_tokens": float64(0), "output_tokens": float64(0), "video_tokens": float64(8 * 8688)}, decodePluginValue(t, usage))
+	schema, _ := plugin.Meta.UsageForModel(omni)
+	assert.ElementsMatch(t, []string{"input_tokens", "output_tokens", "video_tokens"}, slices.Collect(maps.Keys(schema)))
+
+	// Thinking is billed as text output.
+	completed, err := plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{"upstreamModel": omni}, map[string]any{}, map[string]any{
+		"usage": map[string]any{
+			"total_input_tokens": 12, "total_thought_tokens": 40,
+			"output_tokens_by_modality": []any{map[string]any{"modality": "VIDEO", "tokens": 5793}, map[string]any{"modality": "text", "tokens": 7}},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"input_tokens": float64(12), "output_tokens": float64(47), "video_tokens": float64(5793)}, decodePluginValue(t, completed))
+	// Unreported facts are omitted so the host keeps the submit estimate.
+	partial, err := plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{"upstreamModel": omni}, map[string]any{}, map[string]any{"usage": map[string]any{"total_input_tokens": 12}})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"input_tokens": float64(12)}, decodePluginValue(t, partial))
+	veo, err := plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{"upstreamModel": "veo-3.0-generate-001"}, map[string]any{}, map[string]any{"done": true})
+	require.NoError(t, err)
+	assert.Nil(t, veo)
 
 	decoded, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_video", "decodeRequest"}, map[string]any{
 		"model": "omni-alias", "upstreamModel": omni,
