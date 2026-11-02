@@ -275,6 +275,16 @@ body[data-app-background='true'] [data-slot='app-background'] [data-app-backgrou
     font-family: var(--font-body);
   }
 
+  /* Console pages scroll inside the sidebar inset; never paint a scrollbar
+   * there (WebKit + Firefox + IE/Edge covered). */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Keep sticky headers stable while primitives lock body scrolling. */
   body[data-scroll-locked] {
     overflow: unset !important;

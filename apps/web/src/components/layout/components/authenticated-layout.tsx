@@ -56,9 +56,10 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
               className={cn(
                 '@container/content',
                 'h-[calc(100svh-var(--app-header-height,0px))]',
-                'min-h-0 overflow-hidden',
+                'min-h-0 overflow-y-auto',
                 'flex flex-col',
                 'max-md:mt-0.5 max-md:h-[calc(100svh-var(--app-header-height,0px)-6px)] max-md:rounded-lg',
+                'no-scrollbar',
                 'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
               )}
             >
