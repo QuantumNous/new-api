@@ -1,3 +1,33 @@
+// Gemini Omni bills tokens: input, text output (including thinking) and video
+// output (with audio). A second of output video is billed at these rates
+// (cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing).
+const OMNI_VIDEO_TOKENS_PER_SECOND = { "360p": 1931, "720p": 5792, "1080p": 8688, "4k": 17376 };
+const RESOLUTIONS = Object.keys(OMNI_VIDEO_TOKENS_PER_SECOND);
+const OMNI_USAGE_SCHEMA = {
+  // Input tokens (reported on completion).
+  input_tokens: {
+    type: "number",
+    unit: "token",
+    description: { en: "Input token unit price", zh: "输入 Token 单价" },
+  },
+  // Text output tokens, including thinking (reported on completion).
+  output_tokens: {
+    type: "number",
+    unit: "token",
+    description: { en: "Text output token unit price", zh: "文本输出 Token 单价" },
+  },
+  // Video output tokens (estimated at submit, reported on completion).
+  video_tokens: {
+    type: "number",
+    unit: "token",
+    description: { en: "Video output token unit price", zh: "视频输出 Token 单价" },
+  },
+};
+// Input and text output are only known on completion, which reports them.
+function omniUsageFacts(seconds, resolution) {
+  return { input_tokens: 0, output_tokens: 0, video_tokens: seconds * OMNI_VIDEO_TOKENS_PER_SECOND[resolution] };
+}
+
 export const meta = {
   apiVersion: 1,
   key: "vertex-ai",
@@ -22,21 +52,16 @@ export const meta = {
   auth: { type: "oauth2_jwt" },
   upstreams: ["vendor", "new_api"],
   usageSchema: {
-    // Requested video duration in seconds. Veo allows 4, 6, 8; Gemini Omni allows integers from 3 to 10.
+    // Requested video duration in seconds. Allowed values: 4, 6, 8.
     seconds: {
       type: "number",
       unit: "second",
       description: { en: "Video generation unit price", zh: "视频生成单价" },
     },
-    // Requested video output resolution. 360p is Gemini Omni only.
+    // Requested video output resolution.
     resolution: {
-      enum: ["360p", "720p", "1080p", "4k"],
-      enumLabels: {
-        "360p": { en: "360p", zh: "360p" },
-        "720p": { en: "720p", zh: "720p" },
-        "1080p": { en: "1080p", zh: "1080p" },
-        "4k": { en: "4k", zh: "4k" },
-      },
+      enum: ["720p", "1080p", "4k"],
+      enumLabels: { "720p": { en: "720p", zh: "720p" }, "1080p": { en: "1080p", zh: "1080p" }, "4k": { en: "4k", zh: "4k" } },
       description: { en: "Output video resolution", zh: "输出视频分辨率" },
     },
     // Whether audio is generated. Default true. Audio and muted tiers have different prices.
@@ -50,7 +75,18 @@ export const meta = {
     { label: "8s 720p muted", facts: { seconds: 8, resolution: "720p", generate_audio: false } },
     { label: "8s 1080p audio", facts: { seconds: 8, resolution: "1080p", generate_audio: true } },
     { label: "8s 4k audio", facts: { seconds: 8, resolution: "4k", generate_audio: true } },
-    { label: "8s 360p audio (Gemini Omni)", facts: { seconds: 8, resolution: "360p", generate_audio: true } },
+  ],
+  usageProfiles: [
+    {
+      models: ["gemini-omni-1.1-flash-preview", "gemini-omni-flash-preview"],
+      schema: OMNI_USAGE_SCHEMA,
+      examples: [
+        { label: "3s 360p", facts: omniUsageFacts(3, "360p") },
+        { label: "8s 720p", facts: omniUsageFacts(8, "720p") },
+        { label: "8s 1080p", facts: omniUsageFacts(8, "1080p") },
+        { label: "10s 4k", facts: omniUsageFacts(10, "4k") },
+      ],
+    },
   ],
   // Vertex AI request and response bodies, for clients and for a downstream New
   // API gateway, at both API versions Vertex serves them (google-genai defaults
@@ -107,7 +143,6 @@ function interactionsURL(ctx, interactionId) {
   const url = base + "/v1beta1/projects/" + ctx.auth.projectId + "/locations/global/interactions";
   return interactionId ? url + "/" + encodeURIComponent(interactionId) : url;
 }
-const RESOLUTIONS = meta.usageSchema.resolution.enum;
 function omniResolution(req) {
   const metadata = req.metadata || {};
   const value = String(req.resolution || metadata.resolution || resolution(req.size)).toLowerCase();
@@ -421,15 +456,33 @@ export function parseSubmitResponse(ctx, resp) {
 export function extractUsage(ctx) {
   const req = ctx.requestBody || {};
   const metadata = req.metadata || {};
-  if (omniModel(ctx)) return { seconds: omniDuration(req), resolution: omniResolution(req), generate_audio: true };
+  if (omniModel(ctx)) return omniUsageFacts(omniDuration(req), omniResolution(req));
   return {
     seconds: duration(req),
     resolution: String(metadata.resolution || resolution(req.size) || "720p").toLowerCase(),
     generate_audio: metadata.generateAudio !== false,
   };
 }
-export function extractUsageOnComplete() {
-  return null;
+// Facts Vertex does not report are omitted so the host keeps the submit estimate.
+export function extractUsageOnComplete(ctx, _result, body) {
+  if (!ctx || !omniModel(ctx)) return null;
+  const usage = plainObject(body && body.usage);
+  if (!usage) return null;
+  const facts = {};
+  const inputTokens = Number(usage.total_input_tokens);
+  if (Number.isFinite(inputTokens)) facts.input_tokens = inputTokens;
+  let textTokens = Number(usage.total_thought_tokens);
+  let videoTokens = NaN;
+  for (const item of Array.isArray(usage.output_tokens_by_modality) ? usage.output_tokens_by_modality : []) {
+    const entry = plainObject(item) || {};
+    const tokens = Number(entry.tokens) || 0;
+    const modality = trimmed(entry.modality).toLowerCase();
+    if (modality === "video" || modality === "audio") videoTokens = (videoTokens || 0) + tokens;
+    else textTokens = (textTokens || 0) + tokens;
+  }
+  if (Number.isFinite(textTokens)) facts.output_tokens = textTokens;
+  if (Number.isFinite(videoTokens)) facts.video_tokens = videoTokens;
+  return facts;
 }
 export function buildQueryRequest(ctx) {
   if (omniModel(ctx)) return { url: interactionsURL(ctx, ctx.taskId), method: "GET", headers: requestHeaders(ctx) };
