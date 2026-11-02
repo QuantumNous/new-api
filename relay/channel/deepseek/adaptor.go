@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -199,7 +200,18 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(_ *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	applyDeepSeekV4ResponsesThinkingSuffix(info, &request)
-	return request, nil
+	baseURL := "https://api.deepseek.com"
+	if info != nil && info.ChannelMeta != nil && info.ChannelBaseUrl != "" {
+		baseURL = info.ChannelBaseUrl
+	}
+	upstream, err := url.Parse(baseURL)
+	if err != nil || upstream.Scheme != "https" ||
+		(upstream.Host != "api.deepseek.com" && upstream.Host != "api.deepseek.com:443") ||
+		(request.Reasoning != nil && request.Reasoning.Effort == "none") {
+		return request, nil
+	}
+	request.Input, err = normalizeResponsesReasoningReplay(request.Input)
+	return request, err
 }
 
 func applyDeepSeekV4ResponsesThinkingSuffix(info *relaycommon.RelayInfo, request *dto.OpenAIResponsesRequest) {
