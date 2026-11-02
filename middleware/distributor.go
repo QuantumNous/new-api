@@ -22,8 +22,8 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 )
 
 type ModelRequest struct {
@@ -47,7 +47,7 @@ func Distribute() func(c *gin.Context) {
 		service.AppendTaskPluginIdentityFilter(c, c.GetString("expected_task_plugin_key"))
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
-			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+			abortWithOpenAiMessage(c, invalidRequestStatus(err), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
 		_, pinned, _ := constraints.ResolvedPin()
@@ -100,13 +100,22 @@ func Distribute() func(c *gin.Context) {
 		if pinned || shouldSelectChannel {
 			usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 			var selectErr *service.ChannelSelectError
-			channel, _, selectErr = service.SelectChannelForRequest(c, modelRequest.Model, &service.RetryParam{
-				Ctx:         c,
-				ModelName:   modelRequest.Model,
-				TokenGroup:  usingGroup,
-				RequestPath: c.Request.URL.Path,
-				Retry:       common.GetPointer(0),
-			})
+			if value, exists := c.Get(contextKeyTaskPluginEndpointSelection); exists && !pinned {
+				if selected, ok := value.(taskPluginEndpointSelection); ok && selected.Model == modelRequest.Model && selected.Channel != nil && selected.Channel.Status == common.ChannelStatusEnabled {
+					if matches, _ := model.ChannelSatisfiesFilters(selected.Channel, modelRequest.Model, constraints.Filters); matches {
+						channel = selected.Channel
+					}
+				}
+			}
+			if channel == nil {
+				channel, _, selectErr = service.SelectChannelForRequest(c, modelRequest.Model, &service.RetryParam{
+					Ctx:         c,
+					ModelName:   modelRequest.Model,
+					TokenGroup:  usingGroup,
+					RequestPath: c.Request.URL.Path,
+					Retry:       common.GetPointer(0),
+				})
+			}
 			if selectErr != nil {
 				if selectErr.FilterKind == taskdto.FilterTaskPluginIdentity {
 					logTaskPluginChannelDecision(c, selectErr.Channel, modelRequest.Model, "channel_rejected", "identity_mismatch")
@@ -138,13 +147,11 @@ func noAvailableChannelMessage(c *gin.Context, group, modelName string) string {
 	pinned, ok := value.(jsplugin.PinnedPlugin)
 	if exists && ok && pinned.Plugin != nil {
 		keys := []string{pinned.Plugin.Meta.Key}
-		if value, exists := c.Get(jsplugin.ContextKeyPinnedEndpoint); exists {
-			if endpoint, ok := value.(jsplugin.PinnedEndpoint); ok && len(endpoint.Candidates) > 0 {
-				keys = nil
-				for _, candidate := range endpoint.Candidates {
-					if candidate.Plugin != nil {
-						keys = append(keys, candidate.Plugin.Meta.Key)
-					}
+		if _, candidates := pinnedCandidatePlugins(c); len(candidates) > 0 {
+			keys = nil
+			for _, candidate := range candidates {
+				if candidate != nil {
+					keys = append(keys, candidate.Meta.Key)
 				}
 			}
 		}
@@ -182,27 +189,55 @@ func channelMatchesExpectedTaskPlugin(c *gin.Context, channel *model.Channel, ex
 	return ok && plugin == pinned.Plugin
 }
 
-func pinnedEndpointCandidateForChannel(c *gin.Context, channel *model.Channel, expected string) (jsplugin.ProtocolBinding, bool) {
+// pinnedCandidatePlugins returns the plugins a pinned shared host endpoint, or
+// a native route several plugins declare, may execute, in ascending key order.
+func pinnedCandidatePlugins(c *gin.Context) (*jsplugin.RoutingGeneration, []*jsplugin.LoadedPlugin) {
+	if value, exists := c.Get(jsplugin.ContextKeyPinnedEndpoint); exists {
+		pinned, ok := value.(jsplugin.PinnedEndpoint)
+		if !ok || pinned.Generation == nil || pinned.Plugin == nil {
+			return nil, nil
+		}
+		if len(pinned.Candidates) == 0 {
+			return pinned.Generation, []*jsplugin.LoadedPlugin{pinned.Plugin}
+		}
+		plugins := make([]*jsplugin.LoadedPlugin, 0, len(pinned.Candidates))
+		for _, candidate := range pinned.Candidates {
+			plugins = append(plugins, candidate.Plugin)
+		}
+		return pinned.Generation, plugins
+	}
+	if value, exists := c.Get(jsplugin.ContextKeyPinnedRoute); exists {
+		pinned, ok := value.(jsplugin.PinnedRoute)
+		if !ok || pinned.Generation == nil || len(pinned.Candidates) < 2 {
+			return nil, nil
+		}
+		plugins := make([]*jsplugin.LoadedPlugin, 0, len(pinned.Candidates))
+		for _, candidate := range pinned.Candidates {
+			plugins = append(plugins, candidate.Plugin)
+		}
+		return pinned.Generation, plugins
+	}
+	return nil, nil
+}
+
+// pinnedEndpointCandidateForChannel returns the index, among
+// pinnedCandidatePlugins, of the candidate that executes on channel.
+func pinnedEndpointCandidateForChannel(c *gin.Context, channel *model.Channel, expected string) (int, bool) {
 	if c == nil || channel == nil || expected == "" {
-		return jsplugin.ProtocolBinding{}, false
+		return -1, false
 	}
-	value, exists := c.Get(jsplugin.ContextKeyPinnedEndpoint)
-	pinned, ok := value.(jsplugin.PinnedEndpoint)
-	if !exists || !ok || pinned.Generation == nil || pinned.Plugin == nil {
-		return jsplugin.ProtocolBinding{}, false
-	}
-	candidates := pinned.Candidates
-	if len(candidates) == 0 {
-		candidates = []jsplugin.ProtocolBinding{{Plugin: pinned.Plugin, Protocol: pinned.Protocol, Operation: pinned.Operation, Model: pinned.Model}}
+	generation, candidates := pinnedCandidatePlugins(c)
+	if generation == nil {
+		return -1, false
 	}
 	expectedOwned := false
-	selected := jsplugin.ProtocolBinding{}
+	selected := -1
 	setting := channel.GetSetting()
-	for _, candidate := range candidates {
-		if candidate.Plugin == nil {
+	for index, candidate := range candidates {
+		if candidate == nil {
 			continue
 		}
-		if candidate.Plugin.Meta.Key == expected {
+		if candidate.Meta.Key == expected {
 			expectedOwned = true
 		}
 		if channel.Type == constant.ChannelTypeTaskPlugin || channel.Type == constant.ChannelTypeNewAPI {
@@ -210,17 +245,17 @@ func pinnedEndpointCandidateForChannel(c *gin.Context, channel *model.Channel, e
 			// candidate in generation order executes, so the billing provider
 			// depends only on the channel and the request, never on which
 			// channels an earlier retry attempt happened to try.
-			if selected.Plugin == nil && setting.BindsTaskPlugin(candidate.Plugin.Meta.Key) {
-				selected = candidate
+			if selected < 0 && setting.BindsTaskPlugin(candidate.Meta.Key) {
+				selected = index
 			}
 			continue
 		}
-		plugin, indexed := pinned.Generation.GetByChannelType(channel.Type)
-		if indexed && plugin == candidate.Plugin {
-			selected = candidate
+		plugin, indexed := generation.GetByChannelType(channel.Type)
+		if indexed && plugin == candidate {
+			selected = index
 		}
 	}
-	return selected, expectedOwned && selected.Plugin != nil
+	return selected, expectedOwned && selected >= 0
 }
 
 // getModelFromRequest 从请求中读取模型信息
@@ -236,17 +271,13 @@ func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
 		}
 	}
 	if strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json") {
-		modelRequest, err := getModelFromJSONBody(c)
-		if err != nil {
-			return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
-		}
-		return modelRequest, nil
+		return getModelFromJSONBody(c)
 	}
 
 	var modelRequest ModelRequest
 	err := common.UnmarshalBodyReusable(c, &modelRequest)
 	if err != nil {
-		return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+		return nil, err
 	}
 	return &modelRequest, nil
 }
@@ -260,14 +291,14 @@ func getModelFromJSONBody(c *gin.Context) (*ModelRequest, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !gjson.ValidBytes(requestBody) {
+	if !ojson.ValidBytes(requestBody) {
 		return nil, errors.New("invalid JSON request body")
 	}
 	if countTopLevelJSONKey(requestBody, "model") > 1 {
 		return nil, errors.New("model must be provided once")
 	}
 
-	values := gjson.GetManyBytes(requestBody, "model", "group")
+	values := ojson.GetManyBytes(requestBody, "model", "group")
 	model, err := getJSONStringValue(values[0], "model")
 	if err != nil {
 		return nil, err
@@ -346,11 +377,11 @@ func countTopLevelJSONKey(data []byte, target string) int {
 	return count
 }
 
-func getJSONStringValue(result gjson.Result, field string) (string, error) {
-	if !result.Exists() || result.Type == gjson.Null {
+func getJSONStringValue(result ojson.Result, field string) (string, error) {
+	if !result.Exists() || result.Type == ojson.Null {
 		return "", nil
 	}
-	if result.Type != gjson.String {
+	if result.Type != ojson.String {
 		return "", fmt.Errorf("field %s must be a string", field)
 	}
 	return result.String(), nil
@@ -373,7 +404,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			midjourneyRequest := taskdto.MidjourneyRequest{}
 			err = common.UnmarshalBodyReusable(c, &midjourneyRequest)
 			if err != nil {
-				return nil, false, errors.New(i18n.T(c, i18n.MsgDistributorInvalidMidjourney, map[string]any{"Error": err.Error()}))
+				return nil, false, err
 			}
 			midjourneyModel, mjErr, success := service.GetMjRequestModel(relayMode, &midjourneyRequest)
 			if mjErr != nil {
@@ -461,6 +492,13 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if modelRequest.Model == "" {
 			modelRequest.Model = c.Param("model")
 		}
+	}
+	// The routing name is also the billing name, so a model named in the body
+	// must not replace it: DeepSeek ignores that field.
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/tools/search") {
+		modelRequest.Model = constant.DeepSeekSearchModel
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/tools/fetch") {
+		modelRequest.Model = constant.DeepSeekFetchModel
 	}
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
@@ -560,29 +598,43 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 			types.ErrOptionWithSkipRetry(),
 		)
 	}
-	if candidate, matched := pinnedEndpointCandidateForChannel(c, channel, expectedPlugin); matched {
+	if index, matched := pinnedEndpointCandidateForChannel(c, channel, expectedPlugin); matched {
+		previousPlugin := ""
+		var selected *jsplugin.LoadedPlugin
+		var generation *jsplugin.RoutingGeneration
 		if value, exists := c.Get(jsplugin.ContextKeyPinnedEndpoint); exists {
-			if pinned, ok := value.(jsplugin.PinnedEndpoint); ok && candidate.Plugin != nil && candidate.Plugin != pinned.Plugin {
-				previousPlugin := pinned.Plugin.Meta.Key
+			if pinned, ok := value.(jsplugin.PinnedEndpoint); ok && index < len(pinned.Candidates) && pinned.Candidates[index].Plugin != pinned.Plugin {
+				candidate := pinned.Candidates[index]
+				previousPlugin, selected, generation = pinned.Plugin.Meta.Key, candidate.Plugin, pinned.Generation
 				pinned.Plugin = candidate.Plugin
 				pinned.Protocol = candidate.Protocol
 				pinned.Operation = candidate.Operation
 				c.Set(jsplugin.ContextKeyPinnedEndpoint, pinned)
-				c.Set(jsplugin.ContextKeyPinnedPlugin, jsplugin.PinnedPlugin{Generation: pinned.Generation, Plugin: candidate.Plugin})
-				c.Set("expected_task_plugin_key", candidate.Plugin.Meta.Key)
-				c.Set("task_plugin_key", candidate.Plugin.Meta.Key)
-				c.Set("platform", candidate.Plugin.Meta.Key)
-				logger.LogDebug(
-					c,
-					"task_plugin subsystem=endpoint event=provider_selected generation=%d previous_plugin=%q plugin=%q model=%q channel_id=%d channel_type=%d",
-					pinned.Generation.Number,
-					previousPlugin,
-					candidate.Plugin.Meta.Key,
-					modelName,
-					channel.Id,
-					channel.Type,
-				)
 			}
+		} else if value, exists := c.Get(jsplugin.ContextKeyPinnedRoute); exists {
+			if pinned, ok := value.(jsplugin.PinnedRoute); ok && pinned.Plugin != nil && pinned.Candidates[index].Plugin != pinned.Plugin {
+				candidate := pinned.Candidates[index]
+				previousPlugin, selected, generation = pinned.Plugin.Meta.Key, candidate.Plugin, pinned.Generation
+				pinned.Plugin = candidate.Plugin
+				pinned.Route = candidate.Route
+				c.Set(jsplugin.ContextKeyPinnedRoute, pinned)
+			}
+		}
+		if selected != nil {
+			c.Set(jsplugin.ContextKeyPinnedPlugin, jsplugin.PinnedPlugin{Generation: generation, Plugin: selected})
+			c.Set("expected_task_plugin_key", selected.Meta.Key)
+			c.Set("task_plugin_key", selected.Meta.Key)
+			c.Set("platform", selected.Meta.Key)
+			logger.LogDebug(
+				c,
+				"task_plugin subsystem=endpoint event=provider_selected generation=%d previous_plugin=%q plugin=%q model=%q channel_id=%d channel_type=%d",
+				generation.Number,
+				previousPlugin,
+				selected.Meta.Key,
+				modelName,
+				channel.Id,
+				channel.Type,
+			)
 		}
 	}
 	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)

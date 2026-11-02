@@ -17,10 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm } from 'react-hook-form'
+import { useMemo } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import * as z from 'zod'
 
+import { PasswordInput } from '@/components/password-input'
 import {
   Form,
   FormControl,
@@ -34,8 +35,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import {
+  SettingsControlChildren,
+  SettingsControlGroup,
   SettingsForm,
   SettingsSwitchContent,
   SettingsSwitchItem,
@@ -44,32 +50,14 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
-
-const createEmailSchema = (t: (key: string) => string) =>
-  z.object({
-    SMTPServer: z.string(),
-    SMTPPort: z.string().refine((value) => {
-      const trimmed = value.trim()
-      if (!trimmed) return true
-      return /^\d+$/.test(trimmed)
-    }, t('Port must be a positive integer')),
-    SMTPAccount: z.string(),
-    SMTPFrom: z.string().refine((value) => {
-      const trimmed = value.trim()
-      if (!trimmed) return true
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
-    }, t('Enter a valid email or leave blank')),
-    SMTPToken: z.string(),
-    SMTPSSLEnabled: z.boolean(),
-    SMTPStartTLSEnabled: z.boolean(),
-    SMTPInsecureSkipVerify: z.boolean(),
-    SMTPForceAuthLogin: z.boolean(),
-  })
-
-type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
+import {
+  createEmailSchema,
+  parseResendSender,
+  type EmailFormValues,
+} from './email-settings-schema'
 
 type EmailSettingsSectionProps = {
-  defaultValues: EmailFormValues
+  defaultValues: Omit<EmailFormValues, 'ResendSenderName'>
 }
 
 type SmtpSecurityMode = 'none' | 'ssl_tls' | 'starttls'
@@ -89,13 +77,34 @@ export function EmailSettingsSection({
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const emailSchema = createEmailSchema(t)
+  const initialValues = useMemo(
+    () => ({
+      ...defaultValues,
+      ...parseResendSender(defaultValues.ResendFrom),
+      QuotaRemindThreshold: String(
+        quotaUnitsToDollars(Number(defaultValues.QuotaRemindThreshold) || 0)
+      ),
+    }),
+    [defaultValues]
+  )
 
   const form = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
-    defaultValues,
+    defaultValues: initialValues,
   })
 
-  useResetForm(form, defaultValues)
+  const [provider, smtpSSL, smtpStartTLS, quotaRemindEnabled] = useWatch({
+    control: form.control,
+    name: [
+      'EmailProvider',
+      'SMTPSSLEnabled',
+      'SMTPStartTLSEnabled',
+      'QuotaRemindEnabled',
+    ],
+  })
+  const tokensOnly = getCurrencyDisplay().meta.kind === 'tokens'
+  const isSaving = form.formState.isSubmitting || updateOption.isPending
+  useResetForm(form, isSaving ? undefined : initialValues)
 
   const onSubmit = async (values: EmailFormValues) => {
     const securityMode = getSmtpSecurityMode(values)
@@ -125,185 +134,466 @@ export function EmailSettingsSection({
 
     const updates: Array<{ key: string; value: string | boolean }> = []
 
-    if (sanitized.SMTPServer !== initial.SMTPServer) {
-      updates.push({ key: 'SMTPServer', value: sanitized.SMTPServer })
+    if (values.EmailProvider === 'resend') {
+      const from = values.ResendFrom.trim()
+      const name = values.ResendSenderName.trim()
+      if (
+        from !== initialValues.ResendFrom ||
+        name !== initialValues.ResendSenderName
+      ) {
+        // Quote display names so commas, quotes and angle brackets stay text,
+        // not mailbox syntax. The server also validates the combined address.
+        const escapedName = name.replaceAll('\\', '\\\\').replaceAll('"', '\\"')
+        const sender = name ? `"${escapedName}" <${from}>` : from
+        updates.push({ key: 'ResendFrom', value: sender })
+      }
+      const key = values.ResendApiKey.trim()
+      if (key) updates.push({ key: 'ResendApiKey', value: key })
+    } else {
+      if (sanitized.SMTPServer !== initial.SMTPServer) {
+        updates.push({ key: 'SMTPServer', value: sanitized.SMTPServer })
+      }
+
+      if (sanitized.SMTPPort !== initial.SMTPPort) {
+        updates.push({ key: 'SMTPPort', value: sanitized.SMTPPort })
+      }
+
+      if (sanitized.SMTPAccount !== initial.SMTPAccount) {
+        updates.push({ key: 'SMTPAccount', value: sanitized.SMTPAccount })
+      }
+
+      if (sanitized.SMTPFrom !== initial.SMTPFrom) {
+        updates.push({ key: 'SMTPFrom', value: sanitized.SMTPFrom })
+      }
+
+      if (sanitized.SMTPToken && sanitized.SMTPToken !== initial.SMTPToken) {
+        updates.push({ key: 'SMTPToken', value: sanitized.SMTPToken })
+      }
+
+      if (sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled) {
+        updates.push({
+          key: 'SMTPSSLEnabled',
+          value: sanitized.SMTPSSLEnabled,
+        })
+      }
+
+      if (sanitized.SMTPStartTLSEnabled !== initial.SMTPStartTLSEnabled) {
+        updates.push({
+          key: 'SMTPStartTLSEnabled',
+          value: sanitized.SMTPStartTLSEnabled,
+        })
+      }
+
+      if (sanitized.SMTPInsecureSkipVerify !== initial.SMTPInsecureSkipVerify) {
+        updates.push({
+          key: 'SMTPInsecureSkipVerify',
+          value: sanitized.SMTPInsecureSkipVerify,
+        })
+      }
+
+      if (sanitized.SMTPForceAuthLogin !== initial.SMTPForceAuthLogin) {
+        updates.push({
+          key: 'SMTPForceAuthLogin',
+          value: sanitized.SMTPForceAuthLogin,
+        })
+      }
     }
 
-    if (sanitized.SMTPPort !== initial.SMTPPort) {
-      updates.push({ key: 'SMTPPort', value: sanitized.SMTPPort })
-    }
-
-    if (sanitized.SMTPAccount !== initial.SMTPAccount) {
-      updates.push({ key: 'SMTPAccount', value: sanitized.SMTPAccount })
-    }
-
-    if (sanitized.SMTPFrom !== initial.SMTPFrom) {
-      updates.push({ key: 'SMTPFrom', value: sanitized.SMTPFrom })
-    }
-
-    if (sanitized.SMTPToken && sanitized.SMTPToken !== initial.SMTPToken) {
-      updates.push({ key: 'SMTPToken', value: sanitized.SMTPToken })
-    }
-
-    if (sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled) {
+    if (values.QuotaRemindEnabled !== defaultValues.QuotaRemindEnabled) {
       updates.push({
-        key: 'SMTPSSLEnabled',
-        value: sanitized.SMTPSSLEnabled,
+        key: 'QuotaRemindEnabled',
+        value: values.QuotaRemindEnabled,
       })
     }
 
-    if (sanitized.SMTPStartTLSEnabled !== initial.SMTPStartTLSEnabled) {
+    const threshold = values.QuotaRemindThreshold.trim()
+    if (threshold !== initialValues.QuotaRemindThreshold) {
       updates.push({
-        key: 'SMTPStartTLSEnabled',
-        value: sanitized.SMTPStartTLSEnabled,
+        key: 'QuotaRemindThreshold',
+        value: String(parseQuotaFromDollars(Number(threshold || 0))),
       })
     }
 
-    if (sanitized.SMTPInsecureSkipVerify !== initial.SMTPInsecureSkipVerify) {
-      updates.push({
-        key: 'SMTPInsecureSkipVerify',
-        value: sanitized.SMTPInsecureSkipVerify,
-      })
+    // Save credentials first. A failed configuration write must not activate
+    // the new provider; only the final selector write changes delivery.
+    if (values.EmailProvider !== defaultValues.EmailProvider) {
+      updates.push({ key: 'EmailProvider', value: values.EmailProvider })
     }
 
-    if (sanitized.SMTPForceAuthLogin !== initial.SMTPForceAuthLogin) {
-      updates.push({
-        key: 'SMTPForceAuthLogin',
-        value: sanitized.SMTPForceAuthLogin,
-      })
-    }
-
-    for (const update of updates) {
-      await updateOption.mutateAsync(update)
+    try {
+      for (const update of updates) {
+        await updateOption.mutateAsync(update)
+        if (update.key === 'ResendApiKey') {
+          form.setValue('ResendKeyConfigured', true)
+        }
+      }
+      form.setValue('ResendApiKey', '')
+    } catch (error) {
+      handleServerError(error)
     }
   }
 
   return (
-    <SettingsSection title={t('SMTP Email')}>
+    <SettingsSection title={t('Email & Notifications')}>
       <Form {...form}>
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)} autoComplete='off'>
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
-            saveLabel='Save SMTP settings'
+            isSaving={isSaving}
           />
           <FormField
             control={form.control}
-            name='SMTPServer'
+            name='EmailProvider'
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('SMTP Host')}</FormLabel>
+              <FormItem data-settings-form-span='full'>
+                <FormLabel>{t('Email sending method')}</FormLabel>
                 <FormControl>
-                  <Input
-                    autoComplete='off'
-                    placeholder={t('smtp.example.com')}
-                    {...field}
-                    onChange={(event) => field.onChange(event.target.value)}
-                  />
+                  <RadioGroup
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={isSaving}
+                    className='grid-cols-1 gap-3 sm:grid-cols-2'
+                  >
+                    <Label
+                      className='flex cursor-pointer items-center gap-3 rounded-lg border p-4'
+                      htmlFor='email-provider-smtp'
+                    >
+                      <RadioGroupItem value='smtp' id='email-provider-smtp' />
+                      SMTP
+                    </Label>
+                    <Label
+                      className='flex cursor-pointer items-center gap-3 rounded-lg border p-4'
+                      htmlFor='email-provider-resend'
+                    >
+                      <RadioGroupItem
+                        value='resend'
+                        id='email-provider-resend'
+                      />
+                      Resend API
+                    </Label>
+                  </RadioGroup>
                 </FormControl>
                 <FormDescription>
-                  {t('Hostname or IP of your SMTP provider')}
+                  {t(
+                    'Only the selected method sends email. The other method keeps its settings.'
+                  )}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
+          {provider === 'resend' ? (
+            <>
+              <FormField
+                control={form.control}
+                name='ResendFrom'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Sender email address')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        autoComplete='off'
+                        disabled={isSaving}
+                        type='email'
+                        placeholder='noreply@example.com'
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('The domain must be verified in Resend')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='ResendSenderName'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Sender name')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        autoComplete='off'
+                        disabled={isSaving}
+                        placeholder='New API'
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'The name recipients see. Leave blank to use the site name.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='ResendApiKey'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Resend API key')}</FormLabel>
+                    <FormControl>
+                      <PasswordInput
+                        {...field}
+                        autoComplete='new-password'
+                        disabled={isSaving}
+                        placeholder={t('Enter new token to update')}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank to keep the existing key')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
+          ) : (
+            <>
+              <FormField
+                control={form.control}
+                name='SMTPServer'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('SMTP Host')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        autoComplete='off'
+                        placeholder={t('smtp.example.com')}
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Hostname or IP of your SMTP provider')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <div className='grid gap-6 md:grid-cols-2'>
-            <FormField
-              control={form.control}
-              name='SMTPPort'
-              render={({ field }) => (
+              <div className='grid gap-6 md:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='SMTPPort'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Port')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          autoComplete='off'
+                          type='number'
+                          placeholder='587'
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Common ports include 25, 465, and 587')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <FormItem>
-                  <FormLabel>{t('Port')}</FormLabel>
+                  <FormLabel>{t('SMTP encryption')}</FormLabel>
                   <FormControl>
-                    <Input
-                      autoComplete='off'
-                      type='number'
-                      placeholder='587'
-                      {...field}
-                      onChange={(event) => field.onChange(event.target.value)}
-                    />
+                    <RadioGroup
+                      value={getSmtpSecurityMode({
+                        SMTPSSLEnabled: smtpSSL,
+                        SMTPStartTLSEnabled: smtpStartTLS,
+                      })}
+                      onValueChange={(value) => {
+                        const mode = value as SmtpSecurityMode
+                        form.setValue('SMTPSSLEnabled', mode === 'ssl_tls', {
+                          shouldDirty: true,
+                        })
+                        form.setValue(
+                          'SMTPStartTLSEnabled',
+                          mode === 'starttls',
+                          {
+                            shouldDirty: true,
+                          }
+                        )
+                      }}
+                      className='gap-3'
+                    >
+                      <div className='flex items-center gap-2'>
+                        <RadioGroupItem value='none' id='smtp-security-none' />
+                        <Label
+                          htmlFor='smtp-security-none'
+                          className='cursor-pointer font-normal'
+                        >
+                          {t('No encryption')}
+                        </Label>
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <RadioGroupItem
+                          value='ssl_tls'
+                          id='smtp-security-ssl-tls'
+                        />
+                        <Label
+                          htmlFor='smtp-security-ssl-tls'
+                          className='cursor-pointer font-normal'
+                        >
+                          {t('SSL/TLS')}
+                        </Label>
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <RadioGroupItem
+                          value='starttls'
+                          id='smtp-security-starttls'
+                        />
+                        <Label
+                          htmlFor='smtp-security-starttls'
+                          className='cursor-pointer font-normal'
+                        >
+                          {t('STARTTLS')}
+                        </Label>
+                      </div>
+                    </RadioGroup>
                   </FormControl>
                   <FormDescription>
-                    {t('Common ports include 25, 465, and 587')}
+                    {t('Choose one SMTP transport security mode')}
                   </FormDescription>
-                  <FormMessage />
                 </FormItem>
-              )}
-            />
 
-            <FormItem>
-              <FormLabel>{t('SMTP encryption')}</FormLabel>
-              <FormControl>
-                <RadioGroup
-                  value={getSmtpSecurityMode({
-                    SMTPSSLEnabled: form.watch('SMTPSSLEnabled'),
-                    SMTPStartTLSEnabled: form.watch('SMTPStartTLSEnabled'),
-                  })}
-                  onValueChange={(value) => {
-                    const mode = value as SmtpSecurityMode
-                    form.setValue('SMTPSSLEnabled', mode === 'ssl_tls', {
-                      shouldDirty: true,
-                    })
-                    form.setValue('SMTPStartTLSEnabled', mode === 'starttls', {
-                      shouldDirty: true,
-                    })
-                  }}
-                  className='gap-3'
-                >
-                  <div className='flex items-center gap-2'>
-                    <RadioGroupItem value='none' id='smtp-security-none' />
-                    <Label
-                      htmlFor='smtp-security-none'
-                      className='cursor-pointer font-normal'
-                    >
-                      {t('No encryption')}
-                    </Label>
-                  </div>
-                  <div className='flex items-center gap-2'>
-                    <RadioGroupItem
-                      value='ssl_tls'
-                      id='smtp-security-ssl-tls'
-                    />
-                    <Label
-                      htmlFor='smtp-security-ssl-tls'
-                      className='cursor-pointer font-normal'
-                    >
-                      {t('SSL/TLS')}
-                    </Label>
-                  </div>
-                  <div className='flex items-center gap-2'>
-                    <RadioGroupItem
-                      value='starttls'
-                      id='smtp-security-starttls'
-                    />
-                    <Label
-                      htmlFor='smtp-security-starttls'
-                      className='cursor-pointer font-normal'
-                    >
-                      {t('STARTTLS')}
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </FormControl>
-              <FormDescription>
-                {t('Choose one SMTP transport security mode')}
-              </FormDescription>
-            </FormItem>
+                <FormField
+                  control={form.control}
+                  name='SMTPInsecureSkipVerify'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>
+                          {t('Skip SMTP TLS certificate verification')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Allow self-signed or hostname-mismatched SMTP certificates'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
 
+                <FormField
+                  control={form.control}
+                  name='SMTPForceAuthLogin'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Force AUTH LOGIN')}</FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Force SMTP authentication using AUTH LOGIN method'
+                          )}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='SMTPAccount'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Username')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        autoComplete='off'
+                        placeholder={t('noreply@example.com')}
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Account used when authenticating with the SMTP server'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='SMTPFrom'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('From Address')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        autoComplete='off'
+                        placeholder={t('New API &lt;noreply@example.com&gt;')}
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Display name and email used in outgoing messages')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='SMTPToken'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Password / Access Token')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        autoComplete='off'
+                        type='password'
+                        placeholder={t('Enter new token to update')}
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Leave blank to keep the existing credential')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
+          )}
+          <SettingsControlGroup>
             <FormField
               control={form.control}
-              name='SMTPInsecureSkipVerify'
+              name='QuotaRemindEnabled'
               render={({ field }) => (
                 <SettingsSwitchItem>
                   <SettingsSwitchContent>
-                    <FormLabel>
-                      {t('Skip SMTP TLS certificate verification')}
-                    </FormLabel>
+                    <FormLabel>{t('Low balance reminder')}</FormLabel>
                     <FormDescription>
                       {t(
-                        'Allow self-signed or hostname-mismatched SMTP certificates'
+                        'Remind users through their chosen notification method when their balance drops below the threshold'
                       )}
                     </FormDescription>
                   </SettingsSwitchContent>
@@ -317,94 +607,35 @@ export function EmailSettingsSection({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name='SMTPForceAuthLogin'
-              render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>{t('Force AUTH LOGIN')}</FormLabel>
-                    <FormDescription>
-                      {t('Force SMTP authentication using AUTH LOGIN method')}
-                    </FormDescription>
-                  </SettingsSwitchContent>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </SettingsSwitchItem>
-              )}
-            />
-          </div>
-
-          <FormField
-            control={form.control}
-            name='SMTPAccount'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Username')}</FormLabel>
-                <FormControl>
-                  <Input
-                    autoComplete='off'
-                    placeholder={t('noreply@example.com')}
-                    {...field}
-                    onChange={(event) => field.onChange(event.target.value)}
-                  />
-                </FormControl>
-                <FormDescription>
-                  {t('Account used when authenticating with the SMTP server')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
+            {quotaRemindEnabled && (
+              <SettingsControlChildren>
+                <FormField
+                  control={form.control}
+                  name='QuotaRemindThreshold'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Default reminder threshold')} ({getCurrencyLabel()})
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          autoComplete='off'
+                          type='number'
+                          min={0}
+                          step={tokensOnly ? 1 : 0.000001}
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </SettingsControlChildren>
             )}
-          />
-
-          <FormField
-            control={form.control}
-            name='SMTPFrom'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('From Address')}</FormLabel>
-                <FormControl>
-                  <Input
-                    autoComplete='off'
-                    placeholder={t('New API &lt;noreply@example.com&gt;')}
-                    {...field}
-                    onChange={(event) => field.onChange(event.target.value)}
-                  />
-                </FormControl>
-                <FormDescription>
-                  {t('Display name and email used in outgoing messages')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name='SMTPToken'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Password / Access Token')}</FormLabel>
-                <FormControl>
-                  <Input
-                    autoComplete='off'
-                    type='password'
-                    placeholder={t('Enter new token to update')}
-                    {...field}
-                    onChange={(event) => field.onChange(event.target.value)}
-                  />
-                </FormControl>
-                <FormDescription>
-                  {t('Leave blank to keep the existing credential')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          </SettingsControlGroup>
         </SettingsForm>
       </Form>
     </SettingsSection>

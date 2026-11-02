@@ -21,4 +21,8 @@ type BillingSettler interface {
 
 	// Reserve 将预扣额度补到目标值；若目标值不高于当前预扣额度则不做任何事。
 	Reserve(targetQuota int) error
+
+	// ReserveBeforeSubmit 与 Reserve 相同，用于发起上游请求前价格已经确定的补扣
+	// （例如任务重试换到更贵的渠道）：钱包余额不足时返回额度不足，不记为欠费。
+	ReserveBeforeSubmit(targetQuota int) error
 }

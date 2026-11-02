@@ -316,8 +316,8 @@ function RawExprEditor({ exprString, onChange }: RawExprEditorProps) {
           <div>
             {t('Variables')}: <code>len</code>, <code>p</code>, <code>c</code>,{' '}
             <code>cr</code>, <code>cc</code>, <code>cc1h</code>,{' '}
-            <code>img</code>, <code>img_cr</code>, <code>img_o</code>,{' '}
-            <code>ai</code>, <code>ao</code>
+            <code>cc12h</code>, <code>img</code>, <code>img_cr</code>,{' '}
+            <code>img_o</code>, <code>ai</code>, <code>ao</code>
           </div>
           <div>
             {t('Functions')}: <code>tier(name, value)</code>,{' '}
@@ -733,6 +733,7 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
     cacheReadTokens: 0,
     cacheCreateTokens: 0,
     cacheCreate1hTokens: 0,
+    cacheCreate12hTokens: 0,
     imageTokens: 0,
     imageCacheTokens: 0,
     imageOutputTokens: 0,
@@ -746,10 +747,15 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
   )
 
   const tokens = useMemo(() => {
-    const values = buildEstimatorTokens(promptTokens, completionTokens, extras)
+    const values = buildEstimatorTokens(
+      promptTokens,
+      completionTokens,
+      extras,
+      effectiveExpr
+    )
     if (lengthOverride.trim()) values.len = Number(lengthOverride)
     return values
-  }, [promptTokens, completionTokens, extras, lengthOverride])
+  }, [promptTokens, completionTokens, extras, lengthOverride, effectiveExpr])
 
   const result = useMemo(
     () =>
@@ -901,8 +907,9 @@ Input side:
 - p — input token count (for pricing). Automatically excludes sub-categories priced separately (e.g., if cr is used, cache tokens are deducted from p)
 - len — total input context length (for condition checks). Not affected by auto-exclusion; always reflects the full input length. Use in tier conditions
 - cr — cache-hit (read) token count
-- cc — cache-create token count (5-min TTL)
+- cc — cache-create token count (Claude 5-min TTL, OpenAI 30-min TTL)
 - cc1h — cache-create token count (1-hour TTL, Claude-specific)
+- cc12h — cache-create token count (12-hour TTL, OpenAI-specific)
 - img — image input token count
 - ai — audio input token count
 

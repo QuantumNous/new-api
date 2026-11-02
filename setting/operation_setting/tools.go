@@ -85,6 +85,14 @@ func seedHardcodedToolPrices(prices map[string]float64) {
 	prices["web_search:grok*"] = 5
 	prices["x_search_posts"] = 5
 	prices["x_search_profiles"] = 10
+
+	// DeepSeek Search and Fetch APIs, $0.75 per 1,000 successful requests
+	// each (https://api-docs.deepseek.com/quick_start/pricing), for the
+	// searches and page fetches DeepSeek runs server-side for Claude Code and
+	// Codex traffic. /v1/tools/search and /v1/tools/fetch bill through the
+	// deepseek-search and deepseek-fetch model prices instead.
+	prices["deepseek_search"] = 0.75
+	prices["deepseek_fetch"] = 0.75
 }
 
 // ToolPriceSetting is managed by config.GlobalConfig.Register.

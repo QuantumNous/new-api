@@ -50,6 +50,7 @@ import { TierPriceFields } from './tier-price-fields'
 import { VisualConditionTree } from './visual-condition-tree'
 
 type PricingNodeProps = {
+  imageCount?: boolean
   node: VisualPricingNode
   source: string
   currency: PricingCurrency
@@ -107,6 +108,7 @@ function PricingTierFields(
         </Button>
       </div>
       <TierPriceFields
+        imageCount={props.imageCount}
         currency={props.currency}
         billingUnit={node.billingUnit}
         fixedPrice={node.fixedPrice}
@@ -250,10 +252,13 @@ function PricingRuleCard(
               <span className='flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums'>
                 {tier.billingUnit === 'request' ? (
                   <span>
-                    {t('Price per request')}:{' '}
+                    {props.imageCount
+                      ? t('Price per image')
+                      : t('Price per request')}
+                    :{' '}
                     {formatPricingAmount(tier.fixedPrice, props.currency) ||
                       '—'}
-                    /{t('request')}
+                    /{props.imageCount ? t('image') : t('request')}
                   </span>
                 ) : (
                   <>
@@ -390,6 +395,7 @@ export function VisualBillingDocumentEditor(props: {
         </p>
       )}
       <PricingRuleList
+        imageCount={props.document.imageCount}
         node={props.document.root}
         prefix=''
         source={props.document.source}

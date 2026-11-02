@@ -53,6 +53,33 @@ const HAILUO_01_USAGE_SCHEMA = {
   seconds: VIDEO_SECONDS_FIELD,
 };
 
+// MiniMax serves MiniMax-H3 on its /v2 video API and every other model on /v1.
+const H3_MODEL = "MiniMax-H3";
+const V1_MODELS = [
+  "MiniMax-Hailuo-2.3",
+  "MiniMax-Hailuo-2.3-Fast",
+  "MiniMax-Hailuo-02",
+  "T2V-01-Director",
+  "T2V-01",
+  "I2V-01-Director",
+  "I2V-01-live",
+  "I2V-01",
+  "S2V-01",
+];
+
+// Vendor fields the OpenAI-style requests carry in metadata; the MiniMax body
+// has them at the top level. aigc_watermark is a field of MiniMax's China API
+// (platform.minimaxi.com).
+const V1_METADATA_FIELDS = ["prompt_optimizer", "fast_pretreatment", "aigc_watermark", "first_frame_image", "last_frame_image", "subject_reference"];
+const H3_METADATA_FIELDS = ["aigc_watermark"];
+
+// MiniMax's /v1 status codes for the statuses the gateway answers with
+// (platform.minimax.io/docs/api-reference/errorcode). /v1 answers HTTP 200
+// with the code in base_resp.
+const V1_ERROR_CODES = { 400: 2013, 401: 1004, 403: 1004, 404: 2013, 413: 2013, 429: 1002 };
+// The /v2 error types by HTTP status.
+const V2_ERROR_TYPES = { 401: "authorized_error", 402: "insufficient_balance_error", 403: "authorized_error", 422: "unprocessable_entity_error", 429: "rate_limit_error" };
+
 export const meta = {
   apiVersion: 1,
   key: "hailuo",
@@ -62,22 +89,12 @@ export const meta = {
     en: "MiniMax Hailuo video generation (text-to-video, image-to-video, and MiniMax-H3 multimodal reference)",
     zh: "MiniMax 海螺视频生成（文生视频、图生视频、MiniMax-H3 多模态参考生视频）",
   },
-  version: "1.2.1",
+  version: "1.4.0",
   author: { name: "QuantumNous" },
   channelTypes: [35],
-  models: [
-    "MiniMax-H3",
-    "MiniMax-Hailuo-2.3",
-    "MiniMax-Hailuo-2.3-Fast",
-    "MiniMax-Hailuo-02",
-    "T2V-01-Director",
-    "T2V-01",
-    "I2V-01-Director",
-    "I2V-01-live",
-    "I2V-01",
-    "S2V-01",
-  ],
+  models: [H3_MODEL].concat(V1_MODELS),
   fetchMode: "per_task",
+  upstreams: ["vendor", "new_api"],
   // Fallback for a channel alias that resolves to more than one model: the
   // union of every family's fields and resolutions.
   usageSchema: Object.assign({}, H3_USAGE_SCHEMA, {
@@ -134,11 +151,49 @@ export const meta = {
       examples: [{ label: "01-series 720P 6s", facts: { seconds: 6 } }],
     },
   ],
+  // MiniMax request and response bodies, for clients and for a downstream New
+  // API gateway, at MiniMax's own paths; the gateway also serves each under
+  // /hailuo. The /v1 query reads the task id from the query string, as MiniMax
+  // does. /hailuo/v1/query/video_generation/:task_id is the address earlier
+  // gateways serve it at, which a downstream gateway polls.
+  routes: [
+    { method: "POST", path: "/v1/video_generation", type: "submit", decode: "createTask", render: "taskCreated", models: V1_MODELS },
+    { method: "GET", path: "/v1/query/video_generation", type: "query", taskIdParam: "task_id", render: "taskStatus" },
+    { method: "GET", path: "/hailuo/v1/query/video_generation/:task_id", type: "query", render: "taskStatus" },
+    // The video of a /v1 task, under the file id its query reports.
+    { method: "GET", path: "/v1/files/retrieve", type: "query", taskIdParam: "file_id", render: "fileRetrieve" },
+    { method: "POST", path: "/v2/video_generation", type: "submit", decode: "createH3Task", render: "taskCreated", models: [H3_MODEL] },
+    { method: "GET", path: "/v2/query/video_generation/:task_id", type: "query", render: "h3TaskStatus" },
+  ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
 
 function trimmed(value) {
   return String(value || "").trim();
+}
+
+function plainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+// The members of source that hold a value.
+function definedFields(source, keys) {
+  const fields = {};
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null) fields[key] = source[key];
+  }
+  return fields;
+}
+
+// On a New API channel the same plugin answers on another gateway, which
+// serves the MiniMax wire format under /hailuo, the form every gateway release
+// serves.
+function viaGateway(ctx) {
+  return Boolean(ctx.upstream && ctx.upstream.kind === "new_api");
+}
+
+function apiRoot(ctx) {
+  return ctx.baseUrl + (viaGateway(ctx) ? "/hailuo" : "");
 }
 
 function isModernHailuo(model) {
@@ -173,6 +228,28 @@ function outboundResolution(req, model) {
   return defaultResolution(model);
 }
 
+// The /v1 resolutions of a model and mode, the dearest last: first-and-last-frame
+// generation runs only on MiniMax-Hailuo-02 and without 512P, which only its
+// image-to-video renders (platform.minimax.io/docs/api-reference/video-generation-fl2v).
+// A model the plugin does not list may render any of them.
+function v1Resolutions(model, hasImage, hasLastFrame) {
+  if (!V1_MODELS.includes(model)) return ["512P", "720P", "768P", "1080P"];
+  if (!isModernHailuo(model)) return ["720P"];
+  if (model === "MiniMax-Hailuo-02" && hasImage && !hasLastFrame) return ["512P", "768P", "1080P"];
+  return ["768P", "1080P"];
+}
+
+// The resolution a native /v1 request is reserved for: its own when the model
+// renders it, the model's default when it names none, and otherwise the
+// model's dearest. The video's size settles it.
+function v1NativeResolution(model, body) {
+  const resolutions = v1Resolutions(model, hasHailuoImage({ metadata: body }, false), Boolean(body.last_frame_image));
+  const resolution = trimmed(body.resolution).toUpperCase();
+  if (resolutions.includes(resolution)) return resolution;
+  if ((body.resolution === undefined || body.resolution === null) && V1_MODELS.includes(model)) return defaultResolution(model);
+  return resolutions[resolutions.length - 1];
+}
+
 function hasHailuoImage(req, hasInputReferenceFile) {
   if (hasInputReferenceFile) return true;
   const metadata = (req && req.metadata) || {};
@@ -186,7 +263,6 @@ function hasHailuoImage(req, hasInputReferenceFile) {
   );
 }
 
-const H3_MODEL = "MiniMax-H3";
 const H3_MIN_DURATION = 4;
 const H3_MAX_DURATION = 15;
 const H3_DEFAULT_DURATION = 5;
@@ -195,7 +271,6 @@ const H3_MAX_REFERENCE_IMAGES = 9;
 const H3_MAX_REFERENCE_VIDEOS = 3;
 const H3_MAX_REFERENCE_AUDIOS = 3;
 const H3_MAX_INPUT_VIDEO_SECONDS = 15;
-const H3_RATIOS = ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"];
 
 // MiniMax-H3 speaks the /v2 video generation contract: a multimodal `content`
 // array instead of flat frame fields, an explicit `ratio`, 768P/2K resolutions,
@@ -204,8 +279,8 @@ function isH3(model) {
   return model === H3_MODEL;
 }
 
-function h3Duration(req) {
-  const raw = req.duration;
+// MiniMax-H3 renders 4 to 15 seconds; the host protocols default to 5.
+function h3Duration(raw) {
   if (raw === undefined || raw === null || raw === "") return H3_DEFAULT_DURATION;
   const seconds = Number(raw);
   if (!Number.isInteger(seconds) || seconds < H3_MIN_DURATION || seconds > H3_MAX_DURATION) {
@@ -341,15 +416,37 @@ function h3HasVisualContent(content) {
   });
 }
 
-// ratio is mandatory upstream and `adaptive` is only meaningful when the
-// aspect ratio can be inherited from a visual input.
+// Text alone is text-to-video, which needs a ratio other than adaptive; frames
+// and reference media, audio alone included, default to adaptive
+// (platform.minimax.io/docs/api-reference/video-generation-v2-create).
+function h3TextOnly(content) {
+  return !content.some(function (item) {
+    return item && (item.type === "image_url" || item.type === "video_url" || item.type === "audio_url");
+  });
+}
+
+// The host protocols default text-to-video to 16:9; MiniMax checks a ratio
+// from metadata.
 function h3Ratio(req, content) {
   const metadata = req.metadata || {};
   const ratio = trimmed(metadata.ratio);
-  if (!ratio) return h3HasVisualContent(content) ? "adaptive" : "16:9";
-  if (!H3_RATIOS.includes(ratio)) throw new Error(H3_MODEL + " ratio must be one of " + H3_RATIOS.join(", "));
-  if (ratio === "adaptive" && !h3HasVisualContent(content)) throw new Error(H3_MODEL + " ratio adaptive requires an image or video input");
+  if (!ratio) return h3TextOnly(content) ? "16:9" : "adaptive";
   return ratio;
+}
+
+// The content, duration and resolution MiniMax-H3 renders: those the host
+// protocols build from prompt, images, size and metadata, with defaults, or a
+// native body's own. MiniMax checks a native body; a duration or resolution
+// it leaves out or the plugin cannot read is reserved at the dearest.
+function h3Request(req) {
+  const body = req.vendorBody;
+  if (!body) return { content: h3Content(req), duration: h3Duration(req.duration), resolution: h3Resolution(req) };
+  const missing = body.duration === undefined || body.duration === null || body.duration === "";
+  return {
+    content: validateH3Content(body.content),
+    duration: missing ? H3_MAX_DURATION : h3Duration(body.duration),
+    resolution: trimmed(body.resolution).toUpperCase() === "768P" ? "768P" : "2K",
+  };
 }
 
 function h3QueryTask(body) {
@@ -367,7 +464,8 @@ function h3APIError(body) {
 }
 
 // Older T2V-01*/I2V-01*/S2V-01 official tables disagree on 1080P support (research: 未验证).
-// Keep those models permissive: duration 6 only, resolution optional.
+// Keep those models permissive: duration 6 only, resolution optional. A native
+// request leaves its resolution to MiniMax and passes none.
 function validateHailuoCombo(model, duration, resolution, hasImage) {
   if (isH3(model)) return;
   if (model === "MiniMax-Hailuo-2.3-Fast" && !hasImage) {
@@ -379,6 +477,7 @@ function validateHailuoCombo(model, duration, resolution, hasImage) {
   }
   const n = duration === undefined ? 6 : Number(duration);
   if (n !== 6 && n !== 10) throw new Error(model + " duration must be 6 or 10");
+  if (resolution === undefined) return;
   if (n === 10) {
     if (model === "MiniMax-Hailuo-02" && hasImage) {
       if (resolution !== "768P" && resolution !== "512P") throw new Error("MiniMax-Hailuo-02 duration 10 only allows resolution 768P or 512P");
@@ -437,47 +536,136 @@ function responsesVideoText(ctx) {
   return '<video controls src="' + escaped + '"></video>';
 }
 
+function nativeBody(ctx) {
+  if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
+  const body = plainObject(ctx.body.value);
+  if (!body) throw new Error("request body must be an object");
+  if (typeof body.model !== "string" || !body.model.trim()) throw new Error("model is required");
+  return body;
+}
+
+// MiniMax would call these back with its own task ids, which the gateway does
+// not hand out, so a native request carrying one is refused.
+function refuseCallback(body) {
+  if (body.callback_url !== undefined && body.callback_url !== null) throw new Error("callback_url is not supported; query the task instead");
+}
+
+export const native = {
+  // MiniMax's /v1 body, sent as is. The duration checks of the model the
+  // channel sends run when the request is built; MiniMax checks the rest.
+  createTask: function (ctx) {
+    const body = nativeBody(ctx);
+    refuseCallback(body);
+    const action = hasHailuoImage({ metadata: body }, false) ? "image_to_video" : "text_to_video";
+    return { kind: "submit", model: body.model, action: action, requestBody: { model: body.model, vendorBody: body } };
+  },
+  // MiniMax-H3's own body, sent as is for MiniMax to check.
+  createH3Task: function (ctx) {
+    const body = nativeBody(ctx);
+    refuseCallback(body);
+    if (!Array.isArray(body.content)) throw new Error("content must be an array");
+    const content = validateH3Content(body.content);
+    h3Duration(body.duration);
+    return { kind: "submit", model: body.model, action: h3HasVisualContent(content) ? "image_to_video" : "text_to_video", requestBody: { model: body.model, vendorBody: body } };
+  },
+  // MiniMax answers /v1 with a base_resp envelope and /v2 with a bare task_id.
+  taskCreated: function (ctx, task) {
+    return Object.assign({}, plainObject(task.data) || {}, { task_id: task.task_id });
+  },
+  // A status route answers with the latest MiniMax snapshot. Before the first
+  // poll that is the create response, which has no status, and the poller can
+  // fail a task whose snapshot was still running; both take their status from
+  // the task, so a downstream gateway reads the same state.
+  taskStatus: function (ctx, task) {
+    const data = plainObject(task.data) || {};
+    const output = Object.assign({}, data, { task_id: task.task_id });
+    // The client downloads the video through the gateway, whose
+    // /v1/files/retrieve takes the task id as the file id.
+    if (typeof output.file_id === "string" && trimmed(output.file_id)) output.file_id = task.task_id;
+    if (task.status === "FAILURE") output.status = "Fail";
+    else if (typeof data.status !== "string") output.status = task.status === "IN_PROGRESS" ? "Processing" : "Queueing";
+    return output;
+  },
+  // The /v2 query reply, {task: {...}}. Before the first poll the task holds
+  // the create reply, {task_id}, which is not part of it.
+  h3TaskStatus: function (ctx, task) {
+    const data = plainObject(task.data) || {};
+    if (h3APIError(data)) return data;
+    const current = h3QueryTask(data);
+    const output = Object.assign({}, current || {}, { id: task.task_id });
+    if (task.status === "FAILURE" && output.status !== "failed" && output.status !== "cancelled") {
+      output.status = "failed";
+      output.error = { message: task.fail_reason || "task failed" };
+    } else if (!current) {
+      output.status = task.status === "IN_PROGRESS" ? "running" : "queued";
+    }
+    return current ? Object.assign({}, data, { task: output }) : { task: output };
+  },
+  // /v1/files/retrieve for the file id taskStatus reports: download_url is
+  // the gateway's own address for the video, which takes no credentials.
+  fileRetrieve: function (ctx, task) {
+    const video = (ctx.artifacts || {}).video;
+    if (!video || !trimmed((plainObject(task.data) || {}).file_id)) throw new Error("artifact_not_found");
+    const file = { file_id: task.task_id, filename: task.task_id + ".mp4", purpose: "video_generation", download_url: video.url };
+    if (Number(task.finished_at) > 0) file.created_at = Number(task.finished_at);
+    return { file: file, base_resp: { status_code: 0, status_msg: "success" } };
+  },
+  // /v2 answers with a typed error and the HTTP status; /v1 answers 200 with
+  // MiniMax's status code in base_resp.
+  error: function (ctx, error) {
+    if (String(ctx.path || "").indexOf("/v2/") >= 0) {
+      const type = V2_ERROR_TYPES[error.httpStatus] || (error.httpStatus >= 500 ? "server_error" : "bad_request_error");
+      return { type: "error", error: { type: type, message: error.message, http_code: String(error.httpStatus) }, request_id: error.requestId || "" };
+    }
+    const code = V1_ERROR_CODES[error.httpStatus] || (error.httpStatus >= 500 ? 1013 : 1000);
+    return { __status: 200, __body: { base_resp: { status_code: code, status_msg: error.message } } };
+  },
+};
+
 export function buildSubmitRequest(ctx) {
   const req = ctx.requestBody || {};
   const model = ctx.upstreamModel;
   const metadata = req.metadata || {};
   if (isH3(model)) {
-    const content = h3Content(req);
-    const h3Body = {
-      model: model,
-      content: content,
-      resolution: h3Resolution(req),
-      duration: h3Duration(req),
-      ratio: h3Ratio(req, content),
-    };
-    ["callback_url", "aigc_watermark"].forEach(function (key) {
-      if (metadata[key] !== undefined && metadata[key] !== null) h3Body[key] = metadata[key];
-    });
+    const h3 = h3Request(req);
+    const content = h3.content;
+    const h3Body = req.vendorBody
+      ? Object.assign({}, req.vendorBody, { model: model })
+      : Object.assign(
+          { model: model, content: content, resolution: h3.resolution, duration: h3.duration, ratio: h3Ratio(req, content) },
+          definedFields(metadata, H3_METADATA_FIELDS)
+        );
     return {
-      url: ctx.baseUrl + "/v2/video_generation",
+      url: apiRoot(ctx) + "/v2/video_generation",
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
       body: h3Body,
       action: h3HasVisualContent(content) ? "image_to_video" : "text_to_video",
     };
   }
-  const body = {
-    model: model,
-    prompt: req.prompt || undefined,
-    duration: outboundDuration(req),
-    resolution: outboundResolution(req, model),
-  };
-  ["prompt_optimizer", "fast_pretreatment", "callback_url", "aigc_watermark", "first_frame_image", "last_frame_image", "subject_reference"].forEach(
-    function (key) {
-      if (metadata[key] !== undefined && metadata[key] !== null) body[key] = metadata[key];
-    }
-  );
+  let body;
+  if (req.vendorBody) {
+    const vendorBody = req.vendorBody;
+    const duration = vendorBody.duration === undefined || vendorBody.duration === null ? undefined : Number(vendorBody.duration);
+    validateHailuoCombo(model, duration, undefined, hasHailuoImage({ metadata: vendorBody }, false));
+    body = Object.assign({}, vendorBody, { model: model });
+  } else {
+    body = Object.assign(
+      {
+        model: model,
+        prompt: req.prompt || undefined,
+        duration: outboundDuration(req),
+        resolution: outboundResolution(req, model),
+      },
+      definedFields(metadata, V1_METADATA_FIELDS)
+    );
+  }
   return {
-    url: ctx.baseUrl + "/v1/video_generation",
+    url: apiRoot(ctx) + "/v1/video_generation",
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
     body: body,
-    action: hasHailuoImage(req, false) ? "image_to_video" : "text_to_video",
+    action: hasHailuoImage(req.vendorBody ? { metadata: req.vendorBody } : req, false) ? "image_to_video" : "text_to_video",
   };
 }
 
@@ -502,10 +690,11 @@ export function extractUsage(ctx) {
   const req = ctx.requestBody || {};
   const model = ctx.upstreamModel || req.model;
   if (isH3(model)) {
-    const content = h3Content(req);
+    const h3 = h3Request(req);
+    const content = h3.content;
     return {
-      seconds: h3Duration(req),
-      resolution: h3Resolution(req),
+      seconds: h3.duration,
+      resolution: h3.resolution,
       input_images: content.filter(function (item) {
         return item && item.type === "image_url";
       }).length,
@@ -518,17 +707,19 @@ export function extractUsage(ctx) {
         : 0,
     };
   }
+  if (req.vendorBody) return { seconds: outboundDuration(req.vendorBody), resolution: v1NativeResolution(model, req.vendorBody), input_images: 0, input_video_seconds: 0 };
   return { seconds: outboundDuration(req), resolution: outboundResolution(req, model), input_images: 0, input_video_seconds: 0 };
 }
 
 export function buildQueryRequest(ctx) {
   // Polling carries no relay info; the host fills these identities from the
   // persisted task properties.
-  const path = isH3(ctx.upstreamModel || ctx.model)
-    ? "/v2/query/video_generation/" + encodeURIComponent(ctx.taskId)
-    : "/v1/query/video_generation?task_id=" + encodeURIComponent(ctx.taskId);
+  const taskID = encodeURIComponent(ctx.taskId);
+  let path = "/v1/query/video_generation?task_id=" + taskID;
+  if (isH3(ctx.upstreamModel || ctx.model)) path = "/v2/query/video_generation/" + taskID;
+  else if (viaGateway(ctx)) path = "/v1/query/video_generation/" + taskID;
   return {
-    url: ctx.baseUrl + path,
+    url: apiRoot(ctx) + path,
     method: "GET",
     headers: { Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
   };
@@ -599,6 +790,15 @@ export function buildContentRequest(ctx) {
     const url = h3ArtifactURL(ctx);
     if (!url) throw new Error("artifact_not_found");
     return { url: url, method: ctx.clientRequest.method, credentialless: true };
+  }
+  // The gateway resolves its MiniMax file itself and serves the video as the
+  // artifact of its own task.
+  if (viaGateway(ctx)) {
+    return {
+      url: ctx.baseUrl + "/v1/tasks/" + encodeURIComponent(ctx.upstreamTaskId) + "/artifacts/video/content",
+      method: ctx.clientRequest.method,
+      headers: { Authorization: "Bearer " + ctx.apiKey },
+    };
   }
   // MiniMax serves v1 videos only through the signed download_url that
   // /v1/files/retrieve returns. The link is signed for GET, so a HEAD client
@@ -783,6 +983,8 @@ protocols.openai_video = {
     const duration = req.duration === undefined ? undefined : Number(req.duration);
     const comboModel = ctx.upstreamModel || ctx.model;
     validateHailuoCombo(comboModel, duration, outboundResolution(req, comboModel), hasImage);
+    // vendorBody carries a native request's own body; clients of this protocol cannot set it.
+    delete req.vendorBody;
     return {
       kind: "submit",
       model: ctx.model,

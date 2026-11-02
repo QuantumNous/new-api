@@ -63,6 +63,7 @@ function DataTableRowInner<TData>({
 
   return (
     <TableRow
+      data-sortable-id={row.id}
       data-state={isSelected ? 'selected' : undefined}
       className={className}
       {...rowProps}

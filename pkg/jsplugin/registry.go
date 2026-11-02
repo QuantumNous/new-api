@@ -132,14 +132,6 @@ func (m Meta) PreservesJSONOrder() bool {
 	return slices.Contains(m.RequiredCapabilities, CapabilityJSONOrder)
 }
 
-// AcceptsAutoDuration reports whether the plugin declared duration-auto@1:
-// request validation lets a duration of -1, the vendor's "the model picks the
-// length", through to its hooks. The plugin reserves the longest duration the
-// model can produce and settles the task on the usage the vendor reports.
-func (m Meta) AcceptsAutoDuration() bool {
-	return slices.Contains(m.RequiredCapabilities, CapabilityDurationAuto)
-}
-
 // JSONTextMember names the member of a hook result (a decoded requestBody, a
 // request descriptor's body) that the host also takes as JSON text, for a
 // plugin that preserves JSON order; it is empty for other plugins.
@@ -746,6 +738,12 @@ func (r *Registry) prepareGeneration(
 	if err != nil {
 		return nil, nil, err
 	}
+	// The preparer decides admission by whether a key is built in, which the
+	// filtered factory passed here no longer tells for a switched-off key.
+	generation.factoryKeys = pluginMapKeys(r.factory)
+	for key := range factory {
+		generation.factoryKeys[key] = struct{}{}
+	}
 	if r.preparer != nil {
 		prepared, prepareErr := r.preparer(generation, current)
 		if prepareErr != nil {
@@ -1304,6 +1302,14 @@ func normalizeV1Meta(meta *Meta) error {
 	}
 	if !ValidPluginKey(meta.Key) {
 		return fmt.Errorf("plugin meta key must match %s", pluginKeyPattern)
+	}
+	// The host serves the plugin's routes under /{key}, so the key must not
+	// name a host namespace.
+	if meta.Key == "api" || slices.ContainsFunc(reservedRouteNamespaces, func(namespace string) bool {
+		first, _, _ := strings.Cut(strings.TrimPrefix(namespace, "/"), "/")
+		return first == meta.Key
+	}) {
+		return fmt.Errorf("plugin meta key %q is a reserved path segment", meta.Key)
 	}
 	if !pluginVersionPattern.MatchString(meta.Version) {
 		return fmt.Errorf("plugin meta version must be semver")

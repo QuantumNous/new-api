@@ -34,12 +34,16 @@ interface ProfileSettingsCardProps {
   profile: UserProfile | null
   loading: boolean
   onProfileUpdate: () => void
+  quotaRemindEnabled: boolean
+  quotaRemindThreshold: number
 }
 
 export function ProfileSettingsCard({
   profile,
   loading,
   onProfileUpdate,
+  quotaRemindEnabled,
+  quotaRemindThreshold,
 }: ProfileSettingsCardProps) {
   const { t } = useTranslation()
 
@@ -67,7 +71,12 @@ export function ProfileSettingsCard({
       iconTone='info'
       disableHoverEffect
     >
-      <NotificationTab profile={profile} onUpdate={onProfileUpdate} />
+      <NotificationTab
+        profile={profile}
+        onUpdate={onProfileUpdate}
+        quotaRemindEnabled={quotaRemindEnabled}
+        quotaRemindThreshold={quotaRemindThreshold}
+      />
     </TitledCard>
   )
 }

@@ -140,6 +140,27 @@ describe('conditional task price display', () => {
     ).toBe(true)
   })
 
+  test.each([
+    {
+      expression: 'tier("base", u("count") * 0 + u("seconds") * 0.7)',
+      unitPrices: { seconds: 0.7 },
+    },
+    {
+      expression: 'tier("free", u("count") * 0 + u("seconds") * 0)',
+      unitPrices: { count: 0, seconds: 0 },
+    },
+  ])(
+    'shows a usage price that is zero in every tier only when no other usage price is set: $expression',
+    ({ expression, unitPrices }) => {
+      expect(
+        getTaskPricingDisplayTiers(expression, {
+          count: { type: 'number', unit: 'count' },
+          seconds: { type: 'number', unit: 'second' },
+        }).map((tier) => tier.unitPrices)
+      ).toEqual([unitPrices])
+    }
+  )
+
   test('treats a nested condition on an undeclared enum value as never matching', () => {
     const tiers = getTaskPricingDisplayTiers(expression, {
       ...schema,

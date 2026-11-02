@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/shopspring/decimal"
 )
 
@@ -126,16 +127,21 @@ const (
 	CacheWriteNone      CacheWriteMode = "none"
 	CacheWriteStandard  CacheWriteMode = "standard"
 	CacheWriteClaudeTTL CacheWriteMode = "claude_ttl"
+	CacheWriteOpenAITTL CacheWriteMode = "openai_ttl"
 )
 
 // ResolveCacheWriteMode describes display and migration only. A generic engine
 // fallback is not configured cache-write pricing. Only Claude names inherit the
-// legacy dual-TTL rule; other models retain their configured write price.
+// legacy dual-TTL rule; a configured write price on a GPT name also prices the
+// OpenAI 12h write, and other models retain their configured write price.
 func ResolveCacheWriteMode(name string, configured PricingValues) CacheWriteMode {
 	if strings.Contains(strings.ToLower(name), "claude") {
 		return CacheWriteClaudeTTL
 	}
 	if _, exists := configured["CreateCacheRatio"]; exists {
+		if strings.Contains(strings.ToLower(name), "gpt") {
+			return CacheWriteOpenAITTL
+		}
 		return CacheWriteStandard
 	}
 	return CacheWriteNone
@@ -342,8 +348,9 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 		var expressionBody strings.Builder
 		expressionBody.WriteString(`tier("base", p * `)
 		expressionBody.WriteString(base.String())
-		// Retain explicit zero coefficients for included categories. Only
-		// Claude names inherit the relay's 1h / 5m factor of 6 / 3.75.
+		// Retain explicit zero coefficients for included categories. Claude
+		// names inherit the relay's 1h / 5m factor and GPT names its 12h / 30m
+		// factor.
 		for _, lane := range []struct {
 			variable, key string
 			multiplier    float64
@@ -351,14 +358,16 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 			{"c", "CompletionRatio", 1},
 			{"cr", "CacheRatio", 1},
 			{"cc", "CreateCacheRatio", 1},
-			{"cc1h", "CreateCacheRatio", 6 / 3.75},
+			{"cc1h", "CreateCacheRatio", types.ClaudeCacheCreation1hMultiplier},
+			{"cc12h", "CreateCacheRatio", types.OpenAICacheCreation12hMultiplier},
 			{"img", "ImageRatio", 1},
 		} {
 			if ordinaryAudio && !preview.BillingDetails.AudioTextBranches && lane.variable != "c" {
 				continue
 			}
 			if lane.variable == "cc" && preview.CacheWriteMode == CacheWriteNone ||
-				lane.variable == "cc1h" && preview.CacheWriteMode != CacheWriteClaudeTTL {
+				lane.variable == "cc1h" && preview.CacheWriteMode != CacheWriteClaudeTTL ||
+				lane.variable == "cc12h" && preview.CacheWriteMode != CacheWriteOpenAITTL {
 				continue
 			}
 			multiplier := effective[lane.key].(float64)

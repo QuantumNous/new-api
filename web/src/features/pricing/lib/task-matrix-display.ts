@@ -56,10 +56,35 @@ export function getTaskMatrixDisplayTiers(
   }))
 }
 
+/** A usage price that is zero in every tier is left out while another usage
+ * price is set, so a plugin field the model does not bill on is not listed as
+ * free. A model priced at zero throughout keeps its zero prices.
+ */
+export function getTaskPricingDisplayTiers(
+  expression: string | null | undefined,
+  schema: BillingUsageSchema | null | undefined
+): ParsedTaskTier[] {
+  const tiers = readTaskPricingTiers(expression, schema)
+  const pricedFields = new Set(
+    tiers.flatMap((tier) =>
+      Object.keys(tier.unitPrices).filter((field) => tier.unitPrices[field] > 0)
+    )
+  )
+  if (pricedFields.size === 0) return tiers
+  return tiers.map((tier) => ({
+    ...tier,
+    unitPrices: Object.fromEntries(
+      Object.entries(tier.unitPrices).filter(([field]) =>
+        pricedFields.has(field)
+      )
+    ),
+  }))
+}
+
 /** Display explicit conditions for a fallback only when its complement is unique.
  * Unlike the editor matrix, unrelated schema fields do not expand the price table.
  */
-export function getTaskPricingDisplayTiers(
+function readTaskPricingTiers(
   expression: string | null | undefined,
   schema: BillingUsageSchema | null | undefined
 ): ParsedTaskTier[] {

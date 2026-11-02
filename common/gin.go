@@ -10,16 +10,20 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/pkg/errors"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/net/http/httpproxy"
 )
 
 const KeyRequestBody = "key_request_body"
 const KeyBodyStorage = "key_body_storage"
+const keyBodyReadError = "key_body_read_error"
 
 var ErrRequestBodyTooLarge = errors.New("request body too large")
 
@@ -58,6 +62,12 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 		}
 	}
 
+	// A failed read has consumed and closed the body. Later readers get the
+	// same error instead of "http: invalid Read on closed Body".
+	if readErr, failed := c.Get(keyBodyReadError); failed {
+		return nil, readErr.(error)
+	}
+
 	maxMB := constant.MaxRequestBodyMB
 	if maxMB <= 0 {
 		maxMB = 128 // 默认 128MB
@@ -72,8 +82,9 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 
 	if err != nil {
 		if IsRequestBodyTooLargeError(err) {
-			return nil, errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxMB))
+			err = errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxMB))
 		}
+		c.Set(keyBodyReadError, err)
 		return nil, err
 	}
 
@@ -165,6 +176,62 @@ func GetContextKey(c *gin.Context, key constant.ContextKey) (any, bool) {
 
 func GetContextKeyString(c *gin.Context, key constant.ContextKey) string {
 	return c.GetString(string(key))
+}
+
+// presetUpstreamHosts are the hosts, with any port, of the default base URLs
+// new-api presets for channel types. They are public endpoints, so errors keep
+// them readable. The port keeps a configured localhost upstream apart from the
+// Ollama preset.
+var presetUpstreamHosts = sync.OnceValue(func() map[string]struct{} {
+	hosts := make(map[string]struct{}, len(constant.ChannelBaseURLs))
+	for _, baseURL := range constant.ChannelBaseURLs {
+		if parsed, err := url.Parse(baseURL); err == nil && parsed.Host != "" {
+			hosts[strings.ToLower(parsed.Host)] = struct{}{}
+		}
+	}
+	return hosts
+})
+
+// isPresetUpstreamHost reports whether address points at one of the preset
+// default base URL hosts.
+func isPresetUpstreamHost(address string) bool {
+	rawURL := strings.TrimSpace(address)
+	if !strings.Contains(rawURL, "://") {
+		rawURL = "//" + rawURL
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	_, preset := presetUpstreamHosts()[strings.ToLower(parsed.Host)]
+	return preset
+}
+
+// UpstreamAddresses returns the addresses masked in errors shown to users: the
+// upstream the admin configured for the selected channel and the proxies its
+// requests may go through. Preset default base URLs are public and stay
+// readable. The origin actually requested only counts for a configured base
+// URL or an Advanced Custom channel, whose routes may target absolute URLs;
+// other adaptors build official endpoints themselves.
+func UpstreamAddresses(c *gin.Context) []string {
+	// A channel without its own proxy dials through the environment proxy.
+	environmentProxy := httpproxy.FromEnvironment()
+	candidates := []string{environmentProxy.HTTPProxy, environmentProxy.HTTPSProxy}
+	if setting, ok := GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting); ok {
+		candidates = append(candidates, setting.Proxy)
+	}
+	baseURL := strings.TrimSpace(GetContextKeyString(c, constant.ContextKeyChannelBaseUrl))
+	candidates = append(candidates, baseURL)
+	if GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeAdvancedCustom || (baseURL != "" && !isPresetUpstreamHost(baseURL)) {
+		candidates = append(candidates, GetContextKeyString(c, constant.ContextKeyUpstreamRequestOrigin))
+	}
+	addresses := make([]string, 0, len(candidates))
+	for _, address := range candidates {
+		if strings.TrimSpace(address) != "" && !isPresetUpstreamHost(address) {
+			addresses = append(addresses, address)
+		}
+	}
+	return addresses
 }
 
 func GetContextKeyInt(c *gin.Context, key constant.ContextKey) int {

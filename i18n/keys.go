@@ -33,7 +33,6 @@ const (
 	MsgDistributorGetChannelFailed             = "distributor.get_channel_failed"
 	MsgDistributorNoAvailableChannel           = "distributor.no_available_channel"
 	MsgDistributorNoAvailableChannelTaskPlugin = "distributor.no_available_channel_task_plugin"
-	MsgDistributorInvalidMidjourney            = "distributor.invalid_midjourney_request"
 	MsgDistributorInvalidParseModel            = "distributor.invalid_request_parse_model"
 
 	MsgQuotaUserInsufficient             = "quota.user_insufficient"
@@ -41,6 +40,8 @@ const (
 	MsgQuotaSubscriptionInsufficient     = "quota.subscription_insufficient"
 	MsgRelayModelPriceNotConfigured      = "relay.model_price_not_configured"
 	MsgRelayModelPriceNotConfiguredAdmin = "relay.model_price_not_configured_admin"
+	MsgRelayTaskUsagePriceUnsupported    = "relay.task_usage_price_unsupported"
+	MsgRelaySharedTaskPriceNeedsOverride = "relay.shared_task_price_needs_override"
 	MsgRelayTaskChannelDisabled          = "relay.task_channel_disabled"
 	MsgRelayGroupSaturated               = "relay.group_saturated"
 	MsgRelayGroupUpstreamSaturated       = "relay.group_upstream_saturated"
@@ -64,6 +65,25 @@ const (
 	MsgEmailPasswordResetLink         = "email.password_reset.link"
 	MsgEmailPasswordResetLinkFallback = "email.password_reset.link_fallback"
 	MsgEmailPasswordResetValidity     = "email.password_reset.validity"
+
+	MsgEmailBindingSubject     = "email.binding.subject"
+	MsgEmailBindingNewIntro    = "email.binding.new_intro"
+	MsgEmailBindingOldIntro    = "email.binding.old_intro"
+	MsgEmailBindingCode        = "email.binding.code"
+	MsgEmailBindingNewValidity = "email.binding.new_validity"
+	MsgEmailBindingOldValidity = "email.binding.old_validity"
+
+	MsgEmailSecurityNoticeSubject = "email.security_notice.subject"
+	MsgEmailSecurityNoticeChanged = "email.security_notice.changed"
+	MsgEmailSecurityNoticeAdvice  = "email.security_notice.advice"
+
+	MsgSecurityEventPasswordUpdated      = "email.security_event.password_updated"
+	MsgSecurityEventEmailChangeRequested = "email.security_event.email_change_requested"
+	MsgSecurityEventEmailChanged         = "email.security_event.email_changed"
+	MsgSecurityEventEmailConfirmed       = "email.security_event.email_confirmed"
+	MsgSecurityEventLoginLinked          = "email.security_event.login_linked"
+	MsgSecurityEventLoginUnlinked        = "email.security_event.login_unlinked"
+	MsgSecurityEventWeChatLinked         = "email.security_event.wechat_linked"
 )
 
 // Low-quota notices, in the recipient's saved language
@@ -75,7 +95,8 @@ const (
 	MsgNotifyQuotaLowEmail             = "notify.quota_low_email"
 )
 
-// Channel notices sent to the root user and model update watchers
+// Channel notices sent to administrators who receive them and to model update
+// watchers
 const (
 	MsgChannelNotifyDisabledSubject = "channel.notify_disabled_subject"
 	MsgChannelNotifyDisabledContent = "channel.notify_disabled_content"

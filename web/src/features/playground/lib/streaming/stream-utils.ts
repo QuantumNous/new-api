@@ -73,9 +73,10 @@ export function parseStreamMessageUpdates(data: string): StreamMessageUpdate[] {
   }
 
   const updates: StreamMessageUpdate[] = []
+  const reasoning = delta.reasoning_content ?? delta.reasoning
 
-  if (delta.reasoning_content) {
-    updates.push({ type: 'reasoning', chunk: delta.reasoning_content })
+  if (reasoning) {
+    updates.push({ type: 'reasoning', chunk: reasoning })
   }
 
   if (delta.content) {

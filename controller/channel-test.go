@@ -30,8 +30,8 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/samber/lo"
-	"github.com/tidwall/gjson"
 
 	"github.com/gin-gonic/gin"
 )
@@ -677,16 +677,16 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	if jsonBytes[0] != '{' && jsonBytes[0] != '[' {
 		return ""
 	}
-	errVal := gjson.GetBytes(jsonBytes, "error")
-	if !errVal.Exists() || errVal.Type == gjson.Null {
+	errVal := ojson.GetBytes(jsonBytes, "error")
+	if !errVal.Exists() || errVal.Type == ojson.Null {
 		return ""
 	}
 
-	message := gjson.GetBytes(jsonBytes, "error.message").String()
+	message := ojson.GetBytes(jsonBytes, "error.message").String()
 	if message == "" {
-		message = gjson.GetBytes(jsonBytes, "error.error.message").String()
+		message = ojson.GetBytes(jsonBytes, "error.error.message").String()
 	}
-	if message == "" && errVal.Type == gjson.String {
+	if message == "" && errVal.Type == ojson.String {
 		message = errVal.String()
 	}
 	if message == "" {
@@ -1090,8 +1090,9 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 // stops promptly. mode selects the channel set: an empty mode falls back to the
 // configured monitor ChannelTestMode (scheduled behavior), while a manual
 // trigger passes ChannelTestModeScheduledAll to test every channel. When notify
-// is set the root user is notified on completion. Cross-instance execution is
-// guarded by the system task per-type lock, so no process-local guard is needed.
+// is set, the administrators who receive channel notices are notified on
+// completion. Cross-instance execution is guarded by the system task per-type
+// lock, so no process-local guard is needed.
 func runChannelTestTask(ctx context.Context, mode string, notify bool, report func(processed, total int)) (channelTestSummary, error) {
 	testUserID, err := resolveChannelTestUserID(nil)
 	if err != nil {
@@ -1109,8 +1110,9 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	concurrency := operation_setting.GetMonitorSetting().ChannelTestConcurrency
 	summary := performChannelTests(ctx, selected, testUserID, allowDisable, concurrency, report)
 	if notify && (ctx == nil || ctx.Err() == nil) {
-		lang := service.RootUserLanguage()
-		service.NotifyRootUser(dto.NotifyTypeChannelTest, i18n.Translate(lang, i18n.MsgChannelTestCompletedSubject), i18n.Translate(lang, i18n.MsgChannelTestCompletedContent))
+		service.NotifyChannelWatchers(dto.NotifyTypeChannelTest, func(lang string) (string, string) {
+			return i18n.Translate(lang, i18n.MsgChannelTestCompletedSubject), i18n.Translate(lang, i18n.MsgChannelTestCompletedContent)
+		})
 	}
 	return summary, nil
 }

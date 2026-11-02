@@ -54,11 +54,15 @@ func TestToolPriceHardcodedFallbacksSurviveMissingOperatorConfig(t *testing.T) {
 		{"web_search", "grok-4", 5},
 		{"x_search_posts", "", 5},
 		{"x_search_profiles", "", 10},
+		{"deepseek_search", "", 0.75},
+		{"deepseek_fetch", "", 0.75},
+		{"deepseek_search", "claude-sonnet-4-5", 0.75},
 	}
 	for _, tt := range tests {
 		assert.Equal(t, tt.want, GetToolPriceForModel(tt.tool, tt.model), "%s for %q", tt.tool, tt.model)
 	}
 	assert.True(t, IsBuiltInToolPriceKey("bing_web_search"))
+	assert.True(t, IsBuiltInToolPriceKey("deepseek_fetch"))
 	assert.True(t, IsBuiltInToolPriceKey("google_search_grounded_prompt"), "seeded only for model prefixes")
 }
 

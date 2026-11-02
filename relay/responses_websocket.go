@@ -28,6 +28,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -107,6 +108,9 @@ type responsesWSSession struct {
 	stateMu       sync.Mutex
 	current       *responsesWSCallState
 
+	// clientWriteBudget is guarded by clientWriteMu.
+	clientWriteBudget helper.StreamWriteBudget
+
 	// These fields belong to the serial request worker and describe the actual
 	// established connection. Per-request token/user data is never stored here.
 	lastResponseID  string
@@ -181,6 +185,7 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner Res
 func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []byte, envelope responsesWSCreateEvent, streamID string, requestID string) {
 	create, parseErr := normalizeResponsesWSCreateEvent(message, envelope, streamID)
 	var apiErr *types.NewAPIError
+	var upstreamURLs []string
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			apiErr = types.NewError(fmt.Errorf("responses websocket request panic: %v", recovered), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
@@ -193,14 +198,14 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 		// as a normal closure; shutdown itself takes neither lock.
 		outgoing := state.terminal
 		if apiErr != nil {
-			if body, err := buildResponsesWSErrorPayload(envelope.EventID, streamID, apiErr); err == nil {
+			if body, err := buildResponsesWSErrorPayload(envelope.EventID, streamID, apiErr, upstreamURLs...); err == nil {
 				outgoing = &responsesWSMessage{kind: websocket.TextMessage, body: body}
 			}
 		}
 		s.clientWriteMu.Lock()
 		s.stateMu.Lock()
 		if outgoing != nil {
-			if err := s.client.SetWriteDeadline(time.Now().Add(responsesWSWriteTimeout)); err != nil {
+			if err := s.client.SetWriteDeadline(s.clientWriteBudget.Deadline(time.Now(), len(outgoing.body))); err != nil {
 				state.closeCode = websocket.CloseInternalServerErr
 			} else if err := s.client.WriteMessage(outgoing.kind, outgoing.body); err != nil {
 				state.closeCode = websocket.CloseInternalServerErr
@@ -224,7 +229,9 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 		}
 		c.Request.Body = io.NopCloser(bytes.NewReader(create.Body))
 		c.Request.ContentLength = int64(len(create.Body))
-		return s.runCall(c, state, create)
+		callErr := s.runCall(c, state, create)
+		upstreamURLs = common.UpstreamAddresses(c)
+		return callErr
 	})
 	if apiErr != nil && (apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden) {
 		state.closeCode = websocket.ClosePolicyViolation
@@ -348,6 +355,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				appconstant.ContextKeyChannelParamOverride, appconstant.ContextKeyChannelHeaderOverride, appconstant.ContextKeyChannelOrganization,
 				appconstant.ContextKeyChannelAutoBan, appconstant.ContextKeyChannelModelMapping, appconstant.ContextKeyChannelStatusCodeMapping,
 				appconstant.ContextKeyChannelIsMultiKey, appconstant.ContextKeyChannelMultiKeyIndex, appconstant.ContextKeyChannelKey, appconstant.ContextKeyChannelBaseUrl,
+				appconstant.ContextKeyUpstreamRequestOrigin,
 			} {
 				if value, ok := c.Get(string(key)); ok {
 					s.lockedContext[key] = value
@@ -713,7 +721,7 @@ func (s *responsesWSSession) writeTarget(kind int, message []byte) error {
 func (s *responsesWSSession) writeClient(kind int, message []byte) error {
 	s.clientWriteMu.Lock()
 	defer s.clientWriteMu.Unlock()
-	if err := s.client.SetWriteDeadline(time.Now().Add(responsesWSWriteTimeout)); err != nil {
+	if err := s.client.SetWriteDeadline(s.clientWriteBudget.Deadline(time.Now(), len(message))); err != nil {
 		return err
 	}
 	return s.client.WriteMessage(kind, message)
@@ -810,34 +818,36 @@ func newResponsesWSInvalidRequestError(err error) *types.NewAPIError {
 
 // normalizeResponsesWSCreateEvent builds the HTTP-shaped request body from a
 // response.create whose envelope the read loop already parsed and validated.
-// The message is decoded once more as a raw map (the body source) and once as
-// the typed request; the envelope is not parsed again.
+// The body is the message with the WebSocket members removed, and is decoded
+// once as the typed request; the envelope is not parsed again.
 func normalizeResponsesWSCreateEvent(message []byte, event responsesWSCreateEvent, streamID string) (responsesWSCreateRequest, error) {
 	create := responsesWSCreateRequest{StreamID: streamID, Generate: event.Generate}
-	// Decode the wrapped request on its own so outer fields cannot enter the HTTP body.
+	// Edit the wrapped request on its own so outer fields cannot enter the HTTP body.
 	source := message
 	if len(event.Request) > 0 {
 		source = event.Request
 	}
-	var raw map[string]common.RawMessage
-	if err := common.Unmarshal(source, &raw); err != nil {
-		return create, err
+	if !ojson.GetBytesNoCopy(source, "@this").IsObject() {
+		return create, errors.New("response.create request must be a JSON object")
 	}
+	doc := ojson.NewDoc(source)
 	if len(event.Request) > 0 {
-		if len(create.Generate) == 0 {
-			create.Generate = raw["generate"]
+		if generate := doc.Get("generate"); len(create.Generate) == 0 && generate.Exists() {
+			create.Generate = common.RawMessage(generate.Raw)
 		}
 	} else {
 		for _, key := range []string{"type", "event_id", "background", "stream", "stream_options"} {
-			delete(raw, key)
+			if err := relaycommon.DeleteJSONMember(doc, key); err != nil {
+				return create, err
+			}
 		}
 	}
-	delete(raw, "generate")
-	delete(raw, "stream_id")
-	payload, err := common.Marshal(raw)
-	if err != nil {
-		return create, err
+	for _, key := range []string{"generate", "stream_id"} {
+		if err := relaycommon.DeleteJSONMember(doc, key); err != nil {
+			return create, err
+		}
 	}
+	payload := doc.Bytes()
 	if err := common.Unmarshal(payload, &create.Request); err != nil {
 		return create, err
 	}
@@ -851,36 +861,38 @@ func normalizeResponsesWSCreateEvent(message []byte, event responsesWSCreateEven
 }
 
 func buildResponsesWSCreateEvent(jsonData []byte, generate common.RawMessage, streamID string) ([]byte, error) {
-	var event map[string]common.RawMessage
-	if err := common.Unmarshal(jsonData, &event); err != nil {
-		return nil, err
+	if !ojson.ValidBytes(jsonData) || !ojson.GetBytesNoCopy(jsonData, "@this").IsObject() {
+		return nil, errors.New("response.create body must be a JSON object")
 	}
-	typeData, err := common.Marshal(responsesWSEventTypeResponseCreate)
-	if err != nil {
-		return nil, err
-	}
-	event["type"] = typeData
+	event := ojson.NewDoc(jsonData)
 	// The normalized body never carries stream_id; a channel parameter
 	// override may inject one, and it must not shadow the envelope's value.
-	delete(event, "stream_id")
-	if streamID != "" {
-		streamData, err := common.Marshal(streamID)
-		if err != nil {
+	keys := []string{"type", "stream_id", "event_id", "background", "stream", "stream_options"}
+	if len(generate) > 0 {
+		keys = append(keys, "generate")
+	}
+	for _, key := range keys {
+		if err := relaycommon.DeleteJSONMember(event, key); err != nil {
 			return nil, err
 		}
-		event["stream_id"] = streamData
 	}
-	delete(event, "event_id")
-	delete(event, "background")
-	delete(event, "stream")
-	delete(event, "stream_options")
+	if err := event.Set("type", responsesWSEventTypeResponseCreate); err != nil {
+		return nil, err
+	}
+	if streamID != "" {
+		if err := event.Set("stream_id", streamID); err != nil {
+			return nil, err
+		}
+	}
 	if len(generate) > 0 {
-		event["generate"] = generate
+		if err := event.SetRawBytes("generate", generate); err != nil {
+			return nil, err
+		}
 	}
-	return common.Marshal(event)
+	return event.Bytes(), nil
 }
 
-func buildResponsesWSErrorPayload(eventID, streamID string, apiErr *types.NewAPIError) ([]byte, error) {
+func buildResponsesWSErrorPayload(eventID, streamID string, apiErr *types.NewAPIError, upstreamURLs ...string) ([]byte, error) {
 	if apiErr == nil {
 		return nil, errors.New("api error is nil")
 	}
@@ -888,7 +900,7 @@ func buildResponsesWSErrorPayload(eventID, streamID string, apiErr *types.NewAPI
 	if status == 0 {
 		status = http.StatusInternalServerError
 	}
-	openaiErr := apiErr.ToOpenAIError()
+	openaiErr := apiErr.ToOpenAIError(upstreamURLs...)
 	return common.Marshal(&responsesWSErrorEvent{
 		Type:     "error",
 		Status:   status,

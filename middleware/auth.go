@@ -453,9 +453,9 @@ func TokenOrUserAuth() func(c *gin.Context) {
 }
 
 // TokenAuthReadOnly 宽松版本的令牌认证中间件，用于只读查询接口。
-// 只验证令牌 key 是否存在，不检查令牌状态、过期时间和额度。
-// 即使令牌已过期、已耗尽或已禁用，也允许访问。
-// 仍然检查用户是否被封禁。
+// 只验证令牌 key 是否存在，不检查过期时间和额度。
+// 即使令牌已过期或已耗尽，也允许访问；已禁用的令牌会被拒绝。
+// 仍然检查令牌 IP 白名单和用户是否被封禁。
 func TokenAuthReadOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		key := c.Request.Header.Get("Authorization")
@@ -489,6 +489,20 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 			common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenStatusUnavailable)))
 			c.Abort()
 			return
+		}
+
+		if allowIps := token.GetIpLimits(); len(allowIps) > 0 {
+			ip := net.ParseIP(c.ClientIP())
+			if ip == nil {
+				common.ApiErrorStatus(c, http.StatusForbidden, errors.New(common.TranslateMessage(c, i18n.MsgAuthClientIPUnresolved)))
+				c.Abort()
+				return
+			}
+			if !common.IsIpInCIDRList(ip, allowIps) {
+				common.ApiErrorStatus(c, http.StatusForbidden, errors.New(common.TranslateMessage(c, i18n.MsgAuthTokenIPNotAllowed)))
+				c.Abort()
+				return
+			}
 		}
 
 		userCache, err := model.GetUserCache(token.UserId)
