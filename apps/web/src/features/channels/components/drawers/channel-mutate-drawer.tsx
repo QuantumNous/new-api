@@ -1110,9 +1110,12 @@ function ChannelMutateDrawerContent({
 
   // Load channel data into form when editing
   useEffect(() => {
+    if (!isPresented) return
+
     if (isEditing && channelData?.data) {
       const defaults = transformChannelToFormDefaults(channelData.data)
       form.reset(defaults)
+      setActiveEditorSectionId(CHANNEL_EDITOR_SECTION_IDS.identity)
 
       // Store initial values for comparison
       initialModelsRef.current = parseModelsString(
@@ -1123,12 +1126,13 @@ function ChannelMutateDrawerContent({
         channelData.data.status_code_mapping || ''
     } else if (!isEditing && !isInline) {
       form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+      setActiveEditorSectionId(CHANNEL_EDITOR_SECTION_IDS.identity)
 
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
       initialStatusCodeMappingRef.current = ''
     }
-  }, [channelData, form, isEditing, isInline])
+  }, [channelData, form, isEditing, isInline, isPresented, channelId])
 
   // Handle type change - set default values for specific types
   useEffect(() => {
