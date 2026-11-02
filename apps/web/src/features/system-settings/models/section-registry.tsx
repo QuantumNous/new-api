@@ -25,8 +25,7 @@ import type { TFunction } from 'i18next'
  */
 const MODELS_SECTION_NAV = [
   { id: 'global', titleKey: 'Global Model Configuration' },
-  { id: 'routing-reliability', titleKey: 'Routing Reliability' },
-  { id: 'route-units', titleKey: 'Route Units' },
+  { id: 'routing', titleKey: 'Routing' },
   { id: 'gemini', titleKey: 'Gemini' },
   { id: 'claude', titleKey: 'Claude' },
   { id: 'grok', titleKey: 'Grok' },

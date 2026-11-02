@@ -150,13 +150,4 @@ export function installBuildMetadata(): void {
   } catch {
     // Storage can be unavailable (private mode, disabled cookies, …).
   }
-
-  // Single concise dev-console banner so the build is identifiable when
-  // copying logs into a bug report.
-  try {
-    // eslint-disable-next-line no-console
-    console.debug('[build] %s', rev)
-  } catch {
-    // console may be replaced by a noop shim.
-  }
 }

@@ -274,7 +274,7 @@ type RoutingReliabilityFormInput = Record<
   }
 }
 
-type RoutingReliabilitySectionProps = {
+export type RoutingReliabilitySectionProps = {
   defaultValues: Partial<RouteIsolationValues> & {
     RetryTimes: number
     LocalFailureThreshold: number

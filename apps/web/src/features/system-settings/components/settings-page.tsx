@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useParams } from '@tanstack/react-router'
 import { useMemo, useState, type ReactNode } from 'react'
+import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
@@ -44,6 +45,7 @@ type SettingsPageProps<
     titleKey: string
   }
   extraArgs?: TExtraArgs
+  titleExtras?: (t: TFunction, activeSection: TSectionId) => ReactNode
   resolveSettings?: (
     settings: TSettings,
     raw: SystemOption[] | undefined
@@ -52,6 +54,7 @@ type SettingsPageProps<
 
 type SettingsPageFrameProps = {
   title: ReactNode
+  titleExtras?: ReactNode
   children: ReactNode
 }
 
@@ -70,6 +73,7 @@ function SettingsPageFrame(props: SettingsPageFrameProps) {
         <SectionPageLayout.Title>
           <span className='inline-flex max-w-full min-w-0 items-center gap-2 align-middle'>
             <span className='truncate'>{props.title}</span>
+            {props.titleExtras}
             <span
               ref={setTitleStatusContainer}
               className='inline-flex min-w-0 shrink-0 items-center'
@@ -107,6 +111,7 @@ export function SettingsPage<
   getSectionContent,
   getSectionMeta,
   extraArgs,
+  titleExtras,
   resolveSettings,
 }: SettingsPageProps<TSettings, TSectionId, TExtraArgs>) {
   const { t } = useTranslation()
@@ -143,7 +148,10 @@ export function SettingsPage<
   )
 
   return (
-    <SettingsPageFrame title={t(sectionMeta.titleKey)}>
+    <SettingsPageFrame
+      title={t(sectionMeta.titleKey)}
+      titleExtras={titleExtras?.(t, activeSection)}
+    >
       {sectionContent}
     </SettingsPageFrame>
   )

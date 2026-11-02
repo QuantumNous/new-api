@@ -103,7 +103,6 @@ export function initI18n(): Promise<void> {
           ],
           load: 'currentOnly',
           nsSeparator: false, // Allow literal colons in keys (e.g., URLs, labels)
-          debug: import.meta.env.DEV,
           interpolation: {
             escapeValue: false, // not needed for react as it escapes by default
           },
