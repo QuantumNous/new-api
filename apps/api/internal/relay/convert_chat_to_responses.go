@@ -22,7 +22,8 @@ func applySystemPromptIfNeeded(c contract.Context, info *relaycommon.RelayInfo, 
 	if info == nil || request == nil {
 		return
 	}
-	if info.ChannelSetting.SystemPrompt == "" {
+	systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName)
+	if systemPrompt == "" {
 		return
 	}
 
@@ -38,7 +39,7 @@ func applySystemPromptIfNeeded(c contract.Context, info *relaycommon.RelayInfo, 
 	if !containSystemPrompt {
 		systemMessage := dto.Message{
 			Role:    systemRole,
-			Content: info.ChannelSetting.SystemPrompt,
+			Content: systemPrompt,
 		}
 		request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
 		return
@@ -54,14 +55,14 @@ func applySystemPromptIfNeeded(c contract.Context, info *relaycommon.RelayInfo, 
 			continue
 		}
 		if message.IsStringContent() {
-			request.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
+			request.Messages[i].SetStringContent(systemPrompt + "\n" + message.StringContent())
 			return
 		}
 		contents := message.ParseContent()
 		contents = append([]dto.MediaContent{
 			{
 				Type: dto.ContentTypeText,
-				Text: info.ChannelSetting.SystemPrompt,
+				Text: systemPrompt,
 			},
 		}, contents...)
 		request.Messages[i].Content = contents

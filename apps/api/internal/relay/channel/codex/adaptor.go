@@ -55,37 +55,39 @@ func (a *Adaptor) ConvertEmbeddingRequest(c contract.Context, info *relaycommon.
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c contract.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
 
-	if info != nil && info.ChannelSetting.SystemPrompt != "" {
-		systemPrompt := info.ChannelSetting.SystemPrompt
+	if info != nil {
+		systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName)
+		if systemPrompt != "" {
 
-		if len(request.Instructions) == 0 {
-			if b, err := common.Marshal(systemPrompt); err == nil {
-				request.Instructions = b
-			} else {
-				return nil, err
-			}
-		} else if info.ChannelSetting.SystemPromptOverride {
-			var existing string
-			if err := common.Unmarshal(request.Instructions, &existing); err == nil {
-				existing = strings.TrimSpace(existing)
-				if existing == "" {
+			if len(request.Instructions) == 0 {
+				if b, err := common.Marshal(systemPrompt); err == nil {
+					request.Instructions = b
+				} else {
+					return nil, err
+				}
+			} else if info.ChannelSetting.SystemPromptOverride {
+				var existing string
+				if err := common.Unmarshal(request.Instructions, &existing); err == nil {
+					existing = strings.TrimSpace(existing)
+					if existing == "" {
+						if b, err := common.Marshal(systemPrompt); err == nil {
+							request.Instructions = b
+						} else {
+							return nil, err
+						}
+					} else {
+						if b, err := common.Marshal(systemPrompt + "\n" + existing); err == nil {
+							request.Instructions = b
+						} else {
+							return nil, err
+						}
+					}
+				} else {
 					if b, err := common.Marshal(systemPrompt); err == nil {
 						request.Instructions = b
 					} else {
 						return nil, err
 					}
-				} else {
-					if b, err := common.Marshal(systemPrompt + "\n" + existing); err == nil {
-						request.Instructions = b
-					} else {
-						return nil, err
-					}
-				}
-			} else {
-				if b, err := common.Marshal(systemPrompt); err == nil {
-					request.Instructions = b
-				} else {
-					return nil, err
 				}
 			}
 		}

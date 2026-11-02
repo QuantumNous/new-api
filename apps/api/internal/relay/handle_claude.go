@@ -110,22 +110,22 @@ func ClaudeHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError 
 		}
 	}
 
-	if info.ChannelSetting.SystemPrompt != "" {
+	if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
 		if request.System == nil {
-			request.SetStringSystem(info.ChannelSetting.SystemPrompt)
+			request.SetStringSystem(systemPrompt)
 		} else if info.ChannelSetting.SystemPromptOverride {
 			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
 			if request.IsStringSystem() {
 				existing := strings.TrimSpace(request.GetStringSystem())
 				if existing == "" {
-					request.SetStringSystem(info.ChannelSetting.SystemPrompt)
+					request.SetStringSystem(systemPrompt)
 				} else {
-					request.SetStringSystem(info.ChannelSetting.SystemPrompt + "\n" + existing)
+					request.SetStringSystem(systemPrompt + "\n" + existing)
 				}
 			} else {
 				systemContents := request.ParseSystem()
 				newSystem := dto.ClaudeMediaMessage{Type: dto.ContentTypeText}
-				newSystem.SetText(info.ChannelSetting.SystemPrompt)
+				newSystem.SetText(systemPrompt)
 				if len(systemContents) == 0 {
 					request.System = []dto.ClaudeMediaMessage{newSystem}
 				} else {

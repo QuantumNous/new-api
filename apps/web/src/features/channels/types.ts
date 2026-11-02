@@ -85,6 +85,8 @@ export interface ChannelSettings {
   session_affinity_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  system_prompt_models?: Record<string, string>
+  system_prompt_preset?: string
   http_protocol?: 'auto' | 'http1' | string
   http2_connection_shards?: number
 }

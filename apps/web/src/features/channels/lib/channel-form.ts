@@ -261,6 +261,8 @@ export const channelFormSchema = z
     session_affinity_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
+    system_prompt_models: z.record(z.string(), z.string()).optional(),
+    system_prompt_preset: z.string().optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -433,6 +435,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   session_affinity_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
+  system_prompt_models: {},
+  system_prompt_preset: '',
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -475,6 +479,8 @@ export function transformChannelToFormDefaults(
     session_affinity_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    system_prompt_models: {} as Record<string, string>,
+    system_prompt_preset: '',
   }
 
   if (channel.setting) {
@@ -496,6 +502,8 @@ export function transformChannelToFormDefaults(
         session_affinity_enabled: parsed.session_affinity_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+        system_prompt_models: parsed.system_prompt_models || {},
+        system_prompt_preset: parsed.system_prompt_preset || '',
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -613,6 +621,8 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     session_affinity_enabled: formData.session_affinity_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+    system_prompt_models: formData.system_prompt_models || {},
+    system_prompt_preset: formData.system_prompt_preset || '',
   }
 
   const protocol = normalizeHttpProtocol(formData.http_protocol)

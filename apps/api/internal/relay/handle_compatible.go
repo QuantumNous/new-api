@@ -165,7 +165,7 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
-		if info.ChannelSetting.SystemPrompt != "" {
+		if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
 			// 如果有系统提示，则将其添加到请求中
 			request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
 			if ok {
@@ -180,7 +180,7 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 					// 如果没有系统提示，则添加系统提示
 					systemMessage := dto.Message{
 						Role:    request.GetSystemRoleName(),
-						Content: info.ChannelSetting.SystemPrompt,
+						Content: systemPrompt,
 					}
 					request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
 				} else if info.ChannelSetting.SystemPromptOverride {
@@ -189,13 +189,13 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 					for i, message := range request.Messages {
 						if message.Role == request.GetSystemRoleName() {
 							if message.IsStringContent() {
-								request.Messages[i].SetStringContent(info.ChannelSetting.SystemPrompt + "\n" + message.StringContent())
+								request.Messages[i].SetStringContent(systemPrompt + "\n" + message.StringContent())
 							} else {
 								contents := message.ParseContent()
 								contents = append([]dto.MediaContent{
 									{
 										Type: dto.ContentTypeText,
-										Text: info.ChannelSetting.SystemPrompt,
+										Text: systemPrompt,
 									},
 								}, contents...)
 								request.Messages[i].Content = contents

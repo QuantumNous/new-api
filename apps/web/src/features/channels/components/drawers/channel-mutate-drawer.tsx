@@ -281,6 +281,8 @@ const SENSITIVE_FORM_FIELDS = [
   'session_affinity_enabled',
   'system_prompt',
   'system_prompt_override',
+  'system_prompt_models',
+  'system_prompt_preset',
   'allow_service_tier',
   'disable_store',
   'allow_safety_identifier',
@@ -664,6 +666,10 @@ function ChannelMutateDrawerContent({
   const currentHttp2ConnectionShards = useWatch({ control: form.control, name: 'http2_connection_shards' })
   const currentSystemPrompt = useWatch({ control: form.control, name: 'system_prompt' })
   const currentSystemPromptOverride = useWatch({ control: form.control, name: 'system_prompt_override' })
+  const currentSystemPromptModels = useWatch({
+    control: form.control,
+    name: 'system_prompt_models',
+  })
   const currentAllowServiceTier = useWatch({ control: form.control, name: 'allow_service_tier' })
   const currentDisableStore = useWatch({ control: form.control, name: 'disable_store' })
   const currentAllowSafetyIdentifier = useWatch({ control: form.control, name: 'allow_safety_identifier' })
@@ -896,6 +902,7 @@ function ChannelMutateDrawerContent({
       currentProxy?.trim() ||
       currentSystemPrompt?.trim() ||
       currentSystemPromptOverride ||
+      Object.keys(currentSystemPromptModels ?? {}).length > 0 ||
       (currentHttpProtocol && currentHttpProtocol !== 'auto') ||
       (currentHttp2ConnectionShards != null && currentHttp2ConnectionShards > 1)
   )
@@ -1907,7 +1914,7 @@ function ChannelMutateDrawerContent({
                         <div className='grid gap-4 sm:grid-cols-2'>
                           <fieldset
                             disabled={sensitiveLocked}
-                            className='min-w-0 disabled:opacity-60'
+                            className='border-0 p-0 min-w-0 disabled:opacity-60'
                           >
                             <FormField
                               control={form.control}
@@ -2007,7 +2014,7 @@ function ChannelMutateDrawerContent({
                         {currentType === 1 && (
                           <fieldset
                             disabled={sensitiveLocked}
-                            className='disabled:opacity-60'
+                            className='border-0 p-0 disabled:opacity-60'
                           >
                             <FormField
                               control={form.control}
@@ -2064,7 +2071,7 @@ function ChannelMutateDrawerContent({
                         <div className='border-border/60 bg-muted/10 rounded-lg border p-4'>
                           <fieldset
                             disabled={sensitiveLocked}
-                            className='space-y-4 disabled:opacity-60'
+                            className='border-0 p-0 space-y-4 disabled:opacity-60'
                           >
                             {/* Azure (type 3) */}
                             {currentType === 3 && (
@@ -3724,7 +3731,7 @@ function ChannelMutateDrawerContent({
                             )}
                             <fieldset
                               disabled={sensitiveLocked}
-                              className='space-y-4 disabled:opacity-60'
+                              className='border-0 p-0 space-y-4 disabled:opacity-60'
                             >
                               <FormField
                                 control={form.control}
@@ -3938,7 +3945,7 @@ function ChannelMutateDrawerContent({
                           )}
                           <fieldset
                             disabled={sensitiveLocked}
-                            className='space-y-4 disabled:opacity-60'
+                            className='border-0 p-0 space-y-4 disabled:opacity-60'
                           >
                             <div className='divide-border space-y-0 divide-y border-y'>
                               {currentType === 1 && (
@@ -4268,6 +4275,29 @@ function ChannelMutateDrawerContent({
 
                             <FormField
                               control={form.control}
+                              name='system_prompt_preset'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>{t('Jailbreak')}</FormLabel>
+                                    <FormDescription>
+                                      {t('Override system prompt with jailbreak preset')}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value === 'tavern_card'}
+                                      onCheckedChange={(v) =>
+                                        field.onChange(v ? 'tavern_card' : '')
+                                      }
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
                               name='system_prompt_override'
                               render={({ field }) => (
                                 <FormItem className='flex items-center justify-between'>
@@ -4290,6 +4320,148 @@ function ChannelMutateDrawerContent({
                                 </FormItem>
                               )}
                             />
+                            <FormField
+                              control={form.control}
+                              name='system_prompt_models'
+                              render={({ field }) => {
+                                const rows = useMemo(
+                                  () =>
+                                    Object.entries(
+                                      field.value ?? {}
+                                    ).map(([model, prompt]) => ({
+                                      model,
+                                      prompt,
+                                    })),
+                                  [field.value]
+                                )
+
+                                const toRecord = (
+                                  list: { model: string; prompt: string }[]
+                                ): Record<string, string> => {
+                                  const record: Record<string, string> = {}
+                                  list.forEach((row) => {
+                                    const model = row.model.trim()
+                                    if (model) {
+                                      record[model] = row.prompt
+                                    }
+                                  })
+                                  return record
+                                }
+
+                                const updateModel = (
+                                  index: number,
+                                  value: string
+                                ) => {
+                                  field.onChange(
+                                    toRecord(
+                                      rows.map((row, i) =>
+                                        i === index
+                                          ? { ...row, model: value }
+                                          : row
+                                      )
+                                    )
+                                  )
+                                }
+
+                                const updatePrompt = (
+                                  index: number,
+                                  value: string
+                                ) => {
+                                  field.onChange(
+                                    toRecord(
+                                      rows.map((row, i) =>
+                                        i === index
+                                          ? { ...row, prompt: value }
+                                          : row
+                                      )
+                                    )
+                                  )
+                                }
+
+                                const removeRow = (index: number) => {
+                                  field.onChange(
+                                    toRecord(
+                                      rows.filter((_, i) => i !== index)
+                                    )
+                                  )
+                                }
+
+                                const addRow = () => {
+                                  field.onChange(
+                                    toRecord([
+                                      ...rows,
+                                      { model: '', prompt: '' },
+                                    ])
+                                  )
+                                }
+
+                                return (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('System Prompt by Model')}
+                                    </FormLabel>
+                                    <FormDescription>
+                                      {t(
+                                        'System Prompt for this model (falls back to channel default)'
+                                      )}
+                                    </FormDescription>
+                                    <div className='divide-y divide-border space-y-2'>
+                                      {rows.map((row, index) => (
+                                        <div
+                                          key={index}
+                                          className='flex flex-col sm:flex-row sm:items-end gap-3 p-3'
+                                        >
+                                          <Input
+                                            className='w-full sm:w-48'
+                                            value={row.model}
+                                            onChange={(e) =>
+                                              updateModel(
+                                                index,
+                                                e.target.value
+                                              )
+                                            }
+                                            placeholder={t('Model Name')}
+                                          />
+                                          <Textarea
+                                            className='flex-1 min-w-[120px]'
+                                            value={row.prompt}
+                                            onChange={(e) =>
+                                              updatePrompt(
+                                                index,
+                                                e.target.value
+                                              )
+                                            }
+                                            placeholder={t(
+                                              'Enter system prompt (user prompt takes priority)'
+                                            )}
+                                            rows={2}
+                                          />
+                                          <Button
+                                            type='button'
+                                            variant='outline'
+                                            size='icon'
+                                            onClick={() => removeRow(index)}
+                                            aria-label={t('Delete')}
+                                          >
+                                            <Trash2 className='h-4 w-4' />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <Button
+                                      type='button'
+                                      variant='outline'
+                                      onClick={addRow}
+                                      className='w-fit'
+                                    >
+                                      <Plus className='h-4 w-4' />
+                                      {t('Add Model Prompt')}
+                                    </Button>
+                                    <FormMessage />
+                                  </FormItem>
+                                )
+                              }}
+                            />
                           </fieldset>
                         </div>
 
@@ -4310,7 +4482,7 @@ function ChannelMutateDrawerContent({
                             />
                             <fieldset
                               disabled={sensitiveLocked}
-                              className='disabled:opacity-60'
+                              className='border-0 p-0 disabled:opacity-60'
                             >
                               <div className='divide-border space-y-0 divide-y border-y'>
                                 <FormField
@@ -4552,7 +4724,7 @@ function ChannelMutateDrawerContent({
                             />
                             <fieldset
                               disabled={sensitiveLocked}
-                              className='space-y-4 disabled:opacity-60'
+                              className='border-0 p-0 space-y-4 disabled:opacity-60'
                             >
                               <div className='divide-border space-y-0 divide-y border-y'>
                                 <FormField
