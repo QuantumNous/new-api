@@ -321,31 +321,35 @@ func StreamScannerHandler(
 			data := scanner.Text()
 			logger.LogDebug(c.Context(), "stream scanner data: %s", data)
 
-			if len(data) < 6 {
+			// 裸 "[DONE]"（部分上游不带 "data:" 前缀的收尾形态）同样是终止哨兵。
+			// 若按 data 前缀切掉 5 字节，"[DONE]" 会变成 "]" 转发给 handler：
+			// 覆盖 lastStreamData 后 usage 提取失败、回落本地估算，跨格式转换的
+			// 终态事件也会被跳过。允许前导空白以兼容缩进过的上游。
+			if strings.HasPrefix(strings.TrimSpace(data), "[DONE]") {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+				logger.LogDebug(c.Context(), "received [DONE], stopping scanner")
+				return
+			}
+			if !strings.HasPrefix(data, "data:") {
 				continue
 			}
-			if data[:5] != "data:" && data[:6] != "[DONE]" {
-				continue
-			}
-			data = data[5:]
-			data = strings.TrimSpace(data)
+			data = strings.TrimSpace(data[5:])
 			if data == "" {
 				continue
 			}
-			if !strings.HasPrefix(data, "[DONE]") {
-				info.SetFirstResponseTime()
-				info.ReceivedResponseCount++
-
-				select {
-				case dataChan <- data:
-				case <-ctx.Done():
-					return
-				case <-stopChan:
-					return
-				}
-			} else {
+			if strings.HasPrefix(data, "[DONE]") {
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 				logger.LogDebug(c.Context(), "received [DONE], stopping scanner")
+				return
+			}
+			info.SetFirstResponseTime()
+			info.ReceivedResponseCount++
+
+			select {
+			case dataChan <- data:
+			case <-ctx.Done():
+				return
+			case <-stopChan:
 				return
 			}
 		}
