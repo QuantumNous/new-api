@@ -108,15 +108,15 @@ function SheetContent({
         data-slot='sheet-content'
         data-side={side}
         className={cn(
-          'bg-[var(--float-surface)] text-foreground fixed z-50 flex flex-col gap-4 overflow-y-auto max-h-[90svh] bg-clip-padding text-sm shadow-none transition duration-150 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0 no-scrollbar',
+          'bg-[var(--float-surface)] text-foreground fixed z-50 flex flex-col gap-4 overflow-y-auto bg-clip-padding text-sm shadow-none transition duration-150 ease-in-out data-ending-style:opacity-0 data-starting-style:opacity-0 no-scrollbar',
           side === 'right' &&
             'inset-y-0 right-0 h-full w-3/4 border-l data-ending-style:translate-x-[2.5rem] data-starting-style:translate-x-[2.5rem] sm:max-w-sm',
           side === 'left' &&
             'inset-y-0 left-0 h-full w-3/4 border-r data-ending-style:translate-x-[-2.5rem] data-starting-style:translate-x-[-2.5rem] sm:max-w-sm',
           side === 'top' &&
-            'inset-x-0 top-0 h-auto border-b data-ending-style:translate-y-[-2.5rem] data-starting-style:translate-y-[-2.5rem]',
+            'inset-x-0 top-0 h-auto max-h-[90svh] border-b data-ending-style:translate-y-[-2.5rem] data-starting-style:translate-y-[-2.5rem]',
           side === 'bottom' &&
-            'inset-x-0 bottom-0 h-auto border-t data-ending-style:translate-y-[2.5rem] data-starting-style:translate-y-[2.5rem]',
+            'inset-x-0 bottom-0 h-auto max-h-[90svh] border-t data-ending-style:translate-y-[2.5rem] data-starting-style:translate-y-[2.5rem]',
           className
         )}
         {...props}
