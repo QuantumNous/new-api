@@ -204,12 +204,14 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(_ *gin.Context, info *relaycommo
 	if info != nil && info.ChannelMeta != nil && info.ChannelBaseUrl != "" {
 		baseURL = info.ChannelBaseUrl
 	}
-	upstream, err := url.Parse(baseURL)
-	if err != nil || upstream.Scheme != "https" ||
-		(upstream.Host != "api.deepseek.com" && upstream.Host != "api.deepseek.com:443") ||
-		(request.Reasoning != nil && request.Reasoning.Effort == "none") {
+	upstream, parseErr := url.Parse(baseURL)
+	official := parseErr == nil && upstream.Scheme == "https" &&
+		strings.EqualFold(upstream.Hostname(), "api.deepseek.com") &&
+		(upstream.Port() == "" || upstream.Port() == "443")
+	if !official || (request.Reasoning != nil && request.Reasoning.Effort == "none") {
 		return request, nil
 	}
+	var err error
 	request.Input, err = normalizeResponsesReasoningReplay(request.Input)
 	return request, err
 }

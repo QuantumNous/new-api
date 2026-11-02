@@ -320,7 +320,10 @@ func TestResponsesReasoningReplay(t *testing.T) {
 			assert.Equal(t, string(out.Input), string(again.(dto.OpenAIResponsesRequest).Input))
 		})
 	}
-	for _, endpoint := range []string{"", "https://api.deepseek.com/v1", "https://api.deepseek.com:443"} {
+	for _, endpoint := range []string{
+		"", "https://api.deepseek.com/v1", "https://api.deepseek.com:443",
+		"https://API.DEEPSEEK.COM", "https://Api.DeepSeek.Com:443/v1",
+	} {
 		t.Run("official "+endpoint, func(t *testing.T) {
 			var req dto.OpenAIResponsesRequest
 			require.NoError(t, common.Unmarshal([]byte(`{"model":"deepseek-flash","input":[`+call+`]}`), &req))
@@ -330,7 +333,10 @@ func TestResponsesReasoningReplay(t *testing.T) {
 			assert.JSONEq(t, "["+r+","+call+"]", string(converted.(dto.OpenAIResponsesRequest).Input))
 		})
 	}
-	for _, endpoint := range []string{"https://other.example", "https://api.deepseek.com.example", "http://api.deepseek.com"} {
+	for _, endpoint := range []string{
+		"https://other.example", "https://api.deepseek.com.example", "http://api.deepseek.com",
+		"https://API.DEEPSEEK.COM:8443", "https://api.deepseek.com:invalid",
+	} {
 		t.Run(endpoint, func(t *testing.T) {
 			var req dto.OpenAIResponsesRequest
 			require.NoError(t, common.Unmarshal([]byte(`{"model":"deepseek-flash","input":[`+call+`]}`), &req))
