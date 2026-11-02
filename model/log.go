@@ -393,6 +393,10 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			// Do not add the 5m/1h breakdown again or infer tokens from prices.
 			cacheCreationTokens, _ = other.public["cache_write_tokens"].(int)
 		}
+		cacheHitCount := 0
+		if cacheReadTokens > 0 {
+			cacheHitCount = 1
+		}
 		LogQuotaData(QuotaDataLogParams{
 			UserID:              userId,
 			Username:            username,
@@ -400,12 +404,14 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			Quota:               params.Quota,
 			CreatedAt:           createdAt,
 			TokenUsed:           params.PromptTokens + params.CompletionTokens,
-			CacheReadTokens:     int64(cacheReadTokens),
-			CacheCreationTokens: int64(cacheCreationTokens),
 			UseGroup:            params.Group,
 			TokenID:             params.TokenId,
 			ChannelID:           params.ChannelId,
 			NodeName:            common.NodeName,
+			PromptTokens:        params.PromptTokens,
+			CacheReadTokens:     int64(cacheReadTokens),
+			CacheCreationTokens: int64(cacheCreationTokens),
+			CacheHitCount:       cacheHitCount,
 		})
 	}
 }

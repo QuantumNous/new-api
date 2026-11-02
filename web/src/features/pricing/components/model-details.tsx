@@ -103,6 +103,7 @@ import type {
 import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelDetailsApi } from './model-details-api'
+import { ModelDetailsCacheStats } from './model-details-cache-stats'
 import { ModelDetailsPerformance } from './model-details-performance'
 
 // ----------------------------------------------------------------------------
@@ -1547,8 +1548,9 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
           <ModelBackendDetailsSection model={props.model} />
         </TabsContent>
 
-        <TabsContent value='performance' className='outline-none'>
+        <TabsContent value='performance' className='space-y-6 outline-none'>
           <ModelDetailsPerformance model={props.model} />
+          <ModelDetailsCacheStats model={props.model} />
         </TabsContent>
 
         <TabsContent value='api' className='outline-none'>
