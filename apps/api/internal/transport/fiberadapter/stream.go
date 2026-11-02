@@ -442,11 +442,11 @@ func (s *responseState) flush() error {
 // markDisconnected records the disconnect and cancels the request lifetime. It
 // runs with the lock held.
 //
-// This is the only disconnect signal fasthttp offers: a pipe write fails once the
-// server closed the read end, which it does when the connection went away. The
-// cost is that detection moves from "the read side saw FIN" to "the next write
-// failed"; the relay's keep-alive ping (on by default) bounds the delay for
-// streamed responses.
+// This is the fallback signal: the kernel-level connection watch (connwatch,
+// bridged in newRequestContext) normally cancels the lifetime the moment the
+// peer sends FIN/RST, before any write is attempted. Where that watch is
+// unavailable, a pipe write failing once the server closed the read end is
+// what remains; the relay's keep-alive ping (on by default) bounds the delay.
 func (s *responseState) markDisconnected() {
 	if s.disconnected {
 		return
