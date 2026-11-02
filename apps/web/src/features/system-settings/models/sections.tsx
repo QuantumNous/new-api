@@ -24,8 +24,7 @@ import { ClaudeSettingsCard } from './claude-settings-card'
 import { GeminiSettingsCard } from './gemini-settings-card'
 import { GlobalSettingsCard } from './global-settings-card'
 import { GrokSettingsCard } from './grok-settings-card'
-import { RouteUnitsSection } from './route-units-section'
-import { RoutingReliabilitySection } from './routing-reliability-section'
+import { RoutingContent } from './routing-section'
 function formatJsonForEditor(value: string, fallback: string) {
   const raw = (value ?? '').toString().trim()
   if (!raw) return fallback
@@ -66,10 +65,10 @@ const MODELS_SECTIONS = [
     ),
   },
   {
-    id: 'routing-reliability',
-    titleKey: 'Routing Reliability',
+    id: 'routing',
+    titleKey: 'Routing',
     build: (settings: ModelSettings) => (
-      <RoutingReliabilitySection
+      <RoutingContent
         defaultValues={{
           RetryTimes: settings.RetryTimes,
           ChannelDisableThreshold: settings.ChannelDisableThreshold,
@@ -114,11 +113,6 @@ const MODELS_SECTIONS = [
         }}
       />
     ),
-  },
-  {
-    id: 'route-units',
-    titleKey: 'Route Units',
-    build: () => <RouteUnitsSection />,
   },
   {
     id: 'gemini',

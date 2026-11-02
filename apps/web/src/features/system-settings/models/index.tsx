@@ -20,6 +20,7 @@ import { SettingsPage } from '../components/settings-page'
 import type { ModelSettings } from '../types'
 import { MODELS_DEFAULT_SECTION } from './section-registry.tsx'
 import { getModelsSectionContent, getModelsSectionMeta } from './sections.tsx'
+import { RoutingTabProvider, RoutingTabs } from './routing-section'
 
 const defaultModelSettings: ModelSettings = {
   'global.pass_through_request_enabled': false,
@@ -98,12 +99,18 @@ const defaultModelSettings: ModelSettings = {
 
 export function ModelSettings() {
   return (
-    <SettingsPage
-      routePath='/_authenticated/admin/system-settings/models/$section'
-      defaultSettings={defaultModelSettings}
-      defaultSection={MODELS_DEFAULT_SECTION}
-      getSectionContent={getModelsSectionContent}
-      getSectionMeta={getModelsSectionMeta}
-    />
+    <RoutingTabProvider>
+      <SettingsPage
+        routePath='/_authenticated/admin/system-settings/models/$section'
+        defaultSettings={defaultModelSettings}
+        defaultSection={MODELS_DEFAULT_SECTION}
+        getSectionContent={getModelsSectionContent}
+        getSectionMeta={getModelsSectionMeta}
+        titleExtras={(t, activeSection) => {
+          if (activeSection !== 'routing') return null
+          return <RoutingTabs />
+        }}
+      />
+    </RoutingTabProvider>
   )
 }
