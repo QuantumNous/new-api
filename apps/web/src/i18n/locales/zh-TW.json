@@ -2383,7 +2383,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相關項目",
     "footer.defaultCopyright": "版權所有。",
-    "footer.newapi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
+    "footer.new\u0061pi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "對於 2025 年 5 月 10 日之後新增的渠道，在部署時無需從模型名稱中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "對於私有部署，格式為：https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "基於安全考量，現有存取令牌無法再次顯示。僅在需要新令牌時重新生成。",
@@ -6127,13 +6127,14 @@
     "Empty reply": "空回",
     "Full price": "按原價扣費",
     "home.policy.empty.body": "當模型回傳空回應（HTTP 200 但沒有任何內容產出）時，請求仍會產生少量費用，用於覆蓋線路與調度成本。",
-    "home.policy.empty.item.adjustable": "倍率說明：由站點統一配置",
+    "home.policy.empty.item.adjustable": "倍率說明：0 代表免除費用，1 代表扣除這次請求費用，當前實際的扣除費用是 {{multiplier}}",
     "home.policy.empty.item.rate": "原本收費的費用 x {{multiplier}}",
     "home.policy.empty.item.scope": "按次/按量 x {{multiplier}}",
     "home.policy.empty.title": "空回覆扣費",
     "Join the group: 收费API站": "点击链接加入群聊【收费API站】",
     "Empty Response Charge": "空回覆扣費",
     "pricing.model.emptyResponseNote": "<0>空回</0>計費說明：模型回傳空回應時，按原本收費的費用 × {{multiplier}} 扣費，按次/按量計費均適用。",
-    "Reduced by multiplier": "已按倍率減免"
+    "Reduced by multiplier": "已按倍率減免",
+    "Create Key": "建立金鑰"
   }
 }

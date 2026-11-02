@@ -2383,7 +2383,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "セキュリティ上、既存のアクセストークンは再表示できません。新しいトークンが必要な場合のみ再生成してください。",
@@ -4057,6 +4057,7 @@
     "Previous": "前へ",
     "Previous branch": "前のブランチ",
     "Previous page": "前のページ",
+    "Back to top": "Back to top",
     "Previous Page": "前のページ",
     "Price": "価格",
     "Price ($/1K calls)": "価格（$/1K 回）",
@@ -5113,6 +5114,9 @@
     "Success {{success}} / Total {{total}}": "成功 {{success}} / 合計 {{total}}",
     "Success rate": "成功率",
     "Success Rate": "成功率",
+    "Success rate: High to Low": "Success rate: High to Low",
+    "Collapse group price table": "Collapse group price table",
+    "Expand group price table": "Expand group price table",
     "Successfully created {{count}} API Key(s)": "{{count}}個のAPIキーが正常に作成されました",
     "Successfully created {{count}} redemption codes": "{{count}}件の引き換えコードが正常に作成されました",
     "Successfully deleted {{count}} API key(s)": "{{count}}個のAPIキーが正常に削除されました",
@@ -6123,13 +6127,14 @@
     "Empty reply": "空応答",
     "Full price": "全額請求",
     "home.policy.empty.body": "モデルが空の応答（HTTP 200 でコンテンツなし）を返した場合も、ルーティングとスケジューリングのコストを賄うため、通常料金の一部が請求されます。",
-    "home.policy.empty.item.adjustable": "倍率について：サイト側で設定済み",
+    "home.policy.empty.item.adjustable": "倍率について：0 は免除、1 はこのリクエストの費用を控除、実際の控除額は {{multiplier}}",
     "home.policy.empty.item.rate": "通常料金 x {{multiplier}}",
     "home.policy.empty.item.scope": "従量 / トークン x {{multiplier}}",
     "home.policy.empty.title": "空応答の課金",
     "Join the group: 收费API站": "グループに参加：收费API站",
     "Empty Response Charge": "空応答の課金",
     "pricing.model.emptyResponseNote": "<0>空応答</0>の課金について：モデルが空の応答を返した場合、通常料金 × {{multiplier}} が請求されます。従量・トークン課金の両方に適用されます。",
-    "Reduced by multiplier": "倍率で減額"
+    "Reduced by multiplier": "倍率で減額",
+    "Create Key": "キーを作成"
   }
 }

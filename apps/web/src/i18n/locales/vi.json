@@ -2383,7 +2383,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "Vì lý do bảo mật, không thể hiển thị lại token truy cập hiện có. Chỉ tạo lại khi bạn cần token mới.",
@@ -4057,6 +4057,7 @@
     "Previous": "Trước",
     "Previous branch": "Nhánh trước",
     "Previous page": "Trang trước",
+    "Back to top": "Back to top",
     "Previous Page": "Trang trước",
     "Price": "Giá",
     "Price ($/1K calls)": "Giá ($/1K lượt gọi)",
@@ -5113,6 +5114,9 @@
     "Success {{success}} / Total {{total}}": "Thành công {{success}} / Tổng {{total}}",
     "Success rate": "Tỷ lệ thành công",
     "Success Rate": "Tỷ lệ thành công",
+    "Success rate: High to Low": "Success rate: High to Low",
+    "Collapse group price table": "Collapse group price table",
+    "Expand group price table": "Expand group price table",
     "Successfully created {{count}} API Key(s)": "Đã tạo thành công {{count}} khóa API",
     "Successfully created {{count}} redemption codes": "Đã tạo thành công {{count}} mã đổi thưởng",
     "Successfully deleted {{count}} API key(s)": "Đã xóa thành công {{count}} khóa API",
@@ -6123,13 +6127,14 @@
     "Empty reply": "Phản hồi trống",
     "Full price": "Tính đủ phí",
     "home.policy.empty.body": "Khi mô hình trả về phản hồi trống (HTTP 200 nhưng không có nội dung), yêu cầu vẫn bị tính một phần phí để bù chi phí định tuyến và điều phối.",
-    "home.policy.empty.item.adjustable": "Ghi chú hệ số: do trang web cấu hình",
+    "home.policy.empty.item.adjustable": "Ghi chú hệ số: 0 là miễn phí, 1 là trừ phí yêu cầu này, thực tế trừ: {{multiplier}}",
     "home.policy.empty.item.rate": "Phí thông thường x {{multiplier}}",
     "home.policy.empty.item.scope": "Theo lần gọi / theo token x {{multiplier}}",
     "home.policy.empty.title": "Phí phản hồi trống",
     "Join the group: 收费API站": "Tham gia nhóm: 收费API站",
     "Empty Response Charge": "Phí phản hồi trống",
     "pricing.model.emptyResponseNote": "Ghi chú phí <0>phản hồi trống</0>: khi mô hình trả về phản hồi trống, bạn bị tính phí thông thường × {{multiplier}}. Áp dụng cho cả tính phí theo lần gọi và theo token.",
-    "Reduced by multiplier": "Đã giảm theo hệ số"
+    "Reduced by multiplier": "Đã giảm theo hệ số",
+    "Create Key": "Tạo Khóa"
   }
 }

@@ -309,7 +309,7 @@ export function NotificationPopover({
           <Button
             variant='ghost'
             size='icon'
-            className={cn('relative size-9', className)}
+            className={cn('relative size-9', className, 'overflow-visible')}
             aria-label={t('Notifications')}
           />
         }

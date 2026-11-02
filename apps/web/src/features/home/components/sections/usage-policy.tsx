@@ -44,7 +44,7 @@ export function UsagePolicy() {
   const emptyReply = [
     t('home.policy.empty.item.rate', { multiplier: emptyMultiplier }),
     t('home.policy.empty.item.scope', { multiplier: emptyMultiplier }),
-    t('home.policy.empty.item.adjustable'),
+    t('home.policy.empty.item.adjustable', { multiplier: emptyMultiplier }),
   ]
 
   return (

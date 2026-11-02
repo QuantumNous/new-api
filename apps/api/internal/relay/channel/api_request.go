@@ -327,7 +327,7 @@ func DoApiRequest(a Adaptor, c contract.Context, info *common.RelayInfo, request
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	logger.LogDebug(c.Context(), "fullRequestURL: %s", common.SanitizeURLForLog(fullRequestURL))
-	req, err := http.NewRequest(c.Method(), fullRequestURL, requestBody)
+	req, err := http.NewRequestWithContext(c.Context(), c.Method(), fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -357,7 +357,7 @@ func DoFormRequest(a Adaptor, c contract.Context, info *common.RelayInfo, reques
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	logger.LogDebug(c.Context(), "fullRequestURL: %s", common.SanitizeURLForLog(fullRequestURL))
-	req, err := http.NewRequest(c.Method(), fullRequestURL, requestBody)
+	req, err := http.NewRequestWithContext(c.Context(), c.Method(), fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -403,7 +403,7 @@ func DoWssRequest(a Adaptor, c contract.Context, info *common.RelayInfo, request
 		targetHeader.Set(key, value)
 	}
 	targetHeader.Set("Content-Type", c.Header("Content-Type"))
-	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
+	targetConn, _, err := websocket.DefaultDialer.DialContext(c.Context(), fullRequestURL, targetHeader)
 	if err != nil {
 		return nil, fmt.Errorf("dial failed to %s: %w", common.SanitizeURLForLog(fullRequestURL), err)
 	}
@@ -577,7 +577,7 @@ func DoTaskApiRequest(a TaskAdaptor, c contract.Context, info *common.RelayInfo,
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(c.Method(), fullRequestURL, requestBody)
+	req, err := http.NewRequestWithContext(c.Context(), c.Method(), fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}

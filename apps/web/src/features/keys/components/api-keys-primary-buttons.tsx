@@ -30,7 +30,7 @@ export function ApiKeysPrimaryButtons() {
     <div className='flex gap-2'>
       <Button size='sm' onClick={() => setOpen('create')}>
         <Plus className='h-4 w-4' />
-        {t('Create API Key')}
+        {t('Create Key')}
       </Button>
     </div>
   )

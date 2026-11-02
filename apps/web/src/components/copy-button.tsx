@@ -37,6 +37,7 @@ interface CopyButtonProps {
   variant?: 'ghost' | 'outline' | 'default' | 'secondary' | 'destructive'
   size?: 'default' | 'sm' | 'lg' | 'icon'
   tooltip?: string
+  trailingIcon?: boolean
   successTooltip?: string
   'aria-label'?: string
 }
@@ -49,6 +50,7 @@ export function CopyButton({
   variant = 'ghost',
   size = 'icon',
   tooltip,
+  trailingIcon = false,
   successTooltip,
   'aria-label': ariaLabel,
 }: CopyButtonProps) {
@@ -60,6 +62,12 @@ export function CopyButton({
   const resolvedAriaLabel = ariaLabel ?? resolvedTooltip
   const copiedAriaLabel = t('Copied')
 
+  const icon = isCopied ? (
+    <Check className={cn('text-success', iconClassName)} />
+  ) : (
+    <Copy className={cn(iconClassName)} />
+  )
+
   const button = (
     <Button
       variant={variant}
@@ -68,12 +76,17 @@ export function CopyButton({
       onClick={() => copyToClipboard(value)}
       aria-label={isCopied ? copiedAriaLabel : resolvedAriaLabel}
     >
-      {isCopied ? (
-        <Check className={cn('text-success', iconClassName)} />
+      {trailingIcon ? (
+        <>
+          {children}
+          {icon}
+        </>
       ) : (
-        <Copy className={cn(iconClassName)} />
+        <>
+          {icon}
+          {children}
+        </>
       )}
-      {children}
     </Button>
   )
 

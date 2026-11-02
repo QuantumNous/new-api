@@ -2383,7 +2383,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.": "В целях безопасности существующие токены доступа нельзя просмотреть повторно. Создавайте новый токен только при необходимости.",
@@ -4057,6 +4057,7 @@
     "Previous": "Предыдущий шаг",
     "Previous branch": "Предыдущая ветка",
     "Previous page": "Предыдущая страница",
+    "Back to top": "Back to top",
     "Previous Page": "Предыдущая страница",
     "Price": "Цена",
     "Price ($/1K calls)": "Цена ($/1K вызовов)",
@@ -5113,6 +5114,9 @@
     "Success {{success}} / Total {{total}}": "Успешно {{success}} / Всего {{total}}",
     "Success rate": "Доля успешных запросов",
     "Success Rate": "Успешность",
+    "Success rate: High to Low": "Success rate: High to Low",
+    "Collapse group price table": "Collapse group price table",
+    "Expand group price table": "Expand group price table",
     "Successfully created {{count}} API Key(s)": "Успешно создано {{count}} API-ключ(а/ей)",
     "Successfully created {{count}} redemption codes": "Успешно создано {{count}} кодов активации",
     "Successfully deleted {{count}} API key(s)": "Успешно удалено {{count}} API-ключ(а/ей)",
@@ -6123,13 +6127,14 @@
     "Empty reply": "Пустой ответ",
     "Full price": "Полная стоимость",
     "home.policy.empty.body": "Если модель возвращает пустой ответ (HTTP 200 без содержимого), запрос всё равно тарифицируется частично — для покрытия расходов на маршрутизацию и планирование.",
-    "home.policy.empty.item.adjustable": "Примечание о множителе: настраивается сайтом",
+    "home.policy.empty.item.adjustable": "Примечание о множителе: 0 — освобождение от оплаты, 1 — списание стоимости этого запроса, фактическое списание: {{multiplier}}",
     "home.policy.empty.item.rate": "Обычная стоимость x {{multiplier}}",
     "home.policy.empty.item.scope": "За вызов / за токены x {{multiplier}}",
     "home.policy.empty.title": "Плата за пустые ответы",
     "Join the group: 收费API站": "Присоединяйтесь к группе: 收费API站",
     "Empty Response Charge": "Плата за пустой ответ",
     "pricing.model.emptyResponseNote": "Тарификация <0>пустых ответов</0> : если модель вернула пустой ответ, списывается обычная стоимость × {{multiplier}}. Применимо к оплате за вызов и за токены.",
-    "Reduced by multiplier": "Уменьшено множителем"
+    "Reduced by multiplier": "Уменьшено множителем",
+    "Create Key": "Создать ключ"
   }
 }
