@@ -23,7 +23,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AccessAuthLayout } from '@/features/auth/access-auth-layout'
-import { SUPPORT_QQ_GROUP } from '@/lib/support-contact'
+import { SUPPORT_QQ_GROUP, SUPPORT_QQ_GROUP_INVITE_URL } from '@/lib/support-contact'
 import { renderApp } from '@/test-utils/render-app'
 
 import { AppHeader } from '../app-header'
@@ -100,6 +100,9 @@ describe('community help entry', () => {
       screen.getByRole('img', { name: 'QQ after-sales group QR code' })
     ).toHaveAttribute('src', '/qq-community-qr.png')
     expect(screen.getByText(`QQ group: ${SUPPORT_QQ_GROUP}`)).toBeVisible()
+    expect(
+      screen.getByRole('link', { name: 'Click to join' })
+    ).toHaveAttribute('href', SUPPORT_QQ_GROUP_INVITE_URL)
 
     await user.click(document.body)
     expect(screen.queryByRole('dialog')).toBeNull()

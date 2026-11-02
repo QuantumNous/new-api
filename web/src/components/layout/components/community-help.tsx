@@ -20,7 +20,10 @@ import { MessagesSquare } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SUPPORT_QQ_GROUP } from '@/lib/support-contact'
+import {
+  SUPPORT_QQ_GROUP,
+  SUPPORT_QQ_GROUP_INVITE_URL,
+} from '@/lib/support-contact'
 
 type CommunityHelpVariant = 'console' | 'header'
 
@@ -108,6 +111,14 @@ export function CommunityHelp(props: CommunityHelpProps = {}) {
           <p className={styles.hint}>
             {t('Scan to join the QQ group for setup help.')}
           </p>
+          <a
+            href={SUPPORT_QQ_GROUP_INVITE_URL}
+            target='_blank'
+            rel='noreferrer noopener'
+            className='bg-primary text-primary-foreground hover:bg-primary/90 inline-flex w-full items-center justify-center rounded-full px-3 py-1.5 text-xs font-semibold transition-colors'
+          >
+            {t('Click to join')}
+          </a>
         </div>
       ) : null}
     </div>
