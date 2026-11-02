@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getFlowQuotaDates, getUptimeStatus, getUserQuotaDataByUsers, getUserQuotaDates } from '@/features/dashboard/api'
 import type { FlowQuotaDataItem, QuotaDataItem, UptimeGroupResult } from '@/features/dashboard/types'
 import { getPerfMetrics, getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { formatLatencyWithUnit, pickLatencyUnit } from '@/features/performance-metrics/lib/format'
 import type { PerfModelSummary, PerformanceSeriesPoint } from '@/features/performance-metrics/types'
 import { formatCompactNumber, formatNumber, formatPercent, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
@@ -98,6 +99,12 @@ function AdminDashboard() {
     return { growth, index: totals.users.size ? totals.requests / totals.users.size : 0 }
   }, [range, totals.requests, totals.users.size, users])
   const anomalyModels = models.filter((model: PerfModelSummary) => model.success_rate < 95 || model.avg_latency_ms > 2000).slice(0, 5)
+  // The anomaly list compares models side by side, so its latency column
+  // keeps one unit picked from the slowest entry rather than flipping between
+  // milliseconds and seconds row by row.
+  const anomalyLatencyUnit = pickLatencyUnit(
+    Math.max(0, ...anomalyModels.map((model) => model.avg_latency_ms))
+  )
   const uptime = (uptimeQuery.data?.data ?? []) as UptimeGroupResult[]
   const serviceCount = uptime.reduce((sum, group) => sum + (group.monitors?.length ?? 0), 0)
   const healthyServices = uptime.reduce((sum, group) => sum + (group.monitors?.filter((monitor) => monitor.status === 1).length ?? 0), 0)
@@ -118,7 +125,7 @@ function AdminDashboard() {
     <Panel title={t('admin.dashboard.requestsTokensPeriod')} icon={Activity}>{rpmTpm.length ? <div className='grid gap-2 p-4 sm:grid-cols-2'>{rpmTpm.slice(-6).map((point) => <div className='bg-muted/35 rounded-md border px-3 py-2 text-xs' key={point.time}><div className='text-muted-foreground'>{point.time}</div><div className='mt-1 font-mono'>RPM {formatNumber(point.rpm)} · TPM {formatCompactNumber(point.tpm)}</div></div>)}</div> : <StateMessage empty />}</Panel>
     <Panel title={t('admin.dashboard.userGrowthActivity')} icon={Users}><div className='grid gap-3 p-4 sm:grid-cols-2'><div><div className='text-muted-foreground text-xs'>{t('admin.dashboard.userGrowth')}</div><div className='mt-1 font-mono text-lg'>{formatPercent(userActivity.growth)}</div></div><div><div className='text-muted-foreground text-xs'>{t('admin.dashboard.activityIndex')}</div><div className='mt-1 font-mono text-lg'>{formatNumber(userActivity.index)} {t('admin.dashboard.requestsPerActiveUser')}</div></div></div></Panel>
     <div className='grid min-w-0 gap-4 lg:grid-cols-3'>{[ ['admin.dashboard.topModels', rankings.models], ['admin.dashboard.topChannels', rankings.channels], ['admin.dashboard.topUsers', rankings.users]].map(([title, rows]) => <Panel key={title as string} title={t(title as string)} icon={title === 'admin.dashboard.topChannels' ? RadioTower : Users}>{(rows as Array<{ name: string; requests: number; tokens: number; consumption: number }>).length ? <div className='divide-y'>{(rows as Array<{ name: string; requests: number; tokens: number; consumption: number }>).map((row) => <div className='flex items-center justify-between gap-3 px-4 py-2.5 text-xs' key={row.name}><span className='truncate'>{row.name}</span><span className='shrink-0 font-mono'>{formatCompactNumber(row.requests)} {t('admin.dashboard.requests')}</span></div>)}</div> : <StateMessage empty />}</Panel>)}</div>
-    <Panel title={t('admin.dashboard.performanceAnomalies')} icon={AlertTriangle}>{performanceQuery.isLoading ? <Skeleton className='m-4 h-24' /> : performanceQuery.isError ? <StateMessage error /> : anomalyModels.length ? <div className='divide-y'>{anomalyModels.map((model) => <div className='flex justify-between gap-3 px-4 py-2.5 text-xs' key={model.model_name}><span className='truncate font-mono'>{model.model_name}</span><span className='shrink-0 text-warning'>{formatPercent(model.success_rate)} · {formatNumber(model.avg_latency_ms)} ms</span></div>)}</div> : <StateMessage empty />}</Panel>
+    <Panel title={t('admin.dashboard.performanceAnomalies')} icon={AlertTriangle}>{performanceQuery.isLoading ? <Skeleton className='m-4 h-24' /> : performanceQuery.isError ? <StateMessage error /> : anomalyModels.length ? <div className='divide-y'>{anomalyModels.map((model) => <div className='flex justify-between gap-3 px-4 py-2.5 text-xs' key={model.model_name}><span className='truncate font-mono'>{model.model_name}</span><span className='shrink-0 text-warning'>{formatPercent(model.success_rate)} · {formatLatencyWithUnit(model.avg_latency_ms, anomalyLatencyUnit)}</span></div>)}</div> : <StateMessage empty />}</Panel>
     <Card><CardContent className='p-4 text-sm'><strong>{t('admin.dashboard.orders')}</strong><p className='text-muted-foreground mt-1'>{t('admin.dashboard.ordersUnavailable')}</p></CardContent></Card>
     {(usageQuery.isError || flowQuery.isError || usersQuery.isError) && <Card><CardContent><StateMessage error /></CardContent></Card>}
   </div>

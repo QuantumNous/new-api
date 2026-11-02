@@ -28,10 +28,12 @@ import {
 import { GroupBadge } from '@/components/group-badge'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
-  formatLatency,
+  formatLatencyWithUnit,
   formatThroughput,
   formatUptimePct,
   getSuccessRateTextClass,
+  pickLatencyUnit,
+  type LatencyUnit,
 } from '@/features/performance-metrics/lib/format'
 import type { PerformanceGroup } from '@/features/performance-metrics/types'
 import { cn } from '@/lib/utils'
@@ -209,6 +211,16 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
       ? tpsValues.reduce((sum, value) => sum + value, 0) / tpsValues.length
       : 0
   const avgLatency = average(performances, 'avg_latency_ms')
+  const avgTtft = average(performances, 'avg_ttft_ms')
+  // Latency and TTFT are two columns of the same table, so each picks one
+  // unit from its own slowest group: TTFT usually stays in milliseconds
+  // while end-to-end latency reads in seconds, and a column never mixes.
+  const ttftUnit: LatencyUnit = pickLatencyUnit(
+    Math.max(...performances.map((perf) => perf.avg_ttft_ms))
+  )
+  const latencyUnit: LatencyUnit = pickLatencyUnit(
+    Math.max(...performances.map((perf) => perf.avg_latency_ms))
+  )
   const successRates = performances
     .map((perf) => perf.success_rate)
     .filter((value) => Number.isFinite(value))
@@ -221,7 +233,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
 
   return (
     <div className='flex flex-col gap-4'>
-      <div className='grid grid-cols-1 gap-2 sm:grid-cols-3'>
+      <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4'>
         <StatCard
           icon={Timer}
           label='TPS'
@@ -231,7 +243,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
         <StatCard
           icon={Timer}
           label={t('Average latency')}
-          value={formatLatency(avgLatency)}
+          value={formatLatencyWithUnit(avgLatency, latencyUnit)}
         />
         <StatCard
           icon={HeartPulse}
@@ -245,6 +257,11 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
               : t('No incidents in the last 24 hours')
           }
           valueClassName={getSuccessRateTextClass(successRate)}
+        />
+        <StatCard
+          icon={Timer}
+          label={t('Average TTFT')}
+          value={formatLatencyWithUnit(avgTtft, ttftUnit)}
         />
       </div>
 
@@ -280,14 +297,15 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
               header: t('Average TTFT'),
               className: tableStyles.compactHeaderCellRight,
               cellClassName: tableStyles.compactNumericCell,
-              cell: (perf) => formatLatency(perf.avg_ttft_ms),
+              cell: (perf) => formatLatencyWithUnit(perf.avg_ttft_ms, ttftUnit),
             },
             {
               id: 'latency',
               header: t('Average latency'),
               className: tableStyles.compactHeaderCellRight,
               cellClassName: tableStyles.compactMutedNumericCell,
-              cell: (perf) => formatLatency(perf.avg_latency_ms),
+              cell: (perf) =>
+                formatLatencyWithUnit(perf.avg_latency_ms, latencyUnit),
             },
             {
               id: 'success',

@@ -38,6 +38,7 @@ import { Button } from '@/components/ui/button'
 import { SettingsSection } from '../components/settings-section'
 import { getRouteUnitAliases, getRouteUnits, updateRouteUnit, type RouteUnitAliasSummary, type RouteUnitView } from './api-route-units'
 import { NumericSpinnerInput } from '@/features/channels/components/numeric-spinner-input'
+import { formatLatency } from '@/features/performance-metrics/lib/format'
 
 interface RouteUnitsSectionProps {
   // No defaultValues needed - data comes from API
@@ -267,7 +268,9 @@ export function RouteUnitsSection({}: RouteUnitsSectionProps) {
     return 'text-green-600 dark:text-green-400'
   }
 
-  const formatMs = (ms: number) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`)
+  // Each route unit reports its own TTFT, so the unit follows its value
+  // (seconds once it reaches a second) — same rule as the shared
+  // formatLatency, which also renders a dash for unmeasured values.
 
   if (loadingAliases) {
     return (
@@ -494,7 +497,7 @@ export function RouteUnitsSection({}: RouteUnitsSectionProps) {
                         <TableCell className='font-mono text-xs text-muted-foreground'>
                           {unit.sample_count > 0 ? (
                             <div className='flex flex-col gap-0.5'>
-                              <span>{formatMs(unit.ttft_ewma_ms)} {t('TTFT')}</span>
+                              <span>{formatLatency(unit.ttft_ewma_ms)} {t('TTFT')}</span>
                               <span>{unit.tps_ewma.toFixed(1)} {t('tok/s')}</span>
                             </div>
                           ) : (

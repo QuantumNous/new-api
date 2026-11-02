@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  formatLatencyValue,
+  pickLatencyUnit,
+  type LatencyUnit,
+} from '@/features/performance-metrics/lib/format'
 import { useCountUpText } from '@/hooks/use-count-up-text'
 import { cn } from '@/lib/utils'
 
@@ -45,6 +50,8 @@ type ChartGeometry = {
   xAt: (index: number) => number
   ySuccess: (value: number) => number
   latencyTicks: number[]
+  /** One unit for the whole chart, picked from the peak latency tick. */
+  latencyUnit: LatencyUnit
   successTicks: number[]
   xLabels: { index: number; label: string }[]
   band: number
@@ -53,10 +60,6 @@ type ChartGeometry = {
 function formatHour(ts: number): string {
   const date = new Date(ts * 1000)
   return `${String(date.getHours()).padStart(2, '0')}:00`
-}
-
-function formatLatency(ms: number): string {
-  return Math.round(ms).toLocaleString()
 }
 
 // Mantissa steps for axis rounding, in ascending order.
@@ -72,9 +75,10 @@ function niceCeil(value: number): number {
 }
 /**
  * Mini combo chart for a model-square card: blue latency bars against the
- * left axis (ms), green success-rate line against the right axis (%), hour
- * labels on the x axis. The headline numbers sit above the chart and swap to
- * the hovered/clicked hour; clicking pins that hour.
+ * left axis (seconds once the peak reaches one, milliseconds below that),
+ * green success-rate line against the right axis (%), hour labels on the x
+ * axis. The headline numbers sit above the chart and swap to the hovered/
+ * clicked hour; clicking pins that hour.
  *
  * Renders nothing without metrics so unsampled models stay visually clean.
  */
@@ -102,8 +106,16 @@ export const ModelCardMetrics = memo(function ModelCardMetrics(props: {
     if (series.length < 2) return null
 
     const latencies = series.map((point) => point.latency_ms)
-    const latencyMax = niceCeil(Math.max(...latencies))
+    const peakLatency = Math.max(...latencies)
+    const latencyMax = niceCeil(peakLatency)
     const latencyTicks = [0, latencyMax / 2, latencyMax]
+    // A chat request routinely takes whole seconds, so a card whose measured
+    // peak reaches a second reads in seconds; faster models stay in
+    // milliseconds, where their numbers stay whole. The decision uses the
+    // measured peak, not the rounded axis maximum: niceCeil(820) is 1000, and
+    // taking that as "one second reached" would flip a sub-second chart to a
+    // 0.00–1.00 second scale.
+    const latencyUnit = pickLatencyUnit(peakLatency)
 
     const successValues = series.map((point) => point.success_rate)
     let successMin = Math.max(0, Math.floor((Math.min(...successValues) - 1) / 5) * 5)
@@ -158,6 +170,7 @@ export const ModelCardMetrics = memo(function ModelCardMetrics(props: {
       xAt,
       ySuccess,
       latencyTicks,
+      latencyUnit,
       successTicks,
       xLabels,
       band,
@@ -194,10 +207,18 @@ const MetricHeadline = memo(function MetricHeadline(props: {
   latencyText: string
   successText: string
   latencyWidth: string
+  latencyUnit: LatencyUnit
   activePoint: ModelPerfTrendPoint | null
   t: (key: string) => string
 }) {
-  const { latencyText, successText, latencyWidth, activePoint, t } = props
+  const {
+    latencyText,
+    successText,
+    latencyWidth,
+    latencyUnit,
+    activePoint,
+    t,
+  } = props
 
   return (
     <div className='grid grid-cols-3 items-center gap-x-2 text-xs leading-4 tabular-nums'>
@@ -208,7 +229,9 @@ const MetricHeadline = memo(function MetricHeadline(props: {
             <span className='invisible'>{latencyWidth}</span>
             <span className='absolute inset-0 text-right'>{latencyText}</span>
           </span>
-          <span className='text-muted-foreground/70 text-[10px]'>ms</span>
+          <span className='text-muted-foreground/70 text-[10px]'>
+            {latencyUnit}
+          </span>
         </span>
       </span>
       <span className='flex min-w-0 items-baseline justify-center gap-1'>
@@ -275,7 +298,7 @@ const MetricChart = memo(function MetricChart(props: {
         )
       })}
 
-      {/* Left axis: latency (ms) */}
+      {/* Left axis: latency, one unit for the whole chart */}
       {geometry.latencyTicks.map((tick, index) => {
         const y = BASE_Y - (tick / geometry.latencyTicks[2]) * PLOT_H
         return (
@@ -288,8 +311,8 @@ const MetricChart = memo(function MetricChart(props: {
             fontSize={9}
           >
             {index === geometry.latencyTicks.length - 1
-              ? `${tick.toLocaleString()}ms`
-              : Math.round(tick).toLocaleString()}
+              ? `${formatLatencyValue(tick, geometry.latencyUnit)}${geometry.latencyUnit}`
+              : formatLatencyValue(tick, geometry.latencyUnit)}
           </text>
         )
       })}
@@ -448,16 +471,19 @@ function MetricRows(props: {
   // Both headline numbers count up when the card scrolls into view, and
   // retarget (count from the current value to the new one) when the hovered
   // chart hour changes. The slots are sized from the chart's own axis maxima,
-  // never from the live value: latency reserves the widest y-axis tick
-  // (e.g. "10,000") and the success rate always reserves "100.0", so the
-  // ms / % units and the neighbouring labels never move mid-animation.
+  // never from the live value: latency reserves the widest y-axis tick and the
+  // success rate always reserves "100.0", so the units and the neighbouring
+  // labels never move mid-animation.
   const latencyText = useCountUpText(
     activePoint
-      ? formatLatency(activePoint.latency_ms)
-      : formatLatency(perf.avg_latency_ms),
+      ? formatLatencyValue(activePoint.latency_ms, geometry.latencyUnit)
+      : formatLatencyValue(perf.avg_latency_ms, geometry.latencyUnit),
     props.visible
   )
-  const latencyWidth = formatLatency(geometry.latencyTicks[2])
+  const latencyWidth = formatLatencyValue(
+    geometry.latencyTicks[2],
+    geometry.latencyUnit
+  )
   const successText = useCountUpText(
     activePoint
       ? activePoint.success_rate.toFixed(1)
@@ -474,6 +500,7 @@ function MetricRows(props: {
         latencyText={latencyText}
         successText={successText}
         latencyWidth={latencyWidth}
+        latencyUnit={geometry.latencyUnit}
         activePoint={activePoint}
         t={t}
       />

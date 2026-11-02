@@ -22,10 +22,49 @@ export function formatThroughput(tps: number): string {
   return `${tps.toFixed(tps < 10 ? 2 : 1)} t/s`
 }
 
+export type LatencyUnit = 'ms' | 's'
+
+/**
+ * The unit a latency scale is displayed in: seconds once the scale's peak
+ * reaches one second, milliseconds below it.
+ *
+ * The unit is chosen per scale (a chart, a card, one table column) rather
+ * than per value, so every number on that scale stays directly comparable.
+ * A standalone value (a KPI tile) can pick its own unit instead.
+ */
+export function pickLatencyUnit(peakMs: number): LatencyUnit {
+  return Number.isFinite(peakMs) && peakMs >= 1_000 ? 's' : 'ms'
+}
+
+/**
+ * Latency expressed in the given unit, without the unit suffix. Each unit
+ * keeps a fixed shape (seconds with two decimals, milliseconds as an integer)
+ * so a card can reserve the same width for every value it shows.
+ */
+export function formatLatencyValue(ms: number, unit: LatencyUnit): string {
+  if (!Number.isFinite(ms)) return '—'
+  if (unit === 's') return (Math.max(0, ms) / 1_000).toFixed(2)
+  return Math.round(Math.max(0, ms)).toLocaleString()
+}
+
+/**
+ * Latency with its unit suffix. A non-positive value means "no measurement"
+ * (an idle hour, a bucket without samples) and renders as a dash rather than
+ * as a zero.
+ */
+export function formatLatencyWithUnit(ms: number, unit: LatencyUnit): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '—'
+  return `${formatLatencyValue(ms, unit)}${unit}`
+}
+
+/**
+ * Latency for a standalone value: the unit follows the value itself, so a
+ * sub-second latency stays in milliseconds and a slower one switches to
+ * seconds.
+ */
 export function formatLatency(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '—'
-  if (ms >= 1_000) return `${(ms / 1_000).toFixed(2)}s`
-  return `${Math.round(ms)}ms`
+  return formatLatencyWithUnit(ms, pickLatencyUnit(ms))
 }
 
 export function formatUptimePct(pct: number): string {

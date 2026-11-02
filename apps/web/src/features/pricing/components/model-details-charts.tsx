@@ -20,7 +20,12 @@ import { VChart } from '@visactor/react-vchart'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getSuccessRateColor } from '@/features/performance-metrics/lib/format'
+import {
+  formatLatencyValue,
+  formatLatencyWithUnit,
+  getSuccessRateColor,
+  pickLatencyUnit,
+} from '@/features/performance-metrics/lib/format'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
@@ -101,6 +106,8 @@ export function LatencyTrendChart(props: {
 
   const spec = useMemo(() => {
     if (props.series.length === 0) return null
+    const peakTtftMs = Math.max(...props.series.map((point) => point.ttft_ms))
+    const ttftUnit = pickLatencyUnit(peakTtftMs)
     const data = props.series.map((point) => ({
       time: formatHourLabel(point.timestamp),
       group: point.group,
@@ -127,7 +134,8 @@ export function LatencyTrendChart(props: {
           content: [
             {
               key: t('Average TTFT'),
-              value: (d: { ttft: number }) => `${Math.round(d.ttft)} ms`,
+              value: (d: { ttft: number }) =>
+                formatLatencyWithUnit(d.ttft, ttftUnit),
             },
           ],
         },
@@ -143,7 +151,12 @@ export function LatencyTrendChart(props: {
         {
           orient: 'left',
           label: {
-            formatMethod: (val: number | string) => `${val} ms`,
+            formatMethod: (val: number | string) => {
+              const v = Number(val)
+              return Number.isFinite(v)
+                ? `${formatLatencyValue(v, ttftUnit)}${ttftUnit}`
+                : '—'
+            },
             style: { fill: textColor, fontSize: 10 },
           },
           grid: {
