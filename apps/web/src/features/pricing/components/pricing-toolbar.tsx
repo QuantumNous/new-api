@@ -144,146 +144,152 @@ export function PricingToolbar(props: PricingToolbarProps) {
 
   return (
     <Card size='sm'>
-      <CardContent className='space-y-3'>
-        <div className='flex flex-col gap-2'>
+      <CardContent>
+        <div className='flex flex-col gap-2 md:flex-row md:items-center md:justify-between'>
+          {/* Search bar: full-width on mobile (top), centered on desktop */}
           <SearchBar
             compact
             value={props.searchInput}
             onChange={props.onSearchChange}
             onClear={props.onClearSearch}
             placeholder={props.searchPlaceholder}
-            className='mx-auto w-full md:max-w-md'
+            className='w-full md:max-w-md md:order-2'
           />
 
-          <div className='flex flex-wrap items-center justify-between gap-2'>
-            <div className='flex items-center gap-2'>
-            <div role='status' aria-live='polite' className='sr-only'>
-              {t('Filter')} {props.filteredCount.toLocaleString()}
-            </div>
-            <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-              <SheetTrigger
-                render={
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
-                    className='h-8 gap-1.5 px-3 text-xs'
-                  />
-                }
-              >
-                <Filter className='size-3.5 mr-1.5' />
-                {t('Filter')} {props.filteredCount.toLocaleString()}
-              </SheetTrigger>
-              <SheetContent side='left' className={sideDrawerContentClassName('bg-popover w-3/4 sm:max-w-[360px] p-0')}>
-                <SheetTitle className='sr-only'>{t('Filter')}</SheetTitle>
-                <div className={sideDrawerFormClassName()}>
-                  <PricingSidebar
-                    className='rounded-none border-0 bg-transparent! p-0 shadow-none ring-0'
-                    quotaTypeFilter={props.quotaTypeFilter}
-                    endpointTypeFilter={props.endpointTypeFilter}
-                    vendorFilter={props.vendorFilter}
-                    groupFilter={props.groupFilter}
-                    tagFilter={props.tagFilter}
-                    onQuotaTypeChange={props.onQuotaTypeChange}
-                    onEndpointTypeChange={props.onEndpointTypeChange}
-                    onVendorChange={props.onVendorChange}
-                    onGroupChange={props.onGroupChange}
-                    onTagChange={props.onTagChange}
-                    vendors={props.vendors}
-                    groups={props.groups}
-                    groupRatios={props.groupRatios}
-                    tags={props.tags}
-                    models={props.models}
-                    hasActiveFilters={props.hasActiveFilters}
-                    onClearFilters={props.onClearFilters}
-                  />
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
-
-          <div className='flex flex-wrap items-center justify-end gap-2'>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
-                    className='h-8 gap-1.5 px-3 text-xs'
-                    aria-label={sortLabels[props.sortBy as SortOption] || t('Sort')}
-                  />
-                }
-              >
-                <ArrowUpDown className='size-3.5' />
-                <span className='hidden sm:inline'>
-                  {sortLabels[props.sortBy as SortOption] || t('Sort')}
-                </span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-44'>
-                {Object.entries(sortLabels).map(([value, label]) => (
-                  <DropdownMenuItem
-                    key={value}
-                    onClick={() => props.onSortChange(value)}
-                    className='gap-2'
-                  >
-                    <Check
-                      className={cn(
-                        'size-4 shrink-0',
-                        props.sortBy === value ? 'opacity-100' : 'opacity-0'
-                      )}
+          {/* Bottom row on mobile (filter left, controls right);
+              display:contents on desktop so children join the parent flex row */}
+          <div className='flex flex-row items-center justify-between gap-2 md:contents'>
+            {/* Filter button */}
+            <div className='md:order-1'>
+              <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+                <SheetTrigger
+                  render={
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      className='h-8 gap-1.5 px-3 text-xs'
                     />
-                    {label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  }
+                >
+                  <Filter className='size-3.5' />
+                  <span className='hidden sm:inline'>
+                    {t('Filter')} {props.filteredCount.toLocaleString()}
+                  </span>
+                </SheetTrigger>
+                <SheetContent side='left' className={sideDrawerContentClassName('bg-popover w-3/4 sm:max-w-[360px] p-0')}>
+                  <SheetTitle className='sr-only'>{t('Filter')}</SheetTitle>
+                  <div className={sideDrawerFormClassName()}>
+                    <PricingSidebar
+                      className='rounded-none border-0 bg-transparent! p-0 shadow-none ring-0'
+                      quotaTypeFilter={props.quotaTypeFilter}
+                      endpointTypeFilter={props.endpointTypeFilter}
+                      vendorFilter={props.vendorFilter}
+                      groupFilter={props.groupFilter}
+                      tagFilter={props.tagFilter}
+                      onQuotaTypeChange={props.onQuotaTypeChange}
+                      onEndpointTypeChange={props.onEndpointTypeChange}
+                      onVendorChange={props.onVendorChange}
+                      onGroupChange={props.onGroupChange}
+                      onTagChange={props.onTagChange}
+                      vendors={props.vendors}
+                      groups={props.groups}
+                      groupRatios={props.groupRatios}
+                      tags={props.tags}
+                      models={props.models}
+                      hasActiveFilters={props.hasActiveFilters}
+                      onClearFilters={props.onClearFilters}
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
 
-            <Button
-              type='button'
-              variant={
-                props.sortBy === SORT_OPTIONS.SUCCESS_RATE
-                  ? 'secondary'
-                  : 'outline'
-              }
-              size='sm'
-              className='h-8 gap-1.5 px-2.5 text-xs'
-              aria-label={props.sortBy === SORT_OPTIONS.SUCCESS_RATE ? t('Sort by Name') : t('Success rate: High to Low')}
-              aria-pressed={props.sortBy === SORT_OPTIONS.SUCCESS_RATE}
-              onClick={() =>
-                props.onSortChange(
+            {/* Other controls: sort, success rate, view mode */}
+            <div className='flex flex-row items-center gap-2 md:order-3'>
+              <div role='status' aria-live='polite' className='sr-only'>
+                {t('Filter')} {props.filteredCount.toLocaleString()}
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      className='h-8 gap-1.5 px-3 text-xs'
+                      aria-label={sortLabels[props.sortBy as SortOption] || t('Sort')}
+                    />
+                  }
+                >
+                  <ArrowUpDown className='size-3.5' />
+                  <span className='hidden sm:inline'>
+                    {sortLabels[props.sortBy as SortOption] || t('Sort')}
+                  </span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end' className='w-44'>
+                  {Object.entries(sortLabels).map(([value, label]) => (
+                    <DropdownMenuItem
+                      key={value}
+                      onClick={() => props.onSortChange(value)}
+                      className='gap-2'
+                    >
+                      <Check
+                        className={cn(
+                          'size-4 shrink-0',
+                          props.sortBy === value ? 'opacity-100' : 'opacity-0'
+                        )}
+                      />
+                      {label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button
+                type='button'
+                variant={
                   props.sortBy === SORT_OPTIONS.SUCCESS_RATE
-                    ? SORT_OPTIONS.NAME
-                    : SORT_OPTIONS.SUCCESS_RATE
-                )
-              }
-            >
-              <TrendingDown className='size-3.5' />
-              <span className='hidden sm:inline'>{t('Success rate')}</span>
-            </Button>
+                    ? 'secondary'
+                    : 'outline'
+                }
+                size='sm'
+                className='h-8 gap-1.5 px-2.5 text-xs'
+                aria-label={props.sortBy === SORT_OPTIONS.SUCCESS_RATE ? t('Sort by Name') : t('Success rate: High to Low')}
+                aria-pressed={props.sortBy === SORT_OPTIONS.SUCCESS_RATE}
+                onClick={() =>
+                  props.onSortChange(
+                    props.sortBy === SORT_OPTIONS.SUCCESS_RATE
+                      ? SORT_OPTIONS.NAME
+                      : SORT_OPTIONS.SUCCESS_RATE
+                  )
+                }
+              >
+                <TrendingDown className='size-3.5' />
+                <span className='hidden sm:inline'>{t('Success rate')}</span>
+              </Button>
 
-            <SegmentedControl
-              options={[
-                {
-                  value: VIEW_MODES.CARD,
-                  icon: Grid2X2,
-                  tooltip: t('Card view'),
-                },
-                {
-                  value: VIEW_MODES.TABLE,
-                  icon: Table2,
-                  tooltip: t('Table view'),
-                },
-              ]}
-              value={props.viewMode}
-              onChange={handleViewModeChange}
-              ariaLabel={t('View mode')}
-            />
-          </div>
+              <SegmentedControl
+                options={[
+                  {
+                    value: VIEW_MODES.CARD,
+                    icon: Grid2X2,
+                    tooltip: t('Card view'),
+                  },
+                  {
+                    value: VIEW_MODES.TABLE,
+                    icon: Table2,
+                    tooltip: t('Table view'),
+                  },
+                ]}
+                value={props.viewMode}
+                onChange={handleViewModeChange}
+                ariaLabel={t('View mode')}
+              />
+            </div>
           </div>
         </div>
       </CardContent>
-
     </Card>
   )
 }

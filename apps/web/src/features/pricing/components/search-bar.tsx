@@ -66,7 +66,7 @@ export function SearchBar(props: SearchBarProps) {
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         className={cn(
-          'bg-card-surface border text-sm dark:border-white/40',
+          'bg-card-surface border-border text-sm focus:border-ring! focus-visible:ring-0 dark:border-input',
           props.compact ? 'h-9 pe-10 ps-8' : 'h-12 pe-16 ps-10'
         )}
         aria-label={t('Search models')}
