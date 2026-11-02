@@ -100,9 +100,17 @@ describe('community help entry', () => {
       screen.getByRole('img', { name: 'QQ after-sales group QR code' })
     ).toHaveAttribute('src', '/qq-community-qr.png')
     expect(screen.getByText(`QQ group: ${SUPPORT_QQ_GROUP}`)).toBeVisible()
+    const link = screen.getByRole('link', { name: 'Click to join' })
+    expect(link).toHaveAttribute('href', SUPPORT_QQ_GROUP_INVITE_URL)
+    // The join button lives inside the QR card, not as a separate row.
     expect(
-      screen.getByRole('link', { name: 'Click to join' })
-    ).toHaveAttribute('href', SUPPORT_QQ_GROUP_INVITE_URL)
+      link.querySelector('img[alt="QQ after-sales group QR code"]')
+    ).not.toBeNull()
+    // The hint stays as the last line of the popover.
+    const hint = screen.getByText('Scan to join the QQ group for setup help.')
+    expect(
+      hint.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_PRECEDING
+    ).toBeTruthy()
 
     await user.click(document.body)
     expect(screen.queryByRole('dialog')).toBeNull()

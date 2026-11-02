@@ -98,27 +98,29 @@ export function CommunityHelp(props: CommunityHelpProps = {}) {
       </button>
       {open ? (
         <div className={styles.panel} role='dialog' aria-label={label}>
-          <img
-            src='/qq-community-qr.png'
-            alt={t('QQ after-sales group QR code')}
-            width={180}
-            height={180}
-            className={styles.qr}
-          />
+          <a
+            href={SUPPORT_QQ_GROUP_INVITE_URL}
+            target='_blank'
+            rel='noreferrer noopener'
+            title={t('Click to join')}
+            aria-label={t('Click to join')}
+            className='ci-communityQrLink'
+          >
+            <img
+              src='/qq-community-qr.png'
+              alt={t('QQ after-sales group QR code')}
+              width={180}
+              height={180}
+              className={styles.qr}
+            />
+            <span className='ci-communityQrCta'>{t('Click to join')}</span>
+          </a>
           <strong className={styles.title}>
             {t('QQ group: {{group}}', { group: SUPPORT_QQ_GROUP })}
           </strong>
           <p className={styles.hint}>
             {t('Scan to join the QQ group for setup help.')}
           </p>
-          <a
-            href={SUPPORT_QQ_GROUP_INVITE_URL}
-            target='_blank'
-            rel='noreferrer noopener'
-            className='bg-primary text-primary-foreground hover:bg-primary/90 inline-flex w-full items-center justify-center rounded-full px-3 py-1.5 text-xs font-semibold transition-colors'
-          >
-            {t('Click to join')}
-          </a>
         </div>
       ) : null}
     </div>
