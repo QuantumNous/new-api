@@ -256,6 +256,8 @@ func withSMTPSettings(t *testing.T) {
 	originalSMTPToken := SMTPToken
 	originalSMTPAccountPool := SMTPAccountPool
 	originalSystemName := SystemName
+	originalOperationTimeout := SMTPOperationTimeout
+	originalQuitTimeout := smtpQuitTimeout
 
 	t.Cleanup(func() {
 		SMTPServer = originalSMTPServer
@@ -269,7 +271,169 @@ func withSMTPSettings(t *testing.T) {
 		SMTPToken = originalSMTPToken
 		SMTPAccountPool = originalSMTPAccountPool
 		SystemName = originalSystemName
+		SMTPOperationTimeout = originalOperationTimeout
+		smtpQuitTimeout = originalQuitTimeout
 	})
+}
+
+// stalledSMTPServer walks a submission up to DATA, then stops answering on
+// purpose: either after accepting the message (a lost QUIT acknowledgement,
+// which PMail produces by closing its session window mid-flight) or instead
+// of accepting it (a lost final 250). Both leave the client blocked on a read
+// until the connection deadline fires.
+type stalledSMTPServer struct {
+	listener         net.Listener
+	host             string
+	port             int
+	acceptBeforeHang bool
+}
+
+func newStalledSMTPServer(t *testing.T, acceptBeforeHang bool) *stalledSMTPServer {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	host, portText, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+	port, err := strconv.Atoi(portText)
+	require.NoError(t, err)
+
+	server := &stalledSMTPServer{
+		listener:         listener,
+		host:             host,
+		port:             port,
+		acceptBeforeHang: acceptBeforeHang,
+	}
+	go server.serve()
+	return server
+}
+
+func (s *stalledSMTPServer) close() {
+	_ = s.listener.Close()
+}
+
+func (s *stalledSMTPServer) serve() {
+	for {
+		conn, err := s.listener.Accept()
+		if err != nil {
+			return
+		}
+		go s.serveConn(conn)
+	}
+}
+
+func (s *stalledSMTPServer) serveConn(conn net.Conn) {
+	defer conn.Close()
+
+	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+	respond := func(line string) bool {
+		return writeSMTPLine(rw, line) == nil
+	}
+
+	if !respond("220 stall.smtp.local ESMTP") {
+		return
+	}
+	for {
+		line, err := rw.ReadString('\n')
+		if err != nil {
+			return
+		}
+		command := strings.ToUpper(strings.TrimRight(line, "\r\n"))
+		switch {
+		case strings.HasPrefix(command, "EHLO"):
+			if !respond("250-stall.smtp.local") || !respond("250 AUTH PLAIN LOGIN") {
+				return
+			}
+		case strings.HasPrefix(command, "AUTH"):
+			if !respond("235 2.7.0 Authentication successful") {
+				return
+			}
+		case strings.HasPrefix(command, "MAIL FROM:"):
+			if !respond("250 2.1.0 Sender OK") {
+				return
+			}
+		case strings.HasPrefix(command, "RCPT TO:"):
+			if !respond("250 2.1.5 Recipient OK") {
+				return
+			}
+		case command == "DATA":
+			if !respond("354 End data with <CR><LF>.<CR><LF>") {
+				return
+			}
+			for {
+				dataLine, err := rw.ReadString('\n')
+				if err != nil {
+					return
+				}
+				if strings.TrimRight(dataLine, "\r\n") == "." {
+					break
+				}
+			}
+			if s.acceptBeforeHang && !respond("250 2.0.0 Queued") {
+				return
+			}
+			<-time.After(5 * time.Second)
+			return
+		default:
+			return
+		}
+	}
+}
+
+func configureStalledSMTPServer(t *testing.T, server *stalledSMTPServer) {
+	t.Helper()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = server.port
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = false
+	SMTPInsecureSkipVerify = false
+	SMTPForceAuthLogin = false
+	SMTPAccount = "sender@example.com"
+	SMTPFrom = "sender@example.com"
+	SMTPToken = "secret"
+	SystemName = "New API"
+}
+
+// PMail closes its SMTP session window while the QUIT exchange is still in
+// flight, so the goodbye goes unanswered. A failed QUIT must never surface as
+// a send failure (the relay already answered the body with 250) and must never
+// burn the remaining operation budget either.
+func TestSendEmailSucceedsWhenServerAbortsQuit(t *testing.T) {
+	server := newStalledSMTPServer(t, true)
+	defer server.close()
+	configureStalledSMTPServer(t, server)
+
+	// The operation deadline alone would allow a much longer hang; only the
+	// dedicated QUIT window can explain a fast success.
+	SMTPOperationTimeout = 30 * time.Second
+	smtpQuitTimeout = 300 * time.Millisecond
+
+	started := time.Now()
+	err := SendEmail("Verification", "receiver@example.com", "<p>123456</p>")
+	elapsed := time.Since(started)
+
+	require.NoError(t, err)
+	require.Less(t, elapsed, 3*time.Second, "QUIT window must bound the goodbye")
+}
+
+// A relay that never answers for the accepted message must fail within
+// SMTPOperationTimeout. Without that deadline the read waits on the kernel's
+// TCP retransmit ladder and holds the calling HTTP handler for minutes.
+func TestSendEmailStalledServerFailsWithinDeadline(t *testing.T) {
+	server := newStalledSMTPServer(t, false)
+	defer server.close()
+	configureStalledSMTPServer(t, server)
+
+	SMTPOperationTimeout = 1500 * time.Millisecond
+
+	started := time.Now()
+	err := SendEmail("Verification", "receiver@example.com", "<p>123456</p>")
+	elapsed := time.Since(started)
+
+	require.ErrorContains(t, err, "i/o timeout")
+	require.Less(t, elapsed, 4*time.Second, "deadline must bound the submission")
 }
 
 func TestSendEmailUsesExplicitStartTLSWithInsecureCertificate(t *testing.T) {
@@ -396,9 +560,9 @@ func TestNewSMTPClientHonorsExplicitStartTLSWhenPortIs465(t *testing.T) {
 	SMTPStartTLSEnabled = true
 	SMTPInsecureSkipVerify = true
 
-	client, err := newSMTPClient(fmt.Sprintf("%s:%d", server.host, server.port), SMTPAccountConfig{
+	client, _, err := newSMTPClient(net.JoinHostPort(server.host, strconv.Itoa(server.port)), SMTPAccountConfig{
 		Server: SMTPServer, Port: SMTPPort, StartTLS: SMTPStartTLSEnabled,
-	})
+	}, SMTPOperationTimeout)
 	require.NoError(t, err)
 	defer client.Close()
 
@@ -421,9 +585,9 @@ func TestNewSMTPClientKeepsImplicitTLSForLegacyPort465(t *testing.T) {
 	SMTPStartTLSEnabled = false
 	SMTPInsecureSkipVerify = true
 
-	client, err := newSMTPClient(fmt.Sprintf("%s:%d", server.host, server.port), SMTPAccountConfig{
+	client, _, err := newSMTPClient(net.JoinHostPort(server.host, strconv.Itoa(server.port)), SMTPAccountConfig{
 		Server: SMTPServer, Port: SMTPPort, StartTLS: SMTPStartTLSEnabled,
-	})
+	}, SMTPOperationTimeout)
 	require.NoError(t, err)
 	defer client.Close()
 }

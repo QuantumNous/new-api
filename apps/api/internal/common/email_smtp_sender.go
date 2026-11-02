@@ -3,6 +3,8 @@ package common
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -90,7 +92,7 @@ func (s *smtpSender) deliver(msg OutgoingMessage) error {
 		"Content-Type: text/html; charset=UTF-8\r\n\r\n%s\r\n",
 		msg.Receiver, SystemName, from, encodedSubject, time.Now().Format(time.RFC1123Z), id, msg.Content))
 
-	client, err := newSMTPClient(fmt.Sprintf("%s:%d", s.config.Server, s.config.Port), s.config)
+	client, conn, err := newSMTPClient(net.JoinHostPort(s.config.Server, strconv.Itoa(s.config.Port)), s.config, SMTPOperationTimeout)
 	if err != nil {
 		return err
 	}
@@ -120,9 +122,13 @@ func (s *smtpSender) deliver(msg OutgoingMessage) error {
 	if err = w.Close(); err != nil {
 		return err
 	}
-	err = client.Quit()
-	if err != nil {
+	// The relay accepted the message once DATA closed with 250, so the
+	// goodbye is cosmetic: PMail answers it with 421 "Idle timeout" when its
+	// session window already closed. Give it a short window of its own, and
+	// never let a failed QUIT reach the caller as a send failure.
+	conn.SetDeadline(time.Now().Add(smtpQuitTimeout)) // #nosec G104 -- a live TCP conn accepts a deadline.
+	if err := client.Quit(); err != nil {
 		SysError(fmt.Sprintf("failed to quit SMTP session for %s: %v", from, err))
 	}
-	return err
+	return nil
 }

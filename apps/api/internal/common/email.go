@@ -3,11 +3,24 @@ package common
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/smtp"
 	"slices"
 	"strings"
 	"time"
 )
+
+// SMTPOperationTimeout bounds one outbound submission: TCP connect, TLS
+// handshake, auth, envelope and message body, via one absolute connection
+// deadline. Mail is a background convenience, not a request-critical path: a
+// stalled relay must surface an error instead of pinning the calling handler
+// inside the kernel's TCP retransmit ladder.
+var SMTPOperationTimeout = 60 * time.Second
+
+// smtpQuitTimeout bounds the post-acceptance QUIT. The relay has already
+// taken responsibility for the message at that point: hanging up early costs
+// nothing, while waiting on a lost 221 wastes handler time.
+var smtpQuitTimeout = 5 * time.Second
 
 // SMTPAccountConfig is one upstream SMTP identity new-api can send through.
 // Several can be configured at once so that a provider-side rate limit or a
@@ -93,37 +106,56 @@ func smtpTLSConfig(server string) *tls.Config {
 	}
 }
 
-func newSMTPClient(addr string, account SMTPAccountConfig) (*smtp.Client, error) {
-	if account.SSLEnabled || (account.Port == 465 && !account.StartTLS) {
-		conn, err := tls.Dial("tcp", addr, smtpTLSConfig(account.Server))
-		if err != nil {
-			return nil, err
-		}
-		client, err := smtp.NewClient(conn, account.Server)
-		if err != nil {
-			_ = conn.Close()
-			return nil, err
-		}
-		return client, nil
-	}
+// newSMTPClient opens one SMTP submission. timeout bounds the whole
+// exchange - TCP connect, TLS handshake and every command - through a single
+// absolute connection deadline. Left unbounded, a stall on a lossy network
+// waits on the kernel's TCP retransmit ladder (tens of minutes) inside
+// whatever HTTP handler asked for the mail. The underlying connection comes
+// back with the client so a caller can re-cut the deadline after the relay
+// accepts the message.
+func newSMTPClient(addr string, account SMTPAccountConfig, timeout time.Duration) (*smtp.Client, net.Conn, error) {
+	deadline := time.Now().Add(timeout)
+	dialer := &net.Dialer{Deadline: deadline}
 
-	client, err := smtp.Dial(addr)
+	conn, err := dialer.Dial("tcp", addr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	// The connection deadline is inherited by the TLS wrapper and by every
+	// command that follows, so one value bounds the entire exchange.
+	if err := conn.SetDeadline(deadline); err != nil {
+		_ = conn.Close()
+		return nil, nil, err
 	}
 
-	if account.StartTLS {
+	implicitTLS := account.SSLEnabled || (account.Port == 465 && !account.StartTLS)
+	var client *smtp.Client
+	if implicitTLS {
+		tlsConn := tls.Client(conn, smtpTLSConfig(account.Server))
+		if err := tlsConn.Handshake(); err != nil {
+			_ = conn.Close()
+			return nil, nil, err
+		}
+		client, err = smtp.NewClient(tlsConn, account.Server)
+	} else {
+		client, err = smtp.NewClient(conn, account.Server)
+	}
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, err
+	}
+
+	if !implicitTLS && account.StartTLS {
 		startTLSSupported, _ := client.Extension("STARTTLS")
 		if !startTLSSupported {
 			_ = client.Close()
-			return nil, fmt.Errorf("SMTP server does not support STARTTLS")
+			return nil, nil, fmt.Errorf("SMTP server does not support STARTTLS")
 		}
 		if err := client.StartTLS(smtpTLSConfig(account.Server)); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-
-	return client, nil
+	return client, conn, nil
 }
 
 // SendEmail delivers one message. Callers stay unaware of which upstream
