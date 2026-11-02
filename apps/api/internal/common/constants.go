@@ -94,6 +94,14 @@ var EmailLoginAuthServerList = []string{
 var DebugEnabled bool
 var MemoryCacheEnabled bool
 
+// Model-response cache: opt-in, single-node, hot-reloadable via the option
+// system. Defaults off; the relay layer only consults these after ApplyOption
+// seeds defaults, so zero-value false is the safe boot state.
+var ResponseCacheEnabled bool
+var ResponseCacheTtlSeconds = 300
+var ResponseCacheMaxEntries = 1000
+var ResponseCacheMaxBodySize = 256 * 1024
+
 var LogConsumeEnabled = true
 
 var TLSInsecureSkipVerify bool

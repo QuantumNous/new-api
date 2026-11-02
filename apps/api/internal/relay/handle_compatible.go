@@ -15,6 +15,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/internal/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/internal/relay/constant"
 	"github.com/QuantumNous/new-api/internal/relay/helper"
+	"github.com/QuantumNous/new-api/internal/responsecache"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/samber/lo"
@@ -24,6 +25,22 @@ import (
 
 func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
+
+	// Response-cache write path: when a miss occurred (cacheKey non-empty) and
+	// the normal path succeeded (cacheStore true), capture the buffered body
+	// the handler just wrote to the client and store it under the key. The
+	// deferred run happens after DoResponse wrote the payload, so
+	// CaptureResponse can faithfully reproduce it for the next caller.
+	var cacheKey string
+	var cacheStore bool
+	var cachedUsageJSON []byte
+	defer func() {
+		if cacheKey != "" && cacheStore {
+			if capture := c.CaptureResponse(common.ResponseCacheMaxBodySize); capture != nil {
+				responseCacheStore(cacheKey, http.StatusOK, "application/json", capture.Body(), cachedUsageJSON)
+			}
+		}
+	}()
 
 	textReq, ok := info.Request.(*dto.GeneralOpenAIRequest)
 	if !ok {
@@ -70,6 +87,37 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 	}
 	adaptor.Init(info)
 
+	// Response cache: serve a prior identical (deterministic, non-stream)
+	// request from memory and skip the upstream round-trip. Only the
+	// non-passthrough, non-responses-routed path is eligible, and it must be
+	// read before the passthrough branch below since cached bodies are only
+	// produced for the converted (non-passthrough) request shape.
+	if responseCacheEligible(info, request) {
+		key, err := responseCacheBuildKey(info, request)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		}
+		// Per-channel keying on top of the request hash: channel-level
+		// mutations are otherwise excluded by responseCacheEligible, but a
+		// channel differing only in immutable identity (upstream model
+		// already differentiates) still isolates to its own cache partition.
+		key = fmt.Sprintf("%d:%s", info.ChannelId, key)
+		if cached, ok := responseCacheTryLoad(key); ok {
+			if err := responseCacheReplay(c, cached); err != nil {
+				return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+			}
+			// A hit still charges the same amount the miss settled (full
+			// billing), and settles the pre-consumed reservation; a free hit
+			// would both leave the billing session open and open a free path.
+			responseCacheSettle(c, info, cached)
+			return nil
+		}
+		// Miss: remember the key (already channel-suffixed) so the deferred
+		// write path stores the response body under the same partition.
+		cacheKey = key
+		responsecache.RecordMiss()
+	}
+
 	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
 	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
 		!passThroughGlobal &&
@@ -84,11 +132,16 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 		var containAudioTokens = usage.CompletionTokenDetails.AudioTokens > 0 || usage.PromptTokensDetails.AudioTokens > 0
 		var containsAudioRatios = ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)
 
+		if usageJSON, marshalErr := common.Marshal(usage); marshalErr == nil {
+			cachedUsageJSON = usageJSON
+		}
+
 		if containAudioTokens && containsAudioRatios {
 			billing.PostAudioConsumeQuota(c, info, usage, "")
 		} else {
 			billing.PostTextConsumeQuota(c, info, usage, nil)
 		}
+		cacheStore = true
 		return nil
 	}
 
@@ -213,10 +266,19 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 	var containAudioTokens = usage.(*dto.Usage).CompletionTokenDetails.AudioTokens > 0 || usage.(*dto.Usage).PromptTokensDetails.AudioTokens > 0
 	var containsAudioRatios = ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)
 
+	// Cache the settled usage alongside the response body so a later cache hit
+	// can charge the exact same amount the miss just settled.
+	if usageJSON, marshalErr := common.Marshal(usage.(*dto.Usage)); marshalErr == nil {
+		cachedUsageJSON = usageJSON
+	}
+
 	if containAudioTokens && containsAudioRatios {
 		billing.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), "")
 	} else {
 		billing.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	}
+	// Only reached with cacheKey set when the response-cache eligibility gate
+	// passed; the deferred write path stores the captured body.
+	cacheStore = true
 	return nil
 }
