@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,22 +54,40 @@ func setupChannelCreateTest(t *testing.T) int {
 func TestAddChannelReturnsCreatedIDs(t *testing.T) {
 	rootID := setupChannelCreateTest(t)
 	const firstKey, secondKey = "sk-create-id-first", "sk-create-id-second"
+	const vertexArray = `["", {"project_id":"one"}, " \n ", " {\"project_id\":\"two\"} ", {"project_id":"one"}, null, 42]`
+	vertexKeys := []string{`{"project_id":"one"}`, `{"project_id":"two"}`, `{"project_id":"one"}`, "null", "42"}
+	const vertexSingle = `{
+  "project_id": "single",
+  "type": "service_account"
+}`
 	batchKeys := make([]string, 51)
+	batchIndices := make([]int, len(batchKeys))
 	for i := range batchKeys {
 		batchKeys[i] = fmt.Sprintf("sk-create-id-%02d", i)
+		batchIndices[i] = i + 1
 	}
 	for _, tc := range []struct {
-		name     string
-		mode     string
-		key      string
-		wantKeys []string
+		name             string
+		mode             string
+		key              string
+		channelType      int
+		settings         string
+		wantKeys         []string
+		wantInputIndices []int
 	}{
-		{name: "single", mode: "single", key: firstKey, wantKeys: []string{firstKey}},
-		{name: "batch duplicate keys", mode: "batch", key: firstKey + "\n\n" + firstKey + "\n" + secondKey, wantKeys: []string{firstKey, firstKey, secondKey}},
-		{name: "batch one channel", mode: "batch", key: firstKey + "\n", wantKeys: []string{firstKey}},
-		{name: "multi to single", mode: "multi_to_single", key: firstKey + "\n" + secondKey, wantKeys: []string{firstKey + "\n" + secondKey}},
-		{name: "multiple chunks", mode: "batch", key: strings.Join(batchKeys, "\n"), wantKeys: batchKeys},
-		{name: "empty batch", mode: "batch", key: "\n", wantKeys: []string{}},
+		{name: "single", mode: "single", key: firstKey, wantKeys: []string{firstKey}, wantInputIndices: []int{0}},
+		{name: "batch duplicate keys", mode: "batch", key: "\n" + firstKey + "\n\n" + firstKey + "\n" + secondKey, wantKeys: []string{firstKey, firstKey, secondKey}, wantInputIndices: []int{1, 3, 4}},
+		{name: "batch one channel", mode: "batch", key: firstKey + "\n", wantKeys: []string{firstKey}, wantInputIndices: []int{0}},
+		{name: "batch preserves whitespace", mode: "batch", key: "\n \n" + firstKey, wantKeys: []string{" ", firstKey}, wantInputIndices: []int{1, 2}},
+		{name: "multi to single", mode: "multi_to_single", key: "\n " + firstKey + " \n\n" + secondKey + "\n", wantKeys: []string{firstKey + "\n" + secondKey}, wantInputIndices: []int{1, 3}},
+		{name: "multi preserves trimmed blank", mode: "multi_to_single", key: firstKey + "\n \n" + secondKey, wantKeys: []string{firstKey + "\n\n" + secondKey}, wantInputIndices: []int{0, 1, 2}},
+		{name: "multi whitespace only", mode: "multi_to_single", key: " ", wantKeys: []string{}, wantInputIndices: []int{}},
+		{name: "multiple chunks", mode: "batch", key: "\n" + strings.Join(batchKeys, "\n"), wantKeys: batchKeys, wantInputIndices: batchIndices},
+		{name: "empty batch", mode: "batch", key: "\n", wantKeys: []string{}, wantInputIndices: []int{}},
+		{name: "vertex array", mode: "batch", key: vertexArray, channelType: constant.ChannelTypeVertexAi, wantKeys: vertexKeys, wantInputIndices: []int{1, 3, 4, 5, 6}},
+		{name: "vertex multi", mode: "multi_to_single", key: vertexArray, channelType: constant.ChannelTypeVertexAi, wantKeys: []string{strings.Join(vertexKeys, "\n")}, wantInputIndices: []int{1, 3, 4, 5, 6}},
+		{name: "single multiline json", mode: "single", key: vertexSingle, channelType: constant.ChannelTypeVertexAi, wantKeys: []string{vertexSingle}, wantInputIndices: []int{0}},
+		{name: "vertex api key batch", mode: "batch", key: "\n" + firstKey + "\n\n" + secondKey, channelType: constant.ChannelTypeVertexAi, settings: `{"vertex_key_type":"api_key"}`, wantKeys: []string{firstKey, secondKey}, wantInputIndices: []int{1, 3}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			name := "created-id-" + tc.name
@@ -80,9 +99,14 @@ func TestAddChannelReturnsCreatedIDs(t *testing.T) {
 				_, err := model.BatchDeleteChannels(ids)
 				require.NoError(t, err)
 			})
-			request, err := common.Marshal(AddChannelRequest{Mode: tc.mode, Channel: &model.Channel{
-				Name: name, Type: 1, Key: tc.key, Models: "test-model", Group: "default",
-			}})
+			channel := &model.Channel{Name: name, Type: tc.channelType, Key: tc.key, Models: "test-model", Group: "default", OtherSettings: tc.settings}
+			if channel.Type == 0 {
+				channel.Type = constant.ChannelTypeOpenAI
+			}
+			if channel.Type == constant.ChannelTypeVertexAi {
+				channel.Other = `{"default":"us-central1"}`
+			}
+			request, err := common.Marshal(AddChannelRequest{Mode: tc.mode, Channel: channel})
 			require.NoError(t, err)
 			response := postAddChannel(t, rootID, common.RoleRootUser, string(request))
 			require.Equal(t, http.StatusOK, response.Code)
@@ -90,8 +114,12 @@ func TestAddChannelReturnsCreatedIDs(t *testing.T) {
 				Success bool   `json:"success"`
 				Message string `json:"message"`
 				Data    struct {
-					ID  *int  `json:"id"`
-					IDs []int `json:"ids"`
+					ID      *int  `json:"id"`
+					IDs     []int `json:"ids"`
+					Results []struct {
+						InputIndex int `json:"input_index"`
+						ChannelID  int `json:"channel_id"`
+					} `json:"results"`
 				} `json:"data"`
 			}
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
@@ -109,7 +137,22 @@ func TestAddChannelReturnsCreatedIDs(t *testing.T) {
 				assert.Equal(t, tc.wantKeys[i], channel.Key)
 				assert.Equal(t, tc.mode == "multi_to_single", channel.ChannelInfo.IsMultiKey)
 			}
-			data := map[string]any{"ids": result.Data.IDs}
+			require.NotNil(t, result.Data.Results, "empty creations must return an empty results array")
+			require.Len(t, result.Data.Results, len(tc.wantInputIndices))
+			results := make([]map[string]int, 0, len(tc.wantInputIndices))
+			for i, inputIndex := range tc.wantInputIndices {
+				channelIndex := i
+				if tc.mode == "multi_to_single" {
+					channelIndex = 0
+				}
+				assert.Equal(t, inputIndex, result.Data.Results[i].InputIndex)
+				assert.Equal(t, created[channelIndex].Id, result.Data.Results[i].ChannelID)
+				results = append(results, map[string]int{"input_index": inputIndex, "channel_id": created[channelIndex].Id})
+			}
+			if tc.mode == "multi_to_single" && len(created) == 1 {
+				assert.Equal(t, len(tc.wantInputIndices), created[0].ChannelInfo.MultiKeySize)
+			}
+			data := map[string]any{"ids": result.Data.IDs, "results": results}
 			if len(created) == 1 {
 				require.NotNil(t, result.Data.ID)
 				assert.Equal(t, created[0].Id, *result.Data.ID)
@@ -121,6 +164,31 @@ func TestAddChannelReturnsCreatedIDs(t *testing.T) {
 			require.NoError(t, err)
 			assert.JSONEq(t, string(expected), response.Body.String(), "the response must contain only IDs, not channel credentials")
 		})
+	}
+}
+
+func TestAddChannelInvalidVertexBatchDoesNotReturnResults(t *testing.T) {
+	rootID := setupChannelCreateTest(t)
+	for _, mode := range []string{"batch", "multi_to_single"} {
+		for _, key := range []string{"[]", `["", "  "]`, "[{"} {
+			t.Run(mode+"/"+key, func(t *testing.T) {
+				request, err := common.Marshal(AddChannelRequest{Mode: mode, Channel: &model.Channel{
+					Name: "invalid-vertex-array", Type: constant.ChannelTypeVertexAi, Key: key,
+					Models: "test-model", Group: "default", Other: `{"default":"us-central1"}`,
+				}})
+				require.NoError(t, err)
+				response := postAddChannel(t, rootID, common.RoleRootUser, string(request))
+				assert.Equal(t, http.StatusOK, response.Code)
+				var result map[string]any
+				require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+				assert.Equal(t, false, result["success"])
+				assert.NotEmpty(t, result["message"])
+				assert.NotContains(t, result, "data")
+				var count int64
+				require.NoError(t, model.DB.Model(&model.Channel{}).Where("name = ?", "invalid-vertex-array").Count(&count).Error)
+				assert.Zero(t, count)
+			})
+		}
 	}
 }
 
