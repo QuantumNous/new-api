@@ -160,7 +160,7 @@ Frontend Editor → Storage → Pre-consume → Settlement → Log Display
 
 ### 1. Frontend Editor
 
-**File**: `web/src/pages/Setting/Ratio/components/TieredPricingEditor.jsx`
+**File**: `apps/web/src/features/system-settings/models/tiered-pricing-editor.tsx` (mounted by `model-pricing-sheet.tsx`)
 
 Two editing modes:
 - **Visual mode**: Fill in prices per variable, conditions per tier. Generates expression via `generateExprFromVisualConfig()`.
@@ -170,22 +170,22 @@ The editor outputs a billing expression string and an optional request rule expr
 
 ### 2. Storage
 
-**File**: `setting/billing_setting/tiered_billing.go`
+**File**: `apps/api/internal/billing/settle_tiered.go` (`BillingSetting`, registered via `settings.GlobalConfig.Register("billing_setting", ...)`)
 
 Two option maps stored in the `options` DB table:
-- `ModelBillingMode`: `{ "model-name": "tiered_expr" }` — activates tiered billing for a model
-- `ModelBillingExpr`: `{ "model-name": "tier(\"base\", p * 2.5 + c * 15)" }` — the expression
+- `billing_setting.billing_mode`: `{ "model-name": "tiered_expr" }` — activates tiered billing for a model
+- `billing_setting.billing_expr`: `{ "model-name": "tier(\"base\", p * 2.5 + c * 15)" }` — the expression
 
-On save, the expression is validated:
-1. Compiled via `billingexpr.CompileFromCache()` — syntax check
-2. Smoke-tested with sample token vectors — ensures non-negative results
+Instances that configured tiered billing before the settings flattening persist these maps under the legacy top-level keys `ModelBillingMode` / `ModelBillingExpr`. `dbinfra.MigrateLegacyBillingOptions` copies them into the flattened keys at startup (master node, before the option map loads); models already present in a flattened map keep the newer value, and the legacy rows are kept so a rollback keeps working. The kept rows are a tradeoff, not a free lunch: a pre-flattening binary still bills from the stale legacy values, and pricing edits made during a rollback window are only imported for models missing from the flattened map — re-verify pricing in the editor after any rollback.
+
+Expressions are compiled on first use and cached by hash (`billingexpr.CompileFromCache()`); there is no server-side validation at option-write time.
 
 ### 3. Pre-consume (Quota Estimation)
 
-**File**: `relay/helper/price.go` → `modelPriceHelperTiered()`
+**File**: `apps/api/internal/relay/helper/compute_price.go` → `modelPriceHelperTiered()`
 
 When a request arrives and the model uses `tiered_expr` billing:
-1. Loads expression from `billing_setting.GetBillingExpr()`
+1. Loads expression from `billing.GetBillingExpr()`
 2. Builds `RequestInput` (headers + body) for `param()` / `header()` functions
 3. Runs expression with estimated tokens: `RunExprWithRequest(expr, {P, C}, requestInput)`
 4. Converts output to quota: `rawCost / 1,000,000 * QuotaPerUnit`
@@ -193,7 +193,7 @@ When a request arrives and the model uses `tiered_expr` billing:
 
 ### 4. Settlement (Actual Billing)
 
-**Files**: `service/tiered_settle.go`, `pkg/billingexpr/settle.go`
+**Files**: `apps/api/internal/billing/settle_tiered.go`, `apps/api/internal/billing/price_expression/settle.go`
 
 After the upstream response returns with actual token usage:
 
@@ -210,7 +210,7 @@ After the upstream response returns with actual token usage:
 
 ### 5. Log Display
 
-**Files**: `service/log_info_generate.go`, `web/src/helpers/render.jsx`
+**Files**: `apps/api/internal/usage/compose_log_info.go`, `apps/web/src/features/usage-logs/`, `apps/web/src/features/pricing/lib/billing-expr.ts`
 
 Backend: `InjectTieredBillingInfo()` adds `billing_mode`, `expr_b64` (base64 expression), `matched_tier`, and the structured `request_rules` trace list to the log's `other` JSON.
 
@@ -269,12 +269,12 @@ This enables future evolution without breaking existing expressions.
 
 | Layer | Files |
 |-------|-------|
-| Expression engine | `pkg/billingexpr/compile.go`, `run.go`, `settle.go`, `round.go`, `types.go` |
-| Storage | `setting/billing_setting/tiered_billing.go` |
-| Pre-consume | `relay/helper/price.go`, `relay/helper/billing_expr_request.go` |
-| Settlement | `service/tiered_settle.go`, `service/quota.go` |
-| Log injection | `service/log_info_generate.go` |
-| Frontend editor | `web/src/pages/Setting/Ratio/components/TieredPricingEditor.jsx` |
-| Frontend display | `web/src/helpers/render.jsx`, `web/src/helpers/utils.jsx` |
-| Model detail | `web/src/components/table/model-pricing/modal/components/DynamicPricingBreakdown.jsx` |
-| Log display | `web/src/hooks/usage-logs/useUsageLogsData.jsx`, `web/src/components/table/usage-logs/UsageLogsColumnDefs.jsx` |
+| Expression engine | `apps/api/internal/billing/price_expression/compile.go`, `run.go`, `settle.go`, `round.go`, `types.go` |
+| Storage | `apps/api/internal/billing/settle_tiered.go` |
+| Pre-consume | `apps/api/internal/relay/helper/compute_price.go`, `apps/api/internal/relay/helper/billing_expr_request.go` |
+| Settlement | `apps/api/internal/billing/settle_tiered.go`, `apps/api/internal/billing/price_expression/settle.go` |
+| Log injection | `apps/api/internal/usage/compose_log_info.go` |
+| Frontend editor | `apps/web/src/features/system-settings/models/tiered-pricing-editor.tsx` |
+| Frontend display | `apps/web/src/features/pricing/components/dynamic-pricing-breakdown.tsx` |
+| Model detail | `apps/web/src/features/pricing/components/model-details.tsx`, `model-details-base-price.tsx`, `model-details-group-pricing.tsx` |
+| Log display | `apps/web/src/features/usage-logs/` (table columns, details dialog), `apps/web/src/features/pricing/lib/billing-expr.ts` |
