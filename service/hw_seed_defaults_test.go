@@ -357,12 +357,13 @@ func TestHwSeedRetiredModels(t *testing.T) {
 		assert.Equal(t, map[string]string{
 			"mixed":        "claude-haiku-5-5,claude-sonnet-5-5",
 			"only-retired": "",
-			"untouched":    "gpt-4o,claude-haiku-5-5",
+			"untouched":    "gpt-4o,claude-haiku-5-5,gpt-6-luna,gpt-6.1-sol,gpt-6-astra",
 		}, models)
 
 		var abilityModels []string
 		require.NoError(t, model.DB.Model(&model.Ability{}).Distinct("model").Order("model").Pluck("model", &abilityModels).Error)
-		assert.Equal(t, []string{"claude-haiku-5-5", "claude-sonnet-5-5", "gpt-4o"}, abilityModels)
+		// The gpt channel also receives the sold gpt names of its family.
+		assert.Equal(t, []string{"claude-haiku-5-5", "claude-sonnet-5-5", "gpt-4o", "gpt-6-astra", "gpt-6-luna", "gpt-6.1-sol"}, abilityModels)
 
 		for retired := range hwRetiredModels {
 			_, ok := ratio_setting.GetModelRatioCopy()[retired]

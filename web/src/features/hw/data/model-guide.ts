@@ -40,9 +40,12 @@ export type ModelGuide = {
 /** Default order of the catalogue ("Recommended"): strongest first, the
  *  newcomer of a price tier directly after its established peer. */
 export const RECOMMENDED_ORDER = [
+  'gpt-6-astra',
   'claude-opus-5-5',
   'claude-sonnet-5-5',
+  'gpt-6.1-sol',
   'claude-haiku-5-5',
+  'gpt-6-luna',
   'grok-4',
   'grok-4-fast',
 ] as const
@@ -73,6 +76,36 @@ export const MODEL_GUIDE: Readonly<Record<string, ModelGuide>> = {
     description: {
       tr: 'Çok hızlı ve çok ucuz. Sohbet botu, metin özetleme ya da yüzlerce küçük işi (sınıflandırma, bilgi çıkarma) arka arkaya yapmak için uygundur.',
       en: 'Very fast and very cheap. A good fit for a chatbot, summarising text, or running hundreds of small jobs (sorting, extracting facts) in a row.',
+    },
+  },
+  'gpt-6-astra': {
+    tag: {
+      tr: 'OpenAI’nin en güçlüsü',
+      en: 'OpenAI’s most powerful',
+    },
+    description: {
+      tr: 'OpenAI’nin amiral gemisi modeli. En zor araştırma sorunları, saatler süren çok adımlı görevler ve bir uygulamanın tamamını kapsayan büyük yeniden yazımlar için.',
+      en: 'OpenAI’s flagship model. For the hardest research problems, multi-step jobs that run for hours, and rewrites that span a whole app.',
+    },
+  },
+  'gpt-6.1-sol': {
+    tag: {
+      tr: 'OpenAI: en iyi fiyat/performans',
+      en: 'OpenAI: best value',
+    },
+    description: {
+      tr: 'OpenAI dünyasında günlük kodlamanın dengeli seçimi. Cursor veya Codex ile uygulama geliştirmek ve birçok dosyayı kapsayan değişikliği baştan sona tamamlamak için idealdir; Sonnet ile aynı fiyata.',
+      en: 'The balanced pick for everyday coding in the OpenAI family. Ideal for building apps with Cursor or Codex and carrying a change across many files from start to finish, at the same price as Sonnet.',
+    },
+  },
+  'gpt-6-luna': {
+    tag: {
+      tr: 'OpenAI: en hızlı ve ucuz',
+      en: 'OpenAI: fastest and cheapest',
+    },
+    description: {
+      tr: 'OpenAI’nin en hızlı ve en ucuz modeli. Sohbet, kısa özetleme, sınıflandırma ve yüzlerce küçük işi arka arkaya çalıştırmak için uygundur; Haiku ile aynı fiyata OpenAI kalitesi.',
+      en: 'OpenAI’s fastest and cheapest model. A good fit for chat, short summaries, sorting and running hundreds of small jobs in a row, with OpenAI quality at the same price as Haiku.',
     },
   },
   'grok-4': {

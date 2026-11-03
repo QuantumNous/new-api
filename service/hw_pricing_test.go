@@ -847,11 +847,11 @@ func TestHwNewCatalogModelsKeepsOnlyNewerChatModelsOfSoldFamilies(t *testing.T) 
 	for _, candidate := range found {
 		names = append(names, candidate.Name)
 	}
-	// gpt-6.2-sol is not a candidate: no gpt name is sold since 28 Oct 2026
-	// (HIS-5417), so the family has no floor in hwSoldModels to compare against.
-	// gemini-3.8-pro is not one either, for the same reason: gemini-3.8-flash-cyber
-	// was the last sold gemini name and left the catalog on 29 Oct 2026 (HIS-5810).
-	assert.Equal(t, []string{"claude-opus-6", "grok-4.1-fast"}, names)
+	// gpt-6.2-sol is a candidate again since the gpt generation 6 family returned
+	// on 3 Nov 2026. gemini-3.8-pro is not one: gemini-3.8-flash-cyber was the
+	// last sold gemini name and left the catalog on 29 Oct 2026 (HIS-5810), so
+	// the family has no floor in hwSoldModels to compare against.
+	assert.Equal(t, []string{"claude-opus-6", "gpt-6.2-sol", "grok-4.1-fast"}, names)
 	assert.Equal(t, model.HwModelPrice{InputMicroUsd: 5_000_000, OutputMicroUsd: 25_000_000}, found[0].Price)
 }
 

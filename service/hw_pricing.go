@@ -86,6 +86,13 @@ var hwSoldModels = []HwSoldModel{
 	{Name: "claude-opus-5-5", PriceKey: "claude-opus-5-5", InputMicroUsd: 4_000_000, OutputMicroUsd: 20_000_000},
 	{Name: "claude-sonnet-5-5", PriceKey: "claude-sonnet-5-5", InputMicroUsd: 2_000_000, OutputMicroUsd: 10_000_000},
 	{Name: "claude-haiku-5-5", PriceKey: "claude-haiku-5-5", InputMicroUsd: 100_000, OutputMicroUsd: 500_000},
+	// The gpt generation 6 family returned on 3 Nov 2026 (request Altuner) after
+	// a graded check on Lumia (kennis/lumia-modelkeuring.md, 3 Nov): all three
+	// scored 8/8 with executed code tests and read a 116k token context. The
+	// prices are the official LiteLLM list prices of that day.
+	{Name: "gpt-6-luna", PriceKey: "gpt-6-luna", InputMicroUsd: 100_000, OutputMicroUsd: 500_000},
+	{Name: "gpt-6.1-sol", PriceKey: "gpt-6.1-sol", InputMicroUsd: 2_000_000, OutputMicroUsd: 10_000_000},
+	{Name: "gpt-6-astra", PriceKey: "gpt-6-astra", InputMicroUsd: 10_000_000, OutputMicroUsd: 50_000_000},
 	// grok-4 and grok-4-fast sell at the xAI standard tier the upstream bills;
 	// xAI delisted both from its own price pages, so no official list price
 	// exists and the daily refresh keeps the operator ratio.
@@ -101,17 +108,13 @@ var hwSoldModels = []HwSoldModel{
 var hwRetiredModels = map[string]string{
 	"claude-haiku-4-5": "claude-haiku-5-5",
 	"claude-sonnet-5":  "claude-sonnet-5-5",
-	// The gpt generation 6 family and the gpt 5.6 generation left the catalog on
-	// 28 Oct 2026 (CEO decision, HIS-5417); they had returned on 27 Oct without
-	// an identity measurement on the production channel. No gpt name is sold
-	// any more, so every gpt name points at the sold model of its price tier.
-	"gpt-5.6-luna":  "claude-haiku-5-5",
-	"gpt-5.6-sol":   "claude-sonnet-5-5",
-	"gpt-5.6-terra": "claude-sonnet-5-5",
-	"gpt-6":         "claude-sonnet-5-5",
-	"gpt-6-luna":    "claude-haiku-5-5",
-	"gpt-6.1-sol":   "claude-sonnet-5-5",
-	"gpt-6-astra":   "claude-opus-5-5",
+	// The gpt 5.6 generation and the bare gpt-6 name stay out of the catalog
+	// under the golden rule: on the list prices of 3 Nov 2026 every successor
+	// below is newer and as cheap or cheaper, with the same graded score.
+	"gpt-5.6-luna":  "gpt-6-luna",
+	"gpt-5.6-sol":   "gpt-6.1-sol",
+	"gpt-5.6-terra": "gpt-6.1-sol",
+	"gpt-6":         "gpt-6.1-sol",
 	// claude-fable-5-1 and gemini-3.8-flash left the catalog on 27 Oct 2026
 	// after the model check (kennis/lumia-modelkeuring.md): Fable answered the
 	// open identity question with another model's name, and the Gemini name has
