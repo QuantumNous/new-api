@@ -633,6 +633,12 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		if regionMap["default"] == nil {
 			return common.NewMessage("Deployment region must include a default field")
 		}
+
+		switch channel.GetOtherSettings().VertexAPIVersion {
+		case "", "v1", "v1beta1":
+		default:
+			return common.NewMessage("Vertex AI API version must be v1 or v1beta1")
+		}
 	}
 
 	// Codex OAuth key validation (optional, only when JSON object is provided)
