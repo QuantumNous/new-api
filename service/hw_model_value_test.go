@@ -158,12 +158,11 @@ func TestHwRetiredModelsAreNotSoldAndPointAtASoldModel(t *testing.T) {
 		}
 		assert.Equal(t, retiredFamily, successorFamily, retired)
 	}
-	// The retired gpt names have no namesake among the sold models (no gpt name
-	// is sold since 28 Oct 2026, HIS-5417), so their successors live in another
-	// sold family and no gpt family is sold any more.
-	assert.False(t, soldFamily["gpt-luna"])
-	assert.False(t, soldFamily["gpt-sol"])
-	assert.False(t, soldFamily["gpt-astra"])
+	// The gpt generation 6 families are sold again since 3 Nov 2026; terra and
+	// the bare gpt-6 name have no sold namesake, so they point at gpt-6.1-sol.
+	assert.True(t, soldFamily["gpt-luna"])
+	assert.True(t, soldFamily["gpt-sol"])
+	assert.True(t, soldFamily["gpt-astra"])
 	assert.False(t, soldFamily["gpt-terra"])
 	assert.False(t, soldFamily["gpt-6"])
 }
@@ -174,19 +173,19 @@ func TestHwRetiredModelsAreNotSoldAndPointAtASoldModel(t *testing.T) {
 func TestHwDailyPriceListSkipsRetiredModels(t *testing.T) {
 	list := map[string]hwPriceListEntry{}
 	for name, price := range map[string][2]string{
-		"claude-opus-5-5":   {"4e-06", "2e-05"},
-		"claude-sonnet-5-5": {"2e-06", "1e-05"},
-		"claude-sonnet-5":   {"2e-06", "1e-05"},
-		"claude-haiku-5-5":  {"1e-07", "5e-07"},
-		"claude-haiku-4-5":  {"1e-06", "5e-06"},
-		"claude-fable-5-1":  {"1e-05", "5e-05"},
-		"gpt-6-astra":       {"1e-05", "5e-05"},
-		"gpt-6.1-sol":       {"2e-06", "1e-05"},
-		"gpt-6-luna":        {"1e-07", "5e-07"},
-		"gemini-3.8-flash":  {"7.5e-07", "3.75e-06"},
+		"claude-opus-5-5":        {"4e-06", "2e-05"},
+		"claude-sonnet-5-5":      {"2e-06", "1e-05"},
+		"claude-sonnet-5":        {"2e-06", "1e-05"},
+		"claude-haiku-5-5":       {"1e-07", "5e-07"},
+		"claude-haiku-4-5":       {"1e-06", "5e-06"},
+		"claude-fable-5-1":       {"1e-05", "5e-05"},
+		"gpt-6-astra":            {"1e-05", "5e-05"},
+		"gpt-6.1-sol":            {"2e-06", "1e-05"},
+		"gpt-6-luna":             {"1e-07", "5e-07"},
+		"gemini-3.8-flash":       {"7.5e-07", "3.75e-06"},
 		"gemini-3.8-flash-cyber": {"1.5e-06", "7.5e-06"},
-		"grok-4":            {"2e-06", "6e-06"},
-		"grok-4-fast":       {"2e-06", "6e-06"},
+		"grok-4":                 {"2e-06", "6e-06"},
+		"grok-4-fast":            {"2e-06", "6e-06"},
 	} {
 		list[name] = hwPriceListEntry{InputCostPerToken: []byte(price[0]), OutputCostPerToken: []byte(price[1]), Mode: "chat"}
 	}

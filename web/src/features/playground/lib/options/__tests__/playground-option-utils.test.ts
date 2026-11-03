@@ -87,22 +87,19 @@ describe('getModelFallback', () => {
 
   it('falls back to the best-value model, not the first in the list', () => {
     const models = options(
-      'claude-opus-5-5',
+      'gpt-6-astra',
       'claude-sonnet-5-5',
       'claude-haiku-5-5'
     )
     expect(getModelFallback(models, 'gpt-4o')).toBe('claude-haiku-5-5')
     expect(
-      getModelFallback(
-        options('claude-opus-5-5', 'claude-sonnet-5-5'),
-        'gpt-4o'
-      )
+      getModelFallback(options('gpt-6-astra', 'claude-sonnet-5-5'), 'gpt-4o')
     ).toBe('claude-sonnet-5-5')
   })
 
   it('uses the first model when no preferred model is offered', () => {
     expect(
-      getModelFallback(options('claude-haiku-5-5', 'claude-opus-5-5'), 'gpt-4o')
+      getModelFallback(options('claude-haiku-5-5', 'gpt-6-astra'), 'gpt-4o')
     ).toBe('claude-haiku-5-5')
     expect(getModelFallback([], 'gpt-4o')).toBeNull()
   })

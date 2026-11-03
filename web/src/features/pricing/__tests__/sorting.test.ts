@@ -131,7 +131,7 @@ describe('recommended sorting', () => {
     'zz-unknown',
     'claude-opus-5-5',
     'aa-unknown',
-    'claude-haiku-5-5',
+    'gpt-6.1-sol',
     'claude-sonnet-5-5',
   ].map((name) => pricingModel(name, {}))
 
@@ -141,7 +141,7 @@ describe('recommended sorting', () => {
     ).toEqual([
       'claude-opus-5-5',
       'claude-sonnet-5-5',
-      'claude-haiku-5-5',
+      'gpt-6.1-sol',
       'grok-4',
       'aa-unknown',
       'zz-unknown',

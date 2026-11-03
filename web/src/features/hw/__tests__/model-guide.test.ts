@@ -29,7 +29,7 @@ import { MODEL_PRICES } from '../data/model-prices'
 
 describe('model guide', () => {
   it('describes every recommended model in Turkish and English', () => {
-    expect(RECOMMENDED_ORDER).toHaveLength(5)
+    expect(RECOMMENDED_ORDER).toHaveLength(8)
     for (const name of RECOMMENDED_ORDER) {
       const guide = modelGuide(name)
       expect(guide, name).toBeDefined()
@@ -55,9 +55,9 @@ describe('model guide', () => {
     expect(all).not.toContain('lu' + 'mia')
   })
 
-  it('puts Opus first, then Sonnet, and unknown models last', () => {
-    expect(recommendedRank('claude-opus-5-5')).toBe(0)
-    expect(recommendedRank('claude-sonnet-5-5')).toBe(1)
+  it('puts Astra first and Opus second, and unknown models last', () => {
+    expect(recommendedRank('gpt-6-astra')).toBe(0)
+    expect(recommendedRank('claude-opus-5-5')).toBe(1)
     expect(recommendedRank('something-else')).toBe(RECOMMENDED_ORDER.length)
     expect(recommendedRank(undefined)).toBe(RECOMMENDED_ORDER.length)
   })
