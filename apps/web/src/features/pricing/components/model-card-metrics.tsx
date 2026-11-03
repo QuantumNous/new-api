@@ -76,9 +76,9 @@ function niceCeil(value: number): number {
 /**
  * Mini combo chart for a model-square card: blue latency bars against the
  * left axis (seconds once the peak reaches one, milliseconds below that),
- * green success-rate line against the right axis (%), hour labels on the x
- * axis. The headline numbers sit above the chart and swap to the hovered/
- * clicked hour; clicking pins that hour.
+ * green success-rate line against the right axis (fixed 0–100 % scale),
+ * hour labels on the x axis. The headline numbers sit above the chart and
+ * swap to the hovered/clicked hour; clicking pins that hour.
  *
  * Renders nothing without metrics so unsampled models stay visually clean.
  */
@@ -117,21 +117,16 @@ export const ModelCardMetrics = memo(function ModelCardMetrics(props: {
     // 0.00–1.00 second scale.
     const latencyUnit = pickLatencyUnit(peakLatency)
 
-    const successValues = series.map((point) => point.success_rate)
-    let successMin = Math.max(0, Math.floor((Math.min(...successValues) - 1) / 5) * 5)
-    let successMax = Math.min(100, Math.ceil((Math.max(...successValues) + 1) / 5) * 5)
-    if (successMax - successMin < 10) {
-      successMax = Math.min(100, successMin + 10)
-      successMin = Math.max(0, successMax - 10)
-    }
-    const successTicks = [successMin, (successMin + successMax) / 2, successMax]
+    // The success-rate axis is fixed at 0–100 instead of tracking the data:
+    // a dynamic range would stretch a healthy 60–100% model across the whole
+    // chart, making a 60% hour hug the baseline and read like a failure.
+    const successTicks = [0, 50, 100]
 
     const xAt = (index: number) =>
       PAD_L + (PLOT_W * index) / (series.length - 1)
     const yLatency = (value: number) =>
       BASE_Y - (value / latencyMax) * PLOT_H
-    const ySuccess = (value: number) =>
-      BASE_Y - ((value - successMin) / (successMax - successMin)) * PLOT_H
+    const ySuccess = (value: number) => BASE_Y - (value / 100) * PLOT_H
 
     const band = PLOT_W / series.length
     // 24 hourly points leave ~14 units per band; keep bars readable with a
