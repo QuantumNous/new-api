@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -652,6 +653,150 @@ func TestGeminiStreamHandlerEmptyUsageMetadataBuildsEstimatedBillingUsage(t *tes
 	require.Equal(t, usage.PromptTokens, usage.BillingUsage.GeminiUsageMetadata.PromptTokenCount)
 	require.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
 	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+}
+
+const (
+	geminiAudioInlineFrame = `{"candidates":[{"content":{"role":"model","parts":[{"inlineData":{"mimeType":"audio/l16; rate=24000; channels=1","data":"AAAA"}}]},"index":0}],"modelVersion":"gemini-3.8-flash-lite-tts"}`
+	geminiImageInlineFrame = `{"candidates":[{"content":{"role":"model","parts":[{"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgo="}}]},"index":0}]}`
+)
+
+// Only image inlineData is backfilled at the per-image completion estimate when
+// upstream sends no billable usageMetadata. A relay that answered a text request
+// with audio/l16 chunks and then failed in-stream must not bill each chunk as an image.
+func TestGeminiStreamHandlerWithoutUsageMetadataBillsOnlyImageInlineData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldStreamingTimeout
+	})
+
+	for _, tc := range []struct {
+		name                 string
+		frames               []string
+		wantCompletionTokens int
+	}{
+		{
+			name: "audio chunks then in-stream error",
+			frames: []string{
+				geminiAudioInlineFrame,
+				geminiAudioInlineFrame,
+				geminiAudioInlineFrame,
+				`{"error":{"code":504,"message":"context deadline exceeded","status":"DEADLINE_EXCEEDED"}}`,
+			},
+			wantCompletionTokens: 0,
+		},
+		{
+			name:                 "image chunks",
+			frames:               []string{geminiImageInlineFrame, geminiImageInlineFrame},
+			wantCompletionTokens: 2 * 1400,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+			info := &relaycommon.RelayInfo{
+				OriginModelName: "gemini-3.8-flash",
+				ChannelMeta: &relaycommon.ChannelMeta{
+					UpstreamModelName: "gemini-3.8-flash",
+				},
+			}
+			info.SetEstimatePromptTokens(20)
+
+			var streamBody strings.Builder
+			for _, frame := range tc.frames {
+				streamBody.WriteString("data: " + frame + "\n")
+			}
+			resp := &http.Response{
+				Body: io.NopCloser(strings.NewReader(streamBody.String())),
+			}
+
+			usage, newAPIError := geminiStreamHandler(c, info, resp, func(_ string, _ *dto.GeminiChatResponse) bool {
+				return true
+			})
+			require.Nil(t, newAPIError)
+			require.NotNil(t, usage)
+			assert.Equal(t, tc.wantCompletionTokens, usage.CompletionTokens)
+			assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
+			require.NotNil(t, usage.BillingUsage)
+			require.NotNil(t, usage.BillingUsage.GeminiUsageMetadata)
+			assert.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
+		})
+	}
+}
+
+// The prompt-only usageMetadata patch applies the same image-only rule on both
+// the stream and non-stream paths.
+func TestGeminiHandlersPromptOnlyUsageMetadataBillsOnlyImageInlineData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldStreamingTimeout
+	})
+
+	audioPart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "audio/l16; rate=24000; channels=1", Data: "AAAA"}}
+	imagePart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "image/png", Data: "iVBORw0KGgo="}}
+
+	for _, tc := range []struct {
+		name                 string
+		parts                []dto.GeminiPart
+		wantCompletionTokens int
+	}{
+		{"audio", []dto.GeminiPart{audioPart, audioPart, audioPart}, 0},
+		{"image", []dto.GeminiPart{imagePart, imagePart}, 2 * 1400},
+	} {
+		payload := dto.GeminiChatResponse{
+			Candidates: []dto.GeminiChatCandidate{
+				{Content: dto.GeminiChatContent{Role: "model", Parts: tc.parts}},
+			},
+			UsageMetadata: dto.GeminiUsageMetadata{
+				PromptTokenCount: 151,
+				TotalTokenCount:  151,
+			},
+		}
+		body, err := common.Marshal(payload)
+		require.NoError(t, err)
+
+		for _, stream := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/stream=%t", tc.name, stream), func(t *testing.T) {
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+				info := &relaycommon.RelayInfo{
+					RelayFormat:     types.RelayFormatGemini,
+					OriginModelName: "gemini-3.8-flash",
+					ChannelMeta: &relaycommon.ChannelMeta{
+						UpstreamModelName: "gemini-3.8-flash",
+					},
+				}
+
+				var usage *dto.Usage
+				var newAPIError *types.NewAPIError
+				if stream {
+					resp := &http.Response{
+						Body: io.NopCloser(strings.NewReader("data: " + string(body) + "\n" + "data: [DONE]\n")),
+					}
+					usage, newAPIError = geminiStreamHandler(c, info, resp, func(_ string, _ *dto.GeminiChatResponse) bool {
+						return true
+					})
+				} else {
+					resp := &http.Response{
+						Body: io.NopCloser(bytes.NewReader(body)),
+					}
+					usage, newAPIError = GeminiChatHandler(c, info, resp)
+				}
+				require.Nil(t, newAPIError)
+				require.NotNil(t, usage)
+				assert.Equal(t, 151, usage.PromptTokens)
+				assert.Equal(t, tc.wantCompletionTokens, usage.CompletionTokens)
+				assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
+			})
+		}
+	}
 }
 
 // Google Search grounding records the unique trimmed non-empty queries

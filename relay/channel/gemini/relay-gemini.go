@@ -157,6 +157,8 @@ func buildUsageFromGeminiResponse(c *gin.Context, info *relaycommon.RelayInfo, r
 	return *usage
 }
 
+// geminiResponseInlineImageCount counts image inlineData parts. Other media such
+// as audio/l16 TTS chunks are not images and must not be billed per image.
 func geminiResponseInlineImageCount(response *dto.GeminiChatResponse) int {
 	if response == nil {
 		return 0
@@ -164,7 +166,7 @@ func geminiResponseInlineImageCount(response *dto.GeminiChatResponse) int {
 	count := 0
 	for _, candidate := range response.Candidates {
 		for _, part := range candidate.Content.Parts {
-			if part.InlineData != nil && part.InlineData.MimeType != "" {
+			if part.InlineData != nil && strings.HasPrefix(part.InlineData.MimeType, "image") {
 				count++
 			}
 		}
@@ -240,13 +242,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		countGeminiBillableFunctionCalls(info, &geminiResponse)
 
 		// 统计图片数量
-		for _, candidate := range geminiResponse.Candidates {
-			for _, part := range candidate.Content.Parts {
-				if part.InlineData != nil && part.InlineData.MimeType != "" {
-					imageCount++
-				}
-			}
-		}
+		imageCount += geminiResponseInlineImageCount(&geminiResponse)
 		responseText.WriteString(geminiResponseUsageText(&geminiResponse))
 
 		// 更新使用量统计
