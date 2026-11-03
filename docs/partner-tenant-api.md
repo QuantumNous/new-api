@@ -1,5 +1,7 @@
 # Partner Tenant API
 
+For the merchant-facing integration walkthrough, request examples, and operational checklist, see the [Simplified Chinese integration guide](./partner-tenant-integration.zh-CN.md).
+
 This API is for a partner's server. It uses one server secret to manage only that partner's provisioned accounts, subscriptions, and dedicated model group. The partner authenticates its own end users and collects payment itself; this API activates or renews a New API subscription after the partner confirms payment. It does not top up the New API wallet.
 
 The tenant secret is separate from Partner OAuth client credentials. Do not send it from a browser, mobile app, desktop client, or customer. Send it only over HTTPS from the partner backend:
@@ -64,7 +66,7 @@ Idempotency-Key: <16-64 URL-safe characters>
 {"plan_id":42}
 ```
 
-The plan must belong to this partner and the account must be provisioned by this partner. New activation returns `201`. A renewal with a new idempotency key extends the same active subscription by one month and returns `200`; monthly quota resets continue at the plan's calendar-month boundary. Retrying the same key and request returns the original result. Reusing a key with a different account or plan returns `409 idempotency_conflict`.
+The plan must belong to this partner and the account must be provisioned by this partner. New activation returns `201`. A renewal with a new idempotency key extends the same active subscription by one month and returns `200`; monthly quota resets continue at the plan's calendar-month boundary. Retrying the same key and request does not create or extend a subscription again; it returns `200`, `created: false`, and the current subscription state, not an immutable snapshot of the original response. Later renewals or usage can therefore change the returned end time or used quota. Reusing a key with a different account or plan returns `409 idempotency_conflict`. Persist one key per merchant order and reuse it after timeouts; a new key represents a new operation and can renew the subscription again.
 
 Relevant errors include `account_not_found`, `plan_not_found`, `invalid_request`, and `idempotency_conflict`. Plan/account misses intentionally do not reveal foreign resource existence.
 
