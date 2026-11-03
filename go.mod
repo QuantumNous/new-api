@@ -176,3 +176,5 @@ require (
 replace github.com/QuantumNous/new-api/relaykit => ./relaykit
 
 replace github.com/QuantumNous/new-api/tokenkit => ./tokenkit
+
+godebug multipathtcp=0
