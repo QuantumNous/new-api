@@ -7,6 +7,7 @@ package i18n
 // Errors returned to AI clients
 const (
 	MsgDatabaseError          = "common.database_error"
+	MsgGroupMigrationPaused   = "group.migration_paused"
 	MsgAuthUserBanned         = "auth.user_banned"
 	MsgTokenGetInfoFailed     = "token.get_info_failed"
 	MsgTokenInvalid           = "token.invalid"

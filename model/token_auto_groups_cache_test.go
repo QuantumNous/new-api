@@ -1,14 +1,19 @@
 package model
 
 import (
+	"os"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func TestTokenAutoGroupsRoundTripThroughRedisHashCache(t *testing.T) {
+	truncateTables(t)
 	useUserCacheMiniRedis(t)
 	token := Token{
 		Id:         42,
@@ -19,6 +24,7 @@ func TestTokenAutoGroupsRoundTripThroughRedisHashCache(t *testing.T) {
 		AutoGroups: `["vip","default"]`,
 	}
 
+	require.NoError(t, DB.Create(&token).Error)
 	require.NoError(t, cacheSetTokenForTest(token))
 	cached, err := cacheGetTokenByKey(token.Key)
 	require.NoError(t, err)
@@ -29,8 +35,10 @@ func TestTokenAutoGroupsRoundTripThroughRedisHashCache(t *testing.T) {
 }
 
 func TestTokenAllowUserQuotaQueryRoundTripsThroughRedisHashCache(t *testing.T) {
+	truncateTables(t)
 	server := useUserCacheMiniRedis(t)
 	token := Token{Id: 43, UserId: 7, Key: "token-user-quota-cache-key", Name: "user-quota-cache", AllowUserQuotaQuery: true}
+	require.NoError(t, DB.Create(&token).Error)
 
 	initialized, err := cacheInitToken(token)
 	require.NoError(t, err)
@@ -39,6 +47,57 @@ func TestTokenAllowUserQuotaQueryRoundTripsThroughRedisHashCache(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, cached.AllowUserQuotaQuery)
 	assert.Positive(t, server.TTL(getTokenCacheKey(token.Key)))
+}
+
+func TestTokenStatusUpdatePreservesConcurrentAccessedTime(t *testing.T) {
+	previousDB := DB
+	database := DB
+	switch os.Getenv("TEST_TOKEN_STATUS_UPDATE_DIALECT") {
+	case "mysql":
+		var err error
+		database, err = gorm.Open(mysql.Open(os.Getenv("TEST_MYSQL_DSN")), &gorm.Config{})
+		require.NoError(t, err)
+	case "postgres":
+		var err error
+		database, err = gorm.Open(postgres.New(postgres.Config{
+			DSN:                  os.Getenv("TEST_POSTGRES_DSN"),
+			PreferSimpleProtocol: true,
+		}), &gorm.Config{})
+		require.NoError(t, err)
+	}
+	DB = database
+	if database != previousDB {
+		sqlDB, err := database.DB()
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			DB = previousDB
+			require.NoError(t, sqlDB.Close())
+		})
+	}
+	require.NoError(t, database.AutoMigrate(&Token{}))
+	token := Token{
+		UserId:       7,
+		Key:          "token-status-update-access-time-" + common.GetRandomString(12),
+		Name:         "status-update",
+		Status:       common.TokenStatusEnabled,
+		AccessedTime: 100,
+	}
+	require.NoError(t, DB.Create(&token).Error)
+	t.Cleanup(func() {
+		require.NoError(t, database.Unscoped().Delete(&Token{}, token.Id).Error)
+	})
+
+	var stale Token
+	require.NoError(t, DB.First(&stale, token.Id).Error)
+	require.NoError(t, DB.Model(&Token{}).Where("id = ?", token.Id).Update("accessed_time", 200).Error)
+
+	stale.Status = common.TokenStatusDisabled
+	require.NoError(t, stale.SelectUpdate())
+
+	var updated Token
+	require.NoError(t, DB.First(&updated, token.Id).Error)
+	assert.Equal(t, common.TokenStatusDisabled, updated.Status)
+	assert.EqualValues(t, 200, updated.AccessedTime)
 }
 
 func TestTokenUpdateSynchronouslyNarrowsPreheatedAutoGroupsCache(t *testing.T) {

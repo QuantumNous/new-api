@@ -273,6 +273,7 @@ func TestCacheUpdateChannelSyncsAdvancedCustomConfig(t *testing.T) {
 		UpstreamPath: "/v1beta/models/{model}:generateContent",
 		Converter:    "openai_responses_to_gemini_generate_content",
 	}))
+	require.NoError(t, DB.Create(channel).Error)
 	CacheUpdateChannel(channel)
 
 	require.NotNil(t, channel2advancedCustomConfig[401])

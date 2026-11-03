@@ -399,6 +399,9 @@ func DeleteToken(c *gin.Context) {
 	})
 }
 
+// UpdateToken edits a token owned by the current user, validating quota and
+// re-enable constraints. Full edits normalize group-specific fallback settings;
+// status-only edits preserve them and use the dedicated status update path.
 func UpdateToken(c *gin.Context) {
 	userId := c.GetInt("id")
 	statusOnly := c.Query("status_only")
@@ -470,7 +473,11 @@ func UpdateToken(c *gin.Context) {
 			}
 		}
 	}
-	err = cleanToken.Update()
+	if statusOnly != "" {
+		err = cleanToken.SelectUpdate()
+	} else {
+		err = cleanToken.Update()
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return

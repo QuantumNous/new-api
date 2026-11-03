@@ -996,6 +996,9 @@ func DeleteSelf(c *gin.Context) {
 	})
 }
 
+// CreateUser validates the requested identity, role and group, then creates a
+// lower-privilege user with an allowlisted field set. Administrator creation
+// requires verification, and permission changes share the insert transaction.
 func CreateUser(c *gin.Context) {
 	var user model.User
 	err := common.DecodeJson(c.Request.Body, &user)
@@ -1010,6 +1013,10 @@ func CreateUser(c *gin.Context) {
 	}
 	if !common.IsValidateRole(user.Role) {
 		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	if err := model.ValidateGroupReference(user.Group, true, false); err != nil {
+		common.ApiError(c, err)
 		return
 	}
 	if user.DisplayName == "" {

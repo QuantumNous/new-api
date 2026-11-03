@@ -621,7 +621,12 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	return tx.Commit().Error
 }
 
+// prepareForInsert validates a supplied group, normalizes and checks the email,
+// and hashes a nonempty password before persistence in the caller's transaction.
 func (user *User) prepareForInsert(tx *gorm.DB) error {
+	if err := ValidateGroupReference(user.Group, true, false); err != nil {
+		return err
+	}
 	user.Email = NormalizeEmail(user.Email)
 	if err := ensureEmailAvailableWithTx(tx, user.Email, 0); err != nil {
 		return err
@@ -806,7 +811,14 @@ func (user *User) Update(updatePassword bool) error {
 	return nil
 }
 
+// UpdateWithTx applies nonzero profile fields after validating group references,
+// advancing the auth version for effective security changes. Accounting columns
+// are preserved; callers handle cache publication and session revocation after
+// their transaction commits.
 func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
+	if err := ValidateGroupReference(user.Group, true, false); err != nil {
+		return err
+	}
 	var err error
 	if updatePassword {
 		user.Password, err = common.HashAccountPassword(user.Password)
@@ -867,7 +879,13 @@ func (user *User) Edit(updatePassword bool) error {
 	return nil
 }
 
+// EditWithTx saves the editable user fields, requiring an existing group and
+// advancing the auth version when group or password changes. Callers publish
+// caches and revoke affected sessions only after committing the transaction.
 func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
+	if err := ValidateGroupReference(user.Group, false, false); err != nil {
+		return err
+	}
 	var err error
 	if updatePassword {
 		user.Password, err = common.HashAccountPassword(user.Password)

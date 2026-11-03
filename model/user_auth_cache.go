@@ -42,10 +42,22 @@ func userAuthFenceTTLSeconds() int {
 	return cacheTTL + extra
 }
 
+// writeUserCache publishes an auth-version-fenced user snapshot using the saved
+// routing group under the migration view lock. Quota is initialized only when
+// requested and missing, preserving balances already changed by admitted work.
 func writeUserCache(user *UserBase, includeQuota bool) error {
 	if user == nil || user.Id <= 0 || !common.RedisEnabled {
 		return nil
 	}
+	groupViewMutex.RLock()
+	defer groupViewMutex.RUnlock()
+	var routing User
+	if err := DB.Select("id", "group").First(&routing, user.Id).Error; err != nil {
+		return err
+	}
+	current := *user
+	current.Group = routing.Group
+	user = &current
 	user.CacheSchema = userCacheSchemaVersion
 	if user.AuthVersion <= 0 {
 		return fmt.Errorf("invalid user auth version")
@@ -234,12 +246,24 @@ func InitializeUserAuthVersions() error {
 	return DB.Model(&User{}).Where("auth_version IS NULL OR auth_version < ?", 1).Update("auth_version", 1).Error
 }
 
+// updateUserCacheFieldAtVersion updates an existing matching-version user hash
+// without recreating a missing cache entry. Group updates re-read the saved name
+// under the migration view lock, and newer auth fences reject stale writes.
 func updateUserCacheFieldAtVersion(userId int, field string, value any, authVersion int64) error {
 	if !common.RedisEnabled {
 		return nil
 	}
 	if userId <= 0 || authVersion <= 0 {
 		return fmt.Errorf("invalid user auth version")
+	}
+	if field == "Group" {
+		groupViewMutex.RLock()
+		defer groupViewMutex.RUnlock()
+		var routing User
+		if err := DB.Select("id", "group").First(&routing, userId).Error; err != nil {
+			return err
+		}
+		value = routing.Group
 	}
 	const script = `
 local incoming = tonumber(ARGV[1])

@@ -92,6 +92,7 @@ export type GroupSettingsSection =
   | 'auto'
 
 type GroupRatioVisualEditorProps = {
+  savedGroupNames?: readonly string[]
   section: GroupSettingsSection
   onSectionChange: (section: GroupSettingsSection) => void
   defaultUseAutoGroupField: ReactNode
@@ -108,6 +109,7 @@ type GroupRatioVisualEditorProps = {
 type GroupPricingRow = {
   _id: string
   name: string
+  isSaved: boolean
   ratio: string
   topupRatio: string
   selectable: boolean
@@ -159,7 +161,8 @@ function parseNestedRatioMap(
 function buildGroupPricingRows(
   groupRatio: string,
   userUsableGroups: string,
-  topupGroupRatio: string
+  topupGroupRatio: string,
+  savedGroupNames?: readonly string[]
 ): GroupPricingRow[] {
   const ratioMap = parseRatioMap(groupRatio)
   const usableMap = parseUsableMap(userUsableGroups)
@@ -173,6 +176,7 @@ function buildGroupPricingRows(
   return [...names].map((name) => ({
     _id: createGroupPricingId(),
     name,
+    isSaved: savedGroupNames?.includes(name) ?? false,
     ratio: String(normalizeRatio(ratioMap[name])),
     topupRatio: Object.hasOwn(topupMap, name) ? String(topupMap[name]) : '',
     selectable: Object.hasOwn(usableMap, name),
@@ -267,6 +271,7 @@ function GroupNameSelect(props: GroupNameSelectProps) {
 }
 
 export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
+  savedGroupNames,
   section,
   onSectionChange,
   defaultUseAutoGroupField,
@@ -367,6 +372,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
       </div>
       <TabsContent value='pricing' keepMounted>
         <GroupPricingTable
+          savedGroupNames={savedGroupNames}
           groupRatio={groupRatio}
           userUsableGroups={userUsableGroups}
           topupGroupRatio={topupGroupRatio}
@@ -472,6 +478,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
 })
 
 type GroupPricingTableProps = {
+  savedGroupNames?: readonly string[]
   groupRatio: string
   userUsableGroups: string
   topupGroupRatio: string
@@ -480,6 +487,7 @@ type GroupPricingTableProps = {
 }
 
 function GroupPricingTable({
+  savedGroupNames,
   groupRatio,
   userUsableGroups,
   topupGroupRatio,
@@ -489,7 +497,12 @@ function GroupPricingTable({
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
-    buildGroupPricingRows(groupRatio, userUsableGroups, topupGroupRatio)
+    buildGroupPricingRows(
+      groupRatio,
+      userUsableGroups,
+      topupGroupRatio,
+      savedGroupNames
+    )
   )
 
   useEffect(() => {
@@ -505,10 +518,24 @@ function GroupPricingTable({
       return buildGroupPricingRows(
         groupRatio,
         userUsableGroups,
-        topupGroupRatio
+        topupGroupRatio,
+        savedGroupNames
       )
     })
-  }, [groupRatio, userUsableGroups, topupGroupRatio])
+  }, [groupRatio, userUsableGroups, topupGroupRatio, savedGroupNames])
+
+  useEffect(() => {
+    setRows((currentRows) => {
+      let changed = false
+      const nextRows = currentRows.map((row) => {
+        const isSaved = savedGroupNames?.includes(row.name) ?? false
+        if (row.isSaved === isSaved) return row
+        changed = true
+        return { ...row, isSaved }
+      })
+      return changed ? nextRows : currentRows
+    })
+  }, [savedGroupNames])
 
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
@@ -524,7 +551,7 @@ function GroupPricingTable({
   const updateRow = useCallback(
     (
       id: string,
-      field: Exclude<keyof GroupPricingRow, '_id'>,
+      field: Exclude<keyof GroupPricingRow, '_id' | 'isSaved'>,
       value: string | number | boolean
     ) => {
       emitRows(
@@ -547,6 +574,7 @@ function GroupPricingTable({
       {
         _id: createGroupPricingId(),
         name,
+        isSaved: false,
         ratio: '1',
         topupRatio: '',
         selectable: true,
@@ -657,16 +685,43 @@ function GroupPricingTable({
                 id: 'group',
                 header: t('Group name'),
                 className: 'min-w-40',
-                cell: (row) => (
-                  <Input
-                    value={row.name}
-                    aria-label={t('Group name')}
-                    onChange={(event) =>
-                      updateRow(row._id, 'name', event.target.value)
-                    }
-                    aria-invalid={duplicateNames.includes(row.name.trim())}
-                  />
-                ),
+                cell: (row) => {
+                  const isSavedGroup = row.isSaved
+                  const migrationHint = t(
+                    'Use Group migration to change an existing group name.'
+                  )
+                  const input = (
+                    <Input
+                      value={row.name}
+                      readOnly={isSavedGroup}
+                      title={isSavedGroup ? migrationHint : undefined}
+                      className={
+                        isSavedGroup
+                          ? 'bg-muted text-muted-foreground min-w-0 flex-1 cursor-not-allowed'
+                          : undefined
+                      }
+                      aria-label={t('Group name')}
+                      onChange={(event) =>
+                        updateRow(row._id, 'name', event.target.value)
+                      }
+                      aria-invalid={duplicateNames.includes(row.name.trim())}
+                    />
+                  )
+                  if (!isSavedGroup) return input
+                  return (
+                    <div className='flex min-w-0 items-center gap-1'>
+                      {input}
+                      <span
+                        aria-label={migrationHint}
+                        className='text-muted-foreground inline-flex shrink-0 cursor-help'
+                        role='img'
+                        title={migrationHint}
+                      >
+                        <Info aria-hidden='true' className='size-4' />
+                      </span>
+                    </div>
+                  )
+                },
               },
               {
                 id: 'ratio',

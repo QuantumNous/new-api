@@ -182,6 +182,26 @@ func writePasskeyDomainSettingsError(c *gin.Context, err error) {
 	common.ApiError(c, err)
 }
 
+// UpdateGroupOptions saves related group settings through one validated bulk
+// update and audits the changed keys without recording their values.
+func UpdateGroupOptions(c *gin.Context) {
+	var values map[string]string
+	if err := common.DecodeJson(c.Request.Body, &values); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.UpdateGroupOptions(values); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	recordManageAudit(c, "option.group_settings.update", map[string]any{"keys": keys})
+	common.ApiSuccess(c, nil)
+}
+
 func UpdateOption(c *gin.Context) {
 	var option OptionUpdateRequest
 	err := common.DecodeJson(c.Request.Body, &option)

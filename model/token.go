@@ -302,7 +302,12 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 	return token, nil
 }
 
+// Insert validates the token's selected group and explicit auto fallbacks before
+// persistence; inherited groups remain empty rather than creating definitions.
 func (token *Token) Insert() error {
+	if err := token.ValidateGroupReferences(); err != nil {
+		return err
+	}
 	var err error
 	err = DB.Create(token).Error
 	return err
@@ -310,6 +315,9 @@ func (token *Token) Insert() error {
 
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (token *Token) Update() (err error) {
+	if err := token.ValidateGroupReferences(); err != nil {
+		return err
+	}
 	// 写库前失效缓存并设置 fence，防止并发读者把过期快照重新写回缓存。
 	if cacheErr := invalidateTokenCacheForMutation(token.Key); cacheErr != nil {
 		common.SysLog(common.LogText("failed to invalidate token cache before update: %s", cacheErr.Error()))
@@ -324,7 +332,7 @@ func (token *Token) SelectUpdate() (err error) {
 		common.SysLog(common.LogText("failed to invalidate token cache before status update: %s", cacheErr.Error()))
 	}
 	// This can update zero values
-	return DB.Model(token).Select("accessed_time", "status").Updates(token).Error
+	return DB.Model(token).Select("status").Updates(token).Error
 }
 
 func (token *Token) Delete() (err error) {

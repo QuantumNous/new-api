@@ -74,8 +74,10 @@ func TestUserAuthFenceRollbackExpiresAndRecovers(t *testing.T) {
 }
 
 func TestPendingUserAuthFenceRejectsStaleCacheWrite(t *testing.T) {
+	truncateTables(t)
 	server := useUserCacheMiniRedis(t)
 	const userID = 4201
+	require.NoError(t, DB.Create(&User{Id: userID, Username: "stale", Group: "default", AuthVersion: 1}).Error)
 	require.NoError(t, SetUserAuthVersionFence(userID, 2))
 
 	err := writeUserCache(&UserBase{
@@ -87,8 +89,10 @@ func TestPendingUserAuthFenceRejectsStaleCacheWrite(t *testing.T) {
 }
 
 func TestUserAuthFieldUpdateRejectsVersionMismatch(t *testing.T) {
+	truncateTables(t)
 	useUserCacheMiniRedis(t)
 	const userID = 4202
+	require.NoError(t, DB.Create(&User{Id: userID, Username: "cached", Group: "current", AuthVersion: 3}).Error)
 	require.NoError(t, writeUserCache(&UserBase{
 		Id: userID, Group: "current", Username: "cached", AuthVersion: 3,
 	}, true))

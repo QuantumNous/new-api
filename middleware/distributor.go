@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/MoeForge/moego/ojson"
@@ -31,8 +32,21 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+// Distribute resolves request models and channel constraints before selecting a
+// permitted upstream. Requests not admitted by token authentication acquire their
+// own group admission, preventing paused or stale routing views from being used.
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		if !c.GetBool("group_migration_admitted") {
+			if err := model.CheckGroupMigrationNode(c.Request.Context()); err != nil {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
+				return
+			}
+		}
+		groupVersion := model.GroupRequestVersion()
+		if value, exists := c.Get("group_migration_version"); exists {
+			groupVersion = value.(uint64)
+		}
 		var channel *model.Channel
 		defer func() {
 			if c.Writer.Status() >= 400 {
@@ -49,6 +63,24 @@ func Distribute() func(c *gin.Context) {
 		if err != nil {
 			abortWithOpenAiMessage(c, invalidRequestStatus(err), i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
+		}
+		if !c.GetBool("group_migration_admitted") {
+			requestedGroup := modelRequest.Group
+			if requestedGroup == "" {
+				requestedGroup = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+			}
+			// Fallback callers register their complete dependency set once. Token
+			// authentication already owns admission and release for relay requests.
+			groups := []string{common.GetContextKeyString(c, constant.ContextKeyUsingGroup), c.GetString("user_group"), requestedGroup}
+			if requestedGroup == "auto" {
+				groups = append(groups, setting.GetAutoGroups()...)
+			}
+			releaseRequested, admissionErr := model.AdmitGroupRequestAtVersion(groupVersion, groups...)
+			if admissionErr != nil {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgGroupMigrationPaused))
+				return
+			}
+			defer releaseRequested()
 		}
 		_, pinned, _ := constraints.ResolvedPin()
 		if !pinned {

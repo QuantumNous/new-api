@@ -23,7 +23,11 @@ import { toast } from 'sonner'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
-import { updatePasskeyDomains, updateSystemOption } from '../api'
+import {
+  updateGroupOptions,
+  updatePasskeyDomains,
+  updateSystemOption,
+} from '../api'
 import type { UpdateOptionRequest, UpdatePasskeyDomainsRequest } from '../types'
 
 // Configuration keys that require status refresh
@@ -80,6 +84,20 @@ export function useUpdateOption() {
     onError: (error: Error) => {
       handleServerError(error, i18next.t('Failed to update setting'))
     },
+  })
+}
+
+export function useUpdateGroupOptions() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (values: Record<string, string>) =>
+      requireServerSuccess(await updateGroupOptions(values)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['system-options'] })
+      toast.success(i18next.t('Setting updated successfully'))
+    },
+    onError: (error: Error) =>
+      handleServerError(error, i18next.t('Failed to update setting')),
   })
 }
 

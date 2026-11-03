@@ -40,7 +40,10 @@ import { handleServerError } from '@/lib/handle-server-error'
 
 import { SettingsPageTitleStatusPortal } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
-import { useUpdateOption } from '../hooks/use-update-option'
+import {
+  useUpdateGroupOptions,
+  useUpdateOption,
+} from '../hooks/use-update-option'
 import { positiveIntegerSchema } from '../utils/numeric-field'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
@@ -173,6 +176,7 @@ export function RatioSettingsCard({
 }: RatioSettingsCardProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const updateGroupOptions = useUpdateGroupOptions()
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const pricingQuery = useModelPricing()
@@ -434,14 +438,26 @@ export function RatioSettingsCard({
         (key) => normalized[key] !== groupNormalizedDefaults.current[key]
       )
 
-      for (const key of updates) {
-        const apiKey = apiKeyMap[key] || key
-        await updateOption.mutateAsync({ key: apiKey, value: normalized[key] })
+      if (updates.length > 0) {
+        try {
+          await updateGroupOptions.mutateAsync(
+            Object.fromEntries(
+              updates.map((key) => [
+                apiKeyMap[key] || key,
+                String(normalized[key]),
+              ])
+            )
+          )
+        } catch (error) {
+          handleServerError(error)
+          return
+        }
       }
 
       groupNormalizedDefaults.current = normalized
+      groupForm.reset(values)
     },
-    [updateOption]
+    [updateGroupOptions, groupForm]
   )
 
   const handleResetRatios = useCallback(() => {
@@ -513,7 +529,7 @@ export function RatioSettingsCard({
         <GroupRatioForm
           form={groupForm}
           onSave={saveGroupRatios}
-          isSaving={updateOption.isPending}
+          isSaving={updateGroupOptions.isPending}
         />
       )
     }
