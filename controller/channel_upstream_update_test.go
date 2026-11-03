@@ -395,6 +395,33 @@ func TestFetchModelsUsesSharedChannelFetchBehavior(t *testing.T) {
 	require.JSONEq(t, `{"success":true,"message":"","data":["claude-sonnet"]}`, recorder.Body.String())
 }
 
+func TestFetchHuaweiMaaSModelsKeepsDeclaredNonChatModels(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v2/models", r.URL.Path)
+		assert.Equal(t, "Bearer maas-key", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"object":"list","data":[{"id":"glm-5.2"},{"id":"deepseek-v4.1-flash"}]}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	baseURL := server.URL
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeHuaweiMaaS,
+		Key:     "maas-key",
+		BaseURL: &baseURL,
+		// bge-m3 and qwen-image-edit-2509 are served by dedicated MaaS
+		// endpoints, so /v2/models never reports them. They must survive the
+		// diff; an undeclared non-chat model is not appended.
+		Models: "glm-5.2,bge-m3,qwen-image-edit-2509",
+	}
+
+	models, err := fetchChannelUpstreamModelIDs(channel)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"glm-5.2", "deepseek-v4.1-flash", "bge-m3", "qwen-image-edit-2509"}, models)
+}
+
 func TestFetchNewAPIModelsUsesOpenAIContract(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/v1/models", r.URL.Path)

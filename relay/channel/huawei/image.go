@@ -17,8 +17,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// maxEditImages is the per-request image limit for MaaS image editing
-// (https://support.huaweicloud.com/model-call-maas/model-call-023.html).
+// maxEditImages is the per-request image limit for MaaS image editing.
+// Qwen-Image-Edit 20251028 (qwen-image-edit-2509) documents "支持输入1~2张图"
+// of Base64 data or public URLs, while the legacy 20250913 version
+// (qwen_image_edit) documents single-image input only; the cap stays at two and
+// lets the upstream reject a second image for the older model.
+// (https://support.huaweicloud.com/model-call-maas/model-call-023.html)
 const maxEditImages = 2
 
 // defaultGenerationSize is the size MaaS documents as its own default for
