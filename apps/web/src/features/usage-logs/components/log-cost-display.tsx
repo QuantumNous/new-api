@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { MessageSquareOff, Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { StatusBadge } from '@/components/status-badge'
 import { Badge } from '@/components/ui/badge'
 import {
   Tooltip,
@@ -122,25 +121,53 @@ function QuotaBadge(props: { quota: number }) {
   )
 }
 
-function SubscriptionBadge(props: { quota: number }) {
+function SubscriptionBadge(props: { quota: number; walletOverflow?: number }) {
   const { t } = useTranslation()
+  // walletOverflow arrives already display-converted from the backend
+  // (wallet_quota_deducted_display); props.quota is likewise the request's
+  // display-converted total, so the two stay in the same unit for subtraction.
+  const wallet = props.walletOverflow ?? 0
+  const hasWallet = wallet > 0
+  // When the charge splits between the subscription and the wallet (subscription
+  // remaining quota exceeded), the subscription absorbs the remainder and the
+  // wallet covers the overflow — the two tooltip figures must sum to the total
+  // rather than both report it, and neither must mix display/raw units.
+  const subPortion = Math.max(0, props.quota - wallet)
+  const quotaDisplay = splitQuotaDisplay(formatLogQuota(props.quota))
 
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          <StatusBadge
-            label={t('Subscription')}
-            variant='success'
-            size='sm'
-            copyable={false}
-            className='cursor-help'
-          />
+          <span
+            role='img'
+            aria-label={
+              hasWallet
+                ? `${t('Subscription + Wallet')}: ${formatLogQuota(props.quota)}`
+                : `${t('Subscription')}: ${formatLogQuota(props.quota)}`
+            }
+            className={`inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums ${
+              hasWallet
+                ? 'border-red-500 bg-red-50 text-red-700'
+                : 'border-green-500 bg-green-50 text-green-700'
+            }`}
+          >
+            {quotaDisplay.prefix ? (
+              <span className='mr-1'>{quotaDisplay.prefix}</span>
+            ) : null}
+            <span>{quotaDisplay.amount}</span>
+          </span>
         }
       />
       <TooltipContent>
         <span>
-          {t('Deducted by subscription')}: {formatLogQuota(props.quota)}
+          {t('Deducted by subscription')}: {formatLogQuota(subPortion)}
+          {hasWallet && (
+            <>
+              {' · '}
+              {t('Wallet overflow charge')}: {formatLogQuota(wallet)}
+            </>
+          )}
         </span>
       </TooltipContent>
     </Tooltip>
@@ -164,7 +191,15 @@ export function LogCostDisplay(props: LogCostDisplayProps) {
     <TooltipProvider>
       <div className='inline-flex items-center gap-1'>
         {isSubscription ? (
-          <SubscriptionBadge quota={props.quota} />
+          <SubscriptionBadge
+            quota={props.quota}
+            // Prefer the display-converted overflow so the badge never formats a
+            // raw relay quota as currency; fall back to the raw value if absent.
+            walletOverflow={
+              props.other?.wallet_quota_deducted_display ??
+              props.other?.wallet_quota_deducted
+            }
+          />
         ) : (
           <QuotaBadge quota={props.quota} />
         )}

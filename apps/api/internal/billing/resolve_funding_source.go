@@ -92,6 +92,8 @@ type SubscriptionFunding struct {
 	AmountUsedAfter int64
 	PlanId          int
 	PlanTitle       string
+	// WalletOverflow 记录交付后结算时超出订阅剩余额度、被记入钱包欠费的部分。
+	WalletOverflow int64
 }
 
 func (s *SubscriptionFunding) Source() string { return settlecore.BillingSourceSubscription }
@@ -129,6 +131,7 @@ func (s *SubscriptionFunding) Settle(delta int) error {
 	if err != nil {
 		return err
 	}
+	s.WalletOverflow = overflow
 	if overflow > 0 {
 		common.SysError(fmt.Sprintf(
 			"subscription settle overage charged to wallet: userId=%d subscriptionId=%d overflow=%d",

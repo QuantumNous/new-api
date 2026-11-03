@@ -35,7 +35,9 @@ await i18n.use(initReactI18next).init({
     en: {
       translation: {
         Subscription: 'Subscription',
+        'Subscription + Wallet': 'Subscription + Wallet',
         'Deducted by subscription': 'Deducted by subscription',
+        'Wallet overflow charge': 'Wallet overflow charge',
         'Includes tool-call surcharge': 'Includes tool-call surcharge',
         'Charged for empty response': 'Charged for empty response',
         'Empty reply': 'Empty reply',
@@ -110,7 +112,7 @@ describe('log cost display', () => {
     await unmountCost(rendered)
   })
 
-  test('preserves the subscription badge and adds the same legacy surcharge marker', async () => {
+  test('preserves the subscription quota badge and adds the same legacy surcharge marker', async () => {
     const rendered = await renderCost({
       quota: 5000,
       other: {
@@ -121,7 +123,10 @@ describe('log cost display', () => {
       },
     })
 
-    assert.equal(rendered.container.textContent?.includes('Subscription'), true)
+    const badge = rendered.container.querySelector('span[role="img"]')
+    assert.ok(badge)
+    assert.equal(badge.getAttribute('aria-label')?.startsWith('Subscription'), true)
+    assert.ok(badge.className.includes('border-green-500'))
     assert.ok(
       rendered.container.querySelector('[data-tool-surcharge-indicator="true"]')
     )
@@ -156,6 +161,29 @@ describe('log cost display', () => {
     assert.equal(
       normalizedText(rendered.container.textContent).includes(
         normalizedText('Empty reply')
+      ),
+      true
+    )
+
+    await unmountCost(rendered)
+  })
+
+  test('shows red-bordered quota badge when subscription has wallet overflow', async () => {
+    const rendered = await renderCost({
+      quota: 20000,
+      other: {
+        billing_source: 'subscription',
+        wallet_quota_deducted: 5000,
+      },
+    })
+
+    const badge = rendered.container.querySelector('span[role="img"]')
+    assert.ok(badge)
+    assert.equal(badge.getAttribute('aria-label')?.startsWith('Subscription + Wallet'), true)
+    assert.ok(badge.className.includes('border-red-500'))
+    assert.equal(
+      normalizedText(rendered.container.textContent).includes(
+        normalizedText(formatLogQuota(20000))
       ),
       true
     )

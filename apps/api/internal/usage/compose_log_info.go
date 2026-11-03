@@ -184,8 +184,13 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 			other["subscription_consumed"] = consumed
 			other["subscription_consumed_display"] = quotaToDisplayAmount64(consumed)
 		}
-		// Wallet quota is not deducted when billed from subscription.
-		other["wallet_quota_deducted"] = 0
+		// 交付后结算超出订阅剩余额度的部分会记入钱包欠费，如实记录。
+		other["wallet_quota_deducted"] = relayInfo.SubscriptionWalletOverflow
+		other["wallet_quota_deducted_display"] = quotaToDisplayAmount64(relayInfo.SubscriptionWalletOverflow)
+		if relayInfo.SubscriptionWalletOverflow > 0 {
+			other["subscription_wallet_overflow"] = relayInfo.SubscriptionWalletOverflow
+			other["subscription_wallet_overflow_display"] = quotaToDisplayAmount64(relayInfo.SubscriptionWalletOverflow)
+		}
 	}
 }
 

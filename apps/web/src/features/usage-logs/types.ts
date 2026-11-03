@@ -256,6 +256,10 @@ export interface LogOtherData {
   subscription_remain_display?: number
   subscription_total?: number
   subscription_total_display?: number
+  wallet_quota_deducted?: number
+  wallet_quota_deducted_display?: number
+  subscription_wallet_overflow?: number
+  subscription_wallet_overflow_display?: number
 }
 
 /**

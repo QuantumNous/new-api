@@ -1222,6 +1222,17 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 mono
               />
             )}
+            {other.wallet_quota_deducted != null &&
+              other.wallet_quota_deducted > 0 && (
+                <DetailRow
+                  label={t('Wallet Overflow')}
+                  value={formatLogQuota(
+                    other.wallet_quota_deducted_display ??
+                      other.wallet_quota_deducted
+                  )}
+                  mono
+                />
+              )}
             {other.subscription_remain != null && (
               <DetailRow
                 label={t('Remaining')}
