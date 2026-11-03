@@ -47,23 +47,25 @@ func attachEstimatedGeminiBillingUsage(usage *dto.Usage) *dto.Usage {
 // content was actually received. Typical case: the client aborts a stream before the
 // final chunk that carries candidatesTokenCount, leaving prompt-only metadata; without
 // this patch the output side would settle at zero quota.
-func patchGeminiZeroCompletionUsage(c *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage, responseText string, inlineOutputTokens int) {
+func patchGeminiZeroCompletionUsage(c *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage, responseText string, inlineOutput geminiInlineOutput) {
 	if usage == nil || usage.CompletionTokens > 0 {
 		return
 	}
-	if responseText == "" && inlineOutputTokens == 0 {
+	if responseText == "" && inlineOutput.completionTokens() == 0 {
 		return
 	}
 	estimated := service.ResponseText2Usage(c, responseText, info.UpstreamModelName, usage.PromptTokens)
 	usage.CompletionTokens = estimated.CompletionTokens
-	if inlineOutputTokens != 0 && usage.CompletionTokens == 0 {
-		usage.CompletionTokens = inlineOutputTokens
-	}
+	inlineOutput.fillZeroCompletion(usage)
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	// Settlement prefers BillingUsage, so fill the missing completion in the
 	// original upstream dialect without discarding cache or modality details.
 	if usage.BillingUsage != nil {
 		usage.BillingUsage = dto.CloneBillingUsageWithEstimatedCompletion(usage.BillingUsage, usage.CompletionTokens)
+		if audioTokens := usage.CompletionTokenDetails.AudioTokens; audioTokens > 0 && usage.BillingUsage.GeminiUsageMetadata != nil {
+			metadata := usage.BillingUsage.GeminiUsageMetadata
+			metadata.CandidatesTokensDetails = append(metadata.CandidatesTokensDetails, dto.GeminiPromptTokensDetails{Modality: "AUDIO", TokenCount: audioTokens})
+		}
 	} else {
 		usage.BillingUsage = dto.NewEstimatedGeminiChatBillingUsage(usage)
 	}
@@ -154,12 +156,11 @@ func buildUsageFromGeminiResponse(c *gin.Context, info *relaycommon.RelayInfo, r
 	metadata := response.GetUsageMetadata()
 	if dto.HasGeminiUsageMetadataTokens(metadata) {
 		usage := buildUsageFromGeminiMetadata(metadata, info.GetEstimatePromptTokens())
-		patchGeminiZeroCompletionUsage(c, info, &usage, geminiResponseUsageText(response), inlineOutput.completionTokens())
+		patchGeminiZeroCompletionUsage(c, info, &usage, geminiResponseUsageText(response), inlineOutput)
 		return usage
 	}
 	usage := service.ResponseText2Usage(c, geminiResponseUsageText(response), info.UpstreamModelName, info.GetEstimatePromptTokens())
-	if inlineOutputTokens := inlineOutput.completionTokens(); inlineOutputTokens != 0 && usage.CompletionTokens == 0 {
-		usage.CompletionTokens = inlineOutputTokens
+	if inlineOutput.fillZeroCompletion(usage) {
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 	attachEstimatedGeminiBillingUsage(usage)
@@ -205,14 +206,30 @@ func (o *geminiInlineOutput) observe(response *dto.GeminiChatResponse) {
 	}
 }
 
+func (o geminiInlineOutput) audioTokens() int {
+	return int((int64(o.audio)*geminiAudioTokensPerSecond + int64(time.Second) - 1) / int64(time.Second))
+}
+
 func (o geminiInlineOutput) completionTokens() int {
-	audioTokens := (int64(o.audio)*geminiAudioTokensPerSecond + int64(time.Second) - 1) / int64(time.Second)
-	return common.QuotaFromFloat(float64(o.images)*geminiInlineImageCompletionTokens + float64(audioTokens))
+	return common.QuotaFromFloat(float64(o.images)*geminiInlineImageCompletionTokens + float64(o.audioTokens()))
+}
+
+// fillZeroCompletion uses the inline estimate when usage has no completion
+// tokens, recording the audio part as audio output so tiered expressions price
+// it with ao. It reports whether the estimate was applied.
+func (o geminiInlineOutput) fillZeroCompletion(usage *dto.Usage) bool {
+	completionTokens := o.completionTokens()
+	if completionTokens == 0 || usage.CompletionTokens != 0 {
+		return false
+	}
+	usage.CompletionTokens = completionTokens
+	usage.CompletionTokenDetails.AudioTokens = min(o.audioTokens(), completionTokens)
+	return true
 }
 
 // geminiPCMDuration returns the length of base64 16-bit PCM audio, or 0 when
 // the mimeType is not PCM, its rate or channel count is implausible, or the
-// data is not valid base64.
+// data is not valid base64 holding whole 16-bit samples.
 func geminiPCMDuration(mimeType string, data string) time.Duration {
 	mediaType, params, err := mime.ParseMediaType(mimeType)
 	if err != nil || (mediaType != "audio/l16" && mediaType != "audio/pcm") {
@@ -235,6 +252,9 @@ func geminiPCMDuration(mimeType string, data string) time.Duration {
 	}
 	pcmBytes := int64(decodedLen)
 	bytesPerSecond := int64(rate * channels * 2)
+	if pcmBytes%int64(channels*2) != 0 {
+		return 0
+	}
 	return time.Duration(pcmBytes/bytesPerSecond)*time.Second +
 		time.Duration(pcmBytes%bytesPerSecond)*time.Second/time.Duration(bytesPerSecond)
 }
@@ -335,14 +355,13 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		} else {
 			usage = &dto.Usage{}
 		}
-		if inlineOutputTokens := inlineOutput.completionTokens(); inlineOutputTokens != 0 && usage.CompletionTokens == 0 {
-			usage.CompletionTokens = inlineOutputTokens
+		if inlineOutput.fillZeroCompletion(usage) {
 			usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 			common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
 		}
 		attachEstimatedGeminiBillingUsage(usage)
 	} else {
-		patchGeminiZeroCompletionUsage(c, info, usage, responseText.String(), inlineOutput.completionTokens())
+		patchGeminiZeroCompletionUsage(c, info, usage, responseText.String(), inlineOutput)
 	}
 
 	if streamErr != nil {

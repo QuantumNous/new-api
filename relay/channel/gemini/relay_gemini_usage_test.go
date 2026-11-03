@@ -682,6 +682,7 @@ func TestGeminiStreamHandlerWithoutUsageMetadataEstimatesInlineOutput(t *testing
 		name                 string
 		frames               []string
 		wantCompletionTokens int
+		wantAudioTokens      int
 	}{
 		{
 			// 0.3 s of audio: ceil(0.3 * 25) = 8.
@@ -693,16 +694,24 @@ func TestGeminiStreamHandlerWithoutUsageMetadataEstimatesInlineOutput(t *testing
 				`{"error":{"code":504,"message":"context deadline exceeded","status":"DEADLINE_EXCEEDED"}}`,
 			},
 			wantCompletionTokens: 8,
+			wantAudioTokens:      8,
 		},
 		{
 			// 1 s of audio in the Gemini API's own mimeType form.
 			name:                 "pcm audio with codec parameter",
 			frames:               []string{geminiInlineFrame("audio/L16;codec=pcm;rate=24000", strings.Repeat(pcm100ms, 10))},
 			wantCompletionTokens: 25,
+			wantAudioTokens:      25,
 		},
 		{
 			name:                 "audio without a measurable length",
 			frames:               []string{geminiInlineFrame("audio/mpeg", pcm100ms), geminiInlineFrame("audio/l16; rate=1", pcm100ms)},
+			wantCompletionTokens: 0,
+		},
+		{
+			// One byte is not a whole 16-bit sample.
+			name:                 "pcm audio with a partial sample",
+			frames:               []string{geminiInlineFrame("audio/l16; rate=24000; channels=1", "AA==")},
 			wantCompletionTokens: 0,
 		},
 		{
@@ -747,6 +756,10 @@ func TestGeminiStreamHandlerWithoutUsageMetadataEstimatesInlineOutput(t *testing
 			require.NotNil(t, usage.BillingUsage)
 			require.NotNil(t, usage.BillingUsage.GeminiUsageMetadata)
 			assert.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
+			// Tiered expressions price ao from the settled audio output detail.
+			settled, ok := usage.BillingUsage.CanonicalUsage()
+			require.True(t, ok)
+			assert.Equal(t, tc.wantAudioTokens, settled.CompletionTokenDetails.AudioTokens)
 		})
 	}
 }
@@ -770,9 +783,10 @@ func TestGeminiHandlersWithoutCompletionUsageEstimateInlineOutput(t *testing.T) 
 		name                 string
 		parts                []dto.GeminiPart
 		wantCompletionTokens int
+		wantAudioTokens      int
 	}{
-		{"audio", []dto.GeminiPart{audioPart, audioPart, audioPart}, 8},
-		{"image", []dto.GeminiPart{imagePart, imagePart}, 2 * 1400},
+		{"audio", []dto.GeminiPart{audioPart, audioPart, audioPart}, 8, 8},
+		{"image", []dto.GeminiPart{imagePart, imagePart}, 2 * 1400, 0},
 	} {
 		for _, metadata := range []struct {
 			name             string
@@ -828,6 +842,9 @@ func TestGeminiHandlersWithoutCompletionUsageEstimateInlineOutput(t *testing.T) 
 					require.NotNil(t, usage.BillingUsage)
 					require.NotNil(t, usage.BillingUsage.GeminiUsageMetadata)
 					assert.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
+					settled, ok := usage.BillingUsage.CanonicalUsage()
+					require.True(t, ok)
+					assert.Equal(t, tc.wantAudioTokens, settled.CompletionTokenDetails.AudioTokens)
 				})
 			}
 		}
