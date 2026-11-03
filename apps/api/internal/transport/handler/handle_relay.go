@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/QuantumNous/new-api/internal/billing"
@@ -628,6 +629,11 @@ func classifyRouteStatsOutcome(err *types.NewAPIError) routeStatsOutcome {
 	if err == nil {
 		return routeStatsNeutral
 	}
+	// A client cancel is not route evidence: the caller abandoned the request,
+	// so its 500 wrapper must not derate the soft EWMA.
+	if errors.Is(err, context.Canceled) {
+		return routeStatsNeutral
+	}
 	if types.IsChannelError(err) || err.GetErrorCode() == types.ErrorCodeBadResponseBody {
 		return routeStatsFatal
 	}
@@ -967,6 +973,11 @@ func respondTaskError(c contract.Context, taskErr *taskdto.TaskError) {
 
 func shouldRetryTaskRelay(c contract.Context, channelId int, taskErr *taskdto.TaskError, retryTimes int) bool {
 	if taskErr == nil {
+		return false
+	}
+	// The client is gone: re-dialing upstream repeats a request nobody is
+	// waiting for. Mirrors classifyAttempt's cancel rule for the sync loop.
+	if errors.Is(taskErr.Error, context.Canceled) {
 		return false
 	}
 	if catalog.ShouldSkipRetryAfterChannelAffinityFailure(c) {

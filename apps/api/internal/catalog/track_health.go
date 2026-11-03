@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -73,6 +74,15 @@ func classifyChannelOutcomeUnlocked(state *ChannelHealthState, err *types.NewAPI
 	if err == nil {
 		state.UnauthorizedRun = 0
 		return OutcomeSuccess
+	}
+
+	// A client-canceled request says nothing about the channel: the transport
+	// failure rides a 500 wrapper, so it must not derate the ledger. Unlike
+	// the other neutral branches this does NOT reset the 401 run — a cancel
+	// is not evidence of recovery, and resetting would let a canceling client
+	// mask a dead credential. Mirrors ClassifyUnitOutcome's cancel rule.
+	if errors.Is(err, context.Canceled) {
+		return OutcomeNeutral
 	}
 
 	// Channel errors or bad response body are always fatal.

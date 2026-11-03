@@ -1,6 +1,8 @@
 package channel
 
 import (
+	"context"
+	"errors"
 	"math"
 	"net/http"
 	"sync/atomic"
@@ -523,6 +525,12 @@ func applyUnitOutcome(st *UnitHealthState, outcome UnitOutcome, nowMs int64, lat
 func ClassifyUnitOutcome(err *types.NewAPIError, channelID int) UnitOutcome {
 	if err == nil {
 		return UnitSuccess
+	}
+	// A client-canceled attempt says nothing about the channel: the transport
+	// failure merely rides a 500 wrapper, so it must not arm a fatal cooldown.
+	// Mirrors the failover loop's cancellation rule (classifyAttempt).
+	if errors.Is(err, context.Canceled) {
+		return UnitNeutral
 	}
 	switch {
 	case types.IsChannelError(err) || err.GetErrorCode() == types.ErrorCodeBadResponseBody:

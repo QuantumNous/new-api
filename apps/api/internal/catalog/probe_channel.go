@@ -1,6 +1,8 @@
 package channel
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -60,6 +62,13 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 	if err == nil {
 		return false
 	}
+	// A client cancel is not channel evidence: an admin-configured 5xx
+	// auto-disable range would otherwise disable the channel for the
+	// caller's own disconnect (the cancel rides a 500 wrapper).
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+
 	if types.IsChannelError(err) {
 		return true
 	}
