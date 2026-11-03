@@ -33,12 +33,13 @@ type MaaSImageResponse struct {
 	Error any `json:"error"`
 }
 
-// MaaSRerankRequest is the Huawei MaaS rerank request. Only model/query/
-// documents are supported upstream; OpenAI rerank options are dropped.
+// MaaSRerankRequest is the Huawei MaaS rerank request. MaaS only accepts a
+// plain string array for documents and documents no top_n or return_documents
+// field, so the OpenAI rerank options are dropped.
 type MaaSRerankRequest struct {
-	Model     string `json:"model"`
-	Query     string `json:"query"`
-	Documents []any  `json:"documents"`
+	Model     string   `json:"model"`
+	Query     string   `json:"query"`
+	Documents []string `json:"documents"`
 }
 
 type MaaSRerankResult struct {

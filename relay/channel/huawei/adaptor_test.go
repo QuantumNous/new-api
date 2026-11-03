@@ -525,6 +525,50 @@ func TestHuaweiImageHandler(t *testing.T) {
 	})
 }
 
+func TestConvertRerankRequest(t *testing.T) {
+	a := &Adaptor{}
+	c, _ := newTestContext(t)
+
+	t.Run("keeps plain strings", func(t *testing.T) {
+		converted, err := a.ConvertRerankRequest(c, relayconstant.RelayModeRerank, dto.RerankRequest{
+			Model:     "bge-reranker-v2-m3",
+			Query:     "q",
+			Documents: []any{"doc one", "doc two"},
+		})
+		require.NoError(t, err)
+
+		var out MaaSRerankRequest
+		raw, err := common.Marshal(converted)
+		require.NoError(t, err)
+		require.NoError(t, common.Unmarshal(raw, &out))
+		assert.Equal(t, []string{"doc one", "doc two"}, out.Documents)
+	})
+
+	t.Run("lifts text out of cohere-style objects", func(t *testing.T) {
+		converted, err := a.ConvertRerankRequest(c, relayconstant.RelayModeRerank, dto.RerankRequest{
+			Model:     "bge-reranker-v2-m3",
+			Query:     "q",
+			Documents: []any{map[string]any{"text": "doc one"}, map[string]any{"text": "doc two", "id": "b"}},
+		})
+		require.NoError(t, err)
+
+		var out MaaSRerankRequest
+		raw, err := common.Marshal(converted)
+		require.NoError(t, err)
+		require.NoError(t, common.Unmarshal(raw, &out))
+		assert.Equal(t, []string{"doc one", "doc two"}, out.Documents)
+	})
+
+	t.Run("rejects documents without text", func(t *testing.T) {
+		_, err := a.ConvertRerankRequest(c, relayconstant.RelayModeRerank, dto.RerankRequest{
+			Model:     "bge-reranker-v2-m3",
+			Query:     "q",
+			Documents: []any{map[string]any{"id": "a"}},
+		})
+		require.ErrorContains(t, err, "documents[0] must be a string")
+	})
+}
+
 func TestHuaweiRerankHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

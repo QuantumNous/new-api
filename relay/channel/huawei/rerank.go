@@ -14,6 +14,38 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// maasRerankDocuments flattens rerank documents into the plain string array
+// MaaS requires
+// (https://support.huaweicloud.com/model-call-maas/model-call-028.html).
+// Clients send either bare strings or Cohere-style {"text": "..."} objects;
+// MaaS rejects the objects outright, so only their text is forwarded. The
+// original documents stay on RelayInfo for the return_documents fallback.
+func maasRerankDocuments(documents []any) ([]string, error) {
+	texts := make([]string, 0, len(documents))
+	for index, document := range documents {
+		if text, ok := document.(string); ok {
+			texts = append(texts, text)
+			continue
+		}
+		var structured struct {
+			Text *string `json:"text"`
+		}
+		raw, err := common.Marshal(document)
+		if err == nil {
+			err = common.Unmarshal(raw, &structured)
+		}
+		if err != nil || structured.Text == nil {
+			return nil, types.NewErrorWithStatusCode(
+				fmt.Errorf("documents[%d] must be a string or an object with a text field", index),
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+			)
+		}
+		texts = append(texts, *structured.Text)
+	}
+	return texts, nil
+}
+
 // huaweiRerankHandler converts the MaaS rerank response into the
 // OpenAI-compatible rerank shape. MaaS nests the document text under
 // document.text; it is flattened before the response is written back.

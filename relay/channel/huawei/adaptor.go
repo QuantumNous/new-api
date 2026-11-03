@@ -99,10 +99,14 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
+	documents, err := maasRerankDocuments(request.Documents)
+	if err != nil {
+		return nil, err
+	}
 	return &MaaSRerankRequest{
 		Model:     request.Model,
 		Query:     request.Query,
-		Documents: request.Documents,
+		Documents: documents,
 	}, nil
 }
 
