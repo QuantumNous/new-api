@@ -523,7 +523,10 @@ func (f LogFilter) apply(tx *gorm.DB) (*gorm.DB, error) {
 	return tx, nil
 }
 
+// GetAllLogs returns an administrator log page with an exact total and resolved
+// channel names. Negative offsets are treated as the first page.
 func GetAllLogs(filter LogFilter, startIdx int, num int) (logs []*Log, total int64, err error) {
+	startIdx = max(startIdx, 0)
 	tx, err := filter.apply(LOG_DB)
 	if err != nil {
 		return nil, 0, err
@@ -583,7 +586,10 @@ func GetAllLogs(filter LogFilter, startIdx int, num int) (logs []*Log, total int
 	return logs, total, err
 }
 
+// GetUserLogs returns one user's logs with an exact total and display IDs based
+// on the effective page offset, treating negative offsets as the first page.
 func GetUserLogs(userId int, filter LogFilter, startIdx int, num int) (logs []*Log, total int64, err error) {
+	startIdx = max(startIdx, 0)
 	tx, err := filter.apply(LOG_DB.Where("logs.user_id = ?", userId))
 	if err != nil {
 		return nil, 0, err
@@ -602,6 +608,8 @@ func GetUserLogs(userId int, filter LogFilter, startIdx int, num int) (logs []*L
 	return logs, total, err
 }
 
+// queryLogPage loads a page and its exact total, skipping COUNT when a partial
+// page establishes the total and delaying full-row reads during deep pagination.
 func queryLogPage(tx *gorm.DB, order string, startIdx int, num int) (logs []*Log, total int64, err error) {
 	tx = tx.Model(&Log{})
 	startIdx = max(startIdx, 0)

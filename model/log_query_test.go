@@ -24,8 +24,8 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// Each case owns its database; the supplied DSNs are only used to create an
-// isolated database on a loopback test server.
+// newLogQueryDatabase creates an isolated database on a loopback test server.
+// The supplied DSNs identify the server; each test owns its database.
 func newLogQueryDatabase(t *testing.T, kind string) *gorm.DB {
 	t.Helper()
 	if kind == "sqlite" {
@@ -88,6 +88,8 @@ func newLogQueryDatabase(t *testing.T, kind string) *gorm.DB {
 	return db
 }
 
+// useLogQueryDatabase installs separate primary/log test databases and restores
+// the package's database and cache settings after the test.
 func useLogQueryDatabase(t *testing.T, db *gorm.DB, kind string) {
 	t.Helper()
 	previousDB, previousLogDB := DB, LOG_DB
@@ -118,14 +120,18 @@ type logQueryRecorder struct {
 	counts int
 }
 
+// Trace counts SQL count statements so pagination tests detect redundant counts
+// regardless of whether the aggregate uses *, 1, or a column expression.
 func (r *logQueryRecorder) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
 	sql, _ := fc()
-	if strings.Contains(strings.ToUpper(sql), "COUNT(*)") {
+	if strings.Contains(strings.ToUpper(sql), "COUNT(") {
 		r.counts++
 	}
 	r.Interface.Trace(ctx, begin, fc, err)
 }
 
+// TestUsageLogPaginationDatabaseMatrix checks exact totals, row order, display
+// IDs and omitted redundant counts across supported log databases.
 func TestUsageLogPaginationDatabaseMatrix(t *testing.T) {
 	for _, kind := range []string{"sqlite", "mysql", "postgres", "clickhouse"} {
 		t.Run(kind, func(t *testing.T) {
@@ -161,6 +167,7 @@ func TestUsageLogPaginationDatabaseMatrix(t *testing.T) {
 				counts       int
 			}{
 				{"first full page", LogFilter{}, 0, 0, 2, []string{"r5", "r3"}, 6, 1},
+				{"negative admin offset", LogFilter{}, 0, -3, 2, []string{"r5", "r3"}, 6, 1},
 				{"middle full page", LogFilter{}, 0, 2, 2, []string{"r2", "r4"}, 6, 1},
 				{"partial last page", LogFilter{}, 0, 4, 3, []string{"r1", "r6"}, 6, 0},
 				{"beyond last page", LogFilter{}, 0, 8, 2, []string{}, 6, 1},
@@ -168,6 +175,7 @@ func TestUsageLogPaginationDatabaseMatrix(t *testing.T) {
 				{"sparse exact search", LogFilter{RequestId: "r1"}, 0, 0, 10, []string{"r1"}, 1, 0},
 				{"mixed filters", LogFilter{StartTimestamp: 100, EndTimestamp: 250, Username: "alice", ModelName: "model-%", Channel: 9}, 0, 0, 10, []string{"r1"}, 1, 0},
 				{"user full page", LogFilter{StartTimestamp: 100}, 1, 0, 3, []string{"r5", "r4", "r2"}, 4, 1},
+				{"negative user offset", LogFilter{StartTimestamp: 100}, 1, -3, 3, []string{"r5", "r4", "r2"}, 4, 1},
 				{"user last page", LogFilter{StartTimestamp: 100}, 1, 3, 3, []string{"r1"}, 4, 0},
 				{"user beyond last page", LogFilter{StartTimestamp: 100}, 1, 10, 3, []string{}, 4, 1},
 			} {
@@ -188,14 +196,16 @@ func TestUsageLogPaginationDatabaseMatrix(t *testing.T) {
 					for i, entry := range entries {
 						requests[i] = entry.RequestId
 						if tc.user != 0 {
-							assert.Equal(t, tc.offset+i+1, entry.Id)
+							assert.Equal(t, max(tc.offset, 0)+i+1, entry.Id)
 							assert.NotContains(t, entry.Other, "admin_info")
+						} else if kind == "clickhouse" {
+							assert.Equal(t, max(tc.offset, 0)+i+1, entry.Id)
 						}
 						if tc.user == 0 && entry.ChannelId == 9 {
 							assert.Equal(t, "primary", entry.ChannelName)
 						}
 					}
-					if kind == "clickhouse" && tc.name == "user full page" {
+					if kind == "clickhouse" && (tc.name == "user full page" || tc.name == "negative user offset") {
 						assert.Equal(t, []string{"r5", "r2", "r4"}, requests)
 					} else {
 						assert.Equal(t, tc.requests, requests)
@@ -207,6 +217,8 @@ func TestUsageLogPaginationDatabaseMatrix(t *testing.T) {
 	}
 }
 
+// TestUsageLogStatisticsTimeWindowsDatabaseMatrix keeps historical quota filters
+// separate from the current RPM/TPM window across supported log databases.
 func TestUsageLogStatisticsTimeWindowsDatabaseMatrix(t *testing.T) {
 	for _, kind := range []string{"sqlite", "mysql", "postgres", "clickhouse"} {
 		t.Run(kind, func(t *testing.T) {
@@ -241,6 +253,8 @@ func TestUsageLogStatisticsTimeWindowsDatabaseMatrix(t *testing.T) {
 	}
 }
 
+// logQueryIndexColumns reads declared index-key order, using relation-scoped
+// catalog metadata for PostgreSQL.
 func logQueryIndexColumns(t *testing.T, db *gorm.DB) map[string][]string {
 	t.Helper()
 	indexes, err := db.Migrator().GetIndexes(&Log{})
@@ -267,6 +281,8 @@ ORDER BY index_relation.relname, index_column.ordinal_position`, "logs").Scan(&o
 	return columns
 }
 
+// TestUsageLogLegacyIndexMigrationDatabaseMatrix verifies that repeated primary
+// and separate log migrations repair index order while preserving stored data.
 func TestUsageLogLegacyIndexMigrationDatabaseMatrix(t *testing.T) {
 	for _, kind := range []string{"sqlite", "mysql", "postgres"} {
 		for _, storage := range []string{"primary", "separate"} {
@@ -318,6 +334,8 @@ func TestUsageLogLegacyIndexMigrationDatabaseMatrix(t *testing.T) {
 	}
 }
 
+// TestUsageLogTimeIndexPreservesPostgresSchemas protects the active schema's
+// unique index from conflicting index names in other PostgreSQL schemas.
 func TestUsageLogTimeIndexPreservesPostgresSchemas(t *testing.T) {
 	db := newLogQueryDatabase(t, "postgres")
 	useLogQueryDatabase(t, db, "postgres")
