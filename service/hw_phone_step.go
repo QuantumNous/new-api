@@ -222,6 +222,14 @@ func hwMaybeGrantFreeTrialCredit(user *model.User) (granted bool, reason string,
 	if frozen {
 		return false, "frozen", nil
 	}
+	// A channel account earns its TRY bonus with its own phone step, apart from
+	// the free trial: a failed bonus is logged and leaves the trial untouched,
+	// and an admin repeat of the channel grant retries it.
+	if bonus, _, err := model.HwGrantChannelBonus(user.Id, common.GetTimestamp()); err != nil {
+		common.SysError(common.LogText("hw: channel bonus failed for user %d (rate missing %t)", user.Id, errors.Is(err, model.ErrHwChannelRateMissing)))
+	} else if bonus {
+		common.SysLog(common.LogText("hw: channel bonus granted to user %d after the phone step", user.Id))
+	}
 	if user.Email == "" {
 		return false, "email_unverified", nil
 	}

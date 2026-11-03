@@ -500,7 +500,7 @@ func TestHwChannelGrantAndOverview(t *testing.T) {
 
 	channel := createHwTestUser(t, 0)
 
-	t.Run("credit first, bonus after the free steps", func(t *testing.T) {
+	t.Run("credit first, bonus after the phone step", func(t *testing.T) {
 		result, err := HwGrantChannel(channel.Id, now)
 		require.NoError(t, err)
 		assert.True(t, result.CreditGranted)
@@ -514,21 +514,56 @@ func TestHwChannelGrantAndOverview(t *testing.T) {
 		assert.Equal(t, now+90*24*3600, pkg.ExpiresAt)
 	})
 
-	t.Run("the bonus follows once and only once", func(t *testing.T) {
+	t.Run("a device token alone leaves the bonus pending", func(t *testing.T) {
+		// Every registration stores a device token, so it proves no step the
+		// account took itself.
 		hwMarkVerified(t, channel.Id)
 		result, err := HwGrantChannel(channel.Id, now)
 		require.NoError(t, err)
 		assert.False(t, result.CreditGranted)
-		assert.True(t, result.BonusGranted)
-		assert.False(t, result.BonusPending)
+		assert.False(t, result.BonusGranted)
+		assert.True(t, result.BonusPending)
+		assert.Equal(t, common.QuotaFromFloat(HwChannelCreditUSD*common.QuotaPerUnit), getUserQuotaFromDB(t, channel.Id))
+	})
+
+	t.Run("the phone step brings the bonus once and only once", func(t *testing.T) {
+		require.NoError(t, HwRecordPhoneSignal(channel.Id, "+90 555 321 00 11"))
+		granted, pending, err := HwGrantChannelBonus(channel.Id, now)
+		require.NoError(t, err)
+		assert.True(t, granted)
+		assert.False(t, pending)
 
 		bonus := common.QuotaFromFloat(float64(HwChannelBonusTRY) / 40 * common.QuotaPerUnit)
 		assert.Equal(t, common.QuotaFromFloat(HwChannelCreditUSD*common.QuotaPerUnit)+bonus, getUserQuotaFromDB(t, channel.Id))
 
-		result, err = HwGrantChannel(channel.Id, now)
+		// A repeat by the admin or a later phone step at another daily rate grants
+		// nothing more.
+		result, err := HwGrantChannel(channel.Id, now)
 		require.NoError(t, err)
 		assert.False(t, result.CreditGranted)
 		assert.False(t, result.BonusGranted)
+		assert.False(t, result.BonusPending)
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap[HwTryPerUsdOption] = "41"
+		common.OptionMapRWMutex.Unlock()
+		granted, pending, err = HwGrantChannelBonus(channel.Id, now)
+		require.NoError(t, err)
+		assert.False(t, granted)
+		assert.False(t, pending)
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap[HwTryPerUsdOption] = "40"
+		common.OptionMapRWMutex.Unlock()
+		assert.Equal(t, common.QuotaFromFloat(HwChannelCreditUSD*common.QuotaPerUnit)+bonus, getUserQuotaFromDB(t, channel.Id))
+	})
+
+	t.Run("an account without channel credit gets no bonus from its phone step", func(t *testing.T) {
+		other := createHwTestUser(t, 0)
+		require.NoError(t, HwRecordPhoneSignal(other.Id, "+90 555 321 00 22"))
+		granted, pending, err := HwGrantChannelBonus(other.Id, now)
+		require.NoError(t, err)
+		assert.False(t, granted)
+		assert.False(t, pending)
+		assert.Zero(t, getUserQuotaFromDB(t, other.Id))
 	})
 
 	t.Run("overview counts signups, paying customers and earned credit", func(t *testing.T) {

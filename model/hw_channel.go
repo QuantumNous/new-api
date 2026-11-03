@@ -33,8 +33,8 @@ var (
 type HwChannelGrantResult struct {
 	CreditGranted bool `json:"credit_granted"`
 	BonusGranted  bool `json:"bonus_granted"`
-	// BonusPending is true while the account has not completed the free steps
-	// (a verified device or phone); the bonus follows on a later call.
+	// BonusPending is true while the account has not shared its phone number in
+	// the phone step; the bonus follows that step by itself.
 	BonusPending bool `json:"bonus_pending"`
 }
 
@@ -66,10 +66,9 @@ func hwChannelBonusQuota() (int, error) {
 }
 
 // HwGrantChannel gives a partner account the channel credit (HwChannelCreditUSD,
-// 90 days). The TRY bonus follows once the account has a
-// verified device or phone, so the free steps come first. Every part is
-// idempotent on its order reference, so the call can be repeated until the bonus
-// is in.
+// 90 days). The TRY bonus follows only once the account has done the phone step
+// itself (see HwGrantChannelBonus), so the free steps come first. Every part is
+// idempotent on its order reference, so the call can be repeated.
 func HwGrantChannel(userID int, now int64) (HwChannelGrantResult, error) {
 	var result HwChannelGrantResult
 	if userID <= 0 || now <= 0 {
@@ -82,28 +81,52 @@ func HwGrantChannel(userID int, now int64) (HwChannelGrantResult, error) {
 	if count == 0 {
 		return result, ErrHwChannelUserMissing
 	}
-	ref := strconv.Itoa(userID)
-	granted, err := GrantCreditPackage(nil, userID, common.QuotaFromFloat(HwChannelCreditUSD*common.QuotaPerUnit), HwSourceAdmin, hwChannelRefPrefix+ref, now)
+	granted, err := GrantCreditPackage(nil, userID, common.QuotaFromFloat(HwChannelCreditUSD*common.QuotaPerUnit), HwSourceAdmin, hwChannelRefPrefix+strconv.Itoa(userID), now)
 	if err != nil {
 		return result, err
 	}
 	result.CreditGranted = granted
-	verified, err := hwUserHasVerifiedSignal(userID)
+	result.BonusGranted, result.BonusPending, err = HwGrantChannelBonus(userID, now)
+	return result, err
+}
+
+// HwGrantChannelBonus grants the TRY bonus of a channel account once the account
+// has shared its phone number in the phone step. The device token that every
+// registration stores does not count: the browser supplies it, so it proves no
+// step the account took. An account without channel credit gets nothing and is
+// not pending. The phone step calls this after recording the number, and the
+// order reference "channel-bonus:<id>" keeps the bonus to one grant.
+func HwGrantChannelBonus(userID int, now int64) (granted bool, pending bool, err error) {
+	if userID <= 0 || now <= 0 {
+		return false, false, ErrHwInvalidCreditGrant
+	}
+	ref := strconv.Itoa(userID)
+	var channelPackages int64
+	if err := DB.Model(&HwCreditPackage{}).
+		Where("user_id = ? AND source = ? AND order_ref = ?", userID, HwSourceAdmin, hwChannelRefPrefix+ref).
+		Count(&channelPackages).Error; err != nil {
+		return false, false, err
+	}
+	if channelPackages == 0 {
+		return false, false, nil
+	}
+	hasPhone, err := HwUserHasPhoneSignal(userID)
 	if err != nil {
-		return result, err
+		return false, false, err
 	}
-	if verified {
-		bonus, err := hwChannelBonusQuota()
-		if err != nil {
-			return result, err
-		}
-		if result.BonusGranted, err = GrantCreditPackage(nil, userID, bonus, HwSourceAdmin, hwChannelBonusRefPrefix+ref, now); err != nil {
-			return result, err
-		}
-	} else {
-		result.BonusPending = true
+	if !hasPhone {
+		return false, true, nil
 	}
-	return result, nil
+	bonus, err := hwChannelBonusQuota()
+	if err != nil {
+		return false, false, err
+	}
+	granted, err = GrantCreditPackage(nil, userID, bonus, HwSourceAdmin, hwChannelBonusRefPrefix+ref, now)
+	if errors.Is(err, ErrHwOrderRefConflict) {
+		// The bonus was granted before at another daily rate; that grant stands.
+		return false, false, nil
+	}
+	return granted, false, err
 }
 
 type hwChannelCount struct {

@@ -78,7 +78,12 @@ For commercial licensing, please contact support@quantumnous.com
  * 4. **Billing displays**: Use formatBillingCurrencyFromUSD() to avoid token display
  * 5. **Effective exchange rate**: When quotaDisplayType is 'USD', use rate of 1 regardless of config
  */
+import {
+  resolveHwCurrency,
+  resolveHwDisplayOverride,
+} from '@/features/hw/lib/currency'
 import { getFormatLocale } from '@/lib/format-locale'
+import { useHwCurrencyStore } from '@/stores/hw-currency-store'
 import {
   useSystemConfigStore,
   DEFAULT_CURRENCY_CONFIG,
@@ -213,6 +218,29 @@ function getDisplayMeta(config: CurrencyConfig): DisplayMeta {
         currencyCode: 'USD',
         exchangeRate: 1,
       }
+  }
+}
+
+/**
+ * The header's currency switch (HisarWeb AI). The console setting describes
+ * one currency (lira on the live site); when the visitor picks EUR or USD,
+ * every amount that is converted from USD shows that currency at the server's
+ * rate instead. TRY, a currency without a rate and the token display keep the
+ * console setting. Amounts already in local currency never pass through here.
+ */
+function withHwCurrencyChoice(meta: DisplayMeta): DisplayMeta {
+  if (meta.kind === 'tokens') return meta
+  const { config, preferred } = useHwCurrencyStore.getState()
+  const override = resolveHwDisplayOverride(
+    resolveHwCurrency(config, preferred),
+    config.rates
+  )
+  if (!override) return meta
+  return {
+    kind: 'currency',
+    symbol: override.symbol,
+    currencyCode: override.code,
+    exchangeRate: override.rate,
   }
 }
 
@@ -404,7 +432,7 @@ function formatCurrencyValue(
  */
 export function getCurrencyDisplay() {
   const config = getConfig()
-  const meta = getDisplayMeta(config)
+  const meta = withHwCurrencyChoice(getDisplayMeta(config))
   return { config, meta }
 }
 
@@ -516,7 +544,7 @@ export function formatBillingCurrencyFromUSD(
   if (amountUSD == null || Number.isNaN(amountUSD)) return '-'
 
   const { config } = getCurrencyDisplay()
-  const meta = getBillingDisplayMeta(config)
+  const meta = withHwCurrencyChoice(getBillingDisplayMeta(config))
   const merged = mergeOptions(options)
   const value =
     meta.kind === 'currency' || meta.kind === 'custom'
@@ -524,32 +552,6 @@ export function formatBillingCurrencyFromUSD(
       : amountUSD
 
   return formatCurrencyValue(value, merged, meta)
-}
-
-/**
- * Format an amount that is already in the given ISO currency (for example the
- * EUR price of a model after converting with the shop's EUR rate).
- *
- * Unlike the functions above this ignores the console's display setting: no
- * exchange rate is applied, only the notation and fraction digits are shared.
- *
- * @param amount - Amount already expressed in `currencyCode`
- * @param currencyCode - ISO 4217 code such as "EUR" or "USD"
- * @param options - Optional formatting configuration
- */
-export function formatCurrencyAmount(
-  amount: number | null | undefined,
-  currencyCode: string,
-  options?: CurrencyFormatOptions
-): string {
-  if (amount == null || Number.isNaN(amount)) return '-'
-
-  return formatCurrencyValue(amount, mergeOptions(options), {
-    kind: 'currency',
-    symbol: '',
-    currencyCode,
-    exchangeRate: 1,
-  })
 }
 
 /**
@@ -611,21 +613,12 @@ export function formatQuotaWithCurrency(
  * - Form field labels
  */
 export function getCurrencyLabel(): string {
-  const { config, meta } = getCurrencyDisplay()
+  const { meta } = getCurrencyDisplay()
 
   if (meta.kind === 'tokens') {
     return 'Tokens'
   }
-
-  switch (config.quotaDisplayType) {
-    case 'CNY':
-      return 'CNY'
-    case 'CUSTOM':
-      return meta.kind === 'custom' ? meta.symbol : 'Custom'
-    case 'USD':
-    default:
-      return 'USD'
-  }
+  return meta.kind === 'custom' ? meta.symbol : meta.currencyCode
 }
 
 /**

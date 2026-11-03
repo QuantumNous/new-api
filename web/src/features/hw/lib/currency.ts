@@ -263,6 +263,30 @@ export function convertHwUsd(
   return usd * rate
 }
 
+/** A EUR/USD choice of the currency switch, with its rate against the dollar. */
+export type HwDisplayOverride = {
+  code: Exclude<HwCurrency, 'TRY'>
+  symbol: string
+  /** Units of `code` per 1 USD. */
+  rate: number
+}
+
+/**
+ * What the console amounts show when the visitor picks EUR or USD on the
+ * switch. The console's own display setting (`quota_display_type`, lira on the
+ * live site) describes one currency only, so TRY, and a currency without a
+ * rate, return null and keep that setting.
+ */
+export function resolveHwDisplayOverride(
+  currency: HwCurrency,
+  rates: HwRates
+): HwDisplayOverride | null {
+  if (currency === 'TRY') return null
+  const rate = convertHwUsd(1, currency, rates)
+  if (rate === null) return null
+  return { code: currency, symbol: HW_CURRENCY_SYMBOLS[currency], rate }
+}
+
 /**
  * Rounds an amount down to a tidy number: whole below 20, steps of 5 below
  * 100, 10 below 1000, 50 below 10000 and 500 above. Never below 1.
