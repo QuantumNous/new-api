@@ -69,6 +69,15 @@ function latencyTexts(host: HTMLElement) {
     .filter((text) => text.length > 0)
 }
 
+// The success-rate axis is the only one labelled with textAnchor="start"
+// (latency anchors "end", hour labels "middle"), so it isolates the right
+// axis labels from the rest of the chart.
+function rightAxisLabels(host: HTMLElement) {
+  return Array.from(host.querySelectorAll('text'))
+    .filter((node) => node.getAttribute('text-anchor') === 'start')
+    .map((node) => node.textContent ?? '')
+}
+
 describe('model-square card latency unit', () => {
   // The whole scale (axis ticks, headline, bars) must share one unit: a chart
   // that mixes "2.50" with "1200ms" is unreadable and the ticks no longer
@@ -135,5 +144,49 @@ describe('model-square card latency unit', () => {
 
     expect(headline).toContain('2.00')
     expect(latencyTexts(host)).toContain('2.00s')
+  })
+})
+describe('model-square card success-rate axis', () => {
+  // The health axis must stay fixed at 0–100 rather than tracking the data
+  // range: a dynamic axis would stretch a healthy 60–100% model across the
+  // whole chart, making a 60% hour hug the baseline and read like a failure.
+  test('the right axis stays fixed at 0, 50, 100 regardless of the data', () => {
+    // A narrow high band: the old dynamic axis would have produced a
+    // 60–100 range, but the fixed axis must read 0/50/100.
+    const narrow = Array.from({ length: 24 }, (_, index) => ({
+      ts: 1_700_000_000 + index * 3_600,
+      latency_ms: 200,
+      success_rate: 60 + Math.round((40 * index) / 23),
+    }))
+    const host = renderCard(badge(narrow, 200))
+
+    // The top tick carries the % suffix; the rest are bare numbers.
+    expect(rightAxisLabels(host)).toEqual(['0', '50', '100%'])
+  })
+
+  // A uniformly high success rate still anchors the baseline at 0 so the
+  // reader can gauge the headroom, not collapse onto a single line.
+  test('a high success rate still shows the 0 baseline', () => {
+    const host = renderCard(badge(series(200), 200))
+
+    expect(rightAxisLabels(host)).toEqual(['0', '50', '100%'])
+  })
+
+  // The green dots' cy must follow the fixed mapping y = BASE_Y - (value/100)
+  // * PLOT_H, not stretch to the data. With BASE_Y=82 and PLOT_H=74:
+  // 0% → 82 (baseline), 50% → 45, 100% → 8 (top). Asserting the rendered dot
+  // position locks the line to the axis even if successTicks and ySuccess are
+  // ever edited independently.
+  test('the success line maps 0/50/100 to the fixed heights', () => {
+    const points = [0, 50, 100].map((rate, index) => ({
+      ts: 1_700_000_000 + index * 3_600,
+      latency_ms: 200,
+      success_rate: rate,
+    }))
+    const host = renderCard(badge(points, 200))
+    const cys = Array.from(host.querySelectorAll('svg circle')).map((circle) =>
+      Number(circle.getAttribute('cy'))
+    )
+    expect(cys).toEqual([82, 45, 8])
   })
 })

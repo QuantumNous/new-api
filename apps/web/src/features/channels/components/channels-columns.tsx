@@ -56,7 +56,7 @@ import { formatTimestampToDate } from '@/lib/format'
 import { cn, truncateText } from '@/lib/utils'
 
 import { getCodexUsage } from '../api'
-import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
+import { CHANNEL_STATUS_CONFIG } from '../constants'
 import {
   formatRelativeTime,
   formatResponseTime,
