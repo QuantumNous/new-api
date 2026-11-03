@@ -207,6 +207,10 @@ type RelayInfo struct {
 	StreamSawMediaContent bool
 	// StreamFinishReason is the last non-empty protocol finish reason.
 	StreamFinishReason string
+	// StreamCutOverride lets a handler attribute a cut that the generic
+	// end-reason classifier cannot infer, such as an OpenAI stream closed at
+	// EOF without [DONE]. Empty means no override.
+	StreamCutOverride string
 
 	// convOptions caches the converter settings snapshot (see ConvOptions).
 	convOptions *convmeta.Options
@@ -1167,4 +1171,5 @@ func (info *RelayInfo) ResetStreamObservation() {
 	info.StreamSawMediaContent = false
 	info.StreamSawFinishReason = false
 	info.StreamFinishReason = ""
+	info.StreamCutOverride = ""
 }

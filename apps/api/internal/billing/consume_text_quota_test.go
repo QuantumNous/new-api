@@ -1513,3 +1513,23 @@ func TestApplyTruncatedResponseMultiplierEmptyPolicyTakesPrecedence(t *testing.T
 	assert.Equal(t, "upstream", summary.StreamCut)
 	assert.False(t, summary.TruncatedResponseApplied)
 }
+
+func TestApplyTruncatedResponseMultiplierForcedUpstreamCut(t *testing.T) {
+	setTruncatedResponseMultiplier(t, 0.3)
+	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
+	ctx := ctxRaw
+	relayInfo := perCallRelayInfo(0.38, 1)
+	relayInfo.StreamContentObserved = true
+	relayInfo.StreamSawTextContent = true
+	relayInfo.StreamCutOverride = "upstream"
+	relayInfo.StreamStatus = relaycommon.NewStreamStatus()
+	relayInfo.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
+	usage := &dto.Usage{PromptTokens: 14, CompletionTokens: 10, TotalTokens: 24}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+	applyTruncatedResponseMultiplier(relayInfo, &summary, false)
+
+	expected := int(decimal.NewFromFloat(0.38).Mul(decimal.NewFromFloat(float64(common.QuotaPerUnit))).Mul(decimal.NewFromFloat(0.3)).IntPart())
+	require.Equal(t, expected, summary.Quota, "an OpenAI EOF cut must settle at the truncated multiplier")
+	assert.Equal(t, "upstream", summary.StreamCut)
+}

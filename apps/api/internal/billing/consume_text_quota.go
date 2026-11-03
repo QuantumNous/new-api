@@ -488,6 +488,9 @@ func streamCutKind(relayInfo *relaycommon.RelayInfo) string {
 	if relayInfo == nil || !isTextGenerationFormat(relayInfo.RelayFormat) {
 		return ""
 	}
+	if relayInfo.StreamCutOverride != "" {
+		return relayInfo.StreamCutOverride
+	}
 	switch relayInfo.StreamStatus.GetEndReason() {
 	case relaycommon.StreamEndReasonClientGone,
 		relaycommon.StreamEndReasonPingFail:

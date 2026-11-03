@@ -284,17 +284,28 @@ func OaiStreamHandler(c contract.Context, info *relaycommon.RelayInfo, resp *htt
 		apiErr := types.NewOpenAIError(
 			fmt.Errorf("upstream stream closed before a finish_reason was received (%s)", info.StreamStatus.Summary()),
 			types.ErrorCodeBadResponse, http.StatusBadGateway)
-		if info.HasSendResponse() {
+		if sawVisibleChunk {
 			// Chunks already reached the client on this connection, so the status
 			// line is spent and retrying would append a second answer after the
-			// partial one. Terminate here and tell the client inside the stream:
-			// a `data: {"error":...}` event is valid SSE, unlike the bare JSON the
-			// caller's fallback would otherwise append.
+			// partial one. Terminate here with an in-band error event, but keep
+			// the delivered output billable as an upstream cut: return the usage
+			// instead of an error so the caller settles it at the configured
+			// truncated-response multiplier instead of refunding the whole call.
 			apiErr = types.NewOpenAIError(apiErr.Err, types.ErrorCodeBadResponse,
 				http.StatusBadGateway, types.ErrOptionWithSkipRetry())
 			if err := helper.ObjectData(c, map[string]any{"error": apiErr.ToOpenAIError()}); err != nil {
 				logger.LogError(c.Context(), "failed to send incomplete-stream error event: "+err.Error())
 			}
+			info.StreamCutOverride = "upstream"
+			if !containStreamUsage {
+				usage = relaycommon.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+				usage.CompletionTokens += toolCount * 7
+			}
+			applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
+			for _, name := range streamFunctionCallNames {
+				info.CountBillableToolCall(dto.BuildInCallFunctionCall, name)
+			}
+			return usage, nil
 		}
 		return nil, apiErr
 	}

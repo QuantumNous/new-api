@@ -48,9 +48,9 @@ func newStreamTestContext(t *testing.T, upstream string) (contract.Context, *htt
 
 // TestOaiStreamHandlerIncompleteUpstreamStream is the #394 regression: the
 // upstream connection dies mid-stream, so no chunk ever carries finish_reason
-// and no [DONE] arrives. new-api must not fabricate a terminal [DONE], because
-// the client would then treat a truncated answer as a complete one. It must
-// surface a retryable error instead.
+// and no [DONE] arrives. Delivered chunks stay billable as an upstream cut
+// (settled at the truncated-response multiplier), but new-api must still tell
+// the client the answer is truncated instead of fabricating a terminal [DONE].
 func TestOaiStreamHandlerIncompleteUpstreamStream(t *testing.T) {
 
 	// Two content chunks, then the upstream body just ends: no finish_reason,
@@ -65,11 +65,11 @@ data: {"id":"c1","object":"chat.completion.chunk","created":1710000000,"model":"
 
 	usage, apiErr := OaiStreamHandler(c, info, resp)
 
-	require.NotNil(t, apiErr, "incomplete upstream stream must produce an error")
-	require.Nil(t, usage, "incomplete stream must not report usage as a success")
-	require.Equal(t, types.ErrorCodeBadResponse, apiErr.GetErrorCode())
-	require.True(t, types.IsSkipRetryError(apiErr),
-		"partial chunks already reached the client, so retrying would append a second answer")
+	require.Nil(t, apiErr, "delivered partial output must be settled, not refunded")
+	require.NotNil(t, usage, "partial output must report usage for settlement")
+	require.Greater(t, usage.CompletionTokens, 0)
+	require.Equal(t, "upstream", info.StreamCutOverride,
+		"EOF without [DONE] must be classified as an upstream cut")
 
 	body := recorder.Body.String()
 	require.NotContains(t, body, "data: [DONE]",

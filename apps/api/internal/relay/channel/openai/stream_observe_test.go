@@ -321,8 +321,9 @@ func TestOaiStreamHandlerFastPathDetectsTruncation(t *testing.T) {
 
 	usage, apiErr := OaiStreamHandler(c, info, resp)
 
-	require.NotNil(t, apiErr)
-	require.Nil(t, usage)
-	assert.Equal(t, types.ErrorCodeBadResponse, apiErr.GetErrorCode())
+	require.Nil(t, apiErr, "delivered partial output must be settled")
+	require.NotNil(t, usage)
+	assert.Equal(t, "upstream", info.StreamCutOverride)
 	assert.NotContains(t, recorder.Body.String(), "data: [DONE]")
+	assert.Contains(t, recorder.Body.String(), `data: {"error":`)
 }

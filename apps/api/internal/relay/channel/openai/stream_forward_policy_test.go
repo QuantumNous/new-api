@@ -8,7 +8,6 @@ import (
 
 	relaycommon "github.com/QuantumNous/new-api/internal/relay/common"
 	"github.com/QuantumNous/new-api/internal/transport/contract"
-	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,15 +79,16 @@ func TestOaiStreamHandlerFirstVisibleTokenFlushesHeldPreamble(t *testing.T) {
 
 	usage, apiErr := OaiStreamHandler(c, info, resp)
 
-	require.NotNil(t, apiErr, "upstream died after the first token: truncated")
+	require.Nil(t, apiErr, "delivered partial output must be settled")
+	require.NotNil(t, usage)
 	body := recorder.Body.String()
 	roleIdx := strings.Index(body, `"role":"assistant"`)
 	contentIdx := strings.Index(body, `"content":"He"`)
 	require.GreaterOrEqual(t, roleIdx, 0, "held preamble flushed ahead of first token")
 	require.GreaterOrEqual(t, contentIdx, 0, "first visible token forwarded immediately")
 	require.Less(t, roleIdx, contentIdx, "preamble precedes the first token")
-	require.True(t, types.IsSkipRetryError(apiErr))
-	assert.Nil(t, usage)
+	require.Contains(t, body, `data: {"error":`)
+	require.Equal(t, "upstream", info.StreamCutOverride)
 }
 
 // TestOaiStreamHandlerTailUsageChunkForwarded documents the accepted trade-off:
@@ -122,11 +122,11 @@ func TestOaiStreamHandlerSingleVisibleChunkDeathStreamsPartialAnswer(t *testing.
 
 	usage, apiErr := OaiStreamHandler(c, info, resp)
 
-	require.NotNil(t, apiErr)
-	require.True(t, types.IsSkipRetryError(apiErr),
-		"bytes are already on the wire; retrying would append a second answer")
+	require.Nil(t, apiErr, "delivered partial output must be settled")
+	require.NotNil(t, usage)
+	require.Equal(t, "upstream", info.StreamCutOverride)
 	body := recorder.Body.String()
 	require.Contains(t, body, `"content":"Hi"`)
 	require.Contains(t, body, `data: {"error":`)
-	assert.Nil(t, usage)
+	require.NotContains(t, body, "data: [DONE]")
 }
