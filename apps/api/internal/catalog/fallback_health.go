@@ -1,6 +1,8 @@
 package channel
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -20,6 +22,12 @@ func fallbackClassifyChannelOutcomeUnlocked(state *ChannelHealthState, err *type
 	if err == nil {
 		state.UnauthorizedRun = 0
 		return OutcomeSuccess
+	}
+
+	// Same cancel rule as classifyChannelOutcomeUnlocked: neutral, and the
+	// 401 run stays untouched because a cancel is not evidence of recovery.
+	if errors.Is(err, context.Canceled) {
+		return OutcomeNeutral
 	}
 
 	if types.IsChannelError(err) || err.GetErrorCode() == types.ErrorCodeBadResponseBody {

@@ -975,6 +975,11 @@ func shouldRetryTaskRelay(c contract.Context, channelId int, taskErr *taskdto.Ta
 	if taskErr == nil {
 		return false
 	}
+	// The client is gone: re-dialing upstream repeats a request nobody is
+	// waiting for. Mirrors classifyAttempt's cancel rule for the sync loop.
+	if errors.Is(taskErr.Error, context.Canceled) {
+		return false
+	}
 	if catalog.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		return false
 	}
