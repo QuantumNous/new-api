@@ -12,12 +12,55 @@ import (
 	"github.com/QuantumNous/new-api/common/limiter"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 )
+
+var partnerPlanMemoryLimiter common.InMemoryRateLimiter
+
+const partnerPlanSlidingWindowScript = `
+local now = redis.call('TIME')
+local micros = now[1] * 1000000 + now[2]
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', micros - 60000000)
+if redis.call('ZCARD', KEYS[1]) >= tonumber(ARGV[1]) then return 0 end
+local id = redis.call('INCR', KEYS[2])
+redis.call('ZADD', KEYS[1], micros, id)
+redis.call('EXPIRE', KEYS[1], 60)
+redis.call('EXPIRE', KEYS[2], 60)
+return 1
+`
+
+func partnerPlanRateLimitHandler(c *gin.Context, userID int, group string, limit int) bool {
+	key := fmt.Sprintf("rateLimit:partner-plan:%d:%s", userID, group)
+	var allowed bool
+	var err error
+	if common.RedisEnabled {
+		if common.RDB == nil {
+			err = fmt.Errorf("Redis client is not initialized")
+		} else {
+			var result int64
+			sequenceKey := fmt.Sprintf("rateLimit:partner-plan-sequence:%d:%s", userID, group)
+			result, err = common.RDB.Eval(c.Request.Context(), partnerPlanSlidingWindowScript, []string{key, sequenceKey}, limit).Int64()
+			allowed = result == 1
+		}
+	} else {
+		partnerPlanMemoryLimiter.Init(time.Minute)
+		allowed = partnerPlanMemoryLimiter.Request(key, limit, 60)
+	}
+	if err != nil {
+		abortWithOpenAiMessage(c, http.StatusInternalServerError, "rate_limit_check_failed")
+		return false
+	}
+	if !allowed {
+		abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitTotalReached, map[string]any{"Minutes": 1, "Max": limit}))
+		return false
+	}
+	return true
+}
 
 const (
 	ModelRequestRateLimitCountMark        = "MRRL"
@@ -172,6 +215,18 @@ func modelRequestSucceeded(c *gin.Context) bool {
 // ModelRequestRateLimit 模型请求限流中间件
 func ModelRequestRateLimit() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		group := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
+		if group == "" {
+			group = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+		}
+		limit, err := model.GetPartnerUserPlanRateLimit(c.GetInt("id"), group)
+		if err != nil {
+			abortWithOpenAiMessage(c, http.StatusInternalServerError, "rate_limit_check_failed")
+			return
+		}
+		if limit > 0 && !partnerPlanRateLimitHandler(c, c.GetInt("id"), group, limit) {
+			return
+		}
 		// 在每个请求时检查是否启用限流
 		if !setting.ModelRequestRateLimitEnabled {
 			c.Next()
@@ -182,12 +237,6 @@ func ModelRequestRateLimit() func(c *gin.Context) {
 		duration := rateLimitDurationSeconds(setting.ModelRequestRateLimitDurationMinutes)
 		totalMaxCount := setting.ModelRequestRateLimitCount
 		successMaxCount := setting.ModelRequestRateLimitSuccessCount
-
-		// 获取分组
-		group := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
-		if group == "" {
-			group = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-		}
 
 		// 获取分组的限流配置。配置了独立限流的分组按用户和分组单独计数，
 		// 其余分组共用该用户的全局计数

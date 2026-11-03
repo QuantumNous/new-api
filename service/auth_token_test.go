@@ -162,6 +162,44 @@ func TestSecurityProofBindsIdentityAndOperation(t *testing.T) {
 	assert.ErrorIs(t, err, ErrAuthTokenExpired)
 }
 
+func TestPartnerTenantSensitiveWriteProofBindsActionAndResource(t *testing.T) {
+	setupAuthSessionTestDB(t)
+	useTestSessionSecret(t)
+	identity := AuthIdentity{UserID: 1, SessionID: "root-session", UserAuthVersion: 1, SessionVersion: 1}
+	createOperation := VerificationOperation{
+		Scope:   VerificationScopePartnerTenantSensitiveWrite,
+		Context: []byte(`{"action":"create","group":"partner-a"}`),
+	}
+	createBinding, err := BindVerificationOperation(createOperation)
+	require.NoError(t, err)
+	proof, _, err := IssueSecurityProof(identity, VerificationMethodPassword, createBinding)
+	require.NoError(t, err)
+	_, err = verifySecurityProof(proof, identity, createBinding)
+	require.NoError(t, err)
+
+	otherGroup, err := BindVerificationOperation(VerificationOperation{
+		Scope:   VerificationScopePartnerTenantSensitiveWrite,
+		Context: []byte(`{"action":"create","group":"partner-b"}`),
+	})
+	require.NoError(t, err)
+	_, err = verifySecurityProof(proof, identity, otherGroup)
+	assert.ErrorIs(t, err, ErrProofContext)
+
+	rotateBinding, err := BindVerificationOperation(VerificationOperation{
+		Scope:   VerificationScopePartnerTenantSensitiveWrite,
+		Context: []byte(`{"action":"rotate_secret","tenant_id":7}`),
+	})
+	require.NoError(t, err)
+	_, err = verifySecurityProof(proof, identity, rotateBinding)
+	assert.ErrorIs(t, err, ErrProofContext)
+
+	_, err = BindVerificationOperation(VerificationOperation{
+		Scope:   VerificationScopePartnerTenantSensitiveWrite,
+		Context: []byte(`{"action":"create","group":"partner-a","tenant_id":7}`),
+	})
+	assert.ErrorIs(t, err, ErrVerificationContextInvalid)
+}
+
 func TestSecurityProofBindsAccessTokenSession(t *testing.T) {
 	setupAuthSessionTestDB(t)
 	useTestSessionSecret(t)

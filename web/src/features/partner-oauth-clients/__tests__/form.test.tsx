@@ -22,7 +22,7 @@ describe('partner OAuth client form', () => {
       name: 'Assistant',
       token_auth_method: 'none',
       redirect_uris: 'https://assistant.example.com/oauth/callback',
-      scopes: ['account:read', 'credential:read'],
+      scopes: ['account:read', 'credential:read', 'payment:read'],
     })
     expect(valid.success).toBe(true)
   })

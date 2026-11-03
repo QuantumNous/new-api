@@ -36,6 +36,9 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if rejectPartnerOwnedPlanForCheckout(c, plan) {
+		return
+	}
 	if !plan.Enabled {
 		common.ApiErrorT(c, "Subscription plan is not enabled")
 		return

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -234,6 +235,7 @@ func UpdatePartnerOAuthClient(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	service.InvalidatePartnerServerSnapshot(client.ClientId)
 	recordPartnerOAuthAdminAudit(c, "partner_oauth.client.update", client.ClientId, []string{"name", "redirect_uris", "scopes"})
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": partnerOAuthClientToView(client, "")})
 }
@@ -280,11 +282,14 @@ func UpdatePartnerOAuthClientStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "status must be 1 or 2"})
 		return
 	}
-	client.Status = req.Status
-	if err := model.UpdatePartnerOAuthClient(client); err != nil {
+	suspensionChanged, err := model.SetPartnerOAuthClientStatus(client.ClientId, req.Status)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	client.Status = req.Status
+	service.InvalidatePartnerServerSnapshot(client.ClientId)
+	reconcilePartnerServerSuspension(c, client, suspensionChanged)
 	action := "partner_oauth.client.enable"
 	if req.Status == model.PartnerOAuthClientStatusDisabled {
 		action = "partner_oauth.client.disable"
@@ -305,10 +310,15 @@ func DeletePartnerOAuthClient(c *gin.Context) {
 		return
 	}
 	revoked, err := model.DeletePartnerOAuthClient(client.ClientId)
+	if errors.Is(err, model.ErrPartnerOAuthClientHasAccounts) {
+		common.ApiErrorT(c, "This client still owns partner sub-accounts; disable it instead")
+		return
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	service.InvalidatePartnerServerSnapshot(client.ClientId)
 	entries := make([]model.PartnerOauthAuthorizationLog, 0, len(revoked))
 	for _, binding := range revoked {
 		entries = append(entries, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.binding.client_delete", Success: true,
@@ -376,4 +386,27 @@ func recordPartnerOAuthAdminAudit(c *gin.Context, action, clientID string, field
 		Other:     model.AuditOther{Op: &model.AuditOperation{Action: action, Params: params}},
 	})
 	markAuditLogged(c)
+}
+
+// reconcilePartnerServerSuspension brings a partner's sub-accounts in line
+// with the status just committed. It runs for every status request with
+// server access configured, so repeating the request also retries a job that
+// stopped early.
+func reconcilePartnerServerSuspension(c *gin.Context, client *model.PartnerOAuthClient, changed bool) {
+	if _, err := model.GetPartnerServerConfig(client.ClientId); err != nil {
+		if !errors.Is(err, model.ErrPartnerServerConfigNotFound) {
+			logger.LogError(c.Request.Context(), common.LogText("partner server config lookup failed client_id=%s: %s", client.ClientId, err.Error()))
+		}
+		return
+	}
+	service.StartPartnerServerJob(service.PartnerServerJobSuspension, client.ClientId)
+	if !changed {
+		return
+	}
+	action := "partner_server.resume"
+	if client.Status == model.PartnerOAuthClientStatusDisabled {
+		action = "partner_server.suspend"
+	}
+	model.RecordPartnerOAuthAuthorizationLog(c, model.PartnerOauthAuthorizationLog{Action: action, Success: true,
+		ActorUserId: c.GetInt("id"), ClientId: client.ClientId, Status: http.StatusOK})
 }

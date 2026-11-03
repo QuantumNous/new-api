@@ -48,6 +48,7 @@ func setupPartnerOAuthController(t *testing.T) *gin.Engine {
 		&model.PartnerOAuthClient{},
 		&model.PartnerOAuthBinding{},
 		&model.PartnerOAuthToken{},
+		&model.PartnerAccount{},
 		&model.AuditLog{},
 		&model.PartnerOauthAuthorizationLog{},
 	))
@@ -1065,6 +1066,7 @@ func setupPartnerOAuthAdminController(t *testing.T) *gin.Engine {
 		&model.PartnerOAuthClient{},
 		&model.PartnerOAuthBinding{},
 		&model.PartnerOAuthToken{},
+		&model.PartnerAccount{},
 		&model.AuditLog{},
 		&model.PartnerOauthAuthorizationLog{},
 		&model.CasbinRule{},

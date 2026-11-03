@@ -62,9 +62,15 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import {
+  listPartnerTenants,
+  type PartnerTenant,
+} from '@/features/partner-tenants/api'
 import { getPaymentErrorTranslation } from '@/features/wallet/lib/payment'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { handleServerError } from '@/lib/handle-server-error'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import {
   createPlan,
@@ -96,6 +102,8 @@ export function SubscriptionsMutateDrawer({
   currentRow,
 }: Props) {
   const { t } = useTranslation()
+  const user = useAuthStore((state) => state.auth.user)
+  const isRoot = user?.role === ROLE.SUPER_ADMIN
   const isEdit = !!currentRow?.plan?.id
   const { triggerRefresh } = useSubscriptions()
   const { meta: currencyMeta } = getCurrencyDisplay()
@@ -103,6 +111,7 @@ export function SubscriptionsMutateDrawer({
   const currencyLabel = getCurrencyLabel()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [groupOptions, setGroupOptions] = useState<string[]>([])
+  const [partnerTenants, setPartnerTenants] = useState<PartnerTenant[]>([])
   const [creatingPancakeProduct, setCreatingPancakeProduct] = useState(false)
   const [pancakeProducts, setPancakeProducts] = useState<
     { id: string; name: string; status: string }[]
@@ -130,6 +139,13 @@ export function SubscriptionsMutateDrawer({
           }
         })
         .catch(() => {})
+      if (isRoot) {
+        listPartnerTenants()
+          .then(setPartnerTenants)
+          .catch(() => setPartnerTenants([]))
+      } else {
+        setPartnerTenants([])
+      }
       // Best-effort — empty list still lets the operator use "+ Create".
       listWaffoPancakeSubscriptionProductOptions()
         .then((res) => {
@@ -148,10 +164,32 @@ export function SubscriptionsMutateDrawer({
         })
         .catch(() => setPancakeProducts([]))
     }
-  }, [open, currentRow, form])
+  }, [open, currentRow, form, isRoot])
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
+  const partnerTenantId = Number(form.watch('partner_tenant_id') || 0)
+  const isPartnerPlan = partnerTenantId > 0
+  const selectedPartner = partnerTenants.find(
+    (tenant) => tenant.id === partnerTenantId
+  )
+
+  useEffect(() => {
+    if (!isPartnerPlan) return
+    form.setValue('duration_unit', 'month')
+    form.setValue('duration_value', 1)
+    form.setValue('custom_seconds', 0)
+    form.setValue('quota_reset_period', 'monthly')
+    form.setValue('quota_reset_custom_seconds', 0)
+    form.setValue('allow_balance_pay', false)
+    form.setValue('allow_wallet_overflow', false)
+    form.setValue(
+      'applicable_group',
+      selectedPartner?.group || form.getValues('applicable_group')
+    )
+    form.setValue('upgrade_group', '')
+    form.setValue('downgrade_group', '')
+  }, [form, isPartnerPlan, selectedPartner?.group])
   // Gate "+ Create on Pancake" on the same checks the mint handler runs.
   const watchedTitle = form.watch('title')
   const watchedPrice = form.watch('price_amount')
@@ -314,6 +352,61 @@ export function SubscriptionsMutateDrawer({
                 )}
               />
 
+              {isRoot && (
+                <FormField
+                  control={form.control}
+                  name='partner_tenant_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Partner tenant')}</FormLabel>
+                      <Select
+                        items={[
+                          { value: '0', label: t('Platform-wide') },
+                          ...partnerTenants.map((tenant) => ({
+                            value: String(tenant.id),
+                            label: `${tenant.name} (${tenant.group})`,
+                          })),
+                        ]}
+                        value={String(field.value || 0)}
+                        onValueChange={(value) =>
+                          field.onChange(Number(value || 0))
+                        }
+                        disabled={isEdit}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            <SelectItem value='0'>
+                              {t('Platform-wide')}
+                            </SelectItem>
+                            {partnerTenants.map((tenant) => (
+                              <SelectItem
+                                key={tenant.id}
+                                value={String(tenant.id)}
+                              >
+                                {tenant.name} ({tenant.group})
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {isPartnerPlan && (
+                        <FormDescription>
+                          {t(
+                            'Partner plans use a fixed group, one-month term, monthly quota reset, and no wallet fallback.'
+                          )}
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name='subtitle'
@@ -352,9 +445,13 @@ export function SubscriptionsMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {t(
-                          'Amount the user pays to purchase this plan; the actual currency depends on the payment gateway.'
-                        )}
+                        {isPartnerPlan
+                          ? t(
+                              'Reference monthly price; the partner collects payment outside this platform.'
+                            )
+                          : t(
+                              'Amount the user pays to purchase this plan; the actual currency depends on the payment gateway.'
+                            )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -400,6 +497,36 @@ export function SubscriptionsMutateDrawer({
                 />
               </div>
 
+              {isPartnerPlan && (
+                <FormField
+                  control={form.control}
+                  name='requests_per_minute'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Requests per minute')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          max={1000000}
+                          step={1}
+                          onChange={(e) =>
+                            field.onChange(Number(e.target.value) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Per-user plan limit. 0 disables the plan limit; system limits still apply.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name='applicable_group'
@@ -407,125 +534,135 @@ export function SubscriptionsMutateDrawer({
                   <FormItem>
                     <FormLabel>{t('Applicable Group')}</FormLabel>
                     <FormControl>
-                      <Combobox
-                        options={[
-                          { value: '__all__', label: t('All groups') },
-                          ...groupOptions
-                            .filter((g) => g !== 'auto')
-                            .map((g) => ({
-                              value: g,
-                              label: g,
-                            })),
-                        ]}
-                        onValueChange={(v) =>
-                          field.onChange(v === '__all__' ? '' : v)
-                        }
-                        value={field.value || '__all__'}
-                        className='w-full'
-                        placeholder={t('All groups')}
-                      />
+                      {isPartnerPlan ? (
+                        <Input
+                          readOnly
+                          value={selectedPartner?.group || field.value || ''}
+                        />
+                      ) : (
+                        <Combobox
+                          options={[
+                            { value: '__all__', label: t('All groups') },
+                            ...groupOptions
+                              .filter((g) => g !== 'auto')
+                              .map((g) => ({ value: g, label: g })),
+                          ]}
+                          onValueChange={(v) =>
+                            field.onChange(v === '__all__' ? '' : v)
+                          }
+                          value={field.value || '__all__'}
+                          className='w-full'
+                          placeholder={t('All groups')}
+                        />
+                      )}
                     </FormControl>
                     <FormDescription>
-                      {t(
-                        'Changes to this group affect active subscriptions immediately.'
-                      )}
+                      {isPartnerPlan
+                        ? t(
+                            'Partner accounts can use only this dedicated group.'
+                          )
+                        : t(
+                            'Changes to this group affect active subscriptions immediately.'
+                          )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-                <FormField
-                  control={form.control}
-                  name='upgrade_group'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Upgrade Group')}</FormLabel>
-                      <FormControl>
-                        <Combobox
-                          options={[
-                            { value: '__none__', label: t('No Upgrade') },
-                            ...groupOptions.map((g) => ({
-                              value: g,
-                              label: g,
-                            })),
-                          ]}
-                          onValueChange={(v) =>
-                            field.onChange(v === '__none__' ? '' : v)
-                          }
-                          value={field.value || ''}
-                          className='w-full'
-                          placeholder={t('No Upgrade')}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {!isPartnerPlan && (
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='upgrade_group'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Upgrade Group')}</FormLabel>
+                        <FormControl>
+                          <Combobox
+                            options={[
+                              { value: '__none__', label: t('No Upgrade') },
+                              ...groupOptions.map((g) => ({
+                                value: g,
+                                label: g,
+                              })),
+                            ]}
+                            onValueChange={(v) =>
+                              field.onChange(v === '__none__' ? '' : v)
+                            }
+                            value={field.value || ''}
+                            className='w-full'
+                            placeholder={t('No Upgrade')}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name='downgrade_group'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Downgrade Group')}</FormLabel>
-                      <FormControl>
-                        <Combobox
-                          options={[
-                            {
-                              value: '__none__',
-                              label: t('Downgrade to pre-purchase group'),
-                            },
-                            ...groupOptions.map((g) => ({
-                              value: g,
-                              label: g,
-                            })),
-                          ]}
-                          onValueChange={(v) =>
-                            field.onChange(v === '__none__' ? '' : v)
-                          }
-                          value={field.value || ''}
-                          className='w-full'
-                          placeholder={t('Downgrade to pre-purchase group')}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t(
-                          'Downgrade to this group after the subscription expires'
-                        )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name='downgrade_group'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Downgrade Group')}</FormLabel>
+                        <FormControl>
+                          <Combobox
+                            options={[
+                              {
+                                value: '__none__',
+                                label: t('Downgrade to pre-purchase group'),
+                              },
+                              ...groupOptions.map((g) => ({
+                                value: g,
+                                label: g,
+                              })),
+                            ]}
+                            onValueChange={(v) =>
+                              field.onChange(v === '__none__' ? '' : v)
+                            }
+                            value={field.value || ''}
+                            className='w-full'
+                            placeholder={t('Downgrade to pre-purchase group')}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Downgrade to this group after the subscription expires'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name='max_purchase_per_user'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('Purchase Limit')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type='number'
-                          min={0}
-                          onChange={(e) =>
-                            field.onChange(
-                              Number.parseInt(e.target.value, 10) || 0
-                            )
-                          }
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t('0 means unlimited')}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                  <FormField
+                    control={form.control}
+                    name='max_purchase_per_user'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Purchase Limit')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            min={0}
+                            onChange={(e) =>
+                              field.onChange(
+                                Number.parseInt(e.target.value, 10) || 0
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('0 means unlimited')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
 
               <FormField
                 control={form.control}
@@ -568,41 +705,45 @@ export function SubscriptionsMutateDrawer({
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name='allow_balance_pay'
-                  render={({ field }) => (
-                    <FormItem className={sideDrawerSwitchItemClassName()}>
-                      <FormLabel className='!mt-0'>
-                        {t('Allow balance redemption')}
-                      </FormLabel>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                {!isPartnerPlan && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name='allow_balance_pay'
+                      render={({ field }) => (
+                        <FormItem className={sideDrawerSwitchItemClassName()}>
+                          <FormLabel className='!mt-0'>
+                            {t('Allow balance redemption')}
+                          </FormLabel>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name='allow_wallet_overflow'
-                  render={({ field }) => (
-                    <FormItem className={sideDrawerSwitchItemClassName()}>
-                      <FormLabel className='!mt-0'>
-                        {t('Allow wallet balance after quota used up')}
-                      </FormLabel>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={form.control}
+                      name='allow_wallet_overflow'
+                      render={({ field }) => (
+                        <FormItem className={sideDrawerSwitchItemClassName()}>
+                          <FormLabel className='!mt-0'>
+                            {t('Allow wallet balance after quota used up')}
+                          </FormLabel>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
               </div>
             </SideDrawerSection>
 
@@ -629,6 +770,7 @@ export function SubscriptionsMutateDrawer({
                         }))}
                         onValueChange={field.onChange}
                         value={field.value}
+                        disabled={isPartnerPlan}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -662,6 +804,7 @@ export function SubscriptionsMutateDrawer({
                             {...field}
                             type='number'
                             min={1}
+                            disabled={isPartnerPlan}
                             onChange={(e) =>
                               field.onChange(
                                 Number.parseInt(e.target.value, 10) || 0
@@ -685,6 +828,7 @@ export function SubscriptionsMutateDrawer({
                             {...field}
                             type='number'
                             min={1}
+                            disabled={isPartnerPlan}
                             onChange={(e) =>
                               field.onChange(
                                 Number.parseInt(e.target.value, 10) || 0
@@ -723,6 +867,7 @@ export function SubscriptionsMutateDrawer({
                         }))}
                         onValueChange={field.onChange}
                         value={field.value}
+                        disabled={isPartnerPlan}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -771,94 +916,96 @@ export function SubscriptionsMutateDrawer({
             </SideDrawerSection>
 
             {/* Payment Config */}
-            <SideDrawerSection>
-              <h3 className='flex items-center gap-2 text-sm font-medium'>
-                <IconBadge tone='warning' size='xs'>
-                  <CreditCard />
-                </IconBadge>
-                {t('Third-party Payment Config')}
-              </h3>
+            {!isPartnerPlan && (
+              <SideDrawerSection>
+                <h3 className='flex items-center gap-2 text-sm font-medium'>
+                  <IconBadge tone='warning' size='xs'>
+                    <CreditCard />
+                  </IconBadge>
+                  {t('Third-party Payment Config')}
+                </h3>
 
-              <FormField
-                control={form.control}
-                name='stripe_price_id'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Stripe Price ID</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='price_...' />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='creem_product_id'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Creem Product ID</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='prod_...' />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='waffo_pancake_product_id'
-                render={({ field }) => {
-                  // Raw-ID fallback for IDs not yet in the catalog.
-                  const items = pancakeProducts.map((p) => ({
-                    value: p.id,
-                    label: `${p.name} (${p.id})`,
-                  }))
-                  if (
-                    field.value &&
-                    !pancakeProducts.some((p) => p.id === field.value)
-                  ) {
-                    items.push({ value: field.value, label: field.value })
-                  }
-                  return (
+                <FormField
+                  control={form.control}
+                  name='stripe_price_id'
+                  render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Waffo Pancake Product ID</FormLabel>
-                      <div className='flex gap-2'>
-                        <Combobox
-                          options={items}
-                          value={field.value || ''}
-                          onValueChange={(v) => field.onChange(v)}
-                          disabled={items.length === 0}
-                          className='w-full flex-1'
-                          placeholder={t('Select a product')}
-                        />
-                        <Button
-                          type='button'
-                          variant='outline'
-                          onClick={handleCreatePancakeProduct}
-                          disabled={
-                            creatingPancakeProduct || !pancakeCreateReady
-                          }
-                          className='shrink-0'
-                        >
-                          {creatingPancakeProduct
-                            ? t('Creating...')
-                            : `+ ${t('Create')}`}
-                        </Button>
-                      </div>
-                      <FormDescription>
-                        {t(
-                          'Creates a Pancake product in the saved store using this plan’s title and price. Requires Waffo Pancake to be fully configured in Payment settings first.'
-                        )}
-                      </FormDescription>
+                      <FormLabel>Stripe Price ID</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder='price_...' />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
-                  )
-                }}
-              />
-            </SideDrawerSection>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='creem_product_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Creem Product ID</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder='prod_...' />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='waffo_pancake_product_id'
+                  render={({ field }) => {
+                    // Raw-ID fallback for IDs not yet in the catalog.
+                    const items = pancakeProducts.map((p) => ({
+                      value: p.id,
+                      label: `${p.name} (${p.id})`,
+                    }))
+                    if (
+                      field.value &&
+                      !pancakeProducts.some((p) => p.id === field.value)
+                    ) {
+                      items.push({ value: field.value, label: field.value })
+                    }
+                    return (
+                      <FormItem>
+                        <FormLabel>Waffo Pancake Product ID</FormLabel>
+                        <div className='flex gap-2'>
+                          <Combobox
+                            options={items}
+                            value={field.value || ''}
+                            onValueChange={(v) => field.onChange(v)}
+                            disabled={items.length === 0}
+                            className='w-full flex-1'
+                            placeholder={t('Select a product')}
+                          />
+                          <Button
+                            type='button'
+                            variant='outline'
+                            onClick={handleCreatePancakeProduct}
+                            disabled={
+                              creatingPancakeProduct || !pancakeCreateReady
+                            }
+                            className='shrink-0'
+                          >
+                            {creatingPancakeProduct
+                              ? t('Creating...')
+                              : `+ ${t('Create')}`}
+                          </Button>
+                        </div>
+                        <FormDescription>
+                          {t(
+                            'Creates a Pancake product in the saved store using this plan’s title and price. Requires Waffo Pancake to be fully configured in Payment settings first.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+              </SideDrawerSection>
+            )}
           </form>
         </Form>
         <SheetFooter className={sideDrawerFooterClassName()}>
@@ -868,7 +1015,7 @@ export function SubscriptionsMutateDrawer({
           <Button
             form='subscription-form'
             type='submit'
-            disabled={isSubmitting}
+            disabled={isSubmitting || (isPartnerPlan && !isRoot)}
           >
             {isSubmitting ? t('Saving...') : t('Save changes')}
           </Button>

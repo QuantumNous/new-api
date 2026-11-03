@@ -59,6 +59,8 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  partner_client_id: z.string().optional(),
+  partner_client_name: z.string().optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -109,6 +111,8 @@ export interface GetUsersResponse {
 export interface SearchUsersParams {
   keyword?: string
   group?: string
+  /** Partner OAuth client ID; limits results to that partner's sub-accounts. */
+  partner?: string
   role?: string
   status?: string
   p?: number

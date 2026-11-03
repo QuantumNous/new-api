@@ -728,7 +728,7 @@ func TestProductionPluginNativeQueryTraversesInnerRouter(t *testing.T) {
 	previousDB := model.DB
 	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&model.Task{}))
+	require.NoError(t, database.AutoMigrate(&model.Task{}, &model.PartnerTenantAccount{}, &model.SubscriptionPlan{}, &model.UserSubscription{}))
 	model.DB = database
 	t.Cleanup(func() { model.DB = previousDB })
 	require.NoError(t, database.Create(&model.Task{

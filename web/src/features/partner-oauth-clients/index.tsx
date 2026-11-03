@@ -20,12 +20,14 @@ import {
   SecureVerificationDialog,
   useSecureVerification,
 } from '@/features/auth/secure-verification'
+import { PartnerTenantsManager } from '@/features/partner-tenants'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
 import { handleServerError } from '@/lib/handle-server-error'
+import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -39,6 +41,7 @@ import {
 import { PartnerOAuthClientFormDialog } from './components/client-form-dialog'
 import { PartnerOAuthClientSecretDialog } from './components/client-secret-dialog'
 import { PartnerOAuthClientsTable } from './components/clients-table'
+import { PartnerServerAccessDialog } from './components/server-access-dialog'
 import {
   parseRedirectURIs,
   type PartnerOAuthClient,
@@ -50,6 +53,7 @@ const clientsQueryKey = ['admin', 'partner-oauth-clients'] as const
 export function PartnerOAuthClients() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
+  const isRoot = user?.role === ROLE.SUPER_ADMIN
   const queryClient = useQueryClient()
   const verification = useSecureVerification()
   const [formOpen, setFormOpen] = useState(false)
@@ -58,6 +62,9 @@ export function PartnerOAuthClients() {
     null
   )
   const [rotateTarget, setRotateTarget] = useState<PartnerOAuthClient | null>(
+    null
+  )
+  const [serverTarget, setServerTarget] = useState<PartnerOAuthClient | null>(
     null
   )
   const [revealedSecret, setRevealedSecret] = useState<{
@@ -246,6 +253,7 @@ export function PartnerOAuthClients() {
         onToggle={(client) => statusMutation.mutate(client)}
         onRotate={setRotateTarget}
         onDelete={setDeleteTarget}
+        onServerAccess={setServerTarget}
       />
     )
   }
@@ -257,7 +265,10 @@ export function PartnerOAuthClients() {
           {t('Partner OAuth Clients')}
         </SectionPageLayout.Title>
         <SectionPageLayout.Content>
-          <div className='mx-auto w-full max-w-7xl space-y-4'>{content}</div>
+          <div className='mx-auto w-full max-w-7xl space-y-5'>
+            {isRoot && <PartnerTenantsManager />}
+            {content}
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
       <PartnerOAuthClientFormDialog
@@ -306,7 +317,7 @@ export function PartnerOAuthClients() {
         }}
         title={t('Delete partner OAuth client?')}
         desc={t(
-          'This revokes every active binding and disables the issued API keys.'
+          'This revokes every active binding and disables the issued API keys. A client that owns server sub-accounts cannot be deleted; disable it instead.'
         )}
         confirmText={t('Delete')}
         destructive
@@ -314,6 +325,14 @@ export function PartnerOAuthClients() {
           if (deleteTarget) deleteMutation.mutate(deleteTarget)
         }}
         isLoading={deleteMutation.isPending}
+      />
+      <PartnerServerAccessDialog
+        client={serverTarget}
+        canWrite={canWrite}
+        requestVerification={verification.requestVerification}
+        onOpenChange={(open) => {
+          if (!open) setServerTarget(null)
+        }}
       />
       <SecureVerificationDialog {...verification.dialogProps} />
     </>

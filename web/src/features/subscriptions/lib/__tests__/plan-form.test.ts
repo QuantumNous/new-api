@@ -28,6 +28,7 @@ import {
 describe('plan applicability form', () => {
   const plan: SubscriptionPlan = {
     id: 7,
+    partner_tenant_id: 0,
     title: 'Scoped plan',
     price_amount: 10,
     currency: 'USD',
@@ -49,6 +50,7 @@ describe('plan applicability form', () => {
     expect(planToFormValues(plan)).toMatchObject({
       upgrade_group: 'premium',
       applicable_group: 'deepflash',
+      partner_tenant_id: 0,
     })
   })
 
@@ -60,5 +62,39 @@ describe('plan applicability form', () => {
     })
     expect(payload.plan.applicable_group).toBe('')
     expect(payload.plan.upgrade_group).toBe('premium')
+    expect(payload.plan.partner_tenant_id).toBe(0)
+  })
+
+  it('locks partner plans to a one-month term, monthly reset, and no wallet fallback', () => {
+    const payload = formValuesToPlanPayload({
+      ...PLAN_FORM_DEFAULTS,
+      partner_tenant_id: 42,
+      duration_unit: 'year',
+      duration_value: 2,
+      quota_reset_period: 'never',
+      allow_balance_pay: true,
+      allow_wallet_overflow: true,
+      upgrade_group: 'premium',
+      downgrade_group: 'default',
+      applicable_group: 'partner-a',
+    })
+
+    expect(payload.plan).toMatchObject({
+      partner_tenant_id: 42,
+      duration_unit: 'month',
+      duration_value: 1,
+      quota_reset_period: 'monthly',
+      allow_balance_pay: false,
+      allow_wallet_overflow: false,
+      upgrade_group: '',
+      downgrade_group: '',
+      applicable_group: 'partner-a',
+    })
+  })
+
+  it('preserves partner plan request limits in the form and payload', () => {
+    const values = planToFormValues({ ...plan, requests_per_minute: 25 })
+    expect(values.requests_per_minute).toBe(25)
+    expect(formValuesToPlanPayload(values).plan.requests_per_minute).toBe(25)
   })
 })

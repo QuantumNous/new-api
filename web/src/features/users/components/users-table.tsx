@@ -28,12 +28,19 @@ import {
   DataTablePage,
   useDataTable,
 } from '@/components/data-table'
+import { listPartnerOAuthClients } from '@/features/partner-oauth-clients/api'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
 import {
   createServerError,
   requireServerSuccess,
 } from '@/lib/server-error-message'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { getGroups, getUsers, searchUsers } from '../api'
 import {
@@ -86,6 +93,7 @@ export function UsersTable() {
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'role', searchKey: 'role', type: 'array' },
       { columnId: 'group', searchKey: 'group', type: 'array' },
+      { columnId: 'partner', searchKey: 'partner', type: 'array' },
     ],
   })
   const statusFilter =
@@ -100,6 +108,23 @@ export function UsersTable() {
     (columnFilters.find((filter) => filter.id === 'group')?.value as
       | string[]
       | undefined) ?? []
+
+  const partnerFilter =
+    (columnFilters.find((filter) => filter.id === 'partner')?.value as
+      | string[]
+      | undefined) ?? []
+  const authUser = useAuthStore((state) => state.auth.user)
+  const canReadPartners = hasPermission(
+    authUser,
+    ADMIN_PERMISSION_RESOURCES.PARTNER_OAUTH_CLIENT,
+    ADMIN_PERMISSION_ACTIONS.READ
+  )
+  const { data: partnerClients } = useQuery({
+    queryKey: ['admin', 'partner-oauth-clients'],
+    queryFn: listPartnerOAuthClients,
+    enabled: canReadPartners,
+    staleTime: 5 * 60 * 1000,
+  })
 
   const { data: groupsData } = useQuery({
     queryKey: ['groups'],
@@ -139,6 +164,7 @@ export function UsersTable() {
       statusFilter,
       roleFilter,
       groupFilter,
+      partnerFilter,
       sortParams,
       refreshTrigger,
     ],
@@ -147,7 +173,8 @@ export function UsersTable() {
       const hasColumnFilter =
         statusFilter.length > 0 ||
         roleFilter.length > 0 ||
-        groupFilter.length > 0
+        groupFilter.length > 0 ||
+        partnerFilter.length > 0
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
@@ -162,6 +189,7 @@ export function UsersTable() {
               status: statusFilter[0] ?? '',
               role: roleFilter[0] ?? '',
               group: groupFilter[0] ?? '',
+              partner: partnerFilter[0] ?? '',
             })
           : await getUsers(params)
 
@@ -251,6 +279,19 @@ export function UsersTable() {
             })),
             singleSelect: true,
           },
+          ...(canReadPartners
+            ? [
+                {
+                  columnId: 'partner',
+                  title: t('Partner'),
+                  options: (partnerClients ?? []).map((client) => ({
+                    label: client.name,
+                    value: client.client_id,
+                  })),
+                  singleSelect: true,
+                },
+              ]
+            : []),
         ],
       }}
       getRowClassName={(row, { isMobile }) => {

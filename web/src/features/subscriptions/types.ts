@@ -24,6 +24,7 @@ import { z } from 'zod'
 
 export const subscriptionPlanSchema = z.object({
   id: z.number(),
+  partner_tenant_id: z.number().optional().default(0),
   title: z.string(),
   subtitle: z.string().optional(),
   price_amount: z.number(),
@@ -39,6 +40,7 @@ export const subscriptionPlanSchema = z.object({
   allow_wallet_overflow: z.boolean().optional().default(true),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
+  requests_per_minute: z.number().optional(),
   upgrade_group: z.string().optional(),
   applicable_group: z.string().optional(),
   downgrade_group: z.string().optional(),
@@ -51,6 +53,7 @@ export type SubscriptionPlan = z.infer<typeof subscriptionPlanSchema>
 
 export interface PlanRecord {
   plan: SubscriptionPlan
+  partner_tenant_name?: string
 }
 
 // ============================================================================

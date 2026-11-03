@@ -15,13 +15,16 @@ export function PartnerOAuthClientSecretDialog(props: {
   secret: string
   clientId: string
   onOpenChange: (open: boolean) => void
+  /** Labels the secret; defaults to the OAuth client secret. */
+  secretLabel?: string
 }) {
   const { t } = useTranslation()
+  const secretLabel = props.secretLabel ?? t('Client secret')
   return (
     <Dialog
       open={props.open}
       onOpenChange={props.onOpenChange}
-      title={t('Client secret')}
+      title={secretLabel}
       description={t(
         'Copy this secret now. It is shown once and cannot be retrieved later.'
       )}
@@ -53,9 +56,7 @@ export function PartnerOAuthClientSecretDialog(props: {
           </div>
         </div>
         <div className='space-y-1.5'>
-          <Label htmlFor='partner-oauth-client-secret'>
-            {t('Client secret')}
-          </Label>
+          <Label htmlFor='partner-oauth-client-secret'>{secretLabel}</Label>
           <div className='flex gap-2'>
             <Input
               id='partner-oauth-client-secret'

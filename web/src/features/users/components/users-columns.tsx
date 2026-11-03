@@ -216,6 +216,31 @@ export function useUsersColumns(): ColumnDef<User>[] {
         meta: { mobileOrder: 30 },
       },
       {
+        id: 'partner',
+        accessorKey: 'partner_client_id',
+        header: t('Partner'),
+        cell: ({ row }) => {
+          // Most users are not partner sub-accounts; leave their cell empty.
+          if (!row.original.partner_client_id) return null
+          return (
+            <BadgeCell>
+              <StatusBadge
+                label={
+                  row.original.partner_client_name ||
+                  row.original.partner_client_id
+                }
+                variant='info'
+                copyable={false}
+                title={t('Partner sub-account')}
+              />
+            </BadgeCell>
+          )
+        },
+        enableSorting: false,
+        size: 140,
+        meta: { mobileOrder: 35 },
+      },
+      {
         accessorKey: 'role',
         header: t('Role'),
         cell: ({ row }) => {

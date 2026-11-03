@@ -190,6 +190,12 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/option/waffo-pancake/subscription-product":        accessTokenScopeRule("option:write"),
 	"GET /api/option/waffo-pancake/subscription-product-options": accessTokenScopeRule("option:read"),
 
+	// router/api-router.go: /api/partner-tenants (RootAuth; session-bound only)
+	"GET /api/partner-tenants":              accessTokenSessionRule,
+	"POST /api/partner-tenants":             accessTokenSessionRule,
+	"POST /api/partner-tenants/:id/secret":  accessTokenSessionRule,
+	"PATCH /api/partner-tenants/:id/status": accessTokenSessionRule,
+
 	// router/api-router.go: /api/custom-oauth-provider, /api/ratio_sync
 	"POST /api/custom-oauth-provider/discovery": accessTokenScopeRule("option:write"),
 	"GET /api/custom-oauth-provider/":           accessTokenScopeRule("option:read"),

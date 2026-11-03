@@ -17,3 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export const SUPPORT_QQ_GROUP = '1065665694'
+
+/** Direct join link for the QQ group (works on phones where scanning a QR on
+ * the same screen is impossible). */
+export const SUPPORT_QQ_GROUP_INVITE_URL = 'https://qm.qq.com/q/eCDPO5v9iE'

@@ -27,6 +27,7 @@ import (
 const (
 	PartnerOAuthScopeAccountRead    = "account:read"
 	PartnerOAuthScopeCredentialRead = "credential:read"
+	PartnerOAuthScopePaymentRead    = "payment:read"
 	PartnerOAuthScopePaymentWrite   = "payment:write"
 	PartnerOAuthScopeOfflineAccess  = "offline_access"
 
@@ -47,6 +48,7 @@ var (
 	partnerOAuthCanonicalScopes = []string{
 		PartnerOAuthScopeAccountRead,
 		PartnerOAuthScopeCredentialRead,
+		PartnerOAuthScopePaymentRead,
 		PartnerOAuthScopePaymentWrite,
 		PartnerOAuthScopeOfflineAccess,
 	}
@@ -1007,11 +1009,18 @@ func AuthenticatePartnerOAuthAccessToken(rawToken, requiredScope string) (*Partn
 	if user.Status != common.UserStatusEnabled {
 		return nil, partnerOAuthErr(http.StatusForbidden, "account_disabled", "account is disabled")
 	}
-	// Client scope edits otherwise apply to future grants only; payment:write
-	// starts charges on the user's behalf, so removing it from the client
-	// takes effect for existing bindings at once.
-	revokedByClient := requiredScope == PartnerOAuthScopePaymentWrite && !HasPartnerOAuthScope(client.Scopes, requiredScope)
-	if requiredScope != "" && (!HasPartnerOAuthScope(binding.Scope, requiredScope) || revokedByClient) {
+	// Existing clients grant payment:write rather than payment:read. Keep that
+	// scope usable for read endpoints while requiring payment:write for charges.
+	legacyPaymentRead := requiredScope == PartnerOAuthScopePaymentRead &&
+		!HasPartnerOAuthScope(binding.Scope, PartnerOAuthScopePaymentRead) &&
+		HasPartnerOAuthScope(binding.Scope, PartnerOAuthScopePaymentWrite)
+	hasRequiredScope := requiredScope == "" || HasPartnerOAuthScope(binding.Scope, requiredScope) || legacyPaymentRead
+	// Client scope edits normally affect future grants only. Removing
+	// payment:write revokes write access immediately, including read access
+	// inherited from an old payment:write grant.
+	revokedByClient := (requiredScope == PartnerOAuthScopePaymentWrite || legacyPaymentRead) &&
+		!HasPartnerOAuthScope(client.Scopes, PartnerOAuthScopePaymentWrite)
+	if !hasRequiredScope || revokedByClient {
 		return nil, &PartnerOAuthError{
 			Status:      http.StatusForbidden,
 			Code:        "insufficient_scope",

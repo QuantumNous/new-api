@@ -20,7 +20,10 @@ import { MessagesSquare } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SUPPORT_QQ_GROUP } from '@/lib/support-contact'
+import {
+  SUPPORT_QQ_GROUP,
+  SUPPORT_QQ_GROUP_INVITE_URL,
+} from '@/lib/support-contact'
 
 type CommunityHelpVariant = 'console' | 'header'
 
@@ -95,13 +98,23 @@ export function CommunityHelp(props: CommunityHelpProps = {}) {
       </button>
       {open ? (
         <div className={styles.panel} role='dialog' aria-label={label}>
-          <img
-            src='/qq-community-qr.png'
-            alt={t('QQ after-sales group QR code')}
-            width={180}
-            height={180}
-            className={styles.qr}
-          />
+          <a
+            href={SUPPORT_QQ_GROUP_INVITE_URL}
+            target='_blank'
+            rel='noreferrer noopener'
+            title={t('Click to join')}
+            aria-label={t('Click to join')}
+            className='ci-communityQrLink'
+          >
+            <img
+              src='/qq-community-qr.png'
+              alt={t('QQ after-sales group QR code')}
+              width={180}
+              height={180}
+              className={styles.qr}
+            />
+            <span className='ci-communityQrCta'>{t('Click to join')}</span>
+          </a>
           <strong className={styles.title}>
             {t('QQ group: {{group}}', { group: SUPPORT_QQ_GROUP })}
           </strong>

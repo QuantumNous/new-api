@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,12 +14,29 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+func setupModelRateLimitDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	previous := model.DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&model.PartnerTenantAccount{}, &model.SubscriptionPlan{}, &model.UserSubscription{}))
+	model.DB = db
+	t.Cleanup(func() { model.DB = previous; _ = sqlDB.Close() })
+	return db
+}
 
 func TestModelRedisRateLimitUsesUTCRegardlessOfLocalTimezone(t *testing.T) {
 	redisServer, redisClient := useRateLimitMiniRedis(t)
@@ -106,6 +125,108 @@ func TestModelMemoryRateLimitReservesConcurrentSuccessAdmission(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
 }
 
+func TestPartnerPlanRateLimitIsPerUserAndGroup(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	for _, backend := range []string{"memory", "redis"} {
+		t.Run(backend, func(t *testing.T) {
+			oldRedis := common.RedisEnabled
+			t.Cleanup(func() { common.RedisEnabled = oldRedis })
+			common.RedisEnabled = backend == "redis"
+			if common.RedisEnabled {
+				useRateLimitMiniRedis(t)
+			}
+			userID := 7200000 + int(modelRateLimitTestUsers.Add(1))
+			router := gin.New()
+			router.GET("/:user/:group", func(c *gin.Context) {
+				id, _ := strconv.Atoi(c.Param("user"))
+				partnerPlanRateLimitHandler(c, id, c.Param("group"), 1)
+			})
+			path := fmt.Sprintf("/%d/a", userID)
+			require.Equal(t, http.StatusOK, performRateLimitRequest(router, path, "127.0.0.1:1000").Code)
+			require.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, path, "127.0.0.1:1000").Code)
+			require.Equal(t, http.StatusOK, performRateLimitRequest(router, fmt.Sprintf("/%d/b", userID), "127.0.0.1:1000").Code)
+			require.Equal(t, http.StatusOK, performRateLimitRequest(router, fmt.Sprintf("/%d/a", userID+1), "127.0.0.1:1000").Code)
+		})
+	}
+}
+
+func TestPartnerPlanLimitWorksWithAndWithoutSystemLimit(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	db := setupModelRateLimitDB(t)
+	oldEnabled, oldRedis := setting.ModelRequestRateLimitEnabled, common.RedisEnabled
+	oldTotal, oldSuccess, oldDuration := setting.ModelRequestRateLimitCount, setting.ModelRequestRateLimitSuccessCount, setting.ModelRequestRateLimitDurationMinutes
+	oldGroups := setting.ModelRequestRateLimitGroup
+	t.Cleanup(func() {
+		setting.ModelRequestRateLimitEnabled, common.RedisEnabled = oldEnabled, oldRedis
+		setting.ModelRequestRateLimitCount, setting.ModelRequestRateLimitSuccessCount, setting.ModelRequestRateLimitDurationMinutes = oldTotal, oldSuccess, oldDuration
+		setting.ModelRequestRateLimitGroup = oldGroups
+	})
+	common.RedisEnabled = false
+	setting.ModelRequestRateLimitDurationMinutes = 1
+	setting.ModelRequestRateLimitCount, setting.ModelRequestRateLimitSuccessCount = 1, 0
+	setting.ModelRequestRateLimitGroup = nil
+	for _, enabled := range []bool{false, true} {
+		t.Run(strconv.FormatBool(enabled), func(t *testing.T) {
+			setting.ModelRequestRateLimitEnabled = enabled
+			userID := 7200000 + int(modelRateLimitTestUsers.Add(1))
+			plan := model.SubscriptionPlan{Title: "partner", PartnerTenantId: 1, ApplicableGroup: "partner", RequestsPerMinute: 2}
+			require.NoError(t, db.Create(&model.PartnerTenantAccount{TenantId: 1, ExternalUserId: strconv.Itoa(userID), UserId: userID, TokenId: userID}).Error)
+			require.NoError(t, db.Create(&plan).Error)
+			now := time.Now().Unix()
+			require.NoError(t, db.Create(&model.UserSubscription{UserId: userID, PlanId: plan.Id, Status: "active", StartTime: now - 1, EndTime: now + 60}).Error)
+			router := gin.New()
+			router.GET("/", func(c *gin.Context) {
+				c.Set("id", userID)
+				common.SetContextKey(c, constant.ContextKeyTokenGroup, "partner")
+			}, ModelRequestRateLimit(), func(c *gin.Context) { c.Status(http.StatusOK) })
+			require.Equal(t, http.StatusOK, performRateLimitRequest(router, "/", "127.0.0.1:1000").Code)
+			if !enabled {
+				require.Equal(t, http.StatusOK, performRateLimitRequest(router, "/", "127.0.0.1:1000").Code)
+			}
+			require.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/", "127.0.0.1:1000").Code)
+		})
+	}
+}
+
+func TestPartnerPlanRedisLimitIsAtomic(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	useRateLimitMiniRedis(t)
+	userID := 7200000 + int(modelRateLimitTestUsers.Add(1))
+	var accepted atomic.Int64
+	var wg sync.WaitGroup
+	for i := 0; i < 30; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			if partnerPlanRateLimitHandler(c, userID, "partner", 5) {
+				accepted.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	require.EqualValues(t, 5, accepted.Load())
+}
+
+func TestPartnerPlanRedisLimitExpires(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	server, _ := useRateLimitMiniRedis(t)
+	now := time.Unix(1800000000, 0)
+	server.SetTime(now)
+	userID := 7200000 + int(modelRateLimitTestUsers.Add(1))
+	take := func() bool {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+		return partnerPlanRateLimitHandler(c, userID, "partner", 1)
+	}
+	require.True(t, take())
+	server.SetTime(now.Add(59 * time.Second))
+	require.False(t, take())
+	server.SetTime(now.Add(60 * time.Second))
+	require.True(t, take())
+}
+
 // The memory limiter answers like the Redis limiter: an OpenAI error body
 // naming the limit that was reached, not an empty 429.
 func TestModelMemoryRateLimitRejectionsReturnOpenAIError(t *testing.T) {
@@ -146,6 +267,7 @@ func TestModelMemoryRateLimitRejectionsReturnOpenAIError(t *testing.T) {
 // without one keep sharing the user's global limit.
 func TestModelRateLimitCountsConfiguredGroupsSeparately(t *testing.T) {
 	require.NoError(t, i18n.Init())
+	setupModelRateLimitDB(t)
 	previousEnabled, previousMinutes := setting.ModelRequestRateLimitEnabled, setting.ModelRequestRateLimitDurationMinutes
 	previousTotal, previousSuccess := setting.ModelRequestRateLimitCount, setting.ModelRequestRateLimitSuccessCount
 	previousGroups, previousRedisEnabled := setting.ModelRequestRateLimitGroup, common.RedisEnabled

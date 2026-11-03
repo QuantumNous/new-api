@@ -21,6 +21,7 @@ export function PartnerOAuthClientsTable(props: {
   onToggle: (client: PartnerOAuthClient) => void
   onRotate: (client: PartnerOAuthClient) => void
   onDelete: (client: PartnerOAuthClient) => void
+  onServerAccess: (client: PartnerOAuthClient) => void
 }) {
   const { t } = useTranslation()
 
@@ -88,6 +89,14 @@ export function PartnerOAuthClientsTable(props: {
             className: 'text-end',
             cell: (client) => (
               <div className='flex justify-end gap-1'>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  onClick={() => props.onServerAccess(client)}
+                >
+                  {t('Server access')}
+                </Button>
                 {props.canOperate && (
                   <Button
                     type='button'

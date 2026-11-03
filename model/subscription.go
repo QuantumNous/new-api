@@ -33,6 +33,8 @@ const (
 	SubscriptionResetCustom  = "custom"
 )
 
+const SubscriptionSourcePartner = "partner"
+
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
@@ -149,6 +151,8 @@ func InvalidateSubscriptionPlanCache(planId int) {
 type SubscriptionPlan struct {
 	Id int `json:"id"`
 
+	PartnerTenantId int64 `json:"partner_tenant_id" gorm:"type:bigint;not null;default:0"`
+
 	Title    string `json:"title" gorm:"type:varchar(128);not null"`
 	Subtitle string `json:"subtitle" gorm:"type:varchar(255);default:''"`
 
@@ -186,6 +190,8 @@ type SubscriptionPlan struct {
 
 	// Total quota (amount in quota units, 0 = unlimited)
 	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
+
+	RequestsPerMinute int `json:"requests_per_minute" gorm:"type:int;not null;default:0"`
 
 	// Quota reset period for plan
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
@@ -508,6 +514,9 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	if plan == nil || plan.Id == 0 {
 		return nil, errors.New("invalid plan")
+	}
+	if (plan.PartnerTenantId > 0) != (source == SubscriptionSourcePartner) {
+		return nil, errors.New("partner plans can only be granted through the partner API")
 	}
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
@@ -894,6 +903,44 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 		return nil, err
 	}
 	return buildSubscriptionSummaries(subs)
+}
+
+func GetPartnerTenantActiveUserSubscriptions(tenantId int64, userId int) ([]SubscriptionSummary, error) {
+	if tenantId <= 0 || userId <= 0 {
+		return nil, errors.New("invalid partner tenant or user id")
+	}
+	now := GetDBTimestamp()
+	subscriptions := make([]UserSubscription, 0)
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var active []UserSubscription
+		if err := lockForUpdate(tx).
+			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+			Order("end_time desc, id desc").Find(&active).Error; err != nil {
+			return err
+		}
+		for i := range active {
+			sub := active[i]
+			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+			if err != nil {
+				return err
+			}
+			if plan.PartnerTenantId != tenantId {
+				continue
+			}
+			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+				return err
+			}
+			if err := tx.Save(&sub).Error; err != nil {
+				return err
+			}
+			subscriptions = append(subscriptions, sub)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return buildSubscriptionSummaries(subscriptions)
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.

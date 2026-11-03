@@ -47,6 +47,7 @@ const (
 	VerificationScopeAdminUserBindingClear            = "admin.user.binding.clear"
 	verificationScopeAdminUserPrefix                  = "admin.user."
 	VerificationScopePartnerOAuthClientSensitiveWrite = "partner_oauth.client.sensitive_write"
+	VerificationScopePartnerTenantSensitiveWrite      = "partner_tenant.sensitive_write"
 )
 
 // adminUserManageActions are the ManageUser actions that change a user's
@@ -86,6 +87,13 @@ type AccountUnbindingContext struct {
 type PartnerOAuthClientSensitiveWriteContext struct {
 	Action   string `json:"action"`
 	ClientID string `json:"client_id,omitempty"`
+	SecretID int64  `json:"secret_id,omitempty"`
+}
+
+type PartnerTenantSensitiveWriteContext struct {
+	Action   string `json:"action"`
+	Group    string `json:"group,omitempty"`
+	TenantID int64  `json:"tenant_id,omitempty"`
 }
 
 type AdminUserContext struct {
@@ -216,8 +224,32 @@ func BindVerificationOperation(operation VerificationOperation) (VerificationBin
 			if len(fields) != 1 || context.ClientID != "" {
 				return VerificationBinding{}, ErrVerificationContextInvalid
 			}
-		case "update", "rotate_secret", "delete":
+		case "update", "rotate_secret", "delete", "update_server", "issue_server_secret", "revoke_server_keys":
 			if len(fields) != 2 || !validPartnerOAuthClientID(context.ClientID) {
+				return VerificationBinding{}, ErrVerificationContextInvalid
+			}
+		case "revoke_server_secret":
+			if len(fields) != 3 || !validPartnerOAuthClientID(context.ClientID) || context.SecretID <= 0 {
+				return VerificationBinding{}, ErrVerificationContextInvalid
+			}
+		default:
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		normalized = context
+	case VerificationScopePartnerTenantSensitiveWrite:
+		var context PartnerTenantSensitiveWriteContext
+		if common.Unmarshal(operation.Context, &context) != nil {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		context.Action = strings.TrimSpace(context.Action)
+		context.Group = strings.TrimSpace(context.Group)
+		switch context.Action {
+		case "create":
+			if len(fields) != 2 || context.Group == "" || len(context.Group) > 64 || context.TenantID != 0 {
+				return VerificationBinding{}, ErrVerificationContextInvalid
+			}
+		case "rotate_secret":
+			if len(fields) != 2 || context.TenantID <= 0 || context.Group != "" {
 				return VerificationBinding{}, ErrVerificationContextInvalid
 			}
 		default:
@@ -346,7 +378,7 @@ func securityVerificationPolicy(scope string, state model.UserVerificationState)
 	}
 	switch scope {
 	case VerificationScopeChannelKeyRead, VerificationScopePasskeyDelete, VerificationScopeLogin:
-	case VerificationScopePartnerOAuthClientSensitiveWrite:
+	case VerificationScopePartnerOAuthClientSensitiveWrite, VerificationScopePartnerTenantSensitiveWrite:
 		if len(methods) == 0 {
 			if state.HasPassword {
 				methods = []string{VerificationMethodPassword}

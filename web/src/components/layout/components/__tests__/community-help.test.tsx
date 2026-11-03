@@ -23,7 +23,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AccessAuthLayout } from '@/features/auth/access-auth-layout'
-import { SUPPORT_QQ_GROUP } from '@/lib/support-contact'
+import { SUPPORT_QQ_GROUP, SUPPORT_QQ_GROUP_INVITE_URL } from '@/lib/support-contact'
 import { renderApp } from '@/test-utils/render-app'
 
 import { AppHeader } from '../app-header'
@@ -100,6 +100,17 @@ describe('community help entry', () => {
       screen.getByRole('img', { name: 'QQ after-sales group QR code' })
     ).toHaveAttribute('src', '/qq-community-qr.png')
     expect(screen.getByText(`QQ group: ${SUPPORT_QQ_GROUP}`)).toBeVisible()
+    const link = screen.getByRole('link', { name: 'Click to join' })
+    expect(link).toHaveAttribute('href', SUPPORT_QQ_GROUP_INVITE_URL)
+    // The join button lives inside the QR card, not as a separate row.
+    expect(
+      link.querySelector('img[alt="QQ after-sales group QR code"]')
+    ).not.toBeNull()
+    // The hint stays as the last line of the popover.
+    const hint = screen.getByText('Scan to join the QQ group for setup help.')
+    expect(
+      hint.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_PRECEDING
+    ).toBeTruthy()
 
     await user.click(document.body)
     expect(screen.queryByRole('dialog')).toBeNull()

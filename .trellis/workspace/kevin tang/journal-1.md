@@ -689,3 +689,34 @@ Forge hero badge attention/morph effects and wording; first_top_up payer scope f
 ### Status
 
 [OK] **Completed**
+
+
+## Session 24: Partner server accounts for Kede Finance
+<!-- trellis-session: v=2 fp=9bb878d6ee4a1fa1 -->
+
+**Date**: 2026-10-28
+**Task**: Partner server accounts for Kede Finance
+**Branch**: `feat/partner-accounts`
+
+### Summary
+
+Partner server access: client_credentials grant with server secrets and optional IP allowlist; sub-accounts and long-lived keys created on first use per external_user_id; ZPay mapi.php QR top-ups into the sub-account wallet (live check on the production merchant passed); usage paging; three-switch status model; admin console and partner guide. Verified on PostgreSQL 9.6.24 and 15.19 only (by request), make test, frontend typecheck/lint/vitest/build.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `763e051a1` | feat(model): add partner server accounts, secrets and payment links |
+| `9a4d39c51` | feat(partner): authenticate partner servers with client credentials |
+| `d08838d0a` | feat(partner): provision sub-accounts and keys on first use |
+| `09cf45eb7` | feat(partner): create sub-account top-ups with ZPay QR codes |
+| `9f3a9b243` | feat(partner): expose sub-account usage to partners |
+| `7ad310daf` | feat(user): mark partner sub-accounts in the admin user list |
+| `dcca23af2` | feat(web): manage partner server access and sub-accounts |
+| `8b27b2626` | docs(partner): document partner server accounts for partners and maintainers |
+| `60fb9a25a` | fix(partner): close the gaps found in review of partner server accounts |
+| `7d669c08d` | docs(partner): record the live ZPay mapi.php check |
+
+### Status
+
+[OK] **Completed**

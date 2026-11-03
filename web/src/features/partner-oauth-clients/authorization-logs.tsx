@@ -104,6 +104,23 @@ export function PartnerOAuthAuthorizationLogs() {
       ),
       'partner_oauth.credential.issue': t('Credential issued'),
       'partner_oauth.payment.order_create': t('Payment order created'),
+      'partner_server.token_issue': t('Server token issued'),
+      'partner_server.token_issue_failed': t('Server token refused'),
+      'partner_server.auth_denied': t('Server request refused'),
+      'partner_server.secret_issue': t('Server secret issued'),
+      'partner_server.secret_revoke': t('Server secret revoked'),
+      'partner_server.suspend': t('Partner suspended'),
+      'partner_server.resume': t('Partner resumed'),
+      'partner_server.keys_revoke_all': t('All sub-account keys revoked'),
+      'partner_account.create': t('Sub-account created'),
+      'partner_account.credential_issue': t('Sub-account key issued'),
+      'partner_account.credential_rotate': t('Sub-account key rotated'),
+      'partner_account.credential_rate_limited': t('Key requests rate limited'),
+      'partner_account.disable': t('Sub-account disabled'),
+      'partner_account.enable': t('Sub-account enabled'),
+      'partner_account.payment_order_create': t(
+        'Sub-account payment order created'
+      ),
     }),
     [t]
   )

@@ -76,11 +76,11 @@ func CreatePartnerOAuthPaymentOrder(order *PartnerOAuthPaymentOrder, topUp *TopU
 		if used > 0 {
 			return ErrPartnerOAuthPaymentIdempotencyRace
 		}
-		recent, err := countPartnerOAuthPaymentOrdersTx(tx, order.BindingId, limits.RecentSince, false)
+		recent, err := countPartnerTopUpLinksTx(tx, &PartnerOAuthPaymentOrder{}, "binding_id = ?", order.BindingId, limits.RecentSince, false)
 		if err != nil {
 			return err
 		}
-		pending, err := countPartnerOAuthPaymentOrdersTx(tx, order.BindingId, limits.PendingSince, true)
+		pending, err := countPartnerTopUpLinksTx(tx, &PartnerOAuthPaymentOrder{}, "binding_id = ?", order.BindingId, limits.PendingSince, true)
 		if err != nil {
 			return err
 		}
@@ -147,20 +147,6 @@ func GetPartnerOAuthPaymentOrder(bindingID, tradeNo string) (*PartnerOAuthPaymen
 		return nil, nil, err
 	}
 	return &order, &topUp, nil
-}
-
-// countPartnerOAuthPaymentOrdersTx counts a binding's orders created at or
-// after since; pendingOnly restricts the count to orders still awaiting payment.
-func countPartnerOAuthPaymentOrdersTx(tx *gorm.DB, bindingID string, since int64, pendingOnly bool) (int64, error) {
-	query := tx.Model(&PartnerOAuthPaymentOrder{}).Where("binding_id = ? AND created_at >= ?", bindingID, since)
-	if pendingOnly {
-		// A subquery keeps both table names under GORM's naming strategy.
-		pending := tx.Model(&TopUp{}).Select("id").Where("status = ?", common.TopUpStatusPending)
-		query = query.Where("top_up_id IN (?)", pending)
-	}
-	var count int64
-	err := query.Count(&count).Error
-	return count, err
 }
 
 // GetPartnerOAuthPaymentOrderByTopUpID returns the partner link of a top-up;

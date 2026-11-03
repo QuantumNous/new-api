@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
-- **Last Active**: 2026-10-19
+- **Total Sessions**: 6
+- **Last Active**: 2026-11-02
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~167 | Active |
+| `journal-1.md` | ~199 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-11-02 | 合作商账号与不限量套餐提交及远端整合 | `d2e908664`, `2f465c900` | `feat/partner-accounts` |
 | 5 | 2026-10-19 | 合作方 OAuth 授权日志（专表） | `431cc580c` | `feat/partner-oauth-audit-rc44` |
 | 4 | 2026-09-18 | 优化首页品牌与社群入口 | `7f4da2c1b` | `qq-image` |
 | 3 | 2026-09-04 | 完成注册自动登录与两轮审查 | `94f9c0cc`, `6cb9352a` | `feat/custom-domain-callback-flow` |

@@ -9,7 +9,15 @@ Read this spec before changing Partner OAuth clients, bindings, tokens,
 or the `/partner-authorize` consent page.
 
 YesChoy is the OAuth 2.0 authorization server and resource server for
-third-party AI assistants (relay_partner_api v0.2). The issued model API key
+third-party AI assistants (relay_partner_api v0.2).
+
+Partner server access (`client_credentials`, `/api/partner/v1`, sub-accounts
+created without user sign-in) shares `partner_oauth_clients` and the
+authorization log but is a separate contract: `partner-server-accounts.md`.
+The `partner:accounts` scope is never offered on the consent page or through
+authorization codes; OAuth and server secrets and tokens are not
+interchangeable. Disabling a client also suspends its server sub-accounts,
+and a client that owns sub-accounts cannot be deleted. The issued model API key
 is a dedicated unlimited-quota token used only for `/v1/models` and
 `/v1/chat/completions`.
 
