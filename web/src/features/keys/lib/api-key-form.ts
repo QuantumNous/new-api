@@ -46,6 +46,10 @@ export function getApiKeyFormSchema(t: TFunction, maxAutoGroups = 5) {
       auto_groups: z.array(z.string()),
       cross_group_retry: z.boolean().optional(),
       tokenCount: z.number().min(1).optional(),
+      rpm_limit: z
+        .number()
+        .int(t('RPM limit must be a whole number'))
+        .min(0, t('RPM limit must be zero or greater')),
     })
     .superRefine((data, ctx) => {
       if (data.group === 'auto') {
@@ -117,6 +121,7 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   auto_groups: [],
   cross_group_retry: true,
   tokenCount: 1,
+  rpm_limit: 0,
 }
 
 export function getApiKeyFormDefaultValues(
@@ -160,6 +165,7 @@ export function transformFormDataToPayload(
         ? data.auto_groups
         : [],
     cross_group_retry: data.group === 'auto' ? !!data.cross_group_retry : false,
+    rpm_limit: data.rpm_limit ?? 0,
   }
 }
 
@@ -196,5 +202,6 @@ export function transformApiKeyToFormDefaults(
     auto_groups: autoGroups,
     cross_group_retry: !!apiKey.cross_group_retry,
     tokenCount: 1,
+    rpm_limit: apiKey.rpm_limit ?? 0,
   }
 }
