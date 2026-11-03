@@ -829,10 +829,10 @@ function AuthSection() {
           <p>
             <Trans
               t={t}
-              i18nKey='All requests must include the <code>{{authHeader}}</code> header. Anthropic-formatted endpoints accept the <code>{{xApiKey}}</code> header instead.'
+              i18nKey='Except for endpoints using the Anthropic format, requests must include the <code>{{authHeader}}</code> header. Endpoints using the Anthropic format may use either the <code>{{authHeader}}</code> or <code>{{xApiKeyHeader}}</code> header.'
               values={{
                 authHeader: 'Authorization: Bearer <YOUR_API_KEY>',
-                xApiKey: 'x-api-key',
+                xApiKeyHeader: 'x-api-key: <YOUR_API_KEY>',
               }}
               components={{
                 code: (
