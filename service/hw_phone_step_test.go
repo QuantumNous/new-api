@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -603,6 +604,30 @@ func TestHwTelegramWebhookPhoneStep(t *testing.T) {
 		assert.Equal(t, int64(700001), sent[0].ChatId)
 		assert.Equal(t, hwTelegramTextsFor("tr").Accepted, sent[0].Text)
 		assert.NotContains(t, sent[0].Text, "555")
+	})
+
+	t.Run("a channel account earns its bonus with its own phone step", func(t *testing.T) {
+		_, secret := hwTelegramTestSetup(t)
+		hwSetTryPerUsdOption(t, "40")
+		user := hwPhoneStepTestTelegramUser(t, "channel-number@example.com", "700010")
+		require.NoError(t, model.UpsertHwUserSignals(user.Id, model.HwUserSignals{DeviceToken: "0123456789abcdef0123"}))
+		grant, err := model.HwGrantChannel(user.Id, time.Now().Unix())
+		require.NoError(t, err)
+		require.True(t, grant.BonusPending, "the device token of the registration earns no bonus")
+		before := hwPhoneStepUserQuota(t, user.Id)
+
+		body := hwTelegramContactUpdate(t, 10, 700010, "tr", hwInt64Ptr(700010), "+90 555 000 10 10")
+		outcome := HwHandleTelegramWebhook(context.Background(), body, secret, time.Now())
+		assert.Equal(t, http.StatusOK, outcome.HTTPStatus())
+		var bonus model.HwCreditPackage
+		require.NoError(t, model.DB.Where("user_id = ? AND order_ref = ?", user.Id, "channel-bonus:"+strconv.Itoa(user.Id)).First(&bonus).Error)
+		assert.Equal(t, common.QuotaFromFloat(float64(model.HwChannelBonusTRY)/40*common.QuotaPerUnit), bonus.GrantedQuota)
+		assert.Equal(t, before+bonus.GrantedQuota+HwFreeTrialQuota(), hwPhoneStepUserQuota(t, user.Id))
+
+		// The same number shared again books no second bonus.
+		again := hwTelegramContactUpdate(t, 11, 700010, "tr", hwInt64Ptr(700010), "+90 555 000 10 10")
+		require.Equal(t, http.StatusOK, HwHandleTelegramWebhook(context.Background(), again, secret, time.Now()).HTTPStatus())
+		assert.Equal(t, before+bonus.GrantedQuota+HwFreeTrialQuota(), hwPhoneStepUserQuota(t, user.Id))
 	})
 
 	t.Run("a contact of someone else is refused", func(t *testing.T) {
