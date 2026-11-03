@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MoeForge/moego/base64"
 	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -148,15 +149,19 @@ func countGeminiBillableFunctionCalls(info *relaycommon.RelayInfo, response *dto
 }
 
 func buildUsageFromGeminiResponse(c *gin.Context, info *relaycommon.RelayInfo, response *dto.GeminiChatResponse) dto.Usage {
+	var inlineOutput geminiInlineOutput
+	inlineOutput.observe(response)
 	metadata := response.GetUsageMetadata()
 	if dto.HasGeminiUsageMetadataTokens(metadata) {
 		usage := buildUsageFromGeminiMetadata(metadata, info.GetEstimatePromptTokens())
-		var inlineOutput geminiInlineOutput
-		inlineOutput.observe(response)
 		patchGeminiZeroCompletionUsage(c, info, &usage, geminiResponseUsageText(response), inlineOutput.completionTokens())
 		return usage
 	}
 	usage := service.ResponseText2Usage(c, geminiResponseUsageText(response), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	if inlineOutputTokens := inlineOutput.completionTokens(); inlineOutputTokens != 0 && usage.CompletionTokens == 0 {
+		usage.CompletionTokens = inlineOutputTokens
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
 	attachEstimatedGeminiBillingUsage(usage)
 	return *usage
 }
@@ -206,7 +211,8 @@ func (o geminiInlineOutput) completionTokens() int {
 }
 
 // geminiPCMDuration returns the length of base64 16-bit PCM audio, or 0 when
-// the mimeType is not PCM or its rate or channel count is implausible.
+// the mimeType is not PCM, its rate or channel count is implausible, or the
+// data is not valid base64.
 func geminiPCMDuration(mimeType string, data string) time.Duration {
 	mediaType, params, err := mime.ParseMediaType(mimeType)
 	if err != nil || (mediaType != "audio/l16" && mediaType != "audio/pcm") {
@@ -223,7 +229,11 @@ func geminiPCMDuration(mimeType string, data string) time.Duration {
 			return 0
 		}
 	}
-	pcmBytes := int64(len(strings.TrimRight(data, "="))) * 3 / 4
+	decodedLen, err := base64.StdEncoding.ValidateString(data)
+	if err != nil {
+		return 0
+	}
+	pcmBytes := int64(decodedLen)
 	bytesPerSecond := int64(rate * channels * 2)
 	return time.Duration(pcmBytes/bytesPerSecond)*time.Second +
 		time.Duration(pcmBytes%bytesPerSecond)*time.Second/time.Duration(bytesPerSecond)

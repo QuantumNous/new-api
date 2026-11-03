@@ -706,6 +706,12 @@ func TestGeminiStreamHandlerWithoutUsageMetadataEstimatesInlineOutput(t *testing
 			wantCompletionTokens: 0,
 		},
 		{
+			// Invalid base64 is not audio, so its length bills nothing.
+			name:                 "pcm audio with invalid base64",
+			frames:               []string{geminiInlineFrame("audio/l16; rate=24000; channels=1", strings.Repeat("A!", 3200))},
+			wantCompletionTokens: 0,
+		},
+		{
 			name:                 "image chunks",
 			frames:               []string{geminiInlineFrame("image/png", "iVBORw0KGgo="), geminiInlineFrame("image/png", "iVBORw0KGgo=")},
 			wantCompletionTokens: 2 * 1400,
@@ -745,9 +751,10 @@ func TestGeminiStreamHandlerWithoutUsageMetadataEstimatesInlineOutput(t *testing
 	}
 }
 
-// The prompt-only usageMetadata patch applies the same inline output estimate
-// on both the stream and non-stream paths.
-func TestGeminiHandlersPromptOnlyUsageMetadataEstimatesInlineOutput(t *testing.T) {
+// When upstream reports no completion tokens, with prompt-only usageMetadata or
+// none at all, the stream and non-stream paths apply the same inline output
+// estimate.
+func TestGeminiHandlersWithoutCompletionUsageEstimateInlineOutput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	oldStreamingTimeout := constant.StreamingTimeout
@@ -767,52 +774,62 @@ func TestGeminiHandlersPromptOnlyUsageMetadataEstimatesInlineOutput(t *testing.T
 		{"audio", []dto.GeminiPart{audioPart, audioPart, audioPart}, 8},
 		{"image", []dto.GeminiPart{imagePart, imagePart}, 2 * 1400},
 	} {
-		payload := dto.GeminiChatResponse{
-			Candidates: []dto.GeminiChatCandidate{
-				{Content: dto.GeminiChatContent{Role: "model", Parts: tc.parts}},
-			},
-			UsageMetadata: dto.GeminiUsageMetadata{
-				PromptTokenCount: 151,
-				TotalTokenCount:  151,
-			},
-		}
-		body, err := common.Marshal(payload)
-		require.NoError(t, err)
+		for _, metadata := range []struct {
+			name             string
+			usageMetadata    dto.GeminiUsageMetadata
+			wantPromptTokens int
+		}{
+			{"prompt-only usage", dto.GeminiUsageMetadata{PromptTokenCount: 151, TotalTokenCount: 151}, 151},
+			{"no usage", dto.GeminiUsageMetadata{}, 20},
+		} {
+			payload := dto.GeminiChatResponse{
+				Candidates: []dto.GeminiChatCandidate{
+					{Content: dto.GeminiChatContent{Role: "model", Parts: tc.parts}},
+				},
+				UsageMetadata: metadata.usageMetadata,
+			}
+			body, err := common.Marshal(payload)
+			require.NoError(t, err)
 
-		for _, stream := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/stream=%t", tc.name, stream), func(t *testing.T) {
-				c, _ := gin.CreateTestContext(httptest.NewRecorder())
-				c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			for _, stream := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/stream=%t", tc.name, metadata.name, stream), func(t *testing.T) {
+					c, _ := gin.CreateTestContext(httptest.NewRecorder())
+					c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
-				info := &relaycommon.RelayInfo{
-					RelayFormat:     types.RelayFormatGemini,
-					OriginModelName: "gemini-3.8-flash",
-					ChannelMeta: &relaycommon.ChannelMeta{
-						UpstreamModelName: "gemini-3.8-flash",
-					},
-				}
-
-				var usage *dto.Usage
-				var newAPIError *types.NewAPIError
-				if stream {
-					resp := &http.Response{
-						Body: io.NopCloser(strings.NewReader("data: " + string(body) + "\n" + "data: [DONE]\n")),
+					info := &relaycommon.RelayInfo{
+						RelayFormat:     types.RelayFormatGemini,
+						OriginModelName: "gemini-3.8-flash",
+						ChannelMeta: &relaycommon.ChannelMeta{
+							UpstreamModelName: "gemini-3.8-flash",
+						},
 					}
-					usage, newAPIError = geminiStreamHandler(c, info, resp, func(_ string, _ *dto.GeminiChatResponse) bool {
-						return true
-					})
-				} else {
-					resp := &http.Response{
-						Body: io.NopCloser(bytes.NewReader(body)),
+					info.SetEstimatePromptTokens(20)
+
+					var usage *dto.Usage
+					var newAPIError *types.NewAPIError
+					if stream {
+						resp := &http.Response{
+							Body: io.NopCloser(strings.NewReader("data: " + string(body) + "\n" + "data: [DONE]\n")),
+						}
+						usage, newAPIError = geminiStreamHandler(c, info, resp, func(_ string, _ *dto.GeminiChatResponse) bool {
+							return true
+						})
+					} else {
+						resp := &http.Response{
+							Body: io.NopCloser(bytes.NewReader(body)),
+						}
+						usage, newAPIError = GeminiChatHandler(c, info, resp)
 					}
-					usage, newAPIError = GeminiChatHandler(c, info, resp)
-				}
-				require.Nil(t, newAPIError)
-				require.NotNil(t, usage)
-				assert.Equal(t, 151, usage.PromptTokens)
-				assert.Equal(t, tc.wantCompletionTokens, usage.CompletionTokens)
-				assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
-			})
+					require.Nil(t, newAPIError)
+					require.NotNil(t, usage)
+					assert.Equal(t, metadata.wantPromptTokens, usage.PromptTokens)
+					assert.Equal(t, tc.wantCompletionTokens, usage.CompletionTokens)
+					assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
+					require.NotNil(t, usage.BillingUsage)
+					require.NotNil(t, usage.BillingUsage.GeminiUsageMetadata)
+					assert.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
+				})
+			}
 		}
 	}
 }
