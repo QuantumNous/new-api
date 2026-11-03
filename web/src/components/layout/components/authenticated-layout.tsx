@@ -22,6 +22,7 @@ import { SkipToMain } from '@/components/skip-to-main'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
+import { useHwCurrency } from '@/features/hw/hooks/use-hw-currency'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +36,9 @@ type AuthenticatedLayoutProps = {
 
 export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
+  // Console amounts are formatted outside React state (`lib/currency.ts`), so a
+  // currency switch remounts the page to show every amount in the new currency.
+  const { currency } = useHwCurrency()
 
   return (
     <LayoutProvider>
@@ -55,7 +59,10 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
               {/* The page fills the whole view and the footer sits below it, so
                   the footer scrolls into view at the end of every page instead
                   of taking a fixed slice of a small screen. */}
-              <div className='flex h-full min-h-0 shrink-0 flex-col'>
+              <div
+                key={currency}
+                className='flex h-full min-h-0 shrink-0 flex-col'
+              >
                 {props.children ?? <AnimatedOutlet />}
               </div>
               <Footer variant='compact' />

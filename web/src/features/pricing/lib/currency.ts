@@ -17,65 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
-  HW_CURRENCY_SYMBOLS,
-  convertHwUsd,
-  resolveHwCurrency,
-  type HwCurrency,
-  type HwRates,
+  resolveHwDisplayOverride,
+  type HwDisplayOverride,
 } from '@/features/hw/lib/currency'
-import {
-  formatBillingCurrencyFromUSD,
-  formatCurrencyAmount,
-  type CurrencyFormatOptions,
-} from '@/lib/currency'
-import { useHwCurrencyStore } from '@/stores/hw-currency-store'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 
 /**
- * Model prices follow the currency switch in the header.
- *
- * The console's display setting (`quota_display_type`, lira on the live site)
- * only describes one currency. When the visitor picks EUR or USD, prices are
- * converted with the server's rate for that currency, exactly like the price
- * calculator. TRY, and an older server that sends no currency data, keep
- * using the console setting, so nothing changes there.
+ * Model prices follow the currency switch in the header. The switch drives
+ * every console amount in `lib/currency.ts`, so these are the shared names;
+ * `usePricingCurrency` keeps the override so a price re-renders on a switch.
  */
-export type PricingCurrencyOverride = {
-  code: Exclude<HwCurrency, 'TRY'>
-  symbol: string
-  /** Units of `code` per 1 USD. */
-  rate: number
-}
+export type PricingCurrencyOverride = HwDisplayOverride
 
 /** The EUR/USD override of the chosen currency, or null to use the console setting. */
-export function resolvePricingCurrencyOverride(
-  currency: HwCurrency,
-  rates: HwRates
-): PricingCurrencyOverride | null {
-  if (currency === 'TRY') return null
-  const rate = convertHwUsd(1, currency, rates)
-  if (rate === null) return null
-  return { code: currency, symbol: HW_CURRENCY_SYMBOLS[currency], rate }
-}
-
-/** Same as `resolvePricingCurrencyOverride`, read from the live store. */
-function getPricingCurrencyOverride(): PricingCurrencyOverride | null {
-  const { config, preferred } = useHwCurrencyStore.getState()
-  return resolvePricingCurrencyOverride(
-    resolveHwCurrency(config, preferred),
-    config.rates
-  )
-}
+export const resolvePricingCurrencyOverride = resolveHwDisplayOverride
 
 /**
- * `formatBillingCurrencyFromUSD` for model prices: shows the currency chosen
- * with the header switch (EUR/USD), otherwise the console display currency.
+ * `formatBillingCurrencyFromUSD` for model prices: the currency chosen with
+ * the header switch (EUR/USD), otherwise the console display currency.
  */
-export function formatPricingCurrencyFromUSD(
-  amountUSD: number | null | undefined,
-  options?: CurrencyFormatOptions
-): string {
-  const override = getPricingCurrencyOverride()
-  if (!override) return formatBillingCurrencyFromUSD(amountUSD, options)
-  if (amountUSD == null || Number.isNaN(amountUSD)) return '-'
-  return formatCurrencyAmount(amountUSD * override.rate, override.code, options)
-}
+export const formatPricingCurrencyFromUSD = formatBillingCurrencyFromUSD
