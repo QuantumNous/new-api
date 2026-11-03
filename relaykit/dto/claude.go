@@ -187,6 +187,73 @@ func (c *ClaudeMessage) ParseContent() ([]ClaudeMediaMessage, error) {
 	return kitutil.Any2Type[[]ClaudeMediaMessage](c.Content)
 }
 
+// ClaudeSearchResultsAsText rewrites search_result blocks, including those
+// nested in a tool_result, into text blocks carrying the title, the source and
+// the text, in that order; cache_control is kept and citations are dropped.
+// A search_result source is a plain string, which ClaudeMessageSource cannot
+// hold, so the OpenAI Chat conversion and the local token count must rewrite
+// these blocks before parsing: otherwise the conversion fails and the count
+// skips the whole message. A search_result with no title, source or text is
+// dropped. The second result reports whether anything was rewritten. Content
+// without search_result is returned as is; otherwise only the rewritten level
+// is copied, so the client request stays intact for a retry on another channel.
+func ClaudeSearchResultsAsText(content any) (any, bool) {
+	blocks, ok := content.([]any)
+	if !ok {
+		return content, false
+	}
+	var rewritten []any
+	for i, item := range blocks {
+		block, _ := item.(map[string]any)
+		replacement, changed, dropped := item, false, false
+		switch block["type"] {
+		case "search_result":
+			changed = true
+			parts := make([]string, 0, 3)
+			if title, _ := block["title"].(string); title != "" {
+				parts = append(parts, "Title: "+title)
+			}
+			if source, _ := block["source"].(string); source != "" {
+				parts = append(parts, "Source: "+source)
+			}
+			inner, _ := block["content"].([]any)
+			for _, innerItem := range inner {
+				innerBlock, _ := innerItem.(map[string]any)
+				if text, _ := innerBlock["text"].(string); innerBlock["type"] == "text" && text != "" {
+					parts = append(parts, text)
+				}
+			}
+			if len(parts) == 0 {
+				dropped = true
+				break
+			}
+			textBlock := map[string]any{"type": "text", "text": strings.Join(parts, "\n")}
+			if cacheControl, ok := block["cache_control"]; ok {
+				textBlock["cache_control"] = cacheControl
+			}
+			replacement = textBlock
+		case "tool_result":
+			if nested, nestedChanged := ClaudeSearchResultsAsText(block["content"]); nestedChanged {
+				changed = true
+				toolResult := maps.Clone(block)
+				toolResult["content"] = nested
+				replacement = toolResult
+			}
+		}
+		if changed && rewritten == nil {
+			rewritten = make([]any, i, len(blocks))
+			copy(rewritten, blocks[:i])
+		}
+		if rewritten != nil && !dropped {
+			rewritten = append(rewritten, replacement)
+		}
+	}
+	if rewritten == nil {
+		return content, false
+	}
+	return rewritten, true
+}
+
 type Tool struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
@@ -335,6 +402,7 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 			continue
 		}
 
+		message.Content, _ = ClaudeSearchResultsAsText(message.Content)
 		content, _ := message.ParseContent()
 		for _, media := range content {
 			switch media.Type {

@@ -169,6 +169,9 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		if claudeMessage.IsStringContent() {
 			openAIMessage.SetStringContent(claudeMessage.GetStringContent())
 		} else {
+			// Chat has no search_result block: rewrite it as text before parsing,
+			// matching what the local token count sees.
+			claudeMessage.Content, _ = dto.ClaudeSearchResultsAsText(claudeMessage.Content)
 			content, err := claudeMessage.ParseContent()
 			if err != nil {
 				return nil, err
