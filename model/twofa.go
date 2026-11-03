@@ -102,6 +102,11 @@ func (t *TwoFA) IncrementFailedAttempts() error {
 
 		nextFailedAttempts := current.FailedAttempts + 1
 		nextLockedUntil := current.LockedUntil
+		if current.LockedUntil != nil {
+			// The previous lockout has expired, so this failure starts a new window.
+			nextFailedAttempts = 1
+			nextLockedUntil = nil
+		}
 		if nextFailedAttempts >= common.MaxFailAttempts {
 			lockUntil := now.Add(time.Duration(common.LockoutDuration) * time.Second)
 			nextLockedUntil = &lockUntil
