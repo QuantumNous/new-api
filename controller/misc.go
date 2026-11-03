@@ -42,6 +42,7 @@ func GetStatus(c *gin.Context) {
 
 	cs := console_setting.GetConsoleSetting()
 	passkeySetting := system_setting.PasskeySettingsSnapshot()
+	localRegistrationDisabled := isLocalRegistrationDisabled()
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
 
@@ -90,6 +91,7 @@ func GetStatus(c *gin.Context) {
 		"register_enabled":              common.RegisterEnabled,
 		"password_login_enabled":        common.PasswordLoginEnabled,
 		"password_register_enabled":     common.PasswordRegisterEnabled,
+		"local_registration_disabled":   localRegistrationDisabled,
 		"default_use_auto_group":        setting.DefaultUseAutoGroup,
 
 		"password_login_encryption_enabled": common.PasswordLoginEncryptionEnabled,

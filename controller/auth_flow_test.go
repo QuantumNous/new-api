@@ -673,6 +673,108 @@ func setupAuthFlowControllerTest(t *testing.T) *authFlowTestOAuthProvider {
 	return provider
 }
 
+type localRegistrationTestOAuthProvider struct {
+	authFlowTestOAuthProvider
+	enabled bool
+}
+
+func (provider *localRegistrationTestOAuthProvider) IsEnabled() bool {
+	return provider.enabled
+}
+
+func TestLocalRegistrationPolicyDefaultsToOAuthAvailability(t *testing.T) {
+	previousSwitch, previousConfigured := common.DisableLocalRegistration, common.DisableLocalRegistrationConfigured
+	previousRegister, previousPasswordRegister := common.RegisterEnabled, common.PasswordRegisterEnabled
+	previousGitHub, previousLinuxDO := common.GitHubOAuthEnabled, common.LinuxDOOAuthEnabled
+	previousTelegram, previousWeChat := common.TelegramOAuthEnabled, common.WeChatAuthEnabled
+	previousDiscord, previousOIDC := *system_setting.GetDiscordSettings(), *system_setting.GetOIDCSettings()
+	t.Cleanup(func() {
+		common.DisableLocalRegistration, common.DisableLocalRegistrationConfigured = previousSwitch, previousConfigured
+		common.RegisterEnabled, common.PasswordRegisterEnabled = previousRegister, previousPasswordRegister
+		common.GitHubOAuthEnabled, common.LinuxDOOAuthEnabled = previousGitHub, previousLinuxDO
+		common.TelegramOAuthEnabled, common.WeChatAuthEnabled = previousTelegram, previousWeChat
+		*system_setting.GetDiscordSettings(), *system_setting.GetOIDCSettings() = previousDiscord, previousOIDC
+	})
+
+	common.GitHubOAuthEnabled, common.LinuxDOOAuthEnabled = false, false
+	common.TelegramOAuthEnabled, common.WeChatAuthEnabled = false, false
+	system_setting.GetDiscordSettings().Enabled = false
+	system_setting.GetOIDCSettings().Enabled = false
+
+	provider := &localRegistrationTestOAuthProvider{}
+	oauth.Register("local-registration-test", provider)
+	t.Cleanup(func() { oauth.Unregister("local-registration-test") })
+
+	tests := []struct {
+		name                    string
+		oauthEnabled            bool
+		configured              bool
+		disabled                bool
+		passwordRegistration    bool
+		expectSwitchDisabled    bool
+		expectRegistrationBlock bool
+	}{
+		{
+			name:                 "no OAuth and no explicit setting allows local registration",
+			passwordRegistration: true,
+		},
+		{
+			name:                    "available OAuth disables local registration by default",
+			oauthEnabled:            true,
+			passwordRegistration:    true,
+			expectSwitchDisabled:    true,
+			expectRegistrationBlock: true,
+		},
+		{
+			name:                 "explicitly allowing local registration overrides the OAuth default",
+			oauthEnabled:         true,
+			configured:           true,
+			passwordRegistration: true,
+		},
+		{
+			name:                    "explicitly disabling local registration without OAuth is preserved",
+			configured:              true,
+			disabled:                true,
+			passwordRegistration:    true,
+			expectSwitchDisabled:    true,
+			expectRegistrationBlock: true,
+		},
+		{
+			name:                    "password registration disabled keeps local registration blocked",
+			oauthEnabled:            true,
+			passwordRegistration:    false,
+			expectSwitchDisabled:    true,
+			expectRegistrationBlock: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			common.RegisterEnabled = true
+			common.PasswordRegisterEnabled = test.passwordRegistration
+			common.DisableLocalRegistrationConfigured = test.configured
+			common.DisableLocalRegistration = test.disabled
+			provider.enabled = test.oauthEnabled
+
+			assert.Equal(t, test.expectSwitchDisabled, isDisableLocalRegistrationEnabled())
+			assert.Equal(t, test.expectRegistrationBlock, isLocalRegistrationDisabled())
+
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/api/user/register", strings.NewReader("{}"))
+			Register(c)
+			var response struct {
+				Message string `json:"message"`
+			}
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+			if test.expectRegistrationBlock && test.passwordRegistration {
+				assert.Equal(t, "Local registration has been disabled by administrator", response.Message)
+			} else {
+				assert.NotEqual(t, "Local registration has been disabled by administrator", response.Message)
+			}
+		})
+	}
+}
+
 func TestGenerateOAuthCodeCarriesAffiliateInLoginFlow(t *testing.T) {
 	setupAuthFlowControllerTest(t)
 	recorder := httptest.NewRecorder()

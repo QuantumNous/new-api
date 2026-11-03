@@ -47,6 +47,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const basicAuthSchema = z.object({
   PasswordLoginEnabled: z.boolean(),
   PasswordRegisterEnabled: z.boolean(),
+  DisableLocalRegistration: z.boolean(),
   EmailVerificationEnabled: z.boolean(),
   RegisterEnabled: z.boolean(),
   EmailDomainRestrictionEnabled: z.boolean(),
@@ -144,6 +145,29 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
                   <FormLabel>{t('Registration Enabled')}</FormLabel>
                   <FormDescription>
                     {t('Allow new users to register')}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='DisableLocalRegistration'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Disable Local Registration')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Prevent new local account registration while keeping password login and OAuth sign-in'
+                    )}
                   </FormDescription>
                 </SettingsSwitchContent>
                 <FormControl>

@@ -83,12 +83,16 @@ func buildCompletionRatioMetaValue(optionValues map[string]string) string {
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
 	optionValues := make(map[string]string)
+	disableLocalRegistration := isDisableLocalRegistrationEnabled()
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		if k == "theme.frontend" || k == "billing_setting.billing_mode" || k == "billing_setting.billing_expr" || k == "ResendKeyConfigured" {
 			continue
 		}
 		value := common.Interface2String(v)
+		if k == "DisableLocalRegistration" {
+			value = strconv.FormatBool(disableLocalRegistration)
+		}
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||

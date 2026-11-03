@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -223,6 +224,10 @@ func Register(c *gin.Context) {
 		common.ApiErrorT(c, "Password registration has been disabled by administrator, please use third-party account verification")
 		return
 	}
+	if isDisableLocalRegistrationEnabled() {
+		common.ApiErrorT(c, "Local registration has been disabled by administrator")
+		return
+	}
 	var user model.User
 	err := common.DecodeJson(c.Request.Body, &user)
 	if err != nil {
@@ -333,6 +338,42 @@ func Register(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+// isDisableLocalRegistrationEnabled reports the configured local-registration
+// switch. Until an administrator saves it explicitly, the switch follows OAuth
+// availability so disabling local sign-up cannot strand users without a login
+// option.
+func isDisableLocalRegistrationEnabled() bool {
+	common.OptionMapRWMutex.RLock()
+	configured := common.DisableLocalRegistrationConfigured
+	disabled := common.DisableLocalRegistration
+	common.OptionMapRWMutex.RUnlock()
+	if configured {
+		return disabled
+	}
+	return hasEnabledOAuthLogin()
+}
+
+// isLocalRegistrationDisabled reports the effective local registration policy,
+// including the existing global registration and password registration gates.
+func isLocalRegistrationDisabled() bool {
+	common.OptionMapRWMutex.RLock()
+	enabled := common.RegisterEnabled && common.PasswordRegisterEnabled
+	common.OptionMapRWMutex.RUnlock()
+	return !enabled || isDisableLocalRegistrationEnabled()
+}
+
+func hasEnabledOAuthLogin() bool {
+	if common.WeChatAuthEnabled {
+		return true
+	}
+	for _, provider := range oauth.GetAllProviders() {
+		if provider.IsEnabled() {
+			return true
+		}
+	}
+	return false
 }
 
 func GetAllUsers(c *gin.Context) {

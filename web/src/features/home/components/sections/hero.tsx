@@ -50,6 +50,9 @@ export function Hero(props: HeroProps) {
   const { status } = useStatus()
   const docsUrl =
     (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
+  const localRegistrationEnabled =
+    status?.local_registration_disabled !== true &&
+    status?.register_enabled !== false
 
   const renderDocsButton = () => {
     const isExternal = docsUrl.startsWith('http')
@@ -150,13 +153,23 @@ export function Hero(props: HeroProps) {
               </>
             ) : (
               <>
-                <Button
-                  className='group h-11 rounded-lg px-5 text-sm font-medium'
-                  render={<Link to='/sign-up' />}
-                >
-                  {t('Get Started')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
-                </Button>
+                {localRegistrationEnabled ? (
+                  <Button
+                    className='group h-11 rounded-lg px-5 text-sm font-medium'
+                    render={<Link to='/sign-up' />}
+                  >
+                    {t('Get Started')}
+                    <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
+                  </Button>
+                ) : (
+                  <Button
+                    className='group h-11 rounded-lg px-5 text-sm font-medium'
+                    render={<Link to='/sign-in' />}
+                  >
+                    {t('Sign In')}
+                    <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
+                  </Button>
+                )}
                 <Button
                   variant='outline'
                   className='border-border/50 hover:border-border hover:bg-muted/50 h-11 rounded-lg px-5 text-sm font-medium'
