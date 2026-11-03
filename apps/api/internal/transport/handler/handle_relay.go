@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/QuantumNous/new-api/internal/billing"
@@ -626,6 +627,11 @@ const (
 
 func classifyRouteStatsOutcome(err *types.NewAPIError) routeStatsOutcome {
 	if err == nil {
+		return routeStatsNeutral
+	}
+	// A client cancel is not route evidence: the caller abandoned the request,
+	// so its 500 wrapper must not derate the soft EWMA.
+	if errors.Is(err, context.Canceled) {
 		return routeStatsNeutral
 	}
 	if types.IsChannelError(err) || err.GetErrorCode() == types.ErrorCodeBadResponseBody {

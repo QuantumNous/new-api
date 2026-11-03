@@ -1,11 +1,17 @@
 package channel
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"math"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 // freshUnitConfig returns a copy of the newapi default setting, so tests can
@@ -447,4 +453,67 @@ func TestExpiredCooldown_SettlesBeforeTheNewOutcome(t *testing.T) {
 	assert.InDelta(t, 0.2, st.SlowStartFactor(cfg.MinRequests), 1e-9, "the settled unit samples from the ramp floor")
 	assert.False(t, st.IsCooling(t0+400))
 	assert.Equal(t, 1, st.RequestCount, "the settling success is then counted")
+}
+
+// wrappedClientCancelError rebuilds the production shape of a client
+// disconnect: doRequest wraps the transport error in a NewAPIError (keeping the
+// sentinel), DoApiRequest wraps that again, and the relay handler re-wraps it as
+// an OpenAI error carrying status 500.
+func wrappedClientCancelError(t *testing.T) *types.NewAPIError {
+	t.Helper()
+	transportErr := types.NewError(context.Canceled, types.ErrorCodeDoRequestFailed,
+		types.ErrOptionWithStatusCode(http.StatusInternalServerError))
+	return types.NewOpenAIError(fmt.Errorf("do request failed: %w", transportErr),
+		types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+}
+
+// TestClassifyUnitOutcome_ClientCancelIsNeutral is the regression gate for
+// client-cancel accounting: the cancel rides a 500 wrapper, so the status
+// switch classified it as a channel failure and eventually terminal-disabled a
+// healthy route unit.
+func TestClassifyUnitOutcome_ClientCancelIsNeutral(t *testing.T) {
+	canceled := wrappedClientCancelError(t)
+	require.ErrorIs(t, canceled, context.Canceled)
+	require.Equal(t, http.StatusInternalServerError, canceled.StatusCode,
+		"sanity: the cancel carries the same 500 the upstream-failure branch matches")
+
+	cases := []struct {
+		name string
+		err  *types.NewAPIError
+		want UnitOutcome
+	}{
+		{"wrapped client cancel is neutral", canceled, UnitNeutral},
+		{"real upstream 500 stays fatal",
+			types.NewOpenAIError(errors.New("upstream exploded"), types.ErrorCodeBadResponseStatusCode,
+				http.StatusInternalServerError),
+			UnitFatal},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, ClassifyUnitOutcome(tc.err, 7))
+		})
+	}
+}
+
+// TestClientCancel_NeverDisablesUnit drives repeated canceled classifications
+// through the state machine: three naturally expired Fatal cooldowns would trip
+// UnitDisableStreakCap, so this pins that a canceled request never arms one.
+func TestClientCancel_NeverDisablesUnit(t *testing.T) {
+	cfg := freshUnitConfig()
+	st := NewUnitHealthState()
+	canceled := wrappedClientCancelError(t)
+
+	for i := 0; i < UnitDisableStreakCap+2; i++ {
+		outcome := ClassifyUnitOutcome(canceled, 7)
+		require.Equal(t, UnitNeutral, outcome, "cancel %d must classify as neutral", i)
+		nowMs := int64(1_000 + i*1_000)
+		applyOutcome(t, st, outcome, nowMs, -1, cfg)
+		assert.False(t, st.IsCooling(nowMs), "cancel %d must not arm a cooldown", i)
+	}
+
+	assert.Equal(t, int64(0), st.CooldownUntilMs, "no cooldown window")
+	assert.Equal(t, 0, st.DisableStreak, "canceled requests never add disable strikes")
+	assert.False(t, st.TerminalDisabled, "a healthy unit survives repeated client cancels")
+	assert.Equal(t, 0, st.RequestCount, "neutral outcomes are a no-op")
+	assert.Equal(t, DefaultUnitScore, st.EwmaScore, "the score is untouched")
 }

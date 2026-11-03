@@ -543,6 +543,11 @@ func doRequest(c contract.Context, req *http.Request, info *common.RelayInfo) (*
 	resp, err := relayClient.Do(req)
 	if err != nil {
 		logger.LogError(c.Context(), "do request failed: "+err.Error())
+		// Keep the cancellation sentinel intact: the health and route-stats
+		// classifiers key on it, and HideErrMsg replaces the whole chain.
+		if errors.Is(err, context.Canceled) {
+			return nil, types.NewError(context.Canceled, types.ErrorCodeDoRequestFailed)
+		}
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
