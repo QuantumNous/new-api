@@ -50,6 +50,7 @@ import {
   Info,
   LogIn,
   MessageSquareOff,
+  Unplug,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -77,6 +78,8 @@ import {
   getResponseTimeColor,
   getReasoningEffortVariant,
   renderAuditContent,
+  getStreamEndReasonLabel,
+  getStreamCut,
 } from '../../lib/format'
 import {
   getLogTypeConfig,
@@ -483,6 +486,15 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const details = props.log.content ?? ''
   const other = parseLogOther(props.log.other)
+  const streamCut = getStreamCut(other)
+  let streamCutChargeLabel = t('Full price')
+  if (other?.empty_response_waived) {
+    streamCutChargeLabel = t('Reduced by multiplier')
+  } else if (other?.truncated_response_multiplier != null) {
+    streamCutChargeLabel = t('Reduced by multiplier')
+  } else if (streamCut === 'client') {
+    streamCutChargeLabel = t('Client cut: charged at full price')
+  }
   const typeConfig = getLogTypeConfig(props.log.type)
 
   const isViolation = isViolationFeeLog(other)
@@ -1099,6 +1111,27 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DetailSection>
         )}
 
+        {/* Stream disconnect (upstream cut-off or client abandonment) */}
+        {streamCut && (
+          <DetailSection
+            icon={<Unplug className='size-3.5' aria-hidden='true' />}
+            label={
+              streamCut === 'upstream'
+                ? t('Upstream Stream Cut')
+                : t('Client Stream Cut')
+            }
+          >
+            {other?.truncated_response_multiplier != null ? (
+              <DetailRow
+                label={t('Output multiplier')}
+                value={String(other?.truncated_response_multiplier)}
+                mono
+              />
+            ) : null}
+            <DetailRow label={t('Charge')} value={streamCutChargeLabel} />
+          </DetailSection>
+        )}
+
         {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}
         {isTieredBilling && other?.expr_b64 && (
           <DetailSection label={t('Dynamic Pricing')}>
@@ -1141,7 +1174,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               label={t('Status')}
               value={
                 <StatusBadge
-                  label={other.stream_status.status || t('Error')}
+                  label={t('Error')}
                   variant='red'
                   size='sm'
                   copyable={false}
@@ -1151,7 +1184,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {other.stream_status.end_reason && (
               <DetailRow
                 label={t('End Reason')}
-                value={other.stream_status.end_reason}
+                value={getStreamEndReasonLabel(
+                  t,
+                  other.stream_status.end_reason
+                )}
               />
             )}
             {(other.stream_status.error_count ?? 0) > 0 && (

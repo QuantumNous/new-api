@@ -188,6 +188,25 @@ type RelayInfo struct {
 	FinalRequestRelayFormat types.RelayFormat
 
 	StreamStatus *StreamStatus
+	// StreamSawFinishReason records that an OpenAI-format stream carried a chunk
+	// with a non-empty finish_reason. Billing uses it to distinguish an upstream
+	// that died after the answer was complete (no discount) from a genuine
+	// mid-answer cut-off.
+	StreamSawFinishReason bool
+	// StreamContentObserved records that the handler inspected the delivered
+	// content, so billing can decide emptiness from the flags below instead of
+	// completion_tokens (which also counts reasoning-only output).
+	StreamContentObserved bool
+	// StreamSawTextContent records a non-empty visible text delta. Reasoning
+	// and tool-call deltas do not count.
+	StreamSawTextContent bool
+	// StreamSawToolCall records at least one tool call in the response.
+	StreamSawToolCall bool
+	// StreamSawMediaContent records delivered non-text media (inline images), so
+	// an image-only response is not mistaken for an empty answer.
+	StreamSawMediaContent bool
+	// StreamFinishReason is the last non-empty protocol finish reason.
+	StreamFinishReason string
 
 	// convOptions caches the converter settings snapshot (see ConvOptions).
 	convOptions *convmeta.Options
@@ -1136,4 +1155,16 @@ func RemoveGeminiDisabledFields(jsonData []byte) ([]byte, error) {
 		return jsonData, nil
 	}
 	return jsonDataAfter, nil
+}
+
+// ResetStreamObservation clears the per-attempt delivery markers before a retry
+// runs the next handler, so a failed attempt cannot influence the billing
+// decision of the attempt that eventually settles.
+func (info *RelayInfo) ResetStreamObservation() {
+	info.StreamContentObserved = false
+	info.StreamSawTextContent = false
+	info.StreamSawToolCall = false
+	info.StreamSawMediaContent = false
+	info.StreamSawFinishReason = false
+	info.StreamFinishReason = ""
 }

@@ -236,6 +236,11 @@ export interface LogOtherData {
   // multiplier (0 = waived, 1 = full price).
   empty_response_multiplier?: number
   empty_response_waived?: boolean
+  // Stream disconnect marker: which side dropped a streamed response.
+  // 'upstream' means the provider cut mid-answer; it is discounted only when
+  // truncated_response_multiplier is present. 'client' is always full price.
+  stream_cut?: 'upstream' | 'client'
+  truncated_response_multiplier?: number
   // Reject / intercept reason (admin)
   reject_reason?: string
   // Task-related fields (for refund logs, type=6)

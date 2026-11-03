@@ -54,6 +54,13 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
 	if !s.fundingSettled {
 		if err := s.funding.Settle(delta); err != nil {
+			// SubscriptionFunding may have committed the subscription leg and
+			// failed only on the wallet-overflow leg. Marking the funding as
+			// settled keeps the unconditional deferred Refund from returning an
+			// already-committed charge, which would produce a credit.
+			if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.WalletOverflow > 0 {
+				s.fundingSettled = true
+			}
 			return err
 		}
 		s.fundingSettled = true

@@ -34,6 +34,7 @@ const defaultBillingSettings: BillingSettings = {
   'general_setting.docs_link': '',
   'quota_setting.enable_free_model_pre_consume': true,
   'quota_setting.empty_response_multiplier': 0.1,
+  'quota_setting.truncated_response_multiplier': 0.3,
   QuotaPerUnit: 500000,
   USDExchangeRate: 7,
   'general_setting.quota_display_type': 'USD',

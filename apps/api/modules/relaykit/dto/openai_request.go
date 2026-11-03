@@ -308,6 +308,7 @@ type Message struct {
 	ReasoningContent *string         `json:"reasoning_content,omitempty"`
 	Reasoning        *string         `json:"reasoning,omitempty"`
 	ToolCalls        json.RawMessage `json:"tool_calls,omitempty"`
+	Refusal          *string         `json:"refusal,omitempty"`
 	ToolCallId       string          `json:"tool_call_id,omitempty"`
 	parsedContent    []MediaContent
 	//parsedStringContent *string

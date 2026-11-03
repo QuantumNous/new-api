@@ -202,12 +202,16 @@ func Relay(c contract.Context, relayFormat types.RelayFormat) {
 	}
 
 	defer func() {
-		// Only return quota if downstream failed and quota was actually pre-consumed
+		// Refund unconditionally whenever a session was pre-consumed: a panic
+		// in any downstream helper still runs this defer with newAPIError==nil,
+		// so gating on newAPIError would strand the pre-consumed quota. BillingSession.Refund
+		// is a no-op once settled (success path) and idempotent, so calling it here is safe;
+		// the FreeModel path leaves relayInfo.Billing nil and is guarded by the != nil check.
+		if relayInfo.Billing != nil {
+			relayInfo.Billing.Refund(c)
+		}
 		if newAPIError != nil {
 			newAPIError = billing.NormalizeViolationFeeError(newAPIError)
-			if relayInfo.Billing != nil {
-				relayInfo.Billing.Refund(c)
-			}
 			billing.ChargeViolationFeeIfNeeded(c, relayInfo, newAPIError)
 		}
 	}()
@@ -837,7 +841,11 @@ func RelayTask(c contract.Context) {
 	var result *relay.TaskSubmitResult
 	var taskErr *taskdto.TaskError
 	defer func() {
-		if taskErr != nil && relayInfo.Billing != nil {
+		// Refund unconditionally whenever a session was pre-consumed: a panic
+		// on the async task path must not strand the pre-consumed quota. BillingSession.Refund
+		// is a no-op once settled (success path) and idempotent, so calling it here is safe;
+		// the FreeModel path leaves relayInfo.Billing nil and is guarded by the != nil check.
+		if relayInfo.Billing != nil {
 			relayInfo.Billing.Refund(c)
 		}
 	}()

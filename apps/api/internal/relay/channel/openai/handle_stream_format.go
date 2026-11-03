@@ -269,3 +269,57 @@ func chunkHasVisibleDelta(data string) bool {
 	})
 	return visible
 }
+
+// chunkHasTextDelta reports whether an SSE chunk carries non-empty visible
+// text. Unlike chunkHasVisibleDelta, reasoning and tool-call deltas do not
+// count: billing treats a reasoning-only response as undelivered text.
+func chunkHasTextDelta(data string) bool {
+	root := gjson.Parse(data)
+	var text bool
+	root.Get("choices").ForEach(func(_, choice gjson.Result) bool {
+		if strings.TrimSpace(choice.Get("text").String()) != "" ||
+			strings.TrimSpace(choice.Get("delta").Get("content").String()) != "" {
+			text = true
+			return false
+		}
+		return true
+	})
+	return text
+}
+
+// firstFinishReason returns the first non-empty finish_reason in an SSE chunk.
+func firstFinishReason(data string) string {
+	var reason string
+	gjson.Get(data, "choices").ForEach(func(_, choice gjson.Result) bool {
+		if value := choice.Get("finish_reason").String(); value != "" {
+			reason = value
+			return false
+		}
+		return true
+	})
+	return reason
+}
+
+// streamErrorPayload returns the upstream error carried by an SSE data line, or
+// an empty string. Some resellers answer 200 and then stream an error object
+// instead of failing the HTTP request; without this check those streams look
+// like a successful empty completion.
+func streamErrorPayload(data string) string {
+	root := gjson.Parse(data)
+	if errField := root.Get("error"); errField.Exists() && errField.Type != gjson.Null {
+		if errField.IsObject() {
+			if message := errField.Get("message").String(); message != "" {
+				return message
+			}
+			return errField.Raw
+		}
+		if errField.Type == gjson.String {
+			return errField.String()
+		}
+		return ""
+	}
+	if root.Get("type").String() == "error" {
+		return data
+	}
+	return ""
+}

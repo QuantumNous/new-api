@@ -33,6 +33,7 @@ type streamObserver struct {
 	seenToolCall map[string]struct{}
 
 	sawFinishReason bool
+	sawTextContent  bool
 
 	// usage holds the last valid upstream usage payload, matching the slow path
 	// which reads usage off the final chunk.
@@ -66,7 +67,11 @@ func (o *streamObserver) observe(data string) {
 		o.readChatChoices(root.Get("choices"))
 	case relayconstant.RelayModeCompletions:
 		root.Get("choices").ForEach(func(_, choice gjson.Result) bool {
-			o.responseText.WriteString(choice.Get("text").String())
+			text := choice.Get("text").String()
+			o.responseText.WriteString(text)
+			if strings.TrimSpace(text) != "" {
+				o.sawTextContent = true
+			}
 			if choice.Get("finish_reason").String() != "" {
 				o.sawFinishReason = true
 			}
@@ -88,6 +93,9 @@ func (o *streamObserver) readChatChoices(choices gjson.Result) {
 		delta := choice.Get("delta")
 		o.responseText.WriteString(delta.Get("content").String())
 		o.responseText.WriteString(deltaReasoning(delta))
+		if strings.TrimSpace(delta.Get("content").String()) != "" {
+			o.sawTextContent = true
+		}
 
 		toolCalls := delta.Get("tool_calls")
 		if !toolCalls.IsArray() {

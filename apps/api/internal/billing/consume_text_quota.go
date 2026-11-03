@@ -71,6 +71,12 @@ type textQuotaSummary struct {
 	EmptyResponseDetected   bool
 	EmptyResponseWaived     bool
 	EmptyResponseMultiplier float64
+	// StreamCut is the disconnect marker for this consume: "upstream" (the
+	// provider dropped the stream) or "client" (the user disconnected).
+	// Written to log `other` as stream_cut for the request-log badges.
+	StreamCut                   string
+	TruncatedResponseApplied    bool
+	TruncatedResponseMultiplier float64
 }
 
 // hasBillableUsage reports whether this request should incur any charge.
@@ -407,15 +413,22 @@ func isTextGenerationFormat(format types.RelayFormat) bool {
 }
 
 // isUndeliveredTextResponse reports whether a 2xx response produced nothing the
-// user could consume: zero completion tokens, no billable tool calls, no policy
-// rejection, and the stream was not abandoned by the client. Only meaningful
-// for text-generation formats, where zero completion tokens means nothing was
-// delivered; image/audio/embedding/rerank legitimately report completion=0.
+// user could consume: no visible text, no tool call, no billable tool surcharge,
+// no policy rejection, and no client-initiated disconnect. When the handler
+// inspected the content, emptiness comes from the observed text/tool flags, so a
+// reasoning-only response with completion tokens still counts as undelivered;
+// otherwise the completion-token count is the only signal available. Only
+// meaningful for text-generation formats: image/audio/embedding/rerank
+// legitimately report completion=0.
 func isUndeliveredTextResponse(relayInfo *relaycommon.RelayInfo, summary textQuotaSummary, adminRejectReason string) bool {
 	if !isTextGenerationFormat(relayInfo.RelayFormat) {
 		return false
 	}
-	if summary.CompletionTokens != 0 {
+	empty := summary.CompletionTokens == 0
+	if relayInfo.StreamContentObserved {
+		empty = !relayInfo.StreamSawTextContent && !relayInfo.StreamSawToolCall && !relayInfo.StreamSawMediaContent
+	}
+	if !empty {
 		return false
 	}
 	if len(summary.ToolSurchargeItems) > 0 {
@@ -456,6 +469,116 @@ func applyEmptyResponseMultiplier(relayInfo *relaycommon.RelayInfo, summary *tex
 		summary.Quota = scaled
 		summary.EmptyResponseWaived = true
 	}
+}
+
+// streamCutUpstream / streamCutClient are the log marker values written to
+// other["stream_cut"] for the request-log badges.
+const (
+	streamCutUpstream = "upstream"
+	streamCutClient   = "client"
+)
+
+// streamCutKind classifies which side dropped a streamed text response, for
+// the charge policy and the request-log badges. An empty result means no cut:
+// the stream completed (done), ended at a plain EOF (the normal terminator for
+// Claude/Gemini protocols, which have no [DONE] sentinel), never streamed
+// (non-stream requests keep the end reason None), or panicked (that path
+// returns an error and refunds before settlement).
+func streamCutKind(relayInfo *relaycommon.RelayInfo) string {
+	if relayInfo == nil || !isTextGenerationFormat(relayInfo.RelayFormat) {
+		return ""
+	}
+	switch relayInfo.StreamStatus.GetEndReason() {
+	case relaycommon.StreamEndReasonClientGone,
+		relaycommon.StreamEndReasonPingFail:
+		// The client closed the connection or a ping write failed: the user
+		// abandoned the request, so the charge stays at full price.
+		return streamCutClient
+	case relaycommon.StreamEndReasonHandlerStop:
+		// Stop is shared by failed client writes and upstream error events; it
+		// cannot attribute the cut, so leave it unclassified instead of
+		// mislabelling an upstream failure as a user disconnect.
+		return ""
+	case relaycommon.StreamEndReasonScannerErr, relaycommon.StreamEndReasonTimeout:
+		// A declared finish_reason means the answer was complete and only the
+		// trailing usage/metadata was lost — the deliverable is intact, so no
+		// upstream cut is recorded.
+		if relayInfo.StreamSawFinishReason || relayInfo.StreamFinishReason != "" {
+			return ""
+		}
+		return streamCutUpstream
+	default:
+		return ""
+	}
+}
+
+// applyTruncatedResponseMultiplier discounts the charge when the upstream
+// dropped the stream before the answer was complete (see streamCutKind). The
+// prompt was genuinely consumed upstream and stays at full price; only the
+// delivered completion part is scaled by the configured
+// TruncatedResponseMultiplier (0-1). Client disconnects are never discounted:
+// the user chose to abandon the request. It runs after the empty-response
+// policy, which owns streams that delivered nothing at all.
+//
+// OpenAI-format chat streams that die before a finish_reason are failed by
+// streamTruncated (#394) and refunded before settlement, so this discount
+// currently applies only to formats that reach settlement after a cut.
+func applyTruncatedResponseMultiplier(relayInfo *relaycommon.RelayInfo, summary *textQuotaSummary, tieredApplied bool) {
+	if relayInfo == nil || summary == nil {
+		return
+	}
+	kind := streamCutKind(relayInfo)
+	if kind == "" {
+		return
+	}
+	summary.StreamCut = kind
+	if kind != streamCutUpstream {
+		return
+	}
+	if summary.EmptyResponseDetected {
+		return
+	}
+	multiplier := GetQuotaSetting().TruncatedResponseMultiplier
+	if math.IsNaN(multiplier) || multiplier < 0 {
+		multiplier = 0
+	}
+	if multiplier > 1 {
+		multiplier = 1
+	}
+	if multiplier >= 1 || summary.Quota <= 0 {
+		return
+	}
+	summary.TruncatedResponseMultiplier = multiplier
+	if relayInfo.PriceData.UsePrice || tieredApplied {
+		// Per-call and expression billing have no input/output split, so the
+		// whole settled total is folded (same precedent as the empty policy).
+		scaled, clamp := common.QuotaFromDecimalChecked(
+			decimal.NewFromInt(int64(summary.Quota)).Mul(decimal.NewFromFloat(multiplier)),
+		)
+		noteQuotaClamp(relayInfo, clamp)
+		summary.Quota = scaled
+	} else {
+		// Token billing: discount only the completion-side charge recomputed
+		// from the summary factors. OtherRatios apply to the whole bill, so
+		// with a non-unit ratio this slightly under-discounts; clamping the
+		// discount to the (1-m) share of the total keeps it within bounds and
+		// never produces a credit.
+		completionCharge := decimal.NewFromInt(int64(summary.CompletionTokens)).
+			Mul(decimal.NewFromFloat(summary.CompletionRatio)).
+			Mul(decimal.NewFromFloat(summary.ModelRatio)).
+			Mul(decimal.NewFromFloat(summary.GroupRatio))
+		discount := completionCharge.Mul(decimal.NewFromFloat(1 - multiplier))
+		if maxDiscount := decimal.NewFromInt(int64(summary.Quota)).Mul(decimal.NewFromFloat(1 - multiplier)); discount.GreaterThan(maxDiscount) {
+			discount = maxDiscount
+		}
+		newQuota, clamp := common.QuotaFromDecimalChecked(decimal.NewFromInt(int64(summary.Quota)).Sub(discount))
+		noteQuotaClamp(relayInfo, clamp)
+		if newQuota < 0 {
+			newQuota = 0
+		}
+		summary.Quota = newQuota
+	}
+	summary.TruncatedResponseApplied = true
 }
 
 func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) string {
@@ -500,6 +623,13 @@ func PostTextConsumeQuota(ctx contract.Context, relayInfo *relaycommon.RelayInfo
 	// token-billed and expression-billed models share the same policy.
 	applyEmptyResponseMultiplier(relayInfo, &summary, adminRejectReason)
 
+	// Record the disconnect side and, for upstream cut-offs only, discount the
+	// delivered output. Runs after the empty policy so a stream that delivered
+	// nothing keeps the single empty-response explanation.
+	if adminRejectReason == "" {
+		applyTruncatedResponseMultiplier(relayInfo, &summary, tieredBillingApplied)
+	}
+
 	for _, item := range summary.ToolSurchargeItems {
 		q := decimal.NewFromFloat(item.Price).
 			Mul(decimal.NewFromInt(int64(item.Count))).
@@ -523,6 +653,18 @@ func PostTextConsumeQuota(ctx contract.Context, relayInfo *relaycommon.RelayInfo
 			extraContent = append(extraContent, "上游返回空响应，按原价扣费")
 		}
 	}
+	// When the empty policy already explains the charge (nothing delivered),
+	// its own line wins; the cut marker still rides in `other` for the badge.
+	if summary.StreamCut != "" && !summary.EmptyResponseDetected {
+		switch {
+		case summary.StreamCut == streamCutClient:
+			extraContent = append(extraContent, "用户断流，按原价扣费")
+		case summary.TruncatedResponseApplied:
+			extraContent = append(extraContent, fmt.Sprintf("上游断流，输出按 %g 倍率扣费", summary.TruncatedResponseMultiplier))
+		default:
+			extraContent = append(extraContent, "上游断流，按原价扣费")
+		}
+	}
 	if summary.AudioInputPrice > 0 && summary.AudioTokens > 0 {
 		q := decimal.NewFromFloat(summary.AudioInputPrice).Div(decimal.NewFromInt(1000000)).Mul(decimal.NewFromInt(int64(summary.AudioTokens))).Mul(decimal.NewFromFloat(summary.GroupRatio)).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
 		extraContent = append(extraContent, fmt.Sprintf("Audio Input 花费 %s", logger.LogQuota(common.QuotaFromDecimal(q))))
@@ -537,7 +679,10 @@ func PostTextConsumeQuota(ctx contract.Context, relayInfo *relaycommon.RelayInfo
 	}
 
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
-		logger.LogError(ctx.Context(), "error settling billing: "+err.Error())
+		logger.LogError(ctx.Context(), fmt.Sprintf(
+			"error settling billing: %s (userId %d, channelId %d, settled quota %d, pre-consumed %d)",
+			err.Error(), relayInfo.UserId, relayInfo.ChannelId, summary.Quota, relayInfo.FinalPreConsumedQuota,
+		))
 	}
 
 	logModel := summary.ModelName
@@ -572,6 +717,26 @@ func PostTextConsumeQuota(ctx contract.Context, relayInfo *relaycommon.RelayInfo
 		other["empty_response_multiplier"] = summary.EmptyResponseMultiplier
 		if summary.EmptyResponseWaived {
 			other["empty_response_waived"] = true
+		}
+	}
+	if summary.StreamCut != "" {
+		other["stream_cut"] = summary.StreamCut
+		if summary.TruncatedResponseApplied {
+			other["truncated_response_multiplier"] = summary.TruncatedResponseMultiplier
+		}
+	}
+	if relayInfo.StreamContentObserved {
+		if relayInfo.IsStream {
+			other["stream_saw_text"] = relayInfo.StreamSawTextContent
+			if relayInfo.StreamSawToolCall {
+				other["stream_saw_tool_call"] = true
+			}
+			if relayInfo.StreamSawMediaContent {
+				other["stream_saw_media"] = true
+			}
+		}
+		if relayInfo.StreamFinishReason != "" {
+			other["finish_reason"] = relayInfo.StreamFinishReason
 		}
 	}
 	if summary.ImageTokens != 0 {

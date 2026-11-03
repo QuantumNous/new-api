@@ -121,6 +121,7 @@ export interface SystemStatus {
     password_login_enabled?: boolean
     password_register_enabled?: boolean
     empty_response_multiplier?: number
+    truncated_response_multiplier?: number
     custom_oauth_providers?: CustomOAuthProviderInfo[]
     [key: string]: unknown
   }

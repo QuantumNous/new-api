@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { MessageSquareOff, Wrench } from 'lucide-react'
+import { MessageSquareOff, Scissors, Unplug, Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -28,7 +28,11 @@ import {
 } from '@/components/ui/tooltip'
 import { formatLogQuota } from '@/lib/format'
 
-import { hasEmptyResponseCharge, hasToolSurcharge } from '../lib/format'
+import {
+  getStreamCut,
+  hasEmptyResponseCharge,
+  hasToolSurcharge,
+} from '../lib/format'
 import type { LogOtherData } from '../types'
 
 interface LogCostDisplayProps {
@@ -108,6 +112,48 @@ function EmptyResponseMarker() {
   )
 }
 
+function StreamCutMarker(props: {
+  cut: 'upstream' | 'client'
+  discounted: boolean
+  emptyWaived: boolean
+}) {
+  const { t } = useTranslation()
+  const upstream = props.cut === 'upstream'
+  let label = t('Client disconnected mid-stream; charged at full price')
+  if (props.emptyWaived) {
+    label = t('Reduced by multiplier')
+  } else if (upstream) {
+    label = props.discounted
+      ? t('Upstream stream cut — output charged at truncated multiplier')
+      : t('Upstream Stream Cut')
+  }
+  // WCAG 2.5.3: the accessible name contains the visible chip text.
+  const chip = upstream ? t('Upstream cut') : t('Client cut')
+  const accessibleName = `${chip} — ${label}`
+  const Icon = upstream ? Unplug : Scissors
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Badge
+            variant={upstream ? 'warning' : 'secondary'}
+            className='h-5 min-w-5 cursor-help gap-1 rounded-full px-1.5'
+            role='img'
+            aria-label={accessibleName}
+            tabIndex={0}
+            data-stream-cut-indicator={props.cut}
+          >
+            <Icon className='size-3' strokeWidth={2} aria-hidden='true' />
+            <span className='text-[9px] leading-none font-bold'>{chip}</span>
+          </Badge>
+        }
+      />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function QuotaBadge(props: { quota: number }) {
   const quotaDisplay = splitQuotaDisplay(formatLogQuota(props.quota))
 
@@ -178,8 +224,16 @@ export function LogCostDisplay(props: LogCostDisplayProps) {
   const isSubscription = props.other?.billing_source === 'subscription'
   const showToolSurcharge = hasToolSurcharge(props.other)
   const showEmptyResponse = hasEmptyResponseCharge(props.other)
+  const streamCut = getStreamCut(props.other)
+  const streamCutDiscounted = props.other?.truncated_response_multiplier != null
+  const streamCutEmptyWaived = props.other?.empty_response_waived === true
 
-  if (!isSubscription && !showToolSurcharge && !showEmptyResponse) {
+  if (
+    !isSubscription &&
+    !showToolSurcharge &&
+    !showEmptyResponse &&
+    !streamCut
+  ) {
     return (
       <div className='flex flex-col gap-0.5'>
         <QuotaBadge quota={props.quota} />
@@ -205,6 +259,13 @@ export function LogCostDisplay(props: LogCostDisplayProps) {
         )}
         {showToolSurcharge ? <ToolSurchargeMarker /> : null}
         {showEmptyResponse ? <EmptyResponseMarker /> : null}
+        {streamCut ? (
+          <StreamCutMarker
+            cut={streamCut}
+            discounted={streamCutDiscounted}
+            emptyWaived={streamCutEmptyWaived}
+          />
+        ) : null}
       </div>
     </TooltipProvider>
   )

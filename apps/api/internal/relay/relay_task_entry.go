@@ -223,6 +223,10 @@ func RelayTaskSubmit(c contract.Context, info *relaycommon.RelayInfo) (*TaskSubm
 	}
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
+		// Body is owned by the submitter here (adaptors Close it only on their
+		// own success paths); without this the upstream connection leaks once
+		// per failed attempt and again on every retry.
+		_ = resp.Body.Close()
 		return nil, taskcap.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
 

@@ -8,6 +8,7 @@ package settings
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -127,6 +128,14 @@ func ValidateOptionValue(key string, value string) error {
 		// (model's own tests are one). Catalog still owns applying the value.
 		if count, convErr := strconv.Atoi(value); convErr != nil || count <= 0 {
 			return fmt.Errorf("MaxTokenAutoGroups must be a positive integer")
+		}
+		return nil
+	}
+	if key == "quota_setting.empty_response_multiplier" || key == "quota_setting.truncated_response_multiplier" {
+		multiplier, convErr := strconv.ParseFloat(value, 64)
+		if convErr != nil || math.IsNaN(multiplier) || math.IsInf(multiplier, 0) ||
+			multiplier < 0 || multiplier > 1 {
+			return fmt.Errorf("%s must be a finite number in [0,1]", key)
 		}
 		return nil
 	}

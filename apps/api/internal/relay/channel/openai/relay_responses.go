@@ -19,6 +19,7 @@ import (
 
 func OaiResponsesHandler(c contract.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer egress.CloseResponseBodyGracefully(resp)
+	info.ResetStreamObservation()
 
 	// read response body
 	var responsesResponse dto.OpenAIResponsesResponse
@@ -79,6 +80,7 @@ func OaiResponsesStreamHandler(c contract.Context, info *relaycommon.RelayInfo, 
 	}
 
 	defer egress.CloseResponseBodyGracefully(resp)
+	info.ResetStreamObservation()
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
@@ -97,6 +99,8 @@ func OaiResponsesStreamHandler(c contract.Context, info *relaycommon.RelayInfo, 
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
 		case "response.completed", "response.done":
+			info.StreamSawFinishReason = true
+			info.StreamFinishReason = "completed"
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
 					if streamResponse.Response.Usage.InputTokens != 0 {
