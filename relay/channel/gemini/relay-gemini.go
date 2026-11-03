@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,17 +46,17 @@ func attachEstimatedGeminiBillingUsage(usage *dto.Usage) *dto.Usage {
 // content was actually received. Typical case: the client aborts a stream before the
 // final chunk that carries candidatesTokenCount, leaving prompt-only metadata; without
 // this patch the output side would settle at zero quota.
-func patchGeminiZeroCompletionUsage(c *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage, responseText string, imageCount int) {
+func patchGeminiZeroCompletionUsage(c *gin.Context, info *relaycommon.RelayInfo, usage *dto.Usage, responseText string, inlineOutputTokens int) {
 	if usage == nil || usage.CompletionTokens > 0 {
 		return
 	}
-	if responseText == "" && imageCount == 0 {
+	if responseText == "" && inlineOutputTokens == 0 {
 		return
 	}
 	estimated := service.ResponseText2Usage(c, responseText, info.UpstreamModelName, usage.PromptTokens)
 	usage.CompletionTokens = estimated.CompletionTokens
-	if imageCount != 0 && usage.CompletionTokens == 0 {
-		usage.CompletionTokens = imageCount * 1400
+	if inlineOutputTokens != 0 && usage.CompletionTokens == 0 {
+		usage.CompletionTokens = inlineOutputTokens
 	}
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	// Settlement prefers BillingUsage, so fill the missing completion in the
@@ -149,7 +151,9 @@ func buildUsageFromGeminiResponse(c *gin.Context, info *relaycommon.RelayInfo, r
 	metadata := response.GetUsageMetadata()
 	if dto.HasGeminiUsageMetadataTokens(metadata) {
 		usage := buildUsageFromGeminiMetadata(metadata, info.GetEstimatePromptTokens())
-		patchGeminiZeroCompletionUsage(c, info, &usage, geminiResponseUsageText(response), geminiResponseInlineImageCount(response))
+		var inlineOutput geminiInlineOutput
+		inlineOutput.observe(response)
+		patchGeminiZeroCompletionUsage(c, info, &usage, geminiResponseUsageText(response), inlineOutput.completionTokens())
 		return usage
 	}
 	usage := service.ResponseText2Usage(c, geminiResponseUsageText(response), info.UpstreamModelName, info.GetEstimatePromptTokens())
@@ -157,21 +161,72 @@ func buildUsageFromGeminiResponse(c *gin.Context, info *relaycommon.RelayInfo, r
 	return *usage
 }
 
-// geminiResponseInlineImageCount counts image inlineData parts. Other media such
-// as audio/l16 TTS chunks are not images and must not be billed per image.
-func geminiResponseInlineImageCount(response *dto.GeminiChatResponse) int {
+const (
+	// geminiInlineImageCompletionTokens is the completion estimate for one
+	// inline image when upstream reports no completion tokens.
+	geminiInlineImageCompletionTokens = 1400
+	// geminiAudioTokensPerSecond is Gemini's audio token rate: "Audio tokens
+	// correspond to 25 tokens per second of audio"
+	// (ai.google.dev/gemini-api/docs/pricing).
+	geminiAudioTokensPerSecond = 25
+)
+
+// geminiInlineOutput estimates the completion tokens of inline media when
+// upstream usageMetadata does not report them. Each image counts
+// geminiInlineImageCompletionTokens. PCM audio (audio/l16 or audio/pcm with a
+// rate, as Gemini TTS returns) counts geminiAudioTokensPerSecond, with its
+// length taken from the 16-bit sample count. Other audio has no measurable
+// length here and other media is not image output, so both add nothing.
+type geminiInlineOutput struct {
+	images int
+	audio  time.Duration
+}
+
+func (o *geminiInlineOutput) observe(response *dto.GeminiChatResponse) {
 	if response == nil {
-		return 0
+		return
 	}
-	count := 0
 	for _, candidate := range response.Candidates {
 		for _, part := range candidate.Content.Parts {
-			if part.InlineData != nil && strings.HasPrefix(part.InlineData.MimeType, "image") {
-				count++
+			if part.InlineData == nil {
+				continue
 			}
+			if strings.HasPrefix(part.InlineData.MimeType, "image") {
+				o.images++
+				continue
+			}
+			o.audio += geminiPCMDuration(part.InlineData.MimeType, part.InlineData.Data)
 		}
 	}
-	return count
+}
+
+func (o geminiInlineOutput) completionTokens() int {
+	audioTokens := (int64(o.audio)*geminiAudioTokensPerSecond + int64(time.Second) - 1) / int64(time.Second)
+	return common.QuotaFromFloat(float64(o.images)*geminiInlineImageCompletionTokens + float64(audioTokens))
+}
+
+// geminiPCMDuration returns the length of base64 16-bit PCM audio, or 0 when
+// the mimeType is not PCM or its rate or channel count is implausible.
+func geminiPCMDuration(mimeType string, data string) time.Duration {
+	mediaType, params, err := mime.ParseMediaType(mimeType)
+	if err != nil || (mediaType != "audio/l16" && mediaType != "audio/pcm") {
+		return 0
+	}
+	rate, err := strconv.Atoi(params["rate"])
+	if err != nil || rate < 8000 || rate > 192000 {
+		return 0
+	}
+	channels := 1
+	if value, ok := params["channels"]; ok {
+		channels, err = strconv.Atoi(value)
+		if err != nil || channels < 1 || channels > 8 {
+			return 0
+		}
+	}
+	pcmBytes := int64(len(strings.TrimRight(data, "="))) * 3 / 4
+	bytesPerSecond := int64(rate * channels * 2)
+	return time.Duration(pcmBytes/bytesPerSecond)*time.Second +
+		time.Duration(pcmBytes%bytesPerSecond)*time.Second/time.Duration(bytesPerSecond)
 }
 
 func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse) *dto.OpenAITextResponse {
@@ -205,7 +260,7 @@ func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.Ch
 
 func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, callback func(data string, geminiResponse *dto.GeminiChatResponse) bool) (*dto.Usage, *types.NewAPIError) {
 	var usage = &dto.Usage{}
-	var imageCount int
+	var inlineOutput geminiInlineOutput
 	var hasBillableUsageMetadata bool
 	var streamErr error
 	var accumulatedUsageMetadata *dto.GeminiUsageMetadata
@@ -241,8 +296,8 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		grounding.commit(info)
 		countGeminiBillableFunctionCalls(info, &geminiResponse)
 
-		// 统计图片数量
-		imageCount += geminiResponseInlineImageCount(&geminiResponse)
+		// 统计图片和音频输出
+		inlineOutput.observe(&geminiResponse)
 		responseText.WriteString(geminiResponseUsageText(&geminiResponse))
 
 		// 更新使用量统计
@@ -270,14 +325,14 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		} else {
 			usage = &dto.Usage{}
 		}
-		if imageCount != 0 && usage.CompletionTokens == 0 {
-			usage.CompletionTokens = imageCount * 1400
+		if inlineOutputTokens := inlineOutput.completionTokens(); inlineOutputTokens != 0 && usage.CompletionTokens == 0 {
+			usage.CompletionTokens = inlineOutputTokens
 			usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 			common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
 		}
 		attachEstimatedGeminiBillingUsage(usage)
 	} else {
-		patchGeminiZeroCompletionUsage(c, info, usage, responseText.String(), imageCount)
+		patchGeminiZeroCompletionUsage(c, info, usage, responseText.String(), inlineOutput.completionTokens())
 	}
 
 	if streamErr != nil {

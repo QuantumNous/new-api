@@ -655,15 +655,20 @@ func TestGeminiStreamHandlerEmptyUsageMetadataBuildsEstimatedBillingUsage(t *tes
 	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
 }
 
-const (
-	geminiAudioInlineFrame = `{"candidates":[{"content":{"role":"model","parts":[{"inlineData":{"mimeType":"audio/l16; rate=24000; channels=1","data":"AAAA"}}]},"index":0}],"modelVersion":"gemini-3.8-flash-lite-tts"}`
-	geminiImageInlineFrame = `{"candidates":[{"content":{"role":"model","parts":[{"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgo="}}]},"index":0}]}`
-)
+// geminiInlineFrame is one stream frame carrying a single inlineData part.
+func geminiInlineFrame(mimeType, data string) string {
+	return `{"candidates":[{"content":{"role":"model","parts":[{"inlineData":{"mimeType":"` + mimeType + `","data":"` + data + `"}}]},"index":0}],"modelVersion":"gemini-3.8-flash-lite-tts"}`
+}
 
-// Only image inlineData is backfilled at the per-image completion estimate when
-// upstream sends no billable usageMetadata. A relay that answered a text request
-// with audio/l16 chunks and then failed in-stream must not bill each chunk as an image.
-func TestGeminiStreamHandlerWithoutUsageMetadataBillsOnlyImageInlineData(t *testing.T) {
+// pcm100ms is 4800 bytes of base64 PCM: 100 ms of 16-bit mono audio at 24 kHz.
+var pcm100ms = strings.Repeat("A", 6400)
+
+// Without billable usageMetadata, inline output is estimated from the payload:
+// 1400 tokens per image, and 25 tokens per second of PCM audio (the Gemini TTS
+// rate) with the length taken from the PCM byte count. Audio whose length
+// cannot be measured, and non-image media, add nothing. A relay that answered
+// a text request with audio/l16 chunks must not bill each chunk as an image.
+func TestGeminiStreamHandlerWithoutUsageMetadataEstimatesInlineOutput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	oldStreamingTimeout := constant.StreamingTimeout
@@ -672,24 +677,37 @@ func TestGeminiStreamHandlerWithoutUsageMetadataBillsOnlyImageInlineData(t *test
 		constant.StreamingTimeout = oldStreamingTimeout
 	})
 
+	l16Chunk := geminiInlineFrame("audio/l16; rate=24000; channels=1", pcm100ms)
 	for _, tc := range []struct {
 		name                 string
 		frames               []string
 		wantCompletionTokens int
 	}{
 		{
-			name: "audio chunks then in-stream error",
+			// 0.3 s of audio: ceil(0.3 * 25) = 8.
+			name: "pcm audio chunks then in-stream error",
 			frames: []string{
-				geminiAudioInlineFrame,
-				geminiAudioInlineFrame,
-				geminiAudioInlineFrame,
+				l16Chunk,
+				l16Chunk,
+				l16Chunk,
 				`{"error":{"code":504,"message":"context deadline exceeded","status":"DEADLINE_EXCEEDED"}}`,
 			},
+			wantCompletionTokens: 8,
+		},
+		{
+			// 1 s of audio in the Gemini API's own mimeType form.
+			name:                 "pcm audio with codec parameter",
+			frames:               []string{geminiInlineFrame("audio/L16;codec=pcm;rate=24000", strings.Repeat(pcm100ms, 10))},
+			wantCompletionTokens: 25,
+		},
+		{
+			name:                 "audio without a measurable length",
+			frames:               []string{geminiInlineFrame("audio/mpeg", pcm100ms), geminiInlineFrame("audio/l16; rate=1", pcm100ms)},
 			wantCompletionTokens: 0,
 		},
 		{
 			name:                 "image chunks",
-			frames:               []string{geminiImageInlineFrame, geminiImageInlineFrame},
+			frames:               []string{geminiInlineFrame("image/png", "iVBORw0KGgo="), geminiInlineFrame("image/png", "iVBORw0KGgo=")},
 			wantCompletionTokens: 2 * 1400,
 		},
 	} {
@@ -727,9 +745,9 @@ func TestGeminiStreamHandlerWithoutUsageMetadataBillsOnlyImageInlineData(t *test
 	}
 }
 
-// The prompt-only usageMetadata patch applies the same image-only rule on both
-// the stream and non-stream paths.
-func TestGeminiHandlersPromptOnlyUsageMetadataBillsOnlyImageInlineData(t *testing.T) {
+// The prompt-only usageMetadata patch applies the same inline output estimate
+// on both the stream and non-stream paths.
+func TestGeminiHandlersPromptOnlyUsageMetadataEstimatesInlineOutput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	oldStreamingTimeout := constant.StreamingTimeout
@@ -738,7 +756,7 @@ func TestGeminiHandlersPromptOnlyUsageMetadataBillsOnlyImageInlineData(t *testin
 		constant.StreamingTimeout = oldStreamingTimeout
 	})
 
-	audioPart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "audio/l16; rate=24000; channels=1", Data: "AAAA"}}
+	audioPart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "audio/l16; rate=24000; channels=1", Data: pcm100ms}}
 	imagePart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "image/png", Data: "iVBORw0KGgo="}}
 
 	for _, tc := range []struct {
@@ -746,7 +764,7 @@ func TestGeminiHandlersPromptOnlyUsageMetadataBillsOnlyImageInlineData(t *testin
 		parts                []dto.GeminiPart
 		wantCompletionTokens int
 	}{
-		{"audio", []dto.GeminiPart{audioPart, audioPart, audioPart}, 0},
+		{"audio", []dto.GeminiPart{audioPart, audioPart, audioPart}, 8},
 		{"image", []dto.GeminiPart{imagePart, imagePart}, 2 * 1400},
 	} {
 		payload := dto.GeminiChatResponse{
