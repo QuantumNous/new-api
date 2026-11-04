@@ -51,6 +51,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Hint } from '@/features/hw/components/hint'
+import { PremiumModelNotice } from '@/features/hw/components/premium-model-notice'
 import { guideText, modelGuide } from '@/features/hw/data/model-guide'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
@@ -736,6 +737,11 @@ function ModelHeader(props: { model: PricingModel }) {
           {description}
         </p>
       )}
+      <PremiumModelNotice
+        className='mt-3'
+        language={i18n.language}
+        model={model.model_name}
+      />
     </header>
   )
 }

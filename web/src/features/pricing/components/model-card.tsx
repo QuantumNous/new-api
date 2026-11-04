@@ -24,6 +24,7 @@ import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Hint } from '@/features/hw/components/hint'
+import { PremiumModelNotice } from '@/features/hw/components/premium-model-notice'
 import { guideText, modelGuide } from '@/features/hw/data/model-guide'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -356,6 +357,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           <p className='text-muted-foreground text-[13px] leading-5 break-words'>
             {description}
           </p>
+          <PremiumModelNotice
+            language={i18n.language}
+            model={props.model.model_name}
+          />
           {tags.length > 0 && (
             <div
               role='group'

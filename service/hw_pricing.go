@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -83,6 +84,12 @@ type HwSoldModel struct {
 // newest model of its family; once a newer model costs the same or less, the
 // older one moves to hwRetiredModels.
 var hwSoldModels = []HwSoldModel{
+	// claude-fable-5-1 returned on 4 Nov 2026 (request Altuner, lifts HIS-5127)
+	// after a graded check on Lumia against claude-opus-5-5 (kennis/
+	// lumia-modelkeuring.md, 4 Nov): every answered task correct, a needle found
+	// in a 116k token prompt and a full 1..800 list. The price is the official
+	// Anthropic list price of that day ($10 / $50 per million tokens).
+	{Name: "claude-fable-5-1", PriceKey: "claude-fable-5-1", InputMicroUsd: 10_000_000, OutputMicroUsd: 50_000_000},
 	{Name: "claude-opus-5-5", PriceKey: "claude-opus-5-5", InputMicroUsd: 4_000_000, OutputMicroUsd: 20_000_000},
 	{Name: "claude-sonnet-5-5", PriceKey: "claude-sonnet-5-5", InputMicroUsd: 2_000_000, OutputMicroUsd: 10_000_000},
 	{Name: "claude-haiku-5-5", PriceKey: "claude-haiku-5-5", InputMicroUsd: 100_000, OutputMicroUsd: 500_000},
@@ -115,13 +122,10 @@ var hwRetiredModels = map[string]string{
 	"gpt-5.6-sol":   "gpt-6.1-sol",
 	"gpt-5.6-terra": "gpt-6.1-sol",
 	"gpt-6":         "gpt-6.1-sol",
-	// claude-fable-5-1 and gemini-3.8-flash left the catalog on 27 Oct 2026
-	// after the model check (kennis/lumia-modelkeuring.md): Fable answered the
-	// open identity question with another model's name, and the Gemini name has
-	// no route under the sold name (HTTP 403 key_model_access_denied). Neither
-	// had a vendor route left, so each one points at the sold model of its own
-	// price tier.
-	"claude-fable-5-1": "claude-opus-5-5",
+	// gemini-3.8-flash left the catalog on 27 Oct 2026 after the model check
+	// (kennis/lumia-modelkeuring.md): the name has no route under the sold name
+	// (HTTP 403 key_model_access_denied) and no vendor route, so it points at
+	// the sold model of its own price tier.
 	"gemini-3.8-flash": "claude-haiku-5-5",
 	// gemini-3.8-flash-cyber left the catalog on 29 Oct 2026 (CEO decision on
 	// HIS-5805, option 1): measured through the relay it was twice as slow as
@@ -129,6 +133,26 @@ var hwRetiredModels = map[string]string{
 	// HTTP 200), so the name is no longer sold. It has no newer namesake in its
 	// family, so it points at the sold model of its own price tier.
 	"gemini-3.8-flash-cyber": "claude-haiku-5-5",
+}
+
+// HwPremiumInputMicroUsd is the input list price (micro-dollars per million
+// tokens) from which a sold model counts as premium: claude-fable-5-1 and
+// gpt-6-astra on 4 Nov 2026, and every later model at least that expensive
+// without a code change. The console warns on a premium model that it uses up
+// the credit much faster than the model one step lower.
+const HwPremiumInputMicroUsd = 10_000_000
+
+// HwIsSoldModel reports whether name is a model of the catalog.
+func HwIsSoldModel(name string) bool {
+	return slices.ContainsFunc(hwSoldModels, func(sold HwSoldModel) bool { return sold.Name == name })
+}
+
+// HwIsPremiumModel reports whether name is a sold model priced at or above
+// HwPremiumInputMicroUsd.
+func HwIsPremiumModel(name string) bool {
+	return slices.ContainsFunc(hwSoldModels, func(sold HwSoldModel) bool {
+		return sold.Name == name && sold.InputMicroUsd >= HwPremiumInputMicroUsd
+	})
 }
 
 // HwRetiredModelSuccessor returns the model that replaces a retired model name.

@@ -65,15 +65,17 @@ afterEach(async () => {
   await useLanguage('en')
 })
 
-test('lists all 8 sold models, one row each', () => {
+test('lists all 9 sold models, one row each', () => {
   render(<PriceTable />)
 
   const rows = within(screen.getByRole('table')).getAllByRole('row')
   // Two header rows, then one row per model.
-  expect(rows).toHaveLength(2 + 8)
-  expect(MODEL_PRICES).toHaveLength(8)
+  expect(rows).toHaveLength(2 + 9)
+  expect(MODEL_PRICES).toHaveLength(9)
   for (const entry of MODEL_PRICES) {
-    expect(screen.getByText(entry.model)).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('table')).getByText(entry.model)
+    ).toBeInTheDocument()
   }
 })
 
@@ -213,4 +215,40 @@ test('shows the explanation in English when the interface language is English', 
     screen.getByRole('heading', { name: 'Model price table' })
   ).toBeInTheDocument()
   expect(screen.getByText(/“1M tokens” means one million tokens/)).toBeVisible()
+})
+
+test('warns on the premium models only, naming the cheaper model one step lower', () => {
+  render(<PriceTable />)
+
+  const notices = screen.getAllByTestId('hw-premium-notice')
+  expect(notices).toHaveLength(2)
+  expect(notices[0]).toHaveTextContent('claude-fable-5-1')
+  expect(notices[0]).toHaveTextContent(
+    'Bu model kredinizi çok daha hızlı tüketir. Bir alt model, claude-opus-5-5, çok daha ucuz'
+  )
+  expect(notices[1]).toHaveTextContent('gpt-6-astra')
+  expect(notices[1]).toHaveTextContent('gpt-6.1-sol')
+  for (const notice of notices) {
+    expect(notice).not.toHaveTextContent('claude-sonnet-5-5')
+  }
+})
+
+test('shows the premium notice inside the phone card of a premium model', async () => {
+  const width = window.innerWidth
+  window.innerWidth = 390
+  try {
+    await useLanguage('en')
+    render(<PriceTable />)
+
+    const cards = await screen.findAllByTestId('hw-price-card')
+    expect(within(cards[0]).getByTestId('hw-premium-notice')).toHaveTextContent(
+      'This model uses up your credit much faster. The model one step lower, claude-opus-5-5, is much cheaper and almost as good.'
+    )
+    const sonnet = cards.find((card) =>
+      within(card).queryByText('claude-sonnet-5-5')
+    ) as HTMLElement
+    expect(within(sonnet).queryByTestId('hw-premium-notice')).toBeNull()
+  } finally {
+    window.innerWidth = width
+  }
 })

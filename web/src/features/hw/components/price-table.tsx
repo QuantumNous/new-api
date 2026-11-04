@@ -52,6 +52,8 @@ import {
 import { useHwCurrency } from '../hooks/use-hw-currency'
 import { HW_CURRENCY_SYMBOLS, type HwCurrency } from '../lib/currency'
 import { usePriceTableText } from '../price-table-texts'
+import { pickHwLanguage } from '../texts'
+import { PremiumModelNotice } from './premium-model-notice'
 
 type PriceTableProps = {
   models?: readonly ModelPrice[]
@@ -289,6 +291,8 @@ function CardAmount(props: {
  */
 function PriceCard(props: {
   row: ModelPrice
+  models: readonly ModelPrice[]
+  language: string
   secondary: SecondaryPrice
   locale: string | undefined
   t: Translate
@@ -352,6 +356,12 @@ function PriceCard(props: {
           ? t('missing')
           : `${formatMoney(openrouter.input, 'USD', props.locale)} / ${formatMoney(openrouter.output, 'USD', props.locale)} · ${t('colVsOpenRouter')}: ${savingPhrase(savingFraction(openrouter, row.hisarweb), props.locale, t)}`}
       </p>
+      <PremiumModelNotice
+        className='mt-3'
+        language={props.language}
+        model={row.model}
+        models={props.models}
+      />
     </li>
   )
 }
@@ -444,6 +454,7 @@ export function PriceTable(props: PriceTableProps) {
   const t = usePriceTableText()
   const { i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const language = pickHwLanguage(i18n.resolvedLanguage ?? i18n.language)
   const models = props.models ?? MODEL_PRICES
   const tryPerUsd = props.tryPerUsd ?? MODEL_PRICES_TRY_PER_USD
   const { currency, rates } = useHwCurrency()
@@ -474,7 +485,9 @@ export function PriceTable(props: PriceTableProps) {
             {models.map((row) => (
               <PriceCard
                 key={row.model}
+                language={language}
                 locale={locale}
+                models={models}
                 row={row}
                 t={t}
                 secondary={secondary}
@@ -504,6 +517,17 @@ export function PriceTable(props: PriceTableProps) {
             </Table>
           </div>
         )}
+
+        {!isMobile &&
+          models.map((row) => (
+            <PremiumModelNotice
+              key={row.model}
+              language={language}
+              model={row.model}
+              models={models}
+              showModel
+            />
+          ))}
 
         <section className='space-y-2'>
           <h3 className='text-sm font-semibold'>{t('notesTitle')}</h3>

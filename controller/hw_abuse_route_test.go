@@ -95,28 +95,28 @@ func hwAbuseChannel(t *testing.T, env *hwEnv, name, group, modelName string) *hw
 }
 
 // H1: a free account that holds a token in another group, or whose playground
-// body names another group, still may not call the Sonnet class. The request is
+// body names another group, still may not call a model outside the catalog (the whole catalog is open to it since 4 Nov 2026). The request is
 // refused before any supplier is touched, whatever group the channels are
 // configured for.
-func TestHwFreeGroupCannotReachSonnetThroughAnotherGroup(t *testing.T) {
+func TestHwFreeGroupCannotReachAnUnsoldModelThroughAnotherGroup(t *testing.T) {
 	env := hwNewEnv(t, "free", 1_000_000)
 	hwGrantTokenGroup(t, "free", "default")
 	// A token in the default group: TokenAuth accepts it for a free account, and
 	// the old rule read the token group from here.
 	require.NoError(t, env.db.Model(&model.Token{}).Where("id = ?", env.token.Id).Update("group", "default").Error)
-	hwAbuseChannel(t, env, "free-sonnet", "free", "claude-sonnet-5-5")
-	supplier := hwAbuseChannel(t, env, "default-sonnet", "default", "claude-sonnet-5-5")
+	hwAbuseChannel(t, env, "free-unsold", "free", "claude-opus-5")
+	supplier := hwAbuseChannel(t, env, "default-unsold", "default", "claude-opus-5")
 	env.hwAbuseRouter()
 
-	request := hwChatRequest("claude-sonnet-5-5", false)
+	request := hwChatRequest("claude-opus-5", false)
 	for _, path := range []string{"/v1/chat/completions", "/v1/messages"} {
 		recorder := env.hwAbusePost(t, path, request, nil)
-		assert.Equal(t, http.StatusForbidden, recorder.Code, "%s refuses a free account the Sonnet class", path)
+		assert.Equal(t, http.StatusForbidden, recorder.Code, "%s refuses a free account a model outside the catalog", path)
 	}
 
 	// The playground body names another group; the account group still decides.
 	recorder := env.hwAbusePost(t, "/pg/chat/completions", map[string]any{
-		"model":    "claude-sonnet-5-5",
+		"model":    "claude-opus-5",
 		"group":    "default",
 		"stream":   false,
 		"messages": []map[string]any{{"role": "user", "content": "hello"}},
@@ -124,7 +124,7 @@ func TestHwFreeGroupCannotReachSonnetThroughAnotherGroup(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, recorder.Code, "a playground body group does not widen the free class")
 
 	// The Gemini path carries the model in the URL.
-	recorder = env.hwAbusePost(t, "/v1beta/models/claude-sonnet-5-5:generateContent", map[string]any{
+	recorder = env.hwAbusePost(t, "/v1beta/models/claude-opus-5:generateContent", map[string]any{
 		"contents": []map[string]any{{"parts": []map[string]any{{"text": "hello"}}}},
 	}, nil)
 	assert.Equal(t, http.StatusForbidden, recorder.Code, "the /v1beta path does not widen the free class")
@@ -179,7 +179,6 @@ func TestHwFreeGroupBudgetFollowsTheAccountOnMessages(t *testing.T) {
 // the door again.
 func TestHwFrozenAccountBlockedOnFreeCredit(t *testing.T) {
 	env := hwNewEnv(t, "free", 1_000_000)
-	t.Setenv("HW_FREE_MODELS", "claude-sonnet-5-5")
 	hwAbuseChannel(t, env, "free-sonnet", "free", "claude-sonnet-5-5")
 	env.hwAbuseRouter()
 	request := hwChatRequest("claude-sonnet-5-5", false)

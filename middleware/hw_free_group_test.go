@@ -150,7 +150,7 @@ func TestHwFreeGroupModelGateAlsoRunsForPinnedChannels(t *testing.T) {
 		c.Status(http.StatusOK)
 	})
 
-	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"claude-sonnet-5-5"}`))
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"claude-opus-5"}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -189,8 +189,11 @@ func TestHwFreeGroupModelAllowed(t *testing.T) {
 		{name: "free may not call a model that only mentions haiku", group: "free", model: "claude-haiku-pro", want: false},
 		{name: "free may not call a sonnet alias with haiku in the name", group: "free", model: "sonnet-haiku-blend", want: false},
 		{name: "free may not call the bare family name", group: "free", model: "claude-haiku", want: false},
-		{name: "free may not call sonnet", group: "free", model: "claude-sonnet-5-5", want: false},
-		{name: "free may not call opus", group: "free", model: "claude-opus-5", want: false},
+		{name: "free may call a sold sonnet", group: "free", model: "claude-sonnet-5-5", want: true},
+		{name: "free may call the premium fable", group: "free", model: "claude-fable-5-1", want: true},
+		{name: "free may call the premium astra with a modifier", group: "free", model: "gpt-6-astra@high", want: true},
+		{name: "free may not call an opus outside the catalog", group: "free", model: "claude-opus-5", want: false},
+		{name: "free may not call a retired model", group: "free", model: "gpt-6", want: false},
 		{name: "free may not call an unrelated model", group: "free", model: "gpt-5", want: false},
 		{name: "free may not call an empty model", group: "free", model: "", want: false},
 		{name: "the allow-list admits an exact extra model", group: "free", model: "our-extra-model", want: true},
