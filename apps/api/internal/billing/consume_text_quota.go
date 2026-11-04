@@ -437,7 +437,9 @@ func isUndeliveredTextResponse(relayInfo *relaycommon.RelayInfo, summary textQuo
 	if adminRejectReason != "" {
 		return false
 	}
-	return relayInfo.StreamStatus.GetEndReason() != relaycommon.StreamEndReasonClientGone
+	reason := relayInfo.StreamStatus.GetEndReason()
+	return reason != relaycommon.StreamEndReasonClientGone &&
+		reason != relaycommon.StreamEndReasonPingFail
 }
 
 // applyEmptyResponseMultiplier scales the settled quota when a 2xx response
@@ -453,6 +455,12 @@ func applyEmptyResponseMultiplier(relayInfo *relaycommon.RelayInfo, summary *tex
 		return
 	}
 	summary.EmptyResponseDetected = true
+	// A settled empty 200 is an upstream failure too; the relay loop must not
+	// reward the channel. handler_stop stays unclassified because it is shared
+	// with client write failures.
+	if relayInfo.StreamStatus.GetEndReason() != relaycommon.StreamEndReasonHandlerStop {
+		relayInfo.SettledUpstreamFailure = true
+	}
 	multiplier := GetQuotaSetting().EmptyResponseMultiplier
 	if math.IsNaN(multiplier) || multiplier < 0 {
 		multiplier = 0
@@ -538,6 +546,9 @@ func applyTruncatedResponseMultiplier(relayInfo *relaycommon.RelayInfo, summary 
 	if kind != streamCutUpstream {
 		return
 	}
+	// The charge is settled from here on, so the relay loop cannot retry or
+	// refund; it still needs to know the attempt was the channel's failure.
+	relayInfo.SettledUpstreamFailure = true
 	if summary.EmptyResponseDetected {
 		return
 	}

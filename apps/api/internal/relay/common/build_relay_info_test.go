@@ -173,3 +173,17 @@ func TestInitChannelMetaRestoresRequestReasoningEffortForRetry(t *testing.T) {
 	info.InitChannelMeta(ctx)
 	assert.Equal(t, "max", info.ReasoningEffort)
 }
+
+// TestResetStreamObservationClearsSettledUpstreamFailure keeps the health
+// marker per-attempt. Retention would make a retry after a settled partial
+// answer look like a channel failure of its own even when the retry is clean.
+func TestResetStreamObservationClearsSettledUpstreamFailure(t *testing.T) {
+	info := &RelayInfo{
+		SettledUpstreamFailure: true,
+		StreamCutOverride:      "upstream",
+	}
+
+	info.ResetStreamObservation()
+
+	assert.False(t, info.SettledUpstreamFailure)
+}

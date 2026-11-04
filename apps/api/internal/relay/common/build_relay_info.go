@@ -211,6 +211,12 @@ type RelayInfo struct {
 	// end-reason classifier cannot infer, such as an OpenAI stream closed at
 	// EOF without [DONE]. Empty means no override.
 	StreamCutOverride string
+	// SettledUpstreamFailure records that billing classified this attempt as an
+	// upstream failure (cut or settled empty response) and settled its charge.
+	// The attempt is terminal for billing and retry, but the serving channel
+	// still failed: the relay loop must charge it as a failed attempt instead
+	// of rewarding it as a success.
+	SettledUpstreamFailure bool
 
 	// convOptions caches the converter settings snapshot (see ConvOptions).
 	convOptions *convmeta.Options
@@ -1170,6 +1176,7 @@ func (info *RelayInfo) ResetStreamObservation() {
 	info.StreamSawToolCall = false
 	info.StreamSawMediaContent = false
 	info.StreamSawFinishReason = false
+	info.SettledUpstreamFailure = false
 	info.StreamFinishReason = ""
 	info.StreamCutOverride = ""
 }

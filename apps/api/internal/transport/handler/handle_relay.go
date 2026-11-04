@@ -381,6 +381,38 @@ func Relay(c contract.Context, relayFormat types.RelayFormat) {
 			handle.ObserveLatency(attemptLatencyMs)
 		}
 
+		if newAPIError == nil && relayInfo.SettledUpstreamFailure {
+			// Billing already settled the charge for this upstream stream cut,
+			// so the attempt is terminal: retrying would append a second answer
+			// after content the client already received, and refunding would
+			// undo the settlement. The upstream still cut the stream, so both
+			// health ledgers must see a failed attempt instead of the success
+			// newAPIError == nil suggests.
+			settledErr := settledUpstreamFailureError()
+			attempts = append(attempts, catalog.ChannelAttempt{
+				ChannelID: channel.Id,
+				ModelName: relayInfo.OriginModelName,
+				Outcome:   catalog.OutcomeFatal,
+			})
+			if healthErr := catalog.ReportOutcome(routeKey, catalog.ClassifyUnitOutcome(settledErr, channel.Id), 0, -1, time.Now()); healthErr != nil {
+				logger.LogError(c.Context(), fmt.Sprintf("record unit outcome failed: %s", healthErr.Error()))
+			}
+			routeStats := classifyRouteStatsOutcome(settledErr)
+			if handle != nil {
+				if routeStats == routeStatsFatal {
+					observeAttemptTiming()
+					handle.ObserveSuccess(routestats.FatalObservation)
+				}
+				routestats.RecordAttempt(requestId, relayInfo.RetryIndex, handle.Key(),
+					routestats.AuditOutcomeFromRouteStats(int(routeStats)),
+					c.Header("X-Request-Id"), common.GetCtxKeyString(c, constant.ContextKeyRoutePath), relayInfo.UsingGroup)
+			}
+			gopool.Go(func() {
+				usage.RecordRelaySample(relayInfo, false, 0)
+			})
+			return
+		}
+
 		if newAPIError == nil {
 			// Two independent signals are charged for one attempt, and both must
 			// fire. The soft signal (#405 EWMA) only nudges a continuous
@@ -508,6 +540,17 @@ func Relay(c contract.Context, relayFormat types.RelayFormat) {
 			usage.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+// settledUpstreamFailureError synthesizes the 502 that classifies an already
+// settled upstream cut for the unit state machine and the route-stats EWMA.
+// Billing settled the charge before the relay loop saw the attempt, so this
+// error is never returned to the client, retried, or refunded; it exists only
+// so the standard 5xx failure classification applies unchanged.
+func settledUpstreamFailureError() *types.NewAPIError {
+	return types.NewOpenAIError(
+		errors.New("upstream stream closed before the answer was complete"),
+		types.ErrorCodeBadResponse, http.StatusBadGateway)
 }
 
 func addUsedChannel(c contract.Context, channelId int) {

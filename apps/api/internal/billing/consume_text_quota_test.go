@@ -1533,3 +1533,113 @@ func TestApplyTruncatedResponseMultiplierForcedUpstreamCut(t *testing.T) {
 	require.Equal(t, expected, summary.Quota, "an OpenAI EOF cut must settle at the truncated multiplier")
 	assert.Equal(t, "upstream", summary.StreamCut)
 }
+
+// TestApplyTruncatedResponseMultiplierMarksSettledUpstreamFailure is the
+// health-signal half of the settlement split: once billing decides an upstream
+// cut is the provider's fault and settles the charge, the relay loop must still
+// see a channel failure. A client disconnect or a clean stream must not mark
+// the attempt, because neither says anything about the channel.
+func TestApplyTruncatedResponseMultiplierMarksSettledUpstreamFailure(t *testing.T) {
+	setTruncatedResponseMultiplier(t, 0.3)
+	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
+	ctx := ctxRaw
+
+	cases := []struct {
+		name     string
+		prepare  func(*relaycommon.RelayInfo)
+		wantCut  string
+		wantMark bool
+	}{
+		{
+			name: "upstream scanner error marks the attempt",
+			prepare: func(info *relaycommon.RelayInfo) {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, nil)
+			},
+			wantCut:  "upstream",
+			wantMark: true,
+		},
+		{
+			name: "handler-attributed cut at plain EOF marks the attempt",
+			prepare: func(info *relaycommon.RelayInfo) {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
+				info.StreamCutOverride = "upstream"
+			},
+			wantCut:  "upstream",
+			wantMark: true,
+		},
+		{
+			name: "client disconnect does not mark the attempt",
+			prepare: func(info *relaycommon.RelayInfo) {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+			},
+			wantCut: "client",
+		},
+		{
+			name: "ping failure does not mark the attempt",
+			prepare: func(info *relaycommon.RelayInfo) {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPingFail, nil)
+			},
+			wantCut: "client",
+		},
+		{
+			name: "clean stream does not mark the attempt",
+			prepare: func(info *relaycommon.RelayInfo) {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+			},
+		},
+		{
+			name: "scanner error after finish_reason does not mark the attempt",
+			prepare: func(info *relaycommon.RelayInfo) {
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, nil)
+				info.StreamSawFinishReason = true
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			relayInfo := truncatedCutRelayInfo()
+			tc.prepare(relayInfo)
+			usage := &dto.Usage{PromptTokens: 1000, CompletionTokens: 100, TotalTokens: 1100}
+
+			summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+			applyTruncatedResponseMultiplier(relayInfo, &summary, false)
+
+			assert.Equal(t, tc.wantCut, summary.StreamCut)
+			assert.Equal(t, tc.wantMark, relayInfo.SettledUpstreamFailure)
+		})
+	}
+}
+
+func TestApplyEmptyResponseMultiplierMarksSettledUpstreamFailure(t *testing.T) {
+	setEmptyResponseMultiplier(t, 0.1)
+	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
+	ctx := ctxRaw
+	relayInfo := truncatedCutRelayInfo()
+	relayInfo.StreamContentObserved = true
+	relayInfo.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+	usage := &dto.Usage{PromptTokens: 1000, CompletionTokens: 0, TotalTokens: 1000}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+	applyEmptyResponseMultiplier(relayInfo, &summary, "")
+
+	require.True(t, summary.EmptyResponseDetected)
+	assert.True(t, relayInfo.SettledUpstreamFailure,
+		"a settled empty 200 is an upstream failure, not a channel success")
+}
+
+func TestApplyEmptyResponseMultiplierPingFailChargesFull(t *testing.T) {
+	setEmptyResponseMultiplier(t, 0)
+	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
+	ctx := ctxRaw
+	relayInfo := truncatedCutRelayInfo()
+	relayInfo.StreamContentObserved = true
+	relayInfo.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPingFail, nil)
+	usage := &dto.Usage{PromptTokens: 1000, CompletionTokens: 0, TotalTokens: 1000}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+	applyEmptyResponseMultiplier(relayInfo, &summary, "")
+
+	require.False(t, summary.EmptyResponseDetected)
+	assert.False(t, relayInfo.SettledUpstreamFailure)
+	require.Equal(t, 2000, summary.Quota, "a client-side ping failure keeps the full charge")
+}
