@@ -526,6 +526,15 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 }
 
 func TokenAuth() func(c *gin.Context) {
+	return tokenAuth(false)
+}
+
+// EstimateTokenAuth authenticates the outer request while allowing exhausted funds.
+func EstimateTokenAuth() gin.HandlerFunc {
+	return tokenAuth(true)
+}
+
+func tokenAuth(estimate bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 先检测是否为ws
 		applyWebSocketSubprotocolAuthorization(c.Request.Header)
@@ -569,7 +578,11 @@ func TokenAuth() func(c *gin.Context) {
 			parts = strings.Split(key, "-")
 			key = parts[0]
 		}
-		token, err := model.ValidateUserToken(key)
+		validate := model.ValidateUserToken
+		if estimate {
+			validate = model.ValidateEstimateToken
+		}
+		token, err := validate(key)
 		if token != nil {
 			id := c.GetInt("id")
 			if id == 0 {

@@ -199,139 +199,11 @@ func ApplyOriginTaskAffinity(c *gin.Context, info *relaycommon.RelayInfo) *dto.T
 // 共享控制器编排负责未落库退款、最终额度预留、落库和结算。
 func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {
 	info.InitChannelMeta(c)
-
-	// 1. 确定 platform → 创建适配器 → 验证请求
-	platform := constant.TaskPlatform(c.GetString("platform"))
-	if platform == "" {
-		platform = GetTaskPlatform(c)
-	}
-	platform, adaptor := getTaskAdaptorForRequest(c, platform)
-	if adaptor == nil {
-		code, message := TaskPlatformUnavailableError(platform)
-		return nil, service.TaskErrorWrapperLocal(errors.New(message), code, http.StatusBadRequest)
-	}
-	// buildSubmitRequest runs during validation and the unreleased plugin
-	// contract exposes this host-generated id to that hook.
-	if info.PublicTaskID == "" {
-		info.PublicTaskID = model.GenerateTaskID()
-	}
-	adaptor.Init(info)
-	// Plugin submit hooks run during ValidateRequestAndSetAction and cache the
-	// upstream body. OriginModelName is already seeded on that line (protocol
-	// resolved_task_model, legacy submit, or GenRelayInfo original_model), so
-	// map before validation. The empty-name CoverTaskActionToModelName
-	// synthesis happens after validate and cannot move; skip the late block
-	// when early mapping ran so a chain is never applied twice.
-	mappedBeforeValidate := info.OriginModelName != ""
-	if mappedBeforeValidate {
-		info.UpstreamModelName = info.OriginModelName
-		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
-			return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
-		}
-	}
-	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+	prepared, taskErr := PrepareTaskBilling(c, info)
+	if taskErr != nil {
 		return nil, taskErr
 	}
-
-	// 2. 确定模型名称
-	modelName := info.OriginModelName
-	if modelName == "" {
-		modelName = service.CoverTaskActionToModelName(platform, info.Action)
-	}
-
-	if !mappedBeforeValidate {
-		info.OriginModelName = modelName
-		info.UpstreamModelName = modelName
-		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
-			return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
-		}
-	}
-
-	// 4. 价格计算：基础模型价格。重试可能换了插件或渠道，每次尝试都重新定价，
-	//    不沿用上一次尝试的表达式快照。
-	info.OriginModelName = modelName
-	info.TieredBillingSnapshot = nil
-	var priceData types.PriceData
-	var err error
-	pluginKey := c.GetString("task_plugin_key")
-	pinnedValue, _ := c.Get(jsplugin.ContextKeyPinnedPlugin)
-	pinnedPlugin, _ := pinnedValue.(jsplugin.PinnedPlugin)
-	if pinnedPlugin.Plugin != nil {
-		pluginKey = pinnedPlugin.Plugin.Meta.Key
-	}
-	exprStr, exists := billing_setting.ResolveTaskBillingExpr(pluginKey, modelName, info.UpstreamModelName)
-	useTiered := exists || billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeTieredExpr
-	if useTiered {
-		provider, supported := adaptor.(channel.TaskUsageFactsProvider)
-		if billingexpr.UsesFixedPricing(exprStr) {
-			return nil, service.TaskErrorWrapper(fmt.Errorf("fixed pricing is not supported for task usage expressions"), "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
-		}
-		if !exists || !supported {
-			return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s has no usage expression or meter", modelName), "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
-		}
-		sharedModel := pinnedPlugin.Generation.SharedModel(modelName) || pinnedPlugin.Generation.SharedModel(info.UpstreamModelName)
-		if sharedModel && pinnedPlugin.Plugin != nil {
-			schema, _ := pinnedPlugin.Plugin.Meta.UsageForModels(info.UpstreamModelName, modelName)
-			if !billing_setting.TaskExprCompatible(exprStr, schema) {
-				return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s pricing is not configured for plugin %s", modelName, pluginKey), "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
-			}
-		}
-		var facts map[string]any
-		if validatedProvider, ok := adaptor.(channel.TaskValidatedUsageFactsProvider); ok {
-			facts, err = validatedProvider.ExtractUsageFactsValidated(c, info)
-			if err != nil {
-				return nil, service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
-			}
-		} else {
-			facts = provider.ExtractUsageFacts(c, info)
-		}
-		cost, trace, runErr := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: facts})
-		if runErr != nil || cost < 0 {
-			if runErr == nil {
-				runErr = fmt.Errorf("negative task expression result")
-			}
-			return nil, service.TaskErrorWrapper(runErr, "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
-		}
-		groupRatioInfo := helper.HandleGroupRatio(c, info)
-		quota, clamp := common.QuotaRoundChecked(cost * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
-		noteTaskQuotaClamp(info, clamp)
-		priceData = types.PriceData{Quota: quota, QuotaToPreConsume: quota, GroupRatioInfo: groupRatioInfo}
-		info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{BillingMode: billing_setting.BillingModeTieredExpr, ModelName: modelName, ExprString: exprStr, ExprHash: billingexpr.ExprHashString(exprStr), GroupRatio: groupRatioInfo.GroupRatio, EstimatedQuotaBeforeGroup: cost * common.QuotaPerUnit, EstimatedQuotaAfterGroup: quota, EstimatedTier: trace.MatchedTier, QuotaPerUnit: common.QuotaPerUnit, ExprVersion: billingexpr.ExprVersion(exprStr), TaskUsageBilling: true, UsageFacts: facts}
-	} else {
-		priceData, err = helper.ModelPriceHelperPerCall(c, info)
-		if err != nil {
-			return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
-		}
-	}
-	info.PriceData = priceData
-
-	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
-	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
-	//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
-	if info.TieredBillingSnapshot == nil {
-		var estimatedRatios map[string]float64
-		if validatedProvider, ok := adaptor.(channel.TaskValidatedBillingProvider); ok {
-			estimatedRatios, err = validatedProvider.EstimateBillingValidated(c, info)
-			if err != nil {
-				return nil, service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
-			}
-		} else {
-			estimatedRatios = adaptor.EstimateBilling(c, info)
-		}
-		if len(estimatedRatios) > 0 {
-			for k, v := range estimatedRatios {
-				info.PriceData.AddOtherRatio(k, v)
-			}
-		}
-	}
-
-	// 6. 将 OtherRatios 应用到基础额度（饱和转换，防止溢出成负数）
-	if info.TieredBillingSnapshot == nil && !common.StringsContains(constant.TaskPricePatches, modelName) {
-		quotaWithRatios := info.PriceData.ApplyOtherRatiosToFloat(float64(info.PriceData.Quota))
-		quota, clamp := common.QuotaFromFloatChecked(quotaWithRatios)
-		info.PriceData.Quota = quota
-		noteTaskQuotaClamp(info, clamp)
-	}
+	adaptor := prepared.Adaptor
 
 	// 7. 预扣费：首次尝试创建计费会话；重试时会话已存在，换到更贵的渠道要在
 	//    发起上游请求前补足预扣，余额不足就不发请求。
@@ -407,11 +279,130 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		UpstreamTaskID: parsed.UpstreamTaskID,
 		TaskData:       parsed.TaskData,
 		ClientResponse: parsed.ClientResponse,
-		Platform:       platform,
+		Platform:       prepared.Platform,
 		Quota:          finalQuota,
 		Immediate:      parsed.Immediate,
 		PluginState:    parsed.PluginState,
 	}, nil
+}
+
+type TaskBillingPreparation struct {
+	Adaptor  channel.TaskAdaptor
+	Platform constant.TaskPlatform
+}
+
+// PrepareTaskBilling shares the real task submit path through price calculation
+// and stops before reservation, request building or any upstream operation.
+func PrepareTaskBilling(c *gin.Context, info *relaycommon.RelayInfo) (*TaskBillingPreparation, *dto.TaskError) {
+	info.InitChannelMeta(c)
+	platform := constant.TaskPlatform(c.GetString("platform"))
+	if platform == "" {
+		platform = GetTaskPlatform(c)
+	}
+	platform, adaptor := getTaskAdaptorForRequest(c, platform)
+	if adaptor == nil {
+		code, message := TaskPlatformUnavailableError(platform)
+		return nil, service.TaskErrorWrapperLocal(errors.New(message), code, http.StatusBadRequest)
+	}
+	if info.PublicTaskID == "" {
+		info.PublicTaskID = model.GenerateTaskID()
+	}
+	adaptor.Init(info)
+	mappedBeforeValidate := info.OriginModelName != ""
+	if mappedBeforeValidate {
+		info.UpstreamModelName = info.OriginModelName
+		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+		}
+	}
+	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		return nil, taskErr
+	}
+	modelName := info.OriginModelName
+	if modelName == "" {
+		modelName = service.CoverTaskActionToModelName(platform, info.Action)
+	}
+	if !mappedBeforeValidate {
+		info.OriginModelName = modelName
+		info.UpstreamModelName = modelName
+		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+		}
+	}
+	info.OriginModelName = modelName
+	info.TieredBillingSnapshot = nil
+	var priceData types.PriceData
+	var err error
+	pluginKey := c.GetString("task_plugin_key")
+	pinnedValue, _ := c.Get(jsplugin.ContextKeyPinnedPlugin)
+	pinnedPlugin, _ := pinnedValue.(jsplugin.PinnedPlugin)
+	if pinnedPlugin.Plugin != nil {
+		pluginKey = pinnedPlugin.Plugin.Meta.Key
+	}
+	exprStr, exists := billing_setting.ResolveTaskBillingExpr(pluginKey, modelName, info.UpstreamModelName)
+	useTiered := exists || billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeTieredExpr
+	if useTiered {
+		provider, supported := adaptor.(channel.TaskUsageFactsProvider)
+		if billingexpr.UsesFixedPricing(exprStr) {
+			return nil, service.TaskErrorWrapper(fmt.Errorf("fixed pricing is not supported for task usage expressions"), "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
+		}
+		if !exists || !supported {
+			return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s has no usage expression or meter", modelName), "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
+		}
+		if pinnedPlugin.Generation != nil && pinnedPlugin.Plugin != nil && (pinnedPlugin.Generation.SharedModel(modelName) || pinnedPlugin.Generation.SharedModel(info.UpstreamModelName)) {
+			schema, _ := pinnedPlugin.Plugin.Meta.UsageForModels(info.UpstreamModelName, modelName)
+			if !billing_setting.TaskExprCompatible(exprStr, schema) {
+				return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s pricing is not configured for plugin %s", modelName, pluginKey), "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
+			}
+		}
+		var facts map[string]any
+		if validatedProvider, ok := adaptor.(channel.TaskValidatedUsageFactsProvider); ok {
+			facts, err = validatedProvider.ExtractUsageFactsValidated(c, info)
+			if err != nil {
+				return nil, service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
+			}
+		} else {
+			facts = provider.ExtractUsageFacts(c, info)
+		}
+		cost, trace, runErr := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: facts})
+		if runErr != nil || cost < 0 {
+			if runErr == nil {
+				runErr = fmt.Errorf("negative task expression result")
+			}
+			return nil, service.TaskErrorWrapper(runErr, "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
+		}
+		groupRatioInfo := helper.HandleGroupRatio(c, info)
+		quota, clamp := common.QuotaRoundChecked(cost * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		noteTaskQuotaClamp(info, clamp)
+		priceData = types.PriceData{Quota: quota, QuotaToPreConsume: quota, GroupRatioInfo: groupRatioInfo}
+		info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{BillingMode: billing_setting.BillingModeTieredExpr, ModelName: modelName, ExprString: exprStr, ExprHash: billingexpr.ExprHashString(exprStr), GroupRatio: groupRatioInfo.GroupRatio, EstimatedQuotaBeforeGroup: cost * common.QuotaPerUnit, EstimatedQuotaAfterGroup: quota, EstimatedTier: trace.MatchedTier, QuotaPerUnit: common.QuotaPerUnit, ExprVersion: billingexpr.ExprVersion(exprStr), TaskUsageBilling: true, UsageFacts: facts}
+	} else {
+		priceData, err = helper.ModelPriceHelperPerCall(c, info)
+		if err != nil {
+			return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
+		}
+	}
+	info.PriceData = priceData
+	if info.TieredBillingSnapshot == nil {
+		var estimatedRatios map[string]float64
+		if validatedProvider, ok := adaptor.(channel.TaskValidatedBillingProvider); ok {
+			estimatedRatios, err = validatedProvider.EstimateBillingValidated(c, info)
+			if err != nil {
+				return nil, service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
+			}
+		} else {
+			estimatedRatios = adaptor.EstimateBilling(c, info)
+		}
+		for k, v := range estimatedRatios {
+			info.PriceData.AddOtherRatio(k, v)
+		}
+	}
+	if info.TieredBillingSnapshot == nil && !common.StringsContains(constant.TaskPricePatches, modelName) {
+		quota, clamp := common.QuotaFromFloatChecked(info.PriceData.ApplyOtherRatiosToFloat(float64(info.PriceData.Quota)))
+		info.PriceData.Quota = quota
+		noteTaskQuotaClamp(info, clamp)
+	}
+	return &TaskBillingPreparation{Adaptor: adaptor, Platform: platform}, nil
 }
 
 // recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。

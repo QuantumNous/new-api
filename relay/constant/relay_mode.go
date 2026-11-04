@@ -132,7 +132,7 @@ func Path2RelayModeMidjourney(path string) int {
 	} else if strings.HasSuffix(path, "/mj/submit/change") {
 		relayMode = RelayModeMidjourneyChange
 	} else if strings.HasSuffix(path, "/mj/submit/simple-change") {
-		relayMode = RelayModeMidjourneyChange
+		relayMode = RelayModeMidjourneySimpleChange
 	} else if strings.HasSuffix(path, "/fetch") {
 		relayMode = RelayModeMidjourneyTaskFetch
 	} else if strings.HasSuffix(path, "/image-seed") {

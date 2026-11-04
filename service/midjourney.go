@@ -30,6 +30,104 @@ func CovertMjpActionToModelName(mjAction string) string {
 	return modelName
 }
 
+// MidjourneySubmit is the local submission context, before funding or upstream I/O.
+type MidjourneySubmit struct {
+	Request         dto.MidjourneyRequest
+	ModelName       string
+	ConsumeQuota    bool
+	OriginChannelID int
+}
+
+// PrepareMidjourneySubmit shares validation and origin-task lookup between
+// distribution, real submission and quoting. The cached value is request-local.
+func PrepareMidjourneySubmit(c *gin.Context, userID, relayMode int) (*MidjourneySubmit, *dto.MidjourneyResponse) {
+	const contextKey = "prepared_midjourney_submit"
+	if cached, exists := c.Get(contextKey); exists {
+		return cached.(*MidjourneySubmit), nil
+	}
+	prepared := &MidjourneySubmit{ConsumeQuota: true}
+	request := &prepared.Request
+	if relayMode == relayconstant.RelayModeSwapFace {
+		var swap dto.SwapFaceRequest
+		if err := common.UnmarshalBodyReusable(c, &swap); err != nil {
+			return nil, MidjourneyErrorWrapper(constant.MjRequestError, "bind_request_body_failed")
+		}
+		if swap.SourceBase64 == "" || swap.TargetBase64 == "" {
+			return nil, MidjourneyErrorWrapper(constant.MjRequestError, "sour_base64_and_target_base64_is_required")
+		}
+		request.Action = constant.MjActionSwapFace
+	} else {
+		if err := common.UnmarshalBodyReusable(c, request); err != nil {
+			return nil, MidjourneyErrorWrapper(constant.MjRequestError, "bind_request_body_failed")
+		}
+		if relayMode == relayconstant.RelayModeMidjourneyAction {
+			if mjErr := CoverPlusActionToNormalAction(request); mjErr != nil {
+				return nil, mjErr
+			}
+			relayMode = relayconstant.RelayModeMidjourneyChange
+		}
+		derived := false
+		switch relayMode {
+		case relayconstant.RelayModeMidjourneyImagine:
+			if request.Prompt == "" {
+				return nil, MidjourneyErrorWrapper(constant.MjRequestError, "prompt_is_required")
+			}
+			request.Action = constant.MjActionImagine
+		case relayconstant.RelayModeMidjourneyDescribe:
+			request.Action = constant.MjActionDescribe
+		case relayconstant.RelayModeMidjourneyEdits:
+			request.Action = constant.MjActionEdits
+		case relayconstant.RelayModeMidjourneyShorten:
+			request.Action = constant.MjActionShorten
+		case relayconstant.RelayModeMidjourneyBlend:
+			request.Action = constant.MjActionBlend
+		case relayconstant.RelayModeMidjourneyUpload:
+			request.Action = constant.MjActionUpload
+		case relayconstant.RelayModeMidjourneyChange:
+			if request.Action == "" || request.Index <= 0 {
+				return nil, MidjourneyErrorWrapper(constant.MjRequestError, "invalid_request")
+			}
+			derived = true
+		case relayconstant.RelayModeMidjourneySimpleChange:
+			params := ConvertSimpleChangeParams(request.Content)
+			if params == nil {
+				return nil, MidjourneyErrorWrapper(constant.MjRequestError, "content_parse_failed")
+			}
+			request.TaskId, request.Action, request.Index = params.TaskId, params.Action, params.Index
+			derived = true
+		case relayconstant.RelayModeMidjourneyModal:
+			request.Action = constant.MjActionModal
+			derived = true
+		case relayconstant.RelayModeMidjourneyVideo:
+			request.Action = constant.MjActionVideo
+			derived = request.TaskId != ""
+		default:
+			return nil, MidjourneyErrorWrapper(constant.MjRequestError, "unknown_relay_action")
+		}
+		if derived {
+			if request.TaskId == "" {
+				return nil, MidjourneyErrorWrapper(constant.MjRequestError, "task_id_is_required")
+			}
+			origin := model.GetByMJId(userID, request.TaskId)
+			if origin == nil {
+				return nil, MidjourneyErrorWrapper(constant.MjRequestError, "task_not_found")
+			}
+			if origin.ChannelId <= 0 {
+				return nil, MidjourneyErrorWrapper(constant.MjRequestError, "get_channel_info_failed")
+			}
+			if setting.MjActionCheckSuccessEnabled && origin.Status != "SUCCESS" && relayMode != relayconstant.RelayModeMidjourneyModal {
+				return nil, MidjourneyErrorWrapper(constant.MjRequestError, "task_status_not_success")
+			}
+			prepared.OriginChannelID = origin.ChannelId
+			request.Prompt = origin.Prompt
+		}
+	}
+	prepared.ModelName = CovertMjpActionToModelName(request.Action)
+	prepared.ConsumeQuota = request.Action != constant.MjActionInPaint && request.Action != constant.MjActionCustomZoom
+	c.Set(contextKey, prepared)
+	return prepared, nil
+}
+
 // PrepareMidjourneyTaskBilling sets the durable refund marker before the task is inserted.
 func PrepareMidjourneyTaskBilling(relayInfo *relaycommon.RelayInfo, task *model.Midjourney, quota int, shouldBill bool) (bool, error) {
 	if task == nil {
@@ -136,53 +234,6 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 	return true
 }
 
-func GetMjRequestModel(relayMode int, midjRequest *dto.MidjourneyRequest) (string, *dto.MidjourneyResponse, bool) {
-	action := ""
-	if relayMode == relayconstant.RelayModeMidjourneyAction {
-		// plus request
-		err := CoverPlusActionToNormalAction(midjRequest)
-		if err != nil {
-			return "", err, false
-		}
-		action = midjRequest.Action
-	} else {
-		switch relayMode {
-		case relayconstant.RelayModeMidjourneyImagine:
-			action = constant.MjActionImagine
-		case relayconstant.RelayModeMidjourneyVideo:
-			action = constant.MjActionVideo
-		case relayconstant.RelayModeMidjourneyEdits:
-			action = constant.MjActionEdits
-		case relayconstant.RelayModeMidjourneyDescribe:
-			action = constant.MjActionDescribe
-		case relayconstant.RelayModeMidjourneyBlend:
-			action = constant.MjActionBlend
-		case relayconstant.RelayModeMidjourneyShorten:
-			action = constant.MjActionShorten
-		case relayconstant.RelayModeMidjourneyChange:
-			action = midjRequest.Action
-		case relayconstant.RelayModeMidjourneyModal:
-			action = constant.MjActionModal
-		case relayconstant.RelayModeSwapFace:
-			action = constant.MjActionSwapFace
-		case relayconstant.RelayModeMidjourneyUpload:
-			action = constant.MjActionUpload
-		case relayconstant.RelayModeMidjourneySimpleChange:
-			params := ConvertSimpleChangeParams(midjRequest.Content)
-			if params == nil {
-				return "", MidjourneyErrorWrapper(constant.MjRequestError, "invalid_request"), false
-			}
-			action = params.Action
-		case relayconstant.RelayModeMidjourneyTaskFetch, relayconstant.RelayModeMidjourneyTaskFetchByCondition, relayconstant.RelayModeMidjourneyNotify:
-			return "", nil, true
-		default:
-			return "", MidjourneyErrorWrapper(constant.MjRequestError, "unknown_relay_action"), false
-		}
-	}
-	modelName := CovertMjpActionToModelName(action)
-	return modelName, nil, true
-}
-
 func CoverPlusActionToNormalAction(midjRequest *dto.MidjourneyRequest) *dto.MidjourneyResponse {
 	// "customId": "MJ::JOB::upsample::2::3dbbd469-36af-4a0f-8f02-df6c579e7011"
 	customId := midjRequest.CustomId
@@ -190,6 +241,9 @@ func CoverPlusActionToNormalAction(midjRequest *dto.MidjourneyRequest) *dto.Midj
 		return MidjourneyErrorWrapper(constant.MjRequestError, "custom_id_is_required")
 	}
 	splits := strings.Split(customId, "::")
+	if len(splits) < 3 {
+		return MidjourneyErrorWrapper(constant.MjRequestError, "invalid_custom_id")
+	}
 	var action string
 	if splits[1] == "JOB" {
 		action = splits[2]
@@ -201,6 +255,9 @@ func CoverPlusActionToNormalAction(midjRequest *dto.MidjourneyRequest) *dto.Midj
 		return MidjourneyErrorWrapper(constant.MjRequestError, "unknown_action")
 	}
 	if strings.Contains(action, "upsample") {
+		if len(splits) < 4 {
+			return MidjourneyErrorWrapper(constant.MjRequestError, "index_parse_failed")
+		}
 		index, err := strconv.Atoi(splits[3])
 		if err != nil {
 			return MidjourneyErrorWrapper(constant.MjRequestError, "index_parse_failed")
@@ -210,6 +267,9 @@ func CoverPlusActionToNormalAction(midjRequest *dto.MidjourneyRequest) *dto.Midj
 	} else if strings.Contains(action, "variation") {
 		midjRequest.Index = 1
 		if action == "variation" {
+			if len(splits) < 4 {
+				return MidjourneyErrorWrapper(constant.MjRequestError, "index_parse_failed")
+			}
 			index, err := strconv.Atoi(splits[3])
 			if err != nil {
 				return MidjourneyErrorWrapper(constant.MjRequestError, "index_parse_failed")
@@ -220,6 +280,8 @@ func CoverPlusActionToNormalAction(midjRequest *dto.MidjourneyRequest) *dto.Midj
 			midjRequest.Action = constant.MjActionLowVariation
 		} else if action == "high_variation" {
 			midjRequest.Action = constant.MjActionHighVariation
+		} else {
+			return MidjourneyErrorWrapper(constant.MjRequestError, "unknown_action")
 		}
 	} else if strings.Contains(action, "pan") {
 		midjRequest.Action = constant.MjActionPan
@@ -237,14 +299,14 @@ func CoverPlusActionToNormalAction(midjRequest *dto.MidjourneyRequest) *dto.Midj
 		midjRequest.Action = constant.MjActionInPaint
 		midjRequest.Index = 1
 	} else {
-		return MidjourneyErrorWrapper(constant.MjRequestError, "unknown_action:"+customId)
+		return MidjourneyErrorWrapper(constant.MjRequestError, "unknown_action")
 	}
 	return nil
 }
 
 func ConvertSimpleChangeParams(content string) *dto.MidjourneyRequest {
 	split := strings.Split(content, " ")
-	if len(split) != 2 {
+	if len(split) != 2 || split[0] == "" || split[1] == "" {
 		return nil
 	}
 
@@ -252,9 +314,9 @@ func ConvertSimpleChangeParams(content string) *dto.MidjourneyRequest {
 	changeParams := &dto.MidjourneyRequest{}
 	changeParams.TaskId = split[0]
 
-	if action[0] == 'u' {
+	if len(action) == 2 && action[0] == 'u' {
 		changeParams.Action = "UPSCALE"
-	} else if action[0] == 'v' {
+	} else if len(action) == 2 && action[0] == 'v' {
 		changeParams.Action = "VARIATION"
 	} else if action == "r" {
 		changeParams.Action = "REROLL"

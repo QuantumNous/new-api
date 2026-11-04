@@ -175,7 +175,8 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	}
 }
 
-func refreshTieredBillingGroup(relayInfo *relaycommon.RelayInfo) (*billingexpr.BillingSnapshot, error) {
+// RefreshTieredBillingGroup updates only the price snapshot, without reserving funds.
+func RefreshTieredBillingGroup(relayInfo *relaycommon.RelayInfo) (*billingexpr.BillingSnapshot, error) {
 	if relayInfo == nil {
 		return nil, nil
 	}
@@ -204,7 +205,7 @@ func refreshTieredBillingGroup(relayInfo *relaycommon.RelayInfo) (*billingexpr.B
 // estimate before sending. If the initial group was free and skipped
 // pre-consume, switching to a paid group creates the session at that point.
 func PrepareTieredBillingForSelectedGroup(c *gin.Context, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
-	snap, err := refreshTieredBillingGroup(relayInfo)
+	snap, err := RefreshTieredBillingGroup(relayInfo)
 	if err != nil {
 		return types.NewErrorWithStatusCode(
 			err,
