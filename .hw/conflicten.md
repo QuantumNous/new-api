@@ -25,29 +25,58 @@ stil verdwijnen, en de driver moet per kloon of per run aan staan. De workflow z
 
 GitHub start geen workflows op een PR die door `GITHUB_TOKEN` is geopend. Dat is bewust zo:
 een run die zijn eigen PR laat keuren, keurt zichzelf. De repo heeft geen PAT-secret
-(`gh secret list` gaf op 4 november 2026 een lege lijst), dus de sync-PR komt binnen zonder
-checks. De workflow zet daarom alleen auto-merge aan als er echt checks op de PR staan; zonder
-checks blijft de PR open voor een mens.
+(`gh secret list` gaf op 4 november 2026 een lege lijst).
 
-Twee routes, een besluit van de moeder:
+Opgelost op 4 november 2026 zonder PAT: `pull_request` start niet, maar `workflow_dispatch`
+wel. Na het openen van de PR start de sync daarom zelf `ci.yml` en `security.yml` met
+`gh workflow run <werkstroom> --ref sync/upstream-<tag>` (permissions `actions: write` in
+`.github/workflows/upstream-sync.yml`). Die run landt op dezelfde commit als de PR-kop en
+verschijnt dus als check op de PR. Beide workflows hebben daarvoor `workflow_dispatch:` en
+gebruiken buiten een `pull_request`-run de standaardbranch als vergelijkingspunt voor de
+haaklijst-toets, want `github.base_ref` is dan leeg.
 
-1. Een fijnmazige PAT of GitHub App met `contents: write`, `pull-requests: write` en
-   `workflows: write` als secret `SYNC_TOKEN`, en de workflow die in plaats van
-   `GITHUB_TOKEN` gebruiken. Dan start CI wel op de PR.
-2. Zo laten: de PR komt binnen, iemand start de checks met een lege commit of een re-run, en
-   de PR gaat daarna door de normale route.
+Eén grens blijft: de checks zijn gestart door de workflow die ook de PR maakte, dus een groene
+uitslag bewijst dat de code bouwt en toetst, niet dat iemand ernaar keek. De PR-beschrijving en
+de run-samenvatting zijn de leesbare kant; de merge gaat pas door als de verplichte checks op
+`main` groen zijn.
 
-Tot dat besluit valt er niets te automatiseren aan de checks; de PR zelf werkt wel.
+## Verplichte checks op main
+
+Sinds 4 november 2026 staat er een ruleset (id `26563396`, "main: de checks die elke PR haalt")
+met de vier checks die op elke PR draaien, zonder paths-filter:
+
+- `Backend vet, build, and test`
+- `Frontend typecheck and test`
+- `Production image build`
+- `Secret scan over full history`
+
+Bewust niet verplicht: `Go vulnerability scan` en `Frontend dependency audit` (draaien wel op
+elke PR, maar een nieuwe advies-database zou dan een PR blokkeren die niets met de melding te
+maken heeft) en `MySQL and PostgreSQL tests` (paths-filter op `model/` en `controller/`). Wie
+die twee toch verplicht wil, voegt ze toe aan dezelfde ruleset; twee workflows met dezelfde
+checknaam mogen er nooit in.
+
+De rol `hisarweb-be` (RepositoryRole admin, actor 5) is bypass-actor met `always`, zodat de
+bestaande werkwijze blijft werken: eigen PR samenvoegen zodra CI groen is. Zonder bypass kan
+alleen GitHub zelf nog samenvoegen na de checks; dat is de noodrem als een check blijft hangen.
+
+## Conflict zonder issues
+
+Issues staan uit voor `hisarweb-be/hisarweb-ai`; dat blijft zo. Bij een conflict gaat de
+conflictlijst naar de run-samenvatting én naar een concept-PR op dezelfde `sync/upstream-<tag>`
+-tak, met de merge afgebroken en een lege commit erop. Zo zien Altuner en de CTO het op één
+plek in plaats van in een runlog. De concept-PR wordt nooit samengevoegd: hij is het
+werkbewijs voor de handmatige oplossing.
 
 ## Afwijking van het ontwerp (§4.1)
 
 Het ontwerp laat de workflow geen auto-merge doen vanwege de keuringspoort (`KEURING:
-aanvaard`). Die poort bestaat in deze repo niet: geen branch protection, geen rulesets, geen
-`ci-en-samenvoegen.sh`. De opdracht van de moeder vraagt om auto-merge, dus de workflow zet
-`gh pr merge --auto --merge` aan zodra er checks zijn. `allow_auto_merge` staat op dit moment
-uit in de repo-instellingen; de opdracht faalt dan met een melding en de PR blijft open.
-Zodra de instelling aan staat, werkt de auto-merge zonder codewijziging. Wie de keuringspoort
-later instelt, zet deze stap uit in `.hw/sync-upstream.sh`.
+aanvaard`). Die poort bestaat in deze repo niet: geen `ci-en-samenvoegen.sh`. De opdracht van
+de moeder vraagt om auto-merge, dus de workflow zet `gh pr merge --auto --merge` aan zodra de
+verplichte checks er staan. `allow_auto_merge` staat aan sinds 4 november 2026 en de ruleset
+hierboven maakt de checks verplicht; zonder verplichte checks zet de workflow geen auto-merge
+aan, want dan zou `--auto` meteen samenvoegen. Wie de keuringspoort later instelt, zet deze
+stap uit in `.hw/sync-upstream.sh`.
 
 ## Eerdere conflicten
 
