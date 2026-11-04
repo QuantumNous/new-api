@@ -166,6 +166,12 @@ func TestHwPricingFeedbackDatabaseMatrix(t *testing.T) {
 			}
 			db, err := gorm.Open(dialector, &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: "hw_pf_matrix_"}})
 			require.NoError(t, err)
+			if dialect == "mysql" {
+				// Production refuses to start on a schema that is not
+				// utf8mb4-capable (checkMySQLChineseSupport in main.go); the CI
+				// schema is latin1, so the table states the charset itself.
+				db = db.Set("gorm:table_options", "CHARSET=utf8mb4")
+			}
 			sqlDB, err := db.DB()
 			require.NoError(t, err)
 			sqlDB.SetMaxOpenConns(1)
