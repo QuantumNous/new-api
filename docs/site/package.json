@@ -1,0 +1,22 @@
+{
+  "name": "deeppattern-api-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^7.3.4",
+    "@astrojs/starlight": "^0.42.6",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/public-sans": "^5.3.0",
+    "@scalar/api-reference": "^1.75.1",
+    "astro": "^7.4.2",
+    "lucode-starlight": "^1.0.0",
+    "sharp": "^0.35.5",
+    "unist-util-visit": "^5.1.0"
+  }
+}

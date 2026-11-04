@@ -1,0 +1,162 @@
+---
+import Sidebar from 'lucode-starlight/components/overrides/Sidebar.astro';
+import { isApiPath, langOf, localePath, t } from '../i18n';
+
+const { hasSidebar, siteTitle, siteTitleHref } = Astro.locals.starlightRoute;
+const lang = langOf(Astro.url.pathname);
+const strings = t(lang);
+const isApi = isApiPath(Astro.url.pathname);
+---
+
+<div data-slot="layout">
+	<header>
+		<div class="container-wrapper">
+			<div class="container">
+				<slot name="header" />
+			</div>
+		</div>
+	</header>
+
+	<div class="docs-page-body">
+		{!hasSidebar && <slot />}
+		{
+			hasSidebar && (
+				<div class="container-wrapper">
+					<div class="container container-wrapper-main">
+						<aside class="aside">
+							<slot name="sidebar" />
+						</aside>
+						<slot />
+					</div>
+				</div>
+			)
+		}
+	</div>
+</div>
+
+<dialog id="drawer" aria-label={strings.mainNav}>
+	<div class="docs-drawer-heading">
+		<a href={siteTitleHref}>{siteTitle}</a>
+		<button type="button" data-close-drawer aria-label={strings.cancel}>
+			<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+		</button>
+	</div>
+	<nav class="docs-drawer-topics">
+		<a href={localePath(lang, '/start/intro/')} aria-current={isApi ? undefined : 'true'}>{strings.guide}</a>
+		<a href={localePath(lang, '/api/relay/')} aria-current={isApi ? 'true' : undefined}>{strings.apiReference}</a>
+	</nav>
+	{hasSidebar && <Sidebar />}
+</dialog>
+
+<script>
+	const drawer = document.querySelector<HTMLDialogElement>('#drawer');
+	const toggle = document.querySelector<HTMLButtonElement>('button[popovertarget="drawer"]');
+	if (drawer && toggle) {
+		toggle.removeAttribute('popovertarget');
+		toggle.setAttribute('aria-haspopup', 'dialog');
+		toggle.setAttribute('aria-controls', 'drawer');
+		toggle.addEventListener('click', () => drawer.showModal());
+		drawer.querySelector('[data-close-drawer]')?.addEventListener('click', () => drawer.close());
+		drawer.addEventListener('click', (event) => {
+			if (event.target === drawer) drawer.close();
+		});
+		matchMedia('(min-width: 1024px)').addEventListener('change', ({ matches }) => {
+			if (matches) drawer.close();
+		});
+	}
+</script>
+
+<style>
+	[data-slot='layout'] {
+		background: var(--background);
+		min-height: 100svh;
+	}
+	header {
+		position: sticky;
+		top: 0;
+		z-index: 50;
+		background: color-mix(in srgb, var(--background) 84%, transparent);
+		backdrop-filter: blur(18px);
+	}
+	header .container-wrapper {
+		padding-inline: 1.5rem;
+	}
+	header .container {
+		display: flex;
+		align-items: center;
+		height: var(--header-height);
+	}
+	#drawer {
+		position: fixed;
+		inset: 0 auto 0 0;
+		width: min(21rem, 90vw);
+		max-width: 100vw;
+		height: 100dvh;
+		max-height: 100dvh;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		border-right: 1px solid var(--border);
+		background: var(--background);
+		color: var(--foreground);
+	}
+	#drawer[open] {
+		display: flex;
+		flex-direction: column;
+	}
+	#drawer::backdrop {
+		background: #0000008c;
+	}
+	#drawer :global(.sidebar) {
+		flex: 1;
+		min-height: 0;
+	}
+	.docs-drawer-heading {
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.625rem 1rem;
+		border-bottom: 1px solid var(--border);
+	}
+	.docs-drawer-heading a {
+		color: var(--foreground);
+		font-weight: 600;
+		text-decoration: none;
+	}
+	.docs-drawer-heading button {
+		display: grid;
+		place-items: center;
+		width: 2.75rem;
+		height: 2.75rem;
+		color: inherit;
+		background: none;
+		border: 0;
+		cursor: pointer;
+	}
+	.docs-drawer-topics {
+		display: flex;
+		flex-shrink: 0;
+		gap: 0.5rem;
+		padding: 1rem 1.25rem 0;
+	}
+	.docs-drawer-topics a {
+		display: flex;
+		flex: 1;
+		align-items: center;
+		justify-content: center;
+		min-height: 2.75rem;
+		padding: 0.5rem;
+		border-radius: var(--radius);
+		color: var(--gray-3);
+		font-size: 0.875rem;
+		text-decoration: none;
+	}
+	.docs-drawer-topics a[aria-current] {
+		background: var(--docs-selection);
+		color: var(--docs-link);
+	}
+	:global(body:has(#drawer[open])) {
+		overflow: hidden;
+	}
+</style>

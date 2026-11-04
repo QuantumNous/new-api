@@ -1,0 +1,4306 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "DeepPattern API reference",
+    "description": "**Protocol compatibility**\n\nBase URL: `https://{{API_HOST}}`. Pick a category in the sidebar by use case, then open the matching endpoint. The official model names and repository-supported examples in these docs are not the list of models enabled for your account; the model IDs you can actually use are whatever `GET /v1/models` returns for your account.\n\n```bash\ncurl https://{{API_HOST}}/v1/models \\\n  -H \"Authorization: Bearer $DP_API_KEY\"\n```\n\n**Choose by use case**\n\n| Use case | Recommended entry | Request style |\n| --- | --- | --- |\n| Chat, reasoning, vision understanding | Chat models | Chat Completions / Responses; Claude and Gemini also have native protocols |\n| Image generation, image editing | Image models | Images; Gemini image models use `generateContent` |\n| Video generation | Video models | Create task → poll status → read result URL |\n| Transcription, translation, speech synthesis | Audio models | Audio; realtime audio uses WebSocket |\n| Content moderation | Content safety | Moderations |\n\nOne protocol serves many models, so you don't need a separate API per model. Chat, image, and video request bodies differ, so you can't reuse a request by only swapping `model`.\n\n**SDK Base URL**\n\n| Client protocol | Base URL | Main endpoints |\n| --- | --- | --- |\n| OpenAI-compatible | `https://{{API_HOST}}/v1` | `/chat/completions`, `/responses`, `/images/*`, `/videos` |\n| Anthropic | `https://{{API_HOST}}` | `/v1/messages` |\n| Gemini | `https://{{API_HOST}}/v1beta` | `/models/{model}:generateContent` |\n\nThe Anthropic SDK appends `/v1/messages` itself, so its Base URL omits `/v1`. `/v1/models` returns OpenAI format by default; with Anthropic or Gemini request headers it can return the corresponding format.\n\n**Chat models**\n\n**OpenAI-compatible**\n\n- **Endpoints**: `POST /v1/chat/completions` suits traditional chat clients; `POST /v1/responses` suits the Responses API, tool calling, reasoning, and async task plugins.\n- **Representative models**: GPT-5.x, GPT-4.1/4o, o3, o4-mini; the recent official catalog also lists `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-luna`. These names are catalog information only; confirm with `/v1/models` that the gateway has them enabled.\n- **Dedicated endpoints**: `gpt-realtime-2.1` uses Realtime; `omni-moderation-latest` uses Moderations. Neither accepts chat requests.\n\n**xAI Grok**\n\nxAI Grok chat models are called through the OpenAI-compatible endpoints: `/v1/chat/completions` or `/v1/responses`. Whether search variants are available depends on the upstream key and channel configuration.\n\nThe recent official catalog lists `grok-4.7`, `grok-4.6`, `grok-4.5`, `grok-4.3`, plus the dated `grok-4.20-0309-reasoning` and `grok-4.20-0309-non-reasoning`. For your account, `/v1/models` is still authoritative.\n\nOfficial docs: [Grok Models](https://docs.x.ai/developers/models), [Responses API](https://docs.x.ai/developers/model-capabilities/text/generate-text).\n\n```bash\ncurl https://{{API_HOST}}/v1/responses \\\n  -H \"Authorization: Bearer $DP_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"grok-4.7\",\"input\":\"Introduce yourself in one sentence\"}'\n```\n\n**Claude, Gemini, and other chat models**\n\n- **Claude**: `POST /v1/messages`; include `anthropic-version` in the request. The official catalog lists Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5; older Claude IDs in the repository only indicate existing adapter support, not that the new catalog is enabled. [Official model catalog](https://platform.claude.com/docs/en/models/overview)\n- **Gemini/Gemma**: The native endpoint is `POST /v1beta/models/{model}:generateContent`; streaming uses `:streamGenerateContent?alt=sse`. OpenAI Chat/Responses compatible conversion is also available. The official catalog lists Gemini 4 Argon, Gemini 3.8 Flash, and more. [Official model catalog](https://ai.google.dev/gemini-api/docs/models)\n- **Qwen, DeepSeek, Kimi, GLM**: Usually go through the OpenAI Chat/Responses compatible endpoints; model mapping may translate the client ID to an upstream ID. See `/v1/models` and channel configuration for specifics.\n\n**Image models**\n\n**GPT Image, DALL·E, and OpenAI Images**\n\n- **Text-to-image**: `POST /v1/images/generations`, JSON request body.\n- **Image editing**: `POST /v1/images/edits`, `multipart/form-data`; upload `image` and `prompt`, optionally `mask`.\n- **Models**:\n  - `gpt-image-2`\n  - `gpt-image-2.5-flare`\n  - `gpt-image-2.5-sunburst`\n- Available models are whatever `/v1/models` returns.\n- GPT Image usually returns `data[].b64_json`; older compatible models may return URLs. Parameters such as `quality`, `size`, `background`, and `output_format` still depend on the specific model; see the endpoint page.\n\nOfficial docs: [Image generation](https://developers.openai.com/api/docs/guides/image-generation), [GPT Image 2.5 Flare](https://developers.openai.com/api/docs/models/gpt-image-2.5-flare), [GPT Image 2](https://developers.openai.com/api/docs/models/gpt-image-2).\n\n**Grok Image, Gemini, and Seedream**\n\n- **Grok Image**: The repository's xAI adaptor keeps only `model`, `prompt`, `n`, and `response_format` when converting image requests; it does not forward uploaded images, so `/v1/images/edits` is not a verified Grok editing contract. The repository model list is `grok-imagine-image-pro`, `grok-imagine-image`, `grok-2-image-1212`. New official models are not necessarily enabled on the gateway. [Grok Imagine Image](https://docs.x.ai/developers/models/grok-imagine-image)\n- **Seedream**: The `doubao` task plugin declares `openai_image` and accepts requests via `/v1/images/generations` and `/v1/images/edits`; model and field limits vary per model by plugin version. See the Seedream operation page.\n- **Gemini images**: Use `generateContent`; don't rewrite Gemini request bodies as OpenAI Images request bodies. [Gemini generateContent](https://ai.google.dev/api/generate-content)\n\n**Video models**\n\nAll video models share two endpoints: `POST /v1/video/generations` submits a task and `GET /v1/video/generations/{task_id}` polls its status; when `data.status` is `SUCCESS`, `data.result_url` is the video URL. Requests accept only the top-level fields `prompt`, `model`, `mode`, `image`, `images`, `size`, `duration`, `seconds`, `input_reference`, `metadata`; vendor-specific parameters go in `metadata`.\n\n| Family | Representative models | Notes |\n| --- | --- | --- |\n| Wan | `wan3.0-video`, `wan2.7-t2v`, `wan2.7-i2v`, `wan2.6-*`, `wan2.2-kf2v-flash`, `wan2.2-s2v` | `metadata.input` / `metadata.parameters` are merged into the DashScope request |\n| HappyHorse | `happyhorse-1.1-t2v`, `-i2v`, `-r2v`, `happyhorse-1.0-video-edit` | Channel must use the custom Alibaba plugin v1.5.1+ |\n| Sora | `sora-2`, `sora-2-pro` | `size`, `seconds`, `input_reference` |\n| Grok Imagine Video | `grok-imagine-video`, `grok-imagine-video-1.5`, `grok-imagine-video-1.5-lite` | Aspect ratio, last frame, keyframes, and reference assets go in `metadata` |\n| Seedance | `doubao-seedance-*` | `metadata` is expanded into the Ark request body |\n| Veo | `veo-3.0-generate-001`, `veo-3.1-generate-preview`, etc. | `metadata` becomes upstream `parameters`; queries return a live simplified structure |\n| Kling | `kling-v1`, `kling-v1-6`, `kling-v2-master` | `mode`, `image`, `duration`; last frame via `metadata.image_tail` |\n| Jimeng | `jimeng_vgfm_t2v_l20` | `metadata.req_key`, `aspect_ratio`, `frames` |\n| Vidu | `viduq2`, `viduq1`, `vidu2.0`, `vidu1.5` | Number of images determines the generation mode |\n| MiniMax Hailuo | `MiniMax-H3`, `MiniMax-Hailuo-2.3`, etc. | First and last frames go in `metadata` (H3 can use `images`) |\n\nOfficial docs: [OpenAI Video](https://developers.openai.com/api/docs/guides/video-generation), [xAI Video](https://docs.x.ai/developers/model-capabilities/video/overview).\n\n**Other model endpoints**\n\n- **Audio**: `/v1/audio/transcriptions`, `/v1/audio/translations`, `/v1/audio/speech`; Realtime uses the `/v1/realtime` WebSocket.\n- **Content safety**: `/v1/moderations`; whether a model is enabled is determined by `/v1/models`.\n- **Not implemented**: `/v1/fine-tunes` and `/v1/files` are not in this reference, and calls to them won't return a valid response.\n\n**Authentication**\n\nEvery endpoint uses the same API key starting with `sk-`. The only difference is which request header carries the credential.\n\n**Credential formats**\n\nThe gateway accepts `Authorization: Bearer` on all protocols, and also supports each ecosystem's native format on specific paths.\n\n| Format | Applies to | Example |\n| --- | --- | --- |\n| `Authorization: Bearer <key>` | All | `Authorization: Bearer sk-xxxxxx` |\n| `x-api-key: <key>` | `/v1/messages`, `/v1/models` | Default format of the Anthropic SDK |\n| `x-goog-api-key: <key>` | `/v1beta/models*`, `/v1/models` | Default format of the Google GenAI SDK |\n| `?key=<key>` query parameter | `/v1beta/models*`, `/v1/models` | Gemini's query parameter format |\n\nPick one format for the protocol you use; you don't need to send more than one.\n\n```bash\n# OpenAI-compatible\ncurl https://{{API_HOST}}/v1/chat/completions \\\n  -H \"Authorization: Bearer $DP_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"your-model\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}'\n\n# Anthropic-compatible\ncurl https://{{API_HOST}}/v1/messages \\\n  -H \"x-api-key: $DP_API_KEY\" \\\n  -H \"anthropic-version: 2023-06-01\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"your-model\",\"max_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}'\n\n# Gemini-compatible\ncurl \"https://{{API_HOST}}/v1beta/models/your-model:generateContent\" \\\n  -H \"x-goog-api-key: $DP_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"contents\":[{\"parts\":[{\"text\":\"hello\"}]}]}'\n```\n\n**Realtime WebSocket**\n\nWebSocket can't set custom request headers, so the credential goes in the subprotocol:\n\n```\nSec-WebSocket-Protocol: realtime, openai-insecure-api-key.sk-xxxxxx, openai-beta.realtime-v1\n```\n\n**Key permission boundaries**\n\n- A key belongs to a **service group**, which determines the callable models and billing basis.\n- A key can have a **quota limit** and an **expiration**; requests beyond them are rejected.\n- A key can have an **IP allowlist**. Once set, requests from IPs outside the list return `403`, indicating the IP is not in the token's allowlist.\n\n**Verify your API key**\n\n```bash\ncurl -i https://{{API_HOST}}/v1/models \\\n  -H \"Authorization: Bearer $DP_API_KEY\"\n```\n\nA `200` response whose body contains a `data` array means authentication succeeded. For `401`, see [Error codes](#description/error-codes).\n\n**Authentication FAQ**\n\n**Can I put the key in a query parameter for OpenAI endpoints?**\nNo. `?key=` only works on Gemini-related paths and `/v1/models`.\n\n**Should `Authorization` keep the `sk-` prefix?**\nYes, keep it; the gateway handles it.\n\n**Can a dashboard Personal Access Token call these endpoints?**\nNo. Dashboard PATs are for management APIs; model endpoints only accept `sk-` keys.\n\n**Error codes**\n\n**Error response structure**\n\nThe OpenAI protocol returns an `error` object:\n\n```json\n{\n  \"error\": {\n    \"message\": \"Error description\",\n    \"type\": \"new_api_error\",\n    \"param\": \"\",\n    \"code\": \"insufficient_user_quota\"\n  }\n}\n```\n\nThe Anthropic protocol returns:\n\n```json\n{\n  \"type\": \"error\",\n  \"error\": {\n    \"type\": \"insufficient_user_quota\",\n    \"message\": \"Error description\"\n  }\n}\n```\n\n`message` has sensitive information redacted, so raw upstream details may be incomplete. Look up the full error category and status code in the console's error logs.\n\n**HTTP status codes**\n\n| Status | Meaning | Action |\n| --- | --- | --- |\n| `400` | Invalid request body, or a parameter is out of range | Fix the request per `message`; retrying won't help |\n| `401` | Key is invalid, expired, or disabled | Check the key; create a new one if needed |\n| `403` | Egress IP is not in the key's allowlist, or the account is disabled | Adjust the IP allowlist, or contact an administrator |\n| `404` | Path doesn't exist, or the model isn't in the key's group | Check the Base URL and model name |\n| `429` | Rate limited | Back off and retry per `Retry-After` or the response body |\n| `500` | Internal gateway error | Retryable |\n| `502` / `503` | Upstream error with no available account | Retryable |\n\n**`type` values**\n\n| Value | Source |\n| --- | --- |\n| `new_api_error` | Error produced by the gateway itself |\n| `openai_error` | Passed through from an OpenAI-protocol upstream |\n| `claude_error` | Passed through from an Anthropic-protocol upstream |\n| `gemini_error` | Passed through from a Gemini-protocol upstream |\n| `upstream_error` | Upstream returned an unclassifiable error |\n| `rerank_error` | Error from the rerank endpoint |\n| `midjourney_error` | Error from Midjourney-related endpoints |\n\n**Common `code` values**\n\nWhen `type` is `new_api_error`, `code` indicates the specific cause.\n\n**Request issues**\n\n| `code` | Meaning |\n| --- | --- |\n| `invalid_request` | Invalid request |\n| `bad_request_body` | Request body can't be parsed |\n| `read_request_body_failed` | Failed to read the request body |\n| `convert_request_failed` | Request can't be converted to the upstream protocol |\n| `model_not_found` | Model doesn't exist or isn't callable |\n| `access_denied` | Access denied, e.g. the IP isn't in the allowlist |\n| `sensitive_words_detected` | Blocked by the sensitive-word filter |\n| `prompt_blocked` | Prompt rejected by upstream |\n\n**Quota and billing**\n\n| `code` | Meaning |\n| --- | --- |\n| `insufficient_user_quota` | Insufficient account quota |\n| `pre_consume_token_quota_failed` | Pre-charge failed, usually still insufficient quota |\n| `model_price_error` | The model has no usable pricing configuration |\n| `count_token_failed` | Token counting failed |\n\n**Channels and upstream**\n\n| `code` | Meaning |\n| --- | --- |\n| `channel:no_available_key` | No upstream account is currently available for this model |\n| `channel:invalid_key` | Upstream account credentials are invalid |\n| `channel:response_time_exceeded` | Upstream response timed out |\n| `channel:model_mapped_error` | Model mapping is misconfigured |\n| `get_channel_failed` | Couldn't select an available channel |\n| `do_request_failed` | Request to upstream failed |\n| `bad_response_status_code` | Upstream returned a non-success status code |\n| `bad_response` / `bad_response_body` | Upstream response can't be parsed |\n| `empty_response` | Upstream returned an empty response |\n\nErrors with the `channel:` prefix come from upstream accounts, not your request. The gateway first switches automatically to the next available account and only returns the error to the caller when no account is available.\n\n**Inspect the full error response**\n\nPrint the full status code and response body:\n\n```bash\ncurl -i https://{{API_HOST}}/v1/chat/completions \\\n  -H \"Authorization: Bearer $DP_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"does-not-exist\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}'\n```\n\nA nonexistent model name returns an error body with `model_not_found`, which you can use to confirm your client's error-handling path works.\n\n**Troubleshooting**\n\n**Which errors are worth retrying?**\n`429` and `5xx`. Other `4xx` statuses indicate a problem with the request itself.\n\n**The information in `message` is truncated.**\nRedaction is intentional. Filter the console's error logs by key, model, status code, and error category to see a more complete classification.\n\n**I keep getting `channel:no_available_key`.**\nNo upstream account is currently available for this model. Switch to another model or contact an administrator.",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "models",
+      "x-displayName": "List models"
+    },
+    {
+      "name": "chat-completions",
+      "x-displayName": "Chat Completions"
+    },
+    {
+      "name": "responses",
+      "x-displayName": "Responses"
+    },
+    {
+      "name": "claude-messages",
+      "x-displayName": "Claude Messages"
+    },
+    {
+      "name": "gemini",
+      "x-displayName": "Gemini multimodal"
+    },
+    {
+      "name": "completions",
+      "x-displayName": "Text completions (legacy)"
+    },
+    {
+      "name": "gpt-images",
+      "x-displayName": "GPT"
+    },
+    {
+      "name": "grok-images",
+      "x-displayName": "Grok"
+    },
+    {
+      "name": "seedream-images",
+      "x-displayName": "Seedream"
+    },
+    {
+      "name": "video-tasks",
+      "x-displayName": "Video generation"
+    },
+    {
+      "name": "audio",
+      "x-displayName": "OpenAI"
+    },
+    {
+      "name": "realtime",
+      "x-displayName": "OpenAI Realtime"
+    },
+    {
+      "name": "embeddings",
+      "x-displayName": "Text embeddings"
+    },
+    {
+      "name": "rerank",
+      "x-displayName": "Document reranking"
+    },
+    {
+      "name": "moderations",
+      "x-displayName": "Moderation"
+    }
+  ],
+  "paths": {
+    "/v1/models": {
+      "get": {
+        "summary": "List models",
+        "deprecated": false,
+        "description": "Returns the list of currently available models.\n\nThe response format is detected from the request headers:\n- With both `x-api-key` and `anthropic-version` headers, returns the Anthropic format\n- With an `x-goog-api-key` header or a `key` query parameter, returns the Gemini format\n- Otherwise, returns the OpenAI format\n",
+        "operationId": "listModels",
+        "tags": [
+          "models"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "description": "Google API key (for the Gemini format)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "description": "Anthropic API key (for the Claude format)",
+            "required": false,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "anthropic-version",
+            "in": "header",
+            "description": "Anthropic API version",
+            "required": false,
+            "example": "",
+            "schema": {
+              "type": "string",
+              "example": "2023-06-01"
+            }
+          },
+          {
+            "name": "x-goog-api-key",
+            "in": "header",
+            "description": "Google API key (for the Gemini format)",
+            "required": false,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model list retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "description": "Authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1beta/models": {
+      "get": {
+        "summary": "List in Gemini format",
+        "deprecated": false,
+        "description": "Returns the available models in the Gemini API format",
+        "operationId": "listModelsGemini",
+        "tags": [
+          "models"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Model list retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeminiModelsResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "Create chat completion",
+        "deprecated": false,
+        "description": "Creates a model response for the given conversation. Supports streaming and non-streaming responses.\n\nCompatible with the OpenAI Chat Completions API.\n",
+        "operationId": "createChatCompletion",
+        "tags": [
+          "chat-completions"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Response created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/responses": {
+      "post": {
+        "summary": "Create response (OpenAI Responses API)",
+        "deprecated": false,
+        "description": "OpenAI Responses API for creating model responses.\nSupports multi-turn conversations, tool calling, reasoning, and more.\n",
+        "operationId": "createResponse",
+        "tags": [
+          "responses"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Response created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsesResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/responses/{response_id}": {
+      "get": {
+        "summary": "Retrieve async response",
+        "deprecated": false,
+        "description": "Retrieves a Responses response created by a gateway-local task plugin. This endpoint does not proxy arbitrary upstream OpenAI response IDs; the response ID must come from this gateway.",
+        "operationId": "retrieveResponse",
+        "tags": [
+          "responses"
+        ],
+        "parameters": [
+          {
+            "name": "response_id",
+            "in": "path",
+            "description": "Response ID returned by the gateway",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "resp_123"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response status or final result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response doesn't exist or the result can't be retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/responses/compact": {
+      "post": {
+        "summary": "Compact conversation (OpenAI Responses API)",
+        "deprecated": false,
+        "description": "OpenAI Responses API for compacting long conversations.",
+        "operationId": "compactResponse",
+        "tags": [
+          "responses"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsesCompactionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Conversation compacted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsesCompactionResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/images/generations": {
+      "post": {
+        "summary": "Generate images",
+        "deprecated": false,
+        "description": "OpenAI Images API compatible JSON image generation endpoint. Set `model` to a model returned by the gateway's `/v1/models` that supports image generation; parameter availability depends on the upstream model, and these docs make no guarantees on behalf of the model list or channel configuration. GPT Image models return `data[].b64_json` by default; older compatible models may return URLs. Examples only illustrate the request structure and don't imply a configured model or available quota.",
+        "operationId": "createImage",
+        "tags": [
+          "gpt-images",
+          "grok-images",
+          "seedream-images"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageGenerationRequest"
+              },
+              "example": {
+                "model": "gpt-image-2.5-sunburst",
+                "prompt": "A watercolor robot reading in a library",
+                "n": 1,
+                "size": "1024x1024",
+                "quality": "medium",
+                "output_format": "png"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Images generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/images/edits": {
+      "post": {
+        "summary": "Edit images",
+        "deprecated": false,
+        "description": "OpenAI Images API compatible `multipart/form-data` image editing endpoint. You must upload an `image` file and provide a `prompt`; for multiple input images, repeat the `image[]` field, and the gateway forwards all uploaded files. Availability of `model` and output parameters depends on the upstream model, as listed by the gateway's `/v1/models`; file names in the examples are only multipart file-field placeholders and don't trigger real paid calls.",
+        "operationId": "createImageEdit",
+        "tags": [
+          "gpt-images",
+          "grok-images",
+          "seedream-images"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageEditRequest"
+              },
+              "examples": {
+                "edit": {
+                  "summary": "Edit with uploaded images and an optional mask",
+                  "value": {
+                    "model": "gpt-image-2.5-sunburst",
+                    "image": "<input.png>",
+                    "mask": "<mask.png>",
+                    "prompt": "Replace the masked area with a vase of flowers",
+                    "quality": "medium",
+                    "output_format": "png"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Images generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/video/generations": {
+      "post": {
+        "summary": "Create video",
+        "description": "Submits an async video generation task. All video models share this endpoint.\n\n### Request field rules\n\nThe gateway reads only the top-level fields in the table below: `prompt`, `model`, `mode`, `image`, `images`, `size`, `duration`, `seconds`, `input_reference`, `metadata`. **Any other top-level field is silently dropped**; vendor-specific parameters must go in `metadata`, whose structure is described under the `metadata` field below.\n\n- `prompt` is required (pass a non-empty prompt even for pure image-to-video).\n- `duration` (integer) and `seconds` (string) set the duration, from 0–3600; out-of-range values return `invalid_seconds`. Supported durations depend on the model.\n- If only `image` is sent, the gateway expands it to `images: [image]`.\n- `multipart/form-data` is also supported: non-standard form fields are collected into `metadata`, and the `metadata` field can be a JSON string.\n\nSee each model's API reference page for its supported `metadata` fields.\n\n### Workflow\n\n1. Submit the task with `POST /v1/video/generations` and save `task_id` from the response.\n2. Poll `GET /v1/video/generations/{task_id}` (every 5–10 seconds recommended) until `data.status` is `SUCCESS` or `FAILURE`.\n3. On `SUCCESS`, `data.result_url` is the video URL. Upstream URLs usually expire, so download and store the video promptly.\n\n### Error codes\n\nError responses look like `{\"code\": \"...\", \"message\": \"...\", \"data\": null}`.\n\n| HTTP | `code` | Description |\n| --- | --- | --- |\n| 400 | `invalid_request` | Request body can't be parsed, or `prompt is required` |\n| 400 | `invalid_seconds` | `duration` / `seconds` outside 0–3600 |\n| 400 | `invalid_multipart_form` | Failed to parse the multipart form |\n| 400 | `plugin_request_invalid` | Model parameter validation failed (e.g. unsupported resolution, duration, or asset count); `message` gives the reason |\n| 400 | `plugin_usage_invalid` | Billing parameters can't be determined |\n| 401 / 403 | — | Invalid token, insufficient quota, or no access to the model |\n| 500 | — | Upstream request failed or server error |",
+        "operationId": "createVideoGeneration",
+        "tags": [
+          "video-tasks"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoGenerationRequest"
+              },
+              "examples": {
+                "t2v": {
+                  "summary": "Text-to-video wan2.7-t2v",
+                  "value": {
+                    "model": "wan2.7-t2v",
+                    "prompt": "A puppy running through the snow, slow motion, cinematic",
+                    "size": "1080P",
+                    "duration": 10,
+                    "metadata": {
+                      "parameters": {
+                        "ratio": "16:9",
+                        "prompt_extend": true
+                      }
+                    }
+                  }
+                },
+                "i2v": {
+                  "summary": "Image-to-video wan2.6-i2v-flash",
+                  "value": {
+                    "model": "wan2.6-i2v-flash",
+                    "prompt": "The camera slowly pushes in as the person turns and smiles",
+                    "image": "https://example.com/portrait.png",
+                    "size": "720P",
+                    "seconds": "5"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoGenerationSubmitResponse"
+                },
+                "example": {
+                  "id": "task_01JXXXXXXXXXXXXXXXXXXXXXXXXX",
+                  "task_id": "task_01JXXXXXXXXXXXXXXXXXXXXXXXXX",
+                  "status": "queued",
+                  "model": "wan2.7-t2v",
+                  "created_at": 1761000000
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskError"
+                },
+                "example": {
+                  "code": "plugin_request_invalid",
+                  "message": "wan2.7-t2v duration must be an integer between 2 and 15",
+                  "data": null
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server or upstream error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskError"
+                },
+                "example": {
+                  "code": "do_request_failed",
+                  "message": "upstream request failed",
+                  "data": null
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/video/generations/{task_id}": {
+      "get": {
+        "summary": "Retrieve video",
+        "description": "Retrieves the status and result of a video task. You can only query tasks created by the user that owns the current token.\n\nWhen `data.status` is `SUCCESS`, `data.result_url` is the video URL; when it is `FAILURE`, check `data.fail_reason`. For any other status (`NOT_START`, `SUBMITTED`, `QUEUED`, `IN_PROGRESS`, `UNKNOWN`), keep polling, preferably every 5–10 seconds.\n\n**Gemini / Vertex channels**: the gateway fetches the status from upstream in real time. `data` uses a simplified structure `{error, format, metadata, status, task_id, url}`, where `status` is one of `queued`, `processing`, `succeeded`, `failed`, and the video URL is in `data.url`. If the upstream fetch fails, the standard task details are returned instead.\n\n### Error codes\n\n| HTTP | `code` | Description |\n| --- | --- | --- |\n| 400 | `task_not_exist` | The task does not exist, or does not belong to the user of the current token |\n| 500 | `get_task_failed` | Failed to query the task |",
+        "operationId": "getVideoGeneration",
+        "tags": [
+          "video-tasks"
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "description": "The `task_id` returned by the create endpoint",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoGenerationTaskResponse"
+                },
+                "example": {
+                  "code": "success",
+                  "message": "",
+                  "data": {
+                    "id": 1024,
+                    "created_at": 1761000000,
+                    "updated_at": 1761000120,
+                    "task_id": "task_01JXXXXXXXXXXXXXXXXXXXXXXXXX",
+                    "platform": "alibaba",
+                    "user_id": 1,
+                    "group": "default",
+                    "channel_id": 3,
+                    "quota": 150000,
+                    "action": "text_to_video",
+                    "status": "SUCCESS",
+                    "fail_reason": "",
+                    "result_url": "https://{{API_HOST}}/v1/videos/task_01JXXXXXXXXXXXXXXXXXXXXXXXXX/content",
+                    "submit_time": 1761000000,
+                    "start_time": 1761000005,
+                    "finish_time": 1761000120,
+                    "progress": "100%",
+                    "properties": {
+                      "input": "A puppy running through the snow",
+                      "upstream_model_name": "wan2.7-t2v",
+                      "origin_model_name": "wan2.7-t2v"
+                    },
+                    "data": {}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskError"
+                },
+                "example": {
+                  "code": "task_not_exist",
+                  "message": "task_not_exist",
+                  "data": null
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to query task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskError"
+                },
+                "example": {
+                  "code": "get_task_failed",
+                  "message": "get_task_failed",
+                  "data": null
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/messages": {
+      "post": {
+        "summary": "Claude chat",
+        "deprecated": false,
+        "description": "Request in the Anthropic Claude Messages API format.\nThe `anthropic-version` request header is required.\n",
+        "operationId": "createMessage",
+        "tags": [
+          "claude-messages"
+        ],
+        "parameters": [
+          {
+            "name": "anthropic-version",
+            "in": "header",
+            "description": "Anthropic API version",
+            "required": true,
+            "example": "",
+            "schema": {
+              "type": "string",
+              "example": "2023-06-01"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "description": "Anthropic API key (optional; a Bearer token also works)",
+            "required": false,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaudeRequest"
+              },
+              "examples": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Response created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaudeResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1beta/models/{model}:generateContent": {
+      "post": {
+        "summary": "Generate content (text / image)",
+        "deprecated": false,
+        "description": "Gemini `generateContent` compatible endpoint. Generates text, images, or other content depending on model capabilities; `generationConfig` and its `responseModalities` are optional, and image output support depends on the selected model. The request body follows the native Gemini contents/parts protocol; image inputs can use inlineData in a part.",
+        "operationId": "geminiRelayV1Beta",
+        "tags": [
+          "gemini"
+        ],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "description": "Model name",
+            "required": true,
+            "example": "gemini-3-pro-image-preview",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeminiRequest"
+              },
+              "examples": {
+                "image": {
+                  "summary": "Image generation (model must support image output)",
+                  "value": {
+                    "contents": [
+                      {
+                        "role": "user",
+                        "parts": [
+                          {
+                            "text": "draw a cat"
+                          }
+                        ]
+                      }
+                    ],
+                    "generationConfig": {
+                      "responseModalities": [
+                        "TEXT",
+                        "IMAGE"
+                      ],
+                      "imageConfig": {
+                        "aspectRatio": "16:9",
+                        "imageSize": "4K"
+                      }
+                    }
+                  }
+                },
+                "text": {
+                  "summary": "Text generation",
+                  "value": {
+                    "contents": [
+                      {
+                        "role": "user",
+                        "parts": [
+                          {
+                            "text": "Write a short welcome message."
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeminiResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/engines/{model}/embeddings": {
+      "post": {
+        "summary": "Gemini embeddings",
+        "deprecated": false,
+        "description": "Create embeddings with the specified engine/model",
+        "operationId": "createEngineEmbedding",
+        "tags": [
+          "embeddings"
+        ],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "description": "Model/engine ID",
+            "required": true,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingRequest"
+              },
+              "examples": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Embeddings created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/embeddings": {
+      "post": {
+        "summary": "Create text embeddings",
+        "deprecated": false,
+        "description": "Convert text into vector embeddings",
+        "operationId": "createEmbedding",
+        "tags": [
+          "embeddings"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Embeddings created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/completions": {
+      "post": {
+        "summary": "Create completion",
+        "deprecated": false,
+        "description": "Creates a text completion for the given prompt",
+        "operationId": "createCompletion",
+        "tags": [
+          "completions"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Response created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/audio/transcriptions": {
+      "post": {
+        "summary": "Audio transcription",
+        "deprecated": false,
+        "description": "Converts audio to text",
+        "operationId": "createTranscription",
+        "tags": [
+          "audio"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Audio file",
+                    "example": ""
+                  },
+                  "model": {
+                    "type": "string",
+                    "example": "whisper-1"
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "ISO-639-1 language code",
+                    "example": ""
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "example": ""
+                  },
+                  "response_format": {
+                    "type": "string",
+                    "enum": [
+                      "json",
+                      "text",
+                      "srt",
+                      "verbose_json",
+                      "vtt"
+                    ],
+                    "default": "json",
+                    "example": "json"
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "example": 0
+                  },
+                  "timestamp_granularities": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "word",
+                        "segment"
+                      ]
+                    },
+                    "example": ""
+                  }
+                },
+                "required": [
+                  "file",
+                  "model"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Transcription succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioTranscriptionResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/audio/translations": {
+      "post": {
+        "summary": "Audio translation",
+        "deprecated": false,
+        "description": "Translates audio into English text",
+        "operationId": "createTranslation",
+        "tags": [
+          "audio"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "example": ""
+                  },
+                  "model": {
+                    "type": "string",
+                    "example": ""
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "example": ""
+                  },
+                  "response_format": {
+                    "type": "string",
+                    "example": ""
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "example": 0
+                  }
+                },
+                "required": [
+                  "file",
+                  "model"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Translation succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioTranscriptionResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/audio/speech": {
+      "post": {
+        "summary": "Text to speech",
+        "deprecated": false,
+        "description": "Converts text to audio",
+        "operationId": "createSpeech",
+        "tags": [
+          "audio"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Audio generated successfully",
+            "content": {
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/rerank": {
+      "post": {
+        "summary": "Document reranking",
+        "deprecated": false,
+        "description": "Rerank a list of documents by relevance to a query",
+        "operationId": "createRerank",
+        "tags": [
+          "rerank"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RerankRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reranked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RerankResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/moderations": {
+      "post": {
+        "summary": "Moderation",
+        "deprecated": false,
+        "description": "Checks whether text content violates usage policies",
+        "operationId": "createModeration",
+        "tags": [
+          "moderations"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Moderation succeeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/realtime": {
+      "get": {
+        "summary": "Realtime WebSocket connection",
+        "deprecated": false,
+        "description": "Opens a WebSocket connection for realtime conversations.\n\n**Note**: This is a WebSocket endpoint and must be connected to using the WebSocket protocol.\n\nExample connection URL: `wss://{{API_HOST}}/v1/realtime?model=gpt-realtime-2.1`\n",
+        "operationId": "createRealtimeSession",
+        "tags": [
+          "realtime"
+        ],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "description": "Model to use",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "gpt-realtime-2.1"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket protocol upgrade",
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "description": "Error message"
+              },
+              "type": {
+                "type": "string",
+                "description": "Error type"
+              },
+              "param": {
+                "type": "string",
+                "description": "Related parameter",
+                "nullable": true
+              },
+              "code": {
+                "type": "string",
+                "description": "Error code",
+                "nullable": true
+              }
+            }
+          }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "properties": {
+          "prompt_tokens": {
+            "type": "integer",
+            "description": "Prompt tokens"
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "description": "Completion tokens"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "description": "Total tokens"
+          },
+          "prompt_tokens_details": {
+            "type": "object",
+            "properties": {
+              "cached_tokens": {
+                "type": "integer"
+              },
+              "text_tokens": {
+                "type": "integer"
+              },
+              "audio_tokens": {
+                "type": "integer"
+              },
+              "image_tokens": {
+                "type": "integer"
+              }
+            }
+          },
+          "completion_tokens_details": {
+            "type": "object",
+            "properties": {
+              "text_tokens": {
+                "type": "integer"
+              },
+              "audio_tokens": {
+                "type": "integer"
+              },
+              "reasoning_tokens": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Model ID",
+            "example": "gpt-5.4"
+          },
+          "object": {
+            "type": "string",
+            "description": "Object type",
+            "example": "model"
+          },
+          "created": {
+            "type": "integer",
+            "description": "Creation timestamp"
+          },
+          "owned_by": {
+            "type": "string",
+            "description": "Model owner",
+            "example": "openai"
+          }
+        }
+      },
+      "ModelsResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          }
+        }
+      },
+      "GeminiModelsResponse": {
+        "type": "object",
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "example": "models/gemini-pro"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "inputTokenLimit": {
+                  "type": "integer"
+                },
+                "outputTokenLimit": {
+                  "type": "integer"
+                },
+                "supportedGenerationMethods": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant",
+              "tool",
+              "developer"
+            ],
+            "description": "Message role"
+          },
+          "content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MessageContent"
+                }
+              }
+            ],
+            "description": "Message content"
+          },
+          "name": {
+            "type": "string",
+            "description": "Sender name"
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            }
+          },
+          "tool_call_id": {
+            "type": "string",
+            "description": "Tool call ID (for `tool` role messages)"
+          },
+          "reasoning_content": {
+            "type": "string",
+            "description": "Reasoning content"
+          }
+        }
+      },
+      "MessageContent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image_url",
+              "input_audio",
+              "file",
+              "video_url"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "image_url": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "Image URL or base64"
+              },
+              "detail": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "high",
+                  "auto"
+                ]
+              }
+            }
+          },
+          "input_audio": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "string",
+                "description": "Base64-encoded audio data"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "wav",
+                  "mp3"
+                ]
+              }
+            }
+          },
+          "file": {
+            "type": "object",
+            "properties": {
+              "filename": {
+                "type": "string"
+              },
+              "file_data": {
+                "type": "string"
+              },
+              "file_id": {
+                "type": "string"
+              }
+            }
+          },
+          "video_url": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ToolCall": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "example": "function"
+          },
+          "function": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "arguments": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Tool": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "function"
+          },
+          "function": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "parameters": {
+                "type": "object",
+                "description": "Parameter definition in JSON Schema format",
+                "properties": {}
+              }
+            }
+          }
+        }
+      },
+      "ResponseFormat": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "json_object",
+              "json_schema"
+            ]
+          },
+          "json_schema": {
+            "type": "object",
+            "description": "JSON Schema definition",
+            "properties": {}
+          }
+        }
+      },
+      "ChatCompletionRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "messages"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model ID",
+            "example": "gpt-5.4"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "description": "List of chat messages"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2,
+            "default": 1,
+            "description": "Sampling temperature"
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "default": 1,
+            "description": "Nucleus sampling parameter"
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Number of completions to generate"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to stream the response"
+          },
+          "stream_options": {
+            "type": "object",
+            "properties": {
+              "include_usage": {
+                "type": "boolean"
+              },
+              "include_obfuscation": {
+                "type": "boolean",
+                "description": "Whether stream events include the obfuscation field. The gateway drops this field by default and forwards it only when the channel enables allow_include_obfuscation."
+              }
+            }
+          },
+          "stop": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Stop sequences"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "Maximum tokens to generate"
+          },
+          "max_completion_tokens": {
+            "type": "integer",
+            "description": "Maximum completion tokens"
+          },
+          "presence_penalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2,
+            "default": 0
+          },
+          "frequency_penalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2,
+            "default": 0
+          },
+          "logit_bias": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "properties": {}
+          },
+          "user": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tool"
+            }
+          },
+          "tool_choice": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "auto",
+                  "required"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "function": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "response_format": {
+            "$ref": "#/components/schemas/ResponseFormat"
+          },
+          "seed": {
+            "type": "integer"
+          },
+          "reasoning_effort": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Reasoning effort (for reasoning-capable models)"
+          },
+          "modalities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "text",
+                "audio"
+              ]
+            }
+          },
+          "audio": {
+            "type": "object",
+            "properties": {
+              "voice": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string"
+              }
+            }
+          },
+          "parallel_tool_calls": {
+            "type": "boolean",
+            "description": "Whether the model may call multiple tools in parallel."
+          },
+          "logprobs": {
+            "type": "boolean",
+            "description": "Whether to return log probabilities of the output tokens."
+          },
+          "top_logprobs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20,
+            "description": "Number of most likely tokens to return at each position (0-20); requires `logprobs` to be true."
+          },
+          "verbosity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "Answer verbosity (GPT-5 series)."
+          },
+          "prediction": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "content": {}
+            },
+            "description": "Predicted Outputs, used to speed up generation when much of the output is known in advance."
+          },
+          "web_search_options": {
+            "type": "object",
+            "properties": {
+              "search_context_size": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "user_location": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "description": "Web search configuration; only for search-capable models."
+          },
+          "store": {
+            "type": "boolean",
+            "description": "Whether the upstream may store this request and its output. Forwarded by default; removed when the channel enables disable_store."
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Up to 16 string key-value pairs attached to the request."
+          },
+          "service_tier": {
+            "type": "string",
+            "description": "Service tier; may affect billing. The gateway drops this field by default and forwards it only when the channel enables allow_service_tier."
+          },
+          "safety_identifier": {
+            "type": "string",
+            "description": "Stable end-user identifier (hashing recommended) for upstream abuse detection. The gateway drops this field by default and forwards it only when the channel enables allow_safety_identifier."
+          },
+          "prompt_cache_key": {
+            "type": "string",
+            "description": "Prompt cache key used to improve cache hit rates for similar requests."
+          },
+          "prompt_cache_retention": {
+            "type": "string",
+            "enum": [
+              "in_memory",
+              "24h"
+            ],
+            "description": "Prompt cache retention policy."
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            },
+            "deprecated": true,
+            "description": "Deprecated; use `tools` instead."
+          },
+          "function_call": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ],
+            "deprecated": true,
+            "description": "Deprecated; use `tool_choice` instead."
+          }
+        }
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "chat.completion"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "message": {
+                  "$ref": "#/components/schemas/Message"
+                },
+                "finish_reason": {
+                  "type": "string",
+                  "enum": [
+                    "stop",
+                    "length",
+                    "tool_calls",
+                    "content_filter"
+                  ]
+                }
+              }
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          },
+          "system_fingerprint": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatCompletionStreamResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "chat.completion.chunk"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "delta": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "reasoning_content": {
+                      "type": "string"
+                    },
+                    "tool_calls": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ToolCall"
+                      }
+                    }
+                  }
+                },
+                "finish_reason": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        }
+      },
+      "CompletionRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "prompt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "max_tokens": {
+            "type": "integer"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "top_p": {
+            "type": "number"
+          },
+          "n": {
+            "type": "integer"
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "stop": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "suffix": {
+            "type": "string"
+          },
+          "echo": {
+            "type": "boolean"
+          },
+          "stream_options": {
+            "type": "object",
+            "properties": {
+              "include_usage": {
+                "type": "boolean"
+              }
+            },
+            "description": "Streaming options; only effective when `stream` is true."
+          },
+          "presence_penalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2,
+            "description": "Presence penalty."
+          },
+          "frequency_penalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2,
+            "description": "Frequency penalty."
+          },
+          "logit_bias": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Bias map that adjusts the likelihood of specific tokens."
+          },
+          "seed": {
+            "type": "integer",
+            "description": "Random seed for best-effort reproducible output."
+          },
+          "user": {
+            "type": "string",
+            "description": "End-user identifier."
+          }
+        }
+      },
+      "CompletionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "text_completion"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "index": {
+                  "type": "integer"
+                },
+                "finish_reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        }
+      },
+      "ResponsesRequest": {
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "input": {
+            "description": "Input content: a string or an array of messages",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            ]
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "max_output_tokens": {
+            "type": "integer"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "top_p": {
+            "type": "number"
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "tool_choice": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "reasoning": {
+            "type": "object",
+            "properties": {
+              "effort": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "previous_response_id": {
+            "type": "string"
+          },
+          "truncation": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "disabled"
+            ]
+          },
+          "include": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Extra data to include in the response, such as `reasoning.encrypted_content`."
+          },
+          "conversation": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            ],
+            "description": "Conversation this response belongs to, as an ID or object; cannot be used with `previous_response_id`."
+          },
+          "prompt": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "variables": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "description": "Reference to a reusable prompt template."
+          },
+          "text": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "object",
+                "properties": {}
+              },
+              "verbosity": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            },
+            "description": "Text output configuration: `format` selects plain text or JSON Schema structured output, and `verbosity` controls answer length."
+          },
+          "parallel_tool_calls": {
+            "type": "boolean",
+            "description": "Whether the model may call multiple tools in parallel."
+          },
+          "max_tool_calls": {
+            "type": "integer",
+            "description": "Maximum total number of built-in tool calls in this response."
+          },
+          "top_logprobs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20,
+            "description": "Number of most likely tokens to return at each position (0-20)."
+          },
+          "stream_options": {
+            "type": "object",
+            "properties": {
+              "include_usage": {
+                "type": "boolean"
+              }
+            },
+            "description": "Streaming options; only effective when `stream` is true."
+          },
+          "store": {
+            "type": "boolean",
+            "description": "Whether the upstream may store this request and its output. Forwarded by default; removed when the channel enables disable_store."
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Up to 16 string key-value pairs attached to the request."
+          },
+          "service_tier": {
+            "type": "string",
+            "description": "Service tier; may affect billing. The gateway drops this field by default and forwards it only when the channel enables allow_service_tier."
+          },
+          "safety_identifier": {
+            "type": "string",
+            "description": "Stable end-user identifier (hashing recommended) for upstream abuse detection. The gateway drops this field by default and forwards it only when the channel enables allow_safety_identifier."
+          },
+          "prompt_cache_key": {
+            "type": "string",
+            "description": "Prompt cache key used to improve cache hit rates for similar requests."
+          },
+          "prompt_cache_retention": {
+            "type": "string",
+            "enum": [
+              "in_memory",
+              "24h"
+            ],
+            "description": "Prompt cache retention policy."
+          },
+          "user": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Deprecated; use `safety_identifier` and `prompt_cache_key` instead."
+          }
+        }
+      },
+      "ResponsesResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "response"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed",
+              "in_progress",
+              "incomplete"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "output": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        }
+      },
+      "ResponsesCompactionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "response.compaction"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "output": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          },
+          "error": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "ResponsesCompactionRequest": {
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "input": {
+            "description": "Input content: a string or an array of messages",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            ]
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "previous_response_id": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            },
+            "description": "Available tools, in the same format as the Responses endpoint."
+          },
+          "parallel_tool_calls": {
+            "type": "boolean",
+            "description": "Whether the model may call multiple tools in parallel."
+          },
+          "reasoning": {
+            "type": "object",
+            "properties": {
+              "effort": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              }
+            },
+            "description": "Reasoning configuration."
+          },
+          "text": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "object",
+                "properties": {}
+              },
+              "verbosity": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            },
+            "description": "Text output configuration: `format` selects plain text or JSON Schema structured output, and `verbosity` controls answer length."
+          },
+          "service_tier": {
+            "type": "string",
+            "description": "Service tier; may affect billing. The gateway drops this field by default and forwards it only when the channel enables allow_service_tier."
+          },
+          "prompt_cache_key": {
+            "type": "string",
+            "description": "Prompt cache key used to improve cache hit rates for similar requests."
+          },
+          "prompt_cache_retention": {
+            "type": "string",
+            "enum": [
+              "in_memory",
+              "24h"
+            ],
+            "description": "Prompt cache retention policy."
+          }
+        }
+      },
+      "ResponsesStreamResponse": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "response": {
+            "$ref": "#/components/schemas/ResponsesResponse"
+          },
+          "delta": {
+            "type": "string"
+          },
+          "item": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "ClaudeRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "messages",
+          "max_tokens"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "example": "claude-sonnet-5-5"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaudeMessage"
+            }
+          },
+          "system": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            ]
+          },
+          "cache_control": {
+            "type": "object",
+            "properties": {}
+          },
+          "inference_geo": {
+            "type": "string"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "top_p": {
+            "type": "number"
+          },
+          "top_k": {
+            "type": "integer"
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "stop_sequences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "input_schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "tool_choice": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "any",
+                      "tool",
+                      "none"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          "thinking": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "enabled",
+                  "disabled"
+                ]
+              },
+              "budget_tokens": {
+                "type": "integer"
+              }
+            }
+          },
+          "context_management": {
+            "type": "object",
+            "properties": {}
+          },
+          "output_config": {
+            "type": "object",
+            "properties": {}
+          },
+          "output_format": {
+            "type": "object",
+            "properties": {}
+          },
+          "container": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "mcp_servers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "user_id": {
+                "type": "string"
+              }
+            }
+          },
+          "speed": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "fast"
+            ]
+          },
+          "service_tier": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "standard_only"
+            ]
+          }
+        }
+      },
+      "ClaudeMessage": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "text",
+                        "image",
+                        "tool_use",
+                        "tool_result"
+                      ]
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "base64",
+                            "url"
+                          ]
+                        },
+                        "media_type": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "input": {
+                      "type": "object",
+                      "properties": {}
+                    },
+                    "tool_use_id": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "ClaudeResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "example": "message"
+          },
+          "role": {
+            "type": "string",
+            "example": "assistant"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "model": {
+            "type": "string"
+          },
+          "stop_reason": {
+            "type": "string",
+            "enum": [
+              "end_turn",
+              "max_tokens",
+              "stop_sequence",
+              "tool_use"
+            ]
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "input_tokens": {
+                "type": "integer"
+              },
+              "output_tokens": {
+                "type": "integer"
+              },
+              "cache_creation_input_tokens": {
+                "type": "integer"
+              },
+              "cache_read_input_tokens": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "EmbeddingRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "input"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "example": "text-embedding-3-large"
+          },
+          "input": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Text to embed"
+          },
+          "encoding_format": {
+            "type": "string",
+            "enum": [
+              "float",
+              "base64"
+            ],
+            "default": "float"
+          },
+          "dimensions": {
+            "type": "integer",
+            "description": "Output vector dimensions"
+          },
+          "user": {
+            "type": "string",
+            "description": "End-user identifier."
+          }
+        }
+      },
+      "EmbeddingResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "string",
+                  "example": "embedding"
+                },
+                "index": {
+                  "type": "integer"
+                },
+                "embedding": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          },
+          "model": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer"
+              },
+              "total_tokens": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "ImageGenerationRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model ID. Available models are whatever `/v1/models` returns.\n\nGPT Image models:\n- `gpt-image-2`\n- `gpt-image-2.5-flare`\n- `gpt-image-2.5-sunburst`",
+            "example": "gpt-image-2.5-sunburst"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Image description. The OpenAI Images API allows up to 32000 characters.",
+            "maxLength": 32000
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1,
+            "description": "Number of images; the OpenAI Images API requires 1 to 10. Specific upstream models may impose additional limits."
+          },
+          "size": {
+            "type": "string",
+            "description": "Output size. GPT Image 2/2.5 supports standard sizes and WIDTHxHEIGHT values that meet upstream constraints; legacy models can use their supported sizes.",
+            "example": "1024x1024"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max",
+              "auto",
+              "standard",
+              "hd"
+            ],
+            "description": "GPT Image supports low/medium/high/auto; GPT Image 2.5 Flare/Sunburst also supports xhigh/max. standard/hd are legacy DALL·E compatibility values."
+          },
+          "background": {
+            "type": "string",
+            "enum": [
+              "transparent",
+              "opaque",
+              "auto"
+            ],
+            "description": "GPT Image output background; a transparent background requires png or webp."
+          },
+          "moderation": {
+            "type": "string",
+            "enum": [
+              "low",
+              "auto"
+            ],
+            "description": "GPT Image content moderation level."
+          },
+          "output_format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg",
+              "webp"
+            ],
+            "description": "GPT Image output format."
+          },
+          "output_compression": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "JPEG/WebP compression level (0-100); only for GPT Image models that support this parameter."
+          },
+          "partial_images": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "Number of partial images in a streaming response (0-3); only for GPT Image models that support image streaming."
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to return an image event stream; only for GPT Image models that support this parameter."
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "url",
+              "b64_json"
+            ],
+            "description": "Response format for legacy image models. GPT Image models always return base64 via `b64_json`; don't rely on URLs for them."
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "vivid",
+              "natural"
+            ],
+            "description": "Legacy DALL·E style parameter; not supported by GPT Image models. Put style in the prompt instead."
+          },
+          "user": {
+            "type": "string",
+            "description": "Legacy compatibility parameter that identifies the end user."
+          }
+        }
+      },
+      "ImageEditRequest": {
+        "type": "object",
+        "required": [
+          "prompt"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "image"
+            ]
+          },
+          {
+            "required": [
+              "image[]"
+            ]
+          }
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "format": "binary",
+            "description": "Image file to edit; use this field for a single image."
+          },
+          "image[]": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "description": "Multiple images to edit. Upload them by repeating the `image[]` multipart field; the gateway adaptor supports multiple files."
+          },
+          "mask": {
+            "type": "string",
+            "format": "binary",
+            "description": "Optional mask file; should match the input image's size and format and include an alpha channel."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Image edit description."
+          },
+          "model": {
+            "type": "string",
+            "description": "Model ID. Available models are whatever `/v1/models` returns.\n\nGPT Image models:\n- `gpt-image-2`\n- `gpt-image-2.5-flare`\n- `gpt-image-2.5-sunburst`",
+            "example": "gpt-image-2.5-sunburst"
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of images; specific upstream models may impose additional limits."
+          },
+          "size": {
+            "type": "string",
+            "description": "Output size; GPT Image 2/2.5 supports standard sizes and WIDTHxHEIGHT values that meet upstream constraints.",
+            "example": "1024x1024"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max",
+              "auto"
+            ],
+            "description": "GPT Image quality; GPT Image 2.5 Flare/Sunburst also supports xhigh/max."
+          },
+          "background": {
+            "type": "string",
+            "enum": [
+              "transparent",
+              "opaque",
+              "auto"
+            ],
+            "description": "GPT Image output background; a transparent background requires png or webp."
+          },
+          "moderation": {
+            "type": "string",
+            "enum": [
+              "low",
+              "auto"
+            ],
+            "description": "GPT Image content moderation level."
+          },
+          "output_format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg",
+              "webp"
+            ],
+            "description": "GPT Image output format."
+          },
+          "output_compression": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "JPEG/WebP compression level (0-100)."
+          },
+          "partial_images": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "Number of partial images in a streaming response (0-3)."
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          },
+          "input_fidelity": {
+            "type": "string",
+            "enum": [
+              "high",
+              "low"
+            ],
+            "description": "Input image fidelity. Omit this parameter for GPT Image 2."
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "url",
+              "b64_json"
+            ],
+            "description": "Response format for legacy image models; GPT Image models always return base64."
+          },
+          "user": {
+            "type": "string",
+            "description": "Legacy compatibility parameter that identifies the end user."
+          }
+        }
+      },
+      "ImageResponse": {
+        "type": "object",
+        "required": [
+          "created",
+          "data"
+        ],
+        "properties": {
+          "created": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "Temporary URL returned by older image models."
+                },
+                "b64_json": {
+                  "type": "string",
+                  "format": "byte",
+                  "description": "Base64-encoded image data; returned by GPT Image models."
+                },
+                "revised_prompt": {
+                  "type": "string",
+                  "description": "Revised prompt from older models (if returned by the upstream)."
+                }
+              },
+              "anyOf": [
+                {
+                  "required": [
+                    "url"
+                  ]
+                },
+                {
+                  "required": [
+                    "b64_json"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "AudioTranscriptionRequest": {
+        "type": "object",
+        "required": [
+          "file",
+          "model"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "Audio file"
+          },
+          "model": {
+            "type": "string",
+            "example": "whisper-1"
+          },
+          "language": {
+            "type": "string",
+            "description": "ISO-639-1 language code"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "json",
+              "text",
+              "srt",
+              "verbose_json",
+              "vtt"
+            ],
+            "default": "json"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "timestamp_granularities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "word",
+                "segment"
+              ]
+            }
+          }
+        }
+      },
+      "AudioTranslationRequest": {
+        "type": "object",
+        "required": [
+          "file",
+          "model"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "model": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "response_format": {
+            "type": "string"
+          },
+          "temperature": {
+            "type": "number"
+          }
+        }
+      },
+      "AudioTranscriptionResponse": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "SpeechRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "input",
+          "voice"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "example": "tts-1"
+          },
+          "input": {
+            "type": "string",
+            "description": "Text to convert",
+            "maxLength": 4096
+          },
+          "voice": {
+            "type": "string",
+            "enum": [
+              "alloy",
+              "echo",
+              "fable",
+              "onyx",
+              "nova",
+              "shimmer"
+            ]
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "mp3",
+              "opus",
+              "aac",
+              "flac",
+              "wav",
+              "pcm"
+            ],
+            "default": "mp3"
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.25,
+            "maximum": 4,
+            "default": 1
+          },
+          "instructions": {
+            "type": "string",
+            "description": "Instructions that control voice tone and style; not supported by tts-1 or tts-1-hd."
+          },
+          "stream_format": {
+            "type": "string",
+            "enum": [
+              "sse",
+              "audio"
+            ],
+            "description": "Audio stream format; `sse` returns a Server-Sent Events stream."
+          }
+        }
+      },
+      "RerankRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "query",
+          "documents"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "example": "rerank-english-v2.0"
+          },
+          "query": {
+            "type": "string",
+            "description": "Query text"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {}
+                }
+              ]
+            },
+            "description": "List of documents to rerank"
+          },
+          "top_n": {
+            "type": "integer",
+            "description": "Return the top N results"
+          },
+          "return_documents": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "RerankResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "relevance_score": {
+                  "type": "number"
+                },
+                "document": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "ModerationRequest": {
+        "type": "object",
+        "required": [
+          "input"
+        ],
+        "properties": {
+          "input": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "model": {
+            "type": "string",
+            "example": "text-moderation-latest"
+          }
+        }
+      },
+      "ModerationResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "flagged": {
+                  "type": "boolean"
+                },
+                "categories": {
+                  "type": "object",
+                  "properties": {}
+                },
+                "category_scores": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          }
+        }
+      },
+      "GeminiRequest": {
+        "type": "object",
+        "properties": {
+          "contents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "model"
+                  ]
+                },
+                "parts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      },
+                      "inlineData": {
+                        "type": "object",
+                        "description": "Inline image or other media data; `data` is base64 and `mimeType` is the MIME type.",
+                        "required": [
+                          "mimeType",
+                          "data"
+                        ],
+                        "properties": {
+                          "mimeType": {
+                            "type": "string",
+                            "example": "image/png"
+                          },
+                          "data": {
+                            "type": "string",
+                            "format": "byte"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "generationConfig": {
+            "type": "object",
+            "description": "Optional generation parameters; available fields depend on the selected Gemini model.",
+            "properties": {
+              "temperature": {
+                "type": "number"
+              },
+              "topP": {
+                "type": "number"
+              },
+              "topK": {
+                "type": "integer"
+              },
+              "maxOutputTokens": {
+                "type": "integer"
+              },
+              "stopSequences": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "responseModalities": {
+                "type": "array",
+                "description": "Optional output modalities, e.g. TEXT, IMAGE; only models that support image output can request IMAGE.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "imageConfig": {
+                "type": "object",
+                "description": "Image output configuration; applies only to models that support image output.",
+                "properties": {
+                  "aspectRatio": {
+                    "type": "string"
+                  },
+                  "imageSize": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "safetySettings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "category": {
+                  "type": "string"
+                },
+                "threshold": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "systemInstruction": {
+            "type": "object",
+            "properties": {
+              "parts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "toolConfig": {
+            "type": "object",
+            "properties": {
+              "functionCallingConfig": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "AUTO",
+                      "ANY",
+                      "NONE",
+                      "VALIDATED"
+                    ]
+                  },
+                  "allowedFunctionNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "retrievalConfig": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "description": "Tool calling configuration, such as `functionCallingConfig.mode` and `allowedFunctionNames`."
+          },
+          "cachedContent": {
+            "type": "string",
+            "description": "Context cache name, in the form `cachedContents/{id}`."
+          }
+        }
+      },
+      "GeminiResponse": {
+        "type": "object",
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "content": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
+                  }
+                },
+                "finishReason": {
+                  "type": "string"
+                },
+                "safetyRatings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {}
+                  }
+                }
+              }
+            }
+          },
+          "usageMetadata": {
+            "type": "object",
+            "properties": {
+              "promptTokenCount": {
+                "type": "integer"
+              },
+              "candidatesTokenCount": {
+                "type": "integer"
+              },
+              "totalTokenCount": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "ApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {}
+        }
+      },
+      "PageInfo": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "items": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "email": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "quota": {
+            "type": "integer"
+          },
+          "used_quota": {
+            "type": "integer"
+          },
+          "request_count": {
+            "type": "integer"
+          }
+        }
+      },
+      "Channel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "models": {
+            "type": "string"
+          },
+          "groups": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          }
+        }
+      },
+      "Token": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "expired_time": {
+            "type": "integer"
+          },
+          "remain_quota": {
+            "type": "integer"
+          },
+          "unlimited_quota": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Redemption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "quota": {
+            "type": "integer"
+          },
+          "created_time": {
+            "type": "integer"
+          },
+          "redeemed_time": {
+            "type": "integer"
+          }
+        }
+      },
+      "Log": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer"
+          }
+        }
+      },
+      "TaskError": {
+        "type": "object",
+        "description": "Task endpoint error",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Error code"
+          },
+          "message": {
+            "type": "string",
+            "description": "Error message"
+          },
+          "data": {
+            "nullable": true,
+            "description": "Additional data, usually `null`"
+          }
+        }
+      },
+      "VideoGenerationRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model ID",
+            "example": "wan2.7-t2v"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Prompt; required and must not be empty"
+          },
+          "mode": {
+            "type": "string",
+            "description": "Generation mode (Kling: `std` / `pro`)"
+          },
+          "image": {
+            "type": "string",
+            "description": "First-frame image URL (some models support Base64)"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Image list; meaning varies by model (first/last frames, reference images, etc.)"
+          },
+          "size": {
+            "type": "string",
+            "description": "Resolution tier or pixel dimensions"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "Duration in seconds, 0–3600",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "seconds": {
+            "type": "string",
+            "description": "Duration in seconds, as a string"
+          },
+          "input_reference": {
+            "type": "string",
+            "description": "Reference image URL"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Vendor-specific parameters; see each model's API reference page for the structure"
+          }
+        }
+      },
+      "VideoGenerationSubmitResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Task ID, same as `task_id`"
+          },
+          "task_id": {
+            "type": "string",
+            "description": "Task ID, used with the query endpoint"
+          },
+          "status": {
+            "type": "string",
+            "description": "Always `queued` on successful submission",
+            "enum": [
+              "queued"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "description": "Requested model ID"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "Creation time (Unix seconds)"
+          }
+        },
+        "required": [
+          "id",
+          "task_id",
+          "status",
+          "model",
+          "created_at"
+        ]
+      },
+      "VideoGenerationTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Task record ID"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "Record creation time (Unix seconds)"
+          },
+          "updated_at": {
+            "type": "integer",
+            "description": "Record update time (Unix seconds)"
+          },
+          "task_id": {
+            "type": "string",
+            "description": "Task ID"
+          },
+          "platform": {
+            "type": "string",
+            "description": "Channel platform identifier"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "User ID"
+          },
+          "group": {
+            "type": "string",
+            "description": "User group"
+          },
+          "channel_id": {
+            "type": "integer",
+            "description": "ID of the channel that handled the task"
+          },
+          "quota": {
+            "type": "integer",
+            "description": "Quota consumed by this task"
+          },
+          "action": {
+            "type": "string",
+            "description": "Task action, such as `text_to_video`, `image_to_video`, `first_tail_to_video`, `reference_to_video`; some plugins return their own action names"
+          },
+          "status": {
+            "type": "string",
+            "description": "Task status: `NOT_START` not started, `SUBMITTED` submitted, `QUEUED` queued, `IN_PROGRESS` generating, `SUCCESS` succeeded, `FAILURE` failed, `UNKNOWN` unknown",
+            "enum": [
+              "NOT_START",
+              "SUBMITTED",
+              "QUEUED",
+              "IN_PROGRESS",
+              "SUCCESS",
+              "FAILURE",
+              "UNKNOWN"
+            ]
+          },
+          "fail_reason": {
+            "type": "string",
+            "description": "Failure reason; empty on success"
+          },
+          "result_url": {
+            "type": "string",
+            "description": "On success, the video URL (the upstream URL, or the gateway proxy URL `https://{{API_HOST}}/v1/videos/{task_id}/content`); falls back to `fail_reason` when there is no result URL; omitted when empty"
+          },
+          "submit_time": {
+            "type": "integer",
+            "description": "Submission time (Unix seconds)"
+          },
+          "start_time": {
+            "type": "integer",
+            "description": "Start time (Unix seconds)"
+          },
+          "finish_time": {
+            "type": "integer",
+            "description": "Completion time (Unix seconds)"
+          },
+          "progress": {
+            "type": "string",
+            "description": "Progress, such as `10%`, `100%`"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "string",
+                "description": "Submitted prompt"
+              },
+              "upstream_model_name": {
+                "type": "string",
+                "description": "Upstream model actually called"
+              },
+              "origin_model_name": {
+                "type": "string",
+                "description": "Model name in the request"
+              }
+            },
+            "description": "Task properties"
+          },
+          "username": {
+            "type": "string",
+            "description": "Username (may be omitted)"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Raw upstream task data; structure varies by vendor"
+          }
+        }
+      },
+      "VideoGenerationTaskResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "`success` on a successful query"
+          },
+          "message": {
+            "type": "string",
+            "description": "Message, usually empty"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "Task record ID"
+              },
+              "created_at": {
+                "type": "integer",
+                "description": "Record creation time (Unix seconds)"
+              },
+              "updated_at": {
+                "type": "integer",
+                "description": "Record update time (Unix seconds)"
+              },
+              "task_id": {
+                "type": "string",
+                "description": "Task ID"
+              },
+              "platform": {
+                "type": "string",
+                "description": "Channel platform identifier"
+              },
+              "user_id": {
+                "type": "integer",
+                "description": "User ID"
+              },
+              "group": {
+                "type": "string",
+                "description": "User group"
+              },
+              "channel_id": {
+                "type": "integer",
+                "description": "ID of the channel that handled the task"
+              },
+              "quota": {
+                "type": "integer",
+                "description": "Quota consumed by this task"
+              },
+              "action": {
+                "type": "string",
+                "description": "Task action, such as `text_to_video`, `image_to_video`, `first_tail_to_video`, `reference_to_video`; some plugins return their own action names"
+              },
+              "status": {
+                "type": "string",
+                "description": "Task status: `NOT_START` not started, `SUBMITTED` submitted, `QUEUED` queued, `IN_PROGRESS` generating, `SUCCESS` succeeded, `FAILURE` failed, `UNKNOWN` unknown",
+                "enum": [
+                  "NOT_START",
+                  "SUBMITTED",
+                  "QUEUED",
+                  "IN_PROGRESS",
+                  "SUCCESS",
+                  "FAILURE",
+                  "UNKNOWN"
+                ]
+              },
+              "fail_reason": {
+                "type": "string",
+                "description": "Failure reason; empty on success"
+              },
+              "result_url": {
+                "type": "string",
+                "description": "On success, the video URL (the upstream URL, or the gateway proxy URL `https://{{API_HOST}}/v1/videos/{task_id}/content`); falls back to `fail_reason` when there is no result URL; omitted when empty"
+              },
+              "submit_time": {
+                "type": "integer",
+                "description": "Submission time (Unix seconds)"
+              },
+              "start_time": {
+                "type": "integer",
+                "description": "Start time (Unix seconds)"
+              },
+              "finish_time": {
+                "type": "integer",
+                "description": "Completion time (Unix seconds)"
+              },
+              "progress": {
+                "type": "string",
+                "description": "Progress, such as `10%`, `100%`"
+              },
+              "properties": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "string",
+                    "description": "Submitted prompt"
+                  },
+                  "upstream_model_name": {
+                    "type": "string",
+                    "description": "Upstream model actually called"
+                  },
+                  "origin_model_name": {
+                    "type": "string",
+                    "description": "Model name in the request"
+                  }
+                },
+                "description": "Task properties"
+              },
+              "username": {
+                "type": "string",
+                "description": "Username (may be omitted)"
+              },
+              "data": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Raw upstream task data; structure varies by vendor"
+              }
+            }
+          }
+        },
+        "required": [
+          "code",
+          "data"
+        ]
+      }
+    },
+    "responses": {},
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Bearer token authentication.\nFormat: `Authorization: Bearer sk-xxxxxx`\n"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://{{API_HOST}}",
+      "description": "DeepPattern API"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "x-tagGroups": [
+    {
+      "name": "General",
+      "tags": [
+        "models"
+      ]
+    },
+    {
+      "name": "Chat models",
+      "tags": [
+        "chat-completions",
+        "responses",
+        "claude-messages",
+        "gemini",
+        "completions"
+      ]
+    },
+    {
+      "name": "Image models",
+      "tags": [
+        "gpt-images",
+        "grok-images",
+        "seedream-images"
+      ]
+    },
+    {
+      "name": "Video models",
+      "tags": [
+        "video-tasks"
+      ]
+    },
+    {
+      "name": "Audio models",
+      "tags": [
+        "audio",
+        "realtime"
+      ]
+    },
+    {
+      "name": "Embeddings and retrieval",
+      "tags": [
+        "embeddings",
+        "rerank"
+      ]
+    },
+    {
+      "name": "Content safety",
+      "tags": [
+        "moderations"
+      ]
+    }
+  ]
+}

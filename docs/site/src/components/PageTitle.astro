@@ -1,0 +1,26 @@
+---
+import { isApiPath, langOf, localePath, t } from '../i18n';
+
+const { entry, sidebar } = Astro.locals.starlightRoute;
+const { title, description } = entry.data;
+const isGuide = sidebar.length > 0;
+const isEntrance = entry.id === 'start/intro' || entry.id === 'en/start/intro';
+const lang = langOf(Astro.url.pathname);
+const isApiReference = isApiPath(Astro.url.pathname);
+---
+
+{!isApiReference && (
+<div class:list={['docs-heading', { 'docs-heading-entrance': isEntrance }]}>
+	{
+		isGuide && !isEntrance && (
+			<nav class="docs-breadcrumb" aria-label={title}>
+				<a href={localePath(lang, '/start/intro/')}>{t(lang).guide}</a>
+				<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+				<span aria-current="page">{title}</span>
+			</nav>
+		)
+	}
+	<h1 id="_top">{title}</h1>
+	{description && <p class="docs-description">{description}</p>}
+</div>
+)}

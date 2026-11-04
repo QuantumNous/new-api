@@ -1,0 +1,4306 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "DeepPattern API 参考",
+    "description": "**协议兼容性**\n\nBase URL：`https://{{API_HOST}}`。先按用途选择左侧分类，再查看对应接口。文档中的官方型号和仓库适配代表值不等于当前账号的开通清单；真正可用的模型 ID 以当前账号的 `GET /v1/models` 返回为准。\n\n```bash\ncurl https://{{API_HOST}}/v1/models \\\n  -H \"Authorization: Bearer $DP_API_KEY\"\n```\n\n**按用途选择**\n\n| 用途 | 推荐入口 | 请求方式 |\n| --- | --- | --- |\n| 对话、推理、视觉理解 | 对话模型 | Chat Completions / Responses；Claude、Gemini 也有原生协议 |\n| 生图、图片编辑 | 生图模型 | Images；Gemini 图片模型使用 `generateContent` |\n| 视频生成 | 视频模型 | 创建任务 → 查询状态 → 读取结果地址 |\n| 转录、翻译、语音合成 | 音频模型 | Audio；实时音频使用 WebSocket |\n| 内容审核 | 内容安全 | Moderations |\n\n同一个协议可承载多个模型，不需要为每个模型重复一套接口。聊天、图片、视频的请求体不同，不能只替换 `model` 后复用请求。\n\n**SDK Base URL**\n\n| 客户端协议 | Base URL | 主要入口 |\n| --- | --- | --- |\n| OpenAI 兼容 | `https://{{API_HOST}}/v1` | `/chat/completions`、`/responses`、`/images/*`、`/videos` |\n| Anthropic | `https://{{API_HOST}}` | `/v1/messages` |\n| Gemini | `https://{{API_HOST}}/v1beta` | `/models/{model}:generateContent` |\n\nAnthropic SDK 会自行拼接 `/v1/messages`，Base URL 不带 `/v1`。`/v1/models` 默认返回 OpenAI 格式；带 Anthropic 或 Gemini 请求头时可返回相应格式。\n\n**对话模型**\n\n**OpenAI 兼容**\n\n- **入口**：`POST /v1/chat/completions` 适合传统聊天客户端；`POST /v1/responses` 适合 Responses API、工具调用、推理和异步任务插件。\n- **代表型号**：GPT-5.x、GPT-4.1/4o、o3、o4-mini；官方近期目录还列出 `gpt-6-astra`、`gpt-6.1-sol`、`gpt-6-luna`。这些名称只是模型目录信息，先用 `/v1/models` 确认网关是否开通。\n- **专项入口**：`gpt-realtime-2.1` 用 Realtime；`omni-moderation-latest` 用 Moderations，不能套用聊天请求。\n\n**xAI Grok**\n\nxAI 的 Grok 对话模型通过 OpenAI 兼容入口调用：`/v1/chat/completions` 或 `/v1/responses`。搜索变体是否可用取决于上游密钥和渠道配置。\n\n官方近期目录列出 `grok-4.7`、`grok-4.6`、`grok-4.5`、`grok-4.3`，以及日期版 `grok-4.20-0309-reasoning` 和 `grok-4.20-0309-non-reasoning`。当前账号仍以 `/v1/models` 为准。\n\n官方资料：[Grok Models](https://docs.x.ai/developers/models)、[Responses API](https://docs.x.ai/developers/model-capabilities/text/generate-text)。\n\n```bash\ncurl https://{{API_HOST}}/v1/responses \\\n  -H \"Authorization: Bearer $DP_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"grok-4.7\",\"input\":\"用一句话介绍你自己\"}'\n```\n\n**Claude、Gemini 与其他对话模型**\n\n- **Claude**：`POST /v1/messages`；请求带 `anthropic-version`。官方目录列出 Fable 5.1、Opus 5.5、Sonnet 5.5、Haiku 5.5；仓库旧版 Claude ID 仅表示已有适配，不代表新目录已开通。[官方模型目录](https://platform.claude.com/docs/en/models/overview)\n- **Gemini/Gemma**：原生入口为 `POST /v1beta/models/{model}:generateContent`，流式请求使用 `:streamGenerateContent?alt=sse`；也可走 OpenAI Chat/Responses 兼容转换。官方目录列出 Gemini 4 Argon、Gemini 3.8 Flash 等。[官方模型目录](https://ai.google.dev/gemini-api/docs/models)\n- **Qwen、DeepSeek、Kimi、GLM**：通常走 OpenAI Chat/Responses 兼容入口；模型映射可能把客户端 ID 转为上游 ID，具体以 `/v1/models` 和渠道配置为准。\n\n**生图模型**\n\n**GPT Image、DALL·E 与 OpenAI Images**\n\n- **文生图**：`POST /v1/images/generations`，JSON 请求体。\n- **图片编辑**：`POST /v1/images/edits`，`multipart/form-data`，上传 `image` 和 `prompt`，可选 `mask`。\n- **型号**：\n  - `gpt-image-2`\n  - `gpt-image-2.5-flare`\n  - `gpt-image-2.5-sunburst`\n- 可用型号以 `/v1/models` 为准。\n- GPT Image 通常返回 `data[].b64_json`；旧版兼容模型可能返回 URL。`quality`、`size`、`background`、`output_format` 等参数仍由具体模型决定，详见接口页。\n\n官方资料：[Image generation](https://developers.openai.com/api/docs/guides/image-generation)、[GPT Image 2.5 Flare](https://developers.openai.com/api/docs/models/gpt-image-2.5-flare)、[GPT Image 2](https://developers.openai.com/api/docs/models/gpt-image-2)。\n\n**Grok Image、Gemini 与 Seedream**\n\n- **Grok Image**：仓库 xAI adaptor 的图像转换只保留 `model`、`prompt`、`n`、`response_format`；它不转发上传图片，因此 `/v1/images/edits` 不是已验证的 Grok 编辑契约。仓库模型列表为 `grok-imagine-image-pro`、`grok-imagine-image`、`grok-2-image-1212`。官方新型号不代表网关已开通。[Grok Imagine Image](https://docs.x.ai/developers/models/grok-imagine-image)\n- **Seedream**：`doubao` 任务插件声明 `openai_image`，通过 `/v1/images/generations` 与 `/v1/images/edits` 接收请求；模型和字段限制按插件版本逐型号变化，详见 Seedream 操作页。\n- **Gemini 图片**：使用 `generateContent`；不要把 Gemini 请求体改写成 OpenAI Images 请求体。[Gemini generateContent](https://ai.google.dev/api/generate-content)\n\n**视频模型**\n\n所有视频模型统一使用两个接口：`POST /v1/video/generations` 提交任务，`GET /v1/video/generations/{task_id}` 轮询状态；`data.status` 为 `SUCCESS` 时 `data.result_url` 即视频地址。请求只接受 `prompt`、`model`、`mode`、`image`、`images`、`size`、`duration`、`seconds`、`input_reference`、`metadata` 顶层字段，厂商专有参数放在 `metadata` 中。\n\n| 家族 | 代表型号 | 说明 |\n| --- | --- | --- |\n| 万相 Wan | `wan3.0-video`、`wan2.7-t2v`、`wan2.7-i2v`、`wan2.6-*`、`wan2.2-kf2v-flash`、`wan2.2-s2v` | `metadata.input` / `metadata.parameters` 合并到 DashScope 请求 |\n| HappyHorse | `happyhorse-1.1-t2v`、`-i2v`、`-r2v`、`happyhorse-1.0-video-edit` | 需渠道使用自定义阿里巴巴插件 v1.5.1+ |\n| Sora | `sora-2`、`sora-2-pro` | `size`、`seconds`、`input_reference` |\n| Grok Imagine Video | `grok-imagine-video`、`grok-imagine-video-1.5`、`grok-imagine-video-1.5-lite` | 比例、尾帧、关键帧、参考素材放 `metadata` |\n| Seedance | `doubao-seedance-*` | `metadata` 展开到方舟请求体 |\n| Veo | `veo-3.0-generate-001`、`veo-3.1-generate-preview` 等 | `metadata` 作为上游 `parameters`；查询返回实时简化结构 |\n| Kling | `kling-v1`、`kling-v1-6`、`kling-v2-master` | `mode`、`image`、`duration`；尾帧 `metadata.image_tail` |\n| 即梦 | `jimeng_vgfm_t2v_l20` | `metadata.req_key`、`aspect_ratio`、`frames` |\n| Vidu | `viduq2`、`viduq1`、`vidu2.0`、`vidu1.5` | 图片数量决定生成方式 |\n| MiniMax 海螺 | `MiniMax-H3`、`MiniMax-Hailuo-2.3` 等 | 首尾帧放 `metadata`（H3 可用 `images`） |\n\n官方资料：[OpenAI Video](https://developers.openai.com/api/docs/guides/video-generation)、[xAI Video](https://docs.x.ai/developers/model-capabilities/video/overview)。\n\n**其他模型入口**\n\n- **音频**：`/v1/audio/transcriptions`、`/v1/audio/translations`、`/v1/audio/speech`；Realtime 使用 `/v1/realtime` WebSocket。\n- **内容安全**：`/v1/moderations`；模型是否开通以 `/v1/models` 为准。\n- **未实现**：`/v1/fine-tunes`、`/v1/files` 不在本参考中，调用不会得到有效响应。\n\n**认证**\n\n所有接口都用同一把 `sk-` 开头的 API Key。区别只在于凭据放在哪个请求头里。\n\n**凭据写法**\n\n网关在所有协议上都接受 `Authorization: Bearer`，另外在特定路径上兼容各生态的原生写法。\n\n| 写法 | 生效路径 | 示例 |\n| --- | --- | --- |\n| `Authorization: Bearer <key>` | 全部 | `Authorization: Bearer sk-xxxxxx` |\n| `x-api-key: <key>` | `/v1/messages`、`/v1/models` | Anthropic SDK 的默认写法 |\n| `x-goog-api-key: <key>` | `/v1beta/models*`、`/v1/models` | Google GenAI SDK 的默认写法 |\n| `?key=<key>` 查询参数 | `/v1beta/models*`、`/v1/models` | Gemini 的查询参数写法 |\n\n只需按所用协议选择一种写法，不需要同时提供。\n\n```bash\n# OpenAI 兼容\ncurl https://{{API_HOST}}/v1/chat/completions \\\n  -H \"Authorization: Bearer $DP_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"your-model\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}'\n\n# Anthropic 兼容\ncurl https://{{API_HOST}}/v1/messages \\\n  -H \"x-api-key: $DP_API_KEY\" \\\n  -H \"anthropic-version: 2023-06-01\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"your-model\",\"max_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}'\n\n# Gemini 兼容\ncurl \"https://{{API_HOST}}/v1beta/models/your-model:generateContent\" \\\n  -H \"x-goog-api-key: $DP_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"contents\":[{\"parts\":[{\"text\":\"hello\"}]}]}'\n```\n\n**Realtime WebSocket**\n\nWebSocket 不能自定义请求头，凭据放在子协议里：\n\n```\nSec-WebSocket-Protocol: realtime, openai-insecure-api-key.sk-xxxxxx, openai-beta.realtime-v1\n```\n\n**密钥的权限边界**\n\n- 密钥属于一个**服务分组**，分组决定可调用的模型范围与计费口径。\n- 密钥可设置**额度上限**和**有效期**，超出后请求被拒绝。\n- 密钥可设置 **IP 允许列表**。设置后，来自列表之外的 IP 返回 `403`，提示 IP 不在令牌允许访问的列表中。\n\n**验证 API Key**\n\n```bash\ncurl -i https://{{API_HOST}}/v1/models \\\n  -H \"Authorization: Bearer $DP_API_KEY\"\n```\n\n返回 `200` 且响应体含 `data` 数组即认证成功。返回 `401` 见[错误码](#description/错误码)。\n\n**认证常见问题**\n\n**能不能把密钥放在查询参数里给 OpenAI 接口用？**\n不能。`?key=` 只在 Gemini 相关路径和 `/v1/models` 上生效。\n\n**`Authorization` 里要不要保留 `sk-` 前缀？**\n保留即可，网关会自行处理。\n\n**面板的 Personal Access Token 能调用这些接口吗？**\n不能。面板 PAT 用于管理接口，模型接口只接受 `sk-` 密钥。\n\n**错误码**\n\n**错误响应结构**\n\nOpenAI 协议返回 `error` 对象：\n\n```json\n{\n  \"error\": {\n    \"message\": \"错误描述\",\n    \"type\": \"new_api_error\",\n    \"param\": \"\",\n    \"code\": \"insufficient_user_quota\"\n  }\n}\n```\n\nAnthropic 协议返回：\n\n```json\n{\n  \"type\": \"error\",\n  \"error\": {\n    \"type\": \"insufficient_user_quota\",\n    \"message\": \"错误描述\"\n  }\n}\n```\n\n`message` 会对敏感信息做脱敏，所以上游返回的原始细节可能不完整。完整的错误分类与状态码在控制台的错误记录里查询。\n\n**HTTP 状态码**\n\n| 状态码 | 含义 | 处理 |\n| --- | --- | --- |\n| `400` | 请求体不合法，或参数超出允许范围 | 按 `message` 修正请求，重试无用 |\n| `401` | 密钥无效、已过期或已被禁用 | 检查密钥，必要时新建一把 |\n| `403` | 出口 IP 不在密钥的允许列表中，或账号被禁用 | 调整 IP 允许列表，或联系管理员 |\n| `404` | 路径不存在，或模型不在密钥所属分组内 | 核对 Base URL 与模型名 |\n| `429` | 触发限流 | 按 `Retry-After` 或响应体提示退避重试 |\n| `500` | 网关内部错误 | 可重试 |\n| `502` / `503` | 上游异常且无可用账号 | 可重试 |\n\n**`type` 取值**\n\n| 值 | 来源 |\n| --- | --- |\n| `new_api_error` | 网关自身产生的错误 |\n| `openai_error` | 透传自 OpenAI 协议的上游 |\n| `claude_error` | 透传自 Anthropic 协议的上游 |\n| `gemini_error` | 透传自 Gemini 协议的上游 |\n| `upstream_error` | 上游返回了无法归类的错误 |\n| `rerank_error` | 重排序接口的错误 |\n| `midjourney_error` | Midjourney 相关接口的错误 |\n\n**常见的 `code` 取值**\n\n`type` 为 `new_api_error` 时，`code` 指出具体原因。\n\n**请求本身的问题**\n\n| `code` | 含义 |\n| --- | --- |\n| `invalid_request` | 请求不合法 |\n| `bad_request_body` | 请求体无法解析 |\n| `read_request_body_failed` | 读取请求体失败 |\n| `convert_request_failed` | 请求无法转换为上游协议 |\n| `model_not_found` | 模型不存在或不在可调用范围内 |\n| `access_denied` | 访问被拒绝，例如 IP 不在允许列表中 |\n| `sensitive_words_detected` | 命中敏感词拦截 |\n| `prompt_blocked` | 提示词被上游拒绝 |\n\n**额度与计费**\n\n| `code` | 含义 |\n| --- | --- |\n| `insufficient_user_quota` | 账户额度不足 |\n| `pre_consume_token_quota_failed` | 预扣费失败，通常仍是额度不足 |\n| `model_price_error` | 该模型缺少可用的计价配置 |\n| `count_token_failed` | Token 计数失败 |\n\n**渠道与上游**\n\n| `code` | 含义 |\n| --- | --- |\n| `channel:no_available_key` | 该模型当前没有可用的上游账号 |\n| `channel:invalid_key` | 上游账号凭据失效 |\n| `channel:response_time_exceeded` | 上游响应超时 |\n| `channel:model_mapped_error` | 模型映射配置有误 |\n| `get_channel_failed` | 未能选出可用渠道 |\n| `do_request_failed` | 向上游发起请求失败 |\n| `bad_response_status_code` | 上游返回了非成功状态码 |\n| `bad_response` / `bad_response_body` | 上游响应无法解析 |\n| `empty_response` | 上游返回空响应 |\n\n`channel:` 前缀的错误来自上游账号而不是你的请求。网关会先自动切换到下一个可用账号，只有全部账号都不可用时才把错误返回给调用方。\n\n**查看完整错误响应**\n\n打印完整的状态码与响应体：\n\n```bash\ncurl -i https://{{API_HOST}}/v1/chat/completions \\\n  -H \"Authorization: Bearer $DP_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"model\":\"does-not-exist\",\"messages\":[{\"role\":\"user\",\"content\":\"hello\"}]}'\n```\n\n模型名不存在时返回带 `model_not_found` 的错误体，可以用它确认客户端的错误处理路径是通的。\n\n**错误排查**\n\n**哪些错误值得重试？**\n`429` 和 `5xx`。`4xx` 里的其他状态是请求本身的问题。\n\n**`message` 里的信息被截断了。**\n脱敏是有意的。到控制台的错误记录里按密钥、模型、状态码和错误类别筛选，能看到更完整的分类。\n\n**一直返回 `channel:no_available_key`。**\n该模型当前没有可用的上游账号，换一个模型或联系管理员。",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "models",
+      "x-displayName": "模型列表"
+    },
+    {
+      "name": "chat-completions",
+      "x-displayName": "Chat Completions"
+    },
+    {
+      "name": "responses",
+      "x-displayName": "Responses"
+    },
+    {
+      "name": "claude-messages",
+      "x-displayName": "Claude Messages"
+    },
+    {
+      "name": "gemini",
+      "x-displayName": "Gemini 多模态"
+    },
+    {
+      "name": "completions",
+      "x-displayName": "文本补全（旧版）"
+    },
+    {
+      "name": "gpt-images",
+      "x-displayName": "GPT"
+    },
+    {
+      "name": "grok-images",
+      "x-displayName": "Grok"
+    },
+    {
+      "name": "seedream-images",
+      "x-displayName": "Seedream"
+    },
+    {
+      "name": "video-tasks",
+      "x-displayName": "视频生成"
+    },
+    {
+      "name": "audio",
+      "x-displayName": "OpenAI"
+    },
+    {
+      "name": "realtime",
+      "x-displayName": "OpenAI Realtime"
+    },
+    {
+      "name": "embeddings",
+      "x-displayName": "文本向量"
+    },
+    {
+      "name": "rerank",
+      "x-displayName": "文档重排序"
+    },
+    {
+      "name": "moderations",
+      "x-displayName": "内容审核"
+    }
+  ],
+  "paths": {
+    "/v1/models": {
+      "get": {
+        "summary": "获取模型列表",
+        "deprecated": false,
+        "description": "获取当前可用的模型列表。\n\n根据请求头自动识别返回格式：\n- 包含 `x-api-key` 和 `anthropic-version` 头时返回 Anthropic 格式\n- 包含 `x-goog-api-key` 头或 `key` 查询参数时返回 Gemini 格式\n- 其他情况返回 OpenAI 格式\n",
+        "operationId": "listModels",
+        "tags": [
+          "models"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "description": "Google API Key (用于 Gemini 格式)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "description": "Anthropic API Key (用于 Claude 格式)",
+            "required": false,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "anthropic-version",
+            "in": "header",
+            "description": "Anthropic API 版本",
+            "required": false,
+            "example": "",
+            "schema": {
+              "type": "string",
+              "example": "2023-06-01"
+            }
+          },
+          {
+            "name": "x-goog-api-key",
+            "in": "header",
+            "description": "Google API Key (用于 Gemini 格式)",
+            "required": false,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取模型列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "description": "认证失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1beta/models": {
+      "get": {
+        "summary": "Gemini 格式获取",
+        "deprecated": false,
+        "description": "以 Gemini API 格式返回可用模型列表",
+        "operationId": "listModelsGemini",
+        "tags": [
+          "models"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功获取模型列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeminiModelsResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "创建聊天对话",
+        "deprecated": false,
+        "description": "根据对话历史创建模型响应。支持流式和非流式响应。\n\n兼容 OpenAI Chat Completions API。\n",
+        "operationId": "createChatCompletion",
+        "tags": [
+          "chat-completions"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "429": {
+            "description": "请求频率限制",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/responses": {
+      "post": {
+        "summary": "创建响应 (OpenAI Responses API)",
+        "deprecated": false,
+        "description": "OpenAI Responses API，用于创建模型响应。\n支持多轮对话、工具调用、推理等功能。\n",
+        "operationId": "createResponse",
+        "tags": [
+          "responses"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsesResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/responses/{response_id}": {
+      "get": {
+        "summary": "查询异步响应",
+        "deprecated": false,
+        "description": "查询网关本地任务插件创建的 Responses 响应。此接口不代理任意上游 OpenAI response ID；响应 ID 必须来自本网关。",
+        "operationId": "retrieveResponse",
+        "tags": [
+          "responses"
+        ],
+        "parameters": [
+          {
+            "name": "response_id",
+            "in": "path",
+            "description": "网关返回的响应 ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "resp_123"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "响应状态或最终结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "响应不存在或结果不可检索",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/responses/compact": {
+      "post": {
+        "summary": "压缩对话 (OpenAI Responses API)",
+        "deprecated": false,
+        "description": "OpenAI Responses API，用于对长对话进行 compaction。",
+        "operationId": "compactResponse",
+        "tags": [
+          "responses"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsesCompactionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功压缩对话",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsesCompactionResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/images/generations": {
+      "post": {
+        "summary": "生成图像",
+        "deprecated": false,
+        "description": "兼容 OpenAI Images API 的 JSON 图像生成接口。`model` 应填写网关 `/v1/models` 返回且支持图像生成的模型；参数是否可用由上游模型决定，文档不会替模型列表或渠道配置做保证。GPT Image 模型默认返回 `data[].b64_json`；旧版兼容模型可能返回 URL。示例仅用于说明请求结构，不代表已配置模型或实际可用额度。",
+        "operationId": "createImage",
+        "tags": [
+          "gpt-images",
+          "grok-images",
+          "seedream-images"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageGenerationRequest"
+              },
+              "example": {
+                "model": "gpt-image-2.5-sunburst",
+                "prompt": "A watercolor robot reading in a library",
+                "n": 1,
+                "size": "1024x1024",
+                "quality": "medium",
+                "output_format": "png"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功生成图像",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/images/edits": {
+      "post": {
+        "summary": "编辑图像",
+        "deprecated": false,
+        "description": "兼容 OpenAI Images API 的 `multipart/form-data` 图像编辑接口。必须上传 `image` 文件并提供 `prompt`；多张输入图可重复提交 `image[]` 字段，网关会转发所有上传文件。`model`、输出参数是否可用由上游模型决定，并以网关 `/v1/models` 为准；示例中的文件名只是 multipart 文件字段占位，不会触发真实付费调用。",
+        "operationId": "createImageEdit",
+        "tags": [
+          "gpt-images",
+          "grok-images",
+          "seedream-images"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageEditRequest"
+              },
+              "examples": {
+                "edit": {
+                  "summary": "使用上传图片和可选蒙版编辑",
+                  "value": {
+                    "model": "gpt-image-2.5-sunburst",
+                    "image": "<input.png>",
+                    "mask": "<mask.png>",
+                    "prompt": "Replace the masked area with a vase of flowers",
+                    "quality": "medium",
+                    "output_format": "png"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功生成图像",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/video/generations": {
+      "post": {
+        "summary": "创建视频",
+        "description": "提交异步视频生成任务，所有视频模型共用此接口。\n\n### 请求字段规则\n\n网关只读取下表中的顶层字段：`prompt`、`model`、`mode`、`image`、`images`、`size`、`duration`、`seconds`、`input_reference`、`metadata`。**其他顶层字段会被直接丢弃**，厂商专有参数必须放进 `metadata`，其结构见下方 `metadata` 字段说明。\n\n- `prompt` 必填（即使是纯图生视频也需要传入非空提示词）。\n- `duration`（整数）与 `seconds`（字符串）表示时长，取值 0–3600，超出范围返回 `invalid_seconds`；具体可用时长由模型决定。\n- 只传 `image` 时网关会把它补成 `images: [image]`。\n- 也支持 `multipart/form-data`：表单中的非标准字段会被收入 `metadata`；`metadata` 字段可传 JSON 字符串。\n\n各模型支持的 `metadata` 字段见对应模型的 API 参考页。\n\n### 调用流程\n\n1. `POST /v1/video/generations` 提交任务，保存响应中的 `task_id`。\n2. 轮询 `GET /v1/video/generations/{task_id}`（建议间隔 5–10 秒），直到 `data.status` 为 `SUCCESS` 或 `FAILURE`。\n3. `SUCCESS` 时 `data.result_url` 即视频地址；上游地址通常有有效期，请尽快下载转存。\n\n### 错误码\n\n错误响应为 `{\"code\": \"...\", \"message\": \"...\", \"data\": null}`。\n\n| HTTP | `code` | 说明 |\n| --- | --- | --- |\n| 400 | `invalid_request` | 请求体无法解析，或 `prompt is required` |\n| 400 | `invalid_seconds` | `duration` / `seconds` 超出 0–3600 |\n| 400 | `invalid_multipart_form` | multipart 表单解析失败 |\n| 400 | `plugin_request_invalid` | 模型参数校验失败（如分辨率、时长、素材数量不符），`message` 给出具体原因 |\n| 400 | `plugin_usage_invalid` | 计费参数无法确定 |\n| 401 / 403 | — | 令牌无效、额度不足或无权使用该模型 |\n| 500 | — | 上游请求失败或服务端错误 |",
+        "operationId": "createVideoGeneration",
+        "tags": [
+          "video-tasks"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoGenerationRequest"
+              },
+              "examples": {
+                "t2v": {
+                  "summary": "文生视频 wan2.7-t2v",
+                  "value": {
+                    "model": "wan2.7-t2v",
+                    "prompt": "一只小狗在雪地里奔跑，慢动作，电影感",
+                    "size": "1080P",
+                    "duration": 10,
+                    "metadata": {
+                      "parameters": {
+                        "ratio": "16:9",
+                        "prompt_extend": true
+                      }
+                    }
+                  }
+                },
+                "i2v": {
+                  "summary": "图生视频 wan2.6-i2v-flash",
+                  "value": {
+                    "model": "wan2.6-i2v-flash",
+                    "prompt": "镜头缓慢推近，人物转头微笑",
+                    "image": "https://example.com/portrait.png",
+                    "size": "720P",
+                    "seconds": "5"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已提交",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoGenerationSubmitResponse"
+                },
+                "example": {
+                  "id": "task_01JXXXXXXXXXXXXXXXXXXXXXXXXX",
+                  "task_id": "task_01JXXXXXXXXXXXXXXXXXXXXXXXXX",
+                  "status": "queued",
+                  "model": "wan2.7-t2v",
+                  "created_at": 1761000000
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskError"
+                },
+                "example": {
+                  "code": "plugin_request_invalid",
+                  "message": "wan2.7-t2v duration must be an integer between 2 and 15",
+                  "data": null
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务端或上游错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskError"
+                },
+                "example": {
+                  "code": "do_request_failed",
+                  "message": "upstream request failed",
+                  "data": null
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/video/generations/{task_id}": {
+      "get": {
+        "summary": "查询视频",
+        "description": "查询视频任务的状态与结果。只能查询当前令牌所属用户创建的任务。\n\n`data.status` 为 `SUCCESS` 时，`data.result_url` 即视频地址；为 `FAILURE` 时查看 `data.fail_reason`。其余状态（`NOT_START`、`SUBMITTED`、`QUEUED`、`IN_PROGRESS`、`UNKNOWN`）请继续轮询，建议间隔 5–10 秒。\n\n**Gemini / Vertex 渠道**：查询时网关会实时向上游拉取状态，`data` 为简化结构 `{error, format, metadata, status, task_id, url}`，`status` 取值 `queued`、`processing`、`succeeded`、`failed`，视频地址在 `data.url`。上游拉取失败时回退为标准任务详情。\n\n### 错误码\n\n| HTTP | `code` | 说明 |\n| --- | --- | --- |\n| 400 | `task_not_exist` | 任务不存在，或不属于当前令牌的用户 |\n| 500 | `get_task_failed` | 查询任务失败 |",
+        "operationId": "getVideoGeneration",
+        "tags": [
+          "video-tasks"
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "description": "创建接口返回的 `task_id`",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "任务详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoGenerationTaskResponse"
+                },
+                "example": {
+                  "code": "success",
+                  "message": "",
+                  "data": {
+                    "id": 1024,
+                    "created_at": 1761000000,
+                    "updated_at": 1761000120,
+                    "task_id": "task_01JXXXXXXXXXXXXXXXXXXXXXXXXX",
+                    "platform": "alibaba",
+                    "user_id": 1,
+                    "group": "default",
+                    "channel_id": 3,
+                    "quota": 150000,
+                    "action": "text_to_video",
+                    "status": "SUCCESS",
+                    "fail_reason": "",
+                    "result_url": "https://{{API_HOST}}/v1/videos/task_01JXXXXXXXXXXXXXXXXXXXXXXXXX/content",
+                    "submit_time": 1761000000,
+                    "start_time": 1761000005,
+                    "finish_time": 1761000120,
+                    "progress": "100%",
+                    "properties": {
+                      "input": "一只小狗在雪地里奔跑",
+                      "upstream_model_name": "wan2.7-t2v",
+                      "origin_model_name": "wan2.7-t2v"
+                    },
+                    "data": {}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "任务不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskError"
+                },
+                "example": {
+                  "code": "task_not_exist",
+                  "message": "task_not_exist",
+                  "data": null
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "查询任务失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskError"
+                },
+                "example": {
+                  "code": "get_task_failed",
+                  "message": "get_task_failed",
+                  "data": null
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/messages": {
+      "post": {
+        "summary": "Claude 聊天",
+        "deprecated": false,
+        "description": "Anthropic Claude Messages API 格式的请求。\n需要在请求头中包含 `anthropic-version`。\n",
+        "operationId": "createMessage",
+        "tags": [
+          "claude-messages"
+        ],
+        "parameters": [
+          {
+            "name": "anthropic-version",
+            "in": "header",
+            "description": "Anthropic API 版本",
+            "required": true,
+            "example": "",
+            "schema": {
+              "type": "string",
+              "example": "2023-06-01"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "description": "Anthropic API Key (可选，也可使用 Bearer Token)",
+            "required": false,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaudeRequest"
+              },
+              "examples": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaudeResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1beta/models/{model}:generateContent": {
+      "post": {
+        "summary": "生成内容（文本 / 图像）",
+        "deprecated": false,
+        "description": "Gemini `generateContent` 兼容接口。根据模型能力生成文本、图像或其他内容；`generationConfig` 及其 `responseModalities` 均为可选，是否支持图像输出由所选模型决定。请求体遵循 Gemini 原生 contents/parts 协议，图像输入可在 part 中使用 inlineData。",
+        "operationId": "geminiRelayV1Beta",
+        "tags": [
+          "gemini"
+        ],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "description": "模型名称",
+            "required": true,
+            "example": "gemini-3-pro-image-preview",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeminiRequest"
+              },
+              "examples": {
+                "image": {
+                  "summary": "图像生成（模型需支持图像输出）",
+                  "value": {
+                    "contents": [
+                      {
+                        "role": "user",
+                        "parts": [
+                          {
+                            "text": "draw a cat"
+                          }
+                        ]
+                      }
+                    ],
+                    "generationConfig": {
+                      "responseModalities": [
+                        "TEXT",
+                        "IMAGE"
+                      ],
+                      "imageConfig": {
+                        "aspectRatio": "16:9",
+                        "imageSize": "4K"
+                      }
+                    }
+                  }
+                },
+                "text": {
+                  "summary": "文本生成",
+                  "value": {
+                    "contents": [
+                      {
+                        "role": "user",
+                        "parts": [
+                          {
+                            "text": "Write a short welcome message."
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeminiResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/engines/{model}/embeddings": {
+      "post": {
+        "summary": "Gemini 嵌入(Embeddings)",
+        "deprecated": false,
+        "description": "使用指定引擎/模型创建嵌入",
+        "operationId": "createEngineEmbedding",
+        "tags": [
+          "embeddings"
+        ],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "description": "模型/引擎 ID",
+            "required": true,
+            "example": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingRequest"
+              },
+              "examples": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建嵌入",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/embeddings": {
+      "post": {
+        "summary": "创建文本嵌入",
+        "deprecated": false,
+        "description": "将文本转换为向量嵌入",
+        "operationId": "createEmbedding",
+        "tags": [
+          "embeddings"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建嵌入",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/completions": {
+      "post": {
+        "summary": "创建文本补全",
+        "deprecated": false,
+        "description": "基于给定提示创建文本补全",
+        "operationId": "createCompletion",
+        "tags": [
+          "completions"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功创建响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/audio/transcriptions": {
+      "post": {
+        "summary": "音频转录",
+        "deprecated": false,
+        "description": "将音频转换为文本",
+        "operationId": "createTranscription",
+        "tags": [
+          "audio"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "音频文件",
+                    "example": ""
+                  },
+                  "model": {
+                    "type": "string",
+                    "example": "whisper-1"
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "ISO-639-1 语言代码",
+                    "example": ""
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "example": ""
+                  },
+                  "response_format": {
+                    "type": "string",
+                    "enum": [
+                      "json",
+                      "text",
+                      "srt",
+                      "verbose_json",
+                      "vtt"
+                    ],
+                    "default": "json",
+                    "example": "json"
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "example": 0
+                  },
+                  "timestamp_granularities": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "word",
+                        "segment"
+                      ]
+                    },
+                    "example": ""
+                  }
+                },
+                "required": [
+                  "file",
+                  "model"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功转录",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioTranscriptionResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/audio/translations": {
+      "post": {
+        "summary": "音频翻译",
+        "deprecated": false,
+        "description": "将音频翻译为英文文本",
+        "operationId": "createTranslation",
+        "tags": [
+          "audio"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "example": ""
+                  },
+                  "model": {
+                    "type": "string",
+                    "example": ""
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "example": ""
+                  },
+                  "response_format": {
+                    "type": "string",
+                    "example": ""
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "example": 0
+                  }
+                },
+                "required": [
+                  "file",
+                  "model"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功翻译",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudioTranscriptionResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/audio/speech": {
+      "post": {
+        "summary": "文本转语音",
+        "deprecated": false,
+        "description": "将文本转换为音频",
+        "operationId": "createSpeech",
+        "tags": [
+          "audio"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功生成音频",
+            "content": {
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/rerank": {
+      "post": {
+        "summary": "文档重排序",
+        "deprecated": false,
+        "description": "根据查询对文档列表进行相关性重排序",
+        "operationId": "createRerank",
+        "tags": [
+          "rerank"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RerankRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功重排序",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RerankResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/moderations": {
+      "post": {
+        "summary": "内容审核",
+        "deprecated": false,
+        "description": "检查文本内容是否违反使用政策",
+        "operationId": "createModeration",
+        "tags": [
+          "moderations"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功审核",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModerationResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/realtime": {
+      "get": {
+        "summary": "实时 WebSocket 连接",
+        "deprecated": false,
+        "description": "建立 WebSocket 连接用于实时对话。\n\n**注意**: 这是一个 WebSocket 端点，需要使用 WebSocket 协议连接。\n\n连接 URL 示例: `wss://{{API_HOST}}/v1/realtime?model=gpt-realtime-2.1`\n",
+        "operationId": "createRealtimeSession",
+        "tags": [
+          "realtime"
+        ],
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "description": "要使用的模型",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "gpt-realtime-2.1"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "WebSocket 协议切换",
+            "headers": {}
+          },
+          "400": {
+            "description": "请求错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "description": "错误信息"
+              },
+              "type": {
+                "type": "string",
+                "description": "错误类型"
+              },
+              "param": {
+                "type": "string",
+                "description": "相关参数",
+                "nullable": true
+              },
+              "code": {
+                "type": "string",
+                "description": "错误代码",
+                "nullable": true
+              }
+            }
+          }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "properties": {
+          "prompt_tokens": {
+            "type": "integer",
+            "description": "提示词 Token 数"
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "description": "补全 Token 数"
+          },
+          "total_tokens": {
+            "type": "integer",
+            "description": "总 Token 数"
+          },
+          "prompt_tokens_details": {
+            "type": "object",
+            "properties": {
+              "cached_tokens": {
+                "type": "integer"
+              },
+              "text_tokens": {
+                "type": "integer"
+              },
+              "audio_tokens": {
+                "type": "integer"
+              },
+              "image_tokens": {
+                "type": "integer"
+              }
+            }
+          },
+          "completion_tokens_details": {
+            "type": "object",
+            "properties": {
+              "text_tokens": {
+                "type": "integer"
+              },
+              "audio_tokens": {
+                "type": "integer"
+              },
+              "reasoning_tokens": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "模型 ID",
+            "example": "gpt-5.4"
+          },
+          "object": {
+            "type": "string",
+            "description": "对象类型",
+            "example": "model"
+          },
+          "created": {
+            "type": "integer",
+            "description": "创建时间戳"
+          },
+          "owned_by": {
+            "type": "string",
+            "description": "模型所有者",
+            "example": "openai"
+          }
+        }
+      },
+      "ModelsResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          }
+        }
+      },
+      "GeminiModelsResponse": {
+        "type": "object",
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "example": "models/gemini-pro"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "inputTokenLimit": {
+                  "type": "integer"
+                },
+                "outputTokenLimit": {
+                  "type": "integer"
+                },
+                "supportedGenerationMethods": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant",
+              "tool",
+              "developer"
+            ],
+            "description": "消息角色"
+          },
+          "content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MessageContent"
+                }
+              }
+            ],
+            "description": "消息内容"
+          },
+          "name": {
+            "type": "string",
+            "description": "发送者名称"
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            }
+          },
+          "tool_call_id": {
+            "type": "string",
+            "description": "工具调用 ID（用于 tool 角色消息）"
+          },
+          "reasoning_content": {
+            "type": "string",
+            "description": "推理内容"
+          }
+        }
+      },
+      "MessageContent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image_url",
+              "input_audio",
+              "file",
+              "video_url"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "image_url": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "图片 URL 或 base64"
+              },
+              "detail": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "high",
+                  "auto"
+                ]
+              }
+            }
+          },
+          "input_audio": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "string",
+                "description": "Base64 编码的音频数据"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "wav",
+                  "mp3"
+                ]
+              }
+            }
+          },
+          "file": {
+            "type": "object",
+            "properties": {
+              "filename": {
+                "type": "string"
+              },
+              "file_data": {
+                "type": "string"
+              },
+              "file_id": {
+                "type": "string"
+              }
+            }
+          },
+          "video_url": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ToolCall": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "example": "function"
+          },
+          "function": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "arguments": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Tool": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "function"
+          },
+          "function": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "parameters": {
+                "type": "object",
+                "description": "JSON Schema 格式的参数定义",
+                "properties": {}
+              }
+            }
+          }
+        }
+      },
+      "ResponseFormat": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "json_object",
+              "json_schema"
+            ]
+          },
+          "json_schema": {
+            "type": "object",
+            "description": "JSON Schema 定义",
+            "properties": {}
+          }
+        }
+      },
+      "ChatCompletionRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "messages"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "模型 ID",
+            "example": "gpt-5.4"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "description": "对话消息列表"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2,
+            "default": 1,
+            "description": "采样温度"
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "default": 1,
+            "description": "核采样参数"
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "生成数量"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否流式响应"
+          },
+          "stream_options": {
+            "type": "object",
+            "properties": {
+              "include_usage": {
+                "type": "boolean"
+              },
+              "include_obfuscation": {
+                "type": "boolean",
+                "description": "是否在流式事件中包含混淆字段。网关默认过滤此字段，渠道开启 allow_include_obfuscation 后才会转发。"
+              }
+            }
+          },
+          "stop": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "停止序列"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "最大生成 Token 数"
+          },
+          "max_completion_tokens": {
+            "type": "integer",
+            "description": "最大补全 Token 数"
+          },
+          "presence_penalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2,
+            "default": 0
+          },
+          "frequency_penalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2,
+            "default": 0
+          },
+          "logit_bias": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "properties": {}
+          },
+          "user": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tool"
+            }
+          },
+          "tool_choice": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "auto",
+                  "required"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "function": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "response_format": {
+            "$ref": "#/components/schemas/ResponseFormat"
+          },
+          "seed": {
+            "type": "integer"
+          },
+          "reasoning_effort": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "推理强度 (用于支持推理的模型)"
+          },
+          "modalities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "text",
+                "audio"
+              ]
+            }
+          },
+          "audio": {
+            "type": "object",
+            "properties": {
+              "voice": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string"
+              }
+            }
+          },
+          "parallel_tool_calls": {
+            "type": "boolean",
+            "description": "是否允许模型并行调用多个工具。"
+          },
+          "logprobs": {
+            "type": "boolean",
+            "description": "是否返回输出 Token 的对数概率。"
+          },
+          "top_logprobs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20,
+            "description": "每个位置返回的最可能 Token 数量（0-20），需同时设置 `logprobs` 为 true。"
+          },
+          "verbosity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "description": "回答详略程度（GPT-5 系列）。"
+          },
+          "prediction": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "content": {}
+            },
+            "description": "预测输出（Predicted Outputs），用于加速大段已知内容的生成。"
+          },
+          "web_search_options": {
+            "type": "object",
+            "properties": {
+              "search_context_size": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "user_location": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "description": "联网搜索配置，仅适用于支持搜索的模型。"
+          },
+          "store": {
+            "type": "boolean",
+            "description": "是否允许上游存储本次请求与输出。默认转发；渠道开启 disable_store 时会被移除。"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "最多 16 个字符串键值对，附加到请求上。"
+          },
+          "service_tier": {
+            "type": "string",
+            "description": "服务等级，可能影响计费。网关默认过滤此字段，渠道开启 allow_service_tier 后才会转发。"
+          },
+          "safety_identifier": {
+            "type": "string",
+            "description": "最终用户的稳定标识（建议哈希），用于上游滥用检测。网关默认过滤此字段，渠道开启 allow_safety_identifier 后才会转发。"
+          },
+          "prompt_cache_key": {
+            "type": "string",
+            "description": "提示缓存键，用于提高相似请求的缓存命中率。"
+          },
+          "prompt_cache_retention": {
+            "type": "string",
+            "enum": [
+              "in_memory",
+              "24h"
+            ],
+            "description": "提示缓存保留策略。"
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            },
+            "deprecated": true,
+            "description": "已弃用，请改用 `tools`。"
+          },
+          "function_call": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ],
+            "deprecated": true,
+            "description": "已弃用，请改用 `tool_choice`。"
+          }
+        }
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "chat.completion"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "message": {
+                  "$ref": "#/components/schemas/Message"
+                },
+                "finish_reason": {
+                  "type": "string",
+                  "enum": [
+                    "stop",
+                    "length",
+                    "tool_calls",
+                    "content_filter"
+                  ]
+                }
+              }
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          },
+          "system_fingerprint": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatCompletionStreamResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "chat.completion.chunk"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "delta": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "reasoning_content": {
+                      "type": "string"
+                    },
+                    "tool_calls": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ToolCall"
+                      }
+                    }
+                  }
+                },
+                "finish_reason": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        }
+      },
+      "CompletionRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "prompt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "max_tokens": {
+            "type": "integer"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "top_p": {
+            "type": "number"
+          },
+          "n": {
+            "type": "integer"
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "stop": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "suffix": {
+            "type": "string"
+          },
+          "echo": {
+            "type": "boolean"
+          },
+          "stream_options": {
+            "type": "object",
+            "properties": {
+              "include_usage": {
+                "type": "boolean"
+              }
+            },
+            "description": "流式选项；仅在 `stream` 为 true 时生效。"
+          },
+          "presence_penalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2,
+            "description": "存在惩罚。"
+          },
+          "frequency_penalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2,
+            "description": "频率惩罚。"
+          },
+          "logit_bias": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "调整指定 Token 出现概率的偏置表。"
+          },
+          "seed": {
+            "type": "integer",
+            "description": "随机种子，用于尽量复现结果。"
+          },
+          "user": {
+            "type": "string",
+            "description": "最终用户标识。"
+          }
+        }
+      },
+      "CompletionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "text_completion"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "index": {
+                  "type": "integer"
+                },
+                "finish_reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        }
+      },
+      "ResponsesRequest": {
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "input": {
+            "description": "输入内容，可以是字符串或消息数组",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            ]
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "max_output_tokens": {
+            "type": "integer"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "top_p": {
+            "type": "number"
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "tool_choice": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "reasoning": {
+            "type": "object",
+            "properties": {
+              "effort": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          },
+          "previous_response_id": {
+            "type": "string"
+          },
+          "truncation": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "disabled"
+            ]
+          },
+          "include": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "要在响应中额外包含的数据，例如 `reasoning.encrypted_content`。"
+          },
+          "conversation": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            ],
+            "description": "所属会话，可传会话 ID 或对象；不能与 `previous_response_id` 同时使用。"
+          },
+          "prompt": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "variables": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "description": "引用可复用的提示模板。"
+          },
+          "text": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "object",
+                "properties": {}
+              },
+              "verbosity": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            },
+            "description": "文本输出配置：`format` 指定纯文本或 JSON Schema 结构化输出，`verbosity` 控制回答详略。"
+          },
+          "parallel_tool_calls": {
+            "type": "boolean",
+            "description": "是否允许模型并行调用多个工具。"
+          },
+          "max_tool_calls": {
+            "type": "integer",
+            "description": "本次响应中内置工具调用的最大总次数。"
+          },
+          "top_logprobs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20,
+            "description": "每个位置返回的最可能 Token 数量（0-20）。"
+          },
+          "stream_options": {
+            "type": "object",
+            "properties": {
+              "include_usage": {
+                "type": "boolean"
+              }
+            },
+            "description": "流式选项；仅在 `stream` 为 true 时生效。"
+          },
+          "store": {
+            "type": "boolean",
+            "description": "是否允许上游存储本次请求与输出。默认转发；渠道开启 disable_store 时会被移除。"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "最多 16 个字符串键值对，附加到请求上。"
+          },
+          "service_tier": {
+            "type": "string",
+            "description": "服务等级，可能影响计费。网关默认过滤此字段，渠道开启 allow_service_tier 后才会转发。"
+          },
+          "safety_identifier": {
+            "type": "string",
+            "description": "最终用户的稳定标识（建议哈希），用于上游滥用检测。网关默认过滤此字段，渠道开启 allow_safety_identifier 后才会转发。"
+          },
+          "prompt_cache_key": {
+            "type": "string",
+            "description": "提示缓存键，用于提高相似请求的缓存命中率。"
+          },
+          "prompt_cache_retention": {
+            "type": "string",
+            "enum": [
+              "in_memory",
+              "24h"
+            ],
+            "description": "提示缓存保留策略。"
+          },
+          "user": {
+            "type": "string",
+            "deprecated": true,
+            "description": "已弃用，请改用 `safety_identifier` 和 `prompt_cache_key`。"
+          }
+        }
+      },
+      "ResponsesResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "response"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed",
+              "in_progress",
+              "incomplete"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "output": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        }
+      },
+      "ResponsesCompactionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "response.compaction"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "output": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          },
+          "error": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "ResponsesCompactionRequest": {
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "input": {
+            "description": "输入内容，可以是字符串或消息数组",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            ]
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "previous_response_id": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            },
+            "description": "可用工具列表，格式同 Responses 接口。"
+          },
+          "parallel_tool_calls": {
+            "type": "boolean",
+            "description": "是否允许模型并行调用多个工具。"
+          },
+          "reasoning": {
+            "type": "object",
+            "properties": {
+              "effort": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              }
+            },
+            "description": "推理配置。"
+          },
+          "text": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "object",
+                "properties": {}
+              },
+              "verbosity": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              }
+            },
+            "description": "文本输出配置：`format` 指定纯文本或 JSON Schema 结构化输出，`verbosity` 控制回答详略。"
+          },
+          "service_tier": {
+            "type": "string",
+            "description": "服务等级，可能影响计费。网关默认过滤此字段，渠道开启 allow_service_tier 后才会转发。"
+          },
+          "prompt_cache_key": {
+            "type": "string",
+            "description": "提示缓存键，用于提高相似请求的缓存命中率。"
+          },
+          "prompt_cache_retention": {
+            "type": "string",
+            "enum": [
+              "in_memory",
+              "24h"
+            ],
+            "description": "提示缓存保留策略。"
+          }
+        }
+      },
+      "ResponsesStreamResponse": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "response": {
+            "$ref": "#/components/schemas/ResponsesResponse"
+          },
+          "delta": {
+            "type": "string"
+          },
+          "item": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "ClaudeRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "messages",
+          "max_tokens"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "example": "claude-sonnet-5-5"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaudeMessage"
+            }
+          },
+          "system": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            ]
+          },
+          "cache_control": {
+            "type": "object",
+            "properties": {}
+          },
+          "inference_geo": {
+            "type": "string"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "top_p": {
+            "type": "number"
+          },
+          "top_k": {
+            "type": "integer"
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "stop_sequences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "input_schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "tool_choice": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "any",
+                      "tool",
+                      "none"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          "thinking": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "enabled",
+                  "disabled"
+                ]
+              },
+              "budget_tokens": {
+                "type": "integer"
+              }
+            }
+          },
+          "context_management": {
+            "type": "object",
+            "properties": {}
+          },
+          "output_config": {
+            "type": "object",
+            "properties": {}
+          },
+          "output_format": {
+            "type": "object",
+            "properties": {}
+          },
+          "container": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {}
+              }
+            ]
+          },
+          "mcp_servers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "user_id": {
+                "type": "string"
+              }
+            }
+          },
+          "speed": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "fast"
+            ]
+          },
+          "service_tier": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "standard_only"
+            ]
+          }
+        }
+      },
+      "ClaudeMessage": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "text",
+                        "image",
+                        "tool_use",
+                        "tool_result"
+                      ]
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "base64",
+                            "url"
+                          ]
+                        },
+                        "media_type": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "input": {
+                      "type": "object",
+                      "properties": {}
+                    },
+                    "tool_use_id": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "ClaudeResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "example": "message"
+          },
+          "role": {
+            "type": "string",
+            "example": "assistant"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "model": {
+            "type": "string"
+          },
+          "stop_reason": {
+            "type": "string",
+            "enum": [
+              "end_turn",
+              "max_tokens",
+              "stop_sequence",
+              "tool_use"
+            ]
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "input_tokens": {
+                "type": "integer"
+              },
+              "output_tokens": {
+                "type": "integer"
+              },
+              "cache_creation_input_tokens": {
+                "type": "integer"
+              },
+              "cache_read_input_tokens": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "EmbeddingRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "input"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "example": "text-embedding-3-large"
+          },
+          "input": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "要嵌入的文本"
+          },
+          "encoding_format": {
+            "type": "string",
+            "enum": [
+              "float",
+              "base64"
+            ],
+            "default": "float"
+          },
+          "dimensions": {
+            "type": "integer",
+            "description": "输出向量维度"
+          },
+          "user": {
+            "type": "string",
+            "description": "最终用户标识。"
+          }
+        }
+      },
+      "EmbeddingResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "string",
+                  "example": "embedding"
+                },
+                "index": {
+                  "type": "integer"
+                },
+                "embedding": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          },
+          "model": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer"
+              },
+              "total_tokens": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "ImageGenerationRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "模型 ID。可用型号以 `/v1/models` 为准。\n\nGPT Image 型号：\n- `gpt-image-2`\n- `gpt-image-2.5-flare`\n- `gpt-image-2.5-sunburst`",
+            "example": "gpt-image-2.5-sunburst"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "图像描述。OpenAI Images API 允许的最大长度为 32000 个字符。",
+            "maxLength": 32000
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1,
+            "description": "生成数量；OpenAI Images API 要求 1 到 10。具体上游模型仍可能有额外限制。"
+          },
+          "size": {
+            "type": "string",
+            "description": "输出尺寸。GPT Image 2/2.5 支持标准尺寸及满足上游约束的 WIDTHxHEIGHT；旧版模型可使用其支持的尺寸。",
+            "example": "1024x1024"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max",
+              "auto",
+              "standard",
+              "hd"
+            ],
+            "description": "GPT Image 支持 low/medium/high/auto；GPT Image 2.5 Flare/Sunburst 还支持 xhigh/max。standard/hd 是旧版 DALL·E 兼容参数。"
+          },
+          "background": {
+            "type": "string",
+            "enum": [
+              "transparent",
+              "opaque",
+              "auto"
+            ],
+            "description": "GPT Image 输出背景；透明背景需同时选择 png 或 webp。"
+          },
+          "moderation": {
+            "type": "string",
+            "enum": [
+              "low",
+              "auto"
+            ],
+            "description": "GPT Image 内容审核级别。"
+          },
+          "output_format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg",
+              "webp"
+            ],
+            "description": "GPT Image 输出格式。"
+          },
+          "output_compression": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "JPEG/WebP 压缩级别（0-100）；仅适用于支持该参数的 GPT Image 模型。"
+          },
+          "partial_images": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "流式响应的中间图像数量（0-3）；仅适用于支持图像流式响应的 GPT Image 模型。"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否以图像事件流返回；仅适用于支持该参数的 GPT Image 模型。"
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "url",
+              "b64_json"
+            ],
+            "description": "旧版图像模型的响应格式。GPT Image 模型固定返回 base64，使用 `b64_json`；请勿对其依赖 URL。"
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "vivid",
+              "natural"
+            ],
+            "description": "旧版 DALL·E 风格参数；GPT Image 模型不支持，请将风格写入 prompt。"
+          },
+          "user": {
+            "type": "string",
+            "description": "旧版兼容参数；用于标识最终用户。"
+          }
+        }
+      },
+      "ImageEditRequest": {
+        "type": "object",
+        "required": [
+          "prompt"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "image"
+            ]
+          },
+          {
+            "required": [
+              "image[]"
+            ]
+          }
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "format": "binary",
+            "description": "待编辑图片文件；单张图片使用此字段。"
+          },
+          "image[]": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "description": "多张待编辑图片。以同名 `image[]` multipart 字段重复上传；网关 adaptor 支持多个文件。"
+          },
+          "mask": {
+            "type": "string",
+            "format": "binary",
+            "description": "可选蒙版文件；应与输入图像尺寸和格式匹配，并包含 alpha 通道。"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "图像编辑描述。"
+          },
+          "model": {
+            "type": "string",
+            "description": "模型 ID。可用型号以 `/v1/models` 为准。\n\nGPT Image 型号：\n- `gpt-image-2`\n- `gpt-image-2.5-flare`\n- `gpt-image-2.5-sunburst`",
+            "example": "gpt-image-2.5-sunburst"
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "生成数量；具体上游模型可能有额外限制。"
+          },
+          "size": {
+            "type": "string",
+            "description": "输出尺寸；GPT Image 2/2.5 支持标准尺寸及满足上游约束的 WIDTHxHEIGHT。",
+            "example": "1024x1024"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max",
+              "auto"
+            ],
+            "description": "GPT Image 质量；GPT Image 2.5 Flare/Sunburst 还支持 xhigh/max。"
+          },
+          "background": {
+            "type": "string",
+            "enum": [
+              "transparent",
+              "opaque",
+              "auto"
+            ],
+            "description": "GPT Image 输出背景；透明背景需同时选择 png 或 webp。"
+          },
+          "moderation": {
+            "type": "string",
+            "enum": [
+              "low",
+              "auto"
+            ],
+            "description": "GPT Image 内容审核级别。"
+          },
+          "output_format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg",
+              "webp"
+            ],
+            "description": "GPT Image 输出格式。"
+          },
+          "output_compression": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "JPEG/WebP 压缩级别（0-100）。"
+          },
+          "partial_images": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "流式响应的中间图像数量（0-3）。"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          },
+          "input_fidelity": {
+            "type": "string",
+            "enum": [
+              "high",
+              "low"
+            ],
+            "description": "输入图像保真度。GPT Image 2 应省略此参数。"
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "url",
+              "b64_json"
+            ],
+            "description": "旧版图像模型的响应格式；GPT Image 模型固定返回 base64。"
+          },
+          "user": {
+            "type": "string",
+            "description": "旧版兼容参数；用于标识最终用户。"
+          }
+        }
+      },
+      "ImageResponse": {
+        "type": "object",
+        "required": [
+          "created",
+          "data"
+        ],
+        "properties": {
+          "created": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "旧版图像模型返回的临时 URL。"
+                },
+                "b64_json": {
+                  "type": "string",
+                  "format": "byte",
+                  "description": "base64 编码的图像数据；GPT Image 模型返回此字段。"
+                },
+                "revised_prompt": {
+                  "type": "string",
+                  "description": "旧版模型修订后的 prompt（如上游返回）。"
+                }
+              },
+              "anyOf": [
+                {
+                  "required": [
+                    "url"
+                  ]
+                },
+                {
+                  "required": [
+                    "b64_json"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "AudioTranscriptionRequest": {
+        "type": "object",
+        "required": [
+          "file",
+          "model"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "音频文件"
+          },
+          "model": {
+            "type": "string",
+            "example": "whisper-1"
+          },
+          "language": {
+            "type": "string",
+            "description": "ISO-639-1 语言代码"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "json",
+              "text",
+              "srt",
+              "verbose_json",
+              "vtt"
+            ],
+            "default": "json"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "timestamp_granularities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "word",
+                "segment"
+              ]
+            }
+          }
+        }
+      },
+      "AudioTranslationRequest": {
+        "type": "object",
+        "required": [
+          "file",
+          "model"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary"
+          },
+          "model": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "response_format": {
+            "type": "string"
+          },
+          "temperature": {
+            "type": "number"
+          }
+        }
+      },
+      "AudioTranscriptionResponse": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "SpeechRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "input",
+          "voice"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "example": "tts-1"
+          },
+          "input": {
+            "type": "string",
+            "description": "要转换的文本",
+            "maxLength": 4096
+          },
+          "voice": {
+            "type": "string",
+            "enum": [
+              "alloy",
+              "echo",
+              "fable",
+              "onyx",
+              "nova",
+              "shimmer"
+            ]
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "mp3",
+              "opus",
+              "aac",
+              "flac",
+              "wav",
+              "pcm"
+            ],
+            "default": "mp3"
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.25,
+            "maximum": 4,
+            "default": 1
+          },
+          "instructions": {
+            "type": "string",
+            "description": "控制语音语气、风格的指令；不适用于 tts-1 与 tts-1-hd。"
+          },
+          "stream_format": {
+            "type": "string",
+            "enum": [
+              "sse",
+              "audio"
+            ],
+            "description": "音频流格式；为 `sse` 时以 SSE 事件流返回。"
+          }
+        }
+      },
+      "RerankRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "query",
+          "documents"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "example": "rerank-english-v2.0"
+          },
+          "query": {
+            "type": "string",
+            "description": "查询文本"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {}
+                }
+              ]
+            },
+            "description": "要重排序的文档列表"
+          },
+          "top_n": {
+            "type": "integer",
+            "description": "返回前 N 个结果"
+          },
+          "return_documents": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "RerankResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "relevance_score": {
+                  "type": "number"
+                },
+                "document": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "ModerationRequest": {
+        "type": "object",
+        "required": [
+          "input"
+        ],
+        "properties": {
+          "input": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "model": {
+            "type": "string",
+            "example": "text-moderation-latest"
+          }
+        }
+      },
+      "ModerationResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "flagged": {
+                  "type": "boolean"
+                },
+                "categories": {
+                  "type": "object",
+                  "properties": {}
+                },
+                "category_scores": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          }
+        }
+      },
+      "GeminiRequest": {
+        "type": "object",
+        "properties": {
+          "contents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "model"
+                  ]
+                },
+                "parts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string"
+                      },
+                      "inlineData": {
+                        "type": "object",
+                        "description": "内联图像或其他媒体数据；`data` 为 base64，`mimeType` 为 MIME 类型。",
+                        "required": [
+                          "mimeType",
+                          "data"
+                        ],
+                        "properties": {
+                          "mimeType": {
+                            "type": "string",
+                            "example": "image/png"
+                          },
+                          "data": {
+                            "type": "string",
+                            "format": "byte"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "generationConfig": {
+            "type": "object",
+            "description": "可选的生成参数；具体字段取决于所选 Gemini 模型。",
+            "properties": {
+              "temperature": {
+                "type": "number"
+              },
+              "topP": {
+                "type": "number"
+              },
+              "topK": {
+                "type": "integer"
+              },
+              "maxOutputTokens": {
+                "type": "integer"
+              },
+              "stopSequences": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "responseModalities": {
+                "type": "array",
+                "description": "可选输出模态，例如 TEXT、IMAGE；只有支持图像输出的模型才可请求 IMAGE。",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "imageConfig": {
+                "type": "object",
+                "description": "图像输出配置；仅适用于支持图像输出的模型。",
+                "properties": {
+                  "aspectRatio": {
+                    "type": "string"
+                  },
+                  "imageSize": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "safetySettings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "category": {
+                  "type": "string"
+                },
+                "threshold": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "systemInstruction": {
+            "type": "object",
+            "properties": {
+              "parts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "toolConfig": {
+            "type": "object",
+            "properties": {
+              "functionCallingConfig": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "AUTO",
+                      "ANY",
+                      "NONE",
+                      "VALIDATED"
+                    ]
+                  },
+                  "allowedFunctionNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "retrievalConfig": {
+                "type": "object",
+                "properties": {}
+              }
+            },
+            "description": "工具调用配置，例如 `functionCallingConfig.mode` 与 `allowedFunctionNames`。"
+          },
+          "cachedContent": {
+            "type": "string",
+            "description": "上下文缓存名称，格式为 `cachedContents/{id}`。"
+          }
+        }
+      },
+      "GeminiResponse": {
+        "type": "object",
+        "properties": {
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "content": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {}
+                      }
+                    }
+                  }
+                },
+                "finishReason": {
+                  "type": "string"
+                },
+                "safetyRatings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {}
+                  }
+                }
+              }
+            }
+          },
+          "usageMetadata": {
+            "type": "object",
+            "properties": {
+              "promptTokenCount": {
+                "type": "integer"
+              },
+              "candidatesTokenCount": {
+                "type": "integer"
+              },
+              "totalTokenCount": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "ApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {}
+        }
+      },
+      "PageInfo": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "page_size": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "items": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "email": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "quota": {
+            "type": "integer"
+          },
+          "used_quota": {
+            "type": "integer"
+          },
+          "request_count": {
+            "type": "integer"
+          }
+        }
+      },
+      "Channel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "models": {
+            "type": "string"
+          },
+          "groups": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "weight": {
+            "type": "integer"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          }
+        }
+      },
+      "Token": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "expired_time": {
+            "type": "integer"
+          },
+          "remain_quota": {
+            "type": "integer"
+          },
+          "unlimited_quota": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Redemption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "quota": {
+            "type": "integer"
+          },
+          "created_time": {
+            "type": "integer"
+          },
+          "redeemed_time": {
+            "type": "integer"
+          }
+        }
+      },
+      "Log": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer"
+          }
+        }
+      },
+      "TaskError": {
+        "type": "object",
+        "description": "任务接口错误",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "错误码"
+          },
+          "message": {
+            "type": "string",
+            "description": "错误信息"
+          },
+          "data": {
+            "nullable": true,
+            "description": "附加数据，通常为 `null`"
+          }
+        }
+      },
+      "VideoGenerationRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "模型 ID",
+            "example": "wan2.7-t2v"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "提示词，必填且不能为空"
+          },
+          "mode": {
+            "type": "string",
+            "description": "生成模式（Kling：`std` / `pro`）"
+          },
+          "image": {
+            "type": "string",
+            "description": "首帧图片 URL（部分模型支持 Base64）"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "图片列表；含义因模型而异（首尾帧、参考图等）"
+          },
+          "size": {
+            "type": "string",
+            "description": "分辨率档位或像素尺寸"
+          },
+          "duration": {
+            "type": "integer",
+            "description": "时长（秒），0–3600",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "seconds": {
+            "type": "string",
+            "description": "时长（秒），字符串形式"
+          },
+          "input_reference": {
+            "type": "string",
+            "description": "参考图片 URL"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "厂商专有参数，结构见各模型的 API 参考页"
+          }
+        }
+      },
+      "VideoGenerationSubmitResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "任务 ID，与 `task_id` 相同"
+          },
+          "task_id": {
+            "type": "string",
+            "description": "任务 ID，用于查询接口"
+          },
+          "status": {
+            "type": "string",
+            "description": "提交成功固定为 `queued`",
+            "enum": [
+              "queued"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "description": "请求的模型 ID"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "创建时间（Unix 秒）"
+          }
+        },
+        "required": [
+          "id",
+          "task_id",
+          "status",
+          "model",
+          "created_at"
+        ]
+      },
+      "VideoGenerationTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "任务记录 ID"
+          },
+          "created_at": {
+            "type": "integer",
+            "description": "记录创建时间（Unix 秒）"
+          },
+          "updated_at": {
+            "type": "integer",
+            "description": "记录更新时间（Unix 秒）"
+          },
+          "task_id": {
+            "type": "string",
+            "description": "任务 ID"
+          },
+          "platform": {
+            "type": "string",
+            "description": "渠道平台标识"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "用户 ID"
+          },
+          "group": {
+            "type": "string",
+            "description": "用户分组"
+          },
+          "channel_id": {
+            "type": "integer",
+            "description": "处理该任务的渠道 ID"
+          },
+          "quota": {
+            "type": "integer",
+            "description": "本次任务消耗的额度"
+          },
+          "action": {
+            "type": "string",
+            "description": "任务动作，如 `text_to_video`、`image_to_video`、`first_tail_to_video`、`reference_to_video`；部分插件会返回自己的动作名"
+          },
+          "status": {
+            "type": "string",
+            "description": "任务状态：`NOT_START` 未开始、`SUBMITTED` 已提交、`QUEUED` 排队中、`IN_PROGRESS` 生成中、`SUCCESS` 成功、`FAILURE` 失败、`UNKNOWN` 未知",
+            "enum": [
+              "NOT_START",
+              "SUBMITTED",
+              "QUEUED",
+              "IN_PROGRESS",
+              "SUCCESS",
+              "FAILURE",
+              "UNKNOWN"
+            ]
+          },
+          "fail_reason": {
+            "type": "string",
+            "description": "失败原因，成功时为空"
+          },
+          "result_url": {
+            "type": "string",
+            "description": "成功时为视频地址（上游返回的地址，或网关代理地址 `https://{{API_HOST}}/v1/videos/{task_id}/content`）；没有结果地址时回退为 `fail_reason`；为空时省略"
+          },
+          "submit_time": {
+            "type": "integer",
+            "description": "提交时间（Unix 秒）"
+          },
+          "start_time": {
+            "type": "integer",
+            "description": "开始时间（Unix 秒）"
+          },
+          "finish_time": {
+            "type": "integer",
+            "description": "完成时间（Unix 秒）"
+          },
+          "progress": {
+            "type": "string",
+            "description": "进度，如 `10%`、`100%`"
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "string",
+                "description": "提交的提示词"
+              },
+              "upstream_model_name": {
+                "type": "string",
+                "description": "实际调用的上游模型"
+              },
+              "origin_model_name": {
+                "type": "string",
+                "description": "请求中的模型名"
+              }
+            },
+            "description": "任务属性"
+          },
+          "username": {
+            "type": "string",
+            "description": "用户名（可能省略）"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "上游原始任务数据，结构因厂商而异"
+          }
+        }
+      },
+      "VideoGenerationTaskResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "查询成功为 `success`"
+          },
+          "message": {
+            "type": "string",
+            "description": "提示信息，通常为空"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "任务记录 ID"
+              },
+              "created_at": {
+                "type": "integer",
+                "description": "记录创建时间（Unix 秒）"
+              },
+              "updated_at": {
+                "type": "integer",
+                "description": "记录更新时间（Unix 秒）"
+              },
+              "task_id": {
+                "type": "string",
+                "description": "任务 ID"
+              },
+              "platform": {
+                "type": "string",
+                "description": "渠道平台标识"
+              },
+              "user_id": {
+                "type": "integer",
+                "description": "用户 ID"
+              },
+              "group": {
+                "type": "string",
+                "description": "用户分组"
+              },
+              "channel_id": {
+                "type": "integer",
+                "description": "处理该任务的渠道 ID"
+              },
+              "quota": {
+                "type": "integer",
+                "description": "本次任务消耗的额度"
+              },
+              "action": {
+                "type": "string",
+                "description": "任务动作，如 `text_to_video`、`image_to_video`、`first_tail_to_video`、`reference_to_video`；部分插件会返回自己的动作名"
+              },
+              "status": {
+                "type": "string",
+                "description": "任务状态：`NOT_START` 未开始、`SUBMITTED` 已提交、`QUEUED` 排队中、`IN_PROGRESS` 生成中、`SUCCESS` 成功、`FAILURE` 失败、`UNKNOWN` 未知",
+                "enum": [
+                  "NOT_START",
+                  "SUBMITTED",
+                  "QUEUED",
+                  "IN_PROGRESS",
+                  "SUCCESS",
+                  "FAILURE",
+                  "UNKNOWN"
+                ]
+              },
+              "fail_reason": {
+                "type": "string",
+                "description": "失败原因，成功时为空"
+              },
+              "result_url": {
+                "type": "string",
+                "description": "成功时为视频地址（上游返回的地址，或网关代理地址 `https://{{API_HOST}}/v1/videos/{task_id}/content`）；没有结果地址时回退为 `fail_reason`；为空时省略"
+              },
+              "submit_time": {
+                "type": "integer",
+                "description": "提交时间（Unix 秒）"
+              },
+              "start_time": {
+                "type": "integer",
+                "description": "开始时间（Unix 秒）"
+              },
+              "finish_time": {
+                "type": "integer",
+                "description": "完成时间（Unix 秒）"
+              },
+              "progress": {
+                "type": "string",
+                "description": "进度，如 `10%`、`100%`"
+              },
+              "properties": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "string",
+                    "description": "提交的提示词"
+                  },
+                  "upstream_model_name": {
+                    "type": "string",
+                    "description": "实际调用的上游模型"
+                  },
+                  "origin_model_name": {
+                    "type": "string",
+                    "description": "请求中的模型名"
+                  }
+                },
+                "description": "任务属性"
+              },
+              "username": {
+                "type": "string",
+                "description": "用户名（可能省略）"
+              },
+              "data": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "上游原始任务数据，结构因厂商而异"
+              }
+            }
+          }
+        },
+        "required": [
+          "code",
+          "data"
+        ]
+      }
+    },
+    "responses": {},
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "使用 Bearer Token 认证。\n格式: `Authorization: Bearer sk-xxxxxx`\n"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://{{API_HOST}}",
+      "description": "DeepPattern API"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "x-tagGroups": [
+    {
+      "name": "通用接口",
+      "tags": [
+        "models"
+      ]
+    },
+    {
+      "name": "对话模型",
+      "tags": [
+        "chat-completions",
+        "responses",
+        "claude-messages",
+        "gemini",
+        "completions"
+      ]
+    },
+    {
+      "name": "生图模型",
+      "tags": [
+        "gpt-images",
+        "grok-images",
+        "seedream-images"
+      ]
+    },
+    {
+      "name": "视频模型",
+      "tags": [
+        "video-tasks"
+      ]
+    },
+    {
+      "name": "音频模型",
+      "tags": [
+        "audio",
+        "realtime"
+      ]
+    },
+    {
+      "name": "向量与检索",
+      "tags": [
+        "embeddings",
+        "rerank"
+      ]
+    },
+    {
+      "name": "内容安全",
+      "tags": [
+        "moderations"
+      ]
+    }
+  ]
+}

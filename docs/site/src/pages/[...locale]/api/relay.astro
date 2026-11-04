@@ -1,0 +1,291 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import '@scalar/api-reference/style.css';
+import { t, withBase, type Lang } from '../../../i18n';
+
+export const getStaticPaths = () => [{ params: { locale: undefined } }, { params: { locale: 'en' } }];
+
+const lang: Lang = Astro.params.locale === 'en' ? 'en' : 'zh';
+const strings = t(lang);
+---
+
+<StarlightPage
+	frontmatter={{
+		title: strings.apiReference,
+		description: strings.apiDescription,
+		template: 'splash',
+		tableOfContents: false,
+		pagefind: false,
+	}}
+	hasSidebar={false}
+>
+	<div id="_top" class="docs-api-reference provider-reference not-content" data-lang={lang}>
+		<div class="provider-reference-shell">
+			<button
+				class="provider-mobile-toggle"
+				type="button"
+				aria-expanded="false"
+				aria-controls="provider-reference-sidebar"
+				data-provider-menu-toggle
+			>
+				<span aria-hidden="true">☰</span><span>{strings.apiNav}</span>
+			</button>
+			<aside
+				id="provider-reference-sidebar"
+				class="provider-reference-sidebar"
+				aria-label={strings.apiNav}
+				data-provider-sidebar
+			>
+				<div class="provider-reference-search">
+					<label for="provider-reference-search">{strings.apiSearch}</label>
+					<input
+						id="provider-reference-search"
+						type="search"
+						placeholder={strings.apiSearch}
+						autocomplete="off"
+						data-provider-search
+					/>
+				</div>
+				<nav aria-label={strings.apiNav} data-provider-nav></nav>
+			</aside>
+			<div class="provider-reference-content">
+				<div class="provider-reference-status" role="status" data-provider-status>{strings.apiLoading}</div>
+				<div id="api-reference"></div>
+				<noscript>{strings.apiNoscriptBefore}<a href={withBase(lang === 'en' ? '/openapi/relay.en.json' : '/openapi/relay.json')}>{strings.apiNoscriptLink}</a>{strings.apiNoscriptAfter}</noscript>
+			</div>
+		</div>
+	</div>
+</StarlightPage>
+
+<script src="../../../scripts/provider-reference.ts"></script>
+
+<style is:global>
+	.provider-reference {
+		--provider-sidebar-width: 280px;
+		background: var(--background);
+		width: 100%;
+		min-height: calc(100vh - 4rem);
+		color: var(--foreground);
+	}
+	.provider-reference-shell {
+		display: grid;
+		grid-template-columns: var(--provider-sidebar-width) minmax(0, 1fr);
+		min-height: calc(100vh - 4rem);
+	}
+	.provider-reference-shell > * {
+		margin-top: 0;
+	}
+	.provider-reference-sidebar {
+		position: sticky;
+		top: var(--header-height);
+		height: calc(100dvh - var(--header-height));
+		overflow: auto;
+		padding: 1.5rem 1.25rem 2rem;
+		border-right: 1px solid var(--border);
+		background: var(--background);
+	}
+	.provider-reference-search {
+		margin-bottom: 1.25rem;
+	}
+	.provider-reference-search label {
+		display: block;
+		margin-bottom: 0.4rem;
+		color: var(--muted-foreground);
+		font-size: 0.75rem;
+		font-weight: 600;
+	}
+	.provider-reference-search input {
+		width: 100%;
+		min-height: 2.5rem;
+		padding: 0.5rem 0.7rem;
+		border: 1px solid var(--border);
+		border-radius: 0.5rem;
+		background: var(--muted);
+		color: var(--foreground);
+		font: inherit;
+	}
+	.provider-reference-search input::placeholder {
+		color: var(--gray-2);
+		opacity: 1;
+	}
+	.provider-reference-search input:focus-visible {
+		outline: 2px solid var(--docs-link);
+		outline-offset: 2px;
+	}
+	.provider-nav-group {
+		margin: 0 0 24px;
+	}
+	.provider-nav-group h2 {
+		margin: 0 0 0.315rem;
+		padding: 0;
+		color: var(--foreground);
+		letter-spacing: 0.08em;
+		font-size: 0.75rem;
+		font-weight: 750;
+		line-height: 1.35;
+	}
+	.provider-nav-provider {
+		margin: 0.225rem 0;
+	}
+	.provider-nav-provider summary {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		padding: 0.45rem 0.5rem;
+		font-weight: 600;
+		list-style: none;
+		cursor: pointer;
+	}
+	.provider-nav-provider summary::-webkit-details-marker {
+		display: none;
+	}
+	.provider-nav-chevron {
+		flex: none;
+		width: 1rem;
+		height: 1rem;
+		color: var(--muted-foreground);
+	}
+	.provider-nav-provider[open] > summary .provider-nav-chevron {
+		transform: rotate(90deg);
+	}
+	.provider-nav-provider summary:focus-visible,
+	.provider-nav-operation:focus-visible {
+		outline: 2px solid var(--docs-link);
+		outline-offset: 2px;
+	}
+	.provider-nav-operations {
+		padding: 0 0 0.405rem 1.1rem;
+	}
+	.provider-nav-operation {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.675rem;
+		padding: 0.45rem 0.405rem;
+		border-radius: 0.375rem;
+		color: var(--muted-foreground);
+		font-size: 0.88rem;
+		text-decoration: none;
+	}
+	.provider-nav-operation code:last-child:not(.provider-nav-method) {
+		display: none;
+	}
+	.provider-nav-meta {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.4rem;
+		color: var(--muted-foreground);
+		font-size: 0.7rem;
+	}
+	.provider-reference .provider-nav-meta code {
+		padding: 0;
+		border: 0;
+		background: none;
+		font-size: inherit;
+	}
+	.provider-reference .provider-nav-meta code:empty {
+		display: none;
+	}
+	.provider-nav-method {
+		color: var(--docs-link);
+		font-weight: 700;
+	}
+	.provider-nav-operation:hover {
+		background: var(--muted);
+		color: var(--foreground);
+	}
+	.provider-nav-operation.is-active {
+		background: var(--accent);
+		color: var(--accent-foreground);
+		font-weight: 650;
+	}
+	.provider-reference-content {
+		min-width: 0;
+	}
+	.provider-reference-content #api-reference {
+		min-height: calc(100vh - 4rem);
+	}
+	.provider-reference-status {
+		padding: 2rem;
+		color: var(--muted-foreground);
+	}
+	.provider-reference-status[hidden],
+	.provider-mobile-toggle {
+		display: none;
+	}
+	.docs-api-reference .introduction-section .section-content > .flex {
+		gap: 0.625rem;
+		margin-bottom: 0.75rem;
+	}
+	.docs-api-reference .introduction-section .section-columns {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 3rem;
+		align-items: start;
+	}
+	.docs-api-reference .introduction-section .section-columns > .section-column,
+	.docs-api-reference .introduction-section .sticky-cards,
+	.docs-api-reference .introduction-section .introduction-card,
+	.docs-api-reference .introduction-section .introduction-card-item {
+		width: 100%;
+		max-width: none;
+	}
+	.docs-api-reference .scalar-app [class~='group/group-button'] > a {
+		margin: 0;
+		padding-block: 0.4rem;
+		border: 0;
+		border-radius: 0;
+		background: none;
+		box-shadow: none;
+	}
+	.docs-api-reference .scalar-app [class~='group/group-button'] > a:hover {
+		color: var(--foreground);
+	}
+	.docs-api-reference .scalar-app div[class~='group/button'][class~='cursor-auto'] {
+		margin-top: 1.5rem;
+		margin-bottom: 0.5rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--border);
+		color: var(--foreground);
+		letter-spacing: 0.08em;
+		font-size: 0.75rem;
+		font-weight: 750;
+	}
+	.docs-api-reference .scalar-app [class~='group/group-button'] > a[href^='#description/'] {
+		padding-block: 0.75rem;
+	}
+	@media (width <= 767px) {
+		.provider-reference-shell {
+			display: block;
+		}
+		.provider-mobile-toggle {
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+			width: 100%;
+			padding: 0.75rem 1rem;
+			border: 0;
+			border-bottom: 1px solid var(--border);
+			background: var(--background);
+			color: var(--foreground);
+			font: inherit;
+			font-weight: 650;
+			text-align: left;
+		}
+		.provider-mobile-toggle:focus-visible {
+			outline: 2px solid var(--docs-link);
+			outline-offset: -2px;
+		}
+		.provider-reference-sidebar {
+			display: none;
+			position: static;
+			height: auto;
+			max-height: min(70vh, 36rem);
+			border-right: 0;
+			border-bottom: 1px solid var(--border);
+		}
+		.provider-reference-sidebar.is-open {
+			display: block;
+		}
+	}
+</style>

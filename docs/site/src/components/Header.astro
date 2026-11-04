@@ -1,0 +1,143 @@
+---
+import config from 'virtual:starlight/user-config';
+import Search from 'lucode-starlight/components/overrides/Search.astro';
+import SocialIcons from 'lucode-starlight/components/overrides/SocialIcons.astro';
+import ThemeSelect from 'lucode-starlight/components/overrides/ThemeSelect.astro';
+import SiteTitle from 'lucode-starlight/components/overrides/SiteTitle.astro';
+import LanguageMenu from './LanguageMenu.astro';
+import { langOf, localePath, t } from '../i18n';
+import { CONSOLE_URL } from '../site.mjs';
+
+const lang = langOf(Astro.url.pathname);
+const strings = t(lang);
+const shouldRenderSearch =
+	config.pagefind || config.components.Search !== '@astrojs/starlight/components/Search.astro';
+const navLinks = [
+	{ label: strings.guide, href: localePath(lang, '/start/intro/'), attrs: { 'data-nav-id': 'guide' } },
+	{ label: strings.apiReference, href: localePath(lang, '/api/relay/'), attrs: { 'data-nav-id': 'api' } },
+	{ label: strings.console, href: CONSOLE_URL, attrs: { target: '_blank', rel: 'noreferrer' } },
+];
+---
+
+<button class="show-modal" popovertargetaction="toggle" popovertarget="drawer">
+	<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+		<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5"></path>
+	</svg>
+	<span class="sr-only">Toggle Menu</span>
+</button>
+
+<div class="site-title-wrapper">
+	<SiteTitle />
+	<nav class="nav-bar">
+		{
+			navLinks.map(({ label, href, attrs }) => (
+				<a class:list={[{ active: Astro.url.pathname === href }]} href={href} {...attrs}>
+					{label}
+				</a>
+			))
+		}
+	</nav>
+</div>
+
+<div class="header-right">
+	{shouldRenderSearch && <Search />}
+	<nav class="header-nav">
+		<div><SocialIcons /></div>
+		<div><ThemeSelect /></div>
+		<div><LanguageMenu /></div>
+	</nav>
+</div>
+
+<style>
+	.show-modal {
+		all: unset;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2rem;
+		height: 2rem;
+		margin-right: calc(var(--spacing) * 2);
+		margin-left: calc(var(--spacing) * -2);
+		padding-block: calc(var(--spacing) * 2);
+		font-size: 1rem;
+		line-height: 1.5rem;
+	}
+	.show-modal > svg {
+		width: 1.5rem;
+		height: 1.5rem;
+	}
+	@media (min-width: 1024px) {
+		.show-modal {
+			display: none;
+		}
+	}
+	.site-title-wrapper {
+		display: none;
+		margin-right: calc(var(--spacing) * 4);
+	}
+	.header-right {
+		display: flex;
+		flex: 1 1 0%;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+	@media (min-width: 768px) {
+		.site-title-wrapper {
+			display: flex;
+		}
+		.header-right {
+			justify-content: flex-end;
+		}
+	}
+	.header-nav {
+		display: flex;
+		align-items: center;
+		gap: 0.125rem;
+	}
+	.header-nav > div:has(> :not(script)) {
+		display: flex;
+		align-items: center;
+	}
+	.header-nav > div:has(> :not(script)) + div:has(> :not(script)) {
+		position: relative;
+		margin-left: var(--spacing);
+		padding-left: calc(var(--spacing) * 3);
+	}
+	.header-nav > div:has(> :not(script)) + div:has(> :not(script))::before {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: 0;
+		width: 1px;
+		height: 1rem;
+		background-color: color-mix(in oklab, var(--border) 85%, transparent);
+		transform: translateY(-50%);
+	}
+	.nav-bar {
+		display: flex;
+		align-items: center;
+		font-size: 0.875rem;
+		line-height: 1.25rem;
+	}
+	@media (min-width: 1280px) {
+		.nav-bar {
+			gap: 0.375rem;
+		}
+	}
+	.nav-bar a {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 2rem;
+		padding: 0 0.625rem;
+		border-radius: calc(var(--radius) - 2px);
+		font-weight: 500;
+		text-decoration: none;
+		transition: color 0.15s, background-color 0.15s;
+	}
+	.nav-bar a:hover {
+		color: var(--accent-foreground);
+		background-color: color-mix(in oklab, var(--accent) 80%, transparent);
+	}
+</style>

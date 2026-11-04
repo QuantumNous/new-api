@@ -1,0 +1,22 @@
+---
+import { isApiPath } from '../i18n';
+
+const isApiReference = isApiPath(Astro.url.pathname);
+---
+
+{
+	isApiReference ? (
+		<div class="docs-api-reference">
+			<slot />
+		</div>
+	) : (
+		<div class="docs-reading-layout">
+			<div class="docs-article">
+				<slot />
+			</div>
+			<aside class="docs-toc">
+				<slot name="right-sidebar" />
+			</aside>
+		</div>
+	)
+}
