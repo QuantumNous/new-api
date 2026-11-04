@@ -1,0 +1,23 @@
+# Haaklijst: elk upstreambestand dat wij aanraken, met het maximum aantal eigen
+# regels tegen de laatste upstream-tag (4 november 2026: v1.0.0-rc.48).
+#
+# Een regel toevoegen is een bewust besluit in een PR; de lijst mag daarna alleen
+# krimpen. Brengt een taak een bestand terug, verlaag dan in dezelfde PR het maximum.
+# Een bestand dat hier niet staat hoort van upstream te zijn: elke eigen regel erin
+# is een fout van de toets, niet een uitzondering.
+#
+# pad                                                        max eigen regels
+main.go                                                        4
+pkg/perf_metrics/metrics.go                                    3
+middleware/access_token_routes.go                              2
+router/relay-router.go                                         0
+model/main.go                                                  2
+model/option.go                                                2
+router/api-router.go                                           3
+web/package.json                                               13
+web/src/i18n/config.ts                                         91
+web/src/components/layout/components/authenticated-layout.tsx   1
+web/src/features/pricing/components/pricing-sidebar.tsx         2
+web/src/hooks/use-sidebar-data.ts                              3
+# eigen CI-stap: de haaklijst-toets zelf, plus fetch-depth 0 voor de basisbranch
+.github/workflows/ci.yml                                       10
