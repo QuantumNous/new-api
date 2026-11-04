@@ -49,6 +49,18 @@ export interface Message {
   isContentComplete?: boolean
   status?: MessageStatus
   errorCode?: string | null
+  usage?: MessageUsage
+}
+
+export interface MessageUsageTokens {
+  promptTokens: number
+  completionTokens: number
+}
+
+/** What one Playground test took from the wallet, in quota units. */
+export interface MessageUsage extends Partial<MessageUsageTokens> {
+  costQuota: number
+  balanceQuota?: number
 }
 
 // API payload types
