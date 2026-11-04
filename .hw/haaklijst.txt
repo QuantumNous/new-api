@@ -15,13 +15,19 @@ model/main.go                                                  2
 model/option.go                                                2
 router/api-router.go                                           3
 web/package.json                                               13
-web/src/i18n/config.ts                                         91
+web/src/i18n/config.ts                                         95
+web/src/i18n/__tests__/tr-locale.test.ts                        10
 web/src/components/layout/components/authenticated-layout.tsx   1
 web/src/features/pricing/components/pricing-sidebar.tsx         2
 web/src/hooks/use-sidebar-data.ts                              3
 # eigen CI-stappen: de haaklijst-toets zelf, fetch-depth 0 voor de basisbranch,
 # en workflow_dispatch zodat de upstream-sync CI op zijn eigen PR kan starten
 .github/workflows/ci.yml                                       20
+
+# Eigen vertaalsleutels staan sinds 4 november 2026 in web/src/i18n/hw/<taal>.json
+# (niet op deze lijst: die bestanden bestaan upstream niet). De locale-bestanden
+# zelf zijn weer van upstream, behalve tr.json. Het verhuisscript is van ons.
+.hw/verhuis-i18n.mjs                                           150
 
 # De sync-stap zelf is van ons: hij bestaat alleen in deze fork. Elke regel erbij
 # is een bewust besluit, dus de bovengrens staat hier en groeit niet mee.
