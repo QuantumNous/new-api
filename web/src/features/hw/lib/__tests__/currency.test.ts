@@ -110,6 +110,15 @@ describe('conversion', () => {
     expect(hwTryAmountIn(250, 'USD', rates)).toBe(5)
     expect(hwTryAmountIn(250, 'EUR', rates)).toBe(4)
   })
+
+  it('does not lose a whole unit to a rate a hair above the round number', () => {
+    // Live rate of 4 November: 250 TL is $4.997 in the ledger, shown as $5.00.
+    const rates = { TRY: 50.026, EUR: 0.889212, USD: 1 }
+    expect(hwTryAmountIn(250, 'USD', rates)).toBe(5)
+    expect(hwTryAmountIn(250, 'EUR', rates)).toBe(4)
+    expect(hwTryAmountIn(1000, 'USD', rates)).toBe(20)
+    expect(hwTryAmountIn(250, 'USD', { TRY: 52, USD: 1 })).toBe(4)
+  })
 })
 
 describe('profile currency', () => {
