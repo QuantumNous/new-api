@@ -7,6 +7,10 @@ on:
   push:
     branches:
       - main
+  # The upstream sync opens its PR with GITHUB_TOKEN, and GitHub starts no
+  # pull_request run for such a PR. The sync workflow starts this one on the
+  # branch instead; the run lands on the same commit and so appears on the PR.
+  workflow_dispatch:
 
 permissions:
   contents: read

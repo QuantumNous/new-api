@@ -11,6 +11,9 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  # De sync start CI en Security zelf op de sync-tak: een PR van GITHUB_TOKEN
+  # start geen pull_request-run, en zonder checks kan de PR niet doorlopen.
+  actions: write
 
 concurrency:
   group: upstream-sync
