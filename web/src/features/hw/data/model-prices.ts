@@ -100,6 +100,19 @@ export const PRICE_SOURCES: readonly PriceSource[] = [
   },
 ]
 
+/**
+ * Official API pricing page of each provider, verified live on 2026-11-04
+ * (HTTP 200, the page names the model family with its price). Every model of
+ * `MODEL_PRICES` gets its link from its provider, so a new model of a known
+ * provider needs no new link, and a new provider does not compile without one.
+ */
+export const OFFICIAL_PRICING_URL: Readonly<Record<PriceProvider, string>> = {
+  Anthropic: 'https://platform.claude.com/docs/en/about-claude/pricing',
+  OpenAI: 'https://developers.openai.com/api/docs/pricing',
+  Google: 'https://ai.google.dev/gemini-api/docs/pricing',
+  xAI: 'https://docs.x.ai/docs/models',
+}
+
 /** Same order as the catalogue ("Recommended"): see `RECOMMENDED_ORDER` in `model-guide.ts`. */
 export const MODEL_PRICES: readonly ModelPrice[] = [
   {
@@ -196,7 +209,8 @@ export function savingFraction(
  */
 export const PREMIUM_INPUT_USD_PER_M = 10
 
-function priceOf(
+/** The sold model's price entry, or undefined for a model we do not sell. */
+export function priceOf(
   model: string | undefined,
   models: readonly ModelPrice[]
 ): ModelPrice | undefined {

@@ -24,6 +24,7 @@ import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Hint } from '@/features/hw/components/hint'
+import { OfficialPriceLink } from '@/features/hw/components/official-price-link'
 import { PremiumModelNotice } from '@/features/hw/components/premium-model-notice'
 import { guideText, modelGuide } from '@/features/hw/data/model-guide'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -358,6 +359,10 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             {description}
           </p>
           <PremiumModelNotice
+            language={i18n.language}
+            model={props.model.model_name}
+          />
+          <OfficialPriceLink
             language={i18n.language}
             model={props.model.model_name}
           />
