@@ -787,6 +787,7 @@ func HwDecideRetry(c *gin.Context, apiErr *types.NewAPIError) (PolicyDecision, b
 		// line per failure, channel and model only, never the supplier text.
 		logger.LogWarn(c, common.LogText("hw supplier credit exhausted: channel_id=%d model=%s", state.lastChannel.Id, state.model))
 		HwNoteModelCreditFailure(state.model)
+		HwCountSupplierCreditFailure(state.lastChannel.Id, state.model, time.Now())
 		state.credit = HwChannelProvider(state.lastChannel) == HwProviderLumia
 	}
 	if types.IsSkipRetryError(apiErr) || apiErr.GetErrorCode() == HwErrorCodeServiceBusy {

@@ -3,9 +3,11 @@ package service
 import (
 	"errors"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
@@ -131,4 +133,70 @@ func TestHwModelStepDown(t *testing.T) {
 	} {
 		assert.Equal(t, want, HwModelStepDown(name), name)
 	}
+}
+
+// Five supplier credit failures within an hour file one card for the CEO route
+// with the counts; more failures that day file nothing, older failures do not
+// count, and the next day can file again (4 Nov 2026, Lumia's Anthropic credit).
+func TestHwSupplierCreditFailuresFileOneCardADay(t *testing.T) {
+	require.NoError(t, model.DB.AutoMigrate(&model.Option{}))
+	common.OptionMapRWMutex.Lock()
+	if common.OptionMap == nil {
+		common.OptionMap = map[string]string{}
+	}
+	common.OptionMapRWMutex.Unlock()
+	var cards []hwBureauIssueRequest
+	var mu sync.Mutex
+	previous := hwSupplierCreditPostCard
+	clean := func() {
+		model.DB.Where("key = ?", HwOptionSupplierCreditCardDay).Delete(&model.Option{})
+		common.OptionMapRWMutex.Lock()
+		delete(common.OptionMap, HwOptionSupplierCreditCardDay)
+		common.OptionMapRWMutex.Unlock()
+		hwSupplierCredit.Lock()
+		hwSupplierCredit.failures, hwSupplierCredit.posting, hwSupplierCredit.retryAt = nil, false, time.Time{}
+		hwSupplierCredit.Unlock()
+	}
+	clean()
+	t.Cleanup(func() { hwSupplierCreditPostCard = previous; clean() })
+	hwSupplierCreditPostCard = func(issue hwBureauIssueRequest) error {
+		mu.Lock()
+		defer mu.Unlock()
+		cards = append(cards, issue)
+		return nil
+	}
+	settled := func() bool {
+		hwSupplierCredit.Lock()
+		defer hwSupplierCredit.Unlock()
+		return !hwSupplierCredit.posting
+	}
+	start := time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC)
+
+	HwCountSupplierCreditFailure(1, "claude-opus-5-5", start.Add(-2*time.Hour))
+	for i := range 4 {
+		HwCountSupplierCreditFailure(1, "claude-fable-5-1", start.Add(time.Duration(i)*time.Minute))
+	}
+	require.Eventually(t, settled, time.Second, 10*time.Millisecond)
+	assert.Empty(t, cards, "four failures in the hour and one older failure stay below the threshold")
+
+	HwCountSupplierCreditFailure(5, "claude-opus-5-5", start.Add(10*time.Minute))
+	require.Eventually(t, func() bool { mu.Lock(); defer mu.Unlock(); return len(cards) == 1 && settled() }, time.Second, 10*time.Millisecond)
+	assert.Equal(t, "Lumia: Anthropic-tegoed wisselvallig leeg (2026-11-04)", cards[0].Title)
+	assert.Equal(t, HwBureauAgentCEO, cards[0].AssigneeAgentID)
+	assert.Contains(t, cards[0].Description, "- claude-fable-5-1 op kanaal 1: 4\n")
+	assert.Contains(t, cards[0].Description, "- claude-opus-5-5 op kanaal 5: 1\n")
+	assert.NotContains(t, cards[0].Description, "Your credit balance")
+
+	for i := range 6 {
+		HwCountSupplierCreditFailure(1, "claude-fable-5-1", start.Add(time.Duration(20+i)*time.Minute))
+	}
+	require.Eventually(t, settled, time.Second, 10*time.Millisecond)
+	assert.Len(t, cards, 1, "the same day files no second card")
+
+	next := start.Add(24 * time.Hour)
+	for i := range 5 {
+		HwCountSupplierCreditFailure(1, "claude-fable-5-1", next.Add(time.Duration(i)*time.Minute))
+	}
+	require.Eventually(t, func() bool { mu.Lock(); defer mu.Unlock(); return len(cards) == 2 && settled() }, time.Second, 10*time.Millisecond)
+	assert.Equal(t, "Lumia: Anthropic-tegoed wisselvallig leeg (2026-11-05)", cards[1].Title)
 }
