@@ -19,3 +19,5 @@ web/src/i18n/config.ts                                         91
 web/src/components/layout/components/authenticated-layout.tsx   1
 web/src/features/pricing/components/pricing-sidebar.tsx         2
 web/src/hooks/use-sidebar-data.ts                              3
+# eigen CI-stap: de haaklijst-toets zelf, plus fetch-depth 0 voor de basisbranch
+.github/workflows/ci.yml                                       10
