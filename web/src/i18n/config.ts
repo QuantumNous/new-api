@@ -20,6 +20,7 @@ import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
 
+import { withHwText } from './hw'
 import { convertDetectedLanguage, toIntlLocale } from './languages'
 import en from './locales/en.json'
 import tr from './locales/tr.json'
@@ -29,7 +30,7 @@ import { loadTextOverrides } from './text-overrides'
 // bundle; the other six files are about 4 MB together and load when chosen.
 export const resources = {
   tr,
-  en,
+  en: withHwText('en', en),
 } as const
 
 const LAZY_LOCALES: Record<
@@ -52,7 +53,8 @@ export const lazyLocaleBackend = {
     const load = LAZY_LOCALES[language]
     if (!load) return {}
     const module = await load()
-    return module.default[namespace as 'translation']
+    const bundle = module.default[namespace as 'translation']
+    return withHwText(language, { translation: bundle }).translation
   },
 }
 
