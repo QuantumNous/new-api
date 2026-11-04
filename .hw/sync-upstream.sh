@@ -119,27 +119,41 @@ fi
 PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$TAK" --state open --json number --jq '.[0].number // empty')
 if [ -z "$PR" ]; then
   MELDING=$(mktemp)
-  {
-    echo "Automatische sync naar upstream \`$TAG\` (\`$BASIS\`)."
-    echo
-    echo "De merge, de lockfile en de routetree zijn in deze run gemaakt; \`bun install\` en \`bun run build\` draaiden op de samengevoegde \`web/package.json\`. De haaklijst-toets is groen."
-    echo
-    echo "Samenvoegen mag pas als de checks op deze PR groen zijn. Deze PR is door de workflow geopend met \`GITHUB_TOKEN\`, dus GitHub start daar geen CI op; zie \`.hw/conflicten.md\`."
-    echo
-    echo "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
-  } > "$MELDING"
-  gh pr create --repo "$GITHUB_REPOSITORY" --base "${BASIS#origin/}" --head "$TAK" \
-    --title "Upstream $TAG" --body-file "$MELDING"
+  if [ -f .hw/sync-pr.md ]; then
+    # De PR-tekst staat als sjabloon in de repo, zodat hij meeleest in de review.
+    sed -e "s/{{TAG}}/$TAG/g" -e "s#{{BASIS}}#$BASIS#g" .hw/sync-pr.md > "$MELDING"
+  else
+    {
+      echo "Automatische sync naar upstream \`$TAG\` (\`$BASIS\`), gemaakt door \`.hw/sync-upstream.sh\`."
+      echo
+      echo "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+    } > "$MELDING"
+  fi
+  # De URL die gh teruggeeft is het PR-nummer; dat scheelt een tweede zoekactie
+  # en werkt ook als de zoekindex nog niet bij is.
+  PR=$(gh pr create --repo "$GITHUB_REPOSITORY" --base "${BASIS#origin/}" --head "$TAK" \
+    --title "Upstream $TAG" --body-file "$MELDING" | grep -oE '[0-9]+$')
   rm -f "$MELDING"
-  PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$TAK" --state open --json number --jq '.[0].number')
+  if [ -z "$PR" ]; then
+    PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$TAK" --state open --json number --jq '.[0].number // empty')
+  fi
+fi
+if [ -z "$PR" ]; then
+  echo "FOUT: de tak $TAK is gepusht maar er is geen PR gevonden; open er zelf een"
+  exit 1
 fi
 echo "PR #$PR voor $TAG"
 
-# Auto-merge alleen als dat veilig kan: de instelling moet aan staan en er moet
-# minstens één check op de PR staan. Zonder checks zou GitHub direct samenvoegen,
-# dus dan blijft de PR open voor een mens.
+# Auto-merge alleen als dat veilig kan: de instelling moet aan staan, er moeten
+# checks op de PR staan en de basisbranch moet die checks verplicht stellen.
+# Anders voegt --auto direct samen, ook als een check later rood wordt.
 if [ "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.allow_auto_merge')" != 'true' ]; then
   echo "LET OP: auto-merge staat uit voor $GITHUB_REPOSITORY; PR #$PR blijft open voor een mens"
+  exit 0
+fi
+VERPLICHT=$(gh api "repos/$GITHUB_REPOSITORY/branches/${BASIS#origin/}/protection" --jq '.required_status_checks.contexts // []' 2>/dev/null || true)
+if [ -z "$VERPLICHT" ] || [ "$VERPLICHT" = '[]' ] || [ "$VERPLICHT" = 'null' ]; then
+  echo "LET OP: ${BASIS#origin/} heeft geen verplichte checks, dus auto-merge zou zonder keuring samenvoegen; PR #$PR blijft open voor een mens"
   exit 0
 fi
 CHECKS=''
