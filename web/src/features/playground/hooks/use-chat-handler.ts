@@ -54,8 +54,9 @@ interface UseChatHandlerOptions {
 
 const KNOWN_ERROR_MESSAGES = new Set<string>(Object.values(ERROR_MESSAGES))
 const STREAM_UPDATE_FLUSH_MS = 50
-// The gateway settles a test after the last byte reaches the browser, so the
-// balance is read again with growing pauses until it moves.
+// The gateway settles a test after the last byte reaches the browser, and a
+// low balance is first reserved and then settled, so the balance is read again
+// with growing pauses until it has moved and holds still for one read.
 const BALANCE_POLL_DELAYS_MS = [400, 800, 1600, 3200]
 
 async function readBalanceQuota(): Promise<number | undefined> {
@@ -119,8 +120,12 @@ export function useChatHandler({
       let balanceAfter: number | undefined
       for (const delay of BALANCE_POLL_DELAYS_MS) {
         await new Promise((resolve) => window.setTimeout(resolve, delay))
+        const previousRead = balanceAfter
         balanceAfter = await readBalanceQuota()
-        if (balanceBefore === undefined || balanceAfter !== balanceBefore) break
+        if (balanceBefore === undefined) break
+        if (balanceAfter !== balanceBefore && balanceAfter === previousRead) {
+          break
+        }
       }
       if (balanceAfter !== undefined) balanceQuotaRef.current = balanceAfter
       const usage = {
