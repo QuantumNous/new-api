@@ -647,6 +647,8 @@ func TestProxyTaskMediaReadsArtifactFromJSONContentPath(t *testing.T) {
 		{name: "written to storage", method: http.MethodGet, reply: `{"done":true,"response":{"videos":[{"gcsUri":"gs://bucket/video.mp4"}]}}`, status: http.StatusGone, code: "artifact_gone"},
 		{name: "operation failed", method: http.MethodGet, reply: `{"done":true,"error":{"code":3,"message":"bad request"}}`, status: http.StatusBadGateway, code: "artifact_upstream_error"},
 		{name: "operation running", method: http.MethodGet, reply: `{"name":"op"}`, status: http.StatusConflict, code: "artifact_not_ready"},
+		{name: "interaction completed", method: http.MethodGet, reply: `{"id":"int","status":"completed","response":{"videos":[{"bytesBase64Encoded":"` + inline + `"}]}}`, status: http.StatusOK, body: "inline-video"},
+		{name: "interaction running", method: http.MethodGet, reply: `{"id":"int","status":"in_progress"}`, status: http.StatusConflict, code: "artifact_not_ready"},
 		{name: "operation expired", method: http.MethodGet, replyStatus: http.StatusNotFound, reply: `{"error":{"code":404}}`, status: http.StatusGone, code: "artifact_gone"},
 		{name: "reply too large", method: http.MethodGet, reply: `{"done":true,"response":{"videos":[{"bytesBase64Encoded":"` + strings.Repeat("A", 3<<20) + `"}]}}`, status: http.StatusBadGateway, code: "artifact_request_rejected"},
 	} {

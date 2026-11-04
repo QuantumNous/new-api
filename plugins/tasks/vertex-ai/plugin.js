@@ -1,16 +1,53 @@
+// Gemini Omni bills tokens: input, text output (including thinking) and video
+// output (with audio). A second of output video is billed at these rates
+// (cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing).
+const OMNI_VIDEO_TOKENS_PER_SECOND = { "360p": 1931, "720p": 5792, "1080p": 8688, "4k": 17376 };
+const RESOLUTIONS = Object.keys(OMNI_VIDEO_TOKENS_PER_SECOND);
+const OMNI_USAGE_SCHEMA = {
+  // Input tokens (reported on completion).
+  input_tokens: {
+    type: "number",
+    unit: "token",
+    description: { en: "Input token unit price", zh: "输入 Token 单价" },
+  },
+  // Text output tokens, including thinking (reported on completion).
+  output_tokens: {
+    type: "number",
+    unit: "token",
+    description: { en: "Text output token unit price", zh: "文本输出 Token 单价" },
+  },
+  // Video output tokens (estimated at submit, reported on completion).
+  video_tokens: {
+    type: "number",
+    unit: "token",
+    description: { en: "Video output token unit price", zh: "视频输出 Token 单价" },
+  },
+};
+// Input and text output are only known on completion, which reports them.
+function omniUsageFacts(seconds, resolution) {
+  return { input_tokens: 0, output_tokens: 0, video_tokens: seconds * OMNI_VIDEO_TOKENS_PER_SECOND[resolution] };
+}
+
 export const meta = {
   apiVersion: 1,
   key: "vertex-ai",
-  name: "Google Veo (Vertex AI)",
+  name: "Google Veo & Gemini Omni (Vertex AI)",
   icon: "VertexAI.Color",
   description: {
-    en: "Google Veo video generation on Vertex AI (text-to-video and image-to-video)",
-    zh: "Google Veo 视频生成（文生视频、图生视频），Vertex AI 版本",
+    en: "Google Veo and Gemini Omni Flash video generation on Vertex AI (text-to-video and image-to-video)",
+    zh: "Google Veo 与 Gemini Omni Flash 视频生成（文生视频、图生视频），Vertex AI 版本",
   },
   version: "1.2.0",
   channelTypes: [41],
   author: { name: "QuantumNous" },
-  models: ["veo-3.0-generate-001", "veo-3.0-fast-generate-001", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview"],
+  models: [
+    "veo-3.0-generate-001",
+    "veo-3.0-fast-generate-001",
+    "veo-3.1-generate-preview",
+    "veo-3.1-fast-generate-preview",
+    "gemini-omni-1.1-flash-preview",
+    "gemini-omni-flash-preview",
+  ],
   fetchMode: "per_task",
   auth: { type: "oauth2_jwt" },
   upstreams: ["vendor", "new_api"],
@@ -38,6 +75,18 @@ export const meta = {
     { label: "8s 720p muted", facts: { seconds: 8, resolution: "720p", generate_audio: false } },
     { label: "8s 1080p audio", facts: { seconds: 8, resolution: "1080p", generate_audio: true } },
     { label: "8s 4k audio", facts: { seconds: 8, resolution: "4k", generate_audio: true } },
+  ],
+  usageProfiles: [
+    {
+      models: ["gemini-omni-1.1-flash-preview", "gemini-omni-flash-preview"],
+      schema: OMNI_USAGE_SCHEMA,
+      examples: [
+        { label: "3s 360p", facts: omniUsageFacts(3, "360p") },
+        { label: "8s 720p", facts: omniUsageFacts(8, "720p") },
+        { label: "8s 1080p", facts: omniUsageFacts(8, "1080p") },
+        { label: "10s 4k", facts: omniUsageFacts(10, "4k") },
+      ],
+    },
   ],
   // Vertex AI request and response bodies, for clients and for a downstream New
   // API gateway, at both API versions Vertex serves them (google-genai defaults
@@ -82,6 +131,114 @@ function requestHeaders(ctx) {
   const headers = { "Content-Type": "application/json", Accept: "application/json", Authorization: ctx.authHeader };
   if (!viaGateway(ctx)) headers["x-goog-user-project"] = ctx.auth.projectId;
   return headers;
+}
+function omniModel(ctx) {
+  return trimmed(ctx.upstreamModel || ctx.model).startsWith("gemini-omni-");
+}
+// Gemini Omni runs through the Interactions API, which Vertex serves on the
+// global endpoint only, and returns the video inline in the interaction.
+function interactionsURL(ctx, interactionId) {
+  if (viaGateway(ctx)) throw new Error("Gemini Omni is not available through a New API gateway");
+  const base = trimmed(ctx.baseUrl).replace(/\/$/, "") || "https://aiplatform.googleapis.com";
+  const url = base + "/v1beta1/projects/" + ctx.auth.projectId + "/locations/global/interactions";
+  return interactionId ? url + "/" + encodeURIComponent(interactionId) : url;
+}
+function omniResolution(req) {
+  const metadata = req.metadata || {};
+  const value = String(req.resolution || metadata.resolution || resolution(req.size)).toLowerCase();
+  if (!RESOLUTIONS.includes(value)) throw new Error("resolution must be one of " + RESOLUTIONS.join(", "));
+  return value;
+}
+function omniDuration(req) {
+  const n = req.duration === undefined || req.duration === "" ? 8 : Number(req.duration);
+  if (!Number.isInteger(n) || n < 3 || n > 10) throw new Error("seconds must be an integer from 3 to 10");
+  return n;
+}
+// inputImage is the first frame's media type and base64 bytes: an uploaded
+// file placeholder, a data URL or bare base64.
+function inputImage(ctx, image) {
+  let mime = "";
+  let data = image;
+  if (plainObject(image) && image.__fileRef) {
+    mime = String(image.mimeType || "").toLowerCase();
+    if (mime !== "image/jpeg" && mime !== "image/png") {
+      for (const file of ctx.files || []) {
+        if (file.ref === image.__fileRef || file.field === "input_reference") {
+          mime = String(file.mimeType || "").toLowerCase();
+          break;
+        }
+      }
+    }
+  } else {
+    const text = String(image);
+    const comma = text.indexOf(",");
+    data = text;
+    if (text.startsWith("data:")) {
+      mime = text.slice(5, comma).split(";")[0].toLowerCase();
+      data = text.slice(comma + 1);
+    } else if (text.startsWith("iVBORw0KGgo")) mime = "image/png";
+    else if (text.startsWith("/9j/")) mime = "image/jpeg";
+  }
+  if (mime !== "image/jpeg" && mime !== "image/png") throw new Error("input image must be image/jpeg or image/png");
+  return { mime: mime, data: data };
+}
+function omniSubmitRequest(ctx, req, model) {
+  const input = [];
+  if (trimmed(req.prompt)) input.push({ type: "text", text: req.prompt });
+  const image = (req.images || [])[0];
+  if (image) {
+    const frame = inputImage(ctx, image);
+    input.push({ type: "image", mime_type: frame.mime, data: frame.data });
+  }
+  if (!input.length) throw new Error("prompt is required");
+  const task = image ? "image_to_video" : "text_to_video";
+  return {
+    url: interactionsURL(ctx),
+    method: "POST",
+    headers: requestHeaders(ctx),
+    body: {
+      model: model,
+      input: input,
+      response_format: [{ type: "video", aspect_ratio: aspect(req.size), resolution: omniResolution(req), duration: omniDuration(req) + "s" }],
+      generation_config: { video_config: { task: task } },
+      background: true,
+      store: true,
+    },
+    action: task,
+  };
+}
+function isInteraction(body) {
+  return plainObject(body) !== null && (body.object === "interaction" || Array.isArray(body.steps));
+}
+// omniVideo locates the video of a finished interaction: the model_output
+// step holds it inline (data) or at a Cloud Storage uri. Like an inline Veo
+// video, the stored interaction keeps its media type only, so the path
+// addresses the bytes for a download that fetches the interaction again.
+function omniVideo(body) {
+  const steps = Array.isArray(body.steps) ? body.steps : [];
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    if (!plainObject(step) || step.type !== "model_output" || !Array.isArray(step.content)) continue;
+    for (let j = 0; j < step.content.length; j++) {
+      const part = step.content[j];
+      if (!plainObject(part) || part.type !== "video") continue;
+      return { path: ["steps", i, "content", j, "data"], mimeType: trimmed(part.mime_type) || "video/mp4", uri: trimmed(part.uri) };
+    }
+  }
+  return null;
+}
+function omniTaskResult(body) {
+  body = plainObject(body) || {};
+  if (plainObject(body.error) && body.error.message) return { status: "FAILURE", progress: "100%", reason: body.error.message };
+  const status = trimmed(body.status).toLowerCase();
+  if (status === "in_progress" || status === "queued") return { status: "IN_PROGRESS", progress: "50%" };
+  if (["failed", "cancelled", "canceled", "expired", "incomplete"].includes(status)) return { status: "FAILURE", progress: "100%", reason: status };
+  if (status !== "completed") return { status: "UNKNOWN", reason: "unrecognized interaction state" };
+  const video = omniVideo(body);
+  if (!video) return { status: "FAILURE", progress: "100%", reason: "interaction completed without a video" };
+  const result = { status: "SUCCESS", progress: "100%" };
+  if (video.uri) result.remoteUrl = video.uri;
+  return result;
 }
 function responsesInput(req) {
   const texts = [],
@@ -264,6 +421,7 @@ export function buildSubmitRequest(ctx) {
   const req = ctx.requestBody || {},
     metadata = Object.assign({}, req.metadata || {}),
     model = ctx.upstreamModel || "veo-3.0-generate-001";
+  if (omniModel(ctx)) return omniSubmitRequest(ctx, req, model);
   if (Number(req.duration) > 0) metadata.durationSeconds = Number(req.duration);
   if (!metadata.resolution && req.size) metadata.resolution = resolution(req.size);
   if (!metadata.aspectRatio && req.size) metadata.aspectRatio = aspect(req.size);
@@ -271,31 +429,9 @@ export function buildSubmitRequest(ctx) {
   metadata.sampleCount = 1;
   const instance = { prompt: req.prompt };
   const image = (req.images || [])[0];
-  if (image && typeof image === "object" && !Array.isArray(image) && image.__fileRef) {
-    let mime = String(image.mimeType || "").toLowerCase();
-    if (mime !== "image/jpeg" && mime !== "image/png") {
-      const files = ctx.files || [];
-      for (const file of files) {
-        if (file.ref === image.__fileRef || file.field === "input_reference") {
-          mime = String(file.mimeType || "").toLowerCase();
-          break;
-        }
-      }
-    }
-    if (mime !== "image/jpeg" && mime !== "image/png") throw new Error("input image must be image/jpeg or image/png");
-    instance.image = { bytesBase64Encoded: image, mimeType: mime };
-  } else if (image) {
-    const text = String(image);
-    const comma = text.indexOf(",");
-    let mime = "";
-    let data = text;
-    if (text.startsWith("data:")) {
-      mime = text.slice(5, comma).split(";")[0].toLowerCase();
-      data = text.slice(comma + 1);
-    } else if (text.startsWith("iVBORw0KGgo")) mime = "image/png";
-    else if (text.startsWith("/9j/")) mime = "image/jpeg";
-    if (mime !== "image/jpeg" && mime !== "image/png") throw new Error("input image must be image/jpeg or image/png");
-    instance.image = { bytesBase64Encoded: data, mimeType: mime };
+  if (image) {
+    const frame = inputImage(ctx, image);
+    instance.image = { bytesBase64Encoded: frame.data, mimeType: frame.mime };
   }
   return {
     // A gateway runs the request in its own project, so the path names none.
@@ -309,25 +445,51 @@ export function buildSubmitRequest(ctx) {
 
 export function parseSubmitResponse(ctx, resp) {
   const body = resp.body || {};
+  if (omniModel(ctx)) {
+    const id = trimmed(body.id);
+    if (!id) throw new Error("missing interaction id");
+    return { taskId: id, taskData: body };
+  }
   if (!String(body.name || "").trim()) throw new Error("missing operation name");
   return { taskId: utils.base64URL(body.name), taskData: body };
 }
 export function extractUsage(ctx) {
   const req = ctx.requestBody || {};
   const metadata = req.metadata || {};
+  if (omniModel(ctx)) return omniUsageFacts(omniDuration(req), omniResolution(req));
   return {
     seconds: duration(req),
     resolution: String(metadata.resolution || resolution(req.size) || "720p").toLowerCase(),
     generate_audio: metadata.generateAudio !== false,
   };
 }
-export function extractUsageOnComplete() {
-  return null;
+// Facts Vertex does not report are omitted so the host keeps the submit estimate.
+export function extractUsageOnComplete(ctx, _result, body) {
+  if (!ctx || !omniModel(ctx)) return null;
+  const usage = plainObject(body && body.usage);
+  if (!usage) return null;
+  const facts = {};
+  const inputTokens = Number(usage.total_input_tokens);
+  if (Number.isFinite(inputTokens)) facts.input_tokens = inputTokens;
+  let textTokens = Number(usage.total_thought_tokens);
+  let videoTokens = NaN;
+  for (const item of Array.isArray(usage.output_tokens_by_modality) ? usage.output_tokens_by_modality : []) {
+    const entry = plainObject(item) || {};
+    const tokens = Number(entry.tokens) || 0;
+    const modality = trimmed(entry.modality).toLowerCase();
+    if (modality === "video" || modality === "audio") videoTokens = (videoTokens || 0) + tokens;
+    else textTokens = (textTokens || 0) + tokens;
+  }
+  if (Number.isFinite(textTokens)) facts.output_tokens = textTokens;
+  if (Number.isFinite(videoTokens)) facts.video_tokens = videoTokens;
+  return facts;
 }
 export function buildQueryRequest(ctx) {
+  if (omniModel(ctx)) return { url: interactionsURL(ctx, ctx.taskId), method: "GET", headers: requestHeaders(ctx) };
   return fetchOperation(ctx, decodeTaskId(ctx.taskId));
 }
 export function parseTaskResult(ctx, body) {
+  if (omniModel(ctx)) return omniTaskResult(body);
   if (body.error && body.error.message) return { status: "FAILURE", progress: "100%", reason: body.error.message };
   // Google long-running operations omit `done` (proto3 default) while still
   // running, so a missing key means in-progress; only a non-operation shape is
@@ -343,12 +505,29 @@ export function parseTaskResult(ctx, body) {
 // for the stored operation, which keeps its media type only, so a download
 // fetches the operation again.
 export function listArtifacts(task) {
+  if (isInteraction(task.data)) {
+    const omni = omniVideo(task.data);
+    if (task.status !== "SUCCESS" || !omni || omni.uri) return [];
+    return [{ key: "video", type: "video", mimeType: omni.mimeType }];
+  }
   const video = firstVideo(task.data);
   if (task.status !== "SUCCESS" || !Object.keys(video).length || trimmed(video.gcsUri)) return [];
   return [{ key: "video", type: "video", mimeType: trimmed(video.mimeType) || "video/mp4" }];
 }
 export function buildContentRequest(ctx) {
   if (ctx.artifactKey !== "video") throw new Error("artifact_not_found");
+  if (isInteraction(ctx.data)) {
+    const omni = omniVideo(ctx.data);
+    if (!omni) throw new Error("artifact_not_found");
+    return {
+      url: interactionsURL(ctx, ctx.upstreamTaskId),
+      method: "GET",
+      headers: requestHeaders(ctx),
+      responseType: "json",
+      contentPath: omni.path,
+      mimeType: omni.mimeType,
+    };
+  }
   // Another gateway serves the video as the artifact of its task, the last
   // segment of the operation name.
   if (viaGateway(ctx)) {
@@ -497,14 +676,16 @@ protocols.openai_video = {
       if (req.seconds !== undefined) req.seconds = Number(req.seconds);
       else if (req.duration !== undefined) req.seconds = Number(req.duration);
     }
+    // Gemini Omni's duration and resolution are checked where the request is built.
+    const omni = omniModel(ctx);
     const seconds = req.seconds === undefined ? req.duration : req.seconds;
     if (seconds !== undefined) {
       const n = Number(seconds);
-      if (n !== 4 && n !== 6 && n !== 8) throw new Error("seconds must be one of 4, 6, or 8");
+      if (!omni && n !== 4 && n !== 6 && n !== 8) throw new Error("seconds must be one of 4, 6, or 8");
       req.duration = n;
     }
     const providedResolution = req.resolution !== undefined ? req.resolution : req.metadata && req.metadata.resolution;
-    if (providedResolution !== undefined && providedResolution !== "") {
+    if (!omni && providedResolution !== undefined && providedResolution !== "") {
       const value = String(providedResolution).toLowerCase();
       if (value !== "720p" && value !== "1080p" && value !== "4k") throw new Error("resolution must be one of 720p, 1080p, or 4k");
     }

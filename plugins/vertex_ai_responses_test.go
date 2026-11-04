@@ -2,6 +2,8 @@ package plugins_test
 
 import (
 	"encoding/base64"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -330,4 +332,172 @@ func TestVertexAIDeliversInlineVideoByFetchingTheOperationAgain(t *testing.T) {
 	require.Len(t, v1beta1, 1)
 	assert.Equal(t, v1[0].Route.Decode, v1beta1[0].Route.Decode)
 	assert.Equal(t, v1[0].Route.Render, v1beta1[0].Route.Render)
+}
+
+// Gemini Omni submits a background interaction on the global endpoint.
+func TestVertexAIOmniBuildSubmitRequest(t *testing.T) {
+	plugin := loadVertexAIPlugin(t)
+	const omni = "gemini-omni-1.1-flash-preview"
+	call := func(args map[string]any) (map[string]any, error) {
+		t.Helper()
+		value, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", args)
+		if err != nil {
+			return nil, err
+		}
+		return decodePluginValue(t, value), nil
+	}
+	descriptor, err := call(map[string]any{
+		"model": "gemini-omni-1.1-flash", "upstreamModel": omni,
+		"authHeader": "Bearer token", "auth": map[string]any{"authHeader": "Bearer token", "projectId": "my-project"},
+		"requestBody": map[string]any{"prompt": "a cat on the beach", "duration": 6, "size": "720x1280", "metadata": map[string]any{"resolution": "360p"}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://aiplatform.googleapis.com/v1beta1/projects/my-project/locations/global/interactions", descriptor["url"])
+	assert.Equal(t, "POST", descriptor["method"])
+	assert.Equal(t, "text_to_video", descriptor["action"])
+	assert.Equal(t, map[string]any{"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer token", "x-goog-user-project": "my-project"}, descriptor["headers"])
+	assert.Equal(t, map[string]any{
+		"model":             omni,
+		"input":             []any{map[string]any{"type": "text", "text": "a cat on the beach"}},
+		"response_format":   []any{map[string]any{"type": "video", "aspect_ratio": "9:16", "resolution": "360p", "duration": "6s"}},
+		"generation_config": map[string]any{"video_config": map[string]any{"task": "text_to_video"}},
+		"background":        true,
+		"store":             true,
+	}, descriptor["body"])
+
+	descriptor, err = call(map[string]any{
+		"upstreamModel": omni, "baseUrl": "https://vertex.example/",
+		"authHeader":  "Bearer token",
+		"auth":        map[string]any{"authHeader": "Bearer token", "projectId": "my-project"},
+		"files":       []any{map[string]any{"ref": "request_file:input_reference", "field": "input_reference", "mimeType": "image/png"}},
+		"requestBody": map[string]any{"prompt": "animate", "images": []any{map[string]any{"__fileRef": "request_file:input_reference", "encoding": "base64"}}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "https://vertex.example/v1beta1/projects/my-project/locations/global/interactions", descriptor["url"])
+	assert.Equal(t, "image_to_video", descriptor["action"])
+	input := descriptor["body"].(map[string]any)["input"].([]any)
+	require.Len(t, input, 2)
+	assert.Equal(t, map[string]any{"type": "image", "mime_type": "image/png", "data": map[string]any{"__fileRef": "request_file:input_reference", "encoding": "base64"}}, input[1])
+
+	_, err = call(map[string]any{"upstreamModel": omni, "authHeader": "Bearer t", "auth": map[string]any{"authHeader": "Bearer t", "projectId": "p"}, "requestBody": map[string]any{"prompt": "x", "duration": 12}})
+	assert.ErrorContains(t, err, "3 to 10")
+	_, err = call(map[string]any{"upstreamModel": omni, "authHeader": "Bearer t", "auth": map[string]any{"authHeader": "Bearer t", "projectId": "p"}, "requestBody": map[string]any{"prompt": "x", "resolution": "2k"}})
+	assert.ErrorContains(t, err, "resolution must be one of 360p")
+	_, err = call(map[string]any{"upstreamModel": omni, "upstream": map[string]any{"kind": "new_api"}, "authHeader": "Bearer t", "auth": map[string]any{}, "requestBody": map[string]any{"prompt": "x"}})
+	assert.ErrorContains(t, err, "New API gateway")
+}
+
+func TestVertexAIOmniQueryAndParse(t *testing.T) {
+	plugin := loadVertexAIPlugin(t)
+	const omni = "gemini-omni-1.1-flash-preview"
+	call := func(hook string, args ...any) map[string]any {
+		t.Helper()
+		value, err := plugin.Engine.Call(t.Context(), hook, args...)
+		require.NoError(t, err)
+		return decodePluginValue(t, value)
+	}
+	queryCtx := map[string]any{"taskId": "int_1", "model": "gemini-omni-1.1-flash", "upstreamModel": omni, "authHeader": "Bearer token", "auth": map[string]any{"authHeader": "Bearer token", "projectId": "p1"}}
+	descriptor := call("buildQueryRequest", queryCtx)
+	assert.Equal(t, "https://aiplatform.googleapis.com/v1beta1/projects/p1/locations/global/interactions/int_1", descriptor["url"])
+	assert.Equal(t, "GET", descriptor["method"])
+
+	submitted := call("parseSubmitResponse", queryCtx, map[string]any{"body": map[string]any{"id": "int_1", "status": "in_progress"}})
+	assert.Equal(t, "int_1", submitted["taskId"])
+
+	// The stored interaction keeps the inline video's media type only, so the
+	// artifact is served by fetching the interaction again and reading the
+	// model_output step.
+	redacted := map[string]any{"id": "int_1", "object": "interaction", "status": "completed", "steps": []any{
+		map[string]any{"type": "thought", "summary": []any{}},
+		map[string]any{"type": "model_output", "content": []any{map[string]any{"type": "video", "mime_type": "video/mp4"}}},
+	}}
+	inline := map[string]any{"id": "int_1", "object": "interaction", "status": "completed", "steps": []any{
+		map[string]any{"type": "model_output", "content": []any{map[string]any{"type": "video", "mime_type": "video/mp4", "data": "AAAA"}}},
+	}}
+	stored := map[string]any{"id": "int_1", "object": "interaction", "status": "completed", "steps": []any{
+		map[string]any{"type": "model_output", "content": []any{map[string]any{"type": "video", "mime_type": "video/mp4", "uri": "gs://b/v.mp4"}}},
+	}}
+	for _, tc := range []struct {
+		name string
+		body map[string]any
+		want map[string]any
+	}{
+		{"running", map[string]any{"id": "int_1", "status": "in_progress"}, map[string]any{"status": "IN_PROGRESS", "progress": "50%"}},
+		{"completed inline", inline, map[string]any{"status": "SUCCESS", "progress": "100%"}},
+		{"completed uri", stored, map[string]any{"status": "SUCCESS", "progress": "100%", "remoteUrl": "gs://b/v.mp4"}},
+		{"completed without video", map[string]any{"id": "int_1", "status": "completed", "steps": []any{}}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "interaction completed without a video"}},
+		{"failed", map[string]any{"id": "int_1", "status": "failed"}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "failed"}},
+		{"error", map[string]any{"error": map[string]any{"message": "quota exceeded"}}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "quota exceeded"}},
+		{"unrecognized", map[string]any{"foo": "bar"}, map[string]any{"status": "UNKNOWN", "reason": "unrecognized interaction state"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, call("parseTaskResult", queryCtx, tc.body))
+		})
+	}
+
+	artifacts, err := plugin.Engine.Call(t.Context(), "listArtifacts", map[string]any{"status": "SUCCESS", "data": redacted})
+	require.NoError(t, err)
+	assert.Equal(t, []any{map[string]any{"key": "video", "type": "video", "mimeType": "video/mp4"}}, artifacts)
+	artifacts, err = plugin.Engine.Call(t.Context(), "listArtifacts", map[string]any{"status": "SUCCESS", "data": stored})
+	require.NoError(t, err)
+	assert.Empty(t, artifacts)
+	assert.Equal(t, map[string]any{
+		"url":          "https://aiplatform.googleapis.com/v1beta1/projects/p1/locations/global/interactions/int_1",
+		"method":       "GET",
+		"headers":      map[string]any{"Accept": "application/json", "Content-Type": "application/json", "Authorization": "Bearer token", "x-goog-user-project": "p1"},
+		"responseType": "json",
+		"contentPath":  []any{"steps", float64(1), "content", float64(0), "data"},
+		"mimeType":     "video/mp4",
+	}, call("buildContentRequest", map[string]any{
+		"artifactKey": "video", "upstreamTaskId": "int_1", "data": redacted, "authHeader": "Bearer token",
+		"auth": map[string]any{"authHeader": "Bearer token", "projectId": "p1"}, "clientRequest": map[string]any{"method": "GET"},
+	}))
+}
+
+// The OpenAI video decoder leaves Gemini Omni's duration and resolution to the
+// request builder, which allows what Veo does not.
+func TestVertexAIOmniUsageAndVideoDecoder(t *testing.T) {
+	plugin := loadVertexAIPlugin(t)
+	const omni = "gemini-omni-1.1-flash-preview"
+	usage, err := plugin.Engine.Call(t.Context(), "extractUsage", map[string]any{"upstreamModel": omni, "requestBody": map[string]any{"prompt": "x", "size": "1920x1080"}})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"input_tokens": float64(0), "output_tokens": float64(0), "video_tokens": float64(8 * 8688)}, decodePluginValue(t, usage))
+	schema, _ := plugin.Meta.UsageForModel(omni)
+	assert.ElementsMatch(t, []string{"input_tokens", "output_tokens", "video_tokens"}, slices.Collect(maps.Keys(schema)))
+
+	// Thinking is billed as text output.
+	completed, err := plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{"upstreamModel": omni}, map[string]any{}, map[string]any{
+		"usage": map[string]any{
+			"total_input_tokens": 12, "total_thought_tokens": 40,
+			"output_tokens_by_modality": []any{map[string]any{"modality": "VIDEO", "tokens": 5793}, map[string]any{"modality": "text", "tokens": 7}},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"input_tokens": float64(12), "output_tokens": float64(47), "video_tokens": float64(5793)}, decodePluginValue(t, completed))
+	// Unreported facts are omitted so the host keeps the submit estimate.
+	partial, err := plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{"upstreamModel": omni}, map[string]any{}, map[string]any{"usage": map[string]any{"total_input_tokens": 12}})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"input_tokens": float64(12)}, decodePluginValue(t, partial))
+	veo, err := plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{"upstreamModel": "veo-3.0-generate-001"}, map[string]any{}, map[string]any{"done": true})
+	require.NoError(t, err)
+	assert.Nil(t, veo)
+
+	decoded, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_video", "decodeRequest"}, map[string]any{
+		"model": "omni-alias", "upstreamModel": omni,
+		"body": map[string]any{"kind": "json", "value": map[string]any{"model": "omni-alias", "prompt": "a cat", "seconds": "3", "resolution": "360p"}},
+	})
+	require.NoError(t, err)
+	requestBody := decodePluginValue(t, decoded)["requestBody"].(map[string]any)
+	assert.Equal(t, "omni-alias", requestBody["model"])
+	assert.Equal(t, float64(3), requestBody["duration"])
+	assert.Equal(t, "360p", requestBody["resolution"])
+}
+
+func loadVertexAIPlugin(t *testing.T) *jsplugin.LoadedPlugin {
+	t.Helper()
+	source, err := builtinplugins.Source("vertex-ai")
+	require.NoError(t, err)
+	plugin, err := jsplugin.NewRegistry().RegisterFactory(source, jsplugin.Options{Key: "vertex-ai"})
+	require.NoError(t, err)
+	return plugin
 }

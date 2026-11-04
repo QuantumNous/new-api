@@ -3,7 +3,6 @@ package controller
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MoeForge/moego/base64"
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
@@ -24,7 +25,6 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 	"golang.org/x/net/http/httpguts"
 )
 
@@ -360,20 +360,23 @@ func writeTaskMediaContentPath(c *gin.Context, body io.Reader, descriptor *relay
 			message: "Artifact request was rejected", err: errTaskMediaRequestRejected,
 		}
 	}
-	if !gjson.ValidBytes(raw) {
+	if !ojson.ValidBytes(raw) {
 		return &taskMediaProxyError{
 			status: http.StatusBadGateway, code: "artifact_upstream_error",
 			message: "Failed to decode artifact content",
 		}
 	}
-	operation := gjson.ParseBytes(raw)
-	if failure := operation.Get("error"); failure.Exists() && failure.Type != gjson.Null {
+	// The root shares memory with raw, which stays unchanged until the
+	// artifact is written, so the base64 payload is not copied.
+	operation := ojson.GetBytesNoCopy(raw, "@this")
+	if failure := operation.Get("error"); failure.Exists() && failure.Type != ojson.Null {
 		return &taskMediaProxyError{
 			status: http.StatusBadGateway, code: "artifact_upstream_error",
 			message: "Artifact upstream returned an error",
 		}
 	}
-	if operation.Get("done").Type != gjson.True {
+	// An interaction reports completion through status, not done.
+	if operation.Get("done").Type != ojson.True && operation.Get("status").String() != "completed" {
 		return &taskMediaProxyError{
 			status: http.StatusConflict, code: "artifact_not_ready",
 			message: "Task artifacts are not ready",
@@ -382,7 +385,7 @@ func writeTaskMediaContentPath(c *gin.Context, body io.Reader, descriptor *relay
 	content := operation
 	for _, segment := range descriptor.ContentPath {
 		if key, isKey := segment.(string); isKey && content.IsObject() {
-			content = content.Get(gjson.Escape(key))
+			content = content.Get(ojson.Escape(key))
 			continue
 		}
 		index := ""
@@ -395,12 +398,12 @@ func writeTaskMediaContentPath(c *gin.Context, body io.Reader, descriptor *relay
 			index = strconv.FormatFloat(typed, 'f', -1, 64)
 		}
 		if index == "" || !content.IsArray() {
-			content = gjson.Result{}
+			content = ojson.Result{}
 			break
 		}
 		content = content.Get(index)
 	}
-	if content.Type != gjson.String || content.Str == "" {
+	if content.Type != ojson.String || content.Str == "" {
 		return &taskMediaProxyError{
 			status: http.StatusGone, code: "artifact_gone",
 			message: "Artifact content is no longer available",
@@ -687,10 +690,10 @@ func writeTaskMediaBase64(c *gin.Context, mimeType, payload string) error {
 	var encoding *base64.Encoding
 	var contentLength int64
 	for _, candidate := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
-		decodedLength, err := io.Copy(io.Discard, base64.NewDecoder(candidate, strings.NewReader(payload)))
+		decodedLength, err := candidate.ValidateString(payload)
 		if err == nil {
 			encoding = candidate
-			contentLength = decodedLength
+			contentLength = int64(decodedLength)
 			break
 		}
 	}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,10 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+
+	"github.com/MoeForge/moego/ojson"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/gin-gonic/gin"
@@ -67,11 +67,14 @@ func (a *Adaptor) newMantleRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 	if a.IsNova || isNovaModel(getAwsModelID(info.UpstreamModelName)) {
 		return nil, fmt.Errorf("AWS Mantle Messages API requires a Claude model; use InvokeModel for Amazon Nova")
 	}
-	var payload map[string]json.RawMessage
-	if err := common.DecodeJson(requestBody, &payload); err != nil {
+	payload, err := io.ReadAll(requestBody)
+	if err != nil {
 		return nil, fmt.Errorf("decode AWS Mantle request: %w", err)
 	}
-	if payload == nil {
+	if !ojson.ValidBytes(payload) {
+		return nil, fmt.Errorf("decode AWS Mantle request: invalid JSON")
+	}
+	if !ojson.GetBytesNoCopy(payload, "@this").IsObject() {
 		return nil, fmt.Errorf("AWS Mantle request must be a JSON object")
 	}
 	// Use the channel's resolved model even for passthrough requests. Do not
@@ -83,16 +86,16 @@ func (a *Adaptor) newMantleRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 	if strings.HasPrefix(model, "claude-") {
 		model = "anthropic." + model
 	}
-	payload["model"], err = common.Marshal(model)
-	if err != nil {
-		return nil, err
+	doc := ojson.NewDoc(payload)
+	for _, key := range []string{"anthropic_version", "anthropic_beta"} {
+		if err := relaycommon.DeleteJSONMember(doc, key); err != nil {
+			return nil, fmt.Errorf("marshal AWS Mantle request: %w", err)
+		}
 	}
-	delete(payload, "anthropic_version")
-	delete(payload, "anthropic_beta")
-	body, err := common.Marshal(payload)
-	if err != nil {
+	if err := relaycommon.SetJSONMember(doc, "", "model", model); err != nil {
 		return nil, fmt.Errorf("marshal AWS Mantle request: %w", err)
 	}
+	body := doc.Bytes()
 	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create AWS Mantle request: %w", err)

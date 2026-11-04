@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
@@ -29,7 +30,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 )
 
 const contextKeyTaskPluginEndpointModel = "task_plugin_endpoint_model_request"
@@ -704,8 +704,8 @@ func jsonBodyBoolFlags(c *gin.Context) (stream, background bool) {
 	if err != nil {
 		return false, false
 	}
-	values := gjson.GetManyBytes(requestBody, "stream", "background")
-	return values[0].Type == gjson.True, values[1].Type == gjson.True
+	values := ojson.GetManyBytes(requestBody, "stream", "background")
+	return values[0].Type == ojson.True, values[1].Type == ojson.True
 }
 
 func unsupportedProtocolFormMessage(candidates []pluginruntime.ProtocolBinding, protocol string, stream, background bool) string {

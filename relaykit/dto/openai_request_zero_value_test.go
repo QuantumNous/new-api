@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/MoeForge/moego/ojson"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
@@ -36,20 +36,20 @@ func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
 	encoded, err := kitutil.Marshal(req)
 	require.NoError(t, err)
 
-	require.True(t, gjson.GetBytes(encoded, "stream").Exists())
-	require.True(t, gjson.GetBytes(encoded, "max_tokens").Exists())
-	require.True(t, gjson.GetBytes(encoded, "max_completion_tokens").Exists())
-	require.True(t, gjson.GetBytes(encoded, "top_p").Exists())
-	require.True(t, gjson.GetBytes(encoded, "top_k").Exists())
-	require.True(t, gjson.GetBytes(encoded, "n").Exists())
-	require.True(t, gjson.GetBytes(encoded, "frequency_penalty").Exists())
-	require.True(t, gjson.GetBytes(encoded, "presence_penalty").Exists())
-	require.True(t, gjson.GetBytes(encoded, "seed").Exists())
-	require.True(t, gjson.GetBytes(encoded, "logprobs").Exists())
-	require.True(t, gjson.GetBytes(encoded, "top_logprobs").Exists())
-	require.True(t, gjson.GetBytes(encoded, "dimensions").Exists())
-	require.True(t, gjson.GetBytes(encoded, "return_images").Exists())
-	require.True(t, gjson.GetBytes(encoded, "return_related_questions").Exists())
+	require.True(t, ojson.GetBytes(encoded, "stream").Exists())
+	require.True(t, ojson.GetBytes(encoded, "max_tokens").Exists())
+	require.True(t, ojson.GetBytes(encoded, "max_completion_tokens").Exists())
+	require.True(t, ojson.GetBytes(encoded, "top_p").Exists())
+	require.True(t, ojson.GetBytes(encoded, "top_k").Exists())
+	require.True(t, ojson.GetBytes(encoded, "n").Exists())
+	require.True(t, ojson.GetBytes(encoded, "frequency_penalty").Exists())
+	require.True(t, ojson.GetBytes(encoded, "presence_penalty").Exists())
+	require.True(t, ojson.GetBytes(encoded, "seed").Exists())
+	require.True(t, ojson.GetBytes(encoded, "logprobs").Exists())
+	require.True(t, ojson.GetBytes(encoded, "top_logprobs").Exists())
+	require.True(t, ojson.GetBytes(encoded, "dimensions").Exists())
+	require.True(t, ojson.GetBytes(encoded, "return_images").Exists())
+	require.True(t, ojson.GetBytes(encoded, "return_related_questions").Exists())
 }
 
 func TestGeneralOpenAIRequestPreserveQwenThinkingBudget(t *testing.T) {
@@ -65,7 +65,7 @@ func TestGeneralOpenAIRequestPreserveQwenThinkingBudget(t *testing.T) {
 	encoded, err := kitutil.Marshal(req)
 	require.NoError(t, err)
 
-	value := gjson.GetBytes(encoded, "thinking_budget")
+	value := ojson.GetBytes(encoded, "thinking_budget")
 	assert.True(t, value.Exists())
 	assert.Equal(t, int64(0), value.Int())
 }
@@ -79,7 +79,7 @@ func TestGeneralOpenAIRequestPreserveQwQThinkingBudget(t *testing.T) {
 	encoded, err := kitutil.Marshal(req)
 	require.NoError(t, err)
 
-	value := gjson.GetBytes(encoded, "thinking_budget")
+	value := ojson.GetBytes(encoded, "thinking_budget")
 	assert.True(t, value.Exists())
 	assert.Equal(t, int64(128), value.Int())
 }
@@ -93,7 +93,7 @@ func TestGeneralOpenAIRequestDropsThinkingBudgetForNonQwenModel(t *testing.T) {
 	encoded, err := kitutil.Marshal(req)
 	require.NoError(t, err)
 
-	assert.False(t, gjson.GetBytes(encoded, "thinking_budget").Exists())
+	assert.False(t, ojson.GetBytes(encoded, "thinking_budget").Exists())
 }
 
 func TestIsQwenThinkingBudgetModel(t *testing.T) {
@@ -135,12 +135,12 @@ func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 	encoded, err := kitutil.Marshal(req)
 	require.NoError(t, err)
 
-	require.True(t, gjson.GetBytes(encoded, "max_output_tokens").Exists())
-	require.True(t, gjson.GetBytes(encoded, "max_tool_calls").Exists())
-	require.True(t, gjson.GetBytes(encoded, "stream").Exists())
-	require.True(t, gjson.GetBytes(encoded, "top_p").Exists())
-	require.True(t, gjson.GetBytes(encoded, "frequency_penalty").Exists())
-	require.True(t, gjson.GetBytes(encoded, "presence_penalty").Exists())
+	require.True(t, ojson.GetBytes(encoded, "max_output_tokens").Exists())
+	require.True(t, ojson.GetBytes(encoded, "max_tool_calls").Exists())
+	require.True(t, ojson.GetBytes(encoded, "stream").Exists())
+	require.True(t, ojson.GetBytes(encoded, "top_p").Exists())
+	require.True(t, ojson.GetBytes(encoded, "frequency_penalty").Exists())
+	require.True(t, ojson.GetBytes(encoded, "presence_penalty").Exists())
 }
 
 func TestOpenAIResponsesRequestPreserveQwenThinkingBudget(t *testing.T) {
@@ -152,7 +152,7 @@ func TestOpenAIResponsesRequestPreserveQwenThinkingBudget(t *testing.T) {
 	encoded, err := kitutil.Marshal(req)
 	require.NoError(t, err)
 
-	value := gjson.GetBytes(encoded, "thinking_budget")
+	value := ojson.GetBytes(encoded, "thinking_budget")
 	assert.True(t, value.Exists())
 	assert.Equal(t, int64(0), value.Int())
 }
@@ -166,7 +166,7 @@ func TestOpenAIResponsesRequestPreserveQwQThinkingBudget(t *testing.T) {
 	encoded, err := kitutil.Marshal(req)
 	require.NoError(t, err)
 
-	value := gjson.GetBytes(encoded, "thinking_budget")
+	value := ojson.GetBytes(encoded, "thinking_budget")
 	assert.True(t, value.Exists())
 	assert.Equal(t, int64(128), value.Int())
 }
@@ -180,7 +180,7 @@ func TestOpenAIResponsesRequestDropsThinkingBudgetForNonQwenModel(t *testing.T) 
 	encoded, err := kitutil.Marshal(req)
 	require.NoError(t, err)
 
-	assert.False(t, gjson.GetBytes(encoded, "thinking_budget").Exists())
+	assert.False(t, ojson.GetBytes(encoded, "thinking_budget").Exists())
 }
 
 func TestGeneralOpenAIRequestGetSystemRoleName(t *testing.T) {
@@ -270,10 +270,10 @@ func TestGeneralOpenAIRequestPreserveMessageLevelTools(t *testing.T) {
 	encoded, err := kitutil.Marshal(req)
 	require.NoError(t, err)
 
-	messages := gjson.GetBytes(encoded, "messages").Array()
+	messages := ojson.GetBytes(encoded, "messages").Array()
 	require.Len(t, messages, 5)
-	assert.Equal(t, "required", gjson.GetBytes(encoded, "tool_choice").String())
-	assert.JSONEq(t, gjson.GetBytes(raw, "tools").Raw, gjson.GetBytes(encoded, "tools").Raw)
+	assert.Equal(t, "required", ojson.GetBytes(encoded, "tool_choice").String())
+	assert.JSONEq(t, ojson.GetBytes(raw, "tools").Raw, ojson.GetBytes(encoded, "tools").Raw)
 
 	// Regular messages keep their content untouched.
 	assert.Equal(t, "You are Kimi.", messages[0].Get("content").String())
@@ -281,22 +281,22 @@ func TestGeneralOpenAIRequestPreserveMessageLevelTools(t *testing.T) {
 	assert.Equal(t, "What time is it in Beijing?", messages[1].Get("content").String())
 
 	// Kimi K3 dynamic tool loading message: tools preserved byte-for-byte, no content key at all.
-	assert.JSONEq(t, gjson.GetBytes(raw, "messages.2.tools").Raw, messages[2].Get("tools").Raw)
+	assert.JSONEq(t, ojson.GetBytes(raw, "messages.2.tools").Raw, messages[2].Get("tools").Raw)
 	assert.False(t, messages[2].Get("content").Exists())
 	assert.Equal(t, "system", messages[2].Get("role").String())
 
 	// Assistant tool call replay still emits an explicit "content": null.
 	assistantContent := messages[3].Get("content")
 	assert.True(t, assistantContent.Exists())
-	assert.Equal(t, gjson.Null, assistantContent.Type)
-	assert.JSONEq(t, gjson.GetBytes(raw, "messages.3.tool_calls").Raw, messages[3].Get("tool_calls").Raw)
+	assert.Equal(t, ojson.Null, assistantContent.Type)
+	assert.JSONEq(t, ojson.GetBytes(raw, "messages.3.tool_calls").Raw, messages[3].Get("tool_calls").Raw)
 
 	// Explicit empty content next to tools is forwarded as-is for the upstream to judge.
 	emptyContent := messages[4].Get("content")
 	assert.True(t, emptyContent.Exists())
-	assert.Equal(t, gjson.String, emptyContent.Type)
+	assert.Equal(t, ojson.String, emptyContent.Type)
 	assert.Equal(t, "", emptyContent.String())
-	assert.JSONEq(t, gjson.GetBytes(raw, "messages.4.tools").Raw, messages[4].Get("tools").Raw)
+	assert.JSONEq(t, ojson.GetBytes(raw, "messages.4.tools").Raw, messages[4].Get("tools").Raw)
 
 	// Token estimation sees message-level tools alongside the top-level ones.
 	meta := req.GetTokenCountMeta()

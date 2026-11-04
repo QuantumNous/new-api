@@ -3,7 +3,6 @@ package jsplugin
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/base64"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
@@ -539,9 +539,8 @@ func encodeFilePlaceholder(placeholder map[string]any, form *multipart.Form, lim
 		return "", fmt.Errorf("inlined files exceed the %d byte limit", limit)
 	}
 	*total += int64(len(data))
-	encoded := base64.StdEncoding.EncodeToString(data)
 	if encoding == "base64" {
-		return encoded, nil
+		return base64.StdEncoding.EncodeToString(data), nil
 	}
 	mimeType := "application/octet-stream"
 	if override, ok := placeholder["mimeType"].(string); ok && strings.TrimSpace(override) != "" {
@@ -549,7 +548,7 @@ func encodeFilePlaceholder(placeholder map[string]any, form *multipart.Form, lim
 	} else if contentType := header.Header.Get("Content-Type"); contentType != "" {
 		mimeType = contentType
 	}
-	return "data:" + mimeType + ";base64," + encoded, nil
+	return base64.EncodeDataURL(mimeType, data), nil
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, body io.Reader) (*http.Response, error) {

@@ -1,9 +1,10 @@
 package service
 
 import (
-	"encoding/base64"
 	"fmt"
 	"strings"
+
+	"github.com/MoeForge/moego/base64"
 )
 
 func parseAudio(audioBase64 string, format string) (duration float64, err error) {
@@ -38,8 +39,8 @@ func DecodeBase64AudioData(audioBase64 string) (string, error) {
 		audioBase64 = audioBase64[idx+1:]
 	}
 
-	// 解码 Base64 数据
-	_, err := base64.StdEncoding.DecodeString(audioBase64)
+	// 校验 Base64 数据
+	_, err := base64.StdEncoding.ValidateString(audioBase64)
 	if err != nil {
 		return "", fmt.Errorf("base64 decode error: %v", err)
 	}
