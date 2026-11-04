@@ -1,6 +1,10 @@
 package constant
 
 var StreamingTimeout int
+
+// HwStreamFirstTokenTimeout bounds the wait for the first data line of a
+// stream in seconds; 0 leaves only StreamingTimeout.
+var HwStreamFirstTokenTimeout int
 var DifyDebug bool
 var MaxFileDownloadMB int
 var StreamScannerMaxBufferMB int

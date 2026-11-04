@@ -408,6 +408,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		}
 		return
 	}
+	// A customer who left before the first token received nothing: settle on
+	// zero usage so the pre-consumed quota goes back and the log shows quota 0.
+	clientGoneBeforeOutput := HwClientGoneBeforeOutput(ctx, relayInfo)
+	if clientGoneBeforeOutput {
+		usage = &dto.Usage{}
+	}
 	originUsage := usage
 	billingUsage, promptOverhead := hwCorrectUsagePromptOverhead(ctx, relayInfo, effectiveBillingUsage(usage))
 	if usage == nil {
@@ -446,6 +452,15 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 				summary.AudioInputPrice = 0
 			}
 		}
+	}
+
+	if clientGoneBeforeOutput {
+		// A fixed-price expression or a tool surcharge must not bill an
+		// answer that never reached the customer either.
+		summary.Quota = 0
+		summary.ToolSurchargeItems = nil
+		summary.ToolCallSurchargeQuota = decimal.Zero
+		summary.FixedPriceBilling = false
 	}
 
 	for _, item := range summary.ToolSurchargeItems {
@@ -502,6 +517,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), originUsage)
 	hwAppendPromptOverheadAdminInfo(other, promptOverhead)
+	if clientGoneBeforeOutput {
+		other.SetAdmin("client_gone_before_output", true)
+	}
 	if adminRejectReason != "" {
 		other.SetAdmin("reject_reason", adminRejectReason)
 	}

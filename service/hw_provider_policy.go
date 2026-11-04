@@ -918,6 +918,20 @@ func HwStreamCutBeforeOutput(c *gin.Context, info *relaycommon.RelayInfo) bool {
 	return cut && !visible
 }
 
+// HwClientGoneBeforeOutput reports a stream the customer abandoned before any
+// chunk arrived or was written. The first-response time also covers stream
+// paths outside the SSE scanner, such as the Responses WebSocket. Nothing was delivered, so the attempt settles at
+// zero; unlike a supplier cut there is no retry that would bill the answer.
+func HwClientGoneBeforeOutput(c *gin.Context, info *relaycommon.RelayInfo) bool {
+	if info == nil || !info.IsStream || info.StreamStatus == nil || info.ReceivedResponseCount > 0 || info.HasSendResponse() {
+		return false
+	}
+	if state := HwRoute(c); state != nil && state.streamWrites > 0 {
+		return false
+	}
+	return info.StreamStatus.OutcomeSnapshot().EndReason == relaycommon.StreamEndReasonClientGone
+}
+
 // HwNoteStreamWrite records that a stream chunk reached the customer. It is
 // called by the masking writer, which is the only component that knows what was
 // actually written.
