@@ -29,6 +29,17 @@ git remote get-url upstream >/dev/null 2>&1 \
 git fetch --no-tags --no-prune upstream "+refs/tags/${TAG_PATROON}:refs/tags/${TAG_PATROON}"
 git fetch --no-tags origin "+refs/heads/*:refs/remotes/origin/*"
 
+# Zet de tak op origin (zelfde regel als na de proefmerge): nooit forceren over
+# werk dat er niet van ons staat.
+pushtak() {
+  if git ls-remote --exit-code --heads origin "$TAK" >/dev/null 2>&1; then
+    git fetch --no-tags origin "$TAK"
+    git push --force-with-lease="refs/heads/${TAK}:$(git rev-parse FETCH_HEAD)" origin "HEAD:refs/heads/$TAK"
+  else
+    git push origin "HEAD:refs/heads/$TAK"
+  fi
+}
+
 TAG=$(git tag --list "$TAG_PATROON" | sort -V | tail -1)
 if [ -z "$TAG" ]; then
   echo "FOUT: geen tag gevonden die op ${TAG_PATROON} past"
@@ -90,13 +101,29 @@ if ! git merge --no-ff --no-commit "$TAG"; then
            --title "Upstream-sync conflict: $TAG" \
            --body-file "$MELDING"
     echo "conflict gemeld als issue"
+    rm -f "$MELDING"
   else
-    # Geen issues in deze repo: de conflictlijst gaat naar de run-samenvatting.
-    echo "LET OP: issues staan uit voor $GITHUB_REPOSITORY; conflict gaat naar de run-samenvatting"
+    # Geen issues in deze repo: de conflictlijst gaat naar de run-samenvatting en
+    # daarnaast een concept-PR op dezelfde tak, zodat mens en CTO het op één plek
+    # zien. De merge is afgebroken, dus de PR bevat alleen het conflictverhaal.
+    echo "LET OP: issues staan uit voor $GITHUB_REPOSITORY; conflict gaat naar de run-samenvatting en een concept-PR"
     cat "$MELDING" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
-    echo "conflict: zie de run-samenvatting"
+    {
+      echo "**Proefmerge mislukt, niets samengevoegd.**"
+      echo
+      cat "$MELDING"
+    } > "${MELDING}.pr"
+    git commit -q --allow-empty -m "chore(upstream): conflict bij $TAG, geen merge"
+    pushtak
+    CONCEPT_PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$TAK" --state open --json number --jq '.[0].number // empty')
+    if [ -z "$CONCEPT_PR" ]; then
+      CONCEPT_PR=$(gh pr create --repo "$GITHUB_REPOSITORY" --base "${BASIS#origin/}" --head "$TAK" \
+        --draft --title "Upstream $TAG: conflict, geen merge" --body-file "${MELDING}.pr" \
+        | grep -oE '[0-9]+$')
+    fi
+    rm -f "$MELDING" "${MELDING}.pr"
+    echo "concept-PR #$CONCEPT_PR met de conflictlijst"
   fi
-  rm -f "$MELDING"
   exit 0
 fi
 
@@ -115,6 +142,14 @@ if git ls-remote --exit-code --heads origin "$TAK" >/dev/null 2>&1; then
 else
   git push origin "HEAD:refs/heads/$TAK"
 fi
+
+# CI op de sync-PR. Een PR van GITHUB_TOKEN start zelf geen pull_request-run, maar
+# workflow_dispatch doet dat wel; die run landt op dezelfde commit en verschijnt dus
+# als check op de PR. De workflows hebben geen paths-filter, dus altijd alle twee.
+for WERKSTROOM in ci.yml security.yml; do
+  gh workflow run "$WERKSTROOM" --repo "$GITHUB_REPOSITORY" --ref "$TAK" \
+    || echo "LET OP: $WERKSTROOM starten op $TAK mislukte; de check ontbreekt dan en de PR blijft open"
+done
 
 PR=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$TAK" --state open --json number --jq '.[0].number // empty')
 if [ -z "$PR" ]; then
@@ -144,28 +179,37 @@ if [ -z "$PR" ]; then
 fi
 echo "PR #$PR voor $TAG"
 
-# Auto-merge alleen als dat veilig kan: de instelling moet aan staan, er moeten
-# checks op de PR staan en de basisbranch moet die checks verplicht stellen.
-# Anders voegt --auto direct samen, ook als een check later rood wordt.
-if [ "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.allow_auto_merge')" != 'true' ]; then
-  echo "LET OP: auto-merge staat uit voor $GITHUB_REPOSITORY; PR #$PR blijft open voor een mens"
-  exit 0
+# Auto-merge alleen als de regels op main de checks verplicht stellen; anders voegt
+# --auto meteen samen, ook als een check later rood wordt. De snelle lees van
+# allow_auto_merge is er niet meer: --auto faalt zelf met een melding als die
+# instelling uit staat, en dat is dezelfde uitkomst (PR blijft open).
+HERSHA=$(git rev-parse HEAD)
+VERPLICHT_AANTAL=0
+for REGELSET in $(gh api "repos/$GITHUB_REPOSITORY/rulesets" --jq '.[].id' 2>/dev/null); do
+  AANTAL=$(gh api "repos/$GITHUB_REPOSITORY/rulesets/$REGELSET" --jq '
+    [.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | length' 2>/dev/null || echo 0)
+  VERPLICHT_AANTAL=$((VERPLICHT_AANTAL + AANTAL))
+done
+if [ "$VERPLICHT_AANTAL" -eq 0 ]; then
+  # Ook de klassieke branch protection telt, voor het geval die later wordt aangezet.
+  KLASSIEK=$(gh api "repos/$GITHUB_REPOSITORY/branches/${BASIS#origin/}/protection" --jq '.required_status_checks.contexts | length' 2>/dev/null || echo 0)
+  VERPLICHT_AANTAL=$((VERPLICHT_AANTAL + KLASSIEK))
 fi
-VERPLICHT=$(gh api "repos/$GITHUB_REPOSITORY/branches/${BASIS#origin/}/protection" --jq '.required_status_checks.contexts // []' 2>/dev/null || true)
-if [ -z "$VERPLICHT" ] || [ "$VERPLICHT" = '[]' ] || [ "$VERPLICHT" = 'null' ]; then
+if [ "$VERPLICHT_AANTAL" -eq 0 ]; then
   echo "LET OP: ${BASIS#origin/} heeft geen verplichte checks, dus auto-merge zou zonder keuring samenvoegen; PR #$PR blijft open voor een mens"
   exit 0
 fi
-CHECKS=''
-for poging in 1 2 3 4 5 6; do
-  CHECKS=$(gh pr checks "$PR" --repo "$GITHUB_REPOSITORY" 2>/dev/null | head -1 || true)
-  [ -n "$CHECKS" ] && break
-  [ "$poging" = 6 ] && break
+# Wachten tot de checks die wij zelf startten op deze commit staan: zonder die
+# regel ziet --auto een PR zonder checks en doet niets.
+for poging in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do
+  AANTAL=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HERSHA/check-runs" --jq '.total_count' 2>/dev/null || echo 0)
+  [ "${AANTAL:-0}" -gt 0 ] && break
   sleep 20
 done
-if [ -z "$CHECKS" ]; then
-  echo "LET OP: geen checks gestart op PR #$PR (GITHUB_TOKEN-PR start geen CI); PR blijft open voor een mens"
+if [ "${AANTAL:-0}" -eq 0 ]; then
+  echo "LET OP: geen check-runs op $HERSHA verschenen; PR #$PR blijft open voor een mens"
   exit 0
 fi
-gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --merge --delete-branch
-echo "auto-merge aan voor PR #$PR"
+gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --merge --delete-branch \
+  || echo "LET OP: auto-merge aanzetten op PR #$PR mislukte; PR blijft open voor een mens"
+echo "auto-merge gevraagd voor PR #$PR"

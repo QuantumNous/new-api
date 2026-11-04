@@ -3,6 +3,10 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, closed]
+  # The upstream sync opens its PR with GITHUB_TOKEN, and GitHub starts no
+  # pull_request run for such a PR. The sync workflow starts this one on the
+  # branch instead; the run lands on the same commit and so appears on the PR.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,7 +20,7 @@ concurrency:
 jobs:
   backend:
     name: Backend vet, build, and test
-    if: github.event.action != 'closed' || github.event.pull_request.merged == true
+    if: github.event_name != 'pull_request' || github.event.action != 'closed' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -32,9 +36,12 @@ jobs:
           fetch-depth: 0
 
       - name: Haaklijst test
-        if: github.event.action != 'closed'
+        if: github.event_name != 'pull_request' || github.event.action != 'closed'
         env:
-          BASE_REF: ${{ github.base_ref }}
+          # A pull_request run always names its base; a workflow_dispatch run (the
+          # upstream sync started it for a GITHUB_TOKEN PR) has no base_ref, so it
+          # compares against the default branch instead.
+          BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
         run: |
           git fetch --no-tags origin "$BASE_REF"
           node .hw/toets-haaklijst.mjs "origin/$BASE_REF" HEAD
@@ -80,7 +87,7 @@ jobs:
 
   frontend:
     name: Frontend typecheck and test
-    if: github.event.action != 'closed' || github.event.pull_request.merged == true
+    if: github.event_name != 'pull_request' || github.event.action != 'closed' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:

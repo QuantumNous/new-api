@@ -19,5 +19,6 @@ web/src/i18n/config.ts                                         91
 web/src/components/layout/components/authenticated-layout.tsx   1
 web/src/features/pricing/components/pricing-sidebar.tsx         2
 web/src/hooks/use-sidebar-data.ts                              3
-# eigen CI-stap: de haaklijst-toets zelf, plus fetch-depth 0 voor de basisbranch
-.github/workflows/ci.yml                                       10
+# eigen CI-stappen: de haaklijst-toets zelf, fetch-depth 0 voor de basisbranch,
+# en workflow_dispatch zodat de upstream-sync CI op zijn eigen PR kan starten
+.github/workflows/ci.yml                                       20
