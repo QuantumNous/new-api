@@ -306,3 +306,16 @@ func TestHwValueFamily(t *testing.T) {
 	_, _, err := hwValueFamily("mystery-model")
 	assert.Error(t, err)
 }
+
+func TestHwPremiumModelsFollowThePriceThreshold(t *testing.T) {
+	assert.True(t, HwIsPremiumModel("claude-fable-5-1"))
+	assert.True(t, HwIsPremiumModel("gpt-6-astra"))
+	assert.False(t, HwIsPremiumModel("claude-opus-5-5"))
+	assert.False(t, HwIsPremiumModel("gpt-6.1-sol"))
+	assert.False(t, HwIsPremiumModel("gpt-6"), "a retired name is never premium")
+	assert.True(t, HwIsSoldModel("claude-haiku-5-5"))
+	assert.False(t, HwIsSoldModel("gpt-6"))
+	for _, sold := range hwSoldModels {
+		assert.Equal(t, sold.InputMicroUsd >= HwPremiumInputMicroUsd, HwIsPremiumModel(sold.Name), sold.Name)
+	}
+}

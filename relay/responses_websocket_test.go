@@ -153,12 +153,13 @@ func TestCheckResponsesWSModelAccessAppliesTheFreeGroupClass(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 	common.SetContextKey(c, constant.ContextKeyUserGroup, "free")
 
-	apiErr := checkResponsesWSModelAccess(c, "claude-sonnet-5-5")
-	require.NotNil(t, apiErr, "a free account must not reach the Sonnet class over the WebSocket")
+	apiErr := checkResponsesWSModelAccess(c, "claude-opus-5")
+	require.NotNil(t, apiErr, "a free account must not reach a model outside the catalog over the WebSocket")
 	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
 	assert.False(t, service.ShouldRetryRelayError(c, apiErr, 2))
 
 	assert.Nil(t, checkResponsesWSModelAccess(c, "claude-haiku-4-5"))
+	assert.Nil(t, checkResponsesWSModelAccess(c, "gpt-6-astra"), "the premium catalog models are open to a free account")
 }
 
 func TestSelectResponsesWSChannelAcceptsNativeResponsesChannelTypes(t *testing.T) {

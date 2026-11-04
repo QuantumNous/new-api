@@ -105,8 +105,11 @@ func HwFreeGroupRateLimit() gin.HandlerFunc {
 }
 
 // HwFreeGroupModelAllowed reports whether a request of the given group may call
-// the model. A free trial account is limited to the Haiku class, the only model
-// family the trial credit is priced for; every other group is unrestricted
+// the model. A free trial account (also a partner channel of the 250 dollar
+// campaign) may call every model of the catalog, the premium ones included
+// (decision Altuner, 4 Nov 2026): the cost stays inside its own credit, and the
+// console warns that a premium model uses that credit up much faster. Outside
+// the catalog only the Haiku class is open; every other group is unrestricted
 // here. The operator can add exact model names to the allow-list with
 // HW_FREE_MODELS. An empty model name is refused, because nothing was chosen to
 // check. Callers pass the account group (hwUserGroup), so the token group and a
@@ -124,6 +127,9 @@ func HwFreeGroupModelAllowed(group, model string) bool {
 	base, _, _ := strings.Cut(name, "@")
 	if idx := strings.LastIndexByte(base, '/'); idx >= 0 {
 		base = base[idx+1:]
+	}
+	if service.HwIsSoldModel(base) {
+		return true
 	}
 	// A name belongs to the class only when it is a Haiku family name followed
 	// by a version number. A model that merely mentions "haiku" somewhere, such

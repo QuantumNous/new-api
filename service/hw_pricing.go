@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -132,6 +133,26 @@ var hwRetiredModels = map[string]string{
 	// HTTP 200), so the name is no longer sold. It has no newer namesake in its
 	// family, so it points at the sold model of its own price tier.
 	"gemini-3.8-flash-cyber": "claude-haiku-5-5",
+}
+
+// HwPremiumInputMicroUsd is the input list price (micro-dollars per million
+// tokens) from which a sold model counts as premium: claude-fable-5-1 and
+// gpt-6-astra on 4 Nov 2026, and every later model at least that expensive
+// without a code change. The console warns on a premium model that it uses up
+// the credit much faster than the model one step lower.
+const HwPremiumInputMicroUsd = 10_000_000
+
+// HwIsSoldModel reports whether name is a model of the catalog.
+func HwIsSoldModel(name string) bool {
+	return slices.ContainsFunc(hwSoldModels, func(sold HwSoldModel) bool { return sold.Name == name })
+}
+
+// HwIsPremiumModel reports whether name is a sold model priced at or above
+// HwPremiumInputMicroUsd.
+func HwIsPremiumModel(name string) bool {
+	return slices.ContainsFunc(hwSoldModels, func(sold HwSoldModel) bool {
+		return sold.Name == name && sold.InputMicroUsd >= HwPremiumInputMicroUsd
+	})
 }
 
 // HwRetiredModelSuccessor returns the model that replaces a retired model name.
