@@ -28,6 +28,16 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.base.repo.full_name }}
           ref: ${{ github.sha }}
+          # The haaklijst test compares against the base branch, which needs both commits.
+          fetch-depth: 0
+
+      - name: Haaklijst test
+        if: github.event.action != 'closed'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          node .hw/toets-haaklijst.mjs "origin/$BASE_REF" HEAD
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
