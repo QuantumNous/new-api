@@ -109,9 +109,13 @@
     "vitest": "^5.0.4"
   },
   "overrides": {
-    "@tanstack/react-virtual": "^3.14.5",
-    "@visactor/react-vchart": "^2.1.7",
-    "@visactor/vchart": "^2.1.7",
+    "brace-expansion": "2.1.6",
+    "decode-uri-component": "0.5.1",
+    "dompurify": "3.4.17",
+    "fast-uri": "3.1.7",
+    "follow-redirects": "1.16.2",
+    "hono": "4.12.25",
+    "ip-address": "10.3.1",
     "js-cookie": "3.0.7",
     "katex": "0.18.2",
     "mermaid": "11.15.0",
