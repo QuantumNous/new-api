@@ -1,0 +1,1080 @@
+diff --git a/controller/payment_webhook_availability.go b/controller/payment_webhook_availability.go
+index aa26e5a..cafe247 100644
+--- a/controller/payment_webhook_availability.go
++++ b/controller/payment_webhook_availability.go
+@@ -108,3 +108,12 @@ func isEpayWebhookConfigured() bool {
+ func isEpayWebhookEnabled() bool {
+ 	return isEpayTopUpEnabled()
+ }
++
++func isNowPaymentsTopUpEnabled() bool {
++	if !isPaymentComplianceConfirmed() {
++		return false
++	}
++	return setting.NowPaymentsEnabled &&
++		strings.TrimSpace(setting.NowPaymentsApiKey) != "" &&
++		strings.TrimSpace(setting.NowPaymentsIPNSecret) != ""
++}
+diff --git a/controller/topup.go b/controller/topup.go
+index 3ee8125..72ec05f 100644
+--- a/controller/topup.go
++++ b/controller/topup.go
+@@ -97,12 +97,32 @@ func GetTopUpInfo(c *gin.Context) {
+ 		}
+ 	}
+ 
++	enableNowPayments := isNowPaymentsTopUpEnabled()
++	if enableNowPayments {
++		hasNowPayments := false
++		for _, method := range payMethods {
++			if method["type"] == model.PaymentMethodNowPayments {
++				hasNowPayments = true
++				break
++			}
++		}
++		if !hasNowPayments {
++			payMethods = append(payMethods, map[string]string{
++				"name":      "Crypto",
++				"type":      model.PaymentMethodNowPayments,
++				"color":     "#F7931A",
++				"min_topup": strconv.Itoa(setting.NowPaymentsMinTopUp),
++			})
++		}
++	}
++
+ 	data := gin.H{
+ 		"enable_online_topup":              isEpayTopUpEnabled(),
+ 		"enable_stripe_topup":              isStripeTopUpEnabled(),
+ 		"enable_creem_topup":               isCreemTopUpEnabled(),
+ 		"enable_waffo_topup":               enableWaffo,
+ 		"enable_waffo_pancake_topup":       enableWaffoPancake,
++		"enable_nowpayments_topup":         enableNowPayments,
+ 		"enable_redemption":                complianceConfirmed,
+ 		"payment_compliance_confirmed":     complianceConfirmed,
+ 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
+@@ -118,6 +138,7 @@ func GetTopUpInfo(c *gin.Context) {
+ 		"stripe_min_topup":        setting.StripeMinTopUp,
+ 		"waffo_min_topup":         setting.WaffoMinTopUp,
+ 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
++		"nowpayments_min_topup":   setting.NowPaymentsMinTopUp,
+ 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
+ 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
+ 		"topup_link":              common.TopUpLink,
+diff --git a/controller/topup_nowpayments.go b/controller/topup_nowpayments.go
+new file mode 100644
+index 0000000..b883c42
+--- /dev/null
++++ b/controller/topup_nowpayments.go
+@@ -0,0 +1,310 @@
++package controller
++
++import (
++	"bytes"
++	"crypto/hmac"
++	"crypto/sha512"
++	"encoding/hex"
++	"errors"
++	"fmt"
++	"io"
++	"net/http"
++	"slices"
++	"strings"
++	"time"
++
++	"github.com/QuantumNous/new-api/common"
++	"github.com/QuantumNous/new-api/logger"
++	"github.com/QuantumNous/new-api/model"
++	"github.com/QuantumNous/new-api/service"
++	"github.com/QuantumNous/new-api/setting"
++	"github.com/QuantumNous/new-api/setting/operation_setting"
++	"github.com/gin-gonic/gin"
++	"github.com/shopspring/decimal"
++	"github.com/thanhpk/randstr"
++)
++
++const nowPaymentsInvoiceURL = "https://api.nowpayments.io/v1/invoice"
++
++var nowPaymentsHTTPClient = &http.Client{Timeout: 20 * time.Second}
++
++type NowPaymentsPayRequest struct {
++	Amount int64 `json:"amount"`
++}
++
++// RequestNowPaymentsAmount returns the currency amount NOWPayments will charge.
++func RequestNowPaymentsAmount(c *gin.Context) {
++	var req NowPaymentsPayRequest
++	if err := c.ShouldBindJSON(&req); err != nil {
++		paymentError(c, common.NewMessage("Invalid parameters"))
++		return
++	}
++	minTopup := int64(setting.NowPaymentsMinTopUp)
++	if req.Amount < minTopup {
++		paymentError(c, common.NewMessage("Top-up amount cannot be less than {{min}}", map[string]any{"min": minTopup}))
++		return
++	}
++	id := c.GetInt("id")
++	if rejectInvalidTopUpQuota(c, id, req.Amount) {
++		return
++	}
++	group, err := model.GetUserGroup(id, true)
++	if err != nil {
++		paymentError(c, common.NewMessage("Failed to get the user group"))
++		return
++	}
++	payMoney := decimal.NewFromFloat(getPayMoney(req.Amount, group)).Round(2)
++	if payMoney.LessThan(decimal.NewFromFloat(0.01)) {
++		paymentError(c, common.NewMessage("Payment amount is too low"))
++		return
++	}
++	c.JSON(http.StatusOK, gin.H{"message": "success", "data": payMoney.StringFixed(2)})
++}
++
++// RequestNowPaymentsPay creates a local pending order and a hosted NOWPayments
++// invoice. The customer picks the coin on the hosted page.
++func RequestNowPaymentsPay(c *gin.Context) {
++	if !isNowPaymentsTopUpEnabled() {
++		paymentError(c, common.NewMessage("NOWPayments is not enabled"))
++		return
++	}
++
++	var req NowPaymentsPayRequest
++	if err := c.ShouldBindJSON(&req); err != nil {
++		paymentError(c, common.NewMessage("Invalid parameters"))
++		return
++	}
++	minTopup := int64(setting.NowPaymentsMinTopUp)
++	if req.Amount < minTopup {
++		paymentError(c, common.NewMessage("Top-up amount cannot be less than {{min}}", map[string]any{"min": minTopup}))
++		return
++	}
++	id := c.GetInt("id")
++	if rejectInvalidTopUpQuota(c, id, req.Amount) {
++		return
++	}
++
++	group, err := model.GetUserGroup(id, true)
++	if err != nil {
++		paymentError(c, common.NewMessage("Failed to get the user group"))
++		return
++	}
++	payMoney := decimal.NewFromFloat(getPayMoney(req.Amount, group)).Round(2)
++	if payMoney.LessThan(decimal.NewFromFloat(0.01)) {
++		paymentError(c, common.NewMessage("Payment amount is too low"))
++		return
++	}
++
++	orderId := fmt.Sprintf("NWP-%d-%d-%s", id, time.Now().UnixMilli(), randstr.String(6))
++
++	// Token display mode stores the equivalent currency amount, as Waffo does,
++	// so RechargeNowPayments does not scale it a second time.
++	amount := req.Amount
++	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
++		amount = max(int64(float64(req.Amount)/common.QuotaPerUnit), 1)
++	}
++
++	topUp := &model.TopUp{
++		UserId:          id,
++		Amount:          amount,
++		Money:           payMoney.InexactFloat64(),
++		TradeNo:         orderId,
++		PaymentMethod:   model.PaymentMethodNowPayments,
++		PaymentProvider: model.PaymentProviderNowPayments,
++		CreateTime:      time.Now().Unix(),
++		Status:          common.TopUpStatusPending,
++	}
++	if err := topUp.Insert(); err != nil {
++		logger.LogError(c.Request.Context(), common.LogText("NOWPayments failed to create top-up order user_id=%d trade_no=%s error=%q", id, orderId, err.Error()))
++		paymentError(c, common.NewMessage("Failed to create order"))
++		return
++	}
++
++	failOrder := func(reason string) {
++		logger.LogError(c.Request.Context(), common.LogText("NOWPayments invoice failed user_id=%d trade_no=%s reason=%q", id, orderId, reason))
++		topUp.Status = common.TopUpStatusFailed
++		_ = topUp.Update()
++		paymentError(c, common.NewMessage("Failed to start payment"))
++	}
++
++	body, err := common.Marshal(map[string]any{
++		"price_amount":        payMoney.InexactFloat64(),
++		"price_currency":      setting.NowPaymentsPriceCurrency,
++		"order_id":            orderId,
++		"order_description":   fmt.Sprintf("Recharge %d credits", req.Amount),
++		"ipn_callback_url":    service.GetCallbackAddress() + "/api/nowpayments/webhook",
++		"success_url":         paymentReturnPath("/wallet?show_history=true"),
++		"cancel_url":          paymentReturnPath("/wallet"),
++		"is_fixed_rate":       setting.NowPaymentsFixedRate,
++		"is_fee_paid_by_user": setting.NowPaymentsFeePaidByUser,
++	})
++	if err != nil {
++		failOrder(err.Error())
++		return
++	}
++	httpReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, nowPaymentsInvoiceURL, bytes.NewReader(body))
++	if err != nil {
++		failOrder(err.Error())
++		return
++	}
++	httpReq.Header.Set("Content-Type", "application/json")
++	httpReq.Header.Set("x-api-key", setting.NowPaymentsApiKey)
++
++	resp, err := nowPaymentsHTTPClient.Do(httpReq)
++	if err != nil {
++		failOrder(err.Error())
++		return
++	}
++	defer resp.Body.Close()
++	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
++	if err != nil {
++		failOrder(err.Error())
++		return
++	}
++
++	var invoice struct {
++		InvoiceURL string `json:"invoice_url"`
++	}
++	if resp.StatusCode >= http.StatusMultipleChoices || common.Unmarshal(raw, &invoice) != nil || invoice.InvoiceURL == "" {
++		failOrder(fmt.Sprintf("status=%d body=%s", resp.StatusCode, string(raw)))
++		return
++	}
++
++	logger.LogInfo(c.Request.Context(), common.LogText("NOWPayments top-up order created user_id=%d trade_no=%s amount=%d money=%s", id, orderId, req.Amount, payMoney.StringFixed(2)))
++	c.JSON(http.StatusOK, gin.H{
++		"message": "success",
++		"data": gin.H{
++			"checkout_url": invoice.InvoiceURL,
++			"order_id":     orderId,
++		},
++	})
++}
++
++// canonicalizeNowPaymentsJSON re-serializes a JSON document with object keys
++// sorted at every level and no whitespace, keeping each scalar's original
++// bytes so numbers are never round-tripped through floats. This is the form
++// NOWPayments signs.
++func canonicalizeNowPaymentsJSON(raw []byte, out *bytes.Buffer) error {
++	raw = bytes.TrimSpace(raw)
++	if len(raw) == 0 {
++		return errors.New("empty json value")
++	}
++	switch raw[0] {
++	case '{':
++		var fields map[string]common.RawMessage
++		if err := common.Unmarshal(raw, &fields); err != nil {
++			return err
++		}
++		keys := make([]string, 0, len(fields))
++		for key := range fields {
++			keys = append(keys, key)
++		}
++		slices.Sort(keys)
++		out.WriteByte('{')
++		for i, key := range keys {
++			if i > 0 {
++				out.WriteByte(',')
++			}
++			encodedKey, err := common.Marshal(key)
++			if err != nil {
++				return err
++			}
++			out.Write(encodedKey)
++			out.WriteByte(':')
++			if err := canonicalizeNowPaymentsJSON(fields[key], out); err != nil {
++				return err
++			}
++		}
++		out.WriteByte('}')
++	case '[':
++		var items []common.RawMessage
++		if err := common.Unmarshal(raw, &items); err != nil {
++			return err
++		}
++		out.WriteByte('[')
++		for i, item := range items {
++			if i > 0 {
++				out.WriteByte(',')
++			}
++			if err := canonicalizeNowPaymentsJSON(item, out); err != nil {
++				return err
++			}
++		}
++		out.WriteByte(']')
++	default:
++		out.Write(raw)
++	}
++	return nil
++}
++
++// NowPaymentsWebhook handles IPN notifications. Only a signed "finished"
++// notification credits the wallet; a non-2xx response makes NOWPayments retry.
++func NowPaymentsWebhook(c *gin.Context) {
++	if !isNowPaymentsTopUpEnabled() {
++		logger.LogWarn(c.Request.Context(), common.LogText("NOWPayments webhook rejected reason=webhook_disabled client_ip=%s", c.ClientIP()))
++		c.AbortWithStatus(http.StatusForbidden)
++		return
++	}
++
++	bodyBytes, err := io.ReadAll(c.Request.Body)
++	if err != nil {
++		c.AbortWithStatus(http.StatusBadRequest)
++		return
++	}
++
++	var canonical bytes.Buffer
++	if err := canonicalizeNowPaymentsJSON(bodyBytes, &canonical); err != nil {
++		logger.LogWarn(c.Request.Context(), common.LogText("NOWPayments webhook invalid json client_ip=%s error=%q", c.ClientIP(), err.Error()))
++		c.AbortWithStatus(http.StatusBadRequest)
++		return
++	}
++	mac := hmac.New(sha512.New, []byte(strings.TrimSpace(setting.NowPaymentsIPNSecret)))
++	mac.Write(canonical.Bytes())
++	expected := hex.EncodeToString(mac.Sum(nil))
++	received := strings.ToLower(strings.TrimSpace(c.GetHeader("x-nowpayments-sig")))
++	if !hmac.Equal([]byte(expected), []byte(received)) {
++		logger.LogWarn(c.Request.Context(), common.LogText("NOWPayments webhook signature verification failed client_ip=%s", c.ClientIP()))
++		c.AbortWithStatus(http.StatusUnauthorized)
++		return
++	}
++
++	var event struct {
++		PaymentStatus string            `json:"payment_status"`
++		OrderID       string            `json:"order_id"`
++		PriceAmount   common.RawMessage `json:"price_amount"`
++		PriceCurrency string            `json:"price_currency"`
++	}
++	if err := common.Unmarshal(bodyBytes, &event); err != nil || event.OrderID == "" {
++		c.AbortWithStatus(http.StatusBadRequest)
++		return
++	}
++	logger.LogInfo(c.Request.Context(), common.LogText("NOWPayments webhook verified trade_no=%s status=%s client_ip=%s", event.OrderID, event.PaymentStatus, c.ClientIP()))
++
++	switch event.PaymentStatus {
++	case "finished":
++		price, err := decimal.NewFromString(strings.Trim(string(event.PriceAmount), `" `))
++		if err != nil {
++			logger.LogError(c.Request.Context(), common.LogText("NOWPayments webhook invalid price_amount trade_no=%s", event.OrderID))
++			c.AbortWithStatus(http.StatusBadRequest)
++			return
++		}
++		if err := model.RechargeNowPayments(event.OrderID, price, event.PriceCurrency, c.ClientIP()); err != nil {
++			logger.LogError(c.Request.Context(), common.LogText("NOWPayments recharge failed trade_no=%s error=%q", event.OrderID, err.Error()))
++			c.AbortWithStatus(http.StatusInternalServerError)
++			return
++		}
++	case "failed", "expired":
++		target := common.TopUpStatusFailed
++		if event.PaymentStatus == "expired" {
++			target = common.TopUpStatusExpired
++		}
++		err := model.UpdatePendingTopUpStatus(event.OrderID, model.PaymentProviderNowPayments, target)
++		if err != nil && !errors.Is(err, model.ErrTopUpStatusInvalid) && !errors.Is(err, model.ErrTopUpNotFound) {
++			c.AbortWithStatus(http.StatusInternalServerError)
++			return
++		}
++	case "partially_paid", "refunded":
++		logger.LogWarn(c.Request.Context(), common.LogText("NOWPayments %s needs manual review trade_no=%s", event.PaymentStatus, event.OrderID))
++	}
++	c.Status(http.StatusOK)
++}
+diff --git a/model/option.go b/model/option.go
+index f31075f..97e24b1 100644
+--- a/model/option.go
++++ b/model/option.go
+@@ -128,6 +128,13 @@ func InitOptionMap() {
+ 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
+ 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
+ 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
++	common.OptionMap["NowPaymentsEnabled"] = strconv.FormatBool(setting.NowPaymentsEnabled)
++	common.OptionMap["NowPaymentsApiKey"] = setting.NowPaymentsApiKey
++	common.OptionMap["NowPaymentsIPNSecret"] = setting.NowPaymentsIPNSecret
++	common.OptionMap["NowPaymentsPriceCurrency"] = setting.NowPaymentsPriceCurrency
++	common.OptionMap["NowPaymentsMinTopUp"] = strconv.Itoa(setting.NowPaymentsMinTopUp)
++	common.OptionMap["NowPaymentsFixedRate"] = strconv.FormatBool(setting.NowPaymentsFixedRate)
++	common.OptionMap["NowPaymentsFeePaidByUser"] = strconv.FormatBool(setting.NowPaymentsFeePaidByUser)
+ 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
+ 	common.OptionMap["Chats"] = setting.Chats2JsonString()
+ 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
+@@ -492,6 +499,8 @@ func updateOptionMap(key string, value string) (err error) {
+ 			setting.DefaultUseAutoGroup = boolValue
+ 		case "ExposeRatioEnabled":
+ 			ratio_setting.SetExposeRatioEnabled(boolValue)
++		case "NowPaymentsEnabled":
++			setting.NowPaymentsEnabled = boolValue
+ 		}
+ 	}
+ 	if key == setting.TaskPluginDisabledFactoryKeysKey {
+@@ -603,6 +612,22 @@ func updateOptionMap(key string, value string) (err error) {
+ 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
+ 	case "WaffoPancakeMinTopUp":
+ 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
++	case "NowPaymentsApiKey":
++		setting.NowPaymentsApiKey = value
++	case "NowPaymentsIPNSecret":
++		setting.NowPaymentsIPNSecret = value
++	case "NowPaymentsPriceCurrency":
++		if currency := strings.ToLower(strings.TrimSpace(value)); currency != "" {
++			setting.NowPaymentsPriceCurrency = currency
++		}
++	case "NowPaymentsMinTopUp":
++		if minTopUp, convErr := strconv.Atoi(value); convErr == nil && minTopUp >= 1 {
++			setting.NowPaymentsMinTopUp = minTopUp
++		}
++	case "NowPaymentsFixedRate":
++		setting.NowPaymentsFixedRate = value == "true"
++	case "NowPaymentsFeePaidByUser":
++		setting.NowPaymentsFeePaidByUser = value == "true"
+ 	case "TopupGroupRatio":
+ 		err = common.UpdateTopupGroupRatioByJSONString(value)
+ 	case "GitHubClientId":
+diff --git a/model/topup.go b/model/topup.go
+index 17d4df3..120668e 100644
+--- a/model/topup.go
++++ b/model/topup.go
+@@ -4,9 +4,11 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"maps"
++	"strings"
+ 
+ 	"github.com/QuantumNous/new-api/common"
+ 	"github.com/QuantumNous/new-api/logger"
++	"github.com/QuantumNous/new-api/setting"
+ 
+ 	"github.com/shopspring/decimal"
+ 	"gorm.io/gorm"
+@@ -30,6 +32,7 @@ const (
+ 	PaymentMethodCreem        = "creem"
+ 	PaymentMethodWaffo        = "waffo"
+ 	PaymentMethodWaffoPancake = "waffo_pancake"
++	PaymentMethodNowPayments  = "nowpayments"
+ 	PaymentMethodBalance      = "balance"
+ )
+ 
+@@ -39,6 +42,7 @@ const (
+ 	PaymentProviderCreem        = "creem"
+ 	PaymentProviderWaffo        = "waffo"
+ 	PaymentProviderWaffoPancake = "waffo_pancake"
++	PaymentProviderNowPayments  = "nowpayments"
+ 	PaymentProviderBalance      = "balance"
+ )
+ 
+@@ -713,3 +717,71 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
+ 
+ 	return nil
+ }
++
++// RechargeNowPayments settles a NOWPayments order after a verified "finished"
++// notification. The wallet credit comes from the stored order, never from the
++// crypto amount in the notification; the notified price must match the order.
++func RechargeNowPayments(tradeNo string, notifiedPrice decimal.Decimal, notifiedCurrency string, callerIp string) (err error) {
++	if tradeNo == "" {
++		return errors.New("payment order number not provided")
++	}
++
++	var quotaToAdd int
++	topUp := &TopUp{}
++
++	refCol := "`trade_no`"
++	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
++		refCol = `"trade_no"`
++	}
++
++	err = DB.Transaction(func(tx *gorm.DB) error {
++		err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error
++		if err != nil {
++			return errors.New("top-up order not found")
++		}
++
++		if topUp.PaymentProvider != PaymentProviderNowPayments {
++			return ErrPaymentMethodMismatch
++		}
++
++		if topUp.Status == common.TopUpStatusSuccess {
++			return nil
++		}
++
++		if topUp.Status != common.TopUpStatusPending {
++			return errors.New("invalid top-up order status")
++		}
++
++		expectedPrice := decimal.NewFromFloat(topUp.Money).Round(2)
++		if !notifiedPrice.Round(2).Equal(expectedPrice) || !strings.EqualFold(notifiedCurrency, setting.NowPaymentsPriceCurrency) {
++			return errors.New("notified price does not match the order")
++		}
++
++		quotaToAdd, err = common.WalletQuotaFromDecimalStrict(
++			decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
++		)
++		if err != nil || quotaToAdd <= 0 {
++			return ErrInvalidTopUpQuota
++		}
++
++		topUp.CompleteTime = common.GetTimestamp()
++		topUp.Status = common.TopUpStatusSuccess
++		if err := tx.Save(topUp).Error; err != nil {
++			return err
++		}
++
++		return creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil)
++	})
++
++	if err != nil {
++		common.SysError(common.LogText("nowpayments topup failed: %s", err.Error()))
++		return errors.New("top-up failed")
++	}
++	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, common.LogText("nowpayments topup"))
++
++	if quotaToAdd > 0 {
++		RecordTopupLog(topUp.UserId, common.NewMessage("{{provider}} top-up succeeded, amount added: {{quota}}, payment amount: {{amount}}", map[string]any{"provider": "NOWPayments", "quota": logger.FormatQuota(quotaToAdd), "amount": fmt.Sprintf("%.2f", topUp.Money)}), callerIp, topUp.PaymentMethod, PaymentMethodNowPayments)
++	}
++
++	return nil
++}
+diff --git a/router/api-router.go b/router/api-router.go
+index 9049811..4f8b3b8 100644
+--- a/router/api-router.go
++++ b/router/api-router.go
+@@ -64,6 +64,7 @@ func SetApiRouter(router *gin.Engine) {
+ 		apiRouter.POST("/stripe/webhook", anonymousRequestBodyLimit, controller.StripeWebhook)
+ 		apiRouter.POST("/creem/webhook", anonymousRequestBodyLimit, controller.CreemWebhook)
+ 		apiRouter.POST("/waffo/webhook", anonymousRequestBodyLimit, controller.WaffoWebhook)
++		apiRouter.POST("/nowpayments/webhook", anonymousRequestBodyLimit, controller.NowPaymentsWebhook)
+ 		// :env separates test vs prod URLs so the operator can register each
+ 		// in Pancake's matching webhook slot; handler enforces env match.
+ 		apiRouter.POST("/waffo-pancake/webhook/:env", anonymousRequestBodyLimit, controller.WaffoPancakeWebhook)
+@@ -129,6 +130,8 @@ func SetApiRouter(router *gin.Engine) {
+ 				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.RequestCreemPay)
+ 				selfRoute.POST("/waffo/amount", controller.RequestWaffoAmount)
+ 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
++				selfRoute.POST("/nowpayments/amount", controller.RequestNowPaymentsAmount)
++				selfRoute.POST("/nowpayments/pay", middleware.CriticalRateLimit(), controller.RequestNowPaymentsPay)
+ 				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
+ 				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
+ 				selfRoute.POST("/aff_transfer", middleware.UserCriticalRateLimit("aff-transfer"), controller.TransferAffQuota)
+diff --git a/setting/payment_nowpayments.go b/setting/payment_nowpayments.go
+index b7bcb0c..899675e 100644
+--- a/setting/payment_nowpayments.go
++++ b/setting/payment_nowpayments.go
+@@ -1,13 +1,13 @@
+ package setting
+ 
+ var (
+-    NowPaymentsEnabled           bool
+-    NowPaymentsApiKey            string
+-    NowPaymentsIPNSecret         string
++	NowPaymentsEnabled   bool
++	NowPaymentsApiKey    string
++	NowPaymentsIPNSecret string
+ 
+-    NowPaymentsPriceCurrency     = "usd"
+-    NowPaymentsMinTopUp          = 1
++	NowPaymentsPriceCurrency = "usd"
++	NowPaymentsMinTopUp      = 1
+ 
+-    NowPaymentsFixedRate         bool
+-    NowPaymentsFeePaidByUser     bool
++	NowPaymentsFixedRate     bool
++	NowPaymentsFeePaidByUser bool
+ )
+diff --git a/web/src/features/wallet/api.ts b/web/src/features/wallet/api.ts
+index e2f7073..06944db 100644
+--- a/web/src/features/wallet/api.ts
++++ b/web/src/features/wallet/api.ts
+@@ -38,6 +38,8 @@ import type {
+   WaffoPaymentRequest,
+   WaffoPaymentResponse,
+   WaffoPancakePaymentRequest,
++  NowPaymentsPaymentRequest,
++  NowPaymentsPaymentResponse,
+   WaffoPancakePaymentResponse,
+ } from './types'
+ 
+@@ -181,6 +183,30 @@ export async function requestWaffoPancakePayment(
+   return res.data
+ }
+ 
++/**
++ * Calculate payment amount for NOWPayments payment
++ */
++export async function calculateNowPaymentsAmount(
++  request: AmountRequest
++): Promise<AmountResponse> {
++  const res = await api.post('/api/user/nowpayments/amount', request, {
++    skipBusinessError: true,
++  } as Record<string, unknown>)
++  return res.data
++}
++
++/**
++ * Request NOWPayments payment
++ */
++export async function requestNowPaymentsPayment(
++  request: NowPaymentsPaymentRequest
++): Promise<NowPaymentsPaymentResponse> {
++  const res = await api.post('/api/user/nowpayments/pay', request, {
++    skipBusinessError: true,
++  } as Record<string, unknown>)
++  return res.data
++}
++
+ /**
+  * Get affiliate code
+  */
+diff --git a/web/src/features/wallet/components/recharge-form-card.tsx b/web/src/features/wallet/components/recharge-form-card.tsx
+index c98b638..5a071c4 100644
+--- a/web/src/features/wallet/components/recharge-form-card.tsx
++++ b/web/src/features/wallet/components/recharge-form-card.tsx
+@@ -134,7 +134,8 @@ export function RechargeFormCard({
+     topupInfo?.enable_online_topup ||
+     topupInfo?.enable_stripe_topup ||
+     enableWaffoTopup ||
+-    enableWaffoPancakeTopup
++    enableWaffoPancakeTopup ||
++    topupInfo?.enable_nowpayments_topup
+   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
+   const hasStandardPaymentMethods =
+     Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
+diff --git a/web/src/features/wallet/constants.ts b/web/src/features/wallet/constants.ts
+index 50bb45e..4b95c99 100644
+--- a/web/src/features/wallet/constants.ts
++++ b/web/src/features/wallet/constants.ts
+@@ -36,6 +36,7 @@ export const PAYMENT_TYPES = {
+   CREEM: 'creem',
+   WAFFO: 'waffo',
+   WAFFO_PANCAKE: 'waffo_pancake',
++  NOWPAYMENTS: 'nowpayments',
+ } as const
+ 
+ /**
+diff --git a/web/src/features/wallet/hooks/index.ts b/web/src/features/wallet/hooks/index.ts
+index e11d63c..aea9a92 100644
+--- a/web/src/features/wallet/hooks/index.ts
++++ b/web/src/features/wallet/hooks/index.ts
+@@ -27,3 +27,4 @@ export * from './use-redemption'
+ export * from './use-creem-payment'
+ export * from './use-waffo-payment'
+ export * from './use-waffo-pancake-payment'
++export * from './use-nowpayments-payment'
+diff --git a/web/src/features/wallet/hooks/use-nowpayments-payment.ts b/web/src/features/wallet/hooks/use-nowpayments-payment.ts
+new file mode 100644
+index 0000000..b8b30ea
+--- /dev/null
++++ b/web/src/features/wallet/hooks/use-nowpayments-payment.ts
+@@ -0,0 +1,117 @@
++/*
++Copyright (C) 2023-2026 QuantumNous
++
++This program is free software: you can redistribute it and/or modify
++it under the terms of the GNU Affero General Public License as
++published by the Free Software Foundation, either version 3 of the
++License, or (at your option) any later version.
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++GNU Affero General Public License for more details.
++
++You should have received a copy of the GNU Affero General Public License
++along with this program. If not, see <https://www.gnu.org/licenses/>.
++
++For commercial licensing, please contact support@quantumnous.com
++*/
++import i18next from 'i18next'
++import { useState, useCallback } from 'react'
++import { toast } from 'sonner'
++
++import { handleServerError } from '@/lib/handle-server-error'
++
++import { requestNowPaymentsPayment, isApiSuccess } from '../api'
++import { getPaymentErrorTranslation } from '../lib'
++
++function getCheckoutUrl(data: unknown): string | null {
++  if (!data || typeof data !== 'object') {
++    return null
++  }
++
++  if ('checkout_url' in data && typeof data.checkout_url === 'string') {
++    return data.checkout_url
++  }
++
++  return null
++}
++
++/**
++ * Reject non-navigable schemes (e.g. javascript:, data:) and relative URLs.
++ * Only http/https are allowed for backend-provided redirect targets.
++ */
++function isSafeHttpCheckoutUrl(value: string): boolean {
++  const trimmed = value.trim()
++  if (!trimmed) {
++    return false
++  }
++  try {
++    const u = new URL(trimmed)
++    return u.protocol === 'http:' || u.protocol === 'https:'
++  } catch {
++    return false
++  }
++}
++
++function getErrorMessage(message: string | undefined, data: unknown): string {
++  if (typeof data === 'string' && data.trim()) {
++    return data
++  }
++
++  return (
++    (message && message !== 'success' ? message : undefined) ||
++    i18next.t('Payment request failed')
++  )
++}
++
++/**
++ * Hook for the NOWPayments hosted-checkout flow.
++ *
++ * Same-tab redirect (window.location.href) rather than window.open: the
++ * user-gesture context is lost across the await, so popups get blocked.
++ */
++export function useNowPaymentsPayment() {
++  const [processing, setProcessing] = useState(false)
++
++  const processNowPaymentsPayment = useCallback(
++    async (topupAmount: number) => {
++      setProcessing(true)
++
++      try {
++        const response = await requestNowPaymentsPayment({
++          amount: Math.floor(topupAmount),
++        })
++
++        if (isApiSuccess(response)) {
++          const checkoutUrl = getCheckoutUrl(response.data)
++
++          if (checkoutUrl) {
++            if (!isSafeHttpCheckoutUrl(checkoutUrl)) {
++              toast.error(i18next.t('Invalid payment redirect URL'))
++              return false
++            }
++            toast.success(i18next.t('Redirecting to payment page...'))
++            window.location.href = checkoutUrl
++            return true
++          }
++        }
++
++        handleServerError(response, undefined, {
++          title:
++            getPaymentErrorTranslation(response) ??
++            getErrorMessage(response.message, response.data),
++        })
++        return false
++      } catch (_error) {
++        handleServerError(_error, i18next.t('Payment request failed'))
++        return false
++      } finally {
++        setProcessing(false)
++      }
++    },
++    []
++  )
++
++  return { processing, processNowPaymentsPayment }
++}
+diff --git a/web/src/features/wallet/hooks/use-payment.test.ts b/web/src/features/wallet/hooks/use-payment.test.ts
+index 210e873..2222a97 100644
+--- a/web/src/features/wallet/hooks/use-payment.test.ts
++++ b/web/src/features/wallet/hooks/use-payment.test.ts
+@@ -41,6 +41,7 @@ describe('payment amount routing', () => {
+         calls.push('pancake')
+         return { success: true, data: '4' }
+       },
++      nowPayments: async () => ({ success: true, data: '5' }),
+     })
+ 
+     expect(amount).toBe(18.75)
+diff --git a/web/src/features/wallet/hooks/use-payment.ts b/web/src/features/wallet/hooks/use-payment.ts
+index 19ec308..5a3e184 100644
+--- a/web/src/features/wallet/hooks/use-payment.ts
++++ b/web/src/features/wallet/hooks/use-payment.ts
+@@ -27,6 +27,7 @@ import {
+   calculateStripeAmount,
+   calculateWaffoAmount,
+   calculateWaffoPancakeAmount,
++  calculateNowPaymentsAmount,
+   requestPayment,
+   requestStripePayment,
+   isApiSuccess,
+@@ -35,6 +36,7 @@ import {
+   isStripePayment,
+   isWaffoPayment,
+   isWaffoPancakePayment,
++  isNowPaymentsPayment,
+   submitPaymentForm,
+ } from '../lib'
+ import type { AmountRequest, AmountResponse } from '../types'
+@@ -50,6 +52,7 @@ export interface PaymentAmountCalculators {
+   stripe: AmountCalculator
+   waffo: AmountCalculator
+   waffoPancake: AmountCalculator
++  nowPayments: AmountCalculator
+ }
+ 
+ const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
+@@ -57,6 +60,7 @@ const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
+   stripe: calculateStripeAmount,
+   waffo: calculateWaffoAmount,
+   waffoPancake: calculateWaffoPancakeAmount,
++  nowPayments: calculateNowPaymentsAmount,
+ }
+ 
+ export async function requestPaymentAmount(
+@@ -71,6 +75,8 @@ export async function requestPaymentAmount(
+     calculator = calculators.waffo
+   } else if (isWaffoPancakePayment(paymentType)) {
+     calculator = calculators.waffoPancake
++  } else if (isNowPaymentsPayment(paymentType)) {
++    calculator = calculators.nowPayments
+   }
+ 
+   const response = await calculator({ amount: topupAmount })
+diff --git a/web/src/features/wallet/index.tsx b/web/src/features/wallet/index.tsx
+index 5a9cb9e..797cef0 100644
+--- a/web/src/features/wallet/index.tsx
++++ b/web/src/features/wallet/index.tsx
+@@ -41,6 +41,7 @@ import {
+   useCreemPayment,
+   useWaffoPayment,
+   useWaffoPancakePayment,
++  useNowPaymentsPayment,
+ } from './hooks'
+ import {
+   getDefaultPaymentType,
+@@ -108,6 +109,8 @@ export function Wallet(props: WalletProps) {
+   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
+   const { processing: pancakeProcessing, processWaffoPancakePayment } =
+     useWaffoPancakePayment()
++  const { processing: nowPaymentsProcessing, processNowPaymentsPayment } =
++    useNowPaymentsPayment()
+ 
+   // Fetch and refresh user data
+   const fetchUser = useCallback(async () => {
+@@ -202,6 +205,7 @@ export function Wallet(props: WalletProps) {
+         regular: processPayment,
+         waffo: processWaffoPayment,
+         waffoPancake: processWaffoPancakePayment,
++        nowPayments: processNowPaymentsPayment,
+       }
+     )
+ 
+@@ -360,7 +364,11 @@ export function Wallet(props: WalletProps) {
+         paymentAmount={paymentAmount}
+         paymentMethod={selectedPaymentMethod}
+         calculating={calculating}
+-        processing={processing || waffoProcessing || pancakeProcessing}
++        processing={processing ||
++          waffoProcessing ||
++          pancakeProcessing ||
++          nowPaymentsProcessing
++        }
+         discountRate={getDiscountRate()}
+         usdExchangeRate={effectiveUsdExchangeRate}
+       />
+diff --git a/web/src/features/wallet/lib/payment.test.ts b/web/src/features/wallet/lib/payment.test.ts
+index 99f22ce..4b22cd0 100644
+--- a/web/src/features/wallet/lib/payment.test.ts
++++ b/web/src/features/wallet/lib/payment.test.ts
+@@ -56,6 +56,7 @@ describe('payment dispatch', () => {
+           calls.push('pancake')
+           return false
+         },
++        nowPayments: async () => false,
+       }
+     )
+ 
+@@ -76,6 +77,7 @@ describe('payment dispatch', () => {
+           return true
+         },
+         waffoPancake: async () => false,
++        nowPayments: async () => false,
+       }
+     )
+ 
+diff --git a/web/src/features/wallet/lib/payment.ts b/web/src/features/wallet/lib/payment.ts
+index 2ea8fa2..f8d7f8f 100644
+--- a/web/src/features/wallet/lib/payment.ts
++++ b/web/src/features/wallet/lib/payment.ts
+@@ -111,10 +111,18 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
+   return paymentType === PAYMENT_TYPES.WAFFO_PANCAKE
+ }
+ 
++/**
++ * Check if payment method is NOWPayments (hosted crypto invoice)
++ */
++export function isNowPaymentsPayment(paymentType: string): boolean {
++  return paymentType === PAYMENT_TYPES.NOWPAYMENTS
++}
++
+ export interface PaymentProcessors {
+   regular: (topupAmount: number, paymentType: string) => Promise<boolean>
+   waffo: (topupAmount: number, payMethodIndex: number) => Promise<boolean>
+   waffoPancake: (topupAmount: number) => Promise<boolean>
++  nowPayments: (topupAmount: number) => Promise<boolean>
+ }
+ 
+ export async function dispatchSelectedPayment(
+@@ -134,6 +142,10 @@ export async function dispatchSelectedPayment(
+     return processors.waffoPancake(topupAmount)
+   }
+ 
++  if (isNowPaymentsPayment(paymentMethod.type)) {
++    return processors.nowPayments(topupAmount)
++  }
++
+   return processors.regular(topupAmount, paymentMethod.type)
+ }
+ 
+@@ -162,6 +174,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
+     return PAYMENT_TYPES.WAFFO_PANCAKE
+   }
+ 
++  if (topupInfo.enable_nowpayments_topup) {
++    return PAYMENT_TYPES.NOWPAYMENTS
++  }
++
+   return DEFAULT_PAYMENT_TYPE
+ }
+ 
+@@ -189,6 +205,10 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
+     return topupInfo.waffo_pancake_min_topup || DEFAULT_MIN_TOPUP
+   }
+ 
++  if (topupInfo.enable_nowpayments_topup) {
++    return topupInfo.nowpayments_min_topup || DEFAULT_MIN_TOPUP
++  }
++
+   return DEFAULT_MIN_TOPUP
+ }
+ 
+diff --git a/web/src/features/wallet/types.ts b/web/src/features/wallet/types.ts
+index 5da08f0..3238ea6 100644
+--- a/web/src/features/wallet/types.ts
++++ b/web/src/features/wallet/types.ts
+@@ -45,6 +45,10 @@ export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
+ export type WaffoPaymentResponse = ApiResponse<
+   { payment_url?: string } | string
+ >
++export type NowPaymentsPaymentResponse = ApiResponse<{
++  checkout_url: string
++  order_id?: string
++}>
+ export type WaffoPancakePaymentResponse = ApiResponse<
+   | {
+       checkout_url?: string
+@@ -150,6 +154,10 @@ export interface TopupInfo {
+   enable_waffo_pancake_topup?: boolean
+   /** Minimum topup amount for Waffo Pancake */
+   waffo_pancake_min_topup?: number
++  /** Whether NOWPayments (crypto) topup is enabled */
++  enable_nowpayments_topup?: boolean
++  /** Minimum topup amount for NOWPayments */
++  nowpayments_min_topup?: number
+   /** Whether redemption code usage is enabled */
+   enable_redemption?: boolean
+   /** Whether compliance confirmation has been completed */
+@@ -196,6 +204,14 @@ export interface WaffoPaymentRequest {
+   pay_method_index?: number
+ }
+ 
++/**
++ * NOWPayments payment request parameters
++ */
++export interface NowPaymentsPaymentRequest {
++  /** Topup amount */
++  amount: number
++}
++
+ /**
+  * Waffo Pancake payment request parameters
+  */
+diff --git a/web/src/i18n/locales/en.json b/web/src/i18n/locales/en.json
+index 5f9f256..ff986b0 100644
+--- a/web/src/i18n/locales/en.json
++++ b/web/src/i18n/locales/en.json
+@@ -7209,6 +7209,7 @@
+     "Waffo Pancake settings saved": "Waffo Pancake settings saved",
+     "Waffo Payment": "Waffo Payment",
+     "Waffo Payment Gateway": "Waffo Payment Gateway",
++    "NOWPayments is not enabled": "NOWPayments is not enabled",
+     "Waffo payment is not enabled": "Waffo payment is not enabled",
+     "Waffo Public Key (Production)": "Waffo Public Key (Production)",
+     "Waffo Public Key (Sandbox)": "Waffo Public Key (Sandbox)",
+diff --git a/web/src/i18n/locales/fr.json b/web/src/i18n/locales/fr.json
+index c272da3..ea2ff30 100644
+--- a/web/src/i18n/locales/fr.json
++++ b/web/src/i18n/locales/fr.json
+@@ -7209,6 +7209,7 @@
+     "Waffo Pancake settings saved": "Paramètres Waffo Pancake enregistrés",
+     "Waffo Payment": "Paiement Waffo",
+     "Waffo Payment Gateway": "Passerelle de paiement Waffo",
++    "NOWPayments is not enabled": "Le paiement NOWPayments n'est pas activé",
+     "Waffo payment is not enabled": "Le paiement Waffo n'est pas activé",
+     "Waffo Public Key (Production)": "Clé publique Waffo (Production)",
+     "Waffo Public Key (Sandbox)": "Clé publique Waffo (Sandbox)",
+diff --git a/web/src/i18n/locales/ja.json b/web/src/i18n/locales/ja.json
+index ad3400e..243cd2a 100644
+--- a/web/src/i18n/locales/ja.json
++++ b/web/src/i18n/locales/ja.json
+@@ -7209,6 +7209,7 @@
+     "Waffo Pancake settings saved": "Waffo Pancake 設定を保存しました",
+     "Waffo Payment": "Waffo決済",
+     "Waffo Payment Gateway": "Waffo決済ゲートウェイ",
++    "NOWPayments is not enabled": "NOWPayments 決済は有効になっていません",
+     "Waffo payment is not enabled": "Waffo 決済は有効になっていません",
+     "Waffo Public Key (Production)": "Waffo公開鍵（本番）",
+     "Waffo Public Key (Sandbox)": "Waffo公開鍵（サンドボックス）",
+diff --git a/web/src/i18n/locales/ru.json b/web/src/i18n/locales/ru.json
+index 9830ec3..9b1cf8f 100644
+--- a/web/src/i18n/locales/ru.json
++++ b/web/src/i18n/locales/ru.json
+@@ -7209,6 +7209,7 @@
+     "Waffo Pancake settings saved": "Настройки Waffo Pancake сохранены",
+     "Waffo Payment": "Оплата Waffo",
+     "Waffo Payment Gateway": "Платёжный шлюз Waffo",
++    "NOWPayments is not enabled": "Оплата NOWPayments не включена",
+     "Waffo payment is not enabled": "Оплата Waffo не включена",
+     "Waffo Public Key (Production)": "Публичный ключ Waffo (Продакшн)",
+     "Waffo Public Key (Sandbox)": "Публичный ключ Waffo (Песочница)",
+diff --git a/web/src/i18n/locales/vi.json b/web/src/i18n/locales/vi.json
+index 31b90fd..af03ead 100644
+--- a/web/src/i18n/locales/vi.json
++++ b/web/src/i18n/locales/vi.json
+@@ -7209,6 +7209,7 @@
+     "Waffo Pancake settings saved": "Đã lưu cài đặt Waffo Pancake",
+     "Waffo Payment": "Thanh toán Waffo",
+     "Waffo Payment Gateway": "Cổng thanh toán Waffo",
++    "NOWPayments is not enabled": "Thanh toán NOWPayments chưa được bật",
+     "Waffo payment is not enabled": "Thanh toán Waffo chưa được bật",
+     "Waffo Public Key (Production)": "Waffo Public Key (Sản xuất)",
+     "Waffo Public Key (Sandbox)": "Khóa công khai Waffo (Sandbox)",
+diff --git a/web/src/i18n/locales/zh-TW.json b/web/src/i18n/locales/zh-TW.json
+index d5d9f0f..9b48462 100644
+--- a/web/src/i18n/locales/zh-TW.json
++++ b/web/src/i18n/locales/zh-TW.json
+@@ -7209,6 +7209,7 @@
+     "Waffo Pancake settings saved": "Waffo Pancake 設定已儲存",
+     "Waffo Payment": "Waffo 支付",
+     "Waffo Payment Gateway": "Waffo 支付閘道",
++    "NOWPayments is not enabled": "NOWPayments 支付未啟用",
+     "Waffo payment is not enabled": "Waffo 支付未啟用",
+     "Waffo Public Key (Production)": "Waffo 公鑰（生產）",
+     "Waffo Public Key (Sandbox)": "Waffo 公鑰（沙盒）",
+diff --git a/web/src/i18n/locales/zh.json b/web/src/i18n/locales/zh.json
+index 5e2daf0..87afe61 100644
+--- a/web/src/i18n/locales/zh.json
++++ b/web/src/i18n/locales/zh.json
+@@ -7209,6 +7209,7 @@
+     "Waffo Pancake settings saved": "Waffo Pancake 设置已保存",
+     "Waffo Payment": "Waffo 支付",
+     "Waffo Payment Gateway": "Waffo 支付网关",
++    "NOWPayments is not enabled": "NOWPayments 支付未启用",
+     "Waffo payment is not enabled": "Waffo 支付未启用",
+     "Waffo Public Key (Production)": "Waffo 公钥（生产）",
+     "Waffo Public Key (Sandbox)": "Waffo 公钥（沙盒）",
