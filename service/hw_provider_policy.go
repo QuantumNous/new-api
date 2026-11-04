@@ -759,14 +759,14 @@ func HwDecideRetry(c *gin.Context, apiErr *types.NewAPIError) (PolicyDecision, b
 	if apiErr == nil {
 		return hwPolicyDecision("stop", "hw_no_error"), true
 	}
-	if types.IsSkipRetryError(apiErr) || apiErr.GetErrorCode() == HwErrorCodeServiceBusy {
-		state.finished = true
-		return hwPolicyDecision("stop", "hw_terminal_error"), true
-	}
 	if hwIsSupplierCreditError(apiErr) && state.lastChannel != nil {
 		// Fixed marker for the supplier health check of the office board: one
 		// line per failure, channel and model only, never the supplier text.
 		logger.LogWarn(c, common.LogText("hw supplier credit exhausted: channel_id=%d model=%s", state.lastChannel.Id, state.model))
+	}
+	if types.IsSkipRetryError(apiErr) || apiErr.GetErrorCode() == HwErrorCodeServiceBusy {
+		state.finished = true
+		return hwPolicyDecision("stop", "hw_terminal_error"), true
 	}
 	// Only a Lumia outage earns the paused extra Lumia attempt; a free tier
 	// running out of quota simply moves on to the next supplier.
