@@ -82,6 +82,8 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/hw/assistant/chat":                      accessTokenAnyRule,
 	"GET /api/hw/admin/assistant/questions":            accessTokenSessionRule,
 	"POST /api/hw/assistant/feedback":                  accessTokenAnyRule,
+	"POST /api/hw/pricing/feedback":                    accessTokenAnyRule,
+	"POST /api/hw/admin/pricing/feedback/card":         accessTokenSessionRule,
 	"POST /api/hw/admin/agent/feedback":                accessTokenSessionRule,
 	"GET /api/hw/admin/assistant/feedback":             accessTokenSessionRule,
 	"POST /api/hw/admin/assistant/feedback/:id/review": accessTokenSessionRule,

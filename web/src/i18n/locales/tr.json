@@ -2858,5 +2858,23 @@
     "Not helpful": "Yararlı değil",
     "Thanks for your feedback": "Geri bildiriminiz için teşekkürler",
     "What should the answer have been?": "Yanıt ne olmalıydı?"
-  }
+  },
+  "Report a wrong price or missing model": "Yanlış fiyat veya eksik model bildir",
+  "We check your report against the official source and fix the price list.": "Bildiriminizi resmi kaynakla karşılaştırır ve fiyat listesini düzeltiriz.",
+  "Send report": "Bildirimi gönder",
+  "Sending...": "Gönderiliyor...",
+  "What is the problem?": "Sorun nedir?",
+  "A price is wrong": "Bir fiyat yanlış",
+  "A model is missing": "Bir model eksik",
+  "Something else": "Başka bir şey",
+  "Model": "Model",
+  "Explanation": "Açıklama",
+  "Official source link (optional)": "Resmi kaynak bağlantısı (isteğe bağlı)",
+  "Your email for the answer (optional)": "Yanıt için e-posta adresiniz (isteğe bağlı)",
+  "Thank you, we check every report against the source.": "Teşekkürler, her bildirimi kaynağıyla karşılaştırıyoruz.",
+  "The report could not be sent.": "Bildirim gönderilemedi.",
+  "Enter a link that starts with http:// or https://": "http:// veya https:// ile başlayan bir bağlantı girin",
+  "Enter a valid email address": "Geçerli bir e-posta adresi girin",
+  "Enter the model name": "Model adını girin",
+  "Describe what is wrong": "Neyin yanlış olduğunu açıklayın"
 }

@@ -7502,7 +7502,6 @@
     "An optional ID for your own end user, so misuse can be traced to the right person.": "An optional ID for your own end user, so misuse can be traced to the right person.",
     "You get {{percent}}% as credit": "Вы получаете {{percent}}% в виде кредитов",
     "Up to {{count}} requests per minute": "Up to {{count}} requests per minute",
-    "Too many requests. Please wait a moment and try again.": "Too many requests. Please wait a moment and try again.",
     "Assistant": "Assistant",
     "Pick a question or type your own.": "Pick a question or type your own.",
     "Type your question": "Type your question",
@@ -7521,5 +7520,23 @@
     "Not helpful": "Not helpful",
     "Thanks for your feedback": "Thanks for your feedback",
     "What should the answer have been?": "What should the answer have been?"
-  }
+  },
+  "Report a wrong price or missing model": "Report a wrong price or missing model",
+  "We check your report against the official source and fix the price list.": "We check your report against the official source and fix the price list.",
+  "Send report": "Send report",
+  "Sending...": "Sending...",
+  "What is the problem?": "What is the problem?",
+  "A price is wrong": "A price is wrong",
+  "A model is missing": "A model is missing",
+  "Something else": "Something else",
+  "Model": "Model",
+  "Explanation": "Explanation",
+  "Official source link (optional)": "Official source link (optional)",
+  "Your email for the answer (optional)": "Your email for the answer (optional)",
+  "Thank you, we check every report against the source.": "Thank you, we check every report against the source.",
+  "The report could not be sent.": "The report could not be sent.",
+  "Enter a link that starts with http:// or https://": "Enter a link that starts with http:// or https://",
+  "Enter a valid email address": "Enter a valid email address",
+  "Enter the model name": "Enter the model name",
+  "Describe what is wrong": "Describe what is wrong"
 }
