@@ -304,7 +304,9 @@ export function niceFloor(value: number): number {
 /**
  * A TRY-defined amount (start bonus, discount cap, budget) in whole units of
  * `currency`, rounded down so a text never promises more than the server gives.
- * TRY itself is returned unchanged.
+ * TRY itself is returned unchanged. The floor allows 1 % of rate noise: 250 TL
+ * at 50.03 TL/USD is $4.997, which the balance shows as $5.00, so the text says
+ * $5 instead of $4.
  */
 export function hwTryAmountIn(
   amountTry: number,
@@ -314,5 +316,7 @@ export function hwTryAmountIn(
   if (currency === 'TRY') return amountTry
   const tryPerUsd = rates.TRY ?? HW_FALLBACK_TRY_PER_USD
   const converted = convertHwUsd(amountTry / tryPerUsd, currency, rates)
-  return converted === null ? amountTry : Math.max(1, Math.floor(converted))
+  return converted === null
+    ? amountTry
+    : Math.max(1, Math.floor(converted * 1.01))
 }
