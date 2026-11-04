@@ -41,6 +41,7 @@ export const pluginProtocolClaimsSchema = z.array(
 )
 
 const previewSchemas = {
+  key: nonemptyString,
   models: z.array(nonemptyString),
   protocols: pluginProtocolClaimsSchema,
   routes: z.array(
@@ -411,6 +412,7 @@ export function resolvePluginMetaPreview(
 ): PluginMetaPreview['fields'] {
   const latest = version?.version === plugin?.latest
   const index = {
+    key: plugin?.key,
     models: latest ? plugin?.models : undefined,
     protocols: latest ? plugin?.protocols : undefined,
     channelTypes: latest ? plugin?.channelTypes : undefined,

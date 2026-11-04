@@ -85,7 +85,11 @@ func TestHwFreeGroupRateLimitCoversEveryBillableRoute(t *testing.T) {
 		Route:  pluginruntime.Route{Method: http.MethodPost, Path: "/hw-plugin/route", Type: pluginruntime.RouteTypeSubmit},
 	}
 	engine.POST(binding.Route.Path,
-		productionPluginRouteHandlers(&pluginruntime.RoutingGeneration{Number: 1}, binding)...)
+		productionPluginRouteHandlers(&pluginruntime.RoutingGeneration{Number: 1}, pluginruntime.RouteGroup{
+			Method:   binding.Route.Method,
+			GinPath:  binding.Route.Path,
+			Bindings: []pluginruntime.RouteBinding{binding},
+		})...)
 
 	for _, testCase := range []struct {
 		method string

@@ -293,6 +293,7 @@ const SENSITIVE_FORM_FIELDS = [
   'is_enterprise_account',
   'vertex_key_type',
   'vertex_project_id',
+  'vertex_api_version',
   'aws_key_type',
   'aws_api_type',
   'azure_responses_version',
@@ -3965,6 +3966,33 @@ export function ChannelMutateDrawer({
                           : t('API Key mode (does not support batch creation)')}
                       </FormDescription>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='vertex_api_version'
+                  render={({ field }) => (
+                    <FormItem className='flex items-center justify-between'>
+                      <div className='space-y-0.5'>
+                        <FormLabel>
+                          {t('Use Vertex AI v1beta1 endpoint')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Switches Gemini and Imagen requests on this Vertex channel from v1 to v1beta1. Some features require v1beta1; check the Vertex AI documentation.'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          disabled={sensitiveLocked}
+                          checked={field.value === 'v1beta1'}
+                          onCheckedChange={(checked) =>
+                            field.onChange(checked ? 'v1beta1' : 'v1')
+                          }
+                        />
+                      </FormControl>
                     </FormItem>
                   )}
                 />

@@ -113,6 +113,24 @@ func (s Sample) countsForSpeed() bool {
 	return s.OutputTokens >= model.HwSpeedMinOutputTokens && s.GenerationMs > 0
 }
 
+// Immediate failures are submit failures, which are not health samples.
+func RecordImmediateTaskResult(info *relaycommon.RelayInfo, result *relaycommon.TaskInfo) {
+	if result == nil || result.Status != model.TaskStatusSuccess {
+		return
+	}
+	sample := Sample{
+		Model:     info.OriginModelName,
+		Group:     info.UsingGroup,
+		LatencyMs: time.Since(info.StartTime).Milliseconds(),
+		Success:   true,
+	}
+	if tokens := int64(cmp.Or(result.TotalTokens, result.CompletionTokens)); tokens > 0 {
+		sample.OutputTokens = tokens
+		sample.GenerationMs = sample.LatencyMs
+	}
+	Record(sample)
+}
+
 func Record(sample Sample) {
 	setting := perf_metrics_setting.GetSetting()
 	if !setting.Enabled || sample.Model == "" {

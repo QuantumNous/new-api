@@ -14,9 +14,8 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
@@ -109,10 +108,10 @@ func rewriteSGLangResponsesCreatedAt(info *relaycommon.RelayInfo, payload []byte
 	if info.GetChannelType() != constant.ChannelTypeSGLang {
 		return payload
 	}
-	if !gjson.GetBytes(payload, path).Exists() {
+	if !ojson.GetBytes(payload, path).Exists() {
 		return payload
 	}
-	patched, err := sjson.SetBytes(payload, path, int(createdAt))
+	patched, err := ojson.SetBytes(payload, path, int(createdAt))
 	if err != nil {
 		return payload
 	}

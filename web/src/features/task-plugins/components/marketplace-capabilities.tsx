@@ -209,6 +209,9 @@ export function MarketplaceCapabilities(props: MarketplaceCapabilitiesProps) {
           routes={
             fields.routes.state === 'value' ? fields.routes.value : undefined
           }
+          pluginKey={
+            fields.key.state === 'value' ? fields.key.value : undefined
+          }
           protocolsNote={
             <EndpointPreviewNote
               label={t('Standard protocol interfaces')}
