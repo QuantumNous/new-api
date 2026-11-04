@@ -58,36 +58,36 @@
 
 ## 🚀 Quick Start
 
-### Using Docker Compose (Recommended)
+### Using Podman Compose (Recommended)
 
 ```bash
 # Clone the project
 git clone https://github.com/QuantumNous/new-api.git
 cd new-api
 
-# Edit deploy/docker-compose.yml configuration
-nano deploy/docker-compose.yml
+# Edit deploy/podman-compose.yml configuration
+nano deploy/podman-compose.yml
 
 # Start the service
-docker compose -f deploy/docker-compose.yml up -d
+podman compose -f deploy/podman-compose.yml up -d
 ```
 
 <details>
-<summary><strong>Using Docker Commands</strong></summary>
+<summary><strong>Using Podman Commands</strong></summary>
 
 ```bash
 # Pull the latest image
-docker pull calciumion/new-api:latest
+podman pull calciumion/new-api:latest
 
 # Using SQLite (default)
-docker run --name new-api -d --restart always \
+podman run --name new-api -d --restart always \
   -p 3000:3000 \
   -e TZ=Asia/Shanghai \
   -v ./data:/data \
   calciumion/new-api:latest
 
 # Using MySQL
-docker run --name new-api -d --restart always \
+podman run --name new-api -d --restart always \
   -p 3000:3000 \
   -e SQL_DSN="root:123456@tcp(localhost:3306)/oneapi" \
   -e TZ=Asia/Shanghai \
@@ -95,7 +95,7 @@ docker run --name new-api -d --restart always \
   calciumion/new-api:latest
 
 # Using PostgreSQL
-docker run --name new-api -d --restart always \
+podman run --name new-api -d --restart always \
   -p 3000:3000 \
   -e SQL_DSN="postgres://root:123456@localhost:5432/oneapi" \
   -e TZ=Asia/Shanghai \
@@ -313,10 +313,10 @@ git clone https://github.com/QuantumNous/new-api.git
 cd new-api
 
 # Edit configuration
-nano deploy/docker-compose.yml
+nano deploy/podman-compose.yml
 
 # Start service
-docker compose -f deploy/docker-compose.yml up -d
+podman compose -f deploy/podman-compose.yml up -d
 ```
 
 </details>

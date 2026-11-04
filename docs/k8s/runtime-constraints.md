@@ -83,7 +83,7 @@ apiRouter.GET("/status", controller.GetStatus)
 
 该路由在 `apiRouter` 分组内且未挂任何鉴权中间件（对比同文件第 27 行的 `/status/test` 带 `middleware.AdminAuth()`），因此 kubelet 可以直接探测。
 
-仓库自带的容器健康检查也使用同一端点，可作为可用性佐证：`deploy/docker-compose.yml:63` 通过 `wget -q -O - http://localhost:3000/api/status` 判活。
+仓库自带的容器健康检查也使用同一端点，可作为可用性佐证：`deploy/podman-compose.yml` 通过 `wget -q -O - http://localhost:3000/api/status` 判活。
 
 清单中的用法（`deploy/k8s/new-api-master.yaml`、`deploy/k8s/new-api-worker.yaml`）：
 

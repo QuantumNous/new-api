@@ -1,0 +1,23 @@
+# /etc/containers/systemd/newapi-postgres.container
+# Run: systemctl daemon-reload && systemctl enable --now newapi-postgres
+
+[Unit]
+Description=new-api PostgreSQL/TimescaleDB (Podman)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=timescale/timescaledb:latest-pg18
+ContainerName=newapi-postgres
+Network=host
+Environment=POSTGRES_USER=root
+Environment=POSTGRES_PASSWORD=change-me
+Environment=POSTGRES_DB=new-api
+Volume=newapi-pg-data:/var/lib/postgresql/data
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

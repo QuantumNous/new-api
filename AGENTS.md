@@ -46,7 +46,7 @@ apps/web/       — Frontend (React 19, Rsbuild, Base UI, Tailwind)
   modules/relaykit/ — Protocol conversion module (independently buildable, local replace in go.mod)
   web/dist/      — Frontend build output copied here for go:embed (gitignored)
 db/            — Database migration assets
-deploy/        — Dockerfile, compose, systemd unit, Kubernetes manifests (see deploy/README.md)
+deploy/        — Containerfiles/Dockerfile for CI builds, podman compose + Quadlet units, Kubernetes manifests (see deploy/README.md)
   k8s/         — Kubernetes manifests (master/worker split, PG/Redis, Ingress)
 scripts/       — Engineering helper scripts
 docs/          — Documentation, including docs/k8s/

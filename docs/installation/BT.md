@@ -48,10 +48,10 @@
 5. 点击 **确认** 开始安装
 6. 等待安装完成后，访问 `http://您的服务器IP:3000` 即可使用
 
-### 方法二：使用 Docker Compose
+### 方法二：使用 Podman Compose
 
 1. 在宝塔面板中创建网站目录，如 `/www/wwwroot/new-api`
-2. 创建 `docker-compose.yml` 文件：
+2. 创建 `podman-compose.yml` 文件：
 
 ```yaml
 version: '3'
@@ -73,7 +73,7 @@ services:
 
 ```bash
 cd /www/wwwroot/new-api
-docker-compose up -d
+podman-compose up -d
 ```
 
 ***

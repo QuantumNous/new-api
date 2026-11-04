@@ -1,0 +1,26 @@
+# /etc/containers/systemd/new-api.container
+# Run: systemctl daemon-reload && systemctl enable --now new-api
+
+[Unit]
+Description=new-api (Podman)
+After=newapi-postgres.service network-online.target
+Wants=network-online.target
+
+[Container]
+Image=ghcr.io/xiaocongyu66/new-api:latest
+ContainerName=new-api
+Network=host
+EnvironmentFile=/opt/new-api/deploy/.env
+Volume=/opt/new-api/data:/data
+Volume=/opt/new-api/logs:/app/logs
+HealthCmd=wget -q -O - http://127.0.0.1:3000/api/status | grep -o '"success":\\s*true' || exit 1
+HealthInterval=30s
+HealthTimeout=10s
+HealthRetries=3
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

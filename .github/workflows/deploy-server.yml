@@ -1,22 +1,4 @@
-name: Deploy to Server (Docker Compose)
-
-# 服务器轻量部署 workflow：
-#   - 仅拉新镜像 + 重启 new-api 容器，不碰数据库，不碰 nginx/网络
-#   - 零硬编码密钥：所有凭证来自 GitHub Actions Secrets
-#   - 部署步骤：SSH 到服务器 → 备份当前镜像 tag → docker compose pull →
-#               docker compose up -d new-api → 健康检查（HTTP 200）→ 失败自动回滚
-#
-# 触发方式：
-#   1. 手动触发：Actions → Deploy to Server → 输入 image_tag（例如 sha-abc123 或 insight）
-#
-# 需要在仓库 Settings → Secrets and variables → Actions 配置的 Secrets：
-#   PROD_SERVER_HOST         生产单机服务器 IP/域名（例如 your-server-ip 或 your-server.example.com）
-#   PROD_SERVER_USER         SSH 用户名（例如 root）
-#   PROD_SERVER_SSH_KEY      专用的 ED25519 部署私钥
-#   PROD_SERVER_SSH_PORT     SSH 端口（可选，默认 22）
-#   PROD_DEPLOY_PATH         compose 部署目录（可选，默认 /opt/new-api/deploy）
-#
-# 注意：不要与 K8s 集群维护所用的 SERVERS_LIST_JSON（不稳定测试节点）混淆。
+name: Deploy to Server (Podman)
 
 on:
   workflow_dispatch:
@@ -28,12 +10,12 @@ on:
         type: string
 
 concurrency:
-  group: server-deploy
+  group: server-deploy-podman
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy to Server
+    name: Deploy to Server (Podman)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -59,7 +41,6 @@ jobs:
           [ -z "${{ secrets.PROD_SERVER_SSH_KEY }}" ] && missing+=("PROD_SERVER_SSH_KEY")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::缺少必需的 GitHub Secrets: ${missing[*]}"
-            echo "请在 Settings → Secrets and variables → Actions 中配置它们"
             exit 1
           fi
 
@@ -93,22 +74,18 @@ jobs:
 
             IMAGE_NAME="ghcr.io/${REPO}:${IMAGE_TAG}"
             echo "=== 1. 拉取新镜像: ${IMAGE_NAME} ==="
-            docker pull "${IMAGE_NAME}"
+            podman pull "${IMAGE_NAME}"
 
             echo "=== 2. 记录当前运行的镜像（用于回滚） ==="
-            PREV_IMAGE=$(docker inspect new-api --format '{{.Image}}' 2>/dev/null || echo "")
+            PREV_IMAGE=$(podman inspect new-api --format '{{.Image}}' 2>/dev/null || echo "")
             echo "PREV_IMAGE=${PREV_IMAGE}"
 
             echo "=== 3. 更新 compose 并重启 new-api ==="
-            # 仅更新 new-api 服务的镜像 tag，不碰任何环境变量、volume 或其它服务
-            # 注意: heredoc 用 <<'REMOTE_SCRIPT' 传原文，远端 bash 展开变量，因此这里必须用双引号
-            sed -i -E "/^  new-api:/{n;s|^    image: .*|    image: ${IMAGE_NAME}|}" docker-compose.yml
-            docker compose up -d --no-deps new-api
+            sed -i -E "/^  new-api:/{n;s|^    image: .*|    image: ${IMAGE_NAME}|}" podman-compose.yml
+            podman compose -f podman-compose.yml up -d --no-deps new-api
 
             echo "=== 4. 健康检查（最多等 45s） ==="
-            # 部署目录的 compose 可能通过 PORT= 覆盖监听端口（host 网络模式），
-            # 不能假定 3000，否则健康检查必然失败并触发误回滚。
-            HEALTH_PORT=$(grep -E '^\s*-\s*PORT=' docker-compose.yml | head -1 | sed -E 's/.*PORT=([0-9]+).*/\1/')
+            HEALTH_PORT=$(grep -E '^\s*-\s*PORT=' podman-compose.yml | head -1 | sed -E 's/.*PORT=([0-9]+).*/\1/')
             HEALTH_PORT=${HEALTH_PORT:-3000}
             echo "健康检查端口: ${HEALTH_PORT}"
             HEALTHY=0
@@ -126,14 +103,14 @@ jobs:
             if [ "$HEALTHY" -ne 1 ]; then
               echo "::error::健康检查失败！正在回滚到: ${PREV_IMAGE}"
               if [ -n "${PREV_IMAGE}" ]; then
-                sed -i -E "/^  new-api:/{n;s|^    image: .*|    image: ${PREV_IMAGE}|}" docker-compose.yml
-                docker compose up -d --no-deps new-api
+                sed -i -E "/^  new-api:/{n;s|^    image: .*|    image: ${PREV_IMAGE}|}" podman-compose.yml
+                podman compose -f podman-compose.yml up -d --no-deps new-api
               fi
               exit 1
             fi
 
             echo "=== 5. 部署成功 ==="
-            docker ps --filter name=new-api --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+            podman ps --filter name=new-api --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
           REMOTE_SCRIPT
 
       - name: Summary

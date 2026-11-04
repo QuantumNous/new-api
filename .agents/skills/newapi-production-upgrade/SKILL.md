@@ -29,7 +29,7 @@ Configure the following secrets in the repository under `Settings -> Secrets and
 | `PROD_SERVER_USER` | **Yes** | `root` | SSH login username. |
 | `PROD_SERVER_SSH_KEY` | **Yes** | `-----BEGIN OPENSSH...` | Dedicated ED25519 private key (injected via pipe without displaying). |
 | `PROD_SERVER_SSH_PORT` | No | `22` | SSH port (defaults to `22`). |
-| `PROD_DEPLOY_PATH` | No | `/opt/new-api/deploy` | Path containing `docker-compose.yml` (defaults to `/opt/new-api/deploy`). |
+| `PROD_DEPLOY_PATH` | No | `/opt/new-api/deploy` | Path containing `podman-compose.yml` (defaults to `/opt/new-api/deploy`). |
 
 *Important*: Never confuse these with `SERVERS_LIST_JSON`, which is reserved exclusively for unstable testing nodes and K3s cluster maintenance.
 
@@ -160,7 +160,7 @@ export PROD_HOST=<server-ip-or-hostname>      # e.g. 203.0.113.10 or newapi.exam
 export PROD_USER=<ssh-user>
 export PROD_SSH_PORT=22
 export PROD_DEPLOY_PATH=/opt/new-api/deploy
-export HEALTH_PORT=<api-port>                 # PORT= in the target docker-compose.yml
+export HEALTH_PORT=<api-port>                 # PORT= in the target podman-compose.yml
 export CADDY_CONTAINER=<caddy-container-name> # `docker ps --filter ancestor=caddy --format '{{.Names}}'`
 ```
 

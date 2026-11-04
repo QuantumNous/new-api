@@ -1,0 +1,60 @@
+# New-API Podman Compose Configuration
+#
+# Usage:
+#   podman-compose -f deploy/podman-compose.yml up -d
+#
+# This file is the production Podman Compose stack for new-api.
+# Database: PostgreSQL via TimescaleDB plugin (timescale/timescaledb:latest-pg18).
+# For low-memory production hosts, prefer Quadlet units in deploy/podman/quadlet/.
+
+version: "3.8"
+
+services:
+  new-api:
+    image: ghcr.io/xiaocongyu66/new-api:latest
+    container_name: new-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+      - NODE_NAME=new-api-node-1
+      - PORT=3000
+      - TIMESCALEDB_ENABLED=true
+      - TIMESCALEDB_CHUNK_INTERVAL_SECONDS=86400
+      - TIMESCALEDB_COMPRESS_AFTER_DAYS=3
+    depends_on:
+      - postgres
+    networks:
+      - new-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: timescale/timescaledb:latest-pg18
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: new-api
+    volumes:
+      - pg_data:/var/lib/postgresql
+    networks:
+      - new-api-network
+
+volumes:
+  pg_data:
+
+networks:
+  new-api-network:
+    driver: bridge
