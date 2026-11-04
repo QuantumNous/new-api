@@ -136,10 +136,11 @@ func HwAccountFrozenMessage(c *gin.Context) string {
 }
 
 // HwModelUnavailableError tells the customer that this model is temporarily
-// unavailable at the supplier and names the model one step lower when there is
-// one. It names no supplier; the supplier text stays in the admin log.
+// unavailable at the supplier and names a model that is healthy now (see
+// HwHealthyAlternative). It names no supplier; the supplier text stays in the
+// admin log.
 func HwModelUnavailableError(c *gin.Context, modelName string) *types.NewAPIError {
-	lower := HwModelStepDown(modelName)
+	lower := HwHealthyAlternative(modelName)
 	var message string
 	switch {
 	case HwPrefersTurkish(c) && lower != "":

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -47,9 +48,14 @@ func TestHwTerminalErrorTurnsSupplierCreditIntoModelUnavailable(t *testing.T) {
 	assert.False(t, hwIsSupplierCreditError(types.NewErrorWithStatusCode(errors.New("insufficient user quota"), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden)), "our own quota refusal belongs to the customer")
 }
 
-// A credit failure on Lumia moves on to the next allowed channel, without the
-// paused outage retry on Lumia and without cooling Lumia for the other models.
-func TestHwDecideRetryMovesOnAfterSupplierCredit(t *testing.T) {
+// A credit failure on Lumia is intermittent (4 Nov 2026: good rows between the
+// failures), so the same Lumia channel gets one more attempt after a short
+// pause; only a second failure moves on to the next allowed channel. Lumia is
+// not cooled for the other models.
+func TestHwDecideRetryRetriesSupplierCreditOnceThenMovesOn(t *testing.T) {
+	previous := hwSupplierCreditPause
+	hwSupplierCreditPause = 0
+	t.Cleanup(func() { hwSupplierCreditPause = previous; hwResetModelHealth() })
 	lumia := hwPolicyChannel(9101, HwProviderLumia, "")
 	spare := hwPolicyChannel(9102, HwProviderPortix, "")
 	credit := types.NewErrorWithStatusCode(errors.New("Your credit balance is too low"), "invalid_request_error", http.StatusBadRequest)
@@ -61,10 +67,58 @@ func TestHwDecideRetryMovesOnAfterSupplierCredit(t *testing.T) {
 	decision, handled := HwDecideRetry(c, credit)
 	require.True(t, handled)
 	assert.Equal(t, "retry", decision.Action)
-	assert.False(t, state.outage, "no paused Lumia retry for an empty supplier account")
+	assert.False(t, state.outage, "no outage cooldown for an empty supplier account")
 	allowed, _ := hwLumiaAllows(false)
 	assert.True(t, allowed, "Lumia keeps serving the other models")
-	assert.Same(t, spare, state.next())
+	assert.Same(t, lumia, state.next(), "one more attempt on the same Lumia channel")
+
+	decision, _ = HwDecideRetry(c, credit)
+	assert.Equal(t, "retry", decision.Action)
+	assert.Same(t, spare, state.next(), "the second failure moves on")
+
+	free := hwPolicyRoute([]*model.Channel{lumia}, nil)
+	c.Set(hwRouteContextKey, free)
+	require.Same(t, lumia, free.next())
+	decision, _ = HwDecideRetry(c, credit)
+	assert.Equal(t, "retry", decision.Action, "a route with Lumia only still gets the retry")
+	assert.Same(t, lumia, free.next())
+	decision, _ = HwDecideRetry(c, credit)
+	assert.Equal(t, "stop", decision.Action)
+}
+
+// The alternative named in the 503 must be a model that works now: a model
+// with a supplier credit failure in the last minutes is skipped, and when the
+// whole vendor is sick the best healthy model of another vendor is named. The
+// first good answer makes a model healthy again.
+func TestHwHealthyAlternativeSkipsSickModels(t *testing.T) {
+	t.Cleanup(hwResetModelHealth)
+	hwResetModelHealth()
+	assert.Equal(t, "claude-opus-5-5", HwHealthyAlternative("claude-fable-5-1"))
+
+	HwNoteModelCreditFailure("claude-opus-5-5")
+	HwNoteModelCreditFailure("claude-sonnet-5-5")
+	assert.True(t, HwModelSick("claude-opus-5-5"))
+	assert.Equal(t, "claude-haiku-5-5", HwHealthyAlternative("claude-fable-5-1"))
+
+	HwNoteModelCreditFailure("claude-haiku-5-5")
+	HwNoteModelCreditFailure("claude-fable-5-1")
+	assert.Equal(t, "gpt-6-astra", HwHealthyAlternative("claude-fable-5-1"), "same price, other vendor")
+	assert.Equal(t, "gpt-6.1-sol", HwHealthyAlternative("claude-opus-5-5"), "best other model not above the price")
+	assert.Equal(t, "gpt-6-luna", HwHealthyAlternative("claude-haiku-5-5"))
+
+	message := HwModelUnavailableError(hwClientErrorContext(""), "claude-opus-5-5").Error()
+	assert.Contains(t, message, "gpt-6.1-sol")
+	assert.NotContains(t, message, "claude-sonnet-5-5", "never point at a sick model")
+
+	HwNoteModelHealthy("claude-sonnet-5-5")
+	assert.False(t, HwModelSick("claude-sonnet-5-5"))
+	assert.Equal(t, "claude-sonnet-5-5", HwHealthyAlternative("claude-opus-5-5"))
+
+	previous := hwModelHealthClock
+	hwModelHealthClock = func() time.Time { return time.Now().Add(hwModelSickFor + time.Second) }
+	t.Cleanup(func() { hwModelHealthClock = previous })
+	assert.False(t, HwModelSick("claude-opus-5-5"), "sickness wears off by itself")
+	assert.Equal(t, []string(nil), HwSickModels())
 }
 
 func TestHwModelStepDown(t *testing.T) {
