@@ -83,6 +83,10 @@ type HwRouteState struct {
 
 	outage       bool
 	lumiaRetried bool
+	// credit marks a Lumia attempt that failed on the supplier's own credit;
+	// creditRetried that its single same-channel retry is spent.
+	credit        bool
+	creditRetried bool
 	// probe is the lease of the Lumia probe slot this request took, zero while
 	// it holds none. HwReleaseLumiaProbe frees exactly that lease.
 	probe           time.Time
@@ -456,7 +460,7 @@ func (s *HwRouteState) hasNext() bool {
 		// splice two different answers together.
 		return false
 	}
-	if s.peekFree() != nil || s.peekLumia() != nil {
+	if s.creditRetryPending() || s.peekFree() != nil || s.peekLumia() != nil {
 		return true
 	}
 	if s.outageRetryPending() {
@@ -476,6 +480,16 @@ func (s *HwRouteState) outageRetryPending() bool {
 	}
 	return common.HwLumiaCooldownMs <= 0
 }
+
+// creditRetryPending reports whether the single same-channel retry after a
+// Lumia credit failure remains. The failure is intermittent, so one more try on
+// the same account often succeeds where the next channel would not exist.
+func (s *HwRouteState) creditRetryPending() bool {
+	return s.credit && !s.creditRetried && s.lastChannel != nil && HwChannelProvider(s.lastChannel) == HwProviderLumia
+}
+
+// hwSupplierCreditPause is the pause before the credit retry; tests set it to 0.
+var hwSupplierCreditPause = 1500 * time.Millisecond
 
 func (s *HwRouteState) peekFree() *model.Channel {
 	for _, channel := range s.free {
@@ -525,6 +539,14 @@ func (s *HwRouteState) next() *model.Channel {
 	if s == nil || s.finished {
 		return nil
 	}
+	if s.creditRetryPending() {
+		s.creditRetried = true
+		s.credit = false
+		time.Sleep(hwSupplierCreditPause)
+		s.recordAttempt(s.lastChannel, HwProviderLumia)
+		return s.lastChannel
+	}
+	s.credit = false
 	if channel := s.peekFree(); channel != nil {
 		s.tried[channel.Id] = true
 		s.recordAttempt(channel, HwProviderFree)
@@ -671,6 +693,7 @@ func HwNoteSupplierSuccess(c *gin.Context) {
 		return
 	}
 	state.probe = time.Time{}
+	HwNoteModelHealthy(state.model)
 	hwLumiaBreaker.Lock()
 	defer hwLumiaBreaker.Unlock()
 	hwLumiaBreaker.failures = 0
@@ -763,6 +786,8 @@ func HwDecideRetry(c *gin.Context, apiErr *types.NewAPIError) (PolicyDecision, b
 		// Fixed marker for the supplier health check of the office board: one
 		// line per failure, channel and model only, never the supplier text.
 		logger.LogWarn(c, common.LogText("hw supplier credit exhausted: channel_id=%d model=%s", state.lastChannel.Id, state.model))
+		HwNoteModelCreditFailure(state.model)
+		state.credit = HwChannelProvider(state.lastChannel) == HwProviderLumia
 	}
 	if types.IsSkipRetryError(apiErr) || apiErr.GetErrorCode() == HwErrorCodeServiceBusy {
 		state.finished = true
