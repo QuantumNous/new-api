@@ -123,6 +123,71 @@ func TestPostTextConsumeQuotaAppliesPromptOverhead(t *testing.T) {
 	}
 }
 
+// A customer who gives up on a stream before its first token received nothing,
+// so the attempt settles at zero: the pre-consumed quota goes back and the
+// single consume log shows quota 0. Measured 4 Nov 2026: row 7023 hung 145 s on
+// Lumia, ended client_gone with no chunk and was billed the prompt estimate.
+// Once output reached the customer the normal settlement applies.
+func TestPostTextConsumeQuotaClientGoneBeforeOutput(t *testing.T) {
+	db := hwPromptOverheadDB(t)
+	hwSetPromptOverheadOption(t, ``)
+	for index, tc := range []struct {
+		name          string
+		received      int
+		writes        int
+		wantQuota     int
+		wantNoOutputs bool
+	}{
+		{name: "no chunk and no write settles at zero", wantQuota: 0, wantNoOutputs: true},
+		{name: "a chunk already received is billed", received: 2, wantQuota: 812},
+		{name: "a chunk already written is billed", writes: 1, wantQuota: 812},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			user := model.User{Username: fmt.Sprintf("client_gone_%d", index), AffCode: fmt.Sprintf("gone%d", index), Quota: 1_000_000, Status: common.UserStatusEnabled}
+			require.NoError(t, db.Create(&user).Error)
+			token := model.Token{UserId: user.Id, Key: fmt.Sprintf("client-gone-%d", index), Name: "gone", RemainQuota: 1_000_000, Status: common.TokenStatusEnabled}
+			require.NoError(t, db.Create(&token).Error)
+
+			status := relaycommon.NewStreamStatus()
+			status.RequireTerminal()
+			status.SetEndReason(relaycommon.StreamEndReasonClientGone, nil)
+			info := &relaycommon.RelayInfo{
+				UserId: user.Id, TokenId: token.Id, TokenKey: token.Key,
+				ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: 1},
+				OriginModelName: "gpt-6-astra", UsingGroup: "free", UserGroup: "free",
+				RelayFormat: types.RelayFormatOpenAI, IsStream: true, StartTime: time.Now(),
+				StreamStatus: status, ReceivedResponseCount: tc.received,
+				UserSetting: dto.UserSetting{BillingPreference: "wallet_only"},
+				PriceData:   hwPromptOverheadPrice(),
+			}
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			ctx.Set(hwRouteContextKey, hwPolicyRoute(nil, nil))
+			for range tc.writes {
+				HwNoteStreamWrite(ctx)
+			}
+
+			PostTextConsumeQuota(ctx, info, &dto.Usage{PromptTokens: 807, CompletionTokens: 5, TotalTokens: 812}, nil)
+
+			require.NoError(t, db.First(&user, user.Id).Error)
+			assert.Equal(t, 1_000_000-tc.wantQuota, user.Quota)
+			var logs []model.Log
+			require.NoError(t, db.Where("user_id = ?", user.Id).Find(&logs).Error)
+			require.Len(t, logs, 1, "one request, one consume log")
+			assert.Equal(t, tc.wantQuota, logs[0].Quota)
+			var other map[string]any
+			require.NoError(t, common.UnmarshalJsonStr(logs[0].Other, &other))
+			admin, _ := other["admin_info"].(map[string]any)
+			if tc.wantNoOutputs {
+				assert.Equal(t, true, admin["client_gone_before_output"])
+				assert.Zero(t, logs[0].PromptTokens)
+				return
+			}
+			assert.NotContains(t, admin, "client_gone_before_output")
+		})
+	}
+}
+
 func hwPromptOverheadPrice() hosttypes.PriceData {
 	return hosttypes.PriceData{ModelRatio: 1, CompletionRatio: 1, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}}
 }
