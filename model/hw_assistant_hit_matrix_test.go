@@ -170,7 +170,9 @@ func TestHwPricingFeedbackDatabaseMatrix(t *testing.T) {
 				// Production refuses to start on a schema that is not
 				// utf8mb4-capable (checkMySQLChineseSupport in main.go); the CI
 				// schema is latin1, so the table states the charset itself.
-				db = db.Set("gorm:table_options", "CHARSET=utf8mb4")
+				// Set returns a statement that keeps its conditions; Session
+				// makes it a reusable handle again.
+				db = db.Set("gorm:table_options", "CHARSET=utf8mb4").Session(&gorm.Session{})
 			}
 			sqlDB, err := db.DB()
 			require.NoError(t, err)
