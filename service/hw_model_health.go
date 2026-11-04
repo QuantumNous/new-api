@@ -48,17 +48,6 @@ func HwModelSick(name string) bool {
 	return ok && hwModelHealthClock().Sub(since) < hwModelSickFor
 }
 
-// HwSickModels lists the sold models that are sick right now, in catalog order.
-func HwSickModels() []string {
-	var sick []string
-	for _, sold := range hwSoldModels {
-		if HwModelSick(sold.Name) {
-			sick = append(sick, sold.Name)
-		}
-	}
-	return sick
-}
-
 func hwResetModelHealth() {
 	hwModelHealth.Lock()
 	defer hwModelHealth.Unlock()

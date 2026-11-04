@@ -118,7 +118,7 @@ func TestHwHealthyAlternativeSkipsSickModels(t *testing.T) {
 	hwModelHealthClock = func() time.Time { return time.Now().Add(hwModelSickFor + time.Second) }
 	t.Cleanup(func() { hwModelHealthClock = previous })
 	assert.False(t, HwModelSick("claude-opus-5-5"), "sickness wears off by itself")
-	assert.Equal(t, []string(nil), HwSickModels())
+	assert.False(t, HwModelSick("claude-fable-5-1"))
 }
 
 func TestHwModelStepDown(t *testing.T) {
