@@ -58,9 +58,14 @@ export function main([basis, kop] = process.argv.slice(2)) {
     return 2
   }
   const limieten = leesHaaklijst(readFileSync(HAAKLIJST, 'utf8'))
+  // Een upstreambestand is een bestand uit de laatste upstream-tag op de basis.
+  // De basis zelf bevat ook onze eigen bestanden, en een wijziging daarin is
+  // geen haak. Zonder tag (ondiepe checkout) blijft de basis de maat.
+  const upstream =
+    git('tag', '--list', 'v*', '--merged', basis, '--sort=-v:refname').split('\n')[0].trim() || basis
   const bestaatInBasis = (pad) => {
     try {
-      execFileSync('git', ['cat-file', '-e', `${basis}:${pad}`], { stdio: 'ignore' })
+      execFileSync('git', ['cat-file', '-e', `${upstream}:${pad}`], { stdio: 'ignore' })
       return true
     } catch {
       return false
