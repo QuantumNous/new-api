@@ -766,7 +766,49 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case relayconstant.RelayModeRealtime:
 		err, usage = OpenaiRealtimeHandler(c, info)
 	case relayconstant.RelayModeAudioSpeech:
-		usage, err = OpenaiTTSHandler(c, resp, info)
+		usage, err = OpenaiTTSHandler(c, resp, info, func() (*http.Response, *types.NewAPIError) {
+			request, ok := info.Request.(*dto.AudioRequest)
+			if !ok {
+				return nil, types.NewOpenAIError(
+					fmt.Errorf("invalid audio request type %T", info.Request),
+					types.ErrorCodeInvalidRequest,
+					http.StatusBadRequest,
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
+			requestBody, convertErr := a.ConvertAudioRequest(c, info, *request)
+			if convertErr != nil {
+				return nil, types.NewOpenAIError(
+					convertErr,
+					types.ErrorCodeConvertRequestFailed,
+					http.StatusInternalServerError,
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
+			retryResp, requestErr := a.DoRequest(c, info, requestBody)
+			if requestErr != nil {
+				return nil, types.NewOpenAIError(
+					requestErr,
+					types.ErrorCodeDoRequestFailed,
+					http.StatusBadGateway,
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
+			httpResp, ok := retryResp.(*http.Response)
+			if !ok || httpResp == nil {
+				return nil, types.NewOpenAIError(
+					errors.New("invalid TTS retry response"),
+					types.ErrorCodeBadResponse,
+					http.StatusBadGateway,
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
+			if httpResp.StatusCode != http.StatusOK {
+				defer service.CloseResponseBodyGracefully(httpResp)
+				return nil, service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+			}
+			return httpResp, nil
+		})
 	case relayconstant.RelayModeAudioTranslation:
 		fallthrough
 	case relayconstant.RelayModeAudioTranscription:

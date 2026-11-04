@@ -19,14 +19,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
-	// the status code has been judged before, if there is a body reading failure,
-	// it should be regarded as a non-recoverable error, so it should not return err for external retry.
-	// Analogous to nginx's load balancing, it will only retry if it can't be requested or
-	// if the upstream returns a specific status code, once the upstream has already written the header,
-	// the subsequent failure of the response body should be regarded as a non-recoverable error,
-	// and can be terminated directly.
-	defer service.CloseResponseBodyGracefully(resp)
+func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, retry func() (*http.Response, *types.NewAPIError)) (*dto.Usage, *types.NewAPIError) {
+	// Responses are buffered before any downstream bytes are written, so a
+	// connection reset while reading the upstream body can be retried safely.
+	defer func() {
+		service.CloseResponseBodyGracefully(resp)
+	}()
 	usage := &dto.Usage{}
 	usage.PromptTokens = info.GetEstimatePromptTokens()
 	usage.TotalTokens = usage.PromptTokens
@@ -57,6 +55,25 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 		})
 	} else {
 		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil && retry != nil && !c.Writer.Written() && c.Request != nil && c.Request.Context().Err() == nil {
+			logger.LogWarn(c, common.LogText("retrying TTS request after upstream response body read failure: %v", err))
+			service.CloseResponseBodyGracefully(resp)
+			resp = nil
+			retriedResp, retryErr := retry()
+			if retryErr != nil {
+				return nil, retryErr
+			}
+			if retriedResp == nil {
+				return nil, types.NewOpenAIError(
+					errors.New("TTS retry returned no upstream response"),
+					types.ErrorCodeBadResponse,
+					http.StatusBadGateway,
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
+			resp = retriedResp
+			bodyBytes, err = io.ReadAll(resp.Body)
+		}
 		if err != nil {
 			logger.LogError(c, common.LogText("failed to read TTS response body: %v", err))
 			return nil, types.NewOpenAIError(

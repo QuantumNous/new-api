@@ -79,7 +79,7 @@ func TestOpenaiTTSHandlerRejectsFailedResponseBodies(t *testing.T) {
 				Request: &dto.AudioRequest{ResponseFormat: "mp3"},
 			}
 
-			usage, apiErr := OpenaiTTSHandler(c, resp, info)
+			usage, apiErr := OpenaiTTSHandler(c, resp, info, nil)
 			require.Nil(t, usage)
 			require.NotNil(t, apiErr)
 			assert.Equal(t, tt.code, apiErr.GetErrorCode())
@@ -110,7 +110,7 @@ func TestOpenaiTTSHandlerWritesCompleteAudioResponse(t *testing.T) {
 		Request: &dto.AudioRequest{ResponseFormat: "mp3"},
 	}
 
-	usage, apiErr := OpenaiTTSHandler(c, resp, info)
+	usage, apiErr := OpenaiTTSHandler(c, resp, info, nil)
 	require.Nil(t, apiErr)
 	require.NotNil(t, usage)
 	assert.Equal(t, http.StatusOK, recorder.Code)
@@ -119,4 +119,69 @@ func TestOpenaiTTSHandlerWritesCompleteAudioResponse(t *testing.T) {
 	assert.Equal(t, strconv.Itoa(len(audio)), recorder.Header().Get("Content-Length"))
 	assert.Equal(t, len(audio), recorder.Body.Len())
 	assert.Equal(t, audio, recorder.Body.Bytes())
+}
+
+func TestOpenaiTTSHandlerRetriesFailedResponseBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	audio := []byte("ID3retried-mp3-audio")
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/audio/speech", nil)
+	info := &relaycommon.RelayInfo{
+		Request: &dto.AudioRequest{ResponseFormat: "mp3"},
+	}
+	first := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"audio/mpeg"}},
+		Body:       io.NopCloser(iotest.ErrReader(io.ErrUnexpectedEOF)),
+	}
+	retried := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"audio/mpeg"}},
+		Body:       io.NopCloser(bytes.NewReader(audio)),
+	}
+	retryCalls := 0
+
+	usage, apiErr := OpenaiTTSHandler(c, first, info, func() (*http.Response, *types.NewAPIError) {
+		retryCalls++
+		return retried, nil
+	})
+
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 1, retryCalls)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "audio/mpeg", recorder.Header().Get("Content-Type"))
+	assert.Equal(t, strconv.Itoa(len(audio)), recorder.Header().Get("Content-Length"))
+	assert.Equal(t, audio, recorder.Body.Bytes())
+}
+
+func TestOpenaiTTSHandlerDoesNotRetryAfterResponseStarted(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/audio/speech", nil)
+	c.Writer.WriteHeader(http.StatusOK)
+	c.Writer.WriteHeaderNow()
+	info := &relaycommon.RelayInfo{
+		Request: &dto.AudioRequest{ResponseFormat: "mp3"},
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"audio/mpeg"}},
+		Body:       io.NopCloser(iotest.ErrReader(io.ErrUnexpectedEOF)),
+	}
+	retryCalls := 0
+
+	usage, apiErr := OpenaiTTSHandler(c, resp, info, func() (*http.Response, *types.NewAPIError) {
+		retryCalls++
+		return nil, nil
+	})
+
+	require.Nil(t, usage)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, 0, retryCalls)
+	assert.Equal(t, types.ErrorCodeReadResponseBodyFailed, apiErr.GetErrorCode())
 }
