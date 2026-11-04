@@ -53,6 +53,10 @@ spec:
                   fieldPath: metadata.name
             - name: TZ
               value: "Asia/Shanghai"
+            - name: RELAY_TIMEOUT
+              value: "300"
+            - name: STREAMING_TIMEOUT
+              value: "300"
             # 所有凭证只通过 secretKeyRef 引用集群内 Secret，清单中不含任何明文。
             # Secret 由 .github/workflows/deploy.yml 从 GitHub Actions Secrets 生成。
             - name: SQL_DSN

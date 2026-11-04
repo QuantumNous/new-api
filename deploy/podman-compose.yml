@@ -29,6 +29,8 @@ services:
       - TIMESCALEDB_ENABLED=true
       - TIMESCALEDB_CHUNK_INTERVAL_SECONDS=86400
       - TIMESCALEDB_COMPRESS_AFTER_DAYS=3
+      - RELAY_TIMEOUT=300
+      - STREAMING_TIMEOUT=300
     depends_on:
       - postgres
     networks:
