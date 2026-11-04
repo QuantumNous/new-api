@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
-import { formatDecimal } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatDecimal, formatNumber, formatQuota } from '@/lib/format'
 import { formatTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
@@ -55,18 +56,20 @@ function formatDuration(
 }
 
 export function MessageMetadata(props: MessageMetadataProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const messageTime = formatMessageTime(props.message.createdAt)
   const duration = formatDuration(props.message.durationMs, t)
+  const usage = props.message.usage
 
-  if (!messageTime && !duration) {
+  if (!messageTime && !duration && !usage) {
     return null
   }
 
   return (
     <div
       className={cn(
-        'text-muted-foreground mt-1 flex min-h-4 items-center gap-1.5 text-[11px] leading-none',
+        'text-muted-foreground mt-1 flex min-h-4 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-none',
         props.alignment === 'right' && 'justify-end'
       )}
     >
@@ -76,6 +79,33 @@ export function MessageMetadata(props: MessageMetadataProps) {
           {messageTime && <span aria-hidden='true'>·</span>}
           <span>{t('Response time: {{duration}}', { duration })}</span>
         </>
+      )}
+      {usage && (
+        <span
+          className='flex flex-wrap items-center gap-x-1.5 gap-y-1'
+          data-testid='playground-message-usage'
+        >
+          {(messageTime || duration) && <span aria-hidden='true'>·</span>}
+          {usage.promptTokens !== undefined &&
+            usage.completionTokens !== undefined && (
+              <span>
+                {t('Tokens: {{input}} in, {{output}} out', {
+                  input: formatNumber(usage.promptTokens, locale),
+                  output: formatNumber(usage.completionTokens, locale),
+                })}
+              </span>
+            )}
+          <span>
+            {t('Cost: {{cost}}', { cost: formatQuota(usage.costQuota) })}
+          </span>
+          {usage.balanceQuota !== undefined && (
+            <span>
+              {t('Remaining credit: {{balance}}', {
+                balance: formatQuota(usage.balanceQuota),
+              })}
+            </span>
+          )}
+        </span>
       )}
     </div>
   )

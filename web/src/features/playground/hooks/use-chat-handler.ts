@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getSelf } from '@/lib/api'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { sendChatCompletion } from '../api'
@@ -34,8 +35,15 @@ import {
   hasChatCompletionChoice,
   isAssistantMessageFinal,
   isAssistantMessagePending,
+  computeTestCostQuota,
+  parseUsageTokens,
 } from '../lib'
-import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
+import type {
+  Message,
+  MessageUsageTokens,
+  PlaygroundConfig,
+  ParameterEnabled,
+} from '../types'
 import { useStreamRequest } from './use-stream-request'
 
 interface UseChatHandlerOptions {
@@ -46,6 +54,20 @@ interface UseChatHandlerOptions {
 
 const KNOWN_ERROR_MESSAGES = new Set<string>(Object.values(ERROR_MESSAGES))
 const STREAM_UPDATE_FLUSH_MS = 50
+// The gateway settles a test after the last byte reaches the browser, and a
+// low balance is first reserved and then settled, so the balance is read again
+// with growing pauses until it has moved and holds still for one read.
+const BALANCE_POLL_DELAYS_MS = [400, 800, 1600, 3200]
+
+async function readBalanceQuota(): Promise<number | undefined> {
+  try {
+    const response = await getSelf()
+    const quota = response?.data?.quota
+    return typeof quota === 'number' ? quota : undefined
+  } catch {
+    return undefined
+  }
+}
 
 type PendingStreamChunks = {
   generation: number
@@ -83,6 +105,44 @@ export function useChatHandler({
     reasoning: '',
   })
   const streamFlushTimerRef = useRef<number | null>(null)
+  const balanceQuotaRef = useRef<number | undefined>(undefined)
+  const streamUsageRef = useRef<MessageUsageTokens | null>(null)
+
+  useEffect(() => {
+    void readBalanceQuota().then((quota) => {
+      if (balanceQuotaRef.current === undefined) balanceQuotaRef.current = quota
+    })
+  }, [])
+
+  const recordTestUsage = useCallback(
+    async (generation: number, tokens: MessageUsageTokens | null) => {
+      const balanceBefore = balanceQuotaRef.current
+      let balanceAfter: number | undefined
+      for (const delay of BALANCE_POLL_DELAYS_MS) {
+        await new Promise((resolve) => window.setTimeout(resolve, delay))
+        const previousRead = balanceAfter
+        balanceAfter = await readBalanceQuota()
+        if (balanceBefore === undefined) break
+        if (balanceAfter !== balanceBefore && balanceAfter === previousRead) {
+          break
+        }
+      }
+      if (balanceAfter !== undefined) balanceQuotaRef.current = balanceAfter
+      const usage = {
+        ...tokens,
+        costQuota: computeTestCostQuota(balanceBefore, balanceAfter),
+        balanceQuota: balanceAfter ?? balanceBefore,
+      }
+      onMessageUpdate((prev) => {
+        if (generation !== requestGenerationRef.current) return prev
+        return updateLastAssistantMessage(prev, (message) => ({
+          ...message,
+          usage,
+        }))
+      })
+    },
+    [onMessageUpdate]
+  )
 
   const discardPendingStreamUpdates = useCallback((generation: number) => {
     if (streamFlushTimerRef.current !== null) {
@@ -215,8 +275,9 @@ export function useChatHandler({
             : completeAssistantMessage(message)
         )
       })
+      void recordTestUsage(generation, streamUsageRef.current)
     },
-    [flushStreamUpdates, onMessageUpdate]
+    [flushStreamUpdates, onMessageUpdate, recordTestUsage]
   )
 
   // Handle stream error
@@ -230,11 +291,17 @@ export function useChatHandler({
       const errorTitle = t(ERROR_MESSAGES.API_REQUEST_ERROR)
       onMessageUpdate((prev) => {
         if (generation !== requestGenerationRef.current) return prev
-        return updateAssistantMessageWithError(
-          prev,
-          displayError,
-          errorCode,
-          errorTitle
+        return updateLastAssistantMessage(
+          updateAssistantMessageWithError(
+            prev,
+            displayError,
+            errorCode,
+            errorTitle
+          ),
+          (message) => ({
+            ...message,
+            usage: { costQuota: 0, balanceQuota: balanceQuotaRef.current },
+          })
         )
       })
     },
@@ -249,6 +316,7 @@ export function useChatHandler({
       abortControllerRef.current?.abort()
       abortControllerRef.current = null
       discardPendingStreamUpdates(generation)
+      streamUsageRef.current = null
       setIsRequesting(true)
       const payload = buildChatCompletionPayload(
         messages,
@@ -259,7 +327,12 @@ export function useChatHandler({
         payload,
         (type, chunk) => handleStreamUpdate(generation, type, chunk),
         () => handleStreamComplete(generation),
-        (error, errorCode) => handleStreamError(generation, error, errorCode)
+        (error, errorCode) => handleStreamError(generation, error, errorCode),
+        (usage) => {
+          if (generation === requestGenerationRef.current) {
+            streamUsageRef.current = usage
+          }
+        }
       )
     },
     [
@@ -319,6 +392,7 @@ export function useChatHandler({
             return updatedMessage ?? message
           })
         })
+        void recordTestUsage(generation, parseUsageTokens(response.usage))
       } catch (error: unknown) {
         if (
           abortController.signal.aborted ||
@@ -343,6 +417,7 @@ export function useChatHandler({
       discardPendingStreamUpdates,
       onMessageUpdate,
       handleStreamError,
+      recordTestUsage,
     ]
   )
 
