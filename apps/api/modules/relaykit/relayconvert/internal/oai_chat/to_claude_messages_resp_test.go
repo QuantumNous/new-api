@@ -1,6 +1,7 @@
 package oaichat
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -216,4 +217,248 @@ func TestNormalizeCacheCreationSplit(t *testing.T) {
 
 func ptr[T any](value T) *T {
 	return &value
+}
+
+// collectTextDeltas returns the concatenated text from content_block_delta events.
+func collectTextDeltas(responses []*dto.ClaudeResponse) string {
+	var sb strings.Builder
+	for _, r := range responses {
+		if r.Type == "content_block_delta" && r.Delta != nil && r.Delta.Text != nil {
+			sb.WriteString(*r.Delta.Text)
+		}
+	}
+	return sb.String()
+}
+
+// countTerminalEvents counts the terminal events in a response slice.
+func countTerminalEvents(responses []*dto.ClaudeResponse) (stops, deltas, messageStops int) {
+	for _, r := range responses {
+		switch r.Type {
+		case "content_block_stop":
+			stops++
+		case "message_delta":
+			deltas++
+		case "message_stop":
+			messageStops++
+		}
+	}
+	return
+}
+
+// TestStreamResponseOpenAI2ClaudeFinishWithContentNoUsagePreservesTextAndClosesOnce
+// covers P1: a finish_reason sharing a chunk with the final text delta but no usage
+// must retain the full text and emit the terminal events exactly once (the host
+// finalizer supplies usage later).
+func TestStreamResponseOpenAI2ClaudeFinishWithContentNoUsagePreservesTextAndClosesOnce(t *testing.T) {
+	info := &convmeta.Values{
+		ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone},
+	}
+	info.SendResponseCount = 1
+
+	text1 := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("Hello")}},
+		},
+	}, info)
+	require.Len(t, text1, 3)
+	require.Equal(t, "content_block_delta", text1[2].Type)
+	require.NotNil(t, text1[2].Delta)
+	require.NotNil(t, text1[2].Delta.Text)
+	assert.Equal(t, "Hello", *text1[2].Delta.Text)
+
+	info.SendResponseCount = 2
+	// Final delta + finish_reason, but no usage on this chunk.
+	finishing := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Delta:        dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr(" world")},
+				FinishReason: ptr("stop"),
+			},
+		},
+	}, info)
+
+	// The finishing delta must be forwarded (no lost content).
+	fullText := collectTextDeltas(finishing)
+	assert.Equal(t, " world", fullText, "finishing delta must be preserved before deferral")
+	// Deferred: no terminal events yet because usage is missing.
+	stops, deltas, messageStops := countTerminalEvents(finishing)
+	assert.Equal(t, 0, stops+deltas+messageStops, "terminals deferred until usage present")
+	assert.False(t, info.ClaudeConvertInfo.Done, "stream not closed until usage arrives")
+
+	// Host finalizer supplies usage and closes the stream exactly once.
+	info.ClaudeConvertInfo.Usage = &dto.Usage{PromptTokens: 7, CompletionTokens: 3, TotalTokens: 10}
+	final := FinalizeStreamResponseOpenAI2Claude(info)
+	stops, deltas, messageStops = countTerminalEvents(final)
+	assert.Equal(t, 1, stops, "one content_block_stop")
+	assert.Equal(t, 1, deltas, "one message_delta")
+	assert.Equal(t, 1, messageStops, "one message_stop")
+	require.NotNil(t, final[1].Usage)
+	assert.Equal(t, 7, final[1].Usage.InputTokens)
+	assert.Equal(t, 3, final[1].Usage.OutputTokens)
+	require.NotNil(t, final[1].Delta)
+	require.NotNil(t, final[1].Delta.StopReason)
+	assert.Equal(t, "end_turn", *final[1].Delta.StopReason)
+
+	// Idempotent: a second finalizer returns nothing.
+	require.Empty(t, FinalizeStreamResponseOpenAI2Claude(info))
+}
+
+// TestStreamResponseOpenAI2ClaudeDelayedUsagePreserved verifies usage that arrives
+// in a later choices:[] usage-only chunk is attached by the finalizer with its
+// real values (not silently dropped or replaced by local estimation).
+func TestStreamResponseOpenAI2ClaudeDelayedUsagePreserved(t *testing.T) {
+	info := &convmeta.Values{
+		ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone},
+	}
+	info.SendResponseCount = 1
+	StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_2",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("Hi")}},
+		},
+	}, info)
+
+	info.SendResponseCount = 2
+	// Finish with no usage.
+	finishing := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_2",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{}, FinishReason: ptr("stop")},
+		},
+	}, info)
+	require.Empty(t, finishing, "empty finishing chunk with no usage must not emit terminals")
+	assert.False(t, info.ClaudeConvertInfo.Done)
+
+	// Later usage-only chunk closes the stream with the upstream usage values.
+	info.SendResponseCount = 3
+	usageChunk := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:      "chatcmpl_2",
+		Model:   "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{},
+		Usage:   &dto.Usage{PromptTokens: 4, CompletionTokens: 2, TotalTokens: 6},
+	}, info)
+	stops, deltas, messageStops := countTerminalEvents(usageChunk)
+	assert.Equal(t, 1, stops)
+	assert.Equal(t, 1, deltas)
+	assert.Equal(t, 1, messageStops)
+	assert.True(t, info.ClaudeConvertInfo.Done)
+
+	// The deferred usage is attached with its real values, not zeroed.
+	require.NotNil(t, usageChunk[1].Usage)
+	assert.Equal(t, 4, usageChunk[1].Usage.InputTokens)
+	assert.Equal(t, 2, usageChunk[1].Usage.OutputTokens)
+	require.NotNil(t, usageChunk[1].Delta)
+	require.NotNil(t, usageChunk[1].Delta.StopReason)
+	assert.Equal(t, "end_turn", *usageChunk[1].Delta.StopReason)
+}
+
+// TestStreamResponseOpenAI2ClaudeFirstChunkFinishNoUsageDefers covers the
+// distinct first-chunk boundary: when the very first chunk (SendResponseCount==1)
+// carries both visible text and finish_reason but no usage, the converter must
+// forward the text delta and defer the terminal block until the finalizer
+// supplies usage. This is separate from the multi-chunk finish path and must not
+// prematurely emit (or drop) terminals when usage is absent.
+func TestStreamResponseOpenAI2ClaudeFirstChunkFinishNoUsageDefers(t *testing.T) {
+	info := &convmeta.Values{
+		ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone},
+	}
+	info.SendResponseCount = 1
+
+	first := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_9",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Delta:        dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("hello")},
+				FinishReason: ptr("stop"),
+			},
+		},
+	}, info)
+
+	// message_start + text content_block_start + text delta were emitted, and the
+	// text delta is preserved (no lost content on the single finishing chunk).
+	require.NotEmpty(t, first)
+	assert.Equal(t, "hello", collectTextDeltas(first))
+	// No terminal events yet: usage is still missing.
+	stops, deltas, messageStops := countTerminalEvents(first)
+	assert.Equal(t, 0, stops+deltas+messageStops, "terminals deferred until usage present")
+	assert.False(t, info.ClaudeConvertInfo.Done, "stream not closed until usage arrives")
+
+	// Finalizer closes exactly once with the attached usage values.
+	info.ClaudeConvertInfo.Usage = &dto.Usage{PromptTokens: 9, CompletionTokens: 1, TotalTokens: 10}
+	final := FinalizeStreamResponseOpenAI2Claude(info)
+	stops, deltas, messageStops = countTerminalEvents(final)
+	assert.Equal(t, 1, stops)
+	assert.Equal(t, 1, deltas)
+	assert.Equal(t, 1, messageStops)
+	require.NotNil(t, final[1].Usage)
+	assert.Equal(t, 9, final[1].Usage.InputTokens)
+	assert.Equal(t, 1, final[1].Usage.OutputTokens)
+	require.NotNil(t, final[1].Delta)
+	require.NotNil(t, final[1].Delta.StopReason)
+	assert.Equal(t, "end_turn", *final[1].Delta.StopReason)
+
+	require.Empty(t, FinalizeStreamResponseOpenAI2Claude(info), "idempotent: second finalize returns nothing")
+}
+
+// TestStreamResponseOpenAI2ClaudeFinishWithUsageSameChunk closes inline when the
+// finishing chunk carries both content and usage (no deferral, no lost text).
+func TestStreamResponseOpenAI2ClaudeFinishWithUsageSameChunk(t *testing.T) {
+	info := &convmeta.Values{
+		ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone},
+	}
+	info.SendResponseCount = 1
+	StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_3",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("A")}},
+		},
+	}, info)
+
+	info.SendResponseCount = 2
+	finishing := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_3",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Delta:        dto.ChatCompletionsStreamResponseChoiceDelta{Content: ptr("B")},
+				FinishReason: ptr("stop"),
+			},
+		},
+		Usage: &dto.Usage{PromptTokens: 5, CompletionTokens: 1, TotalTokens: 6},
+	}, info)
+
+	// Full text retained: "B" is present, no duplicate terminal.
+	assert.Equal(t, "B", collectTextDeltas(finishing))
+	stops, deltas, messageStops := countTerminalEvents(finishing)
+	assert.Equal(t, 1, stops)
+	assert.Equal(t, 1, deltas)
+	assert.Equal(t, 1, messageStops)
+	assert.True(t, info.ClaudeConvertInfo.Done)
+}
+
+// TestFinalizeStreamResponseOpenAI2ClaudeEmptyStreamEmitsNothing covers the
+// empty/role-only upstream: when no content block was ever opened, the
+// finalizer must not synthesize a bare message_delta/message_stop pair
+// without a matching content_block_start.
+func TestFinalizeStreamResponseOpenAI2ClaudeEmptyStreamEmitsNothing(t *testing.T) {
+	info := &convmeta.Values{
+		ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone},
+	}
+	info.SendResponseCount = 1
+	StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:      "chatcmpl_empty",
+		Model:   "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Role: "assistant"}}},
+	}, info)
+
+	final := FinalizeStreamResponseOpenAI2Claude(info)
+	require.Empty(t, final, "empty stream must not synthesize terminal events")
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/internal/common"
 	"github.com/QuantumNous/new-api/internal/common/dbx"
 	"github.com/QuantumNous/new-api/internal/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
@@ -159,39 +160,106 @@ func filterCandidatesByChannelStatusAndKey(candidates []routeCandidate, requestP
 	if len(candidates) == 0 {
 		return candidates
 	}
-	channelSyncLock.RLock()
-	defer channelSyncLock.RUnlock()
 
 	filtered := make([]routeCandidate, 0, len(candidates))
-	for _, c := range candidates {
-		channel, ok := channelsIDM[c.channelId]
-		if !ok {
-			continue // channel not in cache
-		}
-		if channel.Status != common.ChannelStatusEnabled {
-			continue
-		}
-		// Check key availability
-		if !isKeyEnabled(channel, c.keyIndex) {
-			continue
-		}
-		// Exclude routes by RouteKey
-		if excludeRoutes != nil {
-			if excludeRoutes[RouteKey{ChannelId: c.channelId, KeyIndex: c.keyIndex, Model: alias}] {
+
+	if common.MemoryCacheEnabled {
+		// Cache-on path is unchanged: read the in-memory index under one read
+		// lock. channelsIDM is built by InitChannelCache, and the Advanced Custom
+		// config comes from channel2advancedCustomConfig, which caches the parsed
+		// JSON built during sync — so no per-request parsing happens here.
+		channelSyncLock.RLock()
+		defer channelSyncLock.RUnlock()
+		for _, c := range candidates {
+			channel, ok := channelsIDM[c.channelId]
+			if !ok {
+				continue // channel not in cache
+			}
+			if !candidatePassesChannelChecks(channel, c, requestPath, alias, excludeRoutes, channel2advancedCustomConfig[c.channelId]) {
 				continue
 			}
+			filtered = append(filtered, c)
 		}
-		// Advanced Custom path filtering
-		if requestPath != "" && channel.Type == constant.ChannelTypeAdvancedCustom {
-			if config := channel2advancedCustomConfig[c.channelId]; config != nil {
-				if !config.SupportsPathForModel(requestPath, alias) {
-					continue
-				}
+		return filtered
+	}
+
+	// Cache disabled: InitChannelCache early-returns, so channelsIDM is never
+	// built (and channel2advancedCustomConfig stays empty). Resolve every
+	// candidate channel in one bulk query (by unique id) instead of probing the
+	// database per candidate, mirroring the cache-off DB reads already used by
+	// allowedChannelsForGroupAlias and CacheGetChannel/CacheGetChannelInfo.
+	channelIDs := make([]int, 0, len(candidates))
+	seenIDs := make(map[int]struct{}, len(candidates))
+	for _, c := range candidates {
+		if _, dup := seenIDs[c.channelId]; !dup {
+			seenIDs[c.channelId] = struct{}{}
+			channelIDs = append(channelIDs, c.channelId)
+		}
+	}
+	channels, err := GetChannelsByIds(channelIDs)
+	if err != nil {
+		common.SysError("failed to load channels for route selection: " + err.Error())
+		return filtered
+	}
+	// Parse each channel's Advanced Custom config exactly once; this is the
+	// cache-off equivalent of channel2advancedCustomConfig (built during sync
+	// on the cache-on path) and is scoped to this single request only.
+	advancedConfig := make(map[int]*dto.AdvancedCustomConfig, len(channels))
+	for _, ch := range channels {
+		if ch.Type == constant.ChannelTypeAdvancedCustom {
+			if config := ch.GetOtherSettings().AdvancedCustom; config != nil {
+				advancedConfig[ch.Id] = config
 			}
+		}
+	}
+	for _, c := range candidates {
+		var channel *Channel
+		for _, ch := range channels {
+			if ch.Id == c.channelId {
+				channel = ch
+				break
+			}
+		}
+		if channel == nil {
+			continue // channel gone from DB
+		}
+		if !candidatePassesChannelChecks(channel, c, requestPath, alias, excludeRoutes, advancedConfig[c.channelId]) {
+			continue
 		}
 		filtered = append(filtered, c)
 	}
 	return filtered
+}
+
+// candidatePassesChannelChecks applies the request-path filter for one channel:
+// enabled status, multi-key availability, excludeRoutes, and Advanced Custom
+// path support. advancedConfig is the pre-parsed Advanced Custom config for the
+// channel: on the cache-on path it is the shared channel2advancedCustomConfig
+// entry (built during sync, zero per-request parsing); on the cache-off path it
+// is parsed once for this request. When nil and the channel is Advanced Custom,
+// path filtering is skipped (matches the cache-on missing-entry behavior). The
+// caller owns all locking and channel acquisition.
+func candidatePassesChannelChecks(channel *Channel, c routeCandidate, requestPath, alias string, excludeRoutes map[RouteKey]bool, advancedConfig *dto.AdvancedCustomConfig) bool {
+	if channel.Status != common.ChannelStatusEnabled {
+		return false
+	}
+	// Check key availability
+	if !isKeyEnabled(channel, c.keyIndex) {
+		return false
+	}
+	// Exclude routes by RouteKey
+	if excludeRoutes != nil {
+		if excludeRoutes[RouteKey{ChannelId: c.channelId, KeyIndex: c.keyIndex, Model: alias}] {
+			return false
+		}
+	}
+	// Advanced Custom path filtering
+	if requestPath != "" && channel.Type == constant.ChannelTypeAdvancedCustom && advancedConfig != nil {
+		if !advancedConfig.SupportsPathForModel(requestPath, alias) {
+			return false
+		}
+	}
+	return true
 }
 
 // isKeyEnabled checks if a specific key index is enabled for the channel.
@@ -369,10 +437,20 @@ func SelectRouteUnit(group string, alias string, requestPath string, retry int, 
 		return nil, nil
 	}
 
-	// Resolve full channel and key
-	channelSyncLock.RLock()
-	channel := channelsIDM[selected.channelId]
-	channelSyncLock.RUnlock()
+	// Resolve full channel and key. When the memory cache is off, channelsIDM is
+	// nil (InitChannelCache early-returns), so fall back to the database — the
+	// same source the candidate filter and CacheGetChannel use in cache-off mode.
+	var channel *Channel
+	if common.MemoryCacheEnabled {
+		channelSyncLock.RLock()
+		channel = channelsIDM[selected.channelId]
+		channelSyncLock.RUnlock()
+	} else {
+		resolved, err := GetChannelById(selected.channelId, true)
+		if err == nil {
+			channel = resolved
+		}
+	}
 
 	if channel == nil {
 		return nil, nil

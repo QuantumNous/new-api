@@ -173,6 +173,8 @@ usage := state.Usage()
 
 RelayKit 不负责 SSE 的读取和写入。宿主需要将每个 SSE 事件解析为对应 DTO，并将转换结果重新编码后发送给下游。不要省略 `FinalizeStreamResponse`，部分转换器会在该阶段补发终止事件或最终 usage。
 
+OpenAI Chat 转 Claude 时，携带 `finish_reason` 的最后一帧也可能包含文本或工具增量，转换器会保留这些内容。未随结束帧提供 usage 时，结束事件可延后到后续 usage 或正常结束后的 finalizer；宿主不能把最后一帧再次送入 chunk converter。使用兼容入口 `ConvertStreamResponse` 的宿主可以调用 `FinalizeStreamResponseOpenAI2Claude(meta)` 发出尚未发送的终止事件，该调用幂等。宿主须自行区分正常结束和取消、超时、读取失败，异常结束不能据此伪造 `message_stop`。
+
 ## 转换上下文
 
 大多数基础转换可以传入 `nil` 作为 `convmeta.Meta`。需要模型映射、推理适配、安全设置或流式状态时，应使用 `convmeta.Values`，或在宿主中实现 `convmeta.Meta`。

@@ -299,14 +299,8 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		chosenChoice := openAIResponse.Choices[0]
 		doneChunk := chosenChoice.FinishReason != nil && *chosenChoice.FinishReason != ""
 		if doneChunk {
+			// The finishing chunk may still contain text, reasoning or tool deltas.
 			state.FinishReason = *chosenChoice.FinishReason
-			oaiUsage := openAIResponse.Usage
-			if oaiUsage == nil {
-				oaiUsage = state.Usage
-				// Some upstreams emit finish_reason first, then send a final usage-only chunk.
-				// Defer closing until usage is available so the final message_delta carries it.
-				return claudeResponses
-			}
 		}
 
 		var claudeResponse dto.ClaudeResponse
@@ -414,20 +408,22 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		}
 
 		if doneChunk || state.Done {
-			appendStopOpenBlocks()
+			// Usage may arrive separately; the host finalizes after a clean end.
 			oaiUsage := openAIResponse.Usage
 			if oaiUsage == nil {
 				oaiUsage = state.Usage
 			}
-			if oaiUsage != nil {
-				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-					Type:  "message_delta",
-					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
-					Delta: &dto.ClaudeMediaMessage{
-						StopReason: kitutil.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
-					},
-				})
+			if oaiUsage == nil {
+				return claudeResponses
 			}
+			appendStopOpenBlocks()
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Type:  "message_delta",
+				Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
+				Delta: &dto.ClaudeMediaMessage{
+					StopReason: kitutil.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
+				},
+			})
 			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 				Type: "message_stop",
 			})
@@ -447,7 +443,12 @@ func FinalizeStreamResponseOpenAI2Claude(info convmeta.Meta) []*dto.ClaudeRespon
 	if state.Done {
 		return nil
 	}
-
+	// No content block was ever opened (empty/role-only stream): emitting a
+	// bare message_delta + message_stop without a content_block_start is not a
+	// valid Anthropic stream, so leave it unterminated.
+	if state.LastMessagesType == convmeta.LastMessageTypeNone {
+		return nil
+	}
 	stopReason := stopReasonOpenAI2Claude(state.FinishReason)
 	if stopReason == "" {
 		stopReason = "end_turn"

@@ -175,28 +175,19 @@ func HandleFinalResponse(c contract.Context, info *relaycommon.RelayInfo, lastSt
 		helper.Done(c)
 
 	case types.RelayFormatClaude:
-		var streamResponse dto.ChatCompletionsStreamResponse
-		if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
-			common.SysLog("error unmarshalling stream response: " + err.Error())
+		// Replaying the last chunk duplicates deltas; finalize only a clean stream.
+		endReason := info.StreamStatus.GetEndReason()
+		if endReason != relaycommon.StreamEndReasonDone &&
+			(!info.StreamSawFinishReason || (endReason != relaycommon.StreamEndReasonEOF && endReason != relaycommon.StreamEndReasonNone)) {
 			return
 		}
+		state := info.EnsureClaudeConvertInfo()
+		state.Usage = usage
 
-		info.ClaudeConvertInfo.Usage = usage
-
-		result, err := relayconvert.ConvertStreamResponse(c.Context(), info, types.RelayFormatClaude, &streamResponse)
-		if err != nil {
-			common.SysLog("error converting Claude stream response: " + err.Error())
-			return
-		}
-		claudeResponses, ok := result.Value.([]*dto.ClaudeResponse)
-		if !ok {
-			common.SysLog(fmt.Sprintf("expected Claude stream responses, got %T", result.Value))
-			return
-		}
-		for _, resp := range claudeResponses {
+		finalClaudeResponses := relayconvert.FinalizeStreamResponseOpenAI2Claude(info)
+		for _, resp := range finalClaudeResponses {
 			_ = helper.ClaudeData(c, *resp)
 		}
-		info.ClaudeConvertInfo.Done = true
 
 	case types.RelayFormatGemini:
 		var streamResponse dto.ChatCompletionsStreamResponse

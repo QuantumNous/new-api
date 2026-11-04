@@ -28,6 +28,15 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 	return oaichat.StreamResponseOpenAI2Claude(openAIResponse, info)
 }
 
+// FinalizeStreamResponseOpenAI2Claude closes an OpenAI→Claude Messages stream
+// exactly once: it emits the remaining content_block_stop / message_delta /
+// message_stop events, attaching whatever usage is on the conversion state.
+// Hosts must call it instead of re-feeding the last chunk through the chunk
+// converter, which would duplicate deltas or finalizers.
+func FinalizeStreamResponseOpenAI2Claude(info convmeta.Meta) []*dto.ClaudeResponse {
+	return oaichat.FinalizeStreamResponseOpenAI2Claude(info)
+}
+
 func StopReasonClaudeToOpenAI(reason string) string {
 	return claudemessages.StopReasonClaudeToOpenAI(reason)
 }

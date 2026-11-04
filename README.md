@@ -391,8 +391,8 @@ See [User authentication and login sessions](./docs/authentication.md) for the t
 **Retry configuration:** `Settings → Operation Settings → General Settings → Failure Retry Count`
 
 **Cache configuration:**
-- `REDIS_CONN_STRING`: Redis cache (recommended)
-- `MEMORY_CACHE_ENABLED`: Memory cache
+- `REDIS_CONN_STRING`: Redis cache (recommended, not required for a single-node deployment). Enabling Redis also enables the in-process channel cache.
+- `MEMORY_CACHE_ENABLED`: Set to `true` to enable the in-process channel cache without Redis. With both caches disabled, routing resolves channels from the database and still enforces group, status, key and request-path restrictions.
 
 ---
 

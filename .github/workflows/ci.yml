@@ -77,6 +77,18 @@ jobs:
         working-directory: apps/api/modules/relaykit
         run: GOWORK=off go test ./...
 
+      - name: Build executable for isolated gateway smoke
+        working-directory: apps/api
+        run: go build -tags "${SINGBOX_TAGS}" -o "${RUNNER_TEMP}/new-api" .
+
+      - name: Upload gateway smoke executable
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gateway-smoke-linux-amd64
+          path: ${{ runner.temp }}/new-api
+          if-no-files-found: error
+          retention-days: 3
+
   # `dev`-tagged code (the local dev auto-login endpoint) is never shipped, but
   # it still has to compile — otherwise it rots unnoticed and only breaks the
   # developer who turns it on. Compile only: no tests, and the tag never reaches
