@@ -328,8 +328,9 @@ func TestFinishCooldown_ArmsRampZeroesCountKeepsStreaks(t *testing.T) {
 	st.ThrottleStreak = 1
 	st.AnnealSinceMs = nowMs - 1000
 
-	// A read-path settlement (no strike).
-	finishUnitCooldown(st, nowMs, false)
+	// A force-recall settlement: ramp armed, streaks preserved, and the
+	// recovery-probe question opened — the recalled unit is on probation.
+	finishUnitCooldown(st, nowMs)
 	assert.Equal(t, int64(0), st.CooldownUntilMs, "deadline cleared")
 	assert.Equal(t, 0, st.RequestCount, "request count zeroed")
 	assert.True(t, st.RampPending, "slow-start ramp armed")
@@ -337,29 +338,27 @@ func TestFinishCooldown_ArmsRampZeroesCountKeepsStreaks(t *testing.T) {
 	assert.Equal(t, nowMs, st.AnnealSinceMs, "idle decay re-anchored")
 	assert.Equal(t, 2, st.CooldownStreak, "fatal streak preserved")
 	assert.Equal(t, 1, st.ThrottleStreak, "throttle streak preserved")
-	assert.Equal(t, 0, st.DisableStreak, "a non-strike settlement adds no strike")
-	assert.False(t, st.TerminalDisabled)
+	assert.True(t, st.ProbePending, "a force recall puts the unit on probation")
 }
 
-// TestFinishCooldown_StrikeOnlyOnFatalExpiry pins the newapi disable strike:
-// a naturally expired Fatal window adds a strike; a 429 window never does.
-func TestFinishCooldown_StrikeOnlyOnFatalExpiry(t *testing.T) {
+// TestFinishCooldown_OpensRecoveryProbe pins the probe ledger: a naturally
+// expired Fatal window arms the recovery-probe question (the next outcome is
+// the probe); a 429 window never does.
+func TestFinishCooldown_OpensRecoveryProbe(t *testing.T) {
 	const nowMs = int64(6_000_000)
 
 	fatal := NewUnitHealthState()
 	fatal.CooldownUntilMs = nowMs
 	fatal.LastCoolingOutcome = int(UnitFatal)
-	fatal.DisableStreak = 2
-	finishUnitCooldown(fatal, nowMs, true)
-	assert.Equal(t, 3, fatal.DisableStreak, "a fatal settlement adds a strike")
-	assert.True(t, fatal.TerminalDisabled, "reaching the cap trips terminal-disabled")
+	finishUnitCooldown(fatal, nowMs)
+	assert.True(t, fatal.ProbePending, "a fatal expiry opens the recovery probe")
+	assert.False(t, fatal.TerminalDisabled, "health never terminal-disables")
 
 	throttled := NewUnitHealthState()
 	throttled.CooldownUntilMs = nowMs
 	throttled.LastCoolingOutcome = int(UnitThrottled)
-	throttled.DisableStreak = 2
-	finishUnitCooldown(throttled, nowMs, true)
-	assert.Equal(t, 2, throttled.DisableStreak, "a 429 settlement adds no strike")
+	finishUnitCooldown(throttled, nowMs)
+	assert.True(t, throttled.ProbePending, "a 429 expiry also opens the probe question")
 	assert.False(t, throttled.TerminalDisabled)
 }
 
@@ -496,14 +495,16 @@ func TestClassifyUnitOutcome_ClientCancelIsNeutral(t *testing.T) {
 }
 
 // TestClientCancel_NeverDisablesUnit drives repeated canceled classifications
-// through the state machine: three naturally expired Fatal cooldowns would trip
-// UnitDisableStreakCap, so this pins that a canceled request never arms one.
+// through the state machine: a canceled request must never arm a cooldown or
+// advance the recovery-probe ledger.
 func TestClientCancel_NeverDisablesUnit(t *testing.T) {
 	cfg := freshUnitConfig()
 	st := NewUnitHealthState()
+	st.ProbePending = true
+	st.ProbeFailStreak = 2
 	canceled := wrappedClientCancelError(t)
 
-	for i := 0; i < UnitDisableStreakCap+2; i++ {
+	for i := range 10 {
 		outcome := ClassifyUnitOutcome(canceled, 7)
 		require.Equal(t, UnitNeutral, outcome, "cancel %d must classify as neutral", i)
 		nowMs := int64(1_000 + i*1_000)
@@ -512,8 +513,9 @@ func TestClientCancel_NeverDisablesUnit(t *testing.T) {
 	}
 
 	assert.Equal(t, int64(0), st.CooldownUntilMs, "no cooldown window")
-	assert.Equal(t, 0, st.DisableStreak, "canceled requests never add disable strikes")
 	assert.False(t, st.TerminalDisabled, "a healthy unit survives repeated client cancels")
 	assert.Equal(t, 0, st.RequestCount, "neutral outcomes are a no-op")
 	assert.Equal(t, DefaultUnitScore, st.EwmaScore, "the score is untouched")
+	assert.True(t, st.ProbePending, "a neutral outcome leaves the probe question open")
+	assert.Equal(t, 2, st.ProbeFailStreak, "a neutral outcome never advances the probe ledger")
 }

@@ -24,6 +24,10 @@ package channel
 //
 // 全池不可选（典型：全体冷却中）时走 faintRecall 的紧急召回：
 // 强制回收剩余冷却最短的单元（mono's recall_fainted）。
+//
+// Health kill switch (ChannelHealthEnabled=false): settledUnitState returns a
+// neutral view, so no cooldown filters or slow-start derates a candidate; only
+// the explicit hard-disable remains an exclusion (operator state, not health).
 
 import (
 	"math"
@@ -108,7 +112,7 @@ func selectP2C(candidates []routeCandidate, alias string, now time.Time, rnd *ra
 
 	if len(eligible) == 0 {
 		// Whole pool down: emergency recall of the shortest-remaining unit.
-		// -1 when no unit is actually cooling (all terminal-disabled, or an
+		// -1 when no unit is actually cooling (all hard-disabled, or an
 		// empty pool): that is the caller's terminal no-candidate path.
 		if i := faintRecall(candidates, states, alias, now); i >= 0 {
 			return &candidates[i]
@@ -124,10 +128,10 @@ func selectP2C(candidates []routeCandidate, alias string, now time.Time, rnd *ra
 // so find the candidate with the shortest remaining cooldown and force-end
 // that cooldown, returning the unit for the current request.
 //
-// Only live cooling windows qualify: a terminal-disabled unit reports zero
-// remaining, and recalling it would hand back a unit the state machine
-// permanently excluded (restoration is the operator's RecoverUnit, not the
-// selector's job). Ties keep the first candidate in pool order — the pool
+// Only live cooling windows qualify: a hard-disabled unit reports zero
+// remaining, and recalling it would hand back a unit the operator (or a
+// conclusive key probe) explicitly excluded (restoration is RecoverUnit, not
+// the selector's job). Ties keep the first candidate in pool order — the pool
 // order is stable, so the result is deterministic.
 //
 // The force recall is best-effort: it settles the unit without a strike
@@ -155,6 +159,7 @@ func faintRecall(candidates []routeCandidate, states []UnitHealthState, alias st
 	if best == -1 {
 		return -1
 	}
+
 	if err := ForceRecallUnit(routeHealthKey(candidates[best], alias), now); err != nil {
 		common.SysError("unit force recall failed: " + err.Error())
 	}

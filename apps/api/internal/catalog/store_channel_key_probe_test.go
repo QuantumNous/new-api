@@ -51,12 +51,14 @@ func seedMultiKeyChannel(t *testing.T, id int) *Channel {
 	return &seeded
 }
 
-// TestVerifyKeyAndCascadeDisablesEveryModelOfTheKey covers the cascade contract:
-// a conclusive 401/403 verdict means the key itself is dead, so every model
-// unit behind that key index is terminal-disabled and the channel's key status
-// is updated. The sibling key index must stay selectable — that is the whole
+// TestVerifyKeyAndCascadeDisablesTheKey covers the cascade contract: a
+// conclusive 401/403 verdict means the key itself is dead, so the key's status
+// is recorded as auto-disabled while the model units behind it keep their
+// health state — exclusion flows from the key status (which the scheduler
+// honors and RecoverUnit restores together with health), not from a persisted
+// unit hard-disable. The sibling key index must stay usable: that is the whole
 // reason the scheduling unit carries a key index.
-func TestVerifyKeyAndCascadeDisablesEveryModelOfTheKey(t *testing.T) {
+func TestVerifyKeyAndCascadeDisablesTheKey(t *testing.T) {
 	withUnitHealthDB(t)
 	calls := withKeyProbe(t, false, true)
 	channel := seedMultiKeyChannel(t, 9210)
@@ -67,7 +69,8 @@ func TestVerifyKeyAndCascadeDisablesEveryModelOfTheKey(t *testing.T) {
 	assert.Equal(t, 1, *calls, "the cascade must probe exactly once")
 	for _, name := range []string{"model-x", "model-y"} {
 		state := UnitState(RouteKey{ChannelId: channel.Id, KeyIndex: 0, Model: name})
-		assert.True(t, state.TerminalDisabled, "model %s behind the dead key must be terminal-disabled", name)
+		assert.False(t, state.HardDisabled,
+			"model %s behind the dead key is excluded by key status, not unit hard-disable", name)
 		sibling := RouteKey{ChannelId: channel.Id, KeyIndex: 1, Model: name}
 		assert.True(t, IsUnitSelectable(sibling, now), "model %s on the surviving key must stay selectable", name)
 	}

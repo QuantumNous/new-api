@@ -40,12 +40,13 @@ import (
 // replaces the parameters only, never the cooldown/streak/EWMA state, so a
 // running deployment keeps its isolation records.
 //
-// newapi extension on top of mono: DisableStreak — three naturally expired
-// Fatal cooling cycles trip a unit into terminal-disabled (the flag is
-// derived from DisableStreak, no separate column), which fires the
-// key-probe cascade hook so a dead key can take its sibling units down
-// with it. Throttle (429) cycles are a busy upstream, not a dead model,
-// and never add a disable strike.
+// newapi extensions on top of mono, both explicit and non-permanent: a
+// persisted HardDisabled flag for the operator (or a conclusive key probe)
+// to take a unit out of rotation, and a recovery-probe counter that fires
+// the key-probe hook after repeated failures following cooldown expiry.
+// Health alone never terminal-excludes a unit: its only exclusion is the
+// live cooldown window. A success always resets the probe counter, and a
+// 429 — a busy upstream, not a broken key — never adds to it.
 
 // UnitOutcome is the five-class attempt result the state machine consumes.
 // The transport layer produces it from the upstream status via
@@ -78,11 +79,12 @@ const (
 // DefaultUnitScore is the health score of a unit with no history.
 const DefaultUnitScore = 1.0
 
-// UnitDisableStreakCap completed Fatal cooling cycles trip a unit into
-// terminal-disabled, which fires the key-probe cascade. Hardcoded, like
-// mono's cooldown_disable_streak default: the threshold itself is not a
-// config knob.
-const UnitDisableStreakCap = 3
+// UnitProbeFailCap consecutive failed recovery probes (a Fatal outcome as
+// the first result after a cooldown expired) fire the key-probe hook.
+// Hardcoded, like mono's cooldown_disable_streak default: the threshold
+// itself is not a config knob. The counter resets on any success and never
+// excludes the unit by itself.
+const UnitProbeFailCap = 3
 
 // LatencyEwmaDecayMs is the 10s time constant of the peak-latency EWMA
 // (mono's DECAY_TIME_CONSTANT_MS, hardcoded like its shape exponent).
@@ -173,10 +175,22 @@ func RestoreUnitHealthSetting(s *UnitHealthSetting) {
 	unitHealthSetting.Store(s)
 }
 
+// UnitHealthEnabled reports whether the route-unit health machine is live.
+// ChannelHealthEnabled is the single kill switch for the whole health family:
+// the legacy channel EWMA and the route-unit outcome machine both stop
+// accounting when it is off (mono's cfg.enabled gate). Selection and the
+// cooldown-wait probe consult this too, so a disabled machine cannot exclude
+// a candidate through a stale cooldown or slow-start ramp. The explicit
+// HardDisabled flag is operator state, not health scoring, and stays in
+// force.
+func UnitHealthEnabled() bool {
+	cfg := GetChannelHealthSetting()
+	return cfg == nil || cfg.Enabled
+}
+
 // UnitHealthState is one route unit's health record: mono's 13 HealthState
-// fields plus newapi's DisableStreak (the terminal-disabled counter;
-// TerminalDisabled is the derived flag), and Version for the CAS-on-version
-// persistence.
+// fields plus newapi's probe ledger and the explicit hard-disable flag, and
+// Version for the CAS-on-version persistence.
 type UnitHealthState struct {
 	// EWMA health score, [MinScoreFloor, 1.0]; no history = 1.0.
 	EwmaScore float64
@@ -205,15 +219,19 @@ type UnitHealthState struct {
 	// streaks decay from here in CooldownBaseMs windows.
 	AnnealSinceMs int64
 	// Outcome that armed the most recent cooldown (UnitOutcome value);
-	// -1 = never cooled. Drives the differentiated cooldown and the
-	// disable strike on natural expiry.
+	// -1 = never cooled. Drives the differentiated cooldown.
 	LastCoolingOutcome int
-	// newapi extension: completed Fatal cooling cycles. At
-	// UnitDisableStreakCap the unit is terminal-disabled and the key-probe
-	// cascade fires.
-	DisableStreak int
-	// Derived from DisableStreak (no column of its own): true while
-	// DisableStreak >= UnitDisableStreakCap.
+	// A cooldown ended and no outcome has observed the unit since: the next
+	// outcome is the recovery probe.
+	ProbePending bool
+	// Consecutive failed recovery probes. Reset by any success; at
+	// UnitProbeFailCap the key-probe hook fires. Never excludes the unit —
+	// health exclusion is the live cooldown only.
+	ProbeFailStreak int
+	// Explicit hard-disable (operator action or a conclusive key probe).
+	// Automatic health recovery never clears it; only RecoverUnit does.
+	HardDisabled bool
+	// Derived from HardDisabled: the admin-view terminal flag.
 	TerminalDisabled bool
 	// CAS version of the persisted row; 0 = never persisted.
 	Version int
@@ -285,23 +303,18 @@ func ageUnitEwmaScore(st *UnitHealthState, cfg *UnitHealthSetting, nowMs int64) 
 }
 
 // finishUnitCooldown settles a cooling window (mono's finish_cooldown):
-// clears the deadline, zeroes the request count, arms the slow-start ramp
-// and re-anchors the idle decay at nowMs. The settleStrike argument is
-// newapi's disable-strike hook: a naturally expired window that was armed
-// by a Fatal outcome adds a strike (429 windows never do — a busy
-// upstream is not a dead model), and reaching the cap flips
-// TerminalDisabled. A forced recall settles without a strike: recall is a
-// rescue, not forgiveness.
-func finishUnitCooldown(st *UnitHealthState, nowMs int64, settleStrike bool) {
+// clears the deadline, zeroes the request count, arms the slow-start ramp,
+// re-anchors the idle decay at nowMs, and opens the recovery-probe question
+// (`ProbePending`). It never adds a disable strike: health exclusion is the
+// live cooldown only, and the probe ledger is advanced later by the first
+// observed outcome, not by the settlement itself.
+func finishUnitCooldown(st *UnitHealthState, nowMs int64) {
 	st.CooldownUntilMs = 0
 	st.RequestCount = 0
 	st.RampExited = false
 	st.RampPending = true
 	st.AnnealSinceMs = nowMs
-	if settleStrike && st.LastCoolingOutcome == int(UnitFatal) {
-		st.DisableStreak++
-	}
-	st.TerminalDisabled = st.DisableStreak >= UnitDisableStreakCap
+	st.ProbePending = true
 }
 
 // annealUnitStreak decays the idle streak ledgers (mono's anneal_streak):
@@ -436,15 +449,24 @@ func startUnitCooldown(st *UnitHealthState, cfg *UnitHealthSetting, nowMs int64,
 // "no hint". escalate=false (pool under pressure) suppresses arming a NEW
 // cooldown — the failure's EWMA/streak evidence still lands, but nothing
 // newly egresses the pool while the pool is already short.
+//
+// With the health kill switch off the machine records nothing (Ferrite's
+// cfg.enabled early return): no streak, no score, no cooldown.
 func applyUnitOutcome(st *UnitHealthState, outcome UnitOutcome, nowMs int64, latencyMs int64, retryAfterMs int64, escalate bool, cfg *UnitHealthSetting) {
+	if !UnitHealthEnabled() {
+		return
+	}
 	if latencyMs > 0 {
 		updateUnitLatencyEwma(st, latencyMs, nowMs)
 	}
 
 	// Settle an expired cooldown first: post-expiry outcomes re-enter the
-	// slow-start ramp cleanly.
+	// slow-start ramp cleanly. The settlement opens the recovery-probe
+	// question; a failure observed immediately after it is one failed probe.
+	probe := st.ProbePending
 	if st.CooldownUntilMs != 0 && !st.IsCooling(nowMs) {
-		finishUnitCooldown(st, nowMs, true)
+		finishUnitCooldown(st, nowMs)
+		probe = true
 	}
 
 	// 401/403: count the run; at the threshold the outcome escalates to
@@ -465,9 +487,15 @@ func applyUnitOutcome(st *UnitHealthState, outcome UnitOutcome, nowMs int64, lat
 	case UnitNeutral:
 		// Plain 4xx (400/404/...): the channel is not at fault — no score
 		// change, no request count, no cooldown entry; early return as-is
-		// (mono's ChannelOutcome::Neutral arm).
+		// (mono's ChannelOutcome::Neutral arm). The probe question stays
+		// open: a caller's own 4xx says nothing about the unit.
 		return
 	case UnitSuccess:
+		// Any success answers the recovery probe: the unit demonstrably
+		// serves, so the consecutive-failure ledger resets (a success as the
+		// first post-cooldown outcome can never trip the hook).
+		st.ProbePending = false
+		st.ProbeFailStreak = 0
 		// An active event re-anchors the decay: the idle window restarts.
 		st.AnnealSinceMs = 0
 		// A clean success after an expired cooldown pays the ledger
@@ -478,9 +506,17 @@ func applyUnitOutcome(st *UnitHealthState, outcome UnitOutcome, nowMs int64, lat
 		if st.ThrottleStreak > 0 && st.CooldownUntilMs == 0 {
 			st.ThrottleStreak--
 		}
+	case UnitFatal:
+		// The cooldown question is answered by this failure; a 429 below is
+		// a busy upstream (the key itself responded), so only a fatal
+		// outcome advances the probe ledger.
+		st.ProbePending = false
+		if probe {
+			st.ProbeFailStreak++
+		}
+	case UnitThrottled:
+		st.ProbePending = false
 	}
-	// Neutral returns above; Fatal/Throttled carry no counters — the
-	// cooldown ladder below is the whole penalty.
 
 	observation := DefaultUnitScore
 	switch outcome {

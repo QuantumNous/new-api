@@ -28,7 +28,7 @@ func TestInitUnitHealthCacheLoadsPersistedState(t *testing.T) {
 	}).Error)
 	require.NoError(t, dbx.DB.Create(&ChannelModelHealth{
 		ChannelId: 9402, Model: "startup-terminal", Version: 2,
-		DisableStreak: 3, CooldownUntilMs: terminalUntil,
+		HardDisabled: true, CooldownUntilMs: terminalUntil,
 	}).Error)
 	ClearUnitHealthCache()
 

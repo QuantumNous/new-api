@@ -13,12 +13,12 @@ import (
 
 // ChannelModelHealth is one route unit's persisted health record. The new
 // outcome-driven columns (EWMA score, latency EWMA, streaks, cooldown
-// deadline, disable strike) are the live state; the legacy columns
-// (state, isolation_level, until, dormancy/failure counters) are retained
-// read-only for this package and dropped by the later cleanup package. A
-// one-time bootstrap seed maps the legacy isolation data onto
-// cooldown_until_ms / disable_streak (bootstrap_migrations.go); from here
-// on the new columns are the single source of truth.
+// deadline, recovery-probe ledger, hard-disable flag) are the live state; the
+// legacy columns (state, isolation_level, until, dormancy/failure counters)
+// are retained read-only for this package and dropped by the later cleanup
+// package. A one-time bootstrap seed maps the legacy isolation data onto
+// cooldown_until_ms / hard_disabled (bootstrap_migrations.go); from here on
+// the new columns are the single source of truth.
 type ChannelModelHealth struct {
 	ChannelId      int    `gorm:"primaryKey"`
 	KeyIndex       int    `gorm:"primaryKey;not null;default:0"`
@@ -50,8 +50,14 @@ type ChannelModelHealth struct {
 	ScoreUpdatedAtMs   int64   `gorm:"not null;default:0"`
 	AnnealSinceMs      int64   `gorm:"not null;default:0"`
 	LastCoolingOutcome int     `gorm:"not null;default:-1"`
-	// newapi extension on top of mono: completed Fatal cooling cycles.
-	DisableStreak int `gorm:"not null;default:0"`
+	// A cooldown ended and the next outcome is the recovery probe.
+	ProbePending bool `gorm:"not null;default:false"`
+	// Consecutive failed recovery probes; fires the key-probe hook at
+	// UnitProbeFailCap. Never excludes the unit by itself.
+	ProbeFailStreak int `gorm:"not null;default:0"`
+	// Explicit hard-disable (operator action or conclusive key probe).
+	// Health recovery never clears it.
+	HardDisabled bool `gorm:"not null;default:false"`
 
 	UpdatedAt int64 `gorm:"bigint"`
 }
@@ -76,9 +82,11 @@ type RouteKey struct {
 var unitHealthIDM = map[RouteKey]*UnitHealthState{}
 var unitHealthLock sync.RWMutex
 
-// UnitDisabledHook fires once when a unit crosses the terminal-disabled cap
-// (key-probe cascade registration lives in store_key_probe.go).
-var UnitDisabledHook func(RouteKey)
+// UnitProbeFailHook fires once when a unit's consecutive failed recovery
+// probes reach UnitProbeFailCap (key-probe registration lives in
+// store_key_probe.go). The hook does not itself exclude the unit; health
+// exclusion is the live cooldown only.
+var UnitProbeFailHook func(RouteKey)
 
 // casMaxAttempts bounds the optimistic retry loop. A fixed small bound
 // silently drops transitions once several requests race on the same unit:
@@ -118,8 +126,8 @@ func defaultUnitRow(key RouteKey) ChannelModelHealth {
 }
 
 // stateFromRow materializes the in-memory state from a persisted row. The
-// legacy columns are ignored; TerminalDisabled is derived, not read from
-// storage (there is no column of its own).
+// legacy columns are ignored; TerminalDisabled mirrors the persisted
+// HardDisabled flag.
 func stateFromRow(row *ChannelModelHealth) *UnitHealthState {
 	st := &UnitHealthState{
 		EwmaScore:          row.EwmaScore,
@@ -135,7 +143,9 @@ func stateFromRow(row *ChannelModelHealth) *UnitHealthState {
 		ScoreUpdatedAtMs:   row.ScoreUpdatedAtMs,
 		AnnealSinceMs:      row.AnnealSinceMs,
 		LastCoolingOutcome: row.LastCoolingOutcome,
-		DisableStreak:      row.DisableStreak,
+		ProbePending:       row.ProbePending,
+		ProbeFailStreak:    row.ProbeFailStreak,
+		HardDisabled:       row.HardDisabled,
 		Version:            row.Version,
 	}
 	if st.EwmaScore == 0 {
@@ -144,7 +154,7 @@ func stateFromRow(row *ChannelModelHealth) *UnitHealthState {
 		// unit derated forever. Treat it as the never-observed default.
 		st.EwmaScore = DefaultUnitScore
 	}
-	st.TerminalDisabled = st.DisableStreak >= UnitDisableStreakCap
+	st.TerminalDisabled = st.HardDisabled
 	return st
 }
 
@@ -166,7 +176,9 @@ func applyStateToRow(row *ChannelModelHealth, st *UnitHealthState) {
 	row.ScoreUpdatedAtMs = st.ScoreUpdatedAtMs
 	row.AnnealSinceMs = st.AnnealSinceMs
 	row.LastCoolingOutcome = st.LastCoolingOutcome
-	row.DisableStreak = st.DisableStreak
+	row.ProbePending = st.ProbePending
+	row.ProbeFailStreak = st.ProbeFailStreak
+	row.HardDisabled = st.HardDisabled
 	row.Version = st.Version
 }
 
@@ -188,7 +200,9 @@ func unitStateUpdates(row *ChannelModelHealth, now time.Time) map[string]any {
 		"score_updated_at_ms":   row.ScoreUpdatedAtMs,
 		"anneal_since_ms":       row.AnnealSinceMs,
 		"last_cooling_outcome":  row.LastCoolingOutcome,
-		"disable_streak":        row.DisableStreak,
+		"probe_pending":         row.ProbePending,
+		"probe_fail_streak":     row.ProbeFailStreak,
+		"hard_disabled":         row.HardDisabled,
 		"version":               row.Version,
 		"updated_at":            now.Unix(),
 	}
@@ -228,6 +242,47 @@ func ClearUnitHealthCache() {
 	unitHealthLock.Lock()
 	unitHealthIDM = map[RouteKey]*UnitHealthState{}
 	unitHealthLock.Unlock()
+}
+
+// resetUnitHealthStateForKillSwitch discards every health-owned unit signal
+// when ChannelHealthEnabled is turned off: persisted cooldowns, streaks, ramp
+// flags, EWMA history and the recovery-probe ledger. Hard-disabled rows are
+// explicit operator state, not health scoring, and survive. Re-enabling the
+// switch therefore starts from a clean slate instead of resurrecting an
+// isolation window armed before the toggle (mono keeps the default state
+// while disabled).
+func resetUnitHealthStateForKillSwitch() {
+	ClearUnitHealthCache()
+	if dbx.DB == nil || !dbx.DB.Migrator().HasTable(&ChannelModelHealth{}) {
+		return
+	}
+	updates := map[string]any{
+		"ewma_score":            DefaultUnitScore,
+		"latency_ewma_ms":       0,
+		"latency_updated_at_ms": 0,
+		"request_count":         0,
+		"unauthorized_run":      0,
+		"ramp_exited":           false,
+		"ramp_pending":          false,
+		"cooldown_streak":       0,
+		"throttle_streak":       0,
+		"cooldown_until_ms":     0,
+		"score_updated_at_ms":   0,
+		"anneal_since_ms":       0,
+		"last_cooling_outcome":  -1,
+		"probe_pending":         false,
+		"probe_fail_streak":     0,
+		// Invalidate any in-flight CAS transition: a writer that passed the
+		// enabled check before the toggle re-reads the cleared row instead of
+		// overwriting it.
+		"version":    gorm.Expr("version + 1"),
+		"updated_at": time.Now().Unix(),
+	}
+	if err := dbx.DB.Model(&ChannelModelHealth{}).Updates(updates).Error; err != nil {
+		common.SysError("failed to reset unit health state: " + err.Error())
+		return
+	}
+	pressureRecomputeTotals(dbx.DB)
 }
 
 // InitUnitHealthCache loads every persisted row into the in-process mirror
@@ -296,31 +351,44 @@ func loadUnitKey(key RouteKey) *UnitHealthState {
 }
 
 // settledUnitState is the read-path view of mono's is_selectable / cooling
-// helpers: an expired cooling window is settled in place (ramp + anneal,
-// no disable strike — a strike is only a completed persisted cycle), and
-// idle streaks are annealed. Settlement mutates the shared mirrored state
-// under the WRITE lock, and the settled view is returned by value: public
-// readers never touch a shared pointer after the lock is released, so no
-// read races a concurrent ReportOutcome writer. Persistence happens on
-// the next write.
+// helpers: an expired cooling window is settled in place (ramp + anneal; the
+// settlement never adds a strike), and idle streaks are annealed. Settlement
+// mutates the shared mirrored state under the WRITE lock, and the settled view
+// is returned by value: public readers never touch a shared pointer after the
+// lock is released, so no read races a concurrent ReportOutcome writer.
+// Persistence happens on the next write.
+//
+// With the kill switch off the read returns the neutral default (full health,
+// no cooldown/ramp) while preserving only the explicit HardDisabled flag, so
+// stale isolation can neither filter nor derate a candidate.
 func settledUnitState(key RouteKey, nowMs int64) UnitHealthState {
-	cfg := GetUnitHealthSetting()
 	st := loadUnitKey(key)
+	if !UnitHealthEnabled() {
+		unitHealthLock.RLock()
+		defer unitHealthLock.RUnlock()
+		neutral := *NewUnitHealthState()
+		neutral.HardDisabled = st.HardDisabled
+		neutral.TerminalDisabled = st.HardDisabled
+		neutral.Version = st.Version
+		return neutral
+	}
+	cfg := GetUnitHealthSetting()
 	unitHealthLock.Lock()
 	defer unitHealthLock.Unlock()
 	if st.IsCooling(nowMs) {
 		return *st
 	}
 	if st.CooldownUntilMs != 0 {
-		finishUnitCooldown(st, nowMs, false)
+		finishUnitCooldown(st, nowMs)
 	}
 	annealUnitStreak(st, cfg, nowMs)
 	return *st
 }
 
 // IsUnitSelectable is the selector's filter (mono's is_selectable): false
-// ONLY while the unit is cooling or terminal-disabled. The health score and
-// slow-start ramp shape the pick's likelihood, never its eligibility.
+// while the unit is cooling or hard-disabled. The health score and slow-start
+// ramp shape the pick's likelihood, never its eligibility. With the health
+// kill switch off only the explicit hard-disable remains.
 func IsUnitSelectable(key RouteKey, now time.Time) bool {
 	st := settledUnitState(key, now.UnixMilli())
 	if st.TerminalDisabled {
@@ -336,9 +404,10 @@ func UnitState(key RouteKey) *UnitHealthState {
 	return &snap
 }
 
-// CoolingRemainingMs is how long the unit stays excluded; 0 when not
-// cooling (a terminal-disabled unit reports 0 — it is excluded until an
-// admin recovers it, not until a deadline).
+// CoolingRemainingMs is how long the unit stays excluded; 0 when not cooling
+// (a hard-disabled unit reports 0 — it is excluded until an admin recovers it,
+// not until a deadline). With the health kill switch off no cooldown is in
+// force, so no caller may wait one out.
 func CoolingRemainingMs(key RouteKey, now time.Time) int64 {
 	st := settledUnitState(key, now.UnixMilli())
 	remaining := st.CooldownUntilMs - now.UnixMilli()
@@ -350,31 +419,33 @@ func CoolingRemainingMs(key RouteKey, now time.Time) int64 {
 
 // ForceRecallUnit is mono's force_recall: settle a live cooling window
 // immediately and let the unit re-enter at the slow-start floor. A recall
-// is a rescue, not a completed cycle: it does not add a disable strike and
-// it preserves the cooldown/throttle streaks, so the next failure climbs
-// from the original rung.
+// is a rescue, not a completed cycle: it preserves the cooldown/throttle
+// streaks, so the next failure climbs from the original rung.
 func ForceRecallUnit(key RouteKey, now time.Time) error {
 	return casApplyUnit(key, now, func(row *ChannelModelHealth) (bool, error) {
 		st := stateFromRow(row)
 		nowMs := now.UnixMilli()
-		if !st.IsCooling(nowMs) {
+		if st.IsCooling(nowMs) {
+			finishUnitCooldown(st, nowMs)
+		} else {
 			if st.CooldownUntilMs != 0 {
-				finishUnitCooldown(st, nowMs, false)
+				finishUnitCooldown(st, nowMs)
 			}
-			changed := annealUnitStreak(st, GetUnitHealthSetting(), nowMs)
-			applyStateToRow(row, st)
-			return changed, nil
+			if !annealUnitStreak(st, GetUnitHealthSetting(), nowMs) {
+				return false, nil
+			}
 		}
-		finishUnitCooldown(st, nowMs, false)
 		applyStateToRow(row, st)
 		return true, nil
 	})
 }
 
 // UnitHealthScore is the score view of one unit for admin/route listings:
-// 0 while the unit is cooling or terminal-disabled, otherwise the EWMA
-// score times the slow-start factor. The P2C selector does NOT consume it —
-// selector_p2c.go scores from one settled state per candidate directly.
+// 0 while the unit is cooling or hard-disabled, otherwise the EWMA score
+// times the slow-start factor. With the health kill switch off the neutral
+// default scores 1.0 (0 only for a hard-disabled unit). The P2C selector does
+// NOT consume it — selector_p2c.go scores from one settled state per
+// candidate directly.
 func UnitHealthScore(key RouteKey, now time.Time) float64 {
 	st := settledUnitState(key, now.UnixMilli())
 	if st.TerminalDisabled || st.IsCooling(now.UnixMilli()) {
@@ -389,7 +460,14 @@ func UnitHealthScore(key RouteKey, now time.Time) float64 {
 // check suppresses NEW escalation while the pool is already short: at
 // Warning or Emergency a failure still updates the EWMA/streak evidence but
 // arms no new cooldown — the two adjudicated pressure mechanisms.
+//
+// With the health kill switch off no outcome is recorded (Ferrite's
+// cfg.enabled gate); the inner re-check covers a toggle that lands while a
+// writer waits for the CAS row.
 func ReportOutcome(key RouteKey, outcome UnitOutcome, latencyMs int64, retryAfterMs int64, now time.Time) error {
+	if !UnitHealthEnabled() {
+		return nil
+	}
 	cfg := GetUnitHealthSetting()
 	nowMs := now.UnixMilli()
 	escalate := modelPressureLevel(key.Model) == PressureNormal
@@ -397,9 +475,12 @@ func ReportOutcome(key RouteKey, outcome UnitOutcome, latencyMs int64, retryAfte
 	// Pre/post views come from the mirror under the read lock; a missing
 	// row is the default state. No shared pointer escapes this function:
 	// both the mirror entry and the CAS rows are read-only to us here.
-	prevUnhealthy, prevStreak := unitHealthView(key, nowMs)
+	prevUnhealthy, prevProbe := unitHealthView(key, nowMs)
 
 	err := casApplyUnit(key, now, func(row *ChannelModelHealth) (bool, error) {
+		if !UnitHealthEnabled() {
+			return false, nil
+		}
 		st := stateFromRow(row)
 		applyUnitOutcome(st, outcome, nowMs, latencyMs, retryAfterMs, escalate, cfg)
 		annealUnitStreak(st, cfg, nowMs)
@@ -410,17 +491,18 @@ func ReportOutcome(key RouteKey, outcome UnitOutcome, latencyMs int64, retryAfte
 		return err
 	}
 
-	nextUnhealthy, nextStreak := unitHealthView(key, nowMs)
+	nextUnhealthy, nextProbe := unitHealthView(key, nowMs)
 
 	// Healthy→unhealthy crossing: the emergency batch recovery revives the
 	// least-isolated rows of the pool.
 	if !prevUnhealthy && nextUnhealthy {
 		maybeEmergencyRecover(key.Model, now)
 	}
-	// Disable-cap crossing (fires the key-probe cascade exactly once,
-	// when the streak reaches the cap).
-	if UnitDisabledHook != nil && prevStreak < UnitDisableStreakCap && nextStreak >= UnitDisableStreakCap {
-		hook := UnitDisabledHook
+	// Probe-cap crossing: fire the key-probe hook exactly once, when the
+	// consecutive-failure ledger reaches the cap. The hook is diagnostic:
+	// the machine itself never turns the counter into an exclusion.
+	if UnitProbeFailHook != nil && prevProbe < UnitProbeFailCap && nextProbe >= UnitProbeFailCap {
+		hook := UnitProbeFailHook
 		gopool.Go(func() {
 			hook(key)
 		})
@@ -429,29 +511,33 @@ func ReportOutcome(key RouteKey, outcome UnitOutcome, latencyMs int64, retryAfte
 }
 
 // unitHealthView reports one unit's pressure/hook view (unhealthy flag and
-// disable streak) read under the mirror's read lock. It touches the shared
-// pointer ONLY while the lock is held and returns plain values, so
-// callers can use them across calls without ever holding the pointer. A
-// cache miss resolves to the default state (healthy, zero streak).
-func unitHealthView(key RouteKey, nowMs int64) (unhealthy bool, disableStreak int) {
+// consecutive failed recovery probes) read under the mirror's read lock. It
+// touches the shared pointer ONLY while the lock is held and returns plain
+// values, so callers can use them across calls without ever holding the
+// pointer. A cache miss resolves to the default state (healthy, zero probes).
+func unitHealthView(key RouteKey, nowMs int64) (unhealthy bool, probeFailStreak int) {
 	unitHealthLock.RLock()
 	defer unitHealthLock.RUnlock()
 	st := unitHealthIDM[key]
 	if st == nil {
 		return false, 0
 	}
-	return isUnitUnhealthy(st, nowMs), st.DisableStreak
+	return isUnitUnhealthy(st, nowMs), st.ProbeFailStreak
 }
 
-// DisableUnit is the admin hard-disable: trip the unit to terminal-disabled
-// immediately (disable streak at the cap, any live cooldown cleared, ramp
-// armed so a recover re-enters through slow start).
+// DisableUnit is the admin hard-disable: the persisted flag survives every
+// automatic health recovery path (cooldown settlement, annealing, emergency
+// recovery, success); only RecoverUnit clears it. Any live cooldown is
+// settled and the slow-start ramp is armed, so a recover re-enters at the
+// floor.
 func DisableUnit(key RouteKey, now time.Time) error {
 	return casApplyUnit(key, now, func(row *ChannelModelHealth) (bool, error) {
 		st := stateFromRow(row)
-		st.DisableStreak = UnitDisableStreakCap
+		st.HardDisabled = true
 		st.TerminalDisabled = true
-		finishUnitCooldown(st, now.UnixMilli(), false)
+		finishUnitCooldown(st, now.UnixMilli())
+		st.ProbePending = false
+		st.ProbeFailStreak = 0
 		st.ThrottleStreak = 0
 		st.CooldownStreak = 0
 		applyStateToRow(row, st)
@@ -459,15 +545,37 @@ func DisableUnit(key RouteKey, now time.Time) error {
 	})
 }
 
-// RecoverUnit is the admin revive: clear the terminal flag and the disable
-// strikes, drop any live cooldown, and re-arm the slow-start ramp. The EWMA
-// and latency history is preserved — the unit re-enters at the floor and
-// climbs back on evidence. Ability-level isolation (the separate
-// DisableChannelModel mechanism) is restored by RestoreChannelModel.
+// RecoverUnit is the admin revive: re-enable a channel/key that the health
+// key-probe cascade auto-disabled, restore this model's ability row, and
+// only then clear the health hard-disable and re-arm the slow-start ramp.
+// The EWMA and latency history is preserved — the unit re-enters at the
+// floor and climbs back on evidence.
+//
+// The ordering is a deliberate scope split rather than one transaction:
+// routing state is restored first and the health flip is last, so a restore
+// failure leaves the health row hard-disabled (excluded) instead of
+// "healthy but unroutable". The operator can retry the recover.
 func RecoverUnit(key RouteKey, now time.Time) error {
-	err := casApplyUnit(key, now, func(row *ChannelModelHealth) (bool, error) {
+	if err := restoreAutoDisabledChannelKey(key.ChannelId, key.KeyIndex); err != nil {
+		return err
+	}
+	if err := RestoreChannelModel(key.ChannelId, key.Model); err != nil {
+		return err
+	}
+	// A channel/key the operator disabled manually is not health's to
+	// override: leave the health row hard-disabled rather than claim the unit
+	// healthy while the scheduler cannot route it. The operator enables the
+	// channel first, then retries the recover.
+	enabled, err := unitRouteEnabled(key.ChannelId, key.KeyIndex)
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return errors.New("cannot recover route unit: channel or key is disabled")
+	}
+	return casApplyUnit(key, now, func(row *ChannelModelHealth) (bool, error) {
 		st := stateFromRow(row)
-		st.DisableStreak = 0
+		st.HardDisabled = false
 		st.TerminalDisabled = false
 		st.CooldownUntilMs = 0
 		st.RampPending = true
@@ -475,14 +583,57 @@ func RecoverUnit(key RouteKey, now time.Time) error {
 		st.RequestCount = 0
 		st.CooldownStreak = 0
 		st.ThrottleStreak = 0
+		st.ProbeFailStreak = 0
+		st.ProbePending = false
 		st.AnnealSinceMs = now.UnixMilli()
 		applyStateToRow(row, st)
 		return true, nil
 	})
+}
+
+// restoreAutoDisabledChannelKey re-enables the channel (single-key) or the
+// key entry (multi-key) that the health key-probe cascade put into
+// ChannelStatusAutoDisabled. A manually disabled channel is never touched:
+// that is an operator decision the unit recovery does not own.
+func restoreAutoDisabledChannelKey(channelID, keyIndex int) error {
+	channel, err := GetChannelById(channelID, true)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	targetKey := ""
+	if channel.ChannelInfo.IsMultiKey {
+		keys := channel.GetKeys()
+		if keyIndex < 0 || keyIndex >= len(keys) {
+			return nil
+		}
+		status, tracked := channel.ChannelInfo.MultiKeyStatusList[keyIndex]
+		if !tracked || status != common.ChannelStatusAutoDisabled {
+			return nil
+		}
+		targetKey = keys[keyIndex]
+	} else if channel.Status != common.ChannelStatusAutoDisabled {
+		return nil
+	}
+	if UpdateChannelStatus(channelID, targetKey, common.ChannelStatusEnabled, "route unit recovered") {
+		return nil
+	}
+	// false means "no-op" or a write failure; re-read to distinguish.
+	refreshed, err := GetChannelById(channelID, true)
 	if err != nil {
 		return err
 	}
-	return RestoreChannelModel(key.ChannelId, key.Model)
+	enabled := refreshed.Status == common.ChannelStatusEnabled
+	if refreshed.ChannelInfo.IsMultiKey {
+		status, tracked := refreshed.ChannelInfo.MultiKeyStatusList[keyIndex]
+		enabled = !tracked || status == common.ChannelStatusEnabled
+	}
+	if !enabled {
+		return errors.New("failed to re-enable the health-disabled channel")
+	}
+	return nil
 }
 
 // UnitHealthView is the admin listing shape (mono's gateway_health.rs): a
@@ -521,8 +672,9 @@ func ListUnitHealth(channelID int) ([]UnitHealthView, error) {
 		// A fully fresh row has nothing to show.
 		if st.EwmaScore == DefaultUnitScore && st.RequestCount == 0 &&
 			st.CooldownStreak == 0 && st.ThrottleStreak == 0 &&
-			st.DisableStreak == 0 && st.CooldownUntilMs == 0 &&
-			st.UnauthorizedRun == 0 && st.LastCoolingOutcome == -1 {
+			!st.HardDisabled && st.CooldownUntilMs == 0 &&
+			st.UnauthorizedRun == 0 && st.ProbeFailStreak == 0 &&
+			st.LastCoolingOutcome == -1 {
 			continue
 		}
 		remaining := st.CooldownUntilMs - nowMs

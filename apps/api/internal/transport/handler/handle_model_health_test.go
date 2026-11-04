@@ -93,11 +93,11 @@ func TestChannelModelHealthAdminAPI(t *testing.T) {
 		require.Equal(t, http.StatusOK, post("disable").Code)
 		var row channelpkg.ChannelModelHealth
 		require.NoError(t, dbx.DB.Where("channel_id = ? AND model = ?", 71, "gpt-health").First(&row).Error)
-		assert.Equal(t, channelpkg.UnitDisableStreakCap, row.DisableStreak, "disable trips the terminal cap")
+		assert.True(t, row.HardDisabled, "disable persists the hard-disable flag")
 
 		require.Equal(t, http.StatusOK, post("recover").Code)
 		require.NoError(t, dbx.DB.Where("channel_id = ? AND model = ?", 71, "gpt-health").First(&row).Error)
-		assert.Zero(t, row.DisableStreak, "recover clears the disable strikes")
+		assert.False(t, row.HardDisabled, "recover clears the hard-disable flag")
 		assert.True(t, row.RampPending, "recover re-arms the slow-start ramp")
 		assert.Zero(t, row.CooldownUntilMs, "recover drops any live cooldown")
 	})

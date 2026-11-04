@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"errors"
 	"math"
 	"strconv"
 	"sync"
@@ -168,14 +169,12 @@ func pressureRecomputeTotals(db *gorm.DB) {
 	}
 
 	type unhealthyRow struct {
-		Model         string
-		CooldownUntil int64
-		DisableStreak int
+		Model string
 	}
 	var unhealthyRows []unhealthyRow
 	if err := db.Model(&ChannelModelHealth{}).
-		Select("model, cooldown_until_ms, disable_streak").
-		Where("cooldown_until_ms > ? OR disable_streak >= ?", time.Now().UnixMilli(), UnitDisableStreakCap).
+		Select("model").
+		Where("cooldown_until_ms > ? OR hard_disabled = ?", time.Now().UnixMilli(), true).
 		Find(&unhealthyRows).Error; err != nil {
 		common.SysError("pressure recompute: query health rows failed: " + err.Error())
 		return
@@ -205,14 +204,17 @@ func pressureRecomputeTotals(db *gorm.DB) {
 }
 
 // maybeEmergencyRecover synchronously batch-recovers units when a model's
-// availability drops below EmergencyThreshold. It picks the least-isolated
-// unhealthy units (terminal rows first: their zero deadline sorts ahead of
-// the cooling ones, and they are stuck out the longest; then by earliest
-// cooldown deadline, then oldest update) and clears their isolation — the
-// deadline is zeroed, disable strikes reset, the slow-start ramp armed — so
-// the units re-enter the pool immediately rather than waiting out full
-// windows.
+// availability drops below EmergencyThreshold. It revives health-owned
+// cooldown state only: the earliest-expiring cooling windows are force-ended
+// (deadline zeroed, RampExited cleared so slow start applies, ramp armed) so
+// the units re-enter the pool immediately. A hard-disabled unit is never a
+// candidate — that is explicit operator state, not health. A unit whose
+// channel/key is not enabled is left cooling and logged: reporting it healthy
+// would count an unroutable route as available.
 func maybeEmergencyRecover(model string, now time.Time) {
+	if !UnitHealthEnabled() {
+		return
+	}
 	pressureLock.RLock()
 	p := pressureIDM[model]
 	pressureLock.RUnlock()
@@ -239,11 +241,9 @@ func maybeEmergencyRecover(model string, now time.Time) {
 		Model     string
 	}
 	var rows []recoverRow
-	// Terminal-disabled rows carry a zero deadline, so they order first:
-	// they are stuck out the longest and have nothing left to wait for.
 	if err := dbx.DB.Model(&ChannelModelHealth{}).
 		Select("channel_id, key_index, model").
-		Where("model = ? AND (cooldown_until_ms > ? OR disable_streak >= ?)", model, nowMs, UnitDisableStreakCap).
+		Where("model = ? AND cooldown_until_ms > ? AND hard_disabled = ?", model, nowMs, false).
 		Order("cooldown_until_ms ASC, updated_at ASC").
 		Limit(want).
 		Find(&rows).Error; err != nil {
@@ -254,29 +254,64 @@ func maybeEmergencyRecover(model string, now time.Time) {
 	for i := range rows {
 		row := &rows[i]
 		key := RouteKey{ChannelId: row.ChannelId, KeyIndex: row.KeyIndex, Model: row.Model}
-		revived := false
-		err := casApplyUnit(key, now, func(r *ChannelModelHealth) (bool, error) {
-			// Only units still unhealthy are eligible; a row recovered by
-			// a concurrent writer passes through unchanged.
-			if r.CooldownUntilMs == 0 && r.DisableStreak < UnitDisableStreakCap {
-				return false, nil
-			}
-			r.CooldownUntilMs = 0
-			r.DisableStreak = 0
-			r.RampPending = true
-			r.RequestCount = 0
-			r.AnnealSinceMs = nowMs
-			return true, nil
-		})
-		if err == nil {
-			revived = true
-		}
-		if !revived {
-			if err != nil {
-				common.SysError("emergency recover failed: channel=" + strconv.Itoa(row.ChannelId) + " key=" + strconv.Itoa(row.KeyIndex) + " model=" + row.Model + " err=" + err.Error())
-			}
+		selectable, err := unitRouteEnabled(row.ChannelId, row.KeyIndex)
+		if err != nil {
+			common.SysError("emergency recover: channel read failed: channel=" + strconv.Itoa(row.ChannelId) + " err=" + err.Error())
 			continue
 		}
-		logger.LogWarn(nil, "emergency recover route unit: channel="+strconv.Itoa(row.ChannelId)+" key="+strconv.Itoa(row.KeyIndex)+" model="+row.Model)
+		if !selectable {
+			logger.LogWarn(nil, "emergency recover skipped (route not enabled): channel="+strconv.Itoa(row.ChannelId)+" key="+strconv.Itoa(row.KeyIndex)+" model="+row.Model)
+			continue
+		}
+		recovered := false
+		err = casApplyUnit(key, now, func(r *ChannelModelHealth) (bool, error) {
+			// Only units still cooling are eligible; a row recovered by a
+			// concurrent writer (or hard-disabled meanwhile) passes through.
+			if r.CooldownUntilMs == 0 || r.HardDisabled {
+				return false, nil
+			}
+			st := stateFromRow(r)
+			finishUnitCooldown(st, nowMs)
+			applyStateToRow(r, st)
+			recovered = true
+			return true, nil
+		})
+		if err != nil {
+			common.SysError("emergency recover failed: channel=" + strconv.Itoa(row.ChannelId) + " key=" + strconv.Itoa(row.KeyIndex) + " model=" + row.Model + " err=" + err.Error())
+			continue
+		}
+		if recovered {
+			logger.LogWarn(nil, "emergency recover route unit: channel="+strconv.Itoa(row.ChannelId)+" key="+strconv.Itoa(row.KeyIndex)+" model="+row.Model)
+		}
 	}
+}
+
+// unitRouteEnabled reports whether the channel (and, for a multi-key
+// channel, the key index) is currently enabled, i.e. whether reviving this
+// unit's cooldown can actually make the route selectable. A missing channel
+// is treated as routable: the scheduler's own candidate pipeline will drop
+// it if the channel really is gone, and the recovery must not be blocked by
+// a transient read error.
+func unitRouteEnabled(channelID, keyIndex int) (bool, error) {
+	channel, err := GetChannelById(channelID, true)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return true, nil
+		}
+		return false, err
+	}
+	if channel.Status != common.ChannelStatusEnabled {
+		return false, nil
+	}
+	if !channel.ChannelInfo.IsMultiKey {
+		return keyIndex == 0, nil
+	}
+	keys := channel.GetKeys()
+	if keyIndex < 0 || keyIndex >= len(keys) {
+		return false, nil
+	}
+	if status, tracked := channel.ChannelInfo.MultiKeyStatusList[keyIndex]; tracked {
+		return status == common.ChannelStatusEnabled, nil
+	}
+	return true, nil
 }

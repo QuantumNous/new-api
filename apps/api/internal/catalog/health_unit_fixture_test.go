@@ -34,10 +34,10 @@ func withUnitHealthDB(t *testing.T) {
 	require.NoError(t, InitializeGatewayConfigRevision())
 	ClearUnitHealthCache()
 	resetPressure()
-	prevHook := UnitDisabledHook
-	UnitDisabledHook = nil
+	prevHook := UnitProbeFailHook
+	UnitProbeFailHook = nil
 	t.Cleanup(func() {
-		UnitDisabledHook = prevHook
+		UnitProbeFailHook = prevHook
 		dbx.DB = previousDB
 		ClearUnitHealthCache()
 		resetPressure()
@@ -100,18 +100,32 @@ func restoreDefaultUnitHealthSetting(t *testing.T) {
 	t.Cleanup(func() { RestoreUnitHealthSetting(previous) })
 }
 
-// captureUnitDisabledHook installs a recording sink for the key-probe cascade
-// hook and returns it; the hook is restored to nil on cleanup. The sink is
-// safe to read after the test body (the writer is a one-shot gopool goroutine,
-// so callers that need it synchronously should use a channel + WaitGroup and
-// drive the settle manually instead).
-func captureUnitDisabledHook(t *testing.T) *[]RouteKey {
+// captureUnitProbeHook installs a recording sink for the key-probe hook and
+// returns it; the hook is restored on cleanup. ReportOutcome runs the hook on a
+// pooled goroutine, so callers that need it synchronously should poll the sink
+// under its own lock or assert after the goroutine settles.
+func captureUnitProbeHook(t *testing.T) *[]RouteKey {
 	t.Helper()
 	sink := []RouteKey{}
-	prev := UnitDisabledHook
-	UnitDisabledHook = func(key RouteKey) { sink = append(sink, key) }
-	t.Cleanup(func() { UnitDisabledHook = prev })
+	prev := UnitProbeFailHook
+	UnitProbeFailHook = func(key RouteKey) { sink = append(sink, key) }
+	t.Cleanup(func() { UnitProbeFailHook = prev })
 	return &sink
+}
+
+// withChannelHealthEnabled toggles the live health kill switch and restores the
+// previous config afterwards. Flipping it off also exercises the reset hook, so
+// a test that expects clean state after re-enabling should not assume otherwise.
+func withChannelHealthEnabled(t *testing.T, enabled bool) {
+	t.Helper()
+	previous := *GetChannelHealthSetting()
+	cfg := previous
+	cfg.Enabled = enabled
+	SetChannelHealthSetting(&cfg)
+	t.Cleanup(func() {
+		restore := previous
+		SetChannelHealthSetting(&restore)
+	})
 }
 
 // resetPressure clears the pool-pressure map so pressure cases do not see

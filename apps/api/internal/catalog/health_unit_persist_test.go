@@ -79,13 +79,12 @@ func TestForceRecallUnit_ClearsCooldownKeepsStreaks(t *testing.T) {
 	assert.Equal(t, int64(0), row.CooldownUntilMs, "recall clears the live deadline")
 	assert.True(t, row.RampPending, "recall re-arms the slow-start ramp")
 	assert.Equal(t, 1, row.CooldownStreak, "recall keeps the cooldown ledger")
-	assert.Equal(t, 0, row.DisableStreak, "recall (strike=false) never adds a disable strike")
+	assert.True(t, row.ProbePending, "a force recall puts the unit on recovery probation")
 }
 
 // TestRecoverUnit_ClearsTerminalArmsRamp pins the admin revive: a
-// terminal-disabled unit clears the strikes, drops any cooldown, and re-enters
-// through the ramp. The EWMA history is preserved, not reset. Terminal is
-// derived from the strike cap, so the test asserts on DisableStreak.
+// hard-disabled unit clears the hard-disable flag, drops any cooldown, and
+// re-enters through the ramp. The EWMA history is preserved, not reset.
 func TestRecoverUnit_ClearsTerminalArmsRamp(t *testing.T) {
 	withUnitHealthDB(t)
 	key := RouteKey{ChannelId: 9504, KeyIndex: 0, Model: "recover-model"}
@@ -94,13 +93,13 @@ func TestRecoverUnit_ClearsTerminalArmsRamp(t *testing.T) {
 		EwmaScore: 0.6,
 	}).Error)
 	require.NoError(t, DisableUnit(key, time.Now()))
-	assert.Equal(t, UnitDisableStreakCap, readUnitRow(t, key).DisableStreak,
-		"disable parks the unit at the strike cap (terminal)")
+	assert.True(t, readUnitRow(t, key).HardDisabled,
+		"disable persists the hard-disable flag (terminal)")
 
 	require.NoError(t, RecoverUnit(key, time.Now()))
 
 	row := readUnitRow(t, key)
-	assert.Equal(t, 0, row.DisableStreak, "recover clears the terminal strikes")
+	assert.False(t, row.HardDisabled, "recover clears the hard-disable flag")
 	assert.Equal(t, int64(0), row.CooldownUntilMs, "recover drops any live cooldown")
 	assert.True(t, row.RampPending, "recover re-arms the slow-start ramp")
 	assert.InDelta(t, 0.6, row.EwmaScore, 1e-9, "recover keeps the EWMA history")

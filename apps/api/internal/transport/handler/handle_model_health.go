@@ -45,9 +45,11 @@ type channelModelHealthActionRequest struct {
 }
 
 // UpdateChannelModelHealth disables, recovers, or force-recalls one route
-// unit. A disable trips the unit to terminal-disabled immediately; a recover
-// clears the terminal flag and re-arms the slow-start ramp; a force recall
-// settles a live cooldown right now without waiting out the window.
+// unit. A disable is the explicit persisted hard-disable (automatic health
+// recovery never clears it); a recover re-enables the key/channel the probe
+// cascade auto-disabled, restores the model's ability row, then clears the
+// hard-disable and arms slow start; a force recall settles a live cooldown
+// right now without waiting out the window.
 func UpdateChannelModelHealth(c contract.Context) {
 	var req channelModelHealthActionRequest
 	if err := c.BindJSON(&req); err != nil || req.ChannelId <= 0 || req.Model == "" {

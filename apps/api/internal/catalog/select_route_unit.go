@@ -153,8 +153,8 @@ func allowedChannelsForGroupAlias(group, alias string) map[int]struct{} {
 // filterCandidatesByChannelStatusAndKey filters candidates by channel status (enabled),
 // key availability (multi-key status), and Advanced Custom path filtering.
 // Health selectability is NOT applied here: the P2C selector owns the eligible
-// set — cooling / terminal-disabled units drop out of the duel, and a fully
-// down pool takes the faint-recall path (selector_p2c.go).
+// set — cooling / hard-disabled units drop out of the duel, and a fully down
+// pool takes the faint-recall path (selector_p2c.go).
 // Modifies the slice in place and returns the filtered result.
 func filterCandidatesByChannelStatusAndKey(candidates []routeCandidate, requestPath, alias string, excludeRoutes map[RouteKey]bool) []routeCandidate {
 	if len(candidates) == 0 {
@@ -308,8 +308,7 @@ type RouteScore struct {
 //	quality      EWMA synthesis, clamped to [QualityFloor, QualityCeil]; neutral
 //	             1.0 until MinSamples observations exist
 //	health       unit score: EWMA x slow-start factor, 0 while the unit is
-//	             cooling or terminal-disabled — the only term that reaches zero
-//	correction   share-deficit multiplier, 1.0 at convergence
+//	             cooling or hard-disabled — the only term that reaches zero
 //
 // The division of labour matters: quality expresses a continuous preference and
 // is floored well above zero, so a badly performing route loses share but never
@@ -430,7 +429,7 @@ func SelectRouteUnit(group string, alias string, requestPath string, retry int, 
 
 	// P2C duel (mono selector port): sample by the effective prior (static
 	// weight × slow-start ramp), then decide by the posterior likelihood.
-	// Cooling or terminal-disabled units are not eligible; with the whole
+	// Cooling or hard-disabled units are not eligible; with the whole
 	// pool down, faintRecall force-recalls the shortest-remaining unit.
 	selected := selectP2C(candidates, alias, ChannelHealthNow(), rnd)
 	if selected == nil {

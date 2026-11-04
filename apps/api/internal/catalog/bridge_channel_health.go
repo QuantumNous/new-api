@@ -175,11 +175,13 @@ func bridgeSlowStartFactor(state *channelHealthState, minRequests int) float64 {
 }
 
 // Wire the kill-switch cleanup here rather than in operation_setting, which must
-// not import this package. Toggling the switch off now discards accumulated
-// scores so re-enabling starts from a clean slate instead of resurrecting them.
+// not import this package. Toggling the switch off discards accumulated scores
+// and resets the route-unit machine, so re-enabling starts from a clean slate
+// instead of resurrecting a cooldown armed before the toggle.
 func init() {
 	RegisterHealthStateResetHook(func() {
 		GetChannelHealthManager().Reset()
+		resetUnitHealthStateForKillSwitch()
 	})
 }
 
