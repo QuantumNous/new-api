@@ -168,7 +168,7 @@ describe('pricing controls', () => {
       render(<PricingSidebar {...toolbarProps()} models={models} />)
 
       for (const [quotaType, label] of [
-        ['token', 'Token-based'],
+        ['token', 'Pay as you go'],
         ['request', 'Per Request'],
         ['task', 'Task billing'],
       ]) {
