@@ -40,6 +40,7 @@ export type ModelGuide = {
 /** Default order of the catalogue ("Recommended"): strongest first, the
  *  newcomer of a price tier directly after its established peer. */
 export const RECOMMENDED_ORDER = [
+  'claude-fable-5-1',
   'gpt-6-astra',
   'claude-opus-5-5',
   'claude-sonnet-5-5',
@@ -51,11 +52,18 @@ export const RECOMMENDED_ORDER = [
 ] as const
 
 export const MODEL_GUIDE: Readonly<Record<string, ModelGuide>> = {
+  'claude-fable-5-1': {
+    tag: { tr: 'En güçlü', en: 'Most powerful' },
+    description: {
+      tr: 'En zor işler için en güçlü model. Derin düşünme gerektiren sorunlarda ve saatler süren, çok adımlı görevlerde kullanın; örneğin büyük bir uygulamanın tasarımını baştan kurmak.',
+      en: 'The strongest model, for the hardest jobs. Use it for problems that need deep thinking and for multi-step tasks that run for hours, such as designing a large app from scratch.',
+    },
+  },
   'claude-opus-5-5': {
     tag: { tr: 'Büyük projeler', en: 'Big projects' },
     description: {
-      tr: 'Büyük ve karmaşık kodlama işleri ile uzun süren görevler için. Birçok dosyayı kapsayan bir değişikliği baştan sona kendisi yapabilir; ailenin en güçlü ve en hızlı modeli.',
-      en: 'For large, complex coding work and long-running tasks. It can carry out a change that spans many files from start to finish; the most powerful model in the family.',
+      tr: 'Büyük ve karmaşık kodlama işleri ile uzun süren görevler için. Birçok dosyayı kapsayan bir değişikliği baştan sona kendisi yapabilir; Fable’dan daha hızlı ve ucuz.',
+      en: 'For large, complex coding work and long-running tasks. It can carry out a change that spans many files from start to finish, faster and cheaper than Fable.',
     },
   },
   'claude-sonnet-5-5': {
@@ -84,8 +92,8 @@ export const MODEL_GUIDE: Readonly<Record<string, ModelGuide>> = {
       en: 'OpenAI’s most powerful',
     },
     description: {
-      tr: 'OpenAI’nin amiral gemisi modeli. En zor araştırma sorunları, saatler süren çok adımlı görevler ve bir uygulamanın tamamını kapsayan büyük yeniden yazımlar için.',
-      en: 'OpenAI’s flagship model. For the hardest research problems, multi-step jobs that run for hours, and rewrites that span a whole app.',
+      tr: 'OpenAI’nin amiral gemisi modeli. En zor araştırma sorunları, saatler süren çok adımlı görevler ve bir uygulamanın tamamını kapsayan büyük yeniden yazımlar için; Fable ile aynı fiyat sınıfında.',
+      en: 'OpenAI’s flagship model. For the hardest research problems, multi-step jobs that run for hours, and rewrites that span a whole app; priced in the same tier as Fable.',
     },
   },
   'gpt-6.1-sol': {

@@ -103,6 +103,13 @@ export const PRICE_SOURCES: readonly PriceSource[] = [
 /** Same order as the catalogue ("Recommended"): see `RECOMMENDED_ORDER` in `model-guide.ts`. */
 export const MODEL_PRICES: readonly ModelPrice[] = [
   {
+    model: 'claude-fable-5-1',
+    provider: 'Anthropic',
+    official: { input: 10, output: 50 },
+    openrouter: { input: 10, output: 50 },
+    hisarweb: { input: 5, output: 25 },
+  },
+  {
     model: 'gpt-6-astra',
     provider: 'OpenAI',
     official: { input: 10, output: 50 },

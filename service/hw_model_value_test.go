@@ -163,6 +163,10 @@ func TestHwRetiredModelsAreNotSoldAndPointAtASoldModel(t *testing.T) {
 	assert.True(t, soldFamily["gpt-luna"])
 	assert.True(t, soldFamily["gpt-sol"])
 	assert.True(t, soldFamily["gpt-astra"])
+	// claude-fable-5-1 is sold again since 4 Nov 2026 and is no longer retired.
+	assert.True(t, soldFamily["claude-fable"])
+	_, fableRetired := hwRetiredModels["claude-fable-5-1"]
+	assert.False(t, fableRetired)
 	assert.False(t, soldFamily["gpt-terra"])
 	assert.False(t, soldFamily["gpt-6"])
 }
