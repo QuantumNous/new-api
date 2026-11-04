@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -757,6 +759,11 @@ func HwDecideRetry(c *gin.Context, apiErr *types.NewAPIError) (PolicyDecision, b
 	if apiErr == nil {
 		return hwPolicyDecision("stop", "hw_no_error"), true
 	}
+	if hwIsSupplierCreditError(apiErr) && state.lastChannel != nil {
+		// Fixed marker for the supplier health check of the office board: one
+		// line per failure, channel and model only, never the supplier text.
+		logger.LogWarn(c, common.LogText("hw supplier credit exhausted: channel_id=%d model=%s", state.lastChannel.Id, state.model))
+	}
 	if types.IsSkipRetryError(apiErr) || apiErr.GetErrorCode() == HwErrorCodeServiceBusy {
 		state.finished = true
 		return hwPolicyDecision("stop", "hw_terminal_error"), true
@@ -822,6 +829,35 @@ func hwIsOutageError(apiErr *types.NewAPIError) bool {
 		return true
 	}
 	return false
+}
+
+// hwSupplierCreditPhrases are the wordings suppliers use when their own account
+// with the model vendor has no credit left. Lumia answers with the vendor's 400
+// "Your credit balance is too low ..." for some models while others keep
+// working (4 Nov 2026), so it is no customer mistake and no reason to cool the
+// whole supplier.
+var hwSupplierCreditPhrases = []string{
+	"credit balance is too low",
+	"insufficient_quota",
+	"exceeded your current quota",
+	"insufficient balance",
+	"purchase credits",
+}
+
+// hwIsSupplierCreditError reports whether a supplier refused because its own
+// account is out of credit. The gateway's own refusals (the customer's quota,
+// access control) never count: they carry one of our own error codes.
+func hwIsSupplierCreditError(apiErr *types.NewAPIError) bool {
+	if apiErr == nil || apiErr.StatusCode < http.StatusBadRequest || apiErr.StatusCode >= http.StatusInternalServerError {
+		return false
+	}
+	if HwIsOwnErrorCode(string(apiErr.GetErrorCode())) {
+		return false
+	}
+	message := strings.ToLower(apiErr.Error())
+	return slices.ContainsFunc(hwSupplierCreditPhrases, func(phrase string) bool {
+		return strings.Contains(message, phrase)
+	})
 }
 
 // hwSupplierStreamCut classifies a supplier stream that ended without its
@@ -968,6 +1004,9 @@ func HwTerminalError(c *gin.Context, apiErr *types.NewAPIError, decision PolicyD
 	state := HwRoute(c)
 	if state == nil || apiErr == nil || decision.Action == "retry" {
 		return nil
+	}
+	if hwIsSupplierCreditError(apiErr) {
+		return HwModelUnavailableError(c, state.model)
 	}
 	if HwIsOwnErrorCode(string(apiErr.GetErrorCode())) || types.IsSkipRetryError(apiErr) {
 		return nil
