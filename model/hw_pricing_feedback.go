@@ -29,6 +29,12 @@ const (
 	// HwPricingFeedbackDedupSeconds is how long a model and kind stay one
 	// report: a second report inside the window is stored, never mailed.
 	HwPricingFeedbackDedupSeconds = 7 * 24 * 3600
+	// HwPricingFeedbackStoredPerDay bounds the reports stored a day across
+	// all addresses, so many addresses together cannot fill the table.
+	HwPricingFeedbackStoredPerDay = 200
+	// HwPricingFeedbackRetentionSeconds is how long a carded report keeps the
+	// reporter's email and text; the kind and model stay for the history.
+	HwPricingFeedbackRetentionSeconds = 90 * 24 * 3600
 	// HwPricingFeedbackCardBatch bounds the rows one bundled card carries.
 	HwPricingFeedbackCardBatch = 50
 )
@@ -137,4 +143,12 @@ func HwMarkPricingFeedbackCarded(db *gorm.DB, ids []int, card string) error {
 		return nil
 	}
 	return db.Model(&HwPricingFeedback{}).Where("id IN ? AND card = ?", ids, "").Update("card", card).Error
+}
+
+// HwForgetOldPricingFeedback clears the email and text of carded reports
+// older than the retention window.
+func HwForgetOldPricingFeedback(db *gorm.DB, now int64) error {
+	return db.Model(&HwPricingFeedback{}).
+		Where("card <> ? AND created_at < ? AND (email <> ? OR message <> ?)", "", now-HwPricingFeedbackRetentionSeconds, "", "").
+		Updates(map[string]any{"email": "", "message": ""}).Error
 }

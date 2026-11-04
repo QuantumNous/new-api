@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -41,6 +44,11 @@ func HwPricingFeedback(c *gin.Context) {
 		return
 	}
 	now := common.GetTimestamp()
+	day := "hw:pf:store:" + time.Unix(now, 0).UTC().Format("2006-01-02")
+	if stored, err := model.HwAssistantBumpCounter(model.DB, day, now); err != nil || stored > model.HwPricingFeedbackStoredPerDay {
+		c.JSON(http.StatusTooManyRequests, gin.H{"success": false, "message": "too many requests"})
+		return
+	}
 	if err := model.HwStorePricingFeedback(model.DB, &row, now); err != nil {
 		common.ApiError(c, err)
 		return

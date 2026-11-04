@@ -60,7 +60,7 @@ func TestHwPricingFeedbackMailsOnceAndBundlesOneCard(t *testing.T) {
 	mails, cards := hwPricingFeedbackTestSetup(t)
 	now := int64(1_800_000_000)
 	for _, text := range []string{"<script>x</script>", "again"} {
-		row := model.HwPricingFeedback{Kind: model.HwPricingFeedbackKindPrice, Model: "gpt-5", Message: text}
+		row := model.HwPricingFeedback{Kind: model.HwPricingFeedbackKindPrice, Model: "gpt-5", Message: text, Email: "someone@example.com"}
 		require.NoError(t, model.HwNormalizePricingFeedback(&row))
 		require.NoError(t, model.HwStorePricingFeedback(model.DB, &row, now))
 		if !row.Duplicate {
@@ -75,6 +75,14 @@ func TestHwPricingFeedbackMailsOnceAndBundlesOneCard(t *testing.T) {
 	assert.Equal(t, "HIS-1", card)
 	require.Len(t, *cards, 1)
 	assert.Contains(t, (*cards)[0].Description, "Werkwijze")
+	assert.NotContains(t, (*cards)[0].Description, "someone@example.com", "an unconfirmed address never reaches the card")
+
+	require.NoError(t, model.HwForgetOldPricingFeedback(model.DB, now+model.HwPricingFeedbackRetentionSeconds+1))
+	var kept model.HwPricingFeedback
+	require.NoError(t, model.DB.Where("card = ?", "HIS-1").First(&kept).Error)
+	assert.Empty(t, kept.Email, "a carded report forgets the address after the retention window")
+	assert.Empty(t, kept.Message)
+	assert.Equal(t, "gpt-5", kept.Model)
 	assert.Equal(t, HwBureauAgentModelverkenner, (*cards)[0].AssigneeAgentID)
 
 	card, err = HwBundlePricingFeedback(context.Background(), HwBureauCardConfig{}, now)

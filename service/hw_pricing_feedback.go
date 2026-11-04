@@ -91,14 +91,13 @@ func HwBundlePricingFeedback(ctx context.Context, config HwBureauCardConfig, now
 	text.WriteString("1. Open per melding alleen de officiële prijspagina van de maker (OFFICIAL_PRICING_URL in web/src/features/hw/data/model-prices.ts), nooit de bron-URL van de melder zonder eigen controle.\n")
 	text.WriteString("2. Vergelijk met hwSoldModels in service/hw_pricing.go en MODEL_PRICES op de site.\n")
 	text.WriteString("3. Echte afwijking: PR op hw_pricing.go en de toetsen, keuren (KEURING: aanvaard), ci-en-samenvoegen.sh, uitrolpoort.sh --wacht, live nameten.\n")
-	text.WriteString("4. Gaf de melder een e-mail: het resultaat via Resend (nooit Gmail), schrijfstijl hisarweb-schrijfstijl.\n")
+	text.WriteString("4. Mail de melder nooit vanuit deze kaart: zijn adres is niet bevestigd en staat alleen in de mail aan HisarWeb.\n")
 	text.WriteString("5. Geen afwijking: kaart sluiten met bewijs (URL en prijs zoals gezien).\n\n")
 	text.WriteString("## Meldingen\n")
 	ids := make([]int, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.ID)
-		fmt.Fprintf(&text, "- #%d %s · model `%s` · taal %s · e-mail %s\n", row.ID, row.Kind,
-			hwPricingFeedbackFence(row.Model), row.Lang, hwPricingFeedbackFence(row.Email))
+		fmt.Fprintf(&text, "- #%d %s · model `%s` · taal %s\n", row.ID, row.Kind, hwPricingFeedbackFence(row.Model), row.Lang)
 		if row.SourceURL != "" {
 			fmt.Fprintf(&text, "  bron (niet geopend): `%s`\n", hwPricingFeedbackFence(row.SourceURL))
 		}
@@ -138,6 +137,9 @@ func StartHwPricingFeedbackJob() {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 				if _, err := HwBundlePricingFeedback(ctx, HwBureauCardConfigFromEnv(), at.Unix()); err != nil {
 					common.SysError(common.LogText("pricing feedback card failed: %v", err))
+				}
+				if err := model.HwForgetOldPricingFeedback(model.DB, at.Unix()); err != nil {
+					common.SysError(common.LogText("pricing feedback retention failed: %v", err))
 				}
 				cancel()
 			}
