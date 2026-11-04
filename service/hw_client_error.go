@@ -20,6 +20,9 @@ const (
 	HwErrorCodeAccountFrozen      types.ErrorCode = "account_frozen"
 	HwErrorCodeWindowLimitReached types.ErrorCode = "window_limit_reached"
 	HwErrorCodeModelRetired       types.ErrorCode = "model_retired"
+	// HwErrorCodeModelUnavailable ends a route whose suppliers could not serve
+	// the model for a reason on their side (their own account out of credit).
+	HwErrorCodeModelUnavailable types.ErrorCode = "model_unavailable"
 )
 
 // HwIsOwnErrorCode reports whether code belongs to an error this fork generated
@@ -34,7 +37,7 @@ func HwIsOwnErrorCode(code string) bool {
 		string(HwErrorCodeWindowLimitReached), string(HwErrorCodeModelRetired),
 		string(types.ErrorCodeInsufficientUserQuota), string(types.ErrorCodePreConsumeTokenQuotaFailed),
 		string(types.ErrorCodeInvalidRequest), string(types.ErrorCodeAccessDenied),
-		string(types.ErrorCodeSensitiveWordsDetected):
+		string(types.ErrorCodeSensitiveWordsDetected), string(HwErrorCodeModelUnavailable):
 		return true
 	}
 	return false
@@ -130,6 +133,30 @@ func HwAccountFrozenMessage(c *gin.Context) string {
 		return "Hesabınız inceleme nedeniyle geçici olarak durduruldu, ücretsiz deneme kredisi şu anda kullanılamıyor. Ödenmiş bakiyeniz kullanılabilir."
 	}
 	return "This account is under review, so the free trial credit cannot be used right now. Paid credit still works."
+}
+
+// HwModelUnavailableError tells the customer that this model is temporarily
+// unavailable at the supplier and names the model one step lower when there is
+// one. It names no supplier; the supplier text stays in the admin log.
+func HwModelUnavailableError(c *gin.Context, modelName string) *types.NewAPIError {
+	lower := HwModelStepDown(modelName)
+	var message string
+	switch {
+	case HwPrefersTurkish(c) && lower != "":
+		message = modelName + " şu anda geçici olarak kullanılamıyor. " + lower + " modelini deneyin veya biraz sonra tekrar deneyin."
+	case HwPrefersTurkish(c):
+		message = "Bu model şu anda geçici olarak kullanılamıyor. Lütfen biraz sonra tekrar deneyin."
+	case lower != "":
+		message = modelName + " is temporarily unavailable. Try " + lower + " or try again shortly."
+	default:
+		message = "This model is temporarily unavailable. Please try again shortly."
+	}
+	return types.NewErrorWithStatusCode(
+		errors.New(message),
+		HwErrorCodeModelUnavailable,
+		http.StatusServiceUnavailable,
+		types.ErrOptionWithSkipRetry(),
+	)
 }
 
 // HwServiceBusyError is the terminal error for an exhausted supplier route.

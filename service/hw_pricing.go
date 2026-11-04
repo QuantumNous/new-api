@@ -155,6 +155,33 @@ func HwIsPremiumModel(name string) bool {
 	})
 }
 
+// HwModelStepDown returns the sold model one step lower than name: the model of
+// the same vendor (the name before the first dash) with the highest input list
+// price strictly below it. It is the console's premiumStepDown for any model,
+// and empty when name is not sold or is already the cheapest of its vendor.
+func HwModelStepDown(name string) string {
+	vendor, _, _ := strings.Cut(name, "-")
+	var current *HwSoldModel
+	for i := range hwSoldModels {
+		if hwSoldModels[i].Name == name {
+			current = &hwSoldModels[i]
+		}
+	}
+	if current == nil {
+		return ""
+	}
+	best := ""
+	bestInput := int64(-1)
+	for _, sold := range hwSoldModels {
+		soldVendor, _, _ := strings.Cut(sold.Name, "-")
+		if soldVendor != vendor || int64(sold.InputMicroUsd) >= int64(current.InputMicroUsd) || int64(sold.InputMicroUsd) <= bestInput {
+			continue
+		}
+		best, bestInput = sold.Name, int64(sold.InputMicroUsd)
+	}
+	return best
+}
+
 // HwRetiredModelSuccessor returns the model that replaces a retired model name.
 func HwRetiredModelSuccessor(name string) (string, bool) {
 	successor, ok := hwRetiredModels[name]

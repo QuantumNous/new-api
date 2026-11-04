@@ -799,6 +799,11 @@ func (w *hwMaskWriter) sanitizeErrorObject(errObject map[string]any, status int)
 	if !service.HwIsOwnErrorCode(code) {
 		if _, ok := errObject["message"]; ok {
 			errObject["message"] = service.HwGenericErrorMessage(w.ctx, status)
+			// A generic text always carries a code, so the admin log and the
+			// customer can tell one masked failure class from another.
+			if code == "" {
+				errObject["code"] = "upstream_error"
+			}
 		}
 	} else if message, ok := errObject["message"].(string); ok {
 		errObject["message"] = hwSafetyNet(w.ctx, []byte(message))
