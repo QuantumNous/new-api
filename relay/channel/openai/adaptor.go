@@ -766,7 +766,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case relayconstant.RelayModeRealtime:
 		err, usage = OpenaiRealtimeHandler(c, info)
 	case relayconstant.RelayModeAudioSpeech:
-		usage = OpenaiTTSHandler(c, resp, info)
+		usage, err = OpenaiTTSHandler(c, resp, info)
 	case relayconstant.RelayModeAudioTranslation:
 		fallthrough
 	case relayconstant.RelayModeAudioTranscription:

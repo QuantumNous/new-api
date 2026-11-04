@@ -227,10 +227,11 @@ func TestRequestDeepCopyOtherProtocols(t *testing.T) {
 
 	t.Run("audio raw parameters and speed remain isolated", func(t *testing.T) {
 		assertRequestCloneIsolation(t, `{
-			"model":"tts-1","input":"hello","voice":"alloy","speed":1,"metadata":{"tag":"test"},"ref_audio":"sample"
+			"model":"tts-1","input":"hello","voice":"alloy","speed":1,"metadata":{"tag":"test"},"ref_audio":"sample","max_new_frames":220
 		}`, func(clone *dto.AudioRequest) {
 			clone.Metadata[0] = '!'
 			clone.RefAudio[1] = '!'
+			clone.MaxNewFrames[0] = '!'
 			*clone.Speed = 2
 		})
 	})
