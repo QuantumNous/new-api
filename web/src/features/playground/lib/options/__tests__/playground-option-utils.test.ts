@@ -20,7 +20,12 @@ import { describe, expect, it } from 'vitest'
 
 import { DEFAULT_CONFIG } from '../../../constants'
 import type { GroupOption, ModelOption } from '../../../types'
-import { getGroupFallback, getModelFallback } from '../playground-option-utils'
+import {
+  getGroupFallback,
+  getModelFallback,
+  getUnavailableAlternative,
+  labelUnavailableModels,
+} from '../playground-option-utils'
 
 const options = (...values: string[]): ModelOption[] =>
   values.map((value) => ({ label: value, value }))
@@ -102,5 +107,78 @@ describe('getModelFallback', () => {
       getModelFallback(options('claude-haiku-5-5', 'gpt-6-astra'), 'gpt-4o')
     ).toBe('claude-haiku-5-5')
     expect(getModelFallback([], 'gpt-4o')).toBeNull()
+  })
+})
+
+describe('labelUnavailableModels', () => {
+  it('appends the suffix to a temporarily unavailable model only', () => {
+    const labelled = labelUnavailableModels(
+      options('claude-opus-5-5', 'gpt-6-astra'),
+      { 'claude-opus-5-5': 'gpt-6-astra' },
+      'temporarily unavailable'
+    )
+    expect(labelled.map((model) => model.label)).toEqual([
+      'claude-opus-5-5 (temporarily unavailable)',
+      'gpt-6-astra',
+    ])
+    expect(labelled.map((model) => model.value)).toEqual([
+      'claude-opus-5-5',
+      'gpt-6-astra',
+    ])
+  })
+
+  it('returns the same list when nothing is unavailable', () => {
+    const models = options('claude-opus-5-5')
+    expect(labelUnavailableModels(models, {}, 'x')).toBe(models)
+  })
+})
+
+describe('getUnavailableAlternative', () => {
+  const models = options(
+    'claude-fable-5-1',
+    'claude-opus-5-5',
+    'gpt-6',
+    'gpt-6-astra'
+  )
+
+  it('names the model the unavailable error suggests, in any language', () => {
+    expect(
+      getUnavailableAlternative(
+        'model_unavailable',
+        'claude-fable-5-1 is temporarily unavailable. Try claude-opus-5-5 or try again shortly.',
+        models
+      )
+    ).toBe('claude-opus-5-5')
+    expect(
+      getUnavailableAlternative(
+        'model_unavailable',
+        'claude-opus-5-5 şu anda geçici olarak kullanılamıyor. gpt-6-astra modelini deneyin veya biraz sonra tekrar deneyin.',
+        models
+      )
+    ).toBe('gpt-6-astra')
+  })
+
+  it('returns null without a suggestion, another error code or an unreachable model', () => {
+    expect(
+      getUnavailableAlternative(
+        'model_unavailable',
+        'This model is temporarily unavailable. Please try again shortly.',
+        models
+      )
+    ).toBeNull()
+    expect(
+      getUnavailableAlternative(
+        'service_busy',
+        'claude-fable-5-1 is temporarily unavailable. Try claude-opus-5-5 or try again shortly.',
+        models
+      )
+    ).toBeNull()
+    expect(
+      getUnavailableAlternative(
+        'model_unavailable',
+        'claude-fable-5-1 is temporarily unavailable. Try claude-sonnet-5-5 or try again shortly.',
+        models
+      )
+    ).toBeNull()
   })
 })

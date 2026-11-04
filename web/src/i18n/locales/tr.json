@@ -1934,6 +1934,8 @@
     "Result": "Sonuç",
     "Result not retained": "Sonuç saklanmadı",
     "Retry": "Yeniden dene",
+    "Try with {{model}}": "{{model}} ile dene",
+    "temporarily unavailable": "geçici olarak kullanılamıyor",
     "Retry Chain": "Yeniden Deneme Zinciri",
     "Return Error": "Hata döndürün",
     "Return per-token log probabilities": "Token başına log olasılıklarını döndür",

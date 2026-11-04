@@ -62,6 +62,17 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
 }
 
 /**
+ * Temporarily unavailable models, each mapped to the healthy model to try.
+ */
+export async function getModelHealth(): Promise<Record<string, string>> {
+  const res = await api.get(API_ENDPOINTS.MODEL_HEALTH, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  const unavailable = res.data?.data?.unavailable
+  return unavailable && typeof unavailable === 'object' ? unavailable : {}
+}
+
+/**
  * Get user groups
  */
 export async function getUserGroups(): Promise<GroupOption[]> {

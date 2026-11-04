@@ -5368,6 +5368,8 @@
     "Retention days": "保持日数",
     "Retrieve result": "結果を取得",
     "Retry": "再試行",
+    "Try with {{model}}": "{{model}} で試す",
+    "temporarily unavailable": "一時的に利用できません",
     "Retry budget": "再試行予算",
     "Retry Chain": "リトライチェーン",
     "Retry Settings": "再試行設定",

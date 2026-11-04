@@ -5368,6 +5368,8 @@
     "Retention days": "Số ngày lưu giữ",
     "Retrieve result": "Truy vấn kết quả",
     "Retry": "Thử lại",
+    "Try with {{model}}": "Thử với {{model}}",
+    "temporarily unavailable": "tạm thời không khả dụng",
     "Retry budget": "Ngân sách thử lại",
     "Retry Chain": "Chuỗi thử lại",
     "Retry Settings": "Cài đặt thử lại",

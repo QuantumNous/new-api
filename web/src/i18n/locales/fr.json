@@ -5368,6 +5368,8 @@
     "Retention days": "Jours de rétention",
     "Retrieve result": "Consulter le résultat",
     "Retry": "Réessayer",
+    "Try with {{model}}": "Essayer avec {{model}}",
+    "temporarily unavailable": "temporairement indisponible",
     "Retry budget": "Budget de tentatives",
     "Retry Chain": "Chaîne de tentatives",
     "Retry Settings": "Paramètres de relance",

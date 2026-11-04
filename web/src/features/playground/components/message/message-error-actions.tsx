@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Edit, RefreshCw, Trash2 } from 'lucide-react'
+import { Edit, RefreshCw, Shuffle, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { MessageActionButton } from './message-action-button'
@@ -26,6 +26,9 @@ type MessageErrorActionsProps = {
   onDelete?: () => void
   onEditPrompt?: () => void
   onRetry?: () => void
+  /** The healthy model a model_unavailable error suggests. */
+  retryModel?: string | null
+  onRetryWithModel?: (model: string) => void
 }
 
 export function MessageErrorActions({
@@ -33,15 +36,27 @@ export function MessageErrorActions({
   onDelete,
   onEditPrompt,
   onRetry,
+  retryModel,
+  onRetryWithModel,
 }: MessageErrorActionsProps) {
   const { t } = useTranslation()
 
-  if (!onRetry && !onEditPrompt && !onDelete) {
+  const canRetryWithModel = Boolean(retryModel && onRetryWithModel)
+  if (!onRetry && !onEditPrompt && !onDelete && !canRetryWithModel) {
     return null
   }
 
   return (
     <div className='flex flex-wrap items-center gap-0.5 pt-2'>
+      {canRetryWithModel && retryModel && (
+        <MessageActionButton
+          disabled={disabled}
+          icon={Shuffle}
+          label={t('Try with {{model}}', { model: retryModel })}
+          onClick={() => onRetryWithModel?.(retryModel)}
+        />
+      )}
+
       {onRetry && (
         <MessageActionButton
           disabled={disabled}

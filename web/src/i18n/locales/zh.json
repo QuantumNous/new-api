@@ -5368,6 +5368,8 @@
     "Retention days": "保留天数",
     "Retrieve result": "查询结果",
     "Retry": "重试",
+    "Try with {{model}}": "改用 {{model}} 重试",
+    "temporarily unavailable": "暂时不可用",
     "Retry budget": "重试预算",
     "Retry Chain": "重试链路",
     "Retry Settings": "重试设置",
