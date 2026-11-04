@@ -36,6 +36,14 @@ const (
 
 	HwAdminAgentMaxTurns        = 12
 	HwAdminAgentMaxMessageRunes = 2000
+
+	// HwAssistantFallbackModelEnv names the model the assistant falls back to
+	// when the primary one does not answer in time.
+	HwAssistantFallbackModelEnv = "HW_ASSISTANT_FALLBACK_MODEL"
+	// HwAssistantDefaultFallbackModel is the fastest sold model measured on
+	// 4 Nov 2026, after gpt-6-luna: the primary model answers in 20 to 106 s
+	// on a slow Lumia channel, and a chat that waits that long is lost.
+	HwAssistantDefaultFallbackModel = "grok-4-fast"
 )
 
 // HwAdminAgentConfig is where the agent calls the gateway.
@@ -43,7 +51,10 @@ type HwAdminAgentConfig struct {
 	BaseURL string
 	APIKey  string
 	Model   string
-	Client  *http.Client
+	// FallbackModel answers when Model times out or returns a 5xx; empty
+	// means there is no second model.
+	FallbackModel string
+	Client        *http.Client
 }
 
 // HwAdminAgentConfigFromEnv reads the configuration. The measurement runner's
@@ -59,10 +70,27 @@ func HwAdminAgentConfigFromEnv() HwAdminAgentConfig {
 	}
 	model := HwAdminAgentResolveModel(pick(HwAdminAgentModelEnv))
 	return HwAdminAgentConfig{
-		BaseURL: pick(HwAdminAgentBaseURLEnv, HwQualityBaseURLEnv),
-		APIKey:  pick(HwAdminAgentAPIKeyEnv, HwQualityAPIKeyEnv),
-		Model:   model,
+		BaseURL:       pick(HwAdminAgentBaseURLEnv, HwQualityBaseURLEnv),
+		APIKey:        pick(HwAdminAgentAPIKeyEnv, HwQualityAPIKeyEnv),
+		Model:         model,
+		FallbackModel: HwAdminAgentResolveFallbackModel(pick(HwAssistantFallbackModelEnv)),
 	}
+}
+
+// HwAdminAgentResolveFallbackModel reads the backup model for the assistant.
+// An unknown name is refused and leaves no second model: a fallback that the
+// gateway does not sell would only turn a slow answer into a failed one.
+func HwAdminAgentResolveFallbackModel(configured string) string {
+	name := strings.TrimSpace(configured)
+	if name == "" {
+		name = HwAssistantDefaultFallbackModel
+	}
+	for _, sold := range hwSoldModels {
+		if sold.Name == name {
+			return name
+		}
+	}
+	return ""
 }
 
 // HwAssistantRepairKey keeps the assistant's own key on this server able to
