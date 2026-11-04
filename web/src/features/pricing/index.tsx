@@ -34,6 +34,7 @@ import {
   ModelCardGrid,
   ModelDetailsDrawer,
 } from './components'
+import { PricingFeedbackDialog } from './components/pricing-feedback-dialog'
 import { EXCLUDED_GROUPS, VIEW_MODES } from './constants'
 import { useFilters } from './hooks/use-filters'
 import { usePricingData } from './hooks/use-pricing-data'
@@ -209,6 +210,9 @@ export function Pricing() {
               )}
               className='mx-auto mt-4 max-w-2xl sm:mt-6'
             />
+            <div className='mt-3 flex justify-center'>
+              <PricingFeedbackDialog />
+            </div>
           </header>
 
           <TokenExplainer

@@ -78,3 +78,22 @@ export async function getHwStatus(): Promise<HwApiEnvelope<HwStatusAnswer>> {
   const res = await api.get('/api/hw/status')
   return requireServerSuccess(res.data as HwApiEnvelope<HwStatusAnswer>)
 }
+
+export type HwPricingFeedbackRequest = {
+  kind: 'price_wrong' | 'model_missing' | 'other'
+  model: string
+  message: string
+  source_url: string
+  email: string
+  lang: 'tr' | 'en'
+  /** Honeypot: hidden from people, filled by bots, never stored. */
+  website: string
+}
+
+/** Public report from /pricing: a wrong price or a missing model. */
+export async function sendHwPricingFeedback(
+  request: HwPricingFeedbackRequest
+): Promise<void> {
+  const response = await api.post('/api/hw/pricing/feedback', request)
+  requireServerSuccess(response.data)
+}
