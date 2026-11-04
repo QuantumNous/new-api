@@ -25,6 +25,8 @@ For commercial licensing, please contact support@quantumnous.com
  * table.
  */
 
+import { premiumStepDown, type ModelPrice, MODEL_PRICES } from './model-prices'
+
 export type GuideText = {
   tr: string
   en: string
@@ -160,4 +162,24 @@ export function recommendedRank(modelName: string | undefined): number {
     modelName ?? ''
   )
   return index === -1 ? RECOMMENDED_ORDER.length : index
+}
+
+/** Notice on a premium model; `{model}` is the model one step lower. */
+export const PREMIUM_NOTICE: GuideText = {
+  tr: 'Bu model kredinizi çok daha hızlı tüketir. Bir alt model, {model}, çok daha ucuz ve neredeyse aynı kalitede.',
+  en: 'This model uses up your credit much faster. The model one step lower, {model}, is much cheaper and almost as good.',
+}
+
+/**
+ * The premium notice of a model in the given language, or undefined when the
+ * model is not premium or has no cheaper model of the same provider.
+ */
+export function premiumNotice(
+  modelName: string | undefined,
+  language: string,
+  models: readonly ModelPrice[] = MODEL_PRICES
+): string | undefined {
+  const stepDown = premiumStepDown(modelName, models)
+  if (!stepDown) return undefined
+  return guideText(PREMIUM_NOTICE, language).replace('{model}', stepDown)
 }

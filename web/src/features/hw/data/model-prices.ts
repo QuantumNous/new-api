@@ -188,3 +188,51 @@ export function savingFraction(
   if (base <= 0) return null
   return (base - blendedPrice(ours)) / base
 }
+
+/**
+ * Official input price (USD per 1M tokens) from which a model counts as
+ * premium: it uses up credit much faster, so the console warns about it and
+ * points to the cheaper model one step lower. Matches the backend threshold.
+ */
+export const PREMIUM_INPUT_USD_PER_M = 10
+
+function priceOf(
+  model: string | undefined,
+  models: readonly ModelPrice[]
+): ModelPrice | undefined {
+  if (!model) return undefined
+  return models.find((entry) => entry.model === model)
+}
+
+/** True when the official input price is at or above the premium threshold. */
+export function isPremiumModel(
+  model: string | undefined,
+  models: readonly ModelPrice[] = MODEL_PRICES
+): boolean {
+  const input = priceOf(model, models)?.official?.input
+  return input !== undefined && input >= PREMIUM_INPUT_USD_PER_M
+}
+
+/**
+ * The model one step lower for a premium model: the model of the same
+ * provider with the highest official input price strictly below it. Undefined
+ * for a model that is not premium or has no cheaper sibling.
+ */
+export function premiumStepDown(
+  model: string | undefined,
+  models: readonly ModelPrice[] = MODEL_PRICES
+): string | undefined {
+  const premium = priceOf(model, models)
+  const input = premium?.official?.input
+  if (!premium || input === undefined || input < PREMIUM_INPUT_USD_PER_M) {
+    return undefined
+  }
+  let best: ModelPrice | undefined
+  for (const entry of models) {
+    const candidate = entry.official?.input
+    if (entry.provider !== premium.provider || candidate === undefined) continue
+    if (candidate >= input) continue
+    if (!best || candidate > (best.official?.input ?? -1)) best = entry
+  }
+  return best?.model
+}
