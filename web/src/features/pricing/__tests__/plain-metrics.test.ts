@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import enLocale from '../../../i18n/locales/en.json'
+import { withHwText } from '../../../i18n/hw'
+import enUpstream from '../../../i18n/locales/en.json'
 import trLocale from '../../../i18n/locales/tr.json'
 import { buildSupportedParameters } from '../lib/mock-stats'
 import {
@@ -48,7 +49,7 @@ describe('plain-metrics', () => {
       'dall-e-3',
       'sora-2',
     ]
-    const en = enLocale.translation as Record<string, string>
+    const en = withHwText('en', enUpstream).translation as Record<string, string>
     const tr = trLocale.translation as Record<string, string>
     for (const name of names) {
       for (const param of buildSupportedParameters(model(name))) {
