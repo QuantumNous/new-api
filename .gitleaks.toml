@@ -60,3 +60,12 @@ paths = ['''^middleware/auth\.go$''']
 description = "Jimeng product identifiers compared in the task plugin"
 targetRules = ["generic-api-key"]
 paths = ['''^plugins/tasks/jimeng/plugin\.js$''']
+
+# The Jimeng native-route test feeds the same product identifier through
+# req_key and asserts it lands in the request body. gitleaks reads the "v30_pro"
+# suffix of "jimeng_ti2v_v30_pro" as a key; it is a public vendor model name.
+[[allowlists]]
+description = "Jimeng product identifiers used as req_key in the native-route tests"
+targetRules = ["generic-api-key"]
+regexes = ['''jimeng_ti2v_v30_pro''']
+paths = ['''^plugins/jimeng_responses_test\.go$''']
