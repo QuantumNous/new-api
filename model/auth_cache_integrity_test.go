@@ -121,6 +121,8 @@ func TestAuthCacheIntegrityDatabaseMatrix(t *testing.T) {
 					{"ModelLimitsEnabled": "false", "ModelLimits": "", "AllowIps": ""},
 					{"Group": "privileged", "AutoGroups": `["privileged"]`, "CrossGroupRetry": "true"},
 					{"Status": common.TokenStatusDisabled, "ExpiredTime": 1},
+					{"UnlimitedQuota": "garbage"},
+					{"DeletedAt": time.Now().Format(time.RFC3339)},
 				} {
 					require.NoError(t, common.RDB.HSet(t.Context(), getTokenCacheKey(token.Key), fields).Err())
 					_, err := cacheGetTokenByKey(token.Key)
@@ -279,6 +281,22 @@ func TestAuthCacheIntegrityDatabaseMatrix(t *testing.T) {
 					"Status", UserSessionStatusActive, "RevokedAt", 0, "RevokedReason", "").Err())
 				_, err = GetUserSessionCached(session.SID)
 				assert.ErrorIs(t, err, ErrUserSessionInactive)
+			})
+
+			t.Run("unreadable_quota_counters", func(t *testing.T) {
+				require.NoError(t, common.RDB.HSet(t.Context(), getUserCacheKey(user.Id), "Quota", "garbage").Err())
+				require.NoError(t, common.RDB.HSet(t.Context(), getTokenCacheKey(token.Key), "RemainQuota", "garbage").Err())
+				_, err := GetUserCache(user.Id)
+				require.NoError(t, err)
+				_, err = GetTokenByKey(token.Key, false)
+				require.NoError(t, err)
+				cachedUser, err := cacheGetUserBase(user.Id)
+				require.NoError(t, err)
+				assert.Equal(t, user.Quota, cachedUser.Quota)
+				cachedToken, err := cacheGetTokenByKey(token.Key)
+				require.NoError(t, err)
+				assert.Equal(t, token.RemainQuota, cachedToken.RemainQuota)
+				assert.Equal(t, 80, cachedToken.UsedQuota)
 			})
 		})
 	}

@@ -65,7 +65,8 @@ func invalidateTokenCacheForMutation(key string) error {
 
 // cacheInitToken publishes database metadata when the hash is cold or fails
 // verification. Existing quota counters survive repairs because pre-consume
-// can update Redis before the database catches up.
+// can update Redis before the database catches up; counters that are no
+// longer integers are replaced from the snapshot.
 // Returns 0 when fenced, 1 after initialization, or 2 for an existing hash.
 func cacheInitToken(token Token) (int, error) {
 	if !common.RedisEnabled {
@@ -75,8 +76,13 @@ func cacheInitToken(token Token) (int, error) {
 	if token.AllowIps != nil {
 		allowIps = *token.AllowIps
 	}
+	cacheKey := getTokenCacheKey(token.Key)
 	var existing Token
-	readErr := common.RedisHGetObj(getTokenCacheKey(token.Key), &existing)
+	readErr := common.RedisHGetObj(cacheKey, &existing)
+	if readErr != nil {
+		// Decoding stops at the first unreadable field, before CacheMAC.
+		existing.CacheMAC, _ = common.RDB.HGet(context.Background(), cacheKey, "CacheMAC").Result()
+	}
 	existing.Key = token.Key
 	existingMAC, macErr := existing.cacheMAC()
 	repair := readErr != nil || macErr != nil || !validAuthCacheMAC(existingMAC, existing.CacheMAC, existing.CacheExpiresAt)
@@ -94,6 +100,7 @@ if exists == 1 and (ARGV[21] ~= 'true' or (redis.call('HGET', KEYS[1], 'CacheMAC
   redis.call('EXPIRE', KEYS[1], ARGV[18])
   return 2
 end
+redis.call('HDEL', KEYS[1], 'DeletedAt')
 redis.call('HSET', KEYS[1],
   'Id', ARGV[1], 'UserId', ARGV[2], 'Status', ARGV[3], 'Name', ARGV[4],
   'CreatedTime', ARGV[5], 'ExpiredTime', ARGV[7],
@@ -101,9 +108,11 @@ redis.call('HSET', KEYS[1],
   'AllowIps', ARGV[11], 'Group', ARGV[12], 'CrossGroupRetry', ARGV[13],
   'AutoGroups', ARGV[14], 'AllowUserQuotaQuery', ARGV[17],
   'CacheExpiresAt', ARGV[19], 'CacheMAC', ARGV[20])
-redis.call('HSETNX', KEYS[1], 'AccessedTime', ARGV[6])
-redis.call('HSETNX', KEYS[1], 'RemainQuota', ARGV[15])
-redis.call('HSETNX', KEYS[1], 'UsedQuota', ARGV[16])
+for _, counter in ipairs({{'AccessedTime', ARGV[6]}, {'RemainQuota', ARGV[15]}, {'UsedQuota', ARGV[16]}}) do
+  if not string.match(redis.call('HGET', KEYS[1], counter[1]) or '', '^-?%d+$') then
+    redis.call('HSET', KEYS[1], counter[1], counter[2])
+  end
+end
 redis.call('EXPIRE', KEYS[1], ARGV[18])
 if exists == 1 then
   return 2
@@ -111,7 +120,7 @@ end
 return 1`
 
 	return common.RDB.Eval(context.Background(), script, []string{
-		getTokenCacheKey(token.Key), getTokenCacheFenceKey(token.Key),
+		cacheKey, getTokenCacheFenceKey(token.Key),
 	},
 		token.Id, token.UserId, token.Status, token.Name,
 		token.CreatedTime, token.AccessedTime, token.ExpiredTime,
