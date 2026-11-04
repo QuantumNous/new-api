@@ -5368,6 +5368,8 @@
     "Retention days": "Дней хранения",
     "Retrieve result": "Получить результат",
     "Retry": "Повторить попытку",
+    "Try with {{model}}": "Попробовать с {{model}}",
+    "temporarily unavailable": "временно недоступна",
     "Retry budget": "Бюджет повторов",
     "Retry Chain": "Цепочка повторов",
     "Retry Settings": "Настройки повторов",

@@ -5368,6 +5368,8 @@
     "Retention days": "Retention days",
     "Retrieve result": "Retrieve result",
     "Retry": "Retry",
+    "Try with {{model}}": "Try with {{model}}",
+    "temporarily unavailable": "temporarily unavailable",
     "Retry budget": "Retry budget",
     "Retry Chain": "Retry Chain",
     "Retry Settings": "Retry Settings",

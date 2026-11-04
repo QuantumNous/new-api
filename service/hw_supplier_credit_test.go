@@ -123,6 +123,24 @@ func TestHwHealthyAlternativeSkipsSickModels(t *testing.T) {
 	assert.False(t, HwModelSick("claude-fable-5-1"))
 }
 
+func TestHwSickModelAlternativesNamesEachSickModelWithAHealthyChoice(t *testing.T) {
+	t.Cleanup(hwResetModelHealth)
+	hwResetModelHealth()
+	assert.Empty(t, HwSickModelAlternatives())
+
+	HwNoteModelCreditFailure("claude-fable-5-1")
+	HwNoteModelCreditFailure("claude-opus-5-5")
+	assert.Equal(t, map[string]string{
+		"claude-fable-5-1": "claude-sonnet-5-5",
+		"claude-opus-5-5":  "claude-sonnet-5-5",
+	}, HwSickModelAlternatives())
+
+	previous := hwModelHealthClock
+	hwModelHealthClock = func() time.Time { return time.Now().Add(hwModelSickFor + time.Second) }
+	t.Cleanup(func() { hwModelHealthClock = previous })
+	assert.Empty(t, HwSickModelAlternatives(), "a model whose sickness wore off is not listed")
+}
+
 func TestHwModelStepDown(t *testing.T) {
 	for name, want := range map[string]string{
 		"claude-fable-5-1": "claude-opus-5-5",

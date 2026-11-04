@@ -144,6 +144,13 @@ func HwStatus(c *gin.Context) {
 	common.ApiSuccess(c, answer)
 }
 
+// HwModelHealth answers the sold models that are temporarily unavailable, each
+// with the healthy model to try instead. It reads process memory only: no
+// database, no model call, and it names no supplier.
+func HwModelHealth(c *gin.Context) {
+	common.ApiSuccess(c, gin.H{"unavailable": service.HwSickModelAlternatives()})
+}
+
 // HwQualityRun starts one measurement pass. It is an admin action: it calls
 // every configured model over the full task set, which takes minutes.
 func HwQualityRun(c *gin.Context) {

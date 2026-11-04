@@ -35,18 +35,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { getUserGroups, getUserModels } from '../api'
+import { getModelHealth, getUserGroups, getUserModels } from '../api'
 import {
   getGroupFallback,
   getModelFallback,
   getOptionLoadErrorMessage,
+  labelUnavailableModels,
   shouldClearModelForGroup,
 } from '../lib'
 import type { GroupOption, ModelOption, PlaygroundConfig } from '../types'
@@ -84,6 +85,26 @@ export function usePlaygroundOptions({
     enabled: currentGroup !== '',
   })
 
+  // Which models are temporarily unavailable; a failed read labels nothing.
+  const { data: unavailableModels } = useQuery({
+    queryKey: ['playground-model-health'],
+    queryFn: getModelHealth,
+    refetchInterval: 60_000,
+    meta: { errorToast: false },
+  })
+
+  const labelledModels = useMemo(
+    () =>
+      modelsData
+        ? labelUnavailableModels(
+            modelsData,
+            unavailableModels ?? {},
+            t('temporarily unavailable')
+          )
+        : undefined,
+    [modelsData, unavailableModels, t]
+  )
+
   const {
     data: groupsData,
     error: groupsError,
@@ -118,9 +139,9 @@ export function usePlaygroundOptions({
   }, [isGroupsError, groupsError, t])
 
   useEffect(() => {
-    if (!modelsData) return
+    if (!modelsData || !labelledModels) return
 
-    setModels(modelsData)
+    setModels(labelledModels)
     const fallback = getModelFallback(modelsData, currentModel)
 
     if (fallback) {
@@ -131,7 +152,7 @@ export function usePlaygroundOptions({
     if (shouldClearModelForGroup(modelsData, currentModel)) {
       updateConfig('model', '')
     }
-  }, [modelsData, currentModel, setModels, updateConfig])
+  }, [modelsData, labelledModels, currentModel, setModels, updateConfig])
 
   useEffect(() => {
     if (!groupsData) return

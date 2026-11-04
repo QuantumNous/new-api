@@ -31,11 +31,14 @@ import {
   getChatMessageRenderState,
   getEditingMessageContent,
   getMessageAlignment,
+  getMessageContent,
   getPreviousUserMessage,
+  getUnavailableAlternative,
   isErrorMessage,
 } from '../../lib'
 import type {
   Message as MessageType,
+  ModelOption,
   PlaygroundMessageLayoutMode,
 } from '../../types'
 import { MessageActions } from '../message/message-actions'
@@ -50,6 +53,8 @@ interface PlaygroundChatProps {
   messages: MessageType[]
   onCopyMessage?: (message: MessageType) => void
   onRegenerateMessage?: (message: MessageType) => void
+  models?: ModelOption[]
+  onRetryWithModel?: (message: MessageType, model: string) => void
   onEditMessage?: (message: MessageType) => void
   onDeleteMessage?: (message: MessageType) => void
   onSelectPrompt?: (prompt: string) => void
@@ -66,6 +71,8 @@ export function PlaygroundChat({
   messages,
   onCopyMessage,
   onRegenerateMessage,
+  models = [],
+  onRetryWithModel,
   onEditMessage,
   onDeleteMessage,
   onSelectPrompt,
@@ -167,6 +174,16 @@ export function PlaygroundChat({
                 isError ? (
                   <MessageErrorActions
                     disabled={isGenerating}
+                    retryModel={getUnavailableAlternative(
+                      message.errorCode,
+                      getMessageContent(message),
+                      models
+                    )}
+                    onRetryWithModel={
+                      onRetryWithModel
+                        ? (model) => onRetryWithModel(message, model)
+                        : undefined
+                    }
                     onRetry={
                       onRegenerateMessage
                         ? () => onRegenerateMessage(message)

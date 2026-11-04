@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect, useState } from 'react'
+
 import { PlaygroundChat } from './components/chat/playground-chat'
 import { PlaygroundInput } from './components/input/playground-input'
 import {
@@ -24,8 +26,14 @@ import {
   usePlaygroundOptions,
   usePlaygroundState,
 } from './hooks'
+import type { Message } from './types'
 
 export function Playground() {
+  const [pendingRetry, setPendingRetry] = useState<{
+    message: Message
+    model: string
+  } | null>(null)
+
   const {
     config,
     parameterEnabled,
@@ -75,6 +83,19 @@ export function Playground() {
     updateConfig,
   })
 
+  // "Try with <model>": switch the model first and resend after the render,
+  // because sendChat reads the model from the config of that render.
+  const handleRetryWithModel = (message: Message, model: string) => {
+    updateConfig('model', model)
+    setPendingRetry({ message, model })
+  }
+
+  useEffect(() => {
+    if (!pendingRetry || config.model !== pendingRetry.model) return
+    setPendingRetry(null)
+    handleRegenerateMessage(pendingRetry.message)
+  }, [pendingRetry, config.model, handleRegenerateMessage])
+
   return (
     <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
       {/* Full-width scroll container: scrolling works even over side whitespace */}
@@ -83,6 +104,8 @@ export function Playground() {
           messages={messages}
           isLoadingMessages={isLoadingMessages}
           onRegenerateMessage={handleRegenerateMessage}
+          models={models}
+          onRetryWithModel={handleRetryWithModel}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
           onSelectPrompt={handleSendMessage}

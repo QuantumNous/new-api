@@ -88,3 +88,75 @@ export function getOptionLoadErrorMessage(
 ): string {
   return error instanceof Error ? error.message : fallbackMessage
 }
+
+/** The 503 code of a model that is temporarily unavailable at the supplier. */
+export const MODEL_UNAVAILABLE_ERROR_CODE = 'model_unavailable'
+
+/**
+ * Marks every temporarily unavailable model in the picker with the suffix.
+ * `unavailable` maps a sick model to its healthy alternative.
+ */
+export function labelUnavailableModels(
+  models: ModelOption[],
+  unavailable: Readonly<Record<string, string>>,
+  suffix: string
+): ModelOption[] {
+  if (!models.some((model) => model.value in unavailable)) {
+    return models
+  }
+  return models.map((model) =>
+    model.value in unavailable
+      ? { ...model, label: `${model.label} (${suffix})` }
+      : model
+  )
+}
+
+/**
+ * The model a model_unavailable error suggests, when the user can pick it.
+ * The server names the failed model first and the suggestion after it, in
+ * Turkish and English alike; the stored message may carry a title in front.
+ * The model mentioned first is the failed one and is never offered; of the
+ * reachable models after it the one mentioned last wins, and on a tie the
+ * longer name wins (gpt-6-astra over gpt-6).
+ */
+export function getUnavailableAlternative(
+  errorCode: string | null | undefined,
+  content: string,
+  models: ModelOption[]
+): string | null {
+  if (errorCode !== MODEL_UNAVAILABLE_ERROR_CODE) {
+    return null
+  }
+  let failed: string | null = null
+  let failedIndex = -1
+  for (const model of models) {
+    const index = content.indexOf(model.value)
+    if (index < 0) continue
+    if (
+      failed === null ||
+      index < failedIndex ||
+      (index === failedIndex && model.value.length > failed.length)
+    ) {
+      failed = model.value
+      failedIndex = index
+    }
+  }
+  if (failed === null) {
+    return null
+  }
+  const suggestionFrom = failedIndex + failed.length
+  let best: string | null = null
+  let bestIndex = -1
+  for (const model of models) {
+    const index = content.lastIndexOf(model.value)
+    if (index < suggestionFrom || model.value === failed) continue
+    if (
+      index > bestIndex ||
+      (index === bestIndex && best !== null && model.value.length > best.length)
+    ) {
+      best = model.value
+      bestIndex = index
+    }
+  }
+  return best
+}
