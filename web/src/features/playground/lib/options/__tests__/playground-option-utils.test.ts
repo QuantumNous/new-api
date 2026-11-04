@@ -181,4 +181,21 @@ describe('getUnavailableAlternative', () => {
       )
     ).toBeNull()
   })
+
+  it('never offers the failed model behind the stored error title', () => {
+    expect(
+      getUnavailableAlternative(
+        'model_unavailable',
+        'API request error: claude-fable-5-1 is temporarily unavailable. Try claude-sonnet-5-5 or try again shortly.',
+        models
+      )
+    ).toBeNull()
+    expect(
+      getUnavailableAlternative(
+        'model_unavailable',
+        'API request error: claude-fable-5-1 is temporarily unavailable. Try claude-opus-5-5 or try again shortly.',
+        models
+      )
+    ).toBe('claude-opus-5-5')
+  })
 })

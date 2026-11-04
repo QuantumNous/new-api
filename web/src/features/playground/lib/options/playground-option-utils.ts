@@ -113,8 +113,10 @@ export function labelUnavailableModels(
 
 /**
  * The model a model_unavailable error suggests, when the user can pick it.
- * The server names the failed model first and the suggestion last, in Turkish
- * and English alike, so the reachable model mentioned last wins; on a tie the
+ * The server names the failed model first and the suggestion after it, in
+ * Turkish and English alike; the stored message may carry a title in front.
+ * The model mentioned first is the failed one and is never offered; of the
+ * reachable models after it the one mentioned last wins, and on a tie the
  * longer name wins (gpt-6-astra over gpt-6).
  */
 export function getUnavailableAlternative(
@@ -125,11 +127,29 @@ export function getUnavailableAlternative(
   if (errorCode !== MODEL_UNAVAILABLE_ERROR_CODE) {
     return null
   }
+  let failed: string | null = null
+  let failedIndex = -1
+  for (const model of models) {
+    const index = content.indexOf(model.value)
+    if (index < 0) continue
+    if (
+      failed === null ||
+      index < failedIndex ||
+      (index === failedIndex && model.value.length > failed.length)
+    ) {
+      failed = model.value
+      failedIndex = index
+    }
+  }
+  if (failed === null) {
+    return null
+  }
+  const suggestionFrom = failedIndex + failed.length
   let best: string | null = null
-  let bestIndex = 0
+  let bestIndex = -1
   for (const model of models) {
     const index = content.lastIndexOf(model.value)
-    if (index <= 0) continue
+    if (index < suggestionFrom || model.value === failed) continue
     if (
       index > bestIndex ||
       (index === bestIndex && best !== null && model.value.length > best.length)
