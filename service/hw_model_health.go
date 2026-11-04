@@ -94,3 +94,23 @@ func HwHealthyAlternative(name string) string {
 	}
 	return ""
 }
+
+// HwSickModelAlternatives maps every sick model to the healthy model a customer
+// should try now (empty when nothing healthy is left). The Playground reads it
+// through the public model-health endpoint to label the model picker.
+func HwSickModelAlternatives() map[string]string {
+	hwModelHealth.Lock()
+	now := hwModelHealthClock()
+	var sick []string
+	for name, since := range hwModelHealth.sickSince {
+		if now.Sub(since) < hwModelSickFor {
+			sick = append(sick, name)
+		}
+	}
+	hwModelHealth.Unlock()
+	alternatives := make(map[string]string, len(sick))
+	for _, name := range sick {
+		alternatives[name] = HwHealthyAlternative(name)
+	}
+	return alternatives
+}

@@ -23,6 +23,9 @@ func SetHwRouter(apiRouter *gin.RouterGroup) {
 	hwRouter.GET("/quality/latest", middleware.HwPublicReadRateLimit(), middleware.HwPublicReadCache(), controller.HwQualityLatest)
 	// The public service status. No login; the answer never names a supplier.
 	hwRouter.GET("/status", middleware.HwPublicReadRateLimit(), middleware.HwPublicReadCache(), controller.HwStatus)
+	// Models that are temporarily unavailable and their healthy alternative, for
+	// the Playground model picker. Process memory only, no login.
+	hwRouter.GET("/model-health", middleware.HwPublicReadRateLimit(), middleware.HwPublicReadCache(), controller.HwModelHealth)
 	hwRouter.POST("/quality/run", middleware.AdminAuth(), controller.HwQualityRun)
 	// The bureau reserve of the current window (part B2). Admin only; it reports
 	// numbers, never the token or the URL of the measurement.
