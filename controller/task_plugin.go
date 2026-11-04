@@ -40,7 +40,6 @@ type taskPluginUploadRequest struct {
 	Source       string `json:"source" binding:"required"`
 	Enabled      *bool  `json:"enabled"`
 	Remark       string `json:"remark"`
-	Force        bool   `json:"force"`
 	SourceSha256 string `json:"sourceSha256"`
 	// Icon carries the sidecar icon.svg / icon.png as a data URI. It is optional
 	// and stored separately from the source so the JavaScript stays readable.
@@ -85,10 +84,24 @@ func UploadTaskPlugin(c *gin.Context) {
 	if request.Enabled != nil {
 		enabled = *request.Enabled
 	}
-	if enabled && !request.Force {
+	if enabled {
 		if err = jsplugin.PreflightRoutingConflict(jsplugin.DefaultRegistry.Generation(), loaded); err != nil {
 			common.ApiErrorMsg(c, err.Error())
 			return
+		}
+	} else {
+		// A plugin stored switched off is not checked, unless the upload
+		// switches off the version serving its key: the factory built-in
+		// then serves again.
+		active, activeErr := model.GetTaskPluginVersion(loaded.Meta.Key, "")
+		if activeErr != nil && !errors.Is(activeErr, gorm.ErrRecordNotFound) {
+			common.ApiError(c, activeErr)
+			return
+		}
+		if activeErr == nil && active.Version == loaded.Meta.Version && active.Enabled && !setting.IsTaskPluginFactoryDisabled(loaded.Meta.Key) {
+			if rejectTaskPluginRoutingConflict(c, loaded.Meta.Key, nil) {
+				return
+			}
 		}
 	}
 	plugin := model.TaskPlugin{
@@ -104,7 +117,11 @@ func UploadTaskPlugin(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, taskPluginDetail{Plugin: &plugin, Meta: loaded.Meta, Source: string(plugin.Source), Layer: "override", HasIcon: plugin.HasIcon()})
+	detail := taskPluginDetail{Plugin: &plugin, Meta: loaded.Meta, Source: string(plugin.Source), Layer: "override", HasIcon: plugin.HasIcon(), SkippedRoutes: taskPluginSkippedRoutes(plugin.Key, plugin.Version)}
+	if plugin.Active && plugin.Enabled {
+		detail.PricingIssues = taskPluginPricingIssues(plugin.Key)
+	}
+	common.ApiSuccess(c, detail)
 }
 
 func GetTaskPluginVersions(c *gin.Context) {
@@ -129,6 +146,7 @@ type taskPluginListItem struct {
 	FactoryMeta   *jsplugin.Meta `json:"factory_meta,omitempty"`
 	ChannelCount  int            `json:"channel_count"`
 	InFlightCount int64          `json:"in_flight_count"`
+	SkippedRoutes []string       `json:"skipped_routes"`
 }
 
 type taskPluginRebuildOutcome struct {
@@ -242,6 +260,7 @@ func ListTaskPlugins(c *gin.Context) {
 			item.ChannelCount = len(channels)
 			item.InFlightCount = inFlight
 		}
+		item.SkippedRoutes = taskPluginSkippedRoutes(key, item.Meta.Version)
 		items = append(items, item)
 	}
 	sort.Slice(items, func(i, j int) bool {
@@ -299,11 +318,32 @@ func GetTaskPluginRuntime(c *gin.Context) {
 }
 
 type taskPluginDetail struct {
-	Plugin  *model.TaskPlugin `json:"plugin,omitempty"`
-	Meta    jsplugin.Meta     `json:"meta"`
-	Source  string            `json:"source"`
-	Layer   string            `json:"layer"`
-	HasIcon bool              `json:"has_icon"`
+	Plugin        *model.TaskPlugin `json:"plugin,omitempty"`
+	Meta          jsplugin.Meta     `json:"meta"`
+	Source        string            `json:"source"`
+	Layer         string            `json:"layer"`
+	HasIcon       bool              `json:"has_icon"`
+	SkippedRoutes []string          `json:"skipped_routes"`
+	// PricingIssues is set by an upload that puts the version into service.
+	PricingIssues []model.ModelPricingIssue `json:"pricing_issues,omitempty"`
+}
+
+// taskPluginSkippedRoutes lists, as "METHOD /path", the declared top-level
+// routes the gateway does not register for the plugin version serving key;
+// the plugin's /{key} copies still serve them.
+func taskPluginSkippedRoutes(key, version string) []string {
+	skipped := make([]string, 0)
+	generation := jsplugin.DefaultRegistry.Generation()
+	plugin, registered := generation.Get(key)
+	if !registered || plugin.Meta.Version != version {
+		return skipped
+	}
+	for _, route := range generation.SkippedRoutes() {
+		if route.PluginKey == key {
+			skipped = append(skipped, route.Route.Method+" "+route.Route.Path)
+		}
+	}
+	return skipped
 }
 
 // GetTaskPluginIcon serves a plugin logo as an image. The active override wins
@@ -348,7 +388,7 @@ func GetTaskPlugin(c *gin.Context) {
 			taskPluginCompileError(c, compileErr)
 			return
 		}
-		common.ApiSuccess(c, taskPluginDetail{Plugin: plugin, Meta: loaded.Meta, Source: string(plugin.Source), Layer: "override", HasIcon: plugin.HasIcon()})
+		common.ApiSuccess(c, taskPluginDetail{Plugin: plugin, Meta: loaded.Meta, Source: string(plugin.Source), Layer: "override", HasIcon: plugin.HasIcon(), SkippedRoutes: taskPluginSkippedRoutes(plugin.Key, plugin.Version)})
 		return
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) || version != "" {
@@ -366,7 +406,7 @@ func GetTaskPlugin(c *gin.Context) {
 		return
 	}
 	_, _, hasIcon := plugins.Icon(key)
-	common.ApiSuccess(c, taskPluginDetail{Meta: loaded.Meta, Source: source, Layer: "factory", HasIcon: hasIcon})
+	common.ApiSuccess(c, taskPluginDetail{Meta: loaded.Meta, Source: source, Layer: "factory", HasIcon: hasIcon, SkippedRoutes: taskPluginSkippedRoutes(key, loaded.Meta.Version)})
 }
 
 type taskPluginDryRunRequest struct {
@@ -429,6 +469,34 @@ func DeleteTaskPluginVersion(c *gin.Context) {
 		common.ApiError(c, lookupErr)
 		return
 	}
+	if plugin.Active {
+		versions, err := model.ListTaskPluginVersions(key)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		// Deleting the active version promotes the newest remaining one, in
+		// the order model.DeleteTaskPluginVersion uses. When that one is
+		// switched off or none is left, a version that was serving hands the
+		// key back to the factory built-in.
+		var promoted *model.TaskPlugin
+		for i := range versions {
+			if versions[i].Version != version {
+				promoted = &versions[i]
+				break
+			}
+		}
+		switch {
+		case promoted != nil && promoted.Enabled:
+			if rejectTaskPluginRoutingConflict(c, key, promoted) {
+				return
+			}
+		case plugin.Enabled && !setting.IsTaskPluginFactoryDisabled(key):
+			if rejectTaskPluginRoutingConflict(c, key, nil) {
+				return
+			}
+		}
+	}
 	if plugin.Active && !taskPluginHasFactory(key) {
 		channels, inFlight, usageErr := model.GetTaskPluginUsage(key)
 		if usageErr != nil {
@@ -453,7 +521,12 @@ func DeleteTaskPluginVersion(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, nil)
+	var data any
+	if plugin.Active {
+		// Deleting the active version changes which plugin, if any, serves key.
+		data = gin.H{"pricing_issues": taskPluginPricingIssues(key)}
+	}
+	common.ApiSuccess(c, data)
 }
 
 type taskPluginActivateRequest struct {
@@ -482,8 +555,14 @@ func ActivateTaskPlugin(c *gin.Context) {
 		common.ApiErrorMsg(c, "plugin version not found")
 		return
 	}
-	if _, err = jsplugin.NewRegistry().Register(string(target.Source), jsplugin.Options{Key: target.Key, Version: target.Version}); err != nil {
+	loaded, err := jsplugin.NewRegistry().Register(string(target.Source), jsplugin.Options{Key: target.Key, Version: target.Version})
+	if err != nil {
 		taskPluginCompileError(c, err)
+		return
+	}
+	// Activating a version also switches it on.
+	if err = jsplugin.PreflightRoutingConflict(jsplugin.DefaultRegistry.Generation(), loaded); err != nil {
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 	if err = model.ActivateTaskPlugin(target.Key, target.Version); err != nil {
@@ -494,7 +573,7 @@ func ActivateTaskPlugin(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, nil)
+	common.ApiSuccess(c, gin.H{"pricing_issues": taskPluginPricingIssues(target.Key)})
 }
 
 type taskPluginStatusRequest struct {
@@ -546,12 +625,18 @@ func SetTaskPluginStatus(c *gin.Context) {
 			}
 		}
 	}
-	_, lookupErr := model.GetTaskPluginVersion(key, "")
+	active, lookupErr := model.GetTaskPluginVersion(key, "")
 	hasActiveOverride := lookupErr == nil
 	if lookupErr != nil && !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
 		common.ApiError(c, lookupErr)
 		return
 	}
+	// Switching on serves the active version, or the factory built-in when the
+	// key has none.
+	if *request.Enabled && rejectTaskPluginRoutingConflict(c, key, active) {
+		return
+	}
+	response := gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels, "unbound_channels": unboundChannels}
 	// Switching a key off must silence every layer that can serve it. The
 	// factory built-in goes into the disabled set even when an override row
 	// exists; otherwise the built-in would keep routing the same models (and
@@ -584,7 +669,10 @@ func SetTaskPluginStatus(c *gin.Context) {
 			return
 		}
 		if !hasActiveOverride {
-			common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels, "unbound_channels": unboundChannels})
+			if *request.Enabled {
+				response["pricing_issues"] = taskPluginPricingIssues(key)
+			}
+			common.ApiSuccess(c, response)
 			return
 		}
 	}
@@ -596,7 +684,10 @@ func SetTaskPluginStatus(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels, "unbound_channels": unboundChannels})
+	if *request.Enabled {
+		response["pricing_issues"] = taskPluginPricingIssues(key)
+	}
+	common.ApiSuccess(c, response)
 }
 
 func taskPluginHasFactory(key string) bool {
@@ -606,6 +697,49 @@ func taskPluginHasFactory(key string) bool {
 		}
 	}
 	return false
+}
+
+// rejectTaskPluginRoutingConflict answers the request and returns true when
+// the plugin about to serve key fails to compile or does not fit the live
+// routing generation: row as the key's active version switched on, or the
+// factory built-in when row is nil. A key without a built-in to fall back to
+// has nothing to check. Keeping every enabled plugin conflict-free leaves the
+// restart order nothing to decide.
+func rejectTaskPluginRoutingConflict(c *gin.Context, key string, row *model.TaskPlugin) bool {
+	var candidate *jsplugin.LoadedPlugin
+	var err error
+	if row != nil {
+		candidate, err = jsplugin.CompilePlugin(string(row.Source), jsplugin.Options{Key: row.Key, Version: row.Version})
+	} else if taskPluginHasFactory(key) {
+		var source string
+		if source, err = plugins.Source(key); err == nil {
+			candidate, err = jsplugin.CompilePlugin(source, jsplugin.Options{Key: key})
+		}
+	}
+	if err != nil {
+		taskPluginCompileError(c, err)
+		return true
+	}
+	if candidate == nil {
+		return false
+	}
+	if err = jsplugin.PreflightRoutingConflict(jsplugin.DefaultRegistry.Generation(), candidate); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return true
+	}
+	return false
+}
+
+// taskPluginPricingIssues lists, after the registry sync, the task model prices
+// the plugin serving key cannot charge. The plugin change is already saved, so
+// a failed read only drops the notice; the model pricing page still shows them.
+func taskPluginPricingIssues(key string) []model.ModelPricingIssue {
+	issues, err := model.GetModelPricingIssues(key)
+	if err != nil {
+		common.SysError(common.LogText("read pricing issues of task plugin %s: %v", key, err))
+		return nil
+	}
+	return issues
 }
 
 func GetTaskPluginMarketplaceSources(c *gin.Context) {

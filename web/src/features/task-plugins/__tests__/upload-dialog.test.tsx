@@ -21,6 +21,11 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
+import {
+  MODEL_PRICING_ISSUES_QUERY_KEY,
+  type ModelPricingIssue,
+} from '@/features/system-settings/models/pricing-issues'
+
 import { UploadDialog } from '../components/upload-dialog'
 import { MAX_PLUGIN_SOURCE_BYTES } from '../lib/plugin-url'
 import type { TaskPluginDetail } from '../types'
@@ -379,6 +384,61 @@ describe('UploadDialog upload lifecycle', () => {
       screen.queryByRole('button', { name: /^Upload$/ })
     ).not.toBeInTheDocument()
     expect(activateTaskPlugin).not.toHaveBeenCalled()
+  })
+
+  test('lists the models it cannot charge once the uploaded version serves', async () => {
+    const user = userEvent.setup()
+    const issue: ModelPricingIssue = {
+      model_name: 'demo-video',
+      plugin_key: 'demo',
+      plugin_name: 'Demo',
+      reason: 'unconfigured',
+    }
+    uploadTaskPlugin.mockResolvedValue({
+      ...savedPlugin(true),
+      pricing_issues: [issue],
+    })
+    const { queryClient } = renderDialog()
+    queryClient.setQueryData(MODEL_PRICING_ISSUES_QUERY_KEY, [])
+
+    await uploadSource(user)
+
+    expect(
+      await screen.findByText('Prices of these models need attention:')
+    ).toBeVisible()
+    expect(screen.getByText('demo-video: No price set')).toBeVisible()
+    expect(
+      queryClient.getQueryState(MODEL_PRICING_ISSUES_QUERY_KEY)?.isInvalidated
+    ).toBe(true)
+  })
+
+  test('lists what the activation reports after saving an inactive version', async () => {
+    const user = userEvent.setup()
+    uploadTaskPlugin.mockResolvedValue(savedPlugin(false))
+    activateTaskPlugin.mockResolvedValue({
+      pricing_issues: [
+        {
+          model_name: 'demo-old',
+          plugin_key: 'demo',
+          plugin_name: 'Demo',
+          reason: 'stale',
+        },
+      ],
+    })
+    renderDialog()
+    await uploadSource(user)
+    await screen.findByText('Plugin saved, activation required')
+    expect(
+      screen.queryByText('Prices of these models need attention:')
+    ).not.toBeInTheDocument()
+
+    await user.click(footerButton('Activate now'))
+
+    expect(
+      await screen.findByText(
+        'demo-old: The plugin no longer offers this model'
+      )
+    ).toBeVisible()
   })
 
   test('disables Upload while the source is empty and shows a pending label', async () => {

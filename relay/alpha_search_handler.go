@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -15,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/gin-gonic/gin"
 )
 
@@ -118,10 +118,12 @@ func buildAlphaSearchRequestBody(rawBody []byte, originModel, upstreamModel stri
 	if upstreamModel == "" || upstreamModel == originModel {
 		return rawBody, nil
 	}
-	var body map[string]any
-	if err := common.Unmarshal(rawBody, &body); err != nil {
+	if !ojson.ValidBytes(rawBody) || !ojson.GetBytesNoCopy(rawBody, "@this").IsObject() {
+		return nil, errors.New("alpha search request body must be a JSON object")
+	}
+	body := ojson.NewDoc(rawBody)
+	if err := relaycommon.SetJSONMember(body, "", "model", upstreamModel); err != nil {
 		return nil, err
 	}
-	body["model"] = upstreamModel
-	return common.Marshal(body)
+	return body.Bytes(), nil
 }

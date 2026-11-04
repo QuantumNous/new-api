@@ -1,6 +1,7 @@
 package model
 
 import (
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -44,6 +45,27 @@ func ResolveTaskModelAlias(g *jsplugin.RoutingGeneration, name string) (TaskAlia
 	}
 	target, ok := view.byFold[jsplugin.ASCIIFold(name)]
 	return target, ok
+}
+
+// ResolveTaskPluginModel matches a client model name against a plugin's
+// declared models as the host protocols do: a case variant is served under
+// the declared spelling, a channel alias under the alias. declared is the
+// model of models the name stands for. A nil g matches exact names only.
+func ResolveTaskPluginModel(g *jsplugin.RoutingGeneration, name string, models []string) (served, declared string, ok bool) {
+	if slices.Contains(models, name) {
+		return name, name, true
+	}
+	if canonical, found := g.CanonicalModel(name); found {
+		if !slices.Contains(models, canonical) {
+			return "", "", false
+		}
+		return canonical, canonical, true
+	}
+	target, found := ResolveTaskModelAlias(g, name)
+	if !found || target.Declared == "" || !slices.Contains(models, target.Declared) {
+		return "", "", false
+	}
+	return target.Alias, target.Declared, true
 }
 
 func loadFreshTaskAliasView(g *jsplugin.RoutingGeneration) *taskAliasView {
