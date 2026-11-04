@@ -22,3 +22,11 @@ web/src/hooks/use-sidebar-data.ts                              3
 # eigen CI-stappen: de haaklijst-toets zelf, fetch-depth 0 voor de basisbranch,
 # en workflow_dispatch zodat de upstream-sync CI op zijn eigen PR kan starten
 .github/workflows/ci.yml                                       20
+
+# De sync-stap zelf is van ons: hij bestaat alleen in deze fork. Elke regel erbij
+# is een bewust besluit, dus de bovengrens staat hier en groeit niet mee.
+# De haaklijst zelf groeit mee met elk bewust besluit, dus geen bovengrens.
+.hw/haaklijst.txt                                              1000
+.hw/sync-upstream.sh                                           200
+.github/workflows/upstream-sync.yml                             13
+.github/workflows/security.yml                                  4
