@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { HwLanguage } from '../texts'
 import {
-  HW_BONUS_TRY,
+  HW_BONUS_USD,
+  hwUsdAmountIn,
   HW_FIRST_PURCHASE_CAP_TRY,
   hwTryAmountIn,
   type HwCurrency,
@@ -67,7 +68,7 @@ export function hwCurrencyTextVars(
 ): Record<string, string> {
   return {
     bonus: wordAmount(
-      hwTryAmountIn(HW_BONUS_TRY, currency, rates),
+      hwUsdAmountIn(HW_BONUS_USD, currency, rates),
       currency,
       language
     ),

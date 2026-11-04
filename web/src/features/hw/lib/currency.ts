@@ -46,8 +46,10 @@ export const HW_CURRENCY_SYMBOLS: Record<HwCurrency, string> = {
  */
 export const HW_KDV_FACTOR = 1.2
 
-/** Free start bonus and first-purchase discount cap, both defined in TRY. */
-export const HW_BONUS_TRY = 250
+/** Free start bonus, always five dollars (`hwFreeTrialDollars` on the server). */
+export const HW_BONUS_USD = 5
+
+/** First-purchase discount cap, defined in TRY. */
 export const HW_FIRST_PURCHASE_CAP_TRY = 1000
 
 /**
@@ -248,6 +250,23 @@ export function resolveHwCurrency(
 ): HwCurrency {
   if (preferred && config.currencies.includes(preferred)) return preferred
   return detectHwDefaultCurrency(config.currencies, signals)
+}
+
+/**
+ * A whole dollar amount in the chosen currency, rounded down at the daily rate
+ * (e.g. $5 shows as 250 TL or 4 EUR). Without a rate TRY uses the fallback rate
+ * and other currencies show the dollar figure.
+ */
+export function hwUsdAmountIn(
+  usd: number,
+  currency: HwCurrency,
+  rates: HwRates
+): number {
+  const converted = convertHwUsd(usd, currency, {
+    TRY: HW_FALLBACK_TRY_PER_USD,
+    ...rates,
+  })
+  return converted === null ? usd : Math.max(1, Math.floor(converted))
 }
 
 /** USD amount in `currency`, or null when that currency has no rate. */

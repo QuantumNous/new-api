@@ -218,28 +218,12 @@ func TestHwCompleteTelegramPhoneStep(t *testing.T) {
 		assert.Empty(t, claims, "an identity alone reserves no phone claim")
 	})
 
-	t.Run("the free amount is 250 lira at the daily rate and part A's cap holds", func(t *testing.T) {
-		hwSetTryPerUsdOption(t, "50")
-		assert.Equal(t, common.QuotaFromFloat(5*float64(common.QuotaPerUnit)), HwFreeTrialQuota(),
-			"250 TL at 50 TL/USD is 5 dollars of credit")
-
-		hwSetTryPerUsdOption(t, "")
-		assert.Equal(t, common.QuotaFromFloat(5*float64(common.QuotaPerUnit)), HwFreeTrialQuota(),
-			"without a rate the dollar fallback applies")
-
-		t.Setenv("HW_FREE_TRIAL_QUOTA", "2")
-		assert.Equal(t, common.QuotaFromFloat(2*float64(common.QuotaPerUnit)), HwFreeTrialQuota(),
-			"the environment override is the fallback amount")
-		t.Setenv("HW_FREE_TRIAL_QUOTA", "9999")
-		assert.Equal(t, model.HwMaxFreeTrialQuota(), HwFreeTrialQuota(), "an absurd fallback is clamped to the cap")
-
-		hwSetTryPerUsdOption(t, "50")
-		assert.Equal(t, common.QuotaFromFloat(5*float64(common.QuotaPerUnit)), HwFreeTrialQuota(),
-			"a published rate governs the amount; the fallback is not used")
-
-		hwSetTryPerUsdOption(t, "20")
-		assert.Equal(t, model.HwMaxFreeTrialQuota(), HwFreeTrialQuota(),
-			"a rate that turns 250 TL into more than the cap stops at the cap")
+	t.Run("the free amount is five dollars whatever the daily rate", func(t *testing.T) {
+		five := common.QuotaFromFloat(5 * float64(common.QuotaPerUnit))
+		for _, rate := range []string{"50.026", "40", "60", ""} {
+			hwSetTryPerUsdOption(t, rate)
+			assert.Equal(t, five, HwFreeTrialQuota(), "rate %q", rate)
+		}
 	})
 }
 

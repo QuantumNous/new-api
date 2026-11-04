@@ -22,6 +22,7 @@ import {
   convertHwUsd,
   detectHwDefaultCurrency,
   hwTryAmountIn,
+  hwUsdAmountIn,
   niceFloor,
   parseHwCurrencyConfig,
   readHwProfileCurrency,
@@ -118,6 +119,16 @@ describe('conversion', () => {
     expect(hwTryAmountIn(250, 'EUR', rates)).toBe(4)
     expect(hwTryAmountIn(1000, 'USD', rates)).toBe(20)
     expect(hwTryAmountIn(250, 'USD', { TRY: 52, USD: 1 })).toBe(4)
+  })
+
+  it('shows the five-dollar start credit in TL and euro at the daily rate', () => {
+    const rates = { TRY: 50.026, EUR: 0.889212, USD: 1 }
+    expect(hwUsdAmountIn(5, 'USD', rates)).toBe(5)
+    expect(hwUsdAmountIn(5, 'TRY', rates)).toBe(250)
+    expect(hwUsdAmountIn(5, 'EUR', rates)).toBe(4)
+    expect(hwUsdAmountIn(5, 'TRY', { TRY: 52, USD: 1 })).toBe(260)
+    expect(hwUsdAmountIn(5, 'TRY', {})).toBe(250)
+    expect(hwUsdAmountIn(5, 'EUR', {})).toBe(5)
   })
 })
 
