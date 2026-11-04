@@ -35,6 +35,9 @@ func SetHwRouter(apiRouter *gin.RouterGroup) {
 	hwRouter.POST("/assistant/ask", middleware.HwPublicReadRateLimit(), controller.HwAssistantAsk)
 	hwRouter.POST("/assistant/chat", middleware.HwPublicReadRateLimit(), controller.HwAssistantChat)
 	hwRouter.GET("/admin/assistant/questions", middleware.AdminAuth(), controller.HwAssistantOpenQuestions)
+	// Pricing feedback from /pricing: stored, mailed and bundled into one card an hour.
+	hwRouter.POST("/pricing/feedback", middleware.AnonymousRequestBodyLimit(), middleware.HwPublicReadRateLimit(), middleware.HwPricingFeedbackRateLimit(), controller.HwPricingFeedback)
+	hwRouter.POST("/admin/pricing/feedback/card", middleware.AdminAuth(), controller.HwAdminFlushPricingFeedback)
 	hwRouter.POST("/assistant/feedback", middleware.HwPublicReadRateLimit(), controller.HwAssistantFeedback)
 	hwRouter.POST("/admin/agent/feedback", middleware.AdminAuth(), controller.HwAdminAgentFeedback)
 	hwRouter.GET("/admin/assistant/feedback", middleware.AdminAuth(), controller.HwAssistantListFeedback)

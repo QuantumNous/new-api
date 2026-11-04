@@ -78,3 +78,9 @@ func (w *hwPublicReadCacheWriter) commit(code int) {
 		w.Header().Set("Cache-Control", hwPublicReadCacheControl)
 	}
 }
+
+// HwPricingFeedbackRateLimit allows one address five pricing reports an hour,
+// on top of the public read budget.
+func HwPricingFeedbackRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(5, 3600, "HPF")
+}

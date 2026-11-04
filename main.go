@@ -416,6 +416,9 @@ func InitResources() error {
 	// extend the credit of the packages that ran during an outage.
 	service.StartHwStatusJob()
 
+	// Bundle the /pricing reports into one Bureau V2 card an hour.
+	service.StartHwPricingFeedbackJob()
+
 	// Point the Telegram bot at this server once its token is known.
 	if common.IsMasterNode {
 		service.HwRegisterTelegramWebhookInBackground()

@@ -411,6 +411,7 @@ func migrateDB() error {
 		&HwAdminEscalation{},
 		&HwAssistantHit{},
 		&HwAssistantFeedback{},
+		&HwPricingFeedback{},
 	)
 	if err != nil {
 		return err
