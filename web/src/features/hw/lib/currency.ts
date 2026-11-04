@@ -252,7 +252,6 @@ export function resolveHwCurrency(
   return detectHwDefaultCurrency(config.currencies, signals)
 }
 
-/** USD amount in `currency`, or null when that currency has no rate. */
 /**
  * A whole dollar amount in the chosen currency, rounded down at the daily rate
  * (e.g. $5 shows as 250 TL or 4 EUR). Without a rate TRY uses the fallback rate
@@ -270,6 +269,7 @@ export function hwUsdAmountIn(
   return converted === null ? usd : Math.max(1, Math.floor(converted))
 }
 
+/** USD amount in `currency`, or null when that currency has no rate. */
 export function convertHwUsd(
   usd: number,
   currency: HwCurrency,
