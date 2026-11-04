@@ -17,11 +17,15 @@ import (
 )
 
 type Ability struct {
-	Group     string  `json:"group" gorm:"type:varchar(64);primaryKey;autoIncrement:false"`
-	Model     string  `json:"model" gorm:"type:varchar(255);primaryKey;autoIncrement:false"`
-	ChannelId int     `json:"channel_id" gorm:"primaryKey;autoIncrement:false;index"`
-	Enabled   bool    `json:"enabled"`
-	Tag       *string `json:"tag" gorm:"index"`
+	Group     string `json:"group" gorm:"type:varchar(64);primaryKey;autoIncrement:false"`
+	Model     string `json:"model" gorm:"type:varchar(255);primaryKey;autoIncrement:false"`
+	ChannelId int    `json:"channel_id" gorm:"primaryKey;autoIncrement:false;index"`
+	Enabled   bool   `json:"enabled"`
+	// AutoDisabled marks a row disabled by health/routing automation rather
+	// than by an operator. Only marked rows are eligible for automatic
+	// recovery; a manual disable is never silently revived.
+	AutoDisabled bool    `json:"auto_disabled" gorm:"not null;default:false"`
+	Tag          *string `json:"tag" gorm:"index"`
 }
 
 type AbilityWithChannel struct {
@@ -281,7 +285,11 @@ func UpdateAbilityStatus(channelId int, status bool) error {
 // given transaction so callers can commit it together with the channel status
 // and the gateway routing revision bump.
 func updateAbilityStatusWithTx(tx *gorm.DB, channelId int, status bool) error {
-	return tx.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error
+	// Channel-level changes own the whole row set, so any model-level auto
+	// marker is stale here: the channel status (not the ability marker) is
+	// what recovery follows.
+	return tx.Model(&Ability{}).Where("channel_id = ?", channelId).
+		Updates(map[string]any{"enabled": status, "auto_disabled": false}).Error
 }
 
 // updateAbilityStatusByTagWithTx is the tx-aware form of
@@ -289,7 +297,8 @@ func updateAbilityStatusWithTx(tx *gorm.DB, channelId int, status bool) error {
 // row carrying the given tag inside the outer transaction so the channel
 // status update and the routing revision bump commit together.
 func updateAbilityStatusByTagWithTx(tx *gorm.DB, tag string, status bool) error {
-	return tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error
+	return tx.Model(&Ability{}).Where("tag = ?", tag).
+		Updates(map[string]any{"enabled": status, "auto_disabled": false}).Error
 }
 
 // updateAbilityStatusByModelWithTx is the tx-aware form of
@@ -299,8 +308,10 @@ func updateAbilityStatusByTagWithTx(tx *gorm.DB, tag string, status bool) error 
 // channel+model pair across all groups has its enabled status flipped —
 // a single dead model on an otherwise healthy channel should not cost the
 // channel its other models.
-func updateAbilityStatusByModelWithTx(tx *gorm.DB, channelID int, modelName string, status bool) error {
-	return tx.Model(&Ability{}).Where("channel_id = ? AND model = ?", channelID, modelName).Select("enabled").Update("enabled", status).Error
+func updateAbilityStatusByModelWithTx(tx *gorm.DB, channelID int, modelName string, status bool, autoDisabled bool) error {
+	return tx.Model(&Ability{}).
+		Where("channel_id = ? AND model = ?", channelID, modelName).
+		Updates(map[string]any{"enabled": status, "auto_disabled": autoDisabled}).Error
 }
 
 // DisableChannelModel isolates one model on one channel: every ability row
@@ -310,13 +321,28 @@ func updateAbilityStatusByModelWithTx(tx *gorm.DB, channelID int, modelName stri
 // disappears from the marketplace AND stops receiving traffic together.
 // A single disabled model on an otherwise healthy channel should not cost the
 // channel its other models; this helper spans ALL groups deliberately.
+// The row is marked auto_disabled=false: this is an operator action and
+// automatic recovery must not revive it.
 // Returns an error if modelName is empty, as there is nothing specific to disable.
 func DisableChannelModel(channelID int, modelName string) error {
+	return setChannelModelEnabled(channelID, modelName, false, false)
+}
+
+// AutoDisableChannelModel is the automatic counterpart of DisableChannelModel:
+// it marks the rows auto_disabled=true so startup recovery can revive them
+// after the health episode passes. No health path calls it today (health
+// exclusion is the live cooldown only); it exists so any future automatic
+// path has a recoverable, auditable shape.
+func AutoDisableChannelModel(channelID int, modelName string) error {
+	return setChannelModelEnabled(channelID, modelName, false, true)
+}
+
+func setChannelModelEnabled(channelID int, modelName string, enabled bool, autoDisabled bool) error {
 	if modelName == "" {
 		return fmt.Errorf("model name must not be empty")
 	}
 	_, err := MutateGatewayRouting(func(tx *gorm.DB) error {
-		if err := updateAbilityStatusByModelWithTx(tx, channelID, modelName, false); err != nil {
+		if err := updateAbilityStatusByModelWithTx(tx, channelID, modelName, enabled, autoDisabled); err != nil {
 			return err
 		}
 		// The ability row alone no longer decides candidacy, so the channel's route

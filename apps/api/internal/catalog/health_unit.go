@@ -231,6 +231,10 @@ type UnitHealthState struct {
 	// Explicit hard-disable (operator action or a conclusive key probe).
 	// Automatic health recovery never clears it; only RecoverUnit does.
 	HardDisabled bool
+	// AutoDisabled marks a hard-disable that automation applied (the retired
+	// disable-strike ratchet, or any future automatic path). Startup recovery
+	// only revives marked rows; an operator hard-disable is never marked.
+	AutoDisabled bool
 	// Derived from HardDisabled: the admin-view terminal flag.
 	TerminalDisabled bool
 	// CAS version of the persisted row; 0 = never persisted.

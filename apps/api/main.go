@@ -112,9 +112,11 @@ func main() {
 			// or terminal-disabled unit silently rejoins rotation on restart.
 			catalog.InitUnitHealthCache()
 		}()
-
 		go catalog.SyncChannelCache(common.SyncFrequency)
 	}
+
+	catalog.AutoRecoverDisabledUnitHealth()
+	catalog.AutoRecoverAutoDisabledModels()
 
 	// Warm pricing after channel cache initialization so Advanced Custom
 	// endpoint inference can read cached route settings on first request.

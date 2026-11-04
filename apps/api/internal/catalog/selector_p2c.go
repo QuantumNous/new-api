@@ -54,6 +54,16 @@ const p2cExploreRate = 0.005
 // permanently starve it of state observations (self-heal path).
 const p2cLikelihoodFloor = 0.05
 
+// p2cLikelihoodTieEpsilon is the relative width under which two likelihoods
+// are treated as a tie and fall through to the sampling-order tie-break.
+// With a strict > comparison, a unit whose EWMA score is even 0.1% below a
+// peer loses every duel; because its score only moves after MinRequests
+// observations, it then receives zero traffic and can never recover. The
+// epsilon makes near-equal health/latency indistinguishable, which is also
+// the physically honest reading: the score is an estimate, not a ranking
+// oracle.
+const p2cLikelihoodTieEpsilon = 0.01
+
 // p2cScored is one candidate's duel inputs.
 type p2cScored struct {
 	candidate  routeCandidate
@@ -342,18 +352,32 @@ func compareP2C(scored []p2cScored, choices int, exploreRate float64, src p2cSou
 		return scored[starving[src.intN(len(starving))]]
 	}
 
-	// The duel: higher likelihood wins; ties go to the earlier sample
-	// (sampling order). Scanning pool order with that comparator yields
-	// the same winner as mono's max_by, which is order-independent on a
-	// total order.
+	// The duel: higher likelihood wins; near-equal likelihoods and exact
+	// ties go to the earlier sample (sampling order). The epsilon matters:
+	// with a strict > a unit 0.1% below a peer wins nothing, and because its
+	// score only moves after MinRequests observations it can never recover.
+	// Scanning pool order with that comparator yields the same winner as
+	// mono's max_by, which is order-independent on a total order.
 	best := pool[0]
 	for _, idx := range pool[1:] {
-		if scored[idx].likelihood > scored[best].likelihood ||
-			(scored[idx].likelihood == scored[best].likelihood && firstSeen[idx] < firstSeen[best]) {
+		a, b := scored[idx].likelihood, scored[best].likelihood
+		if likelihoodsTied(a, b) {
+			if firstSeen[idx] < firstSeen[best] {
+				best = idx
+			}
+			continue
+		}
+		if a > b {
 			best = idx
 		}
 	}
 	return scored[best]
+}
+
+// likelihoodsTied reports whether two likelihoods are within the relative
+// tie epsilon. Both inputs are non-negative and at least p2cLikelihoodFloor.
+func likelihoodsTied(a, b float64) bool {
+	return math.Abs(a-b) <= math.Max(a, b)*p2cLikelihoodTieEpsilon
 }
 
 // pickWeightedIndex draws one index by cumulative weighted sampling over

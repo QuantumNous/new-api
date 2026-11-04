@@ -2,6 +2,7 @@ package channel
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -58,6 +59,10 @@ type ChannelModelHealth struct {
 	// Explicit hard-disable (operator action or conclusive key probe).
 	// Health recovery never clears it.
 	HardDisabled bool `gorm:"not null;default:false"`
+	// AutoDisabled marks a hard-disable applied by automation (the retired
+	// ratchet, or a future automatic path). Startup auto-recovery only
+	// revives marked rows; an operator hard-disable stays untouched.
+	AutoDisabled bool `gorm:"not null;default:false"`
 
 	UpdatedAt int64 `gorm:"bigint"`
 }
@@ -146,6 +151,7 @@ func stateFromRow(row *ChannelModelHealth) *UnitHealthState {
 		ProbePending:       row.ProbePending,
 		ProbeFailStreak:    row.ProbeFailStreak,
 		HardDisabled:       row.HardDisabled,
+		AutoDisabled:       row.AutoDisabled,
 		Version:            row.Version,
 	}
 	if st.EwmaScore == 0 {
@@ -179,6 +185,7 @@ func applyStateToRow(row *ChannelModelHealth, st *UnitHealthState) {
 	row.ProbePending = st.ProbePending
 	row.ProbeFailStreak = st.ProbeFailStreak
 	row.HardDisabled = st.HardDisabled
+	row.AutoDisabled = st.AutoDisabled
 	row.Version = st.Version
 }
 
@@ -203,6 +210,7 @@ func unitStateUpdates(row *ChannelModelHealth, now time.Time) map[string]any {
 		"probe_pending":         row.ProbePending,
 		"probe_fail_streak":     row.ProbeFailStreak,
 		"hard_disabled":         row.HardDisabled,
+		"auto_disabled":         row.AutoDisabled,
 		"version":               row.Version,
 		"updated_at":            now.Unix(),
 	}
@@ -382,6 +390,16 @@ func settledUnitState(key RouteKey, nowMs int64) UnitHealthState {
 		finishUnitCooldown(st, nowMs)
 	}
 	annealUnitStreak(st, cfg, nowMs)
+	// Let an idle penalty expire even when the unit is never selected. The
+	// EWMA decay must not depend on traffic: a starved unit otherwise keeps
+	// its degraded score forever (likelihood = latency × score, and a lower
+	// score loses every duel), so it can never earn the observations that
+	// would move it. Aging here is the read-side half; applyUnitOutcome
+	// ages again before a real update.
+	if st.ScoreUpdatedAtMs != 0 && cfg.ScoreDecayTauMs != 0 {
+		st.EwmaScore = ageUnitEwmaScore(st, cfg, nowMs)
+		st.ScoreUpdatedAtMs = nowMs
+	}
 	return *st
 }
 
@@ -534,6 +552,7 @@ func DisableUnit(key RouteKey, now time.Time) error {
 	return casApplyUnit(key, now, func(row *ChannelModelHealth) (bool, error) {
 		st := stateFromRow(row)
 		st.HardDisabled = true
+		st.AutoDisabled = false
 		st.TerminalDisabled = true
 		finishUnitCooldown(st, now.UnixMilli())
 		st.ProbePending = false
@@ -556,10 +575,32 @@ func DisableUnit(key RouteKey, now time.Time) error {
 // failure leaves the health row hard-disabled (excluded) instead of
 // "healthy but unroutable". The operator can retry the recover.
 func RecoverUnit(key RouteKey, now time.Time) error {
+	return recoverUnit(key, now, false)
+}
+
+// RecoverAutoDisabledUnit is the startup auto-recovery variant: it restores
+// only rows marked AutoDisabled, so an operator's manual model disable or
+// channel disable is never overridden.
+func RecoverAutoDisabledUnit(key RouteKey, now time.Time) error {
+	return recoverUnit(key, now, true)
+}
+
+func recoverUnit(key RouteKey, now time.Time, autoOnly bool) error {
+	if autoOnly {
+		// Only a row automation marked may be auto-revived. An operator
+		// hard-disable has AutoDisabled=false and must survive restarts.
+		if st := loadUnitKey(key); !st.HardDisabled || !st.AutoDisabled {
+			return nil
+		}
+	}
 	if err := restoreAutoDisabledChannelKey(key.ChannelId, key.KeyIndex); err != nil {
 		return err
 	}
-	if err := RestoreChannelModel(key.ChannelId, key.Model); err != nil {
+	if autoOnly {
+		if err := RestoreAutoDisabledChannelModel(key.ChannelId, key.Model); err != nil {
+			return err
+		}
+	} else if err := RestoreChannelModel(key.ChannelId, key.Model); err != nil {
 		return err
 	}
 	// A channel/key the operator disabled manually is not health's to
@@ -574,8 +615,12 @@ func RecoverUnit(key RouteKey, now time.Time) error {
 		return errors.New("cannot recover route unit: channel or key is disabled")
 	}
 	return casApplyUnit(key, now, func(row *ChannelModelHealth) (bool, error) {
+		if autoOnly && (!row.HardDisabled || !row.AutoDisabled) {
+			return false, nil
+		}
 		st := stateFromRow(row)
 		st.HardDisabled = false
+		st.AutoDisabled = false
 		st.TerminalDisabled = false
 		st.CooldownUntilMs = 0
 		st.RampPending = true
@@ -672,7 +717,7 @@ func ListUnitHealth(channelID int) ([]UnitHealthView, error) {
 		// A fully fresh row has nothing to show.
 		if st.EwmaScore == DefaultUnitScore && st.RequestCount == 0 &&
 			st.CooldownStreak == 0 && st.ThrottleStreak == 0 &&
-			!st.HardDisabled && st.CooldownUntilMs == 0 &&
+			!st.HardDisabled && !st.AutoDisabled && st.CooldownUntilMs == 0 &&
 			st.UnauthorizedRun == 0 && st.ProbeFailStreak == 0 &&
 			st.LastCoolingOutcome == -1 {
 			continue
@@ -865,15 +910,100 @@ func deleteUnitHealthOutsideKeyRangeWithTx(tx *gorm.DB, channelID, multiKeySize 
 // pair and re-derives the route rows in the same transaction, so a recovered
 // model is routable again for every group that had the ability. It
 // deliberately does NOT filter on group, mirroring DisableChannelModel.
+// This is the operator recovery path: it revives any disabled row, manual or
+// automatic.
 func RestoreChannelModel(channelID int, modelName string) error {
+	return restoreChannelModel(channelID, modelName, false)
+}
+
+// RestoreAutoDisabledChannelModel revives only rows marked AutoDisabled; a
+// manual operator disable is left in place. Used by startup auto-recovery so
+// automation never overrides a human decision.
+func RestoreAutoDisabledChannelModel(channelID int, modelName string) error {
+	return restoreChannelModel(channelID, modelName, true)
+}
+
+func restoreChannelModel(channelID int, modelName string, autoOnly bool) error {
 	if modelName == "" {
 		return errors.New("model name must not be empty")
 	}
 	_, err := MutateGatewayRouting(func(tx *gorm.DB) error {
-		if err := updateAbilityStatusByModelWithTx(tx, channelID, modelName, true); err != nil {
+		query := tx.Model(&Ability{}).Where("channel_id = ? AND model = ?", channelID, modelName)
+		if autoOnly {
+			query = query.Where("auto_disabled = ?", true)
+		}
+		if err := query.Updates(map[string]any{"enabled": true, "auto_disabled": false}).Error; err != nil {
 			return err
 		}
 		return SyncChannelModelRoutesWithTx(tx, channelID)
 	})
 	return err
+}
+
+// AutoRecoverDisabledUnitHealth revives health rows that automation
+// hard-disabled: the retired disable-strike ratchet (mapped by the bootstrap
+// seed) and any future automatic path that sets AutoDisabled. An operator
+// DisableUnit has AutoDisabled=false and is left untouched. Called once at
+// startup, so legacy auto-disabled state heals itself.
+func AutoRecoverDisabledUnitHealth() {
+	var rows []ChannelModelHealth
+	if err := dbx.DB.Where("hard_disabled = ? AND auto_disabled = ?", true, true).Find(&rows).Error; err != nil {
+		common.SysError("auto-recover: load auto-disabled units failed: " + err.Error())
+		return
+	}
+	now := ChannelHealthNow()
+	recovered := 0
+	for i := range rows {
+		row := &rows[i]
+		key := RouteKey{ChannelId: row.ChannelId, KeyIndex: row.KeyIndex, Model: row.Model}
+		if err := RecoverAutoDisabledUnit(key, now); err != nil {
+			common.SysLog(fmt.Sprintf("auto-recover: skip unit %d/%d/%s: %s",
+				row.ChannelId, row.KeyIndex, row.Model, err.Error()))
+			continue
+		}
+		recovered++
+	}
+	if recovered > 0 {
+		common.SysLog(fmt.Sprintf("auto-recover: restored %d previously auto-disabled unit(s)", recovered))
+	}
+}
+
+// AutoRecoverAutoDisabledModels revives ability rows marked AutoDisabled even
+// when they have no hard-disabled health row (a model-only automatic
+// disable). Manual disables (auto_disabled=false) are never touched.
+func AutoRecoverAutoDisabledModels() {
+	var rows []Ability
+	if err := dbx.DB.Where("enabled = ? AND auto_disabled = ?", false, true).Find(&rows).Error; err != nil {
+		common.SysError("auto-recover: load auto-disabled models failed: " + err.Error())
+		return
+	}
+	seen := make(map[int]struct{}, len(rows))
+	channelIDs := make([]int, 0, len(rows))
+	for _, row := range rows {
+		if _, ok := seen[row.ChannelId]; ok {
+			continue
+		}
+		seen[row.ChannelId] = struct{}{}
+		channelIDs = append(channelIDs, row.ChannelId)
+	}
+	if len(channelIDs) == 0 {
+		return
+	}
+	if _, err := MutateGatewayRouting(func(tx *gorm.DB) error {
+		if err := tx.Model(&Ability{}).
+			Where("channel_id IN ? AND auto_disabled = ?", channelIDs, true).
+			Updates(map[string]any{"enabled": true, "auto_disabled": false}).Error; err != nil {
+			return err
+		}
+		for _, channelID := range channelIDs {
+			if err := SyncChannelModelRoutesWithTx(tx, channelID); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		common.SysError("auto-recover: restore auto-disabled models failed: " + err.Error())
+		return
+	}
+	common.SysLog(fmt.Sprintf("auto-recover: restored auto-disabled models on %d channel(s)", len(channelIDs)))
 }

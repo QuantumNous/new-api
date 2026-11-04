@@ -116,6 +116,37 @@ func TestDisableChannelModelDisablesAbilitiesAndRoutes(t *testing.T) {
 	assert.True(t, routes["model-b"], "healthy model route rows must stay enabled")
 }
 
+// TestAutoDisableChannelModelMarkedAndRecoverable pins the auto-disabled
+// marker: an automatic disable marks the ability rows, a manual disable does
+// not, and automatic recovery revives only the marked rows.
+func TestAutoDisableChannelModelMarkedAndRecoverable(t *testing.T) {
+	setupIsolationTest(t)
+	seedIsolationChannel(t, 9110, "auto-model,manual-model")
+
+	require.NoError(t, AutoDisableChannelModel(9110, "auto-model"))
+	require.NoError(t, DisableChannelModel(9110, "manual-model"))
+
+	assertAbilityMarker := func(model string, wantEnabled, wantAuto bool) {
+		t.Helper()
+		var rows []Ability
+		require.NoError(t, dbx.DB.Where("channel_id = ? AND model = ?", 9110, model).Find(&rows).Error)
+		require.NotEmpty(t, rows)
+		for _, row := range rows {
+			assert.Equal(t, wantEnabled, row.Enabled, "model %s enabled", model)
+			assert.Equal(t, wantAuto, row.AutoDisabled, "model %s auto_disabled marker", model)
+		}
+	}
+
+	assertAbilityMarker("auto-model", false, true)
+	assertAbilityMarker("manual-model", false, false)
+
+	require.NoError(t, RestoreAutoDisabledChannelModel(9110, "auto-model"))
+	require.NoError(t, RestoreAutoDisabledChannelModel(9110, "manual-model"))
+
+	assertAbilityMarker("auto-model", true, false)
+	assertAbilityMarker("manual-model", false, false)
+}
+
 func TestChannelEditPreservesModelIsolation(t *testing.T) {
 	setupIsolationTest(t)
 	channel := seedIsolationChannel(t, 9102, "model-a,model-b")

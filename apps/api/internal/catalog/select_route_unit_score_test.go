@@ -218,6 +218,30 @@ func TestP2CTieBreakByFirstSampledOrder(t *testing.T) {
 	assert.Equal(t, 3, w.candidate.channelId, "the explore rate must pick uniformly from the starving set")
 }
 
+// TestP2CNearEqualLikelihoodsTieAndHigherWinsBeyondEpsilon pins the relative
+// tie epsilon: a difference within 1% falls through to sampling order, so a
+// slightly degraded unit still wins some duels and can recover; a larger
+// difference still favors the higher likelihood.
+func TestP2CNearEqualLikelihoodsTieAndHigherWinsBeyondEpsilon(t *testing.T) {
+	scored := []p2cScored{
+		{candidate: routeCandidate{channelId: 1}, prior: 0.5, likelihood: 0.995},
+		{candidate: routeCandidate{channelId: 2}, prior: 0.5, likelihood: 1.0},
+	}
+
+	// Draws: 0.2 -> idx0, 0.9 -> idx1. The 0.5% gap is within the epsilon, so
+	// the first-sampled candidate wins the tie.
+	src := &scriptedP2CSource{uniforms: []float64{0.2, 0.9}, ints: []int{0}}
+	w := compareP2C(scored, p2cChoices, 0, p2cSource{uniform: src.uniform, intN: src.intN})
+	assert.Equal(t, 1, w.candidate.channelId, "within-epsilon likelihoods must tie and go to sampling order")
+
+	// Same draw order, but a 2% gap exceeds the epsilon: the higher
+	// likelihood wins regardless of sampling order.
+	scored[1].likelihood = 1.02
+	src = &scriptedP2CSource{uniforms: []float64{0.2, 0.9}, ints: []int{0}}
+	w = compareP2C(scored, p2cChoices, 0, p2cSource{uniform: src.uniform, intN: src.intN})
+	assert.Equal(t, 2, w.candidate.channelId, "beyond the epsilon the higher likelihood must win")
+}
+
 // TestP2CPriorSharesFollowWeight pins 10:30: with no quality signal the
 // first-sampled tiebreak keeps the share exactly at the prior — 25:75, so 100
 // draws land inside a tight band around it.

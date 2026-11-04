@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -34,6 +35,54 @@ func TestReportOutcome_PersistsAndBumpsVersion(t *testing.T) {
 	assert.Equal(t, 2, row.Version, "an accepted CAS transition bumps the version by one")
 	assert.Equal(t, 1, row.CooldownStreak, "one fatal climbs the ledger one rung")
 	assert.Greater(t, row.CooldownUntilMs, int64(0), "the fatal arms a live cooldown")
+}
+
+// TestSettledUnitStateAgesStarvedScore pins the read-side EWMA decay: a unit
+// whose score was last updated one decay constant ago must drift back toward
+// 1.0 even though it receives no outcomes. Without this a starved unit keeps
+// its degraded score forever and loses every P2C duel.
+func TestSettledUnitStateAgesStarvedScore(t *testing.T) {
+	withUnitHealthDB(t)
+	cfg := freshUnitConfig()
+	withUnitHealthSetting(t, cfg)
+	const nowMs = int64(50_000_000)
+	anchor := nowMs - cfg.ScoreDecayTauMs
+	key := RouteKey{ChannelId: 9510, KeyIndex: 0, Model: "aging-model"}
+	seedUnitHealthRow(t, &ChannelModelHealth{
+		ChannelId: key.ChannelId, KeyIndex: key.KeyIndex, Model: key.Model, Version: 1,
+		EwmaScore: 0.6, ScoreUpdatedAtMs: anchor,
+	})
+
+	st := settledUnitState(key, nowMs)
+	want := 1 - (1-0.6)*math.Exp(-1)
+	assert.InDelta(t, want, st.EwmaScore, 1e-9, "one tau of idle time must age the penalty")
+	assert.Equal(t, nowMs, st.ScoreUpdatedAtMs, "the aging anchor advances with the read")
+}
+
+// TestAutoRecoverDisabledUnitHealthRevivesOnlyAutoMarked pins the startup
+// recovery contract: a ratchet-era row (HardDisabled + AutoDisabled) is
+// revived, while an operator hard-disable (HardDisabled without the auto
+// marker) survives untouched.
+func TestAutoRecoverDisabledUnitHealthRevivesOnlyAutoMarked(t *testing.T) {
+	withUnitHealthDB(t)
+	autoKey := RouteKey{ChannelId: 9520, KeyIndex: 0, Model: "auto-recovered"}
+	manualKey := RouteKey{ChannelId: 9521, KeyIndex: 0, Model: "manual-kept"}
+	seedUnitHealthRow(t, &ChannelModelHealth{
+		ChannelId: autoKey.ChannelId, KeyIndex: autoKey.KeyIndex, Model: autoKey.Model, Version: 1,
+		HardDisabled: true, AutoDisabled: true,
+	})
+	seedUnitHealthRow(t, &ChannelModelHealth{
+		ChannelId: manualKey.ChannelId, KeyIndex: manualKey.KeyIndex, Model: manualKey.Model, Version: 1,
+		HardDisabled: true,
+	})
+
+	AutoRecoverDisabledUnitHealth()
+
+	autoRow := readUnitRow(t, autoKey)
+	assert.False(t, autoRow.HardDisabled, "an auto-marked hard-disable must be revived")
+	assert.False(t, autoRow.AutoDisabled, "recovery clears the auto marker")
+	manualRow := readUnitRow(t, manualKey)
+	assert.True(t, manualRow.HardDisabled, "an operator hard-disable must survive")
 }
 
 // TestReportOutcome_CasContentionNoLostUpdate is the multi-replica safety net:

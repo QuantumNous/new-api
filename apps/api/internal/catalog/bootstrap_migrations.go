@@ -132,12 +132,17 @@ func migrateChannelModelHealthKeyIndex() error {
 //     cooldown_until_ms = until*1000 with a one-rung cooldown_streak, so
 //     the unit stays excluded for the remainder of its old window and then
 //     re-enters through the slow-start ramp;
-//   - the legacy "disabled" state (and any row the retired disable-strike
-//     ratchet had parked at the cap) becomes hard_disabled: those rows were
-//     taken out by an explicit operator action or a conclusive key probe, so
-//     they are NOT silently revived by the recovery rework — an operator
-//     clears them through RecoverUnit. The dead disable_streak column is
-//     zeroed so a later read can never resurrect the ratchet;
+//   - the legacy "disabled" state becomes hard_disabled without the auto
+//     marker: those rows were taken out by an explicit operator action or a
+//     conclusive key probe, so they are NOT silently revived by the recovery
+//     rework — an operator clears them through RecoverUnit;
+//   - a row the retired disable-strike ratchet parked at the cap
+//     (disable_streak >= UnitProbeFailCap) becomes hard_disabled AND
+//     auto_disabled: the ratchet was automation, not an operator decision,
+//     so startup auto-recovery (AutoRecoverDisabledUnitHealth) revives it
+//     back into rotation once its channel/key is routable. The dead
+//     disable_streak column is zeroed so a later read can never resurrect
+//     the ratchet;
 //   - the calm/dormant ladder rungs and the dormancy/failure counters are
 //     DROPPED here: the new model has no ladder levels, and a one-time loss
 //     of "how far up the old ladder" is adjudicated acceptable (the unit
@@ -173,7 +178,7 @@ func seedUnitHealthColumns() error {
 	}
 	if err := dbx.DB.Model(&ChannelModelHealth{}).
 		Where("disable_streak >= ?", UnitProbeFailCap).
-		Update("hard_disabled", true).Error; err != nil {
+		Updates(map[string]any{"hard_disabled": true, "auto_disabled": true}).Error; err != nil {
 		return err
 	}
 	return dbx.DB.Model(&ChannelModelHealth{}).
