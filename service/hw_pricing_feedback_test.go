@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -92,4 +93,27 @@ func TestHwBundlePricingFeedbackStopsAtFourCardsADay(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.Len(t, *cards, HwPricingFeedbackCardsPerDay)
+}
+
+func TestHwBundlePricingFeedbackUnreachableBoardKeepsTheDailyBudget(t *testing.T) {
+	_, cards := hwPricingFeedbackTestSetup(t)
+	now := int64(1_800_000_000)
+	row := model.HwPricingFeedback{Kind: model.HwPricingFeedbackKindMissing, Model: "grok-5"}
+	require.NoError(t, model.HwNormalizePricingFeedback(&row))
+	require.NoError(t, model.HwStorePricingFeedback(model.DB, &row, now))
+	working := hwPricingFeedbackPostCard
+	hwPricingFeedbackPostCard = func(context.Context, HwBureauCardConfig, hwBureauIssueRequest) (string, error) {
+		return "", errors.New("board unreachable")
+	}
+	for range HwPricingFeedbackCardsPerDay + 1 {
+		_, err := HwBundlePricingFeedback(context.Background(), HwBureauCardConfig{}, now)
+		require.Error(t, err)
+	}
+	hwPricingFeedbackPostCard = working
+
+	card, err := HwBundlePricingFeedback(context.Background(), HwBureauCardConfig{}, now)
+
+	require.NoError(t, err)
+	assert.Equal(t, "HIS-1", card)
+	assert.Len(t, *cards, 1)
 }

@@ -57,6 +57,16 @@ func HwAssistantBumpCounter(db *gorm.DB, key string, now int64) (int, error) {
 	return row.Hits, nil
 }
 
+// HwAssistantCounter returns how often key counts now, 0 for a key never
+// counted.
+func HwAssistantCounter(db *gorm.DB, key string) (int, error) {
+	var rows []HwAssistantHit
+	if err := db.Where(commonKeyCol+" = ?", strings.TrimSpace(key)).Limit(1).Find(&rows).Error; err != nil || len(rows) == 0 {
+		return 0, err
+	}
+	return rows[0].Hits, nil
+}
+
 // hwAssistantBump writes the one-up counter behind both hit functions.
 func hwAssistantBump(db *gorm.DB, key string, now int64) error {
 	return db.Clauses(clause.OnConflict{

@@ -81,7 +81,7 @@ func HwBundlePricingFeedback(ctx context.Context, config HwBureauCardConfig, now
 		return "", err
 	}
 	key := "hw:pf:card:" + time.Unix(now, 0).UTC().Format("2006-01-02")
-	if count, err := model.HwAssistantBumpCounter(model.DB, key, now); err != nil || count > HwPricingFeedbackCardsPerDay {
+	if filed, err := model.HwAssistantCounter(model.DB, key); err != nil || filed >= HwPricingFeedbackCardsPerDay {
 		return "", err
 	}
 	var text strings.Builder
@@ -115,6 +115,11 @@ func HwBundlePricingFeedback(ctx context.Context, config HwBureauCardConfig, now
 	})
 	if err != nil {
 		return "", err
+	}
+	// Count only a card the board accepted: an unreachable board must not
+	// spend the daily budget and leave the reports without a card.
+	if _, err := model.HwAssistantBumpCounter(model.DB, key, now); err != nil {
+		return card, err
 	}
 	return card, model.HwMarkPricingFeedbackCarded(model.DB, ids, card)
 }
