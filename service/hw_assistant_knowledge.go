@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -32,7 +33,6 @@ const (
 	// hwAssistantMaxTokens leaves room for a full answer of the length the
 	// voice asks for, also in Turkish and inside the admin JSON.
 	hwAssistantMaxTokens = 1500
-	hwAssistantTimeout   = 40 * time.Second
 	// hwAssistantInstructionMaxRunes bounds the instruction before the closing
 	// language rule, so a long learned section can never crowd out the rule.
 	hwAssistantInstructionMaxRunes = 12000
@@ -178,6 +178,74 @@ func hwAssistantInstructionWith(channel, question, extra string) string {
 	return head + "\n\n" + hwAssistantLanguageRule
 }
 
+// The assistant used to make one call with a 40 s wait. On 4 Nov 2026 the
+// Lumia channel answered in 20 to 106 s, so every chat sat waiting and then
+// got the fallback line. It now tries a short first call and, when that times
+// out or returns a 5xx, a second model that does answer quickly; the client
+// timeout stays above both so it is only a net.
+var (
+	hwAssistantAttemptTimeout  = 12 * time.Second
+	hwAssistantFallbackTimeout = 13 * time.Second
+	hwAssistantClientTimeout   = 26 * time.Second
+	// hwAssistantFallbackSticky is how long the backup model is tried first
+	// after two timeouts in a row: a channel that is slow now stays slow for
+	// a while, and the owner should not wait for it twice on every question.
+	hwAssistantFallbackSticky = 5 * time.Minute
+	// hwAssistantTimeoutStreak is the number of back-to-back timeouts of the
+	// primary model that switch the order around; a success resets it.
+	hwAssistantTimeoutStreak = 2
+)
+
+// hwAssistantSlow guards the timeout streak and the moment the backup model
+// took over. It is process state on purpose: a stored value would need a
+// table and a writer for something that only steers the next few minutes.
+var hwAssistantSlow struct {
+	mu        sync.Mutex
+	streak    int
+	untilMono time.Time
+}
+
+// hwAssistantFallbackFirst reports whether the backup model should go first,
+// and is called once per question so the decision is stable within it.
+func hwAssistantFallbackFirst(now time.Time) bool {
+	hwAssistantSlow.mu.Lock()
+	defer hwAssistantSlow.mu.Unlock()
+	return now.Before(hwAssistantSlow.untilMono)
+}
+
+// hwAssistantNoteAttempt records the outcome of the primary model's attempt.
+func hwAssistantNoteAttempt(primary bool, err error, now time.Time) {
+	if !primary {
+		return
+	}
+	timedOut := HwAssistantFailureClass(err) == "timeout"
+	hwAssistantSlow.mu.Lock()
+	defer hwAssistantSlow.mu.Unlock()
+	if !timedOut {
+		hwAssistantSlow.streak = 0
+		return
+	}
+	hwAssistantSlow.streak++
+	if hwAssistantSlow.streak >= hwAssistantTimeoutStreak {
+		hwAssistantSlow.untilMono = now.Add(hwAssistantFallbackSticky)
+	}
+}
+
+// hwAssistantRetryable reports whether a failed attempt deserves the other
+// model: a timeout or a network error, or a 5xx from the route. A refusal
+// (quota, key) says nothing about the model and is not retried.
+func hwAssistantRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	var statusErr *hwChatStatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.StatusCode >= http.StatusInternalServerError
+	}
+	var netErr net.Error
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.As(err, &netErr)
+}
+
 var errHwAssistantNotConfigured = errors.New("the assistant is not connected to the gateway")
 
 var errHwAssistantEmpty = errors.New("the gateway returned an empty answer")
@@ -227,7 +295,7 @@ func hwAssistantCall(ctx context.Context, config HwAdminAgentConfig, instruction
 	}
 	client := config.Client
 	if client == nil {
-		client = &http.Client{Timeout: hwAssistantTimeout}
+		client = &http.Client{Timeout: hwAssistantClientTimeout}
 	}
 	messages := make([]hwChatMessage, 0, len(turns))
 	for index, turn := range turns {
@@ -237,11 +305,62 @@ func hwAssistantCall(ctx context.Context, config HwAdminAgentConfig, instruction
 		}
 		messages = append(messages, hwAssistantMessage(turn.Role, content, turn.Attachments))
 	}
-	request := hwChatRequest{Model: config.Model, Messages: messages, MaxTokens: hwAssistantMaxTokens}
-	text, usage, err := hwCallChat(ctx, client, config.BaseURL, config.APIKey, request)
-	var statusErr *hwChatStatusError
-	if errors.As(err, &statusErr) && (statusErr.StatusCode == http.StatusUnauthorized || statusErr.StatusCode == http.StatusForbidden) && HwAssistantRepairKey(config) {
-		text, usage, err = hwCallChat(ctx, client, config.BaseURL, config.APIKey, request)
+	// attemptKeylessCall is one model call with a short wait; the caller only
+	// sets the model and the wait, so both attempts follow the same path.
+	attemptKeylessCall := func(model string, timeout time.Duration) (string, hwChatUsage, error) {
+		attemptCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		request := hwChatRequest{Model: model, Messages: messages, MaxTokens: hwAssistantMaxTokens}
+		answer, usage, err := hwCallChat(attemptCtx, client, config.BaseURL, config.APIKey, request)
+		var statusErr *hwChatStatusError
+		if errors.As(err, &statusErr) && (statusErr.StatusCode == http.StatusUnauthorized || statusErr.StatusCode == http.StatusForbidden) && HwAssistantRepairKey(config) {
+			answer, usage, err = hwCallChat(attemptCtx, client, config.BaseURL, config.APIKey, request)
+		}
+		return answer, usage, err
+	}
+	primary := config.Model
+	backup := config.FallbackModel
+	if backup == primary {
+		backup = ""
+	}
+	// attempt runs one model on its own wait and logs a failed one with its
+	// class and duration, so a slow channel is visible in the log.
+	attempt := func(number int, model string, timeout time.Duration) (string, hwChatUsage, error) {
+		started := time.Now()
+		answer, usage, err := attemptKeylessCall(model, timeout)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("hw assistant attempt %d model %s failed: %s after %d ms", number, model, HwAssistantFailureClass(err), time.Since(started).Milliseconds()))
+		}
+		return answer, usage, err
+	}
+	// After two timeouts in a row the owner would wait again for a channel
+	// that is known slow, so the backup model asks first for a while.
+	type hwAssistantAttempt struct {
+		number  int
+		model   string
+		timeout time.Duration
+		primary bool
+	}
+	order := []hwAssistantAttempt{{number: 1, model: primary, timeout: hwAssistantAttemptTimeout, primary: true}}
+	if backup != "" {
+		if hwAssistantFallbackFirst(time.Now()) {
+			order = []hwAssistantAttempt{
+				{number: 1, model: backup, timeout: hwAssistantFallbackTimeout},
+				{number: 2, model: primary, timeout: hwAssistantAttemptTimeout, primary: true},
+			}
+		} else {
+			order = append(order, hwAssistantAttempt{number: 2, model: backup, timeout: hwAssistantFallbackTimeout})
+		}
+	}
+	var usage hwChatUsage
+	for index, step := range order {
+		text, usage, err = attempt(step.number, step.model, step.timeout)
+		if step.primary {
+			hwAssistantNoteAttempt(true, err, time.Now())
+		}
+		if err == nil || index == len(order)-1 || !hwAssistantRetryable(err) {
+			break
+		}
 	}
 	if err != nil {
 		return "", false, err
