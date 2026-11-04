@@ -101,8 +101,8 @@ start-wt-dev:
     DEV_AUTO_LOGIN=1 \
     "{{ GO_BIN_CACHE }}/$bin_name"
 
-# Full worktree dev: docker DBs + local Go API binary + web HMR (all background)
-# This is the recommended entry point for agent-driven UI/API development.
+# Full worktree dev with real login flows (no auto-login): docker DBs + local Go API binary + web HMR (all background)
+# Use this for auth/login/permission work. For day-to-day development prefer `just dev-wt-dev`.
 dev-wt: dev-db
     #!/usr/bin/env bash
     set -euo pipefail
@@ -123,10 +123,9 @@ dev-wt: dev-db
     trap 'kill $API_PID $WEB_PID 2>/dev/null' EXIT INT TERM
     wait
 
-# Full worktree dev with credential-free login: same as dev-wt, but the local
-# binary carries the `dev` build tag and answers /api/user/dev/auto-login, so
-# the browser lands logged-in. See start-wt-dev for what that tag does and does
-# not reach. Use `just dev-wt` when you want to exercise real login flows.
+# Full worktree dev with credential-free login: docker DBs + local Go API binary + web HMR (all background)
+# This is the recommended entry point for agent-driven UI/API development (auto-login ON).
+# Use `just dev-wt` only when you need to exercise real login flows.
 dev-wt-dev: dev-db
     #!/usr/bin/env bash
     set -euo pipefail

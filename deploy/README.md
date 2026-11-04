@@ -264,3 +264,15 @@ systemctl enable --now new-api newapi-postgres
 3. Caddy 通过 `systemctl restart caddy` 完成反代切换。
 4. 生产服务器不依赖 Docker 守护进程；镜像仍由 CI 在 runner 上用 Docker Buildx 构建并推送到 GHCR，Podman 直接 `pull` 运行。
  (chore(deploy): replace Docker Compose deployment with Podman)
+
+## 6. 生产安全部署：避免 dev 免登录进入生产
+
+dev 免登录 (`/api/user/dev/auto-login`) 只存在于带 `dev` build tag 的二进制中，并且运行时还要 `DEV_AUTO_LOGIN=1` 才生效。生产部署必须同时守住这两道门：
+
+1. **构建命令只传业务 tags**：生产/发布构建只使用 `go build -tags "${SINGBOX_TAGS}"`（Dockerfile、release workflow 已如此）。严禁在生产构建里追加 `dev`。
+2. **生产环境不设置 `DEV_AUTO_LOGIN`**：即使误设，没有 `dev` tag 时路由根本不注册，请求落 SPA fallback；但为避免混淆，生产 env/secret 中不要出现该变量。
+3. **不要把本地 `just dev-wt-dev` 产物当生产二进制**：它带 `dev` tag 且启用自动登录，仅用于开发。
+4. **上线后验证**：`curl -sS -X POST https://<domain>/api/user/dev/auto-login` 应返回 404/SPA fallback，且响应中不包含 token/session。
+5. **审计日志核查**：生产日志中不应出现 `login_method=dev-auto-login` 的会话；若出现，说明使用了 dev 构建或环境变量被开启。
+6. **账号清理**：若发现固定名 `dev-auto-login` 的 root 账号，立即删除/降权并排查构建与部署流程。
+7. **CI 保障**：`Backend build with dev tag` 任务仅做编译检查；release/Docker 路径从不传 `dev`，并由 stub 文件保证非 dev 构建路由不存在。

@@ -107,13 +107,17 @@ The main checkout stays on `main`; feature branches live in `.wt/`.
 
 ###### Starting a dev server
 
-**`just dev-wt` (recommended for worktree development):**
+**`just dev-wt-dev` (recommended for agent/worktree development, auto-login ON):**
 1. `just dev-db` — starts docker PostgreSQL only (Redis expected on `localhost:6379`; host Redis or `uf-local-redis` container already provides this)
 2. Builds and runs Go API binary from the current worktree's `apps/api/` (branch-scoped cache in `~/.cache/new-api-bin/new-api-<branch>`)
 3. Starts Rsbuild web HMR dev server on :5173 (auto-proxies `/api`, `/mj`, `/pg` → :3000)
 
 Frontend changes hot-reload instantly — no rebuild needed.
-Only Go changes require killing and restarting `just dev-wt`.
+Only Go changes require killing and restarting `just dev-wt-dev`.
+
+Default to this for day-to-day development: it builds the Go binary with the `dev` tag and `DEV_AUTO_LOGIN=1`, so the browser lands logged-in as the throw-away `dev-auto-login` root account. Use `just dev-wt` only when you need to exercise real login flows, unauthenticated state, or permission gating.
+
+**`just dev-wt` (real login flows only):** same as above but without the `dev` tag, so `/api/user/dev/auto-login` does not exist and the app starts unauthenticated. Use for auth/login/permission work.
 
 **`just dev` (Docker API, single worktree):**
 - `just dev-api` starts docker postgres + redis + API container (:3000); container name `new-api-dev` is global, so only one worktree can use this at a time
@@ -173,6 +177,8 @@ servers also only grow (observed 2-4GB per server, not the ~300MB above).
 - `just build-web` — full production build (bun install + rspack build + copy to embed dir + Go rebuild). Only for testing `go:embed` behavior, Docker builds, or release verification. Never use for iterative UI development.
 
 ###### Test accounts
+
+When using `just dev-wt-dev` (the default), the throw-away `dev-auto-login` root account is provisioned automatically, so manual test accounts are only needed for `just dev-wt` (real login) scenarios.
 
 When starting a dev server for manual testing, create a test account on the instance and report its credentials. Test accounts MUST be super-admin (`RoleRootUser`, role 100) unless the maintainer specifies a lower role.
 
