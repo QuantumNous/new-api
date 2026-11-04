@@ -104,7 +104,8 @@ func HwNormalizePricingFeedback(row *HwPricingFeedback) error {
 		}
 	}
 	key := row.Kind + "|" + strings.ToLower(row.Model)
-	if row.Model == "" {
+	// Without a model, and always for "other", the text carries the report.
+	if row.Model == "" || row.Kind == HwPricingFeedbackKindOther {
 		sum := sha256.Sum256([]byte(strings.ToLower(row.Message)))
 		key += hex.EncodeToString(sum[:8])
 	}
@@ -145,10 +146,11 @@ func HwMarkPricingFeedbackCarded(db *gorm.DB, ids []int, card string) error {
 	return db.Model(&HwPricingFeedback{}).Where("id IN ? AND card = ?", ids, "").Update("card", card).Error
 }
 
-// HwForgetOldPricingFeedback clears the email and text of carded reports
-// older than the retention window.
+// HwForgetOldPricingFeedback clears the email and text of carded and
+// duplicate reports older than the retention window. A duplicate never gets a
+// card, so it ages out on its own.
 func HwForgetOldPricingFeedback(db *gorm.DB, now int64) error {
 	return db.Model(&HwPricingFeedback{}).
-		Where("card <> ? AND created_at < ? AND (email <> ? OR message <> ?)", "", now-HwPricingFeedbackRetentionSeconds, "", "").
+		Where("(card <> ? OR duplicate = ?) AND created_at < ? AND (email <> ? OR message <> ?)", "", true, now-HwPricingFeedbackRetentionSeconds, "", "").
 		Updates(map[string]any{"email": "", "message": ""}).Error
 }

@@ -191,7 +191,7 @@ func TestHwPricingFeedbackDatabaseMatrix(t *testing.T) {
 			first := HwPricingFeedback{Kind: HwPricingFeedbackKindPrice, Model: "Matrix-Model", Message: "çok pahalı", Lang: "tr"}
 			require.NoError(t, HwNormalizePricingFeedback(&first))
 			require.NoError(t, HwStorePricingFeedback(db, &first, 1_000))
-			second := HwPricingFeedback{Kind: HwPricingFeedbackKindPrice, Model: "matrix-model", Lang: "en"}
+			second := HwPricingFeedback{Kind: HwPricingFeedbackKindPrice, Model: "matrix-model", Message: "same again", Email: "dup@example.com", Lang: "en"}
 			require.NoError(t, HwNormalizePricingFeedback(&second))
 			require.NoError(t, HwStorePricingFeedback(db, &second, 2_000))
 			assert.False(t, first.Duplicate)
@@ -211,6 +211,29 @@ func TestHwPricingFeedbackDatabaseMatrix(t *testing.T) {
 			var stored HwPricingFeedback
 			require.NoError(t, db.First(&stored, first.ID).Error)
 			assert.Equal(t, "HIS-1", stored.Card)
+
+			require.NoError(t, HwForgetOldPricingFeedback(db, 2_000+HwPricingFeedbackRetentionSeconds+1))
+			var aged []HwPricingFeedback
+			require.NoError(t, db.Order("id asc").Find(&aged).Error)
+			require.Len(t, aged, 2)
+			for _, row := range aged {
+				assert.Empty(t, row.Email, "retention clears carded and duplicate reports alike (id %d)", row.ID)
+				assert.Empty(t, row.Message, "retention clears carded and duplicate reports alike (id %d)", row.ID)
+			}
 		})
 	}
+}
+
+func TestHwPricingFeedbackOtherKindKeysOnTheText(t *testing.T) {
+	first := HwPricingFeedback{Kind: HwPricingFeedbackKindOther, Model: "Matrix-Model", Message: "the context size is wrong"}
+	second := HwPricingFeedback{Kind: HwPricingFeedbackKindOther, Model: "matrix-model", Message: "the model is listed twice"}
+	require.NoError(t, HwNormalizePricingFeedback(&first))
+	require.NoError(t, HwNormalizePricingFeedback(&second))
+	assert.NotEqual(t, first.DedupKey, second.DedupKey, "a different 'other' text about the same model is a new report")
+
+	price := HwPricingFeedback{Kind: HwPricingFeedbackKindPrice, Model: "matrix-model", Message: "another text"}
+	again := HwPricingFeedback{Kind: HwPricingFeedbackKindPrice, Model: "Matrix-Model", Message: "too cheap"}
+	require.NoError(t, HwNormalizePricingFeedback(&price))
+	require.NoError(t, HwNormalizePricingFeedback(&again))
+	assert.Equal(t, price.DedupKey, again.DedupKey, "a price report per model stays one report")
 }
