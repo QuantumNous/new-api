@@ -27,6 +27,9 @@ web/src/hooks/use-sidebar-data.ts                              3
 # is een bewust besluit, dus de bovengrens staat hier en groeit niet mee.
 # De haaklijst zelf groeit mee met elk bewust besluit, dus geen bovengrens.
 .hw/haaklijst.txt                                              1000
+# Documentatie van de sync: alleen van ons, groeit met elk besluit.
+.hw/conflicten.md                                              200
+.hw/sync-pr.md                                                  20
 .hw/sync-upstream.sh                                           200
 .github/workflows/upstream-sync.yml                             13
 .github/workflows/security.yml                                  4
