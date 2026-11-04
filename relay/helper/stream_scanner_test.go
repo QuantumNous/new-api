@@ -563,6 +563,49 @@ func TestStreamScannerHandler_StreamStatus_Timeout(t *testing.T) {
 	assert.False(t, info.StreamStatus.IsNormalEnd())
 }
 
+// A supplier that opens the stream and stays silent ends on the first-token
+// timeout, long before StreamingTimeout; once a chunk arrived only the normal
+// idle timeout applies.
+func TestStreamScannerHandler_FirstTokenTimeout(t *testing.T) {
+	// Not parallel: modifies global timeouts
+	oldTimeout, oldFirst := constant.StreamingTimeout, constant.HwStreamFirstTokenTimeout
+	constant.StreamingTimeout, constant.HwStreamFirstTokenTimeout = 10, 1
+	t.Cleanup(func() { constant.StreamingTimeout, constant.HwStreamFirstTokenTimeout = oldTimeout, oldFirst })
+
+	for _, tc := range []struct {
+		name         string
+		firstChunk   bool
+		wantReason   relaycommon.StreamEndReason
+		wantReceived int
+	}{
+		{name: "silent supplier", wantReason: relaycommon.StreamEndReasonTimeout},
+		{name: "chunk before the limit", firstChunk: true, wantReason: relaycommon.StreamEndReasonDone, wantReceived: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pr, pw := io.Pipe()
+			go func() {
+				if tc.firstChunk {
+					fmt.Fprint(pw, "data: {\"id\":1}\n")
+				}
+				time.Sleep(2 * time.Second)
+				fmt.Fprint(pw, "data: [DONE]\n")
+				pw.Close()
+			}()
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+
+			started := time.Now()
+			StreamScannerHandler(c, &http.Response{Body: pr}, info, func(data string, sr *StreamResult) {})
+
+			require.NotNil(t, info.StreamStatus)
+			assert.Equal(t, tc.wantReason, info.StreamStatus.EndReason)
+			assert.Equal(t, tc.wantReceived, info.ReceivedResponseCount)
+			assert.Less(t, time.Since(started), 5*time.Second)
+		})
+	}
+}
+
 func TestStreamScannerHandler_StreamStatus_SoftErrors(t *testing.T) {
 	t.Parallel()
 

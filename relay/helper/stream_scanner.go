@@ -135,6 +135,18 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	ctx, cancel := context.WithCancel(context.Background())
 
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
+	// A supplier that opens the stream and then stays silent ends as a
+	// timeout well before the customer gives up, so the route can still try
+	// another supplier. Measured 4 Nov 2026: Lumia held a stream 145 s
+	// without a single chunk until the customer left.
+	var firstTokenTimeout <-chan time.Time
+	firstTokenWait := time.Duration(constant.HwStreamFirstTokenTimeout) * time.Second
+	var firstTokenTimer *time.Timer
+	if firstTokenWait > 0 && firstTokenWait < streamingTimeout {
+		firstTokenTimer = time.NewTimer(firstTokenWait)
+		firstTokenTimeout = firstTokenTimer.C
+		defer firstTokenTimer.Stop()
+	}
 
 	var (
 		stopChan    = make(chan bool, 3) // 增加缓冲区避免阻塞
@@ -312,6 +324,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			if !strings.HasPrefix(data, "[DONE]") {
 				info.SetFirstResponseTime()
 				info.ReceivedResponseCount++
+				if firstTokenTimer != nil {
+					firstTokenTimer.Stop()
+				}
 
 				select {
 				case dataChan <- data:
@@ -345,6 +360,8 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	select {
 	case <-ticker.C:
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+	case <-firstTokenTimeout:
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, errors.New("no first token before the first-token timeout"))
 	case <-stopChan:
 		// EndReason already set by the goroutine that triggered stopChan
 	case <-c.Request.Context().Done():
