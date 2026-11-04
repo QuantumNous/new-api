@@ -52,6 +52,16 @@ func TestAuthCacheIntegrityDatabaseMatrix(t *testing.T) {
 				assert.NoError(t, sqlDB.Close())
 			})
 			require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &UserSession{}))
+			// The matrix runs ./model/ before ./controller/ against one shared
+			// database, and the controller tests that walk the same engines
+			// require an empty one (for example TestDeleteRedemptionBatch).
+			// Drop what this test created before the package hands the
+			// database on.
+			t.Cleanup(func() {
+				for _, table := range []any{&UserSession{}, &Token{}, &User{}} {
+					assert.NoError(t, db.Migrator().DropTable(table))
+				}
+			})
 			var version string
 			query := "SELECT version()"
 			if dialect == "sqlite" {
