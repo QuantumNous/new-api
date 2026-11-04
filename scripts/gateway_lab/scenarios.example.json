@@ -1,0 +1,38 @@
+[
+  {
+    "name": "long_context",
+    "context_chars": 1048576,
+    "timeout_s": 60
+  },
+  {
+    "name": "long_context_stream",
+    "context_chars": 1048576,
+    "timeout_s": 60
+  },
+  {
+    "name": "delayed_headers",
+    "delay_s": 60,
+    "timeout_s": 90
+  },
+  {
+    "name": "delayed_first_chunk",
+    "first_chunk_delay_s": 30,
+    "timeout_s": 60
+  },
+  {
+    "name": "long_stream",
+    "chunks": 120,
+    "gap_s": 0.5,
+    "timeout_s": 90
+  },
+  {
+    "name": "idle_stream",
+    "gap_s": 10,
+    "timeout_s": 3
+  },
+  {
+    "name": "slow_reader",
+    "read_delay_s": 0.5,
+    "timeout_s": 30
+  }
+]

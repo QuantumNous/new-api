@@ -1,0 +1,61 @@
+name: Gateway Lab
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/gateway_lab/**'
+      - '.github/workflows/gateway-lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  standalone-smoke:
+    name: Standalone mock protocol smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Exercise native protocol scenarios
+        shell: bash
+        run: |
+          set -euo pipefail
+          LAB=scripts/gateway_lab/gateway_lab.py
+          REPORTS="${RUNNER_TEMP}/gateway-lab-reports"
+          mkdir -p "$REPORTS"
+          python3 -B "$LAB" serve --port 19090 > "$REPORTS/upstream.log" 2>&1 &
+          MOCK_PID=$!
+          trap 'kill "$MOCK_PID"; wait "$MOCK_PID" || true' EXIT
+          python3 - <<'PY'
+          import json
+          import time
+          import urllib.request
+          for attempt in range(100):
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:19090/healthz', timeout=1) as response:
+                      if json.load(response).get('service') == 'gateway-lab':
+                          break
+              except OSError:
+                  pass
+              time.sleep(0.05)
+          else:
+              raise SystemExit('mock did not become healthy')
+          PY
+          for protocol in chat responses claude gemini; do
+            python3 -B "$LAB" run --base-url http://127.0.0.1:19090 \
+              --mock-url http://127.0.0.1:19090 --protocol "$protocol" \
+              --cases nonstream,stream,fragmented_sse,long_context_stream,tool_only,role_only,usage_only,http_500,cancel_before_headers,cancel_midstream \
+              --output "$REPORTS/$protocol.json"
+          done
+
+      - name: Upload standalone smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gateway-lab-standalone-evidence
+          path: ${{ runner.temp }}/gateway-lab-reports
+          if-no-files-found: error
+          retention-days: 7

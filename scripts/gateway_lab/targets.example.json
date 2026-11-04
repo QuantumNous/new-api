@@ -1,0 +1,32 @@
+[
+  {
+    "name": "newapi-a",
+    "base_url": "http://127.0.0.1:3000",
+    "protocol": "chat",
+    "model": "gateway-lab",
+    "api_key_env": "LAB_API_KEY_NEWAPI_A",
+    "mock_url": "http://127.0.0.1:19090",
+    "max_cancel_delay_ms": 1000,
+    "expectations": {}
+  },
+  {
+    "name": "newapi-b",
+    "base_url": "http://127.0.0.1:3001",
+    "protocol": "chat",
+    "model": "gateway-lab",
+    "api_key_env": "LAB_API_KEY_NEWAPI_B",
+    "mock_url": "http://127.0.0.1:19090",
+    "max_cancel_delay_ms": 1000,
+    "expectations": {}
+  },
+  {
+    "name": "ferrite",
+    "base_url": "http://127.0.0.1:3211",
+    "protocol": "chat",
+    "model": "gateway-lab",
+    "api_key_env": "LAB_API_KEY_FERRITE",
+    "mock_url": "http://127.0.0.1:19090",
+    "max_cancel_delay_ms": 1000,
+    "expectations": {}
+  }
+]
