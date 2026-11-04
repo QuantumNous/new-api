@@ -21,14 +21,21 @@ import { ArrowLeft, Code2, HeartPulse, Info } from 'lucide-react'
 import { useMemo } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
-import { ErrorState } from '@/components/error-state'
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
+import { ErrorState } from '@/components/error-state'
 import { Main, PublicLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useStatus } from '@/hooks/use-status'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { usePricingData } from '../hooks/use-pricing-data'
@@ -36,12 +43,14 @@ import type { PricingModel, TokenUnit } from '../types'
 import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
 import { ModelDetailsApi } from './model-details-api'
 import { PriceSection } from './model-details-base-price'
-import { ModelBackendDetailsSection, OverviewSummaryGrid } from './model-details-catalog'
+import {
+  ModelBackendDetailsSection,
+  OverviewSummaryGrid,
+} from './model-details-catalog'
 import { GroupPricingSection } from './model-details-group-pricing'
 import { ModelHeader } from './model-details-header'
 import { ModelDetailsPerformance } from './model-details-performance'
 import { SectionTitle } from './model-details-section-title'
-import { useStatus } from '@/hooks/use-status'
 
 const MODEL_DETAILS_SKELETON_KEYS = ['first', 'second', 'third', 'fourth']
 
@@ -68,13 +77,13 @@ export interface ModelDetailsContentProps {
   tokenUnit: TokenUnit
   showRechargePrice?: boolean
 }
-  
+
 export function ModelDetailsContent(props: ModelDetailsContentProps) {
   const { t } = useTranslation()
-  const showRechargePrice = props.showRechargePrice ?? false
   const { status } = useStatus()
   const emptyMultiplier = status?.empty_response_multiplier
-
+  const truncatedMultiplier = status?.truncated_response_multiplier
+  const showRechargePrice = props.showRechargePrice ?? false
 
   const isDynamic =
     props.model.billing_mode === 'tiered_expr' &&
@@ -109,40 +118,53 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               <SectionTitle>{t('Pricing')}</SectionTitle>
             </CardHeader>
             <CardContent className='space-y-5'>
-            <PriceSection
-              model={props.model}
-              priceRate={props.priceRate}
-              usdExchangeRate={props.usdExchangeRate}
-              tokenUnit={props.tokenUnit}
-              showRechargePrice={showRechargePrice}
-            />
-            {isDynamic && (
-              <DynamicPricingBreakdown billingExpr={props.model.billing_expr} />
-            )}
-            <GroupPricingSection
-              model={props.model}
-              groupRatio={props.groupRatio}
-              usableGroup={props.usableGroup}
-              autoGroups={props.autoGroups}
-              priceRate={props.priceRate}
-              usdExchangeRate={props.usdExchangeRate}
-              tokenUnit={props.tokenUnit}
-              showRechargePrice={showRechargePrice}
-            />
-            {emptyMultiplier != null && (
-              <div className='flex items-start gap-2 rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground'>
-                <Info className='mt-0.5 size-3.5 shrink-0' aria-hidden='true' />
-                <p>
-                  <Trans
-                    i18nKey='pricing.model.emptyResponseNote'
-                    values={{ multiplier: emptyMultiplier }}
-                    components={{
-                      0: <span className='text-amber-500' />,
-                    }}
-                  />
-                </p>
-              </div>
-            )}
+              <PriceSection
+                model={props.model}
+                priceRate={props.priceRate}
+                usdExchangeRate={props.usdExchangeRate}
+                tokenUnit={props.tokenUnit}
+                showRechargePrice={showRechargePrice}
+              />
+              {isDynamic && (
+                <DynamicPricingBreakdown
+                  billingExpr={props.model.billing_expr}
+                />
+              )}
+              <GroupPricingSection
+                model={props.model}
+                groupRatio={props.groupRatio}
+                usableGroup={props.usableGroup}
+                autoGroups={props.autoGroups}
+                priceRate={props.priceRate}
+                usdExchangeRate={props.usdExchangeRate}
+                tokenUnit={props.tokenUnit}
+                showRechargePrice={showRechargePrice}
+              />
+              {typeof emptyMultiplier === 'number' &&
+                typeof truncatedMultiplier === 'number' && (
+                  <div className='text-muted-foreground flex items-start gap-2 rounded-lg border border-dashed px-3 py-2.5 text-xs'>
+                    <Info
+                      className='mt-0.5 size-3.5 shrink-0'
+                      aria-hidden='true'
+                    />
+                    <p>
+                      <Trans
+                        i18nKey='pricing.model.emptyResponseNote'
+                        values={{
+                          empty: emptyMultiplier,
+                          emptyRefund: Math.round((1 - emptyMultiplier) * 100),
+                          truncated: truncatedMultiplier,
+                          truncatedRefund: Math.round(
+                            (1 - truncatedMultiplier) * 100
+                          ),
+                        }}
+                        components={{
+                          0: <span className='text-amber-500' />,
+                        }}
+                      />
+                    </p>
+                  </div>
+                )}
             </CardContent>
           </Card>
 
@@ -189,7 +211,7 @@ export function ModelDetailsDrawer(props: ModelDetailsDrawerProps) {
           <SheetTitle>{props.model.model_name}</SheetTitle>
           <SheetDescription>{t('Model details')}</SheetDescription>
         </SheetHeader>
-        <div className='flex-1 no-scrollbar overflow-y-auto px-4 pt-11 pb-5 sm:px-6 sm:pt-12 sm:pb-6'>
+        <div className='no-scrollbar flex-1 overflow-y-auto px-4 pt-11 pb-5 sm:px-6 sm:pt-12 sm:pb-6'>
           <ModelDetailsContent {...contentProps} />
         </div>
       </SheetContent>
@@ -257,7 +279,10 @@ export function ModelDetails() {
     return (
       <PublicLayout showMainContainer={false}>
         <Main className='mx-auto w-full max-w-5xl px-4 pt-24 sm:px-6'>
-          <ErrorState title={t('Loading failed')} onRetry={() => void refetch()} />
+          <ErrorState
+            title={t('Loading failed')}
+            onRetry={() => void refetch()}
+          />
         </Main>
       </PublicLayout>
     )

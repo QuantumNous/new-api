@@ -17,14 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { Info } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
-import { useStatus } from '@/hooks/use-status'
+import { useTranslation } from 'react-i18next'
 
 import { ErrorState } from '@/components/error-state'
-import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
 import { Main, PublicLayout } from '@/components/layout'
 import { Card, CardContent } from '@/components/ui/card'
+import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
+import { useStatus } from '@/hooks/use-status'
 
 import {
   LoadingSkeleton,
@@ -47,9 +48,33 @@ export function Pricing() {
   const { t } = useTranslation()
   const { status } = useStatus()
   const emptyMultiplier = status?.empty_response_multiplier
+  const truncatedMultiplier = status?.truncated_response_multiplier
   const [selectedModelName, setSelectedModelName] = useState<string | null>(
     null
   )
+
+  const chargeNoticeItems =
+    typeof emptyMultiplier === 'number' &&
+    typeof truncatedMultiplier === 'number'
+      ? [
+          { text: t('home.policy.empty.item.normal'), dot: 'bg-emerald-500' },
+          {
+            text: t('home.policy.empty.item.upstream-cut', {
+              multiplier: truncatedMultiplier,
+              refundPercent: Math.round((1 - truncatedMultiplier) * 100),
+            }),
+            dot: 'bg-amber-500',
+          },
+          {
+            text: t('home.policy.empty.item.empty-response', {
+              multiplier: emptyMultiplier,
+              refundPercent: Math.round((1 - emptyMultiplier) * 100),
+            }),
+            dot: 'bg-orange-500',
+          },
+          { text: t('home.policy.empty.item.client-cut'), dot: 'bg-sky-500' },
+        ]
+      : []
 
   const {
     models,
@@ -115,7 +140,9 @@ export function Pricing() {
     return [...filteredModels].sort((a, b) => {
       const rateA = successRateByName.get(a.model_name) ?? -1
       const rateB = successRateByName.get(b.model_name) ?? -1
-      return rateB - rateA || (a.model_name || '').localeCompare(b.model_name || '')
+      return (
+        rateB - rateA || (a.model_name || '').localeCompare(b.model_name || '')
+      )
     })
   }, [filteredModels, sortBy, successRateByName])
 
@@ -188,7 +215,10 @@ export function Pricing() {
   if (isLoading) {
     return (
       <PublicLayout showMainContainer={false}>
-        <Main aria-busy='true' className='mx-auto w-full max-w-[2200px] px-4 pt-20 pb-10 sm:px-6 sm:pt-24 lg:px-8'>
+        <Main
+          aria-busy='true'
+          className='mx-auto w-full max-w-[2200px] px-4 pt-20 pb-10 sm:px-6 sm:pt-24 lg:px-8'
+        >
           <LoadingSkeleton viewMode={viewMode} />
         </Main>
       </PublicLayout>
@@ -198,100 +228,132 @@ export function Pricing() {
   return (
     <PublicLayout showMainContainer={false}>
       <Main className='mx-auto w-full max-w-[2200px] gap-6 overflow-visible px-4 pt-20 pb-10 sm:px-6 sm:pt-24 lg:px-8'>
-          <header className='relative flex flex-col gap-5'>
-            <div className='min-w-0 pt-4 text-center'>
-              <h1 className='text-4xl leading-tight font-bold tracking-tight sm:text-5xl'>
-                {t('Model Square')}
-              </h1>
-              <p className='text-muted-foreground mt-3 text-sm'>
-                {t('This site currently has {{count}} models enabled', {
-                  count: models?.length || 0,
-                })}
-              </p>
-              <p className='text-muted-foreground mx-auto mt-2 max-w-2xl text-sm leading-relaxed'>
-                {t(
-                  'Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.'
-                )}
-              </p>
-            </div>
-            {emptyMultiplier != null && (
-              <div className='absolute end-0 bottom-0 z-10 hidden w-64 xl:block'>
-                <div className='bg-card/95 rounded-lg border border-amber-500/30 px-3 py-2 text-[10px] leading-relaxed text-amber-600 shadow-lg backdrop-blur-sm dark:text-amber-300/90'>
-                  <Trans
-                    i18nKey='pricing.model.emptyResponseNote'
-                    values={{ multiplier: emptyMultiplier }}
-                    components={{
-                      0: <span className='text-amber-500' />,
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-          </header>
-
-          <section aria-label={t('Models')} className='min-w-0 space-y-4'>
-            <PricingToolbar
-              filteredCount={filteredModels.length}
-              searchInput={searchInput}
-              onSearchChange={setSearchInput}
-              onClearSearch={clearSearch}
-              searchPlaceholder={t(
-                'Search model name, provider, endpoint, or tag...'
+        <header className='relative flex flex-col gap-5'>
+          <div className='min-w-0 pt-4 text-center'>
+            <h1 className='text-4xl leading-tight font-bold tracking-tight sm:text-5xl'>
+              {t('Model Square')}
+            </h1>
+            <p className='text-muted-foreground mt-3 text-sm'>
+              {t('This site currently has {{count}} models enabled', {
+                count: models?.length || 0,
+              })}
+            </p>
+            <p className='text-muted-foreground mx-auto mt-2 max-w-2xl text-sm leading-relaxed'>
+              {t(
+                'Discover curated AI models, compare pricing and capabilities, and choose the right model for every scenario.'
               )}
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-              quotaTypeFilter={quotaTypeFilter}
-              endpointTypeFilter={endpointTypeFilter}
-              vendorFilter={vendorFilter}
-              groupFilter={groupFilter}
-              tagFilter={tagFilter}
-              onQuotaTypeChange={setQuotaTypeFilter}
-              onEndpointTypeChange={setEndpointTypeFilter}
-              onVendorChange={setVendorFilter}
-              onGroupChange={setGroupFilter}
-              onTagChange={setTagFilter}
-              vendors={vendors || []}
-              groups={availableGroups}
-              groupRatios={groupRatio}
-              tags={availableTags}
-              models={models || []}
-              hasActiveFilters={hasActiveFilters}
-              onClearFilters={clearFilters}
-            />
-
-            {error ? (
-              <Card>
-                <CardContent>
-                  <ErrorState title={t('Loading failed')} onRetry={() => void refetch()} />
-                </CardContent>
-              </Card>
-            ) : renderPricingContent()}
-          </section>
-
-          {selectedModel && (
-            <ModelDetailsDrawer
-              open={Boolean(selectedModel)}
-              onOpenChange={(open) => {
-                if (!open) setSelectedModelName(null)
-              }}
-              model={selectedModel}
-              groupRatio={groupRatio || {}}
-              usableGroup={usableGroup || {}}
-              endpointMap={
-                (endpointMap as Record<
-                  string,
-                  { path?: string; method?: string }
-                >) || {}
-              }
-              autoGroups={autoGroups || []}
-              priceRate={priceRate ?? 1}
-              usdExchangeRate={usdExchangeRate ?? 1}
-              tokenUnit={DEFAULT_TOKEN_UNIT}
-              showRechargePrice={showRechargePrice}
-            />
+            </p>
+          </div>
+          {chargeNoticeItems.length > 0 && (
+            <div className='absolute end-0 bottom-0 z-10 hidden w-72 xl:block'>
+              <div className='bg-card-surface text-foreground backdrop-blur-card rounded-xl border border-lime-500/50 px-3 py-2 text-[11px] leading-relaxed dark:border-lime-400/50'>
+                <div className='mb-1 flex items-center gap-1.5 font-medium text-lime-600 dark:text-lime-400'>
+                  <Info className='size-3' aria-hidden='true' />
+                  {t('home.policy.empty.title')}
+                </div>
+                <ul className='space-y-0.5'>
+                  {chargeNoticeItems.map(({ text, dot }) => (
+                    <li key={text} className='flex items-start gap-1.5'>
+                      <span
+                        className={`mt-1.5 size-1.5 shrink-0 rounded-full ${dot}`}
+                        aria-hidden='true'
+                      />
+                      <span>{text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           )}
+        </header>
+        {chargeNoticeItems.length > 0 && (
+          <div className='bg-card-surface text-foreground backdrop-blur-card w-full rounded-xl border border-lime-500/50 px-3 py-2 text-[11px] leading-relaxed xl:hidden dark:border-lime-400/50'>
+            <div className='mb-1 flex items-center gap-1.5 font-medium text-lime-600 dark:text-lime-400'>
+              <Info className='size-3.5' aria-hidden='true' />
+              {t('home.policy.empty.title')}
+            </div>
+            <ul className='grid grid-cols-2 gap-x-4 gap-y-0.5'>
+              {chargeNoticeItems.map(({ text, dot }) => (
+                <li key={text} className='flex items-start gap-1.5'>
+                  <span
+                    className={`mt-1.5 size-1.5 shrink-0 rounded-full ${dot}`}
+                    aria-hidden='true'
+                  />
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <section aria-label={t('Models')} className='min-w-0 space-y-4'>
+          <PricingToolbar
+            filteredCount={filteredModels.length}
+            searchInput={searchInput}
+            onSearchChange={setSearchInput}
+            onClearSearch={clearSearch}
+            searchPlaceholder={t(
+              'Search model name, provider, endpoint, or tag...'
+            )}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            quotaTypeFilter={quotaTypeFilter}
+            endpointTypeFilter={endpointTypeFilter}
+            vendorFilter={vendorFilter}
+            groupFilter={groupFilter}
+            tagFilter={tagFilter}
+            onQuotaTypeChange={setQuotaTypeFilter}
+            onEndpointTypeChange={setEndpointTypeFilter}
+            onVendorChange={setVendorFilter}
+            onGroupChange={setGroupFilter}
+            onTagChange={setTagFilter}
+            vendors={vendors || []}
+            groups={availableGroups}
+            groupRatios={groupRatio}
+            tags={availableTags}
+            models={models || []}
+            hasActiveFilters={hasActiveFilters}
+            onClearFilters={clearFilters}
+          />
+
+          {error ? (
+            <Card>
+              <CardContent>
+                <ErrorState
+                  title={t('Loading failed')}
+                  onRetry={() => void refetch()}
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            renderPricingContent()
+          )}
+        </section>
+
+        {selectedModel && (
+          <ModelDetailsDrawer
+            open={Boolean(selectedModel)}
+            onOpenChange={(open) => {
+              if (!open) setSelectedModelName(null)
+            }}
+            model={selectedModel}
+            groupRatio={groupRatio || {}}
+            usableGroup={usableGroup || {}}
+            endpointMap={
+              (endpointMap as Record<
+                string,
+                { path?: string; method?: string }
+              >) || {}
+            }
+            autoGroups={autoGroups || []}
+            priceRate={priceRate ?? 1}
+            usdExchangeRate={usdExchangeRate ?? 1}
+            tokenUnit={DEFAULT_TOKEN_UNIT}
+            showRechargePrice={showRechargePrice}
+          />
+        )}
       </Main>
     </PublicLayout>
   )

@@ -33,6 +33,10 @@ export function UsagePolicy() {
   const { t } = useTranslation()
   const { status } = useStatus()
   const emptyMultiplier = status?.empty_response_multiplier
+  const truncatedMultiplier = status?.truncated_response_multiplier
+  const showMultiplier =
+    typeof emptyMultiplier === 'number' ||
+    typeof truncatedMultiplier === 'number'
 
   const welcome = [
     t('home.policy.welcome.item.roleplay'),
@@ -41,11 +45,22 @@ export function UsagePolicy() {
     t('home.policy.welcome.item.translate'),
   ]
 
-  const emptyReply = [
-    t('home.policy.empty.item.rate', { multiplier: emptyMultiplier }),
-    t('home.policy.empty.item.scope', { multiplier: emptyMultiplier }),
-    t('home.policy.empty.item.adjustable', { multiplier: emptyMultiplier }),
-  ]
+  const items = [
+    t('home.policy.empty.item.normal'),
+    typeof truncatedMultiplier === 'number'
+      ? t('home.policy.empty.item.upstream-cut', {
+          multiplier: truncatedMultiplier,
+          refundPercent: Math.round((1 - truncatedMultiplier) * 100),
+        })
+      : null,
+    typeof emptyMultiplier === 'number'
+      ? t('home.policy.empty.item.empty-response', {
+          multiplier: emptyMultiplier,
+          refundPercent: Math.round((1 - emptyMultiplier) * 100),
+        })
+      : null,
+    t('home.policy.empty.item.client-cut'),
+  ].filter((item): item is string => item != null)
 
   return (
     <section className='relative z-10 px-6 py-16 md:py-20'>
@@ -86,35 +101,38 @@ export function UsagePolicy() {
             </ul>
           </div>
 
-          {/* Empty reply — partial charge notice. Renders only once the site
-              multiplier has loaded so the bullets never show an empty value. */}
-          {emptyMultiplier != null && (
+          {/* Charge rules — covers normal completion, upstream cut, empty
+              response, and client cut. Renders once at least one multiplier
+              has loaded so the bullets never show an empty value. */}
+          {showMultiplier && (
             <div className='border-border/60 bg-card-surface backdrop-blur-card flex flex-col gap-4 rounded-xl border p-6'>
-            <div className='flex items-center gap-3'>
-              <span className='border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400 inline-flex size-10 items-center justify-center rounded-lg border'>
-                <MessageSquareOff className='size-5' />
-              </span>
-              <h3 className='text-base font-semibold'>
-                {t('home.policy.empty.title')}
-              </h3>
+              <div className='flex items-center gap-3'>
+                <span className='inline-flex size-10 items-center justify-center rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400'>
+                  <MessageSquareOff className='size-5' />
+                </span>
+                <h3 className='text-base font-semibold'>
+                  {t('home.policy.empty.title')}
+                </h3>
+              </div>
+              <p className='text-muted-foreground/80 text-sm leading-relaxed'>
+                {t('home.policy.empty.body')}
+              </p>
+              <ul className='mt-1 grid gap-2'>
+                {items.map((item) => (
+                  <li
+                    key={item}
+                    className='text-muted-foreground flex items-start gap-2 text-[13px] leading-relaxed'
+                  >
+                    <span
+                      className='mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-500'
+                      aria-hidden='true'
+                    />
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <p className='text-muted-foreground/80 text-sm leading-relaxed'>
-              {t('home.policy.empty.body')}
-            </p>
-            <ul className='mt-1 grid gap-2'>
-              {emptyReply.map((item) => (
-                <li
-                  key={item}
-                  className='text-muted-foreground flex items-start gap-2 text-[13px] leading-relaxed'
-                >
-                  <span className='bg-amber-500 mt-1.5 size-1.5 shrink-0 rounded-full' />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
           )}
-
         </div>
       </div>
     </section>
