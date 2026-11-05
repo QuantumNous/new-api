@@ -868,6 +868,79 @@ func TestSkipCompressionSkipsAStreamedResponse(t *testing.T) {
 	assert.Contains(t, readBody(t, response), "streamed chunk")
 }
 
+// ---- helmet and etag ----
+
+// TestHelmetSetsSecurityHeaders pins the security headers the engine sends on
+// every response. The client-IP resolver stays first, helmet runs next, and
+// nothing afterwards removes the headers. ContentSecurityPolicy is absent
+// because its config is deliberately empty: the SPA supplies its own policy.
+func TestHelmetSetsSecurityHeaders(t *testing.T) {
+	server, app := newTestEngine(t)
+	server.GET("/security-headers", func(c contract.Context) {
+		_ = c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte("ok"))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/security-headers", nil)
+	response := request(t, app, req, "127.0.0.1:12345")
+
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, "nosniff", response.Header.Get("X-Content-Type-Options"))
+	assert.Equal(t, "SAMEORIGIN", response.Header.Get("X-Frame-Options"))
+	assert.Equal(t, "strict-origin-when-cross-origin", response.Header.Get("Referrer-Policy"))
+	assert.Empty(t, response.Header.Get("Content-Security-Policy"))
+}
+
+// TestETagSendsWeakValidatorAndHonorsIfNoneMatch: the first response carries a
+// weak ETag over the fixed JSON body. Repeating the request with
+// If-None-Match set to that ETag returns 304 with an empty body and the same
+// ETag. The validator is weak because the body passes through the repo's own
+// compression layer afterwards, which changes the bytes.
+func TestETagSendsWeakValidatorAndHonorsIfNoneMatch(t *testing.T) {
+	server, app := newTestEngine(t)
+	server.GET("/etag", func(c contract.Context) {
+		_ = c.Data(http.StatusOK, "application/json", []byte(`{"status":"ok"}`))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/etag", nil)
+	response := request(t, app, req, "127.0.0.1:12345")
+
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	etag := response.Header.Get("ETag")
+	require.NotEmpty(t, etag, "the first response must carry an ETag")
+	assert.True(t, strings.HasPrefix(etag, "W/"), "content-coding changes the body, so the validator is weak")
+
+	req = httptest.NewRequest(http.MethodGet, "/etag", nil)
+	req.Header.Set("If-None-Match", etag)
+	response = request(t, app, req, "127.0.0.1:12345")
+
+	require.Equal(t, http.StatusNotModified, response.StatusCode)
+	assert.Empty(t, readBody(t, response), "a 304 response carries no body")
+	assert.Equal(t, etag, response.Header.Get("ETag"), "the ETag is sent on both 200 and 304 responses")
+}
+
+// TestETagSkipsServerSentEvents: an event-stream response passes through the
+// etag middleware untouched -- no ETag header, and the frame still reaches
+// the client because the middleware skips event streams itself instead of
+// buffering them to hash.
+func TestETagSkipsServerSentEvents(t *testing.T) {
+	server, app := newTestEngine(t)
+	server.GET("/events", func(c contract.Context) {
+		stream := c.EventStream()
+		require.NotNil(t, stream)
+		stream.SetHeaders()
+		_, err := stream.WriteRaw([]byte("data: hello\n\n"))
+		require.NoError(t, err)
+		require.NoError(t, stream.Flush())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/events", nil)
+	response := request(t, app, req, "127.0.0.1:12345")
+
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Empty(t, response.Header.Get("ETag"), "the etag middleware skips event streams itself")
+	assert.Contains(t, readBody(t, response), "data: hello")
+}
+
 // ---- access log ----
 
 // TestUseRequestLogRendersTheCompletedRequest pins the field mapping the process

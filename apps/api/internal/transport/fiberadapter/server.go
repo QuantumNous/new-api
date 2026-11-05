@@ -10,6 +10,8 @@ import (
 	"github.com/QuantumNous/new-api/internal/transport/fiberadapter/connwatch"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/etag"
+	"github.com/gofiber/fiber/v3/middleware/helmet"
 )
 
 // NewEngine builds the HTTP engine with panic recovery installed. onPanic
@@ -46,6 +48,29 @@ func NewEngine(onPanic func(c contract.Context, recovered any)) contract.Engine 
 		c.Locals(clientIPKey{}, resolveTrustedClientIP(c, policy.policy))
 		return c.Next()
 	})
+
+	// Security headers are a fiber-native layer: they apply to every response
+	// the engine produces and run ahead of the routes. ContentSecurityPolicy
+	// is deliberately unset (empty string means "do not set the header"): the
+	// SPA carries its own tailored policy. PermissionPolicy,
+	// CrossOriginEmbedderPolicy, CrossOriginOpenerPolicy and
+	// CrossOriginResourcePolicy are deliberately unset as well -- cross-origin
+	// isolation headers can block third-party assets and break OAuth popup
+	// flows.
+	app.Use(helmet.New(helmet.Config{
+		ContentTypeNosniff:  "nosniff",
+		XFrameOptions:       "SAMEORIGIN",
+		ReferrerPolicy:      "strict-origin-when-cross-origin",
+		XSSProtection:       "0",
+		XDNSPrefetchControl: "off",
+		XDownloadOptions:    "noopen",
+	}))
+	// Weak validators: the body then passes through the repo's own compression
+	// layer, and content-coding changes the bytes, so a strong validator would
+	// describe bytes nobody will see. The middleware is safe for SSE -- it
+	// skips event streams itself rather than buffering them to hash.
+	app.Use(etag.New(etag.Config{Weak: true}))
+
 	// Recovery is the first contract handler in every chain, as the recovery
 	// middleware was before. It cannot be a fiber layer: Dispatch may run the chain
 	// on another goroutine, where a fiber-level recover would not catch the
