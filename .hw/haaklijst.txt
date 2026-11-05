@@ -44,3 +44,9 @@ web/src/hooks/use-sidebar-data.ts                              1
 .github/workflows/security.yml                                  4
 # playground-option-utils.ts: modelNameIndexes (web/src/features/hw/lib) zodat gpt-6 binnen gpt-6-astra niet telt
 web/src/features/playground/lib/options/playground-option-utils.ts 2
+# .gitattributes: pkg/hwsync/merged-tag.txt op eol=lf, anders schrijft Windows er CRLF in
+# en leest de Go-embed twee regels waar de sync-tak er één bedoelt.
+.gitattributes                                                  4
+# deploy/README-uitrol.md: het image komt van onze eigen ghcr-package of deploy/Dockerfile,
+# nooit van het upstream-image dat de fork overschrijft.
+deploy/README-uitrol.md                                         3

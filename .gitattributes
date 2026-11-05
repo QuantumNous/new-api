@@ -22,6 +22,10 @@
 # Shell scripts
 *.sh text eol=lf
 
+# De upstream-tag die in onze main zit; nooit met CRLF, want de Go-embed leest
+# hem als één regel en de sync-tak schrijft hem op Windows.
+pkg/hwsync/merged-tag.txt text eol=lf
+
 # Binary files
 *.png binary
 *.jpg binary

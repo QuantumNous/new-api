@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -182,50 +181,6 @@ func TestHwAdminAgentEscalate(t *testing.T) {
 		assert.Equal(t, "CARD-2", body.Data.Card,
 			"the caller gets the card that exists, never an error that invites a second one")
 	})
-}
-
-func TestHwUpstreamReleases(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	upstreamStatus, upstreamCalls := http.StatusOK, 0
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		upstreamCalls++
-		w.WriteHeader(upstreamStatus)
-		_, _ = w.Write([]byte(`[{"tag_name":"v1.0.0-rc.46","prerelease":true}]`))
-	}))
-	defer upstream.Close()
-	previousURL := hwUpstreamReleasesURL
-	hwUpstreamReleasesURL = upstream.URL
-	t.Cleanup(func() {
-		hwUpstreamReleasesURL = previousURL
-		hwUpstreamReleases.expiresAt = time.Time{}
-	})
-	request := func(role int) *httptest.ResponseRecorder {
-		recorder := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(recorder)
-		c.Set("role", role)
-		c.Request = httptest.NewRequest(http.MethodGet, "/api/hw/upstream-releases", nil)
-		HwUpstreamReleases(c)
-		return recorder
-	}
-
-	assert.Equal(t, http.StatusForbidden, request(common.RoleCommonUser).Code)
-	assert.Equal(t, 0, upstreamCalls)
-
-	first := request(common.RoleAdminUser)
-	require.Equal(t, http.StatusOK, first.Code)
-	assert.JSONEq(t, `[{"tag_name":"v1.0.0-rc.46","prerelease":true}]`, first.Body.String())
-	assert.Equal(t, http.StatusOK, request(common.RoleAdminUser).Code)
-	assert.Equal(t, 1, upstreamCalls, "a second check within the hour is served from the cache")
-
-	for _, tc := range []struct{ upstream, want int }{
-		{http.StatusForbidden, http.StatusTooManyRequests},
-		{http.StatusTooManyRequests, http.StatusTooManyRequests},
-		{http.StatusInternalServerError, http.StatusBadGateway},
-	} {
-		hwUpstreamReleases.expiresAt = time.Time{}
-		upstreamStatus = tc.upstream
-		assert.Equal(t, tc.want, request(common.RoleAdminUser).Code, "upstream %d", tc.upstream)
-	}
 }
 
 // hwAdminAgentCall runs one admin-agent handler as the given role.

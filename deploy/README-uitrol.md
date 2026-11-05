@@ -116,6 +116,9 @@ docker compose config
 ```
 
 Dat controleert interpolatie, limieten, volumes en healthchecks zonder iets te bouwen of te starten.
+Het image komt in Coolify altijd van `ghcr.io/hisarweb-be/hisarweb-ai` of uit de eigen build van
+`deploy/Dockerfile`, nooit van `ghcr.io/quantumnous/new-api` of `calciumion/new-api`: dat image
+overschrijft de fork met de kale upstream.
 Het image zelf wordt alleen in GitHub Actions gebouwd en gemeten: de job `Production image build` in
 `.github/workflows/security.yml` bouwt `deploy/Dockerfile` op elke pull request en op elke push naar
 main, zonder te publiceren. Op de laptop bouwen we het niet.

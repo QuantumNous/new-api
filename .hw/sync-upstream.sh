@@ -127,6 +127,10 @@ if ! git merge --no-ff --no-commit "$TAG"; then
   exit 0
 fi
 
+# De tag die na deze merge in onze main zit, meereist met de merge zelf: de API
+# (/api/hw/sync-status) leest hem uit pkg/hwsync/merged-tag.txt.
+printf '%s\n' "$TAG" > pkg/hwsync/merged-tag.txt
+git add pkg/hwsync/merged-tag.txt
 git commit -q -m "chore(upstream): merge $TAG"
 
 # Gegenereerde bestanden opnieuw maken; nooit met de hand samenvoegen.
