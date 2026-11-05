@@ -90,9 +90,6 @@ func authHelper(c *gin.Context, minRole int) {
 		auditWriter = beginAdminAudit(c)
 	}
 
-	if !hwAfterAuth(c, hwAuthKind(minRole)) {
-		return
-	}
 	c.Next()
 
 	finishAdminAudit(c, auditWriter)
@@ -643,9 +640,6 @@ func TokenAuth() func(c *gin.Context) {
 
 		err = SetupContextForToken(c, token, parts...)
 		if err != nil {
-			return
-		}
-		if !hwAfterAuth(c, hwAuthToken) {
 			return
 		}
 		c.Next()

@@ -13,8 +13,8 @@ func SetVideoRouter(router *gin.Engine) {
 	videoSharedRouter.Use(middleware.HwMask())
 	videoSharedRouter.Use(middleware.TokenAuth())
 	// Starting a video generation is billable, so a free trial account goes
-	// through the same frozen check and request budget as a relay call; the auth
-	// hook applies it.
+	// through the same frozen check and request budget as a relay call.
+	videoSharedRouter.Use(middleware.HwFreeGroupRateLimit())
 	videoSharedRouter.Use(middleware.SystemPerformanceCheck())
 	videoSharedRouter.POST(
 		"/video/generations",
@@ -42,7 +42,7 @@ func SetVideoRouter(router *gin.Engine) {
 	videoTaskRouter := router.Group("/v1")
 	videoTaskRouter.Use(middleware.RouteTag("relay"))
 	videoTaskRouter.Use(middleware.HwMask())
-	videoTaskRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	videoTaskRouter.Use(middleware.TokenAuth(), middleware.HwFreeGroupRateLimit(), middleware.Distribute())
 	{
 		videoTaskRouter.POST("/videos/:video_id/remix", controller.RelayTask)
 	}

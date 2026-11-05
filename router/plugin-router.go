@@ -150,6 +150,7 @@ func productionPluginRouteHandlers(generation *jsplugin.RoutingGeneration, group
 		middleware.HwMask(),
 		middleware.NativeRouteCredential(keys...),
 		middleware.TokenAuth(),
+		middleware.HwFreeGroupRateLimit(),
 		middleware.SystemPerformanceCheck(),
 		middleware.ModelRequestRateLimit(),
 		middleware.PrepareTaskPluginRoute(),

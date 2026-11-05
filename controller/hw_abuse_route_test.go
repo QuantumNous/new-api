@@ -20,23 +20,23 @@ import (
 
 // hwAbuseRouter replaces the customer-facing router of the environment with the
 // route families the free-group guard covers: /v1, /v1beta and /pg. Every family
-// runs token authentication and distribution in the production order, so the
-// guard runs from the auth hook there; this router mounts no gate of its own.
+// runs token authentication, the free-group guard and distribution in the
+// production order.
 func (e *hwEnv) hwAbuseRouter() *gin.Engine {
 	require.NoError(e.t, e.db.AutoMigrate(&model.HwAccountFlag{}, &model.HwCreditPackage{}, &model.HwCreditExtension{}))
 	router := gin.New()
 	router.Use(middleware.RequestId())
 	v1 := router.Group("/v1")
-	v1.Use(middleware.HwMask(), middleware.TokenAuth(), middleware.Distribute())
+	v1.Use(middleware.HwMask(), middleware.TokenAuth(), middleware.HwFreeGroupRateLimit(), middleware.Distribute())
 	v1.POST("/chat/completions", func(c *gin.Context) { Relay(c, types.RelayFormatOpenAI) })
 	v1.POST("/messages", func(c *gin.Context) { Relay(c, types.RelayFormatClaude) })
 
 	beta := router.Group("/v1beta")
-	beta.Use(middleware.HwMask(), middleware.TokenAuth(), middleware.Distribute())
+	beta.Use(middleware.HwMask(), middleware.TokenAuth(), middleware.HwFreeGroupRateLimit(), middleware.Distribute())
 	beta.POST("/models/*path", func(c *gin.Context) { Relay(c, types.RelayFormatGemini) })
 
 	playground := router.Group("/pg")
-	playground.Use(middleware.HwMask(), middleware.TokenAuth(), middleware.Distribute())
+	playground.Use(middleware.HwMask(), middleware.TokenAuth(), middleware.HwFreeGroupRateLimit(), middleware.Distribute())
 	playground.POST("/chat/completions", Playground)
 	e.engine = router
 	return router

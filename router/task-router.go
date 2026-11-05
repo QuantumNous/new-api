@@ -13,11 +13,11 @@ import (
 // on submit routes and the task id on read routes.
 func SetTaskRouter(router *gin.Engine) {
 	// Submitting a task starts billable work, so a free trial account goes
-	// through the same frozen check and request budget as a relay call; the auth
-	// hook applies it. The read routes below spend nothing and stay outside that
-	// budget; polling them would otherwise exhaust the day within a few tasks.
+	// through the same frozen check and request budget as a relay call. The read
+	// routes below spend nothing and stay outside that budget; polling them would
+	// otherwise exhaust the day within a few tasks.
 	taskSubmitRouter := router.Group("/v1/tasks")
-	taskSubmitRouter.Use(middleware.RouteTag("relay"), middleware.HwMask(), middleware.TokenAuth())
+	taskSubmitRouter.Use(middleware.RouteTag("relay"), middleware.HwMask(), middleware.TokenAuth(), middleware.HwFreeGroupRateLimit())
 	{
 		taskSubmitRouter.POST("/:key", middleware.PrepareTaskPluginSubmit(), middleware.Distribute(), controller.RelayTask)
 	}
