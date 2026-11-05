@@ -25,12 +25,14 @@ func (token Token) cacheMAC() (string, error) {
 	}{token, token.AutoGroups, token.CacheExpiresAt})
 }
 
+// The cache and mutation fence must share a slot for atomic Lua operations.
+// Switching this format requires the same coordinated rollout as user caches.
 func getTokenCacheKey(key string) string {
-	return fmt.Sprintf("token:%s", common.GenerateHMAC(key))
+	return fmt.Sprintf("token:{%s}", common.GenerateHMAC(key))
 }
 
 func getTokenCacheFenceKey(key string) string {
-	return fmt.Sprintf("token:fence:%s", common.GenerateHMAC(key))
+	return fmt.Sprintf("token:fence:{%s}", common.GenerateHMAC(key))
 }
 
 func tokenCacheTTLSeconds() int {

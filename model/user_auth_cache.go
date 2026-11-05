@@ -25,11 +25,11 @@ var ErrUserAuthCachePending = errors.New("user authentication state update is pe
 var ErrUserAuthVersionConflict = errors.New("user authentication version update conflicted")
 
 func getUserAuthFenceKey(userId int) string {
-	return fmt.Sprintf("auth:user:fence:%d", userId)
+	return fmt.Sprintf("auth:user:fence:{%d}", userId)
 }
 
 func getUserAuthVersionKey(userId int) string {
-	return fmt.Sprintf("auth:user:version:%d", userId)
+	return fmt.Sprintf("auth:user:version:{%d}", userId)
 }
 
 // A pending fence only covers the interval between publishing the next

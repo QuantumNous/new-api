@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +14,30 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+// Redis Cluster hashes the nonempty substring inside the first brace pair.
+// Miniredis does not enforce cluster slots, so check this contract explicitly.
+func TestAuthCacheKeysShareClusterHashTag(t *testing.T) {
+	for _, keys := range [][]string{
+		{getUserCacheKey(5), getUserAuthFenceKey(5), getUserAuthVersionKey(5)},
+		{getUserCacheKey(123456), getUserAuthFenceKey(123456), getUserAuthVersionKey(123456)},
+		{getTokenCacheKey("test-token"), getTokenCacheFenceKey("test-token")},
+		{getTokenCacheKey("token{with}braces"), getTokenCacheFenceKey("token{with}braces")},
+	} {
+		var expected string
+		for _, key := range keys {
+			_, suffix, ok := strings.Cut(key, "{")
+			require.True(t, ok)
+			tag, _, ok := strings.Cut(suffix, "}")
+			require.True(t, ok)
+			require.NotEmpty(t, tag)
+			if expected == "" {
+				expected = tag
+			}
+			assert.Equal(t, expected, tag)
+		}
+	}
+}
 
 func useUserCacheMiniRedis(t *testing.T) *miniredis.Miniredis {
 	t.Helper()
