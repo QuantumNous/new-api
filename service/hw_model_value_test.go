@@ -131,6 +131,36 @@ func TestHwSoldModelsOnlyKeepOlderModelsThatAreCheaper(t *testing.T) {
 	assert.ElementsMatch(t, []string{"claude-haiku-4-5", "claude-sonnet-5"}, hwOlderModelsNotCheaper(t, catalog, prices))
 }
 
+// hwClaudeOffSaleUntil is the day the four Claude model names leave the
+// shelves for good. Until then they stay reachable but the site no longer
+// lists them (decision Altuner/CEO, 5 Nov 2026).
+const hwClaudeOffSaleUntil = "2026-12-05"
+
+// TestHwClaudeNamesAreOffSaleKeepsThemBillable pins the decision of 5 Nov 2026:
+// the four Claude names leave the sale but stay reachable, so the catalogue
+// keeps them with OffSale set and the billing price stays exactly as it was.
+func TestHwClaudeNamesAreOffSaleKeepsThemBillable(t *testing.T) {
+	claudeNames := []string{"claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"}
+	for _, name := range claudeNames {
+		sold, ok := hwFindSoldModel(name)
+		require.True(t, ok, "%s must stay in the catalogue until %s", name, hwClaudeOffSaleUntil)
+		assert.True(t, sold.OffSale, "%s is off sale since 5 Nov 2026", name)
+	}
+	// Every other model is still on sale, so a flag that spreads is caught.
+	for _, sold := range hwSoldModels {
+		if !slices.Contains(claudeNames, sold.Name) {
+			assert.False(t, sold.OffSale, "%s is still sold", sold.Name)
+		}
+	}
+
+	// Off sale changes the shop window only: the billed price is the same.
+	price := model.HwModelPrice{InputMicroUsd: 2_000_000, OutputMicroUsd: 10_000_000}
+	got, err := HwComparePrice(hwComparePriceSnapshot(t, "40", map[string]model.HwModelPrice{"claude-sonnet-5-5": price}),
+		HwComparePriceInput{Model: "claude-sonnet-5-5", InputTokens: 1_000_000, OutputTokens: 1_000_000})
+	require.NoError(t, err)
+	assert.True(t, got.OfficialUsd.Equal(decimal.NewFromInt(12)), got.OfficialUsd.String())
+}
+
 // TestHwRetiredModelsAreNotSoldAndPointAtASoldModel keeps the retirement list
 // consistent with the catalog: a retired name is never sold, its successor is,
 // and both belong to the same family. A family that is no longer sold at all

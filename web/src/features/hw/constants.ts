@@ -26,9 +26,11 @@ For commercial licensing, please contact support@quantumnous.com
  * is added here too — the comparison then answers 404 until both sides agree.
  */
 export const HW_SOLD_MODELS = [
-  'claude-opus-5-5',
-  'claude-sonnet-5-5',
-  'claude-haiku-5-5',
+  'gpt-6-astra',
+  'gpt-6.1-sol',
+  'gpt-6-luna',
+  'grok-4',
+  'grok-4-fast',
 ] as const
 
 export type HwSoldModel = (typeof HW_SOLD_MODELS)[number]

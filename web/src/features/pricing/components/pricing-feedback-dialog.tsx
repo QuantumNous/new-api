@@ -139,7 +139,7 @@ export function PricingFeedbackDialog() {
                 <FormControl>
                   <Input
                     maxLength={PRICING_FEEDBACK_LIMITS.model}
-                    placeholder='claude-opus-5-5'
+                    placeholder='gpt-6-astra'
                     {...field}
                   />
                 </FormControl>

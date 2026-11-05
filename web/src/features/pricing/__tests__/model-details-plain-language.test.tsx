@@ -137,8 +137,8 @@ describe('model details in plain language', () => {
 
   it('shows what a model is good for at the top when the database has no description', async () => {
     await useTurkish()
-    renderDetails(pricingModel({ model_name: 'claude-sonnet-5-5' }))
-    const text = modelGuide('claude-sonnet-5-5')?.description.tr ?? ''
+    renderDetails(pricingModel({ model_name: 'gpt-6.1-sol' }))
+    const text = modelGuide('gpt-6.1-sol')?.description.tr ?? ''
     expect(text).not.toBe('')
     expect(await screen.findByText(text)).toBeTruthy()
   })
@@ -146,12 +146,12 @@ describe('model details in plain language', () => {
   it('prefers the description from the database over the guide text', async () => {
     renderDetails(
       pricingModel({
-        model_name: 'claude-sonnet-5-5',
+        model_name: 'gpt-6.1-sol',
         description: 'Written by the operator.',
       })
     )
     expect(await screen.findByText('Written by the operator.')).toBeTruthy()
-    const guideEn = modelGuide('claude-sonnet-5-5')?.description.en ?? ''
+    const guideEn = modelGuide('gpt-6.1-sol')?.description.en ?? ''
     expect(guideEn).not.toBe('')
     expect(screen.queryByText(guideEn)).toBeNull()
   })

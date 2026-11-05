@@ -44,7 +44,7 @@ import {
 import { AiHelp, Fit, Tools } from './vibe-tools'
 
 /** Same key, two models: only the `model` field changes between the requests. */
-const TWO_MODELS_EXAMPLE = ['claude-opus-5-5', 'claude-sonnet-5-5']
+const TWO_MODELS_EXAMPLE = ['gpt-6-astra', 'gpt-6.1-sol']
   .map(
     (model) => `curl ${OPENAI_BASE_URL}/chat/completions \
   -H "Authorization: Bearer ${KEY_PLACEHOLDER}" \

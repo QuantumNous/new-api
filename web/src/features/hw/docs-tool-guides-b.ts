@@ -229,8 +229,8 @@ const cline: ToolGuide = {
         en: 'The Model ID is misspelled, or a non-haiku model was chosen with a free trial key.',
       },
       fix: {
-        tr: 'Model ID olarak claude-sonnet-5-5 (ücretli anahtar) ya da claude-haiku-5-5 (deneme anahtarı) yazın.',
-        en: 'Use claude-sonnet-5-5 (paid key) or claude-haiku-5-5 (trial key) as the Model ID.',
+        tr: 'Model ID olarak gpt-6.1-sol (ücretli anahtar) ya da gpt-6-luna (deneme anahtarı) yazın.',
+        en: 'Use gpt-6.1-sol (paid key) or gpt-6-luna (trial key) as the Model ID.',
       },
     },
     {
@@ -339,8 +339,8 @@ const copilot: ToolGuide = {
           },
           blocks: [block('settings', 'json', COPILOT_MODELS)],
           note: {
-            tr: 'max_tokens gibi sayılar bizim tahminimizdir. Ücretsiz deneme anahtarı için "id" olarak claude-haiku-5-5 yazın. "url" tam uç adresi olmalıdır: sonunda /chat/completions bulunur.',
-            en: 'The numbers such as the token limits are our estimate. For a free trial key write claude-haiku-5-5 as the "id". The "url" must be the full endpoint address: it ends with /chat/completions.',
+            tr: 'max_tokens gibi sayılar bizim tahminimizdir. Ücretsiz deneme anahtarı için "id" olarak gpt-6-luna yazın. "url" tam uç adresi olmalıdır: sonunda /chat/completions bulunur.',
+            en: 'The numbers such as the token limits are our estimate. For a free trial key write gpt-6-luna as the "id". The "url" must be the full endpoint address: it ends with /chat/completions.',
           },
         },
         {
@@ -790,8 +790,8 @@ const aider: ToolGuide = {
   ],
   works: [
     {
-      tr: 'Aider başlar ve ilk satırlarında seçtiğiniz modeli (openai/claude-sonnet-5-5) gösterir.',
-      en: 'Aider starts and shows the model you chose (openai/claude-sonnet-5-5) in its first lines.',
+      tr: 'Aider başlar ve ilk satırlarında seçtiğiniz modeli (openai/gpt-6.1-sol) gösterir.',
+      en: 'Aider starts and shows the model you chose (openai/gpt-6.1-sol) in its first lines.',
     },
     {
       tr: 'Bir istek yazdığınızda yanıt gelir ve kullanım HisarWeb AI bakiyenizden düşer.',

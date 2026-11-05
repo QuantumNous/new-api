@@ -949,7 +949,7 @@ func TestHwWebModelPricesMatchTheCatalog(t *testing.T) {
 		assert.True(t, usd(m[5]).Equal(HwOurUsd(listIn)), "%s HisarWeb input %s, want %s", name, m[5], HwOurUsd(listIn))
 		assert.True(t, usd(m[6]).Equal(HwOurUsd(listOut)), "%s HisarWeb output %s, want %s", name, m[6], HwOurUsd(listOut))
 	}
-	for _, name := range HwSoldModelNames() {
+	for _, name := range hwShownSoldModelNames() {
 		assert.True(t, web[name], "%s is sold but missing from the site price table", name)
 	}
 }

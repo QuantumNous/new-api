@@ -116,13 +116,6 @@ export const OFFICIAL_PRICING_URL: Readonly<Record<PriceProvider, string>> = {
 /** Same order as the catalogue ("Recommended"): see `RECOMMENDED_ORDER` in `model-guide.ts`. */
 export const MODEL_PRICES: readonly ModelPrice[] = [
   {
-    model: 'claude-fable-5-1',
-    provider: 'Anthropic',
-    official: { input: 10, output: 50 },
-    openrouter: { input: 10, output: 50 },
-    hisarweb: { input: 5, output: 25 },
-  },
-  {
     model: 'gpt-6-astra',
     provider: 'OpenAI',
     official: { input: 10, output: 50 },
@@ -130,32 +123,11 @@ export const MODEL_PRICES: readonly ModelPrice[] = [
     hisarweb: { input: 5, output: 25 },
   },
   {
-    model: 'claude-opus-5-5',
-    provider: 'Anthropic',
-    official: { input: 4, output: 20 },
-    openrouter: { input: 4, output: 20 },
-    hisarweb: { input: 2, output: 10 },
-  },
-  {
-    model: 'claude-sonnet-5-5',
-    provider: 'Anthropic',
-    official: { input: 2, output: 10 },
-    openrouter: { input: 2, output: 10 },
-    hisarweb: { input: 1, output: 5 },
-  },
-  {
     model: 'gpt-6.1-sol',
     provider: 'OpenAI',
     official: { input: 2, output: 10 },
     openrouter: { input: 2, output: 10 },
     hisarweb: { input: 1, output: 5 },
-  },
-  {
-    model: 'claude-haiku-5-5',
-    provider: 'Anthropic',
-    official: { input: 0.1, output: 0.5 },
-    openrouter: { input: 0.1, output: 0.5 },
-    hisarweb: { input: 0.05, output: 0.25 },
   },
   {
     model: 'gpt-6-luna',

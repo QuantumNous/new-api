@@ -266,7 +266,7 @@ describe('vibe coding page', () => {
     const text = document.body.textContent ?? ''
     expect(text).toContain('ANTHROPIC_BASE_URL="https://api.hisarweb.be"')
     expect(text).toContain('CLAUDE_CODE_SUBAGENT_MODEL')
-    expect(text).toContain('--architect --model openai/claude-opus-5-5')
+    expect(text).toContain('--architect --model openai/gpt-6-astra')
     expect(text).toContain('BURAYA_ANAHTARINIZ')
     expect(text).not.toMatch(/sk-[A-Za-z0-9]{10,}/)
     expect(text).toContain('PLAN.md')

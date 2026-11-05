@@ -94,14 +94,14 @@ describe('pricing feedback dialog', () => {
         name: 'Report a wrong price or missing model',
       })
     )
-    await user.type(screen.getByLabelText(/^Model/), 'claude-opus-5-5')
+    await user.type(screen.getByLabelText(/^Model/), 'gpt-6-astra')
     await user.click(screen.getByRole('button', { name: 'Send report' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
     expect(post.mock.calls[0]?.[0]).toBe('/api/hw/pricing/feedback')
     expect(post.mock.calls[0]?.[1]).toMatchObject({
       kind: 'price_wrong',
-      model: 'claude-opus-5-5',
+      model: 'gpt-6-astra',
       website: '',
     })
     await waitFor(() =>

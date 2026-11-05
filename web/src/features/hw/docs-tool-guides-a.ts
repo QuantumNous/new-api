@@ -206,8 +206,8 @@ notepad "$env:USERPROFILE\.claude\settings.json"`
             ),
           ],
           note: {
-            tr: 'Adres https://api.hisarweb.be olmalı, sonuna /v1 eklemeyin; Claude Code gerisini kendisi ekler. Ücretsiz deneme anahtarı yalnızca haiku sınıfı modelleri çalıştırır: o durumda model satırlarının hepsine claude-haiku-5-5 yazın. Dosyada zaten başka ayarlar varsa yalnızca "env" bölümünü ekleyin.',
-            en: 'The address must be https://api.hisarweb.be without /v1 at the end; Claude Code adds the rest. A free trial key only runs haiku-class models: in that case write claude-haiku-5-5 on every model line. If the file already has other settings, add only the "env" part.',
+            tr: 'Adres https://api.hisarweb.be olmalı, sonuna /v1 eklemeyin; Claude Code gerisini kendisi ekler. Ücretsiz deneme anahtarı yalnızca haiku sınıfı modelleri çalıştırır: o durumda model satırlarının hepsine gpt-6-luna yazın. Dosyada zaten başka ayarlar varsa yalnızca "env" bölümünü ekleyin.',
+            en: 'The address must be https://api.hisarweb.be without /v1 at the end; Claude Code adds the rest. A free trial key only runs haiku-class models: in that case write gpt-6-luna on every model line. If the file already has other settings, add only the "env" part.',
           },
         },
         {
@@ -955,8 +955,8 @@ notepad "$env:USERPROFILE\.config\opencode\opencode.json"`
           },
           blocks: [block('config', 'json', OPENCODE_V1_CONFIG)],
           note: {
-            tr: 'Ücretsiz deneme anahtarı yalnızca claude-haiku-5-5 modelini kullanabilir. Anahtarı dosyada tutmak istemezseniz "apiKey" değeri olarak "{env:HISARWEB_API_KEY}" yazıp anahtarı bir ortam değişkenine koyabilirsiniz.',
-            en: 'A free trial key can only use claude-haiku-5-5. If you do not want to keep the key in the file, write "{env:HISARWEB_API_KEY}" as the "apiKey" value and put the key in an environment variable.',
+            tr: 'Ücretsiz deneme anahtarı yalnızca gpt-6-luna modelini kullanabilir. Anahtarı dosyada tutmak istemezseniz "apiKey" değeri olarak "{env:HISARWEB_API_KEY}" yazıp anahtarı bir ortam değişkenine koyabilirsiniz.',
+            en: 'A free trial key can only use gpt-6-luna. If you do not want to keep the key in the file, write "{env:HISARWEB_API_KEY}" as the "apiKey" value and put the key in an environment variable.',
           },
         },
         {
@@ -1085,8 +1085,8 @@ notepad "$env:USERPROFILE\.config\opencode\opencode.json"`
         en: 'The chosen model name is not on the gateway, or a free key can only use the haiku models.',
       },
       fix: {
-        tr: 'claude-haiku-5-5 modelini seçin.',
-        en: 'Choose claude-haiku-5-5.',
+        tr: 'gpt-6-luna modelini seçin.',
+        en: 'Choose gpt-6-luna.',
       },
     },
   ],

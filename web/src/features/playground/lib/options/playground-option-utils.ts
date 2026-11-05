@@ -16,15 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { modelNameIndexes } from '@/features/hw/lib/model-name-indexes'
+
 import type { GroupOption, ModelOption } from '../../types'
 
 /** Best value first: the cheap default, then the everyday coding model. */
-const PREFERRED_MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5']
+const PREFERRED_MODELS = ['gpt-6-luna', 'gpt-6.1-sol']
 
 /** Retired names (hwRetiredModels in service/hw_pricing.go) and the model that replaced them. */
 const MODEL_SUCCESSORS: Readonly<Record<string, string>> = {
-  'claude-haiku-4-5': 'claude-haiku-5-5',
-  'claude-sonnet-5': 'claude-sonnet-5-5',
+  'claude-haiku-4-5': 'gpt-6-luna',
+  'claude-sonnet-5': 'gpt-6.1-sol',
 }
 
 /**
@@ -130,7 +132,7 @@ export function getUnavailableAlternative(
   let failed: string | null = null
   let failedIndex = -1
   for (const model of models) {
-    const index = content.indexOf(model.value)
+    const index = modelNameIndexes(content, model.value)[0] ?? -1
     if (index < 0) continue
     if (
       failed === null ||
@@ -148,7 +150,7 @@ export function getUnavailableAlternative(
   let best: string | null = null
   let bestIndex = -1
   for (const model of models) {
-    const index = content.lastIndexOf(model.value)
+    const index = modelNameIndexes(content, model.value).at(-1) ?? -1
     if (index < suggestionFrom || model.value === failed) continue
     if (
       index > bestIndex ||

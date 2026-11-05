@@ -42,3 +42,5 @@ web/src/hooks/use-sidebar-data.ts                              3
 .hw/sync-upstream.sh                                           200
 .github/workflows/upstream-sync.yml                             13
 .github/workflows/security.yml                                  4
+# playground-option-utils.ts: modelNameIndexes (web/src/features/hw/lib) zodat gpt-6 binnen gpt-6-astra niet telt
+web/src/features/playground/lib/options/playground-option-utils.ts 2

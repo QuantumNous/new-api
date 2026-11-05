@@ -47,7 +47,7 @@ await trI18n.init({
 const clients: QueryClient[] = []
 
 const comparison: HwPriceComparison = {
-  model: 'claude-opus-5-5',
+  model: 'gpt-6-astra',
   input_tokens: 1000000,
   output_tokens: 250000,
   official_cost_usd: '0.42',
@@ -119,7 +119,7 @@ describe('price comparator page', () => {
     await waitFor(() =>
       expect(api.get).toHaveBeenCalledWith('/api/hw/pricing/compare', {
         params: {
-          model: 'claude-opus-5-5',
+          model: 'gpt-6-astra',
           input_tokens: 1000000,
           output_tokens: 250000,
         },

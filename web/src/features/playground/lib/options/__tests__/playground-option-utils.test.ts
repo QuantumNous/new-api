@@ -61,27 +61,23 @@ describe('getGroupFallback', () => {
 
 describe('getModelFallback', () => {
   it('starts on the best-value cheap model', () => {
-    expect(DEFAULT_CONFIG.model).toBe('claude-haiku-5-5')
+    expect(DEFAULT_CONFIG.model).toBe('gpt-6-luna')
   })
 
   it('keeps a model that is still offered', () => {
-    const models = options('claude-opus-5-5', 'claude-haiku-5-5')
-    expect(getModelFallback(models, 'claude-opus-5-5')).toBeNull()
+    const models = options('gpt-6-astra', 'gpt-6-luna')
+    expect(getModelFallback(models, 'gpt-6-astra')).toBeNull()
   })
 
   it('moves a saved older model to its newer successor', () => {
     const models = options(
       'claude-haiku-4-5',
-      'claude-haiku-5-5',
+      'gpt-6-luna',
       'claude-sonnet-5',
-      'claude-sonnet-5-5'
+      'gpt-6.1-sol'
     )
-    expect(getModelFallback(models, 'claude-haiku-4-5')).toBe(
-      'claude-haiku-5-5'
-    )
-    expect(getModelFallback(models, 'claude-sonnet-5')).toBe(
-      'claude-sonnet-5-5'
-    )
+    expect(getModelFallback(models, 'claude-haiku-4-5')).toBe('gpt-6-luna')
+    expect(getModelFallback(models, 'claude-sonnet-5')).toBe('gpt-6.1-sol')
   })
 
   it('keeps an older model when its successor is not offered', () => {
@@ -91,21 +87,17 @@ describe('getModelFallback', () => {
   })
 
   it('falls back to the best-value model, not the first in the list', () => {
-    const models = options(
-      'gpt-6-astra',
-      'claude-sonnet-5-5',
-      'claude-haiku-5-5'
-    )
-    expect(getModelFallback(models, 'gpt-4o')).toBe('claude-haiku-5-5')
+    const models = options('gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-luna')
+    expect(getModelFallback(models, 'gpt-4o')).toBe('gpt-6-luna')
     expect(
-      getModelFallback(options('gpt-6-astra', 'claude-sonnet-5-5'), 'gpt-4o')
-    ).toBe('claude-sonnet-5-5')
+      getModelFallback(options('gpt-6-astra', 'gpt-6.1-sol'), 'gpt-4o')
+    ).toBe('gpt-6.1-sol')
   })
 
   it('uses the first model when no preferred model is offered', () => {
     expect(
-      getModelFallback(options('claude-haiku-5-5', 'gpt-6-astra'), 'gpt-4o')
-    ).toBe('claude-haiku-5-5')
+      getModelFallback(options('gpt-6-luna', 'gpt-6-astra'), 'gpt-4o')
+    ).toBe('gpt-6-luna')
     expect(getModelFallback([], 'gpt-4o')).toBeNull()
   })
 })
@@ -113,30 +105,30 @@ describe('getModelFallback', () => {
 describe('labelUnavailableModels', () => {
   it('appends the suffix to a temporarily unavailable model only', () => {
     const labelled = labelUnavailableModels(
-      options('claude-opus-5-5', 'gpt-6-astra'),
-      { 'claude-opus-5-5': 'gpt-6-astra' },
+      options('gpt-6-astra', 'gpt-6-luna'),
+      { 'gpt-6-astra': 'gpt-6-luna' },
       'temporarily unavailable'
     )
     expect(labelled.map((model) => model.label)).toEqual([
-      'claude-opus-5-5 (temporarily unavailable)',
-      'gpt-6-astra',
+      'gpt-6-astra (temporarily unavailable)',
+      'gpt-6-luna',
     ])
     expect(labelled.map((model) => model.value)).toEqual([
-      'claude-opus-5-5',
       'gpt-6-astra',
+      'gpt-6-luna',
     ])
   })
 
   it('returns the same list when nothing is unavailable', () => {
-    const models = options('claude-opus-5-5')
+    const models = options('gpt-6-astra')
     expect(labelUnavailableModels(models, {}, 'x')).toBe(models)
   })
 })
 
 describe('getUnavailableAlternative', () => {
   const models = options(
-    'claude-fable-5-1',
-    'claude-opus-5-5',
+    'gemini-3.8-pro',
+    'gpt-6-astra',
     'gpt-6',
     'gpt-6-astra'
   )
@@ -145,17 +137,17 @@ describe('getUnavailableAlternative', () => {
     expect(
       getUnavailableAlternative(
         'model_unavailable',
-        'claude-fable-5-1 is temporarily unavailable. Try claude-opus-5-5 or try again shortly.',
-        models
-      )
-    ).toBe('claude-opus-5-5')
-    expect(
-      getUnavailableAlternative(
-        'model_unavailable',
-        'claude-opus-5-5 şu anda geçici olarak kullanılamıyor. gpt-6-astra modelini deneyin veya biraz sonra tekrar deneyin.',
+        'gemini-3.8-pro is temporarily unavailable. Try gpt-6-astra or try again shortly.',
         models
       )
     ).toBe('gpt-6-astra')
+    expect(
+      getUnavailableAlternative(
+        'model_unavailable',
+        'gpt-6-astra şu anda geçici olarak kullanılamıyor. gpt-6 modelini deneyin veya biraz sonra tekrar deneyin.',
+        models
+      )
+    ).toBe('gpt-6')
   })
 
   it('returns null without a suggestion, another error code or an unreachable model', () => {
@@ -169,14 +161,14 @@ describe('getUnavailableAlternative', () => {
     expect(
       getUnavailableAlternative(
         'service_busy',
-        'claude-fable-5-1 is temporarily unavailable. Try claude-opus-5-5 or try again shortly.',
+        'gemini-3.8-pro is temporarily unavailable. Try gpt-6-astra or try again shortly.',
         models
       )
     ).toBeNull()
     expect(
       getUnavailableAlternative(
         'model_unavailable',
-        'claude-fable-5-1 is temporarily unavailable. Try claude-sonnet-5-5 or try again shortly.',
+        'gemini-3.8-pro is temporarily unavailable. Try gpt-6.1-sol or try again shortly.',
         models
       )
     ).toBeNull()
@@ -186,16 +178,16 @@ describe('getUnavailableAlternative', () => {
     expect(
       getUnavailableAlternative(
         'model_unavailable',
-        'API request error: claude-fable-5-1 is temporarily unavailable. Try claude-sonnet-5-5 or try again shortly.',
+        'API request error: gemini-3.8-pro is temporarily unavailable. Try gpt-6.1-sol or try again shortly.',
         models
       )
     ).toBeNull()
     expect(
       getUnavailableAlternative(
         'model_unavailable',
-        'API request error: claude-fable-5-1 is temporarily unavailable. Try claude-opus-5-5 or try again shortly.',
+        'API request error: gemini-3.8-pro is temporarily unavailable. Try gpt-6-astra or try again shortly.',
         models
       )
-    ).toBe('claude-opus-5-5')
+    ).toBe('gpt-6-astra')
   })
 })

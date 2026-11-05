@@ -55,7 +55,7 @@ describe('estimateUsage', () => {
   })
 
   it('lasts longer on a cheaper model and shorter on a dearer one', () => {
-    const cheap = estimateUsage(500, 'claude-haiku-5-5')
+    const cheap = estimateUsage(500, 'gpt-6-luna')
     const base = estimateUsage(500, REFERENCE_MODEL)
     const dear = estimateUsage(500, 'gpt-6-astra')
     expect(cheap?.hoursHigh).toBeGreaterThan(base?.hoursHigh ?? 0)
