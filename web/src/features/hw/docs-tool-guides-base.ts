@@ -153,13 +153,13 @@ export const OPENAI_BASE_URL = 'https://api.hisarweb.be/v1'
 export const ANTHROPIC_BASE_URL = 'https://api.hisarweb.be'
 
 /** Main choice for coding. */
-export const MODEL_DEFAULT = 'gpt-6.1-sol'
-export const MODEL_OPUS = 'gpt-6-astra'
+export const MODEL_DEFAULT = 'claude-sonnet-5-5'
+export const MODEL_OPUS = 'claude-opus-5-5'
 /**
  * The cheap default and the model of a free trial key. The older Haiku 4.5
  * cost more than Haiku 5.5 and is no longer sold.
  */
-export const MODEL_HAIKU = 'gpt-6-luna'
+export const MODEL_HAIKU = 'claude-haiku-5-5'
 export const FREE_TRIAL_MODELS = [MODEL_HAIKU] as const
 /**
  * Default model of the Codex guide: a model we sell, so the sample config never

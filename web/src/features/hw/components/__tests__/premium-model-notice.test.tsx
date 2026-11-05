@@ -21,18 +21,18 @@ import { expect, test } from 'vitest'
 
 import { PremiumModelNotice } from '../premium-model-notice'
 
-test('shows the notice for Astra with Sol as the cheaper model', () => {
-  render(<PremiumModelNotice language='tr' model='gpt-6-astra' />)
+test('shows the notice for Fable with Opus as the cheaper model', () => {
+  render(<PremiumModelNotice language='tr' model='claude-fable-5-1' />)
 
   expect(screen.getByTestId('hw-premium-notice')).toHaveTextContent(
-    'Bu model kredinizi çok daha hızlı tüketir. Bir alt model, gpt-6.1-sol, çok daha ucuz ve neredeyse aynı kalitede.'
+    'Bu model kredinizi çok daha hızlı tüketir. Bir alt model, claude-opus-5-5, çok daha ucuz ve neredeyse aynı kalitede.'
   )
 })
 
 test('shows nothing for Sonnet or an unknown model', () => {
   const { container } = render(
     <>
-      <PremiumModelNotice language='en' model='gpt-6.1-sol' />
+      <PremiumModelNotice language='en' model='claude-sonnet-5-5' />
       <PremiumModelNotice language='en' model='something-else' />
       <PremiumModelNotice language='en' model={undefined} />
     </>

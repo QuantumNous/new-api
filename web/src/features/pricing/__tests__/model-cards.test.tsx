@@ -301,7 +301,7 @@ describe('model cards', () => {
     render(
       <ModelCard
         model={pricingModel({
-          model_name: 'gpt-6.1-sol',
+          model_name: 'claude-sonnet-5-5',
           description: '',
         })}
         onClick={vi.fn()}
@@ -319,7 +319,7 @@ describe('model cards', () => {
     render(
       <ModelCard
         model={pricingModel({
-          model_name: 'gpt-6.1-sol',
+          model_name: 'claude-sonnet-5-5',
           description: 'Written by the operator',
         })}
         onClick={vi.fn()}

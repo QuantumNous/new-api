@@ -76,11 +76,6 @@ type HwSoldModel struct {
 	// daily refresh then keeps the operator ratio instead of refusing the
 	// whole snapshot; the catalog prices above stay the seed value.
 	ListOptional bool
-	// OffSale marks a model we no longer sell but still serve. It leaves the
-	// shop window (the site price table; hwShownSoldModelNames) while the name
-	// and its billing price stay in the catalogue until the day we switch it
-	// off (decision Altuner/CEO, 5 Nov 2026).
-	OffSale bool
 }
 
 // hwSoldModels is the catalog of models we sell under our own names. The
@@ -89,17 +84,15 @@ type HwSoldModel struct {
 // newest model of its family; once a newer model costs the same or less, the
 // older one moves to hwRetiredModels.
 var hwSoldModels = []HwSoldModel{
-	// The four Claude names left the shelves on 5 Nov 2026 (decision Altuner/
-	// CEO): they are no longer on the site, but they stay reachable and billed
-	// at the same price until they are switched off on 5 Dec 2026, so OffSale
-	// carries the decision and the prices below are unchanged. The list prices
-	// are the official Anthropic list price of 4 Nov 2026, the day
-	// claude-fable-5-1 returned after a graded check on Lumia against
-	// claude-opus-5-5 (kennis/lumia-modelkeuring.md).
-	{Name: "claude-fable-5-1", PriceKey: "claude-fable-5-1", InputMicroUsd: 10_000_000, OutputMicroUsd: 50_000_000, OffSale: true},
-	{Name: "claude-opus-5-5", PriceKey: "claude-opus-5-5", InputMicroUsd: 4_000_000, OutputMicroUsd: 20_000_000, OffSale: true},
-	{Name: "claude-sonnet-5-5", PriceKey: "claude-sonnet-5-5", InputMicroUsd: 2_000_000, OutputMicroUsd: 10_000_000, OffSale: true},
-	{Name: "claude-haiku-5-5", PriceKey: "claude-haiku-5-5", InputMicroUsd: 100_000, OutputMicroUsd: 500_000, OffSale: true},
+	// claude-fable-5-1 returned on 4 Nov 2026 (request Altuner, lifts HIS-5127)
+	// after a graded check on Lumia against claude-opus-5-5 (kennis/
+	// lumia-modelkeuring.md, 4 Nov): every answered task correct, a needle found
+	// in a 116k token prompt and a full 1..800 list. The price is the official
+	// Anthropic list price of that day ($10 / $50 per million tokens).
+	{Name: "claude-fable-5-1", PriceKey: "claude-fable-5-1", InputMicroUsd: 10_000_000, OutputMicroUsd: 50_000_000},
+	{Name: "claude-opus-5-5", PriceKey: "claude-opus-5-5", InputMicroUsd: 4_000_000, OutputMicroUsd: 20_000_000},
+	{Name: "claude-sonnet-5-5", PriceKey: "claude-sonnet-5-5", InputMicroUsd: 2_000_000, OutputMicroUsd: 10_000_000},
+	{Name: "claude-haiku-5-5", PriceKey: "claude-haiku-5-5", InputMicroUsd: 100_000, OutputMicroUsd: 500_000},
 	// The gpt generation 6 family returned on 3 Nov 2026 (request Altuner) after
 	// a graded check on Lumia (kennis/lumia-modelkeuring.md, 3 Nov): all three
 	// scored 8/8 with executed code tests and read a 116k token context. The
@@ -299,22 +292,6 @@ func HwApplySnapshotModelRatios(snapshot *model.HwPriceSnapshot) error {
 func HwSoldModelNames() []string {
 	names := make([]string, 0, len(hwSoldModels))
 	for _, sold := range hwSoldModels {
-		names = append(names, sold.Name)
-	}
-	return names
-}
-
-// hwShownSoldModelNames returns the names of the models on sale, the ones the
-// shop window shows. The site price table is the only consumer: the billing,
-// the quality meter, the health check and the incident card all work on
-// HwSoldModelNames and therefore keep covering a model that left the sale but
-// is still served.
-func hwShownSoldModelNames() []string {
-	names := make([]string, 0, len(hwSoldModels))
-	for _, sold := range hwSoldModels {
-		if sold.OffSale {
-			continue
-		}
 		names = append(names, sold.Name)
 	}
 	return names

@@ -37,7 +37,7 @@ import {
 
 describe('model guide', () => {
   it('describes every recommended model in Turkish and English', () => {
-    expect(RECOMMENDED_ORDER).toHaveLength(5)
+    expect(RECOMMENDED_ORDER).toHaveLength(9)
     for (const name of RECOMMENDED_ORDER) {
       const guide = modelGuide(name)
       expect(guide, name).toBeDefined()
@@ -63,9 +63,9 @@ describe('model guide', () => {
     expect(all).not.toContain('lu' + 'mia')
   })
 
-  it('puts Astra first and Sol second, and unknown models last', () => {
-    expect(recommendedRank('gpt-6-astra')).toBe(0)
-    expect(recommendedRank('gpt-6.1-sol')).toBe(1)
+  it('puts Fable first and Astra second, and unknown models last', () => {
+    expect(recommendedRank('claude-fable-5-1')).toBe(0)
+    expect(recommendedRank('gpt-6-astra')).toBe(1)
     expect(recommendedRank('something-else')).toBe(RECOMMENDED_ORDER.length)
     expect(recommendedRank(undefined)).toBe(RECOMMENDED_ORDER.length)
   })
@@ -91,13 +91,14 @@ describe('premium models', () => {
   })
 
   it('points each premium model to the model one step lower', () => {
+    expect(premiumStepDown('claude-fable-5-1')).toBe('claude-opus-5-5')
     expect(premiumStepDown('gpt-6-astra')).toBe('gpt-6.1-sol')
   })
 
   it('has no step-down for models below the threshold', () => {
     for (const name of [
-      'gpt-6.1-sol',
-      'gpt-6-luna',
+      'claude-opus-5-5',
+      'claude-haiku-5-5',
       'grok-4',
       'unknown',
       undefined,
@@ -112,7 +113,7 @@ describe('premium models', () => {
       ...MODEL_PRICES,
       {
         model: 'claude-future-9',
-        provider: 'OpenAI',
+        provider: 'Anthropic',
         official: { input: 15, output: 75 },
         openrouter: null,
         hisarweb: { input: 7.5, output: 37.5 },
@@ -126,23 +127,25 @@ describe('premium models', () => {
       },
     ]
     expect(isPremiumModel('claude-future-9', fixtures)).toBe(true)
-    // Strictly cheaper, highest first: Astra (10) is the closest one below.
-    expect(premiumStepDown('claude-future-9', fixtures)).toBe('gpt-6-astra')
+    // Strictly cheaper, highest first: Fable (10) beats Opus (4).
+    expect(premiumStepDown('claude-future-9', fixtures)).toBe(
+      'claude-fable-5-1'
+    )
     // Premium, but no cheaper model of the same provider: no notice.
     expect(isPremiumModel('gemini-lonely', fixtures)).toBe(true)
     expect(premiumStepDown('gemini-lonely', fixtures)).toBeUndefined()
     expect(premiumNotice('gemini-lonely', 'en', fixtures)).toBeUndefined()
-    expect(MODEL_PRICES).toHaveLength(5)
+    expect(MODEL_PRICES).toHaveLength(9)
   })
 
   it('writes the notice in Turkish and English without an em-dash', () => {
-    expect(premiumNotice('gpt-6-astra', 'tr')).toBe(
-      'Bu model kredinizi çok daha hızlı tüketir. Bir alt model, gpt-6.1-sol, çok daha ucuz ve neredeyse aynı kalitede.'
+    expect(premiumNotice('claude-fable-5-1', 'tr')).toBe(
+      'Bu model kredinizi çok daha hızlı tüketir. Bir alt model, claude-opus-5-5, çok daha ucuz ve neredeyse aynı kalitede.'
     )
     expect(premiumNotice('gpt-6-astra', 'en')).toBe(
       'This model uses up your credit much faster. The model one step lower, gpt-6.1-sol, is much cheaper and almost as good.'
     )
-    expect(premiumNotice('gpt-6.1-sol', 'en')).toBeUndefined()
+    expect(premiumNotice('claude-sonnet-5-5', 'en')).toBeUndefined()
     expect(PREMIUM_NOTICE.tr + PREMIUM_NOTICE.en).not.toContain('—')
   })
 })

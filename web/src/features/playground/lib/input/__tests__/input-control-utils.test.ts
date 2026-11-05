@@ -24,7 +24,7 @@ const state = (modelValue: string) =>
   getInputControlState({
     groups: [],
     hasStopHandler: false,
-    models: [{ label: 'gpt-6-luna', value: 'gpt-6-luna' }],
+    models: [{ label: 'claude-haiku-5-5', value: 'claude-haiku-5-5' }],
     modelValue,
     text: 'Code',
   })
@@ -35,6 +35,6 @@ describe('getInputControlState', () => {
   })
 
   it('turns the Send button on once a model is selected', () => {
-    expect(state('gpt-6-luna').canSubmit).toBe(true)
+    expect(state('claude-haiku-5-5').canSubmit).toBe(true)
   })
 })

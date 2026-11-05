@@ -109,8 +109,8 @@ export const KEY_TEST_STEPS: readonly GuideStep[] = [
       ),
     ],
     see: {
-      tr: 'Bir model listesi (JSON metni) gelir; içinde gpt-6.1-sol gibi model adları görünür.',
-      en: 'A model list (JSON text) comes back; it contains model names such as gpt-6.1-sol.',
+      tr: 'Bir model listesi (JSON metni) gelir; içinde claude-sonnet-5-5 gibi model adları görünür.',
+      en: 'A model list (JSON text) comes back; it contains model names such as claude-sonnet-5-5.',
     },
   },
   {
@@ -127,8 +127,8 @@ export const KEY_TEST_STEPS: readonly GuideStep[] = [
       ),
     ],
     see: {
-      tr: 'Bir model listesi (JSON metni) gelir; içinde gpt-6.1-sol gibi model adları görünür.',
-      en: 'A model list (JSON text) comes back; it contains model names such as gpt-6.1-sol.',
+      tr: 'Bir model listesi (JSON metni) gelir; içinde claude-sonnet-5-5 gibi model adları görünür.',
+      en: 'A model list (JSON text) comes back; it contains model names such as claude-sonnet-5-5.',
     },
   },
   {

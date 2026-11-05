@@ -70,7 +70,7 @@ const tr = {
 
   oneKeyTitle: 'Tek anahtar, bütün modeller',
   oneKeyBody:
-    'Her istekte hangi modeli istediğinizi adıyla yazarsınız. Yeni anahtar almadan başka bir modele geçebilirsiniz. Örneğin zor iş için gpt-6-astra, günlük iş için gpt-6.1-sol, küçük ve çok sayıda iş için gpt-6-luna. Kullanılabilir modeller listesi için /docs sayfasına bakın.',
+    'Her istekte hangi modeli istediğinizi adıyla yazarsınız. Yeni anahtar almadan başka bir modele geçebilirsiniz. Örneğin zor iş için claude-opus-5-5, günlük iş için claude-sonnet-5-5, küçük ve çok sayıda iş için claude-haiku-5-5. Kullanılabilir modeller listesi için /docs sayfasına bakın.',
   oneKeyCaption: 'Aynı anahtar, iki istek, iki model:',
   warnTitle: 'Önemli: oturumun ortasında model değiştirmeyin',
   warnBody:
@@ -103,13 +103,13 @@ const tr = {
   toolClaudeShellPowershell: 'Windows (PowerShell)',
   toolClineName: 'Cline',
   toolClineBody:
-    'Plan modunda güçlü model (gpt-6-astra), Act modunda orta model (gpt-6.1-sol) seçin. Ayarlar: sağlayıcı olarak OpenAI uyumlu, adres ve anahtar sizin.',
+    'Plan modunda güçlü model (claude-opus-5-5), Act modunda orta model (claude-sonnet-5-5) seçin. Ayarlar: sağlayıcı olarak OpenAI uyumlu, adres ve anahtar sizin.',
   toolKiloName: 'Kilo Code',
   toolKiloBody:
-    'Planlama modunda güçlü model, kodlama modunda gpt-6.1-sol ya da gpt-6-luna seçin. Roo Code 15 Mayıs 2026’da kapandı, onun yerine Kilo Code ya da Cline kullanın.',
+    'Planlama modunda güçlü model, kodlama modunda claude-sonnet-5-5 ya da claude-haiku-5-5 seçin. Roo Code 15 Mayıs 2026’da kapandı, onun yerine Kilo Code ya da Cline kullanın.',
   toolOpencodeName: 'opencode',
   toolOpencodeBody:
-    'Ana modeli gpt-6.1-sol, küçük işler için olan modeli gpt-6-luna yapın. Planlama için güçlü modeli ayrı bir ajan olarak tanımlayın.',
+    'Ana modeli claude-sonnet-5-5, küçük işler için olan modeli claude-haiku-5-5 yapın. Planlama için güçlü modeli ayrı bir ajan olarak tanımlayın.',
   toolAiderName: 'Aider',
   toolAiderBody:
     'Aider iki modelli çalışabilir: biri düşünür (architect), diğeri yazar (editor). Aider kendi anahtarınızla çalışır, bu yüzden iki model de HisarWeb AI anahtarınızdan gelir.',
@@ -236,7 +236,7 @@ const en: Record<keyof typeof tr, string> = {
 
   oneKeyTitle: 'One key, every model',
   oneKeyBody:
-    'In every request you write the model you want by name. You can move to another model without a new key. For example gpt-6-astra for hard work, gpt-6.1-sol for everyday work, gpt-6-luna for small jobs in large numbers. The /docs page lists the models you can use.',
+    'In every request you write the model you want by name. You can move to another model without a new key. For example claude-opus-5-5 for hard work, claude-sonnet-5-5 for everyday work, claude-haiku-5-5 for small jobs in large numbers. The /docs page lists the models you can use.',
   oneKeyCaption: 'The same key, two requests, two models:',
   warnTitle: 'Important: do not switch model in the middle of a session',
   warnBody:
@@ -269,13 +269,13 @@ const en: Record<keyof typeof tr, string> = {
   toolClaudeShellPowershell: 'Windows (PowerShell)',
   toolClineName: 'Cline',
   toolClineBody:
-    'Pick the strong model (gpt-6-astra) in Plan mode and the middle model (gpt-6.1-sol) in Act mode. Settings: OpenAI compatible provider, your own address and key.',
+    'Pick the strong model (claude-opus-5-5) in Plan mode and the middle model (claude-sonnet-5-5) in Act mode. Settings: OpenAI compatible provider, your own address and key.',
   toolKiloName: 'Kilo Code',
   toolKiloBody:
-    'Pick the strong model for the planning mode and gpt-6.1-sol or gpt-6-luna for the coding mode. Roo Code shut down on 15 May 2026, use Kilo Code or Cline instead.',
+    'Pick the strong model for the planning mode and claude-sonnet-5-5 or claude-haiku-5-5 for the coding mode. Roo Code shut down on 15 May 2026, use Kilo Code or Cline instead.',
   toolOpencodeName: 'opencode',
   toolOpencodeBody:
-    'Make gpt-6.1-sol the main model and gpt-6-luna the model for small jobs. Define the strong model as a separate agent for planning.',
+    'Make claude-sonnet-5-5 the main model and claude-haiku-5-5 the model for small jobs. Define the strong model as a separate agent for planning.',
   toolAiderName: 'Aider',
   toolAiderBody:
     'Aider can work with two models: one thinks (architect), the other writes (editor). Aider works with your own key, so both models come from your HisarWeb AI key.',

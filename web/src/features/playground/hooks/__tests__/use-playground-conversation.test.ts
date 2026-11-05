@@ -53,7 +53,7 @@ describe('sending without a model', () => {
   })
 
   it('sends the message once a model is selected', () => {
-    const { result, sendChat } = renderConversation('gpt-6-luna')
+    const { result, sendChat } = renderConversation('claude-haiku-5-5')
 
     let sent = false
     act(() => {

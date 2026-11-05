@@ -104,7 +104,7 @@ const empty: HwQualityLatest = {
 }
 
 const sonnetWeek: HwQualityTrafficModel = {
-  model: 'gpt-6.1-sol',
+  model: 'claude-sonnet-5-5',
   requests: 1234,
   failed: 3,
   enough_data: true,
@@ -234,7 +234,7 @@ describe('quality meter page', () => {
     mockQuality(observed)
     renderPage()
 
-    expect(await screen.findByText('gpt-6.1-sol')).toBeInTheDocument()
+    expect(await screen.findByText('claude-sonnet-5-5')).toBeInTheDocument()
     expect(
       screen.getByText('Gerçek müşteri isteklerinden ölçüm')
     ).toBeInTheDocument()
@@ -266,7 +266,7 @@ describe('quality meter page', () => {
       expect(cards).toHaveLength(2)
       expect(screen.queryByRole('table')).not.toBeInTheDocument()
       const sonnet = within(cards[0])
-      expect(sonnet.getByText('gpt-6.1-sol')).toBeInTheDocument()
+      expect(sonnet.getByText('claude-sonnet-5-5')).toBeInTheDocument()
       for (const value of [
         '1.234',
         '%99,76',
@@ -332,7 +332,7 @@ describe('quality meter page', () => {
     mockQuality({ ...measured, traffic: observed.traffic })
     renderPage()
 
-    expect(await screen.findByText('gpt-6.1-sol')).toBeInTheDocument()
+    expect(await screen.findByText('claude-sonnet-5-5')).toBeInTheDocument()
     expect(screen.getByText('Görev seti ölçümü')).toBeInTheDocument()
     expect(screen.getByText('claude-sonnet-5')).toBeInTheDocument()
     expect(screen.getByText(sampleNote)).toBeInTheDocument()
@@ -412,7 +412,7 @@ describe('quality meter page', () => {
   it('never claims the models equal the original and names no supplier', async () => {
     mockQuality({ ...measured, traffic: observed.traffic })
     renderPage()
-    await screen.findByText('gpt-6.1-sol')
+    await screen.findByText('claude-sonnet-5-5')
 
     const text = document.body.textContent?.toLowerCase() ?? ''
     expect(text).not.toContain('lumia')

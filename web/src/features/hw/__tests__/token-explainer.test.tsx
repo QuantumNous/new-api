@@ -77,7 +77,7 @@ describe('TokenExplainer', () => {
     const afterBudget = screen.getByText(HOURS_RESULT).textContent
     expect(afterBudget).not.toBe(before)
     fireEvent.change(screen.getByLabelText('Model'), {
-      target: { value: 'gpt-6-luna' },
+      target: { value: 'claude-haiku-5-5' },
     })
     expect(screen.getByText(HOURS_RESULT).textContent).not.toBe(afterBudget)
   })

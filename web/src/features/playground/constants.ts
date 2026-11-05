@@ -46,7 +46,7 @@ export const DEFAULT_GROUP = 'default' as const
 
 // Default configuration
 export const DEFAULT_CONFIG: PlaygroundConfig = {
-  model: 'gpt-6-luna',
+  model: 'claude-haiku-5-5',
   group: DEFAULT_GROUP,
   temperature: 0.7,
   top_p: 1,

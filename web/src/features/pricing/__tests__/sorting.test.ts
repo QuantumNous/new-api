@@ -129,18 +129,18 @@ describe('recommended sorting', () => {
   const catalogue = [
     'grok-4',
     'zz-unknown',
-    'gpt-6-astra',
+    'claude-opus-5-5',
     'aa-unknown',
     'gpt-6.1-sol',
-    'gpt-6.1-sol',
+    'claude-sonnet-5-5',
   ].map((name) => pricingModel(name, {}))
 
   test('puts Opus first, then Sonnet, and unknown models last by name', () => {
     expect(
       sortModels(catalogue, SORT_OPTIONS.RECOMMENDED).map((m) => m.model_name)
     ).toEqual([
-      'gpt-6-astra',
-      'gpt-6.1-sol',
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
       'gpt-6.1-sol',
       'grok-4',
       'aa-unknown',

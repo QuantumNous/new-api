@@ -29,12 +29,12 @@ test('every sold model links to an https pricing page of its provider', () => {
 })
 
 test('a sold model shows the provider link and the list price in Turkish', () => {
-  render(<OfficialPriceLink model='gpt-6-astra' language='tr' />)
-  const link = screen.getByRole('link', { name: /Resmi fiyat \(OpenAI\)/ })
-  expect(link.getAttribute('href')).toBe(OFFICIAL_PRICING_URL.OpenAI)
+  render(<OfficialPriceLink model='claude-opus-5-5' language='tr' />)
+  const link = screen.getByRole('link', { name: /Resmi fiyat \(Anthropic\)/ })
+  expect(link.getAttribute('href')).toBe(OFFICIAL_PRICING_URL.Anthropic)
   expect(link.getAttribute('rel')).toBe('noopener noreferrer')
   expect(screen.getByTestId('hw-official-price').textContent).toContain(
-    '$10 / $50'
+    '$4 / $20'
   )
 })
 

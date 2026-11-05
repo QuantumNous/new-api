@@ -55,7 +55,7 @@ export const HEAVY_USD_PER_ACTIVE_DAY = 30
 /** Our own assumptions, shown with every result. */
 export const ACTIVE_HOURS_PER_DAY = 4
 export const HOURS_PER_SMALL_PROJECT = 3
-export const REFERENCE_MODEL = 'gpt-6.1-sol'
+export const REFERENCE_MODEL = 'claude-sonnet-5-5'
 
 export const USAGE_BUDGETS_TRY = [250, 500, 1000, 2500] as const
 
