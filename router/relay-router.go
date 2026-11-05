@@ -64,7 +64,7 @@ func SetRelayRouter(router *gin.Engine) {
 	playgroundRouter := router.Group("/pg")
 	playgroundRouter.Use(middleware.RouteTag("relay"))
 	playgroundRouter.Use(middleware.SystemPerformanceCheck())
-	playgroundRouter.Use(middleware.HwMask(), middleware.UserAuth(), middleware.HwFreeGroupRateLimit(), middleware.HwBureauReserveGate(), middleware.Distribute())
+	playgroundRouter.Use(middleware.HwMask(), middleware.UserAuth(), middleware.Distribute())
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 	}
@@ -75,14 +75,8 @@ func SetRelayRouter(router *gin.Engine) {
 	// WebSocket endpoints below: a hijacked connection passes through, its
 	// handshake response headers are filtered.
 	relayV1Router.Use(middleware.HwMask())
+	// The free-group guard and the reserve gate run inside this auth hook.
 	relayV1Router.Use(middleware.TokenAuth())
-	// The free-group guard sits directly after authentication, so it also covers
-	// the Responses WebSocket handshake registered before the routes below.
-	relayV1Router.Use(middleware.HwFreeGroupRateLimit())
-	// The bureau reserve gate covers every customer route below, including the
-	// WebSocket handshake; it refuses new requests only and never touches a
-	// stream that is already running.
-	relayV1Router.Use(middleware.HwBureauReserveGate())
 	{
 		// Responses WebSocket route. Channel selection happens after the first
 		// response.create event; each event runs the ordinary request limiter.
@@ -224,8 +218,6 @@ func SetRelayRouter(router *gin.Engine) {
 	relayGeminiRouter.Use(middleware.HwMask())
 	relayGeminiRouter.Use(middleware.TokenAuth())
 	relayGeminiRouter.Use(middleware.ModelRequestRateLimit())
-	relayGeminiRouter.Use(middleware.HwFreeGroupRateLimit())
-	relayGeminiRouter.Use(middleware.HwBureauReserveGate())
 	relayGeminiRouter.Use(middleware.Distribute())
 	{
 		// Gemini API 路径格式: /v1beta/models/{model_name}:{action}
@@ -238,7 +230,7 @@ func SetRelayRouter(router *gin.Engine) {
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {
 	relayMjRouter.Use(middleware.HwMask())
 	relayMjRouter.GET("/image/:id", relay.RelayMidjourneyImage)
-	relayMjRouter.Use(middleware.TokenAuth(), middleware.HwFreeGroupRateLimit(), middleware.Distribute())
+	relayMjRouter.Use(middleware.TokenAuth(), middleware.Distribute())
 	{
 		relayMjRouter.POST("/submit/action", controller.RelayMidjourney)
 		relayMjRouter.POST("/submit/shorten", controller.RelayMidjourney)
