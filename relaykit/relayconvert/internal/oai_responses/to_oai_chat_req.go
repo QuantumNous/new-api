@@ -72,6 +72,7 @@ func ResponsesRequestToChatCompletionsRequest(ctx context.Context, req *dto.Open
 		TopP:                 req.TopP,
 		TopLogProbs:          req.TopLogProbs,
 		ResponseFormat:       responseFormat,
+		Verbosity:            kitutil.ObjectMember(req.Text, "verbosity"),
 		Tools:                tools,
 		ToolChoice:           toolChoice,
 		User:                 req.User,

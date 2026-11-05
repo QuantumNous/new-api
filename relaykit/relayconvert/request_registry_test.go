@@ -15,6 +15,87 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestConvertRequestPreservesVerbosity(t *testing.T) {
+	schema := json.RawMessage(`{"name":"answer","strict":true,"schema":{"type":"object","properties":{"z":{"type":"string"},"a":{"type":"string"}},"required":["z","a"],"additionalProperties":false}}`)
+	for _, source := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses} {
+		t.Run(string(source), func(t *testing.T) {
+			for _, tc := range []struct {
+				name       string
+				verbosity  json.RawMessage
+				formatType string
+			}{
+				{name: "absent"},
+				{name: "null", verbosity: json.RawMessage(`null`)},
+				{name: "low", verbosity: json.RawMessage(`"low"`)},
+				{name: "medium with JSON mode", verbosity: json.RawMessage(`"medium"`), formatType: "json_object"},
+				{name: "high with JSON schema", verbosity: json.RawMessage(`"high"`), formatType: "json_schema"},
+				{name: "JSON schema without verbosity", formatType: "json_schema"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					var format *dto.ResponseFormat
+					if tc.formatType != "" {
+						format = &dto.ResponseFormat{Type: tc.formatType}
+						if tc.formatType == "json_schema" {
+							format.JsonSchema = schema
+						}
+					}
+					var request any = &dto.GeneralOpenAIRequest{
+						Model: "gpt-test", Messages: []dto.Message{{Role: "user", Content: "Return JSON."}},
+						Verbosity: tc.verbosity, ResponseFormat: format,
+					}
+					var target types.RelayFormat = types.RelayFormatOpenAIResponses
+					if source == types.RelayFormatOpenAIResponses {
+						text := make(map[string]any)
+						if len(tc.verbosity) > 0 {
+							text["verbosity"] = tc.verbosity
+						}
+						if format != nil {
+							textFormat := make(map[string]json.RawMessage)
+							if tc.formatType == "json_schema" {
+								require.NoError(t, kitutil.Unmarshal(schema, &textFormat))
+							}
+							textFormat["type"] = json.RawMessage(`"` + tc.formatType + `"`)
+							text["format"] = textFormat
+						}
+						textRaw, err := kitutil.Marshal(text)
+						require.NoError(t, err)
+						request = &dto.OpenAIResponsesRequest{Model: "gpt-test", Input: json.RawMessage(`"Return JSON."`), Text: textRaw}
+						target = types.RelayFormatOpenAI
+					}
+					result, err := ConvertRequest(context.Background(), nil, target, request)
+					require.NoError(t, err)
+					encoded, err := kitutil.Marshal(result.Value)
+					require.NoError(t, err)
+					var fields map[string]json.RawMessage
+					require.NoError(t, kitutil.Unmarshal(encoded, &fields))
+					verbosity, formatRaw := fields["verbosity"], fields["response_format"]
+					if target == types.RelayFormatOpenAIResponses {
+						verbosity = kitutil.ObjectMember(fields["text"], "verbosity")
+						formatRaw = kitutil.ObjectMember(fields["text"], "format")
+					}
+					expected := tc.verbosity
+					if string(expected) == "null" {
+						expected = nil
+					}
+					assert.Equal(t, expected, verbosity)
+					if tc.formatType == "" {
+						assert.Empty(t, formatRaw)
+						return
+					}
+					assert.Equal(t, `"`+tc.formatType+`"`, string(kitutil.ObjectMember(formatRaw, "type")))
+					if tc.formatType == "json_schema" {
+						if target == types.RelayFormatOpenAI {
+							formatRaw = kitutil.ObjectMember(formatRaw, "json_schema")
+						}
+						assert.Equal(t, kitutil.ObjectMember(schema, "schema"), kitutil.ObjectMember(formatRaw, "schema"))
+						assert.Equal(t, "true", string(kitutil.ObjectMember(formatRaw, "strict")))
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestClaudeMessagesToOpenAIChatPreservesAssistantTextWithToolCalls(t *testing.T) {
 	text := "I will look that up."
 	request := dto.ClaudeRequest{

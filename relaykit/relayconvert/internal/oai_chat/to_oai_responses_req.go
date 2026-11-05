@@ -378,6 +378,19 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 	}
 
 	textRaw := convertChatResponseFormatToResponsesText(req.ResponseFormat)
+	if len(req.Verbosity) > 0 && kitutil.GetJsonType(req.Verbosity) != "null" {
+		textConfig := make(map[string]json.RawMessage)
+		if len(textRaw) > 0 {
+			if err := kitutil.Unmarshal(textRaw, &textConfig); err != nil {
+				return nil, fmt.Errorf("invalid text config: %w", err)
+			}
+		}
+		textConfig["verbosity"] = req.Verbosity
+		textRaw, err = kitutil.Marshal(textConfig)
+		if err != nil {
+			return nil, fmt.Errorf("marshal text config: %w", err)
+		}
+	}
 
 	maxOutputTokens := lo.FromPtrOr(req.MaxTokens, uint(0))
 	if req.MaxCompletionTokens != nil {
