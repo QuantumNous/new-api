@@ -23,7 +23,6 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
-  Handshake,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -33,7 +32,6 @@ import {
   ServerCog,
   Settings,
   ShieldCheck,
-  ShoppingCart,
   Ticket,
   User,
   Users,
@@ -42,7 +40,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarBadges, SidebarData } from '@/components/layout/types'
-import { useHwText } from '@/features/hw/texts'
+import { useHwSidebarExtras } from '@/features/hw/hooks/use-hw-sidebar-extras'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -53,10 +51,9 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
   const { t } = useTranslation()
-  const hw = useHwText()
 
   return {
-    navGroups: [
+    navGroups: useHwSidebarExtras([
       {
         id: 'chat',
         title: t('Chat'),
@@ -70,7 +67,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             title: t('Chat'),
             icon: MessageSquare,
             type: 'chat-presets',
-            requiredRole: ROLE.ADMIN,
           },
         ],
       },
@@ -87,7 +83,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             title: t('Dashboard'),
             url: '/dashboard/models',
             icon: LayoutDashboard,
-            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('API Keys'),
@@ -103,7 +98,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             title: t('Audit Logs'),
             url: '/usage-logs/audit',
             icon: ClipboardList,
-            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Task Logs'),
@@ -111,7 +105,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             activeUrls: ['/usage-logs/drawing'],
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
-            requiredRole: ROLE.ADMIN,
           },
         ],
       },
@@ -119,11 +112,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
         id: 'personal',
         title: t('Personal'),
         items: [
-          {
-            title: hw('navBuy'),
-            url: '/satin-al',
-            icon: ShoppingCart,
-          },
           {
             title: t('Wallet'),
             url: '/wallet',
@@ -161,11 +149,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             icon: Users,
           },
           {
-            title: t('Partner Channels'),
-            url: '/partner-channels',
-            icon: Handshake,
-          },
-          {
             title: t('Redemption Codes'),
             url: '/redemption-codes',
             icon: Ticket,
@@ -198,6 +181,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
           },
         ],
       },
-    ],
+    ]),
   }
 }
