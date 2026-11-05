@@ -56,6 +56,7 @@ describe('payment dispatch', () => {
           calls.push('pancake')
           return false
         },
+        nowPayments: async () => false,
       }
     )
 
@@ -76,6 +77,7 @@ describe('payment dispatch', () => {
           return true
         },
         waffoPancake: async () => false,
+        nowPayments: async () => false,
       }
     )
 

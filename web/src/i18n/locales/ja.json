@@ -7209,6 +7209,7 @@
     "Waffo Pancake settings saved": "Waffo Pancake 設定を保存しました",
     "Waffo Payment": "Waffo決済",
     "Waffo Payment Gateway": "Waffo決済ゲートウェイ",
+    "NOWPayments is not enabled": "NOWPayments 決済は有効になっていません",
     "Waffo payment is not enabled": "Waffo 決済は有効になっていません",
     "Waffo Public Key (Production)": "Waffo公開鍵（本番）",
     "Waffo Public Key (Sandbox)": "Waffo公開鍵（サンドボックス）",
@@ -7373,6 +7374,14 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "NOWPayments (Crypto)": "NOWPayments（暗号資産）",
+    "Customers pick their cryptocurrency on the NOWPayments hosted checkout page.": "ユーザーは NOWPayments がホストする決済ページで暗号資産を選択します。",
+    "Create an API key and an IPN secret in the NOWPayments dashboard, then set the IPN callback to /api/nowpayments/webhook on your API domain. Saved credentials are never shown again; leave a field empty to keep the saved value.": "NOWPayments のダッシュボードで API キーと IPN シークレットを作成し、API ドメインの /api/nowpayments/webhook を IPN コールバックに設定してください。保存済みの認証情報は再表示されません。空欄のままにすると保存済みの値が保持されます。",
+    "Enable NOWPayments": "NOWPayments を有効化",
+    "IPN Secret Key": "IPN シークレットキー",
+    "Minimum top-up amount": "最低チャージ額",
+    "Fixed exchange rate": "固定為替レート",
+    "Customer pays payment fees": "決済手数料をユーザーが負担する"
   }
 }

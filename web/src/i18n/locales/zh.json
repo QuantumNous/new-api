@@ -7209,6 +7209,7 @@
     "Waffo Pancake settings saved": "Waffo Pancake 设置已保存",
     "Waffo Payment": "Waffo 支付",
     "Waffo Payment Gateway": "Waffo 支付网关",
+    "NOWPayments is not enabled": "NOWPayments 支付未启用",
     "Waffo payment is not enabled": "Waffo 支付未启用",
     "Waffo Public Key (Production)": "Waffo 公钥（生产）",
     "Waffo Public Key (Sandbox)": "Waffo 公钥（沙盒）",
@@ -7373,6 +7374,14 @@
     "Zhipu": "智谱",
     "Zhipu GLM": "智谱GLM",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "NOWPayments (Crypto)": "NOWPayments（加密货币）",
+    "Customers pick their cryptocurrency on the NOWPayments hosted checkout page.": "用户在 NOWPayments 托管的收银页面上选择要使用的加密货币。",
+    "Create an API key and an IPN secret in the NOWPayments dashboard, then set the IPN callback to /api/nowpayments/webhook on your API domain. Saved credentials are never shown again; leave a field empty to keep the saved value.": "在 NOWPayments 后台创建 API 密钥和 IPN 密钥，并将 IPN 回调地址设置为 API 域名下的 /api/nowpayments/webhook。已保存的凭据不会再次显示，留空表示保留已保存的值。",
+    "Enable NOWPayments": "启用 NOWPayments",
+    "IPN Secret Key": "IPN 密钥",
+    "Minimum top-up amount": "最低充值金额",
+    "Fixed exchange rate": "固定汇率",
+    "Customer pays payment fees": "由用户承担支付手续费"
   }
 }

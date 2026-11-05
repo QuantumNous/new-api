@@ -7209,6 +7209,7 @@
     "Waffo Pancake settings saved": "Đã lưu cài đặt Waffo Pancake",
     "Waffo Payment": "Thanh toán Waffo",
     "Waffo Payment Gateway": "Cổng thanh toán Waffo",
+    "NOWPayments is not enabled": "Thanh toán NOWPayments chưa được bật",
     "Waffo payment is not enabled": "Thanh toán Waffo chưa được bật",
     "Waffo Public Key (Production)": "Waffo Public Key (Sản xuất)",
     "Waffo Public Key (Sandbox)": "Khóa công khai Waffo (Sandbox)",
@@ -7373,6 +7374,14 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "NOWPayments (Crypto)": "NOWPayments (tiền mã hóa)",
+    "Customers pick their cryptocurrency on the NOWPayments hosted checkout page.": "Khách hàng chọn loại tiền mã hóa trên trang thanh toán do NOWPayments lưu trữ.",
+    "Create an API key and an IPN secret in the NOWPayments dashboard, then set the IPN callback to /api/nowpayments/webhook on your API domain. Saved credentials are never shown again; leave a field empty to keep the saved value.": "Tạo khóa API và khóa bí mật IPN trong bảng điều khiển NOWPayments, sau đó đặt IPN callback là /api/nowpayments/webhook trên tên miền API của bạn. Thông tin xác thực đã lưu sẽ không hiển thị lại; để trống trường để giữ giá trị đã lưu.",
+    "Enable NOWPayments": "Bật NOWPayments",
+    "IPN Secret Key": "Khóa bí mật IPN",
+    "Minimum top-up amount": "Số tiền nạp tối thiểu",
+    "Fixed exchange rate": "Tỷ giá cố định",
+    "Customer pays payment fees": "Khách hàng trả phí thanh toán"
   }
 }

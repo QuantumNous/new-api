@@ -41,6 +41,7 @@ describe('payment amount routing', () => {
         calls.push('pancake')
         return { success: true, data: '4' }
       },
+      nowPayments: async () => ({ success: true, data: '5' }),
     })
 
     expect(amount).toBe(18.75)

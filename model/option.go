@@ -128,6 +128,13 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["NowPaymentsEnabled"] = strconv.FormatBool(setting.NowPaymentsEnabled)
+	common.OptionMap["NowPaymentsApiKey"] = setting.NowPaymentsApiKey
+	common.OptionMap["NowPaymentsIPNSecret"] = setting.NowPaymentsIPNSecret
+	common.OptionMap["NowPaymentsPriceCurrency"] = setting.NowPaymentsPriceCurrency
+	common.OptionMap["NowPaymentsMinTopUp"] = strconv.Itoa(setting.NowPaymentsMinTopUp)
+	common.OptionMap["NowPaymentsFixedRate"] = strconv.FormatBool(setting.NowPaymentsFixedRate)
+	common.OptionMap["NowPaymentsFeePaidByUser"] = strconv.FormatBool(setting.NowPaymentsFeePaidByUser)
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -492,6 +499,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.DefaultUseAutoGroup = boolValue
 		case "ExposeRatioEnabled":
 			ratio_setting.SetExposeRatioEnabled(boolValue)
+		case "NowPaymentsEnabled":
+			setting.NowPaymentsEnabled = boolValue
 		}
 	}
 	if key == setting.TaskPluginDisabledFactoryKeysKey {
@@ -603,6 +612,22 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":
 		setting.WaffoPancakeMinTopUp, _ = strconv.Atoi(value)
+	case "NowPaymentsApiKey":
+		setting.NowPaymentsApiKey = value
+	case "NowPaymentsIPNSecret":
+		setting.NowPaymentsIPNSecret = value
+	case "NowPaymentsPriceCurrency":
+		if currency := strings.ToLower(strings.TrimSpace(value)); currency != "" {
+			setting.NowPaymentsPriceCurrency = currency
+		}
+	case "NowPaymentsMinTopUp":
+		if minTopUp, convErr := strconv.Atoi(value); convErr == nil && minTopUp >= 1 {
+			setting.NowPaymentsMinTopUp = minTopUp
+		}
+	case "NowPaymentsFixedRate":
+		setting.NowPaymentsFixedRate = value == "true"
+	case "NowPaymentsFeePaidByUser":
+		setting.NowPaymentsFeePaidByUser = value == "true"
 	case "TopupGroupRatio":
 		err = common.UpdateTopupGroupRatioByJSONString(value)
 	case "GitHubClientId":

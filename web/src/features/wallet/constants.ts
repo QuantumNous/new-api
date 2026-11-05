@@ -36,6 +36,7 @@ export const PAYMENT_TYPES = {
   CREEM: 'creem',
   WAFFO: 'waffo',
   WAFFO_PANCAKE: 'waffo_pancake',
+  NOWPAYMENTS: 'nowpayments',
 } as const
 
 /**

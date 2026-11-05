@@ -348,6 +348,13 @@ export type BillingSettings = {
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
   WaffoPancakeReturnURL: string
+  NowPaymentsEnabled: boolean
+  NowPaymentsApiKey: string
+  NowPaymentsIPNSecret: string
+  NowPaymentsPriceCurrency: string
+  NowPaymentsMinTopUp: number
+  NowPaymentsFixedRate: boolean
+  NowPaymentsFeePaidByUser: boolean
   // Bound by the operator through the catalog flow in the admin Pancake
   // section (saved via /api/option/waffo-pancake/save).
   WaffoPancakeStoreID: string

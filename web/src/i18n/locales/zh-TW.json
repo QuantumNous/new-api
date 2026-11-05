@@ -7209,6 +7209,7 @@
     "Waffo Pancake settings saved": "Waffo Pancake 設定已儲存",
     "Waffo Payment": "Waffo 支付",
     "Waffo Payment Gateway": "Waffo 支付閘道",
+    "NOWPayments is not enabled": "NOWPayments 支付未啟用",
     "Waffo payment is not enabled": "Waffo 支付未啟用",
     "Waffo Public Key (Production)": "Waffo 公鑰（生產）",
     "Waffo Public Key (Sandbox)": "Waffo 公鑰（沙盒）",
@@ -7373,6 +7374,14 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "NOWPayments (Crypto)": "NOWPayments（加密貨幣）",
+    "Customers pick their cryptocurrency on the NOWPayments hosted checkout page.": "使用者在 NOWPayments 託管的收銀頁面上選擇要使用的加密貨幣。",
+    "Create an API key and an IPN secret in the NOWPayments dashboard, then set the IPN callback to /api/nowpayments/webhook on your API domain. Saved credentials are never shown again; leave a field empty to keep the saved value.": "在 NOWPayments 後台建立 API 金鑰與 IPN 金鑰，並將 IPN 回呼位址設定為 API 網域下的 /api/nowpayments/webhook。已儲存的憑證不會再次顯示，留空表示保留已儲存的值。",
+    "Enable NOWPayments": "啟用 NOWPayments",
+    "IPN Secret Key": "IPN 金鑰",
+    "Minimum top-up amount": "最低儲值金額",
+    "Fixed exchange rate": "固定匯率",
+    "Customer pays payment fees": "由使用者承擔支付手續費"
   }
 }

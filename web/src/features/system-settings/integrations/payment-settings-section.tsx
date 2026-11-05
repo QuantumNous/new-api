@@ -70,6 +70,10 @@ import {
   normalizeJsonForComparison,
   removeTrailingSlash,
 } from './utils'
+import {
+  NowPaymentsSettingsSection,
+  type NowPaymentsSettingsValues,
+} from './nowpayments-settings-section'
 import { saveWaffoPancakeConfig } from './waffo-pancake-api'
 import {
   WaffoPancakeSettingsSection,
@@ -178,13 +182,22 @@ const paymentSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
+  NowPaymentsEnabled: z.boolean(),
+  NowPaymentsApiKey: z.string(),
+  NowPaymentsIPNSecret: z.string(),
+  NowPaymentsPriceCurrency: z.string(),
+  NowPaymentsMinTopUp: z.coerce.number().min(1),
+  NowPaymentsFixedRate: z.boolean(),
+  NowPaymentsFeePaidByUser: z.boolean(),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
 type WaffoFormFieldValues = Omit<WaffoSettingsValues, 'WaffoPayMethods'>
 type PaymentBaseFormValues = Omit<
   PaymentFormValues,
-  keyof WaffoFormFieldValues | keyof WaffoPancakeSettingsValues
+  | keyof WaffoFormFieldValues
+  | keyof WaffoPancakeSettingsValues
+  | keyof NowPaymentsSettingsValues
 >
 
 const CURRENT_COMPLIANCE_TERMS_VERSION = 'v1'
@@ -201,6 +214,7 @@ type PaymentSettingsSectionProps = {
   defaultValues: PaymentBaseFormValues
   waffoDefaultValues: WaffoSettingsValues
   waffoPancakeDefaultValues: WaffoPancakeSettingsValues
+  nowPaymentsDefaultValues: NowPaymentsSettingsValues
   waffoPancakeProvisionedStoreID?: string
   waffoPancakeProvisionedProductID?: string
   complianceDefaults: PaymentComplianceDefaults
@@ -219,6 +233,7 @@ export function PaymentSettingsSection({
   defaultValues,
   waffoDefaultValues,
   waffoPancakeDefaultValues,
+  nowPaymentsDefaultValues,
   waffoPancakeProvisionedStoreID,
   waffoPancakeProvisionedProductID,
   complianceDefaults,
@@ -231,8 +246,14 @@ export function PaymentSettingsSection({
       ...defaultValues,
       ...waffoDefaultValues,
       ...waffoPancakeDefaultValues,
+      ...nowPaymentsDefaultValues,
     }),
-    [defaultValues, waffoDefaultValues, waffoPancakeDefaultValues]
+    [
+      defaultValues,
+      waffoDefaultValues,
+      waffoPancakeDefaultValues,
+      nowPaymentsDefaultValues,
+    ]
   )
   const initialRef = React.useRef(initialFormValues)
   const defaultsSignature = React.useMemo(
@@ -393,6 +414,19 @@ export function PaymentSettingsSection({
     [setPaymentValue]
   )
 
+  const setNowPaymentsValue = React.useCallback(
+    <K extends keyof NowPaymentsSettingsValues>(
+      key: K,
+      value: NowPaymentsSettingsValues[K]
+    ) => {
+      setPaymentValue(
+        key as keyof PaymentFormValues,
+        value as PaymentFormValues[keyof PaymentFormValues]
+      )
+    },
+    [setPaymentValue]
+  )
+
   const setWaffoPancakeValue = React.useCallback(
     <K extends keyof WaffoPancakeSettingsValues>(
       key: K,
@@ -459,6 +493,14 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         values.WaffoPancakeReturnURL.trim()
       ),
+      NowPaymentsEnabled: values.NowPaymentsEnabled,
+      NowPaymentsApiKey: values.NowPaymentsApiKey.trim(),
+      NowPaymentsIPNSecret: values.NowPaymentsIPNSecret.trim(),
+      NowPaymentsPriceCurrency:
+        values.NowPaymentsPriceCurrency.trim().toLowerCase() || 'usd',
+      NowPaymentsMinTopUp: values.NowPaymentsMinTopUp,
+      NowPaymentsFixedRate: values.NowPaymentsFixedRate,
+      NowPaymentsFeePaidByUser: values.NowPaymentsFeePaidByUser,
     }
 
     const initial = {
@@ -506,6 +548,15 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         initialRef.current.WaffoPancakeReturnURL.trim()
       ),
+      NowPaymentsEnabled: initialRef.current.NowPaymentsEnabled,
+      NowPaymentsApiKey: initialRef.current.NowPaymentsApiKey.trim(),
+      NowPaymentsIPNSecret: initialRef.current.NowPaymentsIPNSecret.trim(),
+      NowPaymentsPriceCurrency:
+        initialRef.current.NowPaymentsPriceCurrency.trim().toLowerCase() ||
+        'usd',
+      NowPaymentsMinTopUp: initialRef.current.NowPaymentsMinTopUp,
+      NowPaymentsFixedRate: initialRef.current.NowPaymentsFixedRate,
+      NowPaymentsFeePaidByUser: initialRef.current.NowPaymentsFeePaidByUser,
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
@@ -703,6 +754,61 @@ export function PaymentSettingsSection({
       updates.push({ key: 'WaffoPayMethods', value: sanitized.WaffoPayMethods })
     }
 
+    if (sanitized.NowPaymentsEnabled !== initial.NowPaymentsEnabled) {
+      updates.push({
+        key: 'NowPaymentsEnabled',
+        value: sanitized.NowPaymentsEnabled,
+      })
+    }
+
+    if (
+      sanitized.NowPaymentsApiKey &&
+      sanitized.NowPaymentsApiKey !== initial.NowPaymentsApiKey
+    ) {
+      updates.push({
+        key: 'NowPaymentsApiKey',
+        value: sanitized.NowPaymentsApiKey,
+      })
+    }
+
+    if (
+      sanitized.NowPaymentsIPNSecret &&
+      sanitized.NowPaymentsIPNSecret !== initial.NowPaymentsIPNSecret
+    ) {
+      updates.push({
+        key: 'NowPaymentsIPNSecret',
+        value: sanitized.NowPaymentsIPNSecret,
+      })
+    }
+
+    if (sanitized.NowPaymentsPriceCurrency !== initial.NowPaymentsPriceCurrency) {
+      updates.push({
+        key: 'NowPaymentsPriceCurrency',
+        value: sanitized.NowPaymentsPriceCurrency,
+      })
+    }
+
+    if (sanitized.NowPaymentsMinTopUp !== initial.NowPaymentsMinTopUp) {
+      updates.push({
+        key: 'NowPaymentsMinTopUp',
+        value: sanitized.NowPaymentsMinTopUp,
+      })
+    }
+
+    if (sanitized.NowPaymentsFixedRate !== initial.NowPaymentsFixedRate) {
+      updates.push({
+        key: 'NowPaymentsFixedRate',
+        value: sanitized.NowPaymentsFixedRate,
+      })
+    }
+
+    if (sanitized.NowPaymentsFeePaidByUser !== initial.NowPaymentsFeePaidByUser) {
+      updates.push({
+        key: 'NowPaymentsFeePaidByUser',
+        value: sanitized.NowPaymentsFeePaidByUser,
+      })
+    }
+
     const hasWaffoPancakeChanges =
       sanitized.WaffoPancakeMerchantID !== initial.WaffoPancakeMerchantID ||
       sanitized.WaffoPancakePrivateKey.length > 0 ||
@@ -795,6 +901,15 @@ export function PaymentSettingsSection({
     WaffoReturnUrl: currentFormValues.WaffoReturnUrl,
     WaffoPayMethods: JSON.stringify(waffoPayMethods),
   }
+  const nowPaymentsValues: NowPaymentsSettingsValues = {
+    NowPaymentsEnabled: currentFormValues.NowPaymentsEnabled,
+    NowPaymentsApiKey: currentFormValues.NowPaymentsApiKey,
+    NowPaymentsIPNSecret: currentFormValues.NowPaymentsIPNSecret,
+    NowPaymentsPriceCurrency: currentFormValues.NowPaymentsPriceCurrency,
+    NowPaymentsMinTopUp: currentFormValues.NowPaymentsMinTopUp,
+    NowPaymentsFixedRate: currentFormValues.NowPaymentsFixedRate,
+    NowPaymentsFeePaidByUser: currentFormValues.NowPaymentsFeePaidByUser,
+  }
   const waffoPancakeValues: WaffoPancakeSettingsValues = {
     WaffoPancakeMerchantID: currentFormValues.WaffoPancakeMerchantID,
     WaffoPancakePrivateKey: currentFormValues.WaffoPancakePrivateKey,
@@ -882,13 +997,14 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[44rem] grid-cols-6'>
+              <TabsList className='grid min-w-[51rem] grid-cols-7'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
                 <TabsTrigger value='waffo'>Waffo</TabsTrigger>
+                <TabsTrigger value='nowpayments'>NOWPayments</TabsTrigger>
               </TabsList>
             </div>
 
@@ -1629,6 +1745,16 @@ export function PaymentSettingsSection({
                 onValueChange={setWaffoValue}
                 payMethods={waffoPayMethods}
                 onPayMethodsChange={setWaffoPayMethods}
+              />
+            </TabsContent>
+
+            <TabsContent
+              value='nowpayments'
+              className={paymentTabContentClassName}
+            >
+              <NowPaymentsSettingsSection
+                values={nowPaymentsValues}
+                onValueChange={setNowPaymentsValue}
               />
             </TabsContent>
           </Tabs>

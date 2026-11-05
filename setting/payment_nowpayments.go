@@ -1,13 +1,13 @@
 package setting
 
 var (
-    NowPaymentsEnabled           bool
-    NowPaymentsApiKey            string
-    NowPaymentsIPNSecret         string
+	NowPaymentsEnabled   bool
+	NowPaymentsApiKey    string
+	NowPaymentsIPNSecret string
 
-    NowPaymentsPriceCurrency     = "usd"
-    NowPaymentsMinTopUp          = 1
+	NowPaymentsPriceCurrency = "usd"
+	NowPaymentsMinTopUp      = 1
 
-    NowPaymentsFixedRate         bool
-    NowPaymentsFeePaidByUser     bool
+	NowPaymentsFixedRate     bool
+	NowPaymentsFeePaidByUser bool
 )

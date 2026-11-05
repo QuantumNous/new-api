@@ -7209,6 +7209,7 @@
     "Waffo Pancake settings saved": "Настройки Waffo Pancake сохранены",
     "Waffo Payment": "Оплата Waffo",
     "Waffo Payment Gateway": "Платёжный шлюз Waffo",
+    "NOWPayments is not enabled": "Оплата NOWPayments не включена",
     "Waffo payment is not enabled": "Оплата Waffo не включена",
     "Waffo Public Key (Production)": "Публичный ключ Waffo (Продакшн)",
     "Waffo Public Key (Sandbox)": "Публичный ключ Waffo (Песочница)",
@@ -7373,6 +7374,14 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "NOWPayments (Crypto)": "NOWPayments (криптовалюта)",
+    "Customers pick their cryptocurrency on the NOWPayments hosted checkout page.": "Клиенты выбирают криптовалюту на странице оплаты, размещённой на стороне NOWPayments.",
+    "Create an API key and an IPN secret in the NOWPayments dashboard, then set the IPN callback to /api/nowpayments/webhook on your API domain. Saved credentials are never shown again; leave a field empty to keep the saved value.": "Создайте API-ключ и секрет IPN в панели NOWPayments, затем укажите обратный вызов IPN /api/nowpayments/webhook на домене вашего API. Сохранённые учётные данные больше не отображаются; оставьте поле пустым, чтобы сохранить текущее значение.",
+    "Enable NOWPayments": "Включить NOWPayments",
+    "IPN Secret Key": "Секретный ключ IPN",
+    "Minimum top-up amount": "Минимальная сумма пополнения",
+    "Fixed exchange rate": "Фиксированный курс обмена",
+    "Customer pays payment fees": "Комиссию за платёж оплачивает клиент"
   }
 }
