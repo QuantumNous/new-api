@@ -22,14 +22,13 @@ import { SkipToMain } from '@/components/skip-to-main'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
-import { useHwCurrency } from '@/features/hw/hooks/use-hw-currency'
+import { HwPageFrame } from '@/features/hw/components/authenticated-frame'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { AppHeader } from './app-header'
 import { AppSidebar } from './app-sidebar'
-import { Footer } from './footer'
 
 type AuthenticatedLayoutProps = {
   children?: React.ReactNode
@@ -38,9 +37,6 @@ type AuthenticatedLayoutProps = {
 export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
   const signedIn = useAuthStore((s) => !!s.auth.user)
-  // Console amounts are formatted outside React state (`lib/currency.ts`), so a
-  // currency switch remounts the page to show every amount in the new currency.
-  const { currency } = useHwCurrency()
   // Unmount pages on sign-out, otherwise their queries refetch and toast "Session expired!" / "invalid access token"
   if (!signedIn) return null
 
@@ -60,16 +56,7 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
                 'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
               )}
             >
-              {/* The page fills the whole view and the footer sits below it, so
-                  the footer scrolls into view at the end of every page instead
-                  of taking a fixed slice of a small screen. */}
-              <div
-                key={currency}
-                className='flex h-full min-h-0 shrink-0 flex-col'
-              >
-                {props.children ?? <AnimatedOutlet />}
-              </div>
-              <Footer variant='compact' />
+              <HwPageFrame page={props.children ?? <AnimatedOutlet />} />
             </SidebarInset>
           </div>
         </SidebarProvider>
