@@ -29,7 +29,7 @@ func SetApiRouter(router contract.Engine) {
 		apiRouter.GET("/status", handler.GetStatus)
 		apiRouter.GET("/home_stats", handler.GetHomeStats)
 		apiRouter.GET("/uptime/status", ops.GetUptimeKumaStatus)
-		apiRouter.GET("/models", security.UserAuth(), handler.DashboardListModels)
+		apiRouter.GET("/models", security.UserAuth(), middleware.ReadOnlyCache(middleware.ReadOnlyCacheConfig{Namespace: "api_models", TTL: middleware.CacheTTLShort, Params: []string{}}), handler.DashboardListModels)
 		apiRouter.GET("/status/test", security.AdminAuth(), handler.TestStatus)
 		apiRouter.GET("/notice", handler.GetNotice)
 		apiRouter.GET("/user-agreement", handler.GetUserAgreement)
@@ -49,7 +49,7 @@ func SetApiRouter(router contract.Engine) {
 		// /api/log routes
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", security.AdminAuth(), handler.GetAllLogs)
-		logRoute.GET("/stat", security.AdminAuth(), handler.GetLogsStat)
+		logRoute.GET("/stat", security.AdminAuth(), middleware.ReadOnlyCache(middleware.ReadOnlyCacheConfig{Namespace: "api_log_stat", TTL: middleware.CacheTTLMedium, Params: []string{"type", "start_timestamp", "end_timestamp", "model_name", "username", "token_name", "channel", "group"}}), handler.GetLogsStat)
 		logRoute.GET("/self/stat", security.UserAuth(), handler.GetLogsSelfStat)
 		logRoute.GET("/channel_affinity_usage_cache", security.AdminAuth(), handler.GetChannelAffinityUsageCacheStats)
 		logRoute.GET("/search", security.AdminAuth(), handler.SearchAllLogs)
@@ -63,14 +63,14 @@ func SetApiRouter(router contract.Engine) {
 
 		// /api/data routes
 		dataRoute := apiRouter.Group("/data")
-		dataRoute.GET("/", security.AdminAuth(), handler.GetAllQuotaDates)
-		dataRoute.GET("/users", security.AdminAuth(), handler.GetQuotaDatesByUser)
+		dataRoute.GET("/", security.AdminAuth(), middleware.ReadOnlyCache(middleware.ReadOnlyCacheConfig{Namespace: "api_data", TTL: middleware.CacheTTLLong, Params: []string{"start_timestamp", "end_timestamp", "username", "default_time"}}), handler.GetAllQuotaDates)
+		dataRoute.GET("/users", security.AdminAuth(), middleware.ReadOnlyCache(middleware.ReadOnlyCacheConfig{Namespace: "api_data_users", TTL: middleware.CacheTTLLong, Params: []string{"start_timestamp", "end_timestamp"}}), handler.GetQuotaDatesByUser)
 		dataRoute.GET("/self", security.UserAuth(), handler.GetUserQuotaDates)
 		dataRoute.GET("/flow", security.AdminAuth(), handler.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", security.UserAuth(), handler.GetUserFlowQuotaDates)
 
 		// /api/rankings route
-		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), handler.GetRankings)
+		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), middleware.ReadOnlyCache(middleware.ReadOnlyCacheConfig{Namespace: "api_rankings", TTL: middleware.CacheTTLLong, Params: []string{"period"}}), handler.GetRankings)
 
 		// /api/perf-metrics routes
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")

@@ -14,7 +14,7 @@ import (
 
 	"github.com/QuantumNous/new-api/internal/transport/contract"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
 )
@@ -40,7 +40,7 @@ type responseState struct {
 	// is observed without a commit step.
 	header http.Header
 	// status is the staged status code, 0 until something wrote one. The commit
-	// translates 0 to 200; ResponseStatus reports gin's default instead, which
+	// translates 0 to 200; ResponseStatus reports the same default 200, which is
 	// is what middleware branching on it has always seen.
 	status int
 
@@ -48,7 +48,7 @@ type responseState struct {
 	// body itself in buffered mode.
 	body bytes.Buffer
 
-	fiber    *fiber.Ctx
+	fiber    fiber.Ctx
 	recorder *httptest.ResponseRecorder
 
 	// committed guards the one-shot header write.
@@ -104,7 +104,7 @@ type responseState struct {
 	mu sync.Mutex
 }
 
-func newResponseState(c *fiber.Ctx, mode dispatchMode) *responseState {
+func newResponseState(c fiber.Ctx, mode dispatchMode) *responseState {
 	state := &responseState{
 		mode:        mode,
 		fiber:       c,
@@ -154,7 +154,7 @@ func (s *responseState) isStreaming() bool {
 // gate every frame on Context().Err() (gateway.RequestContextDone), so every
 // streamed relay would stop after its first frame while the adapter's own
 // writers, which check the disconnect flag instead, kept reporting success.
-// Cancelling when the chain returns is the same lifetime gin had: the context
+// Cancelling when the chain returns keeps the same lifetime: the context
 // lives exactly as long as the code using it.
 func (s *responseState) run(adapted *requestContext) error {
 	s.cancel = adapted.cancel
@@ -267,7 +267,7 @@ func (s *responseState) writeHeaders() {
 //
 // The wire behaviour is unchanged: the server reads the pipe with
 // writeBodyChunked, whose writeChunk ends in a flush, so one flush of this writer
-// is one wire chunk exactly as it was under gin.
+// is one wire chunk exactly as it was before.
 //
 // Do not "simplify" this back to SetBodyStreamWriter.
 func (s *responseState) commitStream() error {
@@ -557,7 +557,7 @@ func (s *responseState) Flush() { _ = s.flush() }
 // ---- contract.EventStream ----
 
 // eventStream writes Server-Sent Events. The framing is byte-identical to the
-// gin adapter's, because clients parse on the exact `data: ` prefix and blank
+// previous adapter's, because clients parse on the exact `data: ` prefix and blank
 // line terminator.
 type eventStream struct {
 	state  *responseState
@@ -706,9 +706,9 @@ func (s *responseStream) SetWriteDeadline(deadline time.Time) bool {
 // response. Every mode this adapter builds can push: a chain-backed response owns
 // a *bufio.Writer over the pipe it created, a direct response writes through
 // fiber, and an in-process response records the flush on its recorder. That last
-// case is why this is not false for a synthetic context: the gin adapter reports
-// true there too, because a recorder observes flushes, and the conformance suite
-// pins that agreement between CanFlush and Flush for both adapters.
+// case is why this is not false for a synthetic context: the previous adapter
+// reports true there too, because a recorder observes flushes, and the
+// conformance suite pins that CanFlush/Flush agreement.
 func (s *responseStream) CanFlush() bool { return true }
 
 // SupportsWriteDeadline declares that this stream's writer can carry a deadline,
@@ -803,7 +803,7 @@ func ReplaceRequest(c contract.Context, req *http.Request) bool {
 // MustUnwrap recovers the fiber context behind c, panicking when c did not
 // originate from this adapter. Like Unwrap it is only valid while the fiber
 // handler is on the stack.
-func MustUnwrap(c contract.Context) *fiber.Ctx {
+func MustUnwrap(c contract.Context) fiber.Ctx {
 	fiberCtx, ok := Unwrap(c)
 	if !ok {
 		panic("fiberadapter: context did not originate from this adapter")

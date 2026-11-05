@@ -21,12 +21,12 @@ import (
 // import there would bind the shared assertions to one adapter and defeat the
 // point of having them be shared.
 func TestContractPackageDoesNotImportHTTPFramework(t *testing.T) {
-	// Fiber is the only adapter and gin is no longer a dependency of this
-	// module, yet all three stay listed. Fiber being the sole backend is the
-	// reason to keep banning it here, not a reason to relax: the contract is
-	// what makes the next swap cheap, so it must not bind to the incumbent.
-	// gin stays so a reintroduction fails this test instead of passing
-	// unnoticed.
+	// Fiber is the only adapter and the previous framework is no longer a
+	// dependency of this module, yet all three stay listed. Fiber being the sole
+	// backend is the reason to keep banning it here, not a reason to relax: the
+	// contract is what makes the next swap cheap, so it must not bind to the
+	// incumbent. The banned import stays so a reintroduction fails this test
+	// instead of passing unnoticed.
 	forbidden := []string{
 		"github.com/gin-gonic/gin",
 		"github.com/gofiber/fiber",

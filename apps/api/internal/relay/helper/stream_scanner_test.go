@@ -20,7 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/internal/transport/contract"
 	"github.com/QuantumNous/new-api/internal/transport/fiberadapter"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -369,8 +369,8 @@ func TestStreamScannerHandler_ClientHangupOverTheWireAbortsUpstream(t *testing.T
 func startScannerStream(t *testing.T, body contract.Handler) net.Conn {
 	t.Helper()
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Post("/v1/chat/completions", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Post("/v1/chat/completions", func(c fiber.Ctx) error {
 		return fiberadapter.Dispatch(c, []contract.Handler{body})
 	})
 

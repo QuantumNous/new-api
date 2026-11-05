@@ -1,7 +1,7 @@
 // Package port declares the consumer-owned interfaces the gateway and its
 // capabilities depend on. Provider adaptors and relay plumbing accept the
 // framework-neutral ingress context instead of a concrete HTTP framework
-// type, keeping this module Gin/Fiber-free.
+// type, so this package stays framework-neutral.
 package port
 
 import (

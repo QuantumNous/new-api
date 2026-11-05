@@ -12,7 +12,7 @@
 
 1. **构建镜像**：
    ```bash
-   cd deploy/caddy
+   cd deploy/caddy-prod
    docker build -t new-api-caddy:latest .
    ```
 

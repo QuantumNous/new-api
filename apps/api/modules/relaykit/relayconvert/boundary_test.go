@@ -26,7 +26,7 @@ var kitDirs = []string{
 }
 
 // Import prefixes forbidden inside the kit module: the entire host module
-// (everything outside relaykit/) and gin.
+// (everything outside relaykit/) and the banned web framework.
 var forbiddenPrefixes = []string{
 	modulePrefix,
 	"github.com/gin-gonic/gin",

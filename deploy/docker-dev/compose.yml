@@ -1,0 +1,76 @@
+# Docker 开发栈：PostgreSQL + Redis（+ 可选 API 容器）
+#
+# 用法（worktree 开发）：
+#   1. DEV_CONTAINER_ENGINE=docker just dev-db     # 只起 PostgreSQL
+#   2. DEV_CONTAINER_ENGINE=docker just dev-wt-dev # 本地 Go 二进制 + web HMR
+#
+# 需要 Redis 也在容器里：
+#   DEV_CONTAINER_ENGINE=docker just dev-db-full
+#
+# API 容器通路：
+#   DEV_CONTAINER_ENGINE=docker just dev-api
+#   just dev-web
+#
+# 手动操作：
+#   docker compose -f deploy/docker-dev/compose.yml -p deploy up -d
+#   docker compose -f deploy/docker-dev/compose.yml -p deploy down
+#   docker compose -f deploy/docker-dev/compose.yml -p deploy down -v   # 连同数据卷一起删除
+#
+# 与 deploy/podman-dev/compose.yml 保持同步：两份定义只在引擎命令上不同。
+# 容器名固定为 new-api-dev / new-api-dev-pg / new-api-dev-redis，justfile 的
+# reset-setup 直接按容器名操作。
+
+services:
+  new-api:
+    build:
+      context: ../..
+      dockerfile: deploy/dev-image/Dockerfile
+    image: new-api-dev:local
+    container_name: new-api-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - dev_data:/data
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+      - REDIS_CONN_STRING=redis://redis
+      - TZ=Asia/Shanghai
+      - BATCH_UPDATE_ENABLED=true
+      # 本地 HTTP 开发：保持 Secure=false，且不要设置 TRUSTED_URL，
+      # 否则 refresh/logout 的 OriginGuard 会拒绝 :5173 → :3000 的代理请求。
+      - SESSION_COOKIE_SECURE=false
+    depends_on:
+      - redis
+      - postgres
+
+  redis:
+    image: redis:7-alpine
+    container_name: new-api-dev-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: new-api-dev-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: new-api
+    ports:
+      - "5432:5432"
+    volumes:
+      # postgres:18 要求数据目录位于挂载点子目录（pg_upgrade --link 边界），
+      # 默认 PGDATA=/var/lib/postgresql/data。
+      - dev_pg_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  dev_data:
+  dev_pg_data:

@@ -41,7 +41,7 @@ func detectLanguage(c contract.Context) string {
 	return i18n.DefaultLang
 }
 
-// GetLanguage returns the current language from gin context
+// GetLanguage returns the current language from the contract context
 func GetLanguage(c contract.Context) string {
 	if lang := c.GetString(string(constant.ContextKeyLanguage)); lang != "" {
 		return lang

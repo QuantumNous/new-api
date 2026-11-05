@@ -2,6 +2,22 @@
 
 本文档说明 `new-api` 的部署拓扑模式、生产单机运行所需的环境变量清单以及 GitHub Actions CI/CD 自动化工作流与 Secrets 规范。
 
+## 0. 目录布局
+
+```
+deploy/
+├── docker-dev/      # Docker 本地开发栈（compose）
+├── podman-dev/      # Podman 本地开发栈（compose，默认）
+├── dev-image/       # 开发镜像构建（两个 dev compose 共用）
+├── image-prod/      # 生产镜像构建（CI Buildx 使用）
+├── podman-prod/     # 生产单机 Podman（compose + Quadlet + env 示例）
+├── caddy-prod/      # 生产反代 Caddy（Caddyfile + 镜像）
+├── k8s-prod/        # 生产/压测 K8s 清单
+└── baremetal-prod/  # 裸机 systemd 模板（非容器）
+```
+
+本地开发入口见根 `justfile`：默认引擎为 Podman，`DEV_CONTAINER_ENGINE=docker` 切到 Docker。
+
 ---
 
 ## 1. 部署模式划分
@@ -10,14 +26,14 @@
 
 | 拓扑模式 | 适用场景 | 配置文件 | 编排与控制 |
 |---|---|---|---|
-| **单机 Podman Compose（核心生产）** | 稳定独立的生产单机实例（如主站反代服务器） | `deploy/podman-compose.yml` | GitHub Actions `.github/workflows/deploy-server.yml` 自动更新镜像 |
-| **Kubernetes / K3s 集群** | 多节点分布式测试/压测集群 | `deploy/k8s/*.yaml` | `.github/workflows/deploy.yml` / `setup-k3s.yml` |
+| **单机 Podman Compose（核心生产）** | 稳定独立的生产单机实例（如主站反代服务器） | `deploy/podman-prod/compose.yml` | GitHub Actions `.github/workflows/deploy-server.yml` 自动更新镜像 |
+| **Kubernetes / K3s 集群** | 多节点分布式测试/压测集群 | `deploy/k8s-prod/*.yaml` | `.github/workflows/deploy.yml` / `setup-k3s.yml` |
 
 ---
 
-## 2. 生产单机环境变量参考（`podman-compose.yml`）
+## 2. 生产单机环境变量参考（`deploy/podman-prod/compose.yml`）
 
-生产环境部署 `new-api` 容器时，需在 `podman-compose.yml`（或其同级 `.env` 文件）中配置以下生产环境变量：
+生产环境部署 `new-api` 容器时，需在 `deploy/podman-prod/compose.yml` 及其同目录的 `.env` 中配置以下生产环境变量（模板见 `deploy/podman-prod/.env.example`）：
 
 ### A. 数据库与存储核心变量
 
@@ -93,7 +109,7 @@
 | `PROD_SERVER_USER` | **是** | `root` | SSH 登录用户名 |
 | `PROD_SERVER_SSH_KEY` | **是** | `-----BEGIN OPENSSH PRIVATE KEY...` | 专用的 ED25519 部署私钥（对应公钥部署于服务器 `~/.ssh/authorized_keys`） |
 | `PROD_SERVER_SSH_PORT` | 否 | `22` | SSH 端口，不填默认使用 `22` |
-| `PROD_DEPLOY_PATH` | 否 | `/opt/new-api/deploy` | 生产服务器上包含 `podman-compose.yml` 的绝对路径，默认 `/opt/new-api/deploy` |
+| `PROD_DEPLOY_PATH` | 否 | `/opt/new-api/deploy` | 生产服务器上包含 `podman-compose.yml` 的绝对路径，默认 `/opt/new-api/deploy`（仓内正本为 `deploy/podman-prod/compose.yml`，部署时复制并沿用服务器现有文件名） |
 
 #### 一键安全配置命令（无明文泄露注入）
 为了防止私钥在终端控制台或历史记录中意外打印，强烈建议通过重定向管道直接注入 GitHub Secrets：
@@ -117,11 +133,11 @@ gh secret set PROD_SERVER_USER -b "root" --repo <owner>/<repo>
 > - *切勿混淆：若误将公钥写入 Secrets，GitHub Actions 将因缺少私钥签名能力而遭遇 `Permission denied (publickey)` 拒绝。*
 ### B. K8s / 临时测试集群变量（与单机生产完全隔离）
 
-以下变量仅供 `deploy/k8s/` 和压测集群使用：
+以下变量仅供 `deploy/k8s-prod/` 和压测集群使用：
 
 | Secret 变量名 | 作用范围 | 说明 |
 |---|---|---|
-| `SERVERS_LIST_JSON` | K3s 集群维护 / 压测 | 格式为 `[{"host":"...","user":"...","password":"..."}]`，仅用于不稳定测试节点自动安装 k3s |
+| `SERVERS_LIST_JSON` | K3s 集群维护 / 压测 | 格式为 `[{"ip":"...","user":"...","password":"..."}]`，仅用于不稳定测试节点自动安装 k3s |
 | `KUBE_CONFIG_B64` | K8s 部署 | base64 编码的 kubeconfig，用于公网连接 K8s API Server |
 | `SQL_DSN` / `REDIS_CONN_STRING` 等 | K8s Pod 注入 | 集群内通过 `new-api-secrets` 挂载到容器 |
 
@@ -141,22 +157,21 @@ gh secret set PROD_SERVER_USER -b "root" --repo <owner>/<repo>
 5. **健康检查轮询**：连续 15 次（每 3 秒一次，共 45 秒）探测 `http://127.0.0.1:3000/api/status` 是否返回 `HTTP 200`。
 6. **自动故障回滚**：若 45 秒内未就绪，工作流自动恢复先前的镜像 Tag 并重新拉起旧版本，向 GitHub 汇报失败，防止生产环境陷入不可用状态。
 
-### Caddy 改配置后必须 restart，reload 不可用
+### Caddy 改配置后的重载方式
 
 若生产服务器已由 Nginx 切换到 Caddy（见 `../.agents/skills/newapi-production-upgrade/SKILL.md` 第 4 节），
-改完 `Caddyfile` 后**用 `systemctl restart caddy`，不要用 `systemctl reload caddy`**。
+改完 `Caddyfile` 后**用 `systemctl restart caddy`，不要依赖 `systemctl reload caddy`**。
 
-本项目的 Caddyfile 在全局块里显式关闭了 admin API：
+`caddy reload` 的实现是把新配置 POST 到 admin API（默认 `localhost:2019/load`）。
+本仓的 `deploy/caddy-prod/Caddyfile` 没有关闭 admin API，但生产 unit 的 `ExecReload` 不带
+`--environ`：reload 由 caddy 进程自行重新解析配置，`{env.CF_API_TOKEN}` 取到空串后
+provision 失败：
 
-```caddyfile
-{
-	admin off        # 关闭 2019 管理端点，属于有意的加固
-	...
-}
+```
+loading module 'cloudflare': ... API token '' appears invalid
 ```
 
-而 `caddy reload` 的实现是把新配置 POST 到 admin API（`localhost:2019/load`）。
-admin 关掉之后，reload 必然失败：
+若主机另外显式配置了 `admin off`，reload 会直接连接失败：
 
 ```
 Job for caddy.service failed.
@@ -165,7 +180,7 @@ error  sending configuration to instance: performing request:
        Post "http://localhost:2019/load": dial tcp ...: connection refused
 ```
 
-确认端口是否真的关着：`ss -tlnH | grep -c ':2019'` 返回 `0`。
+确认 admin 端点状态：`ss -tlnH | grep -c ':2019'`（返回 `1` 表示默认监听开启）。
 
 **最危险的一点**：失败的 reload 不会杀掉运行中的 caddy。旧进程继续用**旧配置**对外服务，
 站点照常返回 200，很容易误判成"配置已生效"。改完 Caddyfile 务必验证真实生效，
@@ -223,47 +238,27 @@ systemctl restart caddy    # 走 ExecStart，能拿到 --environ 注入的 token
 unit 的 `ExecStart` 带 `--environ`，caddy 会把继承到的**全部**环境变量明文 echo 进
 journal，其中包括 `CF_API_TOKEN`。排查日志时不要整段复制外泄，若该 token 已出现在
 日志或终端记录中应尽快在 Cloudflare 侧轮换。
- (docs: remove host-specific names from deploy docs)
-
-```
-loading module 'cloudflare': ... API token '' appears invalid
-```
-
-失败的 `systemctl reload` **不会杀掉运行中的 caddy**，旧进程继续用旧配置对外服务，
-因此表面上站点仍是 200 —— 容易误判为"配置已生效"。
-
-正确做法：
-
-```bash
-systemctl restart caddy    # 走 ExecStart，能拿到 --environ 注入的 token
-```
-
-代价是 443 端口中断数秒（证书已在本地缓存，不会重新触发 DNS-01 挑战）。
-
-> 另注：unit 的 `--environ` 会把 caddy 继承到的**全部**环境变量明文 echo 到
-> journal，包括 `CF_API_TOKEN`。排查日志时注意不要复制外泄，必要时轮换该 token。
 
 ## 5. Podman 单机部署（标准生产模式）
 
-生产单机使用 Podman 编排，资产位于 `deploy/podman-compose.yml` 与 `deploy/podman/`。
+生产单机使用 Podman 编排，资产位于 `deploy/podman-prod/`。
 
 ```bash
 # 启动整栈（new-api + PostgreSQL/TimescaleDB）
-podman compose -f deploy/podman-compose.yml up -d
+podman compose -f deploy/podman-prod/compose.yml up -d
 
 # 或使用 Quadlet 单元固化开机自启（推荐生产）
-cp deploy/podman/quadlet/*.container /etc/containers/systemd/
+cp deploy/podman-prod/quadlet/*.container /etc/containers/systemd/
 systemctl daemon-reload
 systemctl enable --now new-api newapi-postgres
 ```
 
 说明：
 
-1. PostgreSQL 使用命名卷 `newapi-pg-data` 持久化，不依赖容器生命周期。
-2. 生产环境优先使用 `deploy/podman/quadlet/` 下的 Quadlet 单元，避免重启后服务丢失。
+1. Quadlet 单元使用命名卷 `newapi-pg-data`；Compose 使用带项目前缀的 `pg_data`（在服务器上为 `deploy_pg_data`）。两者都不依赖容器生命周期。
+2. 生产环境优先使用 `deploy/podman-prod/quadlet/` 下的 Quadlet 单元，避免重启后服务丢失。
 3. Caddy 通过 `systemctl restart caddy` 完成反代切换。
 4. 生产服务器不依赖 Docker 守护进程；镜像仍由 CI 在 runner 上用 Docker Buildx 构建并推送到 GHCR，Podman 直接 `pull` 运行。
- (chore(deploy): replace Docker Compose deployment with Podman)
 
 ## 6. 生产安全部署：避免 dev 免登录进入生产
 

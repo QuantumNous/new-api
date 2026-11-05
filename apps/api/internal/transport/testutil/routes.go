@@ -11,7 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/internal/transport/contract"
 	"github.com/QuantumNous/new-api/internal/transport/fiberadapter"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // ServeBufferedRoute runs an ordinary buffered request through a real Fiber
@@ -34,15 +34,15 @@ func ServeBufferedRoute(t testing.TB, method, pattern string, middleware []contr
 		t.Fatal("ServeBufferedRoute does not support SSE or WebSocket requests")
 	}
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app := fiber.New(fiber.Config{})
 	chain := make([]contract.Handler, 0, len(middleware)+1)
 	for _, middleware := range middleware {
 		chain = append(chain, contract.Handler(middleware))
 	}
 	chain = append(chain, handler)
-	app.Add(method, pattern, func(c *fiber.Ctx) error { return fiberadapter.Dispatch(c, chain) })
+	app.Add([]string{method}, pattern, func(c fiber.Ctx) error { return fiberadapter.Dispatch(c, chain) })
 
-	response, err := app.Test(req, int(10*time.Second/time.Millisecond))
+	response, err := app.Test(req, fiber.TestConfig{Timeout: 10 * time.Second})
 	if err != nil {
 		t.Fatalf("serve buffered Fiber route: %v", err)
 	}

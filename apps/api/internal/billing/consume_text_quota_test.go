@@ -1113,8 +1113,9 @@ func TestCalculateTextQuotaSummaryPerCallWithOutputNotWaived(t *testing.T) {
 	assert.False(t, summary.EmptyResponseWaived)
 }
 
-func TestCalculateTextQuotaSummaryObservedReasoningOnlyIsEmpty(t *testing.T) {
+func TestCalculateTextQuotaSummaryObservedReasoningOnlyChargedAsUpstreamTruncated(t *testing.T) {
 	setEmptyResponseMultiplier(t, 0.3)
+	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	relayInfo := perCallRelayInfo(0.38, 1)
 	relayInfo.StreamContentObserved = true
@@ -1124,10 +1125,13 @@ func TestCalculateTextQuotaSummaryObservedReasoningOnlyIsEmpty(t *testing.T) {
 
 	summary := calculateTextQuotaSummary(ctxRaw, relayInfo, usage)
 	applyEmptyResponseMultiplier(relayInfo, &summary, "")
+	applyTruncatedResponseMultiplier(relayInfo, &summary, false)
 
 	expected := int(decimal.NewFromFloat(0.38).Mul(decimal.NewFromFloat(float64(common.QuotaPerUnit))).Mul(decimal.NewFromFloat(0.3)).IntPart())
-	require.Equal(t, expected, summary.Quota, "reasoning-only output delivers no visible text")
-	assert.True(t, summary.EmptyResponseDetected)
+	require.Equal(t, expected, summary.Quota, "reasoning-only output is an incomplete upstream delivery")
+	assert.False(t, summary.EmptyResponseDetected)
+	assert.True(t, summary.TruncatedResponseApplied)
+	assert.Equal(t, "upstream", summary.StreamCut)
 }
 
 func TestCalculateTextQuotaSummaryObservedTextNotWaived(t *testing.T) {

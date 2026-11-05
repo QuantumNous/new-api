@@ -37,7 +37,7 @@ npx skills add shadcn/ui
 That installs the skill where the `skills` CLI is available. **This repository** keeps the same intent under `.agents/skills/shadcn-ui/` (overview here + **vendored** upstream docs in [`vendor/shadcn/`](./vendor/shadcn/)) and runs the shadcn CLI from the frontend app root:
 
 ```bash
-cd web && bunx shadcn@latest info --json
+cd apps/web && bunx shadcn@latest info --json
 ```
 
 Learn more about skills at [skills.sh](https://skills.sh).
@@ -48,7 +48,7 @@ Learn more about skills at [skills.sh](https://skills.sh).
 
 ### Project context
 
-Run **`shadcn info --json`** (here: `cd web && bunx shadcn@latest info --json`) for framework, Tailwind version, aliases, base (`radix` | `base`), icon library, installed components, and resolved paths.
+Run **`shadcn info --json`** (here: `cd apps/web && bunx shadcn@latest info --json`) for framework, Tailwind version, aliases, base (`radix` | `base`), icon library, installed components, and resolved paths.
 
 ### CLI commands
 
@@ -70,7 +70,7 @@ Vendored: [`vendor/shadcn/mcp.md`](./vendor/shadcn/mcp.md). Live docs: [MCP Serv
 
 ## How it works
 
-1. **Project detection** — Applies when `components.json` exists (here: `web/components.json`).
+1. **Project detection** — Applies when `components.json` exists (here: `apps/web/components.json`).
 2. **Context injection** — Use `shadcn info --json` as ground truth for imports and APIs.
 3. **Pattern enforcement** — Use [`vendor/shadcn/rules/`](./vendor/shadcn/rules/) for concrete markup checks; the complete official workflow reference is listed below for deeper CLI, registry, and preset questions.
 4. **Component discovery** — `shadcn docs`, `shadcn search`, MCP, or registries — see the official workflow reference and MCP doc when deeper context is needed.

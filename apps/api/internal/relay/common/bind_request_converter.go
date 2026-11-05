@@ -10,7 +10,7 @@ import (
 
 func init() {
 	relayconvert.SetMediaResolver(relayconvert.MediaResolver{
-		// relayconvert is gin-free; recover the contract context threaded
+		// relayconvert is framework-free; recover the contract context threaded
 		// through the request context so file caching/cleanup keeps working.
 		GetBase64Data: func(ctx context.Context, source types.FileSource, reason ...string) (string, string, error) {
 			if cc, ok := ctx.Value(mediaContractKey{}).(contract.Context); ok {

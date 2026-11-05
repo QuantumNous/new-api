@@ -2,7 +2,7 @@
 
 > **什么时候读**：建 worktree、多 agent 并行开发、或收尾清理 `.wt/` 之前。
 > **解决什么**：worktree 放哪、怎么建不会嵌套、怎么清。强制硬规则（嵌套检查/删除纪律）
-> 以 `../tasks/closeout.md` 第九节为准，本文件讲操作。
+> 收尾流程以 `closeout` skill 为准，本文件讲操作。
 
 ## 原则
 所有开发/子代理改动必须在 `.wt/<编号>-<分支名>` worktree 中进行，根目录工作树不被修改污染。防止多 agent 共享工作区时的重叠冲突（Epic #185 事故：另一 agent 分支被 checkout，spec 值被覆盖导致 sub-issue 挂错 parent）。
@@ -11,7 +11,7 @@
 
 ### 1. 创建 worktree
 ```bash
-cd ~/projects/omenic
+cd <new-api 主 checkout 根目录>
 git fetch origin main
 git worktree add .wt/<issue编号>-<分支名> -b <分支名> origin/main
 ```
@@ -32,7 +32,7 @@ git push -u origin <分支名>
 
 ### 4. 完成后清理
 ```bash
-cd ~/projects/omenic
+cd <new-api 主 checkout 根目录>
 git worktree remove .wt/<issue编号>-<分支名>
 ```
 

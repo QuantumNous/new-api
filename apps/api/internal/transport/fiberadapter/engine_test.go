@@ -19,7 +19,7 @@ import (
 
 	"github.com/QuantumNous/new-api/internal/transport/contract"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -111,8 +111,8 @@ func (l *singleConnListener) Addr() net.Addr {
 
 // ---- trusted proxies ----
 
-// clientIPEngine registers the same probe the preserved gin middleware test
-// uses, so the two implementations are compared on identical ground.
+// clientIPEngine registers the same probe the preserved middleware test uses,
+// so both implementations are compared on identical ground.
 func clientIPEngine(t *testing.T) (contract.Engine, *fiber.App) {
 	t.Helper()
 	server, app := newTestEngine(t)
@@ -123,8 +123,8 @@ func clientIPEngine(t *testing.T) (contract.Engine, *fiber.App) {
 }
 
 // defaultTrustedProxies is middleware.defaultTrustedProxyCIDRs. It is duplicated
-// rather than imported because that package imports the gin adapter, and a test
-// in this package importing it would make the adapters mutually dependent.
+// rather than imported because importing it from a test in this package would
+// make the middleware package and this adapter's tests mutually dependent.
 var defaultTrustedProxies = []string{
 	"127.0.0.0/8",
 	"::1",
@@ -191,9 +191,10 @@ func TestTrustProxiesWalksPastChainedTrustedHops(t *testing.T) {
 	assert.Equal(t, "203.0.113.10", resolved)
 }
 
-// TestTrustProxiesAbandonsMalformedChain matches gin: an unparseable entry ends
-// the walk rather than being skipped, because past a malformed hop the chain
-// cannot be reasoned about, and the peer address stays authoritative.
+// TestTrustProxiesAbandonsMalformedChain follows the previous transport's rule:
+// an unparseable entry ends the walk rather than being skipped, because past a
+// malformed hop the chain cannot be reasoned about, and the peer address stays
+// authoritative.
 func TestTrustProxiesAbandonsMalformedChain(t *testing.T) {
 	resolved := clientIPFor(t, defaultTrustedProxies, "127.0.0.1:12345", "203.0.113.10, not-an-ip")
 	assert.Equal(t, "127.0.0.1", resolved)
@@ -225,10 +226,11 @@ func TestTrustProxiesExplicitListReplacesDefaults(t *testing.T) {
 		"an explicit list must replace, not extend, the compatibility defaults")
 }
 
-// TestTrustProxiesMatchesNonCanonicalIPv6 pins the bare-address handling. gin
-// promotes a bare address to a /128 network and compares numerically; fiber keys
-// a map on the literal string, so a non-canonical spelling of the same address
-// would miss and the proxy would silently stop being trusted.
+// TestTrustProxiesMatchesNonCanonicalIPv6 pins the bare-address handling. The
+// previous transport promoted a bare address to a /128 network and compared
+// numerically; fiber keys a map on the literal string, so a non-canonical
+// spelling of the same address would miss and the proxy would silently stop being
+// trusted.
 func TestTrustProxiesMatchesNonCanonicalIPv6(t *testing.T) {
 	resolved := clientIPFor(t, []string{"2001:0db8:0000:0000:0000:0000:0000:0001"},
 		"[2001:db8::1]:12345", "203.0.113.30")
@@ -256,8 +258,9 @@ func TestTrustProxiesRejectsInvalidConfiguration(t *testing.T) {
 	}
 }
 
-// TestTrustProxiesFallsBackToRealIPHeader covers the second header in gin's
-// RemoteIPHeaders list. fiber's ProxyHeader names one header and has no fallback.
+// TestTrustProxiesFallsBackToRealIPHeader covers X-Real-IP as the fallback
+// header after X-Forwarded-For. fiber's ProxyHeader names one header and has no
+// fallback.
 func TestTrustProxiesFallsBackToRealIPHeader(t *testing.T) {
 	server, app := clientIPEngine(t)
 	require.NoError(t, server.TrustProxies(defaultTrustedProxies))
@@ -272,14 +275,14 @@ func TestTrustProxiesFallsBackToRealIPHeader(t *testing.T) {
 // fiber app never resolves an address, so the context falls back to the peer
 // rather than to a forwarded header.
 func TestResolvedClientIPIsAbsentWithoutEngine(t *testing.T) {
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/probe", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Get("/probe", func(c fiber.Ctx) error {
 		_, ok := ResolvedClientIP(c)
 		assert.False(t, ok)
 		return c.SendStatus(http.StatusOK)
 	})
 
-	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/probe", nil), 5000)
+	response, err := app.Test(httptest.NewRequest(http.MethodGet, "/probe", nil), fiber.TestConfig{Timeout: 5 * time.Second})
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 }
@@ -310,8 +313,8 @@ func TestRoutesRegisterOneRoutePerVerb(t *testing.T) {
 	}, registeredRoutes(app))
 }
 
-// TestRoutesAnyRegistersEveryRoutedMethod matches gin's Any, which registers the
-// same nine verbs fiber routes.
+// TestRoutesAnyRegistersEveryRoutedMethod registers every routed verb, which is
+// the same nine verbs fiber routes.
 func TestRoutesAnyRegistersEveryRoutedMethod(t *testing.T) {
 	server, app := newTestEngine(t)
 	server.Any("/anything", func(contract.Context) {})
@@ -323,10 +326,10 @@ func TestRoutesAnyRegistersEveryRoutedMethod(t *testing.T) {
 	assert.Contains(t, registered, "HEAD /anything")
 }
 
-// TestRoutesGroupPathsMatchGinJoin pins the path arithmetic. fiber's own
+// TestRoutesGroupPathsMatchJoinArithmetic pins the path arithmetic.
 // getGroupPath drops a trailing slash the caller asked for, and several
 // registered routes end in one.
-func TestRoutesGroupPathsMatchGinJoin(t *testing.T) {
+func TestRoutesGroupPathsMatchJoinArithmetic(t *testing.T) {
 	server, app := newTestEngine(t)
 	noop := func(contract.Context) {}
 
@@ -360,17 +363,15 @@ func TestRoutesGroupPathsMatchGinJoin(t *testing.T) {
 	}, registeredRoutes(app))
 }
 
-// TestRoutesWildcardIsRegisteredBare is the one registration difference from gin
-// that is observable, and it is a deliberate trade.
+// TestRoutesWildcardIsRegisteredBare is the one registration difference from the
+// previous transport that is observable, and it is a deliberate trade.
 //
-// gin spells a catch-all "/*path" and resolves it as Param("path"). fiber spells
-// it "/*" and does not ignore trailing text: it parses "/*path" as a wildcard
-// followed by the literal "path", so POST /v1beta/models/gemini-pro:generateContent
+// The previous transport spells a catch-all "/*path" and resolves it as
+// Param("path"). fiber spells it "/*" and does not ignore trailing text: it
+// parses "/*path" as a wildcard followed by the literal "path", so POST /v1beta/models/gemini-pro:generateContent
 // does not match "/v1beta/models/*path" at all -- verified, it answers 404.
-// Registering the gin spelling verbatim would therefore break every Gemini relay
+// Registering the previous spelling verbatim would therefore break every Gemini relay
 // request, which is strictly worse than changing the registered path string. So
-// the star is registered bare and the original name is carried on the request for
-// the context layer to resolve Param against.
 //
 // Consequence for the route snapshot: the three wildcard routes appear as "/*"
 // rather than "/*path". testdata/routes_*.txt is not updated here; W3 owns that
@@ -399,13 +400,13 @@ func TestRoutesWildcardMatchesAColonSuffixedPath(t *testing.T) {
 
 	response := requestPath(t, app, http.MethodPost, "/v1beta/models/gemini-pro:generateContent")
 	assert.Equal(t, http.StatusOK, response.StatusCode,
-		"registering the gin spelling verbatim makes this 404")
+		"registering the previous transport's spelling verbatim makes this 404")
 	assert.Equal(t, "relayed", readBody(t, response))
 	assert.Equal(t, "path", <-matched,
 		"the original wildcard name must reach the context layer")
 }
 
-func mustUnwrapForTest(t *testing.T, c contract.Context) *fiber.Ctx {
+func mustUnwrapForTest(t *testing.T, c contract.Context) fiber.Ctx {
 	t.Helper()
 	fiberCtx, ok := Unwrap(c)
 	require.True(t, ok)
@@ -611,8 +612,9 @@ func TestNoRouteSplitsApiPathsFromTheSpaIndex(t *testing.T) {
 
 // TestMethodNotAllowedFallsIntoNoRoute is the 405 question, pinned.
 //
-// gin runs with HandleMethodNotAllowed false, so POST to a path that only has a
-// GET route falls into the no-route chain and is answered with the SPA index.
+// The previous transport ran with HandleMethodNotAllowed false, so POST to a
+// path that only has a GET route falls into the no-route chain and is answered
+// with the SPA index.
 // fiber's app.next raises ErrMethodNotAllowed for exactly that case, which would
 // have made this a 405. The terminal route matches every method, so app.next
 // finds it and never reaches that branch: the divergence does not ship.
@@ -621,14 +623,14 @@ func TestMethodNotAllowedFallsIntoNoRoute(t *testing.T) {
 
 	response := requestPath(t, app, http.MethodPost, "/channels")
 	assert.Equal(t, http.StatusOK, response.StatusCode,
-		"a wrong-method request must reach the SPA fallback, as it does under gin")
+		"a wrong-method request must reach the SPA fallback")
 	assert.Equal(t, "<html>index</html>", readBody(t, response))
 	assert.Empty(t, response.Header.Get("Allow"),
 		"fiber's 405 path sets Allow; seeing it would mean the fallback was bypassed")
 }
 
-// TestNoRouteReplacesAnEarlierFallback matches gin's NoRoute, where a second call
-// replaces the chain rather than appending to it.
+// TestNoRouteReplacesAnEarlierFallback matches the NoRoute semantics: a second
+// call replaces the chain rather than appending to it.
 func TestNoRouteReplacesAnEarlierFallback(t *testing.T) {
 	server, app := newTestEngine(t)
 	server.NoRoute(func(c contract.Context) { _ = c.String(http.StatusOK, "first") })
@@ -639,9 +641,9 @@ func TestNoRouteReplacesAnEarlierFallback(t *testing.T) {
 }
 
 // TestFallbackRunsEngineMiddleware keeps the engine's middleware in front of the
-// fallback, as gin does: allNoRoute is the engine's middleware plus the no-route
-// chain, so a request that matched nothing still gets the request id and the
-// access log.
+// fallback, as the previous transport did: allNoRoute is the engine's middleware
+// plus the no-route chain, so a request that matched nothing still gets the
+// request id and the access log.
 func TestFallbackRunsEngineMiddleware(t *testing.T) {
 	server, app := newTestEngine(t)
 	server.Use(func(c contract.Context) {
@@ -654,8 +656,9 @@ func TestFallbackRunsEngineMiddleware(t *testing.T) {
 	assert.Equal(t, "ran", response.Header.Get("X-Engine-Middleware"))
 }
 
-// TestFallbackRunsMiddlewareMountedAfterTheFallback covers the ordering gin gets
-// from rebuilding allNoRoute whenever the engine's middleware changes.
+// TestFallbackRunsMiddlewareMountedAfterTheFallback covers the ordering the
+// previous transport got from rebuilding allNoRoute whenever the engine's
+// middleware changes.
 func TestFallbackRunsMiddlewareMountedAfterTheFallback(t *testing.T) {
 	server, app := newTestEngine(t)
 	server.NoRoute(func(c contract.Context) { _ = c.String(http.StatusOK, "fallback") })
@@ -727,8 +730,8 @@ func TestUseCORSPreflightSendsLiteralWildcardHeaders(t *testing.T) {
 	assert.Equal(t, "43200", response.Header.Get("Access-Control-Max-Age"))
 }
 
-// TestUseCORSSendsNothingForANonCrossOriginRequest is gin's short-circuit, which
-// fiber's middleware has no branch for.
+// TestUseCORSSendsNothingForANonCrossOriginRequest is the CORS short-circuit,
+// which fiber's middleware has no branch for.
 func TestUseCORSSendsNothingForANonCrossOriginRequest(t *testing.T) {
 	_, app := corsEngine(t)
 
@@ -748,7 +751,7 @@ func TestUseCORSSendsNothingForANonCrossOriginRequest(t *testing.T) {
 	})
 }
 
-// TestUseCORSIsScopedToItsGroup keeps gin's per-group policy: two API groups
+// TestUseCORSIsScopedToItsGroup keeps the per-group policy: two API groups
 // enable CORS and the rest of the API does not.
 func TestUseCORSIsScopedToItsGroup(t *testing.T) {
 	_, app := corsEngine(t)
@@ -779,10 +782,10 @@ func TestUseCompressionCompressesABufferedResponse(t *testing.T) {
 	assert.Equal(t, "gzip", response.Header.Get("Content-Encoding"))
 }
 
-// TestSkipCompressionReproducesGinsRules covers gin-contrib/gzip's shouldCompress
-// decision table directly. The Upgrade and SSE rules are the ones that keep a
-// streaming response from being materialised and truncated.
-func TestSkipCompressionReproducesGinsRules(t *testing.T) {
+// TestSkipCompressionRules covers the gzip shouldCompress decision table
+// directly. The Upgrade and SSE rules are the ones that keep a streaming
+// response from being materialised and truncated.
+func TestSkipCompressionRules(t *testing.T) {
 	for _, testCase := range []struct {
 		name    string
 		path    string
@@ -821,9 +824,9 @@ func TestSkipCompressionReproducesGinsRules(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			probe := fiber.New(fiber.Config{DisableStartupMessage: true})
+			probe := fiber.New(fiber.Config{})
 			observed := false
-			probe.Add(http.MethodGet, "/+", func(c *fiber.Ctx) error {
+			probe.Add([]string{http.MethodGet}, "/+", func(c fiber.Ctx) error {
 				observed = skipCompression(c)
 				return c.SendStatus(http.StatusOK)
 			})
@@ -832,7 +835,7 @@ func TestSkipCompressionReproducesGinsRules(t *testing.T) {
 			for name, value := range testCase.headers {
 				req.Header.Set(name, value)
 			}
-			response, err := probe.Test(req, 5000)
+			response, err := probe.Test(req, fiber.TestConfig{Timeout: 5 * time.Second})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, response.StatusCode)
 			assert.Equal(t, testCase.skipped, observed)
@@ -840,11 +843,10 @@ func TestSkipCompressionReproducesGinsRules(t *testing.T) {
 	}
 }
 
-// TestSkipCompressionSkipsAStreamedResponse is the rule with no gin counterpart.
-// gin wrapped the response writer so a stream compressed incrementally; fiber
-// compresses a materialised body, which for a stream would mean draining the pipe
-// the chain is still writing into. It covers the raw stream endpoints (video
-// content, the dashboard proxy) that send no SSE request header.
+// TestSkipCompressionSkipsAStreamedResponse is the rule with no counterpart in
+// the previous transport. The previous transport wrapped the response writer so
+// a stream compressed incrementally; fiber compresses a materialised body, which
+// for a stream would mean draining the pipe the chain is still writing into.
 func TestSkipCompressionSkipsAStreamedResponse(t *testing.T) {
 	server, app := newTestEngine(t)
 	server.UseCompression()
@@ -864,6 +866,79 @@ func TestSkipCompressionSkipsAStreamedResponse(t *testing.T) {
 	assert.Empty(t, response.Header.Get("Content-Encoding"),
 		"compressing a streamed response would drain the pipe the chain is still writing into")
 	assert.Contains(t, readBody(t, response), "streamed chunk")
+}
+
+// ---- helmet and etag ----
+
+// TestHelmetSetsSecurityHeaders pins the security headers the engine sends on
+// every response. The client-IP resolver stays first, helmet runs next, and
+// nothing afterwards removes the headers. ContentSecurityPolicy is absent
+// because its config is deliberately empty: the SPA supplies its own policy.
+func TestHelmetSetsSecurityHeaders(t *testing.T) {
+	server, app := newTestEngine(t)
+	server.GET("/security-headers", func(c contract.Context) {
+		_ = c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte("ok"))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/security-headers", nil)
+	response := request(t, app, req, "127.0.0.1:12345")
+
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, "nosniff", response.Header.Get("X-Content-Type-Options"))
+	assert.Equal(t, "SAMEORIGIN", response.Header.Get("X-Frame-Options"))
+	assert.Equal(t, "strict-origin-when-cross-origin", response.Header.Get("Referrer-Policy"))
+	assert.Empty(t, response.Header.Get("Content-Security-Policy"))
+}
+
+// TestETagSendsWeakValidatorAndHonorsIfNoneMatch: the first response carries a
+// weak ETag over the fixed JSON body. Repeating the request with
+// If-None-Match set to that ETag returns 304 with an empty body and the same
+// ETag. The validator is weak because the body passes through the repo's own
+// compression layer afterwards, which changes the bytes.
+func TestETagSendsWeakValidatorAndHonorsIfNoneMatch(t *testing.T) {
+	server, app := newTestEngine(t)
+	server.GET("/etag", func(c contract.Context) {
+		_ = c.Data(http.StatusOK, "application/json", []byte(`{"status":"ok"}`))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/etag", nil)
+	response := request(t, app, req, "127.0.0.1:12345")
+
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	etag := response.Header.Get("ETag")
+	require.NotEmpty(t, etag, "the first response must carry an ETag")
+	assert.True(t, strings.HasPrefix(etag, "W/"), "content-coding changes the body, so the validator is weak")
+
+	req = httptest.NewRequest(http.MethodGet, "/etag", nil)
+	req.Header.Set("If-None-Match", etag)
+	response = request(t, app, req, "127.0.0.1:12345")
+
+	require.Equal(t, http.StatusNotModified, response.StatusCode)
+	assert.Empty(t, readBody(t, response), "a 304 response carries no body")
+	assert.Equal(t, etag, response.Header.Get("ETag"), "the ETag is sent on both 200 and 304 responses")
+}
+
+// TestETagSkipsServerSentEvents: an event-stream response passes through the
+// etag middleware untouched -- no ETag header, and the frame still reaches
+// the client because the middleware skips event streams itself instead of
+// buffering them to hash.
+func TestETagSkipsServerSentEvents(t *testing.T) {
+	server, app := newTestEngine(t)
+	server.GET("/events", func(c contract.Context) {
+		stream := c.EventStream()
+		require.NotNil(t, stream)
+		stream.SetHeaders()
+		_, err := stream.WriteRaw([]byte("data: hello\n\n"))
+		require.NoError(t, err)
+		require.NoError(t, stream.Flush())
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/events", nil)
+	response := request(t, app, req, "127.0.0.1:12345")
+
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Empty(t, response.Header.Get("ETag"), "the etag middleware skips event streams itself")
+	assert.Contains(t, readBody(t, response), "data: hello")
 }
 
 // ---- access log ----
@@ -894,7 +969,7 @@ func TestUseRequestLogRendersTheCompletedRequest(t *testing.T) {
 		assert.Equal(t, http.StatusTeapot, entry.StatusCode)
 		assert.Equal(t, http.MethodGet, entry.Method)
 		assert.Equal(t, "/logged?verbose=1", entry.Path,
-			"gin's logger appends the raw query to the path")
+			"the access log appends the raw query to the path")
 		assert.Equal(t, "127.0.0.1", entry.ClientIP)
 		assert.Equal(t, "api", entry.Values["route_tag"])
 		assert.Equal(t, "req-1", entry.Values["X-Request-Id"])
@@ -936,7 +1011,7 @@ func TestRecoveryHandsThePanicToTheRenderer(t *testing.T) {
 	}
 }
 
-// TestRecoverySkipsTheRendererOnABrokenPipe reproduces gin's branch: a dead
+// TestRecoverySkipsTheRendererOnABrokenPipe reproduces the recovery branch: a dead
 // connection cannot be written to, so calling the renderer would only produce a
 // second failure.
 func TestRecoverySkipsTheRendererOnABrokenPipe(t *testing.T) {

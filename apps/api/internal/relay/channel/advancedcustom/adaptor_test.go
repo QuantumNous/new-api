@@ -559,7 +559,7 @@ func TestAdaptorResponsesToGeminiUsesResponsesBridge(t *testing.T) {
 	body, err := common.Marshal(payload)
 	require.NoError(t, err)
 
-	// A real upstream response always carries a status; gin's writer silently
+	// A real upstream response always carries a status; the writer silently
 	// dropped WriteHeader(0) for a zero-valued fixture, the recorder rejects it.
 	usage, newAPIError := adaptor.DoResponse(cc, &http.Response{
 		StatusCode: http.StatusOK,

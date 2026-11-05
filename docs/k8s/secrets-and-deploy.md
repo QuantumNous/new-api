@@ -2,7 +2,7 @@
 
 本文档说明 new-api 的 Kubernetes 部署如何在**仓库不持有任何明文凭证**的前提下完成：凭证只存在于 GitHub Actions Secrets 中，由 publish workflow 在部署时注入集群，生成集群内 Kubernetes Secret；manifests 只通过 `secretKeyRef` 引用 Secret 名称。
 
-对应 issue #70。基础 workflow 与 Secret 引用骨架已由 PR #77（issue #73）交付，见 `.github/workflows/deploy.yml` 与 `deploy/k8s/README.md`。本文档做原理说明与运维深化，不重写基础 workflow。
+对应 issue #70。基础 workflow 与 Secret 引用骨架已由 PR #77（issue #73）交付，见 `.github/workflows/deploy.yml` 与 `deploy/k8s-prod/README.md`。本文档做原理说明与运维深化，不重写基础 workflow。
 
 ## 1. 需要在 GitHub 配置的 Secret
 
@@ -47,10 +47,10 @@ Pod 环境变量
 
 三条保证：
 
-1. **仓库零明文**：`deploy/k8s/*.yaml` 只写 `secretKeyRef.name: new-api-secrets` 与 `key: <字段名>`，从不写值。可用如下命令验证仓库无明文连接串：
+1. **仓库零明文**：`deploy/k8s-prod/*.yaml` 只写 `secretKeyRef.name: new-api-secrets` 与 `key: <字段名>`，从不写值。可用如下命令验证仓库无明文连接串：
 
    ```bash
-   grep -rnE "postgres(ql)?://[^ ]*:[^ @]+@|redis://[^ ]*:[^ @]+@" deploy/k8s/ .github/
+   grep -rnE "postgres(ql)?://[^ ]*:[^ @]+@|redis://[^ ]*:[^ @]+@" deploy/k8s-prod/ .github/
    ```
 
    预期无输出。
@@ -153,7 +153,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main
 
 ### 4.5 数据层连接串用集群 DNS 名
 
-PG/Redis 由 `deploy/k8s/postgres.yaml` / `redis.yaml` 部署在集群内时，`SQL_DSN` 与 `REDIS_CONN_STRING` 必须写成：
+PG/Redis 由 `deploy/k8s-prod/postgres.yaml` / `redis.yaml` 部署在集群内时，`SQL_DSN` 与 `REDIS_CONN_STRING` 必须写成：
 
 | Secret | 值 |
 |---|---|
@@ -182,7 +182,7 @@ curl -N -H "Authorization: Bearer <token>" \
   http://<control-plane-IP>:30080/v1/chat/completions
 ```
 
-返回 200 且流式逐块输出即正常。之后有域名时，把 `deploy/k8s/ingress.yaml` 的 `api.example.com` 替换为真实域名，DNS A 记录指向 control-plane 节点 IP，即可用标准 80/443 端口访问。
+返回 200 且流式逐块输出即正常。之后有域名时，把 `deploy/k8s-prod/ingress.yaml` 的 `api.example.com` 替换为真实域名，DNS A 记录指向 control-plane 节点 IP，即可用标准 80/443 端口访问。
 ## 5. CI/CD 链路：构建与显式部署
 
 构建和生产部署分离，避免快速迭代直接重启线上应用：
@@ -216,7 +216,7 @@ git tag v0.11.0 && git push --tags
 ## 7. 最小权限 kubeconfig（替换 admin KUBE_CONFIG_B64）
 
 默认的 `KUBE_CONFIG_B64`（来自 `/etc/rancher/k3s/k3s.yaml`）是集群管理员凭证，泄露即整个集群失守。CI 只需要在 `default` namespace 里 apply/rollout/exec，用受限 ServiceAccount 替代。
-manifest 在 `deploy/k8s/deployer-rbac.yaml`（SA + Role + RoleBinding，限定 `default` namespace，动词按 CI 实际用量裁剪）。
+manifest 在 `deploy/k8s-prod/deployer-rbac.yaml`（SA + Role + RoleBinding，限定 `default` namespace，动词按 CI 实际用量裁剪）。
 
 签发与轮换的具体操作步骤**刻意不入库**：凭证明细、端点地址、各 Secret 的权限现状属于运维敏感信息，公开仓库只保留本指针。完整 runbook 保存在集群维护者的本地运维笔记（gitignored）中，不在版本控制内。
 

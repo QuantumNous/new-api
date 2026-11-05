@@ -4,7 +4,10 @@ API_EMBED_DIR := justfile_directory() + "/apps/api/web/dist"
 GO_BIN_CACHE := env_var_or_default("GO_BIN_CACHE", env_var("HOME") + "/.cache/new-api-bin")
 DEV_WEB_PORT := env_var_or_default("DEV_WEB_PORT", "5173")
 DEV_COMPOSE_PROJECT := env_var_or_default("DEV_COMPOSE_PROJECT", "deploy")
-DEV_COMPOSE_FILE := justfile_directory() + "/deploy/docker-compose.dev.yml"
+DEV_CONTAINER_ENGINE := env_var_or_default("DEV_CONTAINER_ENGINE", "podman")
+DEV_COMPOSE := if DEV_CONTAINER_ENGINE == "docker" { "docker compose" } else { "podman compose" }
+DEV_CONTAINER_CLI := if DEV_CONTAINER_ENGINE == "docker" { "docker" } else { "podman" }
+DEV_COMPOSE_FILE := justfile_directory() + if DEV_CONTAINER_ENGINE == "docker" { "/deploy/docker-dev/compose.yml" } else { "/deploy/podman-dev/compose.yml" }
 DEV_POSTGRES_SERVICE := "postgres"
 DEV_API_SERVICE := "new-api"
 DEV_POSTGRES_DB := "new-api"
@@ -46,18 +49,18 @@ run-api:
     cd "{{ API_DIR }}" && GOWORK=off go build -o "{{ GO_BIN_CACHE }}/$bin_name" .
     "{{ GO_BIN_CACHE }}/$bin_name"
 
-# Start only docker dev database (postgres). Redis is expected on localhost:6379
-# (either a host Redis or the docker dev redis — see dev-db-full if you need both in Docker).
+# Start only the dev PostgreSQL container. Redis is expected on localhost:6379
+# (either a host Redis or the dev redis container — see dev-db-full if you need both in Podman).
 dev-db:
     # -p deploy pins the compose project to the live container (new-api-dev-pg / deploy_dev_pg_data).
     # Do not remove: without it, up -d runs under the cwd's project name and recreates the DB with a fresh empty volume.
-    docker compose -f "{{ DEV_COMPOSE_FILE }}" -p "{{ DEV_COMPOSE_PROJECT }}" up -d "{{ DEV_POSTGRES_SERVICE }}"
+    {{ DEV_COMPOSE }} -f "{{ DEV_COMPOSE_FILE }}" -p "{{ DEV_COMPOSE_PROJECT }}" up -d "{{ DEV_POSTGRES_SERVICE }}"
 
-# Start postgres + redis both in Docker (use if no host Redis is running on :6379)
+# Start postgres + redis both in the container engine (use if no host Redis is running on :6379)
 dev-db-full:
-    docker compose -f "{{ DEV_COMPOSE_FILE }}" -p "{{ DEV_COMPOSE_PROJECT }}" up -d "{{ DEV_POSTGRES_SERVICE }}" redis
+    {{ DEV_COMPOSE }} -f "{{ DEV_COMPOSE_FILE }}" -p "{{ DEV_COMPOSE_PROJECT }}" up -d "{{ DEV_POSTGRES_SERVICE }}" redis
 
-# Start Go API binary locally (no Docker API container). Requires dev-db running.
+# Start Go API binary locally (no API container). Requires dev-db running.
 # Uses branch-scoped binary cache so multiple worktrees can coexist.
 start-wt:
     #!/usr/bin/env bash
@@ -101,7 +104,7 @@ start-wt-dev:
     DEV_AUTO_LOGIN=1 \
     "{{ GO_BIN_CACHE }}/$bin_name"
 
-# Full worktree dev with real login flows (no auto-login): docker DBs + local Go API binary + web HMR (all background)
+# Full worktree dev with real login flows (no auto-login): containerized DBs + local Go API binary + web HMR (all background)
 # Use this for auth/login/permission work. For day-to-day development prefer `just dev-wt-dev`.
 dev-wt: dev-db
     #!/usr/bin/env bash
@@ -123,7 +126,7 @@ dev-wt: dev-db
     trap 'kill $API_PID $WEB_PID 2>/dev/null' EXIT INT TERM
     wait
 
-# Full worktree dev with credential-free login: docker DBs + local Go API binary + web HMR (all background)
+# Full worktree dev with credential-free login: containerized DBs + local Go API binary + web HMR (all background)
 # This is the recommended entry point for agent-driven UI/API development (auto-login ON).
 # Use `just dev-wt` only when you need to exercise real login flows.
 dev-wt-dev: dev-db
@@ -147,13 +150,13 @@ dev-wt-dev: dev-db
     trap 'kill $API_PID $WEB_PID 2>/dev/null' EXIT INT TERM
     wait
 
-# Rebuild and restart docker dev api service
+# Rebuild and restart the dev API container
 dev-api-rebuild:
-    docker compose -f "{{ DEV_COMPOSE_FILE }}" -p "{{ DEV_COMPOSE_PROJECT }}" up -d --build "{{ DEV_API_SERVICE }}"
+    {{ DEV_COMPOSE }} -f "{{ DEV_COMPOSE_FILE }}" -p "{{ DEV_COMPOSE_PROJECT }}" up -d --build "{{ DEV_API_SERVICE }}"
  
-# Start docker dev api services (postgres + redis + api container)
+# Start dev API containers (postgres + redis + api container)
 dev-api:
-    docker compose -f "{{ DEV_COMPOSE_FILE }}" -p "{{ DEV_COMPOSE_PROJECT }}" up -d
+    {{ DEV_COMPOSE }} -f "{{ DEV_COMPOSE_FILE }}" -p "{{ DEV_COMPOSE_PROJECT }}" up -d
 
 # Start web frontend dev server
 dev-web:
@@ -168,7 +171,7 @@ dev-web:
      # this instead of freezing the IDE. Stop later with: systemctl --user stop dev-web-{{ DEV_WEB_PORT }}
      cd "{{ WEB_DIR }}" && systemd-run --user --unit="dev-web-{{ DEV_WEB_PORT }}" -p WorkingDirectory="{{ WEB_DIR }}" -p MemoryHigh=2500M -p MemoryMax=4G -p OOMScoreAdjust=400 -- bun run dev -- --host 0.0.0.0 --port "{{ DEV_WEB_PORT }}"
  
-# Start both docker api and web dev servers (legacy: uses Docker API container)
+# Start both dev API containers and web dev servers (legacy: uses the API container)
 dev: dev-api dev-web
 
 # Deploy the official Karmada Dashboard against an existing Karmada host cluster.
@@ -176,8 +179,8 @@ dev: dev-api dev-web
 # and member-cluster API remain separate single-replica workloads.
 KARMADA_CONTEXT := env_var_or_default("KARMADA_CONTEXT", "kind-karmada-host")
 KARMADA_NAMESPACE := env_var_or_default("KARMADA_NAMESPACE", "karmada-system")
-KARMADA_DASHBOARD_MANIFEST := justfile_directory() + "/deploy/k8s/karmada-dashboard/local.yaml"
-KARMADA_DASHBOARD_RBAC := justfile_directory() + "/deploy/k8s/karmada-dashboard/rbac.yaml"
+KARMADA_DASHBOARD_MANIFEST := justfile_directory() + "/deploy/k8s-prod/karmada-dashboard/local.yaml"
+KARMADA_DASHBOARD_RBAC := justfile_directory() + "/deploy/k8s-prod/karmada-dashboard/rbac.yaml"
 KARMADA_CONFIG_SECRET := env_var_or_default("KARMADA_CONFIG_SECRET", "karmada-controller-manager-config")
 KARMADA_API_SERVER := env_var_or_default("KARMADA_API_SERVER", "")
 KARMADA_DASHBOARD_NODE_URL := env_var_or_default("KARMADA_DASHBOARD_NODE_URL", "http://172.25.0.2:32000/karmada-dashboard/")
@@ -269,15 +272,15 @@ test-e2e:
 reset-setup:
     #!/usr/bin/env bash
     set -euo pipefail
-    if docker compose -f "{{ DEV_COMPOSE_FILE }}" ps --services --status running | grep -qx "{{ DEV_POSTGRES_SERVICE }}"; then
-        echo "Detected running docker dev PostgreSQL. Removing setup record and root users..."
-        docker compose -f "{{ DEV_COMPOSE_FILE }}" exec -T {{ DEV_POSTGRES_SERVICE }} \
+    if {{ DEV_CONTAINER_CLI }} ps -q --filter name='^new-api-dev-pg$' | grep -q .; then
+        echo "Detected running dev PostgreSQL container. Removing setup record and root users..."
+        {{ DEV_CONTAINER_CLI }} exec -T new-api-dev-pg \
             psql -U {{ DEV_POSTGRES_USER }} -d {{ DEV_POSTGRES_DB }} \
             -c 'DELETE FROM setups;' \
             -c 'DELETE FROM users WHERE role = 100;' \
             -c "DELETE FROM options WHERE key IN ('SelfUseModeEnabled', 'DemoSiteEnabled');"
-        echo "Restarting docker dev api so setup status is recalculated..."
-        docker compose -f "{{ DEV_COMPOSE_FILE }}" restart {{ DEV_API_SERVICE }}
+        echo "Restarting dev API container so setup status is recalculated..."
+        {{ DEV_CONTAINER_CLI }} restart new-api-dev
     else
         db_path="${SQLITE_PATH:-{{ DEV_SQLITE_PATH }}}"
         db_path="${db_path%%\?*}"
@@ -287,7 +290,7 @@ reset-setup:
                 "DELETE FROM setups; DELETE FROM users WHERE role = 100; DELETE FROM options WHERE key IN ('SelfUseModeEnabled', 'DemoSiteEnabled');"
             echo "SQLite setup state reset. Restart the local api process before testing the setup wizard."
         else
-            echo "No running docker dev PostgreSQL or local SQLite database found."
+            echo "No running dev PostgreSQL container or local SQLite database found."
             echo "Start the dev stack with 'just dev-api', or set SQLITE_PATH/DEV_SQLITE_PATH to your local SQLite database."
             exit 1
         fi

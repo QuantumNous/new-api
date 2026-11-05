@@ -13,8 +13,8 @@ import (
 	"github.com/QuantumNous/new-api/internal/transport/contract"
 )
 
-// RenderSSE writes a raw SSE line, byte-identical to the previous gin
-// CustomEvent render path.
+// RenderSSE writes a raw SSE line, byte-identical to the previous CustomEvent
+// render path.
 //
 // It deliberately does NOT go through contract.EventStream.WriteEvent. The two
 // are not byte-equivalent: callers here pass strings that already carry their

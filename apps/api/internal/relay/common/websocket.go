@@ -15,9 +15,9 @@ import (
 // It has to recognise both libraries' close errors, and that is not redundant.
 // The realtime relay holds two connections whose concrete types come from
 // different modules: the client side is the server-side upgrade (gorilla under
-// the gin adapter, gofiber/contrib -- i.e. fasthttp/websocket -- under the fiber
-// one), while the target side is always a gorilla client dial. fasthttp's
-// websocket package is a gorilla fork, so the two *CloseError types are
+// the previous adapter, gofiber/contrib -- i.e. fasthttp/websocket -- under the fiber
+// one), while the target side is always a gorilla client dial.
+// fasthttp's websocket package is a gorilla fork, so the two *CloseError types are
 // structurally identical but distinct Go types, and each library's own
 // IsCloseError type-asserts only its own: gorilla.IsCloseError returns false for
 // a fasthttp CloseError and vice versa.

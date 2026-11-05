@@ -28,7 +28,7 @@ func CloseResponseBodyGracefully(httpResponse *http.Response) {
 // should be copied to the client response. It returns false for Content-Length
 // (managed separately) and X-Oneapi-Request-Id (to preserve the local instance
 // ID). When the upstream header is X-Oneapi-Request-Id, the value is captured
-// into the Gin context for later logging.
+// into the contract context for later logging.
 func ShouldCopyUpstreamHeader(c contract.Context, k string, v []string) bool {
 	if strings.EqualFold(k, "Content-Length") {
 		return false

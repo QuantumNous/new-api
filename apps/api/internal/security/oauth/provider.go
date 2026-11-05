@@ -15,7 +15,7 @@ type Provider interface {
 	IsEnabled() bool
 
 	// ExchangeToken exchanges the authorization code for an access token
-	// The gin.Context is passed for providers that need request info (e.g., for redirect_uri)
+	// The contract.Context is passed for providers that need request info (e.g., for redirect_uri)
 	ExchangeToken(ctx context.Context, code string, c contract.Context) (*OAuthToken, error)
 
 	// GetUserInfo retrieves user information using the access token

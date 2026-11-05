@@ -1,11 +1,11 @@
 # New-API Podman Compose Configuration
 #
 # Usage:
-#   podman-compose -f deploy/podman-compose.yml up -d
+#   podman compose -f deploy/podman-prod/compose.yml up -d
 #
 # This file is the production Podman Compose stack for new-api.
 # Database: PostgreSQL via TimescaleDB plugin (timescale/timescaledb:latest-pg18).
-# For low-memory production hosts, prefer Quadlet units in deploy/podman/quadlet/.
+# For low-memory production hosts, prefer Quadlet units in deploy/podman-prod/quadlet/.
 
 version: "3.8"
 
