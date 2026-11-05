@@ -214,53 +214,79 @@ func hwSeedMissingSoldModelRatios(prices map[string]model.HwModelPrice) error {
 	return nil
 }
 
-// hwSeedSoldModelChannels re-attaches a sold model that has no ability row to a
+// hwSeedSoldModelChannels re-attaches a sold model that no channel serves to a
 // channel of its own family. hwSeedRetiredModels takes a name out of the
 // channels, so a name that returns to hwSoldModels would be sold by the
 // comparator and the status page while no channel answers it; this step is the
 // other direction and closes that gap at startup.
 //
+// "Served" means an enabled channel that lists the name and carries an enabled
+// ability row for it: the price table reads the enabled rows and the channel
+// cache reads the model list of an enabled channel, so one without the other
+// leaves the name unpriced or unroutable. A row on its own says nothing — an
+// ability row left disabled (the channel was switched off while the name sat in
+// its list) counted as served and was never repaired, which is how a sold name
+// stayed out of the price table (measured on 5 Nov 2026, claude-sonnet-5-5).
+//
 // The ability rows are derived, never written loose: the name goes into
 // channel.Models and UpdateAbilities rebuilds the rows from the models and the
 // group, which keeps status, priority and weight in step with the channel. A
-// family without a channel is skipped: a channel carries a key, so creating one
-// is an operator decision. Idempotent: a sold model that already has an ability
-// row is left alone.
+// family without an enabled channel is skipped: a channel carries a key, so
+// creating or enabling one is an operator decision, and a name added to a
+// disabled channel would still not be served. Idempotent: a served sold model
+// is left alone.
 func hwSeedSoldModelChannels(map[string]string) error {
-	var routedModels []string
-	if err := model.DB.Model(&model.Ability{}).Distinct("model").Pluck("model", &routedModels).Error; err != nil {
-		return err
-	}
-	routed := make(map[string]struct{}, len(routedModels))
-	for _, name := range routedModels {
-		routed[name] = struct{}{}
-	}
 	var channels []model.Channel
 	if err := model.DB.Find(&channels).Error; err != nil {
 		return err
 	}
+	var enabledAbilities []model.Ability
+	if err := model.DB.Where("enabled = ?", true).Find(&enabledAbilities).Error; err != nil {
+		return err
+	}
+	type channelModel struct {
+		channelId int
+		model     string
+	}
+	routed := make(map[channelModel]struct{}, len(enabledAbilities))
+	for _, ability := range enabledAbilities {
+		routed[channelModel{ability.ChannelId, ability.Model}] = struct{}{}
+	}
+	enabled := func(channel *model.Channel) bool {
+		return channel.Status == common.ChannelStatusEnabled
+	}
 	for _, sold := range hwSoldModels {
-		if _, ok := routed[sold.Name]; ok {
-			continue
-		}
 		family := HwModelFamily(sold.Name)
 		if family == "" {
 			continue
 		}
+		// An enabled channel that already lists the name only needs its derived
+		// rows rebuilt; anything else means the name has to be attached first.
 		idx := slices.IndexFunc(channels, func(channel model.Channel) bool {
-			return slices.ContainsFunc(channel.GetModels(), func(name string) bool {
-				return HwModelFamily(name) == family
-			})
+			return enabled(&channel) && slices.Contains(channel.GetModels(), sold.Name)
 		})
-		if idx < 0 {
-			continue
+		if idx >= 0 {
+			if _, ok := routed[channelModel{channels[idx].Id, sold.Name}]; ok {
+				continue
+			}
+		} else {
+			idx = slices.IndexFunc(channels, func(channel model.Channel) bool {
+				return enabled(&channel) && slices.ContainsFunc(channel.GetModels(), func(name string) bool {
+					return HwModelFamily(name) == family
+				})
+			})
+			if idx < 0 {
+				continue
+			}
 		}
 		// The full row is loaded, so UpdateAbilities rebuilds the rows with the
 		// status, the priority and the weight the channel actually has.
 		channel := &channels[idx]
-		channel.Models = strings.Join(append(channel.GetModels(), sold.Name), ",")
-		if err := model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("models", channel.Models).Error; err != nil {
-			return err
+		if !slices.Contains(channel.GetModels(), sold.Name) {
+			channel.Models = strings.Join(append(channel.GetModels(), sold.Name), ",")
+			if err := model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("models", channel.Models).Error; err != nil {
+				return err
+			}
 		}
 		if err := channel.UpdateAbilities(nil); err != nil {
 			return err

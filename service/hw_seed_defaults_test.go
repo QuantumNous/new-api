@@ -407,6 +407,56 @@ func TestHwSeedSoldModelChannels(t *testing.T) {
 	}
 }
 
+// TestHwSeedSoldModelChannelsRepairsDisabledAbility protects the price table
+// against a sold model whose ability rows exist but are disabled: the name is
+// then sold and routable in principle while the enabled rows the price table
+// reads do not carry it (measured on 5 Nov 2026, claude-sonnet-5-5, 8 of 9 names
+// on /api/pricing).
+func TestHwSeedSoldModelChannelsRepairsDisabledAbility(t *testing.T) {
+	setupHwSeedDefaultsTest(t)
+	channel := model.Channel{
+		Name: "sonnet", Key: "k1", Status: common.ChannelStatusEnabled,
+		Group: model.HwPaidGroupName, Models: "claude-sonnet-5-5",
+	}
+	require.NoError(t, channel.Insert())
+	// The channel row still lists the name while its derived row is disabled,
+	// which is what a switched-off channel leaves behind.
+	require.NoError(t, model.DB.Model(&model.Ability{}).
+		Where("channel_id = ? and model = ?", channel.Id, "claude-sonnet-5-5").
+		Update("enabled", false).Error)
+
+	require.NoError(t, HwSeedDefaultOptions())
+
+	var abilities []model.Ability
+	require.NoError(t, model.DB.Where("channel_id = ? and model = ?", channel.Id, "claude-sonnet-5-5").
+		Find(&abilities).Error)
+	require.Len(t, abilities, 1)
+	assert.True(t, abilities[0].Enabled, "the sold model gets an enabled ability row again")
+
+	var stored model.Channel
+	require.NoError(t, model.DB.First(&stored, "id = ?", channel.Id).Error)
+	assert.Equal(t, "claude-sonnet-5-5", stored.Models, "the model list is not duplicated")
+}
+
+// TestHwSeedSoldModelChannelsKeepsDisabledChannelOff protects the operator
+// decision behind a switched-off channel: a sold model of that family is not
+// attached to it and the channel is not switched on by the seed.
+func TestHwSeedSoldModelChannelsKeepsDisabledChannelOff(t *testing.T) {
+	setupHwSeedDefaultsTest(t)
+	channel := model.Channel{
+		Name: "sonnet-off", Key: "k1", Status: common.ChannelStatusManuallyDisabled,
+		Group: model.HwPaidGroupName, Models: "claude-sonnet-5-5",
+	}
+	require.NoError(t, channel.Insert())
+
+	require.NoError(t, HwSeedDefaultOptions())
+
+	var stored model.Channel
+	require.NoError(t, model.DB.First(&stored, "id = ?", channel.Id).Error)
+	assert.Equal(t, common.ChannelStatusManuallyDisabled, stored.Status,
+		"a disabled channel stays disabled")
+}
+
 // TestHwSeedRetiredModelsRefreshesTheChannelCache protects a running database
 // against the window between the seed and the next cache rebuild: the channel
 // cache that was built before the seed (startup builds it after the seed, but a
