@@ -2,13 +2,14 @@ package fiberadapter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 
 	"github.com/QuantumNous/new-api/internal/transport/contract"
 	"github.com/QuantumNous/new-api/internal/transport/fiberadapter/connwatch"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // NewEngine builds the HTTP engine with panic recovery installed. onPanic
@@ -20,18 +21,14 @@ import (
 // copy Shutdown is called on.
 func NewEngine(onPanic func(c contract.Context, recovered any)) contract.Engine {
 	app := fiber.New(fiber.Config{
-		// The trusted-proxy check is inverted in fiber: with it disabled,
-		// IsProxyTrusted returns true for every peer, so every forwarded header
-		// would be believed and per-IP rate limiting could be bypassed with a
-		// spoofed X-Forwarded-For. It is hardcoded rather than configurable
-		// because the contract's requirement -- an empty list trusts nothing --
-		// has no expression in fiber's disabled state.
-		EnableTrustedProxyCheck: true,
-		// fiber defaults to tcp4, while net/http listening on ":port" is
-		// dual-stack. The default trusted-proxy list contains ::1 and fc00::/7,
-		// which tcp4 would turn into dead configuration.
-		Network:               fiber.NetworkTCP,
-		DisableStartupMessage: true,
+		// TrustProxy keeps fiber from consulting ProxyHeader on its own: this
+		// adapter never calls c.IP(), running its own forwarded-header walk in
+		// router.go instead.
+		TrustProxy: true,
+		// v3 auto-registers a HEAD route for every GET route. The route set is
+		// pinned by snapshot (see router.go's register comment), so the auto
+		// routes must stay off.
+		DisableHeadAutoRegister: true,
 		// No timeouts, matching the http.Server this replaces, whose literal
 		// carried only a Handler: a WriteTimeout would cut off long SSE streams.
 	})
@@ -45,13 +42,12 @@ func NewEngine(onPanic func(c contract.Context, recovered any)) contract.Engine 
 	// contract context reads the result while it is being built, so it has to
 	// already be in Locals by then. It is registered before anything else for
 	// the same reason.
-	app.Use(func(c *fiber.Ctx) error {
+	app.Use(func(c fiber.Ctx) error {
 		c.Locals(clientIPKey{}, resolveTrustedClientIP(c, policy.policy))
 		return c.Next()
 	})
-
-	// Recovery is the first contract handler in every chain, as gin's
-	// CustomRecovery is. It cannot be a fiber layer: Dispatch may run the chain
+	// Recovery is the first contract handler in every chain, as the recovery
+	// middleware was before. It cannot be a fiber layer: Dispatch may run the chain
 	// on another goroutine, where a fiber-level recover would not catch the
 	// panic and the process would die.
 	root.pending = []contract.Handler{recoverPanics(onPanic)}
@@ -69,9 +65,8 @@ func NewEngine(onPanic func(c contract.Context, recovered any)) contract.Engine 
 //
 // The listener is wrapped by connwatch so each accepted connection is
 // watched for a client disconnect at the kernel level; the request context
-// bridges that signal (see newRequestContext). Fiber v2's Listen owns the
-// net.Listen call, which is precisely the hook the wrap needs, so the same
-// steps happen here and the wrapped listener goes through app.Listener --
+// bridges that signal (see newRequestContext). Fiber v3's ListenConfig
+// governs listener setup, and the wrapped listener goes through app.Listener --
 // the documented entry point for custom listeners, and the same fasthttp
 // Serve path app.Listen takes, so Shutdown still closes it.
 //
@@ -80,7 +75,7 @@ func NewEngine(onPanic func(c contract.Context, recovered any)) contract.Engine 
 // listener into io.EOF and returns nil -- so unlike the net/http implementation
 // there is no sentinel to swallow here.
 func (e engine) Serve(addr string) error {
-	ln, err := net.Listen(e.app.Config().Network, addr)
+	ln, err := net.Listen(fiber.NetworkTCP, addr)
 	if err != nil {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
@@ -95,16 +90,11 @@ func (e engine) Serve(addr string) error {
 // server and has one.
 func (e engine) Shutdown(ctx context.Context) error {
 	err := e.app.ShutdownWithContext(ctx)
-	if err != nil && err.Error() == shutdownNotRunning {
+	if err != nil && errors.Is(err, fiber.ErrNotRunning) {
 		return nil
 	}
 	return err
 }
-
-// shutdownNotRunning is the condition fiber reports when Shutdown is called
-// before Listen. fiber builds it with fmt.Errorf and exports no sentinel, so the
-// message is the only available discriminator.
-const shutdownNotRunning = "shutdown: server is not running"
 
 // The context implementation resolves the client address through this hook, so
 // the forwarded-header walk stays with the engine that owns the trust policy.

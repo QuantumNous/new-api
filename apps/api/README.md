@@ -15,7 +15,7 @@
 | 类别 | 技术 |
 |---|---|
 | 语言 | Go 1.27.3 |
-| Web 框架 | Gin |
+| Web 框架 | Fiber v3 |
 | ORM | GORM v2 |
 | 数据库 | SQLite / MySQL ≥ 5.7.8 / PostgreSQL ≥ 9.6 (三数据库同时支持) |
 | 缓存 | go-redis + 内存缓存 |
@@ -34,7 +34,7 @@ apps/api/
 │   ├── api-router.go    # API 路由
 │   ├── relay-router.go  # 中继/代理路由
 │   ├── web-router.go    # 管理面板路由
-│   └── main.go          # Gin 引擎初始化
+│   └── main.go          # Fiber 引擎初始化
 ├── controller/          # 请求处理
 ├── service/             # 业务逻辑层
 │   ├── billing*.go      # 计费与额度管理
@@ -47,7 +47,7 @@ apps/api/
 │   ├── helper/          # 请求验证与转换
 │   ├── common/          # 中继公共类型与常量
 │   └── *.go             # handlers(chat / image / audio / video / rerank / responses / gemini / claude / websocket)
-├── middleware/          # Gin 中间件(认证 / 审计 / CORS / 缓存 / 分发)
+├── middleware/          # Fiber 中间件(认证 / 审计 / CORS / 缓存 / 分发)
 ├── common/              # 公共工具(JSON 封装 / 加解密 / 数据库 / 缓存 / 音频 / 邮件)
 ├── setting/             # 配置管理(计费比率 / 模型 / 运营 / 系统 / 性能)
 ├── dto/                 # 数据传输对象(请求/响应结构体)

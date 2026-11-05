@@ -207,7 +207,7 @@ func StreamScannerHandler(
 			wg.Wait()
 		})
 	}
-	// Ensure gin.Context is not returned to Gin's pool while any stream goroutine can still use it.
+	// Ensure the request context stays alive while any stream goroutine can still use it.
 	defer cleanup()
 
 	scanner.Split(bufio.ScanLines)

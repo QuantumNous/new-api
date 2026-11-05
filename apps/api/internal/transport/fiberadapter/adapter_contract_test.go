@@ -14,14 +14,14 @@ import (
 	"github.com/QuantumNous/new-api/internal/transport/contract"
 	"github.com/QuantumNous/new-api/internal/transport/contract/conformance"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // TestFiberAdapterSatisfiesTransportContract runs the adapter-agnostic
-// conformance suite against this adapter, so equivalence with the gin adapter is
-// proven by shared assertions rather than by copied test bodies.
+// conformance suite against this adapter, so equivalence is proven by shared
+// assertions rather than by copied test bodies.
 func TestFiberAdapterSatisfiesTransportContract(t *testing.T) {
 	conformance.Run(t, conformance.Adapter{
 		Name:              "fiber",
@@ -55,7 +55,7 @@ func newConformanceContext(req *http.Request) (contract.Context, conformance.Rec
 func serveRoute(t *testing.T, route conformance.Route, req *http.Request) conformance.Recorder {
 	t.Helper()
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app := fiber.New(fiber.Config{})
 
 	chain := make([]contract.Handler, 0, len(route.Middleware)+1)
 	for _, middleware := range route.Middleware {
@@ -63,11 +63,11 @@ func serveRoute(t *testing.T, route conformance.Route, req *http.Request) confor
 	}
 	chain = append(chain, route.Handler)
 
-	app.Add(route.Method, route.Pattern, func(c *fiber.Ctx) error {
+	app.Add([]string{route.Method}, route.Pattern, func(c fiber.Ctx) error {
 		return Dispatch(c, chain)
 	})
 
-	response, err := app.Test(req, int(10*time.Second/time.Millisecond))
+	response, err := app.Test(req, fiber.TestConfig{Timeout: 10 * time.Second})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = response.Body.Close() })
 
@@ -153,8 +153,8 @@ func TestHeadersAreSettledBeforeFirstBodyByte(t *testing.T) {
 	release := make(chan struct{})
 	firstFrameWritten := make(chan struct{})
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/stream", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Get("/stream", func(c fiber.Ctx) error {
 		return Dispatch(c, []contract.Handler{func(ctx contract.Context) {
 			stream := ctx.EventStream()
 			ctx.SetHeader("X-Ordering-Proof", marker)
@@ -246,8 +246,8 @@ func TestFlushTimingIsOnePushPerFlush(t *testing.T) {
 
 	readNext := make(chan struct{})
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/stream", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Get("/stream", func(c fiber.Ctx) error {
 		return Dispatch(c, []contract.Handler{func(ctx contract.Context) {
 			stream := ctx.EventStream()
 			stream.SetHeaders()
@@ -356,8 +356,8 @@ func TestStreamingIsIncrementalUnderBackpressureOverTheWire(t *testing.T) {
 
 	completed := make(chan struct{})
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/stream", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Get("/stream", func(c fiber.Ctx) error {
 		return Dispatch(c, []contract.Handler{func(ctx contract.Context) {
 			defer close(completed)
 			stream := ctx.EventStream()
@@ -411,8 +411,8 @@ func TestStreamingIsIncrementalUnderBackpressureOverTheWire(t *testing.T) {
 func TestNonStreamingResponseKeepsContentLength(t *testing.T) {
 	payload := `{"success":true,"data":{"id":7}}`
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/buffered", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Get("/buffered", func(c fiber.Ctx) error {
 		return Dispatch(c, []contract.Handler{func(ctx contract.Context) {
 			require.NoError(t, ctx.Data(http.StatusOK, "application/json", []byte(payload)))
 		}})
@@ -420,7 +420,7 @@ func TestNonStreamingResponseKeepsContentLength(t *testing.T) {
 
 	// Taking a stream writer without writing through it must not switch the
 	// response onto the stream path either.
-	app.Get("/probed", func(c *fiber.Ctx) error {
+	app.Get("/probed", func(c fiber.Ctx) error {
 		return Dispatch(c, []contract.Handler{func(ctx contract.Context) {
 			stream := ctx.ResponseStream()
 			_ = stream.Header("Cache-Control")
@@ -449,7 +449,7 @@ func TestNonStreamingResponseKeepsContentLength(t *testing.T) {
 // TestDisconnectMidStreamCancelsContextOverTheWire asserts a real client hanging up
 // mid-stream stops the writes and cancels the request lifetime.
 //
-// The detection timing is a deliberate, accepted behaviour change from gin. fasthttp
+// The detection timing is a deliberate, accepted behaviour change from the previous adapter. fasthttp
 // offers no read-side disconnect notification at all: RequestCtx.Done is closed only
 // on server shutdown, and the sole signal is a write to the response pipe failing
 // once the server closed its end. Detection therefore moves from "the read side saw
@@ -461,8 +461,8 @@ func TestDisconnectMidStreamCancelsContextOverTheWire(t *testing.T) {
 	contextDone := make(chan error, 1)
 	firstFrame := make(chan struct{})
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/stream", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Get("/stream", func(c fiber.Ctx) error {
 		return Dispatch(c, []contract.Handler{func(ctx contract.Context) {
 			stream := ctx.EventStream()
 			stream.SetHeaders()
@@ -529,8 +529,8 @@ func TestSetWriteDeadlineBoundsABlockedWrite(t *testing.T) {
 	timedOut := make(chan bool, 1)
 	supported := make(chan bool, 1)
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/stream", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Get("/stream", func(c fiber.Ctx) error {
 		return Dispatch(c, []contract.Handler{func(ctx contract.Context) {
 			stream := ctx.ResponseStream()
 
@@ -585,14 +585,14 @@ func TestSetWriteDeadlineBoundsABlockedWrite(t *testing.T) {
 // original context and rejects a foreign one, so a caller left behind by the
 // framework swap fails loudly rather than nil-panicking later.
 func TestUnwrapRecoversFiberContext(t *testing.T) {
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app := fiber.New(fiber.Config{})
 
 	var (
-		recovered *fiber.Ctx
+		recovered fiber.Ctx
 		ok        bool
-		expected  *fiber.Ctx
+		expected  fiber.Ctx
 	)
-	app.Get("/unwrap", func(c *fiber.Ctx) error {
+	app.Get("/unwrap", func(c fiber.Ctx) error {
 		expected = c
 		recovered, ok = Unwrap(Wrap(c))
 		return c.SendStatus(http.StatusOK)
@@ -610,8 +610,9 @@ func TestUnwrapRecoversFiberContext(t *testing.T) {
 	assert.Nil(t, foreign)
 }
 
-// foreignContext stands in for a non-fiber contract implementation, the way a gin
-// context arrives here. It is only ever passed to Unwrap, so the embedded methods
+// foreignContext stands in for a non-fiber contract implementation, the way a
+// contract context from another implementation arrives here. It is only ever
+// passed to Unwrap, so the embedded methods
 // are never called.
 //
 // The embedding goes through an alias because embedding contract.Context directly
@@ -631,8 +632,8 @@ type transportContext = contract.Context
 func TestValuesSnapshotSurvivesTheChain(t *testing.T) {
 	var logged map[string]any
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/logged", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Get("/logged", func(c fiber.Ctx) error {
 		return Dispatch(c, []contract.Handler{
 			func(ctx contract.Context) {
 				ctx.Next()

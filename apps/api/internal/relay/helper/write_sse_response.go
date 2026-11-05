@@ -10,7 +10,7 @@ import (
 )
 
 // renderSSE writes a raw SSE line through the framework-neutral response
-// writer, byte-identical to the previous gin CustomEvent render path.
+// writer, byte-identical to the previous CustomEvent render path.
 func renderSSE(c contract.Context, data string) {
 	gateway.RenderSSE(c, data)
 }

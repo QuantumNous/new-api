@@ -17,7 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/internal/transport/fiberadapter"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	gorilla "github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -211,8 +211,8 @@ func realtimeErrorFrame(t *testing.T, baseURL string) string {
 func listenRealtime(t *testing.T, handler contract.Handler) string {
 	t.Helper()
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Add(fiber.MethodGet, "/v1/realtime", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Add([]string{fiber.MethodGet}, "/v1/realtime", func(c fiber.Ctx) error {
 		return fiberadapter.Dispatch(c, []contract.Handler{handler})
 	})
 

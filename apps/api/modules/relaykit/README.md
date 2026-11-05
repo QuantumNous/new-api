@@ -11,7 +11,7 @@ RelayKit 是从 [new-api](https://github.com/QuantumNous/new-api) 中拆分出�
 - 自动根据 DTO 类型识别源协议，并选择内置的直接或多跳转换路径
 - 返回转换器 ID、质量等级、实际转换步骤和统一 usage，方便审计与调试
 - 支持常用的文本、多模态内容、工具调用、推理内容和 usage 映射
-- 作为独立 Go module 构建，不依赖 new-api 主模块、Gin、数据库或全局设置
+- 作为独立 Go module 构建，不依赖 new-api 主模块、数据库或全局设置
 
 ## 支持矩阵
 

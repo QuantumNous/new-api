@@ -17,9 +17,8 @@ import (
 //	return 0, errors.New("unknown relay mode")
 //}
 
-// ResponseText2Usage accepts any per-request value store so relay providers
-// (still gin-typed until their own migration phase) and migrated callers share
-// one implementation.
+// ResponseText2Usage accepts any per-request value store so every relay
+// caller shares one implementation.
 func ResponseText2Usage(c interface{ Set(key string, value any) }, responseText string, modeName string, promptTokens int) *dto.Usage {
 	c.Set(string(constant.ContextKeyLocalCountTokens), true)
 	usage := &dto.Usage{}

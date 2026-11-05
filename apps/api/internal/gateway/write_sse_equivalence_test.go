@@ -92,12 +92,12 @@ func TestRenderSSEPreservesAnExistingCacheControl(t *testing.T) {
 // completion anyway (a wrapping middleware that materialises the body, or a
 // writer with no flusher underneath).
 //
-// Faking at the contract is a correction, not a workaround for fiber. The gin
-// fixture this replaces built an http.ResponseWriter with no Flush method, which
-// asserted through a layer the code under test never consults: FlushWriter and
+// Faking at the contract is a correction, not a workaround for fiber. The previous
+// fixture built an http.ResponseWriter with no Flush method, which asserted
+// through a layer the code under test never consults: FlushWriter and
 // IOCopyBytesGracefully branch on contract CanFlush, never on an
 // http.ResponseWriter type assertion. That fixture only worked because
-// the Gin adapter answered CanFlush by walking the writer's Unwrap chain.
+// the previous adapter answered CanFlush by walking the writer's Unwrap chain.
 // Under fasthttp there is no such writer to build at all — the adapter reports
 // CanFlush as a constant true because every mode it constructs can push (a chain
 // owns the pipe, a direct response writes through fiber, a synthetic one records

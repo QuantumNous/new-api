@@ -24,7 +24,7 @@ import (
 // parameters and middleware continuation cannot be observed on a synthetic
 // context, so the cases that assert them go through this instead.
 //
-// Pattern uses `:name` parameter syntax, which Gin and Fiber both accept.
+// Pattern uses `:name` parameter syntax, which both transports accept.
 type Route struct {
 	Method  string
 	Pattern string
@@ -66,8 +66,8 @@ type Adapter struct {
 	Name string
 
 	// NewContext builds a context backed by an in-process recorder, plus a
-	// func that simulates the client going away. gin cancels the request
-	// context; fiber closes the pipe.
+	// func that simulates the client going away. The fiber adapter closes the
+	// pipe; net/http cancels the request context instead.
 	NewContext func(req *http.Request) (contract.Context, Recorder, func())
 
 	// ServeRoute registers route on a real engine and serves req through it,

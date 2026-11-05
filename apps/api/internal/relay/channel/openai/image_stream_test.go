@@ -180,8 +180,7 @@ func (b *blockingBody) Close() error {
 // makes the abort deterministic: the handler has already processed and counted
 // the event by the time the disconnect fires.
 //
-// The gin fixture this replaces observed the write by wrapping the response
-// writer. fasthttp builds a response rather than writing through a wrappable
+// The previous fixture observed the write by wrapping the response writer.
 // writer, so the observation point moves to CaptureResponse. Do not simplify this
 // to polling recorder.Body: the handler is still writing while this goroutine
 // reads, and bytes.Buffer is not safe for concurrent access, so that version

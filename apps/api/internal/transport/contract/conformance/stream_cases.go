@@ -494,11 +494,11 @@ func runStreamOrderCases(t *testing.T, adapter Adapter) {
 	// success, so an adapter that defaults to 200 records affinity for a request
 	// that never produced a response.
 	//
-	// The two adapters genuinely disagree here, so the expectation is taken from
-	// the adapter rather than fixed. gin's ResponseWriter initialises its status to
-	// 200 and cannot distinguish unwritten from "wrote 200", which does not satisfy
-	// the documented contract; a transport that can report the unwritten state says
-	// so by implementing unwrittenStatusReporter and is then held to 0 exactly.
+	// The two transports genuinely disagree here, so the expectation is taken from
+	// the adapter rather than fixed. A writer that initialises its status to 200
+	// cannot distinguish unwritten from "wrote 200", which does not satisfy the
+	// documented contract; a transport that can report the unwritten state says so
+	// by implementing unwrittenStatusReporter and is then held to 0 exactly.
 	// This pins both behaviours rather than accepting either, so neither can drift
 	// and the divergence stays visible.
 	t.Run("ResponseStatusBeforeAnyWriteIsPinned", func(t *testing.T) {
@@ -560,7 +560,7 @@ func runStreamOrderCases(t *testing.T, adapter Adapter) {
 	// writers -- which check Context().Err() before every frame
 	// (gateway.RequestContextDone) -- silently emitted only the first frame of
 	// every relay. The lifetime must stay live for exactly as long as the code
-	// using it runs, which is what gin gave callers and what they still assume.
+	// using it runs, which is what callers still assume.
 	t.Run("RequestLifetimeSurvivesAStreamedResponse", func(t *testing.T) {
 		const frames = 8
 
@@ -622,10 +622,11 @@ func runStreamOrderCases(t *testing.T, adapter Adapter) {
 // unwrittenStatusReporter is the declaration a context makes when ResponseStatus
 // can distinguish a response that has not started from one that wrote 200.
 //
-// It is an optional interface because the two transports genuinely differ: gin's
-// writer initialises its status to 200, while a transport that stages the status
-// can report the documented 0. Not implementing it means the transport default,
-// which is what the gin adapter reports today.
+// It is an optional interface because the two transports genuinely differ: a
+// writer that initialises its status to 200 cannot report the unwritten state,
+// while a transport that stages the status can report the documented 0. Not
+// implementing it means the transport default, which reports 200 until
+// something writes one.
 type unwrittenStatusReporter interface {
 	ReportsUnwrittenStatusAsZero() bool
 }

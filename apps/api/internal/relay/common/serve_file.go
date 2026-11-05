@@ -415,9 +415,8 @@ func GetImageConfig(c contract.Context, source types.FileSource) (image.Config, 
 
 // GetBase64Data 获取 base64 编码的数据
 //
-// It still accepts *gin.Context because relay provider adaptors have not been
-// migrated yet; the context is adapted before entering the contract-based
-// file-source chain.
+// Relay provider adaptors call this through the framework-neutral
+// contract.Context; the active transport adapter supplies it.
 func GetBase64Data(c contract.Context, source types.FileSource, reason ...string) (string, string, error) {
 	cachedData, err := LoadFileSource(c, source, reason...)
 	if err != nil {

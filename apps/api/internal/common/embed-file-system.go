@@ -9,7 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/internal/transport/contract"
 )
 
-// Credit: https://github.com/gin-contrib/static/issues/19
+// Credit: the static file server this file was adapted from.
 
 type embedFileSystem struct {
 	http.FileSystem

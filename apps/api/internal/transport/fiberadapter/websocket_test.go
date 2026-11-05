@@ -10,7 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/internal/transport/contract"
 
 	fastws "github.com/fasthttp/websocket"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	gorilla "github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,8 +30,8 @@ import (
 func TestUpgradeCompletesTheHandshakeOverTheWire(t *testing.T) {
 	echoed := make(chan string, 1)
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/v1/realtime", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Get("/v1/realtime", func(c fiber.Ctx) error {
 		return Dispatch(c, []contract.Handler{func(ctx contract.Context) {
 			conn, err := ctx.UpgradeWebSocket("realtime")
 			require.NoError(t, err)
@@ -97,8 +97,8 @@ func TestFailedUpgradeReturnsATrueNilInterface(t *testing.T) {
 	}
 	observed := make(chan outcome, 1)
 
-	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get("/v1/realtime", func(c *fiber.Ctx) error {
+	app := fiber.New(fiber.Config{})
+	app.Get("/v1/realtime", func(c fiber.Ctx) error {
 		return Dispatch(c, []contract.Handler{func(ctx contract.Context) {
 			conn, err := ctx.UpgradeWebSocket("realtime")
 			result := outcome{conn: conn, isNil: conn == nil, err: err}

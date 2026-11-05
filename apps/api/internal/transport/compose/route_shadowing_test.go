@@ -15,10 +15,9 @@ import (
 // registered but can never be matched still satisfies it.
 //
 // fiber scans its route stack in registration order and serves the first match
-// (see fiberadapter/router.go). gin sorted its tree by specificity, so a
-// literal segment beat a parameter no matter which was registered first; fiber
-// has no such rule. Any literal path registered after an overlapping
-// parameterised one is therefore dead code that answers with the other
+// (see fiberadapter/router.go). The previous adapter sorted its tree by
+// specificity, so a literal segment beat a parameter no matter which was
+// registered first; fiber has no such rule.
 // handler's response — GET /api/channel/health used to reach GetChannel and
 // report `strconv.Atoi: parsing "health"` instead of the health payload.
 //

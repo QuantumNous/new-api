@@ -41,7 +41,7 @@ type upgradeResult struct {
 // business code. The chain parks, the dispatcher registers the hijack while it
 // is still on fiber's stack, and the hijack goroutine hands the connection back
 // to the parked chain and then waits for it. So the caller keeps writing
-// straight-line code with its own defers, exactly as it did under gin.
+// straight-line code with its own defers, exactly as before.
 //
 // The response belongs to the upgrader from here on: on success fasthttp writes
 // the 101 and the upgrade headers it staged, and on failure the upgrader has
@@ -93,7 +93,7 @@ func (s *responseState) upgrade(subprotocols []string) (contract.WSConn, error) 
 // must return immediately -- waiting for the chain here would wait for a chain
 // that is still parked for a connection only the hijack handler can deliver.
 // On failure there is no hijack handler, so this waits for the chain itself,
-// because fiber recycles the *fiber.Ctx as soon as it returns.
+// because fiber recycles the fiber.Ctx as soon as it returns.
 func (s *responseState) commitUpgrade() error {
 	request := s.upgradeReq
 
@@ -112,7 +112,7 @@ func (s *responseState) commitUpgrade() error {
 		CheckOrigin: func(*fasthttp.RequestCtx) bool { return true },
 	}
 
-	if err := upgrader.Upgrade(s.fiber.Context(), func(conn *websocket.Conn) {
+	if err := upgrader.Upgrade(s.fiber.RequestCtx(), func(conn *websocket.Conn) {
 		// This runs on fasthttp's hijack goroutine, after the 101 reached the
 		// client. Hand the connection to the parked chain, then stay here until
 		// the chain is done: returning would let fasthttp close the connection
