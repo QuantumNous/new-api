@@ -46,7 +46,7 @@ export function DescriptionDialog({
       bodyClassName='space-y-4'
     >
       <ScrollArea className='max-h-96'>
-        <div className='space-y-2 pr-4'>
+        <div className='space-y-2 pe-4'>
           <p className='text-foreground text-sm leading-relaxed break-words whitespace-pre-wrap'>
             {description}
           </p>

@@ -28,14 +28,14 @@ function getTableCellAlignClass(
   align: TableCellNode['align'] | undefined
 ): string {
   if (align === 'right') {
-    return 'text-right'
+    return 'text-end'
   }
 
   if (align === 'center') {
     return 'text-center'
   }
 
-  return 'text-left'
+  return 'text-start'
 }
 
 function renderTableCell(

@@ -228,7 +228,7 @@ function isLikelyUntranslated({ locale, baseValue, value }) {
 
   // For locales with non-latin scripts, equality with EN is a strong signal.
   if (locale === 'ja' || locale === 'zh') return true
-  if (locale === 'ru') return true
+  if (locale === 'ru' || locale === 'ar') return true
 
   // For fr/vi: still useful but noisier; keep it conservative.
   if (locale === 'fr' || locale === 'vi')

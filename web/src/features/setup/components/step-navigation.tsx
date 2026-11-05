@@ -63,12 +63,12 @@ export function StepNavigation({
           <Button type='button' onClick={onSubmit} disabled={isSubmitting}>
             {isSubmitting ? (
               <>
-                <Loader2 className='mr-2 size-4 animate-spin' />
+                <Loader2 className='me-2 size-4 animate-spin' />
                 {t('Initializing…')}
               </>
             ) : (
               <>
-                <CheckCircle2 className='mr-2 size-4' />
+                <CheckCircle2 className='me-2 size-4' />
                 {t('Initialize system')}
               </>
             )}

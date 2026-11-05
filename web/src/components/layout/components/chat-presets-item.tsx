@@ -147,9 +147,9 @@ function DropdownPresetItem({
     >
       {preset.name}
       {loading ? (
-        <Loader2 className='ml-auto h-4 w-4 animate-spin opacity-70' />
+        <Loader2 className='ms-auto h-4 w-4 animate-spin opacity-70' />
       ) : (
-        <ExternalLink className='ml-auto h-4 w-4 opacity-70' />
+        <ExternalLink className='ms-auto h-4 w-4 opacity-70' />
       )}
     </DropdownMenuItem>
   )

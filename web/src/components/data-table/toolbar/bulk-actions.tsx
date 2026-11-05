@@ -23,12 +23,14 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useDirection } from '@/components/ui/direction'
 import { Separator } from '@/components/ui/separator'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { toLogicalArrowKey } from '@/lib/keyboard-direction'
 import { cn } from '@/lib/utils'
 
 type DataTableBulkActionsProps<TData> = {
@@ -55,6 +57,7 @@ export function DataTableBulkActions<TData>({
   children,
 }: DataTableBulkActionsProps<TData>): React.ReactNode | null {
   const { t } = useTranslation()
+  const direction = useDirection()
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const selectedCount = selectedRows.length
   const toolbarRef = useRef<HTMLDivElement>(null)
@@ -95,7 +98,7 @@ export function DataTableBulkActions<TData>({
       document.activeElement as HTMLButtonElement
     )
 
-    switch (event.key) {
+    switch (toLogicalArrowKey(event.key, direction)) {
       case 'ArrowRight': {
         event.preventDefault()
         const nextIndex = (currentIndex + 1) % buttons.length

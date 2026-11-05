@@ -397,7 +397,7 @@ export function SubscriptionPlansCard({
           {hasAny && (
             <>
               <Separator className='my-3' />
-              <div className='max-h-64 space-y-3 overflow-y-auto pr-1'>
+              <div className='max-h-64 space-y-3 overflow-y-auto pe-1'>
                 {allSubscriptions.map((sub) => {
                   const subscription = sub.subscription
                   const totalAmount = Number(subscription?.amount_total || 0)
@@ -500,7 +500,7 @@ export function SubscriptionPlansCard({
                           t('Unlimited')
                         )}
                         {totalAmount > 0 && (
-                          <span className='ml-2'>
+                          <span className='ms-2'>
                             {t('Used')} {usagePercent}%
                           </span>
                         )}

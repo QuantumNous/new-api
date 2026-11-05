@@ -197,12 +197,12 @@ export function JsonEditor({
           >
             {mode === 'visual' ? (
               <>
-                <Code className='mr-2 h-4 w-4' />
+                <Code className='me-2 h-4 w-4' />
                 {t('JSON Mode')}
               </>
             ) : (
               <>
-                <Table className='mr-2 h-4 w-4' />
+                <Table className='me-2 h-4 w-4' />
                 {t('Visual Mode')}
               </>
             )}
@@ -279,7 +279,7 @@ export function JsonEditor({
             disabled={disabled}
             className='w-full'
           >
-            <Plus className='mr-2 h-4 w-4' />
+            <Plus className='me-2 h-4 w-4' />
             {t('Add Row')}
           </Button>
         </div>

@@ -80,7 +80,7 @@ export function Features(_props: FeaturesProps) {
                 strokeWidth={1.5}
               />
             </div>
-            <div className='absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-emerald-500'>
+            <div className='absolute -end-1 -top-1 flex size-4 items-center justify-center rounded-full bg-emerald-500'>
               <svg
                 className='size-2.5 text-white'
                 fill='none'

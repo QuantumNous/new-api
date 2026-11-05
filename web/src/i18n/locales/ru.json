@@ -6299,6 +6299,7 @@
     "The task was accepted; submission cannot be replayed": "Задача принята; повторная отправка запрещена",
     "The Telegram authorization request is invalid or expired.": "Запрос авторизации Telegram недействителен или истёк.",
     "The telegram OAuth provider name is reserved. Ask your administrator to rename the conflicting custom provider.": "Имя OAuth-провайдера telegram зарезервировано. Попросите администратора переименовать конфликтующего пользовательского провайдера.",
+    "The text direction is set by the interface language": "Направление текста определяется языком интерфейса",
     "The time range cannot exceed {{days}} days": "Временной диапазон не может превышать {{days}} дн.",
     "The token group that will have a custom ratio": "Группа токенов, которая будет иметь пользовательское соотношение",
     "The token has no group, so it is billed as the user group vip, using the base ratio of vip.": "У токена нет группы, поэтому вызов тарифицируется по группе пользователя vip с базовым коэффициентом vip.",

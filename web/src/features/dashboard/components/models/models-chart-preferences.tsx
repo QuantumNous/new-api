@@ -72,7 +72,7 @@ export function ModelsChartPreferences(props: ModelsChartPreferencesProps) {
       onOpenChange={handleOpenChange}
       trigger={
         <Button variant='outline' size='sm'>
-          <Settings2 className='mr-2 h-4 w-4' />
+          <Settings2 className='me-2 h-4 w-4' />
           {t('Preferences')}
         </Button>
       }
@@ -83,7 +83,7 @@ export function ModelsChartPreferences(props: ModelsChartPreferencesProps) {
       bodyClassName='grid gap-3'
       footer={
         <Button onClick={handleSave} type='button'>
-          <Save className='mr-2 h-4 w-4' />
+          <Save className='me-2 h-4 w-4' />
           {t('Save Preferences')}
         </Button>
       }

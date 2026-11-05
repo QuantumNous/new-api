@@ -39,6 +39,8 @@ import {
 } from '@tanstack/react-table'
 import * as React from 'react'
 
+import { useDirection } from '@/components/ui/direction'
+
 type DataTableFeatureOptions<TData> = Pick<
   TableOptions<TData>,
   | 'enableRowSelection'
@@ -377,6 +379,7 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
       Boolean(options.sorting) ||
       Boolean(options.onSortingChange))
 
+  const direction = useDirection()
   const table = useReactTable({
     data,
     columns,
@@ -403,6 +406,7 @@ export function useDataTable<TData>(options: UseDataTableOptions<TData>) {
     manualSorting,
     enableColumnResizing: options.enableColumnResizing,
     columnResizeMode: 'onChange',
+    columnResizeDirection: direction,
     onSortingChange,
     onColumnVisibilityChange,
     onColumnSizingChange,

@@ -325,7 +325,7 @@ export function SyncWizardDialog(props: {
       showCloseButton={!busy}
       footer={
         <>
-          <div className='text-muted-foreground mr-auto min-w-0 text-sm'>
+          <div className='text-muted-foreground me-auto min-w-0 text-sm'>
             <p>{t('{{count}} selected models', { count: selected.length })}</p>
             {step === 0 && hiddenSelectedCount > 0 && (
               <p className='text-xs'>

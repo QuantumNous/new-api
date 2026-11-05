@@ -92,7 +92,7 @@ export function BadgeListCell({
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger render={<div className='-ml-1.5 max-w-full' />}>
+        <TooltipTrigger render={<div className='-ms-1.5 max-w-full' />}>
           <StatusBadgeList
             items={items}
             max={max}

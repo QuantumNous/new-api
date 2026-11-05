@@ -197,14 +197,14 @@ function SetupGuideBackdrop(props: { compact?: boolean }) {
       />
       <div
         className={cn(
-          'text-foreground/5 dark:text-foreground/8 pointer-events-none absolute inset-y-0 right-0 hidden overflow-hidden font-mono sm:block',
+          'text-foreground/5 dark:text-foreground/8 pointer-events-none absolute inset-y-0 end-0 hidden overflow-hidden font-mono sm:block',
           props.compact ? 'w-1/2 opacity-45' : 'w-[58%] opacity-75'
         )}
         aria-hidden='true'
       >
         <pre
           className={cn(
-            'absolute right-3 [mask-image:linear-gradient(90deg,transparent_0%,black_30%,black_82%,transparent_100%)] text-right tracking-[0.38em] whitespace-pre',
+            'absolute end-3 [mask-image:linear-gradient(90deg,transparent_0%,black_30%,black_82%,transparent_100%)] text-end tracking-[0.38em] whitespace-pre',
             props.compact
               ? '-top-6 text-[9px] leading-4'
               : 'top-1 text-[11px] leading-5'
@@ -233,7 +233,7 @@ function StartStepItem(props: {
     <li className='relative flex gap-3 pb-2.5 last:pb-0'>
       {!props.isLast && (
         <span
-          className='bg-border absolute top-9 bottom-0 left-4 w-px'
+          className='bg-border absolute start-4 top-9 bottom-0 w-px'
           aria-hidden='true'
         />
       )}
@@ -251,7 +251,7 @@ function StartStepItem(props: {
 
       <Link
         to={props.step.to}
-        className='bg-background/70 hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left shadow-xs transition-colors outline-none focus-visible:ring-2'
+        className='bg-background/70 hover:bg-muted/50 focus-visible:ring-ring flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-start shadow-xs transition-colors outline-none focus-visible:ring-2'
       >
         <span className='flex min-w-0 items-start gap-2.5'>
           <span className='bg-muted mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg'>
@@ -426,7 +426,7 @@ function QuickActionItem(props: { action: QuickAction }) {
   return (
     <Button
       variant='outline'
-      className='h-auto justify-start rounded-xl px-3 py-3 text-left'
+      className='h-auto justify-start rounded-xl px-3 py-3 text-start'
       render={<Link to={props.action.to} />}
     >
       <span className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-lg'>

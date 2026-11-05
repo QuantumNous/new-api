@@ -240,7 +240,7 @@ export function UpstreamRatioSyncTable(props: UpstreamRatioSyncTableProps) {
           {props.toolbar}
           <div className='relative min-w-40 flex-1 sm:max-w-72'>
             <Search
-              className='text-muted-foreground absolute top-1/2 left-2 size-4 -translate-y-1/2'
+              className='text-muted-foreground absolute start-2 top-1/2 size-4 -translate-y-1/2'
               aria-hidden
             />
             <Input
@@ -288,7 +288,7 @@ export function UpstreamRatioSyncTable(props: UpstreamRatioSyncTableProps) {
             />
             {t('Show models with matching prices')}
           </label>
-          <span className='text-muted-foreground text-xs sm:ml-auto'>
+          <span className='text-muted-foreground text-xs sm:ms-auto'>
             USD / {t('1M token')}
           </span>
         </div>
