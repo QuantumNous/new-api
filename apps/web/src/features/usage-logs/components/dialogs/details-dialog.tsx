@@ -714,7 +714,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           )}
 
-          {showTiming && props.log.use_time > 0 && (
+          {showTiming && ((other?.duration_ms ?? props.log.use_time * 1000) > 0) && (
             <DetailRow
               label={t('Response Time')}
               value={
@@ -723,17 +723,15 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     'font-medium',
                     timingTextColorClass(
                       getResponseTimeColor(
-                        props.log.use_time,
+                        (other?.duration_ms ?? props.log.use_time * 1000) / 1000,
                         props.log.completion_tokens
                       )
                     )
                   )}
                 >
-                  {formatUseTime(props.log.use_time)}
-                  {props.log.is_stream &&
-                    other?.frt != null &&
-                    other.frt > 0 && (
-                      <span
+                  {formatUseTime((other?.duration_ms ?? props.log.use_time * 1000) / 1000)}
+                  {other?.frt != null && other.frt >= 0 && (
+                    <span
                         className={cn(
                           'font-normal',
                           timingTextColorClass(

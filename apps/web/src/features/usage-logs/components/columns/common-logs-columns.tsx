@@ -625,8 +625,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const log = row.original
         if (!isTimingLogType(log.type)) return null
 
-        const useTime = row.getValue('use_time') as number
         const other = parseLogOther(log.other)
+        const useTimeMs = other?.duration_ms ?? ((row.getValue('use_time') as number) || 0) * 1000
+        const useTime = useTimeMs / 1000
         const tokensPerSecond =
           useTime > 0 && log.completion_tokens > 0
             ? log.completion_tokens / useTime
@@ -712,8 +713,9 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const log = row.original
         if (!isTimingLogType(log.type)) return null
 
-        const useTime = row.getValue('use_time') as number
+        const useTimeValue = (row.getValue('use_time') as number) || 0
         const other = parseLogOther(log.other)
+        const useTime = (other?.duration_ms ?? useTimeValue * 1000) / 1000
 
         return (
           <TimingMetricsCell

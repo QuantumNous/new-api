@@ -216,6 +216,9 @@ func ClaudeHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError 
 		}
 	}
 
+	if !info.IsStream {
+		info.SetFirstResponseTime()
+	}
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码

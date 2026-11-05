@@ -256,6 +256,9 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 		}
 	}
 
+	if !info.IsStream {
+		info.SetFirstResponseTime()
+	}
 	usage, newApiErr := adaptor.DoResponse(c, httpResp, info)
 	if newApiErr != nil {
 		// reset status code 重置状态码

@@ -172,6 +172,9 @@ func GeminiHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError 
 		}
 	}
 
+	if !info.IsStream {
+		info.SetFirstResponseTime()
+	}
 	usage, openaiErr := adaptor.DoResponse(c, resp.(*http.Response), info)
 	if openaiErr != nil {
 		relaycommon.ResetStatusCode(openaiErr, statusCodeMappingStr)
@@ -272,6 +275,9 @@ func GeminiEmbeddingHandler(c contract.Context, info *relaycommon.RelayInfo) (ne
 		}
 	}
 
+	if !info.IsStream {
+		info.SetFirstResponseTime()
+	}
 	usage, openaiErr := adaptor.DoResponse(c, resp.(*http.Response), info)
 	if openaiErr != nil {
 		relaycommon.ResetStatusCode(openaiErr, statusCodeMappingStr)

@@ -72,7 +72,7 @@ interface TimingMetricsCellProps {
 export function TimingMetricsCell(props: TimingMetricsCellProps) {
   const { t } = useTranslation()
   const indicator = props.indicator ?? 'bar'
-  const showFirstToken = props.isStream
+  const showFirstToken = props.frtMs != null && props.frtMs >= 0
   const firstTokenSeconds =
     props.frtMs != null && props.frtMs > 0 ? props.frtMs / 1000 : null
   const firstTokenVariant: StatusVariant =
