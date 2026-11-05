@@ -415,18 +415,25 @@ func isTextGenerationFormat(format types.RelayFormat) bool {
 // isUndeliveredTextResponse reports whether a 2xx response produced nothing the
 // user could consume: no visible text, no tool call, no billable tool surcharge,
 // no policy rejection, and no client-initiated disconnect. When the handler
-// inspected the content, emptiness comes from the observed text/tool flags, so a
-// reasoning-only response with completion tokens still counts as undelivered;
-// otherwise the completion-token count is the only signal available. Only
-// meaningful for text-generation formats: image/audio/embedding/rerank
-// legitimately report completion=0.
+// inspected the content, emptiness requires both no observed deliverable and
+// no billable completion tokens; output that spent billable completion tokens
+// without a user-visible answer (e.g. reasoning-only output) is instead handled
+// by the truncated-response policy. Otherwise the completion-token count is the
+// only signal available. Only meaningful for text-generation formats:
+// image/audio/embedding/rerank legitimately report completion=0.
 func isUndeliveredTextResponse(relayInfo *relaycommon.RelayInfo, summary textQuotaSummary, adminRejectReason string) bool {
 	if !isTextGenerationFormat(relayInfo.RelayFormat) {
 		return false
 	}
+	// A response with billable completion tokens but no user-visible
+	// text/tool/media output still spent upstream capacity. Treat only
+	// responses that produced no billable completion tokens as genuinely
+	// empty; anything with billable output falls through to the
+	// truncated-response policy instead of the empty waiver.
 	empty := summary.CompletionTokens == 0
 	if relayInfo.StreamContentObserved {
-		empty = !relayInfo.StreamSawTextContent && !relayInfo.StreamSawToolCall && !relayInfo.StreamSawMediaContent
+		sawDeliverable := relayInfo.StreamSawTextContent || relayInfo.StreamSawToolCall || relayInfo.StreamSawMediaContent
+		empty = !sawDeliverable && summary.CompletionTokens == 0
 	}
 	if !empty {
 		return false
@@ -492,13 +499,16 @@ const (
 // Claude/Gemini protocols, which have no [DONE] sentinel), never streamed
 // (non-stream requests keep the end reason None), or panicked (that path
 // returns an error and refunds before settlement).
-func streamCutKind(relayInfo *relaycommon.RelayInfo) string {
+func streamCutKind(relayInfo *relaycommon.RelayInfo, completionTokens int) string {
 	if relayInfo == nil || !isTextGenerationFormat(relayInfo.RelayFormat) {
 		return ""
 	}
 	if relayInfo.StreamCutOverride != "" {
 		return relayInfo.StreamCutOverride
 	}
+	// Reasoning-only/non-visible output is only treated as an incomplete
+	// upstream delivery for stream states that are not an explicit
+	// client/ping-initiated disconnect.
 	switch relayInfo.StreamStatus.GetEndReason() {
 	case relaycommon.StreamEndReasonClientGone,
 		relaycommon.StreamEndReasonPingFail:
@@ -519,6 +529,13 @@ func streamCutKind(relayInfo *relaycommon.RelayInfo) string {
 		}
 		return streamCutUpstream
 	default:
+		if relayInfo.StreamContentObserved &&
+			!relayInfo.StreamSawTextContent &&
+			!relayInfo.StreamSawToolCall &&
+			!relayInfo.StreamSawMediaContent &&
+			completionTokens > 0 {
+			return streamCutUpstream
+		}
 		return ""
 	}
 }
@@ -538,7 +555,7 @@ func applyTruncatedResponseMultiplier(relayInfo *relaycommon.RelayInfo, summary 
 	if relayInfo == nil || summary == nil {
 		return
 	}
-	kind := streamCutKind(relayInfo)
+	kind := streamCutKind(relayInfo, summary.CompletionTokens)
 	if kind == "" {
 		return
 	}
