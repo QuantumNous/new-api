@@ -99,12 +99,16 @@ func cleanGeminiFunctionParametersWithDepth(params interface{}, depth int) inter
 		if items, ok := cleanedMap["items"].(map[string]interface{}); ok && items != nil {
 			cleanedMap["items"] = cleanGeminiFunctionParametersWithDepth(items, depth+1)
 		}
-		if itemsArray, ok := cleanedMap["items"].([]interface{}); ok {
+		if itemsArray, ok := cleanedMap["items"].([]any); ok {
 			if len(itemsArray) > 0 {
 				cleanedMap["items"] = cleanGeminiFunctionParametersWithDepth(itemsArray[0], depth+1)
 			} else {
-				// draft-04 的 tuple 写法 items: [] 在 Gemini 侧既无意义也不合法
-				delete(cleanedMap, "items")
+				// The draft-04 tuple form items: [] constrains an array to hold
+				// no elements, which a typed Schema cannot express. Dropping
+				// items instead would leave an ARRAY without an element schema,
+				// which Gemini rejects too, so fall back to its default element
+				// type.
+				cleanedMap["items"] = map[string]any{"type": "STRING"}
 			}
 		}
 
@@ -179,17 +183,19 @@ func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 	enforceGeminiArrayType(schema)
 }
 
-// inferGeminiSchemaType 为缺失 type 的节点补上 Gemini 能接受的类型。
+// inferGeminiSchemaType fills in a type for nodes that omit it.
 //
-// Gemini 的 Schema proto 带字段谓词校验：只要节点出现 items，$type 就必须是
-// Type.ARRAY；否则整个请求会被上游拒绝，客户端只看到 400：
+// Gemini's Schema proto carries field predicates: a node holding items must
+// declare $type == Type.ARRAY, otherwise the whole request is rejected and the
+// client only sees a 400:
 //
 //   - GenerateContentRequest.tools[0].function_declarations[N].parameters
 //     .properties[x].items: field predicate failed: $type == Type.ARRAY
 //
-// 很多客户端的 schema 生成器会省略 type（JSON Schema 本身允许省略），
-// 或写成 list / map / List[str] 这类非标值，这里统一兜住。
-func inferGeminiSchemaType(schema map[string]interface{}) {
+// Schema generators routinely omit type (JSON Schema allows it) or emit values
+// outside Gemini's six-value enum such as list, map or List[str]; this covers
+// both shapes.
+func inferGeminiSchemaType(schema map[string]any) {
 	if _, hasItems := schema["items"]; hasItems {
 		schema["type"] = "ARRAY"
 		return
@@ -199,10 +205,10 @@ func inferGeminiSchemaType(schema map[string]interface{}) {
 	}
 }
 
-// enforceGeminiArrayType 兜底：带 items 的节点，type 只能是 ARRAY。
-// 少数 schema 里 type 与 items 自相矛盾（例如 type=STRING 却带 items），
-// 按 items 优先修正 —— 因为 items 是 ARRAY 专属关键字，出现即说明本意是数组。
-func enforceGeminiArrayType(schema map[string]interface{}) {
+// enforceGeminiArrayType keeps type consistent with items. Some schemas
+// declare a type that contradicts a present items (for example type=STRING
+// with items); items wins because it is only meaningful on an ARRAY.
+func enforceGeminiArrayType(schema map[string]any) {
 	if _, hasItems := schema["items"]; !hasItems {
 		return
 	}
@@ -211,7 +217,7 @@ func enforceGeminiArrayType(schema map[string]interface{}) {
 	}
 }
 
-func normalizeGeminiTypeField(schema map[string]interface{}) {
+func normalizeGeminiTypeField(schema map[string]any) {
 	rawType, ok := schema["type"]
 	if !ok || rawType == nil {
 		inferGeminiSchemaType(schema)
@@ -235,8 +241,9 @@ func normalizeGeminiTypeField(schema map[string]interface{}) {
 		case "null":
 			return "", true
 		default:
-			// 非标类型（list / map / "array[string]" / List[str]）绝不能透传，
-			// Gemini 只认六个枚举值，其余一律以 field predicate failed 拒绝。
+			// Non-standard types (list, map, "array[string]", List[str]) must
+			// not pass through: Gemini accepts only its six enum values and
+			// rejects anything else with a field predicate failure.
 			return "", false
 		}
 	}

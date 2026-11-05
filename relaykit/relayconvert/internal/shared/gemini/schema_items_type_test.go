@@ -1,110 +1,117 @@
 package gemini
 
 import (
-	"encoding/json"
 	"testing"
+
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// 复刻线上 400 的现场：客户端 schema 里 source_paths 带 items 却没有 type，
-// Gemini 侧报 field predicate failed: $type == Type.ARRAY。
+// Reproduces the production 400: a property carries items without a usable
+// type, so Gemini rejects the call with
+// field predicate failed: $type == Type.ARRAY.
 func TestCleanFunctionParameters_GeminiItemsType(t *testing.T) {
 	cases := []struct {
-		name     string
-		in       string
-		wantType string
-		wantNoKey bool
+		name          string
+		in            string
+		property      string
+		wantType      string
+		wantNullable  bool
+		wantItemsType string
 	}{
 		{
-			name:     "缺 type 但有 items",
+			name:     "missing type with items",
 			in:       `{"type":"object","properties":{"source_paths":{"items":{"type":"string"}}}}`,
+			property: "source_paths",
 			wantType: "ARRAY",
 		},
 		{
-			name:     "非标 type list",
+			name:     "non-standard type list",
 			in:       `{"type":"object","properties":{"source_paths":{"type":"list","items":{"type":"string"}}}}`,
+			property: "source_paths",
 			wantType: "ARRAY",
 		},
 		{
-			name:     "非标 type List[str]",
+			name:     "non-standard type List[str]",
 			in:       `{"type":"object","properties":{"source_paths":{"type":"List[str]","items":{"type":"string"}}}}`,
+			property: "source_paths",
 			wantType: "ARRAY",
 		},
 		{
-			name:     "type 与 items 矛盾",
+			name:     "type contradicts items",
 			in:       `{"type":"object","properties":{"source_paths":{"type":"string","items":{"type":"string"}}}}`,
+			property: "source_paths",
 			wantType: "ARRAY",
 		},
 		{
-			name:     "nullable 数组写法",
-			in:       `{"type":"object","properties":{"source_paths":{"type":["array","null"],"items":{"type":"string"}}}}`,
-			wantType: "ARRAY",
+			name:          "nullable array form",
+			in:            `{"type":"object","properties":{"source_paths":{"type":["array","null"],"items":{"type":"string"}}}}`,
+			property:      "source_paths",
+			wantType:      "ARRAY",
+			wantNullable:  true,
+			wantItemsType: "STRING",
 		},
 		{
-			name:     "标准写法不应被改动",
-			in:       `{"type":"object","properties":{"source_paths":{"type":"array","items":{"type":"string"}}}}`,
-			wantType: "ARRAY",
+			name:          "standard form unchanged",
+			in:            `{"type":"object","properties":{"source_paths":{"type":"array","items":{"type":"string"}}}}`,
+			property:      "source_paths",
+			wantType:      "ARRAY",
+			wantItemsType: "STRING",
 		},
 		{
-			name:      "空 tuple items 应被删除",
-			in:        `{"type":"object","properties":{"source_paths":{"type":"array","items":[]}}}`,
-			wantNoKey: true,
+			name:          "empty tuple items keeps an element schema",
+			in:            `{"type":"object","properties":{"source_paths":{"type":"array","items":[]}}}`,
+			property:      "source_paths",
+			wantType:      "ARRAY",
+			wantItemsType: "STRING",
 		},
 		{
-			name:     "缺 type 但有 properties 补 OBJECT",
+			name:     "missing type with properties infers OBJECT",
 			in:       `{"type":"object","properties":{"cfg":{"properties":{"a":{"type":"string"}}}}}`,
+			property: "cfg",
 			wantType: "OBJECT",
 		},
 		{
-			name:     "嵌套数组",
-			in:       `{"type":"object","properties":{"m":{"items":{"items":{"type":"string"}}}}}`,
-			wantType: "ARRAY",
+			name:          "nested array",
+			in:            `{"type":"object","properties":{"m":{"items":{"items":{"type":"string"}}}}}`,
+			property:      "m",
+			wantType:      "ARRAY",
+			wantItemsType: "ARRAY",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var in map[string]any
-			if err := json.Unmarshal([]byte(tc.in), &in); err != nil {
-				t.Fatalf("bad fixture: %v", err)
-			}
-			out := CleanFunctionParameters(in).(map[string]any)
-			props := out["properties"].(map[string]any)
+			require.NoError(t, kitutil.Unmarshal([]byte(tc.in), &in))
 
-			if tc.wantNoKey {
-				node := props["source_paths"].(map[string]any)
-				if _, ok := node["items"]; ok {
-					t.Fatalf("items 应被删除，实际仍存在: %v", node)
-				}
-				return
-			}
+			out, ok := CleanFunctionParameters(in).(map[string]any)
+			require.True(t, ok)
 
-			var node map[string]any
-			switch {
-			case props["source_paths"] != nil:
-				node = props["source_paths"].(map[string]any)
-			case props["cfg"] != nil:
-				node = props["cfg"].(map[string]any)
-			case props["m"] != nil:
-				node = props["m"].(map[string]any)
-			default:
-				t.Fatalf("找不到目标节点: %v", props)
-			}
+			props, ok := out["properties"].(map[string]any)
+			require.True(t, ok)
+			node, ok := props[tc.property].(map[string]any)
+			require.True(t, ok, "property %s missing from %v", tc.property, props)
 
-			if got, _ := node["type"].(string); got != tc.wantType {
-				t.Fatalf("type 期望 %s，实际 %q（整个节点: %v）", tc.wantType, got, node)
+			assert.Equal(t, tc.wantType, node["type"], "node: %v", node)
+			if tc.wantNullable {
+				assert.Equal(t, true, node["nullable"], "node: %v", node)
 			}
-
-			// 有 items 就必须 type=ARRAY，这是 Gemini 的硬约束
+			if tc.wantItemsType != "" {
+				items, isMap := node["items"].(map[string]any)
+				require.True(t, isMap, "items missing on node: %v", node)
+				assert.Equal(t, tc.wantItemsType, items["type"], "items: %v", items)
+			}
+			// Gemini's hard constraint: a node carrying items is an ARRAY.
 			if _, hasItems := node["items"]; hasItems {
-				if node["type"] != "ARRAY" {
-					t.Fatalf("带 items 却不是 ARRAY: %v", node)
-				}
+				assert.Equal(t, "ARRAY", node["type"], "node with items is not an ARRAY: %v", node)
 			}
 		})
 	}
 }
 
-// 确认白名单仍会剔除 Gemini 不认识的字段
+// The allow-list still drops keywords Gemini's typed Schema cannot hold.
 func TestCleanFunctionParameters_StillFiltersUnknownKeys(t *testing.T) {
 	in := map[string]any{
 		"type":                 "object",
@@ -115,20 +122,20 @@ func TestCleanFunctionParameters_StillFiltersUnknownKeys(t *testing.T) {
 			"a": map[string]any{"type": "string", "$ref": "#/$defs/x", "examples": []any{"y"}},
 		},
 	}
-	out := CleanFunctionParameters(in).(map[string]any)
 
-	for _, k := range []string{"$schema", "additionalProperties", "oneOf"} {
-		if _, ok := out[k]; ok {
-			t.Fatalf("未知字段 %s 应被剔除，实际保留", k)
-		}
+	out, ok := CleanFunctionParameters(in).(map[string]any)
+	require.True(t, ok)
+
+	for _, key := range []string{"$schema", "additionalProperties", "oneOf"} {
+		assert.NotContains(t, out, key)
 	}
-	a := out["properties"].(map[string]any)["a"].(map[string]any)
-	for _, k := range []string{"$ref", "examples"} {
-		if _, ok := a[k]; ok {
-			t.Fatalf("未知字段 %s 应被剔除，实际保留", k)
-		}
+
+	props, ok := out["properties"].(map[string]any)
+	require.True(t, ok)
+	a, ok := props["a"].(map[string]any)
+	require.True(t, ok)
+	for _, key := range []string{"$ref", "examples"} {
+		assert.NotContains(t, a, key)
 	}
-	if a["type"] != "STRING" {
-		t.Fatalf("type 应归一化为 STRING，实际 %v", a["type"])
-	}
+	assert.Equal(t, "STRING", a["type"])
 }
