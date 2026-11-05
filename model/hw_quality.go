@@ -9,6 +9,7 @@ package model
 import (
 	"errors"
 
+	"github.com/QuantumNous/new-api/pkg/hwperf"
 	"gorm.io/gorm"
 )
 
@@ -101,7 +102,7 @@ func HwLatestQualityRun() (*HwQualityRun, []HwQualityScore, error) {
 // about how fast the model writes: dividing its handful of tokens by its
 // duration is what showed Opus at 0.2 tokens per second. Short answers and
 // answers without output are left out of every tokens-per-second figure.
-const HwSpeedMinOutputTokens = 32
+const HwSpeedMinOutputTokens = hwperf.MinOutputTokens
 
 // HwQualityLatencyBucket counts the served customer requests of one own model
 // that took the same whole number of seconds. The relay stores the duration in

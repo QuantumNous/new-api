@@ -9,7 +9,7 @@
 # pad                                                        max eigen regels
 # main.go: HwInstall, HwAfterEnv, HwStartJobs, BIND_HOST en de seeding (moet direct na InitOptionMap)
 main.go                                                        5
-pkg/perf_metrics/metrics.go                                    3
+pkg/perf_metrics/metrics.go                                    1
 middleware/access_token_routes.go                              2
 # middleware/auth.go: one gate hook per auth function (TokenAuth, authHelper), see middleware/hw_auth_gates.go
 middleware/auth.go                                             6

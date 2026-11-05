@@ -104,15 +104,6 @@ func RecordTaskResult(task *model.Task, result *relaycommon.TaskInfo) {
 	Record(sample)
 }
 
-// countsForSpeed reports whether the sample may feed the tokens-per-second
-// figure: it needs a measured generation time and a real answer. A request with
-// a handful of output tokens (a ping, a health probe) is dominated by start-up
-// time, so dividing its few tokens by its duration only drags the average to
-// about one token per second; requests without output carry no speed at all.
-func (s Sample) countsForSpeed() bool {
-	return s.OutputTokens >= model.HwSpeedMinOutputTokens && s.GenerationMs > 0
-}
-
 // Immediate failures are submit failures, which are not health samples.
 func RecordImmediateTaskResult(info *relaycommon.RelayInfo, result *relaycommon.TaskInfo) {
 	if result == nil || result.Status != model.TaskStatusSuccess {
