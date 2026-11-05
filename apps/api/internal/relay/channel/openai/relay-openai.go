@@ -182,6 +182,18 @@ func OaiStreamHandler(c contract.Context, info *relaycommon.RelayInfo, resp *htt
 				return
 			}
 			info.StreamStatus.RecordError("upstream stream error: " + payload)
+			// The upstream declared this stream broken before it declared the
+			// answer complete, so what the client already received is a partial
+			// answer: attribute the cut to the upstream and let billing apply the
+			// truncated-response policy, even when the upstream still closes the
+			// stream cleanly with [DONE]. lastFinishReason carries the in-loop
+			// signal on both the fast and the slow path; sawFinishReason is the
+			// slow path's own copy. An error event that arrives after a
+			// finish_reason keeps the full charge — the answer was complete and
+			// only trailing metadata failed.
+			if lastFinishReason == "" && !sawFinishReason {
+				info.StreamCutOverride = "upstream"
+			}
 		}
 		// 对音频模型，保存倒数第二个stream data
 		if isAudioModel && lastStreamData != "" {

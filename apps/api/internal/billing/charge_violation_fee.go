@@ -146,6 +146,7 @@ func ChargeViolationFeeIfNeeded(ctx contract.Context, relayInfo *relaycommon.Rel
 		"upstream_error_type":  oai.Type,
 		"upstream_error_code":  fmt.Sprintf("%v", oai.Code),
 		"violation_fee_marker": CSAMViolationMarker,
+		"duration_ms":          time.Since(relayInfo.StartTime).Milliseconds(),
 	}
 
 	usage.RecordConsumeLog(ctx, relayInfo.UserId, usage.RecordConsumeLogParams{

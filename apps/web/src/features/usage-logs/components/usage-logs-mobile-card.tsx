@@ -281,7 +281,8 @@ function MobileStreamTimingField({ log }: { log: UsageLog }) {
   if (!isTimingLogType(log.type)) return null
 
   const other = parseLogOther(log.other)
-  const useTime = log.use_time || 0
+  const useTimeMs = other?.duration_ms ?? ((log.use_time || 0) * 1000)
+  const useTime = useTimeMs / 1000
   const tokensPerSecond =
     useTime > 0 && log.completion_tokens > 0
       ? log.completion_tokens / useTime
