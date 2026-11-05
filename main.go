@@ -160,7 +160,6 @@ func main() {
 	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
 		common.BatchUpdateEnabled = true
 		common.SysLog(common.LogText("batch update enabled with interval %ss", strconv.Itoa(common.BatchUpdateInterval)))
-		common.SysError(common.LogText("BATCH_UPDATE_ENABLED=true can deduct customer credit twice: the credit package expiry run reads users.quota while consumption still waits in the batch buffer; run HisarWeb AI with BATCH_UPDATE_ENABLED=false"))
 		model.InitBatchUpdater()
 	}
 
@@ -183,9 +182,7 @@ func main() {
 		common.FatalLog(common.LogText("failed to configure trusted proxies: %s", err.Error()))
 		return
 	}
-	// Security headers come first so every answer carries them, including the
-	// panic handler's and the 404 of an unregistered route.
-	server.Use(middleware.HwSecurityHeaders())
+	middleware.HwInstall(server, &indexPage)
 	server.Use(middleware.PanicRecover())
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
@@ -195,10 +192,6 @@ func main() {
 	middleware.SetUpLogger(server)
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
-
-	// The Content-Security-Policy hashes the inline scripts of the page we
-	// serve; compute them after the optional analytics snippets are injected.
-	middleware.HwSetIndexPageScriptHashes(middleware.HwIndexPageScriptHashes(indexPage))
 
 	// 设置路由
 	router.SetRouter(server, router.WebAssets{
@@ -300,13 +293,7 @@ func InitResources() error {
 	// 加载环境变量
 	common.InitEnv()
 
-	// Refuse an unsafe environment configuration. This runs after .env is loaded
-	// because APP_ENV and the skip flag may come from that file; the message
-	// names the variables only and FatalLog exits non-zero.
-	if err = common.HwValidateEnvironment(); err != nil {
-		common.FatalLog(common.LogText("invalid environment configuration: %s", err.Error()))
-		return err
-	}
+	service.HwAfterEnv()
 
 	logger.SetupLogger()
 
@@ -342,12 +329,7 @@ func InitResources() error {
 	}
 	model.InitOptionMap()
 
-	// Fill the production defaults a fresh database still misses: the sale
-	// groups, the billing ratios of the sold models, the TL display and the
-	// brand. Existing operator values are never replaced.
-	if err = service.HwSeedDefaultOptions(); err != nil {
-		common.SysError(common.LogText("failed to seed the production defaults: %s", err.Error()))
-	}
+	service.HwSeedDefaultOptionsLogged()
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()
@@ -389,34 +371,7 @@ func InitResources() error {
 
 	service.StartAuthArtifactCleanup()
 
-	// Retire expired credit packages every hour on the master node.
-	model.StartHwCreditExpiryJob()
-	// Freeze shared-signal and signup-wave accounts for review once a day.
-	model.StartHwDailyAbuseSweepJob()
-	service.StartHwOrderExpiryJob()
-
-	// Refresh the TL price snapshot (price list + daily rate) once a day on
-	// the master node.
-	service.StartHwPriceSnapshotJob()
-
-	// Mail the customers whose package expires in five days and whose balance
-	// fell below the warning level, once a day on the master node.
-	service.StartHwCustomerMailJob()
-
-	// Measure the public service status once a minute on the master node and
-	// extend the credit of the packages that ran during an outage.
-	service.StartHwStatusJob()
-
-	// Bundle the /pricing reports into one Bureau V2 card an hour.
-	service.StartHwPricingFeedbackJob()
-
-	// Point the Telegram bot at this server once its token is known.
-	if common.IsMasterNode {
-		service.HwRegisterTelegramWebhookInBackground()
-		// A model switch in the code must never leave the assistant's own key
-		// behind: repair it before the first question arrives.
-		service.HwAssistantRepairKey(service.HwAdminAgentConfigFromEnv())
-	}
+	service.HwStartJobs()
 
 	return nil
 }
