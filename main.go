@@ -327,9 +327,8 @@ func InitResources() error {
 			common.SysError(common.LogText("failed to migrate retired frontend options: %s", err.Error()))
 		}
 	}
-	model.InitOptionMap()
-
-	service.HwSeedDefaultOptionsLogged()
+	model.SetHwOptionHook(service.HwSeedDefaultOptionsLogged)
+	model.InitOptionMap(true)
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()

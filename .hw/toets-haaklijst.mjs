@@ -43,6 +43,16 @@ export function beoordeel(numstat, limieten, bestaatInBasis) {
   return fouten
 }
 
+// Een pad van deze fork: een paddeel dat met "hw" begint (.hw/, hw_*, hw-*,
+// hw/, pkg/hwperf/). De upstream-tag kent geen enkel zulk pad (0 van 2669 op
+// v1.0.0-rc.48), dus zo'n bestand is van ons en een eigen regel erin is geen
+// haak. Nodig omdat onze eigen bestanden in de basisbranch staan: zodra de
+// upstream-tag onbereikbaar is (ondiepe kloon), is de basis de maat en zou
+// anders elk eigen bestand als upstreambestand gelden.
+export function isEigenPad(pad) {
+  return pad.split('/').some((deel) => deel.replace(/^\.+/, '').toLowerCase().startsWith('hw'))
+}
+
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' })
 
 // Eerste toegevoegde regel aan de kop-kant, voor de melding (bestand:regel).
@@ -64,6 +74,7 @@ export function main([basis, kop] = process.argv.slice(2)) {
   const upstream =
     git('tag', '--list', 'v*', '--merged', basis, '--sort=-v:refname').split('\n')[0].trim() || basis
   const bestaatInBasis = (pad) => {
+    if (isEigenPad(pad)) return false
     try {
       execFileSync('git', ['cat-file', '-e', `${upstream}:${pad}`], { stdio: 'ignore' })
       return true

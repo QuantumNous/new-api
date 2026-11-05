@@ -81,6 +81,7 @@ func HwSeedDefaultOptions() error {
 	}
 	var errs []error
 	for _, step := range []func(map[string]string) error{
+		hwSeedOptionDefaults,
 		hwSeedGroupRatios,
 		hwSeedUserUsableGroups,
 		hwSeedSoldModelRatios,
@@ -109,6 +110,27 @@ func HwSeedDefaultOptions() error {
 	// longer offers it and no longer has a ratio. The rebuild is unconditional
 	// because it is idempotent and also publishes whatever the other steps wrote.
 	model.InitChannelCache()
+	return errors.Join(errs...)
+}
+
+// hwSeedOptionDefaults stores every default of model.HwDefaultOptions that the
+// database does not hold yet. InitOptionMap puts the same table in the option
+// map, so a row that is missing here still answers with the shipped value in
+// the console; writing it down means the value the customer saw is the value the
+// database keeps, and an operator who later clears one finds it back.
+//
+// An empty value counts as "nobody filled this in": it is only written when the
+// row is absent, because writing an empty row would claim the option was saved.
+func hwSeedOptionDefaults(stored map[string]string) error {
+	var errs []error
+	for key, value := range model.HwDefaultOptions {
+		if _, ok := stored[key]; ok || value == "" {
+			continue
+		}
+		if err := model.UpdateOption(key, value); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	return errors.Join(errs...)
 }
 

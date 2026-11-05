@@ -349,10 +349,6 @@ func migrateDB() error {
 	if err := migrateOptionPrimaryKey(DB); err != nil {
 		common.SysError(common.LogText("failed to migrate options primary key: %s", err.Error()))
 	}
-	if err := hwDropLegacyUserSignalsTable(DB); err != nil {
-		return err
-	}
-
 	err := DB.AutoMigrate(
 		&Channel{},
 		&Token{},
@@ -390,34 +386,14 @@ func migrateDB() error {
 		&CasbinRule{},
 		&AuthzRole{},
 		&UserAccessToken{},
-		&HwCreditPackage{},
-		&HwUserSignal{},
-		&HwFirstPurchaseClaim{},
-		&HwFreeCreditClaim{},
-		&HwSignupIp{},
-		&HwAccountFlag{},
-		&HwTelegramUpdate{},
-		&HwTelegramLinkToken{},
-		&HwOrder{},
-		&HwMailLog{},
-		&HwAffiliateRetry{},
-		&HwPriceSnapshot{},
-		&HwQualityRun{},
-		&HwQualityScore{},
-		&HwStatusSample{},
-		&HwIncident{},
-		&HwCreditExtension{},
-		&HwTextOverride{},
-		&HwAdminEscalation{},
-		&HwAssistantHit{},
-		&HwAssistantFeedback{},
-		&HwPricingFeedback{},
 	)
 	if err != nil {
 		return err
 	}
-	if _, err := HwMigrateCreditValidity(DB, common.GetTimestamp()); err != nil {
-		return fmt.Errorf("migrate credit validity: %w", err)
+	// Our own tables come after the upstream ones: the credit-validity migration
+	// reads the options table this AutoMigrate creates.
+	if err := HwMigrateModels(DB); err != nil {
+		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err

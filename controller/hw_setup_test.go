@@ -34,7 +34,7 @@ func hwSetupFixture(t *testing.T) {
 	require.NoError(t, model.DB.Unscoped().Delete(&model.User{}, user.Id).Error)
 	// The handler stores the operation modes through UpdateOption, which writes
 	// into the option map the server builds at startup.
-	model.InitOptionMap()
+	model.InitOptionMap(false)
 	previousSetup := constant.Setup
 	constant.Setup = false
 	t.Cleanup(func() { constant.Setup = previousSetup })

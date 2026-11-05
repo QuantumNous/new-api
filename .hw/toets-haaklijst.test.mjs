@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, mkdirSync, cpSync } f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { beoordeel, leesHaaklijst } from './toets-haaklijst.mjs'
+import { beoordeel, isEigenPad, leesHaaklijst } from './toets-haaklijst.mjs'
 
 const WORTEL = fileURLToPath(new URL('../', import.meta.url))
 const ECHTE_LIJST = join(WORTEL, '.hw', 'haaklijst.txt')
@@ -98,6 +98,35 @@ test('de haaklijst op de repo is leesbaar en elk maximum is een getal', () => {
   for (const [pad, max] of limieten) {
     assert.ok(!pad.startsWith('/'), `${pad} moet een relatief pad zijn`)
     assert.ok(Number.isInteger(max) && max >= 0, `${pad} heeft geen geldig maximum`)
+  }
+})
+
+test('zonder upstream-tag telt een eigen bestand uit de basis niet als haak', () => {
+  // De upstream-tag is onbereikbaar (ondiepe kloon, geen --tags in CI), dus de
+  // basis is de maat. Onze eigen bestanden staan in de basis: een regel erbij
+  // is dan geen haak, ook al bestaat het pad daar.
+  const map = maakRepo('# pad max\n')
+  try {
+    mkdirSync(join(map, 'service'), { recursive: true })
+    writeFileSync(join(map, 'service', 'hw_seed_defaults.go'), 'package service\n\nfunc hwSeed() {\n}\n')
+    writeFileSync(join(map, 'router', 'relay-router.go'), 'package router\n\nfunc op() {\n}\n\nfunc hwExtra() {\n}\n')
+    run(map, 'add', '.')
+    run(map, 'commit', '-qm', 'eigen bestand plus haak in upstreambestand')
+    const fout = vang(() => draaiToets(map, 'HEAD~1', 'HEAD'))
+    assert.ok(fout, 'de haak in relay-router.go had moeten falen')
+    assert.match(fout.stderr, /router\/relay-router\.go:5/)
+    assert.doesNotMatch(fout.stderr, /hw_seed_defaults/)
+  } finally {
+    rmSync(map, { recursive: true, force: true })
+  }
+})
+
+test('isEigenPad herkent onze paden en laat upstream met rust', () => {
+  for (const pad of ['service/hw_seed_defaults.go', '.hw/haaklijst.txt', 'pkg/hwperf/speed.go', 'web/src/features/hw/api.ts']) {
+    assert.equal(isEigenPad(pad), true, `${pad} is van ons`)
+  }
+  for (const pad of ['service/ratio.go', 'model/option.go', 'web/src/i18n/config.ts']) {
+    assert.equal(isEigenPad(pad), false, `${pad} is van upstream`)
   }
 })
 
