@@ -66,36 +66,35 @@ func HwResetReserveGateCache() {
 	hwReserveGate.customers = nil
 }
 
-// HwBureauReserveGate refuses customer requests when the current window has no
+// hwBureauReserveGate refuses customer requests when the current window has no
 // free room left for customers, or when this customer reached its own ceiling.
-func HwBureauReserveGate() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		group, customer := hwReserveCustomerGroup(c)
-		if !customer {
-			c.Next()
-			return
-		}
-		now := time.Now().UTC()
-		snapshot := hwReserveGateSnapshot(c.Request.Context(), now)
-		if snapshot.DenyReason != "" {
-			hwAbortReserve(c, http.StatusServiceUnavailable, service.HwErrorCodeServiceBusy,
-				service.HwReserveBusyMessage(c, snapshot.RetryAfterSeconds), snapshot.RetryAfterSeconds, snapshot.DenyReason)
-			return
-		}
-		status, err := hwReserveGateCustomer(now, c.GetInt("id"), group)
-		if err != nil {
-			common.SysLog(common.LogText("hw reserve gate: customer usage could not be read"))
-			hwAbortReserve(c, http.StatusServiceUnavailable, service.HwErrorCodeServiceBusy,
-				service.HwReserveBusyMessage(c, snapshot.RetryAfterSeconds), snapshot.RetryAfterSeconds, service.HwReserveDenyUsageUnavailable)
-			return
-		}
-		if status.Limited {
-			hwAbortReserve(c, http.StatusTooManyRequests, service.HwErrorCodeWindowLimitReached,
-				service.HwReserveCeilingMessage(c, status.RetryAfterSeconds), status.RetryAfterSeconds, service.HwReserveDenyCeilingReached)
-			return
-		}
-		c.Next()
+// It reports whether the request may continue; a refusal is already written.
+// hwAfterAuth calls it from the auth hook, so a route does not mount it itself.
+func hwBureauReserveGate(c *gin.Context) bool {
+	group, customer := hwReserveCustomerGroup(c)
+	if !customer {
+		return true
 	}
+	now := time.Now().UTC()
+	snapshot := hwReserveGateSnapshot(c.Request.Context(), now)
+	if snapshot.DenyReason != "" {
+		hwAbortReserve(c, http.StatusServiceUnavailable, service.HwErrorCodeServiceBusy,
+			service.HwReserveBusyMessage(c, snapshot.RetryAfterSeconds), snapshot.RetryAfterSeconds, snapshot.DenyReason)
+		return false
+	}
+	status, err := hwReserveGateCustomer(now, c.GetInt("id"), group)
+	if err != nil {
+		common.SysLog(common.LogText("hw reserve gate: customer usage could not be read"))
+		hwAbortReserve(c, http.StatusServiceUnavailable, service.HwErrorCodeServiceBusy,
+			service.HwReserveBusyMessage(c, snapshot.RetryAfterSeconds), snapshot.RetryAfterSeconds, service.HwReserveDenyUsageUnavailable)
+		return false
+	}
+	if status.Limited {
+		hwAbortReserve(c, http.StatusTooManyRequests, service.HwErrorCodeWindowLimitReached,
+			service.HwReserveCeilingMessage(c, status.RetryAfterSeconds), status.RetryAfterSeconds, service.HwReserveDenyCeilingReached)
+		return false
+	}
+	return true
 }
 
 // hwReserveCustomerGroup reports whether the request belongs to a customer and

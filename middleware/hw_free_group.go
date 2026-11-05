@@ -52,56 +52,55 @@ func HwAccountGroup(c *gin.Context) string {
 	return hwUserGroup(c)
 }
 
-// HwFreeGroupRateLimit blocks a frozen account and caps the request rate of a
-// free trial account per minute and per rolling day. The limits are fixed and
-// on by default (see setting.HwFreeGroupPerMinuteLimit /
-// HwFreeGroupPerDayLimit), unlike the operator switch of the general model rate
-// limit: a trial account must never be able to use the trial credit as an
-// unpaid relay, whatever the operator forgot to enable. Both the group and the
-// frozen check look at the account, so a token group or a request group cannot
-// lift them. Requests of every other group pass unchanged, which is what keeps
-// paid credit usable while an account is frozen.
+// hwFreeGroupGate blocks a frozen account and caps the request rate of a free
+// trial account per minute and per rolling day. The limits are fixed and on by
+// default (see setting.HwFreeGroupPerMinuteLimit / HwFreeGroupPerDayLimit),
+// unlike the operator switch of the general model rate limit: a trial account
+// must never be able to use the trial credit as an unpaid relay, whatever the
+// operator forgot to enable. Both the group and the frozen check look at the
+// account, so a token group or a request group cannot lift them. Requests of
+// every other group pass unchanged, which is what keeps paid credit usable while
+// an account is frozen.
 //
 // The counters live in this process, like the memory handler of the general
 // model rate limit, so a multi-node deployment counts per node. The house runs
 // one node; a Redis-backed counter would be the upgrade if that changes.
-func HwFreeGroupRateLimit() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if !strings.EqualFold(hwUserGroup(c), setting.HwFreeGroupName) {
-			c.Next()
-			return
-		}
-		userID := c.GetInt("id")
-		if userID <= 0 {
-			c.Next()
-			return
-		}
-		frozen, err := model.HwAccountFrozen(userID)
-		if err != nil {
-			common.SysError(common.LogText("hw: frozen check failed for user %d: %v", userID, err))
-			abortWithOpenAiMessage(c, http.StatusInternalServerError, service.HwGenericErrorMessage(c, http.StatusInternalServerError), service.HwErrorCodeServiceBusy)
-			return
-		}
-		if frozen {
-			abortWithOpenAiMessage(c, http.StatusForbidden, service.HwAccountFrozenMessage(c), service.HwErrorCodeAccountFrozen)
-			return
-		}
-		hwFreeGroupLimiterOnce.Do(func() {
-			hwFreeGroupLimiter.Init(hwFreeGroupLimiterExpiration)
-		})
-		subject := strconv.Itoa(userID)
-		minuteLimit := setting.HwFreeGroupPerMinuteLimit()
-		if !hwFreeGroupLimiter.Request("HWFreeGroup:minute:"+subject, minuteLimit, hwFreeGroupMinuteSeconds) {
-			abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitReached, map[string]any{"Minutes": 1, "Max": minuteLimit}))
-			return
-		}
-		dayLimit := setting.HwFreeGroupPerDayLimit()
-		if !hwFreeGroupLimiter.Request("HWFreeGroup:day:"+subject, dayLimit, hwFreeGroupDaySeconds) {
-			abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitReached, map[string]any{"Minutes": 24 * 60, "Max": dayLimit}))
-			return
-		}
-		c.Next()
+//
+// It reports whether the request may continue; a refusal is already written.
+// hwAfterAuth calls it from the auth hook, so a route does not mount it itself.
+func hwFreeGroupGate(c *gin.Context) bool {
+	if !strings.EqualFold(hwUserGroup(c), setting.HwFreeGroupName) {
+		return true
 	}
+	userID := c.GetInt("id")
+	if userID <= 0 {
+		return true
+	}
+	frozen, err := model.HwAccountFrozen(userID)
+	if err != nil {
+		common.SysError(common.LogText("hw: frozen check failed for user %d: %v", userID, err))
+		abortWithOpenAiMessage(c, http.StatusInternalServerError, service.HwGenericErrorMessage(c, http.StatusInternalServerError), service.HwErrorCodeServiceBusy)
+		return false
+	}
+	if frozen {
+		abortWithOpenAiMessage(c, http.StatusForbidden, service.HwAccountFrozenMessage(c), service.HwErrorCodeAccountFrozen)
+		return false
+	}
+	hwFreeGroupLimiterOnce.Do(func() {
+		hwFreeGroupLimiter.Init(hwFreeGroupLimiterExpiration)
+	})
+	subject := strconv.Itoa(userID)
+	minuteLimit := setting.HwFreeGroupPerMinuteLimit()
+	if !hwFreeGroupLimiter.Request("HWFreeGroup:minute:"+subject, minuteLimit, hwFreeGroupMinuteSeconds) {
+		abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitReached, map[string]any{"Minutes": 1, "Max": minuteLimit}))
+		return false
+	}
+	dayLimit := setting.HwFreeGroupPerDayLimit()
+	if !hwFreeGroupLimiter.Request("HWFreeGroup:day:"+subject, dayLimit, hwFreeGroupDaySeconds) {
+		abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitReached, map[string]any{"Minutes": 24 * 60, "Max": dayLimit}))
+		return false
+	}
+	return true
 }
 
 // HwFreeGroupModelAllowed reports whether a request of the given group may call

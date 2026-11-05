@@ -11,9 +11,9 @@
 main.go                                                        5
 pkg/perf_metrics/metrics.go                                    3
 middleware/access_token_routes.go                              2
-# TEMP revert of #233 (relay latency 7 s -> 47 s): the gate hooks return to the routers until the fixed auth-hook move lands; then both drop to 0
-router/relay-router.go                                         8
-router/plugin-router.go                                        1
+# middleware/auth.go: one gate hook per auth function (TokenAuth, authHelper), see middleware/hw_auth_gates.go
+middleware/auth.go                                             6
+router/relay-router.go                                         0
 model/main.go                                                  2
 model/option.go                                                2
 router/api-router.go                                           3

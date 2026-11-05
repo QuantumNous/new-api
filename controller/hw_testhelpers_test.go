@@ -395,13 +395,14 @@ func hwNewEnv(t *testing.T, group string, quota int) *hwEnv {
 	t.Setenv("LOG_SQL_DSN", "")
 
 	hwSetTestPrices(t)
+	hwIsolateAuthGates(t)
 	require.NoError(t, model.InitDB())
 	require.NoError(t, model.InitLogDB())
 	database := model.DB
 	sqlDB, err := database.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.Ability{}, &model.Log{}, &model.AuditLog{}, &model.Option{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.TopUp{}))
+	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.Ability{}, &model.Log{}, &model.AuditLog{}, &model.Option{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.TopUp{}, &model.HwAccountFlag{}))
 
 	t.Cleanup(func() {
 		model.DB, model.LOG_DB = previousDB, previousLogDB
@@ -614,6 +615,46 @@ func hwSetTestPrices(t *testing.T) {
 	encoded, err = common.Marshal(completionRatios)
 	require.NoError(t, err)
 	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(string(encoded)))
+}
+
+// hwIsolateAuthGates gives the gates of the auth hook a known, wide room in
+// these environments. The free-group limit and the bureau reserve gate now run
+// from TokenAuth, so every customer route here meets them, while these cases are
+// about pricing, masking and fallback. The free-group limiter counts per process
+// and per account id, and every environment uses account 1, so without a wide
+// limit the cases would refuse each other within one minute. A case that tests a
+// limit sets its own value after hwNewEnv. The gates have their own route tests
+// in router/ and middleware/.
+func hwIsolateAuthGates(t *testing.T) {
+	t.Helper()
+	t.Setenv("HW_FREE_GROUP_PER_MINUTE", "1000000")
+	t.Setenv("HW_FREE_GROUP_PER_DAY", "1000000")
+	t.Setenv(model.HwReserveModeEnv, service.HwReserveModeThird)
+	hwSetReserveTestOption(t, model.HwWindowCapacityUSDOption, "1000000")
+	middleware.HwResetReserveGateCache()
+	t.Cleanup(middleware.HwResetReserveGateCache)
+}
+
+// hwSetReserveTestOption writes one option for the duration of one test and
+// restores the previous value, including its absence, afterwards.
+func hwSetReserveTestOption(t *testing.T, key, value string) {
+	t.Helper()
+	common.OptionMapRWMutex.Lock()
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
+	previous, had := common.OptionMap[key]
+	common.OptionMap[key] = value
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		defer common.OptionMapRWMutex.Unlock()
+		if had {
+			common.OptionMap[key] = previous
+			return
+		}
+		delete(common.OptionMap, key)
+	})
 }
 
 func hwRestoreRatios(t *testing.T, modelRatios, completionRatios map[string]float64) {

@@ -63,7 +63,7 @@ func hwReserveTestCase(t *testing.T) *hwReserveTestEnv {
 	sqlDB.SetMaxOpenConns(1)
 	require.NoError(t, model.DB.AutoMigrate(
 		&model.User{}, &model.Token{}, &model.Log{}, &model.Option{},
-		&model.UserSession{}, &model.AuditLog{}, &model.UserAccessToken{},
+		&model.UserSession{}, &model.AuditLog{}, &model.UserAccessToken{}, &model.HwAccountFlag{},
 	))
 	require.NoError(t, model.EnsureLegacyAccessTokenRetireAt(time.Now().Unix()))
 
@@ -178,7 +178,7 @@ func gateEngine(reached *bool) *gin.Engine {
 	engine := gin.New()
 	engine.Use(middleware.RequestId())
 	customer := engine.Group("/v1")
-	customer.Use(middleware.TokenAuth(), middleware.HwMask(), middleware.HwBureauReserveGate())
+	customer.Use(middleware.TokenAuth(), middleware.HwMask())
 	serve := func(c *gin.Context) {
 		*reached = true
 		c.JSON(http.StatusOK, gin.H{"served": true})
@@ -342,7 +342,7 @@ func TestHwReserveGateKeepsTheCeilingPerCustomer(t *testing.T) {
 	engine := gin.New()
 	engine.Use(middleware.RequestId())
 	customer := engine.Group("/v1")
-	customer.Use(middleware.TokenAuth(), middleware.HwMask(), middleware.HwBureauReserveGate())
+	customer.Use(middleware.TokenAuth(), middleware.HwMask())
 	customer.POST("/chat/completions", func(c *gin.Context) {
 		c.Header("Content-Type", "text/event-stream")
 		c.Status(http.StatusOK)
