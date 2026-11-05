@@ -9,10 +9,10 @@
 new-api 在处理大体积文件（图片/音频/视频的 base64 数据）时，可选择把数据写入本地磁盘而非常驻内存，以降低内存占用：
 
 - 目录常量：`new-api-body-cache`（依据：`common/disk_cache.go:21`）
-- 写入判断：`common.ShouldUseDiskCache`（`common/disk_cache.go`），调用方 `service/file_service.go:239-246`
-- 配置结构：`common/disk_cache_config.go:9-18` 的 `DiskCacheConfig`
+- 写入判断：`common.ShouldUseDiskCache`（`common/disk_cache.go:167`），调用方 `internal/relay/common/serve_file.go:195`、`:355`
+- 配置结构：`internal/common/disk_cache_config.go:10-19` 的 `DiskCacheConfig`
 
-**默认关闭**。磁盘缓存默认 `Enabled: false`（依据：`common/disk_cache_config.go:21-26` 与 `setting/performance_setting/config.go:30-34`）：
+**默认关闭**。磁盘缓存默认 `Enabled: false`（依据：`internal/common/disk_cache_config.go:22-27` 的默认值，配置由 `internal/usage/configure_perf.go:189` 从系统设置写入）：
 
 | 配置项 | 默认值 | 含义 |
 |---|---|---|

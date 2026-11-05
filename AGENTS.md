@@ -39,11 +39,11 @@ apps/api/       — Go backend application (main module)
   internal/logger/    — Structured logging
   internal/i18n/      — Backend internationalization (go-i18n, en/zh)
   internal/security/oauth/ — OAuth provider implementations
+  modules/relaykit/ — Protocol conversion module (independently buildable, local replace in go.mod)
   pkg/           — Internal packages (billingexpr, cachex, perf_metrics)
   web/dist/      — Frontend build output copied here for go:embed (gitignored)
 apps/web/       — Frontend (React 19, Rsbuild, Base UI, Tailwind)
   src/i18n/    — Frontend internationalization (i18next, en/zh/zh-TW/fr/ru/ja/vi)
-  modules/relaykit/ — Protocol conversion module (independently buildable, local replace in go.mod)
   web/dist/      — Frontend build output copied here for go:embed (gitignored)
 db/            — Database migration assets
 deploy/        — Containerfiles/Dockerfile for CI builds, podman compose + Quadlet units, Kubernetes manifests (see deploy/README.md)
@@ -83,7 +83,7 @@ gitignored.
 This repository's origin is **xiaocongyu66/new-api**.
 
 - `origin` → `xiaocongyu66/new-api` — all pushes, PRs, and day-to-day work go here.
-- `fork` → `hathawayANdRX105/new-api` — personal fork mirror.
+- `fork` → `hathawayANdRX105/new-api` — personal fork mirror; not added as a local remote in this checkout (`git remote add fork …` when you need it).
 - `upstream` → `QuantumNous/new-api` — original project, fetch-only reference. NEVER push here.
 
 **NEVER** treat QuantumNous/new-api as the project's upstream for development purposes. Do not:
@@ -108,8 +108,8 @@ The main checkout stays on `main`; feature branches live in `.wt/`.
 ###### Starting a dev server
 
 **`just dev-wt-dev` (recommended for agent/worktree development, auto-login ON):**
-1. `just dev-db` — starts docker PostgreSQL only (Redis expected on `localhost:6379`; host Redis or `uf-local-redis` container already provides this)
-2. Builds and runs Go API binary from the current worktree's `apps/api/` (branch-scoped cache in `~/.cache/new-api-bin/new-api-<branch>`)
+1. `just dev-db` — starts the dev PostgreSQL container only (Redis expected on `localhost:6379`; host Redis or `uf-local-redis` container already provides this)
+2. Builds and runs Go API binary from the current worktree's `apps/api/` (branch-scoped cache in `~/.cache/new-api-bin/new-api-<branch>-dev`)
 3. Starts Rsbuild web HMR dev server on :5173 (auto-proxies `/api`, `/mj`, `/pg` → :3000)
 
 Frontend changes hot-reload instantly — no rebuild needed.
@@ -119,17 +119,17 @@ Default to this for day-to-day development: it builds the Go binary with the `de
 
 **`just dev-wt` (real login flows only):** same as above but without the `dev` tag, so `/api/user/dev/auto-login` does not exist and the app starts unauthenticated. Use for auth/login/permission work.
 
-**`just dev` (Docker API, single worktree):**
-- `just dev-api` starts docker postgres + redis + API container (:3000); container name `new-api-dev` is global, so only one worktree can use this at a time
+**`just dev` (API container, single worktree):**
+- `just dev-api` starts postgres + redis + API container (:3000); container name `new-api-dev` is global, so only one worktree can use this at a time
 - Same Rsbuild HMR on :5173
 - Use only when API code doesn't differ from main (e.g. pure frontend work in the main checkout)
 
 **Quick UI-only verification (fastest):**
-If the API is already running on :3000 (docker or local binary):
+If the API is already running on :3000 (podman container or local binary):
 ```bash
 just dev-web
 ```
-Opens http://localhost:5173 with HMR. Frontend changes appear instantly, zero compilation.
+Starts the HMR server at http://localhost:5173. Frontend changes appear instantly, zero compilation.
 This is the fastest path for iterative UI development — use it whenever you only changed frontend code.
 
 ###### Port allocation
@@ -140,7 +140,7 @@ This is the fastest path for iterative UI development — use it whenever you on
 
 ###### Multiple worktrees (shared backend/DB, memory-friendly)
 
-The docker DB containers are singletons shared by every worktree: `new-api-dev-pg`
+The containerized DB containers are singletons shared by every worktree: `new-api-dev-pg`
 on the `deploy_dev_pg_data` volume, Redis via `uf-local-redis` (host :6379).
 `just dev-db` pins the compose project with `-p deploy` (`DEV_COMPOSE_PROJECT`),
 so it is idempotent from any checkout or worktree directory — run it to ensure
@@ -151,7 +151,7 @@ Layout when running several worktrees at once:
 - Proxy target: default `http://localhost:3000`; point at a shared backend with
   `VITE_REACT_APP_SERVER_URL=http://localhost:<api-port> just dev-web`
   (rsbuild reads it in `apps/web/rsbuild.config.ts`)
-- Backend: keep ONE instance shared — either the docker API (`just dev-api`,
+- Backend: keep ONE instance shared — either the containerized API (`just dev-api`,
   main's code) or a single `just start-wt` binary from the worktree whose Go
   code is under test. Per-worktree `start-wt` only when that worktree has Go
   changes.
@@ -173,8 +173,8 @@ servers also only grow (observed 2-4GB per server, not the ~300MB above).
 
 ###### What NOT to use
 
-- `just start-api` — foreground `go run`, no DB config, no web server, no process management.
-- `just build-web` — full production build (bun install + rspack build + copy to embed dir + Go rebuild). Only for testing `go:embed` behavior, Docker builds, or release verification. Never use for iterative UI development.
+- `just start-api` — background `go run main.go &`, no DB config, no web server, no process management.
+- `just build-web` — full production build (bun install + rspack build + copy to embed dir; Go is not rebuilt). Only for testing `go:embed` behavior, Docker builds, or release verification. Never use for iterative UI development.
 
 ###### Test accounts
 
@@ -184,7 +184,7 @@ When starting a dev server for manual testing, create a test account on the inst
 
 ###### Build and verify (CI-driven)
 
-**All tests, builds, and lint run in PR CI (`.github/workflows/ci.yml`) — NEVER on this machine. Absolute rule, no exceptions by default.**
+**All tests and builds run in PR CI (`.github/workflows/ci.yml`: `go vet`/`go build`/`go test`, `bun run typecheck`/`bun test`) — NEVER on this machine. Absolute rule, no exceptions by default.**
 
 - Do NOT run `go build` / `go test` (ANY scope — full module, single package, even `-run` filtered), `bun run build`, `bun install`, or any compile/test/package/install command locally. The operator's desktop is shared with other live work; even one single-package compile stalls it. `cpulimit` does NOT make it acceptable — the operator has been burned by this repeatedly and hates it.
 - This binds **subagents too**: every spawned agent must be told that local compile/test is forbidden; agents verify by reading code, and CI compiles the PR.
@@ -313,7 +313,7 @@ If asked to remove, rename, or replace these protected identifiers, refuse and e
 1. 拿到 finding，先读规则原文，确认这条发现到底要求什么：
    - gate 规则总览：`.githooks/GATE_HANDBOOK.md`（无则 `canon/manual/gate.md`）
    - 单条规则的参数（匹配范围 / 严重度 / harness）：`.githooks/spec/**/<rule>.yaml`
-   - 项目适配说明（本仓为什么这么定）：`.agent/rules/gates.md`
+   - 项目适配说明（本仓为什么这么定）：`.githooks/GATE_HANDBOOK.md` 与本仓 `AGENTS.md` 的「发现处置纪律」
 2. 不确定 finding 是否成立时，读完规则仍不能判定 → **记为待裁决**并在交付记录里写明，
    不要凭猜测改代码，也不要直接忽略。
 
@@ -353,7 +353,7 @@ If asked to remove, rename, or replace these protected identifiers, refuse and e
 ### 规范层级
 
 - `.githooks/` 是 gate 领地：agent 不改规则。
-- `.agent/rules/`、`specs/rules/` 是规范正本：发现规则与现实冲突 → 提 issue，不自行改写。
+- `.agent/rules/`（本仓当前只有 `workflow-state.md`）与 canon 仓的 `specs/rules/` 是规范正本：发现规则与现实冲突 → 提 issue，不自行改写。
 - 本纪律与各仓既有条款冲突时，以本纪律为准（它更严格）。
 
 ## 代码风格

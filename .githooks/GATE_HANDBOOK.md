@@ -1,7 +1,7 @@
 # gate 手册
 
 > 本文件是 canon `manual/gate.md` 手册正本（2026-09-23 从 `.githooks/` 移出归并——`.githooks/` 只留运行时：hooks + spec + 兜底二进制）。
-> 规则协议文档在 `rules/docs/`（播种到各仓 `.githooks/spec/docs/`）；issue/PR 操作见 `github.md`；开发流见 `pr-dev-workflow.md` / `worktree.md`；任务书（收尾/功能开发/版本口径）在 `../tasks/`。
+> 规则协议文档在 `.githooks/spec/docs/`；issue/PR 操作见 `GITHUB_ISSUE_PR.md`；开发流见 `PR_DEV_WORKFLOW.md` / `WORKFLOW.md`；任务书写法见 `task-brief` skill，收尾流程见 `closeout` skill。
 
 gate 是仓库自带的质量门禁：读 `.githooks/spec/*.yaml` 规则 → 调外部命令/LLM → 收 finding → 按严重度放行或拦截。
 **加规则只改 yaml，不改二进制。** 本文件是人能查的一手总览；每条规则的参数以对应 `.githooks/spec/quality/checklist_*.yaml` 为准。
@@ -123,7 +123,7 @@ WARN**（召回不丢、处置照常），绝不静默清零。score 返回值�
 | 规则本体 | `spec/custom/<name>.json` | intent + 信息范围 + 问题（三种原语）+ 阈值 |
 | 接线 | `spec/quality/checklist_<name>.yaml` | mode:file → jev_rule.py --config |
 | 验证 | fixture（含"该抓的"和"该幸存的"） | 真判决 + 无 key 降级两条路径 |
-| 分发 | `bin/gate-sync push <项目>` | 同步给成员仓（custom/ 受保护不覆盖） |
+| 分发 | canon 仓 `scripts/agent-sync push <项目>` | 按 `agent-sync.yaml` 同步给成员仓 |
 
 完整可抄的现成示例：`.githooks/spec/custom/example_spec.json`（含 noul+score 与
 choice+fail_labels 两种形态）和 `example_checklist.yaml`（接线模板，文件名不以
@@ -203,7 +203,7 @@ choice+fail_labels 两种形态）和 `example_checklist.yaml`（接线模板，
 - 语法类检查（缺 alt 属性这种正则可抓的）塞进来 → 又慢又不确定；先正则后 jev。
 - paths 粗细两层都配了但互相矛盾 → 引擎粗过滤先进不来，json 细过滤永远空转。
 
-分发/收集用 `bin/gate-sync`（custom/ 目录受保护，push 不会覆盖项目自有规范）。
+分发/收集用 canon 仓的 `scripts/agent-sync`（`backport` 把项目本地修正回流 canon）。
 
 ## 怎么豁免
 

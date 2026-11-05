@@ -1,12 +1,12 @@
-# `new-api` 后端模块 (`app/api`)
+# `new-api` 后端模块 (`apps/api`)
 
 ## 一、项目概览
 
-`app/api` 是 new-api 的 Go 后端主模块,提供统一的 AI API 网关(40+ 上游)、用户管理、计费、频率限制与管理面板。入口为 `main.go`,通过 `//go:embed web/dist` 嵌入前端产物。
+`apps/api` 是 new-api 的 Go 后端主模块,提供统一的 AI API 网关(40+ 上游)、用户管理、计费、频率限制与管理面板。入口为 `main.go`,通过 `//go:embed web/dist` 嵌入前端产物。
 
 - **模块路径**:`github.com/QuantumNous/new-api`
-- **Go 版本**:1.25.1 (go.mod)
-- **Workspace**:`go.work` 定义 `app/api` + `modules/relaykit` 两个模块
+- **Go 版本**:1.27.3 (go.mod)
+- **模块布局**:`apps/api` 是唯一 Go 模块根,`modules/relaykit` 通过 `replace` 引入,无 `go.work`
 
 ---
 
@@ -14,7 +14,7 @@
 
 | 类别 | 技术 |
 |---|---|
-| 语言 | Go 1.25.1 |
+| 语言 | Go 1.27.3 |
 | Web 框架 | Gin |
 | ORM | GORM v2 |
 | 数据库 | SQLite / MySQL ≥ 5.7.8 / PostgreSQL ≥ 9.6 (三数据库同时支持) |
@@ -28,7 +28,7 @@
 ## 三、目录结构
 
 ```
-app/api/
+apps/api/
 ├── main.go              # 入口, go:embed web/dist
 ├── router/              # HTTP 路由注册(API / relay / dashboard / web)
 │   ├── api-router.go    # API 路由
@@ -68,7 +68,7 @@ app/api/
 
 ### 前置条件
 
-- Go 1.25+
+- Go 1.27.3+
 - Bun(前端构建)
 - just(命令运行器,替代 makefile)
 
@@ -76,9 +76,9 @@ app/api/
 
 | 命令 | 说明 |
 |---|---|
-| `just build-web` | 构建前端并将产物拷贝到 `app/api/web/dist/` (go:embed 方案 A) |
+| `just build-web` | 构建前端并将产物拷贝到 `apps/api/web/dist/` (go:embed 方案 A) |
 | `just start-api` | 后台启动 Go 开发服务器(`go run main.go &`) |
-| `just dev-api` | 启动 Docker 开发环境(postgres 等) |
+| `just dev-api` | 启动容器开发环境(postgres 等) |
 | `just dev-web` | 启动前端 Rsbuild 开发服务器(端口 5173) |
 | `just dev` | 同时启动 `dev-api` + `dev-web` |
 | `just test` | 运行全部 Go 测试(api + relaykit, GOWORK=off) |
@@ -113,7 +113,7 @@ Router → Controller → Service → Model
 
 ### 计费引擎
 
-`pkg/billingexpr/` 实现表达式计费系统,支持分层定价、折扣、计费策略版本化。详细设计见 `app/api/pkg/billingexpr/expr.md`。
+`pkg/billingexpr/` 实现表达式计费系统,支持分层定价、折扣、计费策略版本化。详细设计见 `apps/api/pkg/billingexpr/expr.md`。
 
 ---
 
@@ -163,11 +163,11 @@ Router → Controller → Service → Model
 
 ## 八、前端 Embed 契约
 
-`main.go` 使用 `//go:embed web/dist` 嵌入前端静态文件。因 `go:embed` 不能引用父目录,前端构建产物必须从 `app/web/dist/` 拷贝到 `app/api/web/dist/`:
+`main.go` 使用 `//go:embed web/dist` 嵌入前端静态文件。因 `go:embed` 不能引用父目录,前端构建产物必须从 `apps/web/dist/` 拷贝到 `apps/api/web/dist/`:
 
 - `just build-web` 执行拷贝
 - Dockerfile 与 CI 工作流使用相同模式
-- `app/api/web/dist/` 已在 `.gitignore` 中排除
+- `apps/api/web/dist/` 已在 `.gitignore` 中排除
 
 ---
 
@@ -177,10 +177,10 @@ Router → Controller → Service → Model
 - 风格:确定性表格驱动测试,显式输入与期望输出
 - 验证范围:API 契约、计费不变量、数据库兼容性、回归路径
 - 避免覆盖数字、烟雾测试、随机输入、sleep 依赖
-- 关键测试文件: `app/api/relay/common/relay_utils_test.go`、`app/api/common/quota_math_test.go`、`app/api/relay/helper/openai_image_request_test.go`
+- 关键测试文件: `apps/api/internal/common/quota_math_test.go`、`apps/api/internal/relay/helper/openai_image_request_test.go`、`apps/api/internal/relay/common/build_relay_info_test.go`
 
 ---
 
 ## 更新日志
 
-- **2026-08-13**:初始文档,对齐 `app/web/README.md` 规范格式。
+- **2026-08-13**:初始文档,对齐 `apps/web/README.md` 规范格式。

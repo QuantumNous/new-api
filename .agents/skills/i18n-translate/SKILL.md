@@ -24,7 +24,7 @@ description: >-
 
 ### Hard Constraint: Locale Writes Go Through the Script
 
-- You MUST NOT edit `web/src/i18n/locales/*.json` directly with text-editing tools (StrReplace, Write, search-and-replace, manual JSON edits, etc.). This applies even to a single key.
+- You MUST NOT edit `apps/web/src/i18n/locales/*.json` directly with text-editing tools (StrReplace, Write, search-and-replace, manual JSON edits, etc.). This applies even to a single key.
 - ALL locale writes MUST go through the `add-missing-keys.mjs` script, followed by `bun run i18n:sync`. The script is the only sanctioned way to add or change locale values.
 - Why this is mandatory, not optional:
   - Hand-editing reliably drops one or more of the seven locales (`en`, `zh`, `zh-TW`, `fr`, `ja`, `ru`, `vi`), leaving keys missing in some languages.
@@ -45,10 +45,10 @@ Do not skip this workflow because the fix is "just one key".
 
 ## Overview
 
-- Locale files: `web/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+- Locale files: `apps/web/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
 - Format: flat JSON under `"translation"` key, keys are English source strings
 - Base locale: `en.json` (most keys), fallback: `zh` (Chinese)
-- Sync script: `bun run i18n:sync` (from `web/`)
+- Sync script: `bun run i18n:sync` (from `apps/web/`)
 - All `t()` calls must have corresponding keys in every locale file
 
 ## Small Fix Path
@@ -66,14 +66,14 @@ For a single known missing key (still script-only, no direct JSON edits):
 ### Step 1: Run sync and read report
 
 ```bash
-cd web && bun run i18n:sync
+cd apps/web && bun run i18n:sync
 ```
 
-Read `web/src/i18n/locales/_reports/_sync-report.json` to see per-locale status (missingCount, extrasCount, untranslatedCount).
+Read `apps/web/src/i18n/locales/_reports/_sync-report.json` to see per-locale status (missingCount, extrasCount, untranslatedCount).
 
 ### Step 2: Find missing keys (used in code but not in locale files)
 
-Create and run `web/scripts/find-missing-keys.mjs`:
+Create and run `apps/web/scripts/find-missing-keys.mjs`:
 
 ```javascript
 import fs from 'node:fs/promises'
@@ -136,7 +136,7 @@ if (missingKeys.size === 0) {
 
 ### Step 3: Find untranslated entries (value equals English)
 
-Create and run `web/scripts/find-untranslated.mjs`:
+Create and run `apps/web/scripts/find-untranslated.mjs`:
 
 ```javascript
 import fs from 'node:fs/promises'
@@ -196,7 +196,7 @@ for (const locale of locales) {
 
 ### Step 4: Add translations
 
-This script is the ONLY sanctioned way to write locale values. You MUST NOT bypass it by hand-filling the JSON files. Create `web/scripts/add-missing-keys.mjs` with this exact structure:
+This script is the ONLY sanctioned way to write locale values. You MUST NOT bypass it by hand-filling the JSON files. Create `apps/web/scripts/add-missing-keys.mjs` with this exact structure:
 
 ```javascript
 import fs from 'node:fs/promises'
@@ -258,7 +258,7 @@ Populate the `newKeys` object with actual translations for each locale.
 ### Step 5: Verify and clean up
 
 ```bash
-cd web
+cd apps/web
 node scripts/add-missing-keys.mjs   # apply translations
 node scripts/find-missing-keys.mjs  # verify: should say "All t() keys found"
 bun run i18n:sync                   # normalize file order
@@ -305,7 +305,7 @@ Delete temporary scripts after completion.
 
 ## Key Rules
 
-1. All scripts run from `web/` directory
+1. All scripts run from `apps/web/` directory
 2. Use `node scripts/xxx.mjs` (ESM format with top-level await)
 3. Sort keys alphabetically when writing locale files
 4. Always run `bun run i18n:sync` as the final step

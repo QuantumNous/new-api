@@ -141,17 +141,17 @@ COMMIT;
 
 ## 5. Rollback Playbook (Under 10 Seconds)
 
-Never delete old containers (`docker rm`) during upgrades. Rename and freeze them:
+Never delete old containers (`podman rm`) during upgrades. Rename and freeze them:
 ```bash
 # Freeze old PG container
-docker rename newapi-postgres newapi-postgres-v17-bak
-docker update --restart=no newapi-postgres-v17-bak
-docker stop newapi-postgres-v17-bak
+podman rename newapi-postgres newapi-postgres-v17-bak
+podman update --restart=no newapi-postgres-v17-bak
+podman stop newapi-postgres-v17-bak
 
 # Freeze old new-api container
-docker rename new-api new-api-v17-bak
-docker update --restart=no new-api-v17-bak
-docker stop new-api-v17-bak
+podman rename new-api new-api-v17-bak
+podman update --restart=no new-api-v17-bak
+podman stop new-api-v17-bak
 ```
 
 These snippets use shell variables instead of a hardcoded host, port or container name. Set them per target before running:
@@ -161,20 +161,20 @@ export PROD_USER=<ssh-user>
 export PROD_SSH_PORT=22
 export PROD_DEPLOY_PATH=/opt/new-api/deploy
 export HEALTH_PORT=<api-port>                 # PORT= in the target podman-compose.yml
-export CADDY_CONTAINER=<caddy-container-name> # `docker ps --filter ancestor=caddy --format '{{.Names}}'`
+export CADDY_CONTAINER=<caddy-container-name> # `podman ps --filter ancestor=caddy --format '{{.Names}}'`
 ```
 
 ### Instant Revert:
 ```bash
 # 1. Revert Web Server
-docker stop "${CADDY_CONTAINER}" && systemctl start nginx && systemctl enable nginx
+podman stop "${CADDY_CONTAINER}" && systemctl start nginx && systemctl enable nginx
 
 # 2. Revert Application & Database
 cd /opt/new-api/deploy
-docker stop new-api newapi-postgres 2>/dev/null || true
-docker update --restart=always newapi-postgres-v17-bak && docker start newapi-postgres-v17-bak && docker rename newapi-postgres-v17-bak newapi-postgres
-cp docker-compose.yml.bak-v17 docker-compose.yml
-docker update --restart=always new-api-v17-bak && docker start new-api-v17-bak && docker rename new-api-v17-bak new-api
+podman stop new-api newapi-postgres 2>/dev/null || true
+podman update --restart=always newapi-postgres-v17-bak && podman start newapi-postgres-v17-bak && podman rename newapi-postgres-v17-bak newapi-postgres
+cp podman-compose.yml.bak-v17 podman-compose.yml   # 迁移前的备份文件可能仍叫 docker-compose.yml.bak-v17
+podman update --restart=always new-api-v17-bak && podman start new-api-v17-bak && podman rename new-api-v17-bak new-api
 ```
 
 ---
@@ -259,7 +259,7 @@ conversion.
 1. Always use `-j 1` (single-threaded restore) on low-memory servers.
 2. Consider using plain `postgres:18-alpine` first (without TimescaleDB), then
    install the extension after the restore completes and the application has started.
-3. Monitor with `free -h` and `docker stats` during restore.
+3. Monitor with `free -h` and `podman stats` during restore.
 
 ### Docker Deployment: Never Auto-Deploy on Merge
 The `deploy-server.yml` workflow originally had a `workflow_run` trigger that
@@ -273,16 +273,16 @@ automatically touch the production server.
 ### Docker Image Version Mismatch
 When merging a feature PR to main, the GHCR image is rebuilt automatically
 (via `Publish Docker image (Multi-arch)` workflow). However, the server may
-still have a cached older `:latest` image. Always run `docker pull` before
+still have a cached older `:latest` image. Always run `podman pull` before
 starting the new container to ensure you get the correct version.
 
 **Verification**: Check the built image digest matches what's on the server:
 ```bash
-docker images --format "{{.ID}} {{.CreatedAt}}" | grep new-api
+podman images --format "{{.ID}} {{.CreatedAt}}" | grep new-api
 ```
 
 ### Port Conflict During Container Rename
-`docker rename` does NOT change the container's port bindings. A renamed
+`podman rename` does NOT change the container's port bindings. A renamed
 container still tries to bind its original port. If the old and new containers
 both bind `127.0.0.1:5432`, the rename+restart will fail.
 

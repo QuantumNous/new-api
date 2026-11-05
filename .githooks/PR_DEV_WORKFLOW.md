@@ -2,11 +2,11 @@
 
 > **什么时候读**：从零开发一个功能 / 修复并要走 PR 全流程时（建 worktree → draft PR →
 > 拆任务 → 审查 → 合并 → 清理）。**解决什么**：每一步做什么、做到什么算完。
-> 子任务单的填写口径见 `../tasks/feature-dev-handbook.md`；收尾（审查/修复/清场）见 `../tasks/closeout.md`。
+> 子任务单的填写口径见 `task-brief` skill；收尾（审查/修复/清场）见 `closeout` skill。
 
 本指南指导 agent 开发多步 PR 工作（依赖感知、隔离、委派、验证、审查、清理）。
 检查由 `.githooks/hooks` 强制（pre-commit/pre-push/merge）。
-规则见 `gate.md`；任务书在 `../tasks/`：功能开发七问见 `feature-dev-handbook.md`，收尾全流程（审查/修复/PR 记录/清场/资源释放）见 `closeout.md`。
+规则见 `GATE_HANDBOOK.md`；功能开发任务书见 `task-brief` skill，收尾全流程（审查/修复/PR 记录/清场/资源释放）见 `closeout` skill。
 
 ## 工作流
 
@@ -45,7 +45,7 @@ gate review              # 终端输出 CRG 影响 + ocr 发现
 gate review --post-inline  # 提交到 PR Files changed
 ```
 
-### 审查评论格式（spec/github_reviews.yaml）
+### 审查评论格式（.githooks/spec/github/github_reviews.yaml）
 
 - CRG Review: `## Agent 🤖 - CRG Review: <英文标题>`（H2），子分类 `###`（H3），正文中文
 - Inline Review: `Agent 🤖 - Inline Review P0|P1|P2|P3: <内容>`，锚定 path+line
