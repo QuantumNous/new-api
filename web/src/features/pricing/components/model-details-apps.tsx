@@ -219,7 +219,7 @@ export function ModelDetailsApps(props: { model: PricingModel }) {
             id: 'growth',
             header: t('30d change'),
             className: tableStyles.compactHeaderCellRight,
-            cellClassName: cn(tableStyles.compactCell, 'text-right'),
+            cellClassName: cn(tableStyles.compactCell, 'text-end'),
             cell: (app) => <GrowthChip value={app.growth_pct} />,
           },
         ]}

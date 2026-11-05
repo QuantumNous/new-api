@@ -6299,6 +6299,7 @@
     "The task was accepted; submission cannot be replayed": "Tâche acceptée : soumission non rejouable",
     "The Telegram authorization request is invalid or expired.": "La demande d’autorisation Telegram est invalide ou a expiré.",
     "The telegram OAuth provider name is reserved. Ask your administrator to rename the conflicting custom provider.": "Le nom de fournisseur OAuth telegram est réservé. Demandez à votre administrateur de renommer le fournisseur personnalisé en conflit.",
+    "The text direction is set by the interface language": "Le sens du texte est défini par la langue de l’interface",
     "The time range cannot exceed {{days}} days": "La plage de temps ne peut pas dépasser {{days}} jours",
     "The token group that will have a custom ratio": "Le groupe de jetons qui aura un ratio personnalisé",
     "The token has no group, so it is billed as the user group vip, using the base ratio of vip.": "Le jeton n’a pas de groupe, il est donc facturé sous le groupe d’utilisateurs vip, avec le taux de base de vip.",

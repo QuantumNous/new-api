@@ -365,7 +365,7 @@ export function PrefillGroupManagementDialog({
           {
             id: 'actions',
             header: t('Actions'),
-            className: 'text-right',
+            className: 'text-end',
             cellClassName: 'align-top',
             cell: ({ group }) => (
               <StaticRowActions
@@ -411,7 +411,7 @@ export function PrefillGroupManagementDialog({
         <div className='bg-muted/30 flex flex-wrap items-center justify-between gap-3 rounded-md border p-2 text-sm'>
           <div className='flex flex-wrap items-center gap-2'>
             <Button size='sm' onClick={onCreateGroup}>
-              <Plus className='mr-2 h-4 w-4' />
+              <Plus className='me-2 h-4 w-4' />
               {t('New Group')}
             </Button>
             <Button
@@ -421,9 +421,9 @@ export function PrefillGroupManagementDialog({
               disabled={isFetching}
             >
               {isFetching ? (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <Loader2 className='me-2 h-4 w-4 animate-spin' />
               ) : (
-                <RefreshCcw className='mr-2 h-4 w-4' />
+                <RefreshCcw className='me-2 h-4 w-4' />
               )}
               {t('Refresh')}
             </Button>

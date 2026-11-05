@@ -392,7 +392,7 @@ export function OllamaModelsDialog({
           {t('This channel is not an Ollama channel.')}
         </div>
       ) : (
-        <div className='space-y-4 py-2 pr-1'>
+        <div className='space-y-4 py-2 pe-1'>
           <div className='flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
             <div className='flex-1 space-y-2'>
               <Label htmlFor='ollama-pull'>{t('Pull model')}</Label>
@@ -410,12 +410,12 @@ export function OllamaModelsDialog({
                 >
                   {isPulling ? (
                     <>
-                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                      <Loader2 className='me-2 h-4 w-4 animate-spin' />
                       {t('Pulling...')}
                     </>
                   ) : (
                     <>
-                      <Download className='mr-2 h-4 w-4' />
+                      <Download className='me-2 h-4 w-4' />
                       {t('Pull')}
                     </>
                   )}
@@ -452,9 +452,9 @@ export function OllamaModelsDialog({
                 disabled={!channelId || isFetching}
               >
                 {isFetching ? (
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  <Loader2 className='me-2 h-4 w-4 animate-spin' />
                 ) : (
-                  <RefreshCw className='mr-2 h-4 w-4' />
+                  <RefreshCw className='me-2 h-4 w-4' />
                 )}
                 {t('Refresh')}
               </Button>
@@ -472,12 +472,12 @@ export function OllamaModelsDialog({
                 </p>
               </div>
               <div className='relative sm:w-72'>
-                <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
+                <Search className='text-muted-foreground absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2' />
                 <Input
                   placeholder={t('Search models...')}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className='pl-9'
+                  className='ps-9'
                 />
               </div>
             </div>
@@ -596,7 +596,7 @@ export function OllamaModelsDialog({
               }}
             >
               {isDeleting ? (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <Loader2 className='me-2 h-4 w-4 animate-spin' />
               ) : null}
               {t('Delete')}
             </AlertDialogAction>

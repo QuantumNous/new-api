@@ -167,7 +167,7 @@ function TaskLogsCard<TData>({
     <div className='space-y-2.5'>
       <div className='flex min-w-0 items-start justify-between gap-3'>
         <CompactCell cell={taskIdCell} className='flex-1' />
-        <CompactCell cell={statusCell} className='shrink-0 text-right' />
+        <CompactCell cell={statusCell} className='shrink-0 text-end' />
       </div>
 
       <div className='grid grid-cols-2 gap-1.5'>
@@ -204,7 +204,7 @@ function DrawingLogsCard<TData>({
     <div className='space-y-2.5'>
       <div className='flex min-w-0 items-start justify-between gap-3'>
         <CompactCell cell={actionCell} className='flex-1' />
-        <CompactCell cell={codeCell} className='shrink-0 text-right' />
+        <CompactCell cell={codeCell} className='shrink-0 text-end' />
       </div>
 
       <div className='grid grid-cols-2 gap-1.5'>
@@ -296,7 +296,7 @@ export function UsageLogsMobileList<TData>({
             className={cn(
               logCategory === 'common'
                 ? 'border-border/60 bg-card min-w-0 rounded-xl border p-3.5'
-                : 'border-border/40 border-b border-l-2 border-l-transparent p-3 transition-colors last:border-b-0',
+                : 'border-border/40 border-b border-s-2 border-s-transparent p-3 transition-colors last:border-b-0',
               tintClass
             )}
           >

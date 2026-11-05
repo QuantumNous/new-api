@@ -519,7 +519,7 @@ function CodeSamplesSection(props: {
         <Tabs
           value={lang}
           onValueChange={(v) => setLang(v as Lang)}
-          className='ml-auto'
+          className='ms-auto'
         >
           <TabsList className='bg-muted/40 h-8 p-0.5'>
             {(Object.keys(LANG_LABELS) as Lang[]).map((l) => (
@@ -691,21 +691,21 @@ function RateLimitsSection(props: { model: PricingModel }) {
           {
             id: 'rpm',
             header: 'RPM',
-            className: 'h-9 text-right',
+            className: 'h-9 text-end',
             cellClassName: tableStyles.topNumericCell,
             cell: (limit) => formatRateLimit(limit.rpm),
           },
           {
             id: 'tpm',
             header: 'TPM',
-            className: 'h-9 text-right',
+            className: 'h-9 text-end',
             cellClassName: tableStyles.topNumericCell,
             cell: (limit) => formatRateLimit(limit.tpm),
           },
           {
             id: 'rpd',
             header: 'RPD',
-            className: 'h-9 text-right',
+            className: 'h-9 text-end',
             cellClassName: tableStyles.topNumericCell,
             cell: (limit) => formatRateLimit(limit.rpd),
           },

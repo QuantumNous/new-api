@@ -41,7 +41,7 @@ export function SettingsAccordion({
   return (
     <AccordionItem value={value} className={cn(className)}>
       <AccordionTrigger className='hover:no-underline'>
-        <div className='flex flex-col gap-1 text-left'>
+        <div className='flex flex-col gap-1 text-start'>
           <div className='text-base font-semibold'>{title}</div>
         </div>
       </AccordionTrigger>

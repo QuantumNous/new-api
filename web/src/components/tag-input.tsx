@@ -80,7 +80,7 @@ export function TagInput({
       onClick={() => inputRef.current?.focus()}
     >
       {value.map((tag) => (
-        <Badge key={tag} variant='secondary' className='gap-1 pr-1'>
+        <Badge key={tag} variant='secondary' className='gap-1 pe-1'>
           {tag}
           {!disabled && (
             <Button

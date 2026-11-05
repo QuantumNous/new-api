@@ -260,8 +260,7 @@ export function DataTableBulkActions<TData>({
         title={t('Delete Channels?')}
         description={
           <>
-            {t('Are you sure you want to delete')}
-            {selectedIds.length}{' '}
+            {t('Are you sure you want to delete')} {selectedIds.length}{' '}
             {t('channel(s)? This action cannot be undone.')}
           </>
         }

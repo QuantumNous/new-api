@@ -240,7 +240,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
               </button>
             )
           })}
-          <div className='ml-auto flex items-center gap-2 pr-2 sm:pr-3'>
+          <div className='ms-auto flex items-center gap-2 pe-2 sm:pe-3'>
             <span className='inline-block size-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)]' />
             <span className='text-foreground/40 font-mono text-[10px] tracking-wider uppercase'>
               200 ok

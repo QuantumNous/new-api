@@ -26,6 +26,10 @@ For commercial licensing, please contact support@quantumnous.com
  * that activates it. Loaded globally so font-switching is instantaneous
  * with no FOUT once the variable is fetched. */
 @import '@fontsource-variable/lora';
+/* Arabic UI face. Self-hosted, with `unicode-range` subsets, so the files are
+ * only fetched once an element resolves to it, i.e. while Arabic is active
+ * (see the `body:lang(ar)` block at the end of this file). */
+@import '@fontsource-variable/cairo';
 
 @import './theme.css';
 @import './theme-presets.css';
@@ -511,7 +515,7 @@ For commercial licensing, please contact support@quantumnous.com
 @keyframes landing-fade-left {
   from {
     opacity: 0;
-    transform: translateX(24px);
+    transform: translateX(calc(24px * var(--inline-sign, 1)));
   }
   to {
     opacity: 1;
@@ -521,7 +525,7 @@ For commercial licensing, please contact support@quantumnous.com
 @keyframes landing-fade-right {
   from {
     opacity: 0;
-    transform: translateX(-24px);
+    transform: translateX(calc(-24px * var(--inline-sign, 1)));
   }
   to {
     opacity: 1;
@@ -743,5 +747,74 @@ For commercial licensing, please contact support@quantumnous.com
 @media (prefers-reduced-motion: reduce) {
   .auto-group-flow-border {
     display: none;
+  }
+}
+
+/* ── Right-to-left & Arabic ───────────────────────────────────────────────
+ * `dir` and `lang` on <html> are owned by DirectionProvider (and pre-set by
+ * the script in index.html). Layout mirrors through logical Tailwind utilities
+ * (ms-/me-/ps-/pe-/start-/end-/text-start/border-s/rounded-s/...); this block
+ * covers what utilities cannot express. */
+
+/* Sign for horizontal offsets in keyframes: `translateX(calc(24px * var(--inline-sign)))`. */
+[dir='rtl'] {
+  --inline-sign: -1;
+}
+
+/* Arabic typography: Cairo for every font axis and preset. This beats the
+ * `[data-theme-font]` blocks by specificity and also feeds the `font-sans`
+ * utility, which reads `--font-ui-sans`. Cairo's files are only fetched while
+ * an element resolves to it, so other languages never download it. */
+body:lang(ar) {
+  --font-ui-sans: var(--font-arabic);
+  --font-body: var(--font-arabic);
+}
+
+/* Arabic text carried inside a page in another language, such as the Arabic
+ * entry of the language menu, gets the same face. */
+[lang|='ar'] {
+  font-family: var(--font-arabic);
+}
+
+/* Arabic is cursive: any tracking (`tracking-wide`, serif heading tuning, ...)
+ * pulls joined letters apart, so it is always zero. */
+body:lang(ar) *,
+body:lang(ar) *::before,
+body:lang(ar) *::after {
+  letter-spacing: 0;
+}
+
+/* Code, identifiers and keys stay left-to-right inside right-to-left pages,
+ * isolated so they do not reorder the surrounding Arabic sentence. */
+[dir='rtl'] :is(pre, code, kbd, samp, .cm-editor) {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Icons that carry a direction point the other way in right-to-left layouts.
+ * Declared in the base layer on purpose: an explicit `rotate-*` utility still
+ * wins, so expand-chevrons that rotate to "down" when open keep working and any
+ * icon can opt out with `rotate-0`. Horizontal arrows and chevrons are
+ * symmetric, so a half turn is the same as a mirror; the paper plane is not,
+ * hence the `scale` for it. */
+@layer base {
+  [dir='rtl']
+    :is(
+      .lucide-arrow-left,
+      .lucide-arrow-right,
+      .lucide-arrow-left-to-line,
+      .lucide-arrow-right-to-line,
+      .lucide-chevron-left,
+      .lucide-chevron-right,
+      .lucide-chevrons-left,
+      .lucide-chevrons-right,
+      .lucide-log-in,
+      .lucide-log-out
+    ) {
+    rotate: 180deg;
+  }
+
+  [dir='rtl'] .lucide-send {
+    scale: -1 1;
   }
 }

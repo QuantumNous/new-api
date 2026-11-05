@@ -86,14 +86,14 @@ const RESIZE_DIRECTIONS: ResizeDirection[] = [
   'sw',
 ]
 const RESIZE_HANDLE_CLASS: Record<ResizeDirection, string> = {
-  n: 'top-0 left-2 right-2 h-1.5 cursor-ns-resize',
-  s: 'bottom-0 left-2 right-2 h-1.5 cursor-ns-resize',
-  e: 'top-2 bottom-2 right-0 w-1.5 cursor-ew-resize',
-  w: 'top-2 bottom-2 left-0 w-1.5 cursor-ew-resize',
-  ne: 'top-0 right-0 size-3 cursor-nesw-resize',
-  nw: 'top-0 left-0 size-3 cursor-nwse-resize',
-  se: 'bottom-0 right-0 size-8 cursor-nwse-resize',
-  sw: 'bottom-0 left-0 size-3 cursor-nesw-resize',
+  n: 'top-0 start-2 end-2 h-1.5 cursor-ns-resize',
+  s: 'bottom-0 start-2 end-2 h-1.5 cursor-ns-resize',
+  e: 'top-2 bottom-2 end-0 w-1.5 cursor-ew-resize',
+  w: 'top-2 bottom-2 start-0 w-1.5 cursor-ew-resize',
+  ne: 'top-0 end-0 size-3 cursor-nesw-resize',
+  nw: 'top-0 start-0 size-3 cursor-nwse-resize',
+  se: 'bottom-0 end-0 size-8 cursor-nwse-resize',
+  sw: 'bottom-0 start-0 size-3 cursor-nesw-resize',
 }
 
 const VIEWPORT_MARGIN = 8
@@ -374,7 +374,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
         {...dragHandleProps}
         style={style}
         className={cn(
-          'bg-background border-border z-50 flex cursor-move touch-none items-center gap-2 rounded-full border py-1 pr-1 pl-3 shadow-lg select-none',
+          'bg-background border-border z-50 flex cursor-move touch-none items-center gap-2 rounded-full border py-1 pe-1 ps-3 shadow-lg select-none',
           props.className
         )}
       >
@@ -436,7 +436,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
           {props.title}
         </h3>
         {props.badge}
-        <div className='ml-auto flex items-center gap-1'>
+        <div className='ms-auto flex items-center gap-1'>
           <Button
             type='button'
             variant='ghost'
@@ -467,7 +467,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
           {props.footer}
         </footer>
       )}
-      <div className='border-border/50 bg-muted/30 text-muted-foreground flex h-8 shrink-0 items-center justify-end border-t pr-9 pl-4 text-xs select-none'>
+      <div className='border-border/50 bg-muted/30 text-muted-foreground flex h-8 shrink-0 items-center justify-end border-t ps-4 pe-9 text-xs select-none'>
         {t('Drag to resize')}
       </div>
       {RESIZE_DIRECTIONS.map((direction) => (
@@ -481,7 +481,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
             'absolute z-10 touch-none',
             RESIZE_HANDLE_CLASS[direction],
             direction === 'se' &&
-              'text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center justify-center rounded-tl-md'
+              'text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center justify-center rounded-ss-md'
           )}
           onPointerDown={(event) => handleResizeStart(event, direction)}
           onPointerMove={handleResizeMove}

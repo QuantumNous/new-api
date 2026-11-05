@@ -111,12 +111,12 @@ export function BillingHistoryDialog({
           {/* Search and Filter Bar */}
           <div className='flex items-center gap-2'>
             <div className='relative flex-1'>
-              <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
+              <Search className='text-muted-foreground absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2' />
               <Input
                 placeholder={t('Search by order number...')}
                 value={keyword}
                 onChange={(e) => handleSearch(e.target.value)}
-                className='h-9 pl-10'
+                className='h-9 ps-10'
               />
             </div>
             <Select
@@ -146,7 +146,7 @@ export function BillingHistoryDialog({
           </div>
 
           {/* Records List */}
-          <div className='max-h-[min(54vh,520px)] overflow-y-auto pr-1'>
+          <div className='max-h-[min(54vh,520px)] overflow-y-auto pe-1'>
             {loading && (
               <div className='space-y-3'>
                 {['first', 'second', 'third', 'fourth', 'fifth'].map(

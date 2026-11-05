@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { type RefObject, useLayoutEffect, useState } from 'react'
 
+import { toPhysicalSide, useDirection } from '@/components/ui/direction'
+
 export type RedirectPanelPlacement = {
   x: number
   y: number
@@ -43,6 +45,8 @@ export function useRedirectPanelPlacement(
   const [placement, setPlacement] = useState<RedirectPanelPlacement | null>(
     null
   )
+  // The sheet's `left` / `right` is its start / end edge, which swaps in RTL.
+  const sheetEdge = toPhysicalSide(sheetSide, useDirection())
 
   useLayoutEffect(() => {
     if (!enabled || window.innerWidth < REDIRECT_PANEL_MIN_VIEWPORT) {
@@ -58,10 +62,10 @@ export function useRedirectPanelPlacement(
     }
     const rect = anchor.getBoundingClientRect()
     const beside =
-      sheetSide === 'left' ? rect.right + GAP : rect.left - GAP - WIDTH
+      sheetEdge === 'left' ? rect.right + GAP : rect.left - GAP - WIDTH
     const x = Math.min(Math.max(GAP, beside), window.innerWidth - WIDTH - GAP)
     setPlacement({ x, y: rect.top + GAP, width: WIDTH })
-  }, [anchorRef, enabled, sheetSide])
+  }, [anchorRef, enabled, sheetEdge])
 
   return placement
 }

@@ -370,7 +370,7 @@ export function ModelMappingBatchDialog(props: ModelMappingBatchDialogProps) {
                     <span className='min-w-0 wrap-anywhere'>{pair.from}</span>
                     <HugeiconsIcon
                       icon={ArrowRight01Icon}
-                      className='size-3.5 shrink-0'
+                      className='size-3.5 shrink-0 rtl:rotate-180'
                       aria-hidden='true'
                     />
                     <span className='min-w-0 wrap-anywhere'>{pair.to}</span>

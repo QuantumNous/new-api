@@ -24,7 +24,10 @@ import {
 import type { KeyboardEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useDirection } from '@/components/ui/direction'
 import { TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import type { TextDirection } from '@/i18n/languages'
+import { toLogicalArrowKey } from '@/lib/keyboard-direction'
 import { cn } from '@/lib/utils'
 
 import { DataTableColumnHeader } from './column-header'
@@ -47,6 +50,7 @@ export function DataTableHeader<TData>({
   getColumnClassName,
 }: DataTableHeaderProps<TData>) {
   const { t } = useTranslation()
+  const direction = useDirection()
 
   return (
     <TableHeader className={className}>
@@ -77,11 +81,11 @@ export function DataTableHeader<TData>({
                   onMouseDown={header.getResizeHandler()}
                   onTouchStart={header.getResizeHandler()}
                   onKeyDown={(event) =>
-                    handleColumnResizeKeyDown(event, table, header)
+                    handleColumnResizeKeyDown(event, table, header, direction)
                   }
                   className={cn(
-                    'absolute top-0 right-0 h-full w-2 cursor-col-resize touch-none select-none',
-                    'after:bg-border hover:after:bg-primary after:absolute after:top-2 after:right-0 after:h-[calc(100%-1rem)] after:w-px after:transition-colors',
+                    'absolute top-0 end-0 h-full w-2 cursor-col-resize touch-none select-none',
+                    'after:bg-border hover:after:bg-primary after:absolute after:top-2 after:end-0 after:h-[calc(100%-1rem)] after:w-px after:transition-colors',
                     header.column.getIsResizing() && 'after:bg-primary'
                   )}
                 />
@@ -97,17 +101,20 @@ export function DataTableHeader<TData>({
 function handleColumnResizeKeyDown<TData>(
   event: KeyboardEvent<HTMLDivElement>,
   table: TanstackTable<TData>,
-  header: Header<TData, unknown>
+  header: Header<TData, unknown>,
+  direction: TextDirection
 ) {
   const step = event.shiftKey ? 50 : 10
+  // The handle sits on the column's end edge, so "wider" is visually leftward in RTL.
+  const key = toLogicalArrowKey(event.key, direction)
 
-  if (event.key === 'ArrowLeft') {
+  if (key === 'ArrowLeft') {
     event.preventDefault()
     resizeColumnByKeyboard(table, header, -step)
     return
   }
 
-  if (event.key === 'ArrowRight') {
+  if (key === 'ArrowRight') {
     event.preventDefault()
     resizeColumnByKeyboard(table, header, step)
     return

@@ -6299,6 +6299,7 @@
     "The task was accepted; submission cannot be replayed": "Tác vụ đã nhận; không thể gửi lại",
     "The Telegram authorization request is invalid or expired.": "Yêu cầu ủy quyền Telegram không hợp lệ hoặc đã hết hạn.",
     "The telegram OAuth provider name is reserved. Ask your administrator to rename the conflicting custom provider.": "Tên nhà cung cấp OAuth telegram đã được dành riêng. Hãy nhờ quản trị viên đổi tên nhà cung cấp tùy chỉnh bị trùng.",
+    "The text direction is set by the interface language": "Hướng văn bản được xác định theo ngôn ngữ giao diện",
     "The time range cannot exceed {{days}} days": "Khoảng thời gian không được vượt quá {{days}} ngày",
     "The token group that will have a custom ratio": "The token group will have a custom ratio.",
     "The token has no group, so it is billed as the user group vip, using the base ratio of vip.": "Token không có nhóm, nên được tính phí theo nhóm người dùng vip, dùng hệ số cơ bản của vip.",

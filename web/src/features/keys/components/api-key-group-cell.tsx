@@ -73,7 +73,7 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
             data-api-key-group-cell='auto'
             tabIndex={0}
             className={cn(
-              'ml-0 gap-3 overflow-visible text-xs',
+              'ms-0 gap-3 overflow-visible text-xs',
               isMobile ? 'w-full justify-between' : 'max-w-50'
             )}
           />

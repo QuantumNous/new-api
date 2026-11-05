@@ -6299,6 +6299,7 @@
     "The task was accepted; submission cannot be replayed": "タスク受理済みのため再送信不可",
     "The Telegram authorization request is invalid or expired.": "Telegram の認証リクエストが無効か、有効期限が切れています。",
     "The telegram OAuth provider name is reserved. Ask your administrator to rename the conflicting custom provider.": "OAuth プロバイダー名 telegram は予約されています。管理者に競合するカスタムプロバイダーの名前変更を依頼してください。",
+    "The text direction is set by the interface language": "テキストの方向はインターフェース言語によって決まります",
     "The time range cannot exceed {{days}} days": "期間は {{days}} 日を超えることはできません",
     "The token group that will have a custom ratio": "カスタム比率を持つトークングループ",
     "The token has no group, so it is billed as the user group vip, using the base ratio of vip.": "トークンにグループがないため、ユーザーグループ vip として課金され、vip の基本倍率が使われます。",

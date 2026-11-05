@@ -182,7 +182,7 @@ export function ExtendDeploymentDialog({
           </Button>
           <Button onClick={() => void onSubmit()} disabled={!canSubmit}>
             {isSubmitting ? (
-              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              <Loader2 className='me-2 h-4 w-4 animate-spin' />
             ) : null}
             {t('Extend')}
           </Button>

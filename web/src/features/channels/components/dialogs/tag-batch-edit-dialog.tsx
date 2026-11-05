@@ -205,7 +205,7 @@ export function TagBatchEditDialog({
             </Button>
             <Button onClick={handleSave} disabled={isSaving}>
               {isSaving ? (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <Loader2 className='me-2 h-4 w-4 animate-spin' />
               ) : null}
               {isSaving ? t('Saving...') : t('Save Changes')}
             </Button>

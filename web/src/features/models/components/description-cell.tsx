@@ -45,7 +45,7 @@ export function DescriptionCell({
       <Button
         variant='link'
         onClick={handleClick}
-        className='text-muted-foreground hover:text-foreground block h-auto w-full cursor-pointer overflow-hidden p-0 text-left text-sm text-ellipsis whitespace-nowrap no-underline'
+        className='text-muted-foreground hover:text-foreground block h-auto w-full cursor-pointer overflow-hidden p-0 text-start text-sm text-ellipsis whitespace-nowrap no-underline'
       >
         {description}
       </Button>

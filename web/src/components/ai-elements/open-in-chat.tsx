@@ -261,7 +261,7 @@ export const OpenInTrigger = ({ children, ...props }: OpenInTriggerProps) => {
           {children ?? (
             <>
               {t('Open in chat')}
-              <ChevronDownIcon className='ml-2 size-4' />
+              <ChevronDownIcon className='ms-2 size-4' />
             </>
           )}
         </Button>
