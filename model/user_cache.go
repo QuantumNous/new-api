@@ -58,11 +58,9 @@ func (user *UserBase) GetSetting() dto.UserSetting {
 	return setting
 }
 
-// getUserCacheKey shares a Redis Cluster hash tag with the user's auth fences.
-// All nodes must switch key formats together after draining in-flight requests
-// and pending quota writes. Legacy hashes are rebuilt from the database.
+// getUserCacheKey returns the key for user cache
 func getUserCacheKey(userId int) string {
-	return fmt.Sprintf("user:{%d}", userId)
+	return fmt.Sprintf("user:%d", userId)
 }
 
 func userCacheTTLSeconds() int {

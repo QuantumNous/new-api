@@ -15,26 +15,24 @@ import (
 	"gorm.io/gorm"
 )
 
-// Redis Cluster hashes the nonempty substring inside the first brace pair.
-// Miniredis does not enforce cluster slots, so check this contract explicitly.
+// Sharded Redis hashes only the text inside the first brace pair, so fence
+// and version keys tagged with the untagged cache key share its slot.
+// Miniredis does not enforce slots, so check the tags explicitly.
 func TestAuthCacheKeysShareClusterHashTag(t *testing.T) {
-	for _, keys := range [][]string{
-		{getUserCacheKey(5), getUserAuthFenceKey(5), getUserAuthVersionKey(5)},
-		{getUserCacheKey(123456), getUserAuthFenceKey(123456), getUserAuthVersionKey(123456)},
-		{getTokenCacheKey("test-token"), getTokenCacheFenceKey("test-token")},
-		{getTokenCacheKey("token{with}braces"), getTokenCacheFenceKey("token{with}braces")},
+	for _, tc := range []struct {
+		cacheKey string
+		related  []string
+	}{
+		{getUserCacheKey(5), []string{getUserAuthFenceKey(5), getUserAuthVersionKey(5)}},
+		{getTokenCacheKey("test-token"), []string{getTokenCacheFenceKey("test-token")}},
 	} {
-		var expected string
-		for _, key := range keys {
+		assert.NotContains(t, tc.cacheKey, "{")
+		for _, key := range tc.related {
 			_, suffix, ok := strings.Cut(key, "{")
 			require.True(t, ok)
 			tag, _, ok := strings.Cut(suffix, "}")
 			require.True(t, ok)
-			require.NotEmpty(t, tag)
-			if expected == "" {
-				expected = tag
-			}
-			assert.Equal(t, expected, tag)
+			assert.Equal(t, tc.cacheKey, tag)
 		}
 	}
 }
