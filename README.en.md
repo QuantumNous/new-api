@@ -65,11 +65,11 @@
 git clone https://github.com/QuantumNous/new-api.git
 cd new-api
 
-# Edit deploy/podman-compose.yml configuration
-nano deploy/podman-compose.yml
+# Edit deploy/podman-prod/compose.yml configuration
+nano deploy/podman-prod/compose.yml
 
 # Start the service
-podman compose -f deploy/podman-compose.yml up -d
+podman compose -f deploy/podman-prod/compose.yml up -d
 ```
 
 <details>
@@ -117,6 +117,17 @@ podman run --name new-api -d --restart always \
 📖 For more deployment methods, please refer to [Deployment Guide](https://docs.newapi.pro/en/docs/installation)
 
 ---
+
+### Local Development
+
+```bash
+just dev-wt-dev   # containerized PostgreSQL + local Go API (dev tag, auto-login) + web HMR
+```
+
+- Default engine is Podman; start its socket first: `systemctl --user enable --now podman.socket`.
+- Switch to Docker without changing anything else: `DEV_CONTAINER_ENGINE=docker just dev-wt-dev`.
+- Dev compose files: `deploy/podman-dev/compose.yml` and `deploy/docker-dev/compose.yml`.
+- Other recipes: `just dev-db`, `just dev-web`, `just dev-api`; details in `AGENTS.md`.
 
 ## 📚 Documentation
 
@@ -314,10 +325,10 @@ git clone https://github.com/QuantumNous/new-api.git
 cd new-api
 
 # Edit configuration
-nano deploy/podman-compose.yml
+nano deploy/podman-prod/compose.yml
 
 # Start service
-podman compose -f deploy/podman-compose.yml up -d
+podman compose -f deploy/podman-prod/compose.yml up -d
 ```
 
 </details>

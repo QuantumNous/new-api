@@ -46,7 +46,7 @@ apps/web/       — Frontend (React 19, Rsbuild, Base UI, Tailwind)
   src/i18n/    — Frontend internationalization (i18next, en/zh/zh-TW/fr/ru/ja/vi)
   web/dist/      — Frontend build output copied here for go:embed (gitignored)
 db/            — Database migration assets
-deploy/        — Containerfiles/Dockerfile for CI builds, podman compose + Quadlet units, Kubernetes manifests (see deploy/README.md)
+deploy/        — docker-dev/ podman-dev/ dev-image/ image-prod/ podman-prod/ caddy-prod/ k8s-prod/ baremetal-prod/ (see deploy/README.md)
   k8s/         — Kubernetes manifests (master/worker split, PG/Redis, Ingress)
 scripts/       — Engineering helper scripts
 docs/          — Documentation, including docs/k8s/
@@ -106,6 +106,10 @@ cd .wt/<short-name>
 The main checkout stays on `main`; feature branches live in `.wt/`.
 
 ###### Starting a dev server
+
+开发栈默认走 Podman（`deploy/podman-dev/compose.yml`）。需要 Docker 时切到 `deploy/docker-dev/compose.yml`：
+`DEV_CONTAINER_ENGINE=docker just dev-db`（或用 `export DEV_CONTAINER_ENGINE=docker` 让整组 dev 命令生效）。
+Podman 路径需要 rootless socket：`systemctl --user enable --now podman.socket`。
 
 **`just dev-wt-dev` (recommended for agent/worktree development, auto-login ON):**
 1. `just dev-db` — starts the dev PostgreSQL container only (Redis expected on `localhost:6379`; host Redis or `uf-local-redis` container already provides this)

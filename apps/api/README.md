@@ -78,7 +78,7 @@ apps/api/
 |---|---|
 | `just build-web` | 构建前端并将产物拷贝到 `apps/api/web/dist/` (go:embed 方案 A) |
 | `just start-api` | 后台启动 Go 开发服务器(`go run main.go &`) |
-| `just dev-api` | 启动容器开发环境(postgres 等) |
+| `just dev-api` | 启动容器开发环境(postgres 等，默认 Podman；`DEV_CONTAINER_ENGINE=docker` 切到 Docker) |
 | `just dev-web` | 启动前端 Rsbuild 开发服务器(端口 5173) |
 | `just dev` | 同时启动 `dev-api` + `dev-web` |
 | `just test` | 运行全部 Go 测试(api + relaykit, GOWORK=off) |

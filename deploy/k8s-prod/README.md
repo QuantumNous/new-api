@@ -61,7 +61,7 @@ base64 -w0 < ~/.kube/config
 5. apply Service 与 Ingress
 6. 输出 Pod 与 Service 状态
 
-**自动触发**：打 tag 推送到 GitHub 时，`Publish Docker image (Multi-arch)` workflow 会自动构建镜像并推送到 GHCR，成功后自动触发本 workflow 部署到集群。
+**触发方式**：本 workflow 只支持手动触发（`workflow_dispatch`）。打 tag 推送时 `Publish Docker image (Multi-arch)` 会构建并推送 GHCR 镜像，但不会自动调用部署 workflow；需要部署时在 Actions 页面选择 `Deploy to Kubernetes` 并填入该 tag。
 
 ### 方式二：手动 apply
 
