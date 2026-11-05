@@ -271,10 +271,11 @@ strictly manual (`workflow_dispatch` only). The deploy workflow must never
 automatically touch the production server.
 
 ### Docker Image Version Mismatch
-When merging a feature PR to main, the GHCR image is rebuilt automatically
-(via `Publish Docker image (Multi-arch)` workflow). However, the server may
-still have a cached older `:latest` image. Always run `podman pull` before
-starting the new container to ensure you get the correct version.
+Images are built on demand: run the `Publish Docker image (Multi-arch)`
+workflow manually and pass the ref to build. Ref `main` also updates `:latest`;
+other refs only produce their own tag. The server may still have a cached older
+`:latest` image, so always run `podman pull` before starting the new container
+to ensure you get the correct version.
 
 **Verification**: Check the built image digest matches what's on the server:
 ```bash

@@ -25,4 +25,4 @@ This directory contains Podman deployment assets for single-host production.
 
 - Prefer rootful Podman for existing Docker PostgreSQL data volumes to avoid UID mapping issues.
 - Use `podman auto-update` or Quadlet for reboot persistence.
-- Images are built by CI with Docker Buildx and published to GHCR; Podman pulls them directly.
+- Images are built on demand by the `Publish Docker image (Multi-arch)` workflow and published to GHCR; Podman pulls them directly.

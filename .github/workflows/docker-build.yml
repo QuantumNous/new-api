@@ -1,22 +1,19 @@
 name: Publish Docker image (Multi-arch)
 
+# 仅手动触发：镜像只在需要部署时构建，避免每次合并 main 或推送 tag
+# 都跑一遍双架构构建、签名和 GHCR 推送。
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - '*'
-      - '!nightly*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag name to build (e.g., v0.10.8-alpha.3)'
+      ref:
+        description: 'Branch, tag, or commit SHA to build (default: main)'
         required: true
+        default: 'main'
         type: string
 
 concurrency:
-  group: docker-publish-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
+  group: docker-publish-${{ inputs.ref }}
+  cancel-in-progress: false
 
 jobs:
   build_single_arch:
@@ -34,6 +31,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     outputs:
       tag: ${{ steps.version.outputs.tag }}
+      update_latest: ${{ steps.version.outputs.update_latest }}
     permissions:
       packages: write
       contents: read
@@ -43,30 +41,43 @@ jobs:
       - name: Check out
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          fetch-depth: ${{ github.event_name == 'workflow_dispatch' && 0 || 1 }}
-          # 手动触发时补全 refs/tags/ 前缀，push 事件直接使用 github.ref
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', github.event.inputs.tag) || github.ref }}
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
 
       - name: Resolve tag & write VERSION
         id: version
         env:
-          DISPATCH_TAG: ${{ github.event.inputs.tag }}
+          BUILD_REF: ${{ inputs.ref }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            TAG="$DISPATCH_TAG"
-            if ! git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
-              echo "::error::Tag '$TAG' does not exist"
-              exit 1
-            fi
-          elif [ "$GITHUB_REF_TYPE" = "branch" ]; then
-            TAG="sha-${GITHUB_SHA::12}"
+          if git rev-parse --verify --quiet "refs/heads/${BUILD_REF}" >/dev/null; then
+            TAG="sha-$(git rev-parse --short=12 HEAD)"
+          elif git rev-parse --verify --quiet "refs/tags/${BUILD_REF}" >/dev/null; then
+            TAG=$(printf '%s' "$BUILD_REF" | sed -E 's/[^A-Za-z0-9_.-]+/-/g')
           else
-            TAG=${GITHUB_REF#refs/tags/}
+            TAG="sha-$(git rev-parse --short=12 HEAD)"
           fi
-          echo "TAG=${TAG}" >> $GITHUB_ENV
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          UPDATE_LATEST=false
+          if [ "$BUILD_REF" = "main" ] || [ "$BUILD_REF" = "refs/heads/main" ]; then
+            UPDATE_LATEST=true
+          fi
+          echo "TAG=${TAG}" >> "$GITHUB_ENV"
+          echo "UPDATE_LATEST=${UPDATE_LATEST}" >> "$GITHUB_ENV"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "update_latest=${UPDATE_LATEST}" >> "$GITHUB_OUTPUT"
           echo "${TAG}" > VERSION
-          echo "Building tag: ${TAG} for ${{ matrix.arch }}"
+          echo "Building tag: ${TAG} from ${BUILD_REF} for ${{ matrix.arch }}"
+
+      - name: Compose image tags
+        id: image_tags
+        run: |
+          {
+            echo "tags<<EOF"
+            echo "ghcr.io/${{ github.repository }}:${TAG}-${{ matrix.arch }}"
+            if [ "${UPDATE_LATEST}" = "true" ]; then
+              echo "ghcr.io/${{ github.repository }}:latest-${{ matrix.arch }}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -92,9 +103,7 @@ jobs:
           file: deploy/image-prod/Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:${{ env.TAG }}-${{ matrix.arch }}
-            ghcr.io/${{ github.repository }}:latest-${{ matrix.arch }}
+          tags: ${{ steps.image_tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -119,14 +128,15 @@ jobs:
     name: Create multi-arch manifests
     needs: [build_single_arch]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     permissions:
       id-token: write
       packages: write
 
     steps:
       - name: Set version
-        run: echo "TAG=${{ needs.build_single_arch.outputs.tag }}" >> $GITHUB_ENV
+        run: |
+          echo "TAG=${{ needs.build_single_arch.outputs.tag }}" >> $GITHUB_ENV
+          echo "UPDATE_LATEST=${{ needs.build_single_arch.outputs.update_latest }}" >> $GITHUB_ENV
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
@@ -143,6 +153,7 @@ jobs:
             ghcr.io/${{ github.repository }}:${TAG}-arm64
 
       - name: Create & push manifest (latest)
+        if: env.UPDATE_LATEST == 'true'
         run: |
           docker buildx imagetools create \
             -t ghcr.io/${{ github.repository }}:latest \
@@ -155,13 +166,18 @@ jobs:
       - name: Sign manifests with cosign
         run: |
           cosign sign --yes ghcr.io/${{ github.repository }}:${TAG}
-          cosign sign --yes ghcr.io/${{ github.repository }}:latest
+          if [ "${UPDATE_LATEST}" = "true" ]; then
+            cosign sign --yes ghcr.io/${{ github.repository }}:latest
+          fi
 
       - name: Manifest summary
         run: |
           echo "### Multi-arch Manifest" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           docker buildx imagetools inspect ghcr.io/${{ github.repository }}:${TAG} >> $GITHUB_STEP_SUMMARY
+          if [ "${UPDATE_LATEST}" = "true" ]; then
+            docker buildx imagetools inspect ghcr.io/${{ github.repository }}:latest >> $GITHUB_STEP_SUMMARY
+          fi
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload tag artifact

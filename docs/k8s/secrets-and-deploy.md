@@ -188,22 +188,21 @@ curl -N -H "Authorization: Bearer <token>" \
 构建和生产部署分离，避免快速迭代直接重启线上应用：
 
 ```
-main 合并
-  → docker-build.yml
-      → 构建 amd64/arm64 镜像
-      → 推送 ghcr.io/xiaocongyu66/new-api:sha-<commit>
-      → 更新 latest manifest（仅供测试/开发使用）
+手动触发 Publish Docker image (Multi-arch)
+  → 填写 ref（main / tag / commit SHA）
+  → 构建 amd64/arm64 镜像并签名
+  → 推送 ghcr.io/xiaocongyu66/new-api:sha-<commit>（tag 构建则用 tag 名）
+  → ref=main 时更新 latest manifest（仅供测试/开发使用）
 
-git tag v0.11.0 && git push --tags
-  → docker-build.yml
-      → 构建并签名 v0.11.0 多架构 manifest
-      → gh workflow run deploy.yml -f image_tag=v0.11.0
+gh workflow run deploy.yml -f image_tag=<tag>
   → deploy.yml
       → 校验不可变 image_tag
       → apply 数据层（不删除 PostgreSQL/Redis PVC）
       → master 先完成迁移并就绪
       → worker 使用 RollingUpdate 替换
 ```
+
+镜像构建只支持手动触发：合并 main 和推送 tag 都不会自动构建镜像。
 
 `deploy.yml` 的 `image_tag` 必须显式填写不可变 tag，例如 `sha-abc123` 或 `v0.11.0`；`latest` 会被拒绝。生产发布前应先在测试环境验证 SHA 镜像，再部署同一个 SHA 或对应正式 tag。应用启动仍会执行数据库迁移，迁移需保持向后兼容；应用镜像更新不会清空 Redis，也不会删除 PostgreSQL/Redis 的 PVC。
 
