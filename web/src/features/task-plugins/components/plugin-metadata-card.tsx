@@ -112,7 +112,7 @@ export function PluginMetadataCard(props: PluginMetadataCardProps) {
           {models.length > 0 && (
             <CopyButton
               value={models.join('\n')}
-              className='ml-auto size-7'
+              className='ms-auto size-7'
               iconClassName='size-3.5'
               aria-label={t('Copy all models')}
             />

@@ -32,6 +32,9 @@ import {
   type PointerEvent,
 } from 'react'
 
+import { useDirection } from '@/components/ui/direction'
+import { toLogicalArrowKey } from '@/lib/keyboard-direction'
+
 import {
   previewPriorityDrop,
   type PriorityDrop,
@@ -142,6 +145,7 @@ export function useChannelPriorityDrag(options: DragOptions) {
   const latest = useRef(options)
   latest.current = options
   const reduced = useReducedMotion()
+  const direction = useDirection()
   const transition = useMemo(
     () =>
       reduced
@@ -688,8 +692,10 @@ export function useChannelPriorityDrag(options: DragOptions) {
       if (!latest.current.enabled || point.current || released.current) return
       const index = latest.current.items.findIndex((item) => item.id === id)
       let delta = 0
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') delta = -1
-      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') delta = 1
+      // Horizontal keys follow the visual order, which reverses in RTL.
+      const key = toLogicalArrowKey(event.key, direction)
+      if (key === 'ArrowLeft' || key === 'ArrowUp') delta = -1
+      if (key === 'ArrowRight' || key === 'ArrowDown') delta = 1
       if (!delta) return
       event.preventDefault()
       const target = latest.current.items[index + delta]
@@ -702,7 +708,7 @@ export function useChannelPriorityDrag(options: DragOptions) {
       })
       void latest.current.commit()
     },
-    [stop]
+    [direction, stop]
   )
 
   useEffect(

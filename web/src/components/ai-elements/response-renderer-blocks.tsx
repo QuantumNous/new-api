@@ -113,12 +113,12 @@ export function renderList(
   options: BlockRendererOptions
 ): ReactNode {
   const className = cn(
-    'my-3 list-outside space-y-1.5 pl-5',
+    'my-3 list-outside space-y-1.5 ps-5',
     node.ordered ? 'list-decimal' : 'list-disc'
   )
   const items = node.items.map((item, index) => (
     <li
-      className='marker:text-muted-foreground pl-1 leading-7'
+      className='marker:text-muted-foreground ps-1 leading-7'
       key={getNodeKey(item, index)}
     >
       {options.renderChildren(item.children)}
@@ -183,7 +183,7 @@ function renderDefinitionItem(
   return (
     <div key={`definition-${index}`}>
       <dt className='font-semibold'>{options.renderChildren(node.term)}</dt>
-      <dd className='text-muted-foreground mt-1 pl-4'>
+      <dd className='text-muted-foreground mt-1 ps-4'>
         {options.renderChildren(node.definition)}
       </dd>
     </div>

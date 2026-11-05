@@ -24,10 +24,22 @@ export const INTERFACE_LANGUAGE_OPTIONS = [
   { code: 'ja', label: '日本語' },
   { code: 'vi', label: 'Tiếng Việt' },
   { code: 'zhTW', label: '繁體中文' },
+  { code: 'ar', label: 'العربية' },
 ] as const
 
 export type InterfaceLanguageCode =
   (typeof INTERFACE_LANGUAGE_OPTIONS)[number]['code']
+
+export type TextDirection = 'ltr' | 'rtl'
+
+/**
+ * Interface languages written right-to-left. Register a new RTL language here
+ * as well as in `INTERFACE_LANGUAGE_OPTIONS`; the document direction, Base UI
+ * popups and the sidebar all follow from this set.
+ */
+const RTL_LANGUAGE_CODES: ReadonlySet<string> = new Set<InterfaceLanguageCode>([
+  'ar',
+])
 
 export function normalizeInterfaceLanguage(value?: string | null): string {
   if (!value) return 'en'
@@ -45,9 +57,24 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
     normalized = 'zhCN'
   }
 
-  return INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === normalized)
-    ? normalized
-    : 'en'
+  // Regional variants such as `ar-EG` or `fr-FR` resolve to their base language.
+  const [primary] = normalized.split('-')
+  const match = INTERFACE_LANGUAGE_OPTIONS.find(
+    (lang) => lang.code === normalized || lang.code === primary
+  )
+  return match?.code ?? 'en'
+}
+
+/**
+ * Text direction of an interface language code (or a browser locale such as
+ * `ar-EG`). Unknown values fall back to English, which is left-to-right.
+ */
+export function getInterfaceLanguageDirection(
+  value?: string | null
+): TextDirection {
+  return RTL_LANGUAGE_CODES.has(normalizeInterfaceLanguage(value))
+    ? 'rtl'
+    : 'ltr'
 }
 
 /**

@@ -31,6 +31,26 @@
         document.documentElement.classList.add(theme)
       })()
     </script>
+    <!-- Resolve the text direction before first paint so Arabic never flashes
+         left-to-right. Mirrors DirectionProvider: a right-to-left interface
+         language (stored by i18next, else the browser's) always wins, otherwise
+         the manual `dir` cookie applies. -->
+    <script>
+      ;(function () {
+        var root = document.documentElement
+        var language = ''
+        try {
+          language = localStorage.getItem('i18nextLng') || ''
+        } catch (e) {}
+        language = language || navigator.language || ''
+        if (/^ar([-_]|$)/i.test(language)) {
+          root.lang = 'ar'
+          root.dir = 'rtl'
+        } else if (/(?:^|;\s*)dir=rtl(?:;|$)/.test(document.cookie)) {
+          root.dir = 'rtl'
+        }
+      })()
+    </script>
     <!--umami-->
     <!--Google Analytics-->
   </head>

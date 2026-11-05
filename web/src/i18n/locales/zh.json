@@ -6299,6 +6299,7 @@
     "The task was accepted; submission cannot be replayed": "任务已接受，不能重复提交",
     "The Telegram authorization request is invalid or expired.": "Telegram 授权请求无效或已过期。",
     "The telegram OAuth provider name is reserved. Ask your administrator to rename the conflicting custom provider.": "telegram 是保留的 OAuth 提供方名称，请联系管理员重命名冲突的自定义提供方。",
+    "The text direction is set by the interface language": "文字方向由界面语言决定",
     "The time range cannot exceed {{days}} days": "时间跨度不能超过 {{days}} 天",
     "The token group that will have a custom ratio": "将具有自定义比例的令牌分组",
     "The token has no group, so it is billed as the user group vip, using the base ratio of vip.": "令牌未设置分组，因此按用户分组 vip 计费，使用 vip 的基础倍率。",

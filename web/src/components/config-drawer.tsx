@@ -189,7 +189,7 @@ function RadioGroupItem(props: {
           className={cn(
             'fill-primary size-6 stroke-white',
             'group-data-unchecked:hidden',
-            'absolute top-0 right-0 translate-x-1/2 -translate-y-1/2'
+            'absolute top-0 end-0 translate-x-1/2 rtl:-translate-x-1/2 -translate-y-1/2'
           )}
           aria-hidden='true'
         />
@@ -287,7 +287,7 @@ function PresetConfig() {
               />
               <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'fill-primary absolute top-0 end-0 z-10 size-5 translate-x-1/2 rtl:-translate-x-1/2 -translate-y-1/2 stroke-white',
                   'group-data-unchecked:hidden'
                 )}
                 aria-hidden='true'
@@ -358,7 +358,7 @@ function FontConfig() {
             >
               <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'fill-primary absolute top-0 end-0 z-10 size-5 translate-x-1/2 rtl:-translate-x-1/2 -translate-y-1/2 stroke-white',
                   'group-data-unchecked:hidden'
                 )}
                 aria-hidden='true'
@@ -428,14 +428,14 @@ function RadiusConfig() {
             >
               <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'fill-primary absolute top-0 end-0 z-10 size-5 translate-x-1/2 rtl:-translate-x-1/2 -translate-y-1/2 stroke-white',
                   'group-data-unchecked:hidden'
                 )}
                 aria-hidden='true'
               />
               <span
                 aria-hidden='true'
-                className='border-foreground/70 absolute top-2.5 left-2.5 size-3.5 border-t-[1.5px] border-l-[1.5px]'
+                className='border-foreground/70 absolute start-2.5 top-2.5 size-3.5 border-s-[1.5px] border-t-[1.5px]'
                 style={{ borderTopLeftRadius: option.preview }}
               />
             </div>
@@ -515,7 +515,7 @@ function ScaleConfig() {
             >
               <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'fill-primary absolute top-0 end-0 z-10 size-5 translate-x-1/2 rtl:-translate-x-1/2 -translate-y-1/2 stroke-white',
                   'group-data-unchecked:hidden'
                 )}
                 aria-hidden='true'
@@ -656,7 +656,7 @@ function ContentLayoutConfig() {
             >
               <CircleCheck
                 className={cn(
-                  'fill-primary absolute top-0 right-0 z-10 size-5 translate-x-1/2 -translate-y-1/2 stroke-white',
+                  'fill-primary absolute top-0 end-0 z-10 size-5 translate-x-1/2 rtl:-translate-x-1/2 -translate-y-1/2 stroke-white',
                   'group-data-unchecked:hidden'
                 )}
                 aria-hidden='true'
@@ -696,7 +696,7 @@ function ContentLayoutPreview(props: { centered: boolean }) {
 
 function DirConfig() {
   const { t } = useTranslation()
-  const { defaultDir, dir, setDir } = useDirection()
+  const { defaultDir, dir, isLockedByLanguage, setDir } = useDirection()
   return (
     <div>
       <SectionTitle
@@ -707,7 +707,8 @@ function DirConfig() {
       <Radio
         value={dir}
         onValueChange={setDir}
-        className='grid w-full max-w-md grid-cols-3 gap-4'
+        disabled={isLockedByLanguage}
+        className='grid w-full max-w-md grid-cols-3 gap-4 data-disabled:opacity-60'
         aria-label={t('Select site direction')}
         aria-describedby='direction-description'
       >
@@ -731,8 +732,13 @@ function DirConfig() {
         ))}
       </Radio>
       <div id='direction-description' className='sr-only'>
-        {t('Choose between left-to-right or right-to-left site direction')}
+        {t('Choose between start-to-right or end-to-left site direction')}
       </div>
+      {isLockedByLanguage && (
+        <p className='text-muted-foreground mt-2 text-xs'>
+          {t('The text direction is set by the interface language')}
+        </p>
+      )}
     </div>
   )
 }

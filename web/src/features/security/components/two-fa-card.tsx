@@ -159,7 +159,7 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
                   className='flex-1'
                   onClick={() => dialogs.open('backup')}
                 >
-                  <RefreshCw className='mr-2 h-4 w-4' />
+                  <RefreshCw className='me-2 h-4 w-4' />
                   {t('Regenerate Backup Codes')}
                 </Button>
                 <Button
@@ -167,7 +167,7 @@ export function TwoFACard({ loading: pageLoading }: TwoFACardProps) {
                   className='flex-1'
                   onClick={() => dialogs.open('disable')}
                 >
-                  <AlertTriangle className='mr-2 h-4 w-4' />
+                  <AlertTriangle className='me-2 h-4 w-4' />
                   {t('Disable 2FA')}
                 </Button>
               </div>

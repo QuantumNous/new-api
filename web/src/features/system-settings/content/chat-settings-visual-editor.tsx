@@ -131,16 +131,16 @@ export function ChatSettingsVisualEditor({
     <div className='space-y-4'>
       <div className='flex items-center gap-4'>
         <div className='relative flex-1'>
-          <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
+          <Search className='text-muted-foreground absolute start-2.5 top-2.5 h-4 w-4' />
           <Input
             placeholder={t('Search chat presets...')}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className='pl-9'
+            className='ps-9'
           />
         </div>
         <Button onClick={handleAdd}>
-          <Plus className='mr-2 h-4 w-4' />
+          <Plus className='me-2 h-4 w-4' />
           {t('Add chat preset')}
         </Button>
       </div>
@@ -171,8 +171,8 @@ export function ChatSettingsVisualEditor({
           {
             id: 'actions',
             header: t('Actions'),
-            className: 'text-right',
-            cellClassName: 'text-right',
+            className: 'text-end',
+            cellClassName: 'text-end',
             cell: (chat) => (
               <StaticRowActions
                 editLabel={t('Edit')}

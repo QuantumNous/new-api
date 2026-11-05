@@ -65,7 +65,7 @@ function getPinnedColumnClassName(
 
   return cn(
     'sticky whitespace-nowrap',
-    pinnedColumn.side === 'left' ? 'left-0' : 'right-0',
+    pinnedColumn.side === 'left' ? 'start-0' : 'end-0',
     edgeClassName,
     kind === 'header'
       ? '[background-color:var(--table-header-bg,var(--table-header))] group-hover:[background-color:var(--table-header-hover)] z-30'

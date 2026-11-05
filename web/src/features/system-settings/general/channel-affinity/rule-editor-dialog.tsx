@@ -261,7 +261,7 @@ export function RuleEditorDialog(props: Props) {
       title={isEdit ? t('Edit Rule') : t('Add Rule')}
       contentClassName='sm:max-w-5xl'
       contentHeight='auto'
-      bodyClassName='pr-2'
+      bodyClassName='pe-2'
       footer={
         <>
           <Button
@@ -357,7 +357,7 @@ export function RuleEditorDialog(props: Props) {
                 setKeySources((prev) => [...prev, createKeySourceRow()])
               }
             >
-              <Plus className='mr-1 h-3 w-3' />
+              <Plus className='me-1 h-3 w-3' />
               {t('Add')}
             </Button>
           </div>

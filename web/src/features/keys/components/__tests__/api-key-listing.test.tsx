@@ -164,8 +164,8 @@ it('shows desktop remaining and used amounts side by side without labels, with t
   expect(
     trigger.querySelector('[data-slot="api-key-quota-values"]')
   ).toHaveClass('grid-cols-2')
-  expect(within(trigger).getByText('80')).toHaveClass('text-left')
-  expect(within(trigger).getByText('120')).toHaveClass('text-right')
+  expect(within(trigger).getByText('80')).toHaveClass('text-start')
+  expect(within(trigger).getByText('120')).toHaveClass('text-end')
   expect(trigger.parentElement).toHaveClass('max-w-45')
   expect(trigger).not.toHaveTextContent('$')
   expect(trigger.querySelector('svg')).toBeNull()
@@ -202,7 +202,7 @@ it('shows unlimited with cumulative usage and explains it on demand', async () =
   expect(button).toHaveTextContent('Unlimited')
   expect(button).toHaveTextContent('Unlimited120')
   expect(button).not.toHaveTextContent(/Remaining|Used amount/)
-  expect(within(button).getByText('Unlimited')).toHaveClass('text-left')
+  expect(within(button).getByText('Unlimited')).toHaveClass('text-start')
   expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   await userEvent.click(button)
   const detail = await screen.findByRole('dialog')
@@ -364,8 +364,8 @@ it('combines creation and last use while keeping expiry, models and IP restricti
   const quotaTrigger = screen.getByRole('button', {
     name: /Remaining 80; Remaining percentage 40%; Used amount 120/,
   })
-  expect(quotaHeader).not.toHaveClass('pr-8')
-  expect(quotaTrigger.closest('td')).not.toHaveClass('pr-8')
+  expect(quotaHeader).not.toHaveClass('pe-8')
+  expect(quotaTrigger.closest('td')).not.toHaveClass('pe-8')
 })
 
 it('restores dates hidden by the old default and preserves unrelated column preferences', async () => {
@@ -503,7 +503,7 @@ it('keeps mobile quota readable and opens complete model and IP restrictions by 
     'grid-cols-[auto_minmax(0,1fr)]'
   )
   expect(within(quota).getByText('Unlimited')).toHaveClass(
-    'text-right',
+    'text-end',
     'text-sm',
     'font-normal'
   )
@@ -511,7 +511,7 @@ it('keeps mobile quota readable and opens complete model and IP restrictions by 
     'tabular-nums',
     'text-sm',
     'font-normal',
-    'text-right'
+    'text-end'
   )
   await userEvent.click(screen.getByRole('button', { name: /Models: 2 model/ }))
   let details = await screen.findByRole('dialog')

@@ -255,7 +255,7 @@ export function SyncSourcePriceCell(props: {
         )}
       </div>
       {result?.error && (
-        <p role='alert' className='text-destructive w-full pl-7 text-xs'>
+        <p role='alert' className='text-destructive w-full ps-7 text-xs'>
           {t(result.error)}
         </p>
       )}

@@ -238,7 +238,7 @@ export function UpdateConfigDialog({
               disabled={form.formState.isSubmitting}
             >
               {form.formState.isSubmitting ? (
-                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <Loader2 className='me-2 h-4 w-4 animate-spin' />
               ) : null}
               {t('Update')}
             </Button>
@@ -251,7 +251,7 @@ export function UpdateConfigDialog({
           <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
         </div>
       ) : (
-        <div className='max-h-[calc(100dvh-8.5rem)] overflow-y-auto py-2 pr-1 sm:max-h-[72vh]'>
+        <div className='max-h-[calc(100dvh-8.5rem)] overflow-y-auto py-2 pe-1 sm:max-h-[72vh]'>
           <Form {...form}>
             <form
               id={UPDATE_CONFIG_FORM_ID}

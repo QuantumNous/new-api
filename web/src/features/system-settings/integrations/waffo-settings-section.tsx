@@ -322,7 +322,7 @@ export function WaffoSettingsSection({
         <div className='flex items-center justify-between'>
           <h4 className='font-medium'>{t('Payment Methods')}</h4>
           <Button type='button' variant='outline' size='sm' onClick={openAdd}>
-            <Plus className='mr-1 h-3 w-3' />
+            <Plus className='me-1 h-3 w-3' />
             {t('Add payment method')}
           </Button>
         </div>
@@ -364,8 +364,8 @@ export function WaffoSettingsSection({
             {
               id: 'actions',
               header: t('Actions'),
-              className: 'text-right',
-              cellClassName: 'text-right',
+              className: 'text-end',
+              cellClassName: 'text-end',
               cell: (_m, idx) => (
                 <StaticRowActions
                   editLabel={t('Edit')}

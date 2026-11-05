@@ -125,7 +125,7 @@ export function ChannelPriorityDemo(props: {
               role='presentation'
               animate={{ y: pointerY }}
               transition={{ duration: reduced ? 0 : 0.6 }}
-              className='absolute top-3 left-6 z-30'
+              className='absolute start-6 top-3 z-30'
             >
               <MousePointer2 className='fill-primary text-primary-foreground size-5 drop-shadow' />
             </motion.li>
@@ -161,12 +161,12 @@ export function ChannelPriorityDemo(props: {
             }
             x = `calc(${column * 100}% + ${column * 12 + (lifted ? 4 : 0)}px)`
           }
-          let layout = 'right-3 h-13 items-center gap-2 px-3'
+          let layout = 'end-3 h-13 items-center gap-2 px-3'
           if (card) {
             layout =
               'h-24 w-[calc(50%-1.125rem)] flex-col items-start justify-between p-3'
           } else if (lifted) {
-            layout = 'right-6 left-auto h-9 w-[60%] items-center gap-2 px-2'
+            layout = 'end-6 start-auto h-9 w-[60%] items-center gap-2 px-2'
           }
           return (
             <motion.li
@@ -178,7 +178,7 @@ export function ChannelPriorityDemo(props: {
                 ease: [0.22, 1, 0.36, 1],
               }}
               className={cn(
-                'bg-background absolute top-3 left-3 flex min-w-0 rounded-lg border',
+                'bg-background absolute top-3 start-3 flex min-w-0 rounded-lg border',
                 layout,
                 peer && 'border-primary bg-primary/5',
                 target && same && 'border-primary',
@@ -204,7 +204,7 @@ export function ChannelPriorityDemo(props: {
                       'inset-y-0 inset-x-6 border-x border-dashed',
                     card &&
                       !same &&
-                      'inset-y-0 left-0 w-6 border-r border-dashed',
+                      'inset-y-0 start-0 w-6 border-e border-dashed',
                     !card &&
                       same &&
                       'inset-x-0 inset-y-2 border-y border-dashed',
@@ -231,7 +231,7 @@ export function ChannelPriorityDemo(props: {
                 variant='outline'
                 className={cn(
                   'relative shrink-0 tabular-nums',
-                  !card && 'ml-auto',
+                  !card && 'ms-auto',
                   peer && 'border-primary/30 text-primary'
                 )}
               >
@@ -242,7 +242,7 @@ export function ChannelPriorityDemo(props: {
                   aria-hidden
                   className={cn(
                     'fill-primary text-primary-foreground absolute top-1/2 size-5 drop-shadow',
-                    same && reached ? 'left-1/2' : '-left-2'
+                    same && reached ? 'start-1/2' : '-start-2'
                   )}
                 />
               )}
