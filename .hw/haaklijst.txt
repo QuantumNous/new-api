@@ -23,6 +23,12 @@ web/src/i18n/__tests__/tr-locale.test.ts                        10
 web/src/components/layout/components/authenticated-layout.tsx   1
 web/src/features/pricing/components/pricing-sidebar.tsx         2
 web/src/hooks/use-sidebar-data.ts                              1
+# system-update: de knop toont onze eigen synchronisatiestand (/api/hw/sync-status)
+web/src/features/system-update/__tests__/update-checking.test.tsx 84
+web/src/features/system-update/api.ts                          3
+web/src/features/system-update/use-system-update.ts            3
+# releases.ts: merged/prNumber op het releaserecord en onze eigen downloadlink (PR of repo)
+web/src/features/system-update/releases.ts                          6
 # eigen CI-stappen: de haaklijst-toets zelf, fetch-depth 0 voor de basisbranch,
 # en workflow_dispatch zodat de upstream-sync CI op zijn eigen PR kan starten
 .github/workflows/ci.yml                                       20

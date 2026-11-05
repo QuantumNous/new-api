@@ -24,6 +24,10 @@ export const systemReleaseSchema = z.object({
   body: z.string().nullable().optional(),
   published_at: z.iso.datetime().nullable().optional(),
   prerelease: z.boolean(),
+  // Our fork's sync status: the upstream tag main already carries, and the open
+  // sync pull request. Both absent for a plain upstream release list.
+  merged: z.string().nullable().optional(),
+  prNumber: z.number().int().positive().nullable().optional(),
 })
 
 export type SystemRelease = z.infer<typeof systemReleaseSchema>
@@ -111,5 +115,7 @@ export function selectLatestRelease(payload: unknown): SystemRelease | null {
 }
 
 export function getSystemReleaseUrl(release: SystemRelease): string {
-  return `https://github.com/QuantumNous/new-api/releases/tag/${encodeURIComponent(release.tag_name)}`
+  return release.prNumber
+    ? `https://github.com/hisarweb-be/hisarweb-ai/pull/${release.prNumber}`
+    : 'https://github.com/hisarweb-be/hisarweb-ai'
 }

@@ -154,7 +154,10 @@ export function useSystemUpdate() {
       ? undefined
       : version || undefined
   const release = query.data?.release ?? null
-  const comparison = compareSystemVersions(currentVersion, release?.tag_name)
+  // The running version says nothing about our fork's sync: an upstream tag is
+  // only pending while main has not merged it yet. So compare upstream against
+  // our merged tag: equal means we are current, higher means a sync is open.
+  const comparison = compareSystemVersions(release?.merged, release?.tag_name)
   const hasUpdate = comparison === -1
   const isIgnored = useSyncExternalStore(subscribeSystemUpdatePreferences, () =>
     Boolean(

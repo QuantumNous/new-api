@@ -43,16 +43,23 @@ import { ROLE } from '@/lib/roles'
 import { STATUS_QUERY_KEY } from '@/lib/status-query'
 import { useAuthStore } from '@/stores/auth-store'
 
+import type { SystemRelease } from '../releases'
 import { useSystemUpdatePreferencesStore, useSystemUpdateStore } from '../store'
 import { SystemUpdateAction } from '../system-update-action'
 import { SYSTEM_UPDATE_INTERVAL, useSystemUpdate } from '../use-system-update'
 
-const release = {
-  tag_name: 'v1.0.0-rc.36',
-  draft: false,
-  prerelease: true,
-  published_at: '2026-09-08T13:01:00Z',
-  body: 'Release notes for administrators.',
+// The endpoint answers our fork's sync status: the highest upstream tag, the
+// tag main already merged, and the open sync pull request.
+const SYNC_STATUS_URL = '/api/hw/sync-status'
+const upstreamTag = 'v1.0.0-rc.36'
+const mergedTag = 'v1.0.0-rc.35'
+const checkedAt = '2026-11-05T04:21:00Z'
+const release: SystemRelease = {
+  tag_name: upstreamTag,
+  published_at: checkedAt,
+  prerelease: false,
+  merged: mergedTag,
+  prNumber: 231,
 }
 const fetchMock = vi.fn<typeof fetch>()
 let client: QueryClient
@@ -75,10 +82,25 @@ function signIn(accessToken = 'test-token'): void {
   }))
 }
 
-function respondWithRelease(tag = release.tag_name): void {
+function statusPayload(
+  upstream = upstreamTag,
+  merged = mergedTag as string | null,
+  prNumber = 231 as number | null
+) {
+  return {
+    success: true,
+    data: { upstreamTag: upstream, mergedTag: merged, prNumber, checkedAt },
+  }
+}
+
+function respondWithStatus(
+  upstream = upstreamTag,
+  merged: string | null = mergedTag,
+  prNumber: number | null = 231
+): void {
   fetchMock.mockImplementation(
     async () =>
-      new Response(JSON.stringify([{ ...release, tag_name: tag }]), {
+      new Response(JSON.stringify(statusPayload(upstream, merged, prNumber)), {
         headers: { 'Content-Type': 'application/json' },
       })
   )
@@ -96,7 +118,7 @@ beforeEach(() => {
   onlineManager.setOnline(true)
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
-  respondWithRelease()
+  respondWithStatus()
   client = createAppQueryClient()
   client.setQueryData(STATUS_QUERY_KEY, { version: 'v1.0.0-rc.35' })
   vi.spyOn(api, 'get').mockResolvedValue({
@@ -149,7 +171,7 @@ describe('administrator update entry', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       expect(fetchMock).toHaveBeenCalledTimes(1)
       const [url, options] = fetchMock.mock.calls[0]
-      expect(String(url)).toBe('/api/hw/upstream-releases')
+      expect(String(url)).toBe(SYNC_STATUS_URL)
       expect(options?.credentials).toBe('same-origin')
     }
   )
@@ -176,7 +198,55 @@ describe('administrator update entry', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  test('shares results with maintenance, opens release details by keyboard and returns focus on Escape', async () => {
+  test('reports the fork as current once main has merged the upstream tag', async () => {
+    const user = userEvent.setup()
+    respondWithStatus(upstreamTag, upstreamTag)
+    render(<SystemUpdateAction />, { wrapper: Wrapper })
+    const trigger = await screen.findByRole('button', {
+      name: 'Check for updates',
+    })
+    expect(useSystemUpdateStore.getState().snapshot?.error).toBeNull()
+    await user.click(trigger)
+    const dialog = screen.getByRole('dialog')
+    expect(
+      await within(dialog).findByText('No newer version available.')
+    ).toBeInTheDocument()
+    expect(
+      within(trigger).queryByText('Update available')
+    ).not.toBeInTheDocument()
+  })
+
+  test('links to the open sync pull request and falls back to the repository without one', async () => {
+    const user = userEvent.setup()
+    render(<SystemUpdateAction />, { wrapper: Wrapper })
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'New version available: v1.0.0-rc.36',
+      })
+    )
+    expect(
+      await screen.findByRole('link', { name: 'Go to GitHub' })
+    ).toHaveAttribute(
+      'href',
+      'https://github.com/hisarweb-be/hisarweb-ai/pull/231'
+    )
+    await user.keyboard('{Escape}')
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+    respondWithStatus(upstreamTag, mergedTag, null)
+    await user.click(
+      screen.getByRole('button', {
+        name: 'New version available: v1.0.0-rc.36',
+      })
+    )
+    await user.click(screen.getByRole('button', { name: 'Check again' }))
+    expect(
+      await screen.findByRole('link', { name: 'Go to GitHub' })
+    ).toHaveAttribute('href', 'https://github.com/hisarweb-be/hisarweb-ai')
+  })
+
+  test('shares results with maintenance, opens details by keyboard and returns focus on Escape', async () => {
     const user = userEvent.setup()
     render(
       <>
@@ -205,9 +275,11 @@ describe('administrator update entry', () => {
     buttons[0].focus()
     await user.keyboard('{Enter}')
     const dialog = await screen.findByRole('dialog', { name: 'System updates' })
-    expect(await within(dialog).findByText(release.body)).toBeInTheDocument()
-    expect(within(dialog).getByText('Pre-release')).toBeInTheDocument()
+    expect(within(dialog).getByText(upstreamTag)).toBeInTheDocument()
     expect(within(dialog).getByText('Published at')).toBeInTheDocument()
+    expect(
+      within(dialog).getByText('No release notes provided.')
+    ).toBeInTheDocument()
     expect(
       within(dialog).queryByText(
         'Checks hourly while you are online, including pre-releases.'
@@ -220,7 +292,7 @@ describe('administrator update entry', () => {
       within(dialog).getByRole('link', { name: 'Go to GitHub' })
     ).toHaveAttribute(
       'href',
-      'https://github.com/QuantumNous/new-api/releases/tag/v1.0.0-rc.36'
+      'https://github.com/hisarweb-be/hisarweb-ai/pull/231'
     )
     await user.keyboard('{Escape}')
     await waitFor(() =>
@@ -229,9 +301,9 @@ describe('administrator update entry', () => {
     expect(buttons[0]).toHaveFocus()
   })
 
-  test('does not suggest a downgrade and updates every entry after a manual recheck', async () => {
+  test('decides on the merged tag, not on the running version, and updates every entry after a manual recheck', async () => {
     const user = userEvent.setup()
-    client.setQueryData(STATUS_QUERY_KEY, { version: 'v1.0.0-rc.37' })
+    respondWithStatus(upstreamTag, upstreamTag)
     render(
       <>
         <SystemUpdateAction />
@@ -246,10 +318,10 @@ describe('administrator update entry', () => {
     expect(
       await screen.findByText('No newer version available.')
     ).toBeInTheDocument()
-    respondWithRelease('v1.0.0-rc.38')
+    respondWithStatus('v1.0.0-rc.37', upstreamTag)
     await user.click(screen.getByRole('button', { name: 'Check again' }))
     expect(
-      await screen.findByText('New version available: v1.0.0-rc.38', {
+      await screen.findByText('New version available: v1.0.0-rc.37', {
         selector: 'p',
       })
     ).toBeInTheDocument()
@@ -260,28 +332,33 @@ describe('administrator update entry', () => {
     )
     expect(
       screen.getAllByRole('button', {
-        name: 'New version available: v1.0.0-rc.38',
+        name: 'New version available: v1.0.0-rc.37',
       })
     ).toHaveLength(2)
 
+    // A newer running version does not settle our sync: only a merged tag does.
     act(() =>
-      client.setQueryData(STATUS_QUERY_KEY, { version: 'v1.0.0-rc.38' })
+      client.setQueryData(STATUS_QUERY_KEY, { version: 'v1.0.0-rc.37' })
     )
     expect(
-      await screen.findAllByRole('button', { name: 'Check for updates' })
+      await screen.findAllByRole('button', {
+        name: 'New version available: v1.0.0-rc.37',
+      })
     ).toHaveLength(2)
   })
 
   test.each(['', 'v0.0.0'])(
-    'shows an unknown current version for %s and allows ignoring the fetched release',
+    'shows an unknown current version for %s next to the sync status and allows ignoring it',
     async (version) => {
       const user = userEvent.setup()
       client.setQueryData(STATUS_QUERY_KEY, { version })
+      respondWithStatus(upstreamTag, 'v1.0.0-rc.35')
       render(<SystemUpdateAction presentation='version' />, {
         wrapper: Wrapper,
       })
-      const trigger = screen.getByRole('button', {
-        name: 'System updates, current version: Unknown version',
+      // The running version is only a label now: the sync status decides.
+      const trigger = await screen.findByRole('button', {
+        name: /System updates, current version: Unknown version.*New version available: v1\.0\.0-rc\.36/s,
       })
       await user.click(trigger)
       const dialog = screen.getByRole('dialog')
@@ -408,31 +485,36 @@ describe('version label presentation', () => {
           finishRequest = resolve
         })
     )
-    client.setQueryData(STATUS_QUERY_KEY, { version: release.tag_name })
+    client.setQueryData(STATUS_QUERY_KEY, { version: upstreamTag })
     render(<SystemUpdateAction presentation='version' />, { wrapper: Wrapper })
     const trigger = screen.getByRole('button', {
       name: 'System updates, current version: v1.0.0-rc.36',
     })
     expect(trigger).toHaveAttribute('aria-busy', 'true')
-    expect(within(trigger).getByText(release.tag_name)).toBeInTheDocument()
+    expect(within(trigger).getByText(upstreamTag)).toBeInTheDocument()
     expect(
       within(trigger).queryByText('Check for updates')
     ).not.toBeInTheDocument()
     await waitFor(() => expect(finishRequest).toBeDefined())
     await act(async () => {
-      finishRequest?.(new Response(JSON.stringify([release])))
+      finishRequest?.(
+        new Response(JSON.stringify(statusPayload(upstreamTag, upstreamTag)))
+      )
     })
     await waitFor(() => expect(trigger).toHaveAttribute('aria-busy', 'false'))
-    expect(within(trigger).getByText(release.tag_name)).toBeInTheDocument()
+    expect(within(trigger).getByText(upstreamTag)).toBeInTheDocument()
     expect(
       within(trigger).queryByText('Update available')
     ).not.toBeInTheDocument()
   })
 
-  test('shows an unknown-version label when the server has not supplied a version', async () => {
+  test('labels an unknown running version without letting it decide the sync status', async () => {
     client.setQueryData(STATUS_QUERY_KEY, { version: '' })
+    // The running version is unknown, but main carries the upstream tag, so the
+    // fork is current and the label stays on "Check for updates".
+    respondWithStatus(upstreamTag, upstreamTag)
     render(<SystemUpdateAction presentation='version' />, { wrapper: Wrapper })
-    const trigger = screen.getByRole('button', {
+    const trigger = await screen.findByRole('button', {
       name: 'System updates, current version: Unknown version',
     })
     expect(within(trigger).getByText('Unknown version')).toBeInTheDocument()
@@ -549,14 +631,14 @@ describe('version notification preferences', () => {
     expect(hook.result.current.release?.tag_name).toBe(release.tag_name)
     expect(hook.result.current.isIgnored).toBe(true)
     expect(hook.result.current.shouldNotify).toBe(false)
-    respondWithRelease('v1.0.0-rc.37')
+    respondWithStatus('v1.0.0-rc.37')
     await act(async () => hook.result.current.checkNow())
     await waitFor(() =>
       expect(hook.result.current.release?.tag_name).toBe('v1.0.0-rc.37')
     )
     expect(hook.result.current.shouldNotify).toBe(true)
     expect(hook.result.current.isIgnored).toBe(false)
-    respondWithRelease()
+    respondWithStatus()
     await act(async () => hook.result.current.checkNow())
     await waitFor(() =>
       expect(hook.result.current.release?.tag_name).toBe(release.tag_name)
@@ -637,10 +719,10 @@ describe('version notification preferences', () => {
 })
 
 describe('update cache and scheduling', () => {
-  test('refreshes the server version during a later automatic check and clears an installed update', async () => {
+  test('refreshes the server version during a later automatic check without settling the sync', async () => {
     vi.useFakeTimers()
     fetchMock.mockImplementation(
-      async () => new Response(JSON.stringify([release]))
+      async () => new Response(JSON.stringify(statusPayload()))
     )
     const hook = renderHook(useSystemUpdate, { wrapper: Wrapper })
     await act(async () => {
@@ -654,7 +736,8 @@ describe('update cache and scheduling', () => {
       await vi.advanceTimersByTimeAsync(SYSTEM_UPDATE_INTERVAL + 1)
     })
     expect(hook.result.current.currentVersion).toBe(release.tag_name)
-    expect(hook.result.current.hasUpdate).toBe(false)
+    expect(hook.result.current.hasUpdate).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   test('restores a successful result from storage without requesting it again on reload', async () => {
@@ -713,7 +796,7 @@ describe('update cache and scheduling', () => {
   test('waits one hour across multiple consumers and stops polling after logout', async () => {
     vi.useFakeTimers()
     fetchMock.mockImplementation(
-      async () => new Response(JSON.stringify([release]))
+      async () => new Response(JSON.stringify(statusPayload()))
     )
     const first = renderHook(useSystemUpdate, { wrapper: Wrapper })
     await act(async () => {
@@ -743,7 +826,7 @@ describe('update cache and scheduling', () => {
   test('waits while hidden or offline and checks stale results after visibility or connectivity returns', async () => {
     vi.useFakeTimers()
     fetchMock.mockImplementation(
-      async () => new Response(JSON.stringify([release]))
+      async () => new Response(JSON.stringify(statusPayload()))
     )
     focusManager.setFocused(false)
     renderHook(useSystemUpdate, { wrapper: Wrapper })
@@ -826,12 +909,13 @@ describe('update cache and scheduling', () => {
   })
 
   test.each([
-    [429, '[]', 'rate-limit'],
-    [403, '[]', 'network'],
+    [429, '{}', 'rate-limit'],
+    [403, '{}', 'network'],
     [502, '', 'network'],
-    [500, '[]', 'network'],
+    [500, '{}', 'network'],
     [200, '{}', 'payload'],
-    [200, '[{"tag_name":42}]', 'payload'],
+    [200, '{"success":false,"data":null}', 'payload'],
+    [200, '{"success":true,"data":{"upstreamTag":42}}', 'payload'],
     [200, 'not JSON', 'payload'],
   ])('records HTTP %s with body %s as %s', async (status, body, error) => {
     fetchMock.mockResolvedValue(new Response(body, { status }))

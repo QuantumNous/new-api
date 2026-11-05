@@ -18,14 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { getFreshAuthHeaders } from '@/lib/api'
 
-import { selectLatestRelease, type SystemRelease } from './releases'
+import { syncStatusToRelease } from './hw-sync-status'
+import type { SystemRelease } from './releases'
 
 // The Content-Security-Policy keeps connect-src at 'self', so the server asks
-// GitHub on our behalf and caches the answer for an hour. Plain fetch on
-// purpose: the shared api client would send a failed check to the sign-in page.
-// The access token is short-lived, so the headers come from the refreshing
-// helper; reading the stored token directly gave 401 as soon as it expired.
-export const SYSTEM_RELEASES_URL = '/api/hw/upstream-releases'
+// GitHub on our behalf and caches the answer for an hour. Our sync status sits
+// behind the same gate and answers one record, not a release list.
+// Plain fetch on purpose: the shared api client would send a failed check to
+// the sign-in page. The access token is short-lived, so the headers come from
+// the refreshing helper; reading the stored token directly gave 401 as soon as
+// it expired.
+export const SYSTEM_RELEASES_URL = '/api/hw/sync-status'
 
 export type UpdateCheckErrorCode =
   | 'network'
@@ -61,7 +64,7 @@ export async function fetchLatestSystemRelease(
     if (!response.ok) throw new UpdateCheckError('network')
 
     try {
-      return selectLatestRelease(await response.json())
+      return syncStatusToRelease(await response.json())
     } catch (error) {
       if (controller.signal.aborted) throw error
       throw new UpdateCheckError('payload')
