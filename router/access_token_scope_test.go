@@ -60,6 +60,7 @@ var accessTokenExemptRoutes = []string{
 	"POST /api/creem/webhook",
 	"POST /api/waffo/webhook",
 	"POST /api/waffo-pancake/webhook/:env",
+	"POST /api/nowpayments/webhook",
 	"GET /api/user/epay/notify",
 	"POST /api/user/epay/notify",
 	"GET /api/subscription/epay/notify",
