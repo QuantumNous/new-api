@@ -611,31 +611,29 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				_ = file.Close()
 			}
 
-			// Handle mask file if present
-			if maskFiles, exists := mf.File["mask"]; exists && len(maskFiles) > 0 {
-				maskFile, err := maskFiles[0].Open()
-				if err != nil {
-					return nil, errors.New("failed to open mask file")
+			for _, name := range []string{"mask", "markup"} {
+				files, exists := mf.File[name]
+				if !exists || len(files) == 0 {
+					continue
 				}
-				// 复制完立即关闭，避免在循环内使用 defer 占用资源
+				file, err := files[0].Open()
+				if err != nil {
+					return nil, fmt.Errorf("failed to open %s file", name)
+				}
 
-				// Determine MIME type for mask file
-				mimeType := detectImageMimeType(maskFiles[0].Filename)
-
-				// Create a form file with the appropriate content type
 				h := make(textproto.MIMEHeader)
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="mask"; filename="%s"`, maskFiles[0].Filename))
-				h.Set("Content-Type", mimeType)
+				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, name, files[0].Filename))
+				h.Set("Content-Type", detectImageMimeType(files[0].Filename))
 
-				maskPart, err := writer.CreatePart(h)
+				part, err := writer.CreatePart(h)
 				if err != nil {
-					return nil, errors.New("create form file failed for mask")
+					return nil, fmt.Errorf("create form file failed for %s", name)
 				}
 
-				if _, err := io.Copy(maskPart, maskFile); err != nil {
-					return nil, errors.New("copy mask file failed")
+				if _, err := io.Copy(part, file); err != nil {
+					return nil, fmt.Errorf("copy %s file failed", name)
 				}
-				_ = maskFile.Close()
+				_ = file.Close()
 			}
 		} else {
 			return nil, errors.New("no multipart form data found")
