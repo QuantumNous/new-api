@@ -39,7 +39,8 @@ func CORS() gin.HandlerFunc {
 	if allowAll {
 		log.Print(common.LogText("WARNING: CORS_ALLOWED_ORIGINS contains '*', so any website may call the API. Credentials are disabled for this mode; list explicit origins instead if you need cookie-based sessions."))
 	}
-	if !allowAll && len(allowedOrigins) == 0 {
+	sameOriginOnly := !allowAll && len(allowedOrigins) == 0
+	if sameOriginOnly {
 		log.Print(common.LogText("CORS_ALLOWED_ORIGINS is unset; cross-origin browser requests are refused and only same-origin console requests are served. Set it to a comma-separated list of trusted origins to allow others."))
 	}
 
@@ -50,6 +51,12 @@ func CORS() gin.HandlerFunc {
 		AllowHeaders:     []string{"Accept", "Authorization", "Content-Type", "X-Requested-With", "X-New-Api-Version"},
 		AllowCredentials: !allowAll && len(allowedOrigins) > 0,
 		MaxAge:           12 * time.Hour,
+	}
+	if sameOriginOnly {
+		// gin-contrib/cors rejects a config with no origins, so deny every
+		// cross-origin request explicitly. Same-origin requests are accepted
+		// before origin validation.
+		config.AllowOriginFunc = func(string) bool { return false }
 	}
 	return cors.New(config)
 }
