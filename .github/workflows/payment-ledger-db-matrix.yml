@@ -1,0 +1,63 @@
+name: Payment Ledger DB Matrix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payment-ledger-db-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ledger-database-matrix:
+    name: Payment ledger across SQLite, MySQL, and PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GOWORK: 'off'
+      TEST_MYSQL_DSN: 'root:root@tcp(127.0.0.1:3306)/mysql?charset=utf8mb4&parseTime=True&loc=Local'
+      TEST_POSTGRES_DSN: 'host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable'
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Run payment ledger database matrix
+        run: go test ./model -run '^TestQueryTopUpLedgerDatabaseMatrix$' -count=1 -v -timeout 5m
