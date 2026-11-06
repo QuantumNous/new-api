@@ -76,7 +76,10 @@ function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
             {getLobeIcon(provider.icon, 18)}
           </span>
         )}
+        {/* Model identifiers mix Latin names with user text; isolate so the
+            surrounding Arabic sentence keeps its punctuation order. */}
         <span
+          dir='auto'
           className={
             props.wrapText
               ? 'line-clamp-2 leading-5 [overflow-wrap:anywhere]'

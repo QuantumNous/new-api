@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 
 	"github.com/gin-gonic/gin"
@@ -138,7 +139,12 @@ func GetUptimeKumaStatus(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), requestTimeout)
 	defer cancel()
 
-	client := &http.Client{Timeout: httpTimeout}
+	// Uptime Kuma endpoints come from console settings, so route them through the
+	// shared SSRF-protected client (dial-time address checks plus redirect
+	// validation) while keeping the existing per-batch timeout.
+	protectedClient := *service.GetSSRFProtectedHTTPClient()
+	protectedClient.Timeout = httpTimeout
+	client := &protectedClient
 	results := make([]UptimeGroupResult, len(groups))
 
 	g, gCtx := errgroup.WithContext(ctx)

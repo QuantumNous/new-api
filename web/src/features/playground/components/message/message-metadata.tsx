@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
+import { currentIntlLocale } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import type { MessageAlignment } from '../../lib'
@@ -34,7 +35,7 @@ function formatMessageTime(timestamp?: number): string | undefined {
     return undefined
   }
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(currentIntlLocale(), {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',

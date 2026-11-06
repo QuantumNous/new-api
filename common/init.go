@@ -29,6 +29,52 @@ func printHelp() {
 	fmt.Println("Usage: newapi [--port <port>] [--log-dir <log directory>] [--version] [--help]")
 }
 
+// weakSessionSecrets are placeholder values from examples and older installs.
+// They are public knowledge and must never protect real sessions.
+var weakSessionSecrets = []string{
+	"random_string",
+	"changeme",
+	"change_me",
+	"change-me",
+	"session_secret",
+	"sessionsecret",
+	"secret",
+	"password",
+	"new-api",
+	"newapi",
+}
+
+// requiresStrongSessionSecret reports whether this process is a deployment
+// build. Gin runs in release mode unless GIN_MODE=debug, and DEBUG=true marks a
+// development run, so a generated per-process secret only remains acceptable
+// when one of them is set explicitly.
+func requiresStrongSessionSecret() bool {
+	return os.Getenv("GIN_MODE") != "debug" && os.Getenv("DEBUG") != "true"
+}
+
+// applySessionSecret installs SESSION_SECRET, or aborts a deployment build that
+// would otherwise sign sessions with a per-process random value or a public
+// placeholder. Both silently break session, two-factor, passkey, and auth-flow
+// signatures across restarts and nodes, and a known secret allows forging them.
+func applySessionSecret() {
+	secret := strings.TrimSpace(os.Getenv("SESSION_SECRET"))
+	weak := secret == ""
+	for _, placeholder := range weakSessionSecrets {
+		if strings.EqualFold(secret, placeholder) {
+			weak = true
+			break
+		}
+	}
+	if !weak {
+		SessionSecret = secret
+		return
+	}
+	if requiresStrongSessionSecret() {
+		log.Fatal(LogText("SESSION_SECRET must be a long random string before starting in release mode (GIN_MODE=%q, DEBUG=%q). Generate one with `openssl rand -hex 32` and set the same value on every node.", os.Getenv("GIN_MODE"), os.Getenv("DEBUG")))
+	}
+	log.Println(LogText("WARNING: SESSION_SECRET is unset or uses a placeholder value; this development run signs sessions with a per-process random secret, so logins do not survive a restart. Set SESSION_SECRET to a random string."))
+}
+
 func InitEnv() {
 	flag.Parse()
 
@@ -50,15 +96,7 @@ func InitEnv() {
 	DefaultLanguage = os.Getenv("DEFAULT_LANGUAGE")
 	SetLogLanguage(DefaultLanguage)
 
-	if os.Getenv("SESSION_SECRET") != "" {
-		ss := os.Getenv("SESSION_SECRET")
-		if ss == "random_string" {
-			log.Println(LogText("WARNING: SESSION_SECRET is set to the default value 'random_string', please change it to a random string."))
-			log.Fatal(LogText("Please set SESSION_SECRET to a random string."))
-		} else {
-			SessionSecret = ss
-		}
-	}
+	applySessionSecret()
 	if os.Getenv("CRYPTO_SECRET") != "" {
 		CryptoSecret = os.Getenv("CRYPTO_SECRET")
 	} else {

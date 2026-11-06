@@ -56,6 +56,7 @@ import {
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import { PluginIcon } from '@/features/task-plugins/components/plugin-icon'
+import { currentIntlLocale, formatLocaleDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -206,20 +207,24 @@ const MODALITY_LABEL_KEYS: Record<string, string> = {
   file: 'File',
 }
 
-const TOKEN_FORMAT = new Intl.NumberFormat(undefined, {
-  maximumFractionDigits: 1,
-})
+// Built per call: a module-level formatter would freeze the browser locale and
+// never follow a language change.
+function formatTokenVolume(tokens: number): string {
+  return Intl.NumberFormat(currentIntlLocale(), {
+    maximumFractionDigits: 1,
+  }).format(tokens)
+}
 const MODEL_DETAILS_SKELETON_KEYS = ['first', 'second', 'third', 'fourth']
 
 function formatCatalogTokenCount(tokens: number): string {
   if (!Number.isFinite(tokens) || tokens <= 0) return ''
   if (tokens >= 1_000_000) {
-    return `${TOKEN_FORMAT.format(tokens / 1_000_000)}M`
+    return `${formatTokenVolume(tokens / 1_000_000)}M`
   }
   if (tokens >= 1_000) {
-    return `${TOKEN_FORMAT.format(tokens / 1_000)}K`
+    return `${formatTokenVolume(tokens / 1_000)}K`
   }
-  return TOKEN_FORMAT.format(tokens)
+  return formatTokenVolume(tokens)
 }
 
 function formatCatalogYearMonth(value?: string): string {
@@ -229,7 +234,7 @@ function formatCatalogYearMonth(value?: string): string {
   const month = Number(monthStr)
   if (!Number.isFinite(year) || !Number.isFinite(month)) return value
   const date = new Date(Date.UTC(year, month - 1, 1))
-  return date.toLocaleString(undefined, { year: 'numeric', month: 'short' })
+  return formatLocaleDate(date, { year: 'numeric', month: 'short' })
 }
 
 function normalizeCatalogItems(items?: readonly string[]): string[] {

@@ -35,8 +35,16 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
+# Run as an unprivileged account so a compromised gateway cannot write to the
+# image filesystem or escalate through root-owned files.
+RUN groupadd --system --gid 1000 new-api \
+    && useradd --system --uid 1000 --gid new-api --home-dir /data --no-create-home --shell /usr/sbin/nologin new-api \
+    && mkdir -p /data \
+    && chown new-api:new-api /data
+
 COPY --from=builder2 /build/new-api /
 COPY LICENSE NOTICE THIRD-PARTY-LICENSES.md /licenses/
 EXPOSE 3000
 WORKDIR /data
+USER new-api
 ENTRYPOINT ["/new-api"]

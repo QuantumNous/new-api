@@ -8,21 +8,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var defaultTrustedProxyCIDRs = []string{
-	"127.0.0.0/8",
-	"::1",
-	"10.0.0.0/8",
-	"172.16.0.0/12",
-	"192.168.0.0/16",
-	"fc00::/7",
-}
-
 // ResolveTrustedProxies parses TRUSTED_PROXIES without applying it to an
 // engine. The returned slice can be reused by the outer and plugin engines.
+//
+// An unset or blank value trusts no proxies at all: believing forwarded headers
+// by default lets any direct client spoof X-Forwarded-For and defeat IP-based
+// rate limits and audit logs. Deployments behind a reverse proxy must list that
+// proxy explicitly. usedDefaults reports the unset case so the caller can warn.
 func ResolveTrustedProxies(raw string) (trustedProxies []string, usedDefaults bool, err error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return append([]string(nil), defaultTrustedProxyCIDRs...), true, nil
+		return nil, true, nil
 	}
 	if strings.EqualFold(raw, "none") {
 		return nil, false, nil

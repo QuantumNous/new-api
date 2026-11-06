@@ -165,7 +165,10 @@ func main() {
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
-			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
+			// pprof exposes goroutines, heap contents, and live request profiles, so
+			// it must never be reachable from the network. Keep it on loopback and
+			// reach it through an SSH tunnel or a sidecar.
+			log.Println(http.ListenAndServe("127.0.0.1:8005", nil))
 		})
 		go common.Monitor()
 		common.SysLog(common.LogText("pprof enabled"))

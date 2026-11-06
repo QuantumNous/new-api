@@ -43,6 +43,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { formatInteger } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { getSortLabels, type SortOption, type ViewMode } from '../constants'
@@ -107,13 +108,13 @@ export function PricingToolbar(props: PricingToolbarProps) {
 
           <div className='text-muted-foreground flex items-baseline gap-1 text-sm'>
             <span className='text-foreground font-semibold tabular-nums'>
-              {props.filteredCount.toLocaleString()}
+              {formatInteger(props.filteredCount)}
             </span>
             <span>{props.filteredCount === 1 ? t('model') : t('models')}</span>
             {props.totalCount != null &&
               props.filteredCount !== props.totalCount && (
                 <span className='text-muted-foreground/60 text-xs'>
-                  / {props.totalCount.toLocaleString()}
+                  / {formatInteger(props.totalCount)}
                 </span>
               )}
           </div>

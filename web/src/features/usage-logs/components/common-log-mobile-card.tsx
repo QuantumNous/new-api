@@ -29,7 +29,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import dayjs from '@/lib/dayjs'
-import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
+import {
+  formatInteger,
+  formatLogQuota,
+  formatTimestampToDate,
+} from '@/lib/format'
 
 import type { UsageLog } from '../data/schema'
 import { formatModelName, logTokenName, parseLogOther } from '../lib/format'
@@ -293,23 +297,23 @@ export function CommonLogMobileCard<TData>(props: {
           <span>
             {t('Input')}{' '}
             <span className='text-foreground tabular-nums'>
-              {log.prompt_tokens.toLocaleString()}
+              {formatInteger(log.prompt_tokens)}
             </span>
           </span>
           <span>
             {t('Output')}{' '}
             <span className='text-foreground tabular-nums'>
-              {log.completion_tokens.toLocaleString()}
+              {formatInteger(log.completion_tokens)}
             </span>
           </span>
           {cacheRead > 0 && (
             <span>
-              {t('Cache')} ↓ {cacheRead.toLocaleString()}
+              {t('Cache')} ↓ {formatInteger(cacheRead)}
             </span>
           )}
           {cacheWrite > 0 && (
             <span>
-              {t('Cache')} ↑ {cacheWrite.toLocaleString()}
+              {t('Cache')} ↑ {formatInteger(cacheWrite)}
             </span>
           )}
         </div>

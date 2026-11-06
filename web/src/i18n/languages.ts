@@ -122,7 +122,14 @@ export function toIntlLocale(value?: string | null): string | undefined {
       break
   }
   try {
-    return Intl.getCanonicalLocales(value)[0]
+    const [canonical] = Intl.getCanonicalLocales(value)
+    if (!canonical) return undefined
+    // Full-ICU browsers default Arabic to Arabic-Indic digits (١٢٣) while other
+    // engines use Latin digits. Pin Latin digits so numbers match charts, ids,
+    // code samples, and every other interface language.
+    const isArabic = canonical === 'ar' || canonical.startsWith('ar-')
+    if (isArabic && !canonical.includes('-u-')) return `${canonical}-u-nu-latn`
+    return canonical
   } catch {
     return undefined
   }

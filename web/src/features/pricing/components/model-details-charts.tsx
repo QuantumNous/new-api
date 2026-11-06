@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { getSuccessRateColor } from '@/features/performance-metrics/lib/format'
+import { formatLocaleDate } from '@/lib/format'
 import { useThemeRadiusPx } from '@/lib/theme-radius'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
@@ -38,13 +39,13 @@ function formatHourLabel(iso: string): string {
 function formatDayLabel(date: string): string {
   const parsed = new Date(date)
   if (date.includes('T')) {
-    return parsed.toLocaleString(undefined, {
+    return formatLocaleDate(parsed, {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
     })
   }
-  return parsed.toLocaleDateString(undefined, {
+  return formatLocaleDate(parsed, {
     month: 'short',
     day: 'numeric',
   })
