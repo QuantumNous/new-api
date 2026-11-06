@@ -66,6 +66,8 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	return usage, nil
 }
 
+// OaiResponsesStreamHandler forwards native Responses SSE events and retains
+// observed usage when the stream stops before a protocol terminal event.
 func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, common.LogText("invalid response or response body"))
@@ -106,10 +108,18 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
 	info.StreamStatus.RequireTerminal()
 	if info.StreamStatus.ResponseOutcome() == string(relaycommon.ResponseOutcomeUnknown) {
-		// A clean transport EOF is not a successful Responses stream. Record a
-		// transport error rather than an upstream response.failed: the latter
-		// suppresses the prompt usage estimate for already-started requests.
-		info.StreamStatus.RecordError("upstream stream ended without a terminal response event")
+		// A missing terminal is a transport error, not response.failed: the
+		// latter would suppress the prompt usage estimate. Only an upstream
+		// read end can be attributed to upstream; local and downstream stops
+		// need a cause-neutral message.
+		missingTerminalMessage := "stream stopped before a terminal response event"
+		if c.Request.Context().Err() == nil {
+			switch info.StreamStatus.EndReason {
+			case relaycommon.StreamEndReasonEOF, relaycommon.StreamEndReasonScannerErr, relaycommon.StreamEndReasonDone:
+				missingTerminalMessage = "upstream stream ended without a terminal response event"
+			}
+		}
+		info.StreamStatus.RecordError(missingTerminalMessage)
 		canWriteTerminal := c.Request.Context().Err() == nil &&
 			(info.StreamStatus.EndReason == relaycommon.StreamEndReasonEOF ||
 				info.StreamStatus.EndReason == relaycommon.StreamEndReasonScannerErr ||

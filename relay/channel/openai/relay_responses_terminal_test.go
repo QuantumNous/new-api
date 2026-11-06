@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestOaiResponsesStreamHandlerReportsMissingTerminal checks protocol error
+// delivery and usage preservation for streams without a terminal event.
 func TestOaiResponsesStreamHandlerReportsMissingTerminal(t *testing.T) {
 	oldMode, oldTimeout := gin.Mode(), constant.StreamingTimeout
 	gin.SetMode(gin.TestMode)
@@ -37,12 +39,14 @@ func TestOaiResponsesStreamHandlerReportsMissingTerminal(t *testing.T) {
 		wantSuccess     bool
 		wantLogOK       bool
 		wantPrompt      int
+		wantAttribution string
 	}{
 		{
 			name:            "clean EOF without terminal",
 			upstream:        "data: {\"type\":\"response.created\",\"sequence_number\":7}\n\n",
 			wantErrorEvents: 1,
 			wantPrompt:      2,
+			wantAttribution: "upstream",
 		},
 		{
 			name:            "read reset without terminal",
@@ -50,6 +54,7 @@ func TestOaiResponsesStreamHandlerReportsMissingTerminal(t *testing.T) {
 			readError:       errors.New("secret upstream host 10.0.0.1:443 reset"),
 			wantErrorEvents: 1,
 			wantPrompt:      2,
+			wantAttribution: "upstream",
 		},
 		{
 			name:            "upstream stalled without terminal",
@@ -57,12 +62,14 @@ func TestOaiResponsesStreamHandlerReportsMissingTerminal(t *testing.T) {
 			holdOpen:        true,
 			wantErrorEvents: 1,
 			wantPrompt:      2,
+			wantAttribution: "stream stopped",
 		},
 		{
 			name:            "DONE marker without terminal",
 			upstream:        "data: {\"type\":\"response.created\",\"sequence_number\":7}\n\ndata: [DONE]\n\n",
 			wantErrorEvents: 1,
 			wantPrompt:      2,
+			wantAttribution: "upstream",
 		},
 		{
 			name:        "completed response",
@@ -129,6 +136,10 @@ func TestOaiResponsesStreamHandlerReportsMissingTerminal(t *testing.T) {
 			log := service.GenerateTextOtherInfo(c, info, 1, 1, 1, 0, 1, 0, 1).Snapshot()["stream_status"].(map[string]any)
 			assert.Equal(t, tc.wantSuccess, service.RequestPolicy(c).Successful)
 			assert.Equal(t, tc.wantLogOK, log["status"] == "ok")
+			if tc.wantAttribution != "" {
+				require.NotEmpty(t, info.StreamStatus.Errors)
+				assert.Contains(t, info.StreamStatus.Errors[len(info.StreamStatus.Errors)-1].Message, tc.wantAttribution)
+			}
 		})
 	}
 }
