@@ -1180,12 +1180,12 @@ func deleteTaskPluginVersionRequest(t *testing.T, key, version string) *httptest
 func TestTaskPluginListAndDetailReportSkippedRoutes(t *testing.T) {
 	setupTaskPluginControllerTest(t)
 	cleanupTaskPluginControllerRuntime(t, "skipped-probe")
-	// Stands in for the router, which skips a third-party plugin's routes
-	// under the host's namespaces.
+	// Stands in for the router, which skips a route a host route answers
+	// first.
 	require.NoError(t, jsplugin.DefaultRegistry.SetGenerationPreparer(func(candidate, _ *jsplugin.RoutingGeneration) (jsplugin.PreparedRoutingGeneration, error) {
 		var skipped []jsplugin.SkippedRoute
 		if plugin, ok := candidate.Get("skipped-probe"); ok {
-			skipped = append(skipped, jsplugin.SkippedRoute{PluginKey: "skipped-probe", Route: plugin.Meta.Routes[0], Reason: "host_namespace"})
+			skipped = append(skipped, jsplugin.SkippedRoute{PluginKey: "skipped-probe", Route: plugin.Meta.Routes[0], Reason: "host_route"})
 		}
 		return jsplugin.PreparedRoutingGeneration{Generation: candidate.WithSkippedRoutes(skipped)}, nil
 	}))

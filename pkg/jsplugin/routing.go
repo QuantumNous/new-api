@@ -226,8 +226,8 @@ type RouteGroup struct {
 }
 
 // SkippedRoute is a declared top-level route the gateway does not register;
-// the plugin's /{key} copy still serves it. Reason is host_namespace,
-// host_route or key_namespace.
+// the plugin's /{key} copy still serves it. Reason is host_route or
+// key_namespace.
 type SkippedRoute struct {
 	PluginKey string
 	Route     Route
