@@ -21,6 +21,8 @@ For commercial licensing, please contact support@quantumnous.com
 // ----------------------------------------------------------------------------
 
 /** Format a token count as `1.2B`, `42M`, `980K`, or `512`. */
+import { formatInteger, formatLocaleDate } from '@/lib/format'
+
 export function formatTokens(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '0'
   if (value >= 1_000_000_000_000)
@@ -31,7 +33,7 @@ export function formatTokens(value: number): string {
     return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 1 : 2)}M`
   if (value >= 1_000)
     return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`
-  return value.toLocaleString()
+  return formatInteger(value)
 }
 
 /** Format a 0..1 share as a percentage with two decimals. */
@@ -45,7 +47,7 @@ export function formatShare(share: number): string {
 export function formatReleaseDate(iso: string): string {
   const ts = Date.parse(iso)
   if (!Number.isFinite(ts)) return iso
-  return new Date(ts).toLocaleDateString(undefined, {
+  return formatLocaleDate(ts, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

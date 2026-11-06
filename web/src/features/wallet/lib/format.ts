@@ -18,15 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 
-import { DEFAULT_DISCOUNT_RATE } from '../constants'
-
+/**
+ * Format Creem price with currency symbol (USD/EUR)
+ */
+import { currentIntlLocale } from '@/lib/format'
 // ============================================================================
 // Wallet-specific Formatting Functions
 // ============================================================================
 
-/**
- * Format Creem price with currency symbol (USD/EUR)
- */
+import { DEFAULT_DISCOUNT_RATE } from '../constants'
+
 export function formatCreemPrice(
   price: number,
   currency: 'USD' | 'EUR'
@@ -57,7 +58,7 @@ export function formatCurrency(amount: number | string): string {
     typeof amount === 'number' ? amount : Number.parseFloat(String(amount))
   if (!Number.isFinite(numeric)) return '-'
 
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(currentIntlLocale(), {
     minimumFractionDigits: 0,
     maximumFractionDigits: Math.abs(numeric) >= 1 ? 2 : 4,
   }).format(numeric)

@@ -25,6 +25,8 @@ import { StaticRowActions } from '@/components/data-table/static/static-row-acti
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
+import { formatInteger } from '@/lib/format'
+
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isObjectRecord } from '../utils/json-validators'
 import { RateLimitDialog, type RateLimitEntryData } from './rate-limit-dialog'
@@ -164,7 +166,7 @@ export function RateLimitVisualEditor({
               <span className='font-mono'>
                 {limit.maxRequests === 0
                   ? t('Unlimited')
-                  : limit.maxRequests.toLocaleString()}
+                  : formatInteger(limit.maxRequests)}
               </span>
             ),
           },
@@ -175,7 +177,7 @@ export function RateLimitVisualEditor({
             cellClassName: 'text-end',
             cell: (limit) => (
               <span className='font-mono'>
-                {limit.maxSuccess.toLocaleString()}
+                {formatInteger(limit.maxSuccess)}
               </span>
             ),
           },

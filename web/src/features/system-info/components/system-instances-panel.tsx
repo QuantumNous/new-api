@@ -56,6 +56,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
+import { currentIntlLocale } from '@/lib/format'
 import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { createServerError } from '@/lib/server-error-message'
@@ -115,7 +116,7 @@ function getNodeName(instance: SystemInstance) {
 
 function formatPercent(value?: number) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '-'
-  return `${new Intl.NumberFormat(undefined, {
+  return `${new Intl.NumberFormat(currentIntlLocale(), {
     maximumFractionDigits: 1,
   }).format(value)}%`
 }
@@ -131,7 +132,7 @@ function formatBytes(bytes?: number): string {
     units.length - 1
   )
   const value = bytes / 1024 ** index
-  return `${new Intl.NumberFormat(undefined, {
+  return `${new Intl.NumberFormat(currentIntlLocale(), {
     maximumFractionDigits: index === 0 ? 0 : 1,
   }).format(value)} ${units[index]}`
 }

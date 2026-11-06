@@ -16,6 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18next from 'i18next'
+
+import { toIntlLocale } from '@/i18n/languages'
 import dayjs from '@/lib/dayjs'
 
 import {
@@ -26,12 +29,29 @@ import {
 } from './currency'
 
 // ============================================================================
+// Interface Locale
+// ============================================================================
+
+/**
+ * Locale for the active interface language, ready for `Intl.*`.
+ *
+ * Interface codes such as `zhCN` / `zhTW` are not valid BCP-47 tags, so they
+ * always pass through `toIntlLocale`. This is the single place where the
+ * interface language is read for formatting; non-React helpers use it as their
+ * default, while components pass `toIntlLocale(i18n.language)` explicitly so
+ * they re-format when the user switches language.
+ */
+export function currentIntlLocale(): string | undefined {
+  return toIntlLocale(i18next.resolvedLanguage ?? i18next.language)
+}
+
+// ============================================================================
 // Number Formatting
 // ============================================================================
 
 export function formatNumber(
   value: number | null | undefined,
-  locales?: Intl.LocalesArgument
+  locales: Intl.LocalesArgument = currentIntlLocale()
 ): string {
   if (value == null || Number.isNaN(value as number)) return '-'
   return Intl.NumberFormat(locales, { maximumFractionDigits: 2 }).format(
@@ -39,9 +59,36 @@ export function formatNumber(
   )
 }
 
+/**
+ * Format a whole number with locale grouping and no fraction digits.
+ * Use this instead of a bare `value.toLocaleString()`, which follows the
+ * browser language rather than the interface language.
+ */
+export function formatInteger(
+  value: number | null | undefined,
+  locales: Intl.LocalesArgument = currentIntlLocale()
+): string {
+  if (value == null || Number.isNaN(value as number)) return '-'
+  return Intl.NumberFormat(locales, { maximumFractionDigits: 0 }).format(
+    value as number
+  )
+}
+
+/**
+ * Format a date with an explicit pattern in the interface language.
+ * Use this instead of a bare `date.toLocaleString()`.
+ */
+export function formatLocaleDate(
+  value: Date | number,
+  options: Intl.DateTimeFormatOptions,
+  locales: Intl.LocalesArgument = currentIntlLocale()
+): string {
+  return new Intl.DateTimeFormat(locales, options).format(value)
+}
+
 export function formatCompactNumber(
   value: number | null | undefined,
-  locales?: Intl.LocalesArgument
+  locales: Intl.LocalesArgument = currentIntlLocale()
 ): string {
   if (value == null || Number.isNaN(value as number)) return '-'
   return Intl.NumberFormat(locales, {
@@ -50,9 +97,12 @@ export function formatCompactNumber(
   }).format(value as number)
 }
 
-export function formatPercent(value: number | null | undefined): string {
+export function formatPercent(
+  value: number | null | undefined,
+  locales: Intl.LocalesArgument = currentIntlLocale()
+): string {
   if (value == null || Number.isNaN(value as number)) return '-'
-  return Intl.NumberFormat(undefined, {
+  return Intl.NumberFormat(locales, {
     style: 'percent',
     maximumFractionDigits: 2,
   }).format((value as number) / 100)
@@ -184,7 +234,7 @@ export function formatTimestampToDate(
 export function formatTimestampRelative(
   timestamp?: number,
   unit: 'seconds' | 'milliseconds' = 'seconds',
-  locales?: Intl.LocalesArgument
+  locales: Intl.LocalesArgument = currentIntlLocale()
 ): string {
   if (!timestamp || timestamp === -1 || timestamp === 0) {
     return '-'

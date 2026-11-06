@@ -33,7 +33,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { getCurrencyDisplay } from '@/lib/currency'
-import { formatQuota } from '@/lib/format'
+import { formatInteger, formatQuota } from '@/lib/format'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import {
@@ -169,7 +169,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
               </TooltipTrigger>
               <TooltipContent>
                 <p className='text-xs'>
-                  {t('Requests:')} {requestCount.toLocaleString()}
+                  {t('Requests:')} {formatInteger(requestCount)}
                 </p>
               </TooltipContent>
             </Tooltip>

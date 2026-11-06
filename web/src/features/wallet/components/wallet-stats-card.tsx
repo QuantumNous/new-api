@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatQuota } from '@/lib/format'
+import { formatInteger, formatQuota } from '@/lib/format'
 
 import type { UserWalletData } from '../types'
 
@@ -69,7 +69,7 @@ export function WalletStatsCard(props: WalletStatsCardProps) {
     },
     {
       label: t('API Requests'),
-      value: (props.user?.request_count ?? 0).toLocaleString(),
+      value: formatInteger(props.user?.request_count ?? 0),
       description: t('Total requests made'),
       icon: Activity,
       tone: 'chart-4',

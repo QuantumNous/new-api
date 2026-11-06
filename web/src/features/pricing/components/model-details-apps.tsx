@@ -29,6 +29,7 @@ import {
   StaticDataTable,
   staticDataTableClassNames as tableStyles,
 } from '@/components/data-table'
+import { currentIntlLocale } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import {
@@ -38,10 +39,14 @@ import {
 } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
 
-const COMPACT_NUMBER = new Intl.NumberFormat(undefined, {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-})
+// Built per call so the compact numbers follow the interface language instead
+// of the browser locale captured at import time.
+function formatCompactVolume(value: number): string {
+  return Intl.NumberFormat(currentIntlLocale(), {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value)
+}
 
 function RankBadge(props: { rank: number }) {
   const rank = props.rank
@@ -140,7 +145,7 @@ export function ModelDetailsApps(props: { model: PricingModel }) {
             {t('Monthly tokens')}
           </div>
           <div className='text-foreground mt-1 font-mono text-lg font-semibold tabular-nums'>
-            {COMPACT_NUMBER.format(totalMonthlyTokens)}
+            {formatCompactVolume(totalMonthlyTokens)}
           </div>
           <p className='text-muted-foreground/70 text-[11px]'>
             {t('Aggregated across the apps below')}

@@ -63,7 +63,12 @@ import { pluginUsageSchema } from '@/features/pricing/lib/plugin-pricing'
 import { PolicyDecisionRecord } from '@/features/system-settings/request-policies/decision-record'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
+import {
+  formatInteger,
+  formatLogQuota,
+  formatTokens,
+  formatUseTime,
+} from '@/lib/format'
 import { translateServerText } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
@@ -410,23 +415,26 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
 
   const rows: Array<{ label: string; value: string }> = []
 
-  rows.push({ label: t('Input Tokens'), value: promptTokens.toLocaleString() })
+  rows.push({
+    label: t('Input Tokens'),
+    value: formatInteger(promptTokens),
+  })
   rows.push({
     label: t('Output Tokens'),
-    value: completionTokens.toLocaleString(),
+    value: formatInteger(completionTokens),
   })
 
   if (cacheRead > 0) {
     rows.push({
       label: t('Cache Read'),
-      value: cacheRead.toLocaleString(),
+      value: formatInteger(cacheRead),
     })
   }
 
   if (other.image_cache_tokens !== undefined) {
     rows.push({
       label: t('Image Cache'),
-      value: other.image_cache_tokens.toLocaleString(),
+      value: formatInteger(other.image_cache_tokens),
     })
   }
 
@@ -438,42 +446,42 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   ) {
     rows.push({
       label: t('Cache Write'),
-      value: cacheWrite.toLocaleString(),
+      value: formatInteger(cacheWrite),
     })
   }
 
   if (cacheWrite5m > 0) {
     rows.push({
       label: t('Cache Write (5m)'),
-      value: cacheWrite5m.toLocaleString(),
+      value: formatInteger(cacheWrite5m),
     })
   }
 
   if (cacheWrite1h > 0) {
     rows.push({
       label: t('Cache Write (1h)'),
-      value: cacheWrite1h.toLocaleString(),
+      value: formatInteger(cacheWrite1h),
     })
   }
 
   if (cacheWrite30m > 0) {
     rows.push({
       label: t('Cache Write (30m)'),
-      value: cacheWrite30m.toLocaleString(),
+      value: formatInteger(cacheWrite30m),
     })
   }
 
   if (cacheWrite12h > 0) {
     rows.push({
       label: t('Cache Write (12h)'),
-      value: cacheWrite12h.toLocaleString(),
+      value: formatInteger(cacheWrite12h),
     })
   }
 
   if (other.image && other.image_output) {
     rows.push({
       label: t('Image Tokens'),
-      value: other.image_output.toLocaleString(),
+      value: formatInteger(other.image_output),
     })
   }
 
@@ -498,7 +506,7 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
               <DetailRow
                 key={variable.key}
                 label={t(variable.shortLabel)}
-                value={count.toLocaleString()}
+                value={formatInteger(count)}
                 mono
               />
             )

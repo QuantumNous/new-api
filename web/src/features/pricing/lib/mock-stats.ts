@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { formatInteger } from '@/lib/format'
 import type { PricingModel } from '../types'
 import {
   hashStringToSeed,
@@ -838,5 +839,5 @@ export function formatRateLimit(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000)
     return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`
-  return value.toLocaleString()
+  return formatInteger(value)
 }

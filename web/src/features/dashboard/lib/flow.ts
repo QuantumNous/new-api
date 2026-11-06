@@ -1,3 +1,19 @@
+import type {
+  DashboardFlowGraph,
+  DashboardFlowLink,
+  DashboardFlowNode,
+  FlowBuildOptions,
+  FlowFilterOptions,
+  FlowLinkSelection,
+  FlowMetric,
+  FlowNodeFilter,
+  FlowNodeKind,
+  FlowOverflowMode,
+  FlowQuotaDataItem,
+  FlowRole,
+  FlowSummary,
+  ProcessedFlowData,
+} from '@/features/dashboard/types'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,22 +32,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type {
-  DashboardFlowGraph,
-  DashboardFlowLink,
-  DashboardFlowNode,
-  FlowBuildOptions,
-  FlowFilterOptions,
-  FlowLinkSelection,
-  FlowMetric,
-  FlowNodeFilter,
-  FlowNodeKind,
-  FlowOverflowMode,
-  FlowQuotaDataItem,
-  FlowRole,
-  FlowSummary,
-  ProcessedFlowData,
-} from '@/features/dashboard/types'
+import { currentIntlLocale } from '@/lib/format'
 
 import { getDashboardChartColors } from './charts'
 
@@ -833,9 +834,9 @@ function buildFlowGraph(
 }
 
 function formatNumber(value: number): string {
-  return Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
-    value
-  )
+  return Intl.NumberFormat(currentIntlLocale(), {
+    maximumFractionDigits: 0,
+  }).format(value)
 }
 
 function buildUserFilterOptions(
