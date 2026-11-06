@@ -1,0 +1,148 @@
+# blitz.cloud build workflow, version 1.
+#
+# blitz.cloud added this file because you chose to build this app on your own
+# GitHub Actions. When the app needs a new version, blitz.cloud starts this
+# workflow, it builds the image here and stores it on blitz.cloud, and
+# blitz.cloud puts it online. It only runs when blitz.cloud starts it.
+#
+# What it may do: read this repository and ask GitHub for a short-lived
+# sign-in token that proves to blitz.cloud which repository and run is asking.
+# It holds no secrets. blitz.cloud answers with a push credential for this
+# one app's images, good until the build ends.
+#
+# To build on blitz.cloud again, switch it off on the app's Settings tab.
+# blitz.cloud then leaves this file alone; you can delete it.
+name: blitz.cloud build
+run-name: blitz.cloud build ${{ inputs.build }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: The blitz.cloud build to run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BLITZ_API: https://registry.blitz.cloud/api/actions
+      BLITZ_AUDIENCE: blitz.cloud
+      BLITZ_BUILD: ${{ inputs.build }}
+    steps:
+      - name: Ask blitz.cloud what to build
+        id: claim
+        run: |
+          set -euo pipefail
+          if ! [[ "$BLITZ_BUILD" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+            echo "::error::That is not a blitz.cloud build."
+            exit 1
+          fi
+          dir="$RUNNER_TEMP/blitz"
+          mkdir -p "$dir"
+          token=$(curl -fsS --retry 3 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$BLITZ_AUDIENCE" | jq -r .value)
+          code=$(curl -sS --retry 3 --retry-all-errors -o "$dir/claim.json" -w '%{http_code}' -X POST \
+            -H "X-GitHub-Actions-Token: $token" -H 'Content-Type: application/json' \
+            --data "{\"build\":\"$BLITZ_BUILD\"}" "$BLITZ_API/claim")
+          if [ "$code" = 409 ] || [ "$code" = 410 ]; then
+            echo "::notice::$(jq -r '.message // "blitz.cloud no longer needs this build."' "$dir/claim.json")"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$code" != 200 ]; then
+            echo "::error::blitz.cloud did not hand out this build (HTTP $code): $(head -c 500 "$dir/claim.json")"
+            exit 1
+          fi
+          echo "::add-mask::$(jq -r .password "$dir/claim.json")"
+          echo "commit=$(jq -r .commit "$dir/claim.json")" >> "$GITHUB_OUTPUT"
+          echo "depth=$(jq -r 'if .keepGit then 0 else 1 end' "$dir/claim.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Get the code
+        if: steps.claim.outputs.skip != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.claim.outputs.commit }}
+          fetch-depth: ${{ steps.claim.outputs.depth }}
+          persist-credentials: false
+
+      - name: Build and store the image
+        id: build
+        if: steps.claim.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/blitz"
+          c="$dir/claim.json"
+          exec > >(tee -a "$dir/build.log") 2>&1
+          echo "==> Building on GitHub Actions"
+          registry=$(jq -r .registry "$c")
+          jq -r .password "$c" | docker login "$registry" -u "$(jq -r .username "$c")" --password-stdin
+          docker buildx create --use --name blitz --driver docker-container > /dev/null
+
+          context=$(jq -r .context "$c")
+          dockerfile=$(jq -r .dockerfile "$c")
+          if jq -e '.recipe != null' "$c" > /dev/null; then
+            mkdir -p "$context/.blitz"
+            jq -r .recipe "$c" > "$context/.blitz/Dockerfile"
+            dockerfile="$context/.blitz/Dockerfile"
+            echo "==> Building with the recipe blitz.cloud wrote:"
+            sed 's/^/    /' "$dockerfile"
+          fi
+          # The project's history stays only when the build reads it.
+          if [ "$(jq -r .keepGit "$c")" != true ] \
+            && ! grep -v '^[[:space:]]*#' "$dockerfile" | grep -qE '(^|[^A-Za-z0-9_.-])\.git([^A-Za-z0-9_.-]|$)'; then
+            rm -rf .git
+          fi
+
+          args=()
+          while IFS= read -r arg; do args+=(--build-arg "$arg"); done \
+            < <(jq -r '.buildArgs // {} | to_entries[] | "\(.key)=\(.value)"' "$c")
+
+          build() { # image, cache (or empty), context, dockerfile, metadata file, whether the cache exists
+            local names="$1" from=()
+            if [ -n "$2" ]; then names="$1,$2"; fi
+            if [ -n "$2" ] && [ "$6" = true ]; then from=(--cache-from "type=registry,ref=$2"); fi
+            docker buildx build --platform linux/amd64 --provenance=false --sbom=false --progress plain \
+              --file "$4" "${args[@]}" "${from[@]}" --cache-to type=inline \
+              --output "type=image,\"name=$names\",push=true,compression=zstd,force-compression=false" \
+              --metadata-file "$5" "$3"
+          }
+
+          echo "==> Building your app"
+          build "$(jq -r .image "$c")" "$(jq -r '.cache // ""' "$c")" "$context" "$dockerfile" \
+            "$dir/image.json" "$(jq -r .cacheExists "$c")"
+          echo "blitz-digest=$(jq -r '."containerimage.digest"' "$dir/image.json")"
+
+          parts=$(jq '.parts // [] | length' "$c")
+          for i in $(seq 0 $((parts - 1))); do
+            part=$(jq -r ".parts[$i].part" "$c")
+            echo "==> Building the part $part"
+            build "$(jq -r ".parts[$i].image" "$c")" "$(jq -r ".parts[$i].cache // \"\"" "$c")" \
+              "$(jq -r ".parts[$i].context" "$c")" "$(jq -r ".parts[$i].dockerfile" "$c")" "$dir/part-$i.json" \
+              "$(jq -r ".parts[$i].cacheExists" "$c")"
+            echo "blitz-part-digest=$part=$(jq -r '."containerimage.digest"' "$dir/part-$i.json")"
+          done
+          echo "==> Done"
+
+      - name: Tell blitz.cloud how it went
+        if: always() && steps.claim.outputs.skip != 'true'
+        env:
+          BLITZ_OUTCOME: ${{ steps.build.outcome }}
+        run: |
+          set -uo pipefail
+          dir="$RUNNER_TEMP/blitz"
+          mkdir -p "$dir"
+          touch "$dir/build.log"
+          token=$(curl -fsS --retry 3 -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$BLITZ_AUDIENCE" | jq -r .value)
+          tail -c 100000 "$dir/build.log" > "$dir/tail.log"
+          jq -n --arg build "$BLITZ_BUILD" --arg outcome "${BLITZ_OUTCOME:-skipped}" \
+            --rawfile log "$dir/tail.log" '{build: $build, outcome: $outcome, log: $log}' > "$dir/report.json"
+          curl -fsS --retry 5 --retry-all-errors -X POST -H "X-GitHub-Actions-Token: $token" \
+            -H 'Content-Type: application/json' --data-binary "@$dir/report.json" "$BLITZ_API/report"
