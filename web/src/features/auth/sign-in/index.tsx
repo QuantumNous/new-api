@@ -23,7 +23,10 @@ import { useStatus } from '@/hooks/use-status'
 
 import { AuthLayout } from '../auth-layout'
 import { TermsFooter } from '../components/terms-footer'
-import { getRegistrationAvailability } from '../lib/registration'
+import {
+  getExternalOAuthRegistrationUrl,
+  getRegistrationAvailability,
+} from '../lib/registration'
 import { UserAuthForm } from './components/user-auth-form'
 
 export function SignIn() {
@@ -32,6 +35,10 @@ export function SignIn() {
   const { status } = useStatus()
   const registration = getRegistrationAvailability(status)
   const registrationEnabled = registration.local || registration.oauth
+  const externalRegistrationUrl =
+    !registration.local && registration.oauth
+      ? getExternalOAuthRegistrationUrl(status)
+      : null
 
   return (
     <AuthLayout>
@@ -43,12 +50,21 @@ export function SignIn() {
           {!status?.self_use_mode_enabled && registrationEnabled && (
             <p className='text-muted-foreground text-left text-sm sm:text-base'>
               {t("Don't have an account?")}{' '}
-              <Link
-                to='/sign-up'
-                className='hover:text-primary font-medium underline underline-offset-4'
-              >
-                {t('Sign up')}
-              </Link>
+              {externalRegistrationUrl ? (
+                <a
+                  href={externalRegistrationUrl}
+                  className='hover:text-primary font-medium underline underline-offset-4'
+                >
+                  {t('Sign up')}
+                </a>
+              ) : (
+                <Link
+                  to='/sign-up'
+                  className='hover:text-primary font-medium underline underline-offset-4'
+                >
+                  {t('Sign up')}
+                </Link>
+              )}
               .
             </p>
           )}

@@ -19,9 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { SignIn } from '../../sign-in'
 import { SignUpForm } from '../../sign-up/components/sign-up-form'
 import type { SystemStatus } from '../../types'
-import { getRegistrationAvailability } from '../registration'
+import {
+  getExternalOAuthRegistrationUrl,
+  getRegistrationAvailability,
+} from '../registration'
 
 const status = vi.hoisted(() => ({
   current: null as SystemStatus | null,
@@ -29,6 +33,30 @@ const status = vi.hoisted(() => ({
 
 vi.mock('@/hooks/use-status', () => ({
   useStatus: () => ({ status: status.current, loading: false, error: null }),
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    to,
+    children,
+    ...props
+  }: {
+    to: string
+    children: React.ReactNode
+  }) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
+  useSearch: () => ({}),
+}))
+
+vi.mock('@/features/auth/auth-layout', () => ({
+  AuthLayout: ({ children }: { children: React.ReactNode }) => children,
+}))
+
+vi.mock('@/features/auth/sign-in/components/user-auth-form', () => ({
+  UserAuthForm: () => null,
 }))
 
 vi.mock('@/features/auth/hooks/use-auth-redirect', () => ({
@@ -103,6 +131,53 @@ describe('registration availability', () => {
       local: false,
       oauth: false,
     })
+  })
+
+  it('derives the custom provider registration page from its authorization origin', () => {
+    const status: SystemStatus = {
+      register_enabled: true,
+      local_registration_disabled: true,
+      custom_oauth_providers: [
+        {
+          ...customProvider,
+          authorization_endpoint:
+            'https://auth.example.com/oauth2/authorize?tenant=public',
+        },
+      ],
+    }
+
+    expect(getExternalOAuthRegistrationUrl(status)).toBe(
+      'https://auth.example.com/register'
+    )
+  })
+
+  it('does not derive a registration page without a custom provider', () => {
+    expect(
+      getExternalOAuthRegistrationUrl({
+        register_enabled: true,
+        github_oauth: true,
+      })
+    ).toBeNull()
+  })
+
+  it('links sign-up directly to the custom OAuth registration page', () => {
+    status.current = {
+      register_enabled: true,
+      local_registration_disabled: true,
+      custom_oauth_providers: [
+        {
+          ...customProvider,
+          authorization_endpoint: 'https://auth.example.com/oauth2/authorize',
+        },
+      ],
+    }
+
+    render(<SignIn />)
+
+    expect(screen.getByRole('link', { name: 'Sign up' })).toHaveAttribute(
+      'href',
+      'https://auth.example.com/register'
+    )
   })
 
   it('renders only the OAuth path when local registration is disabled', () => {

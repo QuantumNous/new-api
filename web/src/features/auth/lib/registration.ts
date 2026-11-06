@@ -25,6 +25,45 @@ export interface RegistrationAvailability {
 }
 
 /**
+ * Resolve the OAuth provider's human registration page.
+ *
+ * Custom OAuth providers expose registration at `/register` on the
+ * authorization server origin. Built-in providers do not share this
+ * convention, so only custom providers are considered.
+ */
+export function getExternalOAuthRegistrationUrl(
+  status: SystemStatus | null
+): string | null {
+  const providers = status?.custom_oauth_providers
+  if (providers?.length !== 1) return null
+  const hasBuiltInProvider = Boolean(
+    status?.github_oauth ||
+    status?.discord_oauth ||
+    status?.oidc_enabled ||
+    status?.linuxdo_oauth ||
+    status?.telegram_oauth ||
+    status?.wechat_login
+  )
+  if (hasBuiltInProvider) return null
+
+  const provider = providers[0]
+  if (!provider?.authorization_endpoint) return null
+
+  try {
+    const authorizationUrl = new URL(provider.authorization_endpoint)
+    if (
+      authorizationUrl.protocol !== 'https:' &&
+      authorizationUrl.protocol !== 'http:'
+    ) {
+      return null
+    }
+    return new URL('/register', authorizationUrl.origin).toString()
+  } catch {
+    return null
+  }
+}
+
+/**
  * Resolve which registration paths the sign-in and sign-up pages may expose.
  * Local registration remains hidden when an administrator disables it, while
  * OAuth registration stays available whenever global registration is enabled.

@@ -18,6 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
+import {
+  getExternalOAuthRegistrationUrl,
+  getRegistrationAvailability,
+} from '@/features/auth/lib/registration'
 import { SignUp } from '@/features/auth/sign-up'
 import { statusQueryOptions } from '@/lib/status-query'
 import { useAuthStore } from '@/stores/auth-store'
@@ -35,8 +39,19 @@ export const Route = createFileRoute('/(auth)/sign-up')({
     const status = await context.queryClient
       .fetchQuery(statusQueryOptions)
       .catch(() => null)
-    if (status?.local_registration_disabled === true) {
+    if (
+      status?.local_registration_disabled === true &&
+      !getRegistrationAvailability(status).oauth
+    ) {
       throw redirect({ to: '/sign-in' })
+    }
+
+    const externalRegistrationUrl =
+      status?.local_registration_disabled === true
+        ? getExternalOAuthRegistrationUrl(status)
+        : null
+    if (externalRegistrationUrl) {
+      throw redirect({ href: externalRegistrationUrl, replace: true })
     }
   },
 })
