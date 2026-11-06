@@ -122,3 +122,39 @@ func TestWriteProfileSettingsEnablesPlaintextStorage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
+
+func TestSelectCatalogModelsPrefersEnabledDefault(t *testing.T) {
+	catalog := modelCatalog{Data: []catalogModel{
+		{
+			ID:            "disabled-default",
+			Policy:        &modelPolicy{State: "disabled"},
+			Capabilities:  &catalogCapabilities{Type: "chat"},
+			IsChatDefault: true,
+		},
+		{
+			ID:           "auto",
+			Policy:       &modelPolicy{State: "enabled"},
+			Capabilities: &catalogCapabilities{Type: "chat"},
+		},
+		{
+			ID:            "paid-default",
+			Policy:        &modelPolicy{State: "enabled"},
+			Capabilities:  &catalogCapabilities{Type: "chat"},
+			IsChatDefault: true,
+			Billing:       &catalogBilling{RestrictedTo: []string{"business"}},
+		},
+		{
+			ID:             "gpt-4.1",
+			Name:           "GPT-4.1",
+			Policy:         &modelPolicy{State: "enabled"},
+			Capabilities:   &catalogCapabilities{Type: "chat"},
+			IsChatDefault:  true,
+			IsChatFallback: true,
+		},
+	}}
+
+	models := selectCatalogModels(catalog)
+	require.Len(t, models, 1)
+	assert.Equal(t, "gpt-4.1", models[0].ID)
+	assert.Equal(t, "GPT-4.1", models[0].Name)
+}

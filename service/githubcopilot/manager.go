@@ -5,16 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"path/filepath"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/google/uuid"
 )
 
@@ -307,16 +310,131 @@ func checkIdentity(status AuthStatus, expectedLogin string) error {
 	return nil
 }
 
+type modelPolicy struct {
+	State string `json:"state"`
+}
+
 type rawModel struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Policy *struct {
-		State string `json:"state"`
-	} `json:"policy"`
+	ID     string       `json:"id"`
+	Name   string       `json:"name"`
+	Policy *modelPolicy `json:"policy"`
 }
 
 type modelsListResult struct {
 	Models []rawModel `json:"models"`
+}
+
+type catalogCapabilities struct {
+	Type string `json:"type"`
+}
+
+type catalogBilling struct {
+	RestrictedTo []string `json:"restricted_to"`
+}
+
+type catalogModel struct {
+	ID                 string               `json:"id"`
+	Name               string               `json:"name"`
+	Policy             *modelPolicy         `json:"policy"`
+	Capabilities       *catalogCapabilities `json:"capabilities"`
+	SupportedEndpoints []string             `json:"supported_endpoints"`
+	IsChatDefault      bool                 `json:"is_chat_default"`
+	IsChatFallback     bool                 `json:"is_chat_fallback"`
+	Billing            *catalogBilling      `json:"billing"`
+}
+
+type modelCatalog struct {
+	Data []catalogModel `json:"data"`
+}
+
+func selectCatalogModels(catalog modelCatalog) []Model {
+	var defaultModel, fallbackModel, first Model
+	for _, item := range catalog.Data {
+		id := strings.TrimSpace(item.ID)
+		if id == "" || strings.EqualFold(id, "auto") || item.Policy == nil || !strings.EqualFold(strings.TrimSpace(item.Policy.State), "enabled") {
+			continue
+		}
+		if item.Capabilities == nil || !strings.EqualFold(strings.TrimSpace(item.Capabilities.Type), "chat") {
+			continue
+		}
+		if item.Billing != nil && len(item.Billing.RestrictedTo) > 0 && !slices.Contains(item.Billing.RestrictedTo, "free") {
+			continue
+		}
+		if len(item.SupportedEndpoints) > 0 &&
+			!slices.Contains(item.SupportedEndpoints, "/chat/completions") &&
+			!slices.Contains(item.SupportedEndpoints, "/responses") &&
+			!slices.Contains(item.SupportedEndpoints, "/v1/messages") {
+			continue
+		}
+		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			name = id
+		}
+		model := Model{ID: id, Name: name}
+		if first.ID == "" {
+			first = model
+		}
+		if item.IsChatDefault && defaultModel.ID == "" {
+			defaultModel = model
+		}
+		if item.IsChatFallback && fallbackModel.ID == "" {
+			fallbackModel = model
+		}
+	}
+	for _, model := range []Model{defaultModel, fallbackModel, first} {
+		if model.ID != "" {
+			return []Model{model}
+		}
+	}
+	return nil
+}
+
+func (r *cliRuntime) catalogModels(ctx context.Context) ([]Model, error) {
+	endpoint, err := r.endpoint(ctx, "auto", false)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.BaseURL+"/models", nil)
+	if err != nil {
+		return nil, fmt.Errorf("create GitHub Copilot model catalog request: %w", err)
+	}
+	for name, value := range endpoint.Headers {
+		req.Header.Set(name, value)
+	}
+	if endpoint.SessionToken != nil {
+		req.Header.Set(endpoint.SessionToken.Header, endpoint.SessionToken.Token)
+	}
+	if endpoint.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+endpoint.APIKey)
+	}
+	req.Header.Set("Accept", "application/json")
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	if proxy := strings.TrimSpace(os.Getenv("COPILOT_PROXY")); proxy != "" {
+		proxyURL, err := url.Parse(proxy)
+		if err != nil || proxyURL.Scheme == "" || proxyURL.Host == "" {
+			return nil, errors.New("COPILOT_PROXY must be a valid HTTP proxy URL")
+		}
+		transport.Proxy = http.ProxyURL(proxyURL)
+	}
+	client := &http.Client{Transport: transport, Timeout: rpcTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch GitHub Copilot model catalog: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub Copilot model catalog returned HTTP %d", resp.StatusCode)
+	}
+	var catalog modelCatalog
+	if err := common.DecodeJson(io.LimitReader(resp.Body, 4<<20), &catalog); err != nil {
+		return nil, fmt.Errorf("decode GitHub Copilot model catalog: %w", err)
+	}
+	models := selectCatalogModels(catalog)
+	if len(models) == 0 {
+		return nil, errors.New("this GitHub Copilot plan exposes no enabled chat models")
+	}
+	return models, nil
 }
 
 func (r *cliRuntime) listModels(ctx context.Context) ([]Model, error) {
@@ -349,7 +467,11 @@ func (r *cliRuntime) listModels(ctx context.Context) ([]Model, error) {
 		models = append(models, Model{ID: id, Name: strings.TrimSpace(item.Name)})
 	}
 	if len(models) == 0 {
-		return nil, errors.New("this GitHub account exposes no enabled Copilot models")
+		var err error
+		models, err = r.catalogModels(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 	r.sessionMu.Lock()
 	r.models = append([]Model(nil), models...)
