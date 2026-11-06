@@ -84,6 +84,7 @@ import {
   resetCodexUsage,
   type CodexResetCreditsResponse,
 } from '../../api'
+import { UsageInfoField } from './usage-info-field'
 
 type CodexRateLimitWindow = {
   used_percent?: number
@@ -600,53 +601,6 @@ function RateLimitGroupSection(props: RateLimitGroupSectionProps) {
   )
 }
 
-function InfoField(props: {
-  label: string
-  value?: string | null
-  mono?: boolean
-  copyable?: boolean
-  className?: string
-}) {
-  const { t } = useTranslation()
-  const { copyToClipboard, copiedText } = useCopyToClipboard({ notify: false })
-  const text = props.value?.trim() || ''
-  const hasCopied = copiedText === text
-
-  return (
-    <div
-      className={cn(
-        'bg-background ring-border/60 min-w-0 rounded-lg p-3 ring-1',
-        props.className
-      )}
-    >
-      <div className='text-muted-foreground text-[11px] font-medium'>
-        {props.label}
-      </div>
-      <div className='mt-1 flex min-w-0 items-start justify-between gap-2'>
-        <span
-          className={cn(
-            'min-w-0 flex-1 text-xs leading-5 break-all',
-            props.mono && 'font-mono tabular-nums'
-          )}
-        >
-          {text || '-'}
-        </span>
-        {props.copyable !== false && text ? (
-          <Button
-            type='button'
-            variant='ghost'
-            size='icon-xs'
-            aria-label={t('Copy')}
-            onClick={() => copyToClipboard(text)}
-          >
-            {hasCopied ? <Check className='text-success' /> : <Copy />}
-          </Button>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
 function ResetCreditTimeField(props: {
   label: string
   value: string
@@ -812,19 +766,19 @@ function ResetCreditsPanel(props: {
   return (
     <div className='flex flex-col gap-3 p-3'>
       <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
-        <InfoField
+        <UsageInfoField
           label={t('Available reset credits')}
           value={availableCount}
           mono
           copyable={false}
         />
-        <InfoField
+        <UsageInfoField
           label={t('Total earned')}
           value={totalEarnedCount}
           mono
           copyable={false}
         />
-        <InfoField
+        <UsageInfoField
           label='HTTP'
           value={String(props.response?.upstream_status ?? '-')}
           mono
@@ -1162,13 +1116,17 @@ export function CodexUsageDialog({
               ) : null}
             </div>
             <div className='mt-4 grid grid-cols-1 gap-3 md:grid-cols-2'>
-              <InfoField label={t('Email')} value={payload?.email} copyable />
-              <InfoField
+              <UsageInfoField
+                label={t('Email')}
+                value={payload?.email}
+                copyable
+              />
+              <UsageInfoField
                 label={t('Channel')}
                 value={channelLabel}
                 copyable={false}
               />
-              <InfoField
+              <UsageInfoField
                 label='User ID'
                 value={payload?.user_id}
                 mono

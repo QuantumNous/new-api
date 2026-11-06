@@ -103,12 +103,16 @@ export async function getTaskPluginOptions(): Promise<TaskPluginOption[]> {
   return requireServerSuccess(response.data).data
 }
 
-export type CodexUsageResponse = {
+export type UpstreamAccountUsageResponse = {
   success: boolean
   message?: string
   upstream_status?: number
   data?: Record<string, unknown>
 }
+
+export type CodexUsageResponse = UpstreamAccountUsageResponse
+
+export type CopilotUsageResponse = UpstreamAccountUsageResponse
 
 export type CodexResetCreditsResponse = CodexUsageResponse
 
@@ -449,6 +453,16 @@ export async function getCopilotChannelStatus(
     channelActionConfig({ disableDuplicate: true })
   )
   return requireServerSuccess(res.data).data
+}
+
+export async function getCopilotUsage(
+  channelId: number
+): Promise<CopilotUsageResponse> {
+  const res = await api.get(
+    `/api/channel/${channelId}/copilot/usage`,
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
 }
 
 // ============================================================================

@@ -88,6 +88,7 @@ var channelPermissionRoutes = []permissionRoute{
 	{method: http.MethodGet, path: "/copilot/login/:id", permission: authz.ChannelRead, handler: controller.GetCopilotLoginStatus},
 	{method: http.MethodPost, path: "/copilot/login/:id/cancel", permission: authz.ChannelSensitiveWrite, handler: controller.CancelCopilotLogin},
 	{method: http.MethodGet, path: "/:id/copilot/status", permission: authz.ChannelRead, handler: controller.GetCopilotChannelStatus},
+	{method: http.MethodGet, path: "/:id/copilot/usage", permission: authz.ChannelRead, handler: controller.GetCopilotChannelUsage},
 	{method: http.MethodGet, path: "/:id/codex/usage", permission: authz.ChannelRead, handler: controller.GetCodexChannelUsage},
 	{method: http.MethodGet, path: "/:id/codex/usage/reset-credits", permission: authz.ChannelRead, handler: controller.GetCodexChannelRateLimitResetCredits},
 	{method: http.MethodPost, path: "/:id/codex/usage/reset", permission: authz.ChannelOperate, handler: controller.ResetCodexChannelUsage},
