@@ -1035,6 +1035,7 @@ export const protocols = {
         if (trimmed(item.revised_prompt)) entry.revised_prompt = item.revised_prompt;
         return entry;
       });
+      if (!data.length) throw new Error("xAI returned no images");
       return { created: task.created_at, data: data };
     },
   },

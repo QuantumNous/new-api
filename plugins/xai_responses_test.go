@@ -220,6 +220,12 @@ func TestXAIImageProtocol(t *testing.T) {
 		"created": float64(1789733151),
 		"data":    []any{map[string]any{"url": "https://cdn.example/result.png", "revised_prompt": "a blue cat"}},
 	}, alibabaObject(t, value))
+
+	_, err = plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "render"}, map[string]any{"model": model}, map[string]any{
+		"task_id": "task_public", "status": "SUCCESS", "created_at": float64(1789733151),
+		"data": map[string]any{"usage": map[string]any{"cost_in_usd_ticks": float64(800000000)}},
+	})
+	require.ErrorContains(t, err, "xAI returned no images")
 }
 
 // xAI still bills a generation its moderation blocks, and the host refunds
