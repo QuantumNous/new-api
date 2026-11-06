@@ -653,6 +653,7 @@ func TestTaskPluginChangesReportPricingIssuesOfServingPlugin(t *testing.T) {
 	require.NoError(t, model.InitLogDB())
 	key := "pricing-notice-probe"
 	cleanupTaskPluginControllerRuntime(t, key)
+	require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: "doc-1", ChannelId: 1, Enabled: true}).Error)
 	upload := func(version string) string {
 		body, err := common.Marshal(map[string]any{"source": taskPluginControllerTestSource(key, version)})
 		require.NoError(t, err)
@@ -727,6 +728,17 @@ func TestSwitchedOffPluginPricesAreNotPricingIssues(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, kling.Models)
+	_, live := jsplugin.DefaultRegistry.Get("kling")
+	require.True(t, live)
+	// Live plugins, built-ins included, have nothing to price before a channel
+	// serves their models or a provider price is saved.
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{billing_setting.PluginBillingExprOption: `{}`}))
+	freshIssues, err := model.GetModelPricingIssues("")
+	require.NoError(t, err)
+	assert.Empty(t, freshIssues)
+	for _, name := range kling.Models {
+		require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: name, ChannelId: 1, Enabled: true}).Error)
+	}
 	prices, err := common.Marshal(map[string]string{
 		key + "::doc-1":              `tier("base", u("units") * 0.1)`,
 		key + "::retired-model":      `tier("base", u("units") * 0.1)`,
