@@ -22,14 +22,14 @@ import { useTranslation } from 'react-i18next'
 import { useStatus } from '@/hooks/use-status'
 
 import { AuthLayout } from '../auth-layout'
+import { getRegistrationAvailability } from '../lib/registration'
 import { ForgotPasswordForm } from './components/forgot-password-form'
 
 export function ForgotPassword() {
   const { t } = useTranslation()
   const { status } = useStatus()
-  const localRegistrationEnabled =
-    status?.local_registration_disabled !== true &&
-    status?.register_enabled !== false
+  const registration = getRegistrationAvailability(status)
+  const registrationEnabled = registration.local || registration.oauth
   return (
     <AuthLayout>
       <div className='w-full space-y-8'>
@@ -42,7 +42,7 @@ export function ForgotPassword() {
               'Enter your registered email and we will send you a link to reset your password.'
             )}
           </p>
-          {localRegistrationEnabled && (
+          {registrationEnabled && (
             <p className='text-muted-foreground text-left text-sm sm:text-base'>
               {t("Don't have an account?")}{' '}
               <Link

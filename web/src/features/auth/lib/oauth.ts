@@ -98,6 +98,7 @@ export function hasOAuthProviders(status: SystemStatus | null): boolean {
     status.oidc_enabled ||
     status.linuxdo_oauth ||
     status.telegram_oauth ||
-    status.wechat_login
+    status.wechat_login ||
+    (status.custom_oauth_providers?.length ?? 0) > 0
   )
 }
