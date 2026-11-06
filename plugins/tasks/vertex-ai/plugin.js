@@ -233,7 +233,11 @@ function omniTaskResult(body) {
   if (plainObject(body.error) && body.error.message) return { status: "FAILURE", progress: "100%", reason: body.error.message };
   const status = trimmed(body.status).toLowerCase();
   if (status === "in_progress" || status === "queued") return { status: "IN_PROGRESS", progress: "50%" };
-  if (["failed", "cancelled", "canceled", "expired", "incomplete"].includes(status)) return { status: "FAILURE", progress: "100%", reason: status };
+  if (["failed", "cancelled", "canceled", "expired", "incomplete"].includes(status)) {
+    const error = plainObject((body.errors || [])[0]) || {};
+    const reason = [trimmed(error.code), trimmed(error.message)].filter(Boolean).join(": ");
+    return { status: "FAILURE", progress: "100%", reason: reason || status };
+  }
   if (status !== "completed") return { status: "UNKNOWN", reason: "unrecognized interaction state" };
   const video = omniVideo(body);
   if (!video) return { status: "FAILURE", progress: "100%", reason: "interaction completed without a video" };

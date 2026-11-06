@@ -446,6 +446,7 @@ func TestVertexAIOmniQueryAndParse(t *testing.T) {
 		{"completed uri", stored, map[string]any{"status": "SUCCESS", "progress": "100%", "remoteUrl": "gs://b/v.mp4"}},
 		{"completed without video", map[string]any{"id": "int_1", "status": "completed", "steps": []any{}}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "interaction completed without a video"}},
 		{"failed", map[string]any{"id": "int_1", "status": "failed"}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "failed"}},
+		{"blocked", map[string]any{"id": "int_1", "status": "failed", "errors": []any{map[string]any{"code": "content_blocked", "message": "Request blocked for an unspecified policy reason."}}}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "content_blocked: Request blocked for an unspecified policy reason."}},
 		{"error", map[string]any{"error": map[string]any{"message": "quota exceeded"}}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "quota exceeded"}},
 		{"unrecognized", map[string]any{"foo": "bar"}, map[string]any{"status": "UNKNOWN", "reason": "unrecognized interaction state"}},
 	} {
