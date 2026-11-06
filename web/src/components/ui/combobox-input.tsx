@@ -16,13 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { defaultRangeExtractor, Range, useVirtualizer} from '@tanstack/react-virtual'
+import {Check, ChevronsUpDown} from 'lucide-react'
 import * as React from 'react'
-import { createPortal } from 'react-dom'
-import { useTranslation } from 'react-i18next'
+import {createPortal} from 'react-dom'
+import {useTranslation} from 'react-i18next'
 
-import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import {Input} from '@/components/ui/input'
+import {cn} from '@/lib/utils'
 
 export type ComboboxInputOption = {
   value: string
@@ -42,6 +43,7 @@ interface ComboboxInputProps {
   popupClassName?: string
   id?: string
   allowCustomValue?: boolean
+  virtualized?: boolean
   openOnFocus?: boolean
   disabled?: boolean
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>
@@ -51,23 +53,24 @@ interface ComboboxInputProps {
 }
 
 export function ComboboxInput({
-  options,
-  value = '',
-  onValueChange,
-  placeholder = 'Select or type...',
-  emptyText = 'No option found.',
-  className,
-  popupClassName,
-  id,
-  allowCustomValue = false,
-  openOnFocus = true,
-  disabled = false,
-  onKeyDown,
-  'aria-label': ariaLabel,
-  'aria-labelledby': ariaLabelledBy,
-  'aria-invalid': ariaInvalid,
-}: ComboboxInputProps) {
-  const { t } = useTranslation()
+                                options,
+                                value = '',
+                                onValueChange,
+                                placeholder = 'Select or type...',
+                                emptyText = 'No option found.',
+                                className,
+                                popupClassName,
+                                id,
+                                allowCustomValue = false,
+                                virtualized = false,
+                                openOnFocus = true,
+                                disabled = false,
+                                onKeyDown,
+                                'aria-label': ariaLabel,
+                                'aria-labelledby': ariaLabelledBy,
+                                'aria-invalid': ariaInvalid,
+                              }: ComboboxInputProps) {
+  const {t} = useTranslation()
   const listId = React.useId()
   const [open, setOpen] = React.useState(false)
   const [searchValue, setSearchValue] = React.useState('')
@@ -88,8 +91,8 @@ export function ComboboxInput({
   } | null>(null)
   const pointerFocusRef = React.useRef(false)
   const selectedOption = React.useMemo(
-    () => options.find((option) => option.value === value),
-    [options, value]
+      () => options.find((option) => option.value === value),
+      [options, value]
   )
   const displayValue = open ? searchValue : (selectedOption?.label ?? value)
 
@@ -97,16 +100,55 @@ export function ComboboxInput({
     if (!searchChanged || !searchValue.trim()) return options
     const search = searchValue.toLowerCase().trim()
     return options.filter(
-      (option) =>
-        option.label.toLowerCase().includes(search) ||
-        option.value.toLowerCase().includes(search)
+        (option) =>
+            option.label.toLowerCase().includes(search) ||
+            option.value.toLowerCase().includes(search)
     )
   }, [options, searchValue, searchChanged])
 
-  // Reset highlight when filtered options change
+  const showDropdown =
+      open &&
+      !disabled &&
+      (filteredOptions.length > 0 || (allowCustomValue && searchValue.trim()))
+  const virtualizedOpen = virtualized && !!showDropdown
+  const virtualizer = useVirtualizer<HTMLUListElement, HTMLLIElement>({
+    count: filteredOptions.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 32,
+    getItemKey: React.useCallback(
+        (index: number) => filteredOptions[index].value,
+        [filteredOptions]
+    ),
+    enabled: virtualizedOpen && dropdown !== null,
+    overscan: 2,
+    paddingStart: 4,
+    paddingEnd: 4,
+    rangeExtractor: React.useCallback(
+        (range: Range) => {
+        const indices = defaultRangeExtractor(range)
+        // aria-activedescendant must still exist when scrolling past the highlight.
+        if (
+          highlightedIndex >= 0 &&
+          highlightedIndex < range.count &&
+          !indices.includes(highlightedIndex)
+        ) {
+          indices.push(highlightedIndex)
+          indices.sort((a, b) => a - b)
+        }
+        return indices
+      },
+      [highlightedIndex]
+    ),
+  })
+  const renderedOptions = virtualized
+    ? virtualizer.getVirtualItems()
+    : filteredOptions.map((_, index) => ({ index, start: 0 }))
+
+  // A new search or opening starts at the top, without an offscreen highlight.
   React.useEffect(() => {
     setHighlightedIndex(-1)
-  }, [filteredOptions])
+    if (virtualized) virtualizer.scrollToOffset(0)
+  }, [filteredOptions, virtualizedOpen, virtualized, virtualizer])
 
   // Handle click outside to close
   React.useEffect(() => {
@@ -213,14 +255,13 @@ export function ComboboxInput({
   // Scroll highlighted item into view
   React.useEffect(() => {
     if (highlightedIndex < 0 || !listRef.current) return
+    if (virtualized) {
+      virtualizer.scrollToIndex(highlightedIndex, { align: 'auto' })
+      return
+    }
     const item = listRef.current.children[highlightedIndex] as HTMLElement
     item?.scrollIntoView({ block: 'nearest' })
-  }, [highlightedIndex])
-
-  const showDropdown =
-    open &&
-    !disabled &&
-    (filteredOptions.length > 0 || (allowCustomValue && searchValue.trim()))
+  }, [highlightedIndex, virtualized, virtualizer])
 
   return (
     <div ref={containerRef} className='relative'>
@@ -305,37 +346,68 @@ export function ComboboxInput({
                 ref={listRef}
                 id={listId}
                 role='listbox'
-                className='max-h-[200px] overflow-y-auto p-1'
+                className={cn(
+                  'max-h-[200px] overflow-y-auto',
+                  virtualized ? 'relative px-1' : 'p-1'
+                )}
               >
-                {filteredOptions.map((option, index) => (
+                {virtualized && (
                   <li
-                    key={option.value}
-                    id={`${listId}-${index}`}
-                    role='option'
-                    aria-selected={value === option.value}
-                    data-highlighted={index === highlightedIndex}
-                    className={cn(
-                      'relative flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm select-none',
-                      index === highlightedIndex &&
-                        'bg-accent text-accent-foreground',
-                      value === option.value && 'font-medium'
-                    )}
-                    onMouseEnter={() => setHighlightedIndex(index)}
-                    onMouseDown={(e) => {
-                      e.preventDefault() // Prevent blur
-                      handleSelect(option.value)
-                    }}
-                  >
-                    <Check
+                    role='presentation'
+                    aria-hidden='true'
+                    style={{ height: virtualizer.getTotalSize() }}
+                  />
+                )}
+                {renderedOptions.map((item) => {
+                  const index = item.index
+                  const option = filteredOptions[index]
+                  return (
+                    <li
+                      key={option.value}
+                      ref={virtualized ? virtualizer.measureElement : undefined}
+                      data-index={index}
+                      id={`${listId}-${index}`}
+                      role='option'
+                      aria-selected={value === option.value}
+                      aria-posinset={virtualized ? index + 1 : undefined}
+                      aria-setsize={
+                        virtualized ? filteredOptions.length : undefined
+                      }
+                      data-highlighted={index === highlightedIndex}
+                      style={
+                        virtualized
+                          ? {
+                              position: 'absolute',
+                              top: 0,
+                              left: 4,
+                              right: 4,
+                              transform: `translateY(${item.start}px)`,
+                            }
+                          : undefined
+                      }
                       className={cn(
-                        'size-4 shrink-0',
-                        value === option.value ? 'opacity-100' : 'opacity-0'
+                        'relative flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm select-none',
+                        index === highlightedIndex &&
+                          'bg-accent text-accent-foreground',
+                        value === option.value && 'font-medium'
                       )}
-                    />
-                    {option.icon && <span aria-hidden>{option.icon}</span>}
-                    <span className='truncate'>{option.label}</span>
-                  </li>
-                ))}
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      onMouseDown={(e) => {
+                        e.preventDefault() // Prevent blur
+                        handleSelect(option.value)
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          'size-4 shrink-0',
+                          value === option.value ? 'opacity-100' : 'opacity-0'
+                        )}
+                      />
+                      {option.icon && <span aria-hidden>{option.icon}</span>}
+                      <span className='truncate'>{option.label}</span>
+                    </li>
+                  )
+                })}
               </ul>
             ) : (
               <div className='px-2 py-6 text-center text-sm'>
