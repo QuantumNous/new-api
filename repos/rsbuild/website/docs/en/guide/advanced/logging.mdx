@@ -1,0 +1,174 @@
+---
+description: 'Learn how logger, createLogger, customLogger, logLevel, and dev.client.logLevel relate to each other in Rsbuild.'
+---
+
+# Logging
+
+This guide explains how to control Rsbuild log output, customize the logger for a specific instance, and access the logger in different scenarios.
+
+> Rsbuild's logger is based on `rslog`. See [rslog](https://github.com/rstackjs/rslog) for more methods and options.
+
+## Log levels
+
+### Node.js side
+
+[logLevel](/config/log-level) controls the log level of the current Rsbuild instance on the Node.js side, such as build logs in the terminal, dev server logs, and plugin logs.
+
+For example, when `logLevel` is set to `warn`, Rsbuild only outputs warning and error logs:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  logLevel: 'warn',
+});
+```
+
+### Browser side
+
+[dev.client.logLevel](/config/dev/client#loglevel) controls the client log level shown in the browser console.
+
+By default, `dev.client.logLevel` inherits the root [logLevel](/config/log-level).
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  dev: {
+    client: {
+      logLevel: 'warn',
+    },
+  },
+});
+```
+
+## Custom logger
+
+Each Rsbuild instance creates its own logger when it is initialized. You can create a custom logger instance with [createLogger](/api/javascript-api/core#createlogger) and attach it to the current Rsbuild instance through [customLogger](/config/custom-logger).
+
+For example, the following config makes the current instance output only `warn` and `error` logs:
+
+```ts title="rsbuild.config.ts"
+import { createLogger, defineConfig } from '@rsbuild/core';
+
+const customLogger = createLogger({
+  level: 'warn',
+});
+
+export default defineConfig({
+  customLogger,
+});
+```
+
+### Custom prefix
+
+You can use `prefix` to add a fixed prefix to each log message:
+
+```ts title="rsbuild.config.ts"
+import { createLogger } from '@rsbuild/core';
+
+const logger = createLogger({
+  prefix: '[web]',
+});
+
+logger.info('hello'); // info    [web] hello
+```
+
+### Override log methods
+
+You can use `override()` to replace some logger methods with a custom output format:
+
+```ts title="rsbuild.config.ts"
+import { createLogger } from '@rsbuild/core';
+
+const logger = createLogger();
+
+logger.override({
+  info(message) {
+    console.log(`[info] ${message}`);
+  },
+  warn(message) {
+    console.warn(`[warn] ${message}`);
+  },
+});
+
+logger.info('hello'); // [info] hello
+logger.warn('world'); // [warn] world
+```
+
+## Instance logger
+
+You can access the logger on an Rsbuild instance in the following ways:
+
+1. [rsbuild.logger](/api/javascript-api/instance#rsbuildlogger): Access the logger of the current instance in the JavaScript API.
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild();
+
+rsbuild.logger.info('Hello from rsbuild.logger');
+```
+
+2. [api.logger](/plugins/dev/core#apilogger): Access the logger of the current instance inside a plugin.
+
+```ts
+const pluginLoggerDemo = () => ({
+  name: 'plugin-logger-demo',
+  setup(api) {
+    api.logger.info('Hello from plugin logger');
+  },
+});
+```
+
+## Global logger
+
+Rsbuild also provides a shared global logger singleton, available through [logger](/api/javascript-api/core#logger).
+
+```ts
+import { logger } from '@rsbuild/core';
+
+logger.info('Hello from global logger');
+```
+
+- If the log level of the global logger is changed, Rsbuild instances created afterward inherit the updated log level.
+
+## Logger methods
+
+All logger instances provide the same methods:
+
+```ts
+import { logger } from '@rsbuild/core';
+
+// A gradient welcome log
+logger.greet(`\n➜ Rsbuild v1.0.0\n`);
+
+// Info
+logger.info('This is an info message');
+
+// Start
+logger.start('This is a start message');
+
+// Warn
+logger.warn('This is a warning message');
+
+// Ready
+logger.ready('This is a ready message');
+
+// Success
+logger.success('This is a success message');
+
+// Error
+logger.error('This is an error message');
+logger.error(new Error('This is an error message with stack'));
+
+// Debug
+logger.debug('This is a debug message');
+
+// Same as console.log
+logger.log('This is a log message');
+```
+
+## Debug mode
+
+When [debug mode](/guide/debug/debug-mode) is enabled, Rsbuild automatically raises the log level to `verbose` to output more detailed logs for troubleshooting.

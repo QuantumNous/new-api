@@ -1,0 +1,51 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "@tailwindcss/oxide#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["./index.d.ts", "./index.js", "./*.node"],
+      "inputs": [
+        "./src/**/*",
+        "./build.rs",
+        "./package.json",
+        "./Cargo.toml",
+        "./.cargo/config.toml",
+        "../oxide/src/**/*",
+        "../oxide/Cargo.toml",
+        "../Cargo.toml",
+        "../package.json"
+      ]
+    },
+    "@tailwindcss/oxide#dev": {
+      "dependsOn": ["^dev"],
+      "outputs": ["./index.d.ts", "./index.js", "./*.node"],
+      "inputs": [
+        "./src/**/*",
+        "./build.rs",
+        "./package.json",
+        "./Cargo.toml",
+        "./.cargo/config.toml",
+        "../oxide/src/**/*",
+        "../oxide/Cargo.toml",
+        "../Cargo.toml",
+        "../package.json"
+      ],
+      "cache": false,
+      "persistent": true
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "env": ["FEATURES_ENV"]
+    },
+    "lint": {},
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  },
+  // If rustup is installed outside of the default ~/.rustup directory, we need
+  // to pass the path through to the individual rust tasks.
+  "globalPassThroughEnv": ["RUSTUP_HOME"]
+}

@@ -1,0 +1,87 @@
+---
+description: 'Use Tailwind CSS v4 in Rsbuild with the recommended @rsbuild/plugin-tailwindcss integration or the @tailwindcss/postcss plugin.'
+---
+
+# Tailwind CSS v4
+
+import { PackageManagerTabs } from '@theme';
+
+[Tailwind CSS](https://tailwindcss.com/) is a CSS framework and design system based on utility classes, which can quickly add common styles to components and supports flexible extension of theme styles.
+
+## Choosing Tailwind CSS version
+
+This document introduces the integration of Tailwind CSS v4.
+
+Please note that Tailwind CSS v4 uses many modern CSS features, such as [Cascade Layers](https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Styling_basics/Cascade_layers), if your target browser does not support these features, please use Tailwind CSS v3 first, see [Using Tailwind CSS v3](/guide/styling/tailwindcss-v3) for more details.
+
+More information can be found in [Tailwind CSS - Compatibility](https://tailwindcss.com/docs/compatibility).
+
+## Integrating Tailwind CSS
+
+### Using the Rsbuild plugin
+
+We recommend using the [@rsbuild/plugin-tailwindcss](/plugins/list/plugin-tailwindcss) plugin to integrate Tailwind CSS in Rsbuild.
+
+The plugin is based on [@tailwindcss/webpack](https://www.npmjs.com/package/@tailwindcss/webpack) and does not need to run Tailwind CSS transforms through [@tailwindcss/postcss](https://www.npmjs.com/package/@tailwindcss/postcss), providing better build performance.
+
+Install `@rsbuild/plugin-tailwindcss` and `tailwindcss`:
+
+<PackageManagerTabs command="add @rsbuild/plugin-tailwindcss tailwindcss -D" />
+
+Register the plugin in the `rsbuild.config.ts` file:
+
+```ts title="rsbuild.config.ts"
+import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';
+
+export default {
+  plugins: [pluginTailwindcss()],
+};
+```
+
+> See [Tailwind CSS plugin documentation](/plugins/list/plugin-tailwindcss) for more details.
+
+### Using the PostCSS plugin
+
+Rsbuild has built-in support for PostCSS, so projects that already have a PostCSS setup can install `tailwindcss` and [@tailwindcss/postcss](https://www.npmjs.com/package/@tailwindcss/postcss) to integrate Tailwind CSS:
+
+<PackageManagerTabs command="add tailwindcss @tailwindcss/postcss -D" />
+
+You can register the Tailwind CSS PostCSS plugin through a [PostCSS configuration file](https://github.com/webpack/postcss-loader#config) or [tools.postcss](/config/tools/postcss).
+
+```js title="postcss.config.mjs"
+export default {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+};
+```
+
+## Importing CSS
+
+Add an `@import` to your CSS entry file that imports Tailwind CSS.
+
+```css title="src/index.css"
+@import 'tailwindcss';
+```
+
+:::tip
+Tailwind CSS v4 cannot be used with CSS preprocessors like Sass, Less, or Stylus. You need to place the `@import 'tailwindcss';` statement at the beginning of your `.css` file, see [Tailwind CSS - Compatibility](https://tailwindcss.com/docs/compatibility#sass-less-and-stylus) for more details.
+:::
+
+## Done
+
+You have now completed all the steps to integrate Tailwind CSS in Rsbuild!
+
+You can use Tailwind's utility classes in any component or HTML, such as:
+
+```html
+<h1 class="text-3xl font-bold underline">Hello world!</h1>
+```
+
+For more usage details, refer to the [Tailwind CSS documentation](https://tailwindcss.com/).
+
+## VS Code extension
+
+Tailwind CSS provides a [Tailwind CSS IntelliSense](https://github.com/tailwindlabs/tailwindcss-intellisense) plugin for VS Code to automatically complete Tailwind CSS class names, CSS functions, and directives.
+
+You can install this plugin in VS Code to enable the autocompletion feature.

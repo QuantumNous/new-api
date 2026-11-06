@@ -1,0 +1,10 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/rush-plugin-manifest.schema.json",
+  "plugins": [
+    {
+      "pluginName": "rush-upgrade-self-plugin",
+      "description": "Rush plugin for upgrade Rush itself",
+      "commandLineJsonFilePath": "command-line.json"
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "type": {
+    "key": "type",
+    "oneDesc": "图表类型"
+  },
+  "series": {
+    "key": "series",
+    "oneDesc": "series(系列)是描述数据在图表中呈现方式的基本概念。每个series由图元组成，如线系列由点和线构成，柱系列由矩形构成。图表中可包含多个 series，每个 series 支持各种可视化映射,如位置，颜色，大小等。例如，气泡图用点的大小表示数值，用颜色表示分类"
+  },
+  "axes": {
+    "key": "axes",
+    "oneDesc": "所有轴，坐标轴相关配置;在直角坐标系下由x轴、y轴组成；在极坐标系下由角度轴和半径轴组成；坐标轴也会影响布局留白"
+  },
+  "crosshair": {
+    "key": "crosshair",
+    "oneDesc": "crosshair，十字准星，游标，对应于echarts中的坐标轴指示器，是一种交互组件，一般用于展示图表中某个数据点的具体数值，以便用户可以更直观地了解数据的分布情况"
+  },
+  "data": {
+    "key": "data",
+    "oneDesc": "图表所用数据，数据顺序会直接影响图元/数据轴/图例/tooltip中的顺序"
+  },
+  "width": {
+    "key": "width",
+    "oneDesc": "图表的整体宽度"
+  },
+  "height": {
+    "key": "height",
+    "oneDesc": "图表的整体高度"
+  },
+  "autoFit": {
+    "key": "autoFit",
+    "oneDesc": "图表宽高是否自适应容器,默认适应"
+  },
+  "color": {
+    "key": "color",
+    "oneDesc": "色系配置，色盘配置，图表色系配置，图表公共的颜色视觉通道刻度设置，用于设置图表默认的颜色刻度，支持回调函数配置单个系列的颜色情况"
+  },
+  "seriesStyle": {
+    "key": "seriesStyle",
+    "oneDesc": "各个系列样式，仅在图表配置了seriesField时生效，可以为特定数据组（分组字段 seriesField 的数值）的图形进行统一的样式配置"
+  },
+  "animationThreshold": {
+    "key": "animationThreshold",
+    "oneDesc": "自动关闭动画的阀值，当单系列data的长度小于这个阈值，才能使用动画，否则会自动关闭动画，防止图表卡顿"
+  },
+  "hover": {
+    "key": "hover",
+    "oneDesc": "仅用于开启是否触发/怎么触发hover状态,默认开启.具体交互后对应的样式配置在图元中进行配置"
+  },
+  "select": {
+    "key": "select",
+    "oneDesc": "仅用于开启是否触发/怎么触发选中状态,默认开启"
+  },
+  "region": {
+    "key": "region",
+    "oneDesc": "图表区域，是一个矩形的区域；在直角坐标系中相当于x轴、y轴组成的区间"
+  },
+  "title": {
+    "key": "title",
+    "oneDesc": "图表标题配置，包括主标题和副标题"
+  },
+  "layout": {
+    "key": "layout",
+    "oneDesc": "图表布局，图表布局配置，整体布局配置，用于控制图表的布局方式，包括默认的占位布局以及网格grid布局"
+  },
+  "legends": {
+    "key": "legends",
+    "oneDesc": "图例，通过颜色、形状、大小来区分不同的数据分组，常用于图表中数据的筛选。同时图例的选中状态会影响对应系列图表的展示与否"
+  },
+  "tooltip": {
+    "key": "tooltip",
+    "oneDesc": "信息提示窗,浮层组件,浮窗信息,用以显示在图表不同系列图元上的对应的具体的数据信息"
+  },
+  "player": {
+    "key": "player",
+    "oneDesc": "播放器，播放条支持播放、暂停播放、前进、后退等基本功能，帮助用户动态地展示序列数据"
+  },
+  "dataZoom": {
+    "key": "dataZoom",
+    "oneDesc": "slider,数据筛选滑块，数据缩放组件，数据过滤器，用于区域缩放"
+  },
+  "scrollBar": {
+    "key": "scrollBar",
+    "oneDesc": "滚动条是交互组件，用于控制图表滚动，方便查看更多数据"
+  },
+  "brush": {
+    "key": "brush",
+    "oneDesc": "框选组件，刷选组件，区域内数据添加选中态而区域外自动取消选中，常用于数据筛选、数据对比等场景"
+  },
+  "scales": {
+    "key": "scales",
+    "oneDesc": "scale，比例尺，比例尺配置，用于控制图表的比例尺，这里的scale是所有系列公用的比例尺，其中color是一个特殊的比例尺，用于控制图表的颜色比例尺"
+  },
+  "customMark": {
+    "key": "customMark",
+    "oneDesc": "自定义图元，自定义mark，可以让用户在图表上添加自定义的标记，比如添加一些文本、图片、线段等"
+  },
+  "theme": {
+    "key": "theme",
+    "oneDesc": "主题，用于控制当前vchart下所有图表的整体样式，仅在明确指定设置主题样式或者所有图表样式时使用"
+  },
+  "background": {
+    "key": "background",
+    "oneDesc": "只能设置单个图表的的背景样式，支持背景色、渐变色、图片三种格式"
+  },
+  "stackInverse": {
+    "key": "stackInverse",
+    "oneDesc": "堆积时是否逆序"
+  },
+  "stackSort": {
+    "key": "stackSort",
+    "oneDesc": "堆积时是否排序"
+  },
+  "media": {
+    "key": "media",
+    "oneDesc": "媒体查询配置用于适配不同设备，控制图表在设备类型、屏幕尺寸和分辨率上的显示效果"
+  },
+  "state": {
+    "key": "state",
+    "oneDesc": "跟交互状态相关的配置，例如选中态/hover态/激活态等相关的内容"
+  }
+}

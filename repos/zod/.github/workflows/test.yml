@@ -1,0 +1,63 @@
+name: test
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - main
+      - v4
+
+permissions:
+  contents: read
+
+jobs:
+  test-node:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        node: ["lts/*"]
+        typescript: ["5.5", "latest"]
+    name: Test with TypeScript ${{ matrix.typescript }} on Node ${{ matrix.node }} (${{ matrix.os }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install
+      - run: pnpm add typescript@${{ matrix.typescript }} -w
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm run --filter @zod/resolution test:all
+      - run: pnpm run --filter @zod/integration test:all
+
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ["latest"]
+    name: Lint on Node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install
+      - run: pnpm format:check
+      - run: pnpm lint:check
+
+  check-circular:
+    runs-on: ubuntu-latest
+    name: Check for circular dependencies
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "latest"
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install
+      - run: pnpm check:circular

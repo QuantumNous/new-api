@@ -1,0 +1,140 @@
+# v1.0.0-beta.2
+
+<Subtitle>Jul 30, 2025</Subtitle>
+<Meta name="description" content="v1.0.0-beta.2 release notes. Jul 30, 2025." />
+
+## General changes
+
+- Fix navigator checks and ensure safe platform retrieval ([#2273](https://github.com/mui/base-ui/pull/2273))
+- Prevent <kbd>Space</kbd> key default on keydown ([#2295](https://github.com/mui/base-ui/pull/2295))
+- Check for `performance` existence on server ([#2316](https://github.com/mui/base-ui/pull/2316))
+
+## Accordion
+
+- Destructure `render` prop ([#2280](https://github.com/mui/base-ui/pull/2280))
+- Fix keyboard interactions with elements in the panel ([#2321](https://github.com/mui/base-ui/pull/2321))
+- Fix open transitions in Safari/Firefox ([#2327](https://github.com/mui/base-ui/pull/2327))
+
+## Alert Dialog
+
+- Support `ShadowRoot` containers ([#2236](https://github.com/mui/base-ui/pull/2236))
+- Add `forceRender` prop to `Backdrop` part ([#2037](https://github.com/mui/base-ui/pull/2037))
+- Improve outside press behavior with touch input ([#2334](https://github.com/mui/base-ui/pull/2334))
+
+## Checkbox
+
+- Fix focusing form controls with `inputRef` ([#2252](https://github.com/mui/base-ui/pull/2252))
+
+## Collapsible
+
+- Destructure render prop ([#2323](https://github.com/mui/base-ui/pull/2323))
+- Fix open transitions in Safari/Firefox ([#2327](https://github.com/mui/base-ui/pull/2327))
+
+## Dialog
+
+- Support `ShadowRoot` containers ([#2236](https://github.com/mui/base-ui/pull/2236))
+- Add `forceRender` prop to `Backdrop` part ([#2037](https://github.com/mui/base-ui/pull/2037))
+- Improve outside press behavior with touch input ([#2334](https://github.com/mui/base-ui/pull/2334))
+- Use `click` event for outside press dismissal ([#2275](https://github.com/mui/base-ui/pull/2275))
+
+## Field
+
+- Deregister fields from `Form` when unmounting ([#2231](https://github.com/mui/base-ui/pull/2231))
+
+## Form
+
+- Deregister fields from `Form` when unmounting ([#2231](https://github.com/mui/base-ui/pull/2231))
+
+## Menu
+
+- Support `ShadowRoot` containers ([#2236](https://github.com/mui/base-ui/pull/2236))
+- Avoid double `useRenderElement` passes ([#2256](https://github.com/mui/base-ui/pull/2256))
+- Improve outside press behavior with touch input ([#2334](https://github.com/mui/base-ui/pull/2334))
+- Close submenus when focus is lost by shift-tabbing ([#2290](https://github.com/mui/base-ui/pull/2290))
+
+## Menubar
+
+- Fix triggers role ([#2317](https://github.com/mui/base-ui/pull/2317))
+
+## Meter
+
+- Fix ARIA attributes and update docs ([#2267](https://github.com/mui/base-ui/pull/2267))
+
+## Navigation Menu
+
+- **Breaking change:** Support inlined nesting.
+  Ensure the popup's `width` is set to `var(--popup-width)` unconditionally (without the media query) on the `.Popup` class.
+  ([#2269](https://github.com/mui/base-ui/pull/2269))
+- Avoid double `useRenderElement` passes ([#2256](https://github.com/mui/base-ui/pull/2256))
+- Add `useButton` integration to `Trigger` ([#2296](https://github.com/mui/base-ui/pull/2296))
+- Fix popup size transitions on iOS ([#2387](https://github.com/mui/base-ui/pull/2387))
+
+## Number Field
+
+- Remove `invalid` prop ([#2315](https://github.com/mui/base-ui/pull/2315))
+- Fix button disabled state only including root disabled state ([#2268](https://github.com/mui/base-ui/pull/2268))
+
+## Popover
+
+- Support `ShadowRoot` containers ([#2236](https://github.com/mui/base-ui/pull/2236))
+- Remove ancestor nodes from inside elements for outside press detection ([#2339](https://github.com/mui/base-ui/pull/2339))
+- Improve outside press behavior with touch input ([#2334](https://github.com/mui/base-ui/pull/2334))
+- Use `click` event for outside press dismissal ([#2275](https://github.com/mui/base-ui/pull/2275))
+
+## Preview Card
+
+- Support `ShadowRoot` containers ([#2236](https://github.com/mui/base-ui/pull/2236))
+
+## Progress
+
+- Fix ARIA attributes and update docs ([#2267](https://github.com/mui/base-ui/pull/2267))
+
+## Radio Group
+
+- Add aria-required attribute ([#2227](https://github.com/mui/base-ui/pull/2227))
+- Extend state with `FieldRoot.State` ([#2251](https://github.com/mui/base-ui/pull/2251))
+- Fix focusing form controls with `inputRef` ([#2252](https://github.com/mui/base-ui/pull/2252))
+- Avoid double `useRenderElement` passes ([#2256](https://github.com/mui/base-ui/pull/2256))
+
+## Scroll Area
+
+- Disable `user-select` on scrollbar and non-main button interactions ([#2338](https://github.com/mui/base-ui/pull/2338))
+
+## Select
+
+- Support `ShadowRoot` containers ([#2236](https://github.com/mui/base-ui/pull/2236))
+- Add `value` and `readOnly` to `<Select.Trigger>` state ([#2237](https://github.com/mui/base-ui/pull/2237))
+- Add `multiple` prop ([#2173](https://github.com/mui/base-ui/pull/2173))
+- Allow typeahead while open for `multiple` mode ([#2274](https://github.com/mui/base-ui/pull/2274))
+- Ensure positionerElement is available in document mouseup ([#2276](https://github.com/mui/base-ui/pull/2276))
+- Fix `alignItemWithTrigger` fallback scroll jump ([#2241](https://github.com/mui/base-ui/pull/2241))
+- Support conditional `multiple` prop in types ([#2369](https://github.com/mui/base-ui/pull/2369))
+- Fix multiple ARIA behavior on touch ([#2333](https://github.com/mui/base-ui/pull/2333))
+- Improve outside press behavior with touch input ([#2334](https://github.com/mui/base-ui/pull/2334))
+
+## Slider
+
+- Fix focusing form controls with `inputRef` ([#2252](https://github.com/mui/base-ui/pull/2252))
+
+## Toast
+
+- Fix `promise` method timeout option handling ([#2294](https://github.com/mui/base-ui/pull/2294))
+- Make `<Toast.Viewport>` an announce container ([#2246](https://github.com/mui/base-ui/pull/2246))
+
+## Toggle
+
+- Avoid double `useRenderElement` passes ([#2256](https://github.com/mui/base-ui/pull/2256))
+
+## Toggle Group
+
+- Avoid double `useRenderElement` passes ([#2256](https://github.com/mui/base-ui/pull/2256))
+
+## Toolbar
+
+- Avoid double `useRenderElement` passes ([#2256](https://github.com/mui/base-ui/pull/2256))
+
+## Tooltip
+
+- Support `ShadowRoot` containers ([#2236](https://github.com/mui/base-ui/pull/2236))
+- Memoize leftover object in tooltip ([#2250](https://github.com/mui/base-ui/pull/2250))
+- Fix error when combining `defaultOpen` and `disabled` ([#2374](https://github.com/mui/base-ui/pull/2374))

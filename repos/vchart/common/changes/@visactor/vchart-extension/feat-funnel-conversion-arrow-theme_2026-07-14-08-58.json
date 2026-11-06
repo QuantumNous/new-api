@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "comment": "feat: conversion funnel arrow (line / symbol / text) styles now read from the series.funnel.conversionArrow theme token, so they can be styled at the theme level in addition to the spec",
+      "type": "minor",
+      "packageName": "@visactor/vchart-extension"
+    }
+  ],
+  "packageName": "@visactor/vchart-extension",
+  "email": "e@erlanzhou.com"
+}

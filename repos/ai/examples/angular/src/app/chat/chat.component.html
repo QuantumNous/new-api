@@ -1,0 +1,110 @@
+<div class="chat-container">
+  <div class="messages">
+    @for (message of chat.messages; track message.id) {
+      <div class="message" [ngClass]="message.role">
+        @for (part of message.parts; track $index) {
+          @if (part.type === 'text') {
+            <div style="white-space: pre-wrap">
+              {{ part.text }}
+              @if (part.state === 'streaming') {
+                <span class="typing-cursor">&#9646;</span>
+              }
+            </div>
+          } @else if (part.type === 'reasoning') {
+            <details>
+              <summary>Reasoning</summary>
+              <div style="white-space: pre-wrap; font-size: 90%; opacity: 80%">
+                <div>{{ part.text }}</div>
+              </div>
+            </details>
+          } @else if (part.type === 'file') {
+            <div class="file-part">
+              @if (part.mediaType.startsWith('image/')) {
+                <img
+                  class="file-image"
+                  [src]="part.url"
+                  [alt]="part.filename ?? 'image attachment'"
+                />
+              } @else {
+                <a
+                  class="file-link"
+                  [href]="part.url"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {{ part.filename ?? part.url }}
+                </a>
+              }
+              <div class="file-meta">{{ part.mediaType }}</div>
+            </div>
+          } @else if (part.type === 'source-url') {
+            <div class="source-part">
+              <a
+                class="source-link"
+                [href]="part.url"
+                target="_blank"
+                rel="noreferrer"
+              >
+                {{ part.title ?? part.url }}
+              </a>
+              <div class="source-meta">Source: {{ part.sourceId }}</div>
+            </div>
+          } @else if (part.type === 'source-document') {
+            <div class="source-part">
+              <div class="source-title">{{ part.title }}</div>
+              <div class="source-meta">
+                {{ part.filename ?? part.mediaType }}
+              </div>
+            </div>
+          } @else if (part.type === 'step-start') {
+            <!-- <div class="step-separator">Step</div> -->
+          } @else if (isToolPart(part)) {
+            <div class="tool-call">
+              <div class="tool-name">
+                Tool: {{ part.type.replace('tool-', '') }}
+              </div>
+              <div class="tool-status">Status: {{ part.state }}</div>
+              @if (part.input !== undefined) {
+                <pre class="tool-input">{{ part.input | json }}</pre>
+              }
+              @if (part.output !== undefined) {
+                <div class="tool-result-container">
+                  <div class="tool-result-title">Result</div>
+                  <pre class="tool-result">{{ part.output | json }}</pre>
+                </div>
+              }
+              @if (part.errorText) {
+                <div class="tool-error">{{ part.errorText }}</div>
+              }
+            </div>
+          } @else if (isDataPart(part)) {
+            <div class="data-part">
+              <div class="data-title">
+                Data: {{ part.type.replace('data-', '') }}
+              </div>
+              <pre class="data-body">{{ part.data | json }}</pre>
+            </div>
+          } @else {
+            <code>{{ part | json }}</code>
+          }
+        }
+      </div>
+    }
+    @if (this.chat.status === 'submitted') {
+      <div>
+        <em>Waiting...</em>
+      </div>
+    }
+  </div>
+
+  <form class="input-form" [formGroup]="chatForm" (ngSubmit)="sendMessage()">
+    <input formControlName="userInput" placeholder="Type your message..." />
+    @if (chat.status === 'ready') {
+      <button type="submit" [disabled]="!chatForm.valid">Send</button>
+    } @else {
+      <button [disabled]="chat.status === 'error'" (click)="chat.stop()">
+        Stop
+      </button>
+    }
+  </form>
+</div>

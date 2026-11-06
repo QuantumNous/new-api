@@ -1,0 +1,12 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <script>
+    const { pathname } = window.location;
+    const match = pathname.match('^/_/[^/]+');
+    const baseUrl = match ? `${match[0]}/` : '/';
+  </script>
+  <body></body>
+</html>

@@ -1,0 +1,101 @@
+@import 'docs/src/css/custom-media.css';
+
+@layer components {
+  .DescriptionList {
+    width: 100%;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    row-gap: var(--space-12);
+  }
+
+  .DescriptionListItem {
+    position: relative;
+
+    @media (--xs) {
+      display: grid;
+      grid-template-columns: subgrid;
+      grid-column: span 3;
+      align-items: start;
+    }
+  }
+
+  .DescriptionTerm {
+    font-size: var(--font-size-14);
+    line-height: 1.25rem;
+    font-weight: var(--font-weight-700);
+    color: var(--color-foreground);
+    white-space: nowrap;
+    word-break: keep-all;
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--space-4);
+
+    @media (--xs) {
+      font-weight: revert-layer;
+      color: revert-layer;
+      margin-bottom: 0;
+    }
+
+    &.separator {
+      &::before {
+        content: '';
+        box-shadow: inset 0 1px 0 0 var(--color-border);
+        position: absolute;
+        top: 0;
+        inset-inline: 0.75rem 1rem;
+        height: 1px;
+      }
+
+      @media (--xs) {
+        &::before {
+          height: 0;
+        }
+      }
+    }
+  }
+
+  .DescriptionListDetails {
+    font-size: var(--font-size-14);
+    line-height: 1.25rem;
+
+    color: var(--color-foreground);
+    grid-column: span 2;
+
+    & p {
+      margin: 0 !important;
+    }
+  }
+
+  .DescriptionListInner {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: start;
+    padding-inline: 0.75rem;
+    width: 100%;
+    gap: var(--space-12);
+
+    .CodeBlockRoot {
+      margin: 0;
+      max-width: 100%;
+    }
+
+    & > p:last-of-type {
+      margin-bottom: 0;
+    }
+
+    .separator & {
+      padding-top: var(--space-8);
+    }
+
+    @media (--xs) {
+      min-height: 2.5rem;
+
+      &,
+      .separator & {
+        padding: 0.625rem 0.75rem;
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@example/hono",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@ai-sdk/openai": "workspace:*",
+    "@hono/node-server": "1.19.13",
+    "ai": "workspace:*",
+    "dotenv": "16.4.5",
+    "hono": "4.12.25"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "dev:streaming": "tsx watch src/hono-streaming.ts",
+    "curl": "curl -i -X POST http://localhost:8080/text",
+    "type-check": "tsc --build"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "tsx": "4.19.2",
+    "typescript": "5.8.3"
+  }
+}

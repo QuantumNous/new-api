@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "lib": ["es6", "dom"],
+    "outDir": "dist",
+    "sourceMap": false,
+    "allowJs": false,
+    "jsx": "react",
+    "declaration": true,
+    "moduleResolution": "node",
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noImplicitAny": true,
+    "allowSyntheticDefaultImports": true,
+    "strictNullChecks": true,
+    "suppressImplicitAnyIndexErrors": true,
+    "ignoreDeprecations": "5.0",
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "exclude": ["node_modules", "rollup.config.js"],
+  "references": [
+    {
+      "path": "../vchart"
+    },
+    {
+      "path": "../vchart-extension"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "menu": "api",
+  "children": [
+    {
+      "path": "API",
+      "title": {
+        "zh": "api",
+        "en": "api"
+      },
+      "children": [
+        {
+          "path": "vchart",
+          "title": {
+            "zh": "VChart",
+            "en": "VChart"
+          }
+        },
+        {
+          "path": "event",
+          "title": {
+            "zh": "事件",
+            "en": "Event"
+          }
+        },
+        {
+          "path": "theme",
+          "title": {
+            "zh": "主题",
+            "en": "Theme"
+          }
+        },
+        {
+          "path": "function",
+          "title": {
+            "zh": "函数",
+            "en": "Function"
+          }
+        }
+      ]
+    }
+  ]
+}

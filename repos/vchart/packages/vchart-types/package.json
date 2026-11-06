@@ -1,0 +1,29 @@
+{
+  "name": "@visactor/vchart-types",
+  "version": "2.1.3",
+  "description": "Provide the type declarations of VChart.",
+  "sideEffects": false,
+  "main": "types/index.d.ts",
+  "dependencies": {},
+  "devDependencies": {
+    "@internal/eslint-config": "workspace:*",
+    "@rushstack/eslint-patch": "~1.1.4",
+    "@internal/ts-config": "workspace:*"
+  },
+  "homepage": "",
+  "bugs": "https://github.com/VisActor/VChart/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VisActor/VChart",
+    "directory": "packages/vchart-types"
+  },
+  "author": {
+    "name": "VisActor",
+    "url": "https://www.visactor.io/"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@examples/vue",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "rsbuild --open",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview"
+  },
+  "dependencies": {
+    "vue": "catalog:"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "workspace:*",
+    "@rsbuild/plugin-vue": "workspace:*"
+  }
+}

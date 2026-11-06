@@ -1,0 +1,112 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  color: var(--color-gray-900);
+}
+
+.Header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.Title {
+  margin: 0;
+  font-size: 1.75rem;
+  line-height: 2.25rem;
+  font-weight: 600;
+}
+
+.Description {
+  margin: 0;
+  max-width: 34rem;
+  color: var(--color-gray-600);
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
+}
+
+.ExampleList {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.Example {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.ExampleTitle {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+}
+
+.ExampleDescription {
+  margin: 0.25rem 0 0;
+  color: var(--color-gray-600);
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+}
+
+.SplitFooterScroll {
+  /*
+   * The pinned footer already reserves its own height via `.FooterSlot`
+   * (`min-height: var(--footer-reserved-height)`), so the scroll body only needs
+   * `scroll-padding-bottom` to keep keyboard scroll-into-view clear of it — not an
+   * extra `padding-bottom`, which would reserve the footer height a second time.
+   */
+  scroll-padding-bottom: var(--footer-reserved-height);
+}
+
+.ScrollablePopupViewport::after {
+  display: none;
+}
+
+/*
+ * Short, plain bottom sheet. The popup stays a flex column frame (`overflow:
+ * visible; touch-action: none` from the base demo) and the single
+ * `Drawer.Content` child is the scroll container, exactly like the other
+ * bottom-sheet demos. Sized with `width: 100%` against the fixed viewport
+ * instead of `100vw`, which on iOS is the layout-viewport width and overflows
+ * the visible area.
+ */
+.ScrollablePopup.ScrollablePopup {
+  --bleed: 0px;
+  width: 100%;
+  /*
+   * The sheet is bottom-anchored, so the software keyboard covers its lower
+   * `--drawer-keyboard-inset` pixels. Grow the height by that inset so the area that
+   * stays visible above the keyboard remains ~24rem instead of collapsing to a sliver.
+   * `max-height` still caps it to the layout viewport on short screens.
+   */
+  height: calc(24rem + var(--drawer-keyboard-inset, 0px));
+  max-width: 28rem;
+  max-height: calc(100% - 2rem);
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.ScrollablePopupTitle {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 700;
+}
+
+@media (max-width: 36rem) {
+  .Example {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+}

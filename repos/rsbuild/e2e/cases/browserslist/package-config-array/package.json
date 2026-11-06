@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "browserslist": "Chrome >= 40, Edge >= 79"
+}

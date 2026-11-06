@@ -1,0 +1,4 @@
+{"contentBlockStart":{"contentBlockIndex":0,"start":{"toolUse":{"toolUseId":"json-tool-id","name":"json"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"toolUse":{"input":"{\"value\":\"test\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":0}}
+{"messageStop":{"stopReason":"tool_use"}}

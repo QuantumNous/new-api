@@ -1,0 +1,248 @@
+---
+description: 'This section explains how to deploy Rsbuild projects to static hosting and runtime platforms.'
+---
+
+# Deployment
+
+This section explains how to deploy Rsbuild projects to static hosting and runtime platforms.
+
+## Background information
+
+Before starting the deployment, you should understand the following:
+
+- The CLI commands used for building and previewing outputs.
+- The directory structure of the build outputs.
+- The URL prefix of static assets.
+
+### Build commands
+
+The build commands provided by Rsbuild are:
+
+- [build command](/guide/basic/cli#rsbuild-build), used to generate the build outputs for production deployment.
+- [preview command](/guide/basic/cli#rsbuild-preview), used to preview the production build outputs locally. Note that you must first execute the `rsbuild build` command to generate the build outputs.
+
+```json title="package.json"
+{
+  "scripts": {
+    "build": "rsbuild build",
+    "preview": "rsbuild preview"
+  }
+}
+```
+
+:::tip
+The preview command is only used for local preview. Do not use it for production servers, as it is not designed for that.
+:::
+
+### Output directory
+
+Rsbuild's build outputs typically include HTML, JS, CSS, and other assets, and are output to the `dist` directory by default. You can change the name and structure of the dist directory with configuration options. See the [Output Files](/guide/basic/output-files) section for more information.
+
+```bash
+dist
+├── static
+│   ├── image
+│   ├── css
+│   └── js
+└── [name].html
+```
+
+### Asset prefix
+
+We can divide the build output into two parts: **HTML files** and **static assets**:
+
+- HTML files refer to files with the `.html` suffix in the output directory, which usually need to be deployed on the server.
+- Static assets are located in the `static` directory of the output folder, which contains assets such as JavaScript, CSS, and images. They can be deployed either on the server or on a CDN.
+
+If you deploy static assets to a subdirectory on the server, set [output.assetPrefix](/config/output/asset-prefix) as the base path:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  output: {
+    assetPrefix: '/some-base-folder/',
+  },
+});
+```
+
+If you prefer to serve static assets from a CDN for better performance instead of alongside the HTML on your server, set [output.assetPrefix](/config/output/asset-prefix) to the CDN address so the application can reference the assets correctly.
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  output: {
+    assetPrefix: 'https://cdn.com/path/',
+  },
+});
+```
+
+With this configuration, when referencing static assets in HTML, the specified prefix will be automatically added. For example:
+
+```html
+<script src="https://cdn.com/path/static/js/index.some-hash.js"></script>
+```
+
+## Deployment platforms
+
+The following sections describe how to deploy on several common platforms.
+
+> Platform names are listed in alphabetical order.
+
+### Cloudflare
+
+Cloudflare provides several ways to deploy Rsbuild projects. Use Cloudflare Pages when you only need static hosting for the generated output. Use Cloudflare Workers when your application needs to run in the Workers runtime.
+
+#### Cloudflare Pages
+
+[Cloudflare Pages](https://developers.cloudflare.com/pages/) is a static site hosting platform provided by Cloudflare.
+
+You can follow the [Cloudflare Pages - Git integration guide](https://developers.cloudflare.com/pages/get-started/git-integration/) to integrate with Git and deploy your site to Cloudflare Pages.
+
+When configuring, complete the following fields under "Build settings":
+
+- **Build command**: fill in the project's build command, typically `npm run build`.
+- **Build output directory**: fill in the project's output directory, which defaults to `dist`.
+
+Then click the **Save and Deploy** button to start the deployment.
+
+#### Cloudflare workers
+
+Cloudflare Workers is a runtime deployment target rather than static hosting. For Rsbuild projects that need to run in the Cloudflare Workers runtime, [rsbuild-cloudflare](https://github.com/Nsttt/rsbuild-cloudflare) is an experimental plugin that reads Wrangler configuration, serves development requests through Miniflare, and emits deployable Worker output.
+
+### GitHub pages
+
+[GitHub Pages](https://pages.github.com/) is a static site hosting service that takes HTML, CSS, and JavaScript files straight from a repository on GitHub.
+
+The following are step-by-step instructions for deploying to GitHub Pages.
+
+1. Configure the URL prefix for static assets using [output.assetPrefix](/config/output/asset-prefix).
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  output: {
+    // Please replace <REPO_NAME> with the repository name.
+    // For example, "/my-project/"
+    assetPrefix: '/<REPO_NAME>/',
+  },
+});
+```
+
+2. Open the "Settings" page of your GitHub repository, click "Pages" in the left menu to access the GitHub Pages configuration page.
+3. Select "Source" → "GitHub Actions" and click "create your own" to create a GitHub Action configuration file.
+4. Paste the following content into the editor and name the file `github-pages.yml` (you can adjust the content and filename as needed).
+
+```yaml title="github-pages.yml"
+# Sample workflow for building and deploying a Rsbuild site to GitHub Pages
+name: Rsbuild Deployment
+
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ['main']
+  # Allows you to run this workflow manually from the actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # If you use other package managers like yarn or pnpm,
+      # you will need to install them first
+      - name: Install dependencies
+        run: npm i
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+```
+
+5. Commit and wait for GitHub Actions to execute. Once complete, you can visit `https://<USERNAME>.github.io/<REPO_NAME>/` to view the deployed page.
+
+### Netlify
+
+[Netlify Core](https://netlify.com/) is a frontend cloud solution for developers to build and deploy future-proof digital solutions with modern, composable tooling.
+
+#### Add new site
+
+Netlify provides a detailed guide. You can follow the instructions in [Netlify - Add new site](https://docs.netlify.com/welcome/add-new-site/), configure the basic settings, and start the deployment.
+
+You need to configure the following fields:
+
+- **Build command**: fill in the project's build command, typically `npm run build`.
+- **Publish directory**: fill in the project's output directory, which defaults to `dist`.
+
+Then click the **Deploy site** button to start the deployment.
+
+#### Custom domains
+
+If you want to make your sites accessible at custom domain names, you can configure this in Netlify's "Domain management" section.
+
+> Detailed guide: [Netlify - Custom domains](https://docs.netlify.com/domains-https/custom-domains/).
+
+### Vercel
+
+[Vercel](https://vercel.com/) is a platform for developers that provides the tools, workflows, and infrastructure you need to build and deploy your web apps faster, without the need for additional configuration.
+
+#### Add new site
+
+Vercel provides a detailed guide. You can follow [Vercel - Projects](https://vercel.com/docs/projects/overview) to create a project in your dashboard, configure the basic settings, and start the deployment.
+
+Only the following fields under "Build and Output Settings" need to be configured:
+
+- **Output directory**: fill in the project's output directory, which defaults to `dist`.
+
+Then click the **Deploy** button to start the deployment.
+
+#### Configure domains
+
+If you want to make your sites accessible at custom domain names, you can configure this in Vercel's "Domains" section.
+
+> Detailed guide: [Vercel - Domains](https://vercel.com/docs/projects/domains).
+
+### Zephyr Cloud
+
+[Zephyr Cloud](https://zephyr-cloud.io) is a zero-config deployment platform that integrates directly into your build process and provides global edge distribution for federated applications.
+
+#### How to deploy
+
+Follow the steps in [zephyr-rsbuild-plugin](https://www.npmjs.com/package/zephyr-rsbuild-plugin).
+
+During the build process, your application will be automatically deployed and you'll receive a deployment URL. Zephyr Cloud handles asset optimization, global CDN distribution, module federation setup, and provides automatic rollback capabilities.
+
+Start for free today at [zephyr-cloud.io](https://zephyr-cloud.io).

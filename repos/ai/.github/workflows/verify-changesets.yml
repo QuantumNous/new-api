@@ -1,0 +1,56 @@
+# vercel/ai uses https://github.com/changesets/changesets for versioning and changelogs,
+# but is not following semantic versioning. Instead, it uses `patch` for both fixes
+# and features. It uses `minor` for "marketing releases", accompanied by a blog post and migration guide.
+# This workflow verifies that all `.changeset/*.md` files use `patch` unless a `minor` or `major` label is present.
+# It also verifies that code changes in public `packages/*` packages are covered by changeset entries.
+name: Verify Changesets
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches:
+      - main
+    paths:
+      - '.changeset/*.md'
+      - 'packages/**'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-changesets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: .github/workflows/actions/verify-changesets/package.json
+      - name: get all changed files
+        id: changed-files
+        run: |
+          if git rev-parse HEAD^2 >/dev/null 2>&1; then
+            DIFF_BASE="$(git rev-parse HEAD^1)"
+          else
+            DIFF_BASE="$BASE_SHA"
+          fi
+
+          changeset_files="$(git diff --diff-filter=dr --name-only "$DIFF_BASE" HEAD -- '.changeset/*.md' | tr '\n' ' ')"
+          package_files="$(git diff --name-only "$DIFF_BASE" HEAD -- 'packages/**' | tr '\n' ' ')"
+
+          echo "changeset-files=$changeset_files" >> $GITHUB_OUTPUT
+          echo "package-files=$package_files" >> $GITHUB_OUTPUT
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      - name: Verify changesets
+        if: steps.changed-files.outputs.changeset-files != '' || steps.changed-files.outputs.package-files != ''
+        working-directory: .github/workflows/actions/verify-changesets
+        run: |
+          node index.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGED_FILES: ${{ steps.changed-files.outputs.changeset-files }}
+          CHANGED_PACKAGE_FILES: ${{ steps.changed-files.outputs.package-files }}

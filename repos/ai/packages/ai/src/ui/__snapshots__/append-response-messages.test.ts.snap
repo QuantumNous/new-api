@@ -1,0 +1,416 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`appendResponseMessages > after assistant message > adds assistant text response 1`] = `
+[
+  {
+    "id": "1",
+    "parts": [
+      {
+        "text": "User wants a tool invocation",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "id": "2",
+    "parts": [
+      {
+        "toolInvocation": {
+          "input": {
+            "query": "some query",
+          },
+          "result": {
+            "answer": "Tool result data",
+          },
+          "state": "result",
+          "step": 0,
+          "toolCallId": "call-1",
+          "toolName": "some-tool",
+        },
+        "type": "tool-invocation",
+      },
+      {
+        "type": "step-start",
+      },
+      {
+        "text": "This is a response from the assistant.",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`appendResponseMessages > after assistant message > adds assistant tool call response 1`] = `
+[
+  {
+    "id": "1",
+    "parts": [
+      {
+        "text": "User wants a tool invocation",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "id": "2",
+    "parts": [
+      {
+        "toolInvocation": {
+          "input": {
+            "query": "some query",
+          },
+          "result": {
+            "answer": "Tool result data",
+          },
+          "state": "result",
+          "step": 0,
+          "toolCallId": "call-1",
+          "toolName": "some-tool",
+        },
+        "type": "tool-invocation",
+      },
+      {
+        "type": "step-start",
+      },
+      {
+        "toolInvocation": {
+          "input": {
+            "query": "another query",
+          },
+          "state": "call",
+          "step": 1,
+          "toolCallId": "call-2",
+          "toolName": "some-tool",
+        },
+        "type": "tool-invocation",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`appendResponseMessages > after assistant message > adds tool results to the previously invoked tool calls 1`] = `
+[
+  {
+    "id": "1",
+    "parts": [
+      {
+        "text": "User wants a tool invocation",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "id": "2",
+    "parts": [
+      {
+        "toolInvocation": {
+          "input": {
+            "query": "some query",
+          },
+          "result": {
+            "answer": "Tool result data",
+          },
+          "state": "result",
+          "step": 0,
+          "toolCallId": "call-1",
+          "toolName": "some-tool",
+        },
+        "type": "tool-invocation",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`appendResponseMessages > after assistant message > appends assistant messages with mixed complex reasoning and text 1`] = `
+[
+  {
+    "id": "1",
+    "parts": [
+      {
+        "text": "User wants a tool invocation",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "id": "2",
+    "parts": [
+      {
+        "text": "Placeholder text",
+        "type": "text",
+      },
+      {
+        "toolInvocation": {
+          "input": {
+            "query": "some query",
+          },
+          "result": {
+            "answer": "Tool result data",
+          },
+          "state": "result",
+          "step": 0,
+          "toolCallId": "call-1",
+          "toolName": "some-tool",
+        },
+        "type": "tool-invocation",
+      },
+      {
+        "type": "step-start",
+      },
+      {
+        "providerMetadata": {
+          "testProvider": {
+            "signature": "sig-1",
+          },
+        },
+        "text": "reasoning part",
+        "type": "reasoning",
+      },
+      {
+        "text": "text response",
+        "type": "text",
+      },
+      {
+        "providerMetadata": {
+          "testProvider": {
+            "signature": "sig-2",
+          },
+        },
+        "text": "reasoning part 2",
+        "type": "reasoning",
+      },
+      {
+        "text": "text response 2",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`appendResponseMessages > after user message > adds chain of assistant messages and tool results 1`] = `
+[
+  {
+    "id": "1",
+    "parts": [
+      {
+        "text": "User wants a tool invocation",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "id": "2",
+    "metadata": undefined,
+    "parts": [
+      {
+        "type": "step-start",
+      },
+      {
+        "toolInvocation": {
+          "input": {
+            "query": "some query",
+          },
+          "result": {
+            "answer": "Tool result data",
+          },
+          "state": "result",
+          "step": 0,
+          "toolCallId": "call-1",
+          "toolName": "some-tool",
+        },
+        "type": "tool-invocation",
+      },
+      {
+        "type": "step-start",
+      },
+      {
+        "toolInvocation": {
+          "input": {
+            "query": "another query",
+          },
+          "result": {
+            "answer": "another result",
+          },
+          "state": "result",
+          "step": 1,
+          "toolCallId": "call-2",
+          "toolName": "some-tool",
+        },
+        "type": "tool-invocation",
+      },
+      {
+        "type": "step-start",
+      },
+      {
+        "text": "response",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`appendResponseMessages > after user message > appends assistant messages with generated files 1`] = `
+[
+  {
+    "id": "1",
+    "parts": [
+      {
+        "text": "Generate an image of a cat",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "id": "123",
+    "metadata": undefined,
+    "parts": [
+      {
+        "type": "step-start",
+      },
+      {
+        "mediaType": "image/png",
+        "type": "file",
+        "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`appendResponseMessages > after user message > appends assistant messages with mixed complex reasoning and text 1`] = `
+[
+  {
+    "id": "1",
+    "parts": [
+      {
+        "text": "Hello!",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "id": "123",
+    "metadata": undefined,
+    "parts": [
+      {
+        "type": "step-start",
+      },
+      {
+        "providerMetadata": {
+          "testProvider": {
+            "isRedacted": true,
+          },
+        },
+        "text": "reasoning partredacted part",
+        "type": "reasoning",
+      },
+      {
+        "text": "text response",
+        "type": "text",
+      },
+      {
+        "providerMetadata": {
+          "testProvider": {
+            "signature": "sig-2",
+          },
+        },
+        "text": "reasoning part 2",
+        "type": "reasoning",
+      },
+      {
+        "text": "text response 2",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`appendResponseMessages > after user message > appends assistant messages with text content 1`] = `
+[
+  {
+    "id": "1",
+    "parts": [
+      {
+        "text": "Hello!",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "id": "123",
+    "metadata": undefined,
+    "parts": [
+      {
+        "type": "step-start",
+      },
+      {
+        "text": "This is a response from the assistant.",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`appendResponseMessages > after user message > handles tool calls and marks them as "call" initially 1`] = `
+[
+  {
+    "id": "1",
+    "parts": [
+      {
+        "text": "User wants a tool invocation",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "id": "123",
+    "metadata": undefined,
+    "parts": [
+      {
+        "type": "step-start",
+      },
+      {
+        "text": "Processing tool call...",
+        "type": "text",
+      },
+      {
+        "toolInvocation": {
+          "input": {
+            "query": "some query",
+          },
+          "state": "call",
+          "step": 0,
+          "toolCallId": "call-1",
+          "toolName": "some-tool",
+        },
+        "type": "tool-invocation",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;

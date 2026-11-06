@@ -1,0 +1,155 @@
+---
+title: Braintrust
+description: Monitoring and tracing LLM applications with Braintrust
+---
+
+# Braintrust Observability
+
+Braintrust is an end-to-end platform for building AI applications. When building with the AI SDK, you can integrate Braintrust to [log](https://www.braintrust.dev/docs/guides/logging), monitor, and take action on real-world interactions.
+
+## Setup
+
+Braintrust natively supports OpenTelemetry and works out of the box with the AI SDK, either via Next.js or Node.js.
+
+### Next.js
+
+If you are using Next.js, use the Braintrust exporter with `@vercel/otel`:
+
+```typescript filename="instrumentation"
+import { registerTelemetry } from 'ai';
+import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+import { registerOTel } from '@vercel/otel';
+import { BraintrustExporter } from 'braintrust';
+
+registerTelemetry(new LegacyOpenTelemetry());
+
+export function register() {
+  registerOTel({
+    serviceName: 'my-braintrust-app',
+    traceExporter: new BraintrustExporter({
+      parent: 'project_name:your-project-name',
+      filterAISpans: true, // Only send AI-related spans
+    }),
+  });
+}
+```
+
+Traced LLM calls will appear under the Braintrust project or experiment provided in the `parent` field.
+
+Once the integration is registered, telemetry is captured automatically. You can pass additional metadata via the `context` option:
+
+```typescript
+import { generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+const result = await generateText({
+  model: openai('gpt-4o-mini'),
+  prompt: 'What is 2 + 2?',
+  context: {
+    query: 'weather',
+    location: 'San Francisco',
+  },
+});
+```
+
+<Note>
+The integration supports streaming functions like `streamText`. Each streamed call will produce `ai.streamText` spans in Braintrust.
+
+```typescript
+import { openai } from '@ai-sdk/openai';
+import { streamText } from 'ai';
+
+export async function POST(req: Request) {
+  const { prompt } = await req.json();
+
+  const result = await streamText({
+    model: openai('gpt-4o-mini'),
+    prompt,
+  });
+
+  return result.toDataStreamResponse();
+}
+```
+
+</Note>
+
+### Node.js
+
+If you are using Node.js without a framework, you must configure the `NodeSDK` directly. In this case, it's more straightforward to use the `BraintrustSpanProcessor`.
+
+First, install the necessary dependencies:
+
+```bash
+npm install ai @ai-sdk/openai @ai-sdk/otel braintrust @opentelemetry/sdk-node @opentelemetry/sdk-trace-base zod
+```
+
+Then, set up the OpenTelemetry SDK:
+
+```typescript
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { registerTelemetry, generateText, tool, isStepCount } from 'ai';
+import { LegacyOpenTelemetry } from '@ai-sdk/otel';
+import { openai } from '@ai-sdk/openai';
+import { z } from 'zod';
+import { BraintrustSpanProcessor } from 'braintrust';
+
+const sdk = new NodeSDK({
+  spanProcessors: [
+    new BraintrustSpanProcessor({
+      parent: 'project_name:your-project-name',
+      filterAISpans: true,
+    }),
+  ],
+});
+
+sdk.start();
+registerTelemetry(new LegacyOpenTelemetry());
+
+async function main() {
+  const result = await generateText({
+    model: openai('gpt-4o-mini'),
+    messages: [
+      {
+        role: 'user',
+        content: 'What are my orders and where are they? My user ID is 123',
+      },
+    ],
+    tools: {
+      listOrders: tool({
+        description: 'list all orders',
+        parameters: z.object({ userId: z.string() }),
+        execute: async ({ userId }) =>
+          `User ${userId} has the following orders: 1`,
+      }),
+      viewTrackingInformation: tool({
+        description: 'view tracking information for a specific order',
+        parameters: z.object({ orderId: z.string() }),
+        execute: async ({ orderId }) =>
+          `Here is the tracking information for ${orderId}`,
+      }),
+    },
+    context: {
+      something: 'custom',
+      someOtherThing: 'other-value',
+    },
+    telemetry: {
+      functionId: 'my-awesome-function',
+    },
+    stopWhen: isStepCount(10),
+  });
+
+  await sdk.shutdown();
+}
+
+main().catch(console.error);
+```
+
+## Resources
+
+To see a step-by-step example, check out the Braintrust [cookbook](https://www.braintrust.dev/docs/cookbook/recipes/OTEL-logging).
+
+After you log your application in Braintrust, explore other workflows like:
+
+- Adding [tools](https://www.braintrust.dev/docs/guides/functions/tools) to your library and using them in [experiments](https://www.braintrust.dev/docs/guides/evals) and the [playground](https://www.braintrust.dev/docs/guides/playground)
+- Creating [custom scorers](https://www.braintrust.dev/docs/guides/functions/scorers) to assess the quality of your LLM calls
+- Adding your logs to a [dataset](https://www.braintrust.dev/docs/guides/datasets) and running evaluations comparing models and prompts

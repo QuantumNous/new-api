@@ -1,0 +1,40 @@
+{
+  "name": "@example/angular",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "concurrently 'ng serve --proxy-config proxy.conf.json' 'tsx src/server.ts'",
+    "build:app": "ng build --conditions browser",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build": "pnpm run build:app && pnpm run build:server",
+    "watch": "ng build --watch --configuration development",
+    "clean": "del-cli dist *.tsbuildinfo"
+  },
+  "private": true,
+  "dependencies": {
+    "@ai-sdk/angular": "workspace:*",
+    "@ai-sdk/openai": "workspace:*",
+    "@angular/common": "^20.3.25",
+    "@angular/compiler": "^20.3.25",
+    "@angular/core": "^20.3.25",
+    "@angular/forms": "^20.3.25",
+    "@angular/platform-browser": "^20.3.25",
+    "@angular/platform-browser-dynamic": "^20.3.25",
+    "@angular/router": "^20.3.25",
+    "ai": "workspace:*",
+    "dotenv": "16.4.5",
+    "express": "5.0.1",
+    "tslib": "^2.8.1",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^20.3.26",
+    "@angular/cli": "^20.3.28",
+    "@angular/compiler-cli": "^20.3.25",
+    "@types/express": "5.0.0",
+    "@types/node": "22.19.19",
+    "concurrently": "^9.2.1",
+    "tsx": "4.19.2",
+    "typescript": "5.8.3"
+  }
+}

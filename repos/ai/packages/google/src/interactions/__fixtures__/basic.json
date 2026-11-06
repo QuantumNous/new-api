@@ -1,0 +1,38 @@
+{
+  "id": "v1_ChdTbXNIYXFyUEV0ZUttdGtQNXVqVHdRRRIXU21zSGFxclBFdGVLbXRrUDV1alR3UUU",
+  "status": "completed",
+  "usage": {
+    "total_tokens": 58,
+    "total_input_tokens": 7,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 7
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 19,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 32
+  },
+  "created": "2026-05-15T18:51:55Z",
+  "updated": "2026-05-15T18:51:55Z",
+  "service_tier": "standard",
+  "steps": [
+    {
+      "signature": "CqwBAQw51sfgKVnBHSz5praTe+uG0Anr7XQqpCF63u254O4l2U4+GL3n7WRshuMFMfTty31n/76lM81JlqplsBd+YnEEPdyYqh4RpVrMnvUgDP7rkuWFPutrEgLUU/r3LuD3z1dc3qiMjtw3r3RkXtdHNF2Om28zmRoMT0/u8yNkPJA7S2IEfzasBN5yobkpwgbPAQ73PDJZy8n0qjNQmSG/OCMCUDBZMH3C9A1rEg==",
+      "type": "thought"
+    },
+    {
+      "content": [
+        {
+          "text": "Hello! I'm doing well, thank you for asking.\n\nHow are you today?",
+          "type": "text"
+        }
+      ],
+      "type": "model_output"
+    }
+  ],
+  "object": "interaction",
+  "model": "gemini-2.5-flash"
+}

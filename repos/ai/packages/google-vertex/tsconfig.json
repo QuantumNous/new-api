@@ -1,0 +1,41 @@
+{
+  "extends": "./node_modules/@vercel/ai-tsconfig/ts-library.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "exclude": [
+    "dist",
+    "build",
+    "node_modules",
+    "tsup.config.ts",
+    "edge.d.ts",
+    "anthropic/edge.d.ts",
+    "anthropic/index.d.ts",
+    "maas/edge.d.ts",
+    "maas/index.d.ts",
+    "xai/edge.d.ts",
+    "xai/index.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../anthropic"
+    },
+    {
+      "path": "../google"
+    },
+    {
+      "path": "../openai-compatible"
+    },
+    {
+      "path": "../provider"
+    },
+    {
+      "path": "../provider-utils"
+    },
+    {
+      "path": "../test-server"
+    }
+  ]
+}

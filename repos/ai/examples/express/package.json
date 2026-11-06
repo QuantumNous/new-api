@@ -1,0 +1,22 @@
+{
+  "name": "@example/express",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "type-check": "tsc --build"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "workspace:*",
+    "ai": "workspace:*",
+    "dotenv": "16.4.5",
+    "express": "5.0.1"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.0",
+    "@types/node": "22.19.19",
+    "tsx": "4.19.2",
+    "typescript": "5.8.3"
+  }
+}

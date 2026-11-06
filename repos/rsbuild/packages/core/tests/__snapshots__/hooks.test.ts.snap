@@ -1,0 +1,27 @@
+// Rstest Snapshot v1
+
+exports[`initHooks > should initialize hooks correctly 1`] = `
+[
+  "onExit",
+  "onCloseBuild",
+  "onAfterBuild",
+  "onBeforeBuild",
+  "onBeforeDevCompile",
+  "onAfterDevCompile",
+  "onCloseDevServer",
+  "onAfterStartDevServer",
+  "onBeforeStartDevServer",
+  "onAfterStartPreviewServer",
+  "onBeforeStartPreviewServer",
+  "onAfterCreateCompiler",
+  "onBeforeCreateCompiler",
+  "modifyHTML",
+  "modifyHTMLTags",
+  "modifyRspackConfig",
+  "modifyBundlerChain",
+  "modifyRsbuildConfig",
+  "modifyEnvironmentConfig",
+  "onBeforeEnvironmentCompile",
+  "onAfterEnvironmentCompile",
+]
+`;

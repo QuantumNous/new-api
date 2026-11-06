@@ -1,0 +1,54 @@
+{
+  "name": "@benchmarks/memory-server-serialization-payload-vue",
+  "projectType": "application",
+  "targets": {
+    "build:ssr": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": [
+        {
+          "projects": ["@tanstack/vue-start"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "NODE_ENV=production vite build --config {projectRoot}/vite.config.ts"
+      }
+    },
+    "build:ssr:flame": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": [
+        {
+          "projects": ["@tanstack/vue-start"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "NODE_ENV=production vite build --config {projectRoot}/vite.config.ts --sourcemap true"
+      }
+    },
+    "test:flame": {
+      "executor": "nx:run-commands",
+      "parallelism": false,
+      "cache": false,
+      "dependsOn": ["build:ssr:flame"],
+      "options": {
+        "command": "NODE_ENV=production node benchmarks/memory/run-flame.mjs {projectRoot}/memory.flame.ts {projectRoot}/dist",
+        "cwd": "."
+      }
+    },
+    "test:types:ssr": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        {
+          "projects": ["@tanstack/vue-start"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "tsc -p {projectRoot}/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

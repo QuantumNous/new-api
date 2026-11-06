@@ -1,0 +1,129 @@
+# v1.4.0
+
+<Subtitle>Apr 13, 2026</Subtitle>
+<Meta name="description" content="v1.4.0 release notes. Apr 13, 2026." />
+
+## General changes
+
+- Improve `render` prop warning accuracy ([#4324](https://github.com/mui/base-ui/pull/4324), [#4363](https://github.com/mui/base-ui/pull/4363))
+- Fix `preventBaseUIHandler` runtime wrapping ([#4330](https://github.com/mui/base-ui/pull/4330))
+- Fix Uncaught TypeError: Converting circular structure to JSON ([#4452](https://github.com/mui/base-ui/pull/4452))
+- Expose `form` prop on hidden inputs ([#4352](https://github.com/mui/base-ui/pull/4352))
+- Add `suppressHydrationWarning` to hidden inputs ([#4482](https://github.com/mui/base-ui/pull/4482))
+- Fix outside-press dismissal in a shared shadow root ([#4333](https://github.com/mui/base-ui/pull/4333))
+- Fix `Positioner` not repositioning to a different trigger when reopened with `keepMounted` ([#4407](https://github.com/mui/base-ui/pull/4407))
+- Lock scroll of full-width anchored `modal` popups with touch input ([#3100](https://github.com/mui/base-ui/pull/3100))
+
+## Alert Dialog
+
+- Fix detached trigger HMR with recreated handles ([#4472](https://github.com/mui/base-ui/pull/4472))
+
+## Autocomplete
+
+- Fix initial live region announcements ([#4286](https://github.com/mui/base-ui/pull/4286))
+
+## Avatar
+
+- Fix flash when image is cached ([#4469](https://github.com/mui/base-ui/pull/4469))
+
+## Checkbox
+
+- Fix uncontrolled default initialization ([#4535](https://github.com/mui/base-ui/pull/4535))
+- Prevent input state changes in `readOnly` mode ([#4551](https://github.com/mui/base-ui/pull/4551))
+
+## Collapsible
+
+- Fix open state when `keepMounted` has no transitions ([#4555](https://github.com/mui/base-ui/pull/4555))
+
+## Combobox
+
+- Fix clicks in `Chips`/`InputGroup` areas not focusing the input or opening the popup ([#4296](https://github.com/mui/base-ui/pull/4296))
+- Fix iOS viewport settling ([#4351](https://github.com/mui/base-ui/pull/4351))
+- Fix initial live region announcements ([#4286](https://github.com/mui/base-ui/pull/4286))
+- Prevent scroll lock when a controlled value triggers a re-render ([#4507](https://github.com/mui/base-ui/pull/4507))
+- Fix browser autofill with object values when autofill uses the label ([#4560](https://github.com/mui/base-ui/pull/4560))
+- Prevent item taps from blurring the input ([#4578](https://github.com/mui/base-ui/pull/4578))
+- Respect rendered chips for keyboard navigation ([#4572](https://github.com/mui/base-ui/pull/4572))
+
+## Dialog
+
+- Fix detached trigger HMR with recreated handles ([#4472](https://github.com/mui/base-ui/pull/4472))
+
+## Drawer
+
+- Fix touch scroll in portaled popups ([#4382](https://github.com/mui/base-ui/pull/4382))
+- Fix nested swipe cancel state ([#4410](https://github.com/mui/base-ui/pull/4410))
+- Fix interrupted swipe dismiss cleanup ([#4467](https://github.com/mui/base-ui/pull/4467))
+- Warn when a popup is missing `Viewport` ([#4495](https://github.com/mui/base-ui/pull/4495))
+- Prevent dialogs from affecting nested drawer stack ([#4493](https://github.com/mui/base-ui/pull/4493))
+
+## Field
+
+- Fix form error matching in `<Field.Error>` ([#4494](https://github.com/mui/base-ui/pull/4494))
+
+## Menu
+
+- Fix `SubmenuTrigger` not respecting disabled state from `render` ([#3858](https://github.com/mui/base-ui/pull/3858))
+- Preserve dialog focus on pointer leave ([#4581](https://github.com/mui/base-ui/pull/4581))
+
+## Navigation Menu
+
+- Remove invalid `aria-orientation` attribute ([#4355](https://github.com/mui/base-ui/pull/4355))
+- Add generic `Value` typing ([#4328](https://github.com/mui/base-ui/pull/4328))
+- Fix initial trigger switch size snap ([#4327](https://github.com/mui/base-ui/pull/4327))
+- Fix top-level trigger pointer events blocking ([#4362](https://github.com/mui/base-ui/pull/4362))
+- Fix reverse <kbd>Shift</kbd>+<kbd>Tab</kbd> submenu re-entry ([#4464](https://github.com/mui/base-ui/pull/4464))
+- Fix nested inline submenu hover handoff ([#4413](https://github.com/mui/base-ui/pull/4413))
+- Fix transition width when reopening ([#4587](https://github.com/mui/base-ui/pull/4587))
+
+## Number Field
+
+- Fix format rounding error on blur ([#4557](https://github.com/mui/base-ui/pull/4557))
+
+## OTP Field
+
+- Add preview `OTPField` component for one-time password and verification code entry ([#4365](https://github.com/mui/base-ui/pull/4365))
+
+## Popover
+
+- Remove stray focus guards around trigger when `modal` ([#4350](https://github.com/mui/base-ui/pull/4350))
+- Sync hover open event state ([#4526](https://github.com/mui/base-ui/pull/4526))
+
+## Preview Card
+
+- Fix hover reopen race conditions across close transitions ([#4446](https://github.com/mui/base-ui/pull/4446))
+
+## Select
+
+- Fix browser autofill with object values when autofill uses the label ([#4560](https://github.com/mui/base-ui/pull/4560))
+- Preserve touch exit animations ([#4325](https://github.com/mui/base-ui/pull/4325))
+- Fix touch reopen highlight ([#4356](https://github.com/mui/base-ui/pull/4356))
+- Fix scroll arrows stopping short of the edges ([#4447](https://github.com/mui/base-ui/pull/4447))
+- Fix RTL-aligned popup positioning with `alignItemWithTrigger` ([#4531](https://github.com/mui/base-ui/pull/4531))
+
+## Slider
+
+- Fix edge thumb alignment after reveal ([#4354](https://github.com/mui/base-ui/pull/4354))
+- Remove extra TalkBack focus targets ([#4242](https://github.com/mui/base-ui/pull/4242))
+- Fix keyboard floating-point rounding ([#4548](https://github.com/mui/base-ui/pull/4548))
+- Skip client-only prehydration scripts ([#4530](https://github.com/mui/base-ui/pull/4530))
+
+## Switch
+
+- Prevent input state changes in `readOnly` mode ([#4551](https://github.com/mui/base-ui/pull/4551))
+
+## Tabs
+
+- Fix `activationDirection` not updating on programmatic value changes ([#4347](https://github.com/mui/base-ui/pull/4347))
+- Fix activation direction on first render ([#4532](https://github.com/mui/base-ui/pull/4532))
+- Skip client-only prehydration scripts ([#4530](https://github.com/mui/base-ui/pull/4530))
+
+## Toast
+
+- Keep viewport expanded while touch swiping ([#4411](https://github.com/mui/base-ui/pull/4411))
+- Add upsert support to `add` method ([#4440](https://github.com/mui/base-ui/pull/4440))
+- Fix timers not resuming after window regains focus ([#4438](https://github.com/mui/base-ui/pull/4438))
+
+## Toggle Group
+
+- Fix incorrect keyboard nav on cross axis ([#4488](https://github.com/mui/base-ui/pull/4488))

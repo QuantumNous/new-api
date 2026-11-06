@@ -1,0 +1,29 @@
+{
+  "model": "claude-sonnet-4-5-20250929",
+  "id": "msg_01XrsJCi8CQoLcnnWdY8RsJz",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "925 divided by 5 = 185",
+      "signature": "Er4BCkYICxgCKkCoxqLHLrx4mFL9Ox7/aHKht87WDzXfvZ7qbZKSnHV8imA5b3LXxuVqcXQ9z5sXwDx20JIW/+6DJehOSNK72L83Egx0T9s7VzB6QUK9g5kaDO9lGaWN5CPEDJU0lyIw4+Ed3q4N9w+16h3cfQ+9stJXHCl+1nYDxjIOLcyJT8Ug/LTmtlp4bbxWmmfNicayKiasdReHiOnqz1sKEF0pR4kcnF5mQGdLxk8q3A3NY+wGsH8MtUIqxRgB"
+    },
+    { "type": "text", "text": "925 ÷ 5 = 185" }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 69,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 33,
+    "service_tier": "standard",
+    "inference_geo": "not_available"
+  },
+  "context_management": { "applied_edits": [] }
+}

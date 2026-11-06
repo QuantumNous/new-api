@@ -1,0 +1,31 @@
+// Rstest Snapshot v1
+
+exports[`plugin-entry > should apply different environments entry config correctly 1`] = `
+[
+  {
+    "index": [
+      "./src/index.client",
+    ],
+  },
+  {
+    "main": [
+      "./src/index.ssr",
+    ],
+  },
+]
+`;
+
+exports[`plugin-entry > should apply environment entry config correctly 1`] = `
+[
+  {
+    "index": [
+      "./src/index.client",
+    ],
+  },
+  {
+    "index": [
+      "./src/index.ssr",
+    ],
+  },
+]
+`;

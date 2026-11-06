@@ -1,0 +1,28 @@
+{
+  "output": {
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me generate that JSON for you."
+        },
+        {
+          "toolUse": {
+            "toolUseId": "json-tool-id",
+            "name": "json",
+            "input": {
+              "value": "test data"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "usage": {
+    "inputTokens": 12,
+    "outputTokens": 28,
+    "totalTokens": 40
+  },
+  "stopReason": "tool_use"
+}

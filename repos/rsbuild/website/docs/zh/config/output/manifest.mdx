@@ -1,0 +1,421 @@
+---
+description: 'manifest 文件包含所有构建产物的信息、以及 入口模块 与构建产物间的映射关系。'
+---
+
+# output.manifest
+
+- **类型：** `string | boolean | ManifestObjectConfig`
+- **默认值：** `false`
+
+配置如何生成 manifest 文件。
+
+- `true`: 生成一个名为 `manifest.json` 的文件。
+- `false`: 不生成 manifest 文件。
+- `string`: 生成一个指定名称或路径的 manifest 文件。
+- `object`: 生成一个指定选项的 manifest 文件。
+
+manifest 文件包含所有构建产物的信息、以及 [入口模块](/config/source/entry) 与构建产物间的映射关系。
+
+## 基础示例
+
+添加以下配置来开启：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    manifest: true,
+  },
+};
+```
+
+构建完成后，Rsbuild 会生成 `dist/manifest.json` 文件：
+
+```json title="dist/manifest.json"
+{
+  "allFiles": [
+    "/static/css/index.[hash].css",
+    "/static/js/index.[hash].js",
+    "/static/images/logo.[hash].png",
+    "/index.html"
+  ],
+  "entries": {
+    "index": {
+      "initial": {
+        "js": ["/static/js/index.[hash].js"],
+        "css": ["/static/css/index.[hash].css"]
+      },
+      "assets": ["/static/images/logo.[hash].png"],
+      "html": ["/index.html"]
+    }
+  }
+}
+```
+
+## Manifest 结构
+
+manifest 文件默认输出的结构为：
+
+```ts
+type FilePath = string;
+
+type ManifestList = {
+  /**
+   * 所有构建产物文件的扁平列表
+   */
+  allFiles: FilePath[];
+  /**
+   * 将每个入口名称映射到其关联的输出文件
+   */
+  entries: {
+    [entryName: string]: {
+      /**
+       * 入口在初始加载阶段所需的文件
+       */
+      initial?: {
+        /** 当前入口的初始 JavaScript 文件 */
+        js?: FilePath[];
+        /** 当前入口的初始 CSS 文件 */
+        css?: FilePath[];
+      };
+      /**
+       * 异步加载的文件
+       * 通常是代码分割的 chunk 或懒加载的资源
+       */
+      async?: {
+        /** 当前入口的异步 JavaScript 文件 */
+        js?: FilePath[];
+        /** 当前入口的异步 CSS 文件 */
+        css?: FilePath[];
+      };
+      /** 当前入口生成的 HTML 文件（如果有） */
+      html?: FilePath[];
+      /**
+       * 与当前入口关联的其他资源
+       * 例如图片、字体、source map 以及其他非 JS 或 CSS 文件
+       */
+      assets?: FilePath[];
+    };
+  };
+  /**
+   * 所有产物文件的子资源完整性（SRI）哈希值
+   * key 为文件路径，value 为对应的完整性哈希
+   * 仅在启用 `security.sri` 选项时才会生成该字段
+   */
+  integrity: Record<string, string>;
+};
+```
+
+## 通过 hooks 访问
+
+你可以通过 Rsbuild 的 [hooks](/plugins/dev/hooks) 或 [Environment API](/api/javascript-api/environment-api) 访问生成的 manifest 数据。
+
+例如：
+
+```ts
+api.onAfterBuild(({ environments }) => {
+  console.log(environments.web.manifest);
+});
+```
+
+> 参考 [Environment API - manifest](/api/javascript-api/environment-api#manifest) 了解更多。
+
+## SRI
+
+当启用 [security.sri](/config/security/sri) 选项后，manifest 文件会包含 `integrity` 字段，用于存储支持 SRI 的资源（例如 JavaScript 和 CSS 文件）的哈希值。
+
+```ts title="rsbuild.config.ts"
+export default {
+  security: {
+    sri: {
+      enable: 'auto',
+    },
+  },
+  output: {
+    manifest: true,
+  },
+};
+```
+
+```json title="dist/manifest.json"
+{
+  "allFiles": ["/static/js/index.[hash].js", "/index.html"],
+  "integrity": {
+    "/static/js/index.[hash].js": "sha384-[sri-hash]"
+  }
+}
+```
+
+## 选项
+
+`output.manifest` 可以是一个对象，以下是所有可选项：
+
+### filename
+
+- **类型：** `string`
+- **默认值：** `'manifest.json'`
+
+指定 manifest 文件的名称或路径。
+
+`filename` 可以是一个相对于 `dist` 目录的路径，比如输出为 `dist/static/my-manifest.json`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    manifest: {
+      filename: './static/my-manifest.json',
+    },
+  },
+};
+```
+
+这可以简写为：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    manifest: './static/my-manifest.json',
+  },
+};
+```
+
+### generate
+
+- **类型：**
+
+```ts
+type ManifestGenerate = (params: {
+  files: FileDescriptor[];
+  manifestData: ManifestData;
+}) => Record<string, unknown>;
+```
+
+- **默认值：** `undefined`
+- **版本：** `>= 1.2.0`
+
+通过 `manifest.generate` 函数可以自定义 manifest 文件的内容。该函数接收以下参数：
+
+- `files`: 所有输出的文件的描述信息。
+- `manifestData`: 默认的 manifest 数据。
+
+例如，仅保留 `allAssets` 字段：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    manifest: {
+      generate: ({ manifestData }) => {
+        return {
+          allAssets: manifestData.allFiles,
+        };
+      },
+    },
+  },
+};
+```
+
+你也可以基于 `files` 来自定义 manifest 文件的内容，`files` 的结构如下：
+
+```ts
+interface FileDescriptor {
+  name: string;
+  path: string;
+  isAsset: boolean;
+  isChunk: boolean;
+  isInitial: boolean;
+  isModuleAsset: boolean;
+  chunk?: import('@rspack/core').Chunk;
+}
+```
+
+下面是 `files` 的一个示例：
+
+```ts
+const files = [
+  {
+    name: 'index.js',
+    path: '/static/js/index.[hash].js',
+    isAsset: false,
+    isChunk: true,
+    isInitial: true,
+    isModuleAsset: false,
+    chunk: {
+      // Chunk info...
+    },
+  },
+  {
+    name: 'index.html',
+    path: '/index.html',
+    isAsset: true,
+    isChunk: false,
+    isInitial: false,
+    isModuleAsset: false,
+  },
+];
+```
+
+### prefix
+
+- **类型：** `boolean`
+- **默认值：** `true`
+
+控制是否在 manifest 中的文件路径前添加静态资源前缀，即 [dev.assetPrefix](/config/dev/asset-prefix) 和 [output.assetPrefix](/config/output/asset-prefix)。
+
+当 `prefix` 为 `true`（默认值）时，生成的 manifest 会包含完整的资源前缀。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    assetPrefix: 'https://example.com/',
+    manifest: true,
+  },
+};
+```
+
+生成的 manifest 文件示例：
+
+```json title="dist/manifest.json"
+{
+  "allFiles": ["https://example.com/static/js/index.[hash].js", "https://example.com/index.html"],
+  "entries": {
+    "index": {
+      "initial": {
+        "js": ["https://example.com/static/js/index.[hash].js"]
+      }
+    }
+  }
+}
+```
+
+如果将 `prefix` 设置为 `false`，manifest 中的路径将保持相对形式，不会附加静态资源前缀。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    assetPrefix: 'https://example.com/',
+    manifest: {
+      prefix: false,
+    },
+  },
+};
+```
+
+生成的 manifest 文件示例：
+
+```json title="dist/manifest.json"
+{
+  "allFiles": ["static/js/index.[hash].js", "index.html"],
+  "entries": {
+    "index": {
+      "initial": {
+        "js": ["static/js/index.[hash].js"]
+      }
+    }
+  }
+}
+```
+
+### filter
+
+- **类型：**
+
+```ts
+type ManifestFilter = (file: FileDescriptor) => boolean;
+```
+
+- **默认值：** `file => !file.name.endsWith('.LICENSE.txt')`
+- **版本：** `>= 1.2.0`
+
+允许你过滤包含在 manifest 中的文件。该函数接收一个 `file` 参数，返回 `true` 表示保留该文件，返回 `false` 表示不保留该文件。
+
+默认情况下，`*.LICENSE.txt` 文件不会被包含在 manifest 文件中，因为这些许可证文件仅用于声明开源协议，不会在运行时被使用。
+
+例如，仅保留 `*.js` 文件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    manifest: {
+      filter: (file) => file.name.endsWith('.js'),
+    },
+  },
+};
+```
+
+生成的 manifest 文件中仅会包含 `*.js` 文件：
+
+```json title="dist/manifest.json"
+{
+  "allFiles": ["/static/js/index.[hash].js"],
+  "entries": {
+    "index": {
+      "initial": {
+        "js": ["/static/js/index.[hash].js"]
+      }
+    }
+  }
+}
+```
+
+或者是包含所有文件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    manifest: {
+      filter: () => true,
+    },
+  },
+};
+```
+
+## 多个环境
+
+在使用 [environments](/config/environments) 并配置多个环境时，请为每个环境指定独立的 `manifest.filename` 值，以防止不同环境生成的 manifest 文件相互覆盖。
+
+例如，为 `web` 环境使用默认的 `manifest.json`，同时为 `node` 环境使用 `manifest-node.json`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      output: {
+        manifest: true,
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        manifest: {
+          filename: 'manifest-node.json',
+        },
+      },
+    },
+  },
+};
+```
+
+你也可以选择性地仅为特定环境生成 manifest 文件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      output: {
+        manifest: true,
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## 版本历史
+
+| 版本    | 变更内容              |
+| ------- | --------------------- |
+| v1.6.8  | 新增 `integrity` 字段 |
+| v1.6.12 | 新增 `prefix` 选项    |

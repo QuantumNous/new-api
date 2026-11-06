@@ -1,0 +1,12 @@
+{
+  "extends": "../../.configs/tsconfig.base.json",
+
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "NodeNext",
+    "customConditions": [],
+    "incremental": false,
+    "noEmit": true,
+    "types": ["node"]
+  }
+}

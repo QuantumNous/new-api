@@ -1,0 +1,9 @@
+Called when closing the build instance. Can be used to perform cleanup operations when the building is closed.
+
+Rsbuild CLI will automatically call this hook after running [rsbuild build](/guide/basic/cli#rsbuild-build), while users of the JavaScript API need to manually call the [build.close()](/api/javascript-api/instance#close-build) method to trigger this hook.
+
+- **Type:**
+
+```ts
+function onCloseBuild(callback: () => Promise<void> | void): void;
+```

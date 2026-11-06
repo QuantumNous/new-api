@@ -1,0 +1,43 @@
+---
+description: 'Configure a custom tsconfig.json file path to use, can be a relative or absolute path.'
+---
+
+# source.tsconfigPath
+
+- **Type:** `string`
+- **Default:** `'tsconfig.json'`
+
+Configure a custom tsconfig.json file path to use, can be a relative or absolute path.
+
+## Purpose
+
+The `tsconfig.json` configuration file affects the following behaviors of Rsbuild:
+
+- The `paths` field configures [Path Aliases](/guide/advanced/alias).
+- Sets the scope and rules for the [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check).
+
+## Example
+
+The value of `source.tsconfigPath` can be set to a relative or an absolute path. Relative path will be resolved relative to the project root directory.
+
+- Relative path example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    tsconfigPath: './tsconfig.custom.json',
+  },
+};
+```
+
+- Absolute path example:
+
+```ts
+import path from 'node:path';
+
+export default {
+  source: {
+    tsconfigPath: path.join(__dirname, 'tsconfig.custom.json'),
+  },
+};
+```

@@ -1,0 +1,53 @@
+---
+description: 'By default, the root element is included in the HTML template for component mounting. The element id can be modified through mountId.'
+---
+
+# html.mountId
+
+- **Type:** `string`
+- **Default:** `'root'`
+
+By default, the `root` element is included in the HTML template for component mounting. The element id can be modified through `mountId`.
+
+```html
+<body>
+  <div id="root"></div>
+</body>
+```
+
+## Example
+
+Set the `id` to `app`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    mountId: 'app',
+  },
+};
+```
+
+After compilation:
+
+```html
+<body>
+  <div id="app"></div>
+</body>
+```
+
+## Notes
+
+### Update relevant code
+
+After modifying `mountId`, if there is logic in your code to obtain the `root` root node, please update the corresponding value:
+
+```ts
+const domNode = document.getElementById('root'); // [!code --]
+const domNode = document.getElementById('app'); // [!code ++]
+
+ReactDOM.createRoot(domNode).render(<App />);
+```
+
+### Custom templates
+
+If you've customized the HTML template, please make sure that the template contains `<div id="<%= mountId %>"></div>`, otherwise the `mountId` config will not take effect.

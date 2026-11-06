@@ -1,0 +1,664 @@
+// Rstest Snapshot v1
+
+exports[`plugin-solid > should allow deprecated solidPresetOptions alias 1`] = `
+{
+  "dependency": {
+    "not": "url",
+  },
+  "include": [
+    {
+      "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+    },
+    /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+  ],
+  "oneOf": [
+    {
+      "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "<ROOT>/packages/core/dist/workerLoader.mjs",
+        },
+      ],
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "asset/source",
+    },
+    {
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+              },
+            },
+          },
+        },
+        {
+          "loader": "<PNPM_INNER>/babel-loader/lib/index.js",
+          "options": {
+            "babelrc": false,
+            "compact": false,
+            "configFile": false,
+            "parserOpts": {
+              "plugins": [
+                "jsx",
+                "typescript",
+              ],
+            },
+            "plugins": [
+              [
+                "<PNPM_INNER>/@babel/plugin-proposal-decorators/lib/index.js",
+                {
+                  "version": "2023-11",
+                },
+              ],
+              [
+                "<PNPM_INNER>/solid-refresh/dist/babel.cjs",
+                {
+                  "bundler": "rspack-esm",
+                },
+              ],
+            ],
+            "presets": [
+              [
+                "<PNPM_INNER>/babel-preset-solid/index.js",
+                {
+                  "generate": "ssr",
+                  "hydratable": true,
+                },
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  ],
+  "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+}
+`;
+
+exports[`plugin-solid > should allow solid options to override ssr defaults 1`] = `
+{
+  "dependency": {
+    "not": "url",
+  },
+  "include": [
+    {
+      "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+    },
+    /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+  ],
+  "oneOf": [
+    {
+      "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "<ROOT>/packages/core/dist/workerLoader.mjs",
+        },
+      ],
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "asset/source",
+    },
+    {
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "node >= 20",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+              },
+            },
+          },
+        },
+        {
+          "loader": "<PNPM_INNER>/babel-loader/lib/index.js",
+          "options": {
+            "babelrc": false,
+            "compact": false,
+            "configFile": false,
+            "parserOpts": {
+              "plugins": [
+                "jsx",
+                "typescript",
+              ],
+            },
+            "plugins": [
+              [
+                "<PNPM_INNER>/@babel/plugin-proposal-decorators/lib/index.js",
+                {
+                  "version": "2023-11",
+                },
+              ],
+            ],
+            "presets": [
+              [
+                "<PNPM_INNER>/babel-preset-solid/index.js",
+                {
+                  "generate": "universal",
+                  "hydratable": false,
+                },
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  ],
+  "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+}
+`;
+
+exports[`plugin-solid > should allow to configure solid options 1`] = `
+{
+  "dependency": {
+    "not": "url",
+  },
+  "include": [
+    {
+      "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+    },
+    /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+  ],
+  "oneOf": [
+    {
+      "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "<ROOT>/packages/core/dist/workerLoader.mjs",
+        },
+      ],
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "asset/source",
+    },
+    {
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+              },
+            },
+          },
+        },
+        {
+          "loader": "<PNPM_INNER>/babel-loader/lib/index.js",
+          "options": {
+            "babelrc": false,
+            "compact": false,
+            "configFile": false,
+            "parserOpts": {
+              "plugins": [
+                "jsx",
+                "typescript",
+              ],
+            },
+            "plugins": [
+              [
+                "<PNPM_INNER>/@babel/plugin-proposal-decorators/lib/index.js",
+                {
+                  "version": "2023-11",
+                },
+              ],
+              [
+                "<PNPM_INNER>/solid-refresh/dist/babel.cjs",
+                {
+                  "bundler": "rspack-esm",
+                },
+              ],
+            ],
+            "presets": [
+              [
+                "<PNPM_INNER>/babel-preset-solid/index.js",
+                {
+                  "generate": "ssr",
+                  "hydratable": true,
+                },
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  ],
+  "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+}
+`;
+
+exports[`plugin-solid > should apply solid preset correctly 1`] = `
+{
+  "dependency": {
+    "not": "url",
+  },
+  "include": [
+    {
+      "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+    },
+    /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+  ],
+  "oneOf": [
+    {
+      "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "<ROOT>/packages/core/dist/workerLoader.mjs",
+        },
+      ],
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "asset/source",
+    },
+    {
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+              },
+            },
+          },
+        },
+        {
+          "loader": "<PNPM_INNER>/babel-loader/lib/index.js",
+          "options": {
+            "babelrc": false,
+            "compact": false,
+            "configFile": false,
+            "parserOpts": {
+              "plugins": [
+                "jsx",
+                "typescript",
+              ],
+            },
+            "plugins": [
+              [
+                "<PNPM_INNER>/@babel/plugin-proposal-decorators/lib/index.js",
+                {
+                  "version": "2023-11",
+                },
+              ],
+              [
+                "<PNPM_INNER>/solid-refresh/dist/babel.cjs",
+                {
+                  "bundler": "rspack-esm",
+                },
+              ],
+            ],
+            "presets": [
+              [
+                "<PNPM_INNER>/babel-preset-solid/index.js",
+                {},
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  ],
+  "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+}
+`;
+
+exports[`plugin-solid > should use hydratable dom output for ssr option on web target 1`] = `
+{
+  "dependency": {
+    "not": "url",
+  },
+  "include": [
+    {
+      "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+    },
+    /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+  ],
+  "oneOf": [
+    {
+      "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "<ROOT>/packages/core/dist/workerLoader.mjs",
+        },
+      ],
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "asset/source",
+    },
+    {
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+              },
+            },
+          },
+        },
+        {
+          "loader": "<PNPM_INNER>/babel-loader/lib/index.js",
+          "options": {
+            "babelrc": false,
+            "compact": false,
+            "configFile": false,
+            "parserOpts": {
+              "plugins": [
+                "jsx",
+                "typescript",
+              ],
+            },
+            "plugins": [
+              [
+                "<PNPM_INNER>/@babel/plugin-proposal-decorators/lib/index.js",
+                {
+                  "version": "2023-11",
+                },
+              ],
+              [
+                "<PNPM_INNER>/solid-refresh/dist/babel.cjs",
+                {
+                  "bundler": "rspack-esm",
+                },
+              ],
+            ],
+            "presets": [
+              [
+                "<PNPM_INNER>/babel-preset-solid/index.js",
+                {
+                  "generate": "dom",
+                  "hydratable": true,
+                },
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  ],
+  "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+}
+`;
+
+exports[`plugin-solid > should use ssr output for ssr option on node target 1`] = `
+{
+  "dependency": {
+    "not": "url",
+  },
+  "include": [
+    {
+      "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+    },
+    /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+  ],
+  "oneOf": [
+    {
+      "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "<ROOT>/packages/core/dist/workerLoader.mjs",
+        },
+      ],
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+      "type": "asset/source",
+    },
+    {
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "node >= 20",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+              },
+            },
+          },
+        },
+        {
+          "loader": "<PNPM_INNER>/babel-loader/lib/index.js",
+          "options": {
+            "babelrc": false,
+            "compact": false,
+            "configFile": false,
+            "parserOpts": {
+              "plugins": [
+                "jsx",
+                "typescript",
+              ],
+            },
+            "plugins": [
+              [
+                "<PNPM_INNER>/@babel/plugin-proposal-decorators/lib/index.js",
+                {
+                  "version": "2023-11",
+                },
+              ],
+            ],
+            "presets": [
+              [
+                "<PNPM_INNER>/babel-preset-solid/index.js",
+                {
+                  "generate": "ssr",
+                  "hydratable": true,
+                },
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  ],
+  "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+}
+`;

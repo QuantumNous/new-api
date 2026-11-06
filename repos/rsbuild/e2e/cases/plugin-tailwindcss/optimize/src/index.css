@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+
+.card {
+  & .title {
+    color: blue;
+  }
+}

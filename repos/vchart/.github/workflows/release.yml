@@ -1,0 +1,691 @@
+name: Release CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'release/**'
+      - 'hotfix/**'
+      - 'pre-release/**'
+
+jobs:
+  release:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref_name, 'release/') ||
+      startsWith(github.ref_name, 'hotfix/') ||
+      startsWith(github.ref_name, 'pre-release/')
+    runs-on: macos-latest
+    permissions:
+      id-token: write # OIDC for npm publish (single entry)
+      contents: write # push commits / tags
+      pull-requests: write # create PR from release/* to main
+
+    strategy:
+      matrix:
+        node-version: [22.x]
+
+    concurrency:
+      group: vchart-release-${{ github.ref_name }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git identity
+        run: |
+          git config user.name ${{ github.actor }}
+          git config user.email ${{ github.actor }}@users.noreply.github.com
+
+      - name: Validate release branch name
+        run: |
+          set -euo pipefail
+          case "${GITHUB_REF_NAME}" in
+            release/*)
+              [[ "${GITHUB_REF_NAME}" =~ ^release/[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+                echo "Invalid release branch: ${GITHUB_REF_NAME}"
+                exit 1
+              }
+              ;;
+            hotfix/*)
+              [[ "${GITHUB_REF_NAME}" =~ ^hotfix/[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+                echo "Invalid hotfix branch: ${GITHUB_REF_NAME}"
+                exit 1
+              }
+              ;;
+            pre-release/*)
+              [[ "${GITHUB_REF_NAME}" =~ ^pre-release/[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc|hotfix)\.[0-9]+$ ]] || {
+                echo "Invalid pre-release branch: ${GITHUB_REF_NAME}"
+                exit 1
+              }
+              ;;
+            *)
+              echo "Unsupported release branch: ${GITHUB_REF_NAME}"
+              echo "For workflow_dispatch recovery, choose a release/*, hotfix/*, or pre-release/* branch in the Run workflow branch selector."
+              exit 1
+              ;;
+          esac
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: './common/config/rush/pnpm-lock.yaml'
+
+      - name: Update npm
+        run: npm install -g npm@^11.5.1
+
+      - name: Install latest pnpm
+        run: npm install -g pnpm@10.7.0
+
+      - name: Install Python distutils (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          python3 -m pip install setuptools --break-system-packages
+
+      - name: Install Python distutils (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-distutils
+          python3 -m pip install setuptools --break-system-packages
+
+      - name: Install native deps for node-canvas (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install pkg-config cairo pango libpng jpeg giflib librsvg
+
+      - name: Install native deps for node-canvas (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev pkg-config
+
+      - name: Install rush
+        run: node common/scripts/install-run-rush.js install --bypass-policy
+
+      # ===== Release flow (stable) =====
+      - name: Parse semver (release)
+        if: startsWith(github.ref_name, 'release/')
+        id: semver_release
+        uses: xile611/read-package-version-action@main
+        with:
+          path: packages/vchart
+          semver_string: ${{ github.ref_name }}
+          semver_pattern: '^release/(.*)$'
+
+      - name: Check version-policy version (release)
+        if: startsWith(github.ref_name, 'release/')
+        id: release_version_policy
+        env:
+          RELEASE_VERSION: ${{ steps.semver_release.outputs.full }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const policies = JSON.parse(fs.readFileSync('common/config/rush/version-policies.json', 'utf8'));
+          const policyVersion = policies[0] && policies[0].version;
+          const releaseVersion = process.env.RELEASE_VERSION;
+
+          const parseVersion = version => String(version).split('-')[0].split('.').map(Number);
+          const compareVersion = (a, b) => {
+            const av = parseVersion(a);
+            const bv = parseVersion(b);
+            for (let i = 0; i < Math.max(av.length, bv.length); i++) {
+              const diff = (av[i] || 0) - (bv[i] || 0);
+              if (diff !== 0) {
+                return diff;
+              }
+            }
+            return 0;
+          };
+
+          if (!releaseVersion || !policyVersion) {
+            console.error('Missing release version or version-policy version.', { releaseVersion, policyVersion });
+            process.exit(1);
+          }
+
+          const result = compareVersion(releaseVersion, policyVersion);
+          if (result < 0) {
+            console.error(`Release version ${releaseVersion} is lower than version-policy version ${policyVersion}.`);
+            process.exit(1);
+          }
+
+          const shouldSkip = result === 0 ? 'true' : 'false';
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `skip_next_bump=${shouldSkip}\n`);
+          console.log(
+            result === 0
+              ? `Release version ${releaseVersion} equals version-policy version ${policyVersion}, skip nextBump update.`
+              : `Release version ${releaseVersion} is greater than version-policy version ${policyVersion}, update nextBump.`
+          );
+          NODE
+
+      - name: update nextBump (release)
+        if: startsWith(github.ref_name, 'release/') && steps.release_version_policy.outputs.skip_next_bump != 'true'
+        uses: xile611/set-next-bump-of-rush@main
+        with:
+          release_version: ${{ steps.semver_release.outputs.full }}
+          write_next_bump: true
+
+      - name: Generate changelog blocks from changefiles (release)
+        if: startsWith(github.ref_name, 'release/')
+        env:
+          CHANGELOG_API_URL: ${{ secrets.VCHART_CHANGELOG_API_URL }}
+          CHANGELOG_API_TOKEN: ${{ secrets.VCHART_CHANGELOG_API_TOKEN }}
+          RELEASE_VERSION: ${{ steps.semver_release.outputs.main }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const { execSync } = require('child_process');
+
+          const baseDir = path.join(process.cwd(), 'common', 'changes', '@visactor', 'vchart');
+          let changefiles = [];
+
+          try {
+            const files = fs.readdirSync(baseDir).filter((name) => name.endsWith('.json'));
+            for (const file of files) {
+              const fullPath = path.join(baseDir, file);
+              const json = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+              changefiles.push(json);
+            }
+            console.log('Collected changefiles:', changefiles.length);
+          } catch (e) {
+            console.log('No changefiles found or unable to read, fallback to empty list.', e.message || e);
+          }
+
+          const version = process.env.RELEASE_VERSION;
+          if (!version) {
+            console.error('Missing RELEASE_VERSION env.');
+            process.exit(1);
+          }
+
+          let prevVersion = process.env.PREV_VERSION || '';
+          try {
+            if (!prevVersion) {
+              const out = execSync('git tag --list "v*.*.*" --sort=-v:refname', { encoding: 'utf8' });
+              const tags = out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+              if (tags.length > 0) {
+                const first = tags[0].replace(/^v/i, '');
+                if (first !== version && !first.startsWith(version + '-')) {
+                  prevVersion = first;
+                } else if (tags.length > 1) {
+                  prevVersion = tags[1].replace(/^v/i, '');
+                }
+              }
+            }
+          } catch (e) {
+            console.log('Failed to detect previous version from tags, continue without it:', e.message || e);
+          }
+
+          const payload = {
+            version,
+            prevVersion: prevVersion || undefined,
+            date: new Date().toISOString().slice(0, 10),
+            changefiles,
+            langs: ['en', 'zh'],
+            reuseHarmonyFromEn: true,
+            template: 'default',
+          };
+
+          const baseUrl = process.env.CHANGELOG_API_URL;
+          const token = process.env.CHANGELOG_API_TOKEN;
+
+          function writeFallback() {
+            const date = payload.date;
+            const enLines = [
+              `# v${version}`,
+              '',
+              date,
+              '',
+              '**🆕 New Features**',
+              '',
+              `- TODO: Fill in change details for v${version}.`,
+              '',
+            ];
+            const zhLines = [
+              `# v${version}`,
+              '',
+              date,
+              '',
+              '**🆕 新增功能**',
+              '',
+              `- TODO：补充 v${version} 的更新内容。`,
+              '',
+            ];
+            fs.mkdirSync('.changelog', { recursive: true });
+            fs.writeFileSync('.changelog/en.md', enLines.join('\n') + '\n', 'utf8');
+            fs.writeFileSync('.changelog/zh.md', zhLines.join('\n') + '\n', 'utf8');
+            fs.writeFileSync('.changelog/harmony.md', enLines.join('\n') + '\n', 'utf8');
+            console.log('Wrote fallback changelog blocks for version', version);
+          }
+
+          if (!baseUrl || !token) {
+            console.log('CHANGELOG_API_URL or CHANGELOG_API_TOKEN not configured, using fallback template.');
+            writeFallback();
+            process.exit(0);
+          }
+
+          const url = new URL('/api/changelog/vchart/generate', baseUrl);
+          const body = JSON.stringify(payload);
+
+          const isHttps = url.protocol === 'https:';
+          const httpModule = isHttps ? require('https') : require('http');
+
+          const options = {
+            method: 'POST',
+            hostname: url.hostname,
+            port: url.port || (isHttps ? 443 : 80),
+            path: url.pathname + url.search,
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+              'Content-Length': Buffer.byteLength(body),
+            },
+          };
+
+          const req = httpModule.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => (data += chunk));
+            res.on('end', () => {
+              if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                try {
+                  const parsed = JSON.parse(data || '{}');
+                  const en = parsed.blocks && parsed.blocks.en;
+                  const zh = parsed.blocks && parsed.blocks.zh;
+                  const harmony = parsed.harmony || en;
+                  if (!en || !zh) {
+                    throw new Error('Missing en/zh blocks in response');
+                  }
+                  fs.mkdirSync('.changelog', { recursive: true });
+                  fs.writeFileSync('.changelog/en.md', String(en).trimEnd() + '\n', 'utf8');
+                  fs.writeFileSync('.changelog/zh.md', String(zh).trimEnd() + '\n', 'utf8');
+                  fs.writeFileSync('.changelog/harmony.md', String(harmony).trimEnd() + '\n', 'utf8');
+                  console.log('Changelog blocks generated via API. traceId:', parsed.traceId || '(none)');
+                } catch (e) {
+                  console.error('Failed to parse API response, fallback to template:', e.message || e);
+                  writeFallback();
+                }
+              } else {
+                console.error('Changelog API returned non-2xx status:', res.statusCode, data);
+                writeFallback();
+              }
+            });
+          });
+
+          req.on('error', (err) => {
+            console.error('Changelog API request failed, fallback to template:', err.message || err);
+            writeFallback();
+          });
+
+          req.write(body);
+          req.end();
+          NODE
+
+      - name: Prepend changelog blocks into release docs (release)
+        if: startsWith(github.ref_name, 'release/')
+        run: |
+          set -euo pipefail
+          mkdir -p docs/assets/changelog/en docs/assets/changelog/zh
+
+          for lang in en zh; do
+            block_file=".changelog/${lang}.md"
+            target_file="docs/assets/changelog/${lang}/release.md"
+            if [ -f "$block_file" ]; then
+              if [ -f "$target_file" ]; then
+                cp "$target_file" "${target_file}.bak"
+                cat "$block_file" "${target_file}.bak" > "$target_file"
+              else
+                cp "$block_file" "$target_file"
+              fi
+            else
+              echo "Missing changelog block for $lang, skip."
+            fi
+          done
+
+          harmony_block=".changelog/harmony.md"
+          harmony_target="packages/harmony_vchart/library/CHANGELOG.md"
+          if [ -f "$harmony_block" ]; then
+            if [ -f "$harmony_target" ]; then
+              cp "$harmony_target" "${harmony_target}.bak"
+              cat "$harmony_block" "${harmony_target}.bak" > "$harmony_target"
+            else
+              cp "$harmony_block" "$harmony_target"
+            fi
+          else
+            echo "Missing harmony changelog block, skip."
+          fi
+
+      - name: Reset version-policy base version (release)
+        if: startsWith(github.ref_name, 'release/')
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const packageJson = JSON.parse(fs.readFileSync('packages/vchart/package.json', 'utf8'));
+          const policiesPath = 'common/config/rush/version-policies.json';
+          const policies = JSON.parse(fs.readFileSync(policiesPath, 'utf8'));
+
+          if (!policies[0]) {
+            throw new Error('Missing version policy.');
+          }
+
+          policies[0].version = packageJson.version;
+          fs.writeFileSync(policiesPath, JSON.stringify(policies));
+          NODE
+
+      - name: Generate rush version (release)
+        if: startsWith(github.ref_name, 'release/')
+        run: node common/scripts/install-run-rush.js version --bump
+
+      - name: Update version (release)
+        if: startsWith(github.ref_name, 'release/')
+        run: node common/scripts/apply-release-version.js 'none' ${{ steps.semver_release.outputs.main }}
+
+      - name: Build vutils-extension && vchart
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+        run: node common/scripts/install-run-rush.js build --to @visactor/vchart
+
+      - name: Build vchart-extension
+        if: startsWith(github.ref_name, 'release/') || startsWith(github.ref_name, 'pre-release/')
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+        run: node common/scripts/install-run-rush.js build --only @visactor/vchart-extension
+
+      - name: Build react-vchart
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+        run: node common/scripts/install-run-rush.js build --only @visactor/react-vchart
+
+      - name: Build openinula-vchart
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+        run: node common/scripts/install-run-rush.js build --only @visactor/openinula-vchart
+
+      - name: Build taro-vchart
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+        run: node common/scripts/install-run-rush.js build --only @visactor/taro-vchart
+
+      - name: Build lark-vchart
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+        run: node common/scripts/install-run-rush.js build --only @visactor/lark-vchart
+
+      - name: Build wx-vchart
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+        run: node common/scripts/install-run-rush.js build --only @visactor/wx-vchart
+
+      - name: Check npm version (release)
+        if: startsWith(github.ref_name, 'release/')
+        id: npm_version_release
+        env:
+          PACKAGE_VERSION: ${{ steps.semver_release.outputs.main }}
+        run: |
+          set -euo pipefail
+          package_names=()
+          while IFS= read -r package_name; do
+            [ -n "$package_name" ] && package_names+=("$package_name")
+          done < <(node <<'NODE'
+          const fs = require('fs');
+          const rush = JSON.parse(fs.readFileSync('rush.json', 'utf8'));
+          for (const project of rush.projects) {
+            if (project.shouldPublish) {
+              console.log(project.packageName);
+            }
+          }
+          NODE
+          )
+
+          existing=()
+          missing=()
+          for package_name in "${package_names[@]}"; do
+            if npm view "${package_name}@${PACKAGE_VERSION}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+              existing+=("${package_name}")
+            else
+              missing+=("${package_name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "All packages already have version ${PACKAGE_VERSION} on npm, skip publish."
+            echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+          elif [ "${#existing[@]}" -eq 0 ]; then
+            echo "No package has version ${PACKAGE_VERSION} on npm, continue publish."
+            echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Partial npm publish detected for ${PACKAGE_VERSION}."
+            echo "Existing packages: ${existing[*]}"
+            echo "Missing packages: ${missing[*]}"
+            echo "Stop before publish to avoid masking a partial release."
+            exit 1
+          fi
+
+      - name: Publish to npm (release)
+        if: startsWith(github.ref_name, 'release/') && steps.npm_version_release.outputs.skip_publish != 'true'
+        run: node common/scripts/install-run-rush.js publish --publish --include-all --tag latest
+
+      - name: Update shrinkwrap
+        run: node common/scripts/install-run-rush.js update
+
+      - name: Get npm version (release)
+        if: startsWith(github.ref_name, 'release/')
+        id: package_version_release
+        uses: xile611/read-package-version-action@main
+        with:
+          path: packages/vchart
+
+      - name: Commit & Push changes (release)
+        if: startsWith(github.ref_name, 'release/')
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No changes to commit for release branch.'
+          else
+            rm -rf .changelog
+            find docs/assets/changelog -name '*.bak' -delete
+            find packages/harmony_vchart/library -name '*.bak' -delete
+            git add .
+            git commit -m "build: release version ${{ steps.package_version_release.outputs.current_version }} [skip ci]" -n
+            git push --no-verify origin ${{ github.ref_name }}
+          fi
+
+      - name: Create Pull Request to main (release)
+        if: startsWith(github.ref_name, 'release/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF_NAME}"
+          echo "Source branch: $BRANCH"
+          # Check if PR already exists
+          if gh pr list --base main --head "$BRANCH" --state open --json number --limit 1 | grep -q '"number"'; then
+            echo "PR from $BRANCH to main already exists, skip creating.";
+            exit 0;
+          fi
+          TITLE="[Auto release] release ${{ steps.package_version_release.outputs.current_version }}"
+          BODY="This PR merges release branch $BRANCH into main."
+          gh pr create --base main --head "$BRANCH" --title "$TITLE" --body "$BODY"
+
+      # ===== Hotfix flow =====
+      - name: Parse semver (hotfix)
+        if: startsWith(github.ref_name, 'hotfix/')
+        id: semver_hotfix
+        uses: xile611/read-package-version-action@main
+        with:
+          path: packages/vchart
+          semver_string: ${{ github.ref_name }}
+          semver_pattern: '^hotfix/(.*)$'
+
+      - name: update nextBump (hotfix)
+        if: startsWith(github.ref_name, 'hotfix/')
+        uses: xile611/set-next-bump-of-rush@main
+        with:
+          release_version: ${{ steps.semver_hotfix.outputs.full }}
+          write_next_bump: true
+
+      - name: Generate rush version (hotfix)
+        if: startsWith(github.ref_name, 'hotfix/')
+        run: node common/scripts/install-run-rush.js version --bump
+
+      - name: Update version (hotfix)
+        if: startsWith(github.ref_name, 'hotfix/')
+        run: node common/scripts/apply-release-version.js 'none' ${{ steps.semver_hotfix.outputs.main }}
+
+      - name: Check npm version (hotfix)
+        if: startsWith(github.ref_name, 'hotfix/')
+        id: npm_version_hotfix
+        env:
+          PACKAGE_VERSION: ${{ steps.semver_hotfix.outputs.main }}
+        run: |
+          set -euo pipefail
+          package_names=()
+          while IFS= read -r package_name; do
+            [ -n "$package_name" ] && package_names+=("$package_name")
+          done < <(node <<'NODE'
+          const fs = require('fs');
+          const rush = JSON.parse(fs.readFileSync('rush.json', 'utf8'));
+          for (const project of rush.projects) {
+            if (project.shouldPublish) {
+              console.log(project.packageName);
+            }
+          }
+          NODE
+          )
+
+          existing=()
+          missing=()
+          for package_name in "${package_names[@]}"; do
+            if npm view "${package_name}@${PACKAGE_VERSION}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+              existing+=("${package_name}")
+            else
+              missing+=("${package_name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "All packages already have version ${PACKAGE_VERSION} on npm, skip publish."
+            echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+          elif [ "${#existing[@]}" -eq 0 ]; then
+            echo "No package has version ${PACKAGE_VERSION} on npm, continue publish."
+            echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Partial npm publish detected for ${PACKAGE_VERSION}."
+            echo "Existing packages: ${existing[*]}"
+            echo "Missing packages: ${missing[*]}"
+            echo "Stop before publish to avoid masking a partial release."
+            exit 1
+          fi
+
+      - name: Publish to npm (hotfix)
+        if: startsWith(github.ref_name, 'hotfix/') && steps.npm_version_hotfix.outputs.skip_publish != 'true'
+        run: node common/scripts/install-run-rush.js publish --publish --include-all --tag hotfix
+
+      - name: Get npm version (hotfix)
+        if: startsWith(github.ref_name, 'hotfix/')
+        id: package_version_hotfix
+        uses: xile611/read-package-version-action@main
+        with:
+          path: packages/vchart
+
+      - name: Commit & Push changes (hotfix)
+        if: startsWith(github.ref_name, 'hotfix/')
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No changes to commit for hotfix branch.'
+          else
+            git add .
+            git commit -m "build: hotfix version ${{ steps.package_version_hotfix.outputs.current_version }} [skip ci]" -n
+            git push --no-verify origin ${{ github.ref_name }}
+          fi
+
+      # ===== Pre-release flow =====
+      - name: Parse semver (pre-release)
+        if: startsWith(github.ref_name, 'pre-release/')
+        id: semver_prerelease
+        uses: xile611/read-package-version-action@main
+        with:
+          path: packages/vchart
+          semver_string: ${{ github.ref_name }}
+          semver_pattern: '^pre-release/(.*)$'
+
+      - name: Apply prereleaseName (pre-release)
+        if: startsWith(github.ref_name, 'pre-release/')
+        run: node common/scripts/apply-release-version.js ${{ steps.semver_prerelease.outputs.pre_release_name }} ${{ steps.semver_prerelease.outputs.main }}
+
+      - name: Check npm version (pre-release)
+        if: startsWith(github.ref_name, 'pre-release/')
+        id: npm_version_prerelease
+        env:
+          PACKAGE_VERSION: ${{ steps.semver_prerelease.outputs.full }}
+        run: |
+          set -euo pipefail
+          package_names=()
+          while IFS= read -r package_name; do
+            [ -n "$package_name" ] && package_names+=("$package_name")
+          done < <(node <<'NODE'
+          const fs = require('fs');
+          const rush = JSON.parse(fs.readFileSync('rush.json', 'utf8'));
+          for (const project of rush.projects) {
+            if (project.shouldPublish) {
+              console.log(project.packageName);
+            }
+          }
+          NODE
+          )
+
+          existing=()
+          missing=()
+          for package_name in "${package_names[@]}"; do
+            if npm view "${package_name}@${PACKAGE_VERSION}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+              existing+=("${package_name}")
+            else
+              missing+=("${package_name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "All packages already have version ${PACKAGE_VERSION} on npm, skip publish."
+            echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+          elif [ "${#existing[@]}" -eq 0 ]; then
+            echo "No package has version ${PACKAGE_VERSION} on npm, continue publish."
+            echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Partial npm publish detected for ${PACKAGE_VERSION}."
+            echo "Existing packages: ${existing[*]}"
+            echo "Missing packages: ${missing[*]}"
+            echo "Stop before publish to avoid masking a partial release."
+            exit 1
+          fi
+
+      - name: Publish to npm (pre-release)
+        if: startsWith(github.ref_name, 'pre-release/') && steps.npm_version_prerelease.outputs.skip_publish != 'true'
+        run: node common/scripts/install-run-rush.js publish --publish --include-all --tag ${{ steps.semver_prerelease.outputs.pre_release_type }}
+
+      - name: Get npm version (pre-release)
+        if: startsWith(github.ref_name, 'pre-release/')
+        id: package_version_prerelease
+        uses: xile611/read-package-version-action@main
+        with:
+          path: packages/vchart
+
+      - name: Commit & Push changes (pre-release)
+        if: startsWith(github.ref_name, 'pre-release/')
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No changes to commit for pre-release branch.'
+          else
+            git add .
+            git commit -m "build: prerelease version ${{ steps.package_version_prerelease.outputs.current_version }} [skip ci]" -n
+            git push --no-verify origin ${{ github.ref_name }}
+          fi

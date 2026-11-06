@@ -1,0 +1,67 @@
+---
+description: '本文介绍如何基于 Rsbuild 构建 Preact 应用。'
+---
+
+# Preact
+
+本文介绍如何基于 Rsbuild 构建 Preact 应用。
+
+## 创建 Preact 应用
+
+使用 [create-rsbuild](/guide/start/quick-start#create-an-rsbuild-application) 创建基于 Rsbuild 的 Preact 应用：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs
+  command={{
+    npm: 'npm create rsbuild@latest',
+    yarn: 'yarn create rsbuild',
+    pnpm: 'pnpm create rsbuild@latest',
+    bun: 'bun create rsbuild@latest',
+  }}
+/>
+
+然后在 `Select framework` 时选择 `Preact` 即可。
+
+## 在已有项目中使用 Preact
+
+要编译 Preact，需注册 Rsbuild 的 [Preact 插件](/plugins/list/plugin-preact)，插件会自动添加 Preact 构建所需的配置。
+
+例如，在 Rsbuild 配置中注册：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginPreact } from '@rsbuild/plugin-preact';
+
+export default defineConfig({
+  plugins: [pluginPreact()],
+});
+```
+
+## Preact Fast Refresh
+
+Preact 插件使用 [@preact/prefresh](https://github.com/preactjs/prefresh) 和 [@rspack/plugin-preact-refresh](https://github.com/rstackjs/rspack-plugin-preact-refresh) 来热替换 Preact 组件。
+
+### 识别组件
+
+Prefresh 需要能够识别你的组件，这意味着组件名称应该以大写字母开头，hook 名称应该以 `use` 开头，后跟一个大写字母。这使得插件能够有效地识别这些内容。
+
+注意，如下所示的组件是没有命名的：
+
+```jsx
+export default () => {
+  return <p>Want to refresh</p>;
+};
+```
+
+相反，应该这样写：
+
+```jsx
+const MyComponent = () => {
+  return <p>Want to refresh</p>;
+};
+
+export default MyComponent;
+```
+
+当使用高阶组件（HOC）时，请确保设置 `displayName` 以便插件能够将其识别为组件。

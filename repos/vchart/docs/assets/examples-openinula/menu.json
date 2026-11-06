@@ -1,0 +1,104 @@
+{
+  "menu": "examples-openinula",
+  "children": [
+    {
+      "path": "usage",
+      "title": {
+        "en": "Usage",
+        "zh": "基础用法"
+      },
+      "children": [
+        {
+          "path": "basic-line",
+          "title": {
+            "en": "Basic Line Chart",
+            "zh": "基础折线图"
+          }
+        },
+        {
+          "path": "line-default-select",
+          "title": {
+            "en": "Set Default Selected Dimension",
+            "zh": "设置默认选中维度"
+          }
+        },
+        {
+          "path": "basic-pie",
+          "title": {
+            "en": "Basic Pie Chart With Legend",
+            "zh": "带图例的基础饼图"
+          }
+        }
+      ]
+    },
+    {
+      "path": "grammatical-tag",
+      "title": {
+        "en": "Grammatical Tag",
+        "zh": "语法标签"
+      },
+      "children": [
+        {
+          "path": "basic-column",
+          "title": {
+            "en": "Basic Column Chart",
+            "zh": "基础柱状图"
+          }
+        },
+        {
+          "path": "nested-pie",
+          "title": {
+            "en": "Nested Pie Chart",
+            "zh": "嵌套饼图"
+          }
+        }
+      ]
+    },
+    {
+      "path": "component",
+      "title": {
+        "en": "Component",
+        "zh": "组件"
+      },
+      "children": [
+        {
+          "path": "ring",
+          "title": {
+            "en": "Ring Chart With Legend",
+            "zh": "带图例的环图"
+          }
+        },
+        {
+          "path": "common",
+          "title": {
+            "en": "Common Chart With Custom Tooltip",
+            "zh": "带自定义 tooltip 的组合图"
+          }
+        },
+        {
+          "path": "clock",
+          "title": {
+            "en": "Clock Example",
+            "zh": "时钟示例"
+          }
+        }
+      ]
+    },
+    {
+      "path": "theme",
+      "title": {
+        "en": "Theme",
+        "zh": "主题"
+      },
+      "children": [
+        {
+          "path": "stack-radar",
+          "title": {
+            "en": "Stacked Radar Chart and Theme Switching",
+            "zh": "可以切换主题的堆叠雷达图"
+          }
+        }
+      ]
+    }
+  ]
+}

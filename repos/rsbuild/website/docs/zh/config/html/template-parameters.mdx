@@ -1,0 +1,129 @@
+---
+description: '定义 HTML 模板中的参数，详细用法请参考 HTML 模板 - 模板参数。'
+---
+
+# html.templateParameters
+
+- **类型：** `Record<string, unknown> | Function`
+- **默认值：**
+
+```ts
+type DefaultParameters = {
+  mountId: string; // 对应 html.mountId 配置
+  entryName: string; // 入口名称
+  assetPrefix: string; // 对应 dev.assetPrefix 和 output.assetPrefix 配置
+  compilation: Compilation; // Rspack 的 compilation 对象
+  rspackConfig: Rspack.Configuration; // Rspack 的配置对象
+  // html-rspack-plugin 生成的参数
+  htmlPlugin: {
+    tags: {
+      headTags: HtmlTagObject[];
+      bodyTags: HtmlTagObject[];
+    };
+    files: {
+      publicPath: string;
+      js: string[];
+      css: string[];
+      favicon?: string;
+    };
+  };
+};
+```
+
+定义 HTML 模板中的参数，详细用法请参考 [HTML 模板 - 模板参数](/guide/basic/html-template#template-parameters)。
+
+## 对象用法
+
+如果 `templateParameters` 的值是一个对象，它会和默认参数通过 `Object.assign` 合并。
+
+比如，如果你需要在 HTML 模板中使用 `foo` 参数，可以添加如下设置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      foo: 'bar',
+    },
+  },
+};
+```
+
+接下来，你可以在 HTML 模板中，通过 `<%= foo %>` 来读取参数：
+
+```html
+<script>
+  window.foo = '<%= foo %>';
+</script>
+```
+
+编译后的 HTML 代码如下：
+
+```html
+<script>
+  window.foo = 'bar';
+</script>
+```
+
+## 函数用法
+
+- **类型：**
+
+```ts
+type TemplateParametersFunction = (
+  defaultValue: Record<string, unknown>,
+  utils: { entryName: string },
+) => Record<string, unknown> | void | Promise<Record<string, unknown> | void>;
+```
+
+当 `html.templateParameters` 为 Function 类型时，函数接收两个参数：
+
+- `defaultValue`：Rsbuild 的默认 templateParameters 配置。
+- `utils`：一个对象，其中包含了 `entryName` 字段，对应当前入口的名称。
+
+在 MPA（多页面应用）场景下，你可以基于入口名称设置不同的 `templateParameters` 参数：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters(defaultValue, { entryName }) {
+      const params = {
+        foo: {
+          ...defaultValue,
+          type: 'Foo',
+        },
+        bar: {
+          ...defaultValue,
+          type: 'Bar',
+          hello: 'world',
+        },
+      };
+      return params[entryName] || defaultValue;
+    },
+  },
+};
+```
+
+你也可以使用异步函数加载模板参数：
+
+```ts title="rsbuild.config.ts"
+import fs from 'node:fs/promises';
+
+export default {
+  html: {
+    async templateParameters(defaultValue) {
+      const version = await fs.readFile('./VERSION', 'utf-8');
+
+      return {
+        ...defaultValue,
+        version: version.trim(),
+      };
+    },
+  },
+};
+```
+
+## 版本历史
+
+| 版本   | 变更内容                                        |
+| ------ | ----------------------------------------------- |
+| v2.0.8 | 新增对 `html.templateParameters` 异步函数的支持 |

@@ -1,0 +1,7 @@
+# Flamegraph profiles
+**/cpu-profile-*.md
+**/cpu-profile-*.html
+**/cpu-profile-*.pb
+**/heap-profile-*.html
+**/heap-profile-*.pb
+**/heap-profile-*.md

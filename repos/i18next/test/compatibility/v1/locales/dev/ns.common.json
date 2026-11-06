@@ -1,0 +1,7 @@
+{
+  "simple_dev": "ok_from_common_dev",
+  "test": {
+    "simple_dev": "ok_from_common_dev",
+    "fallback_dev": "ok_from_common_dev-fallback"
+  }
+}

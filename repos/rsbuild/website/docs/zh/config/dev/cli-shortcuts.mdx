@@ -1,0 +1,129 @@
+---
+description: 'custom 选项可以自定义快捷键，custom 的值是一个函数，接收默认的 shortcuts 列表，并返回一个新的 shortcuts 列表。'
+---
+
+# dev.cliShortcuts
+
+- **类型：**
+
+```ts
+type CliShortcuts =
+  | boolean
+  | {
+      help?: boolean | string;
+      custom?: (shortcuts: CliShortcut[]) => CliShortcut[];
+    };
+```
+
+- **默认值：** 当使用 Rsbuild CLI 时默认为 `true`，否则为 `false`。
+- **版本：** `>= 1.0.11`
+
+是否启用 CLI 快捷键。
+
+## 所有快捷键
+
+按 `h + Enter` 以显示所有快捷键：
+
+```
+  Shortcuts:
+  c + enter  clear console
+  o + enter  open in browser
+  q + enter  quit process
+  r + enter  restart server
+  u + enter  show urls
+```
+
+## 示例
+
+- 启用：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: true,
+  },
+};
+```
+
+- 禁用：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: false,
+  },
+};
+```
+
+## 自定义快捷键
+
+`custom` 选项可以自定义快捷键，`custom` 的值是一个函数，接收默认的 shortcuts 列表，并返回一个新的 shortcuts 列表。
+
+- 添加自定义快捷键：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: {
+      custom: (shortcuts) => {
+        return [
+          ...shortcuts,
+          {
+            key: 's',
+            description: 'say hello',
+            action: () => {
+              console.log('hello world!');
+            },
+          },
+        ];
+      },
+    },
+  },
+};
+```
+
+- 禁用部分快捷键：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: {
+      custom: (shortcuts) => {
+        return shortcuts.filter((shortcut) => shortcut.key !== 'o');
+      },
+    },
+  },
+};
+```
+
+## 打印帮助
+
+`help` 选项可以控制是否在启动服务器时打印帮助提示，默认打印的帮助提示为：
+
+```bash
+  ➜ press h + enter to show shortcuts
+```
+
+- 禁用帮助提示：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: {
+      help: false,
+    },
+  },
+};
+```
+
+- 输出自定义的帮助提示：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    cliShortcuts: {
+      help: 'type "h + enter" to view available commands',
+    },
+  },
+};
+```

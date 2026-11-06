@@ -1,0 +1,53 @@
+{
+  "name": "tanstack-react-start-e2e-dev-ssr-styles",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "dev:e2e": "vite dev --port $PORT",
+    "dev:e2e:disabled": "SSR_STYLES=disabled vite dev --port $PORT",
+    "dev:e2e:custom-basepath": "SSR_STYLES=custom-basepath vite dev --port $PORT",
+    "dev:e2e:nitro": "VITE_USE_NITRO=true vite dev --port $PORT",
+    "dev:e2e:disabled:nitro": "SSR_STYLES=disabled VITE_USE_NITRO=true vite dev --port $PORT",
+    "dev:e2e:custom-basepath:nitro": "SSR_STYLES=custom-basepath VITE_USE_NITRO=true vite dev --port $PORT",
+    "build": "vite build && tsc --noEmit",
+    "start": "pnpx srvx --prod -s ../client dist/server/server.js",
+    "test:e2e:dev": "MODE=dev playwright test --project=chromium",
+    "test:e2e:dev:disabled": "MODE=dev SSR_STYLES=disabled playwright test --project=chromium",
+    "test:e2e:dev:custom-basepath": "MODE=dev SSR_STYLES=custom-basepath playwright test --project=chromium",
+    "test:e2e:dev:bundled-dev": "MODE=dev E2E_VITE_BUNDLED_DEV=true playwright test --project=chromium",
+    "test:e2e:dev:disabled:bundled-dev": "MODE=dev SSR_STYLES=disabled E2E_VITE_BUNDLED_DEV=true playwright test --project=chromium",
+    "test:e2e:dev:custom-basepath:bundled-dev": "MODE=dev SSR_STYLES=custom-basepath E2E_VITE_BUNDLED_DEV=true playwright test --project=chromium",
+    "test:e2e:dev:nitro": "MODE=dev VITE_USE_NITRO=true playwright test --project=chromium",
+    "test:e2e:dev:disabled:nitro": "MODE=dev SSR_STYLES=disabled VITE_USE_NITRO=true playwright test --project=chromium",
+    "test:e2e:dev:custom-basepath:nitro": "MODE=dev SSR_STYLES=custom-basepath VITE_USE_NITRO=true playwright test --project=chromium",
+    "test:e2e:dev:bundled-dev:nitro": "MODE=dev VITE_USE_NITRO=true E2E_VITE_BUNDLED_DEV=true playwright test --project=chromium",
+    "test:e2e:dev:disabled:bundled-dev:nitro": "MODE=dev SSR_STYLES=disabled VITE_USE_NITRO=true E2E_VITE_BUNDLED_DEV=true playwright test --project=chromium",
+    "test:e2e:dev:custom-basepath:bundled-dev:nitro": "MODE=dev SSR_STYLES=custom-basepath VITE_USE_NITRO=true E2E_VITE_BUNDLED_DEV=true playwright test --project=chromium",
+    "test:e2e:bundled-dev": "pnpm run test:e2e:dev:bundled-dev && pnpm run test:e2e:dev:disabled:bundled-dev && pnpm run test:e2e:dev:custom-basepath:bundled-dev",
+    "test:e2e:nitro:bundled-dev": "pnpm run test:e2e:dev:bundled-dev:nitro && pnpm run test:e2e:dev:disabled:bundled-dev:nitro && pnpm run test:e2e:dev:custom-basepath:bundled-dev:nitro",
+    "test:e2e": "rm -rf port*.txt; pnpm run test:e2e:dev && pnpm run test:e2e:dev:disabled && pnpm run test:e2e:dev:custom-basepath && pnpm run test:e2e:bundled-dev",
+    "test:e2e:nitro": "rm -rf port*.txt; pnpm run test:e2e:dev:nitro && pnpm run test:e2e:dev:disabled:nitro && pnpm run test:e2e:dev:custom-basepath:nitro && pnpm run test:e2e:nitro:bundled-dev"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:*",
+    "@tanstack/react-start": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-core": "workspace:*",
+    "@tanstack/router-e2e-utils": "workspace:*",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "nitro": "^3.0.260311-beta",
+    "srvx": "^0.11.9",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "zod": "^4.4.3"
+  }
+}

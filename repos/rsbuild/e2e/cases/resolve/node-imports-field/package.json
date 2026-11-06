@@ -1,0 +1,9 @@
+{
+  "name": "@e2e/resolve-node-imports-field",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#app/*": "./src/*"
+  }
+}

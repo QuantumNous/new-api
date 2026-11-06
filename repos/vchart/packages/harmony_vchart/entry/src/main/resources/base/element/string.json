@@ -1,0 +1,76 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "label"
+    },
+    {
+      "name": "VisActor_desc",
+      "value": "可视化叙事和人工智能的数据可视化解决方案。针对HarmonyOS进行原生兼容"
+    },
+    {
+      "name": "name_scatter",
+      "value": "散点图"
+    },
+    {
+      "name": "name_line",
+      "value": "折线图"
+    },
+    {
+      "name": "name_area",
+      "value": "面积图"
+    },
+    {
+      "name": "name_funnel",
+      "value": "漏斗图"
+    },
+    {
+      "name": "name_bar",
+      "value": "柱状图"
+    },
+    {
+      "name": "name_horizontal_bar",
+      "value": "水平柱状图"
+    },
+    {
+      "name": "name_radar",
+      "value": "雷达图"
+    },
+    {
+      "name": "name_sankey",
+      "value": "桑基图"
+    },
+    {
+      "name": "name_pie",
+      "value": "饼图"
+    },
+    {
+      "name": "name_ring",
+      "value": "环形图"
+    },
+    {
+      "name": "name_rose",
+      "value": "玫瑰图"
+    },
+    {
+      "name": "name_wordcloud",
+      "value": "词云图"
+    },
+    {
+      "name": "name_boxplot",
+      "value": "箱形图"
+    },
+    {
+      "name": "name_dual_axis",
+      "value": "双轴图"
+    }
+  ]
+}

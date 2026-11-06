@@ -1,0 +1,9 @@
+# Generated certificates
+.tmp/
+*.pem
+*.key
+*.crt
+ca.key
+ca.crt
+cert.pem
+key.pem

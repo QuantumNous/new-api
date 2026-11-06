@@ -1,0 +1,201 @@
+---
+description: 'server.open 用于配置一组页面 URL，Rsbuild 会在启动 server 后自动在浏览器中打开这些页面。'
+---
+
+# server.open
+
+- **类型：**
+
+```ts
+type Open =
+  | boolean
+  | string
+  | string[]
+  | {
+      target?: string | string[];
+      before?: () => Promise<void> | void;
+    };
+```
+
+- **默认值：** `false`
+
+`server.open` 用于配置一组页面 URL，Rsbuild 会在启动 server 后自动在浏览器中打开这些页面。
+
+> 你也可以使用 Rsbuild CLI 的 [--open](/guide/basic/cli#opening-page) 选项来打开页面。当同时使用 `server.open` 和 `--open` 时，`--open` 的优先级更高。
+
+## 示例
+
+`server.open` 可以设置为如下的值。
+
+- 打开项目的默认页面，默认为 `http://localhost:<port>`。如果配置了 [server.host](/config/server/host)，则默认为 `http://<host>:<port>`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    open: true,
+  },
+};
+```
+
+- 打开指定的页面：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    open: 'http://localhost:3000',
+  },
+};
+```
+
+- 打开指定的路径，等价于 `http://localhost:<port>/home`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    open: '/home',
+  },
+};
+```
+
+- 打开多个页面：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    open: ['/', '/about'],
+  },
+};
+```
+
+- 打开一个非 localhost URL（配合 proxy 使用）：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    open: 'http://www.example.com',
+  },
+};
+```
+
+## 端口号占位符
+
+Rsbuild server 监听的端口号可能会发生变更。比如，当端口被占用时，Rsbuild 会自动递增端口号，直至找到一个可用端口。
+
+为了避免端口变化导致 `server.open` 失效，你可以使用以下方法之一：
+
+- 开启 [server.strictPort](/config/server/strict-port)。
+- 使用 `<port>` 占位符来指代当前端口号，Rsbuild 会将占位符替换为实际监听的端口号。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    open: 'http://localhost:<port>/home',
+  },
+};
+```
+
+## 指定浏览器
+
+Rsbuild 默认在系统默认浏览器中打开页面，同时也支持通过环境变量 `BROWSER` 来指定 dev server 启动时要使用的浏览器。
+
+### 浏览器名称
+
+Rsbuild 基于 [open](https://github.com/sindresorhus/open) 库来打开浏览器，支持打开 Chrome、Edge 和 Firefox：
+
+```bash
+# Chrome
+BROWSER=chrome npx rsbuild
+
+# Edge
+BROWSER=edge npx rsbuild
+
+# Firefox
+BROWSER=firefox npx rsbuild
+```
+
+在 Windows 上，使用 [cross-env](https://npmjs.com/package/cross-env) 来设置环境变量：
+
+```bash
+npm i cross-env -D
+cross-env BROWSER=chrome npx rsbuild
+```
+
+你也可以参考 `open` 的 [app 选项](https://github.com/sindresorhus/open#app) 来配置更多特殊的 `BROWSER` 值，例如一些操作系统特有的浏览器名称：
+
+```bash
+# macOS
+BROWSER="google chrome" npx rsbuild
+
+# Linux
+BROWSER="google-chrome" npx rsbuild
+```
+
+### 浏览器参数
+
+通过 `BROWSER_ARGS` 来传递浏览器参数，多个参数之间用空格分隔：
+
+```bash
+BROWSER=chrome BROWSER_ARGS="--incognito" npx rsbuild
+```
+
+### AppleScript
+
+在 macOS 上，Rsbuild 还额外支持通过 AppleScript 来打开浏览器，这允许你复用已有的浏览器标签页来打开页面。
+
+以下是 AppleScript 支持的浏览器名称：
+
+- Google Chrome Canary
+- Google Chrome Dev
+- Google Chrome Beta
+- Google Chrome
+- Microsoft Edge
+- Brave Browser
+- Vivaldi
+- Chromium
+- Helium
+
+比如：
+
+```bash
+BROWSER="Google Chrome Canary" npx rsbuild
+```
+
+### 环境变量配置
+
+你可以将 `BROWSER` 设置在本地的 [.env.local](/guide/advanced/env-vars#env-file) 文件中，这样能够避免每次启动 dev server 时都需要手动设置环境变量，同时也能避免影响项目的其他开发者。
+
+```bash
+# .env.local
+BROWSER=chrome
+```
+
+## 回调函数
+
+通过 `open.before`，可以在打开页面之前触发一个回调函数。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    open: {
+      before: async () => {
+        await doSomeThing();
+      },
+    },
+  },
+};
+```
+
+当使用 `open.before` 时，你可以通过 `open.target` 来配置页面的 URLs。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    open: {
+      target: ['/', '/about'],
+      before: async () => {
+        await doSomeThing();
+      },
+    },
+  },
+};
+```

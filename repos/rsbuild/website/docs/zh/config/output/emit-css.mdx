@@ -1,0 +1,31 @@
+---
+description: '如果 false，CSS 将不会被提取为单独的 .css 文件，也不会通过 output.injectStyles 注入到 JavaScript 产物中。'
+---
+
+# output.emitCss
+
+- **类型：** `boolean`
+- **默认值：** 当 [output.target](/config/output/target) 为 `web` 时为 `true`，否则为 `false`
+
+是否将 CSS 输出到产物中。
+
+如果 `false`，CSS 将不会被提取为单独的 `.css` 文件，也不会通过 [output.injectStyles](/config/output/inject-styles) 注入到 JavaScript 产物中。
+
+:::tip
+
+当 `output.emitCss` 为 `false` 时，CSS Modules 的类名信息仍然会被注入到 JS 产物中，这有助于保证 SSR 时 CSS Modules 类名的正确性。
+
+:::
+
+## 示例
+
+当构建 Node.js 产物时，如果你需要输出 CSS 文件，可以设置 `output.emitCss` 为 `true`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    emitCss: true,
+  },
+};
+```

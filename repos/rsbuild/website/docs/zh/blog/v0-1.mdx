@@ -1,0 +1,62 @@
+---
+description: 'Rsbuild 0.1 首次发布，带来基于 Rspack 的高性能构建、开箱即用配置和多框架支持。'
+date: 2023-11-22 08:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Rsbuild 0.1 发布
+
+_November 22, 2023_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-1.png)
+
+我们很高兴地宣布 **[Rsbuild](https://github.com/web-infra-dev/rsbuild)** **0.1** 的发布！
+
+Rsbuild 是基于 Rspack 的构建工具，旨在成为**增强版的 Rspack CLI**，更加容易上手和开箱即用。Rsbuild 是 webpack 应用迁移到 Rspack 的最佳方案，他能帮助你减少 90% 配置并获得 10 倍构建速度。
+
+### 🚀 性能
+
+Rsbuild 能够充分发挥 Rspack 的性能优势。由于 Rsbuild 内置了更多开箱即用的功能，因此性能数据会略微低于 Rspack。
+
+构建一个大型 Web 应用的时间：
+
+import { BenchmarkGraph } from '@components/Benchmark';
+
+<BenchmarkGraph />
+
+> 以上数据基于 Farm 团队搭建的 benchmark，更多信息请参考 [build-tools-performance](https://github.com/rstackjs/build-tools-performance)。
+
+### 🔥 特性
+
+Rsbuild 具备以下特性：
+
+- **易于配置**：Rsbuild 的目标之一，是为 Rspack 用户提供开箱即用的构建能力，使开发者能够在零配置的情况下开发 web 项目。同时，Rsbuild 提供一套语义化的构建配置，以降低 Rspack 配置的学习成本。
+
+- **性能优先**：Rsbuild 集成了社区中基于 Rust 的高性能工具，包括 [Rspack](https://github.com/web-infra-dev/rspack)，[SWC](https://swc.rs/) 和 [Lightning CSS](https://lightningcss.dev/)，以提供一流的构建速度和开发体验。与基于 webpack 的 Create React App 和 Vue CLI 等工具相比，Rsbuild 提供了 5 ~ 10 倍的构建性能，以及更轻量的依赖体积。
+
+- **插件生态**：Rsbuild 内置一个轻量级的插件系统，提供一系列高质量的官方插件。此外，Rsbuild 兼容大部分的 webpack 插件和所有的 Rspack 插件，这意味着你可以在 Rsbuild 中使用社区或公司内沉淀的现有插件，而无须重写相关代码。
+
+- **产物稳定**：Rsbuild 设计时充分考虑了构建产物的稳定性，它的开发和生产构建产物具备较强的一致性，并自动完成语法降级和 polyfill 注入。Rsbuild 也提供插件来进行 TypeScript 类型检查和产物语法检查，以避免线上代码的质量问题和兼容性问题。
+
+- **框架无关**：Rsbuild 不与前端 UI 框架耦合，并通过插件来支持 React、Vue、Svelte、Solid、Preact 等框架，未来也计划支持社区中更多的 UI 框架。
+
+### 💡 下一步
+
+目前 Rsbuild 仍在快速迭代中，并计划引入更多强大的新特性。
+
+比如，我们正在开发 **Rsdoctor**，这是一个强大的构建分析工具，可以用于所有 Rspack 和 webpack 项目。它提供可视化 UI，来帮助开发者分析项目中的构建耗时、重复依赖、代码转换过程等，使构建问题更加容易被定位和解决。
+
+![Rsdoctor preview](https://assets.rspack.rs/rsbuild/assets/rsdoctor-preview.jpg)
+
+我们将在近期发布 Rsdoctor 的第一个可用版本，后续 Rsbuild 会与 Rspack 同步迭代，并计划于 2024 年上半年发布 1.0 版本。

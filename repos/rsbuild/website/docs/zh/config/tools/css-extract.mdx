@@ -1,0 +1,72 @@
+---
+description: 'Rsbuild 默认使用 CssExtractRspackPlugin 插件将 CSS 提取为独立的文件。'
+---
+
+# tools.cssExtract
+
+- **类型：**
+
+```ts
+import type { CssExtractRspackPluginOptions, CssExtractRspackLoaderOptions } from '@rspack/core';
+
+type CSSExtractOptions = {
+  pluginOptions?: CssExtractRspackPluginOptions;
+  loaderOptions?: CssExtractRspackLoaderOptions;
+};
+```
+
+- **默认值：**
+
+```js
+const defaultOptions = {
+  pluginOptions: {
+    ignoreOrder: true,
+    // 默认值由 Rsbuild 的 output.distPath 和 output.filename 选项决定
+    filename: 'static/css/[name].css',
+    chunkFilename: 'static/css/async/[name].css',
+  },
+  loaderOptions: {},
+};
+```
+
+- **版本：** `>= 0.7.0`
+
+Rsbuild 默认使用 CssExtractRspackPlugin 插件将 CSS 提取为独立的文件。
+
+通过 `tools.cssExtract` 可以更改 [CssExtractRspackPlugin](https://rspack.rs/zh/plugins/rspack/css-extract-rspack-plugin) 的选项。
+
+## pluginOptions
+
+- **类型：** `CssExtractRspackPluginOptions`
+- **示例：**
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    cssExtract: {
+      pluginOptions: {
+        ignoreOrder: false,
+      },
+    },
+  },
+};
+```
+
+## loaderOptions
+
+- **类型：** `CssExtractRspackLoaderOptions`
+- **示例：**
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    cssExtract: {
+      loaderOptions: {
+        esModule: false,
+      },
+    },
+  },
+};
+```
+
+> 请参考 [CssExtractRspackPlugin](https://rspack.rs/zh/plugins/rspack/css-extract-rspack-plugin) 插件文档来了解所有可用的选项。

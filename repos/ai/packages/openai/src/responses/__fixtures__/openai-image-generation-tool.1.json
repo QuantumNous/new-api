@@ -1,0 +1,96 @@
+{
+  "id": "resp_0a33d15155cb126d0068c96c54970481958484dea31f07926d",
+  "object": "response",
+  "created_at": 1758030932,
+  "status": "completed",
+  "background": false,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5-nano-2025-08-07",
+  "output": [
+    {
+      "id": "rs_0a33d15155cb126d0068c96c5527808195a933b468ccb5dfd9",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "ig_0a33d15155cb126d0068c96c59bc14819599154c9988b82996",
+      "type": "image_generation_call",
+      "status": "completed",
+      "background": "opaque",
+      "output_format": "webp",
+      "quality": "low",
+      "result": "UklGRoitEQBXRUJQVlA4TEGzEAAv/8P/AM1AbNtGkITZhU4fH9J/wTOT+xIi+j8BuT4kABkCibNAZrlwIPyQ7W/bH5L2RHMzMBKgXmfZeYi9tLtrrQkZvN1yXHLLgG71gPkpDxmI/gc03YFulQR...AA9lhA0Y9rVdqQs/W4w/MOxeRW5+R1/UXmmNVi9yQ7x/vG0q2VRk01seZIuj5OmRYhD+yY82dZqMH1BCueTeOcNfGKxQ==",
+      "revised_prompt": "A cute fluffy cat sitting on a sunlit windowsill, warm sunlight, soft fur, expressive eyes, photorealistic style.",
+      "size": "1024x1024"
+    },
+    {
+      "id": "rs_0a33d15155cb126d0068c96c6c0ef48195bc73e30faf832ba3",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "msg_0a33d15155cb126d0068c96c723ed88195b1405bc370bb8a65",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": ""
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "image_generation",
+      "background": "auto",
+      "moderation": "auto",
+      "n": 1,
+      "output_compression": 100,
+      "output_format": "webp",
+      "quality": "low",
+      "size": "1024x1024"
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 3151,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 1970,
+    "output_tokens_details": {
+      "reasoning_tokens": 1920
+    },
+    "total_tokens": 5121
+  },
+  "user": null,
+  "metadata": {}
+}

@@ -1,0 +1,388 @@
+---
+description: 'Transform the import path to modularly import subpaths of third-party packages. The functionality is similar to babel-plugin-import.'
+---
+
+# source.transformImport
+
+- **Type:**
+
+```ts
+type TransformImport =
+  | Array<{
+      libraryName: string;
+      libraryDirectory?: string;
+      customName?: string;
+      customStyleName?: string;
+      style?: string | boolean;
+      styleLibraryDirectory?: string;
+      camelToDashComponentName?: boolean;
+      transformToDefaultImport?: boolean;
+      ignoreEsComponent?: string[];
+      ignoreStyleComponent?: string[];
+    }>
+  | Function;
+```
+
+- **Default:** `undefined`
+
+Transform the import path to modularly import subpaths of third-party packages. The functionality is similar to [babel-plugin-import](https://npmjs.com/package/babel-plugin-import).
+
+## Example
+
+### Import antd on demand
+
+When using the [antd](https://github.com/ant-design/ant-design) component library (versions below v5), you can import components on demand with this config:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'antd',
+        libraryDirectory: 'es',
+        style: 'css',
+      },
+    ],
+  },
+};
+```
+
+The source code is:
+
+```js
+import { Button } from 'antd';
+```
+
+Will be transformed into:
+
+```js
+import Button from 'antd/es/button';
+import 'antd/es/button/style/css';
+```
+
+### Import lodash on demand
+
+When using lodash, you can automatically refer to the subpath through `transformImport` to reduce bundle size.
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'lodash',
+        customName: 'lodash/{{ member }}',
+      },
+    ],
+  },
+};
+```
+
+The source code is:
+
+```js
+import { get } from 'lodash';
+```
+
+Will be transformed to:
+
+```js
+import get from 'lodash/get';
+```
+
+Please avoid the following usage, otherwise all of lodash's code will be imported:
+
+```js
+import _ from 'lodash';
+import lodash from 'lodash';
+```
+
+## Scope
+
+`transformImport` is only applicable to modules compiled by Rsbuild. Note that Rsbuild does not compile JavaScript files in the node_modules by default. This means that the code in the node_modules directory will not be processed by `transformImport`.
+
+If you want to process the code in node_modules through `transformImport`, please add the relevant modules to the [source.include](/config/source/include) config.
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    include: [/node_modules[\\/]some-package[\\/]/],
+  },
+};
+```
+
+## Options
+
+### libraryName
+
+- **Type:** `string`
+
+The original import path that needs to be transformed.
+
+### libraryDirectory
+
+- **Type:** `string`
+- **Default:** `'lib'`
+
+Constructs the transformed path by concatenating `${libraryName}/${libraryDirectory}/${member}`, where member is the imported member.
+
+Example:
+
+```ts
+import { Button } from 'foo';
+```
+
+Out:
+
+```ts
+import Button from 'foo/lib/button';
+```
+
+### style
+
+- **Type:** `string | boolean`
+- **Default:** `undefined`
+
+Determines whether to import related styles:
+
+- `true`: import `${libraryName}/${libraryDirectory}/${member}/style`.
+- `'css'`: import `${libraryName}/${libraryDirectory}/${member}/style/css`.
+- `false` or `undefined`: do not import styles.
+
+When it is set to `true`:
+
+```ts
+import { Button } from 'foo';
+```
+
+Out:
+
+```ts
+import Button from 'foo/lib/button';
+import 'foo/lib/button/style';
+```
+
+When it is set to `'css'`:
+
+```ts
+import { Button } from 'foo';
+```
+
+Out:
+
+```ts
+import Button from 'foo/lib/button';
+import 'foo/lib/button/style/css';
+```
+
+For custom style import paths, use [customStyleName](#customstylename) or [styleLibraryDirectory](#stylelibrarydirectory).
+
+### styleLibraryDirectory
+
+- **Type:** `string`
+- **Default:** `undefined`
+
+Constructs the import path when importing styles. If this configuration is specified, the `style` configuration option will be ignored. The constructed import path is `${libraryName}/${styleLibraryDirectory}/${member}`.
+
+When it is set to `styles`:
+
+```ts
+import { Button } from 'foo';
+```
+
+Out:
+
+```ts
+import Button from 'foo/lib/button';
+import 'foo/styles/button';
+```
+
+### camelToDashComponentName
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+Whether to convert camelCase imports to kebab-case.
+
+Example:
+
+```ts
+import { ButtonGroup } from 'foo';
+```
+
+Out:
+
+```ts
+// set to true:
+import ButtonGroup from 'foo/button-group';
+// set to false:
+import ButtonGroup from 'foo/ButtonGroup';
+```
+
+### transformToDefaultImport
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+Whether to convert import statements to default imports.
+
+Example:
+
+```ts
+import { Button } from 'foo';
+```
+
+Out:
+
+```ts
+// set to true:
+import Button from 'foo/button';
+// set to false:
+import { Button } from 'foo/button';
+```
+
+### customName
+
+- **Type:** `string`
+- **Default:** `undefined`
+
+Customize the transformed path.
+
+For example, the following config will transform `import { foo } from 'my-lib'` into `import foo from 'my-lib/foo'`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'my-lib',
+        customName: `my-lib/{{ member }}`,
+      },
+    ],
+  },
+};
+```
+
+In addition, you can also declare the format of the path after transformation, for example setting it to `my-lib/{{ camelCase member }}` to convert member into camel case.
+
+The following formats are supported:
+
+- `kebabCase`: lowercase letters, words joined by hyphens. For example: `my-variable-name`.
+- `snakeCase`: lowercase letters, words joined by underscores. For example: `my_variable_name`.
+- `camelCase`: first letter lowercase, the first letter of each following word uppercase. For example: `myVariableName`.
+- `upperCase`: uppercase letters, other characters unchanged. For example: `MY-VARIABLE-NAME`.
+- `lowerCase`: lowercase letters, other characters unchanged. For example: `my-variable-name`.
+
+### customStyleName
+
+- **Type:** `string`
+- **Default:** `undefined`
+
+Customize the transformed style path, the usage is consistent with `customName`.
+
+### ignoreEsComponent
+
+- **Type:** `string[]`
+- **Default:** `undefined`
+
+Specify named imports that should not be transformed to subpath imports. The values should match the names in the original import statement.
+
+For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'foo',
+        libraryDirectory: 'lib',
+        style: true,
+        ignoreEsComponent: ['Icon'],
+      },
+    ],
+  },
+};
+```
+
+The source code is:
+
+```js
+import { Button, Icon } from 'foo';
+```
+
+Will be transformed to:
+
+```js
+import Button from 'foo/lib/button';
+import 'foo/lib/button/style';
+import { Icon } from 'foo';
+```
+
+### ignoreStyleComponent
+
+- **Type:** `string[]`
+- **Default:** `undefined`
+
+Specify named imports that should not import related styles. Their JavaScript import paths are still transformed. The values should match the names in the original import statement.
+
+For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'foo',
+        libraryDirectory: 'lib',
+        style: true,
+        ignoreStyleComponent: ['Button'],
+      },
+    ],
+  },
+};
+```
+
+The source code is:
+
+```js
+import { Button, Alert } from 'foo';
+```
+
+Will be transformed to:
+
+```js
+import Button from 'foo/lib/button';
+import Alert from 'foo/lib/alert';
+import 'foo/lib/alert/style';
+```
+
+## Function type
+
+The `transformImport` can be a function, it will accept the previous value, and you can modify it.
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: (imports) => {
+      return imports.filter((data) => data.libraryName !== 'antd');
+    },
+  },
+};
+```
+
+You can also return a new value as the final result in the function, which will replace the previous value.
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: () => {
+      return [
+        {
+          libraryName: 'antd',
+          libraryDirectory: 'es',
+          style: 'css',
+        },
+      ];
+    },
+  },
+};
+```

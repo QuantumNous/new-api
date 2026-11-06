@@ -1,0 +1,411 @@
+.IconButton {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  margin: 0;
+  outline: 0;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background-color: var(--color-gray-50);
+  color: var(--color-gray-900);
+  -webkit-user-select: none;
+  user-select: none;
+  font-size: 1rem;
+  font-weight: bold;
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--color-gray-100);
+    }
+  }
+
+  &:active {
+    background-color: var(--color-gray-100);
+  }
+
+  &[data-popup-open] {
+    background-color: var(--color-gray-100);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+.Icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.Positioner {
+  --easing: var(--ease-out-fast);
+  --animation-duration: 0.35s;
+
+  width: var(--positioner-width);
+  height: var(--positioner-height);
+  max-width: var(--available-width);
+
+  transition-property: top, left, right, bottom, transform;
+  transition-timing-function: var(--easing);
+  transition-duration: var(--animation-duration);
+
+  /* Disable transitions when data-instant is set (used for the initial positioning of the popup) */
+  &[data-instant] {
+    transition: none;
+  }
+}
+
+.Popup {
+  position: relative;
+  background-color: canvas;
+  color: var(--color-gray-900);
+  border-radius: 0.5rem;
+  transform-origin: var(--transform-origin);
+
+  /* These are required to make the size animations work */
+  width: var(--popup-width, auto);
+  height: var(--popup-height, auto);
+
+  max-width: 500px;
+
+  /* width and height are essential for the resize animation; opacity and transform handle the enter/exit animation */
+  transition-property: width, height, opacity, transform;
+  transition-timing-function: var(--easing);
+  transition-duration: var(--animation-duration);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  &[data-instant] {
+    transition: none;
+  }
+
+  @media (prefers-color-scheme: light) {
+    outline: 1px solid var(--color-gray-200);
+    box-shadow:
+      0 10px 15px -3px var(--color-gray-200),
+      0 4px 6px -4px var(--color-gray-200);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    outline: 1px solid var(--color-gray-300);
+    outline-offset: -1px;
+  }
+}
+
+.Viewport {
+  --viewport-inline-padding: 1.5rem;
+  /* Required to clip the overflowing content during the slide in/out animations */
+  position: relative;
+  overflow: clip;
+  width: 100%;
+  height: 100%;
+  padding: 1rem var(--viewport-inline-padding);
+
+  [data-previous],
+  [data-current] {
+    /* This freezes the width of the content while transitioning.
+       Width is set to the content area of the parent popup (--popup-width measures the border-box).
+       The 'previous` container received the width of the previous content, while the `next` container
+        receives the width of the new content.
+    */
+    width: calc(var(--popup-width) - 2 * var(--viewport-inline-padding));
+    transform: translateX(0);
+    opacity: 1;
+    transition:
+      transform var(--animation-duration) var(--easing),
+      opacity calc(var(--animation-duration) / 2) var(--easing);
+  }
+
+  &[data-activation-direction~='down'] {
+    [data-previous][data-ending-style] {
+      transform: translateY(-50%);
+      opacity: 0;
+    }
+
+    [data-current][data-starting-style] {
+      transform: translateY(50%);
+      opacity: 0;
+    }
+  }
+
+  &[data-activation-direction~='up'] {
+    [data-previous][data-ending-style] {
+      transform: translateY(50%);
+      opacity: 0;
+    }
+
+    [data-current][data-starting-style] {
+      transform: translateY(-50%);
+      opacity: 0;
+    }
+  }
+}
+
+.Arrow {
+  display: flex;
+  transition: left calc(var(--animation-duration)) var(--easing);
+
+  &[data-side='top'] {
+    bottom: -8px;
+    rotate: 180deg;
+  }
+
+  &[data-side='bottom'] {
+    top: -8px;
+    rotate: 0deg;
+  }
+
+  &[data-side='left'] {
+    right: -13px;
+    rotate: 90deg;
+  }
+
+  &[data-side='right'] {
+    left: -13px;
+    rotate: -90deg;
+  }
+}
+
+.ArrowFill {
+  fill: canvas;
+}
+
+.ArrowOuterStroke {
+  @media (prefers-color-scheme: light) {
+    fill: var(--color-gray-200);
+  }
+}
+
+.ArrowInnerStroke {
+  @media (prefers-color-scheme: dark) {
+    fill: var(--color-gray-300);
+  }
+}
+
+.Title {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.Description {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  color: var(--color-gray-600);
+}
+
+.Actions {
+  display: flex;
+  justify-content: end;
+  gap: 1rem;
+}
+
+.Container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--color-gray-300);
+  border-radius: 10px;
+  background-color: var(--color-gray-50);
+  padding: 4px;
+}
+
+.PropertiesPanel {
+  width: 400px;
+
+  .Fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+
+    > div {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+
+    label {
+      width: 100px;
+      display: inline-block;
+    }
+
+    select {
+      border: 1px solid var(--color-gray-200);
+      border-radius: 0.375rem;
+      padding: 2px 8px;
+    }
+
+    input {
+      flex-grow: 1;
+    }
+  }
+}
+
+.HistoryPanel {
+  ol {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  li {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .UserName {
+    font-weight: 500;
+  }
+
+  .Time {
+    color: var(--color-gray-600);
+  }
+}
+
+.DiscussionPanel {
+  min-width: 400px;
+
+  .NoComments {
+    color: var(--color-gray-600);
+    margin-top: 0;
+    margin-bottom: 1rem;
+  }
+}
+
+.Avatar {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  vertical-align: middle;
+  border-radius: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+  font-weight: 600;
+  color: var(--color-gray-900);
+  background-color: var(--color-gray-100);
+  font-size: 1rem;
+  line-height: 1;
+  overflow: hidden;
+  height: 3rem;
+  width: 3rem;
+}
+
+.AvatarImage {
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
+}
+
+.TextArea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 4rem;
+  padding: 0.5rem;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background-color: var(--color-gray-50);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5rem;
+  color: var(--color-gray-900);
+  resize: vertical;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+.Button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding: 0 0.875rem;
+  margin: 0;
+  outline: 0;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background-color: var(--color-gray-50);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5rem;
+  color: var(--color-gray-900);
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--color-gray-100);
+    }
+  }
+
+  &:active {
+    background-color: var(--color-gray-100);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+.Input {
+  box-sizing: border-box;
+  padding-left: 0.875rem;
+  margin: 0;
+  border: 1px solid var(--color-gray-200);
+  width: 100%;
+  height: 2.5rem;
+  border-radius: 0.375rem;
+  font-family: inherit;
+  font-size: 1rem;
+  background-color: transparent;
+  color: var(--color-gray-900);
+
+  &:focus {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+.Textarea {
+  box-sizing: border-box;
+  padding-block: 0.5rem;
+  padding-inline: 0.875rem;
+  margin: 0;
+  border: 1px solid var(--color-gray-200);
+  width: 100%;
+  min-height: 12rem;
+  border-radius: 0.375rem;
+  font-family: inherit;
+  font-size: 1rem;
+  background-color: transparent;
+  color: var(--color-gray-900);
+
+  &:focus {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}

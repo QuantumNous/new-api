@@ -1,0 +1,1267 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`macros > 1. macros > 1. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans>Welcome, { name }!</Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="Welcome, {name}!"
+    content={[]}
+    values={{
+      name,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 2. macros > 2. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans>Welcome, <strong>{ name }</strong>!</Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="Welcome, <0>{name}</0>!"
+    content={[
+      {
+        type: 'strong',
+      },
+    ]}
+    values={{
+      name,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 3. macros > 3. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+import { useTranslation } from 'react-i18next'
+
+const x = <Trans>Trainers: { trainersCount, number }</Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { useTranslation, IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="Trainers: {trainersCount, number}"
+    content={[]}
+    values={{
+      trainersCount,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 4. macros > 4. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans>Trainers: <strong>{ trainersCount, number }</strong>!</Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="Trainers: <0>{trainersCount, number}</0>!"
+    content={[
+      {
+        type: 'strong',
+      },
+    ]}
+    values={{
+      trainersCount,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 5. macros > 5. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans>Caught on { catchDate, date, short }</Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="Caught on {catchDate, date, short}"
+    content={[]}
+    values={{
+      catchDate,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 6. macros > 6. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans>Caught on <strong>{ catchDate, date, short }</strong>!</Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="Caught on <0>{catchDate, date, short}</0>!"
+    content={[
+      {
+        type: 'strong',
+      },
+    ]}
+    values={{
+      catchDate,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 7. macros > 7. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans defaults="Trainers: { trainersCount, number }" />
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="Trainers: {trainersCount, number}"
+    content={[]}
+    values={{
+      trainersCount,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 8. macros > 8. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans i18nKey="trainersWithDefaults" defaults="Trainers: <strong>{ trainersCount, number }</strong>!" />
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    i18nKey="trainersWithDefaults"
+    defaultTranslation="Trainers: <0>{trainersCount, number}</0>!"
+    content={[
+      {
+        type: 'strong',
+      },
+    ]}
+    values={{
+      trainersCount,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 9. macros > 9. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans i18nKey="caughtWithDefaults" defaults="Caught on { catchDate, date, short }" />
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    i18nKey="caughtWithDefaults"
+    defaultTranslation="Caught on {catchDate, date, short}"
+    content={[]}
+    values={{
+      catchDate,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 10. macros > 10. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans defaults="Caught on <strong>{ catchDate, date, short }</strong>!" />
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="Caught on <0>{catchDate, date, short}</0>!"
+    content={[
+      {
+        type: 'strong',
+      },
+    ]}
+    values={{
+      catchDate,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 11. macros > 11. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+const Link = ({to, children}) => (<a href={to}>{children}</a>)
+
+const x = <Trans defaults="Caught on <Link to='/dest'>{ catchDate, date, short }</Link>!" values={{catchDate: Date.now()}}>This should be overridden by defaults</Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const Link = ({ to, children }) => <a href={to}>{children}</a>;
+const x = (
+  <IcuTrans
+    values={{
+      catchDate: Date.now(),
+    }}
+    defaultTranslation="Caught on <0>{catchDate, date, short}</0>!"
+    content={[
+      {
+        type: Link,
+        props: {
+          to: '/dest',
+        },
+      },
+    ]}
+  />
+);
+"
+`;
+
+exports[`macros > 12. macros > 12. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans i18nKey="trainersWithDefaults" values={{trainersCount}} defaults="Trainers: <strong>{ trainersCount, number }</strong>!" components={[]} />
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    i18nKey="trainersWithDefaults"
+    values={{
+      trainersCount,
+    }}
+    defaultTranslation=""
+    content={[]}
+  />
+);
+"
+`;
+
+exports[`macros > 13. macros > 13. macros 1`] = `
+"
+
+import { Select } from '../icu.macro'
+
+const x = <Select
+  i18nKey="selectExample"
+  switch={gender}
+  male="He avoids bugs."
+  female="She avoids bugs."
+  other="They avoid bugs."
+/>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    i18nKey="selectExample"
+    defaultTranslation="{gender, select,  male {He avoids bugs.} female {She avoids bugs.} other {They avoid bugs.}}"
+    content={[]}
+    values={{
+      gender,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 14. macros > 14. macros 1`] = `
+"
+
+import { Select } from '../icu.macro'
+
+const x = <Select
+  switch={gender}
+  male={<Trans><strong>He</strong> avoids bugs.</Trans>}
+  female={<Trans><strong>She</strong> avoids bugs.</Trans>}
+  other={<Trans><strong>They</strong> avoid bugs.</Trans>}
+/>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="{gender, select,  male {<0>He</0> avoids bugs.} female {<1>She</1> avoids bugs.} other {<2>They</2> avoid bugs.}}"
+    content={[
+      {
+        type: 'strong',
+      },
+      {
+        type: 'strong',
+      },
+      {
+        type: 'strong',
+      },
+    ]}
+    values={{
+      gender,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 15. macros > 15. macros 1`] = `
+"
+
+import { Plural } from '../icu.macro'
+
+const x = <Plural
+  count={itemsCount1}
+  $0="There are no items."
+  one="There is # item."
+  other="There are # items."
+/>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="{itemsCount1, plural,  =0 {There are no items.} one {There is # item.} other {There are # items.}}"
+    content={[]}
+    values={{
+      itemsCount1,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 16. macros > 16. macros 1`] = `
+"
+
+import { Plural } from '../icu.macro'
+
+const x = <Plural
+  i18nKey="testKey"
+  count={itemsCount3}
+  $0={<Trans>There is <strong>no</strong> item.</Trans>}
+  one={<Trans>There is <strong>#</strong> item.</Trans>}
+  other={<Trans>There are <strong>#</strong> items.</Trans>}
+/>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    i18nKey="testKey"
+    defaultTranslation="{itemsCount3, plural,  =0 {There is <0>no</0> item.} one {There is <1>#</1> item.} other {There are <2>#</2> items.}}"
+    content={[
+      {
+        type: 'strong',
+      },
+      {
+        type: 'strong',
+      },
+      {
+        type: 'strong',
+      },
+    ]}
+    values={{
+      itemsCount3,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 17. macros > 17. macros 1`] = `
+"
+
+import { Plural } from '../icu.macro'
+
+const x = <Plural
+  i18nKey="testKey"
+  count={itemsCount3}
+  values={{location: 'table'}}
+  $0={<Trans>There is <strong>no</strong> item on the <i>{location}</i>.</Trans>}
+  one={<Trans>There is <strong>#</strong> item on the <i>{location}</i>.</Trans>}
+  other={<Trans>There are <strong>#</strong> items on the <i>{location}</i>.</Trans>}
+/>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    i18nKey="testKey"
+    defaultTranslation="{itemsCount3, plural,  =0 {There is <0>no</0> item on the <1>{location}</1>.} one {There is <2>#</2> item on the <3>{location}</3>.} other {There are <4>#</4> items on the <5>{location}</5>.}}"
+    content={[
+      {
+        type: 'strong',
+      },
+      {
+        type: 'i',
+      },
+      {
+        type: 'strong',
+      },
+      {
+        type: 'i',
+      },
+      {
+        type: 'strong',
+      },
+      {
+        type: 'i',
+      },
+    ]}
+    values={{
+      itemsCount3,
+      location: 'table',
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 18. macros > 18. macros 1`] = `
+"
+
+import { SelectOrdinal } from '../icu.macro'
+
+const x = <SelectOrdinal
+  count={position}
+  zero="You are #th in line"
+  one="You are #st in line"
+  two="You are #nd in line"
+  few="You are #rd in line"
+  many="You are #th in line"
+  other="You are #th in line"
+  $7="You are in the lucky #th place in line"
+/>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="{position, selectordinal,  zero {You are #th in line} one {You are #st in line} two {You are #nd in line} few {You are #rd in line} many {You are #th in line} other {You are #th in line} =7 {You are in the lucky #th place in line}}"
+    content={[]}
+    values={{
+      position,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 19. macros > 19. macros 1`] = `
+"
+
+import { SelectOrdinal } from '../icu.macro'
+
+const x = <SelectOrdinal
+  i18nKey="testKey"
+  count={position}
+  one={<Trans>You are <strong>#st in line</strong></Trans>}
+  two={<Trans>You are <strong>#nd in line</strong></Trans>}
+  few={<Trans>You are <strong>#rd in line</strong></Trans>}
+  other={<Trans>You are <strong>#th in line</strong></Trans>}
+  $0={<Trans>You are <strong>#th in line</strong></Trans>}
+/>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    i18nKey="testKey"
+    defaultTranslation="{position, selectordinal,  one {You are <0>#st in line</0>} two {You are <1>#nd in line</1>} few {You are <2>#rd in line</2>} other {You are <3>#th in line</3>} =0 {You are <4>#th in line</4>}}"
+    content={[
+      {
+        type: 'strong',
+      },
+      {
+        type: 'strong',
+      },
+      {
+        type: 'strong',
+      },
+      {
+        type: 'strong',
+      },
+      {
+        type: 'strong',
+      },
+    ]}
+    values={{
+      position,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 20. macros > 20. macros 1`] = `
+"
+
+import React from 'react'
+import { useTranslation } from 'react-i18next'
+import { Plural, Select, SelectOrdinal, Trans } from '../icu.macro'
+const Link = ({to, children}) => (<a href={to}>{children}</a>)
+
+export default function TestPage({count = 1}) {
+  const [t] = useTranslation()
+  const catchDate = Date.now()
+  const completion = 0.75
+  const gender = Math.random() < 0.5 ? 'female' : 'male'
+  return (
+    <>
+      {t('sample.text', 'Some sample text with {word} {gender} {count, number} {catchDate, date} {completion, number, percent}', {word: 'interpolation', gender, count, catchDate, completion})}
+      <Plural i18nKey="plural"
+        count={count}
+        values={{linkPath: "/item/" + count}}
+        $0={<Trans><Link to='/cart'>Your cart</Link> is <strong>empty</strong>.</Trans>}
+        one={<Trans>You have <strong># item</strong> in <Link to='/cart'>your cart</Link>.</Trans>}
+        other={<Trans>You have <strong># items</strong> in <Link to='/cart'>your cart</Link>.</Trans>}
+      />
+      <Select
+        i18nKey="select"
+        switch={gender}
+        female={<Trans>These are <Link to='/items'>her items</Link></Trans>}
+        male={<Trans>These are <Link to='/items'>his items</Link></Trans>}
+        other={<Trans>These are <Link to='/items'>their items</Link></Trans>}
+      />
+      <SelectOrdinal i18nKey="ordinal"
+        count={itemIndex+1}
+        values={{linkPath: "/item/" + itemIndex}}
+        one={<Trans>Your <Link to={linkPath}><strong>#st</strong> item</Link></Trans>}
+        two={<Trans>Your <Link to={linkPath}><strong>#nd</strong> item</Link></Trans>}
+        few={<Trans>Your <Link to={linkPath}><strong>#rd</strong> item</Link></Trans>}
+        other={<Trans>Your <Link to={linkPath}><strong>#th</strong> item</Link></Trans>}
+      />
+      <Trans i18nKey="percent" defaults="You&apos;ve completed <Link to='/tasks'>{completion, number, percent} of your tasks</Link>."/>
+      <Trans i18nKey="date" defaults="Caught on <Link to='/dest'>{ catchDate, date, short }</Link>!"/>
+      <SelectOrdinal
+        i18nKey="ordinal.prettier"
+        count={count}
+        values={{ linkPath: \`/item/\${count}\`, type: 'item', prop }}
+        one={
+          <Trans>
+            Your{' '}
+            <Link to={linkPath}>
+              <strong>#st</strong> {type}
+            </Link>
+          </Trans>
+        }
+        two={
+          <Trans>
+            Your{' '}
+            <Link to={linkPath}>
+              <strong>#nd</strong> {type}
+            </Link>
+          </Trans>
+        }
+        few={
+          <Trans>
+            Your{' '}
+            <Link to={linkPath}>
+              <strong>#rd</strong> {type}
+            </Link>
+          </Trans>
+        }
+        other={
+          <Trans>
+            Your{' '}
+            <Link to={linkPath}>
+              <strong>#th</strong> {type}
+            </Link>
+          </Trans>
+        }
+      />
+      <Select
+        i18nKey="select.expr.prettier"
+        switch={\`\${gender}Person\`}
+        values={{ linkPath: \`/users/\${number}\`, type: 'bugs' }}
+        malePerson={
+          <Trans>
+            <Link to={linkPath}>
+              <strong>He</strong>
+            </Link>{' '}
+            avoids {type}.
+          </Trans>
+        }
+        femalePerson={
+          <Trans>
+            <Link to={linkPath}>
+              <strong>She</strong>
+            </Link>{' '}
+            avoids {type}.
+          </Trans>
+        }
+        other={
+          <Trans>
+            <Link to={linkPath}>
+              <strong>They</strong>
+            </Link>{' '}
+            avoid {type}.
+          </Trans>
+        }
+      />
+    </>
+  )
+}
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import React from 'react';
+import { useTranslation, IcuTrans } from 'react-i18next';
+const Link = ({ to, children }) => <a href={to}>{children}</a>;
+export default function TestPage({ count = 1 }) {
+  const [t] = useTranslation();
+  const catchDate = Date.now();
+  const completion = 0.75;
+  const gender = Math.random() < 0.5 ? 'female' : 'male';
+  return (
+    <>
+      {t(
+        'sample.text',
+        'Some sample text with {word} {gender} {count, number} {catchDate, date} {completion, number, percent}',
+        {
+          word: 'interpolation',
+          gender,
+          count,
+          catchDate,
+          completion,
+        },
+      )}
+      <IcuTrans
+        i18nKey="plural"
+        count={count}
+        defaultTranslation="{count, plural,  =0 {<0>Your cart</0> is <1>empty</1>.} one {You have <2># item</2> in <3>your cart</3>.} other {You have <4># items</4> in <5>your cart</5>.}}"
+        content={[
+          {
+            type: Link,
+            props: {
+              to: '/cart',
+            },
+          },
+          {
+            type: 'strong',
+          },
+          {
+            type: 'strong',
+          },
+          {
+            type: Link,
+            props: {
+              to: '/cart',
+            },
+          },
+          {
+            type: 'strong',
+          },
+          {
+            type: Link,
+            props: {
+              to: '/cart',
+            },
+          },
+        ]}
+        values={{
+          linkPath: '/item/' + count,
+        }}
+      />
+      <IcuTrans
+        i18nKey="select"
+        defaultTranslation="{gender, select,  female {These are <0>her items</0>} male {These are <1>his items</1>} other {These are <2>their items</2>}}"
+        content={[
+          {
+            type: Link,
+            props: {
+              to: '/items',
+            },
+          },
+          {
+            type: Link,
+            props: {
+              to: '/items',
+            },
+          },
+          {
+            type: Link,
+            props: {
+              to: '/items',
+            },
+          },
+        ]}
+        values={{
+          gender,
+        }}
+      />
+      <IcuTrans
+        i18nKey="ordinal"
+        count={itemIndex + 1}
+        defaultTranslation="{count, selectordinal,  one {Your <0><0>#st</0> item</0>} two {Your <1><0>#nd</0> item</1>} few {Your <2><0>#rd</0> item</2>} other {Your <3><0>#th</0> item</3>}}"
+        content={[
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+        ]}
+        values={{
+          linkPath: '/item/' + itemIndex,
+        }}
+      />
+      <IcuTrans
+        i18nKey="percent"
+        defaultTranslation="You've completed <0>{completion, number, percent} of your tasks</0>."
+        content={[
+          {
+            type: Link,
+            props: {
+              to: '/tasks',
+            },
+          },
+        ]}
+        values={{
+          completion,
+        }}
+      />
+      <IcuTrans
+        i18nKey="date"
+        defaultTranslation="Caught on <0>{catchDate, date, short}</0>!"
+        content={[
+          {
+            type: Link,
+            props: {
+              to: '/dest',
+            },
+          },
+        ]}
+        values={{
+          catchDate,
+        }}
+      />
+      <IcuTrans
+        i18nKey="ordinal.prettier"
+        count={count}
+        defaultTranslation="{count, selectordinal,  one {Your <0><0>#st</0> {type}</0>} two {Your <1><0>#nd</0> {type}</1>} few {Your <2><0>#rd</0> {type}</2>} other {Your <3><0>#th</0> {type}</3>}}"
+        content={[
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+        ]}
+        values={{
+          linkPath: \`/item/\${count}\`,
+          type: 'item',
+          prop,
+        }}
+      />
+      <IcuTrans
+        i18nKey="select.expr.prettier"
+        defaultTranslation="{selectKey, select,  malePerson {<0><0>He</0></0> avoids {type}.} femalePerson {<1><0>She</0></1> avoids {type}.} other {<2><0>They</0></2> avoid {type}.}}"
+        content={[
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+          {
+            type: Link,
+            props: {
+              to: linkPath,
+              children: [
+                {
+                  type: 'strong',
+                },
+              ],
+            },
+          },
+        ]}
+        values={{
+          selectKey: \`\${gender}Person\`,
+          linkPath: \`/users/\${number}\`,
+          type: 'bugs',
+        }}
+      />
+    </>
+  );
+}
+"
+`;
+
+exports[`macros > 21. macros > 21. macros 1`] = `
+"
+
+import React from "react"
+import { Trans, number, date, time, plural, select, selectOrdinal } from "../icu.macro";
+
+function Component({ children, style }) {
+  return <div style={style}>{children}</div>
+}
+
+const count = 2;
+const numbers = 34;
+const selectInput = "thing"
+const now = new Date()
+const x = (
+  <Trans i18nKey="key">
+    <strong>exciting!</strong>
+    {plural\`\${count},
+    =0 { hi there \${<strong>friend</strong>} }
+    other { woweee even supports nested \${number\`\${numbers}\`} } \`} and
+    {select\`\${selectInput},
+     thing { another nested \${<Component style={{ color: "red" }}>
+       with regular text and a date: <pre>{date\`\${now}\`}</pre>
+     </Component>}} \`}
+  </Trans>
+);
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans, number, date, plural, select } from 'react-i18next';
+import React from 'react';
+function Component({ children, style }) {
+  return <div style={style}>{children}</div>;
+}
+const count = 2;
+const numbers = 34;
+const selectInput = 'thing';
+const now = new Date();
+const x = (
+  <IcuTrans
+    i18nKey="key"
+    defaultTranslation="<0>exciting!</0>{count, plural, =0 { hi there <1>friend</1> } other { woweee even supports nested {numbers, number} } } and{selectInput, select, thing { another nested <2>with regular text and a date: <0>{now, date}</0></2>} }"
+    content={[
+      {
+        type: 'strong',
+      },
+      {
+        type: 'strong',
+      },
+      {
+        type: Component,
+        props: {
+          style: {
+            color: 'red',
+          },
+          children: [
+            {
+              type: 'pre',
+            },
+          ],
+        },
+      },
+    ]}
+    values={{
+      count,
+      numbers,
+      selectInput,
+      now,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 22. macros > 22. macros 1`] = `
+"
+
+import { Trans } from "../icu.macro";
+
+const x = <Trans>Welcome, &quot;{ name }&quot;!</Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation={'Welcome, "{name}"!'}
+    content={[]}
+    values={{
+      name,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 23. macros > 23. macros 1`] = `
+"
+
+import { Trans } from "../icu.macro";
+
+const x = <Trans data-cy="test">Welcome, { name }!</Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    data-cy="test"
+    defaultTranslation="Welcome, {name}!"
+    content={[]}
+    values={{
+      name,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 24. macros > 24. macros 1`] = `
+"
+
+import { Trans } from "../icu.macro";
+
+const x = <Trans data-cy="test" data-testid="trans-component">Welcome, <strong data-cy="name">{ name }</strong>!</Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    data-cy="test"
+    data-testid="trans-component"
+    defaultTranslation="Welcome, <0>{name}</0>!"
+    content={[
+      {
+        type: 'strong',
+        props: {
+          'data-cy': 'name',
+        },
+      },
+    ]}
+    values={{
+      name,
+    }}
+  />
+);
+"
+`;
+
+exports[`macros > 25. macros > 25. macros 1`] = `
+"
+
+import type { PackageDetail } from "@api/package";
+import type { ReactElement } from "react";
+import React from "react";
+
+import { number } from "../icu.macro";
+import { Trans } from "../icu.macro";
+import ProgressBar from "/ProgressBar";
+
+const UsageTracker = ({
+  packageDetail,
+  className,
+}: {
+  packageDetail: PackageDetail;
+  className?: string;
+}): ReactElement => {
+  const { k } = useI18nNamespace("usage");
+  const incomingRequestCount = packageDetail.incoming_requests;
+  const maxIncomingRequestsAllowed = packageDetail.incoming_requests_limit;
+  const prompt = (
+    <Trans i18nKey="usage-progress-bar-prompt">
+      <b>{number\`\${ incomingRequestCount }\`}</b> of {number\`\${ maxIncomingRequestsAllowed }\`} incoming requests since
+      the first day of the month
+    </Trans>
+  );
+  return (
+    <div className={className} data-cy="usage-tracker">
+      <ProgressBar
+        currentCount={incomingRequestCount}
+        limitCount={maxIncomingRequestsAllowed}
+        prompt={prompt}
+      />
+    </div>
+  );
+};
+
+export default UsageTracker;
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans, number } from 'react-i18next';
+import type { PackageDetail } from '@api/package';
+import type { ReactElement } from 'react';
+import React from 'react';
+import ProgressBar from '/ProgressBar';
+const UsageTracker = ({
+  packageDetail,
+  className,
+}: {
+  packageDetail: PackageDetail,
+  className?: string,
+}): ReactElement => {
+  const { k } = useI18nNamespace('usage');
+  const incomingRequestCount = packageDetail.incoming_requests;
+  const maxIncomingRequestsAllowed = packageDetail.incoming_requests_limit;
+  const prompt = (
+    <IcuTrans
+      i18nKey="usage-progress-bar-prompt"
+      defaultTranslation="<0>{incomingRequestCount, number}</0> of {maxIncomingRequestsAllowed, number} incoming requests since\\n      the first day of the month"
+      content={[
+        {
+          type: 'b',
+        },
+      ]}
+      values={{
+        incomingRequestCount,
+        maxIncomingRequestsAllowed,
+      }}
+    />
+  );
+  return (
+    <div className={className} data-cy="usage-tracker">
+      <ProgressBar
+        currentCount={incomingRequestCount}
+        limitCount={maxIncomingRequestsAllowed}
+        prompt={prompt}
+      />
+    </div>
+  );
+};
+export default UsageTracker;
+"
+`;
+
+exports[`macros > 36. macros > 36. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const spreadProps = { className: 'test', id: 'bold-text' }
+const x = <Trans><b {...spreadProps}>test</b></Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const spreadProps = {
+  className: 'test',
+  id: 'bold-text',
+};
+const x = (
+  <IcuTrans
+    defaultTranslation="<0>test</0>"
+    content={[
+      {
+        type: 'b',
+        props: {
+          ...spreadProps,
+        },
+      },
+    ]}
+    values={{}}
+  />
+);
+"
+`;
+
+exports[`macros > 37. macros > 37. macros 1`] = `
+"
+
+import { Trans } from '../icu.macro'
+
+const x = <Trans><b aria-hidden>test</b></Trans>
+    
+
+      ↓ ↓ ↓ ↓ ↓ ↓
+
+import { IcuTrans } from 'react-i18next';
+const x = (
+  <IcuTrans
+    defaultTranslation="<0>test</0>"
+    content={[
+      {
+        type: 'b',
+        props: {
+          'aria-hidden': true,
+        },
+      },
+    ]}
+    values={{}}
+  />
+);
+"
+`;

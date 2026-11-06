@@ -1,0 +1,40 @@
+---
+description: '设置 Rsbuild server 监听的端口号。'
+---
+
+# server.port
+
+- **类型：** `number`
+- **默认值：** `3000`
+
+设置 Rsbuild server 监听的端口号。
+
+默认情况下，Rsbuild server 会监听 3000 端口，并在端口被占用时自动递增端口号。当你开启 [server.strictPort](/config/server/strict-port) 配置时，如果端口被占用，Rsbuild server 会抛出异常，而不是递增端口号。
+
+Rsbuild CLI 提供了 [--port](/guide/basic/cli#rsbuild) 选项来设置端口号，`--port` 选项的优先级高于 `server.port` 配置。
+
+```bash
+npx rsbuild --port 8080
+```
+
+## 示例
+
+将端口设置为 `8080`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    port: 8080,
+  },
+};
+```
+
+为开发服务器和预览服务器设置不同的端口号：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    port: process.env.NODE_ENV === 'development' ? 3000 : 8080,
+  },
+};
+```

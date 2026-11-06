@@ -1,0 +1,20 @@
+library:
+  name: '@tanstack/solid-router'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Solid bindings for TanStack Router. Accessor<T> returns,
+    Solid primitives, createLink, @solidjs/meta head management.
+generated_at: '2026-03-08'
+skills:
+  - name: 'Solid Router'
+    slug: 'solid-router'
+    type: 'framework'
+    domain: 'solid-router-bindings'
+    path: 'skills/solid-router/SKILL.md'
+    package: 'packages/solid-router'
+    description: >-
+      Solid bindings for TanStack Router. Accessor<T> returns,
+      Solid primitives, createLink, @solidjs/meta head management.
+    sources:
+      - 'TanStack/router:packages/solid-router/src'

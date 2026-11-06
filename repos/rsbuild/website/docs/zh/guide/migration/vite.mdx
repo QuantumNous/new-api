@@ -1,0 +1,277 @@
+---
+description: '本章节介绍如何将 Vite 项目迁移到 Rsbuild。'
+---
+
+# Vite
+
+本章节介绍如何将 Vite 项目迁移到 Rsbuild。
+
+## 安装依赖
+
+首先你需要把 Vite 相关的 npm 依赖替换为 Rsbuild 的依赖。
+
+import { PackageManagerTabs } from '@theme';
+
+- 移除 Vite 的依赖：
+
+<PackageManagerTabs command="remove vite" />
+
+- 安装 Rsbuild 的依赖：
+
+<PackageManagerTabs command="add @rsbuild/core -D" />
+
+## 更新 npm scripts
+
+下一步，你需要把 package.json 中的 npm scripts 更新为 Rsbuild 的 CLI 命令。
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev": "vite", // [!code --]
+    "build": "vite build", // [!code --]
+    "preview": "vite preview", // [!code --]
+    "dev": "rsbuild", // [!code ++]
+    "build": "rsbuild build", // [!code ++]
+    "preview": "rsbuild preview" // [!code ++]
+  }
+}
+```
+
+## 创建配置文件
+
+在 package.json 的同级目录下创建 Rsbuild 的配置文件 `rsbuild.config.ts`，并添加以下内容：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  plugins: [],
+});
+```
+
+## 构建入口
+
+Rsbuild 与 Vite 默认的构建入口不同，Vite 使用 `index.html` 作为默认入口，而 Rsbuild 会自动检测 `src/index.*` 模块，例如 `src/index.ts` 或 `src/index.js`。
+
+从 Vite 迁移到 Rsbuild 时，你可以使用 Rsbuild 提供的 [source.entry](/config/source/entry) 来设置构建入口，[html.template](/config/html/template) 来设置模板。
+
+以一个新建的 Vite 项目为例，首先删除 `index.html` 中的 `<script>` 标签：
+
+```html title="index.html"
+<!-- [!code --] -->
+<script type="module" src="/src/main.ts"></script>
+```
+
+然后添加如下配置即可。
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    template: './index.html',
+  },
+  source: {
+    entry: {
+      index: './src/main.ts',
+    },
+  },
+};
+```
+
+Rsbuild 会在构建时自动注入 `<script>` 标签到生成的 HTML 文件中。
+
+## 迁移插件
+
+大部分常见的 Vite 插件可以轻松地迁移到 Rsbuild 插件，比如：
+
+| Vite                                                                                       | Rsbuild                                                                                   |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| [@vitejs/plugin-react](https://npmjs.com/package/@vitejs/plugin-react)                     | [@rsbuild/plugin-react](/plugins/list/plugin-react)                                       |
+| [@vitejs/plugin-react-swc](https://npmjs.com/package/@vitejs/plugin-react-swc)             | [@rsbuild/plugin-react](/plugins/list/plugin-react)                                       |
+| [@tailwindcss/vite](https://npmjs.com/package/@tailwindcss/vite)                           | [@rsbuild/plugin-tailwindcss](/plugins/list/plugin-tailwindcss)                           |
+| [@vitejs/plugin-vue](https://npmjs.com/package/@vitejs/plugin-vue)                         | [@rsbuild/plugin-vue](/plugins/list/plugin-vue)                                           |
+| [@vitejs/plugin-vue2](https://npmjs.com/package/@vitejs/plugin-vue2)                       | [@rsbuild/plugin-vue2](https://github.com/rstackjs/rsbuild-plugin-vue2)                   |
+| [@vitejs/plugin-vue-jsx](https://npmjs.com/package/@vitejs/plugin-vue-jsx)                 | [@rsbuild/plugin-vue-jsx](https://github.com/rstackjs/rsbuild-plugin-vue-jsx)             |
+| [@vitejs/plugin-vue2-jsx](https://npmjs.com/package/@vitejs/plugin-vue2-jsx)               | [@rsbuild/plugin-vue2-jsx](https://github.com/rstackjs/rsbuild-plugin-vue2-jsx)           |
+| [@vitejs/plugin-basic-ssl](https://npmjs.com/package/@vitejs/plugin-basic-ssl)             | [@rsbuild/plugin-basic-ssl](https://github.com/rstackjs/rsbuild-plugin-basic-ssl)         |
+| [@vitejs/plugin-legacy](https://npmjs.com/package/@vitejs/plugin-legacy)                   | 无须使用，详见 [浏览器兼容性](/guide/advanced/browser-compatibility)                      |
+| [@sveltejs/vite-plugin-svelte](https://npmjs.com/package/@sveltejs/vite-plugin-svelte)     | [@rsbuild/plugin-svelte](/plugins/list/plugin-svelte)                                     |
+| [vite-plugin-svgr](https://npmjs.com/package/vite-plugin-svgr)                             | [@rsbuild/plugin-svgr](/plugins/list/plugin-svgr)                                         |
+| [vite-plugin-checker](https://npmjs.com/package/vite-plugin-checker)                       | [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check)       |
+| [vite-plugin-eslint](https://npmjs.com/package/vite-plugin-eslint)                         | [@rsbuild/plugin-eslint](https://github.com/rstackjs/rsbuild-plugin-eslint)               |
+| [vite-plugin-static-copy](https://npmjs.com/package/vite-plugin-static-copy)               | [output.copy](/config/output/copy)                                                        |
+| [vite-plugin-node-polyfills](https://npmjs.com/package/vite-plugin-node-polyfills)         | [@rsbuild/plugin-node-polyfill](https://github.com/rstackjs/rsbuild-plugin-node-polyfill) |
+| [vite-plugin-solid](https://npmjs.com/package/vite-plugin-solid)                           | [@rsbuild/plugin-solid](/plugins/list/plugin-solid)                                       |
+| [@preact/preset-vite](https://npmjs.com/package/@preact/preset-vite)                       | [@rsbuild/plugin-preact](/plugins/list/plugin-preact)                                     |
+| [@tanstack/router-plugin/vite](https://npmjs.com/package/@tanstack/router-plugin)          | [@tanstack/router-plugin/rsbuild](https://npmjs.com/package/@tanstack/router-plugin)      |
+| [@sentry/vite-plugin](https://npmjs.com/package/@sentry/vite-plugin)                       | [@sentry/webpack-plugin](https://npmjs.com/package/@sentry/webpack-plugin)                |
+| [vite-plugin-full-reload](https://npmjs.com/package/vite-plugin-full-reload)               | [dev.watchFiles](/config/dev/watch-files)                                                 |
+| [vite-plugin-html](https://npmjs.com/package/vite-plugin-html)                             | [html.template](/config/html/template)                                                    |
+| [vite-plugin-css-injected-by-js](https://npmjs.com/package/vite-plugin-css-injected-by-js) | [output.injectStyles](/config/output/inject-styles)                                       |
+
+> 参考 [插件列表](/plugins/list/index) 来了解更多可用的插件。
+
+## 配置迁移 \{#config-migration}
+
+以下是 Vite 配置对应的 Rsbuild 配置：
+
+| Vite                                  | Rsbuild                                                                                           |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| root                                  | [root](/config/root)                                                                              |
+| mode                                  | [mode](/config/mode)                                                                              |
+| base                                  | [server.base](/config/server/base)                                                                |
+| define                                | [source.define](/config/source/define)                                                            |
+| appType                               | [server.historyApiFallback](/config/server/history-api-fallback)                                  |
+| plugins                               | [plugins](/config/plugins)                                                                        |
+| envDir                                | [Env 目录](/guide/advanced/env-vars#env-directory)                                                |
+| logLevel                              | [logLevel](/config/log-level)                                                                     |
+| cacheDir                              | [buildCache](/config/performance/build-cache)                                                     |
+| publicDir                             | [server.publicDir](/config/server/public-dir)                                                     |
+| customLogger                          | [customLogger](/config/custom-logger)                                                             |
+| assetsInclude                         | [source.assetsInclude](/config/source/assets-include)                                             |
+| resolve.alias                         | [resolve.alias](/config/resolve/alias)                                                            |
+| resolve.dedupe                        | [resolve.dedupe](/config/resolve/dedupe)                                                          |
+| resolve.extensions                    | [resolve.extensions](/config/resolve/extensions)                                                  |
+| resolve.conditions                    | [resolve.conditionNames](/config/resolve/condition-names)                                         |
+| resolve.mainFields                    | [resolve.mainFields](/config/resolve/main-fields)                                                 |
+| resolve.preserveSymlinks              | [tools.rspack.resolve.symlinks](/config/tools/rspack)                                             |
+| html.cspNonce                         | [security.nonce](/config/security/nonce)                                                          |
+| css.modules                           | [output.cssModules](/config/output/css-modules)                                                   |
+| css.postcss                           | [tools.postcss](/config/tools/postcss)                                                            |
+| css.preprocessorOptions.sass          | [pluginSass](/plugins/list/plugin-sass)                                                           |
+| css.preprocessorOptions.less          | [pluginLess](/plugins/list/plugin-less)                                                           |
+| css.preprocessorOptions.stylus        | [pluginStylus](https://github.com/rstackjs/rsbuild-plugin-stylus)                                 |
+| css.devSourcemap                      | [output.sourceMap](/config/output/source-map)                                                     |
+| css.lightningcss                      | [tools.lightningcssLoader](/config/tools/lightningcss-loader)                                     |
+| server.host, preview.host             | [server.host](/config/server/host)                                                                |
+| server.port, preview.port             | [server.port](/config/server/port)                                                                |
+| server.cors, preview.cors             | [server.cors](/config/server/cors)                                                                |
+| server.strictPort, preview.strictPort | [server.strictPort](/config/server/strict-port)                                                   |
+| server.https, preview.https           | [server.https](/config/server/https)                                                              |
+| server.open, preview.open             | [server.open](/config/server/open)                                                                |
+| server.proxy, preview.proxy           | [server.proxy](/config/server/proxy)                                                              |
+| server.headers, preview.headers       | [server.headers](/config/server/headers)                                                          |
+| server.hmr                            | [dev.hmr](/config/dev/hmr), [dev.client](/config/dev/client)                                      |
+| server.middlewareMode                 | [server.middlewareMode](/config/server/middleware-mode)                                           |
+| build.target, build.cssTarget         | [Browserslist](/guide/advanced/browserslist)                                                      |
+| build.outDir, build.assetsDir         | [output.distPath](/config/output/dist-path)                                                       |
+| build.assetsInlineLimit               | [output.dataUriLimit](/config/output/data-uri-limit)                                              |
+| build.cssMinify                       | [output.minify](/config/output/minify)                                                            |
+| build.sourcemap                       | [output.sourceMap](/config/output/source-map)                                                     |
+| build.lib                             | 使用 [Rslib](https://github.com/web-infra-dev/rslib)                                              |
+| build.manifest                        | [output.manifest](/config/output/manifest)                                                        |
+| build.ssrEmitAssets                   | [output.emitAssets](/config/output/emit-assets)                                                   |
+| build.minify, build.terserOptions     | [output.minify](/config/output/minify)                                                            |
+| build.emptyOutDir                     | [output.cleanDistPath](/config/output/clean-dist-path)                                            |
+| build.copyPublicDir                   | [server.publicDir](/config/server/public-dir)                                                     |
+| build.reportCompressedSize            | [performance.printFileSize](/config/performance/print-file-size)                                  |
+| ssr.external                          | [output.autoExternal](/config/output/auto-external), [output.externals](/config/output/externals) |
+| ssr.noExternal                        | [output.autoExternal.exclude](/config/output/auto-external#exclude)                               |
+| ssr, worker                           | [environments](/config/environments)                                                              |
+
+说明：
+
+- 上述表格尚未覆盖到 Vite 的所有配置，欢迎补充。
+
+## 服务器端口
+
+Vite 开发服务器的默认端口是 `5173`，而 Rsbuild 的默认端口是 `3000`。如果你的项目依赖 `5173`，可以通过以下配置保持 Vite 原有的端口：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    port: 5173,
+  },
+};
+```
+
+## 环境变量
+
+Vite 默认会将 `VITE_` 开头的环境变量注入到 client 代码中，而 Rsbuild 默认会注入 `PUBLIC_` 开头的环境变量（参考 [public 变量](/guide/advanced/env-vars#public-variables)）。
+
+为了兼容 Vite 的行为，你可以手动调用 Rsbuild 提供的 [loadEnv](/api/javascript-api/core#loadenv) 方法来读取 `VITE_` 开头的环境变量，并通过 [source.define](/config/source/define) 配置项注入到 client 代码中。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig, loadEnv } from '@rsbuild/core';
+
+const { publicVars } = loadEnv({ prefixes: ['VITE_'] });
+
+export default defineConfig({
+  source: {
+    define: publicVars,
+  },
+});
+```
+
+Rsbuild 默认注入了以下 [环境变量](/guide/advanced/env-vars)：
+
+- `import.meta.env.MODE`
+- `import.meta.env.BASE_URL`
+- `import.meta.env.PROD`
+- `import.meta.env.DEV`
+- `import.meta.env.SSR`
+
+## 预设类型
+
+Vite 通过 `vite/client` 提供了一些预设的类型定义，迁移到 Rsbuild 时，你可以将它替换为 `@rsbuild/core` 提供的 [预设类型](/guide/basic/typescript#preset-types)：
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "types": ["vite/client"], // [!code --]
+    "types": ["@rsbuild/core/types"] // [!code ++]
+  }
+}
+```
+
+## Web Workers
+
+从 Vite 的 worker query 导入迁移到 Rsbuild 时，Rsbuild 支持 `?worker` 和 `?worker&inline`：
+
+```ts
+import Worker from './worker.ts?worker';
+import InlineWorker from './worker.ts?worker&inline';
+```
+
+Rsbuild 不支持 Vite 的 `?worker&url` query 后缀。如果你使用它来创建 dedicated worker，可以迁移为标准的 `new Worker()` 构造器语法：
+
+```ts
+const worker = new Worker(new URL('./worker.ts', import.meta.url), {
+  type: 'module',
+});
+```
+
+Rsbuild 也不支持 Vite 的 `?sharedworker`、`?sharedworker&inline` 或 `?sharedworker&url` query 后缀。为了保留 shared worker 的行为，请使用标准的 `new SharedWorker()` 构造器语法：
+
+```ts
+const sharedWorker = new SharedWorker(new URL('./worker.ts', import.meta.url), {
+  type: 'module',
+});
+```
+
+构造器语法也允许你传入标准的 `WorkerOptions` 或 `SharedWorkerOptions`，例如 `name`、`type` 和 `credentials`。更多用法请参考 [Web Workers](/guide/basic/web-workers)。
+
+## Glob import
+
+Rsbuild >= 2.0.8 已兼容 [import.meta.glob()](https://rspack.rs/zh/api/runtime-api/module-variables#importmetaglob)，因此从 Vite 迁移到 Rsbuild 时可以保留原有代码。
+
+## vite-tsconfig-paths
+
+Rsbuild 开箱即用地支持 TypeScript 的 `paths` 选项作为 alias 别名，因此你可以直接移除 `vite-tsconfig-paths` 依赖。
+
+参考 [路径别名](/guide/advanced/alias) 来了解更多。
+
+## 迁移 Vite 插件
+
+参考 [Vite 插件](/guide/migration/vite-plugin) 了解如何迁移 Vite 插件。
+
+## 验证结果
+
+完成以上步骤后，你已经完成了从 Vite 到 Rsbuild 的基本迁移，此时可以执行 `npm run dev` 命令来尝试启动开发服务器。
+
+如果在构建过程中发现问题，请根据错误日志进行调试，或者查看 Vite 配置，检查是否有一些必须的配置未被迁移到 Rsbuild。
+
+## 内容补充
+
+当前文档只涵盖了迁移过程的部分事项，如果你发现有合适的内容可以补充，欢迎通过 pull request 来完善文档 🤝。
+
+> Rsbuild 的文档位于 [rsbuild/website](https://github.com/web-infra-dev/rsbuild/tree/main/website) 目录。

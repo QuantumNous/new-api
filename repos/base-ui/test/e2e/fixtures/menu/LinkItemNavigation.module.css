@@ -1,0 +1,50 @@
+.Page {
+  padding: 1rem;
+}
+
+.Heading {
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.Trigger {
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.5rem 1rem;
+  background: #f9fafb;
+  color: #111827;
+}
+
+.Trigger:hover {
+  background: #f3f4f6;
+}
+
+.Popup {
+  width: 12rem;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  background: canvas;
+  box-shadow: 0 10px 15px -3px rgb(229 231 235 / 70%);
+}
+
+.LinkItem {
+  display: block;
+  border-radius: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  color: #111827;
+  text-decoration: none;
+}
+
+.LinkItem:hover {
+  background: #f3f4f6;
+}
+
+.LinkItem:focus-visible {
+  outline: 2px solid #1e40af;
+}
+
+.LinkItem[data-highlighted] {
+  background: #111827;
+  color: #f9fafb;
+}

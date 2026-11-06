@@ -1,0 +1,981 @@
+---
+description: 'This page outlines the plugin hooks available for Rsbuild plugins.'
+---
+
+# Plugin hooks
+
+This page outlines the plugin hooks available for Rsbuild plugins.
+
+## Overview
+
+### Common hooks
+
+- [modifyRsbuildConfig](#modifyrsbuildconfig): Modify the configuration passed to Rsbuild.
+- [modifyEnvironmentConfig](#modifyenvironmentconfig): Modify the Rsbuild configuration of a specific environment.
+- [modifyRspackConfig](#modifyrspackconfig): Modify the configuration passed to Rspack.
+- [modifyBundlerChain](#modifybundlerchain): Modify the configuration of Rspack through the chain API.
+- [modifyHTMLTags](#modifyhtmltags): Modify the tags that are injected into the HTML.
+- [modifyHTML](#modifyhtml): Modify the final HTML content.
+- [onBeforeCreateCompiler](#onbeforecreatecompiler): Called before creating a compiler instance.
+- [onAfterCreateCompiler](#onaftercreatecompiler): Called after creating a compiler instance and before building.
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile): Called before the compilation of a single environment.
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile): Called after the compilation of a single environment. You can get the build result information.
+- [onExit](#onexit): Called when the process is about to exit.
+
+### Dev hooks
+
+Called when running the `rsbuild dev` command or the `rsbuild.startDevServer()` method:
+
+- [onBeforeStartDevServer](#onbeforestartdevserver): Called before starting the dev server.
+- [onAfterStartDevServer](#onafterstartdevserver): Called after starting the dev server.
+- [onBeforeDevCompile](#onbeforedevcompile): Called before each build in development mode.
+- [onAfterDevCompile](#onafterdevcompile): Called after each build in development mode.
+- [onCloseDevServer](#onclosedevserver): Called when the dev server is closed.
+
+### Build hooks
+
+Called when running the `rsbuild build` command or the `rsbuild.build()` method:
+
+- [onBeforeBuild](#onbeforebuild): Called before running the production build.
+- [onAfterBuild](#onafterbuild): Called after running the production build. You can get the build result information.
+- [onCloseBuild](#onclosebuild): Called when the build is closed.
+
+### Preview hooks
+
+Called when running the `rsbuild preview` command or the `rsbuild.preview()` method:
+
+- [onBeforeStartPreviewServer](#onbeforestartpreviewserver): Called before starting the preview server.
+- [onAfterStartPreviewServer](#onafterstartpreviewserver): Called after starting the preview server.
+
+## Hooks order
+
+### Dev hooks
+
+When the `rsbuild dev` command or `rsbuild.startDevServer()` method is executed, Rsbuild will execute the following hooks in order:
+
+- [modifyRsbuildConfig](#modifyrsbuildconfig)
+- [modifyEnvironmentConfig](#modifyenvironmentconfig)
+- [onBeforeStartDevServer](#onbeforestartdevserver)
+- [modifyBundlerChain](#modifybundlerchain)
+- [modifyRspackConfig](#modifyrspackconfig)
+- [onBeforeCreateCompiler](#onbeforecreatecompiler)
+- [onAfterCreateCompiler](#onaftercreatecompiler)
+- [onBeforeDevCompile](#onbeforedevcompile)
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile)
+- [onAfterStartDevServer](#onafterstartdevserver)
+- [modifyHTMLTags](#modifyhtmltags)
+- [modifyHTML](#modifyhtml)
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile)
+- [onAfterDevCompile](#onafterdevcompile)
+- [onCloseDevServer](#onclosedevserver)
+- [onExit](#onexit)
+
+When rebuilding, the following hooks will be triggered again:
+
+- [onBeforeDevCompile](#onbeforedevcompile)
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile)
+- [modifyHTMLTags](#modifyhtmltags)
+- [modifyHTML](#modifyhtml)
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile)
+- [onAfterDevCompile](#onafterdevcompile)
+
+### Build hooks
+
+When the `rsbuild build` command or `rsbuild.build()` method is executed, Rsbuild will execute the following hooks in order:
+
+- [modifyRsbuildConfig](#modifyrsbuildconfig)
+- [modifyEnvironmentConfig](#modifyenvironmentconfig)
+- [modifyBundlerChain](#modifybundlerchain)
+- [modifyRspackConfig](#modifyrspackconfig)
+- [onBeforeCreateCompiler](#onbeforecreatecompiler)
+- [onAfterCreateCompiler](#onaftercreatecompiler)
+- [onBeforeBuild](#onbeforebuild)
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile)
+- [modifyHTMLTags](#modifyhtmltags)
+- [modifyHTML](#modifyhtml)
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile)
+- [onAfterBuild](#onafterbuild)
+- [onCloseBuild](#onclosebuild)
+- [onExit](#onexit)
+
+When rebuilding, the following hooks will be triggered again:
+
+- [onBeforeBuild](#onbeforebuild)
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile)
+- [modifyHTMLTags](#modifyhtmltags)
+- [modifyHTML](#modifyhtml)
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile)
+- [onAfterBuild](#onafterbuild)
+
+### Preview hooks
+
+When executing the `rsbuild preview` command or `rsbuild.preview()` method, Rsbuild will execute the following hooks in order:
+
+- [modifyRsbuildConfig](#modifyrsbuildconfig)
+- [modifyEnvironmentConfig](#modifyenvironmentconfig)
+- [onBeforeStartPreviewServer](#onbeforestartpreviewserver)
+- [onAfterStartPreviewServer](#onafterstartpreviewserver)
+- [onExit](#onexit)
+
+## Global hooks vs environment hooks
+
+In Rsbuild, some plugin hooks are global. These hooks relate to Rsbuild's startup process or other shared logic and run across all environments. For example:
+
+- `modifyRsbuildConfig` is used to modify the basic configuration of Rsbuild. The basic configuration will eventually be merged with the environment configuration;
+- `onBeforeStartDevServer` and `onAfterStartDevServer` are related to the Rsbuild dev server startup process, all environments share Rsbuild's dev server, middleware, and WebSocket.
+
+Correspondingly, there are some plugin hooks that are related to the current environment. These hooks are executed with a specific environment context and are triggered multiple times depending on the environment.
+
+### Global hooks
+
+- [modifyRsbuildConfig](#modifyrsbuildconfig)
+- [onBeforeStartDevServer](#onbeforestartdevserver)
+- [onBeforeCreateCompiler](#onbeforecreatecompiler)
+- [onAfterCreateCompiler](#onaftercreatecompiler)
+- [onAfterStartDevServer](#onafterstartdevserver)
+- [onBeforeDevCompile](#onbeforedevcompile)
+- [onAfterDevCompile](#onafterdevcompile)
+- [onCloseDevServer](#onclosedevserver)
+- [onBeforeBuild](#onbeforebuild)
+- [onAfterBuild](#onafterbuild)
+- [onCloseBuild](#onclosebuild)
+- [onBeforeStartPreviewServer](#onbeforestartpreviewserver)
+- [onAfterStartPreviewServer](#onafterstartpreviewserver)
+- [onExit](#onexit)
+
+### Environment hooks
+
+- [modifyEnvironmentConfig](#modifyenvironmentconfig)
+- [modifyBundlerChain](#modifybundlerchain)
+- [modifyRspackConfig](#modifyrspackconfig)
+- [modifyHTMLTags](#modifyhtmltags)
+- [modifyHTML](#modifyhtml)
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile)
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile)
+
+## Callback order
+
+### Default behavior
+
+If multiple plugins register the same hook, the callback functions of the hook will execute in the order in which they were registered.
+
+In the following example, the console will output `'1'` and `'2'` in sequence:
+
+```ts
+const plugin1 = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig(() => console.log('1'));
+  },
+});
+
+const plugin2 = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig(() => console.log('2'));
+  },
+});
+
+rsbuild.addPlugins([plugin1, plugin2]);
+```
+
+### `order` Field
+
+When registering a hook, you can declare the order of hook through the `order` field.
+
+```ts
+type HookDescriptor<T extends (...args: any[]) => any> = {
+  handler: T;
+  order: 'pre' | 'post' | 'default';
+};
+```
+
+In the following example, the console will sequentially output `'2'` and `'1'`, because `order` was set to `pre` when plugin2 called `modifyRsbuildConfig`.
+
+```ts
+const plugin1 = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig(() => console.log('1'));
+  },
+});
+
+const plugin2 = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig({
+      handler: () => console.log('2'),
+      order: 'pre',
+    });
+  },
+});
+
+rsbuild.addPlugins([plugin1, plugin2]);
+```
+
+## Common hooks
+
+### modifyRsbuildConfig
+
+Modify the config passed to the Rsbuild, you can directly modify the config object, or return a new object to replace the previous object.
+
+:::warning
+`modifyRsbuildConfig` is a global hook. To add support for your plugin as an [environment-specific plugin](/guide/advanced/environments#plugins-specified-environment), you should use [modifyEnvironmentConfig](/plugins/dev/hooks#modifyenvironmentconfig) instead of `modifyRsbuildConfig`.
+:::
+
+- **Type:**
+
+```ts
+type ModifyRsbuildConfigUtils = {
+  mergeRsbuildConfig: typeof mergeRsbuildConfig;
+};
+
+function ModifyRsbuildConfig(
+  callback: (
+    config: RsbuildConfig,
+    utils: ModifyRsbuildConfigUtils,
+  ) => MaybePromise<RsbuildConfig | void>,
+): void;
+```
+
+- **Example:** Setting a default value for a specific config option:
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig((config) => {
+      config.html ||= {};
+      config.html.title = 'My Default Title';
+    });
+  },
+});
+```
+
+- **Example:** Using `mergeRsbuildConfig` to merge config objects, and return the merged object.
+
+```ts
+import type { RsbuildConfig } from '@rsbuild/core';
+
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig((userConfig, { mergeRsbuildConfig }) => {
+      const extraConfig: RsbuildConfig = {
+        source: {
+          // ...
+        },
+        output: {
+          // ...
+        },
+      };
+
+      // extraConfig will override fields in userConfig,
+      // If you do not want to override the fields in userConfig,
+      // you can adjust to `mergeRsbuildConfig(extraConfig, userConfig)`
+      return mergeRsbuildConfig(userConfig, extraConfig);
+    });
+  },
+});
+```
+
+:::tip
+`modifyRsbuildConfig` cannot be used to register additional Rsbuild plugins. This is because at the time `modifyRsbuildConfig` is executed, Rsbuild has already initialized all plugins and started executing the callbacks of the hooks.
+
+For details, please refer to [Plugin registration phase](/config/plugins#plugin-registration-phase).
+:::
+
+### modifyEnvironmentConfig
+
+Modify the Rsbuild configuration of a specific environment.
+
+In the callback function, the config object in the parameters has already been merged with the common Rsbuild configuration. You can directly modify this config object, or you can return a new object to replace it.
+
+- **Type:**
+
+```ts
+type ArrayAtLeastOne<A, B> = [A, ...Array<A | B>] | [...Array<A | B>, A];
+
+type ModifyEnvironmentConfigUtils = {
+  /** Current environment name */
+  name: string;
+  mergeEnvironmentConfig: (
+    ...configs: ArrayAtLeastOne<MergedEnvironmentConfig, EnvironmentConfig>
+  ) => EnvironmentConfig;
+};
+
+function ModifyEnvironmentConfig(
+  callback: (
+    config: EnvironmentConfig,
+    utils: ModifyEnvironmentConfigUtils,
+  ) => MaybePromise<EnvironmentConfig | void>,
+): void;
+```
+
+- **Example:** Set a default value for the Rsbuild config of a specified environment:
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyEnvironmentConfig((config, { name }) => {
+      if (name !== 'web') {
+        return config;
+      }
+      config.html.title = 'My Default Title';
+    });
+  },
+});
+```
+
+- **Example:** Using `mergeEnvironmentConfig` to merge config objects, and return the merged object.
+
+```ts
+import type { EnvironmentConfig } from '@rsbuild/core';
+
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyEnvironmentConfig((userConfig, { mergeEnvironmentConfig }) => {
+      const extraConfig: EnvironmentConfig = {
+        source: {
+          // ...
+        },
+        output: {
+          // ...
+        },
+      };
+
+      // extraConfig will override fields in userConfig,
+      // If you do not want to override the fields in userConfig,
+      // you can adjust to `mergeEnvironmentConfig(extraConfig, userConfig)`
+      return mergeEnvironmentConfig(userConfig, extraConfig);
+    });
+  },
+});
+```
+
+### modifyRspackConfig
+
+To modify the Rspack config, you can directly modify the config object, or return a new object to replace the previous object.
+
+:::tip
+`modifyRspackConfig` is executed earlier than [tools.rspack](/config/tools/rspack). Therefore, the modifications made by `tools.rspack` cannot be obtained in `modifyRspackConfig`.
+:::
+
+- **Type:**
+
+```ts
+type ModifyRspackConfigUtils = {
+  environment: EnvironmentContext;
+  env: string;
+  isDev: boolean;
+  isProd: boolean;
+  target: RsbuildTarget;
+  isServer: boolean;
+  isWebWorker: boolean;
+  rspack: Rspack;
+  HtmlPlugin: typeof import('html-rspack-plugin');
+  // more...
+};
+
+function ModifyRspackConfig(
+  callback: (
+    config: Rspack.Configuration,
+    utils: ModifyRspackConfigUtils,
+  ) => Promise<RspackConfig | void> | Rspack.Configuration | void,
+): void;
+```
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyRspackConfig((config, utils) => {
+      if (utils.env === 'development') {
+        config.devtool = 'eval-cheap-source-map';
+      }
+    });
+  },
+});
+```
+
+The second parameter `utils` of the callback function is an object, which contains some utility functions and properties, see [tools.rspack - Utils](/config/tools/rspack#utils) for more details.
+
+### modifyBundlerChain
+
+import RspackChain from '@en/shared/rspackChain.mdx';
+
+<RspackChain />
+
+`modifyBundlerChain` allows you to modify the Rspack configuration using the `rspack-chain` API, providing the same functionality as [tools.bundlerChain](/config/tools/bundler-chain).
+
+- **Type:**
+
+```ts
+type ModifyBundlerChainUtils = {
+  environment: EnvironmentContext;
+  env: string;
+  isDev: boolean;
+  isProd: boolean;
+  target: RsbuildTarget;
+  isServer: boolean;
+  isWebWorker: boolean;
+  CHAIN_ID: ChainIdentifier;
+  HtmlPlugin: typeof import('html-rspack-plugin');
+  bundler: {
+    // some Rspack built-in plugins
+  };
+};
+
+function ModifyBundlerChain(
+  callback: (chain: RspackChain, utils: ModifyBundlerChainUtils) => Promise<void> | void,
+): void;
+```
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyBundlerChain((chain, utils) => {
+      if (utils.env === 'development') {
+        chain.devtool('eval');
+      }
+
+      chain.plugin('circular-dependency').use(utils.rspack.CircularDependencyRspackPlugin);
+    });
+  },
+});
+```
+
+The second parameter `utils` of the callback function is an object, which contains some utility functions and properties, see [tools.bundlerChain - Utils](/config/tools/bundler-chain#utils) for more details.
+
+### modifyHTML
+
+Modify the final HTML content. The hook receives an HTML string and a context object, and you can return a new HTML string to replace the original one.
+
+This hook is triggered after the `modifyHTMLTags` hook.
+
+- **Type:**
+
+```ts
+type Context = {
+  /**
+   * The Compiler object of Rspack.
+   */
+  compiler: Rspack.Compiler;
+  /**
+   * The Compilation object of Rspack.
+   */
+  compilation: Rspack.Compilation;
+  /**
+   * The name of the HTML file, relative to the dist directory.
+   * @example 'index.html'
+   */
+  filename: string;
+  /**
+   * The environment context for current build.
+   */
+  environment: EnvironmentContext;
+};
+
+function ModifyHTML(callback: (html: string, context: Context) => MaybePromise<string>): void;
+```
+
+- **Version:** Added in v1.3.15
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyHTML((html) => {
+      return html.replace('foo', 'bar');
+    });
+  },
+});
+```
+
+Modify HTML content based on `filename`:
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyHTML((html, { filename }) => {
+      if (filename === 'foo.html') {
+        return html.replace('foo', 'bar');
+      }
+      return html;
+    });
+  },
+});
+```
+
+Instead of directly manipulating the HTML string, you can use [cheerio](https://github.com/cheeriojs/cheerio) or [htmlparser2](https://github.com/fb55/htmlparser2) to modify the HTML content more conveniently.
+
+For example, `cheerio` provides a jQuery-like API for HTML manipulation:
+
+```ts
+import cheerio from 'cheerio';
+
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyHTML((html) => {
+      const $ = cheerio.load(html);
+      $('h2.title').text('Hello there!');
+      $('h2').addClass('welcome');
+      return $.html();
+    });
+  },
+});
+```
+
+### modifyHTMLTags
+
+Modify the tags that are injected into the HTML.
+
+- **Type:**
+
+```ts
+type HtmlBasicTag = {
+  // Tag name
+  tag: string;
+  // Attributes of the tag
+  attrs?: Record<string, string | boolean | null | undefined>;
+  // innerHTML of the tag
+  children?: string;
+  // additional metadata
+  metadata?: Record<string, any>;
+};
+
+type HTMLTags = {
+  // Tags group inserted into <head>
+  headTags: HtmlBasicTag[];
+  // Tags group inserted into <body>
+  bodyTags: HtmlBasicTag[];
+};
+
+type Context = {
+  /**
+   * The Compiler object of Rspack.
+   */
+  compiler: Rspack.Compiler;
+  /**
+   * The Compilation object of Rspack.
+   */
+  compilation: Rspack.Compilation;
+  /**
+   * URL prefix of assets.
+   * @example 'https://example.com/'
+   */
+  assetPrefix: string;
+  /**
+   * The name of the HTML file, relative to the dist directory.
+   * @example 'index.html'
+   */
+  filename: string;
+  /**
+   * The environment context for current build.
+   */
+  environment: EnvironmentContext;
+};
+
+function ModifyHTMLTags(
+  callback: (tags: HTMLTags, context: Context) => MaybePromise<HTMLTags>,
+): void;
+```
+
+- **Example:**
+
+```ts
+const tagsPlugin = () => ({
+  name: 'tags-plugin',
+  setup(api) {
+    api.modifyHTMLTags(({ headTags, bodyTags }) => {
+      // Inject a tag into <head>, before other tags
+      headTags.unshift({
+        tag: 'script',
+        attrs: { src: 'https://example.com/foo.js' },
+      });
+
+      // Inject a tag into <head>, after other tags
+      headTags.push({
+        tag: 'script',
+        attrs: { src: 'https://example.com/bar.js' },
+      });
+
+      // Inject a tag into <body>, before other tags
+      bodyTags.unshift({
+        tag: 'div',
+        children: 'before other body tags',
+      });
+
+      // Inject a tag into <body>, after other tags
+      bodyTags.push({
+        tag: 'div',
+        children: 'after other body tags',
+      });
+
+      return { headTags, bodyTags };
+    });
+  },
+});
+```
+
+See [html.tags](/config/html/tags) for more details on how to define tags.
+
+:::tip
+
+When using `modifyHTML`, `modifyHTMLTags`, and `html.tags` options together, the execution order is as follows:
+
+1. [modifyHTML](#modifyhtml)
+2. [modifyHTMLTags](#modifyhtmltags)
+3. [html.tags](/config/html/tags)
+
+:::
+
+### onBeforeCreateCompiler
+
+import OnBeforeCreateCompiler from '@en/shared/onBeforeCreateCompiler.mdx';
+
+<OnBeforeCreateCompiler />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeCreateCompiler(({ bundlerConfigs }) => {
+      console.log('the bundler configs are ', bundlerConfigs);
+    });
+  },
+});
+```
+
+### onAfterCreateCompiler
+
+import OnAfterCreateCompiler from '@en/shared/onAfterCreateCompiler.mdx';
+
+<OnAfterCreateCompiler />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterCreateCompiler(({ compiler }) => {
+      console.log('the compiler is ', compiler);
+    });
+  },
+});
+```
+
+### onBeforeEnvironmentCompile
+
+import OnBeforeEnvironmentCompile from '@en/shared/onBeforeEnvironmentCompile.mdx';
+
+<OnBeforeEnvironmentCompile />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeEnvironmentCompile(({ bundlerConfig, environment }) => {
+      console.log(`the bundler config for the ${environment.name} is `, bundlerConfig);
+    });
+  },
+});
+```
+
+### onAfterEnvironmentCompile
+
+import OnAfterEnvironmentCompile from '@en/shared/onAfterEnvironmentCompile.mdx';
+
+<OnAfterEnvironmentCompile />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterEnvironmentCompile(({ isFirstCompile, stats }) => {
+      console.log(stats?.toJson(), isFirstCompile);
+    });
+  },
+});
+```
+
+## Build hooks
+
+### onBeforeBuild
+
+import OnBeforeBuild from '@en/shared/onBeforeBuild.mdx';
+
+<OnBeforeBuild />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeBuild(({ bundlerConfigs }) => {
+      console.log('the bundler configs are ', bundlerConfigs);
+    });
+  },
+});
+```
+
+### onAfterBuild
+
+import OnAfterBuild from '@en/shared/onAfterBuild.mdx';
+
+<OnAfterBuild />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterBuild(({ isFirstCompile, stats }) => {
+      console.log(stats?.toJson(), isFirstCompile);
+    });
+  },
+});
+```
+
+### onCloseBuild
+
+import OnCloseBuild from '@en/shared/onCloseBuild.mdx';
+
+<OnCloseBuild />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onCloseBuild(() => {
+      console.log('close build!');
+    });
+  },
+});
+```
+
+## Dev hooks
+
+### onBeforeStartDevServer
+
+import OnBeforeStartDevServer from '@en/shared/onBeforeStartDevServer.mdx';
+
+<OnBeforeStartDevServer />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeStartDevServer(({ server, environments }) => {
+      console.log('before starting dev server.');
+      console.log('the server is ', server);
+      console.log('the environments contexts are: ', environments);
+    });
+  },
+});
+```
+
+#### Register middleware
+
+A common usage scenario is to register custom middleware in `onBeforeStartDevServer`:
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeStartDevServer(({ server }) => {
+      server.middlewares.use((req, res, next) => {
+        next();
+      });
+    });
+  },
+});
+```
+
+When `onBeforeStartDevServer` is called, the default Rsbuild middlewares are not registered yet, so the middleware you add will run before the default middlewares.
+
+`onBeforeStartDevServer` allows you to return a callback function, which will be called when the default Rsbuild middlewares are registered. The middleware you register in the callback function will run after the default middlewares.
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeStartDevServer(({ server }) => {
+      // the returned callback will be called when the default
+      // middlewares are registered
+      return () => {
+        server.middlewares.use((req, res, next) => {
+          next();
+        });
+      };
+    });
+  },
+});
+```
+
+#### Store server instance
+
+If you need to access `server` in other hooks, you can store the `server` instance through `api.onBeforeStartDevServer`, and then access it in the hooks executed later. Note that you cannot access `server` in hooks that are executed earlier than `onBeforeStartDevServer`.
+
+```ts
+import type { RsbuildDevServer } from '@rsbuild/core';
+
+const myPlugin = () => ({
+  setup(api) {
+    let devServer: RsbuildDevServer | null = null;
+
+    api.onBeforeStartDevServer(({ server, environments }) => {
+      devServer = server;
+    });
+
+    api.transform({ test: /\.foo$/ }, ({ code }) => {
+      if (devServer) {
+        // access server API
+      }
+      return code;
+    });
+
+    api.onCloseDevServer(() => {
+      devServer = null;
+    });
+  },
+});
+```
+
+### onAfterStartDevServer
+
+import OnAfterStartDevServer from '@en/shared/onAfterStartDevServer.mdx';
+
+<OnAfterStartDevServer />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterStartDevServer(({ port, routes }) => {
+      console.log('this port is: ', port);
+      console.log('this routes is: ', routes);
+    });
+  },
+});
+```
+
+### onBeforeDevCompile
+
+import OnBeforeDevCompile from '@en/shared/onBeforeDevCompile.mdx';
+
+<OnBeforeDevCompile />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeDevCompile(({ bundlerConfigs }) => {
+      console.log('the bundler configs are ', bundlerConfigs);
+    });
+  },
+});
+```
+
+### onAfterDevCompile
+
+import OnAfterDevCompile from '@en/shared/onAfterDevCompile.mdx';
+
+<OnAfterDevCompile />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterDevCompile(({ isFirstCompile }) => {
+      if (isFirstCompile) {
+        console.log('first compile!');
+      } else {
+        console.log('re-compile!');
+      }
+    });
+  },
+});
+```
+
+### onCloseDevServer
+
+import OnCloseDevServer from '@en/shared/onCloseDevServer.mdx';
+
+<OnCloseDevServer />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onCloseDevServer(async () => {
+      console.log('close dev server!');
+    });
+  },
+});
+```
+
+## Preview hooks
+
+### onBeforeStartPreviewServer
+
+import OnBeforeStartPreviewServer from '@en/shared/onBeforeStartPreviewServer.mdx';
+
+<OnBeforeStartPreviewServer />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeStartPreviewServer(({ server, environments }) => {
+      console.log('before start!');
+      console.log('the server is ', server);
+      console.log('the environments contexts are: ', environments);
+    });
+  },
+});
+```
+
+### onAfterStartPreviewServer
+
+import OnAfterStartPreviewServer from '@en/shared/onAfterStartPreviewServer.mdx';
+
+<OnAfterStartPreviewServer />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterStartPreviewServer(({ port, routes }) => {
+      console.log('this port is: ', port);
+      console.log('this routes is: ', routes);
+    });
+  },
+});
+```
+
+## Other hooks
+
+### onExit
+
+import OnExit from '@en/shared/onExit.mdx';
+
+<OnExit />
+
+- **Example:**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onExit(({ exitCode }) => {
+      console.log('exit: ', exitCode);
+    });
+  },
+});
+```

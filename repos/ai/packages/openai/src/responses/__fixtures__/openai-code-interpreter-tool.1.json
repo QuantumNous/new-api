@@ -1,0 +1,137 @@
+{
+  "id": "resp_024ee52fc1900767006903bf276a60819395647a8a01d4a3d8",
+  "object": "response",
+  "created_at": 1761853223,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5-nano-2025-08-07",
+  "output": [
+    {
+      "id": "rs_024ee52fc1900767006903bf2cf8348193be2e9dedeedfd7eb",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "ci_024ee52fc1900767006903bf34e2b08193a689f71dcc3724f7",
+      "type": "code_interpreter_call",
+      "status": "completed",
+      "code": "import random\r\n\r\ntrials = 10000\r\nsums = []\r\nfor _ in range(trials):\r\n    die1 = random.randint(1,6)\r\n    die2 = random.randint(1,6)\r\n    sums.append(die1 + die2)\r\ntotal_sum = sum(sums)\r\nlen(sums), total_sum\n",
+      "container_id": "cntr_6903bf2c0470819090b2b1e63e0b66800c139a5d654a42ec",
+      "outputs": [
+        {
+          "type": "logs",
+          "logs": "(10000, 70024)"
+        }
+      ]
+    },
+    {
+      "id": "rs_024ee52fc1900767006903bf381cec8193a48068baa82e17a3",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "ci_024ee52fc1900767006903bf38f1f08193a0b46ddc935fa028",
+      "type": "code_interpreter_call",
+      "status": "completed",
+      "code": "filename = \"/mnt/data/two_dice_sums_10000.txt\"\r\nwith open(filename, \"w\") as f:\r\n    for s in sums:\r\n        f.write(str(s) + \"\\n\")\r\n    f.write(\"TOTAL: \" + str(total_sum) + \"\\n\")\r\nfilename, os.path.getsize(filename)\n",
+      "container_id": "cntr_6903bf2c0470819090b2b1e63e0b66800c139a5d654a42ec",
+      "outputs": []
+    },
+    {
+      "id": "rs_024ee52fc1900767006903bf3ddb0881939e1af28db8fb9f17",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "ci_024ee52fc1900767006903bf3e05b48193bbb2367cbc9a299e",
+      "type": "code_interpreter_call",
+      "status": "completed",
+      "code": "import os\r\nfilename = \"/mnt/data/two_dice_sums_10000.txt\"\r\nwith open(filename, \"w\") as f:\r\n    for s in sums:\r\n        f.write(str(s) + \"\\n\")\r\n    f.write(\"TOTAL: \" + str(total_sum) + \"\\n\")\r\nos.path.getsize(filename), filename\n",
+      "container_id": "cntr_6903bf2c0470819090b2b1e63e0b66800c139a5d654a42ec",
+      "outputs": [
+        {
+          "type": "logs",
+          "logs": "(21680, '/mnt/data/two_dice_sums_10000.txt')"
+        }
+      ]
+    },
+    {
+      "id": "rs_024ee52fc1900767006903bf40cd488193b3a36868bf31054a",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "msg_024ee52fc1900767006903bf43b66081939b669e0ce1deb286",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [
+            {
+              "type": "container_file_citation",
+              "container_id": "cntr_6903bf2c0470819090b2b1e63e0b66800c139a5d654a42ec",
+              "end_index": 236,
+              "file_id": "cfile_6903bf45e3288191af3d56e6d23c3a4d",
+              "filename": "two_dice_sums_10000.txt",
+              "start_index": 195
+            }
+          ],
+          "logprobs": [],
+          "text": "I ran 10,000 trials of rolling two dice and summed the results.\n\n- Total sum across all 10,000 rolls: 70024\n- Per-trial sums were saved to a file. You can download it here:\n  [Download the file](sandbox:/mnt/data/two_dice_sums_10000.txt)\n\nThe file contains 10,000 lines (one sum per line) followed by a final line with the total, e.g., \"TOTAL: 70024\".\n\nIf you’d like the file in a different format (CSV, JSON) or with only the total, I can adjust and re-upload."
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "code_interpreter",
+      "container": {
+        "type": "auto"
+      }
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 2283,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 1928,
+    "output_tokens_details": {
+      "reasoning_tokens": 1792
+    },
+    "total_tokens": 4211
+  },
+  "user": null,
+  "metadata": {}
+}

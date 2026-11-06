@@ -1,0 +1,141 @@
+# v1.1.0
+
+<Subtitle>Jan 15, 2026</Subtitle>
+<Meta name="description" content="v1.1.0 release notes. Jan 15, 2026." />
+
+## General changes
+
+- Fix `onOpenChangeComplete(true)` timing ([#3558](https://github.com/mui/base-ui/pull/3558))
+- Fix touch `openMethod` when tapping outside element bounds on Safari ([#3541](https://github.com/mui/base-ui/pull/3541))
+- Fix visually hidden input styles across form components ([#3606](https://github.com/mui/base-ui/pull/3606))
+- Fix click and drags outside a nested popup component from closing its parents ([#3571](https://github.com/mui/base-ui/pull/3571))
+- Fix forwarded ref types ([#3638](https://github.com/mui/base-ui/pull/3638))
+- Fix detached trigger remounting ([#3724](https://github.com/mui/base-ui/pull/3724))
+- Include `ref` in `BaseUIComponentProps` ([#2813](https://github.com/mui/base-ui/pull/2813))
+- Remove duplicated `disabled` prop ([#3650](https://github.com/mui/base-ui/pull/3650))
+- Allow `actionsRef` to be `null` ([#3682](https://github.com/mui/base-ui/pull/3682))
+
+## Accordion
+
+- Fix keyboard navigation with non-interactive trigger elements ([#3684](https://github.com/mui/base-ui/pull/3684))
+
+## Autocomplete
+
+- Add `data-popup-side` and `data-list-empty` state attributes to `<Autocomplete.Trigger>` ([#3491](https://github.com/mui/base-ui/pull/3491))
+- Add `loopFocus` prop ([#3592](https://github.com/mui/base-ui/pull/3592))
+- Fix hidden input `id` and `required` props ([#3640](https://github.com/mui/base-ui/pull/3640))
+
+## Button
+
+- Remove discriminated props union ([#3643](https://github.com/mui/base-ui/pull/3643))
+
+## Checkbox
+
+- Fix hidden input `id` and `required` props ([#3640](https://github.com/mui/base-ui/pull/3640))
+
+## Combobox
+
+- Add `data-popup-side` and `data-list-empty` state attributes to `<Combobox.Trigger>` ([#3491](https://github.com/mui/base-ui/pull/3491))
+- Add `loopFocus` prop ([#3592](https://github.com/mui/base-ui/pull/3592))
+- Add `toolbar` role to `<Combobox.Chips>` to prevent NVDA from entering browse mode ([#3647](https://github.com/mui/base-ui/pull/3647))
+- Add `placeholder` prop to `<Combobox.Value>` ([#3604](https://github.com/mui/base-ui/pull/3604))
+- Fix controlled `value` prop when `items` change ([#3607](https://github.com/mui/base-ui/pull/3607))
+- Fix `multiple` values label resolution in `<Combobox.Value>` ([#3314](https://github.com/mui/base-ui/pull/3314))
+- Forward root `id` to visible form element ([#3722](https://github.com/mui/base-ui/pull/3722))
+- Do not trigger Field `onBlur` handlers when opening popup ([#3609](https://github.com/mui/base-ui/pull/3609))
+
+## Context Menu
+
+- Avoid creating sibling elements next to trigger ([#3645](https://github.com/mui/base-ui/pull/3645))
+
+## CSP Provider
+
+- Add `CSPProvider` ([#3553](https://github.com/mui/base-ui/pull/3553))
+
+## Dialog
+
+- Fix `Maximum update depth exceeded` error with Suspense ([#3700](https://github.com/mui/base-ui/pull/3700))
+- Fix `<Dialog.Title>` forwardedRef type ([#3736](https://github.com/mui/base-ui/pull/3736))
+
+## Field
+
+- Add `actionsRef` prop ([#3395](https://github.com/mui/base-ui/pull/3395))
+- Add `nativeLabel` prop to `<Field.Label>` ([#3723](https://github.com/mui/base-ui/pull/3723))
+- Add missing type export ([#3702](https://github.com/mui/base-ui/pull/3702))
+
+## Form
+
+- Add `actionsRef` prop ([#3395](https://github.com/mui/base-ui/pull/3395))
+
+## Menu
+
+- Fix focus guard handling ([#3654](https://github.com/mui/base-ui/pull/3654))
+- Avoid disabling modality on click after hover-open ([#3455](https://github.com/mui/base-ui/pull/3455))
+
+## Menubar
+
+- Fix submenu outside-press dismiss on touch ([#3556](https://github.com/mui/base-ui/pull/3556))
+
+## Number Field
+
+- Fix Field `data-focused` state ([#3563](https://github.com/mui/base-ui/pull/3563))
+- Fix hidden input focus on submit ([#3581](https://github.com/mui/base-ui/pull/3581))
+
+## Popover
+
+- Fix popup auto resize glitches ([#3591](https://github.com/mui/base-ui/pull/3591))
+- Fix focus guard handling ([#3654](https://github.com/mui/base-ui/pull/3654))
+- Prevent disabling focus management when clicking trigger before hover delay completes ([#3572](https://github.com/mui/base-ui/pull/3572))
+- Refactor popup auto resize logic. It is no longer necessary to specify `--positioner-width`/`--positioner-height` CSS variables on `<Popover.Positioner>` when using detached triggers unless the `Viewport` part has been added to the JSX. ([#3652](https://github.com/mui/base-ui/pull/3652))
+
+## Preview Card
+
+- Support detached triggers ([#3566](https://github.com/mui/base-ui/pull/3566))
+
+## Radio Group
+
+- Fix `value` type ([#3582](https://github.com/mui/base-ui/pull/3582))
+- Fix hidden input `id` and `required` props ([#3640](https://github.com/mui/base-ui/pull/3640))
+
+## Scroll Area
+
+- Perf improvements ([#3536](https://github.com/mui/base-ui/pull/3536))
+
+## Select
+
+- Add `placeholder` prop to `<Select.Value>` ([#3604](https://github.com/mui/base-ui/pull/3604))
+- Fix support for transform animations when `alignItemWithTrigger` is active ([#3532](https://github.com/mui/base-ui/pull/3532))
+- Fix support for `max-height` popup style when `alignItemWithTrigger` is active ([#3573](https://github.com/mui/base-ui/pull/3573))
+- Fix `data-filled` state in `multiple` mode ([#3608](https://github.com/mui/base-ui/pull/3608))
+- Fix highlight being removed on popup mouseout when `highlightItemOnHover` is disabled ([#3492](https://github.com/mui/base-ui/pull/3492))
+- Fix support for individual transform animations when `alignItemWithTrigger` is active ([#3637](https://github.com/mui/base-ui/pull/3637))
+- Fix `multiple` values label resolution in `<Select.Value>` ([#3314](https://github.com/mui/base-ui/pull/3314))
+- Forward root `id` to visible form element ([#3722](https://github.com/mui/base-ui/pull/3722))
+- Do not trigger Field `onBlur` handlers when opening popup ([#3609](https://github.com/mui/base-ui/pull/3609))
+
+## Slider
+
+- Fix `onValueCommitted` not called for range sliders ([#3600](https://github.com/mui/base-ui/pull/3600))
+
+## Switch
+
+- Add `value` prop ([#3676](https://github.com/mui/base-ui/pull/3676))
+- Fix hidden input `id` and `required` props ([#3640](https://github.com/mui/base-ui/pull/3640))
+
+## Toast
+
+- Fix timers not being rescheduled when updated ([#3564](https://github.com/mui/base-ui/pull/3564))
+
+## Tooltip
+
+- Fix popup auto resize glitches ([#3591](https://github.com/mui/base-ui/pull/3591))
+- Fix `trackCursorAxis` handling ([#3679](https://github.com/mui/base-ui/pull/3679))
+- Refactor popup auto resize logic. It is no longer necessary to specify `--positioner-width`/`--positioner-height` CSS variables on `<Tooltip.Positioner>` when using detached triggers unless the `Viewport` part has been added to the JSX. ([#3652](https://github.com/mui/base-ui/pull/3652))
+
+## mergeProps
+
+- Make `mergeProps` public ([#3642](https://github.com/mui/base-ui/pull/3642))
+
+## useRender
+
+- Export missing types ([#3565](https://github.com/mui/base-ui/pull/3565))

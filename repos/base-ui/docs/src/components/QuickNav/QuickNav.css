@@ -1,0 +1,134 @@
+@import 'docs/src/css/custom-media.css';
+
+@layer components {
+  .QuickNavContainer {
+    /* Quick Nav's container shouldn't have any paddings to maintain correct positioning */
+    padding: 0;
+    position: relative;
+  }
+
+  .QuickNavContent {
+    padding-top: 1.5rem;
+    padding-bottom: 4rem;
+
+    @media (--show-side-nav) {
+      padding-top: 0;
+    }
+  }
+
+  .QuickNavRoot {
+    --quick-nav-margin-x: 2rem;
+    --quick-nav-scrollbar-thumb-width: 0.25rem;
+    --quick-nav-scrollbar-width: 1.5rem;
+
+    /* Use line height instead of fixed item height in case text breaks into multiple lines */
+    --quick-nav-item-height: 1.75rem;
+    --quick-nav-item-line-height: 1.375rem;
+    --quick-nav-item-padding-y: calc(
+      var(--quick-nav-item-height) / 2 - var(--quick-nav-item-line-height) / 2
+    );
+
+    font-size: var(--font-size-14);
+    line-height: 1.375rem;
+    z-index: 1;
+    display: none;
+
+    @media (--show-quick-nav) {
+      display: block;
+      position: fixed;
+      top: var(--header-height);
+      right: max(
+        var(--root-layout-padding-x),
+        calc(50% - var(--breakpoint-max-layout-width) / 2 + var(--root-layout-padding-x))
+      );
+      width: calc(var(--sidebar-width) - var(--quick-nav-margin-x));
+    }
+  }
+
+  .QuickNavInner {
+    position: relative;
+    width: 100%;
+  }
+
+  .QuickNavViewport {
+    max-height: calc(100dvh - var(--header-height));
+    padding: 0 0 0.75rem;
+
+    /* Scroll containers are focusable */
+    outline: 0;
+
+    &:focus-visible {
+      outline: 2px solid var(--gray-t2);
+      outline-offset: -2px;
+    }
+  }
+
+  .QuickNavScrollbar {
+    display: flex;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+
+    /* Click target width */
+    width: var(--quick-nav-scrollbar-width);
+
+    opacity: 0;
+    transition: opacity 200ms 500ms;
+
+    &:active,
+    &[data-scrolling],
+    .QuickNavViewport:focus-visible + & {
+      transition-duration: 0ms;
+      transition-delay: 0ms;
+      opacity: 1;
+    }
+  }
+
+  .QuickNavScrollbarThumb {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+
+    &::before {
+      content: '';
+      display: block;
+      height: 100%;
+      /* Visible thumb width */
+      width: var(--quick-nav-scrollbar-thumb-width);
+      border-radius: var(--radius-4);
+      background-color: var(--gray-p2);
+    }
+  }
+
+  .QuickNavList {
+    color: var(--gray-t1);
+    display: flex;
+    flex-direction: column;
+    align-items: start;
+
+    & & {
+      padding-left: 0.75rem;
+    }
+  }
+
+  .QuickNavLink {
+    display: flex;
+    padding: var(--quick-nav-item-padding-y) 0.5rem;
+    margin-inline: 0 -0.5rem;
+    border-radius: var(--radius-6);
+
+    &:focus-visible {
+      z-index: 1;
+      outline: 2px solid var(--gray-t2);
+      outline-offset: -2px;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        text-decoration-thickness: 1px;
+        text-decoration-color: var(--gray-p1);
+      }
+    }
+  }
+}

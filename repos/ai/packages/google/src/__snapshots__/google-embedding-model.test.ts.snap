@@ -1,0 +1,33 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GoogleEmbeddingModel > should expose the raw response 2`] = `
+{
+  "body": {
+    "embeddings": [
+      {
+        "values": [
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+        ],
+      },
+      {
+        "values": [
+          0.6,
+          0.7,
+          0.8,
+          0.9,
+          1,
+        ],
+      },
+    ],
+  },
+  "headers": {
+    "content-length": "80",
+    "content-type": "application/json",
+    "test-header": "test-value",
+  },
+}
+`;
