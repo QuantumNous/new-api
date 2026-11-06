@@ -140,6 +140,7 @@ import {
   ADD_MODE_OPTIONS,
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_STATUS_LABELS,
+  CHANNEL_TYPE_GITHUB_COPILOT,
   CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_OPTIONS,
@@ -210,6 +211,7 @@ import { ChannelPluginExtensions } from '../channel-plugin-extensions'
 import { ChannelQuickOptions } from '../channel-quick-options'
 import { ChannelTypeLogo } from '../channel-type-badge'
 import { useChannels } from '../channels-provider'
+import { CopilotAccountConnect } from '../copilot-account-connect'
 import { AdvancedCustomEditorDialog } from '../dialogs/advanced-custom-editor-dialog'
 import { ConfigureModelsDialog } from '../dialogs/configure-models-dialog'
 import {
@@ -692,7 +694,9 @@ export function ChannelMutateDrawer({
     multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
   const isChannelDetailLoading = isEditing && isChannelLoading
   const supportsMultiKeyAddMode =
-    currentType !== 57 && !(currentType === 41 && vertexKeyType === 'api_key')
+    currentType !== 57 &&
+    currentType !== CHANNEL_TYPE_GITHUB_COPILOT &&
+    !(currentType === 41 && vertexKeyType === 'api_key')
   const addModeOptions = useMemo(
     () =>
       supportsMultiKeyAddMode
@@ -4406,6 +4410,25 @@ export function ChannelMutateDrawer({
                 control={form.control}
                 name='key'
                 render={({ field }) => {
+                  if (currentType === CHANNEL_TYPE_GITHUB_COPILOT) {
+                    return (
+                      <FormItem>
+                        <FormLabel required>
+                          {t('GitHub Copilot account')}
+                        </FormLabel>
+                        <CopilotAccountConnect
+                          value={field.value ?? ''}
+                          channelId={
+                            isEditing ? channelId || undefined : undefined
+                          }
+                          disabled={sensitiveLocked || field.disabled}
+                          onChange={field.onChange}
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }
+
                   let keyPlaceholder = t(getKeyPromptForType(currentType))
                   if (isEditing) {
                     keyPlaceholder = t('Leave empty to keep existing key')

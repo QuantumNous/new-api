@@ -38,6 +38,8 @@ export const CHANNEL_TYPE_VLLM = 62
 
 export const CHANNEL_TYPE_SGLANG = 63
 
+export const CHANNEL_TYPE_GITHUB_COPILOT = 64
+
 export const CHANNEL_TYPES = {
   0: 'Unknown',
   1: 'OpenAI',
@@ -99,6 +101,7 @@ export const CHANNEL_TYPES = {
   61: 'Task Plugin',
   62: 'vLLM',
   63: 'SGLang',
+  64: 'GitHub Copilot',
 } as const
 
 export type ChannelProviderPresentation = {
@@ -168,6 +171,10 @@ export const CHANNEL_PROVIDER_PRESENTATION: Partial<
   55: { descriptionKey: 'Connect to OpenAI Sora video generation services' },
   56: { descriptionKey: 'Access hosted model predictions through Replicate' },
   57: { descriptionKey: 'Access Codex using ChatGPT subscription credentials' },
+  64: {
+    descriptionKey:
+      'Connect a GitHub Copilot account through the official GitHub Copilot CLI',
+  },
   58: {
     descriptionKey:
       'Configure endpoint routing, authentication and protocol conversion for different upstream services',
@@ -189,8 +196,8 @@ export const CHANNEL_PROVIDER_PRESENTATION: Partial<
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   1, 14, 24, 33, 43, 3, 41, 17, 45, 25, 26, 23, 48, 60, 58, 59, 61, 42, 34, 20,
-  4, 62, 40, 27, 15, 46, 18, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 22, 21,
-  44, 2, 5, 36, 50, 51, 52, 53, 54, 55, 56,
+  4, 62, 40, 27, 15, 46, 18, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 64, 22,
+  21, 44, 2, 5, 36, 50, 51, 52, 53, 54, 55, 56,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -525,6 +532,7 @@ export const MODEL_FETCHABLE_TYPES = new Set([
   58,
   59,
   60,
+  CHANNEL_TYPE_GITHUB_COPILOT,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
 ])
@@ -568,6 +576,7 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   50: 'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)',
   51: 'Format: Access Key ID|Secret Access Key',
   57: 'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)',
+  64: 'Connect a GitHub account to create this channel credential',
   59: 'Enter API key for this channel',
   60: 'Enter API key for this channel',
   62: 'vLLM API key, or EMPTY if authentication is disabled',

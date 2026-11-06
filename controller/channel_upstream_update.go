@@ -408,6 +408,10 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return service.FetchCodexChannelModels(channel)
 	}
 
+	if channel.Type == constant.ChannelTypeGitHubCopilot {
+		return service.FetchCopilotChannelModels(channel)
+	}
+
 	var url string
 	switch channel.Type {
 	case constant.ChannelTypeAli:

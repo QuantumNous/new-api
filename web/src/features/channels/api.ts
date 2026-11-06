@@ -382,6 +382,76 @@ export async function getChannelKey(
 }
 
 // ============================================================================
+// GitHub Copilot Operations
+// ============================================================================
+
+export type CopilotLoginStatus =
+  | 'starting'
+  | 'waiting'
+  | 'connected'
+  | 'failed'
+  | 'cancelled'
+  | 'expired'
+
+export type CopilotLoginState = {
+  id: string
+  profile_id: string
+  login?: string
+  authenticated: boolean
+  status: CopilotLoginStatus
+  verification_url?: string
+  user_code?: string
+  expires_at: number
+  message?: string
+}
+
+export type CopilotChannelStatus = {
+  profile_id: string
+  login?: string
+  authenticated: boolean
+}
+
+export async function startCopilotLogin(): Promise<CopilotLoginState> {
+  const res = await api.post(
+    '/api/channel/copilot/login/start',
+    {},
+    channelActionConfig()
+  )
+  return requireServerSuccess(res.data).data
+}
+
+export async function getCopilotLoginStatus(
+  id: string
+): Promise<CopilotLoginState> {
+  const res = await api.get(
+    `/api/channel/copilot/login/${encodeURIComponent(id)}`,
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return requireServerSuccess(res.data).data
+}
+
+export async function cancelCopilotLogin(
+  id: string
+): Promise<CopilotLoginState> {
+  const res = await api.post(
+    `/api/channel/copilot/login/${encodeURIComponent(id)}/cancel`,
+    {},
+    channelActionConfig()
+  )
+  return requireServerSuccess(res.data).data
+}
+
+export async function getCopilotChannelStatus(
+  channelId: number
+): Promise<CopilotChannelStatus> {
+  const res = await api.get(
+    `/api/channel/${channelId}/copilot/status`,
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return requireServerSuccess(res.data).data
+}
+
+// ============================================================================
 // Codex Channel Operations
 // ============================================================================
 

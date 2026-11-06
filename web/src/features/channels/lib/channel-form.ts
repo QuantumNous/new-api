@@ -20,6 +20,7 @@ import { z } from 'zod'
 
 import {
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
+  CHANNEL_TYPE_GITHUB_COPILOT,
   CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_TASK_PLUGIN,
@@ -156,6 +157,29 @@ function isOptionalStatusCodeMapping(value: string | undefined): boolean {
         toCode <= 599
       )
     })
+  } catch {
+    return false
+  }
+}
+
+function isCopilotCredential(value: string | undefined): boolean {
+  try {
+    const parsed = parseOptionalJson(value)
+    if (parsed === undefined) return true
+    if (!isJsonObjectValue(parsed)) return false
+    if (typeof parsed.profile_id !== 'string') return false
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        parsed.profile_id.trim()
+      )
+    ) {
+      return false
+    }
+    return (
+      parsed.login === undefined ||
+      parsed.login === null ||
+      typeof parsed.login === 'string'
+    )
   } catch {
     return false
   }
@@ -376,6 +400,23 @@ export const channelFormSchema = z
           ctx,
           'key',
           'Codex credential must be a JSON object with access_token and account_id'
+        )
+      }
+    }
+
+    if (data.type === CHANNEL_TYPE_GITHUB_COPILOT) {
+      if (data.multi_key_mode && data.multi_key_mode !== 'single') {
+        addRequiredIssue(
+          ctx,
+          'multi_key_mode',
+          'GitHub Copilot channels do not support batch creation'
+        )
+      }
+      if (data.key?.trim() && !isCopilotCredential(data.key)) {
+        addRequiredIssue(
+          ctx,
+          'key',
+          'Connect a GitHub Copilot account before saving this channel'
         )
       }
     }

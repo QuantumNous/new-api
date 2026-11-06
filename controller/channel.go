@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
+	copilot "github.com/QuantumNous/new-api/service/githubcopilot"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -641,6 +642,15 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	if channel.Type == constant.ChannelTypeGitHubCopilot {
+		trimmedKey := strings.TrimSpace(channel.Key)
+		if isAdd || trimmedKey != "" {
+			if _, err := copilot.ParseChannelKey(trimmedKey); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Codex OAuth key validation (optional, only when JSON object is provided)
 	if channel.Type == constant.ChannelTypeCodex {
 		trimmedKey := strings.TrimSpace(channel.Key)
@@ -754,6 +764,11 @@ func AddChannel(c *gin.Context) {
 			"success": false,
 			"message": "task plugin channels require the task_plugin.bind permission",
 		})
+		return
+	}
+
+	if addChannelRequest.Channel != nil && addChannelRequest.Channel.Type == constant.ChannelTypeGitHubCopilot && addChannelRequest.Mode != "" && addChannelRequest.Mode != "single" {
+		common.ApiErrorT(c, "GitHub Copilot channels do not support batch creation")
 		return
 	}
 
@@ -1166,6 +1181,10 @@ func UpdateChannel(c *gin.Context) {
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
+	if channel.Type == constant.ChannelTypeGitHubCopilot && channel.ChannelInfo.IsMultiKey {
+		common.ApiErrorT(c, "GitHub Copilot channels do not support multi-key mode")
+		return
+	}
 
 	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
@@ -1486,7 +1505,7 @@ func FetchModels(c *gin.Context) {
 		}
 
 		key := strings.TrimSpace(req.Key)
-		if req.Type != constant.ChannelTypeCodex {
+		if req.Type != constant.ChannelTypeCodex && req.Type != constant.ChannelTypeGitHubCopilot {
 			key = strings.Split(key, "\n")[0]
 		}
 		channel = &model.Channel{
