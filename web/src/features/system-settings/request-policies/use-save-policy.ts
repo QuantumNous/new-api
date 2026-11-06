@@ -11,10 +11,13 @@ export function useSavePolicy() {
   const { t } = useTranslation()
   return useMutation({
     mutationFn: savePolicyConfig,
-    onSuccess: (data) => {
+    onSuccess: (data, options) => {
       client.setQueryData(['request-policy'], data)
       void client.invalidateQueries({ queryKey: ['system-options'] })
       void client.invalidateQueries({ queryKey: ['channel-ops'] })
+      if ('channel_affinity_setting.rules' in options) {
+        void client.invalidateQueries({ queryKey: ['channel-affinity-cache'] })
+      }
       toast.success(t('Saved successfully'))
     },
     onError: (error) => handleServerError(error),
