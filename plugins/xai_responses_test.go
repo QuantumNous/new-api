@@ -108,7 +108,7 @@ func TestXAIImageProtocol(t *testing.T) {
 	assert.Equal(t, "image_generation", resolved["action"])
 	assert.Equal(t, map[string]any{
 		"model": model, "prompt": "a cat", "n": float64(2),
-		"resolution": "2k", "quality": "medium", "response_format": "b64_json",
+		"resolution": "2k", "quality": "medium",
 	}, resolved["requestBody"])
 
 	driver := map[string]any{
@@ -122,7 +122,7 @@ func TestXAIImageProtocol(t *testing.T) {
 	assert.Equal(t, "https://api.x.ai/v1/images/generations", submit["url"])
 	assert.Equal(t, map[string]any{
 		"model": model, "prompt": "a cat", "n": float64(2),
-		"resolution": "2k", "quality": "medium", "response_format": "b64_json",
+		"resolution": "2k", "quality": "medium",
 	}, submit["body"])
 
 	value, err = plugin.Engine.Call(t.Context(), "extractUsage", driver)

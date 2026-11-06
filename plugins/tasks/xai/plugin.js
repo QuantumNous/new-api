@@ -285,7 +285,8 @@ function imageRequest(source, identity, operation, files) {
     quality: quality,
   };
   if (aspectRatio) request.aspect_ratio = aspectRatio;
-  if (body.response_format !== undefined) request.response_format = body.response_format;
+  // response_format is host-owned; the image protocol converts upstream URLs
+  // to b64_json for clients that requested Base64 output.
   if (inputs.length === 1) request.image = inputs[0];
   if (inputs.length > 1) request.images = inputs;
   return { action: action, body: request, inputCount: inputs.length };
