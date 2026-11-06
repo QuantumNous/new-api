@@ -83,6 +83,13 @@ func GetBuiltinBillingExpr(model string) (string, bool) {
 	return expression, ok
 }
 
+// HasConfiguredBillingExpr reports whether an administrator supplied a
+// tiered expression for model, rather than using a built-in expression.
+func HasConfiguredBillingExpr(model string) bool {
+	_, ok := billingSetting.BillingExpr[model]
+	return ok
+}
+
 func PluginBillingExprKey(pluginKey, model string) string {
 	return pluginKey + "::" + model
 }
