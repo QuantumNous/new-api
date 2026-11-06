@@ -622,6 +622,25 @@ func AdminRestorePlanSubscriptionWindows(c *gin.Context) {
 	common.ApiSuccess(c, result)
 }
 
+func AdminInitializePlanSubscriptions(c *gin.Context) {
+	planId, _ := strconv.Atoi(c.Param("id"))
+	if planId <= 0 {
+		common.ApiErrorT(c, "Invalid ID")
+		return
+	}
+	var req AdminRestorePlanSubscriptionWindowsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	result, err := model.AdminRestorePlanSubscriptionQuota(planId, model.SubscriptionQuotaActionInitialize, req.IdempotencyKey, c.GetInt("id"), req.Reason)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
 // AdminInvalidateUserSubscription cancels a user subscription immediately.
 func AdminInvalidateUserSubscription(c *gin.Context) {
 	subId, _ := strconv.Atoi(c.Param("id"))

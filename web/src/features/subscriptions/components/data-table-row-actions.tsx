@@ -57,9 +57,9 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     setOpen('toggle-status')
   }
 
-  const handleResetSubscriptions = () => {
+  const handleInitializeSubscriptions = () => {
     setCurrentRow(row.original)
-    setOpen('reset-subscriptions')
+    setOpen('initialize-plan-subscriptions')
   }
 
   return (
@@ -100,8 +100,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         }
       >
         <DropdownMenuGroup>
-          <DropdownMenuItem onClick={handleResetSubscriptions}>
-            {t('Reset subscription quota')}
+          <DropdownMenuItem onClick={handleInitializeSubscriptions}>
+            {t('Initialize subscription quota')}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {

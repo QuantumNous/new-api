@@ -47,7 +47,6 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -59,7 +58,6 @@ import {
   createUserSubscription,
   invalidateUserSubscription,
   deleteUserSubscription,
-  resetUserSubscriptionsByPlan,
   restoreUserSubscriptionQuota,
 } from '../../api'
 import { formatTimestamp } from '../../lib'
@@ -116,13 +114,7 @@ export function UserSubscriptionsDialog(props: Props) {
   const [plans, setPlans] = useState<PlanRecord[]>([])
   const [subs, setSubs] = useState<UserSubscriptionRecord[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
-  const [resetting, setResetting] = useState(false)
   const [restoringQuota, setRestoringQuota] = useState(false)
-  const [advanceResetTime, setAdvanceResetTime] = useState(true)
-  const [resetAction, setResetAction] = useState<{
-    planId: number
-    planTitle: string
-  } | null>(null)
   const [confirmAction, setConfirmAction] = useState<{
     type: 'invalidate' | 'delete'
     subId: number
@@ -226,33 +218,6 @@ export function UserSubscriptionsDialog(props: Props) {
       handleServerError(error, t('Operation failed'))
     } finally {
       setConfirmAction(null)
-    }
-  }
-
-  const handleResetConfirm = async () => {
-    if (!props.user?.id || !resetAction) return
-    setResetting(true)
-    try {
-      const res = await resetUserSubscriptionsByPlan(props.user.id, {
-        plan_id: resetAction.planId,
-        advance_reset_time: advanceResetTime,
-      })
-      if (res.success) {
-        toast.success(
-          t('Reset {{count}} active subscriptions', {
-            count: res.data?.reset_count || 0,
-          })
-        )
-        await loadData()
-        props.onSuccess?.()
-      } else {
-        handleServerError(res)
-      }
-    } catch (error) {
-      handleServerError(error, t('Operation failed'))
-    } finally {
-      setResetting(false)
-      setResetAction(null)
     }
   }
 
@@ -430,24 +395,6 @@ export function UserSubscriptionsDialog(props: Props) {
                       <DataTableRowActionMenu ariaLabel={t('Actions')}>
                         <DropdownMenuItem
                           disabled={!isActive}
-                          onClick={() => {
-                            setAdvanceResetTime(true)
-                            setResetAction({
-                              planId: sub.plan_id,
-                              planTitle:
-                                sub.plan_title ||
-                                planTitleMap.get(sub.plan_id) ||
-                                `#${sub.plan_id}`,
-                            })
-                          }}
-                        >
-                          {t('Reset quota')}
-                          <DropdownMenuShortcut>
-                            <RotateCcw size={16} />
-                          </DropdownMenuShortcut>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          disabled={!isActive}
                           onClick={() =>
                             setQuotaRestoreAction({
                               subId: sub.id,
@@ -540,29 +487,6 @@ export function UserSubscriptionsDialog(props: Props) {
           handleConfirm={handleConfirmAction}
           destructive={confirmAction.type === 'delete'}
         />
-      )}
-
-      {resetAction && (
-        <ConfirmDialog
-          open
-          onOpenChange={(v) => !v && setResetAction(null)}
-          title={t('Reset subscription quota')}
-          desc={t('Reset active {{plan}} subscriptions for this user?', {
-            plan: resetAction.planTitle,
-          })}
-          confirmText={t('Reset quota')}
-          handleConfirm={handleResetConfirm}
-          isLoading={resetting}
-        >
-          <label className='flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm'>
-            <span>{t('Advance next reset time')}</span>
-            <Switch
-              checked={advanceResetTime}
-              onCheckedChange={(checked) => setAdvanceResetTime(!!checked)}
-              aria-label={t('Advance next reset time')}
-            />
-          </label>
-        </ConfirmDialog>
       )}
 
       {quotaRestoreAction && (

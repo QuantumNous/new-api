@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  resetPlanSubscriptions,
+  initializePlanSubscriptions,
   restorePlanSubscriptionWindows,
 } from '../../api'
 import type { PlanRecord } from '../../types'
@@ -17,12 +17,12 @@ import {
 } from '../subscriptions-provider'
 
 vi.mock('../../api', () => ({
-  resetPlanSubscriptions: vi.fn(),
+  initializePlanSubscriptions: vi.fn(),
   restorePlanSubscriptionWindows: vi.fn(),
 }))
 
 const restore = vi.mocked(restorePlanSubscriptionWindows)
-const reset = vi.mocked(resetPlanSubscriptions)
+const initialize = vi.mocked(initializePlanSubscriptions)
 const plan: PlanRecord = {
   plan: {
     id: 10,
@@ -84,7 +84,7 @@ afterEach(() => vi.resetAllMocks())
 
 async function openResetDialog(
   user: ReturnType<typeof userEvent.setup>,
-  action: 'Reset window quota' | 'Reset subscription quota'
+  action: 'Reset window quota' | 'Initialize subscription quota'
 ) {
   await user.click(screen.getByRole('button', { name: 'More actions' }))
   await user.click(screen.getByRole('menuitem', { name: action }))
@@ -141,7 +141,7 @@ describe('plan window quota restoration', () => {
       ).not.toBeInTheDocument()
     )
     expect(screen.getByLabelText('Refresh count')).toHaveTextContent('1')
-    expect(reset).not.toHaveBeenCalled()
+    expect(initialize).not.toHaveBeenCalled()
   })
 
   it('retries with the same request and resets the form when reopened', async () => {
@@ -177,34 +177,41 @@ describe('plan window quota restoration', () => {
     )
   })
 
-  it('keeps the existing total quota reset and reset-time option available', async () => {
+  it('initializes active subscriptions with a reason and preserves reset times', async () => {
     const user = userEvent.setup()
-    reset.mockResolvedValue({
+    initialize.mockResolvedValue({
       success: true,
       data: {
         plan_id: 10,
         matched_count: 2,
         reset_count: 2,
         user_count: 2,
-        advance_reset_time: false,
+        idempotency_key: 'initialize-receipt',
+        created_at: 1_700_000_000,
       },
     })
     renderActions()
-    await openResetDialog(user, 'Reset subscription quota')
-    const advance = screen.getByRole('switch', {
-      name: /Advance next reset time/,
-    })
-    expect(advance).toBeChecked()
-    await user.click(advance)
-    await user.click(screen.getByRole('button', { name: 'Reset quota' }))
-    expect(reset).toHaveBeenCalledExactlyOnceWith(10, {
-      advance_reset_time: false,
+    await openResetDialog(user, 'Initialize subscription quota')
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(
+      screen.getByText(/Clear settled total and window usage/)
+    ).toBeVisible()
+    const confirm = screen.getByRole('button', { name: 'Initialize traffic' })
+    expect(confirm).toBeDisabled()
+    await user.type(
+      screen.getByRole('textbox', { name: 'Reason' }),
+      '  Support initialization  '
+    )
+    await user.click(confirm)
+    expect(initialize).toHaveBeenCalledExactlyOnceWith(10, {
+      idempotency_key: expect.any(String),
+      reason: 'Support initialization',
     })
     expect(restore).not.toHaveBeenCalled()
   })
 
   it.each([
-    ['Reset subscription quota', '{Enter}', 'Reset quota'],
+    ['Initialize subscription quota', '{Enter}', 'Initialize traffic'],
     ['Reset window quota', '{ArrowDown}{Enter}', 'Restore window'],
   ])(
     'opens %s from the icon menu using the keyboard',
@@ -223,14 +230,17 @@ describe('plan window quota restoration', () => {
       await user.keyboard('{ArrowDown}')
       expect(trigger).toHaveAttribute('aria-expanded', 'true')
       expect(
-        screen.getByRole('menuitem', { name: 'Reset subscription quota' })
+        screen.getByRole('menuitem', { name: 'Initialize subscription quota' })
       ).toBeVisible()
       expect(
         screen.getByRole('menuitem', { name: 'Reset window quota' })
       ).toBeVisible()
       await user.keyboard(keys)
       expect(screen.getByRole('button', { name: confirmLabel })).toBeVisible()
-      expect(reset).not.toHaveBeenCalled()
+      expect(
+        screen.queryByRole('menuitem', { name: 'Reset subscription quota' })
+      ).not.toBeInTheDocument()
+      expect(initialize).not.toHaveBeenCalled()
       expect(restore).not.toHaveBeenCalled()
     }
   )

@@ -503,6 +503,7 @@ type SubscriptionQuotaRestoreResult struct {
 // retries cannot grant another window or include subscriptions added later.
 type SubscriptionPlanQuotaOperation struct {
 	IdempotencyKey string `json:"idempotency_key" gorm:"primaryKey;type:varchar(128)"`
+	Action         string `json:"action" gorm:"type:varchar(32);not null;default:restore_window"`
 	PlanId         int    `json:"plan_id" gorm:"index;not null"`
 	AdminId        int    `json:"-" gorm:"index;not null"`
 	Reason         string `json:"-" gorm:"type:text;not null"`
@@ -1761,9 +1762,13 @@ func adminRestoreUserSubscriptionQuota(db *gorm.DB, now int64, userId, subscript
 }
 
 func AdminRestorePlanSubscriptionWindows(planId int, idempotencyKey string, adminId int, reason string) (*SubscriptionPlanQuotaOperation, error) {
+	return AdminRestorePlanSubscriptionQuota(planId, SubscriptionQuotaActionRestoreWindow, idempotencyKey, adminId, reason)
+}
+
+func AdminRestorePlanSubscriptionQuota(planId int, action, idempotencyKey string, adminId int, reason string) (*SubscriptionPlanQuotaOperation, error) {
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	reason = strings.TrimSpace(reason)
-	if planId <= 0 || adminId <= 0 || len(idempotencyKey) == 0 || len(idempotencyKey) > 128 || reason == "" || len(reason) > 2000 {
+	if planId <= 0 || adminId <= 0 || len(idempotencyKey) == 0 || len(idempotencyKey) > 128 || reason == "" || len(reason) > 2000 || (action != SubscriptionQuotaActionRestoreWindow && action != SubscriptionQuotaActionInitialize) {
 		return nil, common.NewMessage("Invalid parameters")
 	}
 	var result SubscriptionPlanQuotaOperation
@@ -1776,7 +1781,7 @@ func AdminRestorePlanSubscriptionWindows(planId int, idempotencyKey string, admi
 		}
 		lookup := lockForUpdate(tx).Where("idempotency_key = ?", idempotencyKey).First(&result)
 		if lookup.Error == nil {
-			if result.PlanId != planId || result.AdminId != adminId || result.Reason != reason {
+			if result.PlanId != planId || result.Action != action || result.AdminId != adminId || result.Reason != reason {
 				return common.NewMessage("Idempotency key conflicts with another request")
 			}
 			return nil
@@ -1791,7 +1796,7 @@ func AdminRestorePlanSubscriptionWindows(planId int, idempotencyKey string, admi
 			return err
 		}
 		result = SubscriptionPlanQuotaOperation{
-			IdempotencyKey: idempotencyKey, PlanId: planId, AdminId: adminId,
+			IdempotencyKey: idempotencyKey, Action: action, PlanId: planId, AdminId: adminId,
 			Reason: reason, MatchedCount: len(subs), CreatedAt: now,
 		}
 		userIds := make(map[int]struct{})
@@ -1802,13 +1807,16 @@ func AdminRestorePlanSubscriptionWindows(planId int, idempotencyKey string, admi
 			if sub.QuotaModelVersion == 0 && sub.LegacyResetPeriod != "" {
 				period = sub.LegacyResetPeriod
 			}
-			if sub.AmountTotal == 0 || NormalizeResetPeriod(period) == SubscriptionResetNever {
+			if action == SubscriptionQuotaActionRestoreWindow && (sub.AmountTotal == 0 || NormalizeResetPeriod(period) == SubscriptionResetNever) {
 				continue
 			}
 			key := fmt.Sprintf("plan-window:%x:%d", batchKey, sub.Id)
+			if action == SubscriptionQuotaActionInitialize {
+				key = fmt.Sprintf("plan-initialize:%x:%d", batchKey, sub.Id)
+			}
 			// Nested GORM transactions use savepoints; all per-subscription receipts
 			// and quota updates still commit or roll back with the batch.
-			if _, err := adminRestoreUserSubscriptionQuota(tx, now, sub.UserId, sub.Id, SubscriptionQuotaActionRestoreWindow, key, adminId, reason); err != nil {
+			if _, err := adminRestoreUserSubscriptionQuota(tx, now, sub.UserId, sub.Id, action, key, adminId, reason); err != nil {
 				return err
 			}
 			result.ResetCount++
@@ -1819,7 +1827,7 @@ func AdminRestorePlanSubscriptionWindows(planId int, idempotencyKey string, admi
 	})
 	if err != nil {
 		var committed SubscriptionPlanQuotaOperation
-		if lookupErr := DB.Where("idempotency_key = ?", idempotencyKey).First(&committed).Error; lookupErr == nil && committed.PlanId == planId && committed.AdminId == adminId && committed.Reason == reason {
+		if lookupErr := DB.Where("idempotency_key = ?", idempotencyKey).First(&committed).Error; lookupErr == nil && committed.PlanId == planId && committed.Action == action && committed.AdminId == adminId && committed.Reason == reason {
 			return &committed, nil
 		}
 		return nil, err

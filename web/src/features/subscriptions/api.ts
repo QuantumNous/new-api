@@ -24,11 +24,8 @@ import type {
   PlanPayload,
   UserSubscriptionRecord,
   CreateUserSubscriptionRequest,
-  ResetUserSubscriptionsRequest,
-  ResetPlanSubscriptionsRequest,
   RestorePlanWindowsRequest,
   RestorePlanWindowsResult,
-  SubscriptionResetResult,
   SubscriptionQuotaRestoreRequest,
   SubscriptionQuotaRestoreResult,
   SubscriptionPayResponse,
@@ -112,17 +109,6 @@ export async function deleteUserSubscription(
   return res.data
 }
 
-export async function resetUserSubscriptionsByPlan(
-  userId: number,
-  data: ResetUserSubscriptionsRequest
-): Promise<ApiResponse<SubscriptionResetResult>> {
-  const res = await api.post(
-    `/api/subscription/admin/users/${userId}/subscriptions/reset`,
-    data
-  )
-  return res.data
-}
-
 export async function restoreUserSubscriptionQuota(
   userId: number,
   subscriptionId: number,
@@ -135,12 +121,12 @@ export async function restoreUserSubscriptionQuota(
   return res.data
 }
 
-export async function resetPlanSubscriptions(
+export async function initializePlanSubscriptions(
   planId: number,
-  data: ResetPlanSubscriptionsRequest
-): Promise<ApiResponse<SubscriptionResetResult>> {
+  data: RestorePlanWindowsRequest
+): Promise<ApiResponse<RestorePlanWindowsResult>> {
   const res = await api.post(
-    `/api/subscription/admin/plans/${planId}/subscriptions/reset`,
+    `/api/subscription/admin/plans/${planId}/subscriptions/initialize`,
     data
   )
   return res.data

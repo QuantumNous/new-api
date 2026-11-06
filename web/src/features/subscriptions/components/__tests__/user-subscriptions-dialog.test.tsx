@@ -20,7 +20,6 @@ vi.mock('../../api', () => ({
   getAdminPlans: vi.fn(),
   getUserSubscriptions: vi.fn(),
   invalidateUserSubscription: vi.fn(),
-  resetUserSubscriptionsByPlan: vi.fn(),
   restoreUserSubscriptionQuota: vi.fn(),
 }))
 
@@ -132,6 +131,18 @@ afterEach(() => {
 })
 
 describe('UserSubscriptionsDialog quota restoration', () => {
+  it('offers per-subscription initialization without the legacy plan reset action', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+    await screen.findByText('User Subscription Management')
+    await user.click(screen.getByRole('button', { name: 'Actions' }))
+    expect(
+      screen.getByRole('menuitem', { name: 'Initialize subscription quota' })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('menuitem', { name: /^Reset quota$/ })
+    ).not.toBeInTheDocument()
+  })
   it('requires a reason and keeps the confirmation disabled until one is entered', async () => {
     const user = userEvent.setup()
     renderDialog()

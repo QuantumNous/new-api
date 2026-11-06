@@ -22,12 +22,11 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import {
-  resetPlanSubscriptions,
+  initializePlanSubscriptions,
   restorePlanSubscriptionWindows,
 } from '../../api'
 import type { RestorePlanWindowsRequest } from '../../types'
@@ -36,34 +35,30 @@ import { useSubscriptions } from '../subscriptions-provider'
 export function ResetSubscriptionsDialog() {
   const { t } = useTranslation()
   const { open, setOpen, currentRow, triggerRefresh } = useSubscriptions()
-  const [advanceResetTime, setAdvanceResetTime] = useState(true)
   const [resetting, setResetting] = useState(false)
   const [reason, setReason] = useState('')
   const [restoreRequest, setRestoreRequest] =
     useState<RestorePlanWindowsRequest | null>(null)
   const isWindowReset = open === 'restore-plan-windows'
-  const isOpen = open === 'reset-subscriptions' || isWindowReset
+  const isOpen = open === 'initialize-plan-subscriptions' || isWindowReset
   const plan = currentRow?.plan
   const planLabel = plan?.title || (plan?.id ? `#${plan.id}` : '-')
 
   const handleConfirm = async () => {
-    if (!plan?.id || resetting || (isWindowReset && !reason.trim())) return
+    if (!plan?.id || resetting || !reason.trim()) return
     setResetting(true)
     try {
       let request = restoreRequest
-      if (isWindowReset && !request) {
+      if (!request) {
         request = { idempotency_key: nanoid(), reason: reason.trim() }
         setRestoreRequest(request)
       }
-      const res =
-        isWindowReset && request
-          ? await restorePlanSubscriptionWindows(plan.id, request)
-          : await resetPlanSubscriptions(plan.id, {
-              advance_reset_time: advanceResetTime,
-            })
+      const res = isWindowReset
+        ? await restorePlanSubscriptionWindows(plan.id, request)
+        : await initializePlanSubscriptions(plan.id, request)
       if (res.success) {
         toast.success(
-          t('Reset {{count}} active subscriptions', {
+          t('Updated quota for {{count}} active subscriptions', {
             count: res.data?.reset_count || 0,
           })
         )
@@ -84,7 +79,9 @@ export function ResetSubscriptionsDialog() {
       open={isOpen}
       onOpenChange={(nextOpen) => !nextOpen && !resetting && setOpen(null)}
       title={
-        isWindowReset ? t('Reset window quota') : t('Reset subscription quota')
+        isWindowReset
+          ? t('Reset window quota')
+          : t('Initialize subscription quota')
       }
       desc={
         isWindowReset
@@ -92,45 +89,39 @@ export function ResetSubscriptionsDialog() {
               'Restore up to one window quota for each active subscription under {{plan}}? Subscriptions without a quota window are skipped. Reset times stay unchanged.',
               { plan: planLabel }
             )
-          : t('Reset all active subscriptions under {{plan}}?', {
-              plan: planLabel,
-            })
+          : t(
+              'Initialize quota for all active subscriptions under {{plan}}? Reset times stay unchanged.',
+              { plan: planLabel }
+            )
       }
-      confirmText={isWindowReset ? t('Restore window') : t('Reset quota')}
+      confirmText={
+        isWindowReset ? t('Restore window') : t('Initialize traffic')
+      }
       handleConfirm={handleConfirm}
-      disabled={!plan?.id || (isWindowReset && !reason.trim())}
+      disabled={!plan?.id || !reason.trim()}
       isLoading={resetting}
     >
-      {isWindowReset ? (
-        <>
-          <p className='text-muted-foreground text-sm'>
-            {t(
+      <p className='text-muted-foreground text-sm'>
+        {isWindowReset
+          ? t(
               'Restore up to one window quota and clear current window usage. Total quota, history, in-flight requests, and subscription dates stay unchanged.'
+            )
+          : t(
+              'Clear settled total and window usage while preserving historical consumption, in-flight requests, and subscription dates.'
             )}
-          </p>
-          <label className='grid gap-2 text-sm'>
-            <span>{t('Reason')}</span>
-            <Textarea
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              readOnly={!!restoreRequest}
-              placeholder={t('Enter reason for this operation')}
-              aria-label={t('Reason')}
-              maxLength={2000}
-              rows={3}
-            />
-          </label>
-        </>
-      ) : (
-        <label className='flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm'>
-          <span>{t('Advance next reset time')}</span>
-          <Switch
-            checked={advanceResetTime}
-            onCheckedChange={(checked) => setAdvanceResetTime(!!checked)}
-            aria-label={t('Advance next reset time')}
-          />
-        </label>
-      )}
+      </p>
+      <label className='grid gap-2 text-sm'>
+        <span>{t('Reason')}</span>
+        <Textarea
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          readOnly={!!restoreRequest}
+          placeholder={t('Enter reason for this operation')}
+          aria-label={t('Reason')}
+          maxLength={2000}
+          rows={3}
+        />
+      </label>
     </ConfirmDialog>
   )
 }

@@ -1,5 +1,9 @@
 import { render, screen } from '@testing-library/react'
+import { createInstance } from 'i18next'
+import { I18nextProvider } from 'react-i18next'
 import { expect, it } from 'vitest'
+
+import zh from '@/i18n/locales/zh.json'
 
 import { SubscriptionQuotaSummary } from '../subscription-quota-summary'
 import { SubscriptionResetSchedule } from '../subscription-reset-schedule'
@@ -21,6 +25,22 @@ const baseSubscription = {
   window_amount_reserved: 40,
   historical_amount_used: 300,
 }
+
+it('translates historical consumption in the Chinese subscription summary', async () => {
+  const i18n = createInstance()
+  await i18n.init({ lng: 'zh', resources: { zh } })
+  render(
+    <I18nextProvider i18n={i18n}>
+      <SubscriptionQuotaSummary subscription={baseSubscription} />
+    </I18nextProvider>
+  )
+  expect(screen.getByTestId('subscription-quota-summary')).toHaveTextContent(
+    '历史累计消费:'
+  )
+  expect(
+    screen.getByTestId('subscription-quota-summary')
+  ).not.toHaveTextContent('Historical consumption')
+})
 
 it('ticket01: shows available total and window quota after subtracting reservations', () => {
   render(<SubscriptionQuotaSummary subscription={baseSubscription} />)

@@ -76,6 +76,19 @@ func TestAdminRestorePlanSubscriptionWindowsMatrix(t *testing.T) {
 						require.NoError(t, db.Table(table).AutoMigrate(&releasedSubscription{}))
 						legacy := releasedSubscription{Id: 50, UserId: 9, PlanId: 1, AmountTotal: 400, AmountUsed: 120, Status: "expired"}
 						require.NoError(t, db.Table(table).Create(&legacy).Error)
+						type releasedPlanQuotaOperation struct {
+							IdempotencyKey string `gorm:"primaryKey;type:varchar(128)"`
+							PlanId         int    `gorm:"index;not null"`
+							AdminId        int    `gorm:"index;not null"`
+							Reason         string `gorm:"type:text;not null"`
+							MatchedCount   int    `gorm:"not null"`
+							ResetCount     int    `gorm:"not null"`
+							UserCount      int    `gorm:"not null"`
+							CreatedAt      int64  `gorm:"bigint;not null"`
+						}
+						receiptTable := db.NamingStrategy.TableName("SubscriptionPlanQuotaOperation")
+						require.NoError(t, db.Table(receiptTable).AutoMigrate(&releasedPlanQuotaOperation{}))
+						require.NoError(t, db.Table(receiptTable).Create(&releasedPlanQuotaOperation{IdempotencyKey: "released-window", PlanId: 1, AdminId: 501, Reason: "released receipt", ResetCount: 2}).Error)
 					}
 					for range 2 {
 						require.NoError(t, db.AutoMigrate(&SubscriptionPlan{}, &UserSubscription{}, &SubscriptionPreConsumeRecord{}, &SubscriptionQuotaOperation{}, &SubscriptionPlanQuotaOperation{}))
@@ -86,6 +99,11 @@ func TestAdminRestorePlanSubscriptionWindowsMatrix(t *testing.T) {
 						assert.EqualValues(t, 120, legacy.AmountUsed)
 						assert.EqualValues(t, 400, legacy.AmountTotal)
 						assert.Equal(t, "expired", legacy.Status)
+						var receipt SubscriptionPlanQuotaOperation
+						require.NoError(t, db.First(&receipt, "idempotency_key = ?", "released-window").Error)
+						assert.Equal(t, SubscriptionQuotaActionRestoreWindow, receipt.Action)
+						assert.Equal(t, 2, receipt.ResetCount)
+						require.NoError(t, db.Delete(&receipt).Error)
 					}
 					assert.True(t, db.Migrator().HasIndex(&SubscriptionPlanQuotaOperation{}, "PlanId"))
 					assert.True(t, db.Migrator().HasIndex(&SubscriptionPlanQuotaOperation{}, "AdminId"))
@@ -175,6 +193,51 @@ func TestAdminRestorePlanSubscriptionWindowsMatrix(t *testing.T) {
 					assert.Zero(t, empty.ResetCount)
 					_, err = AdminRestorePlanSubscriptionWindows(1, "missing-reason", 501, " ")
 					require.Error(t, err)
+
+					// Initialization covers all active subscriptions, including unlimited
+					// and non-resetting snapshots, while preserving history and reservations.
+					require.NoError(t, db.Model(&UserSubscription{}).Where("id = ?", 108).Update("window_amount_used", 200).Error)
+					_, err = AdminRestorePlanSubscriptionQuota(1, SubscriptionQuotaActionInitialize, "batch-1", 501, "support adjustment")
+					require.Error(t, err, "a window receipt cannot be reused for initialization")
+					initialized, err := AdminRestorePlanSubscriptionQuota(1, SubscriptionQuotaActionInitialize, "batch-init", 501, "initialize all")
+					require.NoError(t, err)
+					assert.Equal(t, SubscriptionQuotaActionInitialize, initialized.Action)
+					assert.Equal(t, 6, initialized.MatchedCount)
+					assert.Equal(t, 6, initialized.ResetCount)
+					assert.Equal(t, 5, initialized.UserCount)
+					for _, id := range []int{100, 101, 102, 106, 107, 108} {
+						updated := getSubscriptionResetSub(t, id)
+						assert.Zero(t, updated.AmountUsed)
+						assert.Zero(t, updated.WindowAmountUsed)
+						if updated.QuotaModelVersion > 0 {
+							assert.Zero(t, updated.TotalAmountUsed)
+						}
+						assert.EqualValues(t, 1400, updated.HistoricalAmountUsed)
+						assert.EqualValues(t, 40, updated.AmountReserved)
+						assert.Equal(t, before.StartTime, updated.StartTime)
+						assert.Equal(t, before.EndTime, updated.EndTime)
+						assert.Equal(t, before.LastResetTime, updated.LastResetTime)
+						assert.Equal(t, before.NextResetTime, updated.NextResetTime)
+						if id == 107 {
+							assert.Zero(t, updated.AmountTotal)
+						} else {
+							assert.EqualValues(t, 1000, updated.AmountTotal)
+						}
+					}
+					for _, id := range []int{103, 104, 105} {
+						assert.EqualValues(t, 200, getSubscriptionResetSub(t, id).WindowAmountUsed)
+					}
+					require.NoError(t, db.Model(&UserSubscription{}).Where("id = ?", 100).Update("total_amount_used", 50).Error)
+					retryInit, err := AdminRestorePlanSubscriptionQuota(1, SubscriptionQuotaActionInitialize, "batch-init", 501, "initialize all")
+					require.NoError(t, err)
+					assert.Equal(t, initialized, retryInit)
+					assert.EqualValues(t, 50, getSubscriptionResetSub(t, 100).TotalAmountUsed)
+					require.NoError(t, db.Model(&UserSubscription{}).Where("id = ?", 108).Update("window_amount_used", -1).Error)
+					_, err = AdminRestorePlanSubscriptionQuota(1, SubscriptionQuotaActionInitialize, "init-rollback", 501, "rollback init")
+					require.Error(t, err)
+					assert.EqualValues(t, 50, getSubscriptionResetSub(t, 100).TotalAmountUsed)
+					require.NoError(t, db.Model(&SubscriptionPlanQuotaOperation{}).Where("idempotency_key = ?", "init-rollback").Count(&count).Error)
+					assert.Zero(t, count)
 				})
 			}
 		})
