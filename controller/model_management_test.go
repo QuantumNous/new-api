@@ -1696,3 +1696,56 @@ export function parseTaskResult(){return {};}
 		})
 	}
 }
+
+// A built-in default is a billing fallback, not an administrator row: it enters
+// the listing only when a channel serves it, and it never enters the option maps
+// the editor saves back.
+func TestBuiltinPricingAdminViewDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {
+		t.Run(dialect.kind, func(t *testing.T) {
+			if dialect.env != "" && os.Getenv(dialect.env) == "" {
+				t.Skip("set " + dialect.env + " to run this database")
+			}
+			db := modelManagementDB(t, dialect.kind, os.Getenv(dialect.env))
+
+			// Nothing serves the model, so the listing leaves it out.
+			listing, err := model.GetModelPricingSnapshot(nil)
+			require.NoError(t, err)
+			for _, entry := range listing.Entries {
+				assert.NotEqual(t, "gpt-image-2", entry.ModelName)
+			}
+			var listingExpressions map[string]string
+			require.NoError(t, common.UnmarshalJsonStr(listing.Options["billing_setting.billing_expr"], &listingExpressions))
+			assert.NotContains(t, listingExpressions, "gpt-image-2")
+
+			// Naming the model still resolves its built-in default for billing.
+			priced, err := model.GetModelPricingSnapshot([]string{"gpt-image-2"})
+			require.NoError(t, err)
+			require.Len(t, priced.Entries, 1)
+			assert.Empty(t, priced.Entries[0].Configured)
+			assert.Equal(t, billing_setting.BillingModeTieredExpr, priced.Entries[0].Effective["billing_setting.billing_mode"])
+			assert.Equal(t, `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`, priced.Entries[0].Effective["billing_setting.billing_expr"])
+
+			// An enabled channel puts the model in the listing, but the editor's
+			// save maps stay free of built-in values.
+			require.NoError(t, db.Create(&model.Ability{Model: "gpt-image-2", Group: "default", ChannelId: 1, Enabled: true}).Error)
+			served, err := model.GetModelPricingSnapshot(nil)
+			require.NoError(t, err)
+			var listed *model.ModelPricingEntry
+			for i := range served.Entries {
+				if served.Entries[i].ModelName == "gpt-image-2" {
+					listed = &served.Entries[i]
+				}
+			}
+			require.NotNil(t, listed)
+			assert.Empty(t, listed.Configured)
+			assert.Equal(t, billing_setting.BillingModeTieredExpr, listed.Effective["billing_setting.billing_mode"])
+			var servedExpressions map[string]string
+			require.NoError(t, common.UnmarshalJsonStr(served.Options["billing_setting.billing_expr"], &servedExpressions))
+			assert.NotContains(t, servedExpressions, "gpt-image-2")
+			var servedModes map[string]string
+			require.NoError(t, common.UnmarshalJsonStr(served.Options["billing_setting.billing_mode"], &servedModes))
+			assert.NotContains(t, servedModes, "gpt-image-2")
+		})
+	}
+}

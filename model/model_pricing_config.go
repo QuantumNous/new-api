@@ -326,20 +326,9 @@ func GetModelPricingSnapshot(names []string) (*ModelPricingSnapshot, error) {
 		}
 		result.Entries = append(result.Entries, entry)
 	}
-	// Preserve the existing settings editor's full-map interface. Built-in
-	// expressions are display defaults only; per-model writes do not persist them.
-	for name, expression := range builtins {
-		effective := effectiveModelPricing(values, name)
-		if effective["billing_setting.billing_mode"] != "tiered_expr" {
-			continue
-		}
-		if _, ok := values["billing_setting.billing_mode"][name]; !ok {
-			values["billing_setting.billing_mode"][name] = "tiered_expr"
-		}
-		if _, ok := values["billing_setting.billing_expr"][name]; !ok {
-			values["billing_setting.billing_expr"][name] = expression
-		}
-	}
+	// Built-in expressions stay out of the option maps. The editor saves those
+	// maps back, so a built-in copied into them would turn into an unremovable
+	// saved price.
 	for key, entries := range values {
 		encoded, err := common.Marshal(entries)
 		if err != nil {
