@@ -7391,6 +7391,22 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Payment Logs": "Nhật ký thanh toán",
+    "Read-only ledger of all top-up and payment orders.": "Sổ cái chỉ đọc của tất cả đơn nạp tiền và thanh toán.",
+    "Transaction Reference": "Mã tham chiếu giao dịch",
+    "Payment gateway": "Cổng thanh toán",
+    "Credited amount": "Số tiền được cộng",
+    "Paid amount": "Số tiền đã trả",
+    "From date": "Từ ngày",
+    "To date": "Đến ngày",
+    "Search by trade number, email, username, or user ID...": "Tìm theo mã giao dịch, email, tên người dùng hoặc ID người dùng...",
+    "No payment records found": "Không tìm thấy bản ghi thanh toán",
+    "No payment records match the current filters.": "Không có bản ghi thanh toán nào khớp với bộ lọc hiện tại.",
+    "Failed to load payment logs": "Không thể tải nhật ký thanh toán",
+    "Copy transaction reference": "Sao chép mã tham chiếu giao dịch",
+    "Epay": "Epay",
+    "Creem": "Creem",
+    "Waffo Pancake": "Waffo Pancake"
   }
 }

@@ -7391,6 +7391,22 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Payment Logs": "Журнал платежей",
+    "Read-only ledger of all top-up and payment orders.": "Журнал всех заказов на пополнение и оплату только для чтения.",
+    "Transaction Reference": "Номер транзакции",
+    "Payment gateway": "Платёжный шлюз",
+    "Credited amount": "Зачисленная сумма",
+    "Paid amount": "Оплаченная сумма",
+    "From date": "Дата начала",
+    "To date": "Дата окончания",
+    "Search by trade number, email, username, or user ID...": "Поиск по номеру транзакции, электронной почте, имени пользователя или ID...",
+    "No payment records found": "Платежи не найдены",
+    "No payment records match the current filters.": "Нет платежей, соответствующих текущим фильтрам.",
+    "Failed to load payment logs": "Не удалось загрузить журнал платежей",
+    "Copy transaction reference": "Копировать номер транзакции",
+    "Epay": "Epay",
+    "Creem": "Creem",
+    "Waffo Pancake": "Waffo Pancake"
   }
 }

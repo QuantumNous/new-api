@@ -7391,6 +7391,22 @@
     "Zhipu": "智谱",
     "Zhipu GLM": "智谱GLM",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Payment Logs": "支付日志",
+    "Read-only ledger of all top-up and payment orders.": "所有充值与支付订单的只读账本。",
+    "Transaction Reference": "交易参考号",
+    "Payment gateway": "支付网关",
+    "Credited amount": "入账金额",
+    "Paid amount": "实付金额",
+    "From date": "开始日期",
+    "To date": "结束日期",
+    "Search by trade number, email, username, or user ID...": "按交易号、邮箱、用户名或用户 ID 搜索...",
+    "No payment records found": "未找到支付记录",
+    "No payment records match the current filters.": "没有符合当前筛选条件的支付记录。",
+    "Failed to load payment logs": "加载支付日志失败",
+    "Copy transaction reference": "复制交易参考号",
+    "Epay": "Epay",
+    "Creem": "Creem",
+    "Waffo Pancake": "Waffo Pancake"
   }
 }

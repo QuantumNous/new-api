@@ -7391,6 +7391,22 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Payment Logs": "支払い履歴",
+    "Read-only ledger of all top-up and payment orders.": "すべてのチャージおよび支払い注文の読み取り専用台帳。",
+    "Transaction Reference": "取引参照番号",
+    "Payment gateway": "決済ゲートウェイ",
+    "Credited amount": "入金金額",
+    "Paid amount": "支払金額",
+    "From date": "開始日",
+    "To date": "終了日",
+    "Search by trade number, email, username, or user ID...": "取引番号、メール、ユーザー名、ユーザー ID で検索...",
+    "No payment records found": "支払い記録が見つかりません",
+    "No payment records match the current filters.": "現在のフィルターに一致する支払い記録はありません。",
+    "Failed to load payment logs": "支払い履歴の読み込みに失敗しました",
+    "Copy transaction reference": "取引参照番号をコピー",
+    "Epay": "Epay",
+    "Creem": "Creem",
+    "Waffo Pancake": "Waffo Pancake"
   }
 }

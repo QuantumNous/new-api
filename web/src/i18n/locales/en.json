@@ -7391,6 +7391,22 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Payment Logs": "Payment Logs",
+    "Read-only ledger of all top-up and payment orders.": "Read-only ledger of all top-up and payment orders.",
+    "Transaction Reference": "Transaction Reference",
+    "Payment gateway": "Payment gateway",
+    "Credited amount": "Credited amount",
+    "Paid amount": "Paid amount",
+    "From date": "From date",
+    "To date": "To date",
+    "Search by trade number, email, username, or user ID...": "Search by trade number, email, username, or user ID...",
+    "No payment records found": "No payment records found",
+    "No payment records match the current filters.": "No payment records match the current filters.",
+    "Failed to load payment logs": "Failed to load payment logs",
+    "Copy transaction reference": "Copy transaction reference",
+    "Epay": "Epay",
+    "Creem": "Creem",
+    "Waffo Pancake": "Waffo Pancake"
   }
 }

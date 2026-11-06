@@ -30,6 +30,7 @@ import {
   MessageSquare,
   PlugZap,
   Radio,
+  Receipt,
   ServerCog,
   Settings,
   ShieldCheck,
@@ -163,6 +164,12 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Payment Logs'),
+            url: '/admin/payments',
+            icon: Receipt,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('System Info'),

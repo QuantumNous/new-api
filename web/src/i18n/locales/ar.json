@@ -7391,6 +7391,22 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "تقريب"
+    "Zoom": "تقريب",
+    "Payment Logs": "سجل المدفوعات",
+    "Read-only ledger of all top-up and payment orders.": "سجل للقراءة فقط لجميع عمليات الشحن والدفع.",
+    "Transaction Reference": "مرجع المعاملة",
+    "Payment gateway": "بوابة الدفع",
+    "Credited amount": "المبلغ المضاف",
+    "Paid amount": "المبلغ المدفوع",
+    "From date": "من تاريخ",
+    "To date": "إلى تاريخ",
+    "Search by trade number, email, username, or user ID...": "ابحث برقم المعاملة أو البريد الإلكتروني أو اسم المستخدم أو معرّف المستخدم...",
+    "No payment records found": "لا توجد سجلات مدفوعات",
+    "No payment records match the current filters.": "لا توجد سجلات مدفوعات تطابق عوامل التصفية الحالية.",
+    "Failed to load payment logs": "تعذّر تحميل سجلات المدفوعات",
+    "Copy transaction reference": "نسخ مرجع المعاملة",
+    "Epay": "Epay",
+    "Creem": "Creem",
+    "Waffo Pancake": "Waffo Pancake"
   }
 }
