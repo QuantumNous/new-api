@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -46,6 +47,10 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	normalizeOpenAIUsage(&usageResp.Usage)
+	if info.ChannelType == constant.ChannelTypeXai && usageResp.Usage.CostInUSDTicks != nil && *usageResp.Usage.CostInUSDTicks >= 0 {
+		costTicks := *usageResp.Usage.CostInUSDTicks
+		info.UpstreamCostInUSDTicks = &costTicks
+	}
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
 }
@@ -156,6 +161,10 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		}
 		if err := common.Unmarshal(raw, &chunk); err == nil {
 			normalizeOpenAIUsage(&chunk.Usage)
+			if info.ChannelType == constant.ChannelTypeXai && chunk.Usage.CostInUSDTicks != nil && *chunk.Usage.CostInUSDTicks >= 0 {
+				costTicks := *chunk.Usage.CostInUSDTicks
+				info.UpstreamCostInUSDTicks = &costTicks
+			}
 			if service.ValidUsage(&chunk.Usage) {
 				usage = &chunk.Usage
 			}
@@ -275,6 +284,10 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 	normalizeOpenAIUsage(&usageResp.Usage)
+	if info.ChannelType == constant.ChannelTypeXai && usageResp.Usage.CostInUSDTicks != nil && *usageResp.Usage.CostInUSDTicks >= 0 {
+		costTicks := *usageResp.Usage.CostInUSDTicks
+		info.UpstreamCostInUSDTicks = &costTicks
+	}
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 
 	info.UpdateImageCount(openaiImageResponseCount(responseBody))

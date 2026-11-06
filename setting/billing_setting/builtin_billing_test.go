@@ -210,3 +210,43 @@ func TestDeepSeekBuiltinBilling(t *testing.T) {
 		assert.Equal(t, 375, result.ActualQuotaAfterGroup, model)
 	}
 }
+
+func TestXAIImageBuiltinPricing(t *testing.T) {
+	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
+	saved := *settings
+	savedRatios, savedPrices := ratio_setting.ModelRatio2JSONString(), ratio_setting.ModelPrice2JSONString()
+	t.Cleanup(func() {
+		*settings = saved
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+	})
+	*settings = billing_setting.BillingSetting{BillingMode: map[string]string{}, BillingExpr: map[string]string{}}
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+
+	for _, tc := range []struct {
+		model       string
+		body        string
+		outputCount int
+		inputCount  int
+		wantQuota   int
+	}{
+		{model: "grok-imagine-image-2.0", body: `{"resolution":"2k","quality":"medium"}`, outputCount: 2, inputCount: 2, wantQuota: 90000},
+		{model: "grok-imagine-image-pro", body: `{}`, outputCount: 1, inputCount: 1, wantQuota: 25000},
+		{model: "grok-imagine-image", body: `{}`, outputCount: 1, inputCount: 1, wantQuota: 11000},
+	} {
+		t.Run(tc.model, func(t *testing.T) {
+			expression, ok := billing_setting.GetBillingExpr(tc.model)
+			require.True(t, ok)
+			result, err := billingexpr.ComputeTieredQuotaWithRequest(&billingexpr.BillingSnapshot{
+				ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000,
+			}, billingexpr.TokenParams{}, billingexpr.RequestInput{
+				Body:            []byte(tc.body),
+				ImageCount:      &tc.outputCount,
+				ImageInputCount: &tc.inputCount,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantQuota, result.ActualQuotaAfterGroup)
+		})
+	}
+}

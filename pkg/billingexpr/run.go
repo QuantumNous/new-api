@@ -66,21 +66,31 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 		}
 		trace.ImageCount = &imageCount
 	}
+	imageInputCount := 0
+	if usedVars["image_input_count"] {
+		if request.ImageInputCount != nil {
+			imageInputCount = *request.ImageInputCount
+		}
+		if imageInputCount < 0 || imageInputCount > dto.MaxXAIInputImages {
+			return 0, trace, fmt.Errorf("image_input_count must be between 0 and %d", dto.MaxXAIInputImages)
+		}
+	}
 
 	env := map[string]any{
-		"image_count": float64(imageCount),
-		"p":           params.P,
-		"c":           params.C,
-		"len":         params.Len,
-		"cr":          params.CR,
-		"cc":          params.CC,
-		"cc1h":        params.CC1h,
-		"cc12h":       params.CC12h,
-		"img":         params.Img,
-		"img_cr":      params.ImgCR,
-		"img_o":       params.ImgO,
-		"ai":          params.AI,
-		"ao":          params.AO,
+		"image_count":       float64(imageCount),
+		"image_input_count": float64(imageInputCount),
+		"p":                 params.P,
+		"c":                 params.C,
+		"len":               params.Len,
+		"cr":                params.CR,
+		"cc":                params.CC,
+		"cc1h":              params.CC1h,
+		"img":               params.Img,
+		"img_cr":            params.ImgCR,
+		"img_o":             params.ImgO,
+		"ai":                params.AI,
+		"ao":                params.AO,
+		"cc12h":             params.CC12h,
 		"tier": func(name string, value float64) float64 {
 			trace.MatchedTier = name
 			trace.Cost = value
@@ -88,7 +98,12 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 		},
 		"fixed": func(amount float64) float64 {
 			trace.BillingUnit = BillingUnitRequest
-			trace.FixedPrice = &amount
+			if trace.FixedPrice == nil {
+				trace.FixedPrice = &amount
+			} else {
+				total := *trace.FixedPrice + amount
+				trace.FixedPrice = &total
+			}
 			return amount * 1_000_000
 		},
 		requestRuleTraceFunction: func(ruleIndex int, matched bool, multiplier float64) float64 {

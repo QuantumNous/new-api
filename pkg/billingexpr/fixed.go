@@ -26,8 +26,19 @@ func containsPricingMarker(node ast.Node) bool {
 	}) != nil
 }
 
+func containsFixedPricing(node ast.Node) bool {
+	return ast.Find(node, func(part ast.Node) bool {
+		call, ok := part.(*ast.CallNode)
+		if !ok {
+			return false
+		}
+		identifier, ok := call.Callee.(*ast.IdentifierNode)
+		return ok && identifier.Value == "fixed"
+	}) != nil
+}
+
 func isRequestPriceMultiplier(node ast.Node) bool {
-	if identifier, ok := node.(*ast.IdentifierNode); ok && identifier.Value == "image_count" {
+	if identifier, ok := node.(*ast.IdentifierNode); ok && (identifier.Value == "image_count" || identifier.Value == "image_input_count") {
 		return true
 	}
 	conditional, ok := node.(*ast.ConditionalNode)
@@ -53,6 +64,15 @@ func validateFixedPricingTree(node ast.Node) error {
 		}
 		return validateFixedPricingTree(part.Exp2)
 	case *ast.BinaryNode:
+		if part.Operator == "+" {
+			if !containsFixedPricing(part.Left) || !containsFixedPricing(part.Right) {
+				return fmt.Errorf("fixed pricing requires fixed request-priced branches")
+			}
+			if err := validateFixedPricingTree(part.Left); err != nil {
+				return err
+			}
+			return validateFixedPricingTree(part.Right)
+		}
 		if part.Operator != "*" {
 			break
 		}

@@ -28,6 +28,21 @@ type ToolSurchargeItem struct {
 	Price float64 `json:"price"`
 }
 
+const upstreamUSDTicksPerDollar = int64(10_000_000_000)
+
+func upstreamCostQuota(relayInfo *relaycommon.RelayInfo) (int, bool) {
+	if relayInfo == nil || relayInfo.UpstreamCostInUSDTicks == nil || *relayInfo.UpstreamCostInUSDTicks < 0 {
+		return 0, false
+	}
+	quotaDecimal := decimal.NewFromInt(*relayInfo.UpstreamCostInUSDTicks).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Mul(decimal.NewFromFloat(relayInfo.PriceData.GroupRatioInfo.GroupRatio)).
+		Div(decimal.NewFromInt(upstreamUSDTicksPerDollar))
+	quota, clamp := common.QuotaFromDecimalChecked(quotaDecimal)
+	noteQuotaClamp(relayInfo, clamp)
+	return quota, true
+}
+
 func appendToolSurchargeLogInfo(other *model.LogOther, items []ToolSurchargeItem) {
 	if len(items) == 0 {
 		return
@@ -377,10 +392,14 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		summary.Quota = quota
 		noteQuotaClamp(relayInfo, clamp)
 	}
+	upstreamQuota, hasUpstreamCost := upstreamCostQuota(relayInfo)
+	if hasUpstreamCost {
+		summary.Quota = upstreamQuota
+	}
 
-	if !summary.hasBillableUsage() {
+	if !summary.hasBillableUsage() && !hasUpstreamCost {
 		summary.Quota = 0
-	} else if !ratio.IsZero() && summary.Quota == 0 {
+	} else if !hasUpstreamCost && !ratio.IsZero() && summary.Quota == 0 {
 		summary.Quota = 1
 	}
 
@@ -437,7 +456,18 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			}
 		}
 	}
-
+	upstreamQuota, hasUpstreamCost := upstreamCostQuota(relayInfo)
+	if hasUpstreamCost {
+		summary.Quota = upstreamQuota
+		// The upstream amount is authoritative; do not retain a tiered estimate
+		// in the log or let it overwrite the exact response charge.
+		tieredBillingApplied = false
+		tieredResult = nil
+		summary.FixedPriceBilling = false
+		extraContent = append(extraContent, common.NewMessage("Upstream cost {{ticks}} ticks", map[string]any{
+			"ticks": *relayInfo.UpstreamCostInUSDTicks,
+		}))
+	}
 	for _, item := range summary.ToolSurchargeItems {
 		q := decimal.NewFromFloat(item.Price).
 			Mul(decimal.NewFromInt(int64(item.Count))).
@@ -455,7 +485,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		extraContent = append(extraContent, common.NewMessage("Audio input cost {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaFromDecimal(q))}))
 	}
 
-	if !summary.hasBillableUsage() {
+	if !summary.hasBillableUsage() && !hasUpstreamCost {
 		extraContent = append(extraContent, common.NewMessage("Upstream returned no usage, so nothing was charged (possibly an upstream timeout)"))
 		logger.LogError(ctx, common.LogText("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
 	} else {
@@ -489,6 +519,10 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		other.SetPublic("usage_semantic", "anthropic")
 	} else {
 		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+	}
+	if relayInfo.UpstreamCostInUSDTicks != nil {
+		other.SetAdmin("upstream_cost_in_usd_ticks", *relayInfo.UpstreamCostInUSDTicks)
+		other.SetAdmin("upstream_cost_source", "response_usage")
 	}
 	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), originUsage)
 	if adminRejectReason != "" {

@@ -1,11 +1,20 @@
 package xai
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/url"
+	"path/filepath"
+	"slices"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -39,11 +48,28 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if err := request.ValidateXAIImageRequest(); err != nil {
+		return nil, err
+	}
 	xaiRequest := ImageRequest{
 		Model:          request.Model,
 		Prompt:         request.Prompt,
 		N:              int(lo.FromPtrOr(request.N, uint(1))),
+		AspectRatio:    request.AspectRatio,
+		Resolution:     request.Resolution,
+		Quality:        request.Quality,
 		ResponseFormat: request.ResponseFormat,
+	}
+	if info.RelayMode == constant.RelayModeImagesEdits {
+		images, err := xAIEditImages(c, request)
+		if err != nil {
+			return nil, err
+		}
+		if len(images) == 1 {
+			xaiRequest.Image = images[0]
+		} else {
+			xaiRequest.Images = images
+		}
 	}
 	return xaiRequest, nil
 }
@@ -60,8 +86,118 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
+	if info.RelayMode == constant.RelayModeImagesGenerations || info.RelayMode == constant.RelayModeImagesEdits {
+		req.Set("Content-Type", "application/json")
+	}
 	req.Set("Authorization", "Bearer "+info.ApiKey)
 	return nil
+}
+
+func xAIEditImages(c *gin.Context, request dto.ImageRequest) ([]json.RawMessage, error) {
+	if strings.HasPrefix(strings.ToLower(c.Request.Header.Get("Content-Type")), "multipart/form-data") {
+		form := c.Request.MultipartForm
+		if form == nil {
+			parsed, err := common.ParseMultipartFormReusable(c)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse multipart form: %w", err)
+			}
+			c.Request.MultipartForm = parsed
+			c.Request.PostForm = url.Values(parsed.Value)
+			form = parsed
+		}
+		var imageFiles []*multipart.FileHeader
+		for _, field := range []string{"image", "image[]"} {
+			imageFiles = append(imageFiles, form.File[field]...)
+		}
+		fieldNames := make([]string, 0)
+		for field := range form.File {
+			if strings.HasPrefix(field, "image[") && field != "image[]" {
+				fieldNames = append(fieldNames, field)
+			}
+		}
+		slices.Sort(fieldNames)
+		for _, field := range fieldNames {
+			imageFiles = append(imageFiles, form.File[field]...)
+		}
+		if len(imageFiles) > dto.MaxXAIInputImages {
+			return nil, fmt.Errorf("xAI image edits support at most %d input images", dto.MaxXAIInputImages)
+		}
+		images := make([]json.RawMessage, 0, len(imageFiles))
+		for _, fileHeader := range imageFiles {
+			file, err := fileHeader.Open()
+			if err != nil {
+				return nil, fmt.Errorf("failed to open image %q: %w", fileHeader.Filename, err)
+			}
+			data, readErr := io.ReadAll(file)
+			_ = file.Close()
+			if readErr != nil {
+				return nil, fmt.Errorf("failed to read image %q: %w", fileHeader.Filename, readErr)
+			}
+			contentType := fileHeader.Header.Get("Content-Type")
+			if contentType == "" || contentType == "application/octet-stream" {
+				if extensionType := mime.TypeByExtension(filepath.Ext(fileHeader.Filename)); extensionType != "" {
+					contentType = extensionType
+				}
+			}
+			if contentType == "" {
+				contentType = "application/octet-stream"
+			}
+			url := "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(data)
+			encoded, err := common.Marshal(map[string]string{"url": url})
+			if err != nil {
+				return nil, err
+			}
+			images = append(images, encoded)
+		}
+		if len(images) > 0 {
+			return images, nil
+		}
+	}
+
+	if len(request.Images) > 0 && string(request.Images) != "null" {
+		var images []json.RawMessage
+		if err := common.Unmarshal(request.Images, &images); err != nil {
+			return nil, fmt.Errorf("invalid xAI images: %w", err)
+		}
+		if len(images) == 0 || len(images) > dto.MaxXAIInputImages {
+			return nil, fmt.Errorf("xAI image edits require 1 to %d input images", dto.MaxXAIInputImages)
+		}
+		normalized := make([]json.RawMessage, 0, len(images))
+		for _, image := range images {
+			normalizedImage, err := normalizeXAIImage(image)
+			if err != nil {
+				return nil, err
+			}
+			normalized = append(normalized, normalizedImage)
+		}
+		return normalized, nil
+	}
+	if len(request.Image) > 0 && string(request.Image) != "null" {
+		image, err := normalizeXAIImage(request.Image)
+		if err != nil {
+			return nil, err
+		}
+		return []json.RawMessage{image}, nil
+	}
+	return nil, errors.New("image is required for xAI image edits")
+}
+
+func normalizeXAIImage(raw json.RawMessage) (json.RawMessage, error) {
+	var value any
+	if err := common.Unmarshal(raw, &value); err != nil {
+		return nil, fmt.Errorf("invalid xAI image: %w", err)
+	}
+	if text, ok := value.(string); ok {
+		encoded, err := common.Marshal(map[string]string{"url": text})
+		if err != nil {
+			return nil, err
+		}
+		return encoded, nil
+	}
+	if _, ok := value.(map[string]any); !ok {
+		return nil, errors.New("xAI image must be an object or URL string")
+	}
+	return raw, nil
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {

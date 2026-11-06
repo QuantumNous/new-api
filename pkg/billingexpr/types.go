@@ -14,6 +14,8 @@ type RequestInput struct {
 	// ImageCount is a validated billing quantity, separate from the frozen
 	// request's n. Settlement can replace it with the actual returned count.
 	ImageCount *int
+	// ImageInputCount is the validated number of source images in an image edit.
+	ImageInputCount *int
 }
 
 // TokenParams holds all token dimensions passed into an Expr evaluation.

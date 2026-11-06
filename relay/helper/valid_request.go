@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -207,6 +208,7 @@ func GetAndValidateResponsesCompactionRequest(c *gin.Context) (*dto.OpenAIRespon
 
 func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageRequest, error) {
 	imageRequest := &dto.ImageRequest{}
+	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
 
 	switch relayMode {
 	case relayconstant.RelayModeImagesEdits:
@@ -228,6 +230,8 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				imageRequest.N = common.GetPointer(uint(n))
 			}
 			imageRequest.Quality = formData.Get("quality")
+			imageRequest.AspectRatio = formData.Get("aspect_ratio")
+			imageRequest.Resolution = formData.Get("resolution")
 			imageRequest.Size = formData.Get("size")
 			if parameters := formData.Get("parameters"); parameters != "" {
 				imageRequest.Extra = map[string]json.RawMessage{"parameters": json.RawMessage(parameters)}
@@ -241,6 +245,13 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			}
 			if imageValue := formData.Get("image"); imageValue != "" {
 				imageRequest.Image, _ = common.Marshal(imageValue)
+			}
+			if channelType == constant.ChannelTypeXai {
+				for field, files := range form.File {
+					if field == "image" || field == "image[]" || strings.HasPrefix(field, "image[") {
+						imageRequest.ImageInputCount += len(files)
+					}
+				}
 			}
 
 			if imageRequest.Model == "gpt-image-1" {
@@ -294,6 +305,9 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		if imageRequest.N == nil || *imageRequest.N == 0 {
 			imageRequest.N = common.GetPointer(uint(1))
 		}
+		if channelType == constant.ChannelTypeXai {
+			imageRequest.ImageInputCount = imageRequest.CountInputImages()
+		}
 	}
 
 	// Provider parameters can override the top-level count. Validate before
@@ -308,6 +322,17 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 	}
 	if _, err := imageRequest.ImageCount(false); err != nil {
 		return nil, err
+	}
+	if channelType == constant.ChannelTypeXai && imageRequest.IsXAIImagineImageModel() {
+		if err := imageRequest.ValidateXAIImageRequest(); err != nil {
+			return nil, err
+		}
+		if imageRequest.ImageInputCount > dto.MaxXAIInputImages {
+			return nil, fmt.Errorf("xAI image edits support at most %d input images", dto.MaxXAIInputImages)
+		}
+		if relayMode == relayconstant.RelayModeImagesEdits && imageRequest.ImageInputCount == 0 {
+			return nil, errors.New("image is required for xAI image edits")
+		}
 	}
 	return imageRequest, nil
 }

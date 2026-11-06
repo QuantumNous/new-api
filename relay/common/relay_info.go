@@ -170,6 +170,9 @@ type RelayInfo struct {
 	// supported single-request bound (or NaN fallback) while computing this request's charge.
 	// It is surfaced onto the consume/task log's admin_info for auditing.
 	QuotaClamp *common.QuotaClamp
+	// UpstreamCostInUSDTicks is an exact per-request upstream charge reported by
+	// providers such as xAI.
+	UpstreamCostInUSDTicks *int64
 
 	// TieredBillingSnapshot captures tiered billing rules at pre-consume time.
 	// Auto-group retries refresh its group-dependent fields before each attempt
@@ -273,6 +276,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	// Per-attempt only. Do not clear StreamStatus, conversion diagnostics,
 	// LastError, or billing accumulators — those are request-scoped.
 	info.SendResponseCount = 0
+	info.UpstreamCostInUSDTicks = nil
 	info.ClaudeToChatStreamState = nil
 	info.ChatToGeminiStreamState = nil
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)

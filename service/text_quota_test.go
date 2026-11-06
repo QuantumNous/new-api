@@ -1298,6 +1298,34 @@ func TestCalculateTextQuotaSummaryFixedPriceAppliesImageCountOnceAndAllowsOverri
 	require.Equal(t, 120000, summary.Quota)
 }
 
+func TestCalculateTextQuotaSummaryUsesExactUpstreamCost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	priceData := hosttypes.PriceData{
+		ModelPrice: 0.04,
+		UsePrice:   true,
+		GroupRatioInfo: hosttypes.GroupRatioInfo{
+			GroupRatio: 1.5,
+		},
+	}
+	priceData.AddOtherRatio("n", 1)
+	costTicks := int64(800_000_000)
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName:        "grok-imagine-image-2.0",
+		PriceData:              priceData,
+		UpstreamCostInUSDTicks: &costTicks,
+		StartTime:              time.Now(),
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{PromptTokens: 1, TotalTokens: 1})
+	require.Equal(t, 60000, summary.Quota)
+
+	zeroTicks := int64(0)
+	relayInfo.UpstreamCostInUSDTicks = &zeroTicks
+	summary = calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{PromptTokens: 1, TotalTokens: 1})
+	require.Zero(t, summary.Quota)
+}
+
 func TestCalculateTextToolCallSurchargeGeneralizedBuiltInTools(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

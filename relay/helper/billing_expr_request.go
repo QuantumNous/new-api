@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"fmt"
 	"maps"
 	"strings"
 
@@ -45,7 +46,23 @@ func ResolveImageBillingRequestInput(c *gin.Context, info *relaycommon.RelayInfo
 	if err != nil {
 		return input, err
 	}
-	body := map[string]any{"model": request.Model, "n": count, "size": request.Size, "quality": request.Quality}
+	inputCount := request.CountInputImages()
+	quality := strings.ToLower(strings.TrimSpace(request.Quality))
+	if request.IsXAIImagineImageModel() && (quality == "" || quality == "auto") {
+		if inputCount > 0 {
+			quality = "medium"
+		} else {
+			quality = "low"
+		}
+	}
+	body := map[string]any{
+		"model":             request.Model,
+		"n":                 count,
+		"size":              request.Size,
+		"quality":           quality,
+		"resolution":        request.Resolution,
+		"input_image_count": inputCount,
+	}
 	if request.BillingParameters != nil {
 		body["parameters"] = request.BillingParameters
 	}
@@ -55,6 +72,10 @@ func ResolveImageBillingRequestInput(c *gin.Context, info *relaycommon.RelayInfo
 	}
 	input.Body = encoded
 	input.ImageCount = &count
+	if inputCount < 0 || inputCount > dto.MaxXAIInputImages {
+		return input, fmt.Errorf("image input count must be between 0 and %d", dto.MaxXAIInputImages)
+	}
+	input.ImageInputCount = &inputCount
 	return input, nil
 }
 
@@ -92,6 +113,10 @@ func cloneRequestInput(src billingexpr.RequestInput) billingexpr.RequestInput {
 	if src.ImageCount != nil {
 		count := *src.ImageCount
 		input.ImageCount = &count
+	}
+	if src.ImageInputCount != nil {
+		count := *src.ImageInputCount
+		input.ImageInputCount = &count
 	}
 	if len(src.Body) > 0 {
 		input.Body = append([]byte(nil), src.Body...)

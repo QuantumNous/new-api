@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"strings"
 
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -13,6 +14,11 @@ import (
 // MaxImageN caps the image generation count. Without this bound a huge or
 // wrapped-negative n overflows quota calculation into a negative charge.
 const MaxImageN = 128
+
+const (
+	MaxXAIImageN      = 10
+	MaxXAIInputImages = 5
+)
 
 // ImageBillingParameters contains only the provider scalars parsed by request
 // validation. Keep this separate from the complete provider request payload.
@@ -26,6 +32,8 @@ type ImageRequest struct {
 	Prompt            string          `json:"prompt" binding:"required"`
 	N                 *uint           `json:"n,omitempty"`
 	Size              string          `json:"size,omitempty"`
+	AspectRatio       string          `json:"aspect_ratio,omitempty"`
+	Resolution        string          `json:"resolution,omitempty"`
 	Quality           string          `json:"quality,omitempty"`
 	ResponseFormat    string          `json:"response_format,omitempty"`
 	Style             json.RawMessage `json:"style,omitempty"`
@@ -50,9 +58,63 @@ type ImageRequest struct {
 	WatermarkEnabled json.RawMessage `json:"watermark_enabled,omitempty"`
 	UserId           json.RawMessage `json:"user_id,omitempty"`
 	Image            json.RawMessage `json:"image,omitempty"`
+	ImageInputCount  int             `json:"-"`
 	// 用匿名参数接收额外参数
 	Extra             map[string]json.RawMessage `json:"-"`
 	BillingParameters *ImageBillingParameters    `json:"-"`
+}
+
+func (i *ImageRequest) IsXAIImagineImageModel() bool {
+	return i != nil && strings.HasPrefix(strings.ToLower(i.Model), "grok-imagine-image")
+}
+
+// ValidateXAIImageRequest validates and normalizes fields before image billing
+// reserves quota.
+func (i *ImageRequest) ValidateXAIImageRequest() error {
+	if !i.IsXAIImagineImageModel() {
+		return nil
+	}
+	if i.N != nil && *i.N > MaxXAIImageN {
+		return fmt.Errorf("n must be an integer between 1 and %d for xAI image models", MaxXAIImageN)
+	}
+	if i.Size != "" {
+		return fmt.Errorf("size is not supported by xAI image models; use aspect_ratio and resolution")
+	}
+	i.AspectRatio = strings.TrimSpace(i.AspectRatio)
+	i.Resolution = strings.ToLower(strings.TrimSpace(i.Resolution))
+	i.Quality = strings.ToLower(strings.TrimSpace(i.Quality))
+	if i.Resolution != "" && i.Resolution != "1k" && i.Resolution != "1.5k" && i.Resolution != "2k" {
+		return fmt.Errorf("resolution must be one of 1k, 1.5k, or 2k for xAI image models")
+	}
+	if i.Quality != "" && i.Quality != "low" && i.Quality != "medium" && i.Quality != "auto" {
+		return fmt.Errorf("quality must be one of low, medium, or auto for xAI image models")
+	}
+	switch i.AspectRatio {
+	case "", "1:1", "3:4", "4:3", "9:16", "16:9", "2:3", "3:2", "9:19.5", "19.5:9", "9:20", "20:9", "1:2", "2:1", "21:9", "5:2", "auto":
+		return nil
+	default:
+		return fmt.Errorf("unsupported aspect_ratio for xAI image models: %s", i.AspectRatio)
+	}
+}
+
+// CountInputImages returns the number of source images in an xAI edit request.
+func (i *ImageRequest) CountInputImages() int {
+	if i == nil {
+		return 0
+	}
+	if i.ImageInputCount > 0 {
+		return i.ImageInputCount
+	}
+	if len(i.Images) > 0 && string(i.Images) != "null" {
+		var images []json.RawMessage
+		if err := kitutil.Unmarshal(i.Images, &images); err == nil {
+			return len(images)
+		}
+	}
+	if len(i.Image) > 0 && string(i.Image) != "null" {
+		return 1
+	}
+	return 0
 }
 
 // ImageCount resolves the validated request quantity. Top-level zero retains

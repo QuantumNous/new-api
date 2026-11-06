@@ -17,6 +17,11 @@ var builtinBillingExpr = map[string]string{
 	"gpt-image-2":            `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`,
 	"gpt-image-2.5-sunburst": `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`,
 	"gpt-image-2.5-flare":    `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`,
+	// https://docs.x.ai/developers/model-capabilities/images/generation
+	// xAI charges output by resolution/quality and adds $0.01 per edit input.
+	"grok-imagine-image-2.0": `tier("output", fixed(0.04)) * image_count * (param("resolution") == "1.5k" ? 1.25 : 1) * (param("resolution") == "2k" ? 1.5 : 1) * ((param("resolution") == "" || param("resolution") == "1k") && param("quality") == "medium" ? 1.5 : 1) * (param("resolution") == "1.5k" && param("quality") == "medium" ? 1.4 : 1) * (param("resolution") == "2k" && param("quality") == "medium" ? 1.3333333333333333 : 1) + (image_input_count > 0 ? tier("input", fixed(0.01)) * image_input_count : tier("input", fixed(0)) * image_input_count)`,
+	"grok-imagine-image-pro": `tier("output", fixed(0.04)) * image_count + (image_input_count > 0 ? tier("input", fixed(0.01)) * image_input_count : tier("input", fixed(0)) * image_input_count)`,
+	"grok-imagine-image":     `tier("output", fixed(0.02)) * image_count + (image_input_count > 0 ? tier("input", fixed(0.002)) * image_input_count : tier("input", fixed(0)) * image_input_count)`,
 	// https://developers.openai.com/api/docs/models/gpt-6-astra
 	// https://developers.openai.com/api/docs/pricing (Standard, 2026-10-22):
 	// cc is the 30m cache write and cc12h the 12h write. The long-context

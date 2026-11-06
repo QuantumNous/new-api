@@ -247,6 +247,8 @@ type Usage struct {
 
 	// OpenRouter Params
 	Cost any `json:"cost,omitempty"`
+
+	CostInUSDTicks *int64 `json:"cost_in_usd_ticks,omitempty"`
 }
 
 type OpenAIVideoResponse struct {
