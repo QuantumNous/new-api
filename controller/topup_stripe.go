@@ -248,24 +248,30 @@ func sessionAsyncPaymentFailed(ctx context.Context, event stripe.Event, callerIp
 	LockOrder(referenceId)
 	defer UnlockOrder(referenceId)
 
-	topUp := model.GetTopUpByTradeNo(referenceId)
-	if topUp == nil {
+	err := model.FailSubscriptionOrder(referenceId, model.PaymentProviderStripe)
+	if err == nil {
+		logger.LogInfo(ctx, common.LogText("Stripe subscription order marked as failed trade_no=%s client_ip=%s", referenceId, callerIp))
+		return
+	}
+	if !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
+		logger.LogError(ctx, common.LogText("Stripe failed to mark subscription order as failed trade_no=%s client_ip=%s error=%q", referenceId, callerIp, err.Error()))
+		return
+	}
+
+	err = model.UpdatePendingTopUpStatus(referenceId, model.PaymentProviderStripe, common.TopUpStatusFailed)
+	if errors.Is(err, model.ErrTopUpNotFound) {
 		logger.LogWarn(ctx, common.LogText("Stripe async payment failed but local order not found trade_no=%s client_ip=%s", referenceId, callerIp))
 		return
 	}
-
-	if topUp.PaymentProvider != model.PaymentProviderStripe {
-		logger.LogWarn(ctx, common.LogText("Stripe async payment failed but order payment gateway mismatch trade_no=%s payment_provider=%s client_ip=%s", referenceId, topUp.PaymentProvider, callerIp))
+	if errors.Is(err, model.ErrPaymentMethodMismatch) {
+		logger.LogWarn(ctx, common.LogText("Stripe async payment failed but top-up payment gateway mismatch trade_no=%s client_ip=%s", referenceId, callerIp))
 		return
 	}
-
-	if topUp.Status != common.TopUpStatusPending {
-		logger.LogInfo(ctx, common.LogText("Stripe async payment failed but order not pending, ignored trade_no=%s status=%s client_ip=%s", referenceId, topUp.Status, callerIp))
+	if errors.Is(err, model.ErrTopUpStatusInvalid) {
+		logger.LogInfo(ctx, common.LogText("Stripe async payment failed but top-up order not pending, ignored trade_no=%s client_ip=%s", referenceId, callerIp))
 		return
 	}
-
-	topUp.Status = common.TopUpStatusFailed
-	if err := topUp.Update(); err != nil {
+	if err != nil {
 		logger.LogError(ctx, common.LogText("Stripe failed to mark top-up order as failed trade_no=%s client_ip=%s error=%q", referenceId, callerIp, err.Error()))
 		return
 	}
