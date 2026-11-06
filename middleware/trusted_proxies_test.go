@@ -29,7 +29,7 @@ func newClientIPRouter() *gin.Engine {
 	return router
 }
 
-func TestConfigureTrustedProxiesDefaultsToLoopbackAndPrivateNetworks(t *testing.T) {
+func TestConfigureTrustedProxiesDefaultsToTrustingNoProxies(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("TRUSTED_PROXIES", "")
 	router := newClientIPRouter()
@@ -38,19 +38,20 @@ func TestConfigureTrustedProxiesDefaultsToLoopbackAndPrivateNetworks(t *testing.
 	testCases := []struct {
 		name       string
 		remoteAddr string
+		want       string
 	}{
-		{name: "IPv4 loopback", remoteAddr: "127.0.0.1:12345"},
-		{name: "IPv6 loopback", remoteAddr: "[::1]:12345"},
-		{name: "10 private network", remoteAddr: "10.20.30.40:12345"},
-		{name: "172 private network", remoteAddr: "172.20.0.2:12345"},
-		{name: "192 private network", remoteAddr: "192.168.10.2:12345"},
-		{name: "IPv6 unique local network", remoteAddr: "[fd12:3456::2]:12345"},
+		{name: "IPv4 loopback", remoteAddr: "127.0.0.1:12345", want: "127.0.0.1"},
+		{name: "IPv6 loopback", remoteAddr: "[::1]:12345", want: "::1"},
+		{name: "10 private network", remoteAddr: "10.20.30.40:12345", want: "10.20.30.40"},
+		{name: "172 private network", remoteAddr: "172.20.0.2:12345", want: "172.20.0.2"},
+		{name: "192 private network", remoteAddr: "192.168.10.2:12345", want: "192.168.10.2"},
+		{name: "IPv6 unique local network", remoteAddr: "[fd12:3456::2]:12345", want: "fd12:3456::2"},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			clientIP := requestClientIP(router, testCase.remoteAddr, "203.0.113.10")
-			assert.Equal(t, "203.0.113.10", clientIP)
+			assert.Equal(t, testCase.want, clientIP, "an unset TRUSTED_PROXIES must ignore forwarded headers from every peer")
 		})
 	}
 }
@@ -65,9 +66,9 @@ func TestConfigureTrustedProxiesDefaultRejectsPublicPeerHeaders(t *testing.T) {
 	assert.Equal(t, "198.51.100.10", clientIP, "a public peer must not make a spoofed X-Forwarded-For authoritative")
 }
 
-func TestConfigureTrustedProxiesDefaultStopsAtPublicClientInForwardedChain(t *testing.T) {
+func TestConfigureTrustedProxiesStopsAtPublicClientInForwardedChain(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	t.Setenv("TRUSTED_PROXIES", "")
+	t.Setenv("TRUSTED_PROXIES", "172.20.0.2")
 	router := newClientIPRouter()
 	require.NoError(t, ConfigureTrustedProxies(router))
 
@@ -101,7 +102,7 @@ func TestConfigureTrustedProxiesAcceptsTrimmedIPsAndCIDRs(t *testing.T) {
 	assert.Equal(t, "198.51.100.20", untrustedClientIP)
 
 	defaultProxyIP := requestClientIP(router, "127.0.0.1:12345", "203.0.113.23")
-	assert.Equal(t, "127.0.0.1", defaultProxyIP, "an explicit list must replace, not extend, the compatibility defaults")
+	assert.Equal(t, "127.0.0.1", defaultProxyIP, "an explicit list must not implicitly trust loopback")
 }
 
 func TestConfigureTrustedProxiesRejectsInvalidConfiguration(t *testing.T) {
