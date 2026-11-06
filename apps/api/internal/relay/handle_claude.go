@@ -157,6 +157,17 @@ func ClaudeHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError 
 	}
 
 	var requestBody io.Reader
+	var outboundBodyCloser io.Closer
+	closeOutboundBody := func() {
+		if outboundBodyCloser != nil {
+			_ = outboundBodyCloser.Close()
+			outboundBodyCloser = nil
+		}
+	}
+	defer closeOutboundBody()
+	var promptCacheUndo relaycommon.UndoPromptCache
+	var rebuildRequestBody func() (io.Reader, *types.NewAPIError)
+
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
@@ -164,56 +175,54 @@ func ClaudeHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError 
 		}
 		requestBody = common.NewReplayableBodyReader(storage)
 	} else {
-		convertedRequest, err := adaptor.ConvertClaudeRequest(c, info, request)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-		}
-		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
-		jsonData, err := common.Marshal(convertedRequest)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-		}
-
-		// remove disabled fields for Claude API
-		jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-		}
-
-		// apply param override
-		if len(info.ParamOverride) > 0 {
-			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+		// Body construction is a closure so that an upstream rejection of the
+		// auto-injected cache_control can rebuild the exact upstream body once
+		// with the injection reverted.
+		rebuildRequestBody = func() (io.Reader, *types.NewAPIError) {
+			promptCacheUndo = relaycommon.MaybeInjectClaudeCacheControl(c, info, request)
+			convertedRequest, err := adaptor.ConvertClaudeRequest(c, info, request)
 			if err != nil {
-				return newAPIErrorFromParamOverride(err)
+				return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
-		}
+			relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
+			jsonData, err := common.Marshal(convertedRequest)
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
 
-		logger.LogDebug(c.Context(), "requestBody: %s", jsonData)
-		body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			// remove disabled fields for Claude API
+			jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+
+			// apply param override
+			if len(info.ParamOverride) > 0 {
+				jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+				if err != nil {
+					return nil, newAPIErrorFromParamOverride(err)
+				}
+			}
+
+			logger.LogDebug(c.Context(), "requestBody: %s", jsonData)
+			body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			closeOutboundBody()
+			outboundBodyCloser = closer
+			requestBody = body
+			return body, nil
 		}
-		defer closer.Close()
-		jsonData = nil
-		requestBody = body
+		if _, buildErr := rebuildRequestBody(); buildErr != nil {
+			return buildErr
+		}
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
-	var httpResp *http.Response
-	resp, err := adaptor.DoRequest(c, info, requestBody)
-	if err != nil {
-		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
-	}
-
-	if resp != nil {
-		httpResp = resp.(*http.Response)
-		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
-		if httpResp.StatusCode != http.StatusOK {
-			newAPIError = relaycommon.RelayErrorHandler(c.Context(), httpResp, false)
-			// reset status code 重置状态码
-			relaycommon.ResetStatusCode(newAPIError, statusCodeMappingStr)
-			return newAPIError
-		}
+	httpResp, sendErr := doRequestWithPromptCacheFallback(c, info, adaptor, requestBody, rebuildRequestBody, promptCacheUndo, relaycommon.PromptCacheFieldCacheControl, statusCodeMappingStr)
+	if sendErr != nil {
+		return sendErr
 	}
 
 	if !info.IsStream {

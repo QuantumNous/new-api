@@ -399,6 +399,14 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		EnableThinking:    req.EnableThinking,
 		ThinkingBudget:    req.ThinkingBudget,
 	}
+
+	// prompt_cache_key is the client's declared cache boundary; like every
+	// other cacheable field it must survive chat→responses or upstream prompt
+	// caching silently stops working on responses-routed channels.
+	if strings.TrimSpace(req.PromptCacheKey) != "" {
+		promptCacheKeyRaw, _ := kitutil.Marshal(req.PromptCacheKey)
+		out.PromptCacheKey = promptCacheKeyRaw
+	}
 	if req.MaxTokens != nil || req.MaxCompletionTokens != nil {
 		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)
 	}

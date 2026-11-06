@@ -35,7 +35,7 @@ func TestResolveSessionAffinityKeyPrefersPromptCacheKey(t *testing.T) {
 	defer common.CleanupBodyStorage(ctx)
 
 	info := &relaycommon.RelayInfo{OriginModelName: "gpt-4"}
-	assert.Equal(t, "client-cache-1", resolveSessionAffinityKey(ctx, info))
+	assert.Equal(t, "client-cache-1", ResolveSessionAffinityKey(ctx, info))
 }
 
 func TestResolveSessionAffinityKeyHashesStablePrefix(t *testing.T) {
@@ -64,8 +64,8 @@ func TestResolveSessionAffinityKeyHashesStablePrefix(t *testing.T) {
 	defer common.CleanupBodyStorage(second)
 
 	info := &relaycommon.RelayInfo{OriginModelName: "gpt-4"}
-	a := resolveSessionAffinityKey(first, info)
-	b := resolveSessionAffinityKey(second, info)
+	a := ResolveSessionAffinityKey(first, info)
+	b := ResolveSessionAffinityKey(second, info)
 	require.True(t, strings.HasPrefix(a, "ses_"))
 	assert.Equal(t, a, b)
 }

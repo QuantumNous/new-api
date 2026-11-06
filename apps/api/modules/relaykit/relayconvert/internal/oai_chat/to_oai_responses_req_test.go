@@ -143,3 +143,20 @@ func assistantMessageWithTool(content string, id string, name string, args strin
 	})
 	return msg
 }
+
+func TestChatCompletionsRequestToResponsesRequestCarriesPromptCacheKey(t *testing.T) {
+	got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+		Model:          "gpt-test",
+		Messages:       []dto.Message{{Role: "user", Content: "hi"}},
+		PromptCacheKey: "ses_affinity_key",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, `"ses_affinity_key"`, string(got.PromptCacheKey))
+
+	got, err = ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+		Model:    "gpt-test",
+		Messages: []dto.Message{{Role: "user", Content: "hi"}},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, got.PromptCacheKey)
+}

@@ -63,6 +63,12 @@ type ResponsesUsageInfo struct {
 	BuiltInTools map[string]*BuildInToolInfo
 }
 
+// AffinityKeyContextKey memoizes the derived cache-affinity key on the request
+// context. Both the X-Session-Id header path (internal/relay/channel) and the
+// prompt-cache injection path (this package) read and write it, so one relay
+// attempt derives the key exactly once even across channel retries.
+const AffinityKeyContextKey = "prompt_cache_affinity_key"
+
 type ChannelMeta struct {
 	ChannelType          int
 	ChannelId            int

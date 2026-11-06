@@ -294,7 +294,7 @@ func processHeaderOverride(info *common.RelayInfo, c contract.Context) (map[stri
 		headerOverride[key] = value
 	}
 	if info.ChannelMeta != nil && info.ChannelSetting.SessionAffinityEnabled && !info.IsChannelTest {
-		if key := resolveSessionAffinityKey(c, info); key != "" {
+		if key := ResolveSessionAffinityKey(c, info); key != "" {
 			hk := strings.ToLower(SessionAffinityHeaderName)
 			if _, exists := headerOverride[hk]; !exists {
 				headerOverride[hk] = key

@@ -123,8 +123,21 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 		!passThroughGlobal &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&
 		relaycommon.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
-		applySystemPromptIfNeeded(c, info, request)
+		if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
+			applySystemPromptIfNeeded(c, info, request)
+		}
+		// The affinity key is derived from the raw client body (client-declared
+		// boundary first, else the stable prefix hash) and memoized on the
+		// request context, so every attempt of this client request injects the
+		// same prompt_cache_key regardless of in-flight body mutations.
+		promptCacheUndo := relaycommon.MaybeInjectOpenAIPromptCacheKey(c, info, request)
 		usage, newApiErr := chatCompletionsViaResponses(c, info, adaptor, request)
+		if newApiErr != nil && promptCacheUndo != nil &&
+			relaycommon.FallbackPromptCacheAfterRejection(c, info, promptCacheUndo, relaycommon.PromptCacheFieldPromptCacheKey, newApiErr) {
+			// The upstream rejected the injected prompt_cache_key: one resend
+			// without it, mirroring the converted-request fallback.
+			usage, newApiErr = chatCompletionsViaResponses(c, info, adaptor, request)
+		}
 		if newApiErr != nil {
 			return newApiErr
 		}
@@ -146,6 +159,16 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 	}
 
 	var requestBody io.Reader
+	var outboundBodyCloser io.Closer
+	closeOutboundBody := func() {
+		if outboundBodyCloser != nil {
+			_ = outboundBodyCloser.Close()
+			outboundBodyCloser = nil
+		}
+	}
+	defer closeOutboundBody()
+	var promptCacheUndo relaycommon.UndoPromptCache
+	var rebuildRequestBody func() (io.Reader, *types.NewAPIError)
 
 	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
@@ -159,101 +182,110 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 		}
 		requestBody = common.NewReplayableBodyReader(storage)
 	} else {
-		convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-		}
-		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
+		// Body construction is a closure so that an upstream rejection of the
+		// auto-injected prompt_cache_key can rebuild the exact upstream body
+		// once with the injection reverted.
+		rebuildRequestBody = func() (io.Reader, *types.NewAPIError) {
+			convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
-		if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
-			// 如果有系统提示，则将其添加到请求中
-			request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
-			if ok {
-				containSystemPrompt := false
-				for _, message := range request.Messages {
-					if message.Role == request.GetSystemRoleName() {
-						containSystemPrompt = true
-						break
-					}
-				}
-				if !containSystemPrompt {
-					// 如果没有系统提示，则添加系统提示
-					systemMessage := dto.Message{
-						Role:    request.GetSystemRoleName(),
-						Content: systemPrompt,
-					}
-					request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
-				} else if info.ChannelSetting.SystemPromptOverride {
-					common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-					// 如果有系统提示，且允许覆盖，则拼接到前面
-					for i, message := range request.Messages {
+			if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
+				// 如果有系统提示，则将其添加到请求中
+				request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
+				if ok {
+					containSystemPrompt := false
+					for _, message := range request.Messages {
 						if message.Role == request.GetSystemRoleName() {
-							if message.IsStringContent() {
-								request.Messages[i].SetStringContent(systemPrompt + "\n" + message.StringContent())
-							} else {
-								contents := message.ParseContent()
-								contents = append([]dto.MediaContent{
-									{
-										Type: dto.ContentTypeText,
-										Text: systemPrompt,
-									},
-								}, contents...)
-								request.Messages[i].Content = contents
-							}
+							containSystemPrompt = true
 							break
+						}
+					}
+					if !containSystemPrompt {
+						// 如果没有系统提示，则添加系统提示
+						systemMessage := dto.Message{
+							Role:    request.GetSystemRoleName(),
+							Content: systemPrompt,
+						}
+						request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
+					} else if info.ChannelSetting.SystemPromptOverride {
+						common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+						// 如果有系统提示，且允许覆盖，则拼接到前面
+						for i, message := range request.Messages {
+							if message.Role == request.GetSystemRoleName() {
+								// The prompt-cache fallback rebuilds the body by running this closure a
+								// second time, and same-pointer adaptors hand back the already-mutated
+								// request; skip prepends that are already in place.
+								if message.IsStringContent() {
+									if !strings.HasPrefix(message.StringContent(), systemPrompt+"\n") {
+										request.Messages[i].SetStringContent(systemPrompt + "\n" + message.StringContent())
+									}
+								} else {
+									contents := message.ParseContent()
+									if len(contents) == 0 || contents[0].Type != dto.ContentTypeText || contents[0].Text != systemPrompt {
+										contents = append([]dto.MediaContent{
+											{
+												Type: dto.ContentTypeText,
+												Text: systemPrompt,
+											},
+										}, contents...)
+										request.Messages[i].Content = contents
+									}
+								}
+								break
+							}
 						}
 					}
 				}
 			}
-		}
 
-		jsonData, err := common.Marshal(convertedRequest)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeJsonMarshalFailed, types.ErrOptionWithSkipRetry())
-		}
+			// Inject against the converted request so chat→claude etc. are covered
+			// too; the key is derived after every request mutation so it reflects
+			// the exact prefix the upstream will receive, and retries of this
+			// attempt reuse the memoized key and stay cache-stable.
+			promptCacheUndo = relaycommon.MaybeInjectOpenAIChatCacheKey(c, info, convertedRequest)
 
-		// remove disabled fields for OpenAI API
-		jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-		}
-
-		// apply param override
-		if len(info.ParamOverride) > 0 {
-			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+			jsonData, err := common.Marshal(convertedRequest)
 			if err != nil {
-				return newAPIErrorFromParamOverride(err)
+				return nil, types.NewError(err, types.ErrorCodeJsonMarshalFailed, types.ErrOptionWithSkipRetry())
 			}
+
+			// remove disabled fields for OpenAI API
+			jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+
+			// apply param override
+			if len(info.ParamOverride) > 0 {
+				jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+				if err != nil {
+					return nil, newAPIErrorFromParamOverride(err)
+				}
+			}
+
+			logger.LogDebug(c.Context(), "text request body: %s", jsonData)
+
+			body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			closeOutboundBody()
+			outboundBodyCloser = closer
+			requestBody = body
+			return body, nil
 		}
-
-		logger.LogDebug(c.Context(), "text request body: %s", jsonData)
-
-		body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		if _, buildErr := rebuildRequestBody(); buildErr != nil {
+			return buildErr
 		}
-		defer closer.Close()
-		jsonData = nil
-		requestBody = body
-	}
-
-	var httpResp *http.Response
-	resp, err := adaptor.DoRequest(c, info, requestBody)
-	if err != nil {
-		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
-
-	if resp != nil {
-		httpResp = resp.(*http.Response)
-		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
-		if httpResp.StatusCode != http.StatusOK {
-			newApiErr := relaycommon.RelayErrorHandler(c.Context(), httpResp, false)
-			// reset status code 重置状态码
-			relaycommon.ResetStatusCode(newApiErr, statusCodeMappingStr)
-			return newApiErr
-		}
+	httpResp, sendErr := doRequestWithPromptCacheFallback(c, info, adaptor, requestBody, rebuildRequestBody, promptCacheUndo, relaycommon.PromptCacheFieldPromptCacheKey, statusCodeMappingStr)
+	if sendErr != nil {
+		return sendErr
 	}
 
 	if !info.IsStream {

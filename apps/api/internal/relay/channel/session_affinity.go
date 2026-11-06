@@ -17,12 +17,32 @@ import (
 // rate. This is opt-in per channel because not every upstream honors it.
 const SessionAffinityHeaderName = "X-Session-Id"
 
-// resolveSessionAffinityKey derives a deterministic session key from the
+// ResolveSessionAffinityKey derives a deterministic session key from the
 // request body's stable prefix (model + system prompt + first user turn +
 // tool names). The key stays stable as a conversation grows because only the
 // immutable prefix is hashed, which is exactly what upstream affinity /
 // prompt caching needs. Returns "" when no meaningful prefix can be extracted.
-func resolveSessionAffinityKey(c contract.Context, info *common.RelayInfo) string {
+// The derived value is memoized on the request context so every retry of one
+// relay attempt shares a single view of the cache boundary.
+func ResolveSessionAffinityKey(c contract.Context, info *common.RelayInfo) string {
+	if c == nil || info == nil {
+		return ""
+	}
+	if cached, ok := c.Get(common.AffinityKeyContextKey); ok {
+		if key, isString := cached.(string); isString {
+			return key
+		}
+	}
+	key := deriveSessionAffinityKey(c, info)
+	if key != "" {
+		// A transient failure must not be memoized: an empty key would pin
+		// every later retry of this request to "no affinity, no cache key".
+		c.Set(common.AffinityKeyContextKey, key)
+	}
+	return key
+}
+
+func deriveSessionAffinityKey(c contract.Context, info *common.RelayInfo) string {
 	if c == nil || info == nil {
 		return ""
 	}

@@ -61,6 +61,17 @@ func RedisSet(key string, value string, expiration time.Duration) error {
 	return RDB.Set(ctx, key, value, expiration).Err()
 }
 
+// RedisSetNX sets key only when it does not exist, returning true when this
+// call created it. Used by gates that must distinguish first sight from a
+// repeat without a read-modify-write race.
+func RedisSetNX(key string, value string, expiration time.Duration) (bool, error) {
+	if DebugEnabled {
+		SysLog(fmt.Sprintf("Redis SETNX: key=%s, expiration=%v", key, expiration))
+	}
+	ctx := context.Background()
+	return RDB.SetNX(ctx, key, value, expiration).Result()
+}
+
 func RedisGet(key string) (string, error) {
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis GET: key=%s", key))
