@@ -22,6 +22,9 @@
 # Shell scripts
 *.sh text eol=lf
 
+# Windows batch files must use CRLF so cmd.exe parses them correctly.
+*.bat text eol=crlf
+
 # Binary files
 *.png binary
 *.jpg binary
