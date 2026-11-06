@@ -6,7 +6,7 @@ go 1.26.10
 require (
 	github.com/Calcium-Ion/go-epay v0.0.5
 	github.com/abema/go-mp4 v1.4.1
-	github.com/andybalholm/brotli v1.2.0
+	github.com/andybalholm/brotli v1.2.7
 	github.com/anknown/ahocorasick v0.0.0-20190904063843-d75dbd5169c0
 	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.10
@@ -32,7 +32,7 @@ require (
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/jinzhu/copier v0.4.0
 	github.com/joho/godotenv v1.5.1
-	github.com/klauspost/compress v1.18.7
+	github.com/klauspost/compress v1.20.2
 	github.com/mewkiz/flac v1.0.13
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	github.com/pkg/errors v0.9.1
