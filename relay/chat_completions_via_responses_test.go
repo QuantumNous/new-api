@@ -277,3 +277,41 @@ func TestApplySystemPromptIfNeededSkipsToolLoadingMessages(t *testing.T) {
 		})
 	}
 }
+
+// The Responses upgrade bypasses ConvertOpenAIRequest, so it must drop the
+// sampling parameters the Chat adaptor would drop for the same model.
+func TestTextRequestViaResponsesDropsUnsupportedSampling(t *testing.T) {
+	var upstreamBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"resp_1","object":"response","status":"completed","model":"gpt-6-astra","output":[
+			{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok","annotations":[]}]}
+		],"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}`))
+	}))
+	defer server.Close()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "gpt-6-astra")
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
+	common.SetContextKey(c, constant.ContextKeyChannelKey, "test-key")
+
+	var request dto.GeneralOpenAIRequest
+	require.NoError(t, common.Unmarshal([]byte(`{"model":"gpt-6-astra","temperature":0.2,"top_p":0.9,
+		"messages":[{"role":"user","content":"q"}]}`), &request))
+	info := relaycommon.GenRelayInfoOpenAI(c, &request)
+	info.InitChannelMeta(c)
+	adaptor := GetAdaptor(info.ApiType)
+	adaptor.Init(info)
+
+	_, apiErr := textRequestViaResponses(c, info, adaptor, &request)
+	require.Nil(t, apiErr)
+
+	var upstream map[string]any
+	require.NoError(t, common.Unmarshal(upstreamBody, &upstream))
+	assert.NotContains(t, upstream, "temperature")
+	assert.NotContains(t, upstream, "top_p")
+}
