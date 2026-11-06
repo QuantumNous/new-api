@@ -1,6 +1,7 @@
 package volcengine
 
 var ModelList = []string{
+	"bigmodel",
 	"Doubao-pro-128k",
 	"Doubao-pro-32k",
 	"Doubao-pro-4k",
