@@ -395,6 +395,7 @@ func migrateDB() error {
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
 		&SubscriptionQuotaOperation{},
+		&SubscriptionPlanQuotaOperation{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},

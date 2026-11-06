@@ -33,7 +33,7 @@ export function SubscriptionsDialogs() {
         currentRow={isUpdate ? currentRow || undefined : undefined}
       />
       <ToggleStatusDialog />
-      <ResetSubscriptionsDialog />
+      <ResetSubscriptionsDialog key={`${open}:${currentRow?.plan.id}`} />
     </>
   )
 }

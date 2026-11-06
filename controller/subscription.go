@@ -471,6 +471,11 @@ type AdminRestoreSubscriptionQuotaRequest struct {
 	Reason         string `json:"reason"`
 }
 
+type AdminRestorePlanSubscriptionWindowsRequest struct {
+	IdempotencyKey string `json:"idempotency_key"`
+	Reason         string `json:"reason"`
+}
+
 func resolveAdvanceResetTime(value *bool) bool {
 	if value == nil {
 		return true
@@ -595,6 +600,25 @@ func AdminResetPlanSubscriptions(c *gin.Context) {
 		"user_count":         result.UserCount,
 		"advance_reset_time": result.AdvanceResetTime,
 	})
+	common.ApiSuccess(c, result)
+}
+
+func AdminRestorePlanSubscriptionWindows(c *gin.Context) {
+	planId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || planId <= 0 {
+		common.ApiErrorT(c, "Invalid ID")
+		return
+	}
+	var req AdminRestorePlanSubscriptionWindowsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	result, err := model.AdminRestorePlanSubscriptionWindows(planId, req.IdempotencyKey, c.GetInt("id"), req.Reason)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, result)
 }
 

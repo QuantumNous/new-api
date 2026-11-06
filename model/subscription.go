@@ -1,6 +1,7 @@
 package model
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -496,6 +497,19 @@ type SubscriptionQuotaRestoreResult struct {
 	WindowRemaining    int64  `json:"window_remaining"`
 	Unlimited          bool   `json:"unlimited"`
 	CreatedAt          int64  `json:"created_at"`
+}
+
+// SubscriptionPlanQuotaOperation freezes the result of a batch restoration so
+// retries cannot grant another window or include subscriptions added later.
+type SubscriptionPlanQuotaOperation struct {
+	IdempotencyKey string `json:"idempotency_key" gorm:"primaryKey;type:varchar(128)"`
+	PlanId         int    `json:"plan_id" gorm:"index;not null"`
+	AdminId        int    `json:"-" gorm:"index;not null"`
+	Reason         string `json:"-" gorm:"type:text;not null"`
+	MatchedCount   int    `json:"matched_count" gorm:"not null"`
+	ResetCount     int    `json:"reset_count" gorm:"not null"`
+	UserCount      int    `json:"user_count" gorm:"not null"`
+	CreatedAt      int64  `json:"created_at" gorm:"bigint;not null"`
 }
 
 func (s *UserSubscription) BeforeCreate(tx *gorm.DB) error {
@@ -1582,6 +1596,10 @@ func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*Subscripti
 }
 
 func AdminRestoreUserSubscriptionQuota(userId, subscriptionId int, action, idempotencyKey string, adminId int, reason string) (*SubscriptionQuotaRestoreResult, error) {
+	return adminRestoreUserSubscriptionQuota(DB, GetDBTimestamp(), userId, subscriptionId, action, idempotencyKey, adminId, reason)
+}
+
+func adminRestoreUserSubscriptionQuota(db *gorm.DB, now int64, userId, subscriptionId int, action, idempotencyKey string, adminId int, reason string) (*SubscriptionQuotaRestoreResult, error) {
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	reason = strings.TrimSpace(reason)
 	if userId <= 0 || subscriptionId <= 0 || adminId <= 0 {
@@ -1595,8 +1613,7 @@ func AdminRestoreUserSubscriptionQuota(userId, subscriptionId int, action, idemp
 	}
 
 	var result *SubscriptionQuotaRestoreResult
-	now := GetDBTimestamp()
-	err := DB.Transaction(func(tx *gorm.DB) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
 		var operation SubscriptionQuotaOperation
 		lookup := tx.Where("idempotency_key = ?", idempotencyKey).First(&operation)
 		if lookup.Error == nil {
@@ -1733,7 +1750,7 @@ func AdminRestoreUserSubscriptionQuota(userId, subscriptionId int, action, idemp
 		// isolation. The unique key still prevents a second grant; return the
 		// committed receipt to the matching retry after the losing transaction.
 		var operation SubscriptionQuotaOperation
-		if lookupErr := DB.Where("idempotency_key = ?", idempotencyKey).First(&operation).Error; lookupErr == nil {
+		if lookupErr := db.Where("idempotency_key = ?", idempotencyKey).First(&operation).Error; lookupErr == nil {
 			if operation.UserId == userId && operation.UserSubscriptionId == subscriptionId && operation.Action == action && operation.AdminId == adminId && operation.Reason == reason {
 				return subscriptionQuotaRestoreResult(&operation), nil
 			}
@@ -1741,6 +1758,73 @@ func AdminRestoreUserSubscriptionQuota(userId, subscriptionId int, action, idemp
 		return nil, err
 	}
 	return result, nil
+}
+
+func AdminRestorePlanSubscriptionWindows(planId int, idempotencyKey string, adminId int, reason string) (*SubscriptionPlanQuotaOperation, error) {
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	reason = strings.TrimSpace(reason)
+	if planId <= 0 || adminId <= 0 || len(idempotencyKey) == 0 || len(idempotencyKey) > 128 || reason == "" || len(reason) > 2000 {
+		return nil, common.NewMessage("Invalid parameters")
+	}
+	var result SubscriptionPlanQuotaOperation
+	now := GetDBTimestamp()
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		// Serialize batches for this plan before selecting the active subscriptions.
+		var plan SubscriptionPlan
+		if err := lockForUpdate(tx).First(&plan, planId).Error; err != nil {
+			return err
+		}
+		lookup := lockForUpdate(tx).Where("idempotency_key = ?", idempotencyKey).First(&result)
+		if lookup.Error == nil {
+			if result.PlanId != planId || result.AdminId != adminId || result.Reason != reason {
+				return common.NewMessage("Idempotency key conflicts with another request")
+			}
+			return nil
+		}
+		if !errors.Is(lookup.Error, gorm.ErrRecordNotFound) {
+			return lookup.Error
+		}
+		var subs []UserSubscription
+		if err := lockForUpdate(tx).
+			Where("plan_id = ? AND status = ? AND end_time > ?", planId, "active", now).
+			Order("id asc").Find(&subs).Error; err != nil {
+			return err
+		}
+		result = SubscriptionPlanQuotaOperation{
+			IdempotencyKey: idempotencyKey, PlanId: planId, AdminId: adminId,
+			Reason: reason, MatchedCount: len(subs), CreatedAt: now,
+		}
+		userIds := make(map[int]struct{})
+		batchKey := sha256.Sum256([]byte(idempotencyKey))
+		for i := range subs {
+			sub := &subs[i]
+			period := sub.QuotaResetPeriod
+			if sub.QuotaModelVersion == 0 && sub.LegacyResetPeriod != "" {
+				period = sub.LegacyResetPeriod
+			}
+			if sub.AmountTotal == 0 || NormalizeResetPeriod(period) == SubscriptionResetNever {
+				continue
+			}
+			key := fmt.Sprintf("plan-window:%x:%d", batchKey, sub.Id)
+			// Nested GORM transactions use savepoints; all per-subscription receipts
+			// and quota updates still commit or roll back with the batch.
+			if _, err := adminRestoreUserSubscriptionQuota(tx, now, sub.UserId, sub.Id, SubscriptionQuotaActionRestoreWindow, key, adminId, reason); err != nil {
+				return err
+			}
+			result.ResetCount++
+			userIds[sub.UserId] = struct{}{}
+		}
+		result.UserCount = len(userIds)
+		return tx.Create(&result).Error
+	})
+	if err != nil {
+		var committed SubscriptionPlanQuotaOperation
+		if lookupErr := DB.Where("idempotency_key = ?", idempotencyKey).First(&committed).Error; lookupErr == nil && committed.PlanId == planId && committed.AdminId == adminId && committed.Reason == reason {
+			return &committed, nil
+		}
+		return nil, err
+	}
+	return &result, nil
 }
 
 func subscriptionQuotaRestoreResult(operation *SubscriptionQuotaOperation) *SubscriptionQuotaRestoreResult {

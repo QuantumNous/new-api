@@ -1,15 +1,185 @@
 package model
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
+
+func TestAdminRestorePlanSubscriptionWindowsMatrix(t *testing.T) {
+	cases := []struct {
+		name string
+		dsn  string
+		open func(string) gorm.Dialector
+	}{
+		{name: "sqlite", open: func(dsn string) gorm.Dialector { return sqlite.Open(dsn) }},
+		{name: "mysql", dsn: os.Getenv("TEST_SUBSCRIPTION_MYSQL_DSN"), open: func(dsn string) gorm.Dialector { return mysql.Open(dsn) }},
+		{name: "postgres", dsn: os.Getenv("TEST_SUBSCRIPTION_POSTGRES_DSN"), open: func(dsn string) gorm.Dialector { return postgres.Open(dsn) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.name != "sqlite" && tc.dsn == "" {
+				t.Skip("database DSN is not configured")
+			}
+			for _, upgrade := range []bool{false, true} {
+				t.Run(fmt.Sprintf("upgrade=%t", upgrade), func(t *testing.T) {
+					dsn := tc.dsn
+					if tc.name == "sqlite" {
+						dsn = filepath.Join(t.TempDir(), "plan-window.db")
+					}
+					db, err := gorm.Open(tc.open(dsn), &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: fmt.Sprintf("pw_%x_", time.Now().UnixNano())}})
+					require.NoError(t, err)
+					sqlDB, err := db.DB()
+					require.NoError(t, err)
+					sqlDB.SetMaxOpenConns(1)
+					t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+					t.Cleanup(func() {
+						require.NoError(t, db.Migrator().DropTable(&SubscriptionPlanQuotaOperation{}, &SubscriptionQuotaOperation{}, &SubscriptionPreConsumeRecord{}, &UserSubscription{}, &SubscriptionPlan{}))
+					})
+					previousDB, previousType := DB, common.MainDatabaseType()
+					DB = db
+					common.SetMainDatabaseType(common.DatabaseType(tc.name))
+					t.Cleanup(func() { DB = previousDB; common.SetMainDatabaseType(previousType) })
+					versionSQL := "SELECT VERSION()"
+					if tc.name == "sqlite" {
+						versionSQL = "SELECT sqlite_version()"
+					}
+					var version string
+					require.NoError(t, db.Raw(versionSQL).Scan(&version).Error)
+					t.Logf("database version: %s", version)
+
+					// The new receipt is additive: upgrading must leave released
+					// subscription rows and their primary keys intact.
+					if upgrade {
+						type releasedSubscription struct {
+							Id          int `gorm:"primaryKey"`
+							UserId      int
+							PlanId      int
+							AmountTotal int64
+							AmountUsed  int64
+							Status      string `gorm:"type:varchar(32)"`
+						}
+						table := db.NamingStrategy.TableName("UserSubscription")
+						require.NoError(t, db.Table(table).AutoMigrate(&releasedSubscription{}))
+						legacy := releasedSubscription{Id: 50, UserId: 9, PlanId: 1, AmountTotal: 400, AmountUsed: 120, Status: "expired"}
+						require.NoError(t, db.Table(table).Create(&legacy).Error)
+					}
+					for range 2 {
+						require.NoError(t, db.AutoMigrate(&SubscriptionPlan{}, &UserSubscription{}, &SubscriptionPreConsumeRecord{}, &SubscriptionQuotaOperation{}, &SubscriptionPlanQuotaOperation{}))
+					}
+					if upgrade {
+						var legacy UserSubscription
+						require.NoError(t, db.First(&legacy, 50).Error)
+						assert.EqualValues(t, 120, legacy.AmountUsed)
+						assert.EqualValues(t, 400, legacy.AmountTotal)
+						assert.Equal(t, "expired", legacy.Status)
+					}
+					assert.True(t, db.Migrator().HasIndex(&SubscriptionPlanQuotaOperation{}, "PlanId"))
+					assert.True(t, db.Migrator().HasIndex(&SubscriptionPlanQuotaOperation{}, "AdminId"))
+					plan := &SubscriptionPlan{Id: 1, Title: "Updated plan", TotalAmount: 2000, WindowAmount: 900, QuotaResetPeriod: SubscriptionResetWeekly}
+					require.NoError(t, db.Create(plan).Error)
+					now := GetDBTimestamp()
+					for i := range 8 {
+						sub := UserSubscription{Id: 100 + i, UserId: 10 + i, PlanId: plan.Id, AmountTotal: 1000, AmountUsed: 850, TotalAmountUsed: 850, WindowAmount: 300, WindowAmountUsed: 200, AmountReserved: 40, HistoricalAmountUsed: 1400, QuotaModelVersion: 1, QuotaResetPeriod: SubscriptionResetWeekly, ResetGeneration: 3, StartTime: now - 3600, EndTime: now + 86400, LastResetTime: now - 100, NextResetTime: now + 1000, Status: "active"}
+						switch i {
+						case 1:
+							sub.UserId, sub.WindowAmount = 10, 100
+						case 2:
+							sub.QuotaModelVersion, sub.AmountUsed = 0, 600
+							sub.LegacyResetPeriod = SubscriptionResetWeekly
+						case 3:
+							sub.EndTime = now - 1
+						case 4:
+							sub.Status = "cancelled"
+						case 5:
+							sub.PlanId = 2
+						case 6:
+							sub.QuotaResetPeriod = SubscriptionResetNever
+						case 7:
+							sub.AmountTotal = 0
+						}
+						require.NoError(t, db.Create(&sub).Error)
+					}
+					require.NoError(t, db.Create(&SubscriptionPreConsumeRecord{RequestId: "batch-inflight", UserId: 10, UserSubscriptionId: 100, PreConsumed: 40, ResetGeneration: 3, Status: "reserved"}).Error)
+					before := getSubscriptionResetSub(t, 100)
+					result, err := AdminRestorePlanSubscriptionWindows(1, "batch-1", 501, "support adjustment")
+					require.NoError(t, err)
+					assert.Equal(t, 5, result.MatchedCount)
+					assert.Equal(t, 3, result.ResetCount)
+					assert.Equal(t, 2, result.UserCount)
+					after := getSubscriptionResetSub(t, 100)
+					assert.EqualValues(t, 550, after.TotalAmountUsed)
+					assert.Zero(t, after.WindowAmountUsed)
+					assert.EqualValues(t, 4, after.ResetGeneration)
+					assert.Equal(t, before.AmountReserved, after.AmountReserved)
+					assert.Equal(t, before.HistoricalAmountUsed, after.HistoricalAmountUsed)
+					assert.Equal(t, before.StartTime, after.StartTime)
+					assert.Equal(t, before.EndTime, after.EndTime)
+					assert.Equal(t, before.LastResetTime, after.LastResetTime)
+					assert.Equal(t, before.NextResetTime, after.NextResetTime)
+					assert.EqualValues(t, 750, getSubscriptionResetSub(t, 101).TotalAmountUsed)
+					assert.Zero(t, getSubscriptionResetSub(t, 102).AmountUsed)
+					for _, id := range []int{103, 104, 105, 106, 107} {
+						assert.EqualValues(t, 200, getSubscriptionResetSub(t, id).WindowAmountUsed)
+					}
+					var receipts []SubscriptionQuotaOperation
+					require.NoError(t, db.Find(&receipts).Error)
+					require.Len(t, receipts, 3)
+					for _, receipt := range receipts {
+						assert.Equal(t, 501, receipt.AdminId)
+						assert.Equal(t, "support adjustment", receipt.Reason)
+					}
+					// A retry must not process subscriptions added after the first request.
+					added := before
+					added.Id, added.UserId = 108, 18
+					require.NoError(t, db.Create(&added).Error)
+					retry, err := AdminRestorePlanSubscriptionWindows(1, "batch-1", 501, "support adjustment")
+					require.NoError(t, err)
+					assert.Equal(t, result, retry)
+					assert.EqualValues(t, 200, getSubscriptionResetSub(t, 108).WindowAmountUsed)
+					_, err = AdminRestorePlanSubscriptionWindows(1, "batch-1", 501, "different reason")
+					require.Error(t, err)
+					_, err = AdminRestorePlanSubscriptionWindows(1, "batch-1", 502, "support adjustment")
+					require.Error(t, err)
+					require.Error(t, db.Create(result).Error, "batch receipt keys remain unique after repeated migrations")
+
+					// An invalid later row must roll back earlier grants and their receipts.
+					require.NoError(t, db.Model(&UserSubscription{}).Where("id = ?", 108).Update("window_amount_used", -1).Error)
+					_, err = AdminRestorePlanSubscriptionWindows(1, "batch-rollback", 501, "rollback test")
+					require.Error(t, err)
+					assert.Equal(t, after, getSubscriptionResetSub(t, 100))
+					var count int64
+					require.NoError(t, db.Model(&SubscriptionQuotaOperation{}).Count(&count).Error)
+					assert.EqualValues(t, 3, count)
+					require.NoError(t, db.Model(&SubscriptionPlanQuotaOperation{}).Count(&count).Error)
+					assert.EqualValues(t, 1, count)
+					empty, err := AdminRestorePlanSubscriptionWindows(2, "empty-plan", 501, "no matching windows")
+					require.Error(t, err, "a nonexistent plan must be rejected")
+					assert.Nil(t, empty)
+					require.NoError(t, db.Create(&SubscriptionPlan{Id: 3, Title: "Empty"}).Error)
+					empty, err = AdminRestorePlanSubscriptionWindows(3, "empty-plan", 501, "no matching windows")
+					require.NoError(t, err)
+					assert.Zero(t, empty.ResetCount)
+					_, err = AdminRestorePlanSubscriptionWindows(1, "missing-reason", 501, " ")
+					require.Error(t, err)
+				})
+			}
+		})
+	}
+}
 
 func seedSubscriptionResetPlan(t *testing.T, plan *SubscriptionPlan) {
 	t.Helper()

@@ -143,6 +143,20 @@ export interface ResetPlanSubscriptionsRequest {
   advance_reset_time: boolean
 }
 
+export interface RestorePlanWindowsRequest {
+  idempotency_key: string
+  reason: string
+}
+
+export interface RestorePlanWindowsResult {
+  idempotency_key: string
+  plan_id: number
+  matched_count: number
+  reset_count: number
+  user_count: number
+  created_at: number
+}
+
 export interface SubscriptionResetResult {
   plan_id: number
   matched_count: number
@@ -188,3 +202,4 @@ export type SubscriptionsDialogType =
   | 'update'
   | 'toggle-status'
   | 'reset-subscriptions'
+  | 'restore-plan-windows'
