@@ -10,6 +10,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -212,8 +213,11 @@ func hwStatusProbeFromEnv() func(ctx context.Context, modelName string) model.Hw
 // hwToStatusProbe is the translation from a route answer to a probe outcome,
 // kept apart from the environment so a test can pin it. Only a 200 is an
 // answer; a quota or key refusal (429, 401, 403) is no evidence about the
-// model, and everything else (a 5xx, an empty body, a timeout, a network
-// error) means the model itself did not answer.
+// model, and neither is a call that is still running when the probe deadline
+// passes: on 6 Nov 2026 the upstream answered every call with a 200, but a third
+// of them only after 28-101 seconds, and the eight second deadline turned that
+// slow but working supplier into a public outage of every model. Everything
+// else (a 5xx, an empty body, a network error) means the model did not answer.
 func hwToStatusProbe(client *http.Client, baseURL string, apiKey string) func(ctx context.Context, modelName string) model.HwStatusProbeOutcome {
 	return func(ctx context.Context, modelName string) model.HwStatusProbeOutcome {
 		_, _, err := hwCallChat(ctx, client, baseURL, apiKey, hwChatRequest{
@@ -226,6 +230,9 @@ func hwToStatusProbe(client *http.Client, baseURL string, apiKey string) func(ct
 			return model.HwStatusProbeAnswered
 		case hwChatStatusRefused(err):
 			// A quota or key refusal is no evidence about the model.
+			return model.HwStatusProbeUnavailable
+		case errors.Is(err, context.DeadlineExceeded):
+			// Slow is not down: real customer traffic still measures the model.
 			return model.HwStatusProbeUnavailable
 		default:
 			return model.HwStatusProbeNoAnswer

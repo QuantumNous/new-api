@@ -563,9 +563,9 @@ func TestHwQualityRunOptionsFromEnvTrimsAndLeavesMissingValuesEmpty(t *testing.T
 }
 
 // The probe translation is where a refusal becomes "no evidence": 429, 401 and
-// 403 are the route refusing us (quota exhausted, key rejected), while a 5xx,
-// an empty answer, a timeout or a network error say the model itself did not
-// answer. Getting this wrong turns an exhausted quota into a false outage of
+// 403 are the route refusing us (quota exhausted, key rejected), and so is a
+// call that outlives the probe deadline (slow is not down), while a 5xx, an
+// empty answer or a network error say the model itself did not answer. Getting this wrong turns an exhausted quota into a false outage of
 // the whole offer (HwPurgeFalseIdleOutages exists for that alarm) or hides a
 // real 503.
 func TestHwToStatusProbeCallsAQuotaRefusalNoEvidence(t *testing.T) {
@@ -574,6 +574,7 @@ func TestHwToStatusProbeCallsAQuotaRefusalNoEvidence(t *testing.T) {
 		status  int
 		body    string
 		network bool
+		slow    bool
 		want    model.HwStatusProbeOutcome
 	}{
 		{name: "answered", status: http.StatusOK, body: `{"choices":[{"message":{"role":"assistant","content":"pong"}}]}`, want: model.HwStatusProbeAnswered},
@@ -584,10 +585,19 @@ func TestHwToStatusProbeCallsAQuotaRefusalNoEvidence(t *testing.T) {
 		{name: "upstream unavailable", status: http.StatusServiceUnavailable, body: `{"error":"down"}`, want: model.HwStatusProbeNoAnswer},
 		{name: "no answer in the body", status: http.StatusOK, body: `{"choices":[]}`, want: model.HwStatusProbeNoAnswer},
 		{name: "network error", network: true, want: model.HwStatusProbeNoAnswer},
+		{name: "slower than the deadline", slow: true, want: model.HwStatusProbeUnavailable},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.slow {
+					// The upstream answers, but later than the probe waits.
+					select {
+					case <-r.Context().Done():
+					case <-time.After(2 * time.Second):
+					}
+					return
+				}
 				if tc.network {
 					// A hijacked connection closed without an answer is a
 					// network error on the client side.
@@ -602,8 +612,10 @@ func TestHwToStatusProbeCallsAQuotaRefusalNoEvidence(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
 			outcome := hwToStatusProbe(server.Client(), server.URL, "hw-test-key-not-a-real-secret")(
-				context.Background(), "claude-sonnet-5-5",
+				ctx, "claude-sonnet-5-5",
 			)
 			assert.Equal(t, tc.want, outcome)
 		})
