@@ -108,7 +108,7 @@ func TestXAIImageProtocol(t *testing.T) {
 	assert.Equal(t, "image_generation", resolved["action"])
 	assert.Equal(t, map[string]any{
 		"model": model, "prompt": "a cat", "n": float64(2),
-		"resolution": "2k", "quality": "medium",
+		"resolution": "2k", "quality": "medium", "response_format": "b64_json",
 	}, resolved["requestBody"])
 
 	driver := map[string]any{
@@ -122,7 +122,7 @@ func TestXAIImageProtocol(t *testing.T) {
 	assert.Equal(t, "https://api.x.ai/v1/images/generations", submit["url"])
 	assert.Equal(t, map[string]any{
 		"model": model, "prompt": "a cat", "n": float64(2),
-		"resolution": "2k", "quality": "medium",
+		"resolution": "2k", "quality": "medium", "response_format": "b64_json",
 	}, submit["body"])
 
 	value, err = plugin.Engine.Call(t.Context(), "extractUsage", driver)
@@ -188,6 +188,29 @@ func TestXAIImageProtocol(t *testing.T) {
 	}, map[string]any{}, response)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]any{"image_count": float64(1), "upstream_cost_usd": float64(0.08)}, alibabaObject(t, value))
+
+	splitResponse := map[string]any{
+		"data": []any{
+			map[string]any{"url": "https://cdn.example/result.png"},
+			map[string]any{"b64_json": "base64-result"},
+		},
+		"usage": map[string]any{"cost_in_usd_ticks": float64(800000000)},
+	}
+	value, err = plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{
+		"action": "image_generation", "model": model, "upstreamModel": model,
+	}, map[string]any{}, splitResponse)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"image_count": float64(1), "upstream_cost_usd": float64(0.08)}, alibabaObject(t, value))
+
+	payloadlessResponse := map[string]any{
+		"data":  []any{map[string]any{"revised_prompt": "a blue cat"}},
+		"usage": map[string]any{"cost_in_usd_ticks": float64(800000000)},
+	}
+	value, err = plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{
+		"action": "image_generation", "model": model, "upstreamModel": model,
+	}, map[string]any{}, payloadlessResponse)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"image_count": float64(0), "upstream_cost_usd": float64(0.08)}, alibabaObject(t, value))
 
 	value, err = plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "render"}, map[string]any{"model": model}, map[string]any{
 		"task_id": "task_public", "status": "SUCCESS", "created_at": float64(1789733151), "data": response,

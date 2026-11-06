@@ -285,6 +285,7 @@ function imageRequest(source, identity, operation, files) {
     quality: quality,
   };
   if (aspectRatio) request.aspect_ratio = aspectRatio;
+  if (body.response_format !== undefined) request.response_format = body.response_format;
   if (inputs.length === 1) request.image = inputs[0];
   if (inputs.length > 1) request.images = inputs;
   return { action: action, body: request, inputCount: inputs.length };
@@ -296,6 +297,19 @@ function imageEntries(body) {
   return entries.filter(function (item) {
     return plainObject(item) && (trimmed(item.url) || trimmed(item.b64_json));
   });
+}
+
+function imagePayloadCount(body) {
+  const data = plainObject(body) ? body.data : null;
+  if (!Array.isArray(data)) return imageEntries(body).length;
+  let urls = 0;
+  let b64s = 0;
+  for (const item of data) {
+    if (!plainObject(item)) continue;
+    if (trimmed(item.url)) urls++;
+    if (trimmed(item.b64_json)) b64s++;
+  }
+  return Math.max(urls, b64s);
 }
 
 function upstreamImageCost(body) {
@@ -734,7 +748,7 @@ export function parseTaskResult(ctx, body, response) {
 
 export function extractUsageOnComplete(task, result, body) {
   if (task && (task.action === "image_generation" || task.action === "image_edit")) {
-    const facts = { image_count: imageEntries(body).length, upstream_cost_usd: upstreamImageCost(body) };
+    const facts = { image_count: imagePayloadCount(body), upstream_cost_usd: upstreamImageCost(body) };
     return facts;
   }
   // Legacy ratio pricing calls this hook without a poll body.
