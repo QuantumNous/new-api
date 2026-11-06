@@ -67,6 +67,13 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 	if err := sharedclaude.ApplyReasoning(c, claudeRequest, info, sourceReasoning, true); err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
+	responseFormat, err := RequestTextToChatResponseFormat(req.Text)
+	if err != nil {
+		return nil, err
+	}
+	if err := sharedclaude.ApplyResponseFormat(claudeRequest, responseFormat); err != nil {
+		return nil, err
+	}
 	if claudeRequest.MaxTokens == nil {
 		if defaultMaxTokens, configured := convmeta.OptionsOf(info).Claude.DefaultMaxTokensFor(claudeRequest.Model); configured {
 			value := uint(defaultMaxTokens)
