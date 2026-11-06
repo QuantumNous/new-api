@@ -9,12 +9,15 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// TestConvertRequestClaudeStructuredOutput verifies schema constraints and property
+// order on both Claude conversion paths, with streaming and reasoning effort.
 func TestConvertRequestClaudeStructuredOutput(t *testing.T) {
 	const schema = `{"type":"object","properties":{"zeta":{"type":"string"},"alpha":{"type":"integer"}},"required":["zeta","alpha"],"additionalProperties":false}`
 	for _, from := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses} {
@@ -63,12 +66,19 @@ func TestConvertRequestClaudeStructuredOutput(t *testing.T) {
 	}
 }
 
+// TestConvertRequestClaudeResponseFormatValidation checks that absent and text
+// formats stay optional while malformed output constraints fail conversion.
 func TestConvertRequestClaudeResponseFormatValidation(t *testing.T) {
 	tests := []struct {
 		name      string
 		format    string
 		wantError string
 	}{
+		{name: "omitted format"},
+		{name: "null format", format: `null`},
+		{name: "empty format", format: `{}`, wantError: "response format type is required"},
+		{name: "missing type with schema", format: `{"schema":{"type":"object","properties":{}}}`, wantError: "response format type is required"},
+		{name: "empty type with schema", format: `{"type":"","schema":{"type":"object","properties":{}}}`, wantError: "response format type is required"},
 		{name: "text", format: `{"type":"text"}`},
 		{name: "json object", format: `{"type":"json_object"}`, wantError: "json_object"},
 		{name: "unknown format", format: `{"type":"unknown"}`, wantError: "unknown"},
@@ -82,23 +92,30 @@ func TestConvertRequestClaudeResponseFormatValidation(t *testing.T) {
 			t.Run(string(from)+"/"+tt.name, func(t *testing.T) {
 				var request any
 				if from == types.RelayFormatOpenAI {
-					var format struct {
-						Type string `json:"type"`
-					}
-					require.NoError(t, kitutil.Unmarshal([]byte(tt.format), &format))
-					request = &dto.GeneralOpenAIRequest{
+					chat := &dto.GeneralOpenAIRequest{
 						Model: "claude-test", Messages: []dto.Message{{Role: "user", Content: "hello"}}, MaxTokens: lo.ToPtr(uint(1024)),
-						ResponseFormat: &dto.ResponseFormat{Type: format.Type, JsonSchema: json.RawMessage(tt.format)},
 					}
+					if tt.format != "" && tt.format != "null" {
+						var format struct {
+							Type string `json:"type"`
+						}
+						require.NoError(t, kitutil.Unmarshal([]byte(tt.format), &format))
+						chat.ResponseFormat = &dto.ResponseFormat{Type: format.Type, JsonSchema: json.RawMessage(tt.format)}
+					}
+					request = chat
 				} else {
-					request = &dto.OpenAIResponsesRequest{
+					responses := &dto.OpenAIResponsesRequest{
 						Model: "claude-test", Input: json.RawMessage(`"hello"`), MaxOutputTokens: lo.ToPtr(uint(1024)),
-						Text: json.RawMessage(`{"format":` + tt.format + `}`),
 					}
+					if tt.format != "" {
+						responses.Text = json.RawMessage(`{"format":` + tt.format + `}`)
+					}
+					request = responses
 				}
 				result, err := ConvertRequest(context.Background(), nil, types.RelayFormatClaude, request)
 				if tt.wantError != "" {
 					require.ErrorContains(t, err, tt.wantError)
+					assert.True(t, reasoning.IsClientError(err), "invalid response formats must be classified as client errors")
 					return
 				}
 				require.NoError(t, err)
@@ -108,6 +125,15 @@ func TestConvertRequestClaudeResponseFormatValidation(t *testing.T) {
 			})
 		}
 	}
+	t.Run("openai_responses/invalid text config", func(t *testing.T) {
+		request := &dto.OpenAIResponsesRequest{
+			Model: "claude-test", Input: json.RawMessage(`"hello"`), MaxOutputTokens: lo.ToPtr(uint(1024)),
+			Text: json.RawMessage(`[]`),
+		}
+		_, err := ConvertRequest(context.Background(), nil, types.RelayFormatClaude, request)
+		require.ErrorContains(t, err, "invalid text config")
+		assert.True(t, reasoning.IsClientError(err))
+	})
 }
 
 func TestClaudeMessagesToOpenAIChatPreservesAssistantTextWithToolCalls(t *testing.T) {

@@ -12,10 +12,14 @@ import (
 // ApplyResponseFormat maps OpenAI JSON Schema output onto Claude's native
 // output_config.format. Keep schema bytes intact: rewriting unsupported
 // constraints would silently weaken validation, and property order affects
-// the generated output. The upstream validates its supported schema subset.
+// the generated output. Supplied formats must declare a type; nil and text
+// formats need no conversion. The upstream validates its supported schema subset.
 func ApplyResponseFormat(req *dto.ClaudeRequest, format *dto.ResponseFormat) error {
-	if format == nil || format.Type == "" || format.Type == "text" {
+	if format == nil || format.Type == "text" {
 		return nil
+	}
+	if format.Type == "" {
+		return fmt.Errorf("response format type is required for Claude Messages")
 	}
 	if format.Type != "json_schema" {
 		return fmt.Errorf("Claude Messages cannot represent response format %q; use json_schema with an explicit schema", format.Type)
