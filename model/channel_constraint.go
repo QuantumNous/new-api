@@ -9,12 +9,14 @@ import (
 
 var filterEvalOrder = []dto.ChannelFilterKind{
 	dto.FilterRequestPath,
+	dto.FilterTaskPluginEndpoint,
 	dto.FilterTaskPluginIdentity,
+	dto.FilterResponsesWebSocket,
 }
 
 // ChannelSatisfiesFilters reports whether ch passes every filter.
-// On false, it returns the kind of the first violated filter (request_path
-// then task_plugin_identity) for error attribution.
+// On false, it returns the first violated filter in filterEvalOrder for error
+// attribution.
 func ChannelSatisfiesFilters(ch *Channel, modelName string, filters []dto.ChannelFilter) (bool, dto.ChannelFilterKind) {
 	if ch == nil {
 		return false, ""
@@ -35,7 +37,7 @@ func ChannelSatisfiesFilters(ch *Channel, modelName string, filters []dto.Channe
 // filterCandidateIDs applies filters to a cached candidate id list.
 // Caller must hold channelSyncLock (read lock). The input slice is never mutated.
 // A missing id in channelsIDM is kept for request_path (downstream consistency
-// error) and dropped for task_plugin_identity, matching the previous filters.
+// error) and dropped for the other filters.
 func filterCandidateIDs(ids []int, modelName string, filters []dto.ChannelFilter) (kept []int, emptiedBy dto.ChannelFilterKind) {
 	if len(ids) == 0 {
 		return ids, ""
@@ -92,17 +94,49 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 		if filter.RequestPath == "" {
 			return true
 		}
-		if ch.Type != constant.ChannelTypeAdvancedCustom {
+		if !constant.IsAdvancedCustomChannel(ch.Type) {
 			return true
 		}
 		config := ch.GetOtherSettings().AdvancedCustom
 		return config != nil && config.SupportsPathForModel(filter.RequestPath, modelName)
 	case dto.FilterTaskPluginIdentity:
-		if ch.Type == constant.ChannelTypeTaskPlugin {
-			key := ch.GetSetting().TaskPluginKey
-			return filter.TaskPluginKey != "" && (key == filter.TaskPluginKey || slices.Contains(filter.TaskPluginKeys, key))
+		if filter.TaskPluginKey == "" {
+			return ch.Type != constant.ChannelTypeTaskPlugin
 		}
-		return filter.TaskPluginKey == "" || slices.Contains(filter.TaskPluginChannelTypes, ch.Type)
+		if ch.Type == constant.ChannelTypeTaskPlugin || ch.Type == constant.ChannelTypeNewAPI {
+			// A New API channel serves every plugin it is extended with; the
+			// pinned plugin or any shared-model candidate may execute there.
+			setting := ch.GetSetting()
+			return setting.BindsTaskPlugin(filter.TaskPluginKey) || slices.ContainsFunc(filter.TaskPluginKeys, setting.BindsTaskPlugin)
+		}
+		return slices.Contains(filter.TaskPluginChannelTypes, ch.Type)
+	case dto.FilterTaskPluginEndpoint:
+		pluginChannel := slices.Contains(filter.TaskPluginChannelTypes, ch.Type)
+		if ch.Type == constant.ChannelTypeTaskPlugin || ch.Type == constant.ChannelTypeNewAPI {
+			pluginChannel = slices.ContainsFunc(filter.TaskPluginKeys, ch.GetSetting().BindsTaskPlugin)
+		}
+		if filter.TaskPluginRelayOnly {
+			return ch.Type != constant.ChannelTypeTaskPlugin && !pluginChannel
+		}
+		// Ordinary channels and matching plugin channels compete using the same
+		// group, priority, weight, affinity, and pin rules. Unrelated type-61
+		// plugins cannot execute this endpoint.
+		return ch.Type != constant.ChannelTypeTaskPlugin || pluginChannel
+	case dto.FilterResponsesWebSocket:
+		if !ch.GetSetting().ResponsesWebSocketEnabled {
+			return false
+		}
+		switch ch.Type {
+		case constant.ChannelTypeOpenAI, constant.ChannelTypeAzure, constant.ChannelTypeCodex, constant.ChannelTypeSub2API, constant.ChannelTypeNewAPI:
+			return true
+		case constant.ChannelTypeAdvancedCustom:
+			// The session forwards native Responses events without protocol
+			// conversion, so only a converter-free /v1/responses route qualifies.
+			route, ok := ch.GetOtherSettings().AdvancedCustom.MatchPathForModel("/v1/responses", modelName)
+			return ok && route.IsNative()
+		default:
+			return false
+		}
 	default:
 		return true
 	}

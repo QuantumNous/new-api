@@ -132,11 +132,16 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix string) (string, error) {
 	region := GetModelRegion(info.ApiVersion, info.OriginModelName)
 	googleAPIVersion := DefaultAPIVersion
+	if info.ChannelOtherSettings.VertexAPIVersion != "" {
+		googleAPIVersion = info.ChannelOtherSettings.VertexAPIVersion
+	}
 	if request, ok := info.Request.(*dto.GeminiChatRequest); ok && request != nil {
 		for _, content := range request.Contents {
 			for _, part := range content.Parts {
 				// Agentic video and its replayed navigation context require v1beta1.
-				if (part.MediaProcessing != nil && strings.EqualFold(*part.MediaProcessing, "AGENTIC")) || len(part.ToolCall) > 0 || len(part.ToolResponse) > 0 {
+				var mediaProcessing string
+				_ = common.Unmarshal(part.MediaProcessing, &mediaProcessing)
+				if strings.EqualFold(mediaProcessing, "AGENTIC") || len(part.ToolCall) > 0 || len(part.ToolResponse) > 0 {
 					googleAPIVersion = "v1beta1"
 				}
 			}
@@ -167,17 +172,20 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		} else {
 			keyPrefix = "?"
 		}
+		// An API key carries no project. Without a configured project ID the URL
+		// keeps the express-mode form, which has no region in its path.
+		projectID := strings.TrimSpace(info.ChannelOtherSettings.VertexProjectID)
 		if a.RequestMode == RequestModeGemini {
 			return fmt.Sprintf(
 				"%s%skey=%s",
-				BuildGoogleModelURL(googleBaseURL, googleAPIVersion, "", region, modelName, suffix),
+				BuildGoogleModelURL(googleBaseURL, googleAPIVersion, projectID, region, modelName, suffix),
 				keyPrefix,
 				info.ApiKey,
 			), nil
 		} else if a.RequestMode == RequestModeClaude {
 			return fmt.Sprintf(
 				"%s%skey=%s",
-				BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, "", region, modelName, suffix),
+				BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, projectID, region, modelName, suffix),
 				keyPrefix,
 				info.ApiKey,
 			), nil

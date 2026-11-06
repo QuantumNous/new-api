@@ -2,7 +2,9 @@ package dto
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -18,6 +20,7 @@ type GeminiChatRequest struct {
 	ToolConfig         *ToolConfig                `json:"toolConfig,omitempty"`
 	SystemInstructions *GeminiChatContent         `json:"systemInstruction,omitempty"`
 	CachedContent      string                     `json:"cachedContent,omitempty"`
+	ContinuationToken  json.RawMessage            `json:"continuationToken,omitempty"`
 }
 
 // UnmarshalJSON allows GeminiChatRequest to accept both snake_case and camelCase fields.
@@ -26,6 +29,7 @@ func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
 	var aux struct {
 		Alias
 		SystemInstructionSnake *GeminiChatContent `json:"system_instruction,omitempty"`
+		ContinuationTokenSnake json.RawMessage    `json:"continuation_token,omitempty"`
 	}
 
 	if err := kitutil.Unmarshal(data, &aux); err != nil {
@@ -36,6 +40,9 @@ func (r *GeminiChatRequest) UnmarshalJSON(data []byte) error {
 
 	if aux.SystemInstructionSnake != nil {
 		r.SystemInstructions = aux.SystemInstructionSnake
+	}
+	if aux.ContinuationTokenSnake != nil {
+		r.ContinuationToken = aux.ContinuationTokenSnake
 	}
 
 	return nil
@@ -74,13 +81,47 @@ func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	}
 
 	var inputTexts []string
+	if r.SystemInstructions != nil {
+		for _, part := range r.SystemInstructions.Parts {
+			if part.Text != "" {
+				inputTexts = append(inputTexts, part.Text)
+			}
+		}
+	}
 	for _, content := range r.Contents {
 		for _, part := range content.Parts {
 			if part.Text != "" {
 				inputTexts = append(inputTexts, part.Text)
 			}
-			if source := part.InlineData.ToFileSource(); source != nil {
-				mimeType := part.InlineData.MimeType
+			// Function calls and responses replayed in agent loops are part of the prompt.
+			if part.FunctionCall != nil {
+				args, _ := kitutil.Marshal(part.FunctionCall.Arguments)
+				inputTexts = append(inputTexts, part.FunctionCall.FunctionName, string(args))
+			}
+			mediaParts := []GeminiPart{part}
+			if part.FunctionResponse != nil {
+				inputTexts = append(inputTexts, part.FunctionResponse.Name)
+				// Count tool output as the text the model reads, not JSON-escaped.
+				for _, key := range slices.Sorted(maps.Keys(part.FunctionResponse.Response)) {
+					if text, ok := part.FunctionResponse.Response[key].(string); ok {
+						inputTexts = append(inputTexts, text)
+						continue
+					}
+					value, _ := kitutil.Marshal(part.FunctionResponse.Response[key])
+					inputTexts = append(inputTexts, string(value))
+				}
+				// Multimodal function responses carry media such as agent screenshots.
+				var responseParts []GeminiPart
+				if kitutil.Unmarshal(part.FunctionResponse.Parts, &responseParts) == nil {
+					mediaParts = append(mediaParts, responseParts...)
+				}
+			}
+			for _, media := range mediaParts {
+				source := media.InlineData.ToFileSource()
+				if source == nil {
+					continue
+				}
+				mimeType := media.InlineData.MimeType
 				var fileType types.FileType
 				if strings.HasPrefix(mimeType, "image/") {
 					fileType = types.FileTypeImage
@@ -91,12 +132,25 @@ func (r *GeminiChatRequest) GetTokenCountMeta() *types.TokenCountMeta {
 				} else {
 					fileType = types.FileTypeFile
 				}
+				// Image cost depends on the media resolution; a part's own level
+				// overrides the request-wide one.
+				detail := string(r.GenerationConfig.MediaResolution)
+				var partResolution struct {
+					Level string `json:"level"`
+				}
+				if kitutil.Unmarshal(media.MediaResolution, &partResolution) == nil && partResolution.Level != "" {
+					detail = partResolution.Level
+				}
 				files = append(files, &types.FileMeta{
 					FileType: fileType,
 					Source:   source,
+					Detail:   detail,
 				})
 			}
 		}
+	}
+	if len(r.Tools) > 0 {
+		inputTexts = append(inputTexts, string(r.Tools))
 	}
 
 	inputText := strings.Join(inputTexts, "\n")
@@ -310,7 +364,7 @@ type GeminiPart struct {
 	FunctionResponse *GeminiFunctionResponse `json:"functionResponse,omitempty"`
 	// Optional. Media resolution for the input media.
 	MediaResolution json.RawMessage `json:"mediaResolution,omitempty"`
-	MediaProcessing *string         `json:"mediaProcessing,omitempty"`
+	MediaProcessing json.RawMessage `json:"mediaProcessing,omitempty"`
 	// Preserve server-executed tool traces for native responses and decoding.
 	// Upstream adaptors may remove non-replayable media traces from history.
 	ToolCall            json.RawMessage                `json:"toolCall,omitempty"`
@@ -329,7 +383,7 @@ func (p *GeminiPart) UnmarshalJSON(data []byte) error {
 		Alias
 		InlineDataSnake       *GeminiInlineData `json:"inline_data,omitempty"` // snake_case variant
 		FileDataSnake         *GeminiFileData   `json:"file_data,omitempty"`
-		MediaProcessingSnake  *string           `json:"media_processing,omitempty"`
+		MediaProcessingSnake  json.RawMessage   `json:"media_processing,omitempty"`
 		MediaResolutionSnake  json.RawMessage   `json:"media_resolution,omitempty"`
 		VideoMetadataSnake    json.RawMessage   `json:"video_metadata,omitempty"`
 		ThoughtSignatureSnake json.RawMessage   `json:"thought_signature,omitempty"`
@@ -414,6 +468,7 @@ type GeminiChatGenerationConfig struct {
 	Logprobs                   *int32                `json:"logprobs,omitempty"`
 	EnableEnhancedCivicAnswers *bool                 `json:"enableEnhancedCivicAnswers,omitempty"`
 	MediaResolution            MediaResolution       `json:"mediaResolution,omitempty"`
+	MediaProcessing            json.RawMessage       `json:"mediaProcessing,omitempty"`
 	Seed                       *int64                `json:"seed,omitempty"`
 	ResponseModalities         []string              `json:"responseModalities,omitempty"`
 	ThinkingConfig             *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
@@ -439,6 +494,7 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 		ResponseLogprobsSnake           *bool                 `json:"response_logprobs,omitempty"`
 		EnableEnhancedCivicAnswersSnake *bool                 `json:"enable_enhanced_civic_answers,omitempty"`
 		MediaResolutionSnake            MediaResolution       `json:"media_resolution,omitempty"`
+		MediaProcessingSnake            json.RawMessage       `json:"media_processing,omitempty"`
 		ResponseModalitiesSnake         []string              `json:"response_modalities,omitempty"`
 		ThinkingConfigSnake             *GeminiThinkingConfig `json:"thinking_config,omitempty"`
 		SpeechConfigSnake               json.RawMessage       `json:"speech_config,omitempty"`
@@ -491,6 +547,9 @@ func (c *GeminiChatGenerationConfig) UnmarshalJSON(data []byte) error {
 	if aux.MediaResolutionSnake != "" {
 		c.MediaResolution = aux.MediaResolutionSnake
 	}
+	if aux.MediaProcessingSnake != nil {
+		c.MediaProcessing = aux.MediaProcessingSnake
+	}
 	if len(aux.ResponseModalitiesSnake) > 0 {
 		c.ResponseModalities = aux.ResponseModalitiesSnake
 	}
@@ -512,6 +571,7 @@ type MediaResolution string
 type GeminiChatCandidate struct {
 	Content           GeminiChatContent        `json:"content"`
 	FinishReason      *string                  `json:"finishReason"`
+	ContinuationToken json.RawMessage          `json:"continuationToken,omitempty"`
 	Index             int64                    `json:"index"`
 	SafetyRatings     []GeminiChatSafetyRating `json:"safetyRatings"`
 	GroundingMetadata *GeminiGroundingMetadata `json:"groundingMetadata,omitempty"`
@@ -519,6 +579,7 @@ type GeminiChatCandidate struct {
 
 type GeminiGroundingMetadata struct {
 	WebSearchQueries             []string        `json:"webSearchQueries,omitempty"`
+	ImageSearchQueries           []string        `json:"imageSearchQueries,omitempty"`
 	RetrievalQueries             []string        `json:"retrievalQueries,omitempty"`
 	GroundingChunks              json.RawMessage `json:"groundingChunks,omitempty"`
 	GroundingSupports            json.RawMessage `json:"groundingSupports,omitempty"`
@@ -692,11 +753,29 @@ func (r *GeminiBatchEmbeddingRequest) SetModelName(modelName string) {
 }
 
 type GeminiEmbeddingResponse struct {
-	Embedding ContentEmbedding `json:"embedding"`
+	Embedding     ContentEmbedding              `json:"embedding"`
+	UsageMetadata *GeminiEmbeddingUsageMetadata `json:"usageMetadata,omitempty"`
 }
 
 type GeminiBatchEmbeddingResponse struct {
-	Embeddings []*ContentEmbedding `json:"embeddings"`
+	Embeddings    []*ContentEmbedding           `json:"embeddings"`
+	UsageMetadata *GeminiEmbeddingUsageMetadata `json:"usageMetadata,omitempty"`
+}
+
+type GeminiEmbeddingUsageMetadata struct {
+	PromptTokenCount   int                         `json:"promptTokenCount"`
+	PromptTokenDetails []GeminiPromptTokensDetails `json:"promptTokenDetails,omitempty"`
+}
+
+func (m *GeminiEmbeddingUsageMetadata) GeminiUsageMetadata() *GeminiUsageMetadata {
+	if m == nil || m.PromptTokenCount <= 0 {
+		return nil
+	}
+	return &GeminiUsageMetadata{
+		PromptTokenCount:    m.PromptTokenCount,
+		TotalTokenCount:     m.PromptTokenCount,
+		PromptTokensDetails: m.PromptTokenDetails,
+	}
 }
 
 type ContentEmbedding struct {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -38,7 +39,8 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	for _, content := range request.Contents {
 		if content.Role == "user" || content.Role == "" {
 			for _, part := range content.Parts {
-				if part.MediaProcessing == nil || !strings.EqualFold(*part.MediaProcessing, "AGENTIC") {
+				var mediaProcessing string
+				if common.Unmarshal(part.MediaProcessing, &mediaProcessing) != nil || !strings.EqualFold(mediaProcessing, "AGENTIC") {
 					continue
 				}
 				if (part.FileData != nil && (strings.HasPrefix(part.FileData.MimeType, "video/") || strings.Contains(part.FileData.FileUri, "youtube.com/") || strings.Contains(part.FileData.FileUri, "youtu.be/"))) ||
@@ -262,6 +264,20 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
 	if request.Input == nil {
 		return nil, errors.New("input is required")
+	}
+	// Gemini embeds text only. The request estimate billed for this channel
+	// counts image, video and text parts, so a part must fail the request
+	// instead of being dropped and charged without reaching Gemini.
+	if items, ok := request.Input.([]any); ok && slices.ContainsFunc(items, func(item any) bool {
+		_, isPart := item.(map[string]any)
+		return isPart
+	}) {
+		return nil, types.NewErrorWithStatusCode(
+			errors.New("gemini embedding models accept only plain text input; images, videos and other content parts are not supported"),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
 	}
 
 	inputs := request.ParseInput()

@@ -22,6 +22,10 @@ import { toast } from 'sonner'
 
 import { api, type ApiRequestConfig } from '@/lib/api'
 import { handleServerError } from '@/lib/handle-server-error'
+import {
+  createServerError,
+  getServerErrorMessage,
+} from '@/lib/server-error-message'
 
 import { normalizeModelList } from '../lib/upstream-update-utils'
 
@@ -30,66 +34,76 @@ const upstreamUpdateRequestConfig = {
   skipErrorHandler: true,
 } satisfies ApiRequestConfig
 
-function getManualIgnoredModelCount(settings: unknown): number {
-  let parsed: Record<string, unknown> | null = null
-  if (settings && typeof settings === 'object') {
-    parsed = settings as Record<string, unknown>
-  } else if (typeof settings === 'string') {
-    try {
-      parsed = JSON.parse(settings)
-    } catch {
-      parsed = null
-    }
-  }
-  if (!parsed) return 0
-  return normalizeModelList(
-    (parsed.upstream_model_update_ignored_models as unknown[]) || []
-  ).length
+type UpstreamUpdateChannel = { id: number; name?: string }
+
+type UpstreamUpdateResult = {
+  addedModels: string[]
+  removedModels: string[]
+  remainingModels: string[]
+  remainingRemoveModels: string[]
+}
+
+type UpstreamUpdateResponse<T> = {
+  success: boolean
+  message?: string
+  data?: T
 }
 
 export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
   const { t } = useTranslation()
 
   const [showModal, setShowModal] = useState(false)
-  const [channel, setChannel] = useState<{
-    id: number
-    [key: string]: unknown
-  } | null>(null)
+  const [channel, setChannel] = useState<UpstreamUpdateChannel | null>(null)
   const [addModels, setAddModels] = useState<string[]>([])
   const [removeModels, setRemoveModels] = useState<string[]>([])
   const [preferredTab, setPreferredTab] = useState<'add' | 'remove'>('add')
   const [applyLoading, setApplyLoading] = useState(false)
+  const [detectLoading, setDetectLoading] = useState(false)
+  const [detectError, setDetectError] = useState<string | null>(null)
+  const [applyError, setApplyError] = useState<string | null>(null)
+  const [result, setResult] = useState<UpstreamUpdateResult | null>(null)
+  const [previewVersion, setPreviewVersion] = useState(0)
   const [detectAllLoading, setDetectAllLoading] = useState(false)
   const [applyAllLoading, setApplyAllLoading] = useState(false)
 
   const applyRef = useRef(false)
-  const detectRef = useRef(false)
+  const previewRequestRef = useRef(0)
   const detectAllRef = useRef(false)
   const applyAllRef = useRef(false)
 
   const openModal = useCallback(
     (
-      record: { id: number; [key: string]: unknown } | null,
+      record: UpstreamUpdateChannel | null,
       pendingAdd: string[] = [],
       pendingRemove: string[] = [],
       tab: 'add' | 'remove' = 'add'
     ) => {
+      if (applyRef.current) return
       const normAdd = normalizeModelList(pendingAdd)
       const normRemove = normalizeModelList(pendingRemove)
-      if (!record?.id || (normAdd.length === 0 && normRemove.length === 0)) {
-        toast.info(t('No processable upstream model updates for this channel'))
-        return
-      }
+      if (!record?.id) return
+      previewRequestRef.current += 1
+      setPreviewVersion((version) => version + 1)
+      setDetectLoading(false)
+      setDetectError(null)
+      setApplyError(null)
+      setResult(null)
       setChannel(record)
       setAddModels(normAdd)
       setRemoveModels(normRemove)
       setPreferredTab(tab)
       setShowModal(true)
     },
-    [t]
+    []
   )
 
   const closeModal = useCallback(() => {
+    if (applyRef.current) return
+    previewRequestRef.current += 1
+    setDetectLoading(false)
+    setDetectError(null)
+    setApplyError(null)
+    setResult(null)
     setShowModal(false)
     setChannel(null)
     setAddModels([])
@@ -105,55 +119,76 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       addModels?: string[]
       removeModels?: string[]
     } = {}) => {
-      if (applyRef.current) return
-      if (!channel?.id) {
-        closeModal()
+      if (
+        applyRef.current ||
+        detectLoading ||
+        detectError ||
+        applyError ||
+        result ||
+        !channel?.id
+      ) {
         return
       }
+      const normSelectedAdd = normalizeModelList(selectedAdd).filter((model) =>
+        addModels.includes(model)
+      )
+      const normSelectedRemove = normalizeModelList(selectedRemove).filter(
+        (model) => removeModels.includes(model)
+      )
+      if (!normSelectedAdd.length && !normSelectedRemove.length) return
       applyRef.current = true
       setApplyLoading(true)
       try {
-        const normSelectedAdd = normalizeModelList(selectedAdd)
-        const selectedAddSet = new Set(normSelectedAdd)
-        const ignoreModels = addModels.filter((m) => !selectedAddSet.has(m))
-
-        const res = await api.post(
+        const res = await api.post<
+          UpstreamUpdateResponse<{
+            added_models: string[] | null
+            removed_models: string[] | null
+            remaining_models: string[] | null
+            remaining_remove_models: string[] | null
+          }>
+        >(
           '/api/channel/upstream_updates/apply',
           {
             id: channel.id,
             add_models: normSelectedAdd,
-            ignore_models: ignoreModels,
-            remove_models: normalizeModelList(selectedRemove),
+            ignore_models: [],
+            remove_models: normSelectedRemove,
           },
           upstreamUpdateRequestConfig
         )
-        const { success, data } = res.data || {}
-        if (!success) {
-          handleServerError(res.data, t('Operation failed'))
-          return
+        if (!res.data?.success || !res.data.data) {
+          throw createServerError(res.data, t('Operation failed'))
         }
-
-        toast.success(
-          t(
-            'Upstream model updates applied: {{added}} added, {{removed}} removed, {{ignored}} ignored this time, {{totalIgnored}} total ignored models',
-            {
-              added: data?.added_models?.length || 0,
-              removed: data?.removed_models?.length || 0,
-              ignored: normalizeModelList(ignoreModels).length,
-              totalIgnored: getManualIgnoredModelCount(data?.settings),
-            }
-          )
-        )
-        closeModal()
-        await refresh()
-      } catch (e: unknown) {
-        handleServerError(e, t('Operation failed'))
+        const data = res.data.data
+        setResult({
+          addedModels: normalizeModelList(data.added_models ?? []),
+          removedModels: normalizeModelList(data.removed_models ?? []),
+          remainingModels: normalizeModelList(data.remaining_models ?? []),
+          remainingRemoveModels: normalizeModelList(
+            data.remaining_remove_models ?? []
+          ),
+        })
+      } catch (error: unknown) {
+        setApplyError(getServerErrorMessage(error, t('Operation failed')))
+        handleServerError(error, t('Operation failed'))
       } finally {
         applyRef.current = false
         setApplyLoading(false)
       }
+      // A list refresh failure must not turn a successful update into a failed one.
+      void refresh().catch((error: unknown) => handleServerError(error))
     },
-    [channel, addModels, closeModal, refresh, t]
+    [
+      channel,
+      addModels,
+      removeModels,
+      detectLoading,
+      detectError,
+      applyError,
+      result,
+      refresh,
+      t,
+    ]
   )
 
   const applyAllUpdates = useCallback(async () => {
@@ -193,35 +228,46 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
   }, [refresh, t])
 
   const detectChannelUpdates = useCallback(
-    async (ch: { id: number; [key: string]: unknown } | null) => {
-      if (detectRef.current || !ch?.id) return
-      detectRef.current = true
+    async (ch: UpstreamUpdateChannel | null) => {
+      if (applyRef.current || !ch?.id) return
+      const requestId = ++previewRequestRef.current
+      setChannel(ch)
+      setShowModal(true)
+      setDetectLoading(true)
+      setDetectError(null)
+      setApplyError(null)
+      setResult(null)
+      setAddModels([])
+      setRemoveModels([])
       try {
-        const res = await api.post(
+        const res = await api.post<
+          UpstreamUpdateResponse<{
+            add_models: string[] | null
+            remove_models: string[] | null
+          }>
+        >(
           '/api/channel/upstream_updates/detect',
           { id: ch.id },
           upstreamUpdateRequestConfig
         )
-        const { success, data } = res.data || {}
-        if (!success) {
-          handleServerError(res.data, t('Detection failed'))
-          return
+        if (requestId !== previewRequestRef.current) return
+        if (!res.data?.success || !res.data.data) {
+          throw createServerError(res.data, t('Detection failed'))
         }
-
-        toast.success(
-          t('Detection complete: {{add}} to add, {{remove}} to remove', {
-            add: data?.add_models?.length || 0,
-            remove: data?.remove_models?.length || 0,
-          })
-        )
-        await refresh()
-      } catch (e: unknown) {
-        handleServerError(e, t('Detection failed'))
+        const added = normalizeModelList(res.data.data.add_models ?? [])
+        setAddModels(added)
+        setRemoveModels(normalizeModelList(res.data.data.remove_models ?? []))
+        setPreferredTab(added.length ? 'add' : 'remove')
+        setPreviewVersion((version) => version + 1)
+      } catch (error: unknown) {
+        if (requestId !== previewRequestRef.current) return
+        setDetectError(getServerErrorMessage(error, t('Detection failed')))
+        handleServerError(error, t('Detection failed'))
       } finally {
-        detectRef.current = false
+        if (requestId === previewRequestRef.current) setDetectLoading(false)
       }
     },
-    [refresh, t]
+    [t]
   )
 
   const detectAllUpdates = useCallback(async () => {
@@ -265,6 +311,11 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       removeModels,
       preferredTab,
       applyLoading,
+      detectLoading,
+      detectError,
+      applyError,
+      result,
+      previewVersion,
       detectAllLoading,
       applyAllLoading,
       openModal,
@@ -281,6 +332,11 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
       removeModels,
       preferredTab,
       applyLoading,
+      detectLoading,
+      detectError,
+      applyError,
+      result,
+      previewVersion,
       detectAllLoading,
       applyAllLoading,
       openModal,
@@ -292,3 +348,7 @@ export function useChannelUpstreamUpdates(refresh: () => Promise<void>) {
     ]
   )
 }
+
+export type ChannelUpstreamUpdateState = ReturnType<
+  typeof useChannelUpstreamUpdates
+>

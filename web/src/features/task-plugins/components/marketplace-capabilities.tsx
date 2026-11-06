@@ -36,7 +36,8 @@ import { PluginEndpoints } from './plugin-endpoints'
 import { PluginModelList } from './plugin-model-list'
 
 type MarketplaceCapabilitiesProps = {
-  plugin: MarketplacePlugin
+  /** Omitted for a manual upload: only the source declarations are shown. */
+  plugin?: MarketplacePlugin
   version?: MarketplaceIndexVersion
   source?: string
   onRetry?: () => void
@@ -207,6 +208,9 @@ export function MarketplaceCapabilities(props: MarketplaceCapabilitiesProps) {
           }
           routes={
             fields.routes.state === 'value' ? fields.routes.value : undefined
+          }
+          pluginKey={
+            fields.key.state === 'value' ? fields.key.value : undefined
           }
           protocolsNote={
             <EndpointPreviewNote

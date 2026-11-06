@@ -21,7 +21,6 @@ import type { ColumnDef, ColumnFiltersState } from '@tanstack/react-table'
 import { Eye, MoreHorizontal, Trash2, Upload } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTablePage, useDataTable } from '@/components/data-table'
@@ -35,6 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { getChannelTypeLabel } from '@/features/channels/lib'
+import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/features/system-settings/models/pricing-issues'
 import { handleServerError } from '@/lib/handle-server-error'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
@@ -45,6 +45,7 @@ import {
   TaskPluginUsageError,
 } from '../api'
 import { isStaleFactoryOverride } from '../lib/marketplace'
+import { toastPluginChange } from '../lib/plugin-change-toast'
 import type { TaskPluginListItem, TaskPluginUsage } from '../types'
 import { PluginCard } from './plugin-card'
 import { PluginIcon } from './plugin-icon'
@@ -88,8 +89,14 @@ export function PluginsTable(props: PluginsTableProps) {
       enabled: boolean
       options?: { cascade?: boolean; force?: boolean }
     }) => setTaskPluginStatus(key, enabled, options),
-    onSuccess: () => {
+    onSuccess: (notice, variables) => {
       queryClient.invalidateQueries({ queryKey: ['task-plugins'] })
+      queryClient.invalidateQueries({
+        queryKey: MODEL_PRICING_ISSUES_QUERY_KEY,
+      })
+      if (variables.enabled && notice?.pricing_issues?.length) {
+        toastPluginChange(t('Plugin enabled'), notice.pricing_issues)
+      }
       setStatusConfirmation(null)
       setStatusTarget(null)
       setBlockedAction(null)
@@ -106,12 +113,22 @@ export function PluginsTable(props: PluginsTableProps) {
     },
   })
   const deleteMutation = useMutation({
-    mutationFn: (plugin: TaskPluginListItem) =>
-      deleteTaskPluginVersion(plugin.meta.key, plugin.meta.version),
-    onSuccess: () => {
+    mutationFn: ({
+      plugin,
+      force,
+    }: {
+      plugin: TaskPluginListItem
+      force?: boolean
+    }) => deleteTaskPluginVersion(plugin.meta.key, plugin.meta.version, force),
+    onSuccess: (notice) => {
       setDeleteTarget(null)
-      toast.success(t('Plugin version deleted'))
+      setBlockedAction(null)
+      setBlockedUsage(null)
+      toastPluginChange(t('Plugin version deleted'), notice?.pricing_issues)
       queryClient.invalidateQueries({ queryKey: ['task-plugins'] })
+      queryClient.invalidateQueries({
+        queryKey: MODEL_PRICING_ISSUES_QUERY_KEY,
+      })
     },
     onError: (error) => {
       if (error instanceof TaskPluginUsageError) {
@@ -415,7 +432,7 @@ export function PluginsTable(props: PluginsTableProps) {
         isLoading={deleteMutation.isPending}
         confirmText={t('Delete')}
         handleConfirm={() => {
-          if (deleteTarget) deleteMutation.mutate(deleteTarget)
+          if (deleteTarget) deleteMutation.mutate({ plugin: deleteTarget })
         }}
         desc={
           hasFactoryFallback
@@ -437,11 +454,23 @@ export function PluginsTable(props: PluginsTableProps) {
         }}
         title={t('Plugin is still in use')}
         desc={usageDescription}
-        handleConfirm={() => setBlockedAction(null)}
-        confirmText={t('Cancel')}
+        destructive
+        isLoading={statusMutation.isPending || deleteMutation.isPending}
+        confirmText={t('Force operation')}
+        handleConfirm={() => {
+          if (blockedAction === 'delete' && deleteTarget) {
+            deleteMutation.mutate({ plugin: deleteTarget, force: true })
+          } else if (blockedAction === 'disable' && statusTarget) {
+            statusMutation.mutate({
+              key: statusTarget.meta.key,
+              enabled: false,
+              options: { cascade: true, force: true },
+            })
+          }
+        }}
       >
-        <div className='flex flex-wrap gap-2'>
-          {blockedAction === 'disable' && blockedUsage?.channels.length ? (
+        {blockedAction === 'disable' && blockedUsage?.channels.length ? (
+          <div className='flex'>
             <Button
               variant='outline'
               onClick={() =>
@@ -455,37 +484,8 @@ export function PluginsTable(props: PluginsTableProps) {
             >
               {t('Cascade disable channels')}
             </Button>
-          ) : null}
-          <Button
-            variant='destructive'
-            onClick={() => {
-              if (blockedAction === 'delete' && deleteTarget) {
-                deleteTaskPluginVersion(
-                  deleteTarget.meta.key,
-                  deleteTarget.meta.version,
-                  true
-                )
-                  .then(() => {
-                    setBlockedAction(null)
-                    setDeleteTarget(null)
-                    queryClient.invalidateQueries({
-                      queryKey: ['task-plugins'],
-                    })
-                  })
-                  .catch((error: Error) => handleServerError(error))
-              }
-              if (blockedAction === 'disable' && statusTarget) {
-                statusMutation.mutate({
-                  key: statusTarget.meta.key,
-                  enabled: false,
-                  options: { cascade: true, force: true },
-                })
-              }
-            }}
-          >
-            {t('Force operation')}
-          </Button>
-        </div>
+          </div>
+        ) : null}
       </ConfirmDialog>
     </>
   )

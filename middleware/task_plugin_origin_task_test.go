@@ -15,8 +15,6 @@ import (
 	appI18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
-	"github.com/QuantumNous/new-api/relay"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -220,28 +218,6 @@ func TestApplyOriginTaskIntentAbsentAndEmptyAreNoop(t *testing.T) {
 	require.Nil(t, applyOriginTaskIntent(c, map[string]any{"originTaskIds": []any{}}, jsplugin.Meta{Key: "origin-plugin"}))
 	_, pinned := resolvedOriginPin(c)
 	assert.False(t, pinned)
-}
-
-func TestApplyOriginTaskAffinitySetsLockedChannel(t *testing.T) {
-	setupOriginTaskDB(t)
-	channel := insertOriginTaskChannel(t, common.ChannelStatusEnabled)
-	insertOriginOwnedTask(t, "task-lock", 7, channel.Id, "origin-plugin")
-
-	c := originTaskTestContext(7)
-	require.Nil(t, applyOriginTaskIntent(c, map[string]any{"originTaskIds": []any{"task-lock"}}, jsplugin.Meta{Key: "origin-plugin"}))
-
-	info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
-	taskErr := relay.ApplyOriginTaskAffinity(c, info)
-	require.Nil(t, taskErr)
-	locked, ok := info.LockedChannel.(*model.Channel)
-	require.True(t, ok)
-	require.NotNil(t, locked)
-	assert.Equal(t, channel.Id, locked.Id)
-	require.Len(t, info.OriginTasks, 1)
-	assert.Equal(t, "task-lock", info.OriginTasks[0].TaskID)
-	assert.Equal(t, "upstream-task-lock", info.OriginTasks[0].UpstreamTaskID)
-	assert.Equal(t, "text_to_video", info.OriginTasks[0].Action)
-	assert.Equal(t, string(model.TaskStatusSuccess), info.OriginTasks[0].Status)
 }
 
 func TestPrepareTaskPluginRoutePinsOriginTaskChannel(t *testing.T) {
@@ -471,30 +447,4 @@ func TestDistributePinViolatingIdentityFilterErrors(t *testing.T) {
 	assert.True(t, c.IsAborted())
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), string(dto.FilterTaskPluginIdentity))
-}
-
-func TestApplyChannelPinLocksOnlySameChannelRetry(t *testing.T) {
-	setupOriginTaskDB(t)
-	channel := insertOriginTaskChannel(t, common.ChannelStatusEnabled)
-	insertOriginOwnedTask(t, "task-lock-mode", 7, channel.Id, "origin-plugin")
-
-	c := originTaskTestContext(7)
-	require.Nil(t, applyOriginTaskIntent(c, map[string]any{"originTaskIds": []any{"task-lock-mode"}}, jsplugin.Meta{Key: "origin-plugin"}))
-
-	info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
-	require.Nil(t, relay.ApplyChannelPin(c, info))
-	locked, ok := info.LockedChannel.(*model.Channel)
-	require.True(t, ok)
-	assert.Equal(t, channel.Id, locked.Id)
-
-	tokenOnly := originTaskTestContext(7)
-	service.GetChannelConstraints(tokenOnly).AddPin(dto.ChannelPin{
-		ChannelId: channel.Id,
-		Source:    dto.PinSourceToken,
-		Rank:      dto.PinRankToken,
-		RetryMode: dto.PinRetrySingleAttempt,
-	})
-	tokenInfo := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
-	require.Nil(t, relay.ApplyChannelPin(tokenOnly, tokenInfo))
-	assert.Nil(t, tokenInfo.LockedChannel)
 }

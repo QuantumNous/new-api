@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"context"
 	"io"
 	"net/http"
 
@@ -111,10 +112,15 @@ type TaskContentRequest struct {
 	Headers        map[string]string
 	Body           []byte
 	Credentialless bool
+	// ContentPath, when set, locates the artifact's bytes as a base64 string
+	// in the JSON reply instead of the reply being the artifact; MimeType is
+	// then its media type.
+	ContentPath []any
+	MimeType    string
 }
 
 type TaskContentRequestProvider interface {
-	BuildContentRequest(task *model.Task, artifactKey string, clientRequest TaskArtifactClientRequest) (*TaskContentRequest, error)
+	BuildContentRequest(ctx context.Context, task *model.Task, artifactKey string, clientRequest TaskArtifactClientRequest) (*TaskContentRequest, error)
 }
 
 type TaskUsageFactsProvider interface {

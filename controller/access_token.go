@@ -1,64 +1,343 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
-func GetAccessTokenStatus(c *gin.Context) {
-	status, err := model.GetUserAccessTokenStatus(c.GetInt("id"))
+// accessTokenMinLifetimeSecs is the shortest expiry a new access token may have.
+const accessTokenMinLifetimeSecs = 60 * 60
+
+type accessTokenItem struct {
+	model.UserAccessToken
+	Scopes []string `json:"scopes"`
+}
+
+type accessTokenCreateRequest struct {
+	Name      string   `json:"name"`
+	Scopes    []string `json:"scopes"`
+	ExpiresAt int64    `json:"expires_at"`
+}
+
+// accessTokenUpdateRequest renames a token; a present scopes field also
+// replaces its grant.
+type accessTokenUpdateRequest struct {
+	Name   string   `json:"name"`
+	Scopes []string `json:"scopes"`
+}
+
+func newAccessTokenItem(token *model.UserAccessToken) accessTokenItem {
+	scopes := token.GetScopes()
+	if scopes == nil {
+		scopes = []string{}
+	}
+	return accessTokenItem{UserAccessToken: *token, Scopes: scopes}
+}
+
+// writeAccessTokenError responds with a stable code and a web console message.
+func writeAccessTokenError(c *gin.Context, status int, code, key string, params ...map[string]any) {
+	common.ApiErrorStatus(c, status, common.NewMessage(key, params...), gin.H{"code": code})
+}
+
+// normalizeAccessTokenName returns the trimmed name, or false when it is empty
+// or longer than the 64-character column.
+func normalizeAccessTokenName(name string) (string, bool) {
+	name = strings.TrimSpace(name)
+	count := utf8.RuneCountInString(name)
+	return name, count > 0 && count <= 64
+}
+
+func ListAccessTokens(c *gin.Context) {
+	identity, ok := requireBrowserSession(c)
+	if !ok {
+		return
+	}
+	tokens, err := model.ListUserAccessTokens(identity.UserID)
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	common.ApiSuccess(c, status)
+	items := make([]accessTokenItem, 0, len(tokens))
+	for i := range tokens {
+		items = append(items, newAccessTokenItem(&tokens[i]))
+	}
+	var legacy gin.H
+	if !model.LegacyAccessTokensRetired(common.GetTimestamp()) {
+		status, err := model.GetUserAccessTokenStatus(identity.UserID)
+		if err != nil {
+			writeSecurityOperationError(c, err)
+			return
+		}
+		if status.Exists {
+			legacy = gin.H{
+				"token_hint":   status.TokenHint,
+				"token_ref":    status.TokenRef,
+				"created_at":   status.CreatedAt,
+				"last_used_at": status.LastUsedAt,
+				"last_used_ip": status.LastUsedIp,
+				"retire_at":    model.LegacyAccessTokenRetireAt(),
+			}
+		}
+	}
+	common.ApiSuccess(c, gin.H{"items": items, "legacy": legacy})
 }
 
-func GenerateAccessToken(c *gin.Context) {
-	if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenGenerate}) == nil {
+func GetAccessTokenCatalog(c *gin.Context) {
+	identity, ok := requireBrowserSession(c)
+	if !ok {
 		return
 	}
-	id := c.GetInt("id")
-	key, err := common.GenerateRandomKey(29 + common.GetRandomInt(4))
+	common.ApiSuccess(c, gin.H{
+		"groups":              service.AccessTokenCatalog(identity.UserID, c.GetInt("role")),
+		"max_tokens":          service.AccessTokenMaxPerUser,
+		"default_expiry_days": service.AccessTokenDefaultExpiryDays,
+	})
+}
+
+// GetAccessTokenScopes returns the unfiltered scope labels used to describe
+// stored grants, such as those in audit records.
+func GetAccessTokenScopes(c *gin.Context) {
+	if _, ok := requireBrowserSession(c); !ok {
+		return
+	}
+	common.ApiSuccess(c, gin.H{"resources": service.AccessTokenScopeDictionary()})
+}
+
+// CreateAccessToken validates the whole request before consuming the proof, so
+// a rejected grant never burns the user's verification.
+func CreateAccessToken(c *gin.Context) {
+	identity, ok := requireBrowserSession(c)
+	if !ok {
+		return
+	}
+	var req accessTokenCreateRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		writeAccessTokenError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body.")
+		return
+	}
+	name, ok := normalizeAccessTokenName(req.Name)
+	if !ok {
+		writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_NAME_INVALID", "Access token name must be 1 to 64 characters.")
+		return
+	}
+	now := common.GetTimestamp()
+	if req.ExpiresAt != 0 && req.ExpiresAt < now+accessTokenMinLifetimeSecs {
+		writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_EXPIRY_INVALID", "Access token expiry must be at least one hour from now.")
+		return
+	}
+	scopes, err := service.NormalizeAccessTokenScopes(identity.UserID, c.GetInt("role"), req.Scopes)
+	switch {
+	case errors.Is(err, service.ErrAccessTokenScopeForbidden):
+		writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_SCOPE_FORBIDDEN", "You cannot grant one or more of these permissions.")
+		return
+	case err != nil:
+		writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_SCOPE_INVALID", "Select at least one valid permission.")
+		return
+	}
+	proofContext, err := common.Marshal(service.AccessTokenGenerateContext{Scopes: scopes, ExpiresAt: req.ExpiresAt})
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	var existing int64
-	if err := model.DB.Model(&model.User{}).Where("access_token = ?", key).Count(&existing).Error; err != nil {
+	if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenGenerate, Context: proofContext}) == nil {
+		return
+	}
+	suffix, err := common.GenerateRandomCharsKey(43)
+	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	if existing != 0 {
-		common.ApiErrorI18n(c, i18n.MsgUuidDuplicate)
-		return
+	raw := model.AccessTokenPrefix + suffix
+	token := &model.UserAccessToken{
+		Name:      name,
+		TokenHash: model.AccessTokenFingerprint(raw),
+		TokenHint: model.AccessTokenHint(raw),
+		ExpiresAt: req.ExpiresAt,
+		CreatedAt: now,
 	}
-	if err := model.UpdateUserAccessToken(id, key); err != nil {
+	if err := token.SetScopes(scopes); err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	recordUserSecurityAudit(c, id, "access_token.generate", map[string]any{"token_ref": model.AccessTokenFingerprint(key)})
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": key})
+	if err := model.CreateUserAccessToken(identity.UserID, token, service.AccessTokenMaxPerUser); err != nil {
+		if errors.Is(err, model.ErrAccessTokenLimit) {
+			writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_LIMIT", "You can create at most {{count}} access tokens", map[string]any{"count": service.AccessTokenMaxPerUser})
+			return
+		}
+		writeSecurityOperationError(c, err)
+		return
+	}
+	recordUserSecurityAudit(c, identity.UserID, "access_token.generate", map[string]any{
+		"token_id":   token.Id,
+		"name":       token.Name,
+		"scopes":     scopes,
+		"expires_at": token.ExpiresAt,
+		"token_ref":  token.TokenHash,
+	})
+	common.ApiSuccess(c, gin.H{"token": raw, "item": newAccessTokenItem(token)})
 }
 
-func RevokeAccessToken(c *gin.Context) {
-	if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenRevoke}) == nil {
+// UpdateAccessToken renames a token without verification. Changing the grant
+// is checked in full before the proof is consumed, like creation.
+func UpdateAccessToken(c *gin.Context) {
+	identity, ok := requireBrowserSession(c)
+	if !ok {
 		return
 	}
-	ref, err := model.RevokeUserAccessToken(c.GetInt("id"))
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
+		return
+	}
+	var req accessTokenUpdateRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		writeAccessTokenError(c, http.StatusBadRequest, "INVALID_REQUEST", "Invalid request body.")
+		return
+	}
+	name, ok := normalizeAccessTokenName(req.Name)
+	if !ok {
+		writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_NAME_INVALID", "Access token name must be 1 to 64 characters.")
+		return
+	}
+	var scopes []string
+	var previous *model.UserAccessToken
+	if req.Scopes != nil {
+		previous, err = model.GetUserAccessToken(identity.UserID, id)
+		if errors.Is(err, model.ErrAccessTokenNotFound) {
+			writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
+			return
+		}
+		if err != nil {
+			writeSecurityOperationError(c, err)
+			return
+		}
+		scopes, err = service.NormalizeAccessTokenScopes(identity.UserID, c.GetInt("role"), req.Scopes)
+		switch {
+		case errors.Is(err, service.ErrAccessTokenScopeForbidden):
+			writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_SCOPE_FORBIDDEN", "You cannot grant one or more of these permissions.")
+			return
+		case err != nil:
+			writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_SCOPE_INVALID", "Select at least one valid permission.")
+			return
+		}
+		proofContext, err := common.Marshal(service.AccessTokenUpdateContext{TokenID: id, Scopes: scopes})
+		if err != nil {
+			writeSecurityOperationError(c, err)
+			return
+		}
+		if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenUpdate, Context: proofContext}) == nil {
+			return
+		}
+	}
+	token, err := model.UpdateUserAccessToken(identity.UserID, id, name, scopes)
+	if errors.Is(err, model.ErrAccessTokenNotFound) {
+		writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
+		return
+	}
+	if err != nil {
+		writeSecurityOperationError(c, err)
+		return
+	}
+	if previous == nil {
+		recordUserSecurityAudit(c, identity.UserID, "access_token.rename", map[string]any{"token_id": token.Id, "name": token.Name})
+		common.ApiSuccess(c, newAccessTokenItem(token))
+		return
+	}
+	recordUserSecurityAudit(c, identity.UserID, "access_token.update", map[string]any{
+		"token_id":        token.Id,
+		"name":            token.Name,
+		"scopes":          scopes,
+		"previous_scopes": previous.GetScopes(),
+		"token_ref":       token.TokenHash,
+	})
+	common.ApiSuccess(c, newAccessTokenItem(token))
+}
+
+// DeleteAccessToken checks ownership before consuming the proof, so probing
+// other users' token IDs never burns a verification.
+func DeleteAccessToken(c *gin.Context) {
+	identity, ok := requireBrowserSession(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
+		return
+	}
+	if _, err := model.GetUserAccessToken(identity.UserID, id); err != nil {
+		if errors.Is(err, model.ErrAccessTokenNotFound) {
+			writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
+			return
+		}
+		writeSecurityOperationError(c, err)
+		return
+	}
+	proofContext, err := common.Marshal(service.AccessTokenRevokeContext{TokenID: id})
+	if err != nil {
+		writeSecurityOperationError(c, err)
+		return
+	}
+	if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenRevoke, Context: proofContext}) == nil {
+		return
+	}
+	token, err := model.DeleteUserAccessToken(identity.UserID, id)
+	if errors.Is(err, model.ErrAccessTokenNotFound) {
+		writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
+		return
+	}
+	if err != nil {
+		writeSecurityOperationError(c, err)
+		return
+	}
+	recordUserSecurityAudit(c, identity.UserID, "access_token.revoke", map[string]any{"token_id": token.Id, "name": token.Name, "token_ref": token.TokenHash})
+	common.ApiSuccess(c, nil)
+}
+
+// RevokeLegacyAccessToken removes the pre-scope users.access_token credential.
+// After the transition deadline the legacy token no longer exists for callers.
+func RevokeLegacyAccessToken(c *gin.Context) {
+	identity, ok := requireBrowserSession(c)
+	if !ok {
+		return
+	}
+	if model.LegacyAccessTokensRetired(common.GetTimestamp()) {
+		writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
+		return
+	}
+	status, err := model.GetUserAccessTokenStatus(identity.UserID)
+	if err != nil {
+		writeSecurityOperationError(c, err)
+		return
+	}
+	if !status.Exists {
+		writeAccessTokenError(c, http.StatusNotFound, "ACCESS_TOKEN_NOT_FOUND", model.ErrAccessTokenNotFound.Error())
+		return
+	}
+	proofContext, err := common.Marshal(service.AccessTokenRevokeContext{Legacy: true})
+	if err != nil {
+		writeSecurityOperationError(c, err)
+		return
+	}
+	if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeAccessTokenRevoke, Context: proofContext}) == nil {
+		return
+	}
+	ref, err := model.RevokeUserAccessToken(identity.UserID)
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
 	if ref != "" {
-		recordUserSecurityAudit(c, c.GetInt("id"), "access_token.revoke", map[string]any{"token_ref": ref})
+		recordUserSecurityAudit(c, identity.UserID, "access_token.revoke", map[string]any{"legacy": true, "token_ref": ref})
 	}
 	common.ApiSuccess(c, nil)
 }

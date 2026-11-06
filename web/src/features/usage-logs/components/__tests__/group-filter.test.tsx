@@ -227,7 +227,7 @@ it('keeps the compact input and masks the dropdown together with other sensitive
   const option = await screen.findByRole('option', { name: 'premium' })
   const maskedField = input.closest('.\\[-webkit-text-security\\:disc\\]')
   expect(maskedField).not.toBeNull()
-  expect(maskedField).toContainElement(option)
+  expect(option.closest('.\\[-webkit-text-security\\:disc\\]')).not.toBeNull()
   await userEvent.keyboard('{Escape}')
   expect(input).toHaveAttribute('aria-expanded', 'false')
   await userEvent.tab()

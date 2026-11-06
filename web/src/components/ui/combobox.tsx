@@ -50,6 +50,7 @@ type LegacyComboboxProps = {
   allowCustomValue?: boolean
   showSelectedIcon?: boolean
   className?: string
+  popupClassName?: string
   id?: string
   openOnFocus?: boolean
   disabled?: boolean
@@ -87,6 +88,7 @@ function Combobox(
         placeholder={props.searchPlaceholder ?? props.placeholder}
         emptyText={props.emptyText}
         className={props.className}
+        popupClassName={props.popupClassName}
         allowCustomValue={props.allowCustomValue}
         openOnFocus={props.openOnFocus}
       />
@@ -114,9 +116,9 @@ function OptionCombobox(props: LegacyComboboxProps) {
       onInputValueChange={(value, details) => {
         if (details.reason === 'input-change') setSearch(value)
       }}
-      onOpenChange={(nextOpen) => {
+      onOpenChange={(nextOpen, details) => {
         setOpen(nextOpen)
-        setSearch('')
+        if (details.reason !== 'input-change') setSearch('')
       }}
       onValueChange={(option) => {
         if (option) props.onValueChange?.(option.value)
@@ -138,7 +140,8 @@ function OptionCombobox(props: LegacyComboboxProps) {
           onBlur={props.onBlur}
           onKeyDown={props.onKeyDown}
           onFocus={() => {
-            if (props.openOnFocus !== false) setOpen(true)
+            // Dialog autofocus should not expand a select-style combobox.
+            if (props.openOnFocus) setOpen(true)
           }}
           aria-label={props['aria-label']}
           aria-labelledby={props['aria-labelledby']}
@@ -157,7 +160,7 @@ function OptionCombobox(props: LegacyComboboxProps) {
           )}
         </ComboboxInput>
       </div>
-      <ComboboxContent anchor={anchor}>
+      <ComboboxContent anchor={anchor} className={props.popupClassName}>
         <ComboboxEmpty>
           {props.emptyText ?? t('No results found')}
         </ComboboxEmpty>

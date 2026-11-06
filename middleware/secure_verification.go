@@ -35,29 +35,33 @@ func SecureVerificationRequired() gin.HandlerFunc {
 }
 
 // RequireSecurityProof validates a proof against the authenticated dashboard
-// session and writes the shared proof error contract on failure.
+// session or scoped access token and writes the shared proof error contract on
+// failure.
 func RequireSecurityProof(c *gin.Context, operation service.VerificationOperation) *model.AuthFlowAuthorization {
-	identity, ok := GetSessionAuthIdentity(c)
+	identity, ok := GetStepUpIdentity(c)
 	if !ok {
-		securityProofError(c, "SECURITY_PROOF_INVALID", "安全验证状态无效")
+		securityProofError(c, "SECURITY_PROOF_INVALID", "Security verification is no longer valid. Please verify again.")
 		return nil
 	}
 	raw := strings.TrimSpace(c.GetHeader("X-Security-Proof"))
 	if raw == "" {
-		securityProofError(c, "SECURITY_PROOF_REQUIRED", "需要安全验证")
+		securityProofError(c, "SECURITY_PROOF_REQUIRED", "Additional verification required")
 		return nil
 	}
 	authorization, err := service.ConsumeOperationProof(raw, identity, operation)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrAuthTokenExpired):
-			securityProofError(c, "SECURITY_PROOF_EXPIRED", "安全验证已过期")
+			securityProofError(c, "SECURITY_PROOF_EXPIRED", "Security verification has expired. Please verify again.")
 		case errors.Is(err, service.ErrProofScope):
-			securityProofError(c, "SECURITY_PROOF_SCOPE_MISMATCH", "安全验证范围不匹配")
+			securityProofError(c, "SECURITY_PROOF_SCOPE_MISMATCH", "Verification does not match this action.")
+		case errors.Is(err, service.ErrVerificationContextInvalid):
+			c.Set("security_error_code", "SECURITY_CONTEXT_INVALID")
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"success": false, "code": "SECURITY_CONTEXT_INVALID", "message": service.ErrVerificationContextInvalid.Error()})
 		case errors.Is(err, service.ErrVerificationUnavailable):
 			securityProofError(c, "SECURITY_METHOD_UNAVAILABLE", service.ErrVerificationUnavailable.Error())
 		case errors.Is(err, service.ErrProofMethod):
-			securityProofError(c, "SECURITY_PROOF_METHOD_MISMATCH", "安全验证方式不匹配")
+			securityProofError(c, "SECURITY_PROOF_METHOD_MISMATCH", "This verification method is not allowed for this action.")
 		case errors.Is(err, service.ErrProofConsumed):
 			securityProofError(c, "SECURITY_PROOF_CONSUMED", "This verification has already been used. Please verify again.")
 		case errors.Is(err, service.ErrProofContext):
@@ -65,7 +69,7 @@ func RequireSecurityProof(c *gin.Context, operation service.VerificationOperatio
 		case errors.Is(err, service.ErrVerificationForbidden):
 			securityProofError(c, "SECURITY_ACTION_FORBIDDEN", service.ErrVerificationForbidden.Error())
 		case errors.Is(err, service.ErrAuthTokenInvalid), errors.Is(err, service.ErrLoginSessionInvalid), errors.Is(err, service.ErrLoginSessionRevoked), errors.Is(err, model.ErrUserSessionInactive):
-			securityProofError(c, "SECURITY_PROOF_INVALID", "安全验证状态无效")
+			securityProofError(c, "SECURITY_PROOF_INVALID", "Security verification is no longer valid. Please verify again.")
 		default:
 			_ = c.Error(err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"success": false, "code": "AUTH_INTERNAL_ERROR", "message": "Please try again later."})

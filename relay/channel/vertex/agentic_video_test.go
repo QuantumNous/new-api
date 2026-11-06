@@ -37,9 +37,9 @@ func TestAgenticVideoRequestRoundTrip(t *testing.T) {
 			require.NotNil(t, parts[0].FileData)
 			assert.Equal(t, "gs://bucket/lecture.mp4", parts[0].FileData.FileUri)
 			assert.Equal(t, "video/mp4", parts[0].FileData.MimeType)
-			assert.Equal(t, "AGENTIC", *parts[0].MediaProcessing)
+			assert.JSONEq(t, `"AGENTIC"`, string(parts[0].MediaProcessing))
 			assert.JSONEq(t, `{"level":"MEDIA_RESOLUTION_LOW"}`, string(parts[0].MediaResolution))
-			assert.Equal(t, "STATIC", *parts[1].MediaProcessing)
+			assert.JSONEq(t, `"STATIC"`, string(parts[1].MediaProcessing))
 			assert.Equal(t, "AAAA", parts[1].InlineData.Data)
 			assert.JSONEq(t, `{"fps":0.5}`, string(parts[1].VideoMetadata))
 			data, err := common.Marshal(parts[2])
@@ -170,6 +170,27 @@ func TestAgenticVideoVertexURL(t *testing.T) {
 			}
 		}
 	}
+	for _, tc := range []struct {
+		name, part, version, projectID, wantPath string
+	}{
+		{"configured beta", `{"text":"hello"}`, "v1beta1", "", "/v1beta1/publishers/google/models/gemini-3.8-flash:generateContent?key=test-key"},
+		{"agentic project", `{"mediaProcessing":"AGENTIC"}`, "v1", "test-project", "/v1beta1/projects/test-project/locations/global/publishers/google/models/gemini-3.8-flash:generateContent?key=test-key"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var request dto.GeminiChatRequest
+			require.NoError(t, common.UnmarshalJsonStr(`{"contents":[{"parts":[`+tc.part+`]}]}`, &request))
+			info := &relaycommon.RelayInfo{Request: &request, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gemini-3.8-flash", ApiKey: "test-key", ChannelBaseUrl: "https://vertex.example/v1/"}}
+			info.ChannelOtherSettings.VertexKeyType = dto.VertexKeyTypeAPIKey
+			info.ChannelOtherSettings.VertexAPIVersion = tc.version
+			info.ChannelOtherSettings.VertexProjectID = tc.projectID
+			adaptor := &Adaptor{}
+			adaptor.Init(info)
+			url, err := adaptor.GetRequestURL(info)
+			require.NoError(t, err)
+			assert.Equal(t, "https://vertex.example"+tc.wantPath, url)
+		})
+	}
+
 }
 
 func TestAgenticVideoNativeResponseAndReplay(t *testing.T) {

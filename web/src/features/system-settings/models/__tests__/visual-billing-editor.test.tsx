@@ -16,13 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createInstance } from 'i18next'
+import { I18nextProvider } from 'react-i18next'
 import { assert, describe, expect, test, vi } from 'vitest'
 
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { evaluateBillingExpression } from '@/features/pricing/lib/billing-expression/runtime'
 
+import { BillingConditionValueInput } from '../billing-time-fields'
 import { TieredPricingEditor } from '../tiered-pricing-editor'
 
 const expression =
@@ -30,6 +33,56 @@ const expression =
 
 const chainedExpression =
   'len <= 32000 && c <= 200 ? tier("discount", p * 0.8 + c * 2 + cr * 0.16 + cc * 0.17) : len <= 32000 ? tier("short", p * 0.8 + c * 8 + cr * 0.16 + cc * 0.17) : len <= 128000 ? tier("mid", p * 1.2 + c * 16 + cr * 0.16 + cc * 0.17) : tier("long", p * 2.4 + c * 24 + cr * 0.16 + cc * 0.17)'
+
+test.each([
+  ['zhCN', '星期一'],
+  ['zhTW', '星期一'],
+  ['en', 'Monday'],
+  ['fr', 'lundi'],
+  ['ru', 'понедельник'],
+  ['ja', '月曜日'],
+  ['vi', 'Thứ Hai'],
+  [
+    'invalid_locale',
+    new Intl.DateTimeFormat(undefined, {
+      weekday: 'long',
+      timeZone: 'UTC',
+    }).format(new Date('2026-01-05T00:00:00Z')),
+  ],
+])(
+  'formats weekdays for %s and updates after a language switch',
+  async (language, monday) => {
+    const translations = createInstance()
+    await translations.init({
+      lng: language,
+      fallbackLng: 'en',
+      resources: Object.fromEntries(
+        ['en', 'fr', language].map((code) => [
+          code,
+          { translation: { 'Condition value': 'Condition value' } },
+        ])
+      ),
+    })
+    const onChange = vi.fn()
+    render(
+      <I18nextProvider i18n={translations}>
+        <BillingConditionValueInput
+          probe='weekday'
+          value='1'
+          onChange={onChange}
+        />
+      </I18nextProvider>
+    )
+    expect(
+      screen.getByRole('combobox', { name: 'Condition value' })
+    ).toHaveTextContent(monday)
+    await act(() => translations.changeLanguage('fr'))
+    expect(
+      screen.getByRole('combobox', { name: 'Condition value' })
+    ).toHaveTextContent('lundi')
+    expect(onChange).not.toHaveBeenCalled()
+  }
+)
 
 test('shows chained tiers as peer rules and edits a later rule without changing precedence', async () => {
   const onBillingExprChange = vi.fn()
@@ -395,6 +448,49 @@ test('edits image cache pricing and preserves an explicitly free cache lane', ()
   expect(
     screen.getByRole('checkbox', { name: 'Include Image cache input price' })
   ).toBeChecked()
+})
+
+test('keeps an OpenAI 12-hour cache write price through edits and labels the default write as 30 minutes', async () => {
+  const source =
+    'tier("base", p * 10 + c * 40 + cr * 1 + cc * 12.5 + cc12h * 25)'
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={source}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  const user = userEvent.setup()
+  const tier = within(screen.getByRole('group', { name: 'Pricing tier base' }))
+  expect(
+    tier.getByRole('textbox', { name: 'Cache Creation (30m)' })
+  ).toHaveValue('12.5')
+  expect(
+    tier.getByRole('textbox', { name: 'Cache create (12h) price' })
+  ).toHaveValue('25')
+  expect(
+    tier.getByRole('checkbox', { name: 'Include Cache create (1h) price' })
+  ).not.toBeChecked()
+  expect(onBillingExprChange).not.toHaveBeenCalled()
+
+  fireEvent.change(tier.getByRole('textbox', { name: 'Input price' }), {
+    target: { value: '11' },
+  })
+  expect(onBillingExprChange).toHaveBeenLastCalledWith(
+    source.replace('p * 10', 'p * 11')
+  )
+
+  await user.click(
+    tier.getByRole('checkbox', { name: 'Include Cache create (12h) price' })
+  )
+  expect(onBillingExprChange).toHaveBeenLastCalledWith(
+    'tier("base", p * 11 + c * 40 + cr * 1 + cc * 12.5)'
+  )
+  expect(tier.getByRole('textbox', { name: 'Cache create price' })).toHaveValue(
+    '12.5'
+  )
 })
 
 describe('visual time billing editor', () => {

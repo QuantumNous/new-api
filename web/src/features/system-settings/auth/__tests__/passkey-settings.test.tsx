@@ -19,10 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 // @vitest-environment-options {"url":"https://console.example.com:8443"}
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from '@tanstack/react-router'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance, type i18n } from 'i18next'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,6 +39,7 @@ import { api } from '@/lib/api'
 
 import { SettingsPageProvider } from '../../components/settings-page-context'
 import type { PasskeyDomainChange } from '../../types'
+import { AuthSettings } from '../index'
 import { PasskeySection } from '../passkey-section'
 
 const domainHint =
@@ -70,7 +78,12 @@ function domainResponse(overrides: Partial<PasskeyDomainChange> = {}) {
 
 let testI18n: i18n
 
-function Fixture(props: { rpId?: string; origins?: string; legacy?: string }) {
+function Fixture(props: {
+  rpId?: string
+  origins?: string
+  legacy?: string
+  children?: ReactNode
+}) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [client] = useState(
     () =>
@@ -86,14 +99,16 @@ function Fixture(props: { rpId?: string; origins?: string; legacy?: string }) {
       <QueryClientProvider client={client}>
         <div ref={setContainer} />
         <SettingsPageProvider actionsContainer={container}>
-          <PasskeySection
-            defaultValues={{
-              ...defaults,
-              'passkey.rp_id': props.rpId ?? '',
-              'passkey.legacy_rp_ids': props.legacy ?? '',
-              'passkey.origins': props.origins ?? defaults['passkey.origins'],
-            }}
-          />
+          {props.children ?? (
+            <PasskeySection
+              defaultValues={{
+                ...defaults,
+                'passkey.rp_id': props.rpId ?? '',
+                'passkey.legacy_rp_ids': props.legacy ?? '',
+                'passkey.origins': props.origins ?? defaults['passkey.origins'],
+              }}
+            />
+          )}
         </SettingsPageProvider>
       </QueryClientProvider>
     </I18nextProvider>
@@ -115,6 +130,59 @@ beforeEach(async () => {
 })
 
 describe('Passkey website guidance', () => {
+  it.each([
+    ['', ''],
+    ['www.nekoapi.com', 'www.nekoapi.com'],
+    ['www.nekoapi.com,old.nekoapi.com', 'www.nekoapi.com\nold.nekoapi.com'],
+  ])(
+    'loads saved compatible domains "%s" through the authentication settings page',
+    async (legacy, displayed) => {
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+      vi.mocked(api.get).mockImplementation(async (url) => ({
+        data: {
+          success: true,
+          data:
+            url === '/api/option/'
+              ? [
+                  { key: 'passkey.rp_id', value: 'nekoapi.com' },
+                  { key: 'passkey.legacy_rp_ids', value: legacy },
+                ]
+              : { passkey_rp_id: 'nekoapi.com' },
+        },
+      }))
+      const root = createRootRoute()
+      const authenticated = createRoute({
+        getParentRoute: () => root,
+        id: '_authenticated',
+      })
+      const route = createRoute({
+        getParentRoute: () => authenticated,
+        path: 'system-settings/auth/$section',
+        component: AuthSettings,
+      })
+      const router = createRouter({
+        routeTree: root.addChildren([authenticated.addChildren([route])]),
+        history: createMemoryHistory({
+          initialEntries: ['/system-settings/auth/passkey'],
+        }),
+      })
+      render(
+        <Fixture>
+          <RouterProvider router={router} />
+        </Fixture>
+      )
+
+      expect(
+        await screen.findByRole('textbox', {
+          name: 'Compatible Passkey domains',
+        })
+      ).toHaveValue(displayed)
+      expect(
+        screen.getByRole('textbox', { name: 'Primary Passkey domain' })
+      ).toHaveValue('nekoapi.com')
+    }
+  )
+
   it('previews server impact and cancels domain removal without saving other settings', async () => {
     const put = vi.spyOn(api, 'put').mockResolvedValue({
       data: {

@@ -6,12 +6,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/reasonmap"
 	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 type ClaudeResponseInfo struct {
@@ -19,6 +18,8 @@ type ClaudeResponseInfo struct {
 	Created      int64
 	Model        string
 	ResponseText strings.Builder
+	// ToolUseCount counts streamed tool_use blocks for the output-token fallback.
+	ToolUseCount int
 	Usage        *dto.Usage
 	Done         bool
 
@@ -480,12 +481,12 @@ func setMessageDeltaUsageInt(data string, path string, localValue int) string {
 		return data
 	}
 
-	upstreamValue := gjson.Get(data, path)
+	upstreamValue := ojson.Get(data, path)
 	if upstreamValue.Exists() && upstreamValue.Int() > 0 {
 		return data
 	}
 
-	patchedData, err := sjson.Set(data, path, localValue)
+	patchedData, err := ojson.Set(data, path, localValue)
 	if err != nil {
 		return data
 	}
@@ -524,6 +525,9 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			if claudeResponse.Delta.Thinking != nil {
 				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Thinking)
 			}
+			if claudeResponse.Delta.PartialJson != nil {
+				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.PartialJson)
+			}
 		}
 	} else if claudeResponse.Type == "message_delta" {
 		if claudeResponse.Usage != nil {
@@ -552,6 +556,11 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 
 		claudeInfo.Done = true
 	} else if claudeResponse.Type == "content_block_start" {
+		// Tool calls are most of an agent turn's output; count them for usage fallback.
+		if block := claudeResponse.ContentBlock; block != nil && block.Type == "tool_use" {
+			claudeInfo.ResponseText.WriteString(block.Name)
+			claudeInfo.ToolUseCount++
+		}
 	} else {
 		return false
 	}

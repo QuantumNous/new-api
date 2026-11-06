@@ -20,7 +20,10 @@ import axios from 'axios'
 
 import { api, refreshAuthentication, type RefreshOutcome } from '@/lib/api'
 import { AuthOperationError } from '@/lib/secure-verification'
-import { getServerErrorMessageKey } from '@/lib/server-error-message'
+import {
+  getServerErrorMessageKey,
+  getServerMessage,
+} from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -204,7 +207,7 @@ export async function createOAuthAuthorization(
   }
   throw new AuthOperationError(
     getServerErrorMessageKey(res.data) ||
-      res.data?.message ||
+      getServerMessage(res.data) ||
       'Failed to initialize OAuth',
     res.data?.code
   )

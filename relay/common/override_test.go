@@ -121,6 +121,73 @@ func TestApplyParamOverrideMixedLegacyAndOperationsConflictPrefersOperations(t *
 	assertJSONEqual(t, `{"model":"op-model","temperature":0.2}`, string(out))
 }
 
+func TestApplyParamOverrideLaterOperationsSeeEarlierEdits(t *testing.T) {
+	input := []byte(`{"model":"gpt-4","messages":[{"type":"text","text":"a"},{"type":"thinking","text":"b"}],"tags":["x"]}`)
+	override := map[string]any{
+		"operations": []any{
+			map[string]any{"mode": "prune_objects", "value": "thinking"},
+			map[string]any{"path": "model", "mode": "set", "value": "gpt-5"},
+			map[string]any{
+				"path":       "reasoning_effort",
+				"mode":       "set",
+				"value":      "high",
+				"conditions": []any{map[string]any{"path": "model", "mode": "full", "value": "gpt-5"}},
+			},
+			map[string]any{"path": "tags", "mode": "append", "value": "y"},
+			map[string]any{"path": "tags.-1", "mode": "to_upper"},
+			map[string]any{"mode": "move", "from": "reasoning_effort", "to": "effort"},
+			map[string]any{"path": "effort", "mode": "set", "value": "low", "keep_origin": true},
+		},
+	}
+
+	out, err := ApplyParamOverride(input, override, nil)
+	require.NoError(t, err)
+	assert.Equal(t, `{"model":"gpt-5","messages":[{"type":"text","text":"a"}],"tags":["x","Y"],"effort":"high"}`, string(out))
+}
+
+// Object merges and prune_objects edit the body in place: members they do not
+// touch keep their order, number spelling and characters.
+func TestApplyParamOverrideMergeAndPruneKeepMemberOrder(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		op    map[string]any
+		want  string
+	}{
+		{
+			name:  "append merges into the object in place",
+			input: `{"zeta":1.0,"config":{"y":1e2,"b":"<b>&","keep":1},"model":"m"}`,
+			op:    map[string]any{"path": "config", "mode": "append", "value": map[string]any{"keep": 2, "c": true, "a": "x"}},
+			want:  `{"zeta":1.0,"config":{"y":1e2,"b":"<b>&","keep":2,"a":"x","c":true},"model":"m"}`,
+		},
+		{
+			name:  "keep_origin leaves existing members",
+			input: `{"config":{"y":1e2,"keep":1}}`,
+			op:    map[string]any{"path": "config", "mode": "append", "keep_origin": true, "value": map[string]any{"keep": 2, "a": "x"}},
+			want:  `{"config":{"y":1e2,"keep":1,"a":"x"}}`,
+		},
+		{
+			name:  "prune over the whole body",
+			input: `{"zeta":1.0,"messages":[{"type":"text","n":1e2},{"type":"thinking"},{"role":"u","content":[{"type":"thinking"},{"type":"text","b":"<b>&"}]}],"model":"m"}`,
+			op:    map[string]any{"mode": "prune_objects", "value": "thinking"},
+			want:  `{"zeta":1.0,"messages":[{"type":"text","n":1e2},{"role":"u","content":[{"type":"text","b":"<b>&"}]}],"model":"m"}`,
+		},
+		{
+			name:  "prune drops object members",
+			input: `{"a":{"x":{"type":"thinking"},"y":1.0},"b":2}`,
+			op:    map[string]any{"path": "a", "mode": "prune_objects", "value": "thinking"},
+			want:  `{"a":{"y":1.0},"b":2}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := ApplyParamOverride([]byte(tt.input), map[string]any{"operations": []any{tt.op}}, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, string(out))
+		})
+	}
+}
+
 func TestApplyParamOverrideTrimRequiresValue(t *testing.T) {
 	// trim_prefix requires value example:
 	// {"operations":[{"path":"model","mode":"trim_prefix"}]}
@@ -165,23 +232,45 @@ func TestApplyParamOverrideReplace(t *testing.T) {
 func TestApplyParamOverrideRegexReplace(t *testing.T) {
 	// regex_replace example:
 	// {"operations":[{"path":"model","mode":"regex_replace","from":"^gpt-","to":"openai/gpt-"}]}
-	input := []byte(`{"model":"gpt-4o-mini","temperature":0.7}`)
-	override := map[string]any{
-		"operations": []any{
-			map[string]any{
-				"path": "model",
-				"mode": "regex_replace",
-				"from": "^gpt-",
-				"to":   "openai/gpt-",
-			},
+	operation := map[string]any{"mode": "regex_replace"}
+	override := map[string]any{"operations": []any{operation}}
+	// Reusing a channel configuration must apply the current pattern on every request.
+	for _, tt := range []struct {
+		name  string
+		input string
+		path  string
+		from  string
+		to    string
+		want  string
+	}{
+		{
+			name:  "single path",
+			input: `{"model":"gpt-4o-mini","temperature":0.7}`,
+			path:  "model", from: "^gpt-", to: "openai/gpt-",
+			want: `{"model":"openai/gpt-4o-mini","temperature":0.7}`,
 		},
+		{
+			name:  "next request uses updated pattern",
+			input: `{"model":"gpt-4o-mini","temperature":0.7}`,
+			path:  "model", from: "-mini$", to: "",
+			want: `{"model":"gpt-4o","temperature":0.7}`,
+		},
+		{
+			name:  "wildcard path applies one pattern to every field",
+			input: `{"messages":[{"content":"foo 1"},{"content":"foo 2"},{"content":"bar"}]}`,
+			path:  "messages.*.content", from: `^foo (\d)$`, to: "baz $1",
+			want: `{"messages":[{"content":"baz 1"},{"content":"baz 2"},{"content":"bar"}]}`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			operation["path"] = tt.path
+			operation["from"] = tt.from
+			operation["to"] = tt.to
+			out, err := ApplyParamOverride([]byte(tt.input), override, nil)
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.want, string(out))
+		})
 	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"openai/gpt-4o-mini","temperature":0.7}`, string(out))
 }
 
 func TestApplyParamOverrideReplaceRequiresFrom(t *testing.T) {
@@ -668,6 +757,149 @@ func TestApplyParamOverrideAppendObjectMergeOverride(t *testing.T) {
 		t.Fatalf("ApplyParamOverride returned error: %v", err)
 	}
 	assertJSONEqual(t, `{"obj":{"a":2,"b":3}}`, string(out))
+}
+
+func TestApplyParamOverrideConditionRegex(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		path        string
+		pattern     any
+		context     map[string]any
+		invert      bool
+		passMissing bool
+		wantMatch   bool
+		wantError   string
+	}{
+		{name: "anchors and alternation match", input: `{"model":"gpt-4o"}`, pattern: `^(gpt|claude)-`, wantMatch: true},
+		{name: "anchors reject other models", input: `{"model":"vendor/gpt-4o"}`, pattern: `^gpt-`},
+		{name: "unanchored pattern matches substring", input: `{"model":"vendor/gpt-4o"}`, pattern: `gpt-`, wantMatch: true},
+		{name: "Go inline flags", input: `{"model":"GPT-4o"}`, pattern: `(?i)^gpt-`, wantMatch: true},
+		{name: "escaped pattern", input: `{"model":"gpt-4.1"}`, pattern: `^gpt-\d\.\d$`, wantMatch: true},
+		{name: "invert match", input: `{"model":"gpt-4o"}`, pattern: `^gpt-`, invert: true},
+		{name: "invert nonmatch", input: `{"model":"claude-sonnet"}`, pattern: `^gpt-`, invert: true, wantMatch: true},
+		{name: "missing key does not match even inverted", input: `{}`, pattern: `.*`, invert: true},
+		{name: "missing key can pass", input: `{}`, pattern: `^gpt-`, passMissing: true, wantMatch: true},
+		{name: "missing key skips invalid pattern", input: `{}`, pattern: `[`},
+		{name: "missing key can pass with invalid pattern", input: `{}`, pattern: `[`, passMissing: true, wantMatch: true},
+		{name: "context fallback", input: `{}`, pattern: `^gpt-`, context: map[string]any{"model": "gpt-4o"}, wantMatch: true},
+		{name: "body takes priority over context", input: `{"model":"claude-sonnet"}`, pattern: `^gpt-`, context: map[string]any{"model": "gpt-4o"}},
+		{name: "negative array index", input: `{"messages":[{"role":"user"}]}`, path: "messages.-1.role", pattern: `^(user|system)$`, wantMatch: true},
+		{name: "string conversion matches other text comparisons", input: `{"model":123}`, pattern: `^\d+$`, wantMatch: true},
+		{name: "empty pattern matches empty string", input: `{"model":""}`, pattern: "", wantMatch: true},
+		{name: "invalid pattern returns error", input: `{"model":"gpt-4o"}`, pattern: "[", wantError: "invalid regex pattern"},
+		{name: "nonstring pattern returns error", input: `{"model":"123"}`, pattern: 123, wantError: "regex pattern must be a string"},
+		{name: "missing pattern returns error", input: `{"model":"gpt-4o"}`, wantError: "regex pattern must be a string"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := tt.path
+			if path == "" {
+				path = "model"
+			}
+			override := map[string]any{
+				"operations": []any{map[string]any{
+					"mode": "set", "path": "matched", "value": true,
+					"conditions": []any{map[string]any{
+						"path": path, "mode": "regex", "value": tt.pattern,
+						"invert": tt.invert, "pass_missing_key": tt.passMissing,
+					}},
+				}},
+			}
+			out, err := ApplyParamOverride([]byte(tt.input), override, tt.context)
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				assert.ErrorContains(t, err, "comparison failed for path "+path)
+				return
+			}
+			require.NoError(t, err)
+			var result map[string]any
+			require.NoError(t, common2.Unmarshal(out, &result))
+			assert.Equal(t, tt.wantMatch, result["matched"] == true)
+			if !tt.wantMatch {
+				assert.JSONEq(t, tt.input, string(out))
+			}
+		})
+	}
+}
+
+func TestApplyParamOverrideRegexConditionLogic(t *testing.T) {
+	for _, tt := range []struct {
+		logic     string
+		wantMatch bool
+	}{
+		{logic: "OR", wantMatch: true},
+		{logic: "AND", wantMatch: false},
+	} {
+		t.Run(tt.logic, func(t *testing.T) {
+			override := map[string]any{
+				"operations": []any{map[string]any{
+					"mode": "set", "path": "matched", "value": true, "logic": tt.logic,
+					"conditions": []any{
+						map[string]any{"path": "model", "mode": "regex", "value": `^gpt-`},
+						map[string]any{"path": "stream", "mode": "full", "value": true},
+					},
+				}},
+			}
+			out, err := ApplyParamOverride([]byte(`{"model":"gpt-4o","stream":false}`), override, nil)
+			require.NoError(t, err)
+			var result map[string]any
+			require.NoError(t, common2.Unmarshal(out, &result))
+			assert.Equal(t, tt.wantMatch, result["matched"] == true)
+		})
+	}
+}
+
+func TestApplyParamOverridePruneObjectsRegex(t *testing.T) {
+	condition := map[string]any{"path": "role", "mode": "regex"}
+	override := map[string]any{
+		"operations": []any{map[string]any{
+			"mode": "prune_objects", "path": "messages",
+			"value": map[string]any{
+				"conditions": []any{condition},
+			},
+		}},
+	}
+	// Reusing a channel configuration must not reuse compiled patterns across requests.
+	for _, tt := range []struct {
+		name      string
+		input     string
+		pattern   string
+		want      string
+		wantError string
+	}{
+		{
+			name:    "one condition matches several objects",
+			input:   `{"messages":[{"role":"system"},{"role":"user"},{"role":"developer"}]}`,
+			pattern: `^(system|developer)$`, want: `{"messages":[{"role":"user"}]}`,
+		},
+		{
+			name:    "next request uses updated pattern",
+			input:   `{"messages":[{"role":"system"},{"role":"user"},{"role":"developer"}]}`,
+			pattern: `^user$`, want: `{"messages":[{"role":"system"},{"role":"developer"}]}`,
+		},
+		{
+			name:    "missing keys skip invalid pattern",
+			input:   `{"messages":[{"content":"hello"},{"content":"world"}]}`,
+			pattern: `[`, want: `{"messages":[{"content":"hello"},{"content":"world"}]}`,
+		},
+		{
+			name:    "invalid pattern errors on first present key after missing keys",
+			input:   `{"messages":[{"content":"hello"},{"role":"user"},{"role":"system"}]}`,
+			pattern: `[`, wantError: "comparison failed for path role: invalid regex pattern",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			condition["value"] = tt.pattern
+			out, err := ApplyParamOverride([]byte(tt.input), override, nil)
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				return
+			}
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.want, string(out))
+		})
+	}
 }
 
 func TestApplyParamOverrideConditionORDefault(t *testing.T) {
@@ -2163,6 +2395,28 @@ func TestRemoveDisabledFieldsDefaultFiltering(t *testing.T) {
 		t.Fatalf("RemoveDisabledFields returned error: %v", err)
 	}
 	assertJSONEqual(t, `{"cache_control":{"type":"ephemeral"},"store":true}`, string(out))
+}
+
+// Upstreams fill a schema's properties in their order, so removing a field
+// must leave the client's nested key order as it was.
+func TestRemoveDisabledFieldsKeepsNestedKeyOrder(t *testing.T) {
+	input := `{"service_tier":"flex","response_format":{"type":"json_schema","json_schema":{"name":"answer","schema":{"type":"object","properties":{"reasoning":{"type":"string"},"answer":{"type":"string"}}}}},"stream_options":{"include_usage":true,"include_obfuscation":false}}`
+
+	out, err := RemoveDisabledFields([]byte(input), dto.ChannelOtherSettings{}, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, `{"response_format":{"type":"json_schema","json_schema":{"name":"answer","schema":{"type":"object","properties":{"reasoning":{"type":"string"},"answer":{"type":"string"}}}}},"stream_options":{"include_usage":true}}`, string(out))
+}
+
+// Other members keep their bytes and order. A disabled key sent twice is
+// removed in every copy, since upstreams read the last one.
+func TestRemoveDisabledFieldsKeepsUntouchedBytes(t *testing.T) {
+	input := `{"model":"m","service_tier":"flex","temperature":1.0,"max_tokens":1e3,"stop":["<|end|>"],"service\u005ftier":"priority","stream_options":{"include_obfuscation":false}}`
+
+	out, err := RemoveDisabledFields([]byte(input), dto.ChannelOtherSettings{}, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, `{"model":"m","temperature":1.0,"max_tokens":1e3,"stop":["<|end|>"]}`, string(out))
 }
 
 func TestRemoveDisabledFieldsNoControlledFieldsKeepsBody(t *testing.T) {

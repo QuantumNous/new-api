@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -16,7 +17,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func mustApplyReasoningModelSuffix(t *testing.T, info *relaycommon.RelayInfo, outbound ...dto.Request) {
@@ -159,6 +159,27 @@ func TestApplyReasoningModelSuffixGeminiNoThinkingWhenAdapterEnabled(t *testing.
 	require.NotNil(t, info.ReasoningConversion)
 	assert.Equal(t, "disabled", info.ReasoningConversion.Mode)
 	assert.Equal(t, "none", info.ReasoningConversion.Effort)
+}
+
+func TestApplyReasoningModelSuffixClaudeEffortTailKeptWhenAdapterDisabled(t *testing.T) {
+	settings := model_setting.GetClaudeSettings()
+	original := settings.ThinkingAdapterEnabled
+	t.Cleanup(func() { settings.ThinkingAdapterEnabled = original })
+	settings.ThinkingAdapterEnabled = false
+
+	req := &dto.ClaudeRequest{Model: "claude-opus-5-5-high"}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "claude-opus-5-5-high",
+		Request:         req,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "claude-opus-5-5-high",
+		},
+	}
+
+	mustApplyReasoningModelSuffix(t, info, req)
+	assert.Equal(t, "claude-opus-5-5-high", info.UpstreamModelName)
+	assert.Equal(t, "claude-opus-5-5-high", req.Model)
+	assert.Nil(t, info.ReasoningConversion)
 }
 
 func TestApplyReasoningModelSuffixPreservesEffortTailModelID(t *testing.T) {
@@ -570,7 +591,7 @@ func TestApplyReasoningModelSuffixThinkingMinusOnePassthrough(t *testing.T) {
 	require.NotNil(t, info.ReasoningConversion.BudgetTokens)
 	assert.Equal(t, -1, *info.ReasoningConversion.BudgetTokens)
 	require.NotEmpty(t, request.Reasoning)
-	assert.Equal(t, float64(-1), gjson.GetBytes(request.Reasoning, "max_tokens").Num)
+	assert.Equal(t, float64(-1), ojson.GetBytes(request.Reasoning, "max_tokens").Num)
 }
 
 func TestApplyReasoningModelSuffixPreservesGpt51CodexMax(t *testing.T) {

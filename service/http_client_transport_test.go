@@ -1,21 +1,27 @@
 package service
 
 import (
+	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/hpack"
 )
 
 func withRelayHTTPTransportSettings(t *testing.T) {
@@ -23,13 +29,16 @@ func withRelayHTTPTransportSettings(t *testing.T) {
 	prevMaxIdle := common.RelayMaxIdleConns
 	prevPerHost := common.RelayMaxIdleConnsPerHost
 	prevTimeout := common.RelayIdleConnTimeout
+	prevPingIdle, prevPingTimeout := common.RelayHTTP2PingIdleTimeout, common.RelayHTTP2PingTimeout
 	common.RelayMaxIdleConns = 500
 	common.RelayMaxIdleConnsPerHost = 100
 	common.RelayIdleConnTimeout = 90
+	common.RelayHTTP2PingIdleTimeout, common.RelayHTTP2PingTimeout = 1, 1
 	t.Cleanup(func() {
 		common.RelayMaxIdleConns = prevMaxIdle
 		common.RelayMaxIdleConnsPerHost = prevPerHost
 		common.RelayIdleConnTimeout = prevTimeout
+		common.RelayHTTP2PingIdleTimeout, common.RelayHTTP2PingTimeout = prevPingIdle, prevPingTimeout
 	})
 }
 
@@ -297,6 +306,75 @@ func TestHTTPClientCachePolicyAndCompatibility(t *testing.T) {
 	proxyHTTP1, err := GetHttpClientWithProxySettings(proxyA, dto.ChannelSettings{HTTPProtocol: dto.HTTPProtocolHTTP1})
 	require.NoError(t, err)
 	assert.NotSame(t, clientA, proxyHTTP1)
+
+	insecure, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
+	assert.NotSame(t, aware, insecure, "skip-verify channels must not share the verifying client")
+	insecureHTTP1, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{HTTPProtocol: dto.HTTPProtocolHTTP1, TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
+	assert.NotSame(t, http1, insecureHTTP1)
+	proxyInsecure, err := GetHttpClientWithProxySettings(proxyA, dto.ChannelSettings{TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
+	assert.NotSame(t, clientA, proxyInsecure)
+}
+
+func TestChannelTLSInsecureSkipVerifyAcceptsUntrustedUpstream(t *testing.T) {
+	initDefaultHTTPClientFixture(t)
+	upstream := startHTTP2TLSServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	connectProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodConnect {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		target, err := net.Dial("tcp", r.Host)
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		defer target.Close()
+		conn, _, err := http.NewResponseController(w).Hijack()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _ = conn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+		go func() { _, _ = io.Copy(target, conn) }()
+		_, _ = io.Copy(conn, target)
+	}))
+	t.Cleanup(connectProxy.Close)
+
+	skip := dto.ChannelSettings{TLSInsecureSkipVerify: true}
+	testCases := []struct {
+		name      string
+		proxy     string
+		settings  dto.ChannelSettings
+		wantProto int // zero means certificate verification must fail
+	}{
+		{name: "default direct verifies", settings: dto.ChannelSettings{}},
+		{name: "default proxy verifies", proxy: connectProxy.URL, settings: dto.ChannelSettings{}},
+		{name: "http1 verifies", settings: dto.ChannelSettings{HTTPProtocol: dto.HTTPProtocolHTTP1}},
+		{name: "skip direct", settings: skip, wantProto: 2},
+		{name: "skip proxy", proxy: connectProxy.URL, settings: skip, wantProto: 2},
+		{name: "skip http1", settings: dto.ChannelSettings{HTTPProtocol: dto.HTTPProtocolHTTP1, TLSInsecureSkipVerify: true}, wantProto: 1},
+		{name: "skip sharded", settings: dto.ChannelSettings{HTTP2ConnectionShards: 3, TLSInsecureSkipVerify: true}, wantProto: 2},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := GetHttpClientWithProxySettings(tc.proxy, tc.settings)
+			require.NoError(t, err)
+			resp, err := client.Get(upstream.URL)
+			if tc.wantProto == 0 {
+				var verifyErr *tls.CertificateVerificationError
+				require.ErrorAs(t, err, &verifyErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantProto, resp.ProtoMajor)
+			drainClose(t, resp)
+		})
+	}
 }
 
 func TestHTTPClientCacheConcurrentGetOrCreate(t *testing.T) {
@@ -366,6 +444,8 @@ func TestInvalidateProxyClientClosesAllPolicyVariants(t *testing.T) {
 	require.NoError(t, err)
 	shardedClient, err := GetHttpClientWithProxySettings(proxyURL, dto.ChannelSettings{HTTP2ConnectionShards: 2})
 	require.NoError(t, err)
+	insecureClient, err := GetHttpClientWithProxySettings(proxyURL, dto.ChannelSettings{TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
 
 	InvalidateProxyClient(proxyURL)
 
@@ -375,10 +455,13 @@ func TestInvalidateProxyClientClosesAllPolicyVariants(t *testing.T) {
 	require.NoError(t, err)
 	afterSharded, err := GetHttpClientWithProxySettings(proxyURL, dto.ChannelSettings{HTTP2ConnectionShards: 2})
 	require.NoError(t, err)
+	afterInsecure, err := GetHttpClientWithProxySettings(proxyURL, dto.ChannelSettings{TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
 
 	assert.NotSame(t, defaultClient, afterDefault)
 	assert.NotSame(t, http1Client, afterHTTP1)
 	assert.NotSame(t, shardedClient, afterSharded)
+	assert.NotSame(t, insecureClient, afterInsecure)
 }
 
 func TestResetProxyClientCacheKeepsDefaultPointerAndRecreatesVariants(t *testing.T) {
@@ -389,6 +472,8 @@ func TestResetProxyClientCacheKeepsDefaultPointerAndRecreatesVariants(t *testing
 	shardedClient, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{HTTP2ConnectionShards: 3})
 	require.NoError(t, err)
 	proxyClient, err := GetHttpClientWithProxy("http://reset-proxy.example:8080")
+	require.NoError(t, err)
+	insecureClient, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{TLSInsecureSkipVerify: true})
 	require.NoError(t, err)
 
 	ResetProxyClientCache()
@@ -404,9 +489,12 @@ func TestResetProxyClientCacheKeepsDefaultPointerAndRecreatesVariants(t *testing
 	require.NoError(t, err)
 	afterProxy, err := GetHttpClientWithProxy("http://reset-proxy.example:8080")
 	require.NoError(t, err)
+	afterInsecure, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
 	assert.NotSame(t, http1Client, afterHTTP1)
 	assert.NotSame(t, shardedClient, afterSharded)
 	assert.NotSame(t, proxyClient, afterProxy)
+	assert.NotSame(t, insecureClient, afterInsecure)
 }
 
 func TestResetProxyClientCacheClosesDefaultIdlePool(t *testing.T) {
@@ -488,4 +576,136 @@ func TestNormalizeHTTPTransportPolicyClampsWithoutPanic(t *testing.T) {
 	assert.Equal(t, HTTPTransportPolicy{Protocol: dto.HTTPProtocolAuto, Shards: 1}, NormalizeHTTPTransportPolicy(dto.ChannelSettings{HTTPProtocol: "http3"}))
 	assert.Equal(t, HTTPTransportPolicy{Protocol: dto.HTTPProtocolAuto, Shards: 1}, NormalizeHTTPTransportPolicy(dto.ChannelSettings{HTTP2ConnectionShards: -3}))
 	assert.Equal(t, HTTPTransportPolicy{Protocol: dto.HTTPProtocolAuto, Shards: 8}, NormalizeHTTPTransportPolicy(dto.ChannelSettings{HTTP2ConnectionShards: 99}))
+}
+
+// serveHTTP2ProbePeer can withhold PING acknowledgements without sending FIN or
+// RST, reproducing an upstream connection silently lost by an intermediary.
+func serveHTTP2ProbePeer(conn net.Conn, acknowledge bool, pings *atomic.Int32) error {
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
+	}
+	preface := make([]byte, len(http2.ClientPreface))
+	if _, err := io.ReadFull(conn, preface); err != nil {
+		return err
+	}
+	if string(preface) != http2.ClientPreface {
+		return fmt.Errorf("unexpected HTTP/2 preface: %q", preface)
+	}
+	framer := http2.NewFramer(conn, conn)
+	framer.ReadMetaHeaders = hpack.NewDecoder(4096, nil)
+	if err := framer.WriteSettings(); err != nil {
+		return err
+	}
+	var streamID uint32
+	for {
+		frame, err := framer.ReadFrame()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		switch frame := frame.(type) {
+		case *http2.SettingsFrame:
+			if !frame.IsAck() {
+				if err := framer.WriteSettingsAck(); err != nil {
+					return err
+				}
+			}
+		case *http2.MetaHeadersFrame:
+			streamID = frame.StreamID
+			var block bytes.Buffer
+			if err := hpack.NewEncoder(&block).WriteField(hpack.HeaderField{Name: ":status", Value: "200"}); err != nil {
+				return err
+			}
+			if err := framer.WriteHeaders(http2.HeadersFrameParam{StreamID: streamID, BlockFragment: block.Bytes(), EndHeaders: true}); err != nil {
+				return err
+			}
+			if err := framer.WriteData(streamID, false, []byte("start")); err != nil {
+				return err
+			}
+		case *http2.PingFrame:
+			if frame.IsAck() {
+				continue
+			}
+			count := pings.Add(1)
+			if acknowledge {
+				if err := framer.WritePing(true, frame.Data); err != nil {
+					return err
+				}
+				if count >= 2 && streamID != 0 {
+					if err := framer.WriteData(streamID, true, []byte("end")); err != nil {
+						return err
+					}
+					streamID = 0
+				}
+			}
+		}
+	}
+}
+
+func TestRelayHTTP2HealthCheck(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		idleTimeout int
+		acknowledge bool
+	}{
+		{name: "disabled", idleTimeout: 0},
+		{name: "healthy slow response", idleTimeout: 1, acknowledge: true},
+		{name: "unresponsive connection", idleTimeout: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withRelayHTTPTransportSettings(t)
+			common.RelayHTTP2PingIdleTimeout = tc.idleTimeout
+
+			var connections, pings atomic.Int32
+			peerErrors := make(chan error, 4)
+			server := httptest.NewUnstartedServer(nil)
+			server.EnableHTTP2 = true
+			server.Config.TLSNextProto = map[string]func(*http.Server, *tls.Conn, http.Handler){
+				"h2": func(_ *http.Server, conn *tls.Conn, _ http.Handler) {
+					connection := connections.Add(1)
+					acknowledge := tc.acknowledge || connection > 1
+					peerErrors <- serveHTTP2ProbePeer(conn, acknowledge, &pings)
+				},
+			}
+			server.StartTLS()
+			t.Cleanup(server.Close)
+			client := newHTTPClientWithPolicyAndTLS(defaultHTTPTransportPolicy(), testTLSClientConfig(t, server))
+			client.Timeout = 7 * time.Second
+			if tc.idleTimeout == 0 {
+				client.Timeout = 3 * time.Second
+			}
+			t.Cleanup(client.CloseIdleConnections)
+
+			resp, err := client.Get(server.URL)
+			require.NoError(t, err)
+			require.Equal(t, 2, resp.ProtoMajor)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, resp.Body.Close())
+			if tc.idleTimeout == 0 {
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+				assert.Zero(t, pings.Load(), "disabled probes must preserve the existing transport behavior")
+			} else if tc.acknowledge {
+				require.NoError(t, err, "a slow response must survive acknowledged health checks")
+				assert.Equal(t, "startend", string(body))
+				assert.GreaterOrEqual(t, pings.Load(), int32(2))
+				assert.Equal(t, int32(1), connections.Load())
+			} else {
+				require.ErrorContains(t, err, "http2: client connection lost")
+				assert.Equal(t, "start", string(body), "already delivered content must not be replayed")
+				assert.Equal(t, int32(1), connections.Load())
+				require.NoError(t, <-peerErrors, "the peer must observe the failed connection close")
+
+				resp, err = client.Get(server.URL)
+				require.NoError(t, err)
+				body, err = io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.NoError(t, resp.Body.Close())
+				assert.Equal(t, "startend", string(body))
+				assert.Equal(t, int32(2), connections.Load(), "the next request must establish a fresh connection")
+			}
+		})
+	}
 }

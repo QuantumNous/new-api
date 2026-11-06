@@ -28,7 +28,6 @@ import type {
 import {
   BILLING_PRICING_VARS,
   getCurrentTimePricingTiers,
-  parseTaskTiersFromExpr,
   parseTiersFromExpr,
   splitBillingExprAndRequestRules,
   tryParseRequestRuleExpr,
@@ -44,6 +43,7 @@ import {
   getTaskNumberFields,
   tryParseTaskVisualConfig,
 } from './task-expr'
+import { getTaskPricingDisplayTiers } from './task-matrix-display'
 
 export type DynamicPriceOptions = {
   tokenUnit: TokenUnit
@@ -78,6 +78,7 @@ export type DynamicPriceEntry = {
 
 export type CardExamplePrice = {
   label: string
+  total: number
   formatted: string
 }
 
@@ -258,7 +259,7 @@ export function getDynamicPricingTiers(
     model.billing_expr || ''
   )
   if (isTaskUsagePricingModel(model)) {
-    return parseTaskTiersFromExpr(billingExpr, model.billing_usage_schema, true)
+    return getTaskPricingDisplayTiers(billingExpr, model.billing_usage_schema)
   }
   return parseTiersFromExpr(billingExpr)
 }
@@ -353,20 +354,23 @@ export function getDynamicPriceEntries(
       return []
     }
 
+    let label = variable.label
+    let shortLabel = variable.shortLabel
+    if (variable.key === 'cc') {
+      if (typeof (tier as ParsedTier).cacheCreate1hPrice === 'number') {
+        label = 'Cache Creation (5m)'
+        shortLabel = 'Cache Write (5m)'
+      } else if (typeof (tier as ParsedTier).cacheCreate12hPrice === 'number') {
+        label = 'Cache Creation (30m)'
+        shortLabel = 'Cache Write (30m)'
+      }
+    }
     return [
       {
         key: variable.key,
         field: variable.field,
-        label:
-          variable.key === 'cc' &&
-          typeof (tier as ParsedTier).cacheCreate1hPrice === 'number'
-            ? 'Cache Creation (5m)'
-            : variable.label,
-        shortLabel:
-          variable.key === 'cc' &&
-          typeof (tier as ParsedTier).cacheCreate1hPrice === 'number'
-            ? 'Cache Write (5m)'
-            : variable.shortLabel,
+        label,
+        shortLabel,
         labelKind: 'i18n' as const,
         value,
         formatted: formatDynamicUnitPrice(value, options),
@@ -620,6 +624,7 @@ export function getCardExamplePrice(
 
   return {
     label: firstExample.label,
+    total: result.total,
     formatted: formatTaskUsageUnitPrice(result.total, options),
   }
 }

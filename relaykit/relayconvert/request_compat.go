@@ -30,7 +30,20 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 }
 
 func ApplyGeminiThinkingConfigChecked(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta, oaiRequest ...dto.GeneralOpenAIRequest) error {
-	return reasoning.AsClientError(sharedgemini.ApplyThinkingConfig(geminiRequest, info, oaiRequest...))
+	ctx, collector := convdiag.WithCollector(context.Background())
+	err := reasoning.AsClientError(sharedgemini.ApplyThinkingConfig(ctx, geminiRequest, info, oaiRequest...))
+	if recorder, ok := info.(interface {
+		RecordConversionDiagnostics(context.Context, []types.ConversionDiagnostic)
+	}); ok {
+		diagnostics := collector.Diagnostics()
+		for i := range diagnostics {
+			if diagnostics[i].To == "" {
+				diagnostics[i].To = types.RelayFormatGemini
+			}
+		}
+		recorder.RecordConversionDiagnostics(ctx, diagnostics)
+	}
+	return err
 }
 
 func ApplyClaudeThinkingModel(claudeRequest *dto.ClaudeRequest, info convmeta.Meta) error {

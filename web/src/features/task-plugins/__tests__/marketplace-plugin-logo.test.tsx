@@ -84,7 +84,8 @@ describe('marketplace card logo', () => {
       )
     })
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/plugins/tasks/incho/icon.svg'
+      'https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/plugins/tasks/incho/icon.svg',
+      expect.anything()
     )
   })
 

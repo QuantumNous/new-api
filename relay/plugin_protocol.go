@@ -13,6 +13,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 )
 
 const (
@@ -101,15 +102,13 @@ type ProtocolState struct {
 	Value   json.RawMessage
 }
 
-func (s ProtocolState) PluginValue() (any, error) {
+// PluginValue returns the state as a hook argument: nil when it is absent or
+// null, otherwise its JSON text for the hook to receive parsed.
+func (s ProtocolState) PluginValue() any {
 	if !s.Present || s.Null {
-		return nil, nil
+		return nil
 	}
-	var value any
-	if err := common.Unmarshal(s.Value, &value); err != nil {
-		return nil, err
-	}
-	return value, nil
+	return pluginruntime.RawJSON(s.Value)
 }
 
 type ProtocolSemanticEvent struct {

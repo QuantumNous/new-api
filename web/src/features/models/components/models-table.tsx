@@ -26,7 +26,10 @@ import { ErrorState } from '@/components/error-state'
 import { useModelPricing } from '@/features/model-pricing/api'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
-import { requireServerSuccess } from '@/lib/server-error-message'
+import {
+  getServerMessage,
+  requireServerSuccess,
+} from '@/lib/server-error-message'
 
 import { getModels, searchModels, getVendors } from '../api'
 import { DEFAULT_PAGE_SIZE } from '../constants'
@@ -224,7 +227,7 @@ export function ModelsTable() {
   if (isError || data?.success === false) {
     return (
       <ErrorState
-        description={error?.message ?? data?.message}
+        description={error?.message ?? getServerMessage(data)}
         onRetry={() => void refetch()}
       />
     )

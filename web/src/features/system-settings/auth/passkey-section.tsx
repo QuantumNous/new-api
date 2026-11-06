@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { getServerMessage } from '@/lib/server-error-message'
 import { statusQueryOptions } from '@/lib/status-query'
 import { cn } from '@/lib/utils'
 
@@ -99,7 +100,7 @@ type FlatPasskeyDefaults = {
   'passkey.enabled': boolean
   'passkey.rp_display_name': string
   'passkey.rp_id': string
-  'passkey.legacy_rp_ids'?: string
+  'passkey.legacy_rp_ids': string
   'passkey.origins': string
   'passkey.allow_insecure_origin': boolean
   'passkey.user_verification': 'required' | 'preferred' | 'discouraged'
@@ -265,7 +266,7 @@ export function PasskeySection(props: PasskeySectionProps) {
           setPendingDomainChange({
             values: normalized,
             preview: result.data,
-            notice: result.message,
+            notice: getServerMessage(result),
           })
           return
         }

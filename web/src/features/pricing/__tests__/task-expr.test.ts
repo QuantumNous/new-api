@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
+
 import { describe, test } from 'vitest'
 
 import {
@@ -128,6 +129,24 @@ describe('task billing expressions', () => {
     assert.equal(
       tryParseTaskVisualConfig('tier("base", u("unknown") * 0.4)', schema),
       null
+    )
+  })
+
+  test('drops tiers on enum values the schema no longer declares', () => {
+    const expression =
+      'u("mode") == "ultra" ? tier("ultra", u("seconds") * 1.2) : u("mode") == "pro" ? tier("pro", u("seconds") * 0.8) : tier("std", u("seconds") * 0.4)'
+    const parsed = tryParseTaskVisualConfig(expression, schema)
+    assert.ok(parsed)
+    assert.deepEqual(
+      parsed.tiers.map((tier) => [tier.label, tier.unitPrices.seconds]),
+      [
+        ['pro', 0.8],
+        ['std', 0.4],
+      ]
+    )
+    assert.deepEqual(
+      parseTaskTiersFromExpr(expression, schema).map((tier) => tier.label),
+      ['pro', 'std']
     )
   })
 })
@@ -305,7 +324,10 @@ describe('task visual pricing preview', () => {
       null
     )
     assert.deepEqual(
-      parseTaskTiersFromExpr('tier("base", u("tokens") * 0.0000098)', tokenSchema),
+      parseTaskTiersFromExpr(
+        'tier("base", u("tokens") * 0.0000098)',
+        tokenSchema
+      ),
       []
     )
   })

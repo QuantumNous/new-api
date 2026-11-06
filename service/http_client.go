@@ -96,6 +96,14 @@ func newRelayHTTPTransport() *http.Transport {
 	transport.MaxIdleConns = common.RelayMaxIdleConns
 	transport.MaxIdleConnsPerHost = common.RelayMaxIdleConnsPerHost
 	transport.IdleConnTimeout = time.Duration(common.RelayIdleConnTimeout) * time.Second
+	if seconds := common.RelayHTTP2PingIdleTimeout; seconds > 0 {
+		if transport.HTTP2 == nil {
+			transport.HTTP2 = &http.HTTP2Config{}
+		}
+		// Probe the upstream connection, independently of downstream SSE heartbeats.
+		transport.HTTP2.SendPingTimeout = time.Duration(min(seconds, maxTimeoutSeconds)) * time.Second
+		transport.HTTP2.PingTimeout = time.Duration(min(max(common.RelayHTTP2PingTimeout, 0), maxTimeoutSeconds)) * time.Second
+	}
 	// Bound the wait for upstream response headers. Without it, an upstream that
 	// accepts the connection but never responds (and never sends FIN/RST) parks the
 	// goroutine forever, and every buffer that request owns -- the raw body read by
@@ -116,7 +124,7 @@ func newRelayHTTPTransport() *http.Transport {
 	}
 	transport.ForceAttemptHTTP2 = true
 	if common.TLSInsecureSkipVerify {
-		transport.TLSClientConfig = common.InsecureTLSConfig
+		transport.TLSClientConfig = common.InsecureTLSConfig.Clone()
 	}
 	return transport
 }
@@ -176,7 +184,7 @@ func warnLegacyProxyURLOnce(config *proxyURLConfig) {
 	}
 	logger.LogWarn(
 		context.Background(),
-		fmt.Sprintf(
+		common.LogText(
 			"legacy proxy URL suffix ignored at runtime: scheme=%s host=%s; update the channel proxy setting",
 			config.parsedURL.Scheme,
 			config.parsedURL.Host,
@@ -333,6 +341,9 @@ func newTransportFactory(proxyURL *url.URL, tlsConfig *tls.Config) (func() *http
 }
 
 func newHTTPClientFromPolicy(policy HTTPTransportPolicy, proxyURL *url.URL, tlsConfig *tls.Config) (*http.Client, error) {
+	if policy.TLSInsecureSkipVerify {
+		tlsConfig = common.InsecureTLSConfig
+	}
 	factory, err := newTransportFactory(proxyURL, tlsConfig)
 	if err != nil {
 		return nil, err

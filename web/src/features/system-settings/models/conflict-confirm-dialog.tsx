@@ -28,6 +28,8 @@ export type ConflictItem = {
   model: string
   current: string
   newVal: string
+  adjustment?: string
+  siteVal?: string
 }
 type ConflictConfirmDialogProps = {
   open: boolean
@@ -37,6 +39,7 @@ type ConflictConfirmDialogProps = {
   isLoading?: boolean
   error?: string
   onReload?: () => void
+  exchangeRateSummary?: string
 }
 export function ConflictConfirmDialog(props: ConflictConfirmDialogProps) {
   const { t } = useTranslation()
@@ -47,12 +50,17 @@ export function ConflictConfirmDialog(props: ConflictConfirmDialogProps) {
       onOpenChange={props.onOpenChange}
       title={t('Preview price changes')}
       desc={t('Review and confirm the selected prices.')}
-      className='max-h-[90vh] overflow-y-auto data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-4xl'
+      className='max-h-[min(90dvh,var(--dialog-available-height))] overflow-y-auto data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-4xl'
       confirmText={t('Confirm Changes')}
       isLoading={props.isLoading}
       handleConfirm={props.onConfirm}
       disabled={Boolean(props.error)}
     >
+      {props.exchangeRateSummary && (
+        <p className='text-muted-foreground text-sm'>
+          {props.exchangeRateSummary}
+        </p>
+      )}
       {props.error && (
         <ErrorState
           description={props.error}
@@ -91,11 +99,23 @@ export function ConflictConfirmDialog(props: ConflictConfirmDialogProps) {
           },
           {
             id: 'new',
-            header: t('Change To'),
+            header: t('Final saved price'),
             cell: (conflict) => (
-              <pre className='text-sm whitespace-pre-wrap'>
-                {conflict.newVal}
-              </pre>
+              <div className='space-y-2'>
+                {conflict.adjustment && (
+                  <p className='text-muted-foreground text-xs'>
+                    {conflict.adjustment}
+                  </p>
+                )}
+                <pre className='text-sm whitespace-pre-wrap'>
+                  {conflict.newVal}
+                </pre>
+                {conflict.siteVal && (
+                  <pre className='text-muted-foreground text-xs whitespace-pre-wrap'>
+                    {conflict.siteVal}
+                  </pre>
+                )}
+              </div>
             ),
           },
         ]}

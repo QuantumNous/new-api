@@ -20,6 +20,7 @@ import { Check, CircleAlert, CircleDashed } from 'lucide-react'
 import { type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Tooltip,
@@ -37,8 +38,13 @@ type ChannelConfigurationProps = {
   section: ChannelConfigurationSection
   onSectionChange: (section: ChannelConfigurationSection) => void
   statuses: Record<ChannelConfigurationSection, ChannelConfigurationStatus>
+  /** Item counts shown on a tab; a count replaces the plain configured mark. */
+  badges?: Partial<
+    Record<ChannelConfigurationSection, { count: number; label: string }>
+  >
   connection: ReactNode
   models: ReactNode
+  quickOptions: ReactNode
   routing: ReactNode
   request: ReactNode
   other: ReactNode
@@ -116,19 +122,35 @@ export function ChannelConfiguration(props: ChannelConfigurationProps) {
           variant='line'
           className='min-w-full justify-start'
         >
-          {sections.map((section) => (
-            <TabsTrigger
-              key={section.id}
-              value={section.id}
-              className='gap-2 px-3'
-            >
-              {section.label}
-              <ChannelConfigurationStatusIndicator
-                status={props.statuses[section.id]}
-                required={section.id === 'connection'}
-              />
-            </TabsTrigger>
-          ))}
+          {sections.map((section) => {
+            const status = props.statuses[section.id]
+            const badge = props.badges?.[section.id]
+            const showBadge = Boolean(badge && badge.count > 0)
+            return (
+              <TabsTrigger
+                key={section.id}
+                value={section.id}
+                className='gap-2 px-3'
+              >
+                {section.label}
+                {showBadge && badge && (
+                  <Badge
+                    variant='secondary'
+                    aria-label={badge.label}
+                    className='h-4 min-w-4 px-1 text-[10px] tabular-nums'
+                  >
+                    {badge.count}
+                  </Badge>
+                )}
+                {!(showBadge && status === 'configured') && (
+                  <ChannelConfigurationStatusIndicator
+                    status={status}
+                    required={section.id === 'connection'}
+                  />
+                )}
+              </TabsTrigger>
+            )
+          })}
         </TabsList>
       </div>
       <TabsContent
@@ -138,7 +160,10 @@ export function ChannelConfiguration(props: ChannelConfigurationProps) {
       >
         <div className='grid min-w-0 items-start gap-6 lg:grid-cols-2'>
           <div className='flex min-w-0 flex-col gap-5'>{props.connection}</div>
-          <div className='min-w-0'>{props.models}</div>
+          <div className='flex min-w-0 flex-col gap-5'>
+            {props.models}
+            {props.quickOptions}
+          </div>
         </div>
       </TabsContent>
       <TabsContent

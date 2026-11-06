@@ -28,7 +28,11 @@ import { PluginEndpoints } from './plugin-endpoints'
 import { PluginModelList } from './plugin-model-list'
 import { PluginWebsiteLink } from './plugin-website-link'
 
-type PluginMetadataCardProps = { meta: TaskPluginMeta }
+type PluginMetadataCardProps = {
+  meta: TaskPluginMeta
+  /** Declared routes the gateway serves only under /{key}. */
+  skippedRoutes?: string[]
+}
 
 export function PluginMetadataCard(props: PluginMetadataCardProps) {
   const { t } = useTranslation()
@@ -124,6 +128,8 @@ export function PluginMetadataCard(props: PluginMetadataCardProps) {
         <PluginEndpoints
           protocols={props.meta.protocols}
           routes={props.meta.routes}
+          pluginKey={props.meta.key}
+          skippedRoutes={props.skippedRoutes}
         />
       </section>
     </div>

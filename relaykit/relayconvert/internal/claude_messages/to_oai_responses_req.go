@@ -1,6 +1,7 @@
 package claudemessages
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,11 +9,13 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
-func ClaudeMessagesRequestToOpenAIResponses(claudeRequest dto.ClaudeRequest, info convmeta.Meta) (*dto.OpenAIResponsesRequest, error) {
+func ClaudeMessagesRequestToOpenAIResponses(ctx context.Context, claudeRequest dto.ClaudeRequest, info convmeta.Meta) (*dto.OpenAIResponsesRequest, error) {
 	if strings.TrimSpace(claudeRequest.Model) == "" {
 		return nil, errors.New("model is required")
 	}
@@ -67,7 +70,7 @@ func ClaudeMessagesRequestToOpenAIResponses(claudeRequest dto.ClaudeRequest, inf
 		responsesRequest.MaxOutputTokens = &maxOutputTokens
 	}
 
-	reasoningIntent, effectiveEffort, err := claudeRequestReasoningIntent(&claudeRequest, info)
+	reasoningIntent, effectiveEffort, err := claudeRequestReasoningIntent(ctx, &claudeRequest, info)
 	if err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
@@ -81,20 +84,22 @@ func ClaudeMessagesRequestToOpenAIResponses(claudeRequest dto.ClaudeRequest, inf
 	return responsesRequest, nil
 }
 
-func claudeRequestReasoningIntent(claudeRequest *dto.ClaudeRequest, info convmeta.Meta) (reasoning.Intent, reasoning.Effort, error) {
-	reasoningIntent, err := reasoning.FromClaude(claudeRequest)
+func claudeRequestReasoningIntent(ctx context.Context, claudeRequest *dto.ClaudeRequest, info convmeta.Meta) (reasoning.Intent, reasoning.Effort, error) {
+	reasoningIntent, diagnostics, err := reasoning.FromClaude(claudeRequest)
 	if err != nil {
 		return reasoning.Intent{}, "", err
 	}
+	convdiag.Add(ctx, diagnostics...)
 	sourceModel := claudeRequest.Model
 	if info != nil && info.GetOriginModelName() != "" {
 		sourceModel = info.GetOriginModelName()
 	}
 	if suffix := reasoning.IntentFromState(convmeta.ReasoningStateOf(info)); !suffix.IsEmpty() {
-		reasoningIntent, err = reasoning.MergeExplicitAndSuffix(reasoningIntent, suffix, sourceModel)
+		reasoningIntent, diagnostics, err = reasoning.MergeExplicitAndSuffix(reasoningIntent, suffix, sourceModel)
 		if err != nil {
 			return reasoning.Intent{}, "", err
 		}
+		convdiag.Add(ctx, diagnostics...)
 	}
 	reasoningIntent = reasoning.ResolveClaudeDefault(sourceModel, reasoningIntent)
 	return reasoningIntent, reasoning.EffectiveEffort(reasoningIntent), nil
@@ -173,6 +178,7 @@ func claudeMessagesToResponsesInput(messages []dto.ClaudeMessage) (json.RawMessa
 					contentParts = append(contentParts, map[string]any{
 						"type":      "input_image",
 						"image_url": source,
+						"detail":    relaymedia.DefaultResponsesImageDetail,
 					})
 				}
 			case "document":
@@ -294,7 +300,11 @@ func claudeToolResultToResponsesOutput(content any) (any, error) {
 			parts = append(parts, map[string]any{"type": "input_text", "text": block.GetText()})
 		case "image":
 			if source := claudeSourceURL(block.Source); source != "" {
-				parts = append(parts, map[string]any{"type": "input_image", "image_url": source})
+				parts = append(parts, map[string]any{
+					"type":      "input_image",
+					"image_url": source,
+					"detail":    relaymedia.DefaultResponsesImageDetail,
+				})
 			}
 		case "document":
 			if source := claudeSourceURL(block.Source); source != "" {

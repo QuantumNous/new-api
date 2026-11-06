@@ -1,16 +1,22 @@
 package plugins_test
 
 import (
+	"maps"
 	"net/http"
+	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	builtinplugins "github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/relay/channel"
 	taskplugin "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,33 +48,120 @@ func TestHailuoResponsesProtocol(t *testing.T) {
 	})
 }
 
-func TestHailuoArtifactContentProxy(t *testing.T) {
-	source, err := builtinplugins.Source("hailuo")
-	require.NoError(t, err)
-	plugin, err := jsplugin.NewRegistry().RegisterFactory(source, jsplugin.Options{Key: "hailuo"})
-	require.NoError(t, err)
-	adaptor := taskplugin.New(plugin)
-	adaptor.Init(&relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ApiKey:         "test-ak",
-			ChannelBaseUrl: "https://api.minimax.example",
+// Every model selects only the dimensions it can actually bill, while
+// submission still reports the union so prices saved against the previous
+// schema keep evaluating.
+func TestHailuoUsageProfilesPerModel(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	families := []struct {
+		models      []string
+		fields      []string
+		resolutions []string
+	}{
+		{
+			models:      []string{"MiniMax-H3"},
+			fields:      []string{"input_images", "input_video_seconds", "resolution", "seconds"},
+			resolutions: []string{"768P", "2K"},
 		},
+		{
+			models:      []string{"MiniMax-Hailuo-2.3", "MiniMax-Hailuo-2.3-Fast"},
+			fields:      []string{"resolution", "seconds"},
+			resolutions: []string{"768P", "1080P"},
+		},
+		{
+			models:      []string{"MiniMax-Hailuo-02"},
+			fields:      []string{"resolution", "seconds"},
+			resolutions: []string{"512P", "768P", "1080P"},
+		},
+		{
+			models: []string{"T2V-01-Director", "T2V-01", "I2V-01-Director", "I2V-01-live", "I2V-01", "S2V-01"},
+			fields: []string{"seconds"},
+		},
+	}
+	profiled := make([]string, 0, len(plugin.Meta.Models))
+	for _, family := range families {
+		for _, name := range family.models {
+			profiled = append(profiled, name)
+			t.Run(name, func(t *testing.T) {
+				schema, examples := plugin.Meta.UsageForModel(name)
+				assert.Equal(t, family.fields, slices.Sorted(maps.Keys(schema)))
+				assert.Equal(t, family.resolutions, schema["resolution"].Enum)
+				assert.NotEmpty(t, examples)
+			})
+		}
+	}
+	assert.ElementsMatch(t, plugin.Meta.Models, profiled, "every declared model must select a usage profile")
+
+	t.Run("submission keeps facts outside the selected profile billable", func(t *testing.T) {
+		info := &relaycommon.RelayInfo{
+			ChannelMeta:     &relaycommon.ChannelMeta{ApiKey: "test-ak", ChannelBaseUrl: "https://api.minimax.example", UpstreamModelName: "MiniMax-Hailuo-2.3"},
+			OriginModelName: "MiniMax-Hailuo-2.3",
+			TaskRelayInfo:   &relaycommon.TaskRelayInfo{PublicTaskID: "task_public"},
+		}
+		adaptor := taskplugin.New(plugin)
+		adaptor.Init(info)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+		c.Set("task_request", map[string]any{"model": "MiniMax-Hailuo-2.3", "prompt": "p", "duration": 10, "resolution": "768P"})
+		require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+
+		facts, err := adaptor.ExtractUsageFactsValidated(c, info)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{
+			"seconds": float64(10), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}, facts)
 	})
-	data, err := common.Marshal(map[string]any{"file_id": "file/with space"})
-	require.NoError(t, err)
-	task := &model.Task{TaskID: "task-public", Status: model.TaskStatusSuccess, Data: data}
+}
 
-	artifacts, err := adaptor.ListArtifacts(task)
-	require.NoError(t, err)
-	assert.Equal(t, []channel.TaskArtifact{{Key: "video", Type: "video", MimeType: "video/mp4"}}, artifacts)
+// MiniMax serves v1 videos only through the signed download_url of
+// /v1/files/retrieve; that link is signed for GET, so HEAD clients get GET too.
+func TestHailuoArtifactContentProxy(t *testing.T) {
+	service.InitHttpClient()
+	const signedURL = "https://bucket.oss-cn-wulanchabu.aliyuncs.com/video.mp4?Expires=1&OSSAccessKeyId=key&Signature=sig"
+	retrieveBodies := map[string]string{
+		"file/with space": `{"file":{"file_id":1,"download_url":"` + signedURL + `"},"base_resp":{"status_code":0,"status_msg":"success"}}`,
+		"login":           `{"base_resp":{"status_code":1004,"status_msg":"login fail"}}`,
+		"missing":         `{"file":{"file_id":3},"base_resp":{"status_code":0,"status_msg":"success"}}`,
+		"html":            `<html>gateway error</html>`,
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/v1/files/retrieve", r.URL.Path)
+		assert.Equal(t, "Bearer test-ak", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(retrieveBodies[r.URL.Query().Get("file_id")]))
+	}))
+	defer upstream.Close()
+	adaptor := taskplugin.New(loadHailuoPlugin(t))
+	adaptor.Init(&relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{ApiKey: "test-ak", ChannelBaseUrl: upstream.URL},
+	})
 
-	descriptor, err := adaptor.BuildContentRequest(task, "video", channel.TaskArtifactClientRequest{Method: http.MethodHead})
-	require.NoError(t, err)
-	require.NotNil(t, descriptor)
-	assert.Equal(t, "https://api.minimax.example/v1/files/download?file_id=file%2Fwith%20space", descriptor.URL)
-	assert.Equal(t, http.MethodHead, descriptor.Method)
-	assert.Equal(t, map[string]string{"Accept": "video/*", "Authorization": "Bearer test-ak"}, descriptor.Headers)
-	assert.False(t, descriptor.Credentialless)
+	for _, tc := range []struct {
+		fileID  string
+		wantErr string
+	}{
+		{fileID: "file/with space"},
+		{fileID: "login", wantErr: "MiniMax file retrieve failed: login fail"},
+		{fileID: "missing", wantErr: "artifact_not_found"},
+		{fileID: "html", wantErr: "MiniMax file retrieve returned an unexpected response: HTTP 200"},
+	} {
+		t.Run(tc.fileID, func(t *testing.T) {
+			data, err := common.Marshal(map[string]any{"file_id": tc.fileID})
+			require.NoError(t, err)
+			task := &model.Task{TaskID: "task-public", Status: model.TaskStatusSuccess, Data: data}
+			artifacts, err := adaptor.ListArtifacts(task)
+			require.NoError(t, err)
+			assert.Equal(t, []channel.TaskArtifact{{Key: "video", Type: "video", MimeType: "video/mp4"}}, artifacts)
+
+			descriptor, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodHead})
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, &channel.TaskContentRequest{URL: signedURL, Method: http.MethodGet, Credentialless: true}, descriptor)
+		})
+	}
 }
 
 func loadHailuoPlugin(t *testing.T) *jsplugin.LoadedPlugin {
@@ -177,14 +270,47 @@ func TestHailuoH3BuildSubmitRequest(t *testing.T) {
 			wantAction: "text_to_video",
 		},
 		{
-			name: "explicit ratio callback and watermark",
+			name: "explicit ratio and watermark; no callback with MiniMax's task ids",
 			request: map[string]any{"prompt": "p", "duration": 4, "metadata": map[string]any{
 				"ratio":          "9:16",
 				"callback_url":   "https://example.com/cb",
 				"aigc_watermark": true,
 			}},
-			wantBody:   `{"model":"MiniMax-H3","content":[{"type":"text","text":"p"}],"resolution":"768P","duration":4,"ratio":"9:16","callback_url":"https://example.com/cb","aigc_watermark":true}`,
+			wantBody:   `{"model":"MiniMax-H3","content":[{"type":"text","text":"p"}],"resolution":"768P","duration":4,"ratio":"9:16","aigc_watermark":true}`,
 			wantAction: "text_to_video",
+		},
+		{
+			name:    "audio alone is a reference that defaults to adaptive",
+			request: map[string]any{"prompt": "p", "metadata": map[string]any{"reference_audio": "voice.mp3"}},
+			wantBody: `{"model":"MiniMax-H3","content":[
+				{"type":"text","text":"p"},
+				{"type":"audio_url","role":"reference_audio","audio_url":{"url":"voice.mp3"}}],
+				"resolution":"768P","duration":5,"ratio":"adaptive"}`,
+			wantAction: "text_to_video",
+		},
+		// MiniMax checks the ratio and the roles of the content.
+		{
+			name:       "a ratio MiniMax does not list",
+			request:    map[string]any{"prompt": "p", "metadata": map[string]any{"ratio": "16:10"}},
+			wantBody:   `{"model":"MiniMax-H3","content":[{"type":"text","text":"p"}],"resolution":"768P","duration":5,"ratio":"16:10"}`,
+			wantAction: "text_to_video",
+		},
+		{
+			name:       "adaptive for text alone",
+			request:    map[string]any{"prompt": "p", "metadata": map[string]any{"ratio": "adaptive"}},
+			wantBody:   `{"model":"MiniMax-H3","content":[{"type":"text","text":"p"}],"resolution":"768P","duration":5,"ratio":"adaptive"}`,
+			wantAction: "text_to_video",
+		},
+		{
+			name: "a middle frame",
+			request: map[string]any{"prompt": "p", "metadata": map[string]any{"content": []any{
+				map[string]any{"type": "image_url", "role": "middle_frame", "image_url": map[string]any{"url": "u"}},
+			}}},
+			wantBody: `{"model":"MiniMax-H3","content":[
+				{"type":"text","text":"p"},
+				{"type":"image_url","role":"middle_frame","image_url":{"url":"u"}}],
+				"resolution":"768P","duration":5,"ratio":"adaptive"}`,
+			wantAction: "image_to_video",
 		},
 	}
 	for _, testCase := range testCases {
@@ -219,8 +345,6 @@ func TestHailuoH3RejectsOutOfContractRequests(t *testing.T) {
 		{"duration above the maximum", map[string]any{"prompt": "p", "duration": 16}, "duration must be an integer between 4 and 15"},
 		{"fractional duration", map[string]any{"prompt": "p", "duration": 5.5}, "duration must be an integer between 4 and 15"},
 		{"unsupported resolution", map[string]any{"prompt": "p", "size": "1080P"}, "resolution must be 768P or 2K"},
-		{"unknown ratio", map[string]any{"prompt": "p", "metadata": map[string]any{"ratio": "16:10"}}, "ratio must be one of"},
-		{"adaptive ratio without a visual input", map[string]any{"prompt": "p", "metadata": map[string]any{"ratio": "adaptive"}}, "ratio adaptive requires an image or video input"},
 		{"too many frame images", map[string]any{"prompt": "p", "images": []any{"a.png", "b.png", "c.png"}}, "at most 2 frame images"},
 		{"media without text", map[string]any{"images": []any{"a.png"}}, "requires a non-empty text item"},
 		{"content is not an array", map[string]any{"prompt": "p", "metadata": map[string]any{"content": "nope"}}, "metadata.content must be an array"},
@@ -316,6 +440,11 @@ func TestHailuoQueryRequestEndpointByModel(t *testing.T) {
 			name: "a channel-mapped alias resolves through the upstream model",
 			ctx:  map[string]any{"taskId": "t1", "model": "h3", "upstreamModel": "MiniMax-H3"},
 			want: "https://api.minimax.example/v2/query/video_generation/t1",
+		},
+		{
+			name: "a New API gateway serves H3 on the prefixed v2 route",
+			ctx:  map[string]any{"taskId": "t1", "upstreamModel": "MiniMax-H3", "upstream": map[string]any{"kind": "new_api"}},
+			want: "https://api.minimax.example/hailuo/v2/query/video_generation/t1",
 		},
 	}
 	for _, testCase := range testCases {
@@ -485,7 +614,7 @@ func TestHailuoH3ArtifactContentProxy(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []channel.TaskArtifact{{Key: "video", Type: "video", MimeType: "video/mp4"}}, artifacts)
 
-	descriptor, err := adaptor.BuildContentRequest(task, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
+	descriptor, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
 	require.NoError(t, err)
 	require.NotNil(t, descriptor)
 	assert.Equal(t, "https://cdn.example/h3.mp4", descriptor.URL)
@@ -554,4 +683,337 @@ func TestHailuoH3PassesOpenAIVideoDecode(t *testing.T) {
 	requestBody, ok := intent["requestBody"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, float64(12), requestBody["duration"])
+}
+
+// A New API channel reaches this plugin on another gateway. The downstream
+// driver addresses the gateway's /hailuo routes, whose decoders give the
+// gateway's driver the same request and whose presenters give the downstream
+// driver the same task state, so MiniMax receives one body and both gateways
+// settle on the same facts.
+func TestHailuoThroughNewAPIGateway(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	call := func(export string, members []string, args ...any) map[string]any {
+		t.Helper()
+		value, err := plugin.Engine.CallPath(t.Context(), export, members, args...)
+		require.NoError(t, err)
+		encoded, err := common.Marshal(value)
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(encoded, &decoded))
+		return decoded
+	}
+
+	for _, tc := range []struct {
+		name        string
+		model       string
+		requestBody map[string]any
+		route       string
+		decoder     string
+		vendorPath  string
+	}{
+		{
+			name:  "v1 image to video",
+			model: "MiniMax-Hailuo-02",
+			requestBody: map[string]any{"model": "MiniMax-Hailuo-02", "prompt": "p", "duration": 10, "size": "512P", "metadata": map[string]any{
+				"first_frame_image": "https://cdn.example/first.png", "prompt_optimizer": false,
+			}},
+			route:      "/hailuo/v1/video_generation",
+			decoder:    "createTask",
+			vendorPath: "/v1/video_generation",
+		},
+		{
+			name:  "H3 reference video",
+			model: "MiniMax-H3",
+			requestBody: map[string]any{"model": "MiniMax-H3", "prompt": "p", "duration": 8, "size": "2K", "metadata": map[string]any{
+				"reference_video": "https://cdn.example/ref.mp4", "ratio": "9:16", "aigc_watermark": true,
+			}},
+			route:      "/hailuo/v2/video_generation",
+			decoder:    "createH3Task",
+			vendorPath: "/v2/video_generation",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			downstream := map[string]any{"requestBody": tc.requestBody, "model": tc.model, "upstreamModel": tc.model,
+				"baseUrl": "https://gateway.example", "apiKey": "sk-gateway", "upstream": map[string]any{"kind": "new_api"}}
+			sent := call("buildSubmitRequest", nil, downstream)
+			assert.Equal(t, "https://gateway.example"+tc.route, sent["url"])
+
+			intent := call("native", []string{tc.decoder}, map[string]any{"body": map[string]any{"kind": "json", "value": sent["body"]}})
+			assert.Equal(t, tc.model, intent["model"])
+			assert.Equal(t, sent["action"], intent["action"])
+			upstream := map[string]any{"requestBody": intent["requestBody"], "model": tc.model, "upstreamModel": tc.model,
+				"baseUrl": "https://api.minimax.example", "apiKey": "vendor-key", "upstream": map[string]any{"kind": "vendor"}}
+			forwarded := call("buildSubmitRequest", nil, upstream)
+			assert.Equal(t, "https://api.minimax.example"+tc.vendorPath, forwarded["url"])
+			assert.Equal(t, sent["body"], forwarded["body"])
+			assert.Equal(t, call("extractUsage", nil, downstream), call("extractUsage", nil, upstream))
+		})
+	}
+
+	t.Run("create responses", func(t *testing.T) {
+		for model, data := range map[string]map[string]any{
+			"MiniMax-Hailuo-02": {"task_id": "task_pub", "base_resp": map[string]any{"status_code": 0, "status_msg": "success"}},
+			"MiniMax-H3":        {"task_id": "task_pub"},
+		} {
+			created := call("native", []string{"taskCreated"}, map[string]any{}, map[string]any{"task_id": "task_pub", "status": "SUBMITTED", "data": data})
+			parsed := call("parseSubmitResponse", nil, map[string]any{"upstreamModel": model}, map[string]any{"body": created})
+			assert.Equal(t, "task_pub", parsed["taskId"], model)
+		}
+	})
+
+	adaptor := taskplugin.New(plugin)
+	adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelType: constant.ChannelTypeNewAPI, ApiKey: "sk-gateway", ChannelBaseUrl: "https://gateway.example",
+	}})
+	success := map[string]any{"status_code": 0, "status_msg": "success"}
+	for _, tc := range []struct {
+		name        string
+		presenter   string
+		task        map[string]any
+		wantStatus  string
+		wantReason  string
+		wantContent *channel.TaskContentRequest
+	}{
+		{
+			name: "v1 before the first poll", presenter: "taskStatus", wantStatus: "IN_PROGRESS",
+			task: map[string]any{"status": "SUBMITTED", "data": map[string]any{"task_id": "task_pub", "base_resp": success}},
+		},
+		{
+			name: "v1 succeeded", presenter: "taskStatus", wantStatus: "SUCCESS",
+			task: map[string]any{"status": "SUCCESS", "data": map[string]any{
+				"task_id": "task_pub", "status": "Success", "file_id": "f1", "video_width": 1920, "video_height": 1080, "base_resp": success,
+			}},
+			wantContent: &channel.TaskContentRequest{
+				URL:     "https://gateway.example/v1/tasks/task_pub/artifacts/video/content",
+				Method:  http.MethodHead,
+				Headers: map[string]string{"Authorization": "Bearer sk-gateway"},
+			},
+		},
+		{
+			name: "v1 failed by the gateway poller", presenter: "taskStatus", wantStatus: "FAILURE", wantReason: "task failed",
+			task: map[string]any{"status": "FAILURE", "fail_reason": "task timed out", "data": map[string]any{"task_id": "task_pub", "status": "Processing", "base_resp": success}},
+		},
+		{
+			name: "H3 before the first poll", presenter: "h3TaskStatus", wantStatus: "QUEUED",
+			task: map[string]any{"status": "SUBMITTED", "data": map[string]any{"task_id": "task_pub"}},
+		},
+		{
+			name: "H3 succeeded", presenter: "h3TaskStatus", wantStatus: "SUCCESS",
+			task: map[string]any{"status": "SUCCESS", "data": map[string]any{"task": map[string]any{
+				"id": "task_pub", "status": "succeeded", "resolution": "2K", "content": map[string]any{"url": "https://cdn.example/h3.mp4"},
+				"usage": map[string]any{"output_seconds": 8, "input_seconds": 7.5, "input_image_count": 0},
+			}}},
+			wantContent: &channel.TaskContentRequest{URL: "https://cdn.example/h3.mp4", Method: http.MethodHead, Credentialless: true},
+		},
+		{
+			name: "H3 failed by the gateway poller", presenter: "h3TaskStatus", wantStatus: "FAILURE", wantReason: "task timed out",
+			task: map[string]any{"status": "FAILURE", "fail_reason": "task timed out", "data": map[string]any{"task": map[string]any{"id": "task_pub", "status": "running"}}},
+		},
+		{
+			name: "H3 failed by MiniMax", presenter: "h3TaskStatus", wantStatus: "FAILURE", wantReason: "sensitive content",
+			task: map[string]any{"status": "FAILURE", "fail_reason": "sensitive content", "data": map[string]any{"task": map[string]any{
+				"id": "task_pub", "status": "failed", "error": map[string]any{"code": "1026", "message": "sensitive content"},
+			}}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.task["task_id"] = "task_pub"
+			rendered := call("native", []string{tc.presenter}, map[string]any{}, tc.task)
+			result := call("parseTaskResult", nil, map[string]any{}, rendered, map[string]any{"status": http.StatusOK})
+			assert.Equal(t, tc.wantStatus, result["status"])
+			assert.Equal(t, tc.wantReason, common.Interface2String(result["reason"]))
+			if tc.wantContent == nil {
+				return
+			}
+			facts := call("extractUsageOnComplete", nil, nil, nil, rendered)
+			assert.NotEmpty(t, facts)
+			assert.Equal(t, call("extractUsageOnComplete", nil, nil, nil, tc.task["data"]), facts)
+
+			data, err := common.Marshal(rendered)
+			require.NoError(t, err)
+			task := &model.Task{TaskID: "task_down", Status: model.TaskStatusSuccess, Data: data, PrivateData: model.TaskPrivateData{UpstreamTaskID: "task_pub"}}
+			artifacts, err := adaptor.ListArtifacts(task)
+			require.NoError(t, err)
+			assert.Equal(t, []channel.TaskArtifact{{Key: "video", Type: "video", MimeType: "video/mp4"}}, artifacts)
+			descriptor, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodHead})
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantContent, descriptor)
+		})
+	}
+
+	// The gateway refuses a native body only when it cannot name the model,
+	// price the request or provide what it asks for.
+	t.Run("native bodies the gateway refuses before billing", func(t *testing.T) {
+		text := []any{map[string]any{"type": "text", "text": "p"}}
+		for _, tc := range []struct {
+			decoder string
+			body    map[string]any
+			wantErr string
+		}{
+			{"createTask", map[string]any{"prompt": "p"}, "model is required"},
+			{"createTask", map[string]any{"model": "MiniMax-Hailuo-02", "prompt": "p", "duration": 8}, "MiniMax-Hailuo-02 duration must be 6 or 10"},
+			{"createTask", map[string]any{"model": "MiniMax-Hailuo-2.3-Fast", "prompt": "p"}, "supports image-to-video only"},
+			{"createTask", map[string]any{"model": "MiniMax-Hailuo-02", "prompt": "p", "callback_url": "https://client.example/hook"}, "callback_url is not supported"},
+			{"createH3Task", map[string]any{"model": "MiniMax-H3", "prompt": "p"}, "content must be an array"},
+			{"createH3Task", map[string]any{"model": "MiniMax-H3", "content": []any{map[string]any{"type": "image_url", "image_url": map[string]any{"url": "u"}}}}, "requires a non-empty text item"},
+			{"createH3Task", map[string]any{"model": "MiniMax-H3", "content": text, "duration": 16}, "duration must be an integer between 4 and 15"},
+			{"createH3Task", map[string]any{"model": "MiniMax-H3", "content": text, "duration": 5, "resolution": "768P", "ratio": "16:9", "callback_url": "https://client.example/hook"}, "callback_url is not supported"},
+		} {
+			value, err := plugin.Engine.CallPath(t.Context(), "native", []string{tc.decoder}, map[string]any{"body": map[string]any{"kind": "json", "value": tc.body}})
+			if err == nil {
+				intent := decodePluginValue(t, value)
+				_, err = plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{"requestBody": intent["requestBody"], "model": tc.body["model"],
+					"upstreamModel": tc.body["model"], "baseUrl": "https://api.minimax.example", "apiKey": "vendor-key"})
+			}
+			require.ErrorContains(t, err, tc.wantErr)
+		}
+	})
+
+	// A native body reaches MiniMax as the client sent it, for MiniMax to
+	// check. The reservation reads its duration and resolution, takes the
+	// model's defaults for those left out and the dearest the model renders
+	// for the rest; H3 reserves its longest duration and 2K when left out.
+	t.Run("native bodies are sent as is", func(t *testing.T) {
+		text := []any{map[string]any{"type": "text", "text": "p"}}
+		for _, tc := range []struct {
+			name      string
+			decoder   string
+			body      map[string]any
+			upstream  string
+			wantURL   string
+			wantFacts map[string]any
+		}{
+			{
+				name: "H3 audio reference", decoder: "createH3Task", wantURL: "/v2/video_generation",
+				body: map[string]any{"model": "MiniMax-H3", "duration": 6, "resolution": "2K", "content": []any{
+					map[string]any{"type": "text", "text": "sing"},
+					map[string]any{"type": "audio_url", "role": "reference_audio", "audio_url": map[string]any{"url": "https://cdn.example/voice.mp3"}},
+				}},
+				wantFacts: map[string]any{"seconds": float64(6), "resolution": "2K", "input_images": float64(0), "input_video_seconds": float64(0)},
+			},
+			{
+				name: "H3 without duration, resolution or ratio", decoder: "createH3Task", wantURL: "/v2/video_generation",
+				body:      map[string]any{"model": "MiniMax-H3", "content": text},
+				wantFacts: map[string]any{"seconds": float64(15), "resolution": "2K", "input_images": float64(0), "input_video_seconds": float64(0)},
+			},
+			{
+				name: "H3 with a lowercase resolution", decoder: "createH3Task", wantURL: "/v2/video_generation",
+				body:      map[string]any{"model": "MiniMax-H3", "content": text, "duration": 5, "resolution": "768p"},
+				wantFacts: map[string]any{"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)},
+			},
+			{
+				name: "H3 with a middle frame", decoder: "createH3Task", wantURL: "/v2/video_generation",
+				body: map[string]any{"model": "MiniMax-H3", "duration": 6, "resolution": "768P", "content": []any{
+					map[string]any{"type": "text", "text": "p"},
+					map[string]any{"type": "image_url", "role": "middle_frame", "image_url": map[string]any{"url": "https://cdn.example/m.png"}},
+				}},
+				wantFacts: map[string]any{"seconds": float64(6), "resolution": "768P", "input_images": float64(1), "input_video_seconds": float64(0)},
+			},
+			{
+				name: "v1 ten seconds in 1080P", decoder: "createTask", wantURL: "/v1/video_generation",
+				body:      map[string]any{"model": "MiniMax-Hailuo-2.3", "prompt": "p", "duration": 10, "resolution": "1080P"},
+				wantFacts: map[string]any{"seconds": float64(10), "resolution": "1080P", "input_images": float64(0), "input_video_seconds": float64(0)},
+			},
+			{
+				name: "v1 resolution the model does not list", decoder: "createTask", wantURL: "/v1/video_generation",
+				body:      map[string]any{"model": "MiniMax-Hailuo-2.3", "prompt": "p", "resolution": "720P"},
+				wantFacts: map[string]any{"seconds": float64(6), "resolution": "1080P", "input_images": float64(0), "input_video_seconds": float64(0)},
+			},
+			{
+				name: "v1 first and last frames on 2.3", decoder: "createTask", wantURL: "/v1/video_generation",
+				body:      map[string]any{"model": "MiniMax-Hailuo-2.3", "first_frame_image": "a.png", "last_frame_image": "b.png"},
+				wantFacts: map[string]any{"seconds": float64(6), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)},
+			},
+			{
+				name: "v1 first and last frames in 512P", decoder: "createTask", wantURL: "/v1/video_generation",
+				body:      map[string]any{"model": "MiniMax-Hailuo-02", "first_frame_image": "a.png", "last_frame_image": "b.png", "resolution": "512P"},
+				wantFacts: map[string]any{"seconds": float64(6), "resolution": "1080P", "input_images": float64(0), "input_video_seconds": float64(0)},
+			},
+			{
+				name: "v1 alias", decoder: "createTask", wantURL: "/v1/video_generation", upstream: "MiniMax-Hailuo-02",
+				body:      map[string]any{"model": "my-hailuo", "prompt": "p"},
+				wantFacts: map[string]any{"seconds": float64(6), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				intent := call("native", []string{tc.decoder}, map[string]any{"body": map[string]any{"kind": "json", "value": tc.body}})
+				upstream := tc.body["model"]
+				if tc.upstream != "" {
+					upstream = tc.upstream
+				}
+				driver := map[string]any{"requestBody": intent["requestBody"], "model": tc.body["model"], "upstreamModel": upstream, "baseUrl": "https://api.minimax.example", "apiKey": "vendor-key"}
+				sent := call("buildSubmitRequest", nil, driver)
+				assert.Equal(t, "https://api.minimax.example"+tc.wantURL, sent["url"])
+				wantBody := decodePluginValue(t, tc.body)
+				wantBody["model"] = upstream
+				assert.Equal(t, wantBody, sent["body"])
+				assert.Equal(t, tc.wantFacts, call("extractUsage", nil, driver))
+			})
+		}
+	})
+
+	// A /v1/videos client cannot pass a body off as a native one.
+	t.Run("a vendorBody field is not a native body", func(t *testing.T) {
+		intent := call("protocols", []string{"openai_video", "decodeRequest"}, map[string]any{"model": "MiniMax-Hailuo-02", "body": map[string]any{"kind": "json",
+			"value": map[string]any{"model": "MiniMax-Hailuo-02", "prompt": "p", "vendorBody": map[string]any{"model": "MiniMax-Hailuo-02", "prompt": "x", "callback_url": "https://client.example/hook"}}}})
+		sent := call("buildSubmitRequest", nil, map[string]any{"requestBody": intent["requestBody"], "model": "MiniMax-Hailuo-02", "upstreamModel": "MiniMax-Hailuo-02",
+			"baseUrl": "https://api.minimax.example", "apiKey": "vendor-key"})
+		assert.Equal(t, map[string]any{"model": "MiniMax-Hailuo-02", "prompt": "p", "duration": float64(6), "resolution": "768P"}, sent["body"])
+	})
+
+	t.Run("native replies keep each version's envelope", func(t *testing.T) {
+		created := call("native", []string{"h3TaskStatus"}, map[string]any{}, map[string]any{"task_id": "task_pub", "status": "SUBMITTED", "data": map[string]any{"task_id": "task_pub"}})
+		assert.Equal(t, map[string]any{"task": map[string]any{"id": "task_pub", "status": "queued"}}, created, "the first /v2 query carries no create fields")
+		v2 := call("native", []string{"error"}, map[string]any{"path": "/v2/query/video_generation/task_x"}, map[string]any{"httpStatus": 429, "message": "Too many requests", "requestId": "r1"})
+		assert.Equal(t, map[string]any{"type": "error", "error": map[string]any{"type": "rate_limit_error", "message": "Too many requests", "http_code": "429"}, "request_id": "r1"}, v2)
+		v1 := call("native", []string{"error"}, map[string]any{"path": "/v1/video_generation"}, map[string]any{"httpStatus": 400, "message": "model is required"})
+		assert.Equal(t, map[string]any{"__status": float64(200), "__body": map[string]any{"base_resp": map[string]any{"status_code": float64(2013), "status_msg": "model is required"}}}, v1)
+	})
+}
+
+// MiniMax's v1 query reports the video's file_id and /v1/files/retrieve
+// resolves it. Through the gateway the file id is the task id, and the
+// download_url is the gateway's address for the task's video.
+func TestHailuoNativeFileIDIsTheTaskAndRetrieveReturnsTheGatewayDownload(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	call := func(member string, args ...any) (map[string]any, error) {
+		value, err := plugin.Engine.CallPath(t.Context(), "native", []string{member}, args...)
+		if err != nil {
+			return nil, err
+		}
+		encoded, err := common.Marshal(value)
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(encoded, &decoded))
+		return decoded, nil
+	}
+	success := map[string]any{"status_code": 0, "status_msg": "success"}
+	v1 := map[string]any{"task_id": "task_pub", "status": "SUCCESS", "finished_at": 1760000000, "data": map[string]any{
+		"task_id": "private-task", "status": "Success", "file_id": "private-file", "video_width": 1280, "video_height": 720, "base_resp": success,
+	}}
+	video := map[string]any{"key": "video", "type": "video", "url": "https://gateway.example/v1/tasks/task_pub/artifacts/video/content?access=signed"}
+
+	status, err := call("taskStatus", map[string]any{}, v1)
+	require.NoError(t, err)
+	encoded, err := common.Marshal(status)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"task_id":"task_pub","status":"Success","file_id":"task_pub","video_width":1280,"video_height":720,"base_resp":{"status_code":0,"status_msg":"success"}}`, string(encoded))
+	running, err := call("taskStatus", map[string]any{}, map[string]any{"task_id": "task_pub", "status": "IN_PROGRESS", "data": map[string]any{"task_id": "private-task", "status": "Processing", "base_resp": success}})
+	require.NoError(t, err)
+	assert.NotContains(t, running, "file_id")
+
+	retrieved, err := call("fileRetrieve", map[string]any{"artifacts": map[string]any{"video": video}}, v1)
+	require.NoError(t, err)
+	encoded, err = common.Marshal(retrieved)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"file":{"file_id":"task_pub","filename":"task_pub.mp4","purpose":"video_generation","created_at":1760000000,"download_url":"https://gateway.example/v1/tasks/task_pub/artifacts/video/content?access=signed"},"base_resp":{"status_code":0,"status_msg":"success"}}`, string(encoded))
+	_, err = call("fileRetrieve", map[string]any{"artifacts": map[string]any{}}, v1)
+	require.ErrorContains(t, err, "artifact_not_found")
+	// An H3 task has no v1 file to retrieve.
+	h3 := map[string]any{"task_id": "task_h3", "status": "SUCCESS", "data": map[string]any{"task": map[string]any{"id": "private", "status": "succeeded", "content": map[string]any{"url": "https://cdn.example/h3.mp4"}}}}
+	_, err = call("fileRetrieve", map[string]any{"artifacts": map[string]any{"video": video}}, h3)
+	require.ErrorContains(t, err, "artifact_not_found")
+	h3Status, err := call("h3TaskStatus", map[string]any{}, h3)
+	require.NoError(t, err)
+	assert.NotContains(t, h3Status, "file_id")
 }

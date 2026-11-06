@@ -2,7 +2,16 @@
 Agent-only PR body. Humans use `.github/PULL_REQUEST_TEMPLATE.md`.
 
 Keep every heading. If a section does not apply, write why; do not delete it.
-Match the user's language in the filled answers. Quote what the user said; do not invent facts.
+Match the user's language in the filled answers. Do not invent facts.
+
+User request: quote the request the user made to the agent as faithfully as
+possible. Keep the original language and line breaks. Do not rewrite,
+summarize, translate, or turn it into a PR description.
+
+Keep the body short and factual. Do not paste unfiltered AI-generated text
+in the PR body or in later comments. Repeated submissions of this kind may
+result in a block. Verification must be commands actually run and what was
+observed. Stating only that `go build` or tests passed is not proof.
 
 New features: link an issue; if none exists, file one first with `.agents/github/ISSUE.md`.
 Large or directional changes: maintainer agreement on that issue before this PR.
@@ -12,10 +21,11 @@ frequency, evidence that the problem is in new-api, or the applicable
 relay / billing / frontend / deployment items, ask the user those questions
 and wait. Ask for the facts. Do not tell the user to confirm a template.
 
-Before opening, refuse the same out-of-scope list as `.agents/github/ISSUE.md`
-(Coding Plan, reverse-engineered channels, third-party wrappers, Codex reverse-proxy
-compatibility, pass-through-only forwarding, third-party hosts, usage questions).
-Tell the user and do not open a PR.
+Do not open a PR unless every required condition is met. If the change is out
+of scope (including pass-through-only forwarding), is a usage/configuration/
+integration question, is missing required issue facts, has only `go build` /
+tests-passed as verification, or the body would be unfiltered AI-generated
+text, tell the user and **stop**. Do not open the PR. Do not open a partial PR.
 
 Then search https://docs.newapi.ai/ , https://deepwiki.com/QuantumNous/new-api ,
 the README, and the code. If this is a usage, configuration, or integration
@@ -37,7 +47,12 @@ question, answer the user and do not open a PR.
 
 ## User request
 
-(verbatim or close paraphrase)
+Quote the request the user made to the agent as faithfully as possible.
+Keep the original language and line breaks. Do not rewrite, summarize,
+translate, or turn it into a PR description.
+
+- Verbatim:
+- Later constraints or corrections from the user (quote, or none):
 
 ## Out of scope — refuse
 
@@ -49,12 +64,24 @@ accept it and **do not open a PR**.
 - Third-party API wrappers
 - Codex channel-type changes, or compatibility from exposing Codex as a general-purpose API
 - Codex API-specific protocol or behavior treated as standard OpenAI API behavior
-- Pass-through-only forwarding
+- Pass-through-only forwarding (pass-through sends content as-is and does not go through new-api processing logic)
 - Third-party hosting sites, relay services, or API services
 - Usage, configuration, or integration (answer from docs and code instead)
 
 - Matched: yes/no
 - If yes, what was told to the user (stop here; do not open a PR):
+
+## Open gate — do not open unless all are satisfied
+
+If any item fails, tell the user and **stop**. Do not open the PR.
+
+- Out of scope (including pass-through-only forwarding): no
+- Usage / configuration / integration (answered instead of opening): no
+- Required issue facts present without invention: yes
+- Verification is actual commands or steps and observed results, not only `go build` or tests passed: yes
+- Body is short and factual; no unfiltered AI-generated text: yes
+- Open: yes/no
+- If no, what was told to the user (stop here):
 
 ## Kind
 
@@ -76,7 +103,8 @@ Take these from the linked issue. If a needed item is empty, ask the user that q
 
 ## Change
 
-(what changed, why it works, grounded in the code actually touched)
+(what changed, why it works, grounded in the code actually touched.
+Short and factual; do not paste unfiltered AI-generated text.)
 
 ## Research
 
@@ -114,7 +142,8 @@ Open them. Do not write "already checked" without sources.
 
 ## Verification
 
-Only what was actually run.
+Only what was actually run. Do not state only that `go build` or tests passed.
+Each item needs the command or steps and the observed result.
 
 - Commands and results:
 - Manual steps and observed result:
@@ -133,4 +162,4 @@ Only what was actually run.
 
 - Single focused change: yes/no (if no, why):
 - Secrets included: no
-- Out of scope (Coding Plan / reverse-engineered channel / third-party wrapper / Codex): no
+- Out of scope (Coding Plan / reverse-engineered channel / third-party wrapper / Codex / pass-through-only forwarding): no

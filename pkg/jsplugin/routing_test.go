@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,6 +82,7 @@ func TestRegistryIndexesSharedEndpointCandidatesForDistinctLegacyProviders(t *te
 func TestSupportsRegisteredHostProtocols(t *testing.T) {
 	assert.True(t, SupportsHostProtocol("openai_responses"))
 	assert.True(t, SupportsHostProtocol("openai_video"))
+	assert.True(t, SupportsHostProtocol(ProtocolOpenAIImage))
 	assert.False(t, SupportsHostProtocol("plugin_owned_wire"))
 }
 
@@ -89,6 +91,71 @@ func TestLookupHostProtocolOperationExcludesRetrieveWithoutModelField(t *testing
 	assert.False(t, ok)
 	_, _, ok = LookupHostProtocolOperation(http.MethodPost, "/v1/responses")
 	assert.True(t, ok)
+	for _, path := range []string{"/v1/images/generations", "/v1/images/edits"} {
+		protocol, operation, found := LookupHostProtocolOperation(http.MethodPost, path)
+		require.True(t, found, path)
+		assert.Equal(t, ProtocolOpenAIImage, protocol)
+		assert.Equal(t, "model", operation.ModelField)
+		assert.Empty(t, operation.Modes, "the synchronous image protocol has no request modes")
+	}
+}
+
+// The OpenAI Images protocol is claimed in bare-string form, binds both image
+// endpoints for every declared model, and requires the render hook that shapes
+// the synchronous response.
+func TestOpenAIImageProtocolClaimBindsBothEndpointsAndRequiresRender(t *testing.T) {
+	exports := `export const protocols = {openai_image: {
+		decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model, requestBody: ctx.body.value}; },
+		render: function(ctx, task) { return {data: []}; }
+	}};`
+	registry := NewRegistry()
+	plugin := mustCompileRoutingPlugin(t, "image-plugin", 17, `["image-a", "image-b"]`, `protocols: ["openai_image"],`, exports)
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{plugin}))
+	for _, path := range []string{"/v1/images/generations", "/v1/images/edits"} {
+		for _, model := range []string{"image-a", "image-b"} {
+			binding, ok := registry.Generation().LookupEndpoint(http.MethodPost, path, model)
+			require.True(t, ok, path+" "+model)
+			assert.Equal(t, ProtocolOpenAIImage, binding.Protocol)
+			assert.Same(t, plugin, binding.Plugin)
+		}
+	}
+	_, ok := registry.Generation().LookupEndpoint(http.MethodPost, "/v1/videos", "image-a")
+	assert.False(t, ok, "an image claim must not bind the video endpoint")
+
+	scoped := mustCompileRoutingPlugin(t, "image-scoped", 17, `["image-a", "image-b"]`, `protocols: [{name: "openai_image", models: ["image-a"]}],`, exports)
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{scoped}))
+	_, ok = registry.Generation().LookupEndpoint(http.MethodPost, "/v1/images/generations", "image-b")
+	assert.False(t, ok, "models narrows the image endpoint bindings")
+
+	_, err := CompilePlugin(routingTestPluginSource("image-no-render", 17, `["image-a"]`, `protocols: ["openai_image"],`,
+		`export const protocols = {openai_image: {decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model}; }}};`), Options{})
+	require.ErrorContains(t, err, `missing hook "render"`)
+	_, err = CompilePlugin(routingTestPluginSource("image-modes", 17, `["image-a"]`, `protocols: [{name: "openai_image", supports: ["sync"]}],`, exports), Options{})
+	require.ErrorContains(t, err, "does not define modes")
+}
+
+func TestFileReferenceRoundTripAddressesRepeatedFieldFiles(t *testing.T) {
+	assert.Equal(t, "request_file:image[]", FileReference("image[]", 0))
+	assert.Equal(t, "request_file:image[]#2", FileReference("image[]", 2))
+	for _, tc := range []struct {
+		ref   string
+		field string
+		index int
+		ok    bool
+	}{
+		{"request_file:input_reference", "input_reference", 0, true},
+		{"request_file:image[]#1", "image[]", 1, true},
+		{"request_file:image[]#01", "", 0, false},
+		{"request_file:image[]#-1", "", 0, false},
+		{"request_file:#1", "", 0, false},
+		{"request_file:", "", 0, false},
+		{"image", "", 0, false},
+	} {
+		field, index, ok := ParseFileReference(tc.ref)
+		assert.Equal(t, tc.ok, ok, tc.ref)
+		assert.Equal(t, tc.field, field, tc.ref)
+		assert.Equal(t, tc.index, index, tc.ref)
+	}
 }
 
 func TestPerProtocolModelsNarrowEndpointBindings(t *testing.T) {
@@ -348,36 +415,80 @@ func TestRouteModelsDecodeAndValidation(t *testing.T) {
 	}
 }
 
-func TestRouteRequestContextClonesFormAndMultipartValuesPerDecoder(t *testing.T) {
+func TestRouteRetainResultDecodeAndValidation(t *testing.T) {
+	routeExports := `export const native = {
+		decodeJob: function(ctx) { return {kind: "submit", model: "gpt-5.5", requestBody: ctx.body.value}; },
+		jobCreated: function(ctx, task) { return task; },
+		jobStatus: function(ctx, task) { return task; }
+	};`
+	falseValue := false
 	tests := []struct {
-		name   string
-		body   any
-		mutate func(map[string]any)
+		name        string
+		metaFields  string
+		want        *bool
+		errContains string
 	}{
 		{
-			name: "form fields",
-			body: map[string]any{"kind": "form", "fields": map[string][]string{"prompt": {"original"}}},
-			mutate: func(value map[string]any) {
-				value["body"].(map[string]any)["fields"].(map[string][]string)["prompt"][0] = "mutated"
-			},
+			name:       "undeclared route retains",
+			metaFields: `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated"}],`,
 		},
 		{
-			name: "multipart files",
-			body: map[string]any{"kind": "multipart", "files": []map[string]any{{"ref": "request_file:image", "filename": "safe.png"}}},
-			mutate: func(value map[string]any) {
-				value["body"].(map[string]any)["files"].([]map[string]any)[0]["filename"] = "mutated.png"
-			},
+			name:       "submit route declines retention",
+			metaFields: `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated", retainResult: false}],`,
+			want:       &falseValue,
+		},
+		{
+			name:        "query route rejects retainResult",
+			metaFields:  `routes: [{method: "GET", path: "/v1/batch/:task_id", type: "query", render: "jobStatus", retainResult: true}],`,
+			errContains: "must not declare retainResult",
+		},
+		{
+			name:        "non-boolean value",
+			metaFields:  `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated", retainResult: "no"}],`,
+			errContains: "retainResult must be a boolean",
 		},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			request := RouteRequestContext{Body: testCase.body}
-			first := request.JSValue()
-			testCase.mutate(first)
-			second := request.JSValue()
-			assert.NotEqual(t, first, second)
+			plugin, err := CompilePlugin(
+				routingTestPluginSource("route-retain", 0, `["gpt-5.5"]`, testCase.metaFields, routeExports),
+				Options{},
+			)
+			if testCase.errContains != "" {
+				require.ErrorContains(t, err, testCase.errContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, plugin.Meta.Routes, 1)
+			assert.Equal(t, testCase.want, plugin.Meta.Routes[0].RetainResult)
 		})
 	}
+}
+
+func TestRouteRequestContextKeepsFormAndMultipartValuesAcrossDecoderWrites(t *testing.T) {
+	plugin, err := CompilePlugin(routingTestPluginSource("route-request-writes", 0, `["gpt-5.5"]`, "", `
+export function decodeJob(ctx) {
+	const seen = {
+		prompt: ctx.body.fields.prompt[0],
+		filename: ctx.body.files[0].filename,
+		params: Object.keys(ctx.params).length,
+		query: Object.keys(ctx.query).length
+	};
+	ctx.body.fields.prompt[0] = "mutated";
+	ctx.body.files[0].filename = "mutated.png";
+	return seen;
+}`), Options{})
+	require.NoError(t, err)
+	fields := map[string][]string{"prompt": {"original"}}
+	files := []map[string]any{{"ref": "request_file:image", "filename": "safe.png"}}
+	request := RouteRequestContext{Body: map[string]any{"kind": "multipart", "fields": fields, "files": files}}
+	for range 2 {
+		seen, err := plugin.Engine.Call(context.Background(), "decodeJob", request.JSValue())
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{"prompt": "original", "filename": "safe.png", "params": int64(0), "query": int64(0)}, seen)
+	}
+	assert.Equal(t, "original", fields["prompt"][0])
+	assert.Equal(t, "safe.png", files[0]["filename"])
 }
 
 func TestRegistryNoOpMutationsKeepCurrentGeneration(t *testing.T) {
@@ -487,16 +598,6 @@ func TestRegistryExcludesConflictingPluginWithoutBlockingGeneration(t *testing.T
 			first:         mustCompileRoutingPlugin(t, "channel-alpha", 0, `["alpha"]`, `channelTypes: [55, 1],`, ""),
 			second:        mustCompileRoutingPlugin(t, "channel-beta", 0, `["beta"]`, `channelTypes: [1],`, ""),
 			expectedError: "channelType 1 conflicts",
-		},
-		{
-			name: "route shape",
-			first: mustCompileRoutingPlugin(t, "route-alpha", 0, `["alpha"]`,
-				`routes: [{method: "GET", path: "/vendor/jobs/:task_id", type: "query", render: "status"}],`,
-				`export const native = {status: function(ctx, task) { return task; }};`),
-			second: mustCompileRoutingPlugin(t, "route-beta", 0, `["beta"]`,
-				`routes: [{method: "GET", path: "/vendor/jobs/:id", type: "query", render: "status", taskIdParam: "id"}],`,
-				`export const native = {status: function(ctx, task) { return task; }};`),
-			expectedError: "route GET /vendor/jobs/:id conflicts",
 		},
 	}
 
@@ -695,9 +796,9 @@ func TestDeclarativeRouteValidationProtectsNamespacesAndCanonicalSyntax(t *testi
 		expectedError string
 	}{
 		{
-			name:          "core API",
-			route:         Route{Method: "POST", Path: "/api/plugin", Type: RouteTypeSubmit},
-			expectedError: "reserved namespace /api",
+			name:          "static assets",
+			route:         Route{Method: "GET", Path: "/assets/x", Type: RouteTypeQuery, Render: "native"},
+			expectedError: "reserved namespace /assets",
 		},
 		{
 			name:          "generic task management",
@@ -738,11 +839,6 @@ func TestDeclarativeRouteValidationProtectsNamespacesAndCanonicalSyntax(t *testi
 			name:          "non-terminal catch-all",
 			route:         Route{Method: "POST", Path: "/vendor/*rest/jobs", Type: RouteTypeSubmit},
 			expectedError: "invalid catch-all",
-		},
-		{
-			name:          "query id mismatch",
-			route:         Route{Method: "GET", Path: "/vendor/jobs/:id", Type: RouteTypeQuery, Render: "native"},
-			expectedError: "must contain :task_id",
 		},
 		{
 			name:          "query declares decoder",
@@ -957,17 +1053,128 @@ export const protocols = {
 }
 
 func TestReservedNamespaceChecksUseSegmentBoundaries(t *testing.T) {
-	meta := Meta{
-		APIVersion: 1,
-		Key:        "apiary",
-		Name:       "Apiary",
-		Version:    "1.0.0",
-		Author:     AuthorMeta{Name: "Test"},
-		Models:     []string{"model"},
-		FetchMode:  "per_task",
-		Routes:     []Route{{Method: "POST", Path: "/apiary/jobs", Type: RouteTypeSubmit, Decode: "decode", Render: "render"}},
+	// The host namespaces the outer router reveals, /api among them, are
+	// decided at admission, so these routes compile.
+	for _, routePath := range []string{"/apiary/jobs", "/api/plugin", "/api/:version/jobs", "/api/v3/contents/generations/tasks", "/api/common/v3/submit_task_v2"} {
+		meta := Meta{
+			APIVersion: 1,
+			Key:        "apiary",
+			Name:       "Apiary",
+			Version:    "1.0.0",
+			Author:     AuthorMeta{Name: "Test"},
+			Models:     []string{"model"},
+			FetchMode:  "per_task",
+			Routes:     []Route{{Method: "POST", Path: routePath, Type: RouteTypeSubmit, Decode: "decode", Render: "render"}},
+		}
+		require.NoError(t, ValidateV1Meta(meta), routePath)
 	}
-	require.NoError(t, ValidateV1Meta(meta))
+}
+
+// The gateway serves a plugin's routes under /{key}, so a key may not name a
+// host namespace. A plugin may declare one of those addresses itself, as
+// TypeSafe 1.2.0 declares /v1/systemone and /typesafe/v1/systemone; the
+// declaration serves it and the copy is not added again.
+func TestPluginKeyAndKeyAddressesAreValidated(t *testing.T) {
+	for _, key := range []string{"api", "v1", "assets", "console"} {
+		meta := Meta{APIVersion: 1, Key: key, Name: "Key", Version: "1.0.0", Author: AuthorMeta{Name: "Test"}, Models: []string{"model"}, FetchMode: "per_task"}
+		require.ErrorContains(t, ValidateV1Meta(meta), "is a reserved path segment", key)
+	}
+	native := `export const native = {decode: function() { return {}; }, render: function(ctx, task) { return task; }};`
+	plugin := mustCompileRoutingPlugin(t, "copyist", 0, `["model"]`, `routes: [
+		{method: "POST", path: "/v9/jobs", type: "submit", decode: "decode", render: "render"},
+		{method: "POST", path: "/copyist/v9/jobs", type: "submit", decode: "decode", render: "render"},
+	],`, native)
+	bindings := PluginRouteBindings(plugin)
+	require.Len(t, bindings, 2)
+	assert.Equal(t, "/v9/jobs", bindings[0].Route.Path)
+	assert.False(t, bindings[0].Pinned)
+	assert.Equal(t, "/copyist/v9/jobs", bindings[1].Route.Path)
+	assert.True(t, bindings[1].OwnPrefix)
+	registry := NewRegistry()
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{plugin}))
+	require.Empty(t, registry.RoutingErrors())
+	_, ok := registry.Generation().LookupDeclaredRoute("POST", "/copyist/v9/jobs")
+	assert.True(t, ok)
+}
+
+func TestRoutingGenerationServesDeclaredRoutesAndKeyCopies(t *testing.T) {
+	native := `export const native = {status: function(ctx, task) { return task; }, decode: function() { return {}; }};`
+	alibaba := mustCompileRoutingPlugin(t, "alibaba", 0, `["wan"]`, `routes: [
+		{method: "GET", path: "/api/v1/tasks/:task_id", type: "query", render: "status"},
+		{method: "GET", path: "/ali/api/v1/tasks/:task_id", type: "query", render: "status"},
+	],`, native)
+	sunoapi := mustCompileRoutingPlugin(t, "sunoapi", 0, `["suno"]`, `routes: [
+		{method: "GET", path: "/suno/fetch/:task_id", type: "query", render: "status"},
+	],`, native)
+	alpha := mustCompileRoutingPlugin(t, "shared-alpha", 0, `["probe-model"]`, `routes: [
+		{method: "GET", path: "/probe/jobs/:task_id", type: "query", render: "status"},
+		{method: "GET", path: "/probe/files/*rest", type: "query", render: "status", taskIdParam: "file_id"},
+	],`, native)
+	beta := mustCompileRoutingPlugin(t, "shared-beta", 0, `["probe-model"]`, `routes: [
+		{method: "GET", path: "/probe/jobs/:id", type: "query", render: "status", taskIdParam: "id"},
+	],`, native)
+	registry := NewRegistry()
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{sunoapi, beta, alpha, alibaba}))
+	require.Empty(t, registry.RoutingErrors())
+	generation := registry.Generation()
+
+	vendorPath, ok := generation.LookupDeclaredRoute("GET", "/api/v1/tasks/:id")
+	require.True(t, ok)
+	assert.False(t, vendorPath.Pinned)
+	assert.False(t, vendorPath.OwnPrefix)
+	copied, ok := generation.LookupDeclaredRoute("GET", "/alibaba/api/v1/tasks/:id")
+	require.True(t, ok)
+	assert.True(t, copied.Pinned)
+	assert.Equal(t, "/alibaba/api/v1/tasks/:task_id", copied.Route.Path)
+	ownPrefix, ok := generation.LookupDeclaredRoute("GET", "/ali/api/v1/tasks/:id")
+	require.True(t, ok)
+	assert.True(t, ownPrefix.OwnPrefix)
+	suno, ok := generation.LookupDeclaredRoute("GET", "/suno/fetch/:id")
+	require.True(t, ok)
+	assert.True(t, suno.OwnPrefix)
+	for _, path := range []string{"/alibaba/ali/api/v1/tasks/:id", "/sunoapi/suno/fetch/:id"} {
+		_, found := generation.LookupDeclaredRoute("GET", path)
+		assert.False(t, found, path)
+	}
+
+	shared := generation.LookupDeclaredRoutes("GET", "/probe/jobs/:x")
+	require.Len(t, shared, 2)
+	assert.Same(t, alpha, shared[0].Plugin)
+	assert.Same(t, beta, shared[1].Plugin)
+	var group RouteGroup
+	for _, candidate := range generation.RouteGroups() {
+		if candidate.Shape == "/probe/jobs/:" {
+			group = candidate
+		}
+	}
+	assert.Equal(t, "/probe/jobs/:s2", group.GinPath)
+	require.Len(t, group.Bindings, 2)
+	params := gin.Params{{Key: "s2", Value: "task_1"}}
+	assert.Equal(t, map[string]string{"task_id": "task_1"}, RouteParams(params, group.Bindings[0].Route))
+	assert.Equal(t, map[string]string{"id": "task_1"}, RouteParams(params, group.Bindings[1].Route))
+	pinnedBeta, ok := generation.LookupDeclaredRoute("GET", "/shared-beta/probe/jobs/:x")
+	require.True(t, ok)
+	assert.Equal(t, map[string]string{"id": "task_2"}, RouteParams(gin.Params{{Key: "s3", Value: "task_2"}}, pinnedBeta.Route))
+	files, ok := generation.LookupDeclaredRoute("GET", "/probe/files/*rest")
+	require.True(t, ok)
+	assert.Equal(t, map[string]string{"rest": "/a/b"}, RouteParams(gin.Params{{Key: "s2", Value: "/a/b"}}, files.Route))
+	// file_id is not a path parameter, so that query route reads it from the
+	// query string.
+	assert.True(t, files.Route.TaskIDInQuery())
+	assert.False(t, shared[0].Route.TaskIDInQuery())
+
+	skipped := generation.WithSkippedRoutes([]SkippedRoute{{PluginKey: "shared-beta", Route: beta.Meta.Routes[0], Reason: "host_route"}})
+	for _, candidate := range skipped.RouteGroups() {
+		if candidate.Shape == "/probe/jobs/:" {
+			require.Len(t, candidate.Bindings, 1)
+			assert.Same(t, alpha, candidate.Bindings[0].Plugin)
+		}
+	}
+	assert.Equal(t, []SkippedRoute{{PluginKey: "shared-beta", Route: beta.Meta.Routes[0], Reason: "host_route"}}, skipped.SkippedRoutes())
+	assert.Empty(t, generation.SkippedRoutes())
+	alphaOnly := NewRegistry()
+	require.NoError(t, alphaOnly.ReplaceOverrides([]*LoadedPlugin{alpha}))
+	require.NoError(t, PreflightRoutingConflict(alphaOnly.Generation(), beta), "a shared route shape is not a conflict")
 }
 
 func TestResolveRouteActionPrefersResolvedAction(t *testing.T) {

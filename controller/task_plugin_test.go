@@ -8,16 +8,18 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -106,6 +108,9 @@ func TestDisableThirdPartyPluginSupportsCascadeAndForce(t *testing.T) {
 	setting := `{"task_plugin_key":"lifecycle-only"}`
 	channel := model.Channel{Type: constant.ChannelTypeTaskPlugin, Status: common.ChannelStatusEnabled, Name: "linked", Models: "doc", Group: "default", BaseURL: &baseURL, Setting: &setting}
 	require.NoError(t, channel.Insert())
+	gatewaySetting := `{"task_extend_plugin_keys":["lifecycle-only","other"]}`
+	gateway := model.Channel{Type: constant.ChannelTypeNewAPI, Status: common.ChannelStatusEnabled, Name: "gateway", Models: "doc,gpt", Group: "default", BaseURL: &baseURL, Setting: &gatewaySetting}
+	require.NoError(t, gateway.Insert())
 	require.NoError(t, model.DB.Create(&model.Task{Platform: "lifecycle-only", Status: model.TaskStatusSubmitted}).Error)
 
 	recorder := httptest.NewRecorder()
@@ -116,9 +121,15 @@ func TestDisableThirdPartyPluginSupportsCascadeAndForce(t *testing.T) {
 	SetTaskPluginStatus(context)
 
 	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	assert.Contains(t, recorder.Body.String(), `"disabled_channels":1`)
+	assert.Contains(t, recorder.Body.String(), `"unbound_channels":1`)
 	updated, err := model.GetChannelById(channel.Id, true)
 	require.NoError(t, err)
 	assert.Equal(t, common.ChannelStatusManuallyDisabled, updated.Status)
+	updatedGateway, err := model.GetChannelById(gateway.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusEnabled, updatedGateway.Status, "a gateway channel keeps serving its other traffic")
+	assert.Equal(t, []string{"other"}, updatedGateway.GetSetting().TaskExtendPluginKeys, "only the disabled plugin is unbound")
 }
 
 // klingFactoryVersion returns the version declared in the embedded kling factory
@@ -263,7 +274,7 @@ func TestDisableFactoryOverrideRowSuppressesBothLayers(t *testing.T) {
 	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("kling") })
 	plugin := model.TaskPlugin{
 		Key: "kling", APIVersion: loaded.Meta.APIVersion, Version: loaded.Meta.Version,
-		Source: overrideSource, SourceHash: "test-hash", Enabled: true,
+		Source: model.LongText(overrideSource), SourceHash: "test-hash", Enabled: true,
 	}
 	require.NoError(t, model.SaveTaskPlugin(&plugin))
 	require.NoError(t, syncTaskPluginsOnce())
@@ -317,6 +328,77 @@ export function parseTaskResult() { return {}; }
 	assert.True(t, ok)
 }
 
+// The shipped alibaba plugin is already larger than a MySQL TEXT column
+// (64 KiB), so storing it through the model path the upload endpoint uses and
+// reading it back unchanged proves the source and icon columns are not
+// truncated. Set TEST_TASK_DB_DIALECT plus TEST_MYSQL_DSN or TEST_POSTGRES_DSN
+// to run the same contract against a real MySQL or PostgreSQL server.
+func TestTaskPluginSourceAboveMySQLTextLimitRoundTrips(t *testing.T) {
+	database, _ := openTaskDialectDatabase(t, &model.TaskPlugin{})
+	originalDB := model.DB
+	model.DB = database
+	t.Cleanup(func() { model.DB = originalDB })
+
+	source, err := plugins.Source("alibaba")
+	require.NoError(t, err)
+	require.Greater(t, len(source), 65535, "fixture must exceed the MySQL TEXT limit")
+	icon := "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(strings.Repeat(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`, 2048)))
+	require.Greater(t, len(icon), 65535, "icon fixture must exceed the MySQL TEXT limit")
+
+	plugin := model.TaskPlugin{Key: "alibaba", APIVersion: 1, Version: "roundtrip", Source: model.LongText(source), SourceHash: "hash", Enabled: true}
+	require.NoError(t, model.SaveTaskPlugin(&plugin))
+	// Re-saving the same version attaches the icon through the update path.
+	withIcon := model.TaskPlugin{Key: "alibaba", APIVersion: 1, Version: "roundtrip", Source: model.LongText(source), SourceHash: "hash", Icon: model.LongText(icon), Enabled: true}
+	require.NoError(t, model.SaveTaskPlugin(&withIcon))
+
+	stored, err := model.GetTaskPluginVersion("alibaba", "roundtrip")
+	require.NoError(t, err)
+	assert.Equal(t, source, string(stored.Source))
+	assert.Equal(t, icon, string(stored.Icon))
+
+	// The 30-second sync poll must not pull these payloads; it reads hashes
+	// and fetches source only for rows it has to recompile.
+	snapshot, err := model.GetTaskPluginSyncSnapshot()
+	require.NoError(t, err)
+	require.Len(t, snapshot.Plugins, 1)
+	assert.Equal(t, stored.Id, snapshot.Plugins[0].Id)
+	assert.Equal(t, "hash", snapshot.Plugins[0].SourceHash)
+	assert.Empty(t, snapshot.Plugins[0].Source)
+	assert.Empty(t, snapshot.Plugins[0].Icon)
+	loaded, err := model.GetTaskPluginSource(snapshot.Plugins[0].Id)
+	require.NoError(t, err)
+	assert.Equal(t, source, string(loaded))
+}
+
+func TestUploadTaskPluginAcceptsSourcesUpToEightMiB(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	cleanupTaskPluginControllerRuntime(t, "large-source")
+	upload := func(source string) *httptest.ResponseRecorder {
+		body, err := common.Marshal(map[string]any{"source": source})
+		require.NoError(t, err)
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task", bytes.NewReader(body))
+		context.Request.Header.Set("Content-Type", "application/json")
+		UploadTaskPlugin(context)
+		return recorder
+	}
+
+	// A trailing comment pads a valid plugin past the former 1 MiB cap.
+	accepted := taskPluginControllerTestSource("large-source", "1.0.0") + "// " + strings.Repeat("x", 2<<20) + "\n"
+	recorder := upload(accepted)
+	require.Contains(t, recorder.Body.String(), `"success":true`)
+	stored, err := model.GetTaskPluginVersion("large-source", "1.0.0")
+	require.NoError(t, err)
+	assert.Equal(t, accepted, string(stored.Source))
+
+	rejected := upload(accepted + strings.Repeat("x", 6<<20))
+	assert.Contains(t, rejected.Body.String(), `"success":false`)
+	assert.Contains(t, rejected.Body.String(), "plugin source exceeds 8 MiB")
+	_, err = model.GetTaskPluginVersion("large-source", "2.0.0")
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
 func TestListTaskPluginsIncludesFactoryWithoutDatabaseRows(t *testing.T) {
 	setupTaskPluginControllerTest(t)
 	recorder := httptest.NewRecorder()
@@ -368,6 +450,7 @@ export const meta = {
   description: {en: "Video generation via the vendor API", zh: "通过厂商接口生成视频"},
   icon: "text:UO", baseUrl: "http://localhost:9000/",
   channelTypes: [1990, 1991],
+  upstreams: ["vendor", "new_api"],
   models: ["usage-options-model"], fetchMode: "per_task",
   usageSchema: {seconds: {type: "number", unit: "second", description: "Video generation unit price"}},
   usageProfiles: [{models:["usage-options-model"],schema:{image_count:{type:"number",unit:"count"}}}]
@@ -395,6 +478,7 @@ export function parseTaskResult() { return {}; }
 			Icon          string                               `json:"icon"`
 			BaseURL       string                               `json:"baseUrl"`
 			ChannelTypes  []int                                `json:"channelTypes"`
+			Upstreams     []string                             `json:"upstreams"`
 			UsageSchema   map[string]jsplugin.UsageFieldSchema `json:"usageSchema"`
 			UsageProfiles []jsplugin.UsageProfile              `json:"usageProfiles"`
 		} `json:"data"`
@@ -413,6 +497,7 @@ export function parseTaskResult() { return {}; }
 		assert.Equal(t, "count", option.UsageProfiles[0].Schema["image_count"].Unit)
 		assert.Equal(t, "text:UO", option.Icon)
 		assert.Equal(t, []int{1990, 1991}, option.ChannelTypes)
+		assert.Equal(t, []string{"vendor", "new_api"}, option.Upstreams, "the New API channel form lists only plugins declaring new_api")
 		assert.Equal(t, "http://localhost:9000", option.BaseURL, "the drawer prefills the normalized plugin default")
 		return
 	}
@@ -431,7 +516,7 @@ func TestDeleteActiveOverrideFallsBackToFactoryAndDeletesRecord(t *testing.T) {
 	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("kling") })
 	plugin := model.TaskPlugin{
 		Key: "kling", APIVersion: loaded.Meta.APIVersion, Version: loaded.Meta.Version,
-		Source: overrideSource, SourceHash: "test-hash", Enabled: true,
+		Source: model.LongText(overrideSource), SourceHash: "test-hash", Enabled: true,
 	}
 	require.NoError(t, model.SaveTaskPlugin(&plugin))
 	recorder := httptest.NewRecorder()
@@ -457,10 +542,10 @@ func TestDeleteActiveTaskPluginPromotesEnabledVersionInRuntime(t *testing.T) {
 	v1Source := taskPluginControllerTestSource(key, "1.0.0")
 	v2Source := taskPluginControllerTestSource(key, "2.0.0")
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
-		Key: key, APIVersion: 1, Version: "1.0.0", Source: v1Source, SourceHash: "hash-v1", Enabled: true,
+		Key: key, APIVersion: 1, Version: "1.0.0", Source: model.LongText(v1Source), SourceHash: "hash-v1", Enabled: true,
 	}))
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
-		Key: key, APIVersion: 1, Version: "2.0.0", Source: v2Source, SourceHash: "hash-v2", Enabled: true,
+		Key: key, APIVersion: 1, Version: "2.0.0", Source: model.LongText(v2Source), SourceHash: "hash-v2", Enabled: true,
 	}))
 	_, err := jsplugin.DefaultRegistry.Register(v1Source, jsplugin.Options{Key: key, Version: "1.0.0"})
 	require.NoError(t, err)
@@ -526,10 +611,10 @@ func TestActivateTaskPluginRefreshesRuntimeSyncState(t *testing.T) {
 	v1Source := taskPluginControllerTestSource(key, "1.0.0")
 	v2Source := taskPluginControllerTestSource(key, "2.0.0")
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
-		Key: key, APIVersion: 1, Version: "1.0.0", Source: v1Source, SourceHash: "hash-v1", Enabled: true,
+		Key: key, APIVersion: 1, Version: "1.0.0", Source: model.LongText(v1Source), SourceHash: "hash-v1", Enabled: true,
 	}))
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
-		Key: key, APIVersion: 1, Version: "2.0.0", Source: v2Source, SourceHash: "hash-v2", Enabled: true,
+		Key: key, APIVersion: 1, Version: "2.0.0", Source: model.LongText(v2Source), SourceHash: "hash-v2", Enabled: true,
 	}))
 	_, err := jsplugin.DefaultRegistry.Register(v1Source, jsplugin.Options{Key: key, Version: "1.0.0"})
 	require.NoError(t, err)
@@ -557,6 +642,158 @@ func TestActivateTaskPluginRefreshesRuntimeSyncState(t *testing.T) {
 	assert.False(t, hasSyncError)
 }
 
+// Every change that puts a version into service answers with the prices the
+// serving plugin cannot charge, read after the registry sync.
+func TestTaskPluginChangesReportPricingIssuesOfServingPlugin(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	// Pricing reads need the production key-column quoting.
+	previousLogDB := model.LOG_DB
+	t.Cleanup(func() { model.LOG_DB = previousLogDB })
+	t.Setenv("LOG_SQL_DSN", "")
+	require.NoError(t, model.InitLogDB())
+	key := "pricing-notice-probe"
+	cleanupTaskPluginControllerRuntime(t, key)
+	require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: "doc-1", ChannelId: 1, Enabled: true}).Error)
+	upload := func(version string) string {
+		body, err := common.Marshal(map[string]any{"source": taskPluginControllerTestSource(key, version)})
+		require.NoError(t, err)
+		return string(body)
+	}
+	unpriced := []model.ModelPricingIssue{{ModelName: "doc-1", PluginKey: key, PluginName: "Test", Reason: model.ModelPricingIssueUnconfigured}}
+	statusPath := "/api/plugin/task/" + key + "/status"
+	for _, step := range []struct {
+		name, method, path, body string
+		params                   gin.Params
+		handler                  gin.HandlerFunc
+		want                     []model.ModelPricingIssue
+	}{
+		{"first upload serves", http.MethodPost, "/api/plugin/task", upload("1.0.0"), nil, UploadTaskPlugin, unpriced},
+		{"later upload waits for activation", http.MethodPost, "/api/plugin/task", upload("2.0.0"), nil, UploadTaskPlugin, nil},
+		{"activation", http.MethodPost, "/api/plugin/task/" + key + "/activate", `{"version":"2.0.0"}`, gin.Params{{Key: "key", Value: key}}, ActivateTaskPlugin, unpriced},
+		{"switching off", http.MethodPost, statusPath, `{"enabled":false}`, gin.Params{{Key: "key", Value: key}}, SetTaskPluginStatus, nil},
+		{"switching on", http.MethodPost, statusPath, `{"enabled":true}`, gin.Params{{Key: "key", Value: key}}, SetTaskPluginStatus, unpriced},
+		{"deleting the active version promotes another", http.MethodDelete, "/api/plugin/task/" + key + "/versions/2.0.0", "", gin.Params{{Key: "key", Value: key}, {Key: "version", Value: "2.0.0"}}, DeleteTaskPluginVersion, unpriced},
+	} {
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Params = step.params
+		context.Request = httptest.NewRequest(step.method, step.path, strings.NewReader(step.body))
+		context.Request.Header.Set("Content-Type", "application/json")
+		step.handler(context)
+
+		var response struct {
+			Success bool   `json:"success"`
+			Message string `json:"message"`
+			Data    struct {
+				PricingIssues []model.ModelPricingIssue `json:"pricing_issues"`
+			} `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response), step.name)
+		require.True(t, response.Success, "%s: %s", step.name, response.Message)
+		assert.Equal(t, step.want, response.Data.PricingIssues, step.name)
+	}
+	active, err := model.GetTaskPluginVersion(key, "")
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0", active.Version)
+}
+
+// A plugin switched off keeps its saved prices for when it is switched back
+// on, whether its override row is stored disabled or its built-in sits in the
+// disabled set: prices for models its installed version declares are not
+// issues, and none of its models counts as unpriced. Prices turn stale once the
+// installed version stops declaring the model or the plugin is gone.
+func TestSwitchedOffPluginPricesAreNotPricingIssues(t *testing.T) {
+	setupTaskPluginFactoryDisableTest(t)
+	// Pricing reads need the production key-column quoting.
+	previousLogDB := model.LOG_DB
+	t.Cleanup(func() { model.LOG_DB = previousLogDB })
+	t.Setenv("LOG_SQL_DSN", "")
+	require.NoError(t, model.InitLogDB())
+	savedConfig := config.GlobalConfig.ExportAllConfigs()
+	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(savedConfig)) })
+	key := "pricing-off-probe"
+	cleanupTaskPluginControllerRuntime(t, key)
+	body, err := common.Marshal(map[string]any{"source": taskPluginControllerTestSource(key, "1.0.0")})
+	require.NoError(t, err)
+	upload := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(upload)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task", strings.NewReader(string(body)))
+	context.Request.Header.Set("Content-Type", "application/json")
+	UploadTaskPlugin(context)
+	require.Contains(t, upload.Body.String(), `"success":true`)
+	var kling jsplugin.Meta
+	for _, meta := range jsplugin.DefaultRegistry.Snapshot().Factory {
+		if meta.Key == "kling" {
+			kling = meta
+		}
+	}
+	require.NotEmpty(t, kling.Models)
+	_, live := jsplugin.DefaultRegistry.Get("kling")
+	require.True(t, live)
+	// Live plugins, built-ins included, have nothing to price before a channel
+	// serves their models or a provider price is saved.
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{billing_setting.PluginBillingExprOption: `{}`}))
+	freshIssues, err := model.GetModelPricingIssues("")
+	require.NoError(t, err)
+	assert.Empty(t, freshIssues)
+	for _, name := range kling.Models {
+		require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: name, ChannelId: 1, Enabled: true}).Error)
+	}
+	prices, err := common.Marshal(map[string]string{
+		key + "::doc-1":              `tier("base", u("units") * 0.1)`,
+		key + "::retired-model":      `tier("base", u("units") * 0.1)`,
+		"kling::" + kling.Models[0]:  `tier("base", u("units") * 0.1)`,
+		"kling::kling-retired-model": `tier("base", u("units") * 0.1)`,
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Save(&model.Option{Key: billing_setting.PluginBillingExprOption, Value: string(prices)}).Error)
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{billing_setting.PluginBillingExprOption: string(prices)}))
+	readIssues := func() []model.ModelPricingIssue {
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Request = httptest.NewRequest(http.MethodGet, "/api/option/model_pricing/issues", nil)
+		GetModelPricingIssues(context)
+		var response struct {
+			Success bool                      `json:"success"`
+			Data    []model.ModelPricingIssue `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.True(t, response.Success)
+		return slices.DeleteFunc(response.Data, func(issue model.ModelPricingIssue) bool {
+			return issue.PluginKey != key && issue.PluginKey != "kling"
+		})
+	}
+	unpricedKling := func(issue model.ModelPricingIssue) bool {
+		return issue.PluginKey == "kling" && issue.Reason == model.ModelPricingIssueUnconfigured
+	}
+	if len(kling.Models) > 1 {
+		require.True(t, slices.ContainsFunc(readIssues(), unpricedKling), "a serving built-in reports its unpriced models")
+	}
+
+	for _, plugin := range []string{key, "kling"} {
+		require.Contains(t, postTaskPluginStatus(t, plugin, "", `{"enabled":false}`).Body.String(), `"success":true`)
+	}
+	row, err := model.GetTaskPluginVersion(key, "")
+	require.NoError(t, err)
+	require.False(t, row.Enabled)
+	require.Equal(t, []string{"kling"}, setting.GetTaskPluginDisabledFactoryKeys())
+	_, serving := jsplugin.DefaultRegistry.Get("kling")
+	require.False(t, serving)
+	// A plugin missing from the live generation is named by its key.
+	stale := func(name, plugin string) model.ModelPricingIssue {
+		return model.ModelPricingIssue{ModelName: name, PluginKey: plugin, PluginName: plugin, Reason: model.ModelPricingIssueStale}
+	}
+	assert.Equal(t, []model.ModelPricingIssue{stale("kling-retired-model", "kling"), stale("retired-model", key)}, readIssues())
+
+	remove := httptest.NewRecorder()
+	context, _ = gin.CreateTestContext(remove)
+	context.Params = gin.Params{{Key: "key", Value: key}, {Key: "version", Value: "1.0.0"}}
+	context.Request = httptest.NewRequest(http.MethodDelete, "/api/plugin/task/"+key+"/versions/1.0.0", nil)
+	DeleteTaskPluginVersion(context)
+	require.Contains(t, remove.Body.String(), `"success":true`)
+	assert.Equal(t, []model.ModelPricingIssue{stale("doc-1", key), stale("kling-retired-model", "kling"), stale("retired-model", key)}, readIssues())
+}
+
 func TestSyncTaskPluginsPublishesOneGenerationForWholeBatch(t *testing.T) {
 	setupTaskPluginControllerTest(t)
 	firstKey := "batch-sync-first"
@@ -566,10 +803,10 @@ func TestSyncTaskPluginsPublishesOneGenerationForWholeBatch(t *testing.T) {
 	firstSource := taskPluginControllerTestSource(firstKey, "1.0.0")
 	secondSource := taskPluginControllerTestSource(secondKey, "1.0.0")
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
-		Key: firstKey, APIVersion: 1, Version: "1.0.0", Source: firstSource, SourceHash: "first-hash", Enabled: true,
+		Key: firstKey, APIVersion: 1, Version: "1.0.0", Source: model.LongText(firstSource), SourceHash: "first-hash", Enabled: true,
 	}))
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
-		Key: secondKey, APIVersion: 1, Version: "1.0.0", Source: secondSource, SourceHash: "second-hash", Enabled: true,
+		Key: secondKey, APIVersion: 1, Version: "1.0.0", Source: model.LongText(secondSource), SourceHash: "second-hash", Enabled: true,
 	}))
 	before := jsplugin.DefaultRegistry.Generation().Number
 
@@ -602,7 +839,7 @@ func TestTaskPluginRuntimeExposesDatabaseRevisionAheadOfLocalGeneration(t *testi
 	v1Source := taskPluginControllerTestSource(key, "1.0.0")
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
 		Key: key, APIVersion: 1, Version: "1.0.0",
-		Source: v1Source, SourceHash: "runtime-v1", Enabled: true,
+		Source: model.LongText(v1Source), SourceHash: "runtime-v1", Enabled: true,
 	}))
 	require.NoError(t, syncTaskPluginsOnce())
 	localGeneration := jsplugin.DefaultRegistry.Generation().Number
@@ -613,7 +850,7 @@ func TestTaskPluginRuntimeExposesDatabaseRevisionAheadOfLocalGeneration(t *testi
 	v2Source := taskPluginControllerTestSource(key, "2.0.0")
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
 		Key: key, APIVersion: 1, Version: "2.0.0",
-		Source: v2Source, SourceHash: "runtime-v2", Enabled: true,
+		Source: model.LongText(v2Source), SourceHash: "runtime-v2", Enabled: true,
 	}))
 	require.NoError(t, model.ActivateTaskPlugin(key, "2.0.0"))
 
@@ -693,7 +930,7 @@ func TestTaskPluginRuntimeSurvivesDatabaseSyncFailure(t *testing.T) {
 	source := taskPluginControllerTestSource(key, "1.0.0")
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
 		Key: key, APIVersion: 1, Version: "1.0.0",
-		Source: source, SourceHash: "runtime-database-v1", Enabled: true,
+		Source: model.LongText(source), SourceHash: "runtime-database-v1", Enabled: true,
 	}))
 	require.NoError(t, syncTaskPluginsOnce())
 	generation := jsplugin.DefaultRegistry.Generation().Number
@@ -735,17 +972,17 @@ func TestSyncTaskPluginsCachesRejectedDesiredSourceWithoutLosingIncumbent(t *tes
 	v2Source := taskPluginControllerChannelSource(pluginKey, "2.0.0", 9002)
 	ownerSource := taskPluginControllerChannelSource(ownerKey, "1.0.0", 9002)
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
-		Key: pluginKey, APIVersion: 1, Version: "1.0.0", Source: v1Source, SourceHash: "retained-v1", Enabled: true,
+		Key: pluginKey, APIVersion: 1, Version: "1.0.0", Source: model.LongText(v1Source), SourceHash: "retained-v1", Enabled: true,
 	}))
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
-		Key: ownerKey, APIVersion: 1, Version: "1.0.0", Source: ownerSource, SourceHash: "owner-v1", Enabled: true,
+		Key: ownerKey, APIVersion: 1, Version: "1.0.0", Source: model.LongText(ownerSource), SourceHash: "owner-v1", Enabled: true,
 	}))
 	require.NoError(t, syncTaskPluginsOnce())
 
 	incumbent, ok := jsplugin.DefaultRegistry.Get(pluginKey)
 	require.True(t, ok)
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
-		Key: pluginKey, APIVersion: 1, Version: "2.0.0", Source: v2Source, SourceHash: "retained-v2", Enabled: true,
+		Key: pluginKey, APIVersion: 1, Version: "2.0.0", Source: model.LongText(v2Source), SourceHash: "retained-v2", Enabled: true,
 	}))
 	require.NoError(t, model.ActivateTaskPlugin(pluginKey, "2.0.0"))
 
@@ -767,7 +1004,7 @@ func TestSyncTaskPluginsCachesRejectedDesiredSourceWithoutLosingIncumbent(t *tes
 
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
 		Key: ownerKey, APIVersion: 1, Version: "2.0.0",
-		Source: taskPluginControllerChannelSource(ownerKey, "2.0.0", 9003), SourceHash: "owner-v2", Enabled: true,
+		Source: model.LongText(taskPluginControllerChannelSource(ownerKey, "2.0.0", 9003)), SourceHash: "owner-v2", Enabled: true,
 	}))
 	require.NoError(t, model.ActivateTaskPlugin(ownerKey, "2.0.0"))
 	require.NoError(t, syncTaskPluginsOnce())
@@ -852,10 +1089,10 @@ func TestUploadTaskPluginPreflightConflict(t *testing.T) {
 			wantError: "channelType 50 conflicts",
 		},
 		{
-			name:        "force saves despite conflict",
-			key:         "preflight-force",
-			force:       true,
-			wantSuccess: true,
+			name:      "force does not bypass a conflict",
+			key:       "preflight-force",
+			force:     true,
+			wantError: "channelType 50 conflicts",
 		},
 		{
 			name:        "disabled skips preflight",
@@ -886,8 +1123,9 @@ func TestUploadTaskPluginPreflightConflict(t *testing.T) {
 
 			if testCase.wantSuccess {
 				assert.Contains(t, recorder.Body.String(), `"success":true`)
-				_, err = model.GetTaskPluginVersion(testCase.key, "")
+				stored, err := model.GetTaskPluginVersion(testCase.key, "")
 				require.NoError(t, err)
+				assert.False(t, stored.Enabled)
 				return
 			}
 			assert.Contains(t, recorder.Body.String(), `"success":false`)
@@ -900,37 +1138,220 @@ func TestUploadTaskPluginPreflightConflict(t *testing.T) {
 	}
 }
 
-func TestUploadTaskPluginLocalizesUnknownMetaField(t *testing.T) {
-	require.NoError(t, i18n.Init())
+func taskPluginControllerRouteSource(key, version, routePath string) string {
+	return fmt.Sprintf(`
+export const meta = {apiVersion: 1, key: %q, name: "Test", version: %q, author: {name: "Test"}, models: ["doc-1"], fetchMode: "per_task",
+	routes: [{method: "POST", path: %q, type: "submit", decode: "createJob", render: "jobCreated"}]};
+export const native = {
+	createJob(ctx) { return {kind: "submit", model: ctx.body.value.model, requestBody: ctx.body.value}; },
+	jobCreated(ctx, task) { return {id: task.task_id}; },
+};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`, key, version, routePath)
+}
+
+func postTaskPluginUpload(t *testing.T, payload map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := common.Marshal(payload)
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task", strings.NewReader(string(body)))
+	context.Request.Header.Set("Content-Type", "application/json")
+	UploadTaskPlugin(context)
+	return recorder
+}
+
+func deleteTaskPluginVersionRequest(t *testing.T, key, version string) *httptest.ResponseRecorder {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Params = gin.Params{{Key: "key", Value: key}, {Key: "version", Value: version}}
+	context.Request = httptest.NewRequest(http.MethodDelete, "/api/plugin/task/"+key+"/versions/"+version, nil)
+	DeleteTaskPluginVersion(context)
+	return recorder
+}
+
+// The plugin list and detail name the declared routes the gateway leaves to
+// the /{key} address, for the version that serves.
+func TestTaskPluginListAndDetailReportSkippedRoutes(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	cleanupTaskPluginControllerRuntime(t, "skipped-probe")
+	// Stands in for the router, which skips a third-party plugin's routes
+	// under the host's namespaces.
+	require.NoError(t, jsplugin.DefaultRegistry.SetGenerationPreparer(func(candidate, _ *jsplugin.RoutingGeneration) (jsplugin.PreparedRoutingGeneration, error) {
+		var skipped []jsplugin.SkippedRoute
+		if plugin, ok := candidate.Get("skipped-probe"); ok {
+			skipped = append(skipped, jsplugin.SkippedRoute{PluginKey: "skipped-probe", Route: plugin.Meta.Routes[0], Reason: "host_namespace"})
+		}
+		return jsplugin.PreparedRoutingGeneration{Generation: candidate.WithSkippedRoutes(skipped)}, nil
+	}))
+	t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.SetGenerationPreparer(nil)) })
+	require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerRouteSource("skipped-probe", "1.0.0", "/v1/videos/probe")}).Body.String(), `"success":true`)
+
+	assert.Equal(t, []string{"POST /v1/videos/probe"}, listTaskPluginItem(t, "skipped-probe").SkippedRoutes)
+	assert.Equal(t, []string{}, listTaskPluginItem(t, "doubao").SkippedRoutes)
+	for key, want := range map[string][]string{"skipped-probe": {"POST /v1/videos/probe"}, "doubao": {}} {
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Params = gin.Params{{Key: "key", Value: key}}
+		context.Request = httptest.NewRequest(http.MethodGet, "/api/plugin/task/"+key, nil)
+		GetTaskPlugin(context)
+		var response struct {
+			Data taskPluginDetail `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		assert.Equal(t, want, response.Data.SkippedRoutes, key)
+	}
+}
+
+// With two enabled plugins whose routing conflicts, the restart order would
+// pick the one that serves. Every path that puts a plugin into service refuses
+// a conflict and changes nothing.
+func TestTaskPluginSwitchOnPathsRejectRoutingConflicts(t *testing.T) {
+	t.Run("switching on a stored plugin", func(t *testing.T) {
+		setupTaskPluginControllerTest(t)
+		cleanupTaskPluginControllerRuntime(t, "conflict-zeta")
+		cleanupTaskPluginControllerRuntime(t, "conflict-alpha")
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("conflict-zeta", "1.0.0", 990)}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("conflict-alpha", "1.0.0", 990), "enabled": false}).Body.String(), `"success":true`)
+
+		recorder := postTaskPluginStatus(t, "conflict-alpha", "", `{"enabled":true}`)
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "channelType 990 conflicts")
+		assert.Contains(t, recorder.Body.String(), "conflict-zeta")
+		stored, err := model.GetTaskPluginVersion("conflict-alpha", "")
+		require.NoError(t, err)
+		assert.False(t, stored.Enabled)
+
+		require.Contains(t, postTaskPluginStatus(t, "conflict-zeta", "", `{"enabled":false}`).Body.String(), `"success":true`)
+		assert.Contains(t, postTaskPluginStatus(t, "conflict-alpha", "", `{"enabled":true}`).Body.String(), `"success":true`)
+		serving, ok := jsplugin.DefaultRegistry.GetByChannelType(990)
+		require.True(t, ok)
+		assert.Equal(t, "conflict-alpha", serving.Meta.Key)
+	})
+
+	t.Run("switching on a factory built-in", func(t *testing.T) {
+		setupTaskPluginFactoryDisableTest(t)
+		cleanupTaskPluginControllerRuntime(t, "kling-rival")
+		require.Contains(t, postTaskPluginStatus(t, "kling", "", `{"enabled":false}`).Body.String(), `"success":true`)
+		// With the built-in off, another plugin may take its channel type.
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("kling-rival", "1.0.0", 50)}).Body.String(), `"success":true`)
+
+		recorder := postTaskPluginStatus(t, "kling", "", `{"enabled":true}`)
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "channelType 50 conflicts")
+		assert.Equal(t, []string{"kling"}, setting.GetTaskPluginDisabledFactoryKeys())
+		_, ok := jsplugin.DefaultRegistry.Get("kling")
+		assert.False(t, ok)
+
+		require.Contains(t, postTaskPluginStatus(t, "kling-rival", "", `{"enabled":false}`).Body.String(), `"success":true`)
+		assert.Contains(t, postTaskPluginStatus(t, "kling", "", `{"enabled":true}`).Body.String(), `"success":true`)
+		_, ok = jsplugin.DefaultRegistry.Get("kling")
+		assert.True(t, ok)
+	})
+
+	t.Run("activating a version", func(t *testing.T) {
+		setupTaskPluginControllerTest(t)
+		cleanupTaskPluginControllerRuntime(t, "activate-conflict")
+		cleanupTaskPluginControllerRuntime(t, "activate-rival")
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("activate-rival", "1.0.0", 991)}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerTestSource("activate-conflict", "1.0.0")}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("activate-conflict", "2.0.0", 991), "enabled": false}).Body.String(), `"success":true`)
+
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Params = gin.Params{{Key: "key", Value: "activate-conflict"}}
+		context.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task/activate-conflict/activate", strings.NewReader(`{"version":"2.0.0"}`))
+		context.Request.Header.Set("Content-Type", "application/json")
+		ActivateTaskPlugin(context)
+
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "activate-rival")
+		active, err := model.GetTaskPluginVersion("activate-conflict", "")
+		require.NoError(t, err)
+		assert.Equal(t, "1.0.0", active.Version)
+		runtimePlugin, ok := jsplugin.DefaultRegistry.Get("activate-conflict")
+		require.True(t, ok)
+		assert.Equal(t, "1.0.0", runtimePlugin.Meta.Version)
+	})
+
+	t.Run("deleting the active version promotes a conflicting one", func(t *testing.T) {
+		setupTaskPluginControllerTest(t)
+		cleanupTaskPluginControllerRuntime(t, "delete-conflict")
+		cleanupTaskPluginControllerRuntime(t, "delete-rival")
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerTestSource("delete-conflict", "1.0.0")}).Body.String(), `"success":true`)
+		// Stored switched on before the rival existed, so its own check passed.
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("delete-conflict", "2.0.0", 992)}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("delete-rival", "1.0.0", 992)}).Body.String(), `"success":true`)
+
+		recorder := deleteTaskPluginVersionRequest(t, "delete-conflict", "1.0.0")
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "delete-rival")
+		active, err := model.GetTaskPluginVersion("delete-conflict", "")
+		require.NoError(t, err)
+		assert.Equal(t, "1.0.0", active.Version)
+
+		// Deleting a version that promotes nothing is unaffected.
+		assert.Contains(t, deleteTaskPluginVersionRequest(t, "delete-conflict", "2.0.0").Body.String(), `"success":true`)
+		versions, err := model.ListTaskPluginVersions("delete-conflict")
+		require.NoError(t, err)
+		require.Len(t, versions, 1)
+		assert.Equal(t, "1.0.0", versions[0].Version)
+	})
+
+	t.Run("deleting or switching off the active version hands back a conflicting built-in", func(t *testing.T) {
+		setupTaskPluginFactoryDisableTest(t)
+		cleanupTaskPluginControllerRuntime(t, "kling")
+		cleanupTaskPluginControllerRuntime(t, "kling-rival")
+		const overrideVersion = "9.9.9-no-channel-type"
+		overrideSource := taskPluginControllerTestSource("kling", overrideVersion)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": overrideSource}).Body.String(), `"success":true`)
+		// The override serving kling does not claim channel type 50, so the rival may.
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("kling-rival", "1.0.0", 50)}).Body.String(), `"success":true`)
+
+		recorder := deleteTaskPluginVersionRequest(t, "kling", overrideVersion)
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "channelType 50 conflicts")
+		recorder = postTaskPluginUpload(t, map[string]any{"source": overrideSource, "enabled": false})
+		assert.Contains(t, recorder.Body.String(), `"success":false`)
+		assert.Contains(t, recorder.Body.String(), "channelType 50 conflicts")
+
+		active, err := model.GetTaskPluginVersion("kling", "")
+		require.NoError(t, err)
+		assert.True(t, active.Enabled)
+		runtimePlugin, ok := jsplugin.DefaultRegistry.Get("kling")
+		require.True(t, ok)
+		assert.Equal(t, overrideVersion, runtimePlugin.Meta.Version)
+	})
+}
+
+func TestUploadTaskPluginReportsUnknownMetaField(t *testing.T) {
 	body, err := common.Marshal(map[string]any{
 		"source": `export const meta = { futureField: true };`,
 	})
 	require.NoError(t, err)
-	for _, tc := range []struct {
-		language string
-		message  string
-	}{
-		{"en", `Plugin metadata contains an unknown field "futureField". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.`},
-		{"zh-CN", "插件元数据包含未知字段“futureField”。如果插件来自官方市场，可能需要更高版本的 new-api。请尝试更新 new-api 后重新安装插件。"},
-		{"zh-TW", "外掛中繼資料包含未知欄位「futureField」。如果外掛來自官方市集，可能需要較新版本的 new-api。請嘗試更新 new-api 後重新安裝外掛。"},
-	} {
-		t.Run(tc.language, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(recorder)
-			c.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task", bytes.NewReader(body))
-			c.Request.Header.Set("Content-Type", "application/json")
-			c.Request.Header.Set("Accept-Language", tc.language)
-			UploadTaskPlugin(c)
-			require.Equal(t, http.StatusOK, recorder.Code)
-			var response struct {
-				Success bool   `json:"success"`
-				Message string `json:"message"`
-			}
-			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
-			assert.False(t, response.Success)
-			assert.Equal(t, tc.message, response.Message)
-		})
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request.Header.Set("Accept-Language", "zh-CN")
+	UploadTaskPlugin(c)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success       bool           `json:"success"`
+		Message       string         `json:"message"`
+		MessageKey    string         `json:"message_key"`
+		MessageParams map[string]any `json:"message_params"`
 	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.False(t, response.Success)
+	assert.Equal(t, `Plugin metadata contains an unknown field "futureField". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.`, response.Message)
+	assert.Equal(t, `Plugin metadata contains an unknown field "{{field}}". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.`, response.MessageKey)
+	assert.Equal(t, map[string]any{"field": "futureField"}, response.MessageParams)
 }
 
 func TestUploadTaskPluginRejectsMetaViolatingV1Schema(t *testing.T) {
@@ -1186,7 +1607,7 @@ func TestTaskPluginDisplayOrderAndMetadata(t *testing.T) {
 		_, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
 		require.NoError(t, err)
 		cleanupTaskPluginControllerRuntime(t, key)
-		require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{Key: key, Version: "1.0.0", APIVersion: 1, Source: source, Enabled: true}))
+		require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{Key: key, Version: "1.0.0", APIVersion: 1, Source: model.LongText(source), Enabled: true}))
 	}
 	for _, endpoint := range []string{"list", "options"} {
 		t.Run(endpoint, func(t *testing.T) {
@@ -1256,7 +1677,7 @@ func TestUploadTaskPluginStoresSidecarIconAndServesIt(t *testing.T) {
 	assert.NotContains(t, accepted.Body.String(), "base64,", "icon bytes never travel inside detail JSON")
 	stored, err := model.GetTaskPluginVersion(key, "1.0.0")
 	require.NoError(t, err)
-	assert.Equal(t, svgIcon, stored.Icon)
+	assert.Equal(t, svgIcon, string(stored.Icon))
 
 	item := listTaskPluginItem(t, key)
 	assert.True(t, item.HasIcon)

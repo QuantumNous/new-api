@@ -194,7 +194,7 @@ func TestRequestDeepCopyOtherProtocols(t *testing.T) {
 			"metadata":{"user_id":"test"},"messages":[{"role":"user","content":"hello"}]
 		}`, func(clone *dto.ClaudeRequest) {
 			clone.Metadata[0] = '!'
-			clone.Tools.([]any)[0].(map[string]any)["input_schema"].(map[string]any)["type"] = "array"
+			clone.Tools.(json.RawMessage)[0] = '!'
 			clone.Messages[0].Content = "changed"
 			*clone.Temperature = 1
 		})

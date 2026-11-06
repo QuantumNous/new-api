@@ -76,7 +76,7 @@ func TestSecurityLoginCodeCompletesOnce(t *testing.T) {
 			user, _ := setupSecurityEnrollmentTest(t)
 			factor := &model.TwoFA{UserId: user.Id, Secret: "JBSWY3DPEHPK3PXP", IsEnabled: true}
 			require.NoError(t, model.DB.Create(factor).Error)
-			challenge, err := service.StartLoginVerification(user, "password")
+			challenge, err := service.StartLoginVerification(user, "password", nil)
 			require.NoError(t, err)
 			require.NotNil(t, challenge)
 			code, err := totp.GenerateCode(factor.Secret, time.Now())
@@ -121,7 +121,7 @@ func TestSecurityLoginRejectsChangedOrExpiredAuthorization(t *testing.T) {
 			user, _ := setupSecurityEnrollmentTest(t)
 			factor := &model.TwoFA{UserId: user.Id, Secret: "JBSWY3DPEHPK3PXP", IsEnabled: true}
 			require.NoError(t, model.DB.Create(factor).Error)
-			challenge, err := service.StartLoginVerification(user, "password")
+			challenge, err := service.StartLoginVerification(user, "password", nil)
 			require.NoError(t, err)
 			method := "2fa"
 			switch change {
@@ -183,7 +183,7 @@ func TestSecurityLoginPasskeyDoesNotRequireAdditionalTwoFA(t *testing.T) {
 					require.Equal(t, "required", result.Data.Options.PublicKey.UserVerification)
 					flowToken, challenge = result.Data.FlowToken, result.Data.Options.PublicKey.Challenge
 				} else {
-					pending, err := service.StartLoginVerification(user, "oauth:github")
+					pending, err := service.StartLoginVerification(user, "oauth:github", nil)
 					require.NoError(t, err)
 					parentToken = pending.FlowToken
 					flowToken, challenge = beginSecurityLoginPasskey(t, parentToken)
@@ -225,7 +225,7 @@ func TestSecurityLoginPasskeyDoesNotRequireAdditionalTwoFA(t *testing.T) {
 func TestSecurityLoginPasskeyConcurrentCompletionCreatesOneSession(t *testing.T) {
 	user, _ := setupSecurityEnrollmentTest(t)
 	key := newSecurityLoginPasskey(t, user.Id)
-	pending, err := service.StartLoginVerification(user, "password")
+	pending, err := service.StartLoginVerification(user, "password", nil)
 	require.NoError(t, err)
 	requests := make([]string, 2)
 	for index := range requests {
@@ -266,7 +266,7 @@ func TestSecurityLoginPasskeyConcurrentCompletionCreatesOneSession(t *testing.T)
 func TestSecurityLoginSessionFailureRollsBackChallengeConsumption(t *testing.T) {
 	user, _ := setupSecurityEnrollmentTest(t)
 	key := newSecurityLoginPasskey(t, user.Id)
-	pending, err := service.StartLoginVerification(user, "password")
+	pending, err := service.StartLoginVerification(user, "password", nil)
 	require.NoError(t, err)
 	require.NoError(t, model.DB.Callback().Create().Before("gorm:create").Register("login_session_failure", func(tx *gorm.DB) {
 		if tx.Statement.Table == "user_sessions" {
@@ -410,7 +410,7 @@ func TestSecurityLoginPasskeyCannotCompleteAnotherChallenge(t *testing.T) {
 		t.Run(fmt.Sprintf("other-user=%t", otherUser), func(t *testing.T) {
 			user, _ := setupSecurityEnrollmentTest(t)
 			key := newSecurityLoginPasskey(t, user.Id)
-			first, err := service.StartLoginVerification(user, "password")
+			first, err := service.StartLoginVerification(user, "password", nil)
 			require.NoError(t, err)
 			passkeyToken, challenge := beginSecurityLoginPasskey(t, first.FlowToken)
 			if otherUser {
@@ -418,7 +418,7 @@ func TestSecurityLoginPasskeyCannotCompleteAnotherChallenge(t *testing.T) {
 				require.NoError(t, model.DB.Create(user).Error)
 				newSecurityLoginPasskey(t, user.Id)
 			}
-			second, err := service.StartLoginVerification(user, "password")
+			second, err := service.StartLoginVerification(user, "password", nil)
 			require.NoError(t, err)
 			body, err := common.Marshal(map[string]any{"flow_token": second.FlowToken, "passkey_flow_token": passkeyToken, "credential": securityPasskeyResponse(t, key, challenge, false, 0)})
 			require.NoError(t, err)
@@ -815,4 +815,311 @@ func TestOAuthBindProviderErrorConsumesSessionBoundFlow(t *testing.T) {
 	assert.ErrorIs(t, err, model.ErrAuthFlowConsumed)
 	assert.Zero(t, provider.exchangeCalls)
 	assert.Zero(t, provider.userInfoCalls)
+}
+
+// legacyGitHubOAuthProvider follows the GitHub provider contract: the numeric
+// account ID identifies the user, Extra["legacy_id"] carries the username and
+// the verified email list is served on demand. Lookups go through the real
+// github_id model queries.
+type legacyGitHubOAuthProvider struct {
+	authFlowTestOAuthProvider
+	providerUserID     string
+	legacyID           string
+	verifiedEmails     []string
+	verifiedEmailsErr  error
+	verifiedEmailCalls int
+}
+
+func (*legacyGitHubOAuthProvider) GetName() string { return "GitHub" }
+func (provider *legacyGitHubOAuthProvider) GetUserInfo(context.Context, *oauth.OAuthToken) (*oauth.OAuthUser, error) {
+	return &oauth.OAuthUser{ProviderUserID: provider.providerUserID, Username: provider.legacyID, Extra: map[string]any{"legacy_id": provider.legacyID}}, nil
+}
+func (provider *legacyGitHubOAuthProvider) GetVerifiedEmails(context.Context, *oauth.OAuthToken) ([]string, error) {
+	provider.verifiedEmailCalls++
+	return provider.verifiedEmails, provider.verifiedEmailsErr
+}
+func (*legacyGitHubOAuthProvider) IsUserIDTaken(providerUserID string) bool {
+	return model.IsGitHubIdAlreadyTaken(providerUserID)
+}
+func (*legacyGitHubOAuthProvider) FillUserByProviderID(user *model.User, providerUserID string) error {
+	user.GitHubId = providerUserID
+	return user.FillUserByGitHubId()
+}
+func (*legacyGitHubOAuthProvider) SetProviderUserID(user *model.User, providerUserID string) {
+	user.GitHubId = providerUserID
+}
+func (*legacyGitHubOAuthProvider) GetProviderPrefix() string    { return "github_" }
+func (*legacyGitHubOAuthProvider) ProviderUserIDColumn() string { return "github_id" }
+
+// legacyGitHubOAuthLogin registers provider for one test and completes an OAuth
+// login callback with it.
+func legacyGitHubOAuthLogin(t *testing.T, provider *legacyGitHubOAuthProvider) *httptest.ResponseRecorder {
+	t.Helper()
+	const slug = "github-legacy-login-test"
+	oauth.Register(slug, provider)
+	t.Cleanup(func() { oauth.Unregister(slug) })
+	token, _, err := model.CreateAuthFlow(model.AuthFlowCreate{Purpose: model.AuthFlowPurposeOAuth, Provider: slug, Intent: model.AuthFlowIntentLogin, Payload: `{}`, ExpiresAt: time.Now().Add(time.Minute)})
+	require.NoError(t, err)
+	router := gin.New()
+	router.GET("/api/oauth/:provider", HandleOAuth)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/oauth/"+slug+"?state="+token+"&code=provider-code", nil))
+	return response
+}
+
+// legacyGitHubBindingAudits returns the account binding audit rows in creation
+// order together with their encoded parameters.
+func legacyGitHubBindingAudits(t *testing.T) ([]model.AuditLog, []string) {
+	t.Helper()
+	var audits []model.AuditLog
+	require.NoError(t, model.LOG_DB.Where("action = ?", "user.binding_bind").Order("id").Find(&audits).Error)
+	params := make([]string, 0, len(audits))
+	for _, audit := range audits {
+		require.NotNil(t, audit.Other.Op)
+		encoded, err := common.Marshal(audit.Other.Op.Params)
+		require.NoError(t, err)
+		params = append(params, string(encoded))
+	}
+	return audits, params
+}
+
+func TestOAuthLoginLegacyGitHubBindingRequiresAccountEvidence(t *testing.T) {
+	const declined = "This GitHub account cannot be linked to an existing account automatically, please sign in or register another way and then link GitHub in account settings"
+	tests := []struct {
+		name              string
+		existingGitHubID  string
+		existingDeleted   bool
+		withoutEmail      bool
+		legacyID          string
+		verifiedEmails    []string
+		verifiedEmailsErr error
+		registerEnabled   bool
+		expectLogin       bool
+		expectMigration   bool
+		expectNewAccount  bool
+		expectEmailCalls  int
+		expectAuditParams string
+	}{
+		{name: "numeric legacy value registers a new account", existingGitHubID: "424242", legacyID: "424242", verifiedEmails: []string{"legacy-github@example.com"}, registerEnabled: true, expectLogin: true, expectNewAccount: true},
+		{name: "numeric legacy value with registration disabled", existingGitHubID: "424242", legacyID: "424242", verifiedEmails: []string{"legacy-github@example.com"}},
+		{name: "soft-deleted legacy row registers a new account", existingGitHubID: "octocat-legacy", existingDeleted: true, legacyID: "octocat-legacy", verifiedEmails: []string{"legacy-github@example.com"}, registerEnabled: true, expectLogin: true, expectNewAccount: true},
+		{
+			name: "verified email match migrates", existingGitHubID: "octocat-legacy", legacyID: "octocat-legacy",
+			verifiedEmails: []string{"other@example.com", " Legacy-GitHub@Example.com "}, expectLogin: true, expectMigration: true, expectEmailCalls: 1,
+			// No SMTP server is configured in tests, so the notification attempt is recorded as failed.
+			expectAuditParams: `{"provider":"github","legacy_migration":true,"legacy_id":"octocat-legacy","provider_user_id":"900001","verified_email_matched":true,"success":true,"notification_failed":true}`,
+		},
+		{
+			name: "no matching verified email declines", existingGitHubID: "octocat-legacy", legacyID: "octocat-legacy",
+			verifiedEmails: []string{"other@example.com"}, registerEnabled: true, expectEmailCalls: 1,
+			expectAuditParams: `{"provider":"github","legacy_migration":true,"legacy_id":"octocat-legacy","provider_user_id":"900001","success":false,"reason":"no_matching_evidence"}`,
+		},
+		{
+			name: "verified emails failure declines", existingGitHubID: "octocat-legacy", legacyID: "octocat-legacy",
+			verifiedEmailsErr: errors.New("emails unavailable"), registerEnabled: true, expectEmailCalls: 1,
+			expectAuditParams: `{"provider":"github","legacy_migration":true,"legacy_id":"octocat-legacy","provider_user_id":"900001","success":false,"reason":"verified_emails_unavailable"}`,
+		},
+		{
+			name: "account without email declines before asking the provider", existingGitHubID: "octocat-legacy", withoutEmail: true, legacyID: "octocat-legacy",
+			verifiedEmails: []string{"legacy-github@example.com"}, registerEnabled: true,
+			expectAuditParams: `{"provider":"github","legacy_migration":true,"legacy_id":"octocat-legacy","provider_user_id":"900001","success":false,"reason":"no_matching_evidence"}`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setupSecurityEnrollmentTest(t)
+			previousRegister := common.RegisterEnabled
+			common.RegisterEnabled = test.registerEnabled
+			t.Cleanup(func() { common.RegisterEnabled = previousRegister })
+			existing := &model.User{Username: "legacy-github", Email: "legacy-github@example.com", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AffCode: "legacy-github", AuthVersion: 1, GitHubId: test.existingGitHubID}
+			if test.withoutEmail {
+				existing.Email = ""
+			}
+			require.NoError(t, model.DB.Create(existing).Error)
+			if test.existingDeleted {
+				require.NoError(t, model.DB.Delete(existing).Error)
+			}
+			provider := &legacyGitHubOAuthProvider{providerUserID: "900001", legacyID: test.legacyID, verifiedEmails: test.verifiedEmails, verifiedEmailsErr: test.verifiedEmailsErr}
+			response := legacyGitHubOAuthLogin(t, provider)
+			var result struct {
+				Success bool   `json:"success"`
+				Message string `json:"message"`
+				Data    struct {
+					User struct {
+						Id int `json:"id"`
+					} `json:"user"`
+				} `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+			require.Equal(t, test.expectLogin, result.Success, response.Body.String())
+			assert.Equal(t, test.expectEmailCalls, provider.verifiedEmailCalls)
+
+			var reloaded model.User
+			require.NoError(t, model.DB.Unscoped().First(&reloaded, existing.Id).Error)
+			audits, params := legacyGitHubBindingAudits(t)
+			if test.expectAuditParams == "" {
+				assert.Empty(t, audits)
+			} else {
+				require.Len(t, audits, 1)
+				assert.Equal(t, existing.Id, audits[0].UserId)
+				assert.Equal(t, common.RoleCommonUser, audits[0].ActorRole)
+				assert.Equal(t, test.expectMigration, audits[0].Success)
+				assert.JSONEq(t, test.expectAuditParams, params[0])
+			}
+			if test.expectMigration {
+				assert.Equal(t, existing.Id, result.Data.User.Id)
+				assert.Equal(t, "900001", reloaded.GitHubId)
+				assert.NotEmpty(t, response.Header().Values("Set-Cookie"))
+				return
+			}
+			assert.Equal(t, test.existingGitHubID, reloaded.GitHubId, "the existing binding must stay untouched")
+			if test.expectNewAccount {
+				var created model.User
+				require.NoError(t, model.DB.Where("github_id = ?", "900001").First(&created).Error)
+				assert.NotEqual(t, existing.Id, created.Id)
+				assert.Equal(t, created.Id, result.Data.User.Id)
+				return
+			}
+			assert.Empty(t, response.Header().Values("Set-Cookie"))
+			if test.expectAuditParams != "" {
+				assert.Equal(t, declined, result.Message)
+			}
+		})
+	}
+}
+
+func TestOAuthLoginLegacyGitHubBindingMigratesAfterLoginVerification(t *testing.T) {
+	for _, interference := range []string{"none", "pending id claimed by another account", "binding relinked meanwhile"} {
+		t.Run(interference, func(t *testing.T) {
+			setupSecurityEnrollmentTest(t)
+			existing := &model.User{Username: "legacy-github", Email: "legacy-github@example.com", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AffCode: "legacy-github", AuthVersion: 1, GitHubId: "octocat-legacy"}
+			require.NoError(t, model.DB.Create(existing).Error)
+			factor := &model.TwoFA{UserId: existing.Id, Secret: "JBSWY3DPEHPK3PXP", IsEnabled: true}
+			require.NoError(t, model.DB.Create(factor).Error)
+			provider := &legacyGitHubOAuthProvider{providerUserID: "900001", legacyID: "octocat-legacy", verifiedEmails: []string{"legacy-github@example.com"}}
+			response := legacyGitHubOAuthLogin(t, provider)
+			var challenge struct {
+				Success bool                   `json:"success"`
+				Data    service.LoginChallenge `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &challenge))
+			require.True(t, challenge.Success, response.Body.String())
+			require.True(t, challenge.Data.RequireVerification)
+			assert.Equal(t, []service.VerificationMethodOption{{Method: "2fa", Available: true}}, challenge.Data.Methods)
+			assert.Empty(t, response.Header().Values("Set-Cookie"))
+			assert.Zero(t, provider.verifiedEmailCalls, "a second factor is checked before the provider emails")
+			var reloaded model.User
+			require.NoError(t, model.DB.First(&reloaded, existing.Id).Error)
+			assert.Equal(t, "octocat-legacy", reloaded.GitHubId, "the binding waits for the verification")
+			audits, _ := legacyGitHubBindingAudits(t)
+			assert.Empty(t, audits)
+
+			expectedGitHubID, expectLogin := "900001", true
+			switch interference {
+			case "pending id claimed by another account":
+				other := &model.User{Username: "other-github", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AffCode: "other-github", AuthVersion: 1, GitHubId: "900001"}
+				require.NoError(t, model.DB.Create(other).Error)
+				expectedGitHubID, expectLogin = "octocat-legacy", false
+			case "binding relinked meanwhile":
+				require.NoError(t, model.DB.Model(existing).Update("github_id", "relinked-legacy").Error)
+				expectedGitHubID = "relinked-legacy"
+			}
+			code, err := totp.GenerateCode(factor.Secret, time.Now())
+			require.NoError(t, err)
+			body, err := common.Marshal(map[string]string{"flow_token": challenge.Data.FlowToken, "code": code})
+			require.NoError(t, err)
+			for attempt := range 2 {
+				response = securityEnrollmentRequest(http.MethodPost, "/api/user/login/verify", string(body), "", service.AuthIdentity{}, VerifyLogin)
+				var result securityEnrollmentResponse
+				require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+				assert.Equal(t, attempt == 0 && expectLogin, result.Success, response.Body.String())
+				if attempt == 0 && !expectLogin {
+					assert.Equal(t, "ACCOUNT_ALREADY_BOUND", result.Code)
+				}
+				if result.Success {
+					assert.NotEmpty(t, response.Header().Values("Set-Cookie"))
+				} else {
+					assert.Empty(t, response.Header().Values("Set-Cookie"))
+				}
+			}
+			require.NoError(t, model.DB.First(&reloaded, existing.Id).Error)
+			assert.Equal(t, expectedGitHubID, reloaded.GitHubId)
+			sessions, err := model.CountActiveUserSessions(existing.Id, time.Now().Unix())
+			require.NoError(t, err)
+			expectedSessions := 0
+			if expectLogin {
+				expectedSessions = 1
+			}
+			assert.EqualValues(t, expectedSessions, sessions, "the consumed challenge cannot be replayed")
+			audits, params := legacyGitHubBindingAudits(t)
+			if interference != "none" {
+				assert.Empty(t, audits)
+				return
+			}
+			require.Len(t, audits, 1)
+			assert.Equal(t, existing.Id, audits[0].UserId)
+			assert.Equal(t, common.RoleCommonUser, audits[0].ActorRole)
+			assert.True(t, audits[0].Success)
+			// No SMTP server is configured in tests, so the notification attempt is recorded as failed.
+			assert.JSONEq(t, `{"provider":"github","legacy_migration":true,"legacy_id":"octocat-legacy","provider_user_id":"900001","verification_method":"2fa","success":true,"notification_failed":true}`, params[0])
+		})
+	}
+}
+
+func TestOAuthBindIgnoresLegacyGitHubUsernames(t *testing.T) {
+	tests := []struct {
+		name          string
+		ownGitHubID   string
+		otherGitHubID string
+		legacyID      string
+		expectBound   bool
+	}{
+		{name: "another account's legacy username does not block binding", otherGitHubID: "octocat-legacy", legacyID: "octocat-legacy", expectBound: true},
+		{name: "own legacy username is replaced", ownGitHubID: "octocat-legacy", otherGitHubID: "unrelated-legacy", legacyID: "octocat-legacy", expectBound: true},
+		{name: "numeric legacy value does not collide", otherGitHubID: "424242", legacyID: "424242", expectBound: true},
+		{name: "numeric ID held by another account is rejected", otherGitHubID: "900001", legacyID: "octocat-legacy"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			user, identity := setupSecurityEnrollmentTest(t)
+			if test.ownGitHubID != "" {
+				require.NoError(t, model.DB.Model(user).Update("github_id", test.ownGitHubID).Error)
+			}
+			other := &model.User{Username: "other-github", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AffCode: "other-github", AuthVersion: 1, GitHubId: test.otherGitHubID}
+			require.NoError(t, model.DB.Create(other).Error)
+			const slug = "github-legacy-bind-test"
+			oauth.Register(slug, &legacyGitHubOAuthProvider{providerUserID: "900001", legacyID: test.legacyID})
+			t.Cleanup(func() { oauth.Unregister(slug) })
+			proof := issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopeAccountBind, Context: []byte(`{"provider":"` + slug + `"}`)}, service.VerificationMethodPassword)
+			started := securityEnrollmentRequest(http.MethodPost, "/api/oauth/state", `{"provider":"`+slug+`","intent":"bind"}`, proof, identity, GenerateOAuthCode)
+			var flow struct {
+				Data struct {
+					FlowToken string `json:"flow_token"`
+				} `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(started.Body.Bytes(), &flow))
+			require.NotEmpty(t, flow.Data.FlowToken, started.Body.String())
+			response := securityEnrollmentRequest(http.MethodGet, "/api/oauth/"+slug+"?state="+flow.Data.FlowToken+"&code=provider-code", "", "", identity, func(c *gin.Context) {
+				c.Params = gin.Params{{Key: "provider", Value: slug}}
+				HandleOAuth(c)
+			})
+			var result struct {
+				Success bool   `json:"success"`
+				Message string `json:"message"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+			assert.Equal(t, test.expectBound, result.Success, response.Body.String())
+
+			var bound, untouched model.User
+			require.NoError(t, model.DB.First(&bound, user.Id).Error)
+			require.NoError(t, model.DB.First(&untouched, other.Id).Error)
+			assert.Equal(t, test.otherGitHubID, untouched.GitHubId)
+			if test.expectBound {
+				assert.Equal(t, "900001", bound.GitHubId)
+				return
+			}
+			assert.Equal(t, test.ownGitHubID, bound.GitHubId)
+			assert.Equal(t, "This GitHub account has already been bound", result.Message)
+		})
+	}
 }

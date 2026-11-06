@@ -25,6 +25,7 @@ import {
 } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Toaster } from 'sonner'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import {
@@ -120,8 +121,8 @@ test('loading keeps installation disabled and footer outside the bounded scroll 
   const dialog = screen.getByRole('dialog')
   expect(dialog).toHaveClass(
     'sm:max-w-3xl',
-    'max-h-[calc(100vh-2rem)]',
-    'overflow-hidden'
+    'max-h-[var(--dialog-available-height,calc(100dvh-2rem))]',
+    'overflow-y-auto'
   )
   const footer = dialog.querySelector('[data-slot=dialog-footer]')
   const body = [...dialog.children].find((element) =>
@@ -284,6 +285,82 @@ test('shows all four Incho interfaces and explains absent authentication and ext
   ).not.toBeInTheDocument()
 })
 
+test('lists each vendor path once with a /{key} form named by the source key and folds routes under that key into legacy addresses', async () => {
+  const user = userEvent.setup()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(`export const meta = {
+  key: 'incho',
+  models: ['incho_music'],
+  routes: [
+    {method: 'POST', path: '/v1/music/generations', type: 'submit'},
+    {method: 'GET', path: '/incho/fetch/:task_id', type: 'query'},
+  ],
+};`)
+    )
+  )
+  renderDialog()
+  const endpoints = screen.getByRole('region', { name: 'Supported interfaces' })
+  expect(
+    await within(endpoints).findByText('/v1/music/generations')
+  ).toBeVisible()
+  expect(
+    within(endpoints).queryByText('/incho/v1/music/generations')
+  ).not.toBeInTheDocument()
+  expect(
+    within(endpoints).queryByRole('button', { name: '/demo' })
+  ).not.toBeInTheDocument()
+
+  await user.click(within(endpoints).getByRole('button', { name: '/incho' }))
+
+  expect(
+    within(endpoints).getByText('/incho/v1/music/generations')
+  ).toBeVisible()
+  const legacy = within(endpoints).getByRole('button', {
+    name: 'Legacy addresses (1)',
+  })
+  expect(legacy).toHaveAttribute('aria-expanded', 'false')
+  await user.click(legacy)
+  expect(within(endpoints).getByText('/incho/fetch/:task_id')).toBeVisible()
+  expect(
+    within(endpoints).queryByText('/incho/incho/fetch/:task_id')
+  ).not.toBeInTheDocument()
+  expect(within(endpoints).queryByText(/Only served/)).not.toBeInTheDocument()
+})
+
+test('a plugin whose routes all sit under a prefix of its key lists them as declared without an address toggle', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(`export const meta = {
+  key: 'sunoapi',
+  models: ['suno_music'],
+  routes: [
+    {method: 'POST', path: '/suno/submit/:action', type: 'submit'},
+    {method: 'POST', path: '/suno/fetch', type: 'dynamic'},
+    {method: 'GET', path: '/suno/fetch/:task_id', type: 'query'},
+  ],
+};`)
+    )
+  )
+  renderDialog()
+  const endpoints = screen.getByRole('region', { name: 'Supported interfaces' })
+  expect(
+    await within(endpoints).findByText('/suno/submit/:action')
+  ).toBeVisible()
+  expect(within(endpoints).getByText('/suno/fetch')).toBeVisible()
+  expect(within(endpoints).getByText('/suno/fetch/:task_id')).toBeVisible()
+  expect(
+    within(endpoints).queryByRole('group', { name: 'Address format' })
+  ).not.toBeInTheDocument()
+  expect(
+    within(endpoints).queryByRole('button', { name: /Legacy addresses/ })
+  ).not.toBeInTheDocument()
+})
+
 test('keyboard users can expand the full model list and inspect a protocol model scope', async () => {
   const user = userEvent.setup()
   vi.stubGlobal(
@@ -304,6 +381,31 @@ test('keyboard users can expand the full model list and inspect a protocol model
   expect(scope).toHaveAttribute('aria-expanded', 'true')
   const scopePanel = screen.getByRole('dialog', { name: 'Model scope' })
   expect(within(scopePanel).getByText('incho_music')).toBeVisible()
+})
+
+test('model constants show source models without an unreadable metadata warning', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(`
+      const MODELS = ['jev-1.13.0', 'jev-latest', 'jev-preview'];
+      export const meta = {models: MODELS};
+      function validate(model) { return MODELS.includes(model); }
+    `)
+    )
+  )
+  renderDialog()
+  const models = screen.getByRole('region', { name: 'Supported models' })
+  expect(await within(models).findByText('jev-1.13.0')).toBeVisible()
+  expect(within(models).getByText('jev-latest')).toBeVisible()
+  expect(within(models).getByText('jev-preview')).toBeVisible()
+  expect(
+    within(models).queryByText('From marketplace index')
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByText('Some plugin information could not be read')
+  ).not.toBeInTheDocument()
 })
 
 test('unreadable metadata can be retried without preventing installation or inventing domain restrictions', async () => {
@@ -412,6 +514,39 @@ test('selecting a historical version installs its source and hash', async () => 
   })
 })
 
+test('an install that needs activation reports what the activated version cannot charge', async () => {
+  const user = userEvent.setup()
+  vi.stubGlobal('crypto', webcrypto)
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(source))
+  )
+  api.installMarketplacePlugin.mockResolvedValue({
+    meta: { key: 'demo', name: 'Demo', version: '1.1' },
+    plugin: { active: false },
+  })
+  api.activateTaskPlugin.mockResolvedValue({
+    pricing_issues: [
+      {
+        model_name: 'demo-video',
+        plugin_key: 'demo',
+        plugin_name: 'Demo',
+        reason: 'unconfigured',
+      },
+    ],
+  })
+  renderDialog()
+  render(<Toaster />)
+  const install = screen.getByRole('button', { name: 'Install and enable' })
+  await waitFor(() => expect(install).toBeEnabled())
+
+  await user.click(install)
+
+  expect(api.activateTaskPlugin).toHaveBeenCalledWith('demo', '1.1')
+  expect(await screen.findByText('Installed Demo v1.1')).toBeVisible()
+  expect(screen.getByText('demo-video: No price set')).toBeVisible()
+})
+
 test('a single published version remains visible and cannot be changed', () => {
   vi.stubGlobal(
     'fetch',
@@ -504,7 +639,7 @@ test('a late response for the previous version cannot replace the selected sourc
   })
   const { reopen } = renderDialog(false, undefined, true)
   const selector = screen.getByRole('combobox', { name: 'Select version' })
-  selector.focus()
+  await user.click(selector)
   await user.keyboard('1.0{ArrowDown}{Enter}')
   await waitFor(() =>
     expect(

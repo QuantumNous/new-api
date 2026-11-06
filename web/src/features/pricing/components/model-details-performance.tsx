@@ -33,7 +33,10 @@ import {
   formatUptimePct,
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
-import type { PerformanceGroup } from '@/features/performance-metrics/types'
+import type {
+  PerformanceGroup,
+  PerformanceSeriesPoint,
+} from '@/features/performance-metrics/types'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
@@ -87,56 +90,23 @@ function toUptimePct(value: number): number {
   return Math.round(clamped * 100) / 100
 }
 
-function toLatencySeries(groups: PerformanceGroup[]) {
-  const byTs = new Map<number, number[]>()
-  for (const group of groups) {
-    for (const point of group.series) {
-      if (point.avg_ttft_ms <= 0) continue
-      const current = byTs.get(point.ts) ?? []
-      current.push(point.avg_ttft_ms)
-      byTs.set(point.ts, current)
-    }
-  }
-
-  return [...byTs.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([ts, values]) => ({
-      timestamp: new Date(ts * 1000).toISOString(),
+function toLatencySeries(series: PerformanceSeriesPoint[]) {
+  return series
+    .filter((point) => point.avg_ttft_ms > 0)
+    .map((point) => ({
+      timestamp: new Date(point.ts * 1000).toISOString(),
       group: 'latency',
-      ttft_ms: Math.round(
-        values.reduce((sum, value) => sum + value, 0) / values.length
-      ),
+      ttft_ms: point.avg_ttft_ms,
     }))
 }
 
-function toUptimeSeries(groups: PerformanceGroup[]): UptimeDayPoint[] {
-  const byTs = new Map<number, { rates: number[]; incidents: number }>()
-  for (const group of groups) {
-    for (const point of group.series) {
-      const current = byTs.get(point.ts) ?? { rates: [], incidents: 0 }
-      if (Number.isFinite(point.success_rate)) {
-        const successRate = toUptimePct(point.success_rate)
-        current.rates.push(successRate)
-        if (successRate < 100) current.incidents += 1
-      }
-      byTs.set(point.ts, current)
-    }
-  }
-  return [...byTs.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([ts, value]) => {
-      const uptime =
-        value.rates.length > 0
-          ? value.rates.reduce((sum, rate) => sum + rate, 0) /
-            value.rates.length
-          : 0
-      return {
-        date: new Date(ts * 1000).toISOString(),
-        uptime_pct: toUptimePct(uptime),
-        incidents: value.incidents,
-        outage_minutes: 0,
-      }
-    })
+function toUptimeSeries(series: PerformanceSeriesPoint[]): UptimeDayPoint[] {
+  return series.map((point) => ({
+    date: new Date(point.ts * 1000).toISOString(),
+    uptime_pct: toUptimePct(point.success_rate),
+    incidents: point.success_rate < 100 ? 1 : 0,
+    outage_minutes: 0,
+  }))
 }
 
 function toGroupUptimeSeries(group: PerformanceGroup): UptimeDayPoint[] {
@@ -151,17 +121,6 @@ function toGroupUptimeSeries(group: PerformanceGroup): UptimeDayPoint[] {
   })
 }
 
-function average(
-  rows: PerformanceRow[],
-  field: 'avg_ttft_ms' | 'avg_latency_ms'
-) {
-  const values = rows.map((row) => row[field]).filter((value) => value > 0)
-  if (values.length === 0) return 0
-  return Math.round(
-    values.reduce((sum, value) => sum + value, 0) / values.length
-  )
-}
-
 export function ModelDetailsPerformance(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const metricsQuery = useQuery({
@@ -172,6 +131,11 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
   })
   const groups = useMemo(
     () => metricsQuery.data?.data.groups ?? [],
+    [metricsQuery.data]
+  )
+  const summary = metricsQuery.data?.data.summary
+  const series = useMemo(
+    () => metricsQuery.data?.data.series ?? [],
     [metricsQuery.data]
   )
   const performances = useMemo<PerformanceRow[]>(
@@ -185,8 +149,8 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
       })),
     [groups]
   )
-  const latencySeries = useMemo(() => toLatencySeries(groups), [groups])
-  const uptimeSeries = useMemo(() => toUptimeSeries(groups), [groups])
+  const latencySeries = useMemo(() => toLatencySeries(series), [series])
+  const uptimeSeries = useMemo(() => toUptimeSeries(series), [series])
   const uptimeByGroup = useMemo<Record<string, UptimeDayPoint[]>>(() => {
     const map: Record<string, UptimeDayPoint[]> = {}
     for (const group of groups) {
@@ -203,22 +167,9 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     )
   }
 
-  const tpsValues = performances
-    .map((p) => p.avg_tps)
-    .filter((value) => value > 0)
-  const avgTps =
-    tpsValues.length > 0
-      ? tpsValues.reduce((sum, value) => sum + value, 0) / tpsValues.length
-      : 0
-  const avgLatency = average(performances, 'avg_latency_ms')
-  const successRates = performances
-    .map((perf) => perf.success_rate)
-    .filter((value) => Number.isFinite(value))
-  const successRate =
-    successRates.length > 0
-      ? successRates.reduce((sum, value) => sum + value, 0) /
-        successRates.length
-      : 0
+  const avgTps = summary?.avg_tps ?? 0
+  const avgLatency = summary?.avg_latency_ms ?? 0
+  const successRate = summary?.success_rate ?? Number.NaN
   const incidentCount = uptimeSeries.reduce((s, p) => s + p.incidents, 0)
 
   return (
@@ -300,6 +251,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
                 <UptimeSparkline
                   size='sm'
                   series={uptimeByGroup[perf.group] ?? []}
+                  overallSuccessRate={perf.success_rate}
                 />
               ),
             },
@@ -320,16 +272,9 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
         <SectionHeader
           icon={HeartPulse}
           title={t('Availability (last 24h)')}
-          description={
-            incidentCount > 0
-              ? t(
-                  'Request success rate; {{incidents}} incident buckets in the last 24 hours',
-                  {
-                    incidents: incidentCount,
-                  }
-                )
-              : t('Request success rate sampled over the last 24 hours')
-          }
+          description={t(
+            'Success rate excludes business rejections and includes the current partial hour.'
+          )}
           accent={
             incidentCount > 0 ? (
               <span className='inline-flex items-center gap-1 text-amber-600 dark:text-amber-400'>

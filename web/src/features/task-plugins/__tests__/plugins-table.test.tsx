@@ -19,8 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Toaster } from 'sonner'
 import { afterEach, expect, test, vi } from 'vitest'
 
+import {
+  MODEL_PRICING_ISSUES_QUERY_KEY,
+  type ModelPricingIssue,
+} from '@/features/system-settings/models/pricing-issues'
 import { api } from '@/lib/api'
 
 import { PluginsTable } from '../components/plugins-table'
@@ -222,6 +227,45 @@ test('confirmed disable blocked by usage opens the existing cascade confirmation
   )
 })
 
+test('usage dialog offers one cancel button and force operation posts force params', async () => {
+  const user = userEvent.setup()
+  const post = vi
+    .spyOn(api, 'post')
+    .mockResolvedValueOnce({
+      data: {
+        success: false,
+        message: 'Plugin in use',
+        data: {
+          channels: [{ id: 7, name: 'Video channel' }],
+          in_flight_count: 0,
+        },
+      },
+    })
+    .mockResolvedValueOnce({ data: { success: true, data: null } })
+  await user.click(renderPlugins(true))
+  await user.click(
+    within(
+      await screen.findByRole('alertdialog', { name: 'Disable plugin?' })
+    ).getByRole('button', { name: 'Disable' })
+  )
+  const usage = await screen.findByRole('alertdialog', {
+    name: 'Plugin is still in use',
+  })
+  expect(within(usage).getAllByRole('button', { name: 'Cancel' })).toHaveLength(
+    1
+  )
+  await user.click(
+    within(usage).getByRole('button', { name: 'Force operation' })
+  )
+  await waitFor(() =>
+    expect(post).toHaveBeenLastCalledWith(
+      '/api/plugin/task/example/status',
+      { enabled: false },
+      expect.objectContaining({ params: { cascade: true, force: true } })
+    )
+  )
+})
+
 test.each(['factory', 'override_over_factory'] as const)(
   '%s deletion protects the factory plugin while allowing custom version removal',
   async (source) => {
@@ -244,3 +288,99 @@ test.each(['factory', 'override_over_factory'] as const)(
     }
   }
 )
+
+function pricingIssue(
+  modelName: string,
+  reason: ModelPricingIssue['reason'] = 'unconfigured'
+): ModelPricingIssue {
+  return {
+    model_name: modelName,
+    plugin_key: 'example',
+    plugin_name: 'Example',
+    reason,
+  }
+}
+
+test('switching a plugin on lists the models it cannot charge and refreshes the pricing count', async () => {
+  const user = userEvent.setup()
+  vi.spyOn(api, 'post').mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        plugin_enabled: true,
+        pricing_issues: [pricingIssue('example-v3')],
+      },
+    },
+  })
+  const toggle = renderPlugins(false, 'table')
+  render(<Toaster />)
+  const [client] = clients
+  client.setQueryData(MODEL_PRICING_ISSUES_QUERY_KEY, [])
+
+  await user.click(toggle)
+  await user.click(
+    within(
+      await screen.findByRole('alertdialog', { name: 'Enable plugin?' })
+    ).getByRole('button', { name: 'Enable' })
+  )
+
+  expect(await screen.findByText('Plugin enabled')).toBeVisible()
+  expect(screen.getByText('example-v3: No price set')).toBeVisible()
+  expect(
+    client.getQueryState(MODEL_PRICING_ISSUES_QUERY_KEY)?.isInvalidated
+  ).toBe(true)
+})
+
+test('deleting the active custom version lists what the version taking over cannot charge', async () => {
+  const user = userEvent.setup()
+  const remove = vi.spyOn(api, 'delete').mockResolvedValue({
+    data: {
+      success: true,
+      data: { pricing_issues: [pricingIssue('example-old', 'stale')] },
+    },
+  })
+  renderPlugins(true, 'table', 'override_over_factory')
+  render(<Toaster />)
+
+  await user.click(screen.getAllByRole('button', { name: 'Open menu' })[0])
+  await user.click(
+    screen.getByRole('menuitem', { name: 'Delete active custom version' })
+  )
+  await user.click(
+    within(
+      await screen.findByRole('alertdialog', { name: 'Delete plugin version?' })
+    ).getByRole('button', { name: 'Delete' })
+  )
+
+  expect(remove).toHaveBeenCalledWith(
+    '/api/plugin/task/example/versions/1.0.0',
+    expect.any(Object)
+  )
+  expect(await screen.findByText('Plugin version deleted')).toBeVisible()
+  expect(
+    screen.getByText('example-old: The plugin no longer offers this model')
+  ).toBeVisible()
+})
+
+test('a long pricing notice names five models and counts the rest', async () => {
+  const user = userEvent.setup()
+  const issues = Array.from({ length: 7 }, (_, index) =>
+    pricingIssue(`example-m${index + 1}`)
+  )
+  vi.spyOn(api, 'post').mockResolvedValue({
+    data: { success: true, data: { pricing_issues: issues } },
+  })
+  const toggle = renderPlugins(false, 'table')
+  render(<Toaster />)
+
+  await user.click(toggle)
+  await user.click(
+    within(
+      await screen.findByRole('alertdialog', { name: 'Enable plugin?' })
+    ).getByRole('button', { name: 'Enable' })
+  )
+
+  expect(await screen.findByText('And 2 more models')).toBeVisible()
+  expect(screen.getByText('example-m5: No price set')).toBeVisible()
+  expect(screen.queryByText('example-m6: No price set')).not.toBeInTheDocument()
+})

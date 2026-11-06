@@ -60,9 +60,13 @@ func BenchmarkTaskPluginRuntime(b *testing.B) {
 					var err error
 					switch name {
 					case "HasExport":
-						_, err = plugin.Engine.HasExport(ctx, "extractUsage")
+						if !plugin.Engine.HasExport("extractUsage") {
+							b.Fatal("extractUsage not exported")
+						}
 					case "MissingExport":
-						_, err = plugin.Engine.HasExport(ctx, "absentHook")
+						if plugin.Engine.HasExport("absentHook") {
+							b.Fatal("absentHook exported")
+						}
 					default:
 						_, err = plugin.Engine.Call(ctx, "extractUsage", input)
 					}
@@ -180,7 +184,7 @@ func BenchmarkTaskPluginSSE(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				response := &http.Response{Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(wire))}
-				if _, err := New(plugin).readSubmitEvents(b.Context(), response, input); err != nil {
+				if _, _, err := New(plugin).readSubmitEvents(b.Context(), response, input, submitEventStream{frameLimit: maxTaskPluginPersistedJSONBytes}); err != nil {
 					b.Fatal(err)
 				}
 			}

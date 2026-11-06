@@ -46,4 +46,10 @@ export const HOST_PROTOCOL_ENDPOINTS: Record<string, HostProtocolEndpoint[]> = {
     { method: 'GET', path: '/v1/videos/{task_id}' },
     { method: 'GET', path: '/v1/videos/{task_id}/content' },
   ],
+  // Synchronous: the create call itself returns the rendered image response,
+  // so there is no retrieve endpoint and no mode-bearing create.
+  openai_image: [
+    { method: 'POST', path: '/v1/images/generations' },
+    { method: 'POST', path: '/v1/images/edits' },
+  ],
 }

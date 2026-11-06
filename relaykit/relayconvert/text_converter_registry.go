@@ -164,7 +164,7 @@ var builtinTextConverters = []TextConverterSpec{
 		},
 	},
 	{
-		ID:      requestConverterClaudeToResponses,
+		ID:      ConverterClaudeMessagesToOpenAIResponses,
 		From:    types.RelayFormatClaude,
 		To:      types.RelayFormatOpenAIResponses,
 		Quality: TextConverterQualityFair,
@@ -199,7 +199,7 @@ var builtinTextConverters = []TextConverterSpec{
 		},
 	},
 	{
-		ID:      requestConverterGeminiToResponses,
+		ID:      ConverterGeminiContentToOpenAIResponses,
 		From:    types.RelayFormatGemini,
 		To:      types.RelayFormatOpenAIResponses,
 		Quality: TextConverterQualityFair,

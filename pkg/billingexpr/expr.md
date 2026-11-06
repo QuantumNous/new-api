@@ -10,7 +10,7 @@ The expression is the billing contract between the administrator and the system.
 
 1. **Expression is self-contained** — The expression string alone determines billing. No external ratio tables, no implicit completion multipliers, no hidden conversion factors. Given the same token counts and request context, the same expression always produces the same cost.
 
-2. **Variables are opt-in** — `p` (prompt) and `c` (completion) are the base. Cache (`cr`, `cc`, `cc1h`), image (`img`), and audio (`ai`, `ao`) variables are optional. If omitted, those tokens are included in `p`/`c` and priced at their rate. The system automatically detects which variables the expression uses (via AST introspection) and adjusts token normalization accordingly.
+2. **Variables are opt-in** — `p` (prompt) and `c` (completion) are the base. Cache (`cr`, `cc`, `cc1h`, `cc12h`), image (`img`), and audio (`ai`, `ao`) variables are optional. If omitted, those tokens are included in `p`/`c` and priced at their rate; an omitted long-lived cache write keeps its fixed multiple of the short write price. The system automatically detects which variables the expression uses (via AST introspection) and adjusts token normalization accordingly.
 
 3. **Prices are real prices** — Token coefficients are actual $/1M tokens prices as published by providers. `p * 2.5` means $2.50 per 1M prompt tokens; `fixed(0.01)` means $0.01 per request. No ratio conversion or `/2` convention is required.
 
@@ -33,8 +33,9 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | `p` | 输入 token 数（**计价用**）。**自动排除**表达式中单独计价的子类别（见下方说明） |
 | `len` | 输入上下文总长度（**条件判断用**）。不受自动排除影响，始终反映完整输入长度。非 Claude：等于原始 `prompt_tokens`；Claude：等于文本输入 + 缓存读取 + 缓存创建 |
 | `cr` | 缓存命中（读取）token 数 |
-| `cc` | 缓存创建 token 数（Claude 5分钟 TTL / 通用） |
+| `cc` | 缓存创建 token 数（Claude 5分钟 TTL / OpenAI 30分钟 TTL / 通用） |
 | `cc1h` | 缓存创建 token 数 — 1小时 TTL（Claude 专用） |
+| `cc12h` | 缓存创建 token 数 — 12小时 TTL（OpenAI 专用） |
 | `img` | 图片输入 token 数 |
 | `img_cr` | 图片缓存读取 token 数；只有表达式显式引用且上游提供有效缓存模态明细时才单独拆分 |
 | `ai` | 音频输入 token 数 |
@@ -69,6 +70,9 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 |--------|---------|------|
 | `p * 3 + c * 15` | 500 | 没用 `ao`，音频输出包含在 `c` 里按 $15 计费 |
 | `p * 3 + c * 15 + ao * 50` | 400 | 用了 `ao`，音频 100 从 `c` 中扣除按 $50 计费 |
+
+长效缓存写入（Claude `cc1h`、OpenAI `cc12h`）没有单独计价时，按短效写入价格的固定倍数计费：
+OpenAI 12 小时为 2 倍，Claude 1 小时为 6÷3.75 倍。短效写入价格是 `cc`，`cc` 也未计价时是 `p`。
 
 #### 图片缓存与兼容性
 
@@ -116,9 +120,10 @@ Anthropic 的独立缓存计数语义不采用这一 OpenAI 图片拆分。
 省略 `cr` 时，Anthropic 用量中单独报告的缓存读取数会加回 `p`，而 `len` 保持完整上下文长度。
 缓存创建按对外计费名和原始配置处理：名称包含 `claude`（不区分大小写）时保留 `cc` 和 `cc1h`，
 其中 1h 价格沿用旧引擎的 `CreateCacheRatio * 6 / 3.75`；其他名称仅在草稿已配置 `CreateCacheRatio`
-时生成通用 `cc`（包括显式 0），不生成 `cc1h`。没有配置的通用 1.25 倍兜底不产生新计费项。
+时生成通用 `cc`（包括显式 0），不生成 `cc1h`。这时名称包含 `gpt`（不区分大小写）的模型同时生成 `cc12h`，
+价格沿用旧引擎的 `CreateCacheRatio * 2`。没有配置的通用 1.25 倍兜底不产生新计费项。
 不按渠道映射或模型白名单扩展缓存类型，也不要求管理员另选类型。
-定价快照条目、草稿预览响应和转换结果附带只读 `cache_write_mode`（`none` / `standard` / `claude_ttl`），
+定价快照条目、草稿预览响应和转换结果附带只读 `cache_write_mode`（`none` / `standard` / `claude_ttl` / `openai_ttl`），
 用于统一展示。`POST /api/option/model_pricing/preview` 的响应统一为
 `{success, message, data: {effective, cache_write_mode, billing_details}}`，调用者从 `data.effective`
 读取生效价格；转换接口和快照条目的 JSON 结构不变。元信息不保存、不参与表达式执行。
@@ -132,11 +137,11 @@ Gemini 音频输入使用旧结算实际采用的美元单价生成 `ai`，不�
 转换生成音频请求与纯文本请求两个分支。音频分支使用 `max(len - ai, 0)` 计量普通输入，避免纯文本
 分支中引用的缓存变量改变音频费用。Gemini 文本结算仍保留缓存/音频交叠后的输入余量零下限。
 只读 `billing_details` 为预览提供实际音频单价、图片数量和请求倍率规则，不成为新的持久化价格来源。
-同一计费名在 Gemini/兼容音频入口存在相互冲突的单价，或活动图片渠道采用不同请求倍率时，
+同一计费名在 Gemini/兼容音频入口存在相互冲突的单价时，
 转换返回该具体冲突，不能静默选择其中一条规则覆盖其他入口。
 
-图片按次价格转换为 `tier("image", fixed(price)) * image_count`，再追加旧尺寸、质量及适用的
-prompt_extend 条件倍率。DALL·E 尺寸/质量规则按原始请求模型名生成，模型映射不会额外引入这些规则。
+图片按次价格转换为 `tier("image", fixed(price)) * image_count`，再追加旧尺寸、质量条件倍率。
+DALL·E 尺寸/质量规则按原始请求模型名生成，模型映射不会额外引入这些规则。
 OpenAI 已于 2026-05-12 下线 DALL·E 2/3；其校验、默认值和倍率保留在独立 legacy 文件，
 仅用于历史配置及兼容上游。转换从 DTO 的旧计费逻辑获取倍率，不维护第二份价格表。
 图片 token 定价不额外乘数量。所有金额和倍率固化在表达式中，不再叠加旧 OtherRatios。
@@ -145,15 +150,18 @@ OpenAI 已于 2026-05-12 下线 DALL·E 2/3；其校验、默认值和倍率保�
 
 `image_count` 是独立于 token 的计费数量。省略上下文时默认 1；提供的数量必须是 1 到
 `dto.MaxImageN`（128）的整数。固定价格语法允许它作为乘数，仍禁止用 token 乘固定价格。
-图片入口只解析一次 provider 计费标量并随请求携带。Ali 遵循 `parameters.n → n → 1` 的优先级：
-缺失或 `null` 的嵌套数量回退顶层，显式 `parameters.n=0` 返回 400；顶层 `n=0` 仍兼容为 1。
-Ali JSON 和 multipart 请求都明确发送该生效数量。每次渠道重试或参数覆盖之后，再校验最终上游数量并在发送前补足预留，
+图片入口只解析一次 provider 计费标量并随请求携带。数量来自顶层 `n`（`n=0` 兼容为 1）；
+`parameters.n` 仍在入口校验范围，但不再覆盖计费数量。每次渠道重试或参数覆盖之后，再校验最终上游数量并在发送前补足预留，
 图片钱包预留使用原子余额检查，不能通过增加数量形成欠费后继续提交。
 `estimated_image_count` 保存本次发送前的数量；JSON/multipart 图片参数上下文只保留计费需要的标量，不保留图片或提示词内容。
-结算使用独立的实际数量，不修改被冻结的 `param("n")`。非法 Ali usage 数量记录诊断，并回退有效图片列表数量；缺少有效实际数量时保持发送数量。正常结束
+结算使用独立的实际数量，不修改被冻结的 `param("n")`。正常结束
 的 SSE 可以减少数量，客户端提前断开不能减少应收数量。最终消费日志记录 `image_count`。
+阿里百炼图片模型（万相、Qwen-Image、Z-Image）由 alibaba 任务插件通过 `openai_image` 宿主协议承接：
+其数量是任务用量事实 `u("image_count")`，提交时按请求数量预留，完成时按上游 `usage.image_count`
+（Qwen-Image-3.0 为 `usage.output_image_count`）或按各 `choices[].message.content[]` / `results[]`
+中的图片载荷数结算，任务消费日志同样记录 `image_count`。
 
-> **注意：** 自动扣除针对 GPT/OpenAI 格式的 API（prompt_tokens 包含子类别）。Claude 格式的 API 不重复扣除缓存；未独立计价的缓存读取加回输入。系统根据上游返回格式自动处理。
+> **注意：** 自动扣除针对 GPT/OpenAI 格式的 API（prompt_tokens 包含子类别）。Claude 格式的 API 不重复扣除缓存；未独立计价的缓存读取和缓存写入加回输入。系统根据上游返回格式自动处理。
 
 ### Built-in Functions
 
@@ -161,7 +169,7 @@ Ali JSON 和 multipart 请求都明确发送该生效数量。每次渠道重试
 |----------|-----------|---------|
 | `tier` | `tier(name, value) → float64` | Records which pricing tier matched; must wrap the cost expression |
 | `fixed` | `fixed(amount) → float64` | A USD price per request, used only as the complete price in `tier(name, fixed(amount))` |
-| `param` | `param(path) → any` | Reads a JSON path from the request body (uses gjson) |
+| `param` | `param(path) → any` | Reads a JSON path from the request body (uses ojson, gjson path syntax) |
 | `header` | `header(key) → string` | Reads a request header value |
 | `has` | `has(source, substr) → bool` | Substring check |
 | `hour` | `hour(tz) → int` | Current hour in timezone (0-23) |
@@ -272,7 +280,10 @@ The usage-log UI treats `request_rules` as the authoritative rule list and rende
 
 Task plugins can expose validated, provider-specific billing facts through
 `meta.usageSchema`. Expressions read those facts with `u("key")`. A literal key
-must be declared by the plugin schema before the expression can be saved.
+must be declared by the plugin schema before the expression can be saved. A
+single-plugin model's unchanged stored expression, and its unchanged provider
+override, stay saveable after the plugin narrows the model's profile; any edit
+must follow the current profile.
 
 Multiple plugins may serve the same model with different usage schemas. The
 executing channel identifies the plugin; clients do not select a billing
@@ -320,10 +331,12 @@ profiles require their own examples, using the same validation as the defaults.
 
 The host resolves model aliases before selecting usage metadata. Model-level
 pricing and expression-save APIs use the declared target; an ambiguous alias
-with multiple targets in the same plugin retains the plugin defaults. Request
-and usage validation use the executing plugin and final upstream model. Polling
+with multiple targets in the same plugin retains the plugin defaults. Usage
+validation uses the executing plugin and final upstream model. Polling
 selects metadata from each saved task's model, including in mixed-model batches.
-Unmatched models and plugins without profiles retain the plugin defaults.
+An upstream name that no profile declares, such as a channel mapping to a vendor
+endpoint ID, falls back to the client-facing model's profile. Unmatched models
+and plugins without profiles retain the plugin defaults.
 
 Profiles do not introduce a request-body whitelist or remove legacy multiplier
 extensions. Numeric hook facts retain a consistent floating-point representation
@@ -450,9 +463,11 @@ On save, the expression is validated:
 When a request arrives and the model uses `tiered_expr` billing:
 1. Loads expression from `billing_setting.GetBillingExpr()`
 2. Builds `RequestInput` (headers + body) for `param()` / `header()` functions
-3. Runs expression with estimated tokens: `RunExprWithRequest(expr, {P, C}, requestInput)`
-4. Converts output to quota: `rawCost / 1,000,000 * QuotaPerUnit`
+3. Runs the expression with locally estimated input tokens (`P` and `Len`) and zero output tokens (`C=0`). Client output limits do not affect the reservation. If request token estimation is disabled, the estimated input is zero.
+4. Converts output to quota: `rawCost / 1,000,000 * QuotaPerUnit`. For token-priced leaves, multiplies this reservation by `quota_setting.pre_consume_multiplier` (default 1; any finite positive decimal). The multiplier does not change context-length tier selection, actual settlement, or request-priced leaves. The snapshot freezes the multiplier for image quantity retries; group retries reuse the multiplied reservation. Older snapshots with no multiplier retain a factor of 1.
 5. Creates `BillingSnapshot` and stores it on `RelayInfo`. Expression and request state stay frozen for settlement. An auto-group retry refreshes group-dependent fields from the selected group before the next upstream attempt. If a free initial group skipped pre-consume and the retry selects a paid group, the billing session is created before that attempt. If an existing session moves to a more expensive group, its reservation is raised to that group's estimate before sending; cheaper groups are refunded only after actual usage is settled.
+
+Wallet trust bypass uses `quota_setting.trust_quota_usd` (default 10 USD; 0 disables bypass). Both the wallet and any limited API token must exceed the threshold. The wallet must still cover the estimated reservation before bypass is considered. Subscriptions and asynchronous tasks do not use this bypass. Legacy token-ratio pricing also reserves estimated input cost times the multiplier, without the former `PreConsumedQuota` floor or output-token estimate. Task usage pricing is unchanged.
 
 ### 4. Settlement (Actual Billing)
 
@@ -463,7 +478,7 @@ After the upstream response returns with actual token usage:
 1. `BuildTieredTokenParams(usage, isClaudeUsageSemantic, usedVars)`:
    - Reads actual token counts from `dto.Usage`
    - For GPT-format APIs (prompt_tokens includes everything): subtracts sub-categories from P/C **only when** the expression uses their variables (detected via AST introspection of the compiled expression)
-   - For Claude-format APIs: cache reads omitted from the expression are added to input; separately priced cache remains separate
+   - For Claude-format APIs: cache reads and writes omitted from the expression are added to input; separately priced cache remains separate
 
 2. `TryTieredSettle(relayInfo, params)`:
    - Uses the captured `BillingSnapshot`, whose group-dependent fields have been refreshed from the final selected group

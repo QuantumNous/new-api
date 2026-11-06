@@ -16,7 +16,7 @@
 
 - `compileBillingExpression(source)`：返回 `ready`（源文本、AST、依赖、规则位置）或带诊断的失败结果。
 - `evaluateBillingExpression(sourceOrCompiled, context)`：返回 `success`（`cost`、`matchedTier`、`requestRules`），或 `invalid` / `unsupported` / `missing_context`。
-- `display.ts`：只识别完整的标准 token 阶梯、schema 支持的任务枚举阶梯，以及标准阶梯外层的时间分支。
+- `display.ts`：只识别完整的标准 token 阶梯、schema 支持的任务枚举阶梯，以及标准阶梯外层的时间分支。任务阶梯中引用 schema 未声明枚举值的分支视为不可达并跳过，其余档位照常识别；`task-display.ts` 对这类比较按恒不成立处理。
 - `structure.ts`：无损拆分顶层表达式；字符串内的括号、运算符和转义不作为表达式结构。
 - `condition-display.ts`：从 AST 将星期范围、小时区间、条件组合及补集转换为本地化说明。详情、分组表、日志和模拟规则共用；原始源码只在无法识别的条件上回退。
 - `visual.ts`：`parseVisualBillingDocument(source)` 将 AST 转为条件分支与价格叶子；`serializeVisualBillingDocument(document)` 返回完整源码或字段错误，不返回残缺表达式。文档保留源码、节点身份、来源区间、变量是否存在及字符串草稿；通过与来源节点比较识别修改并局部替换。
@@ -37,7 +37,8 @@
 ```
 
 - `tokens` 是已归一化的计费变量；模拟器不再次减缓存。`p`、`c` 与现有预估输入含义相同。
-- 基础预估的 `len` 默认沿用 `p + cr + cc + cc1h`，可显式覆盖；不从请求 JSON 推断 token。
+- 基础预估的 `len` 默认沿用 `p + cr + cc + cc1h + cc12h`，可显式覆盖；不从请求 JSON 推断 token。
+- 表达式给 `cc` 定价、未给 `cc1h` 或 `cc12h` 定价时，基础预估与后端一样把 1 小时写入的 6/3.75 倍、12 小时写入的 2 倍计入 `cc`，`cc` 本身未定价时这些写入不计费。
 - 省略 `request` 表示没有模拟请求上下文；显式 `{}` 表示一个没有请求头、请求体字段的请求。只有开启请求模拟后，界面才提供空请求。
 - `usage` 对应任务 `u()` 字段；不从请求体猜测任务用量。
 - `now` 是一次求值共享的绝对时刻，省略时在开始求值时取得当前时间。

@@ -44,7 +44,7 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 				case req.Thinking.BudgetTokens != nil:
 					effort = string(reasoning.EffortFromBudget(*req.Thinking.BudgetTokens))
 				case req.Thinking.Type == "enabled" || req.Thinking.Type == "adaptive":
-					effort = string(reasoning.EffortHigh)
+					effort = string(reasoning.ClaudeDefaultEffort(req.Model))
 				}
 			}
 			info.SetReasoningEffort(effort)
@@ -52,21 +52,24 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 		return nil
 	}
 
-	native, err := reasoning.FromClaude(req)
+	native, diagnostics, err := reasoning.FromClaude(req)
 	if err != nil {
 		return err
 	}
-	explicit, err := reasoning.MergeExplicit(native, source, req.Model)
+	convdiag.Add(ctx, diagnostics...)
+	explicit, diagnostics, err := reasoning.MergeExplicit(native, source, req.Model)
 	if err != nil {
 		return err
 	}
+	convdiag.Add(ctx, diagnostics...)
 	if info != nil && !reasoning.IsKnownClaudeModel(capabilityModel) && reasoning.IsKnownClaudeModel(info.GetOriginModelName()) {
 		capabilityModel = info.GetOriginModelName()
 	}
-	intent, err := reasoning.MergeExplicitAndSuffix(explicit, suffix, req.Model)
+	intent, diagnostics, err := reasoning.MergeExplicitAndSuffix(explicit, suffix, req.Model)
 	if err != nil {
 		return err
 	}
+	convdiag.Add(ctx, diagnostics...)
 	knownClaudeModel := reasoning.IsKnownClaudeModel(capabilityModel)
 	if !knownClaudeModel && intent.Mode == reasoning.ModeAdaptive {
 		// Cross-protocol pivots cannot safely assume that an unknown
@@ -78,10 +81,20 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 			intent.Effort = reasoning.EffortHigh
 		}
 	}
+	requestEffort, err := reasoning.ParseEffort(req.GetEfforts())
+	if err != nil {
+		return err
+	}
+	if knownClaudeModel && intent.Mode == reasoning.ModeDisabled && (intent.Effort == "" || intent.Effort == reasoning.EffortNone) &&
+		requestEffort != "" && requestEffort != reasoning.EffortNone {
+		// Effort works without thinking, so the request's own effort is
+		// rendered for the thinking-off state rather than left unchecked.
+		intent.Effort = requestEffort
+	}
 	if req.MaxTokens == nil && intent.HasStrength() {
 		// Adapter-provided defaults may be raised to accommodate an exact
-		// cross-protocol budget. Explicit client max_tokens values are never
-		// expanded and remain subject to the renderer's strict validation.
+		// cross-protocol budget. Values too small for manual thinking are
+		// raised again by the renderer, which reports the change.
 		minimum := uint(1280)
 		if configuredDefault, configured := opts.Claude.DefaultMaxTokensFor(capabilityModel); configured && configuredDefault > 0 {
 			minimum = uint(configuredDefault)
@@ -108,10 +121,20 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 	}
 	convdiag.Add(ctx, rendered.Diagnostics...)
 	req.Model = baseModel
+	if rendered.MaxTokens != nil {
+		req.MaxTokens = rendered.MaxTokens
+	}
 	if rendered.Thinking != nil {
 		req.Thinking = rendered.Thinking
 	}
-	if rendered.OutputEffort != "" {
+	outputEffort := rendered.OutputEffort
+	// An effort the request still carries reaches a known model only at a
+	// level it accepts, and is removed where the model takes none.
+	rewriteRequestEffort := outputEffort == "" && knownClaudeModel && requestEffort != ""
+	if rewriteRequestEffort {
+		outputEffort = reasoning.ClaudeEffort(capabilityModel, requestEffort)
+	}
+	if outputEffort != "" || rewriteRequestEffort {
 		outputConfig := make(map[string]any)
 		if len(req.OutputConfig) > 0 {
 			if kitutil.GetJsonType(req.OutputConfig) != "object" {
@@ -124,12 +147,20 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 				outputConfig = make(map[string]any)
 			}
 		}
-		outputConfig["effort"] = string(rendered.OutputEffort)
-		encoded, err := kitutil.Marshal(outputConfig)
-		if err != nil {
-			return fmt.Errorf("failed to marshal Claude output_config: %w", err)
+		if outputEffort != "" {
+			outputConfig["effort"] = string(outputEffort)
+		} else {
+			delete(outputConfig, "effort")
 		}
-		req.OutputConfig = encoded
+		if len(outputConfig) == 0 {
+			req.OutputConfig = nil
+		} else {
+			encoded, err := kitutil.Marshal(outputConfig)
+			if err != nil {
+				return fmt.Errorf("failed to marshal Claude output_config: %w", err)
+			}
+			req.OutputConfig = encoded
+		}
 	}
 	if rendered.ClearSampling {
 		if req.Temperature != nil || req.TopP != nil || req.TopK != nil {

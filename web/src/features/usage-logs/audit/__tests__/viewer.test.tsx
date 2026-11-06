@@ -471,6 +471,61 @@ it('filters own access history by result, generation and time and resets paginat
   expect(screen.getByRole('table').style.minWidth).toMatch(/max\(100%, \d+px\)/)
 })
 
+it('opens on the current token when asked and resets back to it', async () => {
+  const get = vi.spyOn(api, 'get').mockResolvedValue({
+    data: { success: true, data: { items: [], total: 0 } },
+  })
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <AuditLogViewer
+        scope='self'
+        accessOnly
+        currentTokenRef={'a'.repeat(64)}
+        defaultTokenScope='current'
+      />
+    </QueryClientProvider>
+  )
+  const user = userEvent.setup()
+  await waitFor(() => expect(get).toHaveBeenCalled())
+  expect(get.mock.calls[0]).toEqual([
+    '/api/audit/self',
+    {
+      params: expect.objectContaining({
+        category: 'access_token',
+        token_ref: 'a'.repeat(64),
+      }),
+    },
+  ])
+  const reset = screen.getByRole('button', { name: 'Reset' })
+  expect(reset).toBeDisabled()
+  await user.click(screen.getByRole('combobox', { name: 'Token scope' }))
+  await user.click(await screen.findByRole('option', { name: 'All tokens' }))
+  await waitFor(() =>
+    expect(get.mock.lastCall?.[1]?.params).not.toHaveProperty('token_ref')
+  )
+  await user.click(screen.getByRole('combobox', { name: 'Result' }))
+  await user.click(await screen.findByRole('option', { name: 'Failed' }))
+  await waitFor(() =>
+    expect(get).toHaveBeenLastCalledWith('/api/audit/self', {
+      params: expect.objectContaining({ success: 'false' }),
+    })
+  )
+  await user.click(reset)
+  await waitFor(() =>
+    expect(get).toHaveBeenLastCalledWith('/api/audit/self', {
+      params: expect.objectContaining({ token_ref: 'a'.repeat(64) }),
+    })
+  )
+  expect(get.mock.lastCall?.[1]?.params).not.toHaveProperty('success')
+  expect(screen.getByRole('combobox', { name: 'Token scope' })).toHaveValue(
+    'Current token'
+  )
+  expect(reset).toBeDisabled()
+})
+
 it('a failed history query exposes retry and no empty history claim', async () => {
   vi.spyOn(api, 'get')
     .mockRejectedValueOnce(new Error('offline'))

@@ -1,70 +1,25 @@
 package ali
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
-	"time"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
-	rootconstant "github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
-
-func TestAliMultipartEditsUseValidatedProviderQuantity(t *testing.T) {
-	for _, tc := range []struct {
-		name    string
-		convert func(*gin.Context, *relaycommon.RelayInfo, dto.ImageRequest) (*AliImageRequest, error)
-	}{
-		{"multimodal edit", oaiFormEdit2AliImageEdit},
-		{"legacy Wan edit", oaiFormEdit2WanxImageEdit},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			var body bytes.Buffer
-			writer := multipart.NewWriter(&body)
-			require.NoError(t, writer.WriteField("model", "fixture-image"))
-			require.NoError(t, writer.WriteField("n", "2"))
-			require.NoError(t, writer.WriteField("parameters", `{"n":3,"prompt_extend":false}`))
-			part, err := writer.CreateFormFile("image", "input.png")
-			require.NoError(t, err)
-			_, err = part.Write([]byte("fixture image"))
-			require.NoError(t, err)
-			require.NoError(t, writer.Close())
-			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
-			c.Request.Header.Set("Content-Type", writer.FormDataContentType())
-			common.SetContextKey(c, rootconstant.ContextKeyChannelType, rootconstant.ChannelTypeAli)
-			request, err := relayhelper.GetAndValidOpenAIImageRequest(c, constant.RelayModeImagesEdits)
-			require.NoError(t, err)
-			info := &relaycommon.RelayInfo{Request: request}
-			converted, err := tc.convert(c, info, *request)
-			require.NoError(t, err)
-			require.NotNil(t, converted.Parameters.N)
-			assert.Equal(t, uint(3), *converted.Parameters.N)
-			require.NotNil(t, converted.Parameters.PromptExtend)
-			assert.False(t, *converted.Parameters.PromptExtend)
-			assert.Equal(t, uint(2), *request.N, "conversion must preserve the incoming request")
-		})
-	}
-}
 
 func TestConvertOpenAIRequestFiltersThinkingBudgetByUpstreamModel(t *testing.T) {
 	tests := []struct {
@@ -127,8 +82,8 @@ func TestConvertOpenAIRequestFiltersThinkingBudgetByUpstreamModel(t *testing.T) 
 			encoded, err := common.Marshal(converted)
 			require.NoError(t, err)
 
-			assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
-			value := gjson.GetBytes(encoded, "thinking_budget")
+			assert.True(t, ojson.GetBytes(encoded, "enable_thinking").Bool())
+			value := ojson.GetBytes(encoded, "thinking_budget")
 			assert.Equal(t, tt.wantBudget, value.Exists())
 			if tt.wantBudget {
 				assert.Equal(t, tt.wantValue, value.Int())
@@ -173,152 +128,362 @@ func TestConvertOpenAIRequestPreservesExplicitZeroForMappedQwenModel(t *testing.
 	encoded, err := common.Marshal(converted)
 	require.NoError(t, err)
 
-	value := gjson.GetBytes(encoded, "thinking_budget")
+	value := ojson.GetBytes(encoded, "thinking_budget")
 	assert.True(t, value.Exists())
 	assert.Equal(t, int64(0), value.Int())
 }
 
-func TestMappedAliImageModelUsesUpstreamProtocol(t *testing.T) {
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	info := &relaycommon.RelayInfo{
-		RelayMode:       constant.RelayModeImagesGenerations,
-		OriginModelName: "customer-image-model",
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelBaseUrl:    "https://dashscope.aliyuncs.com",
-			UpstreamModelName: "qwen-image-3.0-pro",
-		},
+// Image models the alibaba task plugin does not claim reach this adaptor only
+// through a channel misconfiguration. The rejection is a client error that
+// skips channel retries; a retryable 500 would be re-attempted on unrelated
+// channels and still end as a 500 for the client.
+func TestConvertImageRequestRejectsUnclaimedModelWithoutRetry(t *testing.T) {
+	for _, name := range []string{"wanx-style-repaint-v1", "custom-image-model"} {
+		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: name}}
+		_, err := (&Adaptor{}).ConvertImageRequest(nil, info, dto.ImageRequest{Model: name, Prompt: "a cat"})
+		var apiErr *types.NewAPIError
+		require.ErrorAs(t, err, &apiErr, name)
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode, name)
+		assert.True(t, types.IsSkipRetryError(apiErr), name)
+		assert.Contains(t, apiErr.Error(), name)
 	}
-
-	adaptor := &Adaptor{}
-	url, err := adaptor.GetRequestURL(info)
-	require.NoError(t, err)
-	assert.Equal(t, "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation", url)
-
-	header := http.Header{}
-	require.NoError(t, adaptor.SetupRequestHeader(c, &header, info))
-	assert.Empty(t, header.Get("X-DashScope-Async"))
-
-	converted, err := adaptor.ConvertImageRequest(c, info, dto.ImageRequest{
-		Model:  info.UpstreamModelName,
-		Prompt: "poster",
-	})
-	require.NoError(t, err)
-	assert.True(t, adaptor.IsSyncImageModel)
-	assert.IsType(t, &AliImageRequest{}, converted)
 }
 
-func TestAliImageCountMatchesLegacyReservation(t *testing.T) {
-	saved := ratio_setting.ModelPrice2JSONString()
-	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"z-image":0.04}`))
-	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(saved)) })
-	for _, tc := range []struct {
-		name, body string
-		count      int
-		multiplier float64
+// Claude clients reach DashScope two ways: models on the Anthropic-compatible
+// list keep Claude Messages and get the cc_entrypoint marker block (block
+// form verified live 2026-10-05; a plain string system did not search) and
+// the agent billing key; other models are converted to compatible-mode Chat,
+// where hosted web search becomes enable_search / search_options and a forced
+// search is billed as one turbo call.
+func TestConvertClaudeRequestWebSearch(t *testing.T) {
+	t.Setenv(aliAnthropicMessagesModelsEnv, defaultAliAnthropicMessagesModels)
+	const (
+		chatModel      = "llama-4-scout"
+		anthropicModel = "qwen3.8-flash"
+		marker         = `{"type":"text","text":"x-anthropic-billing-header: cc_entrypoint=cli;"}`
+		messages       = `"messages":[{"role":"user","content":"Weather?"}]`
+		searchTool     = `{"type":"web_search_20250305","name":"web_search"}`
+		forcedChoice   = `"tool_choice":{"type":"tool","name":"web_search"},`
+	)
+	domains := make([]string, 26)
+	for i := range domains {
+		domains[i] = fmt.Sprintf("d%d.example", i)
+	}
+	tooManyDomains, err := common.Marshal(domains)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		model     string
+		body      string            // Claude request fields after model and max_tokens
+		want      map[string]string // gjson path -> raw JSON; "" means absent
+		wantCodes []string
+		noCodes   []string
+		wantTurbo int
 	}{
-		{"provider override", `{"model":"z-image","n":2,"parameters":{"n":4}}`, 4, 1},
-		{"empty parameters inherit top-level", `{"model":"z-image","n":2,"parameters":{}}`, 2, 1},
-		{"null count inherits top-level", `{"model":"z-image","n":2,"parameters":{"n":null}}`, 2, 1},
-		{"default count", `{"model":"z-image"}`, 1, 1},
-		{"prompt extension", `{"model":"z-image","parameters":{"n":3,"prompt_extend":true}}`, 3, 2},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+		{
+			name:  "auto search on Chat",
+			model: chatModel,
+			body:  messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"enable_search": "true", "search_options": "", "tool_choice": "", "web_search_options": ""},
+		},
+		{
+			name:      "forced search on Chat",
+			model:     chatModel,
+			body:      forcedChoice + messages + `,"tools":[` + searchTool + `]`,
+			want:      map[string]string{"enable_search": "true", "search_options": `{"forced_search":true}`, "tool_choice": "", "web_search_options": ""},
+			wantTurbo: 1,
+		},
+		{
+			name:    "allowed domains become assigned_site_list",
+			model:   chatModel,
+			body:    messages + `,"tools":[{"type":"web_search_20250305","name":"web_search","allowed_domains":["a.example","b.example"]}]`,
+			want:    map[string]string{"search_options": `{"assigned_site_list":["a.example","b.example"]}`},
+			noCodes: []string{"unsupported_domain_filter"},
+		},
+		{
+			name:      "more than 25 allowed domains are dropped",
+			model:     chatModel,
+			body:      messages + `,"tools":[{"type":"web_search_20250305","name":"web_search","allowed_domains":` + string(tooManyDomains) + `}]`,
+			want:      map[string]string{"enable_search": "true", "search_options": ""},
+			wantCodes: []string{"unsupported_domain_filter"},
+		},
+		{
+			name:      "search limits and excluded domains are semantic loss",
+			model:     chatModel,
+			body:      messages + `,"tools":[{"type":"web_search_20250305","name":"web_search","max_uses":2,"blocked_domains":["a.example"]}]`,
+			want:      map[string]string{"enable_search": "true"},
+			wantCodes: []string{"unsupported_search_limit", "unsupported_domain_filter"},
+		},
+		{
+			name:      "user location is presentation loss",
+			model:     chatModel,
+			body:      messages + `,"tools":[{"type":"web_search_20250305","name":"web_search","user_location":{"type":"approximate","city":"Paris"}}]`,
+			want:      map[string]string{"enable_search": "true", "search_options": ""},
+			wantCodes: []string{"unsupported_search_tuning"},
+		},
+		{
+			name:  "marker without system",
+			model: anthropicModel,
+			body:  messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"system": `[` + marker + `]`},
+		},
+		{
+			name:  "marker before string system",
+			model: anthropicModel,
+			body:  `"system":"Be brief.",` + messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"system": `[` + marker + `,{"type":"text","text":"Be brief."}]`},
+		},
+		{
+			name:  "marker before array system",
+			model: anthropicModel,
+			body:  `"system":[{"type":"text","text":"Be brief."}],` + messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"system": `[` + marker + `,{"type":"text","text":"Be brief."}]`},
+		},
+		{
+			name:  "marker for empty array system",
+			model: anthropicModel,
+			body:  `"system":[],` + messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"system": `[` + marker + `]`},
+		},
+		{
+			name:  "marker already sent by the client",
+			model: anthropicModel,
+			body:  `"system":"x-anthropic-billing-header: cc_version=2.1; cc_entrypoint=cli;",` + messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"system": `"x-anthropic-billing-header: cc_version=2.1; cc_entrypoint=cli;"`},
+		},
+		{
+			name:  "no marker without a search tool",
+			model: anthropicModel,
+			body:  `"system":"Be brief.",` + messages + `,"tools":[{"name":"f","input_schema":{"type":"object"}}]`,
+			want:  map[string]string{"system": `"Be brief."`},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(tc.body))
-			c.Request.Header.Set("Content-Type", "application/json")
-			common.SetContextKey(c, rootconstant.ContextKeyChannelType, rootconstant.ChannelTypeAli)
-			request, err := relayhelper.GetAndValidOpenAIImageRequest(c, constant.RelayModeImagesGenerations)
+			info := &relaycommon.RelayInfo{
+				RelayFormat:     types.RelayFormatClaude,
+				OriginModelName: tt.model,
+				ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: tt.model},
+			}
+			adaptor := &Adaptor{}
+			adaptor.Init(info)
+			var request dto.ClaudeRequest
+			require.NoError(t, common.UnmarshalJsonStr(`{"model":"`+tt.model+`","max_tokens":64,`+tt.body+`}`, &request))
+			var converted any
+			for range 2 { // converting the same request twice adds one marker
+				converted, err = adaptor.ConvertClaudeRequest(c, info, &request)
+				require.NoError(t, err)
+			}
+			wire, err := common.Marshal(converted)
 			require.NoError(t, err)
-			info := &relaycommon.RelayInfo{Request: request, OriginModelName: request.Model, UserGroup: "default", UsingGroup: "default"}
-			price, err := relayhelper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
-			require.NoError(t, err)
-			assert.Equal(t, common.QuotaFromFloat(0.04*float64(tc.count)*tc.multiplier*common.QuotaPerUnit), price.QuotaToPreConsume)
-			info.ChannelMeta = &relaycommon.ChannelMeta{ChannelType: rootconstant.ChannelTypeAli, UpstreamModelName: request.Model}
-			converted, err := oaiImage2AliImageRequest(info, *request, true)
-			require.NoError(t, err)
-			encoded, err := common.Marshal(converted)
-			require.NoError(t, err)
-			assert.Equal(t, int64(tc.count), gjson.GetBytes(encoded, "parameters.n").Int())
+			for path, want := range tt.want {
+				value := ojson.GetBytes(wire, path)
+				if want == "" {
+					assert.False(t, value.Exists(), "%s in %s", path, wire)
+					continue
+				}
+				assert.JSONEq(t, want, value.Raw, path)
+			}
+			var codes []string
+			for _, diagnostic := range info.ConversionDiagnostics() {
+				codes = append(codes, diagnostic.Code)
+			}
+			for _, code := range tt.wantCodes {
+				assert.Contains(t, codes, code)
+			}
+			for _, code := range tt.noCodes {
+				assert.NotContains(t, codes, code)
+			}
+			turbo := 0
+			if info.ResponsesUsageInfo != nil && info.ResponsesUsageInfo.BuiltInTools[aliSearchTurboKey] != nil {
+				turbo = info.ResponsesUsageInfo.BuiltInTools[aliSearchTurboKey].CallCount
+			}
+			assert.Equal(t, tt.wantTurbo, turbo)
+			wantKey := ""
+			if tt.model == anthropicModel {
+				wantKey = aliSearchAgentKey
+			}
+			assert.Equal(t, wantKey, info.WebSearchBillingKey)
 		})
 	}
 }
 
-func TestAliImageHandlerHonorsRequestResponseFormat(t *testing.T) {
-	imageBytes := []byte("ali-image")
-	var downloads atomic.Int32
-	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		downloads.Add(1)
-		w.Header().Set("Content-Type", "image/png")
-		_, _ = w.Write(imageBytes)
-	}))
-	t.Cleanup(imageServer.Close)
+// DashScope Responses bills web search like the agent strategy and reports
+// the count in usage.x_tools; it replaces the web_search_call items counted
+// under the protocol keys.
+func TestAliResponsesWebSearchUsage(t *testing.T) {
+	for _, raw := range []string{
+		`{"status":"completed","usage":{"x_tools":{"web_search":{"count":2}}}}`,
+		`{"type":"response.completed","response":{"usage":{"x_tools":{"web_search":{"count":2}}}}}`,
+	} {
+		info := &relaycommon.RelayInfo{
+			RelayMode:   constant.RelayModeResponses,
+			RelayFormat: types.RelayFormatOpenAIResponses,
+			ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://dashscope.invalid"},
+		}
+		adaptor := &Adaptor{}
+		adaptor.Init(info)
+		url, err := adaptor.GetRequestURL(info)
+		require.NoError(t, err)
+		assert.Equal(t, "https://dashscope.invalid/compatible-mode/v1/responses", url)
 
-	fetchSetting := system_setting.GetFetchSetting()
-	require.NotNil(t, fetchSetting)
-	originalFetchSetting := *fetchSetting
-	fetchSetting.EnableSSRFProtection = false
-	t.Cleanup(func() {
-		*fetchSetting = originalFetchSetting
-	})
-	originalMaxFileDownloadMB := rootconstant.MaxFileDownloadMB
-	rootconstant.MaxFileDownloadMB = 1
-	t.Cleanup(func() {
-		rootconstant.MaxFileDownloadMB = originalMaxFileDownloadMB
-	})
-	service.InitHttpClient()
+		info.CountBillableToolCall(dto.BuildInCallWebSearchCall, "")
+		info.ApplyVendorToolUsage([]byte(raw))
+		counts := map[string]int{}
+		for name, tool := range info.ResponsesUsageInfo.BuiltInTools {
+			counts[name] = tool.CallCount
+		}
+		assert.Equal(t, map[string]int{aliSearchAgentKey: 2, dto.BuildInToolWebSearch: 0, dto.BuildInToolWebSearchPreview: 0}, counts, raw)
+	}
+}
 
+// Bailian multimodal embedding models are served only by the native
+// multimodal-embedding endpoint, which takes input.contents; text embedding
+// models keep compatible mode and the OpenAI body.
+func TestEmbeddingRequestByModel(t *testing.T) {
+	const (
+		base       = "https://dashscope.invalid"
+		nativePath = "/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding"
+	)
 	tests := []struct {
-		name           string
-		responseFormat string
-		wantBase64     string
-		wantDownloads  int32
+		model    string
+		request  string // OpenAI embedding request fields after model
+		wantPath string
+		wantBody string // "" means a conversion error
 	}{
 		{
-			name:           "base64",
-			responseFormat: "b64_json",
-			wantBase64:     base64.StdEncoding.EncodeToString(imageBytes),
-			wantDownloads:  1,
+			model:    "qwen3-vl-embedding",
+			request:  `"input":"a cat"`,
+			wantPath: nativePath,
+			wantBody: `{"model":"qwen3-vl-embedding","input":{"contents":[{"text":"a cat"}]}}`,
 		},
 		{
-			name:           "url",
-			responseFormat: "url",
+			model:    "tongyi-embedding-vision-plus-2026-03-06",
+			request:  `"input":["a cat","a dog"],"dimensions":1024`,
+			wantPath: nativePath,
+			wantBody: `{"model":"tongyi-embedding-vision-plus-2026-03-06","input":{"contents":[{"text":"a cat"},{"text":"a dog"}]},"parameters":{"dimension":1024}}`,
 		},
 		{
-			name: "default",
+			model: "multimodal-embedding-v1",
+			request: `"input":[{"type":"text","text":"a cat"},` +
+				`{"type":"image_url","image_url":{"url":"data:image/png;base64,iVBORw0KGgo="}},` +
+				`{"type":"video_url","video_url":{"url":"https://example.com/cat.mp4"}}]`,
+			wantPath: nativePath,
+			wantBody: `{"model":"multimodal-embedding-v1","input":{"contents":[{"text":"a cat"},` +
+				`{"image":"data:image/png;base64,iVBORw0KGgo="},{"video":"https://example.com/cat.mp4"}]}}`,
+		},
+		{
+			model:    "qwen3-vl-embedding",
+			request:  `"input":[{"type":"image_url","image_url":{"url":""}}]`,
+			wantPath: nativePath,
+		},
+		{
+			model:    "text-embedding-v4",
+			request:  `"input":"a cat","dimensions":1024`,
+			wantPath: "/compatible-mode/v1/embeddings",
+			wantBody: `{"model":"text-embedding-v4","input":"a cat","dimensions":1024}`,
 		},
 	}
+	for _, tt := range tests {
+		info := &relaycommon.RelayInfo{
+			RelayMode:   constant.RelayModeEmbeddings,
+			RelayFormat: types.RelayFormatEmbedding,
+			ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: base, UpstreamModelName: tt.model},
+		}
+		url, err := (&Adaptor{}).GetRequestURL(info)
+		require.NoError(t, err, tt.request)
+		assert.Equal(t, base+tt.wantPath, url, tt.request)
 
+		var request dto.EmbeddingRequest
+		require.NoError(t, common.UnmarshalJsonStr(`{"model":"`+tt.model+`",`+tt.request+`}`, &request))
+		converted, err := (&Adaptor{}).ConvertEmbeddingRequest(nil, info, request)
+		if tt.wantBody == "" {
+			assert.Error(t, err, tt.request)
+			continue
+		}
+		require.NoError(t, err, tt.request)
+		wire, err := common.Marshal(converted)
+		require.NoError(t, err)
+		assert.JSONEq(t, tt.wantBody, string(wire), tt.request)
+	}
+}
+
+// The native response becomes an OpenAI embedding list. prompt_tokens is all
+// billable input and image_tokens its visual part, priced at the image ratio;
+// output_tokens is not priced and never billed. A response without usage
+// bills the request estimate.
+func TestMultimodalEmbeddingResponse(t *testing.T) {
+	tests := []struct {
+		name      string
+		model     string
+		body      string
+		estimate  int
+		wantData  []dto.EmbeddingResponseItem
+		wantUsage *dto.Usage // nil means an upstream error
+	}{
+		{
+			name:  "visual tokens reported apart",
+			model: "qwen3-vl-embedding",
+			body: `{"output":{"embeddings":[{"index":0,"embedding":[0.1,-0.2],"type":"text"},{"index":1,"embedding":[0.3,0.4],"type":"image"}]},` +
+				`"usage":{"input_tokens":43,"image_tokens":1247,"total_tokens":1290},"request_id":"r1"}`,
+			wantData: []dto.EmbeddingResponseItem{
+				{Object: "embedding", Index: 0, Embedding: []float64{0.1, -0.2}},
+				{Object: "embedding", Index: 1, Embedding: []float64{0.3, 0.4}},
+			},
+			wantUsage: &dto.Usage{PromptTokens: 1290, TotalTokens: 1290,
+				PromptTokensDetails: dto.InputTokenDetails{TextTokens: 43, ImageTokens: 1247}},
+		},
+		{
+			name:  "input_tokens split in input_tokens_details",
+			model: "tongyi-embedding-vision-plus",
+			body: `{"output":{"embeddings":[{"index":0,"embedding":[0.5],"type":"fused"}]},` +
+				`"usage":{"input_tokens":903,"input_tokens_details":{"image_tokens":896,"text_tokens":7},"output_tokens":3,"total_tokens":906},"request_id":"r2"}`,
+			wantData: []dto.EmbeddingResponseItem{{Object: "embedding", Index: 0, Embedding: []float64{0.5}}},
+			wantUsage: &dto.Usage{PromptTokens: 903, TotalTokens: 903,
+				PromptTokensDetails: dto.InputTokenDetails{TextTokens: 7, ImageTokens: 896}},
+		},
+		{
+			name:      "no usage bills the estimate",
+			model:     "qwen3-vl-embedding",
+			body:      `{"output":{"embeddings":[{"index":0,"embedding":[0.5],"type":"text"}]},"request_id":"r3"}`,
+			estimate:  12,
+			wantData:  []dto.EmbeddingResponseItem{{Object: "embedding", Index: 0, Embedding: []float64{0.5}}},
+			wantUsage: &dto.Usage{PromptTokens: 12, TotalTokens: 12},
+		},
+		{
+			name:  "error code in a 200 body",
+			model: "qwen3-vl-embedding",
+			body:  `{"code":"InvalidParameter","message":"The input is invalid.","request_id":"r4"}`,
+		},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			downloads.Store(0)
-			recorder := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(recorder)
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
 			info := &relaycommon.RelayInfo{
-				RelayMode: constant.RelayModeImagesGenerations,
-				StartTime: time.Unix(1, 0),
-				Request: &dto.ImageRequest{
-					ResponseFormat: tt.responseFormat,
-				},
+				RelayMode:   constant.RelayModeEmbeddings,
+				RelayFormat: types.RelayFormatEmbedding,
+				ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: tt.model},
 			}
-			responseBody := fmt.Sprintf(`{"output":{"results":[{"url":%q}]}}`, imageServer.URL)
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     http.Header{},
-				Body:       io.NopCloser(strings.NewReader(responseBody)),
+			info.SetEstimatePromptTokens(tt.estimate)
+			resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(tt.body))}
+
+			usage, apiErr := (&Adaptor{}).DoResponse(c, resp, info)
+			if tt.wantUsage == nil {
+				require.NotNil(t, apiErr)
+				assert.Equal(t, http.StatusInternalServerError, apiErr.StatusCode)
+				assert.Equal(t, "InvalidParameter", string(apiErr.GetErrorCode()))
+				assert.Empty(t, w.Body.String())
+				return
 			}
+			require.Nil(t, apiErr)
+			assert.Equal(t, tt.wantUsage, usage)
 
-			newAPIError, usage := aliImageHandler(&Adaptor{IsSyncImageModel: true}, c, resp, info)
-			require.Nil(t, newAPIError)
-			require.NotNil(t, usage)
-
-			var imageResponse dto.ImageResponse
-			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &imageResponse))
-			require.Len(t, imageResponse.Data, 1)
-			assert.Equal(t, imageServer.URL, imageResponse.Data[0].Url)
-			assert.Equal(t, tt.wantBase64, imageResponse.Data[0].B64Json)
-			assert.Equal(t, tt.wantDownloads, downloads.Load())
+			var got dto.EmbeddingResponse
+			require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+			assert.Equal(t, dto.EmbeddingResponse{Object: "list", Data: tt.wantData, Model: tt.model, Usage: *tt.wantUsage}, got)
 		})
 	}
 }
