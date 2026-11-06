@@ -179,8 +179,11 @@ func FetchCustomOAuthDiscovery(c *gin.Context) {
 	}
 	httpReq.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: 20 * time.Second}
-	resp, err := client.Do(httpReq)
+	// The Discovery URL is administrator-supplied and may point anywhere, so it
+	// goes through the shared SSRF-protected client with redirect validation.
+	protectedClient := *service.GetSSRFProtectedHTTPClient()
+	protectedClient.Timeout = 20 * time.Second
+	resp, err := protectedClient.Do(httpReq)
 	if err != nil {
 		common.ApiErrorT(c, "Failed to fetch the Discovery configuration: {{error}}", map[string]any{"error": err.Error()})
 		return

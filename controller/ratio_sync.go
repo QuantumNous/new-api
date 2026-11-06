@@ -21,6 +21,7 @@ import (
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
@@ -287,7 +288,18 @@ func FetchUpstreamRatios(c *gin.Context) {
 		}
 		return dialer.DialContext(ctx, network, addr)
 	}
-	client := &http.Client{Transport: transport}
+	client := &http.Client{
+		Transport: transport,
+		// The transport is customised for github.io IPv4 preference, so SSRF is
+		// enforced on the request URL and on every redirect hop instead of at dial
+		// time: an upstream or redirect that resolves to a private address fails.
+		CheckRedirect: func(redirect *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			return service.ValidateSSRFProtectedFetchURL(redirect.URL.String())
+		},
+	}
 
 	for _, chn := range upstreams {
 		wg.Add(1)
@@ -318,6 +330,11 @@ func FetchUpstreamRatios(c *gin.Context) {
 			uniqueName := chItem.Name
 			if chItem.ID != 0 {
 				uniqueName = fmt.Sprintf("%s(%d)", chItem.Name, chItem.ID)
+			}
+
+			if err := service.ValidateSSRFProtectedFetchURL(fullURL); err != nil {
+				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+				return
 			}
 
 			ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(req.Timeout)*time.Second)

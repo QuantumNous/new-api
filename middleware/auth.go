@@ -468,8 +468,9 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 			key = strings.TrimSpace(key[7:])
 		}
 		key = strings.TrimPrefix(key, "sk-")
-		parts := strings.Split(key, "-")
-		key = parts[0]
+		// A key is everything before the first hyphen; Cut keeps hyphens in any
+		// suffix intact instead of materialising a throwaway slice.
+		key, _, _ = strings.Cut(key, "-")
 
 		token, err := model.GetTokenByKey(key, false)
 		if err != nil {
@@ -552,7 +553,6 @@ func TokenAuth() func(c *gin.Context) {
 			}
 		}
 		key := c.Request.Header.Get("Authorization")
-		parts := make([]string, 0)
 		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
 			key = strings.TrimSpace(key[7:])
 		}
@@ -562,12 +562,10 @@ func TokenAuth() func(c *gin.Context) {
 				key = strings.TrimSpace(key[7:])
 			}
 			key = strings.TrimPrefix(key, "sk-")
-			parts = strings.Split(key, "-")
-			key = parts[0]
+			key, _, _ = strings.Cut(key, "-")
 		} else {
 			key = strings.TrimPrefix(key, "sk-")
-			parts = strings.Split(key, "-")
-			key = parts[0]
+			key, _, _ = strings.Cut(key, "-")
 		}
 		token, err := model.ValidateUserToken(key)
 		if token != nil {
@@ -638,7 +636,7 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 
-		err = SetupContextForToken(c, token, parts...)
+		err = SetupContextForToken(c, token)
 		if err != nil {
 			return
 		}
