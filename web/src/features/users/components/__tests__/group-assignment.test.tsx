@@ -74,37 +74,71 @@ afterEach(() => {
   useAuthStore.getState().auth.reset()
 })
 
-it('saving a typed user group that is not in the pricing group list sends that group', async () => {
-  const put = vi
-    .spyOn(api, 'put')
-    .mockResolvedValue({ data: { success: true } })
+function mockSave() {
+  return vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
+}
+
+async function openGroupField() {
   renderDrawer()
   await screen.findByDisplayValue('Customer')
-  const group = screen.getByRole('combobox', { name: 'Group' })
+  return screen.getByRole('combobox', { name: 'Group' })
+}
+
+it('saving after picking a listed group sends that group', async () => {
+  const put = mockSave()
+  const group = await openGroupField()
 
   await userEvent.clear(group)
-  await userEvent.type(group, `${ruleOnlyGroup}{Enter}`)
+  await userEvent.type(group, 'vi')
+  await userEvent.click(screen.getByRole('option', { name: 'vip' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
   await waitFor(() =>
     expect(put).toHaveBeenCalledWith(
       '/api/user/',
-      expect.objectContaining({ id: 2, group: ruleOnlyGroup }),
+      expect.objectContaining({ id: 2, group: 'vip' }),
       {}
     )
   )
 })
 
-it('saving with the group cleared shows a required error and sends nothing', async () => {
-  const put = vi
-    .spyOn(api, 'put')
-    .mockResolvedValue({ data: { success: true } })
-  renderDrawer()
-  await screen.findByDisplayValue('Customer')
+it.each([
+  ['after pressing Enter', `${ruleOnlyGroup}{Enter}`],
+  ['without pressing Enter', ruleOnlyGroup],
+])(
+  'saving a typed user group that is not in the pricing group list sends that group (%s)',
+  async (_case, keys) => {
+    const put = mockSave()
+    const group = await openGroupField()
 
-  await userEvent.clear(screen.getByRole('combobox', { name: 'Group' }))
-  await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await userEvent.clear(group)
+    await userEvent.type(group, keys)
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
-  expect(await screen.findByText('Group is required')).toBeInTheDocument()
-  expect(put).not.toHaveBeenCalled()
-})
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith(
+        '/api/user/',
+        expect.objectContaining({ id: 2, group: ruleOnlyGroup }),
+        {}
+      )
+    )
+  }
+)
+
+it.each([
+  ['cleared', ''],
+  ['whitespace only', '   '],
+])(
+  'saving with the group %s shows a required error and sends nothing',
+  async (_case, text) => {
+    const put = mockSave()
+    const group = await openGroupField()
+
+    await userEvent.clear(group)
+    if (text) await userEvent.type(group, text)
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText('Group is required')).toBeInTheDocument()
+    expect(put).not.toHaveBeenCalled()
+  }
+)
