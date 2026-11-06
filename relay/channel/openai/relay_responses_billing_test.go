@@ -210,6 +210,9 @@ func TestOaiResponsesStreamHandlerCompletionLifecycle(t *testing.T) {
 			if tc.failFlush {
 				assert.ErrorIs(t, info.StreamStatus.EndError, writer.flushErr)
 			}
+			if tc.cancel {
+				assert.NotContains(t, writer.Body.String(), "upstream_stream_interrupted")
+			}
 			if !tc.eof {
 				select {
 				case <-body.closed:

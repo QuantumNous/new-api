@@ -75,6 +75,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	defer service.CloseResponseBodyGracefully(resp)
 
 	accumulator := service.NewResponsesUsageAccumulator(info)
+	nextSequenceNumber := 0
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -84,6 +85,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			logger.LogError(c, common.LogText("failed to unmarshal stream response: %s", err.Error()))
 			sr.Error(err)
 			return
+		}
+		if streamResponse.SequenceNumber != nil && *streamResponse.SequenceNumber >= nextSequenceNumber {
+			nextSequenceNumber = *streamResponse.SequenceNumber + 1
 		}
 		if streamResponse.Response != nil {
 			data = string(rewriteSGLangResponsesCreatedAt(info, []byte(data), "response.created_at", streamResponse.Response.CreatedAt))
@@ -101,6 +105,23 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
 	info.StreamStatus.RequireTerminal()
+	if info.StreamStatus.ResponseOutcome() == string(relaycommon.ResponseOutcomeUnknown) {
+		// A clean transport EOF is not a successful Responses stream. Record a
+		// transport error rather than an upstream response.failed: the latter
+		// suppresses the prompt usage estimate for already-started requests.
+		info.StreamStatus.RecordError("upstream stream ended without a terminal response event")
+		canWriteTerminal := c.Request.Context().Err() == nil &&
+			(info.StreamStatus.EndReason == relaycommon.StreamEndReasonEOF ||
+				info.StreamStatus.EndReason == relaycommon.StreamEndReasonScannerErr ||
+				info.StreamStatus.EndReason == relaycommon.StreamEndReasonTimeout ||
+				info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone)
+		if canWriteTerminal {
+			payload := fmt.Sprintf(`{"type":"error","code":"upstream_stream_interrupted","message":"The upstream stream ended before a terminal response event. Please retry.","param":null,"sequence_number":%d}`, nextSequenceNumber)
+			if err := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "error"}, payload); err != nil {
+				info.StreamStatus.RecordError("failed to deliver stream interruption event")
+			}
+		}
+	}
 	return accumulator.Finish(), nil
 }
 
