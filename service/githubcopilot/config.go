@@ -10,8 +10,13 @@ import (
 
 const (
 	defaultDataDir    = "/data/copilot"
-	DefaultCLIVersion = "1.0.83"
+	DefaultCLIVersion = "1.0.106"
 )
+
+const profileSettings = `{
+  "storeTokenPlaintext": true
+}
+`
 
 func dataDir() string {
 	dir := strings.TrimSpace(os.Getenv("COPILOT_DATA_DIR"))
@@ -57,6 +62,13 @@ func ensureRuntimeDirs() error {
 	return nil
 }
 
+func writeProfileSettings(dir string) error {
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(profileSettings), 0o600); err != nil {
+		return fmt.Errorf("write Copilot profile settings: %w", err)
+	}
+	return nil
+}
+
 func profileDir(profileID string) (string, error) {
 	canonical, err := canonicalProfileID(profileID)
 	if err != nil {
@@ -89,6 +101,9 @@ func isolatedEnvironment(profileDir string) []string {
 		"HOME":                                {},
 		"XDG_CACHE_HOME":                      {},
 		"XDG_CONFIG_HOME":                     {},
+		"HTTP_PROXY":                          {},
+		"HTTPS_PROXY":                         {},
+		"ALL_PROXY":                           {},
 	}
 	env := make([]string, 0, len(os.Environ())+8)
 	for _, item := range os.Environ() {
@@ -102,11 +117,15 @@ func isolatedEnvironment(profileDir string) []string {
 		}
 		env = append(env, item)
 	}
-	return append(env,
+	env = append(env,
 		"COPILOT_HOME="+profileDir,
 		"HOME="+profileDir,
 		"XDG_CACHE_HOME="+cacheDir(),
 		"XDG_CONFIG_HOME="+filepath.Join(profileDir, "config"),
 		"COPILOT_ALLOW_GET_PROVIDER_ENDPOINT=true",
 	)
+	if proxy := strings.TrimSpace(os.Getenv("COPILOT_PROXY")); proxy != "" {
+		env = append(env, "http_proxy="+proxy, "https_proxy="+proxy)
+	}
+	return env
 }

@@ -173,6 +173,9 @@ func (r *cliRuntime) ensureProcess(ctx context.Context) (*rpcClient, AuthStatus,
 	if err := os.MkdirAll(r.profile, 0o700); err != nil {
 		return nil, AuthStatus{}, fmt.Errorf("create Copilot profile directory: %w", err)
 	}
+	if err := writeProfileSettings(r.profile); err != nil {
+		return nil, AuthStatus{}, err
+	}
 	path, err := cliPath()
 	if err != nil {
 		return nil, AuthStatus{}, err

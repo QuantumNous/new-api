@@ -1,6 +1,8 @@
 package githubcopilot
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -92,4 +94,31 @@ func TestParseEndpoint(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestIsolatedEnvironmentUsesCopilotProxyOnly(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "secret")
+	t.Setenv("HTTPS_PROXY", "http://global-proxy.invalid")
+	t.Setenv("COPILOT_PROXY", "http://127.0.0.1:7890")
+
+	env := isolatedEnvironment(t.TempDir())
+	assert.Contains(t, env, "http_proxy=http://127.0.0.1:7890")
+	assert.Contains(t, env, "https_proxy=http://127.0.0.1:7890")
+	for _, item := range env {
+		assert.NotContains(t, item, "GITHUB_TOKEN=secret")
+		assert.NotContains(t, item, "global-proxy.invalid")
+	}
+}
+
+func TestWriteProfileSettingsEnablesPlaintextStorage(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, writeProfileSettings(dir))
+
+	path := filepath.Join(dir, "settings.json")
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"storeTokenPlaintext":true}`, string(data))
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }

@@ -53,6 +53,10 @@ func StartLogin() (LoginState, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return LoginState{}, fmt.Errorf("create Copilot profile directory: %w", err)
 	}
+	if err := writeProfileSettings(dir); err != nil {
+		_ = os.RemoveAll(dir)
+		return LoginState{}, err
+	}
 	attempt := &loginAttempt{
 		state: LoginState{
 			ID:        profileID,

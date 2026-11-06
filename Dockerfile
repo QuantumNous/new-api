@@ -40,8 +40,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates \
     && case "${TARGETARCH:-amd64}" in \
-         amd64) copilot_url='https://registry.npmjs.org/@github/copilot-linux-x64/-/copilot-linux-x64-1.0.83.tgz'; copilot_sha='23906ffd14c5e29fc1325138fba7d8ea1a397e02ffdcd36383fe66e4d196ba46' ;; \
-         arm64) copilot_url='https://registry.npmjs.org/@github/copilot-linux-arm64/-/copilot-linux-arm64-1.0.83.tgz'; copilot_sha='958b9cc724edbcd665a7b9c52bb030964d65ff013df69adc1416a58827fbfcfc' ;; \
+         amd64) copilot_url='https://registry.npmjs.org/@github/copilot-linux-x64/-/copilot-linux-x64-1.0.106.tgz'; copilot_sha='5ba229c2b6f038a8b1ae4627b464bcfa96340717552bafa73805d739bdd264ba' ;; \
+         arm64) copilot_url='https://registry.npmjs.org/@github/copilot-linux-arm64/-/copilot-linux-arm64-1.0.106.tgz'; copilot_sha='0f6d694efbe76969f9cb6bd307e2bdcde58c990ff94794e9afb06603d05799fc' ;; \
          *) echo "Unsupported architecture for GitHub Copilot CLI: ${TARGETARCH}" >&2; exit 1 ;; \
        esac \
     && wget -q -O /tmp/copilot.tgz "$copilot_url" \
