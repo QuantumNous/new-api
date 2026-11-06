@@ -41,6 +41,21 @@ func TestFixedPriceBranches(t *testing.T) {
 	}
 }
 
+func TestFixedPriceTermsRemainIndependent(t *testing.T) {
+	const expression = `tier("output", fixed(0.04)) * image_count + (image_input_count > 0 ? tier("input", fixed(0.01)) * image_input_count : tier("input", fixed(0)) * image_input_count)`
+	outputCount := 2
+	inputCount := 1
+
+	cost, trace, err := billingexpr.RunExprWithRequest(expression, billingexpr.TokenParams{}, billingexpr.RequestInput{
+		ImageCount:      &outputCount,
+		ImageInputCount: &inputCount,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, float64(90000), cost)
+	assert.Nil(t, trace.FixedPrice)
+	assert.Equal(t, []billingexpr.FixedPriceTerm{{Tier: "output", Price: 0.04}, {Tier: "input", Price: 0.01}}, trace.FixedPriceTerms)
+}
+
 func TestFixedPriceRejectsInvalidLeavesIncludingUnselectedBranches(t *testing.T) {
 	for _, expression := range []string{
 		`true ? tier("ok", p) : tier("bad", fixed(-0.01))`,
@@ -50,6 +65,7 @@ func TestFixedPriceRejectsInvalidLeavesIncludingUnselectedBranches(t *testing.T)
 		`tier("bad", fixed(0.01) + p * 2)`,
 		`tier("bad", p * fixed(0.01))`,
 		`tier("a", fixed(0.01)) + tier("b", p * 2)`,
+		`tier("a", fixed(0.01)) + (param("fast") == true ? tier("b", fixed(0.02)) : tier("c", p * 2))`,
 		`fixed(0.01)`,
 		`tier("bad", fixed(0.01)) * p`,
 		`tier("bad", fixed(0.01)) * (param("fast") == true ? -2 : 1)`,

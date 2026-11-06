@@ -24,15 +24,20 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 	var quota int
 	var err error
 	if snap := info.TieredBillingSnapshot; snap != nil && snap.BillingMode == "tiered_expr" {
+		usedVars := billingexpr.UsedVarsByHash(snap.ExprString, snap.ExprHash)
 		// Token-only image expressions must not acquire a quantity multiplier.
-		if snap.EstimatedImageCount == nil {
+		// An input-only expression still needs to run so source-image fees are
+		// reserved even though it has no output image count.
+		if snap.EstimatedImageCount == nil && !usedVars["image_input_count"] {
 			return nil
 		}
 		request := billingexpr.RequestInput{}
 		if info.BillingRequestInput != nil {
 			request = *info.BillingRequestInput
 		}
-		request.ImageCount = &count
+		if usedVars["image_count"] {
+			request.ImageCount = &count
+		}
 		cost, trace, runErr := billingexpr.RunExprByHashWithRequest(snap.ExprString, snap.ExprHash, billingexpr.TokenParams{
 			P: float64(snap.EstimatedPromptTokens), C: float64(snap.EstimatedCompletionTokens), Len: float64(snap.EstimatedPromptTokens),
 		}, request)
@@ -51,6 +56,7 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 			snap.EstimatedTier = trace.MatchedTier
 			snap.EstimatedBillingUnit = trace.BillingUnit
 			snap.EstimatedFixedPrice = trace.FixedPrice
+			snap.EstimatedFixedPriceTerms = trace.FixedPriceTerms
 			snap.GroupRatio = info.PriceData.GroupRatioInfo.GroupRatio
 		}
 	} else {
@@ -65,7 +71,9 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 		if info.PriceData.UsePrice {
 			base = info.PriceData.ModelPrice * common.QuotaPerUnit
 		}
-		quota, err = common.QuotaFromFloatStrict(info.PriceData.ApplyOtherRatiosToFloat(base * info.PriceData.GroupRatioInfo.GroupRatio))
+		outputQuota := info.PriceData.ApplyOtherRatiosToFloat(base * info.PriceData.GroupRatioInfo.GroupRatio)
+		inputQuota := info.PriceData.ImageInputQuotaBeforeGroup * info.PriceData.GroupRatioInfo.GroupRatio
+		quota, err = common.QuotaFromFloatStrict(outputQuota + inputQuota)
 	}
 	if err != nil {
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())

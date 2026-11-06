@@ -105,16 +105,16 @@ func runFixedPriceAccountingCases(t *testing.T, db, logDB *gorm.DB) {
 	operation_setting.SetToolPriceForTest("fixed_billing_tool", 4)
 	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest("fixed_billing_tool") })
 	for index, tc := range []struct {
-		name, expression                          string
-		estimate                                  int
-		usage                                     *dto.Usage
-		audio, stream, refund, insufficient, tool bool
-		realtime, reserveInsufficient             bool
-		wallet, outboundImages, retryReservation  int
-		groupRatio                                float64
-		want                                      int
-		unit                                      billingexpr.BillingUnit
-		requestedImages, actualImages             int
+		name, expression                           string
+		estimate                                   int
+		usage                                      *dto.Usage
+		audio, stream, refund, insufficient, tool  bool
+		realtime, reserveInsufficient              bool
+		wallet, outboundImages, retryReservation   int
+		groupRatio                                 float64
+		want                                       int
+		unit                                       billingexpr.BillingUnit
+		requestedImages, actualImages, inputImages int
 	}{
 		{name: "missing usage charges once", expression: flat, want: 5000, unit: billingexpr.BillingUnitRequest},
 		{name: "zero usage charges once", expression: flat, usage: &dto.Usage{}, want: 5000, unit: billingexpr.BillingUnitRequest},
@@ -140,6 +140,7 @@ func runFixedPriceAccountingCases(t *testing.T, db, logDB *gorm.DB) {
 		{name: "image quantity exceeds one-image wallet before submission", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 4, wallet: 20000, insufficient: true},
 		{name: "image override reserves extra quantity", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 1, outboundImages: 4, want: 80000, unit: billingexpr.BillingUnitRequest},
 		{name: "image override cannot exceed remaining wallet", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 1, outboundImages: 4, wallet: 40000, reserveInsufficient: true, refund: true},
+		{name: "input-only image pricing reserves source fee", expression: `tier("input", fixed(0.01)) * image_input_count`, inputImages: 1, outboundImages: 1, want: 5000, unit: billingexpr.BillingUnitRequest},
 		{name: "task retry holds a pricier channel and refunds all of it", expression: flat, retryReservation: 40000, refund: true},
 		{name: "task retry cannot exceed remaining wallet", expression: flat, retryReservation: 40000, wallet: 20000, reserveInsufficient: true, refund: true},
 	} {
@@ -168,6 +169,9 @@ func runFixedPriceAccountingCases(t *testing.T, db, logDB *gorm.DB) {
 				group = 1
 			}
 			request := &billingexpr.RequestInput{Body: []byte(`{"fast":true}`)}
+			if tc.inputImages > 0 {
+				request.ImageInputCount = &tc.inputImages
+			}
 			if tc.requestedImages > 0 {
 				request.ImageCount = &tc.requestedImages
 			}
@@ -1302,8 +1306,6 @@ func TestCalculateTextQuotaSummaryUsesExactUpstreamCost(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	priceData := hosttypes.PriceData{
-		ModelPrice: 0.04,
-		UsePrice:   true,
 		GroupRatioInfo: hosttypes.GroupRatioInfo{
 			GroupRatio: 1.5,
 		},
@@ -1324,6 +1326,59 @@ func TestCalculateTextQuotaSummaryUsesExactUpstreamCost(t *testing.T) {
 	relayInfo.UpstreamCostInUSDTicks = &zeroTicks
 	summary = calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{PromptTokens: 1, TotalTokens: 1})
 	require.Zero(t, summary.Quota)
+
+	tinyTicks := int64(1)
+	relayInfo.PriceData.GroupRatioInfo.GroupRatio = 1
+	relayInfo.UpstreamCostInUSDTicks = &tinyTicks
+	summary = calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{PromptTokens: 1, TotalTokens: 1})
+	require.Equal(t, 1, summary.Quota)
+
+	configured := relayInfo.PriceData
+	configured.UsePrice = true
+	configured.ModelPrice = 0.04
+	relayInfo.PriceData = configured
+	costTicks = 800_000_000
+	relayInfo.UpstreamCostInUSDTicks = &costTicks
+	summary = calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{PromptTokens: 1, TotalTokens: 1})
+	require.Equal(t, 20000, summary.Quota)
+}
+
+func TestCalculateTextQuotaSummaryKeepsLegacyImageInputFeeIndependent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	priceData := hosttypes.PriceData{
+		ModelPrice: 0.04,
+		UsePrice:   true,
+		GroupRatioInfo: hosttypes.GroupRatioInfo{
+			GroupRatio: 1,
+		},
+		ImageInputQuotaBeforeGroup: 10000,
+	}
+	priceData.AddOtherRatio("n", 1)
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "grok-imagine-image-pro",
+		PriceData:       priceData,
+		StartTime:       time.Now(),
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{PromptTokens: 1, TotalTokens: 1})
+	require.Equal(t, 30000, summary.Quota)
+
+	relayInfo.PriceData.AddOtherRatio("n", 2)
+	summary = calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{PromptTokens: 1, TotalTokens: 1})
+	require.Equal(t, 50000, summary.Quota)
+}
+
+func TestUpstreamCostDoesNotOverrideCustomTieredExpression(t *testing.T) {
+	costTicks := int64(800_000_000)
+	info := &relaycommon.RelayInfo{
+		OriginModelName:        "custom-image-model",
+		UpstreamCostInUSDTicks: &costTicks,
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			ExprString: `tier("custom", fixed(0.02))`,
+		},
+	}
+	require.False(t, upstreamCostOverridesConfiguredBilling(info))
 }
 
 func TestCalculateTextToolCallSurchargeGeneralizedBuiltInTools(t *testing.T) {

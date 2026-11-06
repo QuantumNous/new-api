@@ -61,6 +61,22 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		ResponseFormat: request.ResponseFormat,
 	}
 	if info.RelayMode == constant.RelayModeImagesEdits {
+		if len(request.Mask) > 0 && string(request.Mask) != "null" {
+			return nil, errors.New("xAI image edits do not support mask")
+		}
+		if strings.HasPrefix(strings.ToLower(c.Request.Header.Get("Content-Type")), "multipart/form-data") {
+			form := c.Request.MultipartForm
+			if form == nil {
+				parsed, err := common.ParseMultipartFormReusable(c)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse multipart form: %w", err)
+				}
+				form = parsed
+			}
+			if len(form.File["mask"]) > 0 || len(form.Value["mask"]) > 0 {
+				return nil, errors.New("xAI image edits do not support mask")
+			}
+		}
 		images, err := xAIEditImages(c, request)
 		if err != nil {
 			return nil, err

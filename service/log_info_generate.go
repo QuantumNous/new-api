@@ -36,11 +36,17 @@ func attachQuotaSaturation(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, o
 	if relayInfo == nil {
 		return
 	}
-	clamp := relayInfo.QuotaClamp
+	clamp := relayInfo.SettlementQuotaClamp
+	if clamp == nil {
+		clamp = relayInfo.QuotaClamp
+	}
 	if clamp == nil {
 		return
 	}
 	attachQuotaSaturationToOther(other, clamp)
+	if relayInfo.SettlementQuotaClamp != nil && relayInfo.QuotaClamp != nil && relayInfo.SettlementQuotaClamp != relayInfo.QuotaClamp {
+		other.SetAdmin("quota_estimate_saturation", relayInfo.QuotaClamp.AuditMap())
+	}
 	logger.LogWarn(ctx, common.LogText("quota saturation on consume log: op=%s kind=%s original=%g clamped=%d user=%d model=%s",
 		clamp.Op, clamp.Kind, clamp.Original, clamp.Clamped, relayInfo.UserId, relayInfo.GetBillingModelName()))
 }
@@ -361,6 +367,9 @@ func InjectTieredBillingInfo(other *model.LogOther, relayInfo *relaycommon.Relay
 		if result.FixedPrice != nil {
 			other.SetPublic("fixed_price", *result.FixedPrice)
 		}
+		if len(result.FixedPriceTerms) > 1 {
+			other.SetPublic("fixed_price_terms", result.FixedPriceTerms)
+		}
 		if len(result.RequestRules) > 0 {
 			other.SetPublic("request_rules", result.RequestRules)
 		}
@@ -372,6 +381,9 @@ func InjectTieredBillingInfo(other *model.LogOther, relayInfo *relaycommon.Relay
 		other.SetPublic("billing_unit", snap.EstimatedBillingUnit)
 		if snap.EstimatedFixedPrice != nil {
 			other.SetPublic("fixed_price", *snap.EstimatedFixedPrice)
+		}
+		if len(snap.EstimatedFixedPriceTerms) > 1 {
+			other.SetPublic("fixed_price_terms", snap.EstimatedFixedPriceTerms)
 		}
 	}
 }

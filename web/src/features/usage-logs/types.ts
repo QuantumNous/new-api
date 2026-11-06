@@ -222,6 +222,7 @@ export interface LogOtherData {
   billing_mode?: string
   billing_unit?: 'token' | 'request'
   fixed_price?: number
+  fixed_price_terms?: Array<{ tier?: string; price: number }>
   image_count?: number
   expr_b64?: string
   matched_tier?: string

@@ -314,6 +314,35 @@ func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T)
 	require.Nil(t, info.Billing)
 }
 
+func TestModelPriceHelperSeparatesLegacyImageInputFee(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	savedModelPrices := ratio_setting.ModelPrice2JSONString()
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedModelPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+	})
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"grok-legacy-price":0.04}`))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "grok-legacy-price",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+		Request:         &dto.ImageRequest{Model: "grok-legacy-price", N: common.GetPointer(uint(2)), Image: []byte(`"https://example.com/input.png"`)},
+	}
+	priceData, err := ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{
+		ImagePriceRatio:      1,
+		ImageInputPriceRatio: 0.25,
+		BillingRatios:        map[string]float64{"n": 2},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 45000, priceData.QuotaToPreConsume)
+	require.Equal(t, 5000.0, priceData.ImageInputQuotaBeforeGroup)
+}
+
 // Pricing identity is resolved once in ModelPriceHelper via the candidate
 // ladder: raw name (only when it has no @ modifiers) → canonical
 // base@effort:E@thinking:S → base@thinking:S → base. Each level is looked up

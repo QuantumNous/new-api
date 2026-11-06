@@ -15,7 +15,9 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -30,17 +32,47 @@ type ToolSurchargeItem struct {
 
 const upstreamUSDTicksPerDollar = int64(10_000_000_000)
 
-func upstreamCostQuota(relayInfo *relaycommon.RelayInfo) (int, bool) {
+func upstreamCostOverridesConfiguredBilling(relayInfo *relaycommon.RelayInfo) bool {
+	if relayInfo == nil {
+		return false
+	}
+	if relayInfo.PriceData.UsePrice {
+		return false
+	}
+	modelName := relayInfo.GetBillingModelName()
+	if ratio_setting.HasConfiguredModelRatio(modelName) {
+		return false
+	}
+	if _, configured := ratio_setting.GetModelPrice(modelName, false); configured {
+		return false
+	}
+	if billing_setting.HasConfiguredBillingExpr(modelName) {
+		return false
+	}
+	if snapshot := relayInfo.TieredBillingSnapshot; snapshot != nil {
+		builtin, ok := billing_setting.GetBuiltinBillingExpr(modelName)
+		return ok && snapshot.ExprString == builtin
+	}
+	return true
+}
+
+func upstreamCostQuota(relayInfo *relaycommon.RelayInfo) (int, bool, *common.QuotaClamp) {
 	if relayInfo == nil || relayInfo.UpstreamCostInUSDTicks == nil || *relayInfo.UpstreamCostInUSDTicks < 0 {
-		return 0, false
+		return 0, false, nil
 	}
 	quotaDecimal := decimal.NewFromInt(*relayInfo.UpstreamCostInUSDTicks).
 		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
 		Mul(decimal.NewFromFloat(relayInfo.PriceData.GroupRatioInfo.GroupRatio)).
 		Div(decimal.NewFromInt(upstreamUSDTicksPerDollar))
 	quota, clamp := common.QuotaFromDecimalChecked(quotaDecimal)
-	noteQuotaClamp(relayInfo, clamp)
-	return quota, true
+	return quota, true, clamp
+}
+
+func applicableUpstreamCostQuota(relayInfo *relaycommon.RelayInfo) (int, bool, *common.QuotaClamp) {
+	if !upstreamCostOverridesConfiguredBilling(relayInfo) {
+		return 0, false, nil
+	}
+	return upstreamCostQuota(relayInfo)
 }
 
 func appendToolSurchargeLogInfo(other *model.LogOther, items []ToolSurchargeItem) {
@@ -388,13 +420,18 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = relayInfo.PriceData.ApplyOtherRatiosToDecimal(quotaCalculateDecimal)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
+		quotaCalculateDecimal = quotaCalculateDecimal.Add(decimal.NewFromFloat(relayInfo.PriceData.ImageInputQuotaBeforeGroup).Mul(dGroupRatio))
 		quota, clamp := common.QuotaFromDecimalChecked(quotaCalculateDecimal)
 		summary.Quota = quota
 		noteQuotaClamp(relayInfo, clamp)
 	}
-	upstreamQuota, hasUpstreamCost := upstreamCostQuota(relayInfo)
+	upstreamQuota, hasUpstreamCost, upstreamClamp := applicableUpstreamCostQuota(relayInfo)
 	if hasUpstreamCost {
 		summary.Quota = upstreamQuota
+		relayInfo.SettlementQuotaClamp = upstreamClamp
+		if upstreamClamp == nil && *relayInfo.UpstreamCostInUSDTicks > 0 && relayInfo.PriceData.GroupRatioInfo.GroupRatio > 0 && summary.Quota == 0 {
+			summary.Quota = 1
+		}
 	}
 
 	if !summary.hasBillableUsage() && !hasUpstreamCost {
@@ -456,9 +493,13 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			}
 		}
 	}
-	upstreamQuota, hasUpstreamCost := upstreamCostQuota(relayInfo)
+	upstreamQuota, hasUpstreamCost, upstreamClamp := applicableUpstreamCostQuota(relayInfo)
 	if hasUpstreamCost {
 		summary.Quota = upstreamQuota
+		relayInfo.SettlementQuotaClamp = upstreamClamp
+		if upstreamClamp == nil && *relayInfo.UpstreamCostInUSDTicks > 0 && relayInfo.PriceData.GroupRatioInfo.GroupRatio > 0 && summary.Quota == 0 {
+			summary.Quota = 1
+		}
 		// The upstream amount is authoritative; do not retain a tiered estimate
 		// in the log or let it overwrite the exact response charge.
 		tieredBillingApplied = false

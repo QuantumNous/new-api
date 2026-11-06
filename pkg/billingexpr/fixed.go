@@ -26,17 +26,6 @@ func containsPricingMarker(node ast.Node) bool {
 	}) != nil
 }
 
-func containsFixedPricing(node ast.Node) bool {
-	return ast.Find(node, func(part ast.Node) bool {
-		call, ok := part.(*ast.CallNode)
-		if !ok {
-			return false
-		}
-		identifier, ok := call.Callee.(*ast.IdentifierNode)
-		return ok && identifier.Value == "fixed"
-	}) != nil
-}
-
 func isRequestPriceMultiplier(node ast.Node) bool {
 	if identifier, ok := node.(*ast.IdentifierNode); ok && (identifier.Value == "image_count" || identifier.Value == "image_input_count") {
 		return true
@@ -48,6 +37,64 @@ func isRequestPriceMultiplier(node ast.Node) bool {
 	multiplier, multiplierOK := requestRuleNumber(conditional.Exp1)
 	fallback, fallbackOK := requestRuleNumber(conditional.Exp2)
 	return multiplierOK && fallbackOK && fallback == 1 && multiplier >= 0 && !math.IsNaN(multiplier) && !math.IsInf(multiplier, 0)
+}
+
+func isFixedPricingLeaf(node ast.Node) bool {
+	call, ok := node.(*ast.CallNode)
+	if !ok || len(call.Arguments) != 2 {
+		return false
+	}
+	tier, ok := call.Callee.(*ast.IdentifierNode)
+	if !ok || tier.Value != "tier" {
+		return false
+	}
+	fixed, ok := call.Arguments[1].(*ast.CallNode)
+	if !ok || len(fixed.Arguments) != 1 {
+		return false
+	}
+	name, ok := fixed.Callee.(*ast.IdentifierNode)
+	if !ok || name.Value != "fixed" {
+		return false
+	}
+	amount, literal := requestRuleNumber(fixed.Arguments[0])
+	return literal && amount >= 0 && !math.IsNaN(amount) && !math.IsInf(amount*1_000_000, 0)
+}
+
+// validateFixedPricingSumOperand requires every branch of an operand in a
+// fixed-price sum to remain request-priced. Token-priced alternatives are
+// valid in a standalone conditional, but not when their result is added to a
+// fixed request charge.
+func validateFixedPricingSumOperand(node ast.Node) error {
+	switch part := node.(type) {
+	case *ast.ConditionalNode:
+		if containsPricingMarker(part.Cond) {
+			break
+		}
+		if err := validateFixedPricingSumOperand(part.Exp1); err != nil {
+			return err
+		}
+		return validateFixedPricingSumOperand(part.Exp2)
+	case *ast.BinaryNode:
+		if part.Operator == "+" {
+			if err := validateFixedPricingSumOperand(part.Left); err != nil {
+				return err
+			}
+			return validateFixedPricingSumOperand(part.Right)
+		}
+		if part.Operator == "*" {
+			if isRequestPriceMultiplier(part.Right) {
+				return validateFixedPricingSumOperand(part.Left)
+			}
+			if isRequestPriceMultiplier(part.Left) {
+				return validateFixedPricingSumOperand(part.Right)
+			}
+		}
+	case *ast.CallNode:
+		if isFixedPricingLeaf(part) {
+			return nil
+		}
+	}
+	return fmt.Errorf("fixed pricing requires fixed request-priced branches")
 }
 
 // validateFixedPricingTree enforces one pricing leaf per execution. Without
@@ -65,13 +112,10 @@ func validateFixedPricingTree(node ast.Node) error {
 		return validateFixedPricingTree(part.Exp2)
 	case *ast.BinaryNode:
 		if part.Operator == "+" {
-			if !containsFixedPricing(part.Left) || !containsFixedPricing(part.Right) {
-				return fmt.Errorf("fixed pricing requires fixed request-priced branches")
-			}
-			if err := validateFixedPricingTree(part.Left); err != nil {
+			if err := validateFixedPricingSumOperand(part.Left); err != nil {
 				return err
 			}
-			return validateFixedPricingTree(part.Right)
+			return validateFixedPricingSumOperand(part.Right)
 		}
 		if part.Operator != "*" {
 			break

@@ -55,6 +55,32 @@ func TestLegacyDalleValidationAndPricesRemainCompatible(t *testing.T) {
 	}
 }
 
+func TestXAIImagePriceRatiosSeparateOutputAndInputFees(t *testing.T) {
+	for _, tc := range []struct {
+		name, model, resolution, quality string
+		inputCount                       int
+		outputRatio, inputRatio          float64
+	}{
+		{name: "legacy", model: "grok-imagine-image", inputCount: 2, outputRatio: 1, inputRatio: 0.1},
+		{name: "pro", model: "grok-imagine-image-pro", inputCount: 1, outputRatio: 1, inputRatio: 0.25},
+		{name: "2.0 default without input", model: "grok-imagine-image-2.0", outputRatio: 1, inputRatio: 0.25},
+		{name: "2.0 default with input", model: "grok-imagine-image-2.0", inputCount: 1, outputRatio: 1.5, inputRatio: 0.25},
+		{name: "2.0 1.5k medium", model: "grok-imagine-image-2.0", resolution: "1.5k", quality: "medium", outputRatio: 1.75, inputRatio: 0.25},
+		{name: "2.0 2k low", model: "grok-imagine-image-2.0", resolution: "2k", quality: "low", outputRatio: 1.5, inputRatio: 0.25},
+		{name: "2.0 2k medium", model: "grok-imagine-image-2.0", resolution: "2k", quality: "medium", outputRatio: 2, inputRatio: 0.25},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := dto.ImageRequest{Model: tc.model, Resolution: tc.resolution, Quality: tc.quality}
+			if tc.inputCount > 0 {
+				request.Image = []byte(`"https://example.com/input.png"`)
+			}
+			meta := request.GetTokenCountMeta()
+			assert.InDelta(t, tc.outputRatio, meta.ImagePriceRatio, 1e-12)
+			assert.Equal(t, tc.inputRatio, meta.ImageInputPriceRatio)
+		})
+	}
+}
+
 // TestGetAndValidOpenAIImageRequestMultipartStream verifies multipart image
 // edit parsing: the stream field is parsed and validated, and the request body
 // stays replayable for the upstream request.
@@ -67,6 +93,7 @@ func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 		require.NoError(t, writer.WriteField("model", "gpt-image-1"))
 		require.NoError(t, writer.WriteField("prompt", "edit this image"))
 		require.NoError(t, writer.WriteField("stream", streamValue))
+		require.NoError(t, writer.WriteField("response_format", "b64_json"))
 		if withImage {
 			part, err := writer.CreateFormFile("image", "input.png")
 			require.NoError(t, err)
@@ -89,6 +116,7 @@ func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, req.Stream)
 		require.True(t, *req.Stream)
+		assert.Equal(t, "b64_json", req.ResponseFormat)
 		require.True(t, req.IsStream(c.Request))
 
 		bodyAfterValidation, err := io.ReadAll(c.Request.Body)

@@ -352,6 +352,33 @@ export function getTieredBillingSummary(
     splitBillingExprAndRequestRules(exprStr).billingExpr
   )
   const tier = resolveMatchedTier(tiers, other.matched_tier)
+  const fixedPriceTerms = other.fixed_price_terms?.filter(
+    (term) =>
+      typeof term?.price === 'number' &&
+      Number.isFinite(term.price) &&
+      term.price >= 0
+  )
+  if (
+    other.billing_unit === 'request' &&
+    fixedPriceTerms &&
+    fixedPriceTerms.length > 1
+  ) {
+    return {
+      tiers,
+      tier,
+      priceEntries: fixedPriceTerms.map((term, index) => {
+        let shortLabel = index === 0 ? 'Per image' : 'Price'
+        if (term.tier === 'input') shortLabel = 'Input'
+        if (term.tier === 'output') shortLabel = 'Output'
+        return {
+          field: 'fixedPrice',
+          shortLabel,
+          price: term.price,
+          unit: other.image_count !== undefined ? 'image' : 'request',
+        }
+      }),
+    }
+  }
   if (
     other.billing_unit === 'request' &&
     typeof other.fixed_price === 'number' &&

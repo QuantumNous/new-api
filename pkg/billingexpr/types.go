@@ -43,6 +43,13 @@ type RequestRuleTrace struct {
 	Matched    bool    `json:"matched"`
 }
 
+// FixedPriceTerm preserves each independent request-priced component in a
+// fixed-price expression, such as output and input image fees.
+type FixedPriceTerm struct {
+	Tier  string  `json:"tier"`
+	Price float64 `json:"price"`
+}
+
 type BillingUnit string
 
 const (
@@ -52,12 +59,13 @@ const (
 
 // TraceResult holds side-channel info captured while an expression runs.
 type TraceResult struct {
-	ImageCount   *int               `json:"image_count,omitempty"`
-	BillingUnit  BillingUnit        `json:"billing_unit"`
-	FixedPrice   *float64           `json:"fixed_price,omitempty"`
-	MatchedTier  string             `json:"matched_tier"`
-	RequestRules []RequestRuleTrace `json:"request_rules,omitempty"`
-	Cost         float64            `json:"cost"`
+	ImageCount      *int               `json:"image_count,omitempty"`
+	BillingUnit     BillingUnit        `json:"billing_unit"`
+	FixedPrice      *float64           `json:"fixed_price,omitempty"`
+	FixedPriceTerms []FixedPriceTerm   `json:"fixed_price_terms,omitempty"`
+	MatchedTier     string             `json:"matched_tier"`
+	RequestRules    []RequestRuleTrace `json:"request_rules,omitempty"`
+	Cost            float64            `json:"cost"`
 }
 
 // BillingSnapshot captures billing state at pre-consume time. Expression and
@@ -65,24 +73,25 @@ type TraceResult struct {
 // auto-group retry and settlement. It is fully serializable and contains no
 // compiled program pointers.
 type BillingSnapshot struct {
-	EstimatedImageCount       *int           `json:"estimated_image_count,omitempty"`
-	BillingMode               string         `json:"billing_mode"`
-	ModelName                 string         `json:"model_name"`
-	ExprString                string         `json:"expr_string"`
-	ExprHash                  string         `json:"expr_hash"`
-	GroupRatio                float64        `json:"group_ratio"`
-	EstimatedPromptTokens     int            `json:"estimated_prompt_tokens"`
-	EstimatedCompletionTokens int            `json:"estimated_completion_tokens"`
-	PreConsumeMultiplier      float64        `json:"pre_consume_multiplier,omitempty"` // Reservation only; zero in older snapshots means 1.
-	EstimatedQuotaBeforeGroup float64        `json:"estimated_quota_before_group"`
-	EstimatedQuotaAfterGroup  int            `json:"estimated_quota_after_group"`
-	EstimatedTier             string         `json:"estimated_tier"`
-	EstimatedBillingUnit      BillingUnit    `json:"estimated_billing_unit,omitempty"`
-	EstimatedFixedPrice       *float64       `json:"estimated_fixed_price,omitempty"`
-	QuotaPerUnit              float64        `json:"quota_per_unit"`
-	ExprVersion               int            `json:"expr_version"`
-	TaskUsageBilling          bool           `json:"task_usage_billing,omitempty"`
-	UsageFacts                map[string]any `json:"usage_facts,omitempty"`
+	EstimatedImageCount       *int             `json:"estimated_image_count,omitempty"`
+	BillingMode               string           `json:"billing_mode"`
+	ModelName                 string           `json:"model_name"`
+	ExprString                string           `json:"expr_string"`
+	ExprHash                  string           `json:"expr_hash"`
+	GroupRatio                float64          `json:"group_ratio"`
+	EstimatedPromptTokens     int              `json:"estimated_prompt_tokens"`
+	EstimatedCompletionTokens int              `json:"estimated_completion_tokens"`
+	PreConsumeMultiplier      float64          `json:"pre_consume_multiplier,omitempty"` // Reservation only; zero in older snapshots means 1.
+	EstimatedQuotaBeforeGroup float64          `json:"estimated_quota_before_group"`
+	EstimatedQuotaAfterGroup  int              `json:"estimated_quota_after_group"`
+	EstimatedTier             string           `json:"estimated_tier"`
+	EstimatedBillingUnit      BillingUnit      `json:"estimated_billing_unit,omitempty"`
+	EstimatedFixedPrice       *float64         `json:"estimated_fixed_price,omitempty"`
+	EstimatedFixedPriceTerms  []FixedPriceTerm `json:"estimated_fixed_price_terms,omitempty"`
+	QuotaPerUnit              float64          `json:"quota_per_unit"`
+	ExprVersion               int              `json:"expr_version"`
+	TaskUsageBilling          bool             `json:"task_usage_billing,omitempty"`
+	UsageFacts                map[string]any   `json:"usage_facts,omitempty"`
 }
 
 // TieredResult holds everything needed after running tiered settlement.
@@ -94,6 +103,7 @@ type TieredResult struct {
 	ImageCount             *int               `json:"image_count,omitempty"`
 	BillingUnit            BillingUnit        `json:"billing_unit"`
 	FixedPrice             *float64           `json:"fixed_price,omitempty"`
+	FixedPriceTerms        []FixedPriceTerm   `json:"fixed_price_terms,omitempty"`
 	ActualQuotaBeforeGroup float64            `json:"actual_quota_before_group"`
 	ActualQuotaAfterGroup  int                `json:"actual_quota_after_group"`
 	MatchedTier            string             `json:"matched_tier"`

@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 )
@@ -46,7 +47,10 @@ func ResolveImageBillingRequestInput(c *gin.Context, info *relaycommon.RelayInfo
 	if err != nil {
 		return input, err
 	}
-	inputCount := request.CountInputImages()
+	inputCount := 0
+	if info.RelayMode == relayconstant.RelayModeImagesEdits {
+		inputCount = request.CountInputImages()
+	}
 	quality := strings.ToLower(strings.TrimSpace(request.Quality))
 	if request.IsXAIImagineImageModel() && (quality == "" || quality == "auto") {
 		if inputCount > 0 {
@@ -72,7 +76,7 @@ func ResolveImageBillingRequestInput(c *gin.Context, info *relaycommon.RelayInfo
 	}
 	input.Body = encoded
 	input.ImageCount = &count
-	if inputCount < 0 || inputCount > dto.MaxXAIInputImages {
+	if inputCount < 0 || (request.IsXAIImagineImageModel() && inputCount > dto.MaxXAIInputImages) {
 		return input, fmt.Errorf("image input count must be between 0 and %d", dto.MaxXAIInputImages)
 	}
 	input.ImageInputCount = &inputCount

@@ -81,5 +81,20 @@ func TestConvertImageRequestConvertsMultipartImageToDataURL(t *testing.T) {
 		} `json:"image"`
 	}
 	require.NoError(t, common.Unmarshal(bodyBytes, &payload))
-	require.True(t, strings.HasPrefix(payload.Image.URL, "data:image/png;base64,"))
+	require.Equal(t, "data:image/png;base64,aW1hZ2UtYnl0ZXM=", payload.Image.URL)
+}
+
+func TestConvertImageRequestRejectsMask(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", strings.NewReader(`{}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	_, err := (&Adaptor{}).ConvertImageRequest(c, &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesEdits}, dto.ImageRequest{
+		Model:  "grok-imagine-image-2.0",
+		Prompt: "edit this",
+		Image:  []byte(`"https://example.com/input.png"`),
+		Mask:   []byte(`"mask.png"`),
+	})
+	require.ErrorContains(t, err, "do not support mask")
 }

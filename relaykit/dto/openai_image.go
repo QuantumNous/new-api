@@ -235,11 +235,16 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	// Keep n separate from ImagePriceRatio so size/quality and count remain
 	// independent billing dimensions. Fixed-price pre-consume stores this on
 	// PriceData, and image settlement reuses or replaces the same "n" ratio.
+	inputPriceRatio := 0.0
+	if i.IsXAIImagineImageModel() {
+		inputPriceRatio = i.xAIImageInputPriceRatio()
+	}
 	return &types.TokenCountMeta{
-		CombineText:     i.Prompt,
-		MaxTokens:       1584,
-		ImagePriceRatio: i.legacyDallePriceRatio(),
-		BillingRatios:   map[string]float64{"n": float64(imageN)},
+		CombineText:          i.Prompt,
+		MaxTokens:            1584,
+		ImagePriceRatio:      i.legacyDallePriceRatio(),
+		ImageInputPriceRatio: inputPriceRatio,
+		BillingRatios:        map[string]float64{"n": float64(imageN)},
 	}
 }
 

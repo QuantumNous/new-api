@@ -34,11 +34,14 @@ type PriceData struct {
 	ImageRatio            float64
 	AudioRatio            float64
 	AudioCompletionRatio  float64
-	otherRatios           map[string]float64
-	UsePrice              bool
-	Quota                 int // 按次计费的最终额度（MJ / Task）
-	QuotaToPreConsume     int // 按量计费的预消耗额度
-	GroupRatioInfo        GroupRatioInfo
+	// ImageInputQuotaBeforeGroup is the source-image fee for legacy image
+	// billing, before the group ratio. It remains independent of output count.
+	ImageInputQuotaBeforeGroup float64
+	otherRatios                map[string]float64
+	UsePrice                   bool
+	Quota                      int // 按次计费的最终额度（MJ / Task）
+	QuotaToPreConsume          int // 按量计费的预消耗额度
+	GroupRatioInfo             GroupRatioInfo
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {

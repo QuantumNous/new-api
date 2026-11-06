@@ -42,6 +42,7 @@ func ComputeTieredQuotaWithRequest(snap *BillingSnapshot, params TokenParams, re
 		ImageCount:             trace.ImageCount,
 		BillingUnit:            trace.BillingUnit,
 		FixedPrice:             trace.FixedPrice,
+		FixedPriceTerms:        trace.FixedPriceTerms,
 		ActualQuotaBeforeGroup: quotaBeforeGroup,
 		ActualQuotaAfterGroup:  afterGroup,
 		MatchedTier:            trace.MatchedTier,

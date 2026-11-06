@@ -64,9 +64,8 @@ func (i *ImageRequest) legacyDallePriceRatio() float64 {
 // output price. Successful xAI responses replace this estimate with the exact
 // usage.cost_in_usd_ticks value.
 func (i *ImageRequest) xAIImagePriceRatio() float64 {
-	count := 1
-	if i.N != nil && *i.N > 0 && *i.N <= MaxXAIImageN {
-		count = int(*i.N)
+	if i.Model == "grok-imagine-image" {
+		return 1
 	}
 	resolution := strings.ToLower(i.Resolution)
 	if resolution == "" {
@@ -81,16 +80,8 @@ func (i *ImageRequest) xAIImagePriceRatio() float64 {
 		}
 	}
 	outputPrice := 0.04
-	inputPricePerImage := 0.01
-	if i.Model == "grok-imagine-image" {
-		outputPrice = 0.02
-		inputPricePerImage = 0.002
-	}
-	if i.Model == "grok-imagine-image-pro" {
-		inputPricePerImage = 0.01
-	}
 	if i.Model != "grok-imagine-image-2.0" {
-		return (float64(count)*outputPrice + float64(i.CountInputImages())*inputPricePerImage) / (float64(count) * 0.04)
+		return outputPrice / 0.04
 	}
 	switch resolution {
 	case "1.5k":
@@ -101,6 +92,16 @@ func (i *ImageRequest) xAIImagePriceRatio() float64 {
 	if quality == "medium" {
 		outputPrice += 0.02
 	}
-	inputPrice := float64(i.CountInputImages()) * inputPricePerImage
-	return (float64(count)*outputPrice + inputPrice) / (float64(count) * 0.04)
+	return outputPrice / 0.04
+}
+
+func (i *ImageRequest) xAIImageInputPriceRatio() float64 {
+	switch i.Model {
+	case "grok-imagine-image":
+		return 0.002 / 0.02
+	case "grok-imagine-image-2.0", "grok-imagine-image-pro":
+		return 0.01 / 0.04
+	default:
+		return 0
+	}
 }

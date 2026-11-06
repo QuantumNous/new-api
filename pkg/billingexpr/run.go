@@ -71,8 +71,8 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 		if request.ImageInputCount != nil {
 			imageInputCount = *request.ImageInputCount
 		}
-		if imageInputCount < 0 || imageInputCount > dto.MaxXAIInputImages {
-			return 0, trace, fmt.Errorf("image_input_count must be between 0 and %d", dto.MaxXAIInputImages)
+		if imageInputCount < 0 {
+			return 0, trace, fmt.Errorf("image_input_count must be non-negative")
 		}
 	}
 
@@ -93,16 +93,22 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 		"cc12h":             params.CC12h,
 		"tier": func(name string, value float64) float64 {
 			trace.MatchedTier = name
+			if index := len(trace.FixedPriceTerms) - 1; index >= 0 && trace.FixedPriceTerms[index].Tier == "" {
+				trace.FixedPriceTerms[index].Tier = name
+			}
 			trace.Cost = value
 			return value
 		},
 		"fixed": func(amount float64) float64 {
 			trace.BillingUnit = BillingUnitRequest
-			if trace.FixedPrice == nil {
+			trace.FixedPriceTerms = append(trace.FixedPriceTerms, FixedPriceTerm{Price: amount})
+			if len(trace.FixedPriceTerms) == 1 {
 				trace.FixedPrice = &amount
 			} else {
-				total := *trace.FixedPrice + amount
-				trace.FixedPrice = &total
+				// A sum may contain independent request prices (for example,
+				// output and input image fees). Keep those terms separate rather
+				// than exposing an ambiguous unit price.
+				trace.FixedPrice = nil
 			}
 			return amount * 1_000_000
 		},

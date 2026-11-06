@@ -232,6 +232,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			imageRequest.Quality = formData.Get("quality")
 			imageRequest.AspectRatio = formData.Get("aspect_ratio")
 			imageRequest.Resolution = formData.Get("resolution")
+			imageRequest.ResponseFormat = formData.Get("response_format")
 			imageRequest.Size = formData.Get("size")
 			if parameters := formData.Get("parameters"); parameters != "" {
 				imageRequest.Extra = map[string]json.RawMessage{"parameters": json.RawMessage(parameters)}
@@ -327,10 +328,10 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		if err := imageRequest.ValidateXAIImageRequest(); err != nil {
 			return nil, err
 		}
-		if imageRequest.ImageInputCount > dto.MaxXAIInputImages {
+		if imageRequest.CountInputImages() > dto.MaxXAIInputImages {
 			return nil, fmt.Errorf("xAI image edits support at most %d input images", dto.MaxXAIInputImages)
 		}
-		if relayMode == relayconstant.RelayModeImagesEdits && imageRequest.ImageInputCount == 0 {
+		if relayMode == relayconstant.RelayModeImagesEdits && imageRequest.CountInputImages() == 0 {
 			return nil, errors.New("image is required for xAI image edits")
 		}
 	}

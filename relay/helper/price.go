@@ -70,6 +70,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 	billingModelName := info.GetBillingModelName()
 	modelPrice, usePrice := ratio_setting.GetModelPrice(billingModelName, false)
+	baseModelPrice := modelPrice
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
@@ -172,6 +173,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		CacheCreation12hRatio: cacheCreationRatio12h,
 		QuotaToPreConsume:     preConsumedQuota,
 	}
+	if usePrice && meta.ImageInputPriceRatio > 0 {
+		if request, image := info.Request.(*dto.ImageRequest); image {
+			priceData.ImageInputQuotaBeforeGroup = baseModelPrice * meta.ImageInputPriceRatio * float64(request.CountInputImages()) * common.QuotaPerUnit
+		}
+	}
 	if usePrice {
 		for name, ratio := range meta.BillingRatios {
 			priceData.AddOtherRatio(name, ratio)
@@ -195,6 +201,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 	if usePrice {
 		quotaToPreConsume := priceData.ApplyOtherRatiosToFloat(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		quotaToPreConsume += priceData.ImageInputQuotaBeforeGroup * groupRatioInfo.GroupRatio
 		quota, err := common.QuotaFromFloatStrict(quotaToPreConsume)
 		if err != nil {
 			return hosttypes.PriceData{}, err
@@ -437,6 +444,7 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 		EstimatedTier:             trace.MatchedTier,
 		EstimatedBillingUnit:      trace.BillingUnit,
 		EstimatedFixedPrice:       trace.FixedPrice,
+		EstimatedFixedPriceTerms:  trace.FixedPriceTerms,
 		QuotaPerUnit:              common.QuotaPerUnit,
 		ExprVersion:               billingexpr.ExprVersion(exprStr),
 	}

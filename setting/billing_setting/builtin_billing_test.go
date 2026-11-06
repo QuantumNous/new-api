@@ -231,6 +231,12 @@ func TestXAIImageBuiltinPricing(t *testing.T) {
 		inputCount  int
 		wantQuota   int
 	}{
+		{model: "grok-imagine-image-2.0", body: `{}`, outputCount: 1, wantQuota: 20000},
+		{model: "grok-imagine-image-2.0", body: `{"quality":"low"}`, outputCount: 1, inputCount: 1, wantQuota: 25000},
+		{model: "grok-imagine-image-2.0", body: `{"resolution":"1k","quality":"medium"}`, outputCount: 1, inputCount: 1, wantQuota: 35000},
+		{model: "grok-imagine-image-2.0", body: `{"resolution":"1.5k","quality":"low"}`, outputCount: 1, inputCount: 1, wantQuota: 30000},
+		{model: "grok-imagine-image-2.0", body: `{"resolution":"1.5k","quality":"medium"}`, outputCount: 1, inputCount: 1, wantQuota: 40000},
+		{model: "grok-imagine-image-2.0", body: `{"resolution":"2k","quality":"low"}`, outputCount: 1, inputCount: 1, wantQuota: 35000},
 		{model: "grok-imagine-image-2.0", body: `{"resolution":"2k","quality":"medium"}`, outputCount: 2, inputCount: 2, wantQuota: 90000},
 		{model: "grok-imagine-image-pro", body: `{}`, outputCount: 1, inputCount: 1, wantQuota: 25000},
 		{model: "grok-imagine-image", body: `{}`, outputCount: 1, inputCount: 1, wantQuota: 11000},
