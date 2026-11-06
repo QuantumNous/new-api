@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -57,7 +58,9 @@ func TestMain(m *testing.M) {
 		&model.Channel{},
 		&model.Midjourney{},
 		&model.TopUp{},
+		&model.SubscriptionPlan{},
 		&model.UserSubscription{},
+		&model.SubscriptionPreConsumeRecord{},
 		&model.SystemTask{},
 		&model.SystemTaskLock{},
 	); err != nil {
@@ -81,10 +84,46 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM channels")
 		model.DB.Exec("DELETE FROM midjourneys")
 		model.DB.Exec("DELETE FROM top_ups")
+		model.DB.Exec("DELETE FROM subscription_pre_consume_records")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		model.DB.Exec("DELETE FROM subscription_plans")
 		model.DB.Exec("DELETE FROM system_task_locks")
 		model.DB.Exec("DELETE FROM system_tasks")
 	})
+}
+
+func TestSubscriptionBillingSessionFinalizesExactReservation(t *testing.T) {
+	truncate(t)
+	now := model.GetDBTimestamp()
+	plan := &model.SubscriptionPlan{Id: 98011, Title: "Rolling", QuotaResetPeriod: model.SubscriptionResetDaily}
+	require.NoError(t, model.DB.Create(plan).Error)
+	sub := &model.UserSubscription{
+		Id: 98012, UserId: 98011, PlanId: plan.Id, AmountTotal: 400, WindowAmount: 100,
+		QuotaModelVersion: 1, QuotaResetPeriod: model.SubscriptionResetDaily,
+		StartTime: now - 60, EndTime: now + 3600, Status: "active",
+		LastResetTime: now - 60, NextResetTime: now + 24*3600 - 60,
+	}
+	require.NoError(t, model.DB.Create(sub).Error)
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		UserId:       sub.UserId,
+		RequestId:    "subscription-session-exact-charge",
+		IsPlayground: true,
+		UserSetting:  dto.UserSetting{BillingPreference: "subscription_only"},
+	}
+	apiErr := PreConsumeBilling(ctx, 40, info)
+	require.Nil(t, apiErr)
+	require.NoError(t, info.Billing.Settle(40))
+	require.NoError(t, info.Billing.Settle(40))
+
+	var updated model.UserSubscription
+	require.NoError(t, model.DB.First(&updated, sub.Id).Error)
+	assert.Zero(t, updated.AmountReserved)
+	assert.EqualValues(t, 40, updated.TotalAmountUsed)
+	assert.EqualValues(t, 40, updated.WindowAmountUsed)
+	assert.EqualValues(t, 40, updated.HistoricalAmountUsed)
 }
 
 func seedUser(t *testing.T, id int, quota int) {

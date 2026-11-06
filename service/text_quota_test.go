@@ -80,7 +80,10 @@ func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {
 			model.DB, model.LOG_DB = db, logDB
 			common.SetDatabaseTypes(dialect.name, dialect.name)
 			t.Cleanup(func() { model.DB, model.LOG_DB = oldDB, oldLogDB; common.SetDatabaseTypes(oldMainType, oldLogType) })
-			require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}))
+			require.NoError(t, db.AutoMigrate(
+				&model.User{}, &model.Token{}, &model.Channel{}, &model.SubscriptionPlan{},
+				&model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{},
+			))
 			require.NoError(t, logDB.AutoMigrate(&model.Log{}))
 			versionQuery := "select version()"
 			if dialect.name == common.DatabaseTypeSQLite {
@@ -89,9 +92,62 @@ func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {
 			var version string
 			require.NoError(t, db.Raw(versionQuery).Scan(&version).Error)
 			t.Logf("database: %s", version)
+			runSubscriptionReservationDatabaseCases(t)
 			runFixedPriceAccountingCases(t, db, logDB)
 		})
 	}
+}
+
+func runSubscriptionReservationDatabaseCases(t *testing.T) {
+	t.Helper()
+	now := model.GetDBTimestamp()
+	plan := &model.SubscriptionPlan{Title: "reservation matrix", QuotaResetPeriod: model.SubscriptionResetDaily}
+	require.NoError(t, model.DB.Create(plan).Error)
+	sub := &model.UserSubscription{
+		UserId:            74001,
+		PlanId:            plan.Id,
+		AmountTotal:       400,
+		WindowAmount:      100,
+		QuotaModelVersion: 1,
+		QuotaResetPeriod:  model.SubscriptionResetDaily,
+		StartTime:         now - 60,
+		EndTime:           now + 10*24*3600,
+		Status:            "active",
+		LastResetTime:     now - 60,
+		NextResetTime:     now + 24*3600 - 60,
+	}
+	require.NoError(t, model.DB.Create(sub).Error)
+	requestIds := []string{
+		fmt.Sprintf("matrix-reservation-%d-a", sub.Id),
+		fmt.Sprintf("matrix-reservation-%d-b", sub.Id),
+		fmt.Sprintf("matrix-reservation-%d-c", sub.Id),
+	}
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Where("request_id IN ?", requestIds).Delete(&model.SubscriptionPreConsumeRecord{}).Error)
+		require.NoError(t, model.DB.Delete(&model.UserSubscription{}, sub.Id).Error)
+		require.NoError(t, model.DB.Delete(&model.SubscriptionPlan{}, plan.Id).Error)
+	})
+
+	_, err := model.PreConsumeUserSubscription(requestIds[0], sub.UserId, "", 0, 60)
+	require.NoError(t, err)
+	_, err = model.PreConsumeUserSubscription(requestIds[1], sub.UserId, "", 0, 40)
+	require.NoError(t, err)
+	_, err = model.PreConsumeUserSubscription(requestIds[2], sub.UserId, "", 0, 1)
+	require.Error(t, err)
+
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("id = ?", sub.Id).Updates(map[string]any{
+		"reset_generation": 1,
+		"last_reset_time":  now,
+	}).Error)
+	require.NoError(t, model.SettleUserSubscriptionPreConsume(requestIds[0], 20))
+	require.NoError(t, model.RefundSubscriptionPreConsume(requestIds[1]))
+
+	var updated model.UserSubscription
+	require.NoError(t, model.DB.Where("id = ?", sub.Id).First(&updated).Error)
+	assert.Zero(t, updated.AmountReserved)
+	assert.EqualValues(t, 80, updated.TotalAmountUsed)
+	assert.Zero(t, updated.WindowAmountUsed)
+	assert.EqualValues(t, 80, updated.HistoricalAmountUsed)
 }
 
 func runFixedPriceAccountingCases(t *testing.T, db, logDB *gorm.DB) {

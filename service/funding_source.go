@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -79,12 +80,14 @@ func (w *WalletFunding) Refund() error {
 // ---------------------------------------------------------------------------
 
 type SubscriptionFunding struct {
-	requestId      string
-	userId         int
-	modelName      string
-	amount         int64 // 预扣的订阅额度（subConsume）
-	subscriptionId int
-	preConsumed    int64
+	requestId         string
+	userId            int
+	modelName         string
+	amount            int64 // 预扣的订阅额度（subConsume）
+	subscriptionId    int
+	preConsumed       int64
+	billingPreference string
+	settlement        *model.SubscriptionSettlement
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
 	AmountTotal     int64
 	AmountUsedAfter int64
@@ -113,10 +116,32 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 }
 
 func (s *SubscriptionFunding) Settle(delta int) error {
-	if delta == 0 {
+	result, err := model.SettleUserSubscriptionFunding(s.requestId, int64(delta))
+	if err != nil {
+		return err
+	}
+	s.settlement = result
+	if result.UnfundedAmount == 0 {
 		return nil
 	}
-	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	pref := common.NormalizeBillingPreference(s.billingPreference)
+	if !result.AllowWalletOverflow || pref != "subscription_first" && pref != "wallet_first" {
+		return errors.New("subscription settlement exceeds total quota")
+	}
+	walletAmount, err := model.SettleSubscriptionWalletOverflow(s.requestId)
+	if err != nil {
+		return err
+	}
+	result.UnfundedAmount -= walletAmount - result.WalletAmount
+	result.WalletAmount = walletAmount
+	return nil
+}
+
+func (s *SubscriptionFunding) Reserve(delta int) error {
+	if s.settlement != nil {
+		return errors.New("subscription funding has already settled")
+	}
+	return model.AdjustUserSubscriptionReservation(s.requestId, int64(delta))
 }
 
 func (s *SubscriptionFunding) Refund() error {

@@ -77,6 +77,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 		setTaskImageCount(other, info.PriceData.OtherRatios()["image_count"])
 	}
 	appendTaskLogInfo(task, other)
+	appendBillingInfo(info, other)
 	attachQuotaSaturation(c, info, other)
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
@@ -115,6 +116,9 @@ func taskIsSubscription(task *model.Task) bool {
 // taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
 func taskAdjustFunding(task *model.Task, delta int) error {
 	if taskIsSubscription(task) {
+		if task.PrivateData.Execution != nil && task.PrivateData.Execution.RequestID != "" {
+			return model.SettleUserSubscriptionPreConsume(task.PrivateData.Execution.RequestID, int64(delta))
+		}
 		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
 	}
 	if delta > 0 {
@@ -267,8 +271,14 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 	}
 
 	// 1. 退还资金来源（钱包或订阅）
-	if err := taskAdjustFunding(task, -quota); err != nil {
-		logger.LogWarn(ctx, common.LogText("failed to refund the funding source, task %s: %s", task.TaskID, err.Error()))
+	var fundingErr error
+	if taskIsSubscription(task) && task.PrivateData.Execution != nil && task.PrivateData.Execution.RequestID != "" {
+		fundingErr = model.RefundSubscriptionPreConsume(task.PrivateData.Execution.RequestID)
+	} else {
+		fundingErr = taskAdjustFunding(task, -quota)
+	}
+	if fundingErr != nil {
+		logger.LogWarn(ctx, common.LogText("failed to refund the funding source, task %s: %s", task.TaskID, fundingErr.Error()))
 		return false
 	}
 
@@ -313,8 +323,41 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	}
 	preConsumedQuota := task.Quota
 	quotaDelta := actualQuota - preConsumedQuota
+	var subscriptionSettlement *model.SubscriptionSettlement
+	var subscriptionCharged, walletCharged int64
+	if taskIsSubscription(task) && task.PrivateData.Execution != nil && task.PrivateData.Execution.RequestID != "" && quotaDelta >= 0 {
+		record, submitted, err := model.PrepareSubscriptionTaskSettlement(task.PrivateData.Execution.RequestID)
+		if err != nil {
+			logger.LogError(ctx, common.LogText("failed to prepare task subscription settlement, task %s: %s", task.TaskID, err.Error()))
+			return
+		}
+		if record.RequestId != "" {
+			funding := &SubscriptionFunding{requestId: record.RequestId, billingPreference: task.PrivateData.BillingPreference}
+			err := funding.Settle(actualQuota - int(submitted))
+			subscriptionSettlement = funding.settlement
+			if subscriptionSettlement == nil {
+				logger.LogError(ctx, common.LogText("failed to settle task subscription funding, task %s: %s", task.TaskID, err.Error()))
+				return
+			}
+			subscriptionCharged = subscriptionSettlement.SubscriptionAmount - record.SettledAmount
+			walletCharged = subscriptionSettlement.WalletAmount - record.WalletSettledAmount
+			// Publish only committed money; the unchanged intended completion
+			// cost is recovered from the original submission on an explicit retry.
+			actualQuota = int(submitted + subscriptionSettlement.SubscriptionAmount + subscriptionSettlement.WalletAmount)
+			quotaDelta = actualQuota - preConsumedQuota
+			if err != nil {
+				logger.LogError(ctx, common.LogText("task subscription settlement remains partially funded, task %s: %s", task.TaskID, err.Error()))
+			}
+		}
+	}
 
 	if quotaDelta == 0 {
+		if subscriptionSettlement == nil {
+			if err := taskAdjustFunding(task, 0); err != nil {
+				logger.LogError(ctx, common.LogText("failed to finalize subscription reservation, task %s: %s", task.TaskID, err.Error()))
+				return
+			}
+		}
 		logger.LogInfo(ctx, common.LogText("task %s pre-consumed quota matches the actual quota (%s, %s)",
 			task.TaskID, logger.LogQuota(actualQuota), reason.Error()))
 		return
@@ -329,11 +372,12 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	))
 
 	// 调整资金来源
-	if err := taskAdjustFunding(task, quotaDelta); err != nil {
-		logger.LogError(ctx, common.LogText("failed to adjust funding for the difference, task %s: %s", task.TaskID, err.Error()))
-		return
+	if subscriptionSettlement == nil {
+		if err := taskAdjustFunding(task, quotaDelta); err != nil {
+			logger.LogError(ctx, common.LogText("failed to adjust funding for the difference, task %s: %s", task.TaskID, err.Error()))
+			return
+		}
 	}
-
 	// 调整令牌额度
 	taskAdjustTokenQuota(ctx, task, quotaDelta)
 
@@ -359,6 +403,13 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	other.SetPublic("task_id", task.TaskID)
 	other.SetPublic("pre_consumed_quota", preConsumedQuota)
 	other.SetPublic("actual_quota", actualQuota)
+	if subscriptionSettlement != nil {
+		other.SetPublic("billing_source", BillingSourceSubscription)
+		other.SetPublic("subscription_id", task.PrivateData.SubscriptionId)
+		other.SetPublic("subscription_consumed", subscriptionCharged)
+		other.SetPublic("wallet_quota_deducted", walletCharged)
+		other.SetPublic("unfunded_quota", subscriptionSettlement.UnfundedAmount)
+	}
 	for _, clamp := range clamps {
 		attachQuotaSaturationToOther(other, clamp)
 	}

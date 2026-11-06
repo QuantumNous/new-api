@@ -37,6 +37,16 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	planVersion, err := model.GetOrCreateCurrentSubscriptionPlanVersion(plan.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	plan, err = planVersion.PlanTerms()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if !plan.Enabled {
 		common.ApiErrorT(c, "Subscription plan is not enabled")
 		return
@@ -87,6 +97,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
+		PlanVersionId:   planVersion.Id,
 		Money:           plan.PriceAmount,
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
@@ -94,6 +105,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
+	order.CapturePlanTerms(plan)
 	if err := order.Insert(); err != nil {
 		common.ApiErrorT(c, "Failed to create order")
 		return

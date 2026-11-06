@@ -247,6 +247,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
             </span>
             <span className='max-w-[200px] truncate text-sm font-medium'>
               {plan.title}
+              {props.plan?.version
+                ? ` · ${t('Version')} ${props.plan.version}`
+                : ''}
             </span>
           </div>
           <div className='flex items-center justify-between'>

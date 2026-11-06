@@ -322,6 +322,32 @@ func is64BitIntegerType(dbType common.DatabaseType, dataType string) bool {
 	}
 }
 
+func ensureSubscriptionPlanVersions(db *gorm.DB) error {
+	if db == nil {
+		return fmt.Errorf("database is nil")
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		var plans []SubscriptionPlan
+		if err := tx.Find(&plans).Error; err != nil {
+			return err
+		}
+		for i := range plans {
+			var count int64
+			if err := tx.Model(&SubscriptionPlanVersion{}).
+				Where("plan_id = ?", plans[i].Id).
+				Count(&count).Error; err != nil {
+				return err
+			}
+			if count == 0 {
+				if _, err := CreateSubscriptionPlanVersionTx(tx, &plans[i]); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
+
 func migrateDB() error {
 	if err := migrateTokenKeyUniqueness(DB); err != nil {
 		return err
@@ -364,9 +390,11 @@ func migrateDB() error {
 		&TwoFA{},
 		&TwoFABackupCode{},
 		&Checkin{},
+		&SubscriptionPlanVersion{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
+		&SubscriptionQuotaOperation{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
@@ -394,9 +422,15 @@ func migrateDB() error {
 			return err
 		}
 	} else {
-		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
+		if err := DB.AutoMigrate(&SubscriptionPlan{}, &SubscriptionPlanVersion{}); err != nil {
 			return err
 		}
+	}
+	if err := ensureSubscriptionPlanVersions(DB); err != nil {
+		return fmt.Errorf("ensure subscription plan versions: %w", err)
+	}
+	if err := snapshotLegacySubscriptionResetPolicies(DB); err != nil {
+		return fmt.Errorf("snapshot legacy subscription reset policies: %w", err)
 	}
 	return nil
 }
