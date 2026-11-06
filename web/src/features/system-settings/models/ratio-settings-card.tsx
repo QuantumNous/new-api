@@ -36,6 +36,7 @@ import {
   type ModelPricingConfig,
 } from '@/features/model-pricing/api'
 import { pricingOptions } from '@/features/model-pricing/pricing'
+import { useMediaQuery } from '@/hooks'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { SettingsPageTitleStatusPortal } from '../components/settings-page-context'
@@ -172,6 +173,7 @@ export function RatioSettingsCard({
   visibleTabs = ['models', 'groups', 'tool-prices', 'upstream-sync'],
 }: RatioSettingsCardProps) {
   const { t } = useTranslation()
+  const isMobile = useMediaQuery('(max-width: 639px)')
   const updateOption = useUpdateOption()
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -524,9 +526,19 @@ export function RatioSettingsCard({
   }
 
   const renderTabSwitcher = () => (
-    <TabsList className={`grid w-fit max-w-full ${tabsGridClass}`}>
+    <TabsList
+      className={
+        isMobile
+          ? 'flex w-full justify-start overflow-x-auto'
+          : `grid w-fit max-w-full ${tabsGridClass}`
+      }
+    >
       {visibleTabs.map((tab) => (
-        <TabsTrigger key={tab} value={tab}>
+        <TabsTrigger
+          key={tab}
+          value={tab}
+          className={isMobile ? 'flex-none px-3' : undefined}
+        >
           {t(tabLabels[tab])}
         </TabsTrigger>
       ))}
@@ -548,9 +560,14 @@ export function RatioSettingsCard({
         </SettingsSection>
       ) : (
         <Tabs defaultValue={defaultTab} className='h-full min-h-0 gap-6'>
-          <SettingsPageTitleStatusPortal>
-            {renderTabSwitcher()}
-          </SettingsPageTitleStatusPortal>
+          {/* The phone title row is too narrow for the tabs. */}
+          {isMobile ? (
+            renderTabSwitcher()
+          ) : (
+            <SettingsPageTitleStatusPortal>
+              {renderTabSwitcher()}
+            </SettingsPageTitleStatusPortal>
+          )}
 
           <SettingsSection title={t(titleKey)} className='min-h-0 flex-1'>
             {visibleTabs.map((tab) => (
