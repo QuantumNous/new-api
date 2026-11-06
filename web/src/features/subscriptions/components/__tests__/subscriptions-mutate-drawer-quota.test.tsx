@@ -23,7 +23,7 @@ vi.mock('../subscriptions-provider', () => ({
 
 afterEach(() => vi.clearAllMocks())
 
-function renderPlanDrawer() {
+function renderPlanDrawer(isEdit = true) {
   const plan: PlanRecord = {
     plan: {
       id: 10,
@@ -48,9 +48,35 @@ function renderPlanDrawer() {
   }
 
   render(
-    <SubscriptionsMutateDrawer open onOpenChange={vi.fn()} currentRow={plan} />
+    <SubscriptionsMutateDrawer
+      open
+      onOpenChange={vi.fn()}
+      currentRow={isEdit ? plan : undefined}
+    />
   )
 }
+
+it.each([false, true])(
+  'groups window quota with reset settings when editing is %s',
+  async (isEdit) => {
+    renderPlanDrawer(isEdit)
+
+    const windowQuota = await screen.findByRole('spinbutton', {
+      name: /Window quota/,
+    })
+    const resetSection = screen
+      .getByRole('heading', { name: 'Quota Reset' })
+      .closest('section')
+
+    expect(resetSection).toContainElement(windowQuota)
+    expect(resetSection).toContainElement(
+      screen.getByRole('combobox', { name: 'Reset Cycle' })
+    )
+    expect(resetSection).toContainElement(
+      screen.getByRole('spinbutton', { name: 'Custom Seconds' })
+    )
+  }
+)
 
 it('disables the window quota and explains it is ignored when total quota becomes unlimited', async () => {
   const user = userEvent.setup()

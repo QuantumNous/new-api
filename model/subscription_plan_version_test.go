@@ -148,6 +148,9 @@ func TestSubscriptionPlanVersionMigrationMatrix(t *testing.T) {
 			sqlDB, err := db.DB()
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = sqlDB.Close() })
+			t.Cleanup(func() {
+				require.NoError(t, db.Migrator().DropTable(&SubscriptionOrder{}, &UserSubscription{}, &SubscriptionPlanVersion{}, &SubscriptionPlan{}))
+			})
 			if tc.name != "sqlite" {
 				require.NoError(t, db.Exec("DROP TABLE IF EXISTS subscription_orders").Error)
 				require.NoError(t, db.Exec("DROP TABLE IF EXISTS user_subscriptions").Error)
@@ -192,6 +195,127 @@ func TestSubscriptionPlanVersionMigrationMatrix(t *testing.T) {
 			var loadedSubscription UserSubscription
 			require.NoError(t, db.First(&loadedSubscription, subscription.Id).Error)
 			assert.Equal(t, version.Id, loadedSubscription.PlanVersionId)
+		})
+	}
+}
+
+func TestSubscriptionPlanQuotaMigrationMatrix(t *testing.T) {
+	cases := []struct {
+		name string
+		dsn  string
+		open func(string) gorm.Dialector
+	}{
+		{name: "sqlite", dsn: ":memory:", open: func(dsn string) gorm.Dialector { return sqlite.Open(dsn) }},
+		{name: "mysql", dsn: strings.TrimSpace(os.Getenv("TEST_SUBSCRIPTION_MYSQL_DSN")), open: func(dsn string) gorm.Dialector { return mysql.Open(dsn) }},
+		{name: "postgres", dsn: strings.TrimSpace(os.Getenv("TEST_SUBSCRIPTION_POSTGRES_DSN")), open: func(dsn string) gorm.Dialector { return postgres.Open(dsn) }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.dsn == "" {
+				t.Skipf("TEST_SUBSCRIPTION_%s_DSN is not configured", strings.ToUpper(tc.name))
+			}
+			for _, existing := range []bool{false, true} {
+				name := "fresh"
+				if existing {
+					name = "upgrade"
+				}
+				t.Run(name, func(t *testing.T) {
+					db, err := gorm.Open(tc.open(tc.dsn), &gorm.Config{})
+					require.NoError(t, err)
+					sqlDB, err := db.DB()
+					require.NoError(t, err)
+					sqlDB.SetMaxOpenConns(1)
+					t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+					t.Cleanup(func() { require.NoError(t, db.Migrator().DropTable(&SubscriptionPlanVersion{}, &SubscriptionPlan{})) })
+					previousDB, previousType := DB, common.MainDatabaseType()
+					DB = db
+					common.SetMainDatabaseType(common.DatabaseType(tc.name))
+					t.Cleanup(func() {
+						DB = previousDB
+						common.SetMainDatabaseType(previousType)
+					})
+					var version string
+					versionQuery := "SELECT VERSION()"
+					if tc.name == "sqlite" {
+						versionQuery = "SELECT sqlite_version()"
+					}
+					require.NoError(t, db.Raw(versionQuery).Scan(&version).Error)
+					t.Logf("database version: %s", version)
+					var legacyID int
+					if existing {
+						// Plan schema before quota windows were introduced (origin/main).
+						type previousPlan struct {
+							Id                      int
+							Title                   string  `gorm:"type:varchar(128);not null"`
+							Subtitle                string  `gorm:"type:varchar(255);default:''"`
+							PriceAmount             float64 `gorm:"type:decimal(10,6);not null;default:0"`
+							Currency                string  `gorm:"type:varchar(8);not null;default:'USD'"`
+							DurationUnit            string  `gorm:"type:varchar(16);not null;default:'month'"`
+							DurationValue           int     `gorm:"type:int;not null;default:1"`
+							CustomSeconds           int64   `gorm:"type:bigint;not null;default:0"`
+							Enabled                 bool    `gorm:"default:true"`
+							SortOrder               int     `gorm:"type:int;default:0"`
+							AllowBalancePay         *bool
+							AllowWalletOverflow     *bool
+							StripePriceId           string `gorm:"type:varchar(128);default:''"`
+							CreemProductId          string `gorm:"type:varchar(128);default:''"`
+							WaffoPancakeProductId   string `gorm:"type:varchar(128);default:''"`
+							MaxPurchasePerUser      int    `gorm:"type:int;default:0"`
+							UpgradeGroup            string `gorm:"type:varchar(64);default:''"`
+							DowngradeGroup          string `gorm:"type:varchar(64);default:''"`
+							TotalAmount             int64  `gorm:"type:bigint;not null;default:0"`
+							QuotaResetPeriod        string `gorm:"type:varchar(16);default:'never'"`
+							QuotaResetCustomSeconds int64  `gorm:"type:bigint;default:0"`
+							CreatedAt               int64  `gorm:"bigint"`
+							UpdatedAt               int64  `gorm:"bigint"`
+						}
+						require.NoError(t, db.Table("subscription_plans").AutoMigrate(&previousPlan{}))
+						legacy := previousPlan{Title: "legacy", PriceAmount: 12.345678, TotalAmount: 400, QuotaResetPeriod: SubscriptionResetDaily}
+						require.NoError(t, db.Table("subscription_plans").Create(&legacy).Error)
+						legacyID = legacy.Id
+					}
+					for range 2 {
+						if tc.name == "sqlite" {
+							require.NoError(t, ensureSubscriptionPlanTableSQLite())
+						} else {
+							require.NoError(t, db.AutoMigrate(&SubscriptionPlan{}))
+						}
+						require.NoError(t, db.AutoMigrate(&SubscriptionPlanVersion{}))
+						require.NoError(t, ensureSubscriptionPlanVersions(db))
+					}
+					plan := &SubscriptionPlan{
+						Title: "new plan", TotalAmount: 400, WindowAmount: 500,
+						QuotaModelVersion: 1, QuotaResetPeriod: SubscriptionResetDaily,
+					}
+					require.ErrorContains(t, plan.ValidateQuotaConfiguration(), "Window quota cannot exceed total quota")
+					plan.QuotaResetPeriod = SubscriptionResetNever
+					require.NoError(t, plan.ValidateQuotaConfiguration())
+					require.NoError(t, db.Create(plan).Error)
+					var saved SubscriptionPlan
+					require.NoError(t, db.First(&saved, plan.Id).Error)
+					assert.EqualValues(t, 500, saved.WindowAmount)
+					assert.Equal(t, 1, saved.QuotaModelVersion)
+					assert.Equal(t, SubscriptionResetNever, saved.QuotaResetPeriod)
+					versioned, err := CreateSubscriptionPlanVersionTx(db, &saved)
+					require.NoError(t, err)
+					terms, err := versioned.PlanTerms()
+					require.NoError(t, err)
+					assert.Equal(t, saved.WindowAmount, terms.WindowAmount)
+					if existing {
+						var legacy SubscriptionPlan
+						require.NoError(t, db.First(&legacy, legacyID).Error)
+						assert.Equal(t, "legacy", legacy.Title)
+						assert.Equal(t, 12.345678, legacy.PriceAmount)
+						assert.EqualValues(t, 400, legacy.TotalAmount)
+						assert.Zero(t, legacy.WindowAmount)
+						assert.Zero(t, legacy.QuotaModelVersion)
+						assert.Equal(t, SubscriptionResetDaily, legacy.QuotaResetPeriod)
+						var versions int64
+						require.NoError(t, db.Model(&SubscriptionPlanVersion{}).Where("plan_id = ?", legacyID).Count(&versions).Error)
+						assert.EqualValues(t, 1, versions)
+					}
+				})
+			}
 		})
 	}
 }
