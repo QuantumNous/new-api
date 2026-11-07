@@ -176,6 +176,15 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
       value: '/v1beta/models/{model}:batchEmbedContents',
       label: 'Gemini Batch Embed Contents',
     },
+    {
+      value: '/v1/tools/search',
+      label: 'web Search',
+    },
+    {
+      value: '/v1/tools/fetch',
+      label: 'web Fetch',
+    },
+
   ]
 
 const ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS: Record<string, string> = {
