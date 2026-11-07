@@ -138,6 +138,7 @@ func attachOpenAIChatRequest(request any, set Set, options *convmeta.Options) (a
 	}
 
 	diagnostics = append(diagnostics, unsupportedHostedHistoryDiagnostics(types.RelayFormatOpenAI, set.History)...)
+	target.Tools, set.Choice, diagnostics = limitOpenAIChatTools(target.Tools, set.Choice, diagnostics)
 	if chatWebSearchEncoded && forcedWebSearch(set.Choice) {
 		// The encoder received Forced and expressed it in its own encoding.
 		set.Choice = nil
@@ -152,6 +153,49 @@ func attachOpenAIChatRequest(request any, set Set, options *convmeta.Options) (a
 	diagnostics = append(diagnostics, allowedChoiceDiagnostics...)
 	diagnostics = append(diagnostics, choiceDiagnostics...)
 	return target, diagnostics, nil
+}
+
+const openAIChatMaxTools = 128
+
+// limitOpenAIChatTools keeps Chat Completions requests within the upstream
+// tool limit. Hosted tools are represented outside tools[], so this applies to
+// the function and encoder-produced entries that were actually attached.
+func limitOpenAIChatTools(tools []dto.ToolCallRequest, choice *Choice, diagnostics []types.ConversionDiagnostic) ([]dto.ToolCallRequest, *Choice, []types.ConversionDiagnostic) {
+	if len(tools) <= openAIChatMaxTools {
+		return tools, choice, diagnostics
+	}
+
+	omitted := len(tools) - openAIChatMaxTools
+	diagnostics = append(diagnostics, semanticLoss(
+		fmt.Sprintf("tools[%d:]", openAIChatMaxTools),
+		"tool_count_limit_exceeded",
+		fmt.Sprintf("Chat Completions accepts at most %d tools; %d tool definitions were omitted", openAIChatMaxTools, omitted),
+	))
+
+	kept := tools[:openAIChatMaxTools]
+	if choice != nil && choice.Mode == ChoiceNamed && choice.Kind == KindFunction && !chatToolNamePresent(kept, choice.Name) {
+		diagnostics = append(diagnostics, semanticLoss(
+			"tool_choice",
+			"tool_choice_target_omitted",
+			fmt.Sprintf("the chosen tool %q was omitted by the Chat Completions tool limit; tool choice was reset to auto", choice.Name),
+		))
+		reset := *choice
+		reset.Mode = ChoiceAuto
+		reset.Kind = ""
+		reset.Name = ""
+		reset.AllowedNames = nil
+		choice = &reset
+	}
+	return kept, choice, diagnostics
+}
+
+func chatToolNamePresent(tools []dto.ToolCallRequest, name string) bool {
+	for _, tool := range tools {
+		if tool.Function.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // newWebSearchCall describes one hosted web-search definition for the host

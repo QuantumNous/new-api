@@ -1,6 +1,7 @@
 package toolconv
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -278,4 +279,50 @@ func TestResponsesCustomToolNameConflictIsDropped(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestOpenAIChatToolLimitDropsOverflowAndResetsDroppedChoice(t *testing.T) {
+	t.Parallel()
+
+	tools := make([]map[string]any, 0, openAIChatMaxTools+2)
+	for index := range openAIChatMaxTools + 2 {
+		tools = append(tools, map[string]any{
+			"type":       "function",
+			"name":       fmt.Sprintf("tool_%d", index),
+			"parameters": map[string]any{"type": "object"},
+		})
+	}
+	rawTools, err := kitutil.Marshal(tools)
+	require.NoError(t, err)
+	rawChoice, err := kitutil.Marshal(map[string]any{"type": "function", "name": "tool_129"})
+	require.NoError(t, err)
+	request := &dto.OpenAIResponsesRequest{
+		Model:      "gpt-4o",
+		Tools:      rawTools,
+		ToolChoice: rawChoice,
+	}
+
+	_, set, err := ExtractRequest(types.RelayFormatOpenAIResponses, request)
+	require.NoError(t, err)
+	target := &dto.GeneralOpenAIRequest{Model: "gpt-4o", Messages: []dto.Message{{Role: "user", Content: "run"}}}
+
+	out, diagnostics, err := AttachRequest(types.RelayFormatOpenAI, target, set, &convmeta.Options{})
+	require.NoError(t, err)
+	chat := out.(*dto.GeneralOpenAIRequest)
+	require.Len(t, chat.Tools, openAIChatMaxTools)
+	assert.Equal(t, "tool_0", chat.Tools[0].Function.Name)
+	assert.Equal(t, "tool_127", chat.Tools[openAIChatMaxTools-1].Function.Name)
+	assert.Equal(t, "auto", chat.ToolChoice)
+	assert.True(t, hasDiagnosticCode(diagnostics, "tool_count_limit_exceeded"))
+	assert.True(t, hasDiagnosticCode(diagnostics, "tool_choice_target_omitted"))
+
+	_, diagnostics, err = AttachRequest(
+		types.RelayFormatOpenAI,
+		&dto.GeneralOpenAIRequest{Model: "gpt-4o", Messages: []dto.Message{{Role: "user", Content: "run"}}},
+		set,
+		&convmeta.Options{ToolLossPolicy: types.ConversionLossPolicySafe},
+	)
+	var loss *types.ConversionLossError
+	require.ErrorAs(t, err, &loss)
+	assert.True(t, hasDiagnosticCode(diagnostics, "tool_count_limit_exceeded"))
 }
