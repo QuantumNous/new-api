@@ -178,13 +178,12 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
     },
     {
       value: '/v1/tools/search',
-      label: 'web Search',
+      label: 'DeepSeek Search',
     },
     {
       value: '/v1/tools/fetch',
-      label: 'web Fetch',
+      label: 'DeepSeek Fetch',
     },
-
   ]
 
 const ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS: Record<string, string> = {
