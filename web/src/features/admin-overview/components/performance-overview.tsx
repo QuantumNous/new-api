@@ -35,6 +35,8 @@ import type { PerfModelSummary } from '@/features/performance-metrics/types'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
+import { LIVE_REFRESH_MS } from '../constants'
+
 const PERFORMANCE_WINDOW_HOURS = 24
 const TOP_MODEL_LIMIT = 6
 
@@ -46,9 +48,8 @@ export function PerformanceOverview() {
       requireServerSuccess(
         await getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS)
       ),
-    // Live like the rest of the control panel: poll every 3 seconds.
-    refetchInterval: 3000,
-    staleTime: 2900,
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 100,
     retry: false,
   })
 

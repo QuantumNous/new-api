@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
@@ -40,6 +41,71 @@ func flowQuotaBaseQuery(startTime int64, endTime int64) *gorm.DB {
 	return query
 }
 
+// pendingFlowQuotaData converts the unflushed in-memory quota rows into flow
+// rows. Rows without a group are excluded to match flowQuotaBaseQuery.
+func pendingFlowQuotaData(startTime int64, endTime int64, match func(*QuotaData) bool) []*FlowQuotaData {
+	pending := pendingQuotaDataSnapshot(startTime, endTime, func(row *QuotaData) bool {
+		if row.UseGroup == "" {
+			return false
+		}
+		return match == nil || match(row)
+	})
+	rows := make([]*FlowQuotaData, 0, len(pending))
+	for _, item := range pending {
+		rows = append(rows, &FlowQuotaData{
+			UserID:    item.UserID,
+			Username:  item.Username,
+			NodeName:  item.NodeName,
+			TokenID:   item.TokenID,
+			UseGroup:  item.UseGroup,
+			ChannelID: item.ChannelID,
+			ModelName: item.ModelName,
+			TokenUsed: item.TokenUsed,
+			Count:     item.Count,
+			Quota:     item.Quota,
+		})
+	}
+	return rows
+}
+
+// mergePendingFlowQuotaData folds unflushed flow rows into the database result,
+// aggregating on groupKey and projecting new rows to the role's grouping shape.
+func mergePendingFlowQuotaData(dbRows []*FlowQuotaData, pending []*FlowQuotaData, groupKey func(*FlowQuotaData) string, project func(*FlowQuotaData)) []*FlowQuotaData {
+	if len(pending) == 0 {
+		return dbRows
+	}
+	index := make(map[string]*FlowQuotaData, len(dbRows))
+	for _, row := range dbRows {
+		index[groupKey(row)] = row
+	}
+	for _, item := range pending {
+		key := groupKey(item)
+		if existing, ok := index[key]; ok {
+			existing.Count += item.Count
+			existing.Quota += item.Quota
+			existing.TokenUsed += item.TokenUsed
+			continue
+		}
+		row := *item
+		project(&row)
+		index[key] = &row
+		dbRows = append(dbRows, &row)
+	}
+	return dbRows
+}
+
+func flowSelfKey(row *FlowQuotaData) string {
+	return strconv.Itoa(row.TokenID) + "\x00" + row.UseGroup + "\x00" + row.ModelName
+}
+
+func flowAdminKey(row *FlowQuotaData) string {
+	return strconv.Itoa(row.UserID) + "\x00" + row.Username + "\x00" + row.UseGroup + "\x00" + row.ModelName + "\x00" + strconv.Itoa(row.ChannelID)
+}
+
+func flowRootKey(row *FlowQuotaData) string {
+	return strconv.Itoa(row.UserID) + "\x00" + row.Username + "\x00" + row.NodeName + "\x00" + strconv.Itoa(row.TokenID) + "\x00" + row.UseGroup + "\x00" + row.ModelName + "\x00" + strconv.Itoa(row.ChannelID)
+}
+
 func getSelfFlowQuotaData(startTime int64, endTime int64, userID int) ([]*FlowQuotaData, error) {
 	rows := make([]*FlowQuotaData, 0)
 	err := flowQuotaBaseQuery(startTime, endTime).
@@ -51,6 +117,15 @@ func getSelfFlowQuotaData(startTime int64, endTime int64, userID int) ([]*FlowQu
 	if err != nil {
 		return nil, err
 	}
+	pending := pendingFlowQuotaData(startTime, endTime, func(row *QuotaData) bool {
+		return row.UserID == userID
+	})
+	rows = mergePendingFlowQuotaData(rows, pending, flowSelfKey, func(row *FlowQuotaData) {
+		row.UserID = 0
+		row.Username = ""
+		row.NodeName = ""
+		row.ChannelID = 0
+	})
 	return rows, fillFlowTokenNames(rows)
 }
 
@@ -68,6 +143,13 @@ func getAdminFlowQuotaData(startTime int64, endTime int64, username string) ([]*
 	if err != nil {
 		return nil, err
 	}
+	pending := pendingFlowQuotaData(startTime, endTime, func(row *QuotaData) bool {
+		return username == "" || row.Username == username
+	})
+	rows = mergePendingFlowQuotaData(rows, pending, flowAdminKey, func(row *FlowQuotaData) {
+		row.NodeName = ""
+		row.TokenID = 0
+	})
 	return rows, fillFlowChannelNames(rows)
 }
 
@@ -85,6 +167,10 @@ func getRootFlowQuotaData(startTime int64, endTime int64, username string) ([]*F
 	if err != nil {
 		return nil, err
 	}
+	pending := pendingFlowQuotaData(startTime, endTime, func(row *QuotaData) bool {
+		return username == "" || row.Username == username
+	})
+	rows = mergePendingFlowQuotaData(rows, pending, flowRootKey, func(row *FlowQuotaData) {})
 	if err := fillFlowTokenNames(rows); err != nil {
 		return rows, err
 	}

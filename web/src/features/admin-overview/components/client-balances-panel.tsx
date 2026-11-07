@@ -43,8 +43,8 @@ import { cn } from '@/lib/utils'
 
 import { getUsers } from '@/features/users/api'
 
-// Live like the rest of the control panel: poll every 3 seconds.
-const REFRESH_MS = 3000
+import { LIVE_REFRESH_MS } from '../constants'
+
 const CLIENT_LIMIT = 8
 
 type BalanceSortOption = {
@@ -99,8 +99,8 @@ export function ClientBalancesPanel() {
           sort_order: sortOption.sortOrder,
         })
       ),
-    refetchInterval: REFRESH_MS,
-    staleTime: REFRESH_MS - 100,
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 100,
   })
 
   const users = balancesQuery.data?.data?.items ?? []
