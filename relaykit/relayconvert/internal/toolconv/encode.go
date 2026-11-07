@@ -70,6 +70,11 @@ func attachOpenAIChatRequest(request any, set Set, options *convmeta.Options) (a
 				return nil, diagnostics, err
 			}
 			diagnostics = append(diagnostics, schemaDiagnostics...)
+			parameters, schemaDiagnostics, err = normalizeOpenAIChatFunctionParameters(index, parameters)
+			if err != nil {
+				return nil, diagnostics, err
+			}
+			diagnostics = append(diagnostics, schemaDiagnostics...)
 			target.Tools = append(target.Tools, dto.ToolCallRequest{
 				Type: "function",
 				Function: dto.FunctionRequest{
@@ -292,6 +297,186 @@ func jsonSchemaParameters(index int, function *Function) (json.RawMessage, []typ
 		"gemini_schema_keyword_dropped",
 		fmt.Sprintf("JSON Schema has no equivalent for Gemini schema keywords %s; they were dropped", strings.Join(dropped, ", ")),
 	)}, nil
+}
+
+var openAIChatInvalidRootSchemaKeys = []string{"oneOf", "anyOf", "allOf", "enum", "const", "not"}
+
+// normalizeOpenAIChatFunctionParameters ensures function parameters have an
+// object root. OpenAI Chat Completions rejects top-level alternatives and
+// scalar constraints even though Responses and MCP schemas may use them.
+func normalizeOpenAIChatFunctionParameters(index int, raw json.RawMessage) (json.RawMessage, []types.ConversionDiagnostic, error) {
+	if len(raw) == 0 || kitutil.GetJsonType(raw) == "null" {
+		encoded, err := kitutil.Marshal(map[string]any{"type": "object", "properties": map[string]any{}})
+		if err != nil {
+			return nil, nil, fmt.Errorf("tools[%d].parameters: %w", index, err)
+		}
+		return encoded, nil, nil
+	}
+
+	var schema map[string]any
+	if err := kitutil.Unmarshal(raw, &schema); err != nil {
+		return nil, nil, fmt.Errorf("tools[%d].parameters: %w", index, err)
+	}
+	if !openAIChatSchemaNeedsObjectRoot(schema) {
+		return raw, nil, nil
+	}
+
+	encoded, err := kitutil.Marshal(openAIChatObjectSchema(schema))
+	if err != nil {
+		return nil, nil, fmt.Errorf("tools[%d].parameters: %w", index, err)
+	}
+	return encoded, []types.ConversionDiagnostic{semanticLoss(
+		fmt.Sprintf("tools[%d].parameters", index),
+		"function_schema_normalized",
+		"function parameters were converted to an object root for OpenAI Chat Completions compatibility",
+	)}, nil
+}
+
+func openAIChatSchemaNeedsObjectRoot(schema map[string]any) bool {
+	if schemaType, _ := schema["type"].(string); schemaType != "object" {
+		return true
+	}
+	for _, key := range openAIChatInvalidRootSchemaKeys {
+		if _, exists := schema[key]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+func openAIChatObjectSchema(schema map[string]any) map[string]any {
+	result := make(map[string]any, len(schema)+2)
+	for key, value := range schema {
+		switch key {
+		case "type", "properties", "required", "oneOf", "anyOf", "allOf", "enum", "const", "not":
+			continue
+		default:
+			result[key] = value
+		}
+	}
+	result["type"] = "object"
+
+	alternatives, keyword := openAIChatSchemaAlternatives(schema)
+	properties := make(map[string]any)
+	required := make(map[string]struct{})
+	for name := range openAIChatStringSet(schema["required"]) {
+		required[name] = struct{}{}
+	}
+
+	objectAlternatives := 0
+	var variantRequired []map[string]struct{}
+	for _, alternative := range alternatives {
+		if !openAIChatObjectLike(alternative) {
+			continue
+		}
+		objectAlternatives++
+		openAIChatMergeProperties(properties, alternative)
+		variantRequired = append(variantRequired, openAIChatStringSet(alternative["required"]))
+	}
+	if objectAlternatives == 0 && openAIChatObjectLike(schema) {
+		objectAlternatives = 1
+		openAIChatMergeProperties(properties, schema)
+	}
+	if objectAlternatives == 0 {
+		result["properties"] = map[string]any{"value": schema}
+		result["required"] = []string{"value"}
+		result["additionalProperties"] = false
+		return result
+	}
+
+	if keyword == "allOf" {
+		for _, names := range variantRequired {
+			for name := range names {
+				required[name] = struct{}{}
+			}
+		}
+	} else if (keyword == "oneOf" || keyword == "anyOf") && len(variantRequired) > 0 {
+		for name := range variantRequired[0] {
+			present := true
+			for _, names := range variantRequired[1:] {
+				if _, exists := names[name]; !exists {
+					present = false
+					break
+				}
+			}
+			if present {
+				required[name] = struct{}{}
+			}
+		}
+	}
+
+	result["properties"] = properties
+	if len(required) > 0 {
+		names := make([]string, 0, len(required))
+		for name := range required {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		result["required"] = names
+	}
+	return result
+}
+
+func openAIChatSchemaAlternatives(schema map[string]any) ([]map[string]any, string) {
+	for _, keyword := range []string{"allOf", "oneOf", "anyOf"} {
+		raw, exists := schema[keyword]
+		if !exists {
+			continue
+		}
+		items, ok := raw.([]any)
+		if !ok {
+			continue
+		}
+		alternatives := make([]map[string]any, 0, len(items))
+		for _, item := range items {
+			if alternative, ok := item.(map[string]any); ok {
+				alternatives = append(alternatives, alternative)
+			}
+		}
+		if len(alternatives) > 0 {
+			return alternatives, keyword
+		}
+	}
+	return nil, ""
+}
+
+func openAIChatObjectLike(schema map[string]any) bool {
+	if schemaType, _ := schema["type"].(string); schemaType == "object" {
+		return true
+	}
+	_, hasProperties := schema["properties"].(map[string]any)
+	return hasProperties
+}
+
+func openAIChatMergeProperties(properties map[string]any, schema map[string]any) {
+	definitions, ok := schema["properties"].(map[string]any)
+	if !ok {
+		return
+	}
+	for name, definition := range definitions {
+		if _, exists := properties[name]; !exists {
+			properties[name] = definition
+		}
+	}
+}
+
+func openAIChatStringSet(value any) map[string]struct{} {
+	result := make(map[string]struct{})
+	switch names := value.(type) {
+	case []any:
+		for _, name := range names {
+			if text, ok := name.(string); ok && text != "" {
+				result[text] = struct{}{}
+			}
+		}
+	case []string:
+		for _, name := range names {
+			if name != "" {
+				result[name] = struct{}{}
+			}
+		}
+	}
+	return result
 }
 
 // responsesCustomTool is a Responses custom (freeform) tool sent upstream as

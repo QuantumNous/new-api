@@ -326,3 +326,49 @@ func TestOpenAIChatToolLimitDropsOverflowAndResetsDroppedChoice(t *testing.T) {
 	require.ErrorAs(t, err, &loss)
 	assert.True(t, hasDiagnosticCode(diagnostics, "tool_count_limit_exceeded"))
 }
+
+func TestOpenAIChatFunctionSchemaGetsObjectRoot(t *testing.T) {
+	t.Parallel()
+
+	request := codexResponsesToolsRequest(t, nil, map[string]any{
+		"type": "function",
+		"name": "mcp__cua_repl__js",
+		"parameters": map[string]any{
+			"anyOf": []any{
+				map[string]any{
+					"type":       "object",
+					"properties": map[string]any{"code": map[string]any{"type": "string"}},
+					"required":   []any{"code"},
+				},
+				map[string]any{
+					"type":       "object",
+					"properties": map[string]any{"expression": map[string]any{"type": "string"}},
+					"required":   []any{"expression"},
+				},
+			},
+		},
+	})
+	_, set, err := ExtractRequest(types.RelayFormatOpenAIResponses, request)
+	require.NoError(t, err)
+
+	out, diagnostics, err := AttachRequest(
+		types.RelayFormatOpenAI,
+		&dto.GeneralOpenAIRequest{Model: "gpt-4o", Messages: []dto.Message{{Role: "user", Content: "run"}}},
+		set,
+		&convmeta.Options{},
+	)
+	require.NoError(t, err)
+	chat := out.(*dto.GeneralOpenAIRequest)
+	require.Len(t, chat.Tools, 3)
+
+	var schema map[string]any
+	require.NoError(t, kitutil.Unmarshal(chat.Tools[2].Function.Parameters, &schema))
+	assert.Equal(t, "object", schema["type"])
+	assert.NotContains(t, schema, "anyOf")
+	properties, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, properties, "code")
+	assert.Contains(t, properties, "expression")
+	assert.NotContains(t, schema, "required")
+	assert.True(t, hasDiagnosticCode(diagnostics, "function_schema_normalized"))
+}
