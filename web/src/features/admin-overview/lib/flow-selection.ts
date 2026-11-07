@@ -16,11 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type {
-  FlowQuotaDataItem,
-  FlowUserFilterOption,
-} from '@/features/dashboard/types'
 import { createServerError } from '@/lib/server-error-message'
+
+import type { FlowQuotaDataItem, FlowUserFilterOption } from '../types'
 
 export type FlowDisplayState = 'loading' | 'error' | 'empty' | 'chart'
 

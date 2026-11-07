@@ -39,11 +39,12 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '@/components/ui/popover'
+
 import type {
   FlowNodeFilter,
   FlowNodeFilterOption,
   FlowNodeKind,
-} from '@/features/dashboard/types'
+} from '../../types'
 
 interface FlowNodeFilterControlProps {
   stages: FlowNodeKind[]

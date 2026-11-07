@@ -1,19 +1,4 @@
-import type {
-  DashboardFlowGraph,
-  DashboardFlowLink,
-  DashboardFlowNode,
-  FlowBuildOptions,
-  FlowFilterOptions,
-  FlowLinkSelection,
-  FlowMetric,
-  FlowNodeFilter,
-  FlowNodeKind,
-  FlowOverflowMode,
-  FlowQuotaDataItem,
-  FlowRole,
-  FlowSummary,
-  ProcessedFlowData,
-} from '@/features/dashboard/types'
+import { getDashboardChartColors } from '@/features/dashboard/lib/charts'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -34,7 +19,22 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { currentIntlLocale } from '@/lib/format'
 
-import { getDashboardChartColors } from './charts'
+import type {
+  DashboardFlowGraph,
+  DashboardFlowLink,
+  DashboardFlowNode,
+  FlowBuildOptions,
+  FlowFilterOptions,
+  FlowLinkSelection,
+  FlowMetric,
+  FlowNodeFilter,
+  FlowNodeKind,
+  FlowOverflowMode,
+  FlowQuotaDataItem,
+  FlowRole,
+  FlowSummary,
+  ProcessedFlowData,
+} from '../types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type VChartSpec = Record<string, any>

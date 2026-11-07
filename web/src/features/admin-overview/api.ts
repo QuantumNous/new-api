@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { AdminLiveStat, AdminLogStat, OverviewQuotaRow, OverviewUserRow } from './types'
+import type {
+  AdminLogStat,
+  FlowQuotaDataItem,
+  OverviewQuotaRow,
+  OverviewUserRow,
+} from './types'
 
 function validateOverviewResponse<
   T extends { success: boolean; data?: unknown },
@@ -82,22 +87,6 @@ export async function getAdminLogStat(params: {
 }
 
 /**
- * Real-time usage aggregates read straight from the logs table.
- * Admin-only (`GET /api/log/live_stat`); the window must stay bounded.
- */
-export async function getAdminLiveStat(params: {
-  start_timestamp: number
-  end_timestamp?: number
-}) {
-  const res = await api.get<{
-    success: boolean
-    message?: string
-    data?: AdminLiveStat
-  }>('/api/log/live_stat', { params })
-  return validateOverviewResponse(res.data)
-}
-
-/**
  * Total registered users. Requesting a single row keeps the payload small;
  * only `data.total` is consumed.
  */
@@ -108,4 +97,27 @@ export async function getAdminRegisteredUserTotal() {
     data?: { total?: number }
   }>('/api/user/', { params: { p: 1, page_size: 1 } })
   return validateOverviewResponse(res.data)
+}
+
+/**
+ * Flow (Sankey) rows grouped by user, token, group, model and channel.
+ * Admin callers read every user's flow (`GET /api/data/flow`); non-admin
+ * callers fall back to their own flow (`GET /api/data/flow/self`).
+ */
+export async function getFlowQuotaDates(
+  params: {
+    start_timestamp: number
+    end_timestamp: number
+    default_time?: string
+    username?: string
+  },
+  isAdmin = false
+) {
+  const endpoint = isAdmin ? '/api/data/flow' : '/api/data/flow/self'
+  const res = await api.get<{
+    success: boolean
+    data?: FlowQuotaDataItem[]
+    message?: string
+  }>(endpoint, { params })
+  return res.data
 }

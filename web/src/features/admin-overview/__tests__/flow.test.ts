@@ -18,12 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'vitest'
 
-import type { FlowQuotaDataItem } from '../types'
 import {
   buildDashboardFlowData,
   buildFlowFilterOptions,
   buildFlowSankeySpec,
-} from './flow'
+} from '../lib/flow'
+import type { FlowQuotaDataItem } from '../types'
 
 const rows: FlowQuotaDataItem[] = [
   {
