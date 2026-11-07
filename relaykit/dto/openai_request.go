@@ -586,6 +586,16 @@ func (m *MediaContent) GetVideoUrl() *MessageVideoUrl {
 	return nil
 }
 
+// InputAudioMimeType converts an input_audio format to a MIME type. It accepts
+// both bare formats such as "mp3" and full MIME types such as "audio/mpeg".
+func InputAudioMimeType(format string) string {
+	format = strings.ToLower(strings.TrimSpace(format))
+	if format == "" || strings.HasPrefix(format, "audio/") {
+		return format
+	}
+	return "audio/" + format
+}
+
 func (m *MediaContent) ToFileSource() types.FileSource {
 	switch m.Type {
 	case ContentTypeImageURL:
@@ -599,11 +609,7 @@ func (m *MediaContent) ToFileSource() types.FileSource {
 		if audio == nil || audio.Data == "" {
 			return nil
 		}
-		mimeType := ""
-		if audio.Format != "" {
-			mimeType = "audio/" + audio.Format
-		}
-		return types.NewFileSourceFromData(audio.Data, mimeType)
+		return types.NewFileSourceFromData(audio.Data, InputAudioMimeType(audio.Format))
 	case ContentTypeFile:
 		file := m.GetFile()
 		if file == nil || file.FileData == "" {
