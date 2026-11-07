@@ -1713,6 +1713,24 @@ func TestServeTaskPluginImageProtocolRendersImmediateResultAndInlinesBase64(t *t
 	}
 }
 
+func TestServeTaskPluginImageProtocolRejectsEmptyResult(t *testing.T) {
+	pinned := imageProtocolTestEndpoint(t)
+	c, recorder := newImageProtocolTestContext("")
+	deps := pluginProtocolTestDeps()
+	deps.submit = func(_ *gin.Context, info *relaycommon.RelayInfo) (*taskSubmissionOutcome, *dto.TaskError) {
+		return imageProtocolTestOutcome(info, model.TaskStatusSuccess), nil
+	}
+
+	serveTaskPluginImageProtocol(c, pinned, deps)
+
+	require.Equal(t, http.StatusBadGateway, recorder.Code)
+	var response map[string]any
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	errorBody := response["error"].(map[string]any)
+	assert.Equal(t, "task_protocol_error", errorBody["code"])
+	assert.Equal(t, "Task plugin returned no images", errorBody["message"])
+}
+
 // An asynchronous vendor task is polled inside the request until it is
 // terminal; a failure and the protocol timeout become OpenAI error envelopes
 // while the durable task stays with the background poller.

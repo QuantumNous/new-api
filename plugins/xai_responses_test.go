@@ -76,6 +76,158 @@ func TestXAIResponsesProtocol(t *testing.T) {
 	})
 }
 
+func decodeXAIImage(t *testing.T, plugin *jsplugin.LoadedPlugin, operation, model string, body map[string]any) (map[string]any, error) {
+	t.Helper()
+	path := "/v1/images/generations"
+	if operation == "edit" {
+		path = "/v1/images/edits"
+	}
+	value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "decodeRequest"}, map[string]any{
+		"protocol": "openai_image", "operation": operation, "model": model, "upstreamModel": model,
+		"path": path, "method": http.MethodPost, "body": body,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return alibabaObject(t, value), nil
+}
+
+func TestXAIImageProtocol(t *testing.T) {
+	plugin := newXAIPlugin(t)
+	const model = "grok-imagine-image-2.0"
+
+	resolved, err := decodeXAIImage(t, plugin, "generate", model, map[string]any{
+		"kind": "json",
+		"value": map[string]any{
+			"model": "grok-imagine-image-2.0", "prompt": "a cat", "n": 2,
+			"resolution": "2k", "quality": "medium", "response_format": "b64_json",
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, model, resolved["model"])
+	assert.Equal(t, "image_generation", resolved["action"])
+	assert.Equal(t, map[string]any{
+		"model": model, "prompt": "a cat", "n": float64(2),
+		"resolution": "2k", "quality": "medium",
+	}, resolved["requestBody"])
+
+	driver := map[string]any{
+		"upstreamModel": model, "model": model, "action": "image_generation",
+		"requestBody": resolved["requestBody"], "baseUrl": "https://api.x.ai", "apiKey": "xai-key",
+		"usagePurpose": "facts",
+	}
+	value, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", driver)
+	require.NoError(t, err)
+	submit := alibabaObject(t, value)
+	assert.Equal(t, "https://api.x.ai/v1/images/generations", submit["url"])
+	assert.Equal(t, map[string]any{
+		"model": model, "prompt": "a cat", "n": float64(2),
+		"resolution": "2k", "quality": "medium",
+	}, submit["body"])
+
+	value, err = plugin.Engine.Call(t.Context(), "extractUsage", driver)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"image_count": float64(2), "input_image_count": float64(0),
+		"resolution": "2k", "quality": "medium", "upstream_cost_usd": float64(0),
+	}, alibabaObject(t, value))
+	driver["usagePurpose"] = "billing_ratios"
+	value, err = plugin.Engine.Call(t.Context(), "extractUsage", driver)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"image_count": float64(2)}, alibabaObject(t, value))
+
+	edit, err := decodeXAIImage(t, plugin, "edit", model, map[string]any{
+		"kind": "json",
+		"value": map[string]any{
+			"model": model, "prompt": "make it blue", "images": []any{"https://cdn.example/a.png", "https://cdn.example/b.png"},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "image_edit", edit["action"])
+	assert.Equal(t, float64(1), alibabaObject(t, edit["requestBody"])["n"])
+
+	_, err = decodeXAIImage(t, plugin, "edit", model, map[string]any{
+		"kind": "json", "value": map[string]any{"model": model, "prompt": "make it blue", "image": "https://cdn.example/a.png", "mask": "https://cdn.example/mask.png"},
+	})
+	require.ErrorContains(t, err, "mask is not supported")
+
+	value, err = plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "decodeRequest"}, map[string]any{
+		"protocol": "openai_image", "operation": "edit", "model": model, "upstreamModel": model,
+		"body": map[string]any{
+			"kind":   "multipart",
+			"fields": map[string][]string{"model": {model}, "prompt": {"make it blue"}, "n": {"1"}},
+			"files": []any{
+				map[string]any{"ref": "request_file:image[]", "field": "image[]", "mimeType": "image/png"},
+				map[string]any{"ref": "request_file:image[]#1", "field": "image[]", "mimeType": "image/jpeg"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	multipart := alibabaObject(t, value)
+	multipartBody := alibabaObject(t, multipart["requestBody"])
+	assert.Equal(t, []any{
+		map[string]any{"url": map[string]any{"__fileRef": "request_file:image[]", "encoding": "dataUrl", "mimeType": "image/png", "maxBytes": float64(20 * 1024 * 1024)}},
+		map[string]any{"url": map[string]any{"__fileRef": "request_file:image[]#1", "encoding": "dataUrl", "mimeType": "image/jpeg", "maxBytes": float64(20 * 1024 * 1024)}},
+	}, multipartBody["images"])
+
+	response := map[string]any{
+		"created": float64(1789733151),
+		"data":    []any{map[string]any{"url": "https://cdn.example/result.png", "revised_prompt": "a blue cat"}},
+		"usage":   map[string]any{"cost_in_usd_ticks": float64(800000000)},
+	}
+	value, err = plugin.Engine.Call(t.Context(), "parseSubmitResponse", map[string]any{
+		"action": "image_generation", "publicTaskId": "task_public",
+	}, map[string]any{"statusCode": float64(http.StatusOK), "headers": map[string]any{}, "body": response})
+	require.NoError(t, err)
+	parsed := alibabaObject(t, value)
+	assert.Equal(t, "task_public", parsed["taskId"])
+	assert.Equal(t, "SUCCESS", alibabaObject(t, parsed["immediate"])["status"])
+
+	value, err = plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{
+		"action": "image_generation", "model": model, "upstreamModel": model,
+	}, map[string]any{}, response)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"image_count": float64(1), "upstream_cost_usd": float64(0.08)}, alibabaObject(t, value))
+
+	splitResponse := map[string]any{
+		"data": []any{
+			map[string]any{"url": "https://cdn.example/result.png"},
+			map[string]any{"b64_json": "base64-result"},
+		},
+		"usage": map[string]any{"cost_in_usd_ticks": float64(800000000)},
+	}
+	value, err = plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{
+		"action": "image_generation", "model": model, "upstreamModel": model,
+	}, map[string]any{}, splitResponse)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"image_count": float64(1), "upstream_cost_usd": float64(0.08)}, alibabaObject(t, value))
+
+	payloadlessResponse := map[string]any{
+		"data":  []any{map[string]any{"revised_prompt": "a blue cat"}},
+		"usage": map[string]any{"cost_in_usd_ticks": float64(800000000)},
+	}
+	value, err = plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{
+		"action": "image_generation", "model": model, "upstreamModel": model,
+	}, map[string]any{}, payloadlessResponse)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"image_count": float64(0), "upstream_cost_usd": float64(0.08)}, alibabaObject(t, value))
+
+	value, err = plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "render"}, map[string]any{"model": model}, map[string]any{
+		"task_id": "task_public", "status": "SUCCESS", "created_at": float64(1789733151), "data": response,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"created": float64(1789733151),
+		"data":    []any{map[string]any{"url": "https://cdn.example/result.png", "revised_prompt": "a blue cat"}},
+	}, alibabaObject(t, value))
+
+	_, err = plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "render"}, map[string]any{"model": model}, map[string]any{
+		"task_id": "task_public", "status": "SUCCESS", "created_at": float64(1789733151),
+		"data": map[string]any{"usage": map[string]any{"cost_in_usd_ticks": float64(800000000)}},
+	})
+	require.ErrorContains(t, err, "xAI returned no images")
+}
+
 // xAI still bills a generation its moderation blocks, and the host refunds
 // every FAILURE task in full, so a blocked video must settle as a charged
 // SUCCESS. The flow runs through the production adaptor and settlement

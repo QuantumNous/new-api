@@ -2335,10 +2335,12 @@ func TestTaskSubmitReplyLimitFollowsRetainResult(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		retain *bool
+		image  bool
 		valid  bool
 	}{
-		{"retained reply", nil, false},
-		{"discarded reply", &discard, true},
+		{"retained reply", nil, false, false},
+		{"discarded reply", &discard, false, true},
+		{"OpenAI image reply", nil, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			info := &relaycommon.RelayInfo{OriginModelName: "alias", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "document", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "public-document"}}
@@ -2346,7 +2348,11 @@ func TestTaskSubmitReplyLimitFollowsRetainResult(t *testing.T) {
 			adaptor.Init(info)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequest(http.MethodPost, "/compile", nil)
-			c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: pluginruntime.Route{Method: http.MethodPost, Path: "/compile", Type: pluginruntime.RouteTypeSubmit, RetainResult: tc.retain}})
+			if tc.image {
+				c.Set(pluginruntime.ContextKeyPinnedEndpoint, pluginruntime.PinnedEndpoint{Plugin: plugin, Protocol: pluginruntime.ProtocolOpenAIImage})
+			} else {
+				c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: pluginruntime.Route{Method: http.MethodPost, Path: "/compile", Type: pluginruntime.RouteTypeSubmit, RetainResult: tc.retain}})
+			}
 			c.Set("task_request", map[string]any{"responseType": "json"})
 			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
 			_, err := adaptor.BuildRequestBody(c, info)
