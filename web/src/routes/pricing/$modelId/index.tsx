@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
+import { AuthenticatedLayout } from '@/components/layout'
 import { ModelDetails } from '@/features/pricing/components/model-details'
 import { getModuleAccessForGuard } from '@/lib/nav-modules'
 import { useAuthStore } from '@/stores/auth-store'
@@ -35,6 +36,24 @@ const modelDetailsSearchSchema = z.object({
   view: z.enum(['card', 'table']).optional().catch(undefined),
   rechargePrice: z.boolean().optional(),
 })
+
+/**
+ * Signed-in users see the model details page inside the console shell, like
+ * the other console pages; visitors keep the standalone public page.
+ */
+function ModelDetailsPage() {
+  const signedIn = useAuthStore((s) => !!s.auth.user)
+
+  if (!signedIn) {
+    return <ModelDetails />
+  }
+
+  return (
+    <AuthenticatedLayout>
+      <ModelDetails variant='console' />
+    </AuthenticatedLayout>
+  )
+}
 
 export const Route = createFileRoute('/pricing/$modelId/')({
   validateSearch: modelDetailsSearchSchema,
@@ -53,5 +72,5 @@ export const Route = createFileRoute('/pricing/$modelId/')({
       }
     }
   },
-  component: ModelDetails,
+  component: ModelDetailsPage,
 })
