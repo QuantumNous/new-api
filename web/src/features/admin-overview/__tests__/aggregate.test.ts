@@ -25,6 +25,7 @@ import {
   buildMonthlyRevenue,
   buildTodayTokenSeries,
   buildTodayUsageSparkline,
+  buildUsageTrend,
   countActiveUsers,
   sumUsage,
   sumUsageSince,
@@ -39,6 +40,25 @@ function timestampDaysAgo(days: number, hour = 12): number {
 }
 
 describe('admin overview aggregation', () => {
+  it('buckets requests and tokens within the selected local date range', () => {
+    const now = new Date(2026, 2, 1, 12)
+    const timestamp = (day: number, hour = 0) =>
+      new Date(2026, 2, day, hour).getTime() / 1000
+    const rows: OverviewQuotaRow[] = [
+      { created_at: timestamp(1, 10), count: 3, token_used: 80 },
+      { created_at: timestamp(1, 13), count: 100, token_used: 100 },
+      { created_at: timestamp(0, 10), count: 2, token_used: 20 },
+      { created_at: timestamp(-29, 10), count: 50, token_used: 50 },
+    ]
+    const today = buildUsageTrend(rows, 1, now)
+    expect(today).toHaveLength(13)
+    expect(today[10]).toEqual({ label: '10:00', requests: 3, tokens: 80 })
+    const week = buildUsageTrend(rows, 7, now)
+    expect(week).toHaveLength(7)
+    expect(week.at(-2)).toMatchObject({ requests: 2, tokens: 20 })
+    expect(week.at(-1)).toMatchObject({ requests: 3, tokens: 80 })
+    expect(buildUsageTrend(rows, 30, now)).toHaveLength(30)
+  })
   it('builds the request trend from request counts rather than quota', () => {
     const now = new Date(2026, 10, 7, 0, 0, 0)
     const today = now.getTime() / 1000
