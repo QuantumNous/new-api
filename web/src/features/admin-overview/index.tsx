@@ -28,6 +28,7 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import { getStartOfDay } from '@/lib/time'
 
 import {
+  getAdminLiveStat,
   getAdminLogStat,
   getAdminQuotaRows,
   getAdminRegisteredUserTotal,
@@ -56,6 +57,7 @@ const TREND_DAYS = 30
 const TOP_MODEL_LIMIT = 6
 const OVERVIEW_REFRESH_MS = 60 * 1000
 const ALL_TIME_REFRESH_MS = 5 * 60 * 1000
+const LIVE_REFRESH_MS = 15 * 1000
 
 export function AdminOverview() {
   const { t } = useTranslation()
@@ -135,8 +137,38 @@ export function AdminOverview() {
         })
       )
     },
-    refetchInterval: OVERVIEW_REFRESH_MS,
-    staleTime: OVERVIEW_REFRESH_MS - 5000,
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 5000,
+  })
+
+  // Live aggregates read straight from the logs table, so the headline
+  // numbers do not wait for the periodic quota_data export.
+  const liveTodayQuery = useQuery({
+    queryKey: ['admin-overview', 'live-today', todayStart],
+    queryFn: async () =>
+      requireServerSuccess(
+        await getAdminLiveStat({
+          start_timestamp: todayStart,
+          end_timestamp: Math.floor(Date.now() / 1000),
+        })
+      ),
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 5000,
+  })
+
+  const liveActiveUsersQuery = useQuery({
+    queryKey: ['admin-overview', 'live-active-users'],
+    queryFn: async () => {
+      const timestamp = Math.floor(Date.now() / 1000)
+      return requireServerSuccess(
+        await getAdminLiveStat({
+          start_timestamp: timestamp - 24 * 3600,
+          end_timestamp: timestamp,
+        })
+      )
+    },
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 5000,
   })
 
   const registeredUsersQuery = useQuery({

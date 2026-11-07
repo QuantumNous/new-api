@@ -769,6 +769,33 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	return token
 }
 
+// LiveUsage holds real-time consumption aggregates read directly from the
+// logs table, unlike Stat which is fed by the periodically exported
+// quota_data table.
+type LiveUsage struct {
+	Quota    int `json:"quota"`
+	Requests int `json:"requests"`
+	Tokens   int `json:"tokens"`
+	Users    int `json:"users"`
+}
+
+func SumLiveUsage(startTimestamp int64, endTimestamp int64) (usage LiveUsage, err error) {
+	tx := LOG_DB.Table("logs").Select(
+		"COALESCE(sum(quota), 0) quota, count(*) requests, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tokens, count(DISTINCT user_id) users",
+	).Where("type = ?", LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	if err := tx.Scan(&usage).Error; err != nil {
+		common.SysError(common.LogText("failed to query live usage stat: %s", err.Error()))
+		return usage, common.NewMessage("Failed to query statistics")
+	}
+	return usage, nil
+}
+
 func CountOldLog(ctx context.Context, targetTimestamp int64) (int64, error) {
 	var total int64
 	if err := LOG_DB.WithContext(ctx).Model(&Log{}).Where("created_at < ?", targetTimestamp).Count(&total).Error; err != nil {

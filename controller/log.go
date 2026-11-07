@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -12,6 +13,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// liveStatMaxRangeSeconds caps the scan window of the live-stat endpoint to
+// one month so it cannot be used to sweep the whole logs table.
+const liveStatMaxRangeSeconds = 31 * 24 * 3600
 
 // logFilterFromQuery reads the log search shared by the log list and the log
 // export. Username and channel are read only for administrators.
@@ -225,6 +230,41 @@ func GetLogsStat(c *gin.Context) {
 		},
 	})
 	return
+}
+
+// GetLogsLiveStat returns real-time consumption aggregates computed directly
+// from the logs table. Unlike GetLogsStat it also carries request counts,
+// token totals and the number of distinct active users for the window.
+func GetLogsLiveStat(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if endTimestamp == 0 {
+		endTimestamp = time.Now().Unix()
+	}
+	if startTimestamp > endTimestamp {
+		common.ApiErrorMsg(c, "Invalid time range")
+		return
+	}
+	// Bound the scan window so a stray query cannot sweep the whole table.
+	if endTimestamp-startTimestamp > liveStatMaxRangeSeconds {
+		common.ApiErrorMsg(c, "Time range too large")
+		return
+	}
+	usage, err := model.SumLiveUsage(startTimestamp, endTimestamp)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"quota":    usage.Quota,
+			"requests": usage.Requests,
+			"tokens":   usage.Tokens,
+			"users":    usage.Users,
+		},
+	})
 }
 
 func GetLogsSelfStat(c *gin.Context) {
