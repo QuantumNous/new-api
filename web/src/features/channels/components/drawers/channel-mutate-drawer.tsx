@@ -2303,6 +2303,7 @@ export function ChannelMutateDrawer({
             </div>
             <FormControl>
               <Switch
+                disabled={isSubmitting}
                 checked={field.value === 1}
                 onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
               />

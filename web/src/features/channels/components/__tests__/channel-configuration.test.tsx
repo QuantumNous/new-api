@@ -1174,6 +1174,84 @@ test.each([
   }
 )
 
+test.each([
+  { mode: 'single', key: 'first-key' },
+  { mode: 'batch', key: 'first-key\nsecond-key' },
+])(
+  'creating a channel with skip auto test in $mode mode submits the enabled flag',
+  async ({ mode, key }) => {
+    const post = vi
+      .spyOn(api, 'post')
+      .mockResolvedValue({ data: { success: true } })
+    const user = userEvent.setup()
+    render(<ConfigurationHarness />)
+    await user.click(screen.getByRole('option', { name: /^OpenAI / }))
+    fireEvent.change(screen.getByLabelText('Name *'), {
+      target: { value: 'Quota-limited channel' },
+    })
+    if (mode === 'batch') {
+      await user.click(screen.getByRole('combobox', { name: 'Add Mode' }))
+      await user.click(
+        screen.getByRole('option', { name: 'Batch Add (one key per line)' })
+      )
+    }
+    fireEvent.change(screen.getByLabelText('API Key *'), {
+      target: { value: key },
+    })
+    await user.type(
+      screen.getByRole('combobox', {
+        name: 'Select models or add custom ones',
+      }),
+      'custom-model,'
+    )
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+    await user.click(screen.getByRole('switch', { name: 'Skip Auto Test' }))
+    await user.click(screen.getByRole('button', { name: 'Create Channel' }))
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/api/channel',
+        expect.objectContaining({
+          mode,
+          channel: expect.objectContaining({ key, skip_auto_test: 1 }),
+        }),
+        expect.anything()
+      )
+    )
+  }
+)
+
+test('saving skip auto test locks its switch until a failed update returns', async () => {
+  const reply = deferredResponse<{
+    data: { success: boolean; message: string }
+  }>()
+  const put = vi.spyOn(api, 'put').mockReturnValue(reply.promise)
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  const toggle = screen.getByRole('switch', { name: 'Skip Auto Test' })
+  await user.click(toggle)
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  expect(put.mock.calls[0]?.[1]).toMatchObject({ skip_auto_test: 1 })
+  expect(toggle).toHaveAttribute('aria-disabled', 'true')
+  await user.click(toggle)
+  expect(toggle).toBeChecked()
+  await act(async () => {
+    reply.resolve({
+      data: { success: false, message: 'Channel update rejected' },
+    })
+    await reply.promise
+  })
+  await waitFor(() =>
+    expect(toggle).not.toHaveAttribute('aria-disabled', 'true')
+  )
+  expect(toggle).toBeChecked()
+  await user.click(toggle)
+  expect(toggle).not.toBeChecked()
+})
+
 test('starting a new channel after discarding a skip auto test draft restores the default', async () => {
   const user = userEvent.setup()
   render(<ConfigurationHarness />)
