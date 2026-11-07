@@ -46,7 +46,9 @@ export function PerformanceOverview() {
       requireServerSuccess(
         await getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS)
       ),
-    staleTime: 60 * 1000,
+    // Live like the rest of the control panel: poll every 3 seconds.
+    refetchInterval: 3000,
+    staleTime: 2900,
     retry: false,
   })
 

@@ -9,62 +9,99 @@ function stableStringify(obj) {
 
 const newKeys = {
   en: {
-    'Failed requests': 'Failed requests',
-    'Failed requests in the last 24 hours':
-      'Failed requests in the last 24 hours',
-    'Top failing models': 'Top failing models',
-    'No failed requests in the last 24 hours':
-      'No failed requests in the last 24 hours',
+    'Control Panel': 'Control Panel',
+    'Live data, refreshed every 3 seconds':
+      'Live data, refreshed every 3 seconds',
+    'Client Balances': 'Client Balances',
+    'Remaining balance and usage of each client':
+      'Remaining balance and usage of each client',
+    'Highest balance': 'Highest balance',
+    'Lowest balance': 'Lowest balance',
+    'Recently active': 'Recently active',
+    'View all clients': 'View all clients',
+    'Total clients': 'Total clients',
   },
   zh: {
-    'Failed requests': '失败请求',
-    'Failed requests in the last 24 hours': '最近 24 小时的失败请求',
-    'Top failing models': '失败最多的模型',
-    'No failed requests in the last 24 hours': '最近 24 小时没有失败请求',
+    'Control Panel': '控制台',
+    'Live data, refreshed every 3 seconds': '实时数据，每 3 秒自动刷新',
+    'Client Balances': '客户余额',
+    'Remaining balance and usage of each client': '每位客户的剩余余额与用量',
+    'Highest balance': '余额最高',
+    'Lowest balance': '余额最低',
+    'Recently active': '最近活跃',
+    'View all clients': '查看全部客户',
+    'Total clients': '客户总数',
   },
   'zh-TW': {
-    'Failed requests': '失敗請求',
-    'Failed requests in the last 24 hours': '最近 24 小時的失敗請求',
-    'Top failing models': '失敗最多的模型',
-    'No failed requests in the last 24 hours': '最近 24 小時沒有失敗請求',
+    'Control Panel': '控制台',
+    'Live data, refreshed every 3 seconds': '即時資料，每 3 秒自動重新整理',
+    'Client Balances': '客戶餘額',
+    'Remaining balance and usage of each client': '每位客戶的剩餘餘額與用量',
+    'Highest balance': '餘額最高',
+    'Lowest balance': '餘額最低',
+    'Recently active': '最近活躍',
+    'View all clients': '檢視全部客戶',
+    'Total clients': '客戶總數',
   },
   fr: {
-    'Failed requests': 'Requêtes échouées',
-    'Failed requests in the last 24 hours':
-      'Requêtes échouées au cours des 24 dernières heures',
-    'Top failing models': 'Modèles les plus en échec',
-    'No failed requests in the last 24 hours':
-      'Aucune requête échouée au cours des 24 dernières heures',
+    'Control Panel': 'Panneau de contrôle',
+    'Live data, refreshed every 3 seconds':
+      'Données en direct, actualisées toutes les 3 secondes',
+    'Client Balances': 'Soldes des clients',
+    'Remaining balance and usage of each client':
+      'Solde restant et consommation de chaque client',
+    'Highest balance': 'Solde le plus élevé',
+    'Lowest balance': 'Solde le plus bas',
+    'Recently active': 'Récemment actif',
+    'View all clients': 'Voir tous les clients',
+    'Total clients': 'Total des clients',
   },
   ja: {
-    'Failed requests': '失敗リクエスト',
-    'Failed requests in the last 24 hours': '直近24時間の失敗リクエスト',
-    'Top failing models': '失敗の多いモデル',
-    'No failed requests in the last 24 hours':
-      '直近24時間の失敗リクエストはありません',
+    'Control Panel': 'コントロールパネル',
+    'Live data, refreshed every 3 seconds': 'リアルタイムデータ、3秒ごとに自動更新',
+    'Client Balances': '顧客残高',
+    'Remaining balance and usage of each client': '各顧客の残高と使用量',
+    'Highest balance': '残高が多い順',
+    'Lowest balance': '残高が少ない順',
+    'Recently active': '最近のアクティブ',
+    'View all clients': 'すべての顧客を表示',
+    'Total clients': '顧客総数',
   },
   ru: {
-    'Failed requests': 'Неудачные запросы',
-    'Failed requests in the last 24 hours':
-      'Неудачные запросы за последние 24 часа',
-    'Top failing models': 'Модели с наибольшими сбоями',
-    'No failed requests in the last 24 hours':
-      'За последние 24 часа нет неудачных запросов',
+    'Control Panel': 'Панель управления',
+    'Live data, refreshed every 3 seconds':
+      'Данные в реальном времени, обновление каждые 3 секунды',
+    'Client Balances': 'Балансы клиентов',
+    'Remaining balance and usage of each client':
+      'Остаток баланса и потребление каждого клиента',
+    'Highest balance': 'Наибольший баланс',
+    'Lowest balance': 'Наименьший баланс',
+    'Recently active': 'Недавно активные',
+    'View all clients': 'Все клиенты',
+    'Total clients': 'Всего клиентов',
   },
   vi: {
-    'Failed requests': 'Yêu cầu thất bại',
-    'Failed requests in the last 24 hours':
-      'Yêu cầu thất bại trong 24 giờ qua',
-    'Top failing models': 'Model thất bại nhiều nhất',
-    'No failed requests in the last 24 hours':
-      'Không có yêu cầu thất bại nào trong 24 giờ qua',
+    'Control Panel': 'Bảng điều khiển',
+    'Live data, refreshed every 3 seconds': 'Dữ liệu trực tiếp, cập nhật mỗi 3 giây',
+    'Client Balances': 'Số dư khách hàng',
+    'Remaining balance and usage of each client':
+      'Số dư còn lại và mức sử dụng của từng khách hàng',
+    'Highest balance': 'Số dư cao nhất',
+    'Lowest balance': 'Số dư thấp nhất',
+    'Recently active': 'Hoạt động gần đây',
+    'View all clients': 'Xem tất cả khách hàng',
+    'Total clients': 'Tổng số khách hàng',
   },
   ar: {
-    'Failed requests': 'طلبات فاشلة',
-    'Failed requests in the last 24 hours': 'طلبات فاشلة خلال آخر 24 ساعة',
-    'Top failing models': 'النماذج الأكثر فشلاً',
-    'No failed requests in the last 24 hours':
-      'لا توجد طلبات فاشلة خلال آخر 24 ساعة',
+    'Control Panel': 'لوحة التحكم',
+    'Live data, refreshed every 3 seconds': 'بيانات مباشرة، تحديث تلقائي كل 3 ثوانٍ',
+    'Client Balances': 'أرصدة العملاء',
+    'Remaining balance and usage of each client': 'الرصيد المتبقي واستخدام كل عميل',
+    'Highest balance': 'الأعلى رصيدًا',
+    'Lowest balance': 'الأدنى رصيدًا',
+    'Recently active': 'الأحدث نشاطًا',
+    'View all clients': 'عرض جميع العملاء',
+    'Total clients': 'إجمالي العملاء',
   },
 }
 
@@ -100,7 +137,4 @@ async function main() {
   console.log(`\nTotal: ${totalAdded} translations applied`)
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exitCode = 1
-})
+main().catch((err) => { console.error(err); process.exitCode = 1 })
