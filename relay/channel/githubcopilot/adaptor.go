@@ -93,15 +93,17 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	switch a.protocol {
 	case copilot.ProtocolAnthropic:
-		return a.claudeAdaptor.ConvertOpenAIRequest(c, info, request)
+		result, err := a.claudeAdaptor.ConvertOpenAIRequest(c, info, request)
+		return a.sanitizeRequestForModel(result), err
 	case copilot.ProtocolOpenAIResponses:
 		result, err := serviceConvertRequestByID(c, info, relayconvert.ConverterOpenAIChatToOpenAIResponses, request)
 		if err != nil {
 			return nil, err
 		}
-		return result, nil
+		return a.sanitizeRequestForModel(result), nil
 	default:
-		return a.openaiAdaptor.ConvertOpenAIRequest(c, info, request)
+		result, err := a.openaiAdaptor.ConvertOpenAIRequest(c, info, request)
+		return a.sanitizeRequestForModel(result), err
 	}
 }
 
@@ -111,15 +113,17 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	switch a.protocol {
 	case copilot.ProtocolAnthropic:
-		return a.claudeAdaptor.ConvertClaudeRequest(c, info, request)
+		result, err := a.claudeAdaptor.ConvertClaudeRequest(c, info, request)
+		return a.sanitizeRequestForModel(result), err
 	case copilot.ProtocolOpenAIResponses:
 		result, err := serviceConvertRequestByID(c, info, relayconvert.ConverterClaudeMessagesToOpenAIResponses, request)
 		if err != nil {
 			return nil, err
 		}
-		return result, nil
+		return a.sanitizeRequestForModel(result), nil
 	default:
-		return a.openaiAdaptor.ConvertClaudeRequest(c, info, request)
+		result, err := a.openaiAdaptor.ConvertClaudeRequest(c, info, request)
+		return a.sanitizeRequestForModel(result), err
 	}
 }
 
@@ -129,15 +133,17 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	switch a.protocol {
 	case copilot.ProtocolAnthropic:
-		return a.claudeAdaptor.ConvertGeminiRequest(c, info, request)
+		result, err := a.claudeAdaptor.ConvertGeminiRequest(c, info, request)
+		return a.sanitizeRequestForModel(result), err
 	case copilot.ProtocolOpenAIResponses:
 		result, err := serviceConvertRequestByID(c, info, relayconvert.ConverterGeminiContentToOpenAIResponses, request)
 		if err != nil {
 			return nil, err
 		}
-		return result, nil
+		return a.sanitizeRequestForModel(result), nil
 	default:
-		return a.openaiAdaptor.ConvertGeminiRequest(c, info, request)
+		result, err := a.openaiAdaptor.ConvertGeminiRequest(c, info, request)
+		return a.sanitizeRequestForModel(result), err
 	}
 }
 
@@ -147,16 +153,46 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	}
 	switch a.protocol {
 	case copilot.ProtocolAnthropic:
-		return a.claudeAdaptor.ConvertOpenAIResponsesRequest(c, info, request)
+		result, err := a.claudeAdaptor.ConvertOpenAIResponsesRequest(c, info, request)
+		return a.sanitizeRequestForModel(result), err
 	case copilot.ProtocolOpenAIChat:
 		result, err := serviceConvertRequestByID(c, info, relayconvert.ConverterOpenAIResponsesToOpenAIChat, request)
 		if err != nil {
 			return nil, err
 		}
-		return result, nil
+		return a.sanitizeRequestForModel(result), nil
 	default:
-		return a.openaiAdaptor.ConvertOpenAIResponsesRequest(c, info, request)
+		result, err := a.openaiAdaptor.ConvertOpenAIResponsesRequest(c, info, request)
+		return a.sanitizeRequestForModel(result), err
 	}
+}
+
+func (a *Adaptor) sanitizeRequestForModel(request any) any {
+	if request == nil || !copilotModelRejectsReasoning(a.model) {
+		return request
+	}
+	switch request := request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		request.ReasoningEffort = ""
+		request.Reasoning = nil
+		request.ReasoningConversion = nil
+	case *dto.OpenAIResponsesRequest:
+		request.Reasoning = nil
+		request.ReasoningConversion = nil
+	case dto.OpenAIResponsesRequest:
+		request.Reasoning = nil
+		request.ReasoningConversion = nil
+		return request
+	}
+	return request
+}
+
+func copilotModelRejectsReasoning(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	if separator := strings.LastIndexByte(model, '/'); separator >= 0 {
+		model = model[separator+1:]
+	}
+	return strings.HasPrefix(model, "gpt-4") || strings.HasPrefix(model, "chatgpt-4") || strings.HasPrefix(model, "gpt-3.5")
 }
 
 func serviceConvertRequestByID(c *gin.Context, info *relaycommon.RelayInfo, converter string, request any) (any, error) {
