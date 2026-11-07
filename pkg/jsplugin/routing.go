@@ -247,6 +247,9 @@ const (
 	ContextKeyPinnedEndpoint  = "task_plugin_pinned_endpoint"
 	ContextKeyRouteRequest    = "task_plugin_route_request"
 	ContextKeyProtocolRequest = "task_plugin_protocol_request"
+	// ContextKeyEffectiveImageRequest holds the current attempt's image request
+	// after channel overrides. ProtocolRequest remains the immutable retry source.
+	ContextKeyEffectiveImageRequest = "task_plugin_effective_image_request"
 	// ContextKeyRequestBodyText holds, for a plugin that preserves JSON
 	// order, the decoded requestBody as JSON text (json.RawMessage) beside
 	// the Go value in task_request.
