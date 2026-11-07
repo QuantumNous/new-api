@@ -66,6 +66,8 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	return usage, nil
 }
 
+// OaiResponsesStreamHandler forwards native Responses SSE events and retains
+// observed usage when the stream stops before a protocol terminal event.
 func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, common.LogText("invalid response or response body"))
@@ -75,6 +77,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	defer service.CloseResponseBodyGracefully(resp)
 
 	accumulator := service.NewResponsesUsageAccumulator(info)
+	nextSequenceNumber := 0
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -84,6 +87,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			logger.LogError(c, common.LogText("failed to unmarshal stream response: %s", err.Error()))
 			sr.Error(err)
 			return
+		}
+		if streamResponse.SequenceNumber != nil && *streamResponse.SequenceNumber >= nextSequenceNumber {
+			nextSequenceNumber = *streamResponse.SequenceNumber + 1
 		}
 		if streamResponse.Response != nil {
 			data = string(rewriteSGLangResponsesCreatedAt(info, []byte(data), "response.created_at", streamResponse.Response.CreatedAt))
@@ -101,6 +107,31 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
 	info.StreamStatus.RequireTerminal()
+	if info.StreamStatus.ResponseOutcome() == string(relaycommon.ResponseOutcomeUnknown) {
+		// A missing terminal is a transport error, not response.failed: the
+		// latter would suppress the prompt usage estimate. Only an upstream
+		// read end can be attributed to upstream; local and downstream stops
+		// need a cause-neutral message.
+		missingTerminalMessage := "stream stopped before a terminal response event"
+		if c.Request.Context().Err() == nil {
+			switch info.StreamStatus.EndReason {
+			case relaycommon.StreamEndReasonEOF, relaycommon.StreamEndReasonScannerErr, relaycommon.StreamEndReasonDone:
+				missingTerminalMessage = "upstream stream ended without a terminal response event"
+			}
+		}
+		info.StreamStatus.RecordError(missingTerminalMessage)
+		canWriteTerminal := c.Request.Context().Err() == nil &&
+			(info.StreamStatus.EndReason == relaycommon.StreamEndReasonEOF ||
+				info.StreamStatus.EndReason == relaycommon.StreamEndReasonScannerErr ||
+				info.StreamStatus.EndReason == relaycommon.StreamEndReasonTimeout ||
+				info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone)
+		if canWriteTerminal {
+			payload := fmt.Sprintf(`{"type":"error","code":"upstream_stream_interrupted","message":"The upstream stream ended before a terminal response event. Please retry.","param":null,"sequence_number":%d}`, nextSequenceNumber)
+			if err := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "error"}, payload); err != nil {
+				info.StreamStatus.RecordError("failed to deliver stream interruption event")
+			}
+		}
+	}
 	return accumulator.Finish(), nil
 }
 
