@@ -45,6 +45,7 @@ import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 
 import { getAdminUserQuotaRows } from '../api'
+import { LIVE_REFRESH_MS } from '../constants'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -144,8 +145,8 @@ export function UserCharts(props: UserChartsProps) {
     queryFn: async () =>
       requireServerSuccess(await getAdminUserQuotaRows(timeRange)),
     select: (res) => (res.success ? (res.data ?? []) : []),
-    refetchInterval: 3000,
-    staleTime: 2900,
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 100,
   })
 
   const chartData = useMemo(

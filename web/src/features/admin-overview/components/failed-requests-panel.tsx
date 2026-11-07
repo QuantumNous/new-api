@@ -19,11 +19,11 @@ import {
 } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
+import { LIVE_REFRESH_MS } from '../constants'
+
 const WINDOW_SECONDS = 24 * 3600
 const RECENT_LIMIT = 50
 const TOP_FAILING_MODELS = 3
-// Live like the rest of the control panel: poll every 3 seconds.
-const REFRESH_MS = 3000
 
 const ROW_GRID =
   'grid grid-cols-1 gap-y-0.5 sm:grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,1.6fr)] sm:items-center sm:gap-x-3'
@@ -44,8 +44,8 @@ export function FailedRequestsPanel() {
         })
       )
     },
-    refetchInterval: REFRESH_MS,
-    staleTime: REFRESH_MS - 100,
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 100,
   })
 
   const logs = useMemo(() => {

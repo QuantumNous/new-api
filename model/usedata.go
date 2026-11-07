@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -148,6 +149,103 @@ func increaseQuotaData(quotaData *QuotaData) {
 	}
 }
 
+// pendingQuotaDataSnapshot returns a deep copy of the in-memory quota data that
+// has not been flushed to the database yet, restricted to the given hour range
+// and to rows matching the optional predicate. Dashboard read paths merge this
+// with persisted rows so the control panel reflects live traffic instead of
+// waiting for the next DataExportInterval flush.
+func pendingQuotaDataSnapshot(startTime int64, endTime int64, match func(*QuotaData) bool) []*QuotaData {
+	CacheQuotaDataLock.Lock()
+	defer CacheQuotaDataLock.Unlock()
+	if len(CacheQuotaData) == 0 {
+		return nil
+	}
+	rows := make([]*QuotaData, 0, len(CacheQuotaData))
+	for _, item := range CacheQuotaData {
+		if item.CreatedAt < startTime || item.CreatedAt > endTime {
+			continue
+		}
+		if match != nil && !match(item) {
+			continue
+		}
+		snapshot := *item
+		rows = append(rows, &snapshot)
+	}
+	return rows
+}
+
+// mergePendingQuotaData folds the in-memory snapshot into the aggregated rows
+// already returned by the database, aggregating on groupKey so a pending entry
+// joins its persisted counterpart instead of duplicating it. Newly created rows
+// are projected to the same shape the database grouping would have produced.
+func mergePendingQuotaData(dbRows []*QuotaData, pending []*QuotaData, groupKey func(*QuotaData) string, project func(*QuotaData)) []*QuotaData {
+	if len(pending) == 0 {
+		return dbRows
+	}
+	index := make(map[string]*QuotaData, len(dbRows))
+	for _, row := range dbRows {
+		index[groupKey(row)] = row
+	}
+	for _, item := range pending {
+		key := groupKey(item)
+		if existing, ok := index[key]; ok {
+			existing.Count += item.Count
+			existing.Quota += item.Quota
+			existing.TokenUsed += item.TokenUsed
+			existing.CacheReadTokens += item.CacheReadTokens
+			existing.CacheCreationTokens += item.CacheCreationTokens
+			continue
+		}
+		row := *item
+		project(&row)
+		index[key] = &row
+		dbRows = append(dbRows, &row)
+	}
+	return dbRows
+}
+
+func quotaModelHourKey(row *QuotaData) string {
+	return row.ModelName + "\x00" + strconv.FormatInt(row.CreatedAt, 10)
+}
+
+func quotaUsernameHourKey(row *QuotaData) string {
+	return row.Username + "\x00" + strconv.FormatInt(row.CreatedAt, 10)
+}
+
+func quotaUserModelHourKey(row *QuotaData) string {
+	return strconv.Itoa(row.UserID) + "\x00" + row.Username + "\x00" + row.ModelName + "\x00" + strconv.FormatInt(row.CreatedAt, 10)
+}
+
+// projectAllModelsRow matches the shape of a `quota_data` GROUP BY model_name,
+// created_at row, which only carries the grouping columns and summed totals.
+func projectAllModelsRow(row *QuotaData) {
+	row.UserID = 0
+	row.Username = ""
+	row.UseGroup = ""
+	row.TokenID = 0
+	row.ChannelID = 0
+	row.NodeName = ""
+}
+
+// projectUserModelRow matches a GROUP BY user_id, username, model_name,
+// created_at row.
+func projectUserModelRow(row *QuotaData) {
+	row.UseGroup = ""
+	row.TokenID = 0
+	row.ChannelID = 0
+	row.NodeName = ""
+}
+
+// projectUsernameRow matches a GROUP BY username, created_at row.
+func projectUsernameRow(row *QuotaData) {
+	row.UserID = 0
+	row.ModelName = ""
+	row.UseGroup = ""
+	row.TokenID = 0
+	row.ChannelID = 0
+	row.NodeName = ""
+}
+
 func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
@@ -156,7 +254,13 @@ func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (qu
 		Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime).
 		Group("user_id, username, model_name, created_at").
 		Find(&quotaDatas).Error
-	return quotaDatas, err
+	if err != nil {
+		return nil, err
+	}
+	pending := pendingQuotaDataSnapshot(startTime, endTime, func(row *QuotaData) bool {
+		return row.Username == username
+	})
+	return mergePendingQuotaData(quotaDatas, pending, quotaUserModelHourKey, projectUserModelRow), nil
 }
 
 func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
@@ -167,7 +271,13 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 		Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).
 		Group("user_id, username, model_name, created_at").
 		Find(&quotaDatas).Error
-	return quotaDatas, err
+	if err != nil {
+		return nil, err
+	}
+	pending := pendingQuotaDataSnapshot(startTime, endTime, func(row *QuotaData) bool {
+		return row.UserID == userId
+	})
+	return mergePendingQuotaData(quotaDatas, pending, quotaUserModelHourKey, projectUserModelRow), nil
 }
 
 func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
@@ -177,7 +287,11 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*Quota
 		Where("created_at >= ? and created_at <= ?", startTime, endTime).
 		Group("username, created_at").
 		Find(&quotaDatas).Error
-	return quotaDatas, err
+	if err != nil {
+		return nil, err
+	}
+	pending := pendingQuotaDataSnapshot(startTime, endTime, nil)
+	return mergePendingQuotaData(quotaDatas, pending, quotaUsernameHourKey, projectUsernameRow), nil
 }
 
 func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
@@ -189,5 +303,9 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	// only select model_name, sum(count) as count, sum(quota) as quota, model_name, created_at from quota_data group by model_name, created_at;
 	//err = DB.Table("quota_data").Where("created_at >= ? and created_at <= ?", startTime, endTime).Find(&quotaDatas).Error
 	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(cache_creation_tokens) as cache_creation_tokens, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
-	return quotaDatas, err
+	if err != nil {
+		return nil, err
+	}
+	pending := pendingQuotaDataSnapshot(startTime, endTime, nil)
+	return mergePendingQuotaData(quotaDatas, pending, quotaModelHourKey, projectAllModelsRow), nil
 }

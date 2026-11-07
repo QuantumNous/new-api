@@ -12,6 +12,12 @@ func seedFlowQuotaData(t *testing.T, quotaData QuotaData) {
 	require.NoError(t, DB.Create(&quotaData).Error)
 }
 
+func resetQuotaDataCache() {
+	CacheQuotaDataLock.Lock()
+	CacheQuotaData = make(map[string]*QuotaData)
+	CacheQuotaDataLock.Unlock()
+}
+
 func seedFlowLookupData(t *testing.T) {
 	t.Helper()
 	require.NoError(t, DB.Create(&Channel{Id: 1, Name: "east"}).Error)
@@ -132,11 +138,81 @@ func TestGetFlowQuotaDataUsesQuotaDataRoleSpecificDimensions(t *testing.T) {
 	require.Equal(t, 175, selfRows[0].Quota)
 }
 
+func TestQuotaReadsIncludeUnflushedData(t *testing.T) {
+	truncateTables(t)
+
+	seedFlowQuotaData(t, QuotaData{
+		UserID:    1,
+		Username:  "alice",
+		ModelName: "gpt-a",
+		UseGroup:  "vip",
+		TokenID:   11,
+		ChannelID: 1,
+		NodeName:  "node-a",
+		CreatedAt: 3600,
+		Count:     2,
+		Quota:     100,
+		TokenUsed: 40,
+	})
+
+	// Alice's pending row shares the stored (user, model, hour) bucket.
+	LogQuotaData(QuotaDataLogParams{
+		UserID:    1,
+		Username:  "alice",
+		ModelName: "gpt-a",
+		CreatedAt: 3700,
+		UseGroup:  "vip",
+		TokenID:   11,
+		ChannelID: 1,
+		NodeName:  "node-a",
+		Quota:     50,
+		TokenUsed: 20,
+	})
+	// Bob's pending row introduces a model not present in the database yet.
+	LogQuotaData(QuotaDataLogParams{
+		UserID:    2,
+		Username:  "bob",
+		ModelName: "gpt-b",
+		CreatedAt: 3600,
+		UseGroup:  "default",
+		TokenID:   22,
+		ChannelID: 1,
+		NodeName:  "node-b",
+		Quota:     25,
+		TokenUsed: 10,
+	})
+
+	allRows, err := GetAllQuotaDates(1000, 5000, "")
+	require.NoError(t, err)
+	require.Len(t, allRows, 2)
+	byModel := map[string]*QuotaData{}
+	for _, row := range allRows {
+		byModel[row.ModelName] = row
+	}
+	require.Equal(t, 3, byModel["gpt-a"].Count)
+	require.Equal(t, 150, byModel["gpt-a"].Quota)
+	require.Equal(t, 60, byModel["gpt-a"].TokenUsed)
+	require.Equal(t, 1, byModel["gpt-b"].Count)
+	require.Equal(t, 25, byModel["gpt-b"].Quota)
+	// Aggregated model rows must not leak per-user identity.
+	require.Empty(t, byModel["gpt-b"].Username)
+
+	userRows, err := GetQuotaDataByUserId(1, 1000, 5000)
+	require.NoError(t, err)
+	require.Len(t, userRows, 1)
+	require.Equal(t, "alice", userRows[0].Username)
+	require.Equal(t, 150, userRows[0].Quota)
+
+	flowRows, err := GetFlowQuotaData(1000, 5000, "", 0, common.RoleAdminUser)
+	require.NoError(t, err)
+	require.Len(t, flowRows, 2)
+	require.Equal(t, "alice", flowRows[0].Username)
+	require.Equal(t, 150, flowRows[0].Quota)
+}
+
 func TestLogQuotaDataSplitsRowsByUseGroupTokenChannelAndNode(t *testing.T) {
 	truncateTables(t)
-	CacheQuotaDataLock.Lock()
-	CacheQuotaData = make(map[string]*QuotaData)
-	CacheQuotaDataLock.Unlock()
+	resetQuotaDataCache()
 
 	LogQuotaData(QuotaDataLogParams{
 		UserID:    1,

@@ -46,6 +46,7 @@ import { RevenuePanel } from './components/revenue-panel'
 import { TokenUsagePanel } from './components/token-usage-panel'
 import { TopModelsPanel } from './components/top-models-panel'
 import { UserCharts } from './components/user-analytics'
+import { LIVE_REFRESH_MS } from './constants'
 import {
   buildDailyRevenue,
   buildHourlyActiveUsers,
@@ -60,9 +61,6 @@ import {
 
 const TREND_DAYS = 30
 const TOP_MODEL_LIMIT = 6
-// The control panel is live: every panel polls once every 3 seconds so the
-// numbers on screen stay current without overwhelming the backend.
-const REFRESH_MS = 3000
 
 export function AdminOverview() {
   const { t } = useTranslation()
@@ -78,7 +76,7 @@ export function AdminOverview() {
     }
   )
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), REFRESH_MS)
+    const timer = window.setInterval(() => setNow(new Date()), LIVE_REFRESH_MS)
     return () => window.clearInterval(timer)
   }, [])
   const today = getStartOfDay(now)
@@ -107,8 +105,8 @@ export function AdminOverview() {
           end_timestamp: Math.floor(Date.now() / 1000) + 3600,
         })
       ),
-    refetchInterval: REFRESH_MS,
-    staleTime: REFRESH_MS - 100,
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 100,
   })
 
   const activeUsersQuery = useQuery({
@@ -122,8 +120,8 @@ export function AdminOverview() {
         })
       )
     },
-    refetchInterval: REFRESH_MS,
-    staleTime: REFRESH_MS - 100,
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 100,
   })
 
   const allTimeRevenueQuery = useQuery({
@@ -134,8 +132,8 @@ export function AdminOverview() {
           end_timestamp: Math.floor(Date.now() / 1000),
         })
       ),
-    refetchInterval: REFRESH_MS,
-    staleTime: REFRESH_MS - 100,
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 100,
   })
 
   const rateQuery = useQuery({
@@ -149,16 +147,16 @@ export function AdminOverview() {
         })
       )
     },
-    refetchInterval: REFRESH_MS,
-    staleTime: REFRESH_MS - 100,
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 100,
   })
 
   const registeredUsersQuery = useQuery({
     queryKey: ['admin-overview', 'registered-users'],
     queryFn: async () =>
       requireServerSuccess(await getAdminRegisteredUserTotal()),
-    refetchInterval: REFRESH_MS,
-    staleTime: REFRESH_MS - 100,
+    refetchInterval: LIVE_REFRESH_MS,
+    staleTime: LIVE_REFRESH_MS - 100,
   })
 
   const quotaRows = useMemo(
@@ -255,7 +253,9 @@ export function AdminOverview() {
           )}
           {hasError
             ? t('Failed to load')
-            : t('Live data, refreshed every 3 seconds')}
+            : t('Live data, refreshed every {{seconds}} seconds', {
+                seconds: LIVE_REFRESH_MS / 1000,
+              })}
         </span>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
