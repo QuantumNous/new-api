@@ -152,7 +152,8 @@ it('shows nested task conditions and prices in detail and group tables without a
   expect(screen.queryByText('Matched')).not.toBeInTheDocument()
 })
 
-it('explains missing task metadata while retaining the original expression', () => {
+it('explains missing task metadata and allows expanding the original expression', async () => {
+  const user = userEvent.setup()
   const expression = 'tier("base", u("seconds") * 0.09)'
   render(<DynamicPricingBreakdown billingExpr={expression} />)
   expect(
@@ -160,6 +161,8 @@ it('explains missing task metadata while retaining the original expression', () 
       'Task usage metadata is unavailable. Pricing details cannot be displayed.'
     )
   ).toBeVisible()
+  expect(screen.queryByText(expression)).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Raw expression' }))
   expect(screen.getByText(expression)).toBeVisible()
 })
 
