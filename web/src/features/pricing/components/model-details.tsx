@@ -37,7 +37,7 @@ import { CopyButton } from '@/components/copy-button'
 import { StaticDataTable } from '@/components/data-table'
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { GroupBadge } from '@/components/group-badge'
-import { PublicLayout } from '@/components/layout'
+import { PublicLayout, SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -1600,8 +1600,9 @@ export function ModelDetailsDrawer(props: ModelDetailsDrawerProps) {
   )
 }
 
-export function ModelDetails() {
+export function ModelDetails(props: { variant?: 'public' | 'console' }) {
   const { t } = useTranslation()
+  const variant = props.variant ?? 'public'
   const { modelId } = useParams({ from: '/pricing/$modelId/' })
   const search = useSearch({ from: '/pricing/$modelId/' })
   const navigate = useNavigate()
@@ -1629,79 +1630,107 @@ export function ModelDetails() {
     navigate({ to: '/pricing', search })
   }
 
+  const backButton = (
+    <Button
+      variant='ghost'
+      size='sm'
+      onClick={handleBack}
+      className='text-muted-foreground hover:text-foreground h-auto gap-1 px-0 py-1 text-xs'
+    >
+      <ArrowLeft className='size-3.5' />
+      {t('Back')}
+    </Button>
+  )
+
   if (isLoading) {
-    return (
-      <PublicLayout>
-        <div className='mx-auto max-w-5xl px-4 sm:px-6'>
-          <Skeleton className='mb-4 h-5 w-16' />
-          <div className='space-y-2'>
-            <Skeleton className='h-7 w-64' />
-            <Skeleton className='h-4 w-40' />
-            <Skeleton className='h-4 w-full max-w-md' />
-          </div>
-          <div className='mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4'>
-            {MODEL_DETAILS_SKELETON_KEYS.map((key) => (
-              <Skeleton key={`metric-${key}`} className='h-16 w-full' />
-            ))}
-          </div>
-          <div className='mt-6 space-y-3'>
-            {MODEL_DETAILS_SKELETON_KEYS.map((key) => (
-              <Skeleton key={`section-${key}`} className='h-24 w-full' />
-            ))}
-          </div>
+    const loadingBody = (
+      <div className='mx-auto max-w-5xl px-4 sm:px-6'>
+        <Skeleton className='mb-4 h-5 w-16' />
+        <div className='space-y-2'>
+          <Skeleton className='h-7 w-64' />
+          <Skeleton className='h-4 w-40' />
+          <Skeleton className='h-4 w-full max-w-md' />
         </div>
-      </PublicLayout>
+        <div className='mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4'>
+          {MODEL_DETAILS_SKELETON_KEYS.map((key) => (
+            <Skeleton key={`metric-${key}`} className='h-16 w-full' />
+          ))}
+        </div>
+        <div className='mt-6 space-y-3'>
+          {MODEL_DETAILS_SKELETON_KEYS.map((key) => (
+            <Skeleton key={`section-${key}`} className='h-24 w-full' />
+          ))}
+        </div>
+      </div>
     )
+
+    if (variant === 'console') {
+      return (
+        <SectionPageLayout>
+          <SectionPageLayout.Content>{loadingBody}</SectionPageLayout.Content>
+        </SectionPageLayout>
+      )
+    }
+
+    return <PublicLayout>{loadingBody}</PublicLayout>
   }
 
   if (!model) {
+    const notFoundBody = (
+      <div className='mx-auto max-w-2xl px-4 text-center sm:px-6'>
+        <h2 className='mb-1 text-base font-semibold'>{t('Model not found')}</h2>
+        <p className='text-muted-foreground mb-4 text-sm'>
+          {t("The model you're looking for doesn't exist.")}
+        </p>
+        <Button onClick={handleBack} variant='outline' size='sm'>
+          {t('Back to Models')}
+        </Button>
+      </div>
+    )
+
+    if (variant === 'console') {
+      return (
+        <SectionPageLayout>
+          <SectionPageLayout.Content>{notFoundBody}</SectionPageLayout.Content>
+        </SectionPageLayout>
+      )
+    }
+
+    return <PublicLayout>{notFoundBody}</PublicLayout>
+  }
+
+  const detailsBody = (
+    <div className='mx-auto max-w-5xl px-4 sm:px-6'>
+      {variant === 'public' && <div className='mb-4'>{backButton}</div>}
+
+      <ModelDetailsContent
+        model={model}
+        groupRatio={groupRatio || {}}
+        usableGroup={usableGroup || {}}
+        autoGroups={autoGroups || []}
+        priceRate={priceRate ?? 1}
+        usdExchangeRate={usdExchangeRate ?? 1}
+        tokenUnit={tokenUnit}
+        showRechargePrice={search.rechargePrice ?? false}
+        endpointMap={
+          (endpointMap as Record<string, { path?: string; method?: string }>) ||
+          {}
+        }
+      />
+    </div>
+  )
+
+  if (variant === 'console') {
     return (
-      <PublicLayout>
-        <div className='mx-auto max-w-2xl px-4 text-center sm:px-6'>
-          <h2 className='mb-1 text-base font-semibold'>
-            {t('Model not found')}
-          </h2>
-          <p className='text-muted-foreground mb-4 text-sm'>
-            {t("The model you're looking for doesn't exist.")}
-          </p>
-          <Button onClick={handleBack} variant='outline' size='sm'>
-            {t('Back to Models')}
-          </Button>
-        </div>
-      </PublicLayout>
+      <SectionPageLayout>
+        <SectionPageLayout.Breadcrumb>
+          {backButton}
+        </SectionPageLayout.Breadcrumb>
+        <SectionPageLayout.Title>{model.model_name}</SectionPageLayout.Title>
+        <SectionPageLayout.Content>{detailsBody}</SectionPageLayout.Content>
+      </SectionPageLayout>
     )
   }
 
-  return (
-    <PublicLayout>
-      <div className='mx-auto max-w-5xl px-4 sm:px-6'>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={handleBack}
-          className='text-muted-foreground hover:text-foreground mb-4 h-auto gap-1 px-0 py-1 text-xs'
-        >
-          <ArrowLeft className='size-3.5' />
-          {t('Back')}
-        </Button>
-
-        <ModelDetailsContent
-          model={model}
-          groupRatio={groupRatio || {}}
-          usableGroup={usableGroup || {}}
-          autoGroups={autoGroups || []}
-          priceRate={priceRate ?? 1}
-          usdExchangeRate={usdExchangeRate ?? 1}
-          tokenUnit={tokenUnit}
-          showRechargePrice={search.rechargePrice ?? false}
-          endpointMap={
-            (endpointMap as Record<
-              string,
-              { path?: string; method?: string }
-            >) || {}
-          }
-        />
-      </div>
-    </PublicLayout>
-  )
+  return <PublicLayout>{detailsBody}</PublicLayout>
 }

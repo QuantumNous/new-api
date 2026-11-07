@@ -19,8 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PublicLayout } from '@/components/layout'
+import {
+  AuthenticatedLayout,
+  PublicLayout,
+  SectionPageLayout,
+} from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
+import { useAuthStore } from '@/stores/auth-store'
 
 import {
   LoadingSkeleton,
@@ -36,8 +41,11 @@ import { EXCLUDED_GROUPS, VIEW_MODES } from './constants'
 import { useFilters } from './hooks/use-filters'
 import { usePricingData } from './hooks/use-pricing-data'
 
-export function Pricing() {
+type PricingVariant = 'public' | 'console'
+
+function PricingView(props: { variant: PricingVariant }) {
   const { t } = useTranslation()
+  const variant = props.variant
   const [selectedModelName, setSelectedModelName] = useState<string | null>(
     null
   )
@@ -110,7 +118,7 @@ export function Pricing() {
     clearSearch()
   }, [clearFilters, clearSearch])
 
-  const renderPricingContent = () => {
+  const renderResults = () => {
     if (filteredModels.length === 0) {
       return (
         <EmptyState
@@ -148,13 +156,135 @@ export function Pricing() {
     )
   }
 
+  const filterSidebar = (
+    <PricingSidebar
+      quotaTypeFilter={quotaTypeFilter}
+      endpointTypeFilter={endpointTypeFilter}
+      vendorFilter={vendorFilter}
+      groupFilter={groupFilter}
+      tagFilter={tagFilter}
+      onQuotaTypeChange={setQuotaTypeFilter}
+      onEndpointTypeChange={setEndpointTypeFilter}
+      onVendorChange={setVendorFilter}
+      onGroupChange={setGroupFilter}
+      onTagChange={setTagFilter}
+      vendors={vendors || []}
+      groups={availableGroups}
+      groupRatios={groupRatio}
+      tags={availableTags}
+      models={models || []}
+      hasActiveFilters={hasActiveFilters}
+      onClearFilters={clearFilters}
+      className={
+        variant === 'console'
+          ? 'hover-scrollbar hidden min-h-0 overflow-y-auto xl:block'
+          : 'hover-scrollbar sticky top-20 hidden max-h-[calc(100dvh-6rem)] self-start overflow-y-auto xl:block'
+      }
+    />
+  )
+
+  const toolbar = (
+    <PricingToolbar
+      filteredCount={filteredModels.length}
+      totalCount={models?.length}
+      sortBy={sortBy}
+      onSortChange={setSortBy}
+      tokenUnit={tokenUnit}
+      onTokenUnitChange={setTokenUnit}
+      showRechargePrice={showRechargePrice}
+      onRechargePriceChange={setShowRechargePrice}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      quotaTypeFilter={quotaTypeFilter}
+      endpointTypeFilter={endpointTypeFilter}
+      vendorFilter={vendorFilter}
+      groupFilter={groupFilter}
+      tagFilter={tagFilter}
+      onQuotaTypeChange={setQuotaTypeFilter}
+      onEndpointTypeChange={setEndpointTypeFilter}
+      onVendorChange={setVendorFilter}
+      onGroupChange={setGroupFilter}
+      onTagChange={setTagFilter}
+      vendors={vendors || []}
+      groups={availableGroups}
+      groupRatios={groupRatio}
+      tags={availableTags}
+      models={models || []}
+      hasActiveFilters={hasActiveFilters}
+      activeFilterCount={activeFilterCount}
+      onClearFilters={clearFilters}
+    />
+  )
+
+  const detailsDrawer = selectedModel ? (
+    <ModelDetailsDrawer
+      open={Boolean(selectedModel)}
+      onOpenChange={(open) => {
+        if (!open) setSelectedModelName(null)
+      }}
+      model={selectedModel}
+      groupRatio={groupRatio || {}}
+      usableGroup={usableGroup || {}}
+      endpointMap={
+        (endpointMap as Record<string, { path?: string; method?: string }>) ||
+        {}
+      }
+      autoGroups={autoGroups || []}
+      priceRate={priceRate ?? 1}
+      usdExchangeRate={usdExchangeRate ?? 1}
+      tokenUnit={tokenUnit}
+      showRechargePrice={showRechargePrice}
+    />
+  ) : null
+
   if (isLoading) {
+    if (variant === 'console') {
+      return (
+        <SectionPageLayout>
+          <SectionPageLayout.Title>{t('Model Square')}</SectionPageLayout.Title>
+          <SectionPageLayout.Content>
+            <div className='mx-auto w-full max-w-[1800px]'>
+              <LoadingSkeleton viewMode={viewMode} />
+            </div>
+          </SectionPageLayout.Content>
+        </SectionPageLayout>
+      )
+    }
+
     return (
       <PublicLayout showMainContainer={false}>
         <div className='mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
           <LoadingSkeleton viewMode={viewMode} />
         </div>
       </PublicLayout>
+    )
+  }
+
+  if (variant === 'console') {
+    return (
+      <SectionPageLayout fixedContent>
+        <SectionPageLayout.Title>{t('Model Square')}</SectionPageLayout.Title>
+        <SectionPageLayout.Actions>
+          <SearchBar
+            value={searchInput}
+            onChange={setSearchInput}
+            onClear={clearSearch}
+            placeholder={t('Search model name, provider, endpoint, or tag...')}
+            enableShortcut={false}
+            className='w-full max-w-xs sm:max-w-sm'
+          />
+        </SectionPageLayout.Actions>
+        <SectionPageLayout.Content>
+          <div className='grid h-full min-h-0 grid-rows-[minmax(0,1fr)] gap-3 sm:gap-4 xl:grid-cols-[280px_minmax(0,1fr)]'>
+            {filterSidebar}
+            <main className='hover-scrollbar min-h-0 space-y-4 overflow-y-auto pe-0.5'>
+              {toolbar}
+              {renderResults()}
+            </main>
+          </div>
+          {detailsDrawer}
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
     )
   }
 
@@ -203,87 +333,46 @@ export function Pricing() {
           </header>
 
           <div className='grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]'>
-            <PricingSidebar
-              quotaTypeFilter={quotaTypeFilter}
-              endpointTypeFilter={endpointTypeFilter}
-              vendorFilter={vendorFilter}
-              groupFilter={groupFilter}
-              tagFilter={tagFilter}
-              onQuotaTypeChange={setQuotaTypeFilter}
-              onEndpointTypeChange={setEndpointTypeFilter}
-              onVendorChange={setVendorFilter}
-              onGroupChange={setGroupFilter}
-              onTagChange={setTagFilter}
-              vendors={vendors || []}
-              groups={availableGroups}
-              groupRatios={groupRatio}
-              tags={availableTags}
-              models={models || []}
-              hasActiveFilters={hasActiveFilters}
-              onClearFilters={clearFilters}
-              className='hover-scrollbar sticky top-20 hidden max-h-[calc(100dvh-6rem)] self-start overflow-y-auto xl:block'
-            />
+            {filterSidebar}
 
             <main className='min-w-0 space-y-4'>
-              <PricingToolbar
-                filteredCount={filteredModels.length}
-                totalCount={models?.length}
-                sortBy={sortBy}
-                onSortChange={setSortBy}
-                tokenUnit={tokenUnit}
-                onTokenUnitChange={setTokenUnit}
-                showRechargePrice={showRechargePrice}
-                onRechargePriceChange={setShowRechargePrice}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                quotaTypeFilter={quotaTypeFilter}
-                endpointTypeFilter={endpointTypeFilter}
-                vendorFilter={vendorFilter}
-                groupFilter={groupFilter}
-                tagFilter={tagFilter}
-                onQuotaTypeChange={setQuotaTypeFilter}
-                onEndpointTypeChange={setEndpointTypeFilter}
-                onVendorChange={setVendorFilter}
-                onGroupChange={setGroupFilter}
-                onTagChange={setTagFilter}
-                vendors={vendors || []}
-                groups={availableGroups}
-                groupRatios={groupRatio}
-                tags={availableTags}
-                models={models || []}
-                hasActiveFilters={hasActiveFilters}
-                activeFilterCount={activeFilterCount}
-                onClearFilters={clearFilters}
-              />
-
-              {renderPricingContent()}
+              {toolbar}
+              {renderResults()}
             </main>
           </div>
 
-          {selectedModel && (
-            <ModelDetailsDrawer
-              open={Boolean(selectedModel)}
-              onOpenChange={(open) => {
-                if (!open) setSelectedModelName(null)
-              }}
-              model={selectedModel}
-              groupRatio={groupRatio || {}}
-              usableGroup={usableGroup || {}}
-              endpointMap={
-                (endpointMap as Record<
-                  string,
-                  { path?: string; method?: string }
-                >) || {}
-              }
-              autoGroups={autoGroups || []}
-              priceRate={priceRate ?? 1}
-              usdExchangeRate={usdExchangeRate ?? 1}
-              tokenUnit={tokenUnit}
-              showRechargePrice={showRechargePrice}
-            />
-          )}
+          {detailsDrawer}
         </PageTransition>
       </div>
     </PublicLayout>
+  )
+}
+
+export function Pricing() {
+  return <PricingView variant='public' />
+}
+
+export function PricingConsole() {
+  return <PricingView variant='console' />
+}
+
+/**
+ * Entry for the `/pricing` route.
+ *
+ * Signed-in users get the Model Square inside the console shell (sidebar and
+ * header), exactly like the other console pages; visitors keep the standalone
+ * public page.
+ */
+export function PricingPage() {
+  const signedIn = useAuthStore((s) => !!s.auth.user)
+
+  if (!signedIn) {
+    return <Pricing />
+  }
+
+  return (
+    <AuthenticatedLayout>
+      <PricingConsole />
+    </AuthenticatedLayout>
   )
 }

@@ -29,13 +29,17 @@ export interface SearchBarProps {
   onClear: () => void
   placeholder?: string
   className?: string
+  enableShortcut?: boolean
 }
 
 export function SearchBar(props: SearchBarProps) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
+  const enableShortcut = props.enableShortcut !== false
 
   useEffect(() => {
+    if (!enableShortcut) return
+
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
@@ -47,7 +51,7 @@ export function SearchBar(props: SearchBarProps) {
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [enableShortcut])
 
   return (
     <div className={cn('relative', props.className)}>
