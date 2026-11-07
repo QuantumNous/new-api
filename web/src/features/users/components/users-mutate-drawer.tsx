@@ -427,6 +427,9 @@ export function UsersMutateDrawer({
                               value: group,
                               label: group,
                             }))}
+                            // User groups defined only in group rules are not
+                            // in /api/group/, so they must be typed.
+                            allowCustomValue
                             onValueChange={field.onChange}
                             value={field.value}
                             className='w-full'
