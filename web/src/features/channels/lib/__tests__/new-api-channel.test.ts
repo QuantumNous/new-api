@@ -32,6 +32,7 @@ import {
   channelFormSchema,
   transformChannelToFormDefaults,
   transformFormDataToCreatePayload,
+  transformFormDataToUpdatePayload,
 } from '../channel-form'
 import {
   getChannelPluginExtensions,
@@ -53,6 +54,36 @@ function newAPIForm(baseUrl: string) {
 }
 
 describe('New API channel', () => {
+  test('channel retry budget round-trips and rejects values outside 0 to 99', () => {
+    const values = { ...newAPIForm('https://new-api.example'), retry_budget: 2 }
+    const defaults = newAPIForm('https://new-api.example')
+    expect(defaults.retry_budget).toBe(0)
+    expect(
+      JSON.parse(transformFormDataToCreatePayload(defaults).channel.settings || '{}')
+    ).not.toHaveProperty('retry_budget')
+    const created = transformFormDataToCreatePayload(values).channel
+    const updated = transformFormDataToUpdatePayload(values, 1)
+    expect(JSON.parse(created.settings || '{}').retry_budget).toBe(2)
+    expect(JSON.parse(updated.settings || '{}').retry_budget).toBe(2)
+
+    const channel = channelSchema.parse({
+      id: 1,
+      name: 'New API upstream',
+      key: '',
+      type: CHANNEL_TYPE_NEW_API,
+      status: 1,
+      created_time: 0,
+      test_time: 0,
+      response_time: 0,
+      balance_updated_time: 0,
+      settings: created.settings,
+    })
+    expect(transformChannelToFormDefaults(channel).retry_budget).toBe(2)
+    expect(channelFormSchema.safeParse({ ...values, retry_budget: -1 }).success).toBe(false)
+    expect(channelFormSchema.safeParse({ ...values, retry_budget: 100 }).success).toBe(false)
+    expect(channelFormSchema.safeParse({ ...values, retry_budget: 1.5 }).success).toBe(false)
+  })
+
   test('registers selection, ordering, model discovery, and icon metadata', () => {
     const option = CHANNEL_TYPE_OPTIONS.find(
       (item) => item.value === CHANNEL_TYPE_NEW_API

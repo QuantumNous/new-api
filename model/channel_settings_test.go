@@ -50,6 +50,28 @@ func TestChannelValidateSettingsRejectsInvalidHTTPTransport(t *testing.T) {
 	}
 }
 
+func TestChannelValidateSettingsRejectsInvalidRetryBudget(t *testing.T) {
+	for _, tc := range []struct {
+		budget int
+		valid  bool
+	}{
+		{budget: 0, valid: true},
+		{budget: 99, valid: true},
+		{budget: -1},
+		{budget: 100},
+	} {
+		channel := &Channel{}
+		channel.SetOtherSettings(dto.ChannelOtherSettings{RetryBudget: tc.budget})
+		err := channel.ValidateSettings()
+		if tc.valid {
+			require.NoError(t, err)
+			assert.Equal(t, tc.budget, channel.GetOtherSettings().RetryBudget)
+		} else {
+			require.ErrorContains(t, err, "retry_budget")
+		}
+	}
+}
+
 func TestAdvancedCustomChannelRequiresModelListRouteOnlyWhenUpdateChecksEnabled(t *testing.T) {
 	inferenceRoute := dto.AdvancedCustomRoute{
 		IncomingPath: "/v1/chat/completions",
@@ -161,7 +183,7 @@ func TestInferencePresetSettingsAndDatabaseRoundTrip(t *testing.T) {
 						defaults.Routes[0].UpstreamPath = "/changed-locally"
 						assert.Equal(t, "/v1/chat/completions", loaded.GetOtherSettings().AdvancedCustom.Routes[0].UpstreamPath)
 					}
-					settings := dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/chat/completions", UpstreamPath: "/custom/chat", Models: []string{"allowed"}, Auth: &dto.AdvancedCustomRouteAuth{Type: "none"}}}}}
+					settings := dto.ChannelOtherSettings{RetryBudget: 2, AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/chat/completions", UpstreamPath: "/custom/chat", Models: []string{"allowed"}, Auth: &dto.AdvancedCustomRouteAuth{Type: "none"}}}}}
 					channel.SetOtherSettings(settings)
 					require.NoError(t, channel.ValidateSettings())
 					require.NoError(t, table.Save(channel).Error)
@@ -169,6 +191,7 @@ func TestInferencePresetSettingsAndDatabaseRoundTrip(t *testing.T) {
 						var loaded Channel
 						require.NoError(t, table.First(&loaded, channel.Id).Error)
 						actual := loaded.GetOtherSettings().AdvancedCustom
+						assert.Equal(t, 2, loaded.GetOtherSettings().RetryBudget)
 						require.Equal(t, common.GetAdvancedCustomPreset(channelType), actual, "named channels must ignore editable advanced_custom overrides")
 						assert.Equal(t, channel.OtherSettings, loaded.OtherSettings)
 						for _, tc := range []struct {
