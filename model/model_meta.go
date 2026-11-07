@@ -439,8 +439,19 @@ func normalizeLookupValues(values []string) []string {
 	return normalized
 }
 
-func GetPreferredModelOwnerChannelTypes(modelNames []string, groups []string) (map[string]int, error) {
-	result := make(map[string]int)
+// PreferredModelOwner identifies the enabled channel preferred for a model using
+// the same priority/weight/id ordering as routing.
+type PreferredModelOwner struct {
+	ChannelType int    `json:"channel_type"`
+	ChannelID   int    `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+}
+
+// GetPreferredModelOwners returns, for each model, the enabled channel that
+// routing would prefer within the given groups, together with that channel's
+// type, id and name.
+func GetPreferredModelOwners(modelNames []string, groups []string) (map[string]PreferredModelOwner, error) {
+	result := make(map[string]PreferredModelOwner)
 	modelNames = normalizeLookupValues(modelNames)
 	if len(modelNames) == 0 {
 		return result, nil
@@ -449,11 +460,13 @@ func GetPreferredModelOwnerChannelTypes(modelNames []string, groups []string) (m
 	type row struct {
 		Model       string
 		ChannelType int
+		ChannelID   int
+		ChannelName string
 	}
 	var rows []row
 
 	query := DB.Table("abilities").
-		Select("abilities.model as model, channels.type as channel_type").
+		Select("abilities.model as model, channels.type as channel_type, channels.id as channel_id, channels.name as channel_name").
 		Joins("JOIN channels ON abilities.channel_id = channels.id").
 		Where("abilities.model IN ? AND abilities.enabled = ? AND channels.status = ?", modelNames, true, common.ChannelStatusEnabled).
 		Order("COALESCE(abilities.priority, 0) DESC").
@@ -473,7 +486,11 @@ func GetPreferredModelOwnerChannelTypes(modelNames []string, groups []string) (m
 		if _, ok := result[r.Model]; ok {
 			continue
 		}
-		result[r.Model] = r.ChannelType
+		result[r.Model] = PreferredModelOwner{
+			ChannelType: r.ChannelType,
+			ChannelID:   r.ChannelID,
+			ChannelName: r.ChannelName,
+		}
 	}
 	return result, nil
 }
