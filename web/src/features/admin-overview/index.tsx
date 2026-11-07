@@ -34,6 +34,7 @@ import {
   getAdminUserQuotaRows,
 } from './api'
 import { ActiveUsersPanel } from './components/active-users-panel'
+import { ActivityTrendPanel } from './components/activity-trend-panel'
 import { ModelUsagePanel } from './components/model-usage-panel'
 import { OverviewStatCards } from './components/overview-stat-cards'
 import { RevenuePanel } from './components/revenue-panel'
@@ -74,8 +75,11 @@ export function AdminOverview() {
   const trendDate = new Date(today)
   trendDate.setDate(trendDate.getDate() - (TREND_DAYS - 1))
   const trendStart = Math.floor(trendDate.getTime() / 1000)
-  const windowStart = Math.floor(
-    new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime() / 1000
+  const windowStart = Math.min(
+    trendStart,
+    Math.floor(
+      new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime() / 1000
+    )
   )
   const currentHour = now.getHours()
 
@@ -118,6 +122,21 @@ export function AdminOverview() {
       ),
     refetchInterval: ALL_TIME_REFRESH_MS,
     staleTime: ALL_TIME_REFRESH_MS,
+  })
+
+  const rateQuery = useQuery({
+    queryKey: ['admin-overview', 'rates'],
+    queryFn: async () => {
+      const timestamp = Math.floor(Date.now() / 1000)
+      return requireServerSuccess(
+        await getAdminLogStat({
+          start_timestamp: timestamp - 60,
+          end_timestamp: timestamp,
+        })
+      )
+    },
+    refetchInterval: OVERVIEW_REFRESH_MS,
+    staleTime: OVERVIEW_REFRESH_MS - 5000,
   })
 
   const registeredUsersQuery = useQuery({
@@ -196,14 +215,15 @@ export function AdminOverview() {
     quotaQuery.isLoading ||
     activeUsersQuery.isLoading ||
     registeredUsersQuery.isLoading
-  const queries = [
+  const essentialQueries = [
     quotaQuery,
     activeUsersQuery,
     allTimeRevenueQuery,
     registeredUsersQuery,
   ]
+  const queries = [...essentialQueries, rateQuery]
   const hasError = queries.some((query) => query.isError)
-  const hasMissingData = queries.some(
+  const hasMissingData = essentialQueries.some(
     (query) => query.isError && query.data == null
   )
 
@@ -263,6 +283,18 @@ export function AdminOverview() {
                     (point) => point.total
                   )}
                   loading={statsLoading}
+                />
+              </FadeIn>
+
+              <FadeIn delay={0.05}>
+                <ActivityTrendPanel
+                  rows={quotaRows}
+                  now={now}
+                  loading={quotaQuery.isLoading}
+                  rates={
+                    rateQuery.isError ? null : (rateQuery.data?.data ?? null)
+                  }
+                  ratesLoading={rateQuery.isLoading}
                 />
               </FadeIn>
 

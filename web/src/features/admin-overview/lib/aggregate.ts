@@ -80,6 +80,59 @@ function getHourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`
 }
 
+export function buildUsageTrend(
+  rows: readonly OverviewQuotaRow[],
+  days: 1 | 7 | 30,
+  now: Date
+): Array<{ label: string; requests: number; tokens: number }> {
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() - (days - 1))
+  const buckets = new Map<
+    string,
+    { label: string; requests: number; tokens: number }
+  >()
+
+  if (days === 1) {
+    for (let hour = 0; hour <= now.getHours(); hour++) {
+      const label = getHourLabel(hour)
+      buckets.set(label, { label, requests: 0, tokens: 0 })
+    }
+  } else {
+    for (let offset = 0; offset < days; offset++) {
+      const date = new Date(start)
+      date.setDate(date.getDate() + offset)
+      const key = dayjs(date).format('YYYY-MM-DD')
+      buckets.set(key, {
+        label: dayjs(date).format('MM-DD'),
+        requests: 0,
+        tokens: 0,
+      })
+    }
+  }
+
+  for (const row of rows) {
+    const timestamp = getTimestamp(row.created_at)
+    if (
+      timestamp < start.getTime() / 1000 ||
+      timestamp > now.getTime() / 1000
+    ) {
+      continue
+    }
+    const date = new Date(timestamp * 1000)
+    const key =
+      days === 1
+        ? getHourLabel(date.getHours())
+        : dayjs(date).format('YYYY-MM-DD')
+    const bucket = buckets.get(key)
+    if (!bucket) continue
+    bucket.requests += toIntegerUnits(row.count)
+    bucket.tokens += toIntegerUnits(row.token_used)
+  }
+
+  return [...buckets.values()]
+}
+
 /**
  * Build one revenue point per local day for the last `days` days.
  * Values remain exact integer quota units.
