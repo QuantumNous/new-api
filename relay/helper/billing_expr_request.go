@@ -46,6 +46,26 @@ func ResolveImageBillingRequestInput(c *gin.Context, info *relaycommon.RelayInfo
 		return input, err
 	}
 	body := map[string]any{"model": request.Model, "n": count, "size": request.Size, "quality": request.Quality}
+	// Freeze provider-specific scalar params (e.g. xAI grok-imagine's
+	// resolution and aspect_ratio) so pricing expressions can branch on them.
+	// Non-scalar extras are excluded to keep large payloads out of the
+	// frozen body; known fields above are never overwritten.
+	for key, raw := range request.Extra {
+		if key == "" {
+			continue
+		}
+		if _, exists := body[key]; exists {
+			continue
+		}
+		var value any
+		if err := common.Unmarshal(raw, &value); err != nil {
+			continue
+		}
+		switch value.(type) {
+		case string, float64, bool:
+			body[key] = value
+		}
+	}
 	if request.BillingParameters != nil {
 		body["parameters"] = request.BillingParameters
 	}
