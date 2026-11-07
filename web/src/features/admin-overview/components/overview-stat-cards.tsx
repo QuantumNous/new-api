@@ -16,7 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowDownIcon, ArrowUpIcon, Coins, Cpu, Users, Wallet } from 'lucide-react'
+import {
+  Activity,
+  ArrowDownIcon,
+  ArrowUpIcon,
+  Coins,
+  Cpu,
+  Users,
+  Wallet,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,6 +44,7 @@ export interface OverviewStatCardsProps {
   activeUsers: number
   registeredUsers: number
   revenueSparkline: number[]
+  requestsSparkline: number[]
   monthSparkline: number[]
   tokensSparkline: number[]
   revenueYesterday: number | undefined
@@ -57,7 +66,7 @@ export function OverviewStatCards(props: OverviewStatCardsProps) {
       : undefined
 
   return (
-    <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4'>
+    <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5'>
       <StatCardTile>
         <StatCard
           title={t('Revenue today')}
@@ -97,6 +106,19 @@ export function OverviewStatCards(props: OverviewStatCardsProps) {
           icon={Coins}
           tone='accent-2'
           sparkline={props.monthSparkline}
+          sparklineVariant='line'
+          loading={props.loading}
+        />
+      </StatCardTile>
+
+      <StatCardTile>
+        <StatCard
+          title={t('Requests')}
+          value={formatInteger(props.requestsToday)}
+          description={t('Today')}
+          icon={Activity}
+          tone='accent-1'
+          sparkline={props.requestsSparkline}
           sparklineVariant='line'
           loading={props.loading}
         />

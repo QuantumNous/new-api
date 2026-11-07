@@ -20,6 +20,20 @@ import { api } from '@/lib/api'
 
 import type { AdminLogStat, OverviewQuotaRow, OverviewUserRow } from './types'
 
+function validateOverviewResponse<
+  T extends { success: boolean; data?: unknown },
+>(response: T): T {
+  if (
+    !response ||
+    typeof response !== 'object' ||
+    typeof response.success !== 'boolean' ||
+    (response.success && !('data' in response))
+  ) {
+    throw new Error('Invalid overview response')
+  }
+  return response
+}
+
 /**
  * Hourly quota data grouped by model. Admin-only (`GET /api/data`).
  * Rows are pre-aggregated by the backend, so this does not scan the logs table.
@@ -33,7 +47,7 @@ export async function getAdminQuotaRows(params: {
     message?: string
     data?: OverviewQuotaRow[]
   }>('/api/data', { params })
-  return res.data
+  return validateOverviewResponse(res.data)
 }
 
 /**
@@ -48,7 +62,7 @@ export async function getAdminUserQuotaRows(params: {
     message?: string
     data?: OverviewUserRow[]
   }>('/api/data/users', { params })
-  return res.data
+  return validateOverviewResponse(res.data)
 }
 
 /**
@@ -64,7 +78,7 @@ export async function getAdminLogStat(params: {
     message?: string
     data?: AdminLogStat
   }>('/api/log/stat', { params })
-  return res.data
+  return validateOverviewResponse(res.data)
 }
 
 /**
@@ -77,5 +91,5 @@ export async function getAdminRegisteredUserTotal() {
     message?: string
     data?: { total?: number }
   }>('/api/user/', { params: { p: 1, page_size: 1 } })
-  return res.data
+  return validateOverviewResponse(res.data)
 }

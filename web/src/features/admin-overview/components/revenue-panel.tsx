@@ -19,9 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import { ArrowDownIcon, ArrowUpIcon, CircleDollarSign } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ChartContainer,
   ChartTooltip,
@@ -29,8 +36,13 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TitledCard } from '@/components/ui/titled-card'
-import { formatCompactNumber, formatLogQuota, formatPercent } from '@/lib/format'
+import {
+  formatCompactNumber,
+  formatLogQuota,
+  formatPercent,
+} from '@/lib/format'
 
 import type { DailyRevenuePoint, MonthlyRevenuePoint } from '../types'
 
@@ -43,11 +55,10 @@ export interface RevenuePanelProps {
   revenueMonth: number
   revenueAllTime: number | null
   revenueYesterday: number | undefined
+  daysElapsed: number
   loading: boolean
 }
 
-// Money stays in integer quota units through every aggregation; the only
-// floating-point step is the exact halving below, formatted at display time.
 const MONTHS_SHOWN = 2
 
 export function RevenuePanel(props: RevenuePanelProps) {
@@ -149,7 +160,7 @@ export function RevenuePanel(props: RevenuePanelProps) {
           />
           <SummaryCell
             label={t('Daily average')}
-            value={formatLogQuota(props.revenueMonth / MONTHS_SHOWN)}
+            value={formatLogQuota(props.revenueMonth / props.daysElapsed)}
           />
           <SummaryCell
             label={t('All time')}

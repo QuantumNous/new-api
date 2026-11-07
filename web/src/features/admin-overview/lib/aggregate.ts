@@ -141,17 +141,14 @@ export function buildMonthlyRevenue(
     if (timestamp === 0) continue
     const d = new Date(timestamp * 1000)
     for (const point of points) {
-      if (
-        d.getFullYear() === point.year &&
-        d.getMonth() === point.month
-      ) {
+      if (d.getFullYear() === point.year && d.getMonth() === point.month) {
         point.quota += toIntegerUnits(row.quota)
         break
       }
     }
   }
 
-  return points
+  return points.reverse()
 }
 
 /** Aggregate quota rows per model, ordered by token usage then quota. */
@@ -247,17 +244,18 @@ export function buildTodayTokenSeries(
 }
 
 /** Hourly quota sparkline for today, in exact quota units. */
-export function buildTodayQuotaSparkline(
+export function buildTodayUsageSparkline(
   rows: readonly OverviewQuotaRow[],
   todayStartSeconds: number,
-  currentHour: number
+  currentHour: number,
+  field: 'quota' | 'count'
 ): number[] {
   const buckets = Array.from({ length: currentHour + 1 }, () => 0)
   for (const row of rows) {
     const timestamp = getTimestamp(row.created_at)
     if (timestamp < todayStartSeconds) continue
     const hour = new Date(timestamp * 1000).getHours()
-    if (hour < buckets.length) buckets[hour] += toIntegerUnits(row.quota)
+    if (hour < buckets.length) buckets[hour] += toIntegerUnits(row[field])
   }
   return buckets
 }
@@ -314,5 +312,3 @@ export function revenueYesterday(
   if (revenueTrend.length < 2) return undefined
   return revenueTrend.at(-2)
 }
-
-

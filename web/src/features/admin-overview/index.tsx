@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
 import { FadeIn } from '@/components/page-transition'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { getStartOfDay } from '@/lib/time'
 
@@ -32,6 +34,7 @@ import {
   getAdminUserQuotaRows,
 } from './api'
 import { ActiveUsersPanel } from './components/active-users-panel'
+import { ModelUsagePanel } from './components/model-usage-panel'
 import { OverviewStatCards } from './components/overview-stat-cards'
 import { RevenuePanel } from './components/revenue-panel'
 import { TokenUsagePanel } from './components/token-usage-panel'
@@ -41,7 +44,7 @@ import {
   buildHourlyActiveUsers,
   buildModelUsage,
   buildMonthlyRevenue,
-  buildTodayQuotaSparkline,
+  buildTodayUsageSparkline,
   buildTodayTokenSeries,
   countActiveUsers,
   revenueYesterday,
@@ -55,25 +58,26 @@ const ALL_TIME_REFRESH_MS = 5 * 60 * 1000
 
 export function AdminOverview() {
   const { t } = useTranslation()
-  const todayStart = useMemo(
-    () => Math.floor(getStartOfDay().getTime() / 1000),
-    []
-  )
-  const monthStart = useMemo(() => {
-    const now = new Date()
-    return Math.floor(
-      new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setNow(new Date()),
+      OVERVIEW_REFRESH_MS
     )
+    return () => window.clearInterval(timer)
   }, [])
-  const trendStart = useMemo(() => {
-    const start = getStartOfDay()
-    start.setDate(start.getDate() - (TREND_DAYS - 1))
-    return Math.floor(start.getTime() / 1000)
-  }, [])
-  // Keep the whole current month inside the window even at month end, when
-  // the rolling 30-day range starts after the 1st.
-  const windowStart = Math.min(trendStart, monthStart)
-  const currentHour = new Date().getHours()
+  const today = getStartOfDay(now)
+  const todayStart = Math.floor(today.getTime() / 1000)
+  const monthStart = Math.floor(
+    new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000
+  )
+  const trendDate = new Date(today)
+  trendDate.setDate(trendDate.getDate() - (TREND_DAYS - 1))
+  const trendStart = Math.floor(trendDate.getTime() / 1000)
+  const windowStart = Math.floor(
+    new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime() / 1000
+  )
+  const currentHour = now.getHours()
 
   const quotaQuery = useQuery({
     queryKey: ['admin-overview', 'quota', windowStart],
@@ -141,12 +145,12 @@ export function AdminOverview() {
     [quotaRows, monthStart]
   )
   const revenueTrend = useMemo(
-    () => buildDailyRevenue(quotaRows, TREND_DAYS),
-    [quotaRows]
+    () => buildDailyRevenue(quotaRows, TREND_DAYS, now),
+    [quotaRows, now]
   )
   const monthlyRevenueTrend = useMemo(
-    () => buildMonthlyRevenue(quotaRows, 2),
-    [quotaRows]
+    () => buildMonthlyRevenue(quotaRows, 2, now),
+    [quotaRows, now]
   )
   const revenueYesterdayValue = useMemo(
     () => revenueYesterday(revenueTrend),
@@ -156,12 +160,22 @@ export function AdminOverview() {
     () => buildTodayTokenSeries(quotaRows, todayStart, currentHour),
     [quotaRows, todayStart, currentHour]
   )
-  const topModels = useMemo(
-    () => buildModelUsage(quotaRows).slice(0, TOP_MODEL_LIMIT),
-    [quotaRows]
+  const modelUsage = useMemo(
+    () =>
+      buildModelUsage(quotaRows.filter((row) => row.created_at >= trendStart)),
+    [quotaRows, trendStart]
+  )
+  const topModels = modelUsage.slice(0, TOP_MODEL_LIMIT)
+  const totalModelTokens = modelUsage.reduce(
+    (total, model) => total + model.tokens,
+    0
   )
   const revenueSparkline = useMemo(
-    () => buildTodayQuotaSparkline(quotaRows, todayStart, currentHour),
+    () => buildTodayUsageSparkline(quotaRows, todayStart, currentHour, 'quota'),
+    [quotaRows, todayStart, currentHour]
+  )
+  const requestsSparkline = useMemo(
+    () => buildTodayUsageSparkline(quotaRows, todayStart, currentHour, 'count'),
     [quotaRows, todayStart, currentHour]
   )
   const activeUserCount = useMemo(
@@ -169,8 +183,8 @@ export function AdminOverview() {
     [activeRows]
   )
   const hourlyActivity = useMemo(
-    () => buildHourlyActiveUsers(activeRows),
-    [activeRows]
+    () => buildHourlyActiveUsers(activeRows, now),
+    [activeRows, now]
   )
 
   const registeredUsers = Number(registeredUsersQuery.data?.data?.total ?? 0)
@@ -178,77 +192,132 @@ export function AdminOverview() {
     allTimeRevenueQuery.data?.data == null
       ? null
       : Number(allTimeRevenueQuery.data.data.quota ?? 0)
-  const statsLoading = quotaQuery.isLoading || activeUsersQuery.isLoading
+  const statsLoading =
+    quotaQuery.isLoading ||
+    activeUsersQuery.isLoading ||
+    registeredUsersQuery.isLoading
+  const queries = [
+    quotaQuery,
+    activeUsersQuery,
+    allTimeRevenueQuery,
+    registeredUsersQuery,
+  ]
+  const hasError = queries.some((query) => query.isError)
+  const hasMissingData = queries.some(
+    (query) => query.isError && query.data == null
+  )
 
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Home')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <span className='text-muted-foreground flex items-center gap-1.5 text-xs'>
-          <span
-            className='bg-success size-1.5 rounded-full'
-            aria-hidden='true'
-          />
-          {t('Live data, refreshed every minute')}
+          {!hasError && (
+            <span
+              className='bg-success size-1.5 rounded-full'
+              aria-hidden='true'
+            />
+          )}
+          {hasError
+            ? t('Failed to load')
+            : t('Live data, refreshed every minute')}
         </span>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='flex flex-col gap-3 sm:gap-4'>
-          <FadeIn>
-            <OverviewStatCards
-              revenueToday={totalsToday.quota}
-              revenueMonth={totalsMonth.quota}
-              revenueYesterday={revenueYesterdayValue?.quota}
-              tokensToday={totalsToday.tokens}
-              requestsToday={totalsToday.requests}
-              activeUsers={activeUserCount}
-              registeredUsers={registeredUsers}
-              revenueSparkline={revenueSparkline}
-              monthSparkline={revenueTrend.map((point) => point.quota)}
-              tokensSparkline={tokenSeries.points.map((point) => point.total)}
-              loading={statsLoading}
-            />
-          </FadeIn>
+          {hasError && (
+            <Alert variant='destructive'>
+              <AlertDescription className='flex flex-wrap items-center justify-between gap-2'>
+                <span>{t('Failed to load')}</span>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => {
+                    for (const query of queries) {
+                      if (query.isError) {
+                        void query.refetch()
+                      }
+                    }
+                  }}
+                >
+                  {t('Retry')}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          {!hasMissingData && (
+            <>
+              <FadeIn>
+                <OverviewStatCards
+                  revenueToday={totalsToday.quota}
+                  revenueMonth={totalsMonth.quota}
+                  revenueYesterday={revenueYesterdayValue?.quota}
+                  tokensToday={totalsToday.tokens}
+                  requestsToday={totalsToday.requests}
+                  activeUsers={activeUserCount}
+                  registeredUsers={registeredUsers}
+                  revenueSparkline={revenueSparkline}
+                  requestsSparkline={requestsSparkline}
+                  monthSparkline={revenueTrend.map((point) => point.quota)}
+                  tokensSparkline={tokenSeries.points.map(
+                    (point) => point.total
+                  )}
+                  loading={statsLoading}
+                />
+              </FadeIn>
 
-          <div className='grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]'>
-            <FadeIn delay={0.05}>
-              <RevenuePanel
-                points={revenueTrend}
-                monthlyPoints={monthlyRevenueTrend}
-                revenueToday={totalsToday.quota}
-                revenueMonth={totalsMonth.quota}
-                revenueAllTime={allTimeRevenue}
-                revenueYesterday={revenueYesterdayValue?.quota}
-                loading={quotaQuery.isLoading}
-              />
-            </FadeIn>
-            <FadeIn delay={0.1}>
-              <ActiveUsersPanel
-                activeUsers={activeUserCount}
-                registeredUsers={registeredUsers}
-                points={hourlyActivity}
-                loading={activeUsersQuery.isLoading}
-              />
-            </FadeIn>
-          </div>
+              <div className='grid gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]'>
+                <FadeIn delay={0.05}>
+                  <RevenuePanel
+                    points={revenueTrend}
+                    monthlyPoints={monthlyRevenueTrend}
+                    revenueToday={totalsToday.quota}
+                    revenueMonth={totalsMonth.quota}
+                    revenueAllTime={allTimeRevenue}
+                    revenueYesterday={revenueYesterdayValue?.quota}
+                    daysElapsed={now.getDate()}
+                    loading={quotaQuery.isLoading}
+                  />
+                </FadeIn>
+                <FadeIn delay={0.1}>
+                  <ActiveUsersPanel
+                    activeUsers={activeUserCount}
+                    registeredUsers={registeredUsers}
+                    points={hourlyActivity}
+                    loading={
+                      activeUsersQuery.isLoading ||
+                      registeredUsersQuery.isLoading
+                    }
+                  />
+                </FadeIn>
+              </div>
 
-          <div className='grid gap-3 sm:gap-4 xl:grid-cols-2'>
-            <FadeIn delay={0.15}>
-              <TokenUsagePanel
-                series={tokenSeries.series}
-                points={tokenSeries.points}
-                tokensToday={totalsToday.tokens}
-                requestsToday={totalsToday.requests}
-                loading={quotaQuery.isLoading}
-              />
-            </FadeIn>
-            <FadeIn delay={0.2}>
-              <TopModelsPanel
-                models={topModels}
-                loading={quotaQuery.isLoading}
-              />
-            </FadeIn>
-          </div>
+              <div className='grid gap-3 sm:gap-4 xl:grid-cols-2'>
+                <FadeIn delay={0.15}>
+                  <TokenUsagePanel
+                    series={tokenSeries.series}
+                    points={tokenSeries.points}
+                    tokensToday={totalsToday.tokens}
+                    requestsToday={totalsToday.requests}
+                    loading={quotaQuery.isLoading}
+                  />
+                </FadeIn>
+                <FadeIn delay={0.2}>
+                  <TopModelsPanel
+                    models={topModels}
+                    totalTokens={totalModelTokens}
+                    loading={quotaQuery.isLoading}
+                  />
+                </FadeIn>
+              </div>
+              <FadeIn delay={0.25}>
+                <ModelUsagePanel
+                  models={modelUsage}
+                  loading={quotaQuery.isLoading}
+                />
+              </FadeIn>
+            </>
+          )}
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>
