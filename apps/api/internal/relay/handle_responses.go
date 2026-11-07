@@ -9,6 +9,7 @@ import (
 
 	model_setting "github.com/QuantumNous/new-api/internal/catalog"
 	"github.com/QuantumNous/new-api/internal/common"
+	"github.com/QuantumNous/new-api/internal/constant"
 	"github.com/QuantumNous/new-api/internal/logger"
 	relaycommon "github.com/QuantumNous/new-api/internal/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/internal/relay/constant"
@@ -17,6 +18,51 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
+
+// applyResponsesSystemPrompt merges the channel system prompt into a Responses
+// request's `instructions`. The default prepends the channel prompt in front of
+// the caller's instructions; UserSystemPromptOverride replaces the caller's
+// instructions with the channel prompt.
+func applyResponsesSystemPrompt(c contract.Context, info *relaycommon.RelayInfo, request *dto.OpenAIResponsesRequest, systemPrompt string) error {
+	if info.ChannelSetting.UserSystemPromptOverride {
+		common.SetContextKey(c, constant.ContextKeyUserSystemPromptOverridden, true)
+		b, err := common.Marshal(systemPrompt)
+		if err != nil {
+			return err
+		}
+		request.Instructions = b
+		return nil
+	}
+	if len(request.Instructions) == 0 {
+		b, err := common.Marshal(systemPrompt)
+		if err != nil {
+			return err
+		}
+		request.Instructions = b
+		return nil
+	}
+	var existing string
+	if err := common.Unmarshal(request.Instructions, &existing); err != nil {
+		// `instructions` is not a plain string; replace it rather than emit
+		// invalid merged JSON.
+		b, marshalErr := common.Marshal(systemPrompt)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		request.Instructions = b
+		return nil
+	}
+	merged := systemPrompt
+	if existing = strings.TrimSpace(existing); existing != "" {
+		merged = systemPrompt + "\n" + existing
+	}
+	b, err := common.Marshal(merged)
+	if err != nil {
+		return err
+	}
+	request.Instructions = b
+	return nil
+}
 
 func ResponsesHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -83,6 +129,11 @@ func ResponsesHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIErr
 		}
 		requestBody = common.NewReplayableBodyReader(storage)
 	} else {
+		if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
+			if err := applyResponsesSystemPrompt(c, info, request, systemPrompt); err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+		}
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())

@@ -67,7 +67,7 @@ func GenerateTextOtherInfo(ctx contract.Context, relayInfo *relaycommon.RelayInf
 		other["upstream_model_name"] = relayInfo.UpstreamModelName
 	}
 
-	isSystemPromptOverwritten := common.GetCtxKeyBool(ctx, constant.ContextKeySystemPromptOverride)
+	isSystemPromptOverwritten := common.GetCtxKeyBool(ctx, constant.ContextKeyUserSystemPromptOverridden)
 	if isSystemPromptOverwritten {
 		other["is_system_prompt_overwritten"] = true
 	}

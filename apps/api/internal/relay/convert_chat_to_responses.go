@@ -29,14 +29,14 @@ func applySystemPromptIfNeeded(c contract.Context, info *relaycommon.RelayInfo, 
 
 	systemRole := request.GetSystemRoleName()
 
-	containSystemPrompt := false
-	for _, message := range request.Messages {
+	systemIndex := -1
+	for i, message := range request.Messages {
 		if message.Role == systemRole {
-			containSystemPrompt = true
+			systemIndex = i
 			break
 		}
 	}
-	if !containSystemPrompt {
+	if systemIndex < 0 {
 		systemMessage := dto.Message{
 			Role:    systemRole,
 			Content: systemPrompt,
@@ -45,29 +45,33 @@ func applySystemPromptIfNeeded(c contract.Context, info *relaycommon.RelayInfo, 
 		return
 	}
 
-	if !info.ChannelSetting.SystemPromptOverride {
+	if info.ChannelSetting.UserSystemPromptOverride {
+		// 覆盖模式：丢弃用户自带的 system prompt，只保留通道提示词。
+		common.SetContextKey(c, constant.ContextKeyUserSystemPromptOverridden, true)
+		request.Messages[systemIndex].SetStringContent(systemPrompt)
 		return
 	}
 
-	common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-	for i, message := range request.Messages {
-		if message.Role != systemRole {
-			continue
+	// 默认合并：通道提示词拼在用户 system prompt 最前。调用方可能在
+	// prompt-cache 回退时重复执行请求构造，跳过已经拼好的提示词。
+	message := request.Messages[systemIndex]
+	if message.IsStringContent() {
+		if !strings.HasPrefix(message.StringContent(), systemPrompt+"\n") {
+			request.Messages[systemIndex].SetStringContent(systemPrompt + "\n" + message.StringContent())
 		}
-		if message.IsStringContent() {
-			request.Messages[i].SetStringContent(systemPrompt + "\n" + message.StringContent())
-			return
-		}
-		contents := message.ParseContent()
-		contents = append([]dto.MediaContent{
-			{
-				Type: dto.ContentTypeText,
-				Text: systemPrompt,
-			},
-		}, contents...)
-		request.Messages[i].Content = contents
 		return
 	}
+	contents := message.ParseContent()
+	if len(contents) > 0 && contents[0].Type == dto.ContentTypeText && contents[0].Text == systemPrompt {
+		return
+	}
+	contents = append([]dto.MediaContent{
+		{
+			Type: dto.ContentTypeText,
+			Text: systemPrompt,
+		},
+	}, contents...)
+	request.Messages[systemIndex].Content = contents
 }
 
 func chatCompletionsViaResponses(c contract.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request *dto.GeneralOpenAIRequest) (*dto.Usage, *types.NewAPIError) {

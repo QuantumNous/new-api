@@ -61,7 +61,7 @@ func responseCacheEligible(info *relaycommon.RelayInfo, req *dto.GeneralOpenAIRe
 	// cache key, which covers only the raw client body plus upstream model.
 	// Caching such channels would cross-serve content (e.g. channel A's
 	// system prompt replayed to channel B). Exclude them for safety.
-	if info.ChannelSetting.SystemPrompt != "" || len(info.ParamOverride) > 0 {
+	if info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName) != "" || len(info.ParamOverride) > 0 {
 		return false
 	}
 	// ChannelOtherSettings influences RemoveDisabledFields (which deletes

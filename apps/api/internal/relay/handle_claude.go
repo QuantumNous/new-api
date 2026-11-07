@@ -19,6 +19,45 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
+func applyClaudeSystemPrompt(c contract.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) {
+	if info == nil || request == nil {
+		return
+	}
+	systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName)
+	if systemPrompt == "" {
+		return
+	}
+
+	switch {
+	case request.System == nil:
+		request.SetStringSystem(systemPrompt)
+	case info.ChannelSetting.UserSystemPromptOverride:
+		// 覆盖模式：丢弃用户自带的 system prompt，只保留通道提示词。
+		common.SetContextKey(c, constant.ContextKeyUserSystemPromptOverridden, true)
+		request.SetStringSystem(systemPrompt)
+	default:
+		// 默认合并：通道提示词拼在用户 system prompt 最前。
+		if request.IsStringSystem() {
+			existing := strings.TrimSpace(request.GetStringSystem())
+			if existing == "" {
+				request.SetStringSystem(systemPrompt)
+			} else {
+				request.SetStringSystem(systemPrompt + "\n" + existing)
+			}
+			return
+		}
+
+		systemContents := request.ParseSystem()
+		newSystem := dto.ClaudeMediaMessage{Type: dto.ContentTypeText}
+		newSystem.SetText(systemPrompt)
+		if len(systemContents) == 0 {
+			request.System = []dto.ClaudeMediaMessage{newSystem}
+		} else {
+			request.System = append([]dto.ClaudeMediaMessage{newSystem}, systemContents...)
+		}
+	}
+}
+
 func ClaudeHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 
 	info.InitChannelMeta(c)
@@ -110,30 +149,7 @@ func ClaudeHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError 
 		}
 	}
 
-	if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
-		if request.System == nil {
-			request.SetStringSystem(systemPrompt)
-		} else if info.ChannelSetting.SystemPromptOverride {
-			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-			if request.IsStringSystem() {
-				existing := strings.TrimSpace(request.GetStringSystem())
-				if existing == "" {
-					request.SetStringSystem(systemPrompt)
-				} else {
-					request.SetStringSystem(systemPrompt + "\n" + existing)
-				}
-			} else {
-				systemContents := request.ParseSystem()
-				newSystem := dto.ClaudeMediaMessage{Type: dto.ContentTypeText}
-				newSystem.SetText(systemPrompt)
-				if len(systemContents) == 0 {
-					request.System = []dto.ClaudeMediaMessage{newSystem}
-				} else {
-					request.System = append([]dto.ClaudeMediaMessage{newSystem}, systemContents...)
-				}
-			}
-		}
-	}
+	applyClaudeSystemPrompt(c, info, request)
 
 	if !model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&

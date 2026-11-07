@@ -260,7 +260,7 @@ export const channelFormSchema = z
     pass_through_body_enabled: z.boolean().optional(),
     session_affinity_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
-    system_prompt_override: z.boolean().optional(),
+    user_system_prompt_override: z.boolean().optional(),
     system_prompt_models: z.record(z.string(), z.string()).optional(),
     system_prompt_preset: z.string().optional(),
     // Type-specific settings (stored in settings JSON)
@@ -434,7 +434,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   pass_through_body_enabled: false,
   session_affinity_enabled: false,
   system_prompt: '',
-  system_prompt_override: false,
+  user_system_prompt_override: false,
   system_prompt_models: {},
   system_prompt_preset: '',
   // Type-specific settings
@@ -478,7 +478,7 @@ export function transformChannelToFormDefaults(
     pass_through_body_enabled: false,
     session_affinity_enabled: false,
     system_prompt: '',
-    system_prompt_override: false,
+    user_system_prompt_override: false,
     system_prompt_models: {} as Record<string, string>,
     system_prompt_preset: '',
   }
@@ -501,7 +501,7 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         session_affinity_enabled: parsed.session_affinity_enabled || false,
         system_prompt: parsed.system_prompt || '',
-        system_prompt_override: parsed.system_prompt_override || false,
+        user_system_prompt_override: parsed.user_system_prompt_override || false,
         system_prompt_models: parsed.system_prompt_models || {},
         system_prompt_preset: parsed.system_prompt_preset || '',
       }
@@ -620,7 +620,7 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     session_affinity_enabled: formData.session_affinity_enabled || false,
     system_prompt: formData.system_prompt || '',
-    system_prompt_override: formData.system_prompt_override || false,
+    user_system_prompt_override: formData.user_system_prompt_override || false,
     system_prompt_models: formData.system_prompt_models || {},
     system_prompt_preset: formData.system_prompt_preset || '',
   }

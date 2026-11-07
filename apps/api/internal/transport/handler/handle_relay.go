@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/QuantumNous/new-api/internal/billing"
@@ -182,6 +183,11 @@ func Relay(c contract.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	// The channel system prompt is injected later by the relay helpers, but it
+	// travels upstream and must be part of the reserved quota, the tier context
+	// length and the local-count fallback. Reserve it here, before pre-consume.
+	basePromptTokens := tokens
+	tokens += channelSystemPromptTokenDelta(c, relayInfo)
 	relayInfo.SetEstimatePromptTokens(tokens)
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
@@ -333,6 +339,9 @@ func Relay(c contract.Context, relayFormat types.RelayFormat) {
 		slotFullErr = nil
 		defer release()
 		channel := route.Channel
+		// Each attempt may land on a channel with a different system prompt, so
+		// the fallback estimate follows the channel that is actually dialed.
+		relayInfo.SetEstimatePromptTokens(basePromptTokens + channelSystemPromptTokenDelta(c, relayInfo))
 		if billingErr := billing.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break
@@ -557,6 +566,118 @@ func addUsedChannel(c contract.Context, channelId int) {
 	useChannel := c.GetStringSlice("use_channel")
 	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
 	c.Set("use_channel", useChannel)
+}
+
+// channelSystemPromptTokenDelta returns how many input tokens the channel-level
+// system prompt will add to the request actually sent upstream. The injection
+// helpers run after pre-consume, so without this delta the reserved quota, the
+// tier context length and the local-count fallback would all bill the request
+// as if the channel prompt did not exist.
+func channelSystemPromptTokenDelta(c contract.Context, info *relaycommon.RelayInfo) int {
+	if info == nil || catalog.GetGlobalSettings().PassThroughRequestEnabled {
+		return 0
+	}
+	setting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+	if !ok || setting.PassThroughBodyEnabled {
+		return 0
+	}
+	systemPrompt := setting.ResolveSystemPrompt(info.OriginModelName)
+	if systemPrompt == "" || !carriesChannelSystemPrompt(info.Request) {
+		return 0
+	}
+	model := common.GetCtxKeyString(c, constant.ContextKeyOriginalModel)
+	delta := relaycommon.CountTextToken(systemPrompt, model)
+	if _, ok := info.Request.(*dto.GeneralOpenAIRequest); ok {
+		// Only chat-completions requests carry the injected system message; a
+		// legacy completions request would drop it upstream.
+		if info.RelayMode != relayconstant.RelayModeChatCompletions {
+			return 0
+		}
+		// The chat format wraps the prompt in a system message and the estimate
+		// charges three formatting tokens per message, so reserve that here too.
+		delta += 3
+	}
+	if setting.UserSystemPromptOverride {
+		// Override drops the caller's own system prompt, so its tokens do not
+		// travel upstream and must not stay in the reserved count.
+		delta -= userSystemPromptTokens(info.Request, model)
+	}
+	if delta < 0 {
+		return 0
+	}
+	return delta
+}
+
+// carriesChannelSystemPrompt reports whether the relay helpers inject the
+// channel system prompt for this request type.
+func carriesChannelSystemPrompt(request dto.Request) bool {
+	switch request.(type) {
+	case *dto.GeneralOpenAIRequest, *dto.ClaudeRequest, *dto.GeminiChatRequest,
+		*dto.OpenAIResponsesRequest, *dto.OpenAIResponsesCompactionRequest:
+		return true
+	default:
+		return false
+	}
+}
+
+// userSystemPromptTokens counts the caller-provided system prompt that
+// UserSystemPromptOverride replaces, using the same tokenizer as the estimate.
+func userSystemPromptTokens(request dto.Request, model string) int {
+	switch req := request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		for _, message := range req.Messages {
+			if message.Role != req.GetSystemRoleName() {
+				continue
+			}
+			return openAISystemMessageTokens(&message, model)
+		}
+		return 0
+	case *dto.ClaudeRequest:
+		tokens := 0
+		for _, content := range req.ParseSystem() {
+			tokens += relaycommon.CountTextToken(content.GetText(), model)
+		}
+		return tokens
+	case *dto.GeminiChatRequest:
+		if req.SystemInstructions == nil {
+			return 0
+		}
+		tokens := 0
+		for _, part := range req.SystemInstructions.Parts {
+			tokens += relaycommon.CountTextToken(part.Text, model)
+		}
+		return tokens
+	case *dto.OpenAIResponsesRequest:
+		return instructionsTokens(req.Instructions, model)
+	case *dto.OpenAIResponsesCompactionRequest:
+		return instructionsTokens(req.Instructions, model)
+	default:
+		return 0
+	}
+}
+
+func openAISystemMessageTokens(message *dto.Message, model string) int {
+	tokens := 3
+	if message.IsStringContent() {
+		return tokens + relaycommon.CountTextToken(message.StringContent(), model)
+	}
+	for _, part := range message.ParseContent() {
+		if part.Type == dto.ContentTypeText {
+			tokens += relaycommon.CountTextToken(part.Text, model)
+		}
+	}
+	return tokens
+}
+
+func instructionsTokens(instructions json.RawMessage, model string) int {
+	if len(instructions) == 0 {
+		return 0
+	}
+	var text string
+	if err := common.Unmarshal(instructions, &text); err != nil {
+		return 0
+	}
+	return relaycommon.CountTextToken(text, model)
 }
 
 func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {

@@ -15,13 +15,16 @@ type ChannelSettings struct {
 	ForceFormat       bool `json:"force_format,omitempty"`
 	ThinkingToContent bool `json:"thinking_to_content,omitempty"`
 	// BypassProxy bypasses the global proxy and connects directly.
-	BypassProxy            bool              `json:"bypass_proxy,omitempty"`
-	Proxy                  string            `json:"proxy"`
-	PassThroughBodyEnabled bool              `json:"pass_through_body_enabled,omitempty"`
-	SessionAffinityEnabled bool              `json:"session_affinity_enabled,omitempty"`
-	SystemPrompt           string            `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool              `json:"system_prompt_override,omitempty"`
-	SystemPromptModels     map[string]string `json:"system_prompt_models,omitempty"`
+	BypassProxy            bool   `json:"bypass_proxy,omitempty"`
+	Proxy                  string `json:"proxy"`
+	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
+	SessionAffinityEnabled bool   `json:"session_affinity_enabled,omitempty"`
+	SystemPrompt           string `json:"system_prompt,omitempty"`
+	// UserSystemPromptOverride replaces the caller's own system prompt with the
+	// resolved channel system prompt. The default (false) prepends the channel
+	// prompt in front of the caller's system prompt instead of replacing it.
+	UserSystemPromptOverride bool              `json:"user_system_prompt_override,omitempty"`
+	SystemPromptModels       map[string]string `json:"system_prompt_models,omitempty"`
 	// SystemPromptPreset selects a built-in system prompt preset embedded in
 	// the binary. Accepted values: "", "silly_tavern", "tavern_card". When set,
 	// it takes priority over SystemPrompt but is overridden by

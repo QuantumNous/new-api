@@ -514,7 +514,7 @@ func SetupContextForSelectedChannel(c contract.Context, route *catalog.SelectedR
 	common.SetCtxKey(c, constant.ContextKeyRouteStatsHandle, route.StatsHandle)
 	common.SetCtxKey(c, constant.ContextKeySelectedRoute, route)
 	common.SetCtxKey(c, constant.ContextKeyChannelBaseUrl, channel.GetBaseURL())
-	common.SetCtxKey(c, constant.ContextKeySystemPromptOverride, false)
+	common.SetCtxKey(c, constant.ContextKeyUserSystemPromptOverridden, false)
 	switch channel.Type {
 	case constant.ChannelTypeAzure, constant.ChannelTypeXunfei, constant.ChannelTypeGemini, constant.ChannelCloudflare, constant.ChannelTypeMokaAI:
 		c.Set("api_version", channel.Other)

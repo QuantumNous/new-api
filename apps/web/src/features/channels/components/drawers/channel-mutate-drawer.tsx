@@ -280,7 +280,7 @@ const SENSITIVE_FORM_FIELDS = [
   'pass_through_body_enabled',
   'session_affinity_enabled',
   'system_prompt',
-  'system_prompt_override',
+  'user_system_prompt_override',
   'system_prompt_models',
   'system_prompt_preset',
   'allow_service_tier',
@@ -665,7 +665,7 @@ function ChannelMutateDrawerContent({
   const currentHttpProtocol = useWatch({ control: form.control, name: 'http_protocol' })
   const currentHttp2ConnectionShards = useWatch({ control: form.control, name: 'http2_connection_shards' })
   const currentSystemPrompt = useWatch({ control: form.control, name: 'system_prompt' })
-  const currentSystemPromptOverride = useWatch({ control: form.control, name: 'system_prompt_override' })
+  const currentUserSystemPromptOverride = useWatch({ control: form.control, name: 'user_system_prompt_override' })
   const currentSystemPromptModels = useWatch({
     control: form.control,
     name: 'system_prompt_models',
@@ -901,7 +901,7 @@ function ChannelMutateDrawerContent({
       currentDisableTaskPollingSleep ||
       currentProxy?.trim() ||
       currentSystemPrompt?.trim() ||
-      currentSystemPromptOverride ||
+      currentUserSystemPromptOverride ||
       Object.keys(currentSystemPromptModels ?? {}).length > 0 ||
       (currentHttpProtocol && currentHttpProtocol !== 'auto') ||
       (currentHttp2ConnectionShards != null && currentHttp2ConnectionShards > 1)
@@ -4257,7 +4257,7 @@ function ChannelMutateDrawerContent({
                                   <FormControl>
                                     <Textarea
                                       placeholder={t(
-                                        'Enter system prompt (user prompt takes priority)'
+                                        'Enter system prompt (counts toward context and input tokens)'
                                       )}
                                       rows={3}
                                       {...field}
@@ -4265,7 +4265,7 @@ function ChannelMutateDrawerContent({
                                   </FormControl>
                                   <FormDescription>
                                     {t(
-                                      'Default system prompt for this channel'
+                                      'Default system prompt for this channel (counts toward context and input tokens)'
                                     )}
                                   </FormDescription>
                                   <FormMessage />
@@ -4281,7 +4281,7 @@ function ChannelMutateDrawerContent({
                                   <div className='space-y-0.5'>
                                     <FormLabel>{t('Jailbreak')}</FormLabel>
                                     <FormDescription>
-                                      {t('Override system prompt with jailbreak preset')}
+                                      {t('Prepend the jailbreak preset to the system prompt (counts toward context and input tokens)')}
                                     </FormDescription>
                                   </div>
                                   <FormControl>
@@ -4298,16 +4298,16 @@ function ChannelMutateDrawerContent({
 
                             <FormField
                               control={form.control}
-                              name='system_prompt_override'
+                              name='user_system_prompt_override'
                               render={({ field }) => (
                                 <FormItem className='flex items-center justify-between'>
                                   <div className='space-y-0.5'>
                                     <FormLabel>
-                                      {t('System Prompt Concatenation')}
+                                      {t('Override User System Prompt')}
                                     </FormLabel>
                                     <FormDescription>
                                       {t(
-                                        'Concatenate channel system prompt with user&apos;s prompt'
+                                        'Replace the user system prompt with the channel system prompt (the channel prompt still counts toward the context window and input tokens)'
                                       )}
                                     </FormDescription>
                                   </div>
@@ -4402,7 +4402,7 @@ function ChannelMutateDrawerContent({
                                     </FormLabel>
                                     <FormDescription>
                                       {t(
-                                        'System Prompt for this model (falls back to channel default)'
+                                        'System Prompt for this model (falls back to channel default; counts toward context and input tokens)'
                                       )}
                                     </FormDescription>
                                     <div className='divide-y divide-border space-y-2'>
@@ -4432,7 +4432,7 @@ function ChannelMutateDrawerContent({
                                               )
                                             }
                                             placeholder={t(
-                                              'Enter system prompt (user prompt takes priority)'
+                                              'Enter system prompt (counts toward context and input tokens)'
                                             )}
                                             rows={2}
                                           />

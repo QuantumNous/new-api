@@ -5,7 +5,6 @@ import (
 	"github.com/QuantumNous/new-api/internal/billing"
 	"io"
 	"net/http"
-	"strings"
 
 	model_setting "github.com/QuantumNous/new-api/internal/catalog"
 	ratio_setting "github.com/QuantumNous/new-api/internal/catalog/configure_ratio"
@@ -186,60 +185,17 @@ func TextHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *t
 		// auto-injected prompt_cache_key can rebuild the exact upstream body
 		// once with the injection reverted.
 		rebuildRequestBody = func() (io.Reader, *types.NewAPIError) {
+			// Inject the channel system prompt on the source request before the
+			// adaptor converts it, so chat→claude / chat→gemini adaptors carry it
+			// too. applySystemPromptIfNeeded is idempotent, which keeps the
+			// prompt-cache fallback's second rebuild from duplicating the merge.
+			applySystemPromptIfNeeded(c, info, request)
+
 			convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
 			if err != nil {
 				return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
 			relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
-
-			if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
-				// 如果有系统提示，则将其添加到请求中
-				request, ok := convertedRequest.(*dto.GeneralOpenAIRequest)
-				if ok {
-					containSystemPrompt := false
-					for _, message := range request.Messages {
-						if message.Role == request.GetSystemRoleName() {
-							containSystemPrompt = true
-							break
-						}
-					}
-					if !containSystemPrompt {
-						// 如果没有系统提示，则添加系统提示
-						systemMessage := dto.Message{
-							Role:    request.GetSystemRoleName(),
-							Content: systemPrompt,
-						}
-						request.Messages = append([]dto.Message{systemMessage}, request.Messages...)
-					} else if info.ChannelSetting.SystemPromptOverride {
-						common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-						// 如果有系统提示，且允许覆盖，则拼接到前面
-						for i, message := range request.Messages {
-							if message.Role == request.GetSystemRoleName() {
-								// The prompt-cache fallback rebuilds the body by running this closure a
-								// second time, and same-pointer adaptors hand back the already-mutated
-								// request; skip prepends that are already in place.
-								if message.IsStringContent() {
-									if !strings.HasPrefix(message.StringContent(), systemPrompt+"\n") {
-										request.Messages[i].SetStringContent(systemPrompt + "\n" + message.StringContent())
-									}
-								} else {
-									contents := message.ParseContent()
-									if len(contents) == 0 || contents[0].Type != dto.ContentTypeText || contents[0].Text != systemPrompt {
-										contents = append([]dto.MediaContent{
-											{
-												Type: dto.ContentTypeText,
-												Text: systemPrompt,
-											},
-										}, contents...)
-										request.Messages[i].Content = contents
-									}
-								}
-								break
-							}
-						}
-					}
-				}
-			}
 
 			// Inject against the converted request so chat→claude etc. are covered
 			// too; the key is derived after every request mutation so it reflects

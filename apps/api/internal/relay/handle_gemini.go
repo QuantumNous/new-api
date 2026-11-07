@@ -30,6 +30,39 @@ func isNoThinkingRequest(req *dto.GeminiChatRequest) bool {
 	return false
 }
 
+func applyGeminiSystemPrompt(c contract.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) {
+	if info == nil || request == nil {
+		return
+	}
+	systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName)
+	if systemPrompt == "" {
+		return
+	}
+
+	switch {
+	case request.SystemInstructions == nil:
+		request.SystemInstructions = &dto.GeminiChatContent{
+			Parts: []dto.GeminiPart{{Text: systemPrompt}},
+		}
+	case len(request.SystemInstructions.Parts) == 0:
+		request.SystemInstructions.Parts = []dto.GeminiPart{{Text: systemPrompt}}
+	case info.ChannelSetting.UserSystemPromptOverride:
+		// 覆盖模式：丢弃用户自带的 system prompt，只保留通道提示词。
+		common.SetContextKey(c, constant.ContextKeyUserSystemPromptOverridden, true)
+		request.SystemInstructions.Parts = []dto.GeminiPart{{Text: systemPrompt}}
+	default:
+		// 默认合并：通道提示词拼在用户 system prompt 最前。
+		for i := range request.SystemInstructions.Parts {
+			if request.SystemInstructions.Parts[i].Text == "" {
+				continue
+			}
+			request.SystemInstructions.Parts[i].Text = systemPrompt + "\n" + request.SystemInstructions.Parts[i].Text
+			return
+		}
+		request.SystemInstructions.Parts = append([]dto.GeminiPart{{Text: systemPrompt}}, request.SystemInstructions.Parts...)
+	}
+}
+
 func GeminiHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
@@ -74,31 +107,7 @@ func GeminiHelper(c contract.Context, info *relaycommon.RelayInfo) (newAPIError 
 
 	adaptor.Init(info)
 
-	if systemPrompt := info.ChannelSetting.ResolveSystemPrompt(info.OriginModelName); systemPrompt != "" {
-		if request.SystemInstructions == nil {
-			request.SystemInstructions = &dto.GeminiChatContent{
-				Parts: []dto.GeminiPart{
-					{Text: systemPrompt},
-				},
-			}
-		} else if len(request.SystemInstructions.Parts) == 0 {
-			request.SystemInstructions.Parts = []dto.GeminiPart{{Text: systemPrompt}}
-		} else if info.ChannelSetting.SystemPromptOverride {
-			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-			merged := false
-			for i := range request.SystemInstructions.Parts {
-				if request.SystemInstructions.Parts[i].Text == "" {
-					continue
-				}
-				request.SystemInstructions.Parts[i].Text = systemPrompt + "\n" + request.SystemInstructions.Parts[i].Text
-				merged = true
-				break
-			}
-			if !merged {
-				request.SystemInstructions.Parts = append([]dto.GeminiPart{{Text: systemPrompt}}, request.SystemInstructions.Parts...)
-			}
-		}
-	}
+	applyGeminiSystemPrompt(c, info, request)
 
 	// Clean up empty system instruction
 	if request.SystemInstructions != nil {
