@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/plugins"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,6 +91,94 @@ func TestListModelsSupportsOpenAIAndGeminiAuthentication(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCodexModelCatalogListsAccessibleModels(t *testing.T) {
+	setupRelayRouterTestDB(t)
+
+	originalSelfUseMode := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = originalSelfUseMode
+	})
+
+	user := model.User{
+		Username: "codex-models-user",
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+		Quota:    100,
+	}
+	require.NoError(t, model.DB.Create(&user).Error)
+	require.NoError(t, model.DB.Create(&model.Token{
+		UserId:         user.Id,
+		Key:            "codexmodelstestkey",
+		Status:         common.TokenStatusEnabled,
+		ExpiredTime:    -1,
+		UnlimitedQuota: true,
+	}).Error)
+	require.NoError(t, model.DB.Create(&[]model.Ability{
+		{Group: "default", Model: "gpt-4.1", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "gpt-5.6-sol", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "text-embedding-3-small", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "gpt-image-1", ChannelId: 1, Enabled: true},
+	}).Error)
+
+	engine := gin.New()
+	SetRelayRouter(engine)
+
+	unauthorized := httptest.NewRecorder()
+	engine.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/codex/models?client_version=0.167.0", nil))
+	require.Equal(t, http.StatusUnauthorized, unauthorized.Code)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/codex/models?client_version=0.167.0", nil)
+	request.Header.Set("Authorization", "Bearer codexmodelstestkey")
+	engine.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Less(t, recorder.Body.Len(), 1024*1024)
+	assert.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+
+	var payload struct {
+		Models []struct {
+			Slug                     string `json:"slug"`
+			DisplayName              string `json:"display_name"`
+			BaseInstructions         string `json:"base_instructions"`
+			ShellType                string `json:"shell_type"`
+			Visibility               string `json:"visibility"`
+			SupportedInAPI           bool   `json:"supported_in_api"`
+			DefaultReasoningLevel    string `json:"default_reasoning_level"`
+			SupportedReasoningLevels []struct {
+				Effort string `json:"effort"`
+			} `json:"supported_reasoning_levels"`
+			TruncationPolicy struct {
+				Mode  string `json:"mode"`
+				Limit int    `json:"limit"`
+			} `json:"truncation_policy"`
+		} `json:"models"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.Len(t, payload.Models, 2)
+
+	modelsBySlug := make(map[string]int, len(payload.Models))
+	for i, catalogModel := range payload.Models {
+		modelsBySlug[catalogModel.Slug] = i
+		assert.Equal(t, catalogModel.Slug, catalogModel.DisplayName)
+		assert.NotEmpty(t, catalogModel.BaseInstructions)
+		assert.Equal(t, "shell_command", catalogModel.ShellType)
+		assert.Equal(t, "list", catalogModel.Visibility)
+		assert.True(t, catalogModel.SupportedInAPI)
+		assert.Equal(t, "tokens", catalogModel.TruncationPolicy.Mode)
+		assert.Equal(t, 10000, catalogModel.TruncationPolicy.Limit)
+	}
+
+	gpt41 := payload.Models[modelsBySlug["gpt-4.1"]]
+	assert.Empty(t, gpt41.SupportedReasoningLevels)
+	assert.Empty(t, gpt41.DefaultReasoningLevel)
+
+	gpt56 := payload.Models[modelsBySlug["gpt-5.6-sol"]]
+	assert.Equal(t, "medium", gpt56.DefaultReasoningLevel)
+	assert.Len(t, gpt56.SupportedReasoningLevels, 3)
 }
 
 func TestGeminiRelayHandsLongRunningPredictionToPluginRoute(t *testing.T) {

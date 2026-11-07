@@ -43,6 +43,13 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 
+	codexModelsRouter := router.Group("/codex/models")
+	codexModelsRouter.Use(middleware.RouteTag("relay"))
+	codexModelsRouter.Use(middleware.TokenAuth())
+	{
+		codexModelsRouter.GET("", controller.CodexListModels)
+	}
+
 	geminiRouter := router.Group("/v1beta/models")
 	geminiRouter.Use(middleware.RouteTag("relay"))
 	geminiRouter.Use(middleware.TokenAuth())

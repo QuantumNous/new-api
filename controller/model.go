@@ -215,7 +215,7 @@ func getModelListGroups(c *gin.Context) (modelListGroups, error) {
 	}, nil
 }
 
-func ListModels(c *gin.Context, modelType int) {
+func getListedModelNames(c *gin.Context) ([]string, []string, error) {
 	acceptUnsetRatioModel := operation_setting.SelfUseModeEnabled
 	if !acceptUnsetRatioModel {
 		userId := c.GetInt("id")
@@ -227,14 +227,9 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	}
 
-	userModelNames := make([]string, 0)
 	groups, err := getModelListGroups(c)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "get user group failed",
-		})
-		return
+		return nil, nil, err
 	}
 	ownerGroups := groups.ownerGroups
 	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
@@ -249,6 +244,7 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	}
 	models := service.GetGroupsEnabledModels(ownerGroups)
+	userModelNames := make([]string, 0, len(models))
 	for _, modelName := range models {
 		if modelLimitEnable {
 			matchingName := ratio_setting.RoutingMatchModelName(modelName)
@@ -260,6 +256,18 @@ func ListModels(c *gin.Context, modelType int) {
 			continue
 		}
 		userModelNames = append(userModelNames, modelName)
+	}
+	return userModelNames, ownerGroups, nil
+}
+
+func ListModels(c *gin.Context, modelType int) {
+	userModelNames, ownerGroups, err := getListedModelNames(c)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "get user group failed",
+		})
+		return
 	}
 
 	ownerByModel := map[string]string{}
