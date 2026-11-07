@@ -37,7 +37,7 @@ export const meta = {
     en: "Google Veo and Gemini Omni Flash video generation on Vertex AI (text-to-video and image-to-video)",
     zh: "Google Veo 与 Gemini Omni Flash 视频生成（文生视频、图生视频），Vertex AI 版本",
   },
-  version: "1.2.0",
+  version: "1.3.0",
   channelTypes: [41],
   author: { name: "QuantumNous" },
   models: [
@@ -45,6 +45,7 @@ export const meta = {
     "veo-3.0-fast-generate-001",
     "veo-3.1-generate-preview",
     "veo-3.1-fast-generate-preview",
+    "gemini-omni-1.2-flash",
     "gemini-omni-1.1-flash-preview",
     "gemini-omni-flash-preview",
   ],
@@ -78,7 +79,7 @@ export const meta = {
   ],
   usageProfiles: [
     {
-      models: ["gemini-omni-1.1-flash-preview", "gemini-omni-flash-preview"],
+      models: ["gemini-omni-1.2-flash", "gemini-omni-1.1-flash-preview", "gemini-omni-flash-preview"],
       schema: OMNI_USAGE_SCHEMA,
       examples: [
         { label: "3s 360p", facts: omniUsageFacts(3, "360p") },
@@ -149,12 +150,14 @@ function omniResolution(req) {
   if (!RESOLUTIONS.includes(value)) throw new Error("resolution must be one of " + RESOLUTIONS.join(", "));
   return value;
 }
+// Omni 1.2 generates up to 15 seconds; 1.1 and first/last-frame interpolation
+// stop at 10, which Vertex itself rejects.
 function omniDuration(req) {
   const n = req.duration === undefined || req.duration === "" ? 8 : Number(req.duration);
-  if (!Number.isInteger(n) || n < 3 || n > 10) throw new Error("seconds must be an integer from 3 to 10");
+  if (!Number.isInteger(n) || n < 3 || n > 15) throw new Error("seconds must be an integer from 3 to 15");
   return n;
 }
-// inputImage is the first frame's media type and base64 bytes: an uploaded
+// inputImage is an input image's media type and base64 bytes: an uploaded
 // file placeholder, a data URL or bare base64.
 function inputImage(ctx, image) {
   let mime = "";
@@ -182,30 +185,28 @@ function inputImage(ctx, image) {
   if (mime !== "image/jpeg" && mime !== "image/png") throw new Error("input image must be image/jpeg or image/png");
   return { mime: mime, data: data };
 }
+// Images keep the client's order: two are the first and last frame, more are
+// subject references. The task hint limits the image count, so it is only sent
+// for the single-image and text-only forms.
 function omniSubmitRequest(ctx, req, model) {
   const input = [];
-  if (trimmed(req.prompt)) input.push({ type: "text", text: req.prompt });
-  const image = (req.images || [])[0];
-  if (image) {
+  const images = req.images || [];
+  for (const image of images) {
     const frame = inputImage(ctx, image);
     input.push({ type: "image", mime_type: frame.mime, data: frame.data });
   }
+  if (trimmed(req.prompt)) input.push({ type: "text", text: req.prompt });
   if (!input.length) throw new Error("prompt is required");
-  const task = image ? "image_to_video" : "text_to_video";
-  return {
-    url: interactionsURL(ctx),
-    method: "POST",
-    headers: requestHeaders(ctx),
-    body: {
-      model: model,
-      input: input,
-      response_format: [{ type: "video", aspect_ratio: aspect(req.size), resolution: omniResolution(req), duration: omniDuration(req) + "s" }],
-      generation_config: { video_config: { task: task } },
-      background: true,
-      store: true,
-    },
-    action: task,
+  const body = {
+    model: model,
+    input: input,
+    response_format: [{ type: "video", aspect_ratio: aspect(req.size), resolution: omniResolution(req), duration: omniDuration(req) + "s" }],
+    background: true,
+    store: true,
   };
+  const task = images.length ? "image_to_video" : "text_to_video";
+  if (images.length < 2) body.generation_config = { video_config: { task: task } };
+  return { url: interactionsURL(ctx), method: "POST", headers: requestHeaders(ctx), body: body, action: task };
 }
 function isInteraction(body) {
   return plainObject(body) !== null && (body.object === "interaction" || Array.isArray(body.steps));
@@ -232,7 +233,11 @@ function omniTaskResult(body) {
   if (plainObject(body.error) && body.error.message) return { status: "FAILURE", progress: "100%", reason: body.error.message };
   const status = trimmed(body.status).toLowerCase();
   if (status === "in_progress" || status === "queued") return { status: "IN_PROGRESS", progress: "50%" };
-  if (["failed", "cancelled", "canceled", "expired", "incomplete"].includes(status)) return { status: "FAILURE", progress: "100%", reason: status };
+  if (["failed", "cancelled", "canceled", "expired", "incomplete"].includes(status)) {
+    const error = plainObject((body.errors || [])[0]) || {};
+    const reason = [trimmed(error.code), trimmed(error.message)].filter(Boolean).join(": ");
+    return { status: "FAILURE", progress: "100%", reason: reason || status };
+  }
   if (status !== "completed") return { status: "UNKNOWN", reason: "unrecognized interaction state" };
   const video = omniVideo(body);
   if (!video) return { status: "FAILURE", progress: "100%", reason: "interaction completed without a video" };
@@ -578,7 +583,7 @@ export const protocols = {
         if (trimmed(image) && !images.includes(trimmed(image))) images.push(trimmed(image));
       }
       if (!prompt && images.length === 0) throw new Error("input is required");
-      if (images.length && !validImageInput(images[0])) throw new Error("input image must be a data URL or base64 value");
+      if (!images.every(validImageInput)) throw new Error("input image must be a data URL or base64 value");
       const metadata = Object.assign({}, req.metadata || {});
       if (Object.prototype.hasOwnProperty.call(req, "resolution")) metadata.resolution = req.resolution;
       const requestBody = { model: model, prompt: prompt, metadata: metadata };
