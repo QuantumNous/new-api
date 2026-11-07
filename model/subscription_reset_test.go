@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -198,4 +199,59 @@ func TestAdminResetPlanSubscriptionsNoMatchSucceeds(t *testing.T) {
 	assert.Zero(t, result.ResetCount)
 	assert.Zero(t, result.UserCount)
 	assert.Empty(t, result.AffectedUserIds)
+}
+
+func TestRefundSubscriptionPreConsumeCreditsTheSubscriptionOnce(t *testing.T) {
+	truncateTables(t)
+
+	now := GetDBTimestamp()
+	sub := &UserSubscription{
+		Id:          9401,
+		UserId:      88,
+		PlanId:      1,
+		AmountTotal: 1000,
+		AmountUsed:  500,
+		StartTime:   now - 3600,
+		EndTime:     now + 3600,
+		Status:      "active",
+	}
+	seedSubscriptionResetSub(t, sub)
+	requestId := "refund-once-" + common.GetRandomString(8)
+	require.NoError(t, DB.Create(&SubscriptionPreConsumeRecord{
+		RequestId:          requestId,
+		UserId:             88,
+		UserSubscriptionId: sub.Id,
+		PreConsumed:        200,
+		Status:             "consumed",
+	}).Error)
+
+	require.NoError(t, RefundSubscriptionPreConsume(requestId))
+	assert.Equal(t, int64(300), getSubscriptionResetSub(t, sub.Id).AmountUsed)
+	assert.Equal(t, "refunded", getSubscriptionPreConsumeStatus(t, requestId))
+
+	require.NoError(t, RefundSubscriptionPreConsume(requestId))
+	assert.Equal(t, int64(300), getSubscriptionResetSub(t, sub.Id).AmountUsed, "a repeated refund must not credit again")
+}
+
+func TestRefundSubscriptionPreConsumeKeepsRecordConsumedWhenCreditFails(t *testing.T) {
+	truncateTables(t)
+
+	requestId := "refund-rollback-" + common.GetRandomString(8)
+	require.NoError(t, DB.Create(&SubscriptionPreConsumeRecord{
+		RequestId:          requestId,
+		UserId:             88,
+		UserSubscriptionId: 999999,
+		PreConsumed:        200,
+		Status:             "consumed",
+	}).Error)
+
+	require.Error(t, RefundSubscriptionPreConsume(requestId))
+	assert.Equal(t, "consumed", getSubscriptionPreConsumeStatus(t, requestId), "a failed credit must roll back the refund status")
+}
+
+func getSubscriptionPreConsumeStatus(t *testing.T, requestId string) string {
+	t.Helper()
+	var record SubscriptionPreConsumeRecord
+	require.NoError(t, DB.Where("request_id = ?", requestId).First(&record).Error)
+	return record.Status
 }

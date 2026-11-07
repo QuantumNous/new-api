@@ -2,6 +2,7 @@ package model
 
 import (
 	"math"
+	"sync"
 	"testing"
 	"time"
 
@@ -258,4 +259,66 @@ func TestTokenCacheInitPreservesLiveQuotaAndFenceBlocksStaleSnapshot(t *testing.
 	cached, err = cacheGetTokenByKey(token.Key)
 	require.NoError(t, err)
 	assert.Equal(t, 100, cached.RemainQuota)
+}
+
+func TestSettleUserQuotaDebitChargesFullAmountWhenFunded(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+
+	user := createReserveTestUser(t, 1000)
+
+	deducted, err := SettleUserQuotaDebit(user.Id, 300)
+
+	require.NoError(t, err)
+	assert.Equal(t, 300, deducted)
+	assert.Equal(t, 700, getUserQuotaFromDB(t, user.Id))
+}
+
+func TestSettleUserQuotaDebitStopsAtZeroBalance(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+
+	user := createReserveTestUser(t, 100)
+
+	deducted, err := SettleUserQuotaDebit(user.Id, 400)
+	require.NoError(t, err)
+	assert.Equal(t, 100, deducted, "a settlement larger than the wallet charges at most the balance")
+	assert.Equal(t, 0, getUserQuotaFromDB(t, user.Id))
+
+	deducted, err = SettleUserQuotaDebit(user.Id, 50)
+	require.NoError(t, err)
+	assert.Zero(t, deducted, "an exhausted wallet must not create debt")
+	assert.Equal(t, 0, getUserQuotaFromDB(t, user.Id))
+}
+
+func TestSettleUserQuotaDebitUnderConcurrentSettlementsNeverOverdraws(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+
+	user := createReserveTestUser(t, 100)
+
+	const settlements = 4
+	deductedAmounts := make(chan int, settlements)
+	errs := make(chan error, settlements)
+	var wg sync.WaitGroup
+	for range settlements {
+		wg.Go(func() {
+			deducted, err := SettleUserQuotaDebit(user.Id, 100)
+			deductedAmounts <- deducted
+			errs <- err
+		})
+	}
+	wg.Wait()
+	close(deductedAmounts)
+	close(errs)
+
+	total := 0
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	for deducted := range deductedAmounts {
+		total += deducted
+	}
+	assert.Equal(t, 100, total, "concurrent settlements must charge the balance exactly once")
+	assert.Equal(t, 0, getUserQuotaFromDB(t, user.Id))
 }

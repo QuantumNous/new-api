@@ -47,29 +47,23 @@ func GetPageQuery(c *gin.Context) *PageInfo {
 	if pageSize, err := strconv.Atoi(c.Query("page_size")); err == nil {
 		pageInfo.PageSize = pageSize
 	}
+	// 页码必须 >= 1：负数偏移会让数据库扫描整表。
 	if pageInfo.Page < 1 {
-		// 兼容
-		page, _ := strconv.Atoi(c.Query("p"))
-		if page != 0 {
-			pageInfo.Page = page
-		} else {
-			pageInfo.Page = 1
-		}
+		pageInfo.Page = 1
 	}
 
-	if pageInfo.PageSize == 0 {
+	// 页大小必须落在 [1, 100]：负数或 0 会直接进入 GORM 的 Limit/Offset。
+	if pageInfo.PageSize <= 0 {
 		// 兼容
-		pageSize, _ := strconv.Atoi(c.Query("ps"))
-		if pageSize != 0 {
+		if pageSize, err := strconv.Atoi(c.Query("ps")); err == nil && pageSize > 0 {
 			pageInfo.PageSize = pageSize
 		}
-		if pageInfo.PageSize == 0 {
-			pageSize, _ = strconv.Atoi(c.Query("size")) // token page
-			if pageSize != 0 {
+		if pageInfo.PageSize <= 0 {
+			if pageSize, err := strconv.Atoi(c.Query("size")); err == nil && pageSize > 0 { // token page
 				pageInfo.PageSize = pageSize
 			}
 		}
-		if pageInfo.PageSize == 0 {
+		if pageInfo.PageSize <= 0 {
 			pageInfo.PageSize = ItemsPerPage
 		}
 	}

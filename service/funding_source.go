@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -59,10 +60,19 @@ func (w *WalletFunding) Settle(delta int) error {
 	if delta == 0 {
 		return nil
 	}
-	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta, false)
+	if delta < 0 {
+		return model.IncreaseUserQuota(w.userId, -delta, false)
 	}
-	return model.IncreaseUserQuota(w.userId, -delta, false)
+	// 结算补扣受余额上限约束：信任额度旁路不预扣，全额在结算时发生，
+	// 并发请求不能把钱包扣成负数，未覆盖的差额不再记为欠费。
+	deducted, err := model.SettleUserQuotaDebit(w.userId, delta)
+	if err != nil {
+		return err
+	}
+	if deducted < delta {
+		common.SysLog(common.LogText("wallet balance exhausted at settlement (userId=%d, requested=%d, deducted=%d)", w.userId, delta, deducted))
+	}
+	return nil
 }
 
 func (w *WalletFunding) Refund() error {

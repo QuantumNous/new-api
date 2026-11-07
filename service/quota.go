@@ -450,9 +450,13 @@ func postConsumeQuotaWithResult(relayInfo *relaycommon.RelayInfo, quota int, pre
 			relayInfo.SubscriptionPostDelta += delta
 		}
 	} else {
-		// Wallet
+		// Wallet：结算扣费受余额约束，不允许把余额扣成负数。
 		if quota > 0 {
-			err = model.DecreaseUserQuota(relayInfo.UserId, quota, false)
+			deducted, deductErr := model.SettleUserQuotaDebit(relayInfo.UserId, quota)
+			if deductErr == nil && deducted < quota {
+				common.SysLog(common.LogText("wallet balance exhausted at settlement (userId=%d, requested=%d, deducted=%d)", relayInfo.UserId, quota, deducted))
+			}
+			err = deductErr
 		} else {
 			err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
 		}

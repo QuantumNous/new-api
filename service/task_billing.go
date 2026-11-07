@@ -118,7 +118,12 @@ func taskAdjustFunding(task *model.Task, delta int) error {
 		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(task.UserId, delta, false)
+		// 结算补扣受余额约束，避免任务结算把钱包扣成负数。
+		deducted, err := model.SettleUserQuotaDebit(task.UserId, delta)
+		if err == nil && deducted < delta {
+			common.SysLog(common.LogText("wallet balance exhausted at task settlement (userId=%d, requested=%d, deducted=%d)", task.UserId, delta, deducted))
+		}
+		return err
 	}
 	return model.IncreaseUserQuota(task.UserId, -delta, false)
 }

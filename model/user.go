@@ -1409,6 +1409,54 @@ func decreaseUserQuota(id int, quota int) (err error) {
 	return err
 }
 
+// SettleUserQuotaDebit debits a settlement charge from the wallet and never lets
+// the stored balance go below zero.
+//
+// Requests that take the trust shortcut skip the atomic pre-consume
+// reservation, so their whole cost reaches settlement without having been
+// checked against the balance. Concurrent trusted requests could otherwise all
+// debit the wallet that only covers one of them, driving it arbitrarily
+// negative. This debit is therefore clamped to the available balance inside a
+// single row-locked transaction: the user pays what the wallet holds and the
+// uncovered remainder is not turned into debt.
+//
+// It returns the amount actually deducted so the caller can report a partial
+// charge. The lookup fails with gorm.ErrRecordNotFound for an unknown user, and
+// the write always goes to the database instead of the batch queue so the
+// invariant cannot be deferred.
+func SettleUserQuotaDebit(id int, quota int) (int, error) {
+	if quota < 0 {
+		return 0, errors.New("quota cannot be negative")
+	}
+	if quota == 0 {
+		return 0, nil
+	}
+
+	deducted := 0
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Select("id", "quota").Where("id = ?", id).First(&user).Error; err != nil {
+			return err
+		}
+		deducted = min(max(user.Quota, 0), quota)
+		if deducted == 0 {
+			return nil
+		}
+		return tx.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", deducted)).Error
+	})
+	if err != nil {
+		return 0, err
+	}
+	if deducted > 0 {
+		gopool.Go(func() {
+			if err := cacheDecrUserQuota(id, int64(deducted)); err != nil {
+				common.SysLog(common.LogText("failed to decrease user quota: %s", err.Error()))
+			}
+		})
+	}
+	return deducted, nil
+}
+
 func DeltaUpdateUserQuota(id int, delta int) (err error) {
 	if delta == 0 {
 		return nil
