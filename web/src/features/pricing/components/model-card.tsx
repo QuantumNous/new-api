@@ -21,6 +21,7 @@ import { memo, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -177,9 +178,19 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               )
             })}
           {dynamicSummary.isTimePricing && (
-            <span className='text-muted-foreground col-span-full text-xs'>
-              {t('Current period price')}
-            </span>
+            <div className='col-span-full flex flex-wrap items-center gap-1.5'>
+              <span className='text-muted-foreground text-xs'>
+                {t('Current period price')}
+              </span>
+              {isTokenBased && dynamicSummary.currentTokenTier?.label && (
+                <Badge
+                  variant='secondary'
+                  className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                >
+                  {t('Current tier')}: {dynamicSummary.currentTokenTier.label}
+                </Badge>
+              )}
+            </div>
           )}
           {dynamicSummary.isMixedBilling && (
             <span className='text-muted-foreground col-span-full text-xs'>
