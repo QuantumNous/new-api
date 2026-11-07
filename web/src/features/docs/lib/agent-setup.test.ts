@@ -82,6 +82,7 @@ describe('agent setup helpers', () => {
       [
         'model_provider = "newapi"',
         'model = "gpt-5.6-sol"',
+        'model_catalog_url = "https://ai.nekocore.cn/codex/models"',
         '',
         '[model_providers.newapi]',
         'name = "NekoAI"',

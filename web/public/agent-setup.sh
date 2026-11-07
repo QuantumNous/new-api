@@ -32,6 +32,7 @@ DEFAULT_CODEX_MODEL = 'gpt-5.6-sol'
 DEFAULT_DSH_MODEL = 'gpt-5.6-sol'
 DEFAULT_GEMINI_MODEL = 'gemini-2.5-pro'
 GATEWAY_URL = 'https://ai.nekocore.cn'
+CODEX_MODEL_CATALOG_URL = 'https://ai.nekocore.cn/codex/models'
 PROVIDER_NAME = 'NekoAI'
 DSH_CREDENTIAL_REF = 'NEWAPI_API_KEY'
 DSH_PROVIDER_ID = 'new-api'
@@ -141,11 +142,19 @@ def update_codex_config(path, base_url, api_key, stamp):
     output = []
     has_provider = False
     has_model = False
+    has_model_catalog = False
     for line in without_provider[:top_level_end]:
         if re.match(r'^\s*model_provider\s*=', line):
             if not has_provider:
                 output.append('model_provider = "newapi"')
                 has_provider = True
+            continue
+        if re.match(r'^\s*model_catalog_url\s*=', line):
+            if not has_model_catalog:
+                output.append(
+                    f'model_catalog_url = {toml_string(CODEX_MODEL_CATALOG_URL)}'
+                )
+                has_model_catalog = True
             continue
         if re.match(r'^\s*model\s*=', line):
             if not has_model:
@@ -159,6 +168,10 @@ def update_codex_config(path, base_url, api_key, stamp):
         prefix.append('model_provider = "newapi"')
     if not has_model:
         prefix.append(f'model = {toml_string(DEFAULT_CODEX_MODEL)}')
+    if not has_model_catalog:
+        prefix.append(
+            f'model_catalog_url = {toml_string(CODEX_MODEL_CATALOG_URL)}'
+        )
 
     output = prefix + output + without_provider[top_level_end:]
     while output and not output[-1].strip():

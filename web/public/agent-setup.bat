@@ -14,6 +14,7 @@ exit /b %NEWAPI_SETUP_EXIT%
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $GatewayUrl = 'https://ai.nekocore.cn'
+$CodexModelCatalogUrl = 'https://ai.nekocore.cn/codex/models'
 $ProviderName = 'NekoAI'
 $DshModel = 'gpt-5.6-sol'
 $DshCredentialRef = 'NEWAPI_API_KEY'
@@ -142,12 +143,20 @@ function Update-CodexConfig([string]$Path, [string]$BaseUrl, [string]$ApiKey, [s
   $output = New-Object System.Collections.Generic.List[string]
   $hasProvider = $false
   $hasModel = $false
+  $hasModelCatalog = $false
   for ($index = 0; $index -lt $topLevelEnd; $index++) {
     $line = $withoutProvider[$index]
     if ($line -match '^\s*model_provider\s*=') {
       if (-not $hasProvider) {
         $output.Add('model_provider = "newapi"')
         $hasProvider = $true
+      }
+      continue
+    }
+    if ($line -match '^\s*model_catalog_url\s*=') {
+      if (-not $hasModelCatalog) {
+        $output.Add(('model_catalog_url = ' + (ConvertTo-TomlString $CodexModelCatalogUrl)))
+        $hasModelCatalog = $true
       }
       continue
     }
@@ -170,6 +179,9 @@ function Update-CodexConfig([string]$Path, [string]$BaseUrl, [string]$ApiKey, [s
   }
   if (-not $hasModel) {
     $prefix.Add('model = "gpt-5.6-sol"')
+  }
+  if (-not $hasModelCatalog) {
+    $prefix.Add(('model_catalog_url = ' + (ConvertTo-TomlString $CodexModelCatalogUrl)))
   }
   if ($prefix.Count -gt 0) {
     $output.InsertRange(0, $prefix)

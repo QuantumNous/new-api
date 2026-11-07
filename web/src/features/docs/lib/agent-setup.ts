@@ -22,6 +22,7 @@ export const DEFAULT_CODEX_MODEL = 'gpt-5.6-sol'
 export const DEFAULT_DSH_MODEL = 'gpt-5.6-sol'
 export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-pro'
 export const SETUP_GATEWAY_URL = 'https://ai.nekocore.cn'
+export const CODEX_MODEL_CATALOG_URL = 'https://ai.nekocore.cn/codex/models'
 export const SETUP_PROVIDER_NAME = 'NekoAI'
 
 export function normalizeGatewayUrl(value: string): string {
@@ -74,6 +75,7 @@ export function buildCodexConfig(
   return [
     'model_provider = "newapi"',
     `model = "${DEFAULT_CODEX_MODEL}"`,
+    `model_catalog_url = "${CODEX_MODEL_CATALOG_URL}"`,
     '',
     '[model_providers.newapi]',
     `name = "${SETUP_PROVIDER_NAME}"`,
