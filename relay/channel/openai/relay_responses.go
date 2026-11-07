@@ -1,9 +1,12 @@
 package openai
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -11,6 +14,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 
@@ -63,6 +67,96 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 	imageCounter.Commit(info)
 
+	return usage, nil
+}
+
+// OaiResponsesBufferedStreamHandler serves a non-streaming Responses client
+// from an upstream that requires streaming, such as the Codex backend.
+func OaiResponsesBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+
+	info.StreamStatus = relaycommon.NewStreamStatus()
+	accumulator := relayconvert.NewResponsesBufferedAccumulator()
+	usageAccumulator := service.NewResponsesUsageAccumulator(info)
+	var finalResponse *dto.OpenAIResponsesResponse
+	var streamErr *types.NewAPIError
+
+	scanner := helper.NewStreamScanner(resp.Body)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		line := scanner.Text()
+		data, ok := strings.CutPrefix(line, "data:")
+		if !ok {
+			continue
+		}
+		data = strings.TrimSpace(data)
+		if data == "" {
+			continue
+		}
+		if data == "[DONE]" {
+			break
+		}
+
+		var streamResp dto.ResponsesStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResp); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			break
+		}
+		usageAccumulator.Observe(&streamResp, common.StringToByteSlice(data))
+		accumulator.ProcessEvent(&streamResp)
+
+		switch streamResp.Type {
+		case "response.completed", "response.done", "response.incomplete":
+			finalResponse = streamResp.Response
+			if finalResponse == nil {
+				finalResponse = &dto.OpenAIResponsesResponse{}
+			}
+			if streamResp.Type == "response.incomplete" && len(finalResponse.Status) == 0 {
+				finalResponse.Status = []byte(`"incomplete"`)
+			}
+		case "response.error", "response.failed", "error":
+			if streamResp.Response != nil {
+				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
+					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
+					break
+				}
+			}
+			streamErr = types.NewOpenAIError(
+				fmt.Errorf("responses stream error: %s", streamResp.Type),
+				types.ErrorCodeBadResponse,
+				http.StatusInternalServerError,
+			)
+		}
+		if streamErr != nil || finalResponse != nil {
+			break
+		}
+	}
+	if streamErr != nil {
+		return nil, streamErr
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	if finalResponse == nil {
+		finalResponse = &dto.OpenAIResponsesResponse{
+			ID:        helper.GetResponseID(c),
+			CreatedAt: dto.IntValue(time.Now().Unix()),
+			Model:     info.UpstreamModelName,
+			Status:    []byte(`"completed"`),
+		}
+	}
+	accumulator.SupplementResponseOutput(finalResponse)
+	usage := usageAccumulator.Finish()
+	finalResponse.Usage = usage
+
+	responseBody, err := common.Marshal(finalResponse)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
+	}
+	service.IOCopyBytesGracefully(c, resp, responseBody)
 	return usage, nil
 }
 

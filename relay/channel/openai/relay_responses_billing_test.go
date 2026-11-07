@@ -272,6 +272,46 @@ func TestOaiResponsesHandlerCountsOutputCallsNotDeclarations(t *testing.T) {
 	assert.NotContains(t, info.ResponsesUsageInfo.BuiltInTools, "unpriced_fn")
 }
 
+func TestOaiResponsesBufferedStreamHandlerReturnsJSONForNonStreamingClient(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := strings.Join([]string{
+		`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-6-luna","created_at":1710000000}}`,
+		`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"message","id":"msg_1","role":"assistant","content":[]}}`,
+		`data: {"type":"response.output_text.delta","output_index":0,"item_id":"msg_1","delta":"hello"}`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-6-luna","status":"completed","usage":{"input_tokens":2,"output_tokens":3,"total_tokens":5}}}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-6-luna",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gpt-6-luna",
+		},
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+
+	usage, apiErr := OaiResponsesBufferedStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 5, usage.TotalTokens)
+	require.NotContains(t, w.Body.String(), "data:")
+
+	var response dto.OpenAIResponsesResponse
+	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "resp_1", response.ID)
+	require.Len(t, response.Output, 1)
+	require.Len(t, response.Output[0].Content, 1)
+	assert.Equal(t, "hello", response.Output[0].Content[0].Text)
+}
+
 func TestOaiResponsesHandlerDeclaredToolsWithoutOutputCountZero(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

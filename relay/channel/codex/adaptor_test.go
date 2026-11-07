@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -58,6 +59,12 @@ func TestConvertOpenAIResponsesRequestDropsPenalties(t *testing.T) {
 	assert.Nil(t, request.PresencePenalty)
 	require.NotNil(t, request.Stream)
 	assert.True(t, *request.Stream)
+
+	var input []map[string]any
+	require.NoError(t, common.Unmarshal(request.Input, &input))
+	require.Len(t, input, 1)
+	assert.Equal(t, "message", input[0]["type"])
+	assert.Equal(t, "user", input[0]["role"])
 }
 
 func TestSetupRequestHeaderRequestsSSEForResponses(t *testing.T) {

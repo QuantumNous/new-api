@@ -61,6 +61,10 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
 
+	if err := normalizeCodexResponsesInput(&request); err != nil {
+		return nil, err
+	}
+
 	if info != nil && info.ChannelSetting.SystemPrompt != "" {
 		systemPrompt := info.ChannelSetting.SystemPrompt
 
@@ -119,6 +123,29 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	return request, nil
 }
 
+func normalizeCodexResponsesInput(request *dto.OpenAIResponsesRequest) error {
+	if request == nil || common.GetJsonType(request.Input) != "string" {
+		return nil
+	}
+	var text string
+	if err := common.Unmarshal(request.Input, &text); err != nil {
+		return err
+	}
+	input, err := common.Marshal([]map[string]any{{
+		"type": "message",
+		"role": "user",
+		"content": []map[string]any{{
+			"type": "input_text",
+			"text": text,
+		}},
+	}})
+	if err != nil {
+		return err
+	}
+	request.Input = input
+	return nil
+}
+
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
@@ -134,7 +161,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		if info.IsStream {
 			return openai.OaiResponsesStreamHandler(c, info, resp)
 		}
-		return openai.OaiResponsesHandler(c, info, resp)
+		return openai.OaiResponsesBufferedStreamHandler(c, info, resp)
 	default:
 		return nil, types.NewError(errors.New("codex channel: endpoint not supported"), types.ErrorCodeInvalidRequest)
 	}
