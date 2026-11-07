@@ -28,6 +28,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/context/theme-provider'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
 import {
+  USAGE_METRIC_OPTIONS,
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
 } from '@/features/dashboard/constants'
@@ -39,6 +40,7 @@ import {
 import type {
   ProcessedUserChartData,
   UserChartsFilters,
+  UsageMetric,
 } from '@/features/dashboard/types'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
@@ -55,12 +57,12 @@ const USER_CHARTS: {
 }[] = [
   {
     value: 'rank',
-    labelKey: 'User Consumption Ranking',
+    labelKey: 'User Usage Ranking',
     specKey: 'spec_user_rank',
   },
   {
     value: 'trend',
-    labelKey: 'User Consumption Trend',
+    labelKey: 'User Usage Trend',
     specKey: 'spec_user_trend',
   },
 ]
@@ -84,6 +86,7 @@ export function UserCharts(props: UserChartsProps) {
   // sub-section switches; the rolling window is derived from the chosen range.
   const timeGranularity = props.filters.timeGranularity
   const selectedRange = props.filters.selectedRange
+  const metric = props.filters.metric
   const topUserLimit = props.filters.topUserLimit
   const onFiltersChange = props.onFiltersChange
 
@@ -151,14 +154,32 @@ export function UserCharts(props: UserChartsProps) {
         isLoading ? [] : (userData ?? []),
         timeGranularity,
         t,
-        topUserLimit
+        topUserLimit,
+        metric
       ),
-    [userData, isLoading, timeGranularity, t, topUserLimit]
+    [userData, isLoading, timeGranularity, t, topUserLimit, metric]
   )
 
   return (
     <div className='space-y-3'>
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
+        <Tabs
+          value={metric}
+          onValueChange={(value) =>
+            onFiltersChange({ ...props.filters, metric: value as UsageMetric })
+          }
+          className='shrink-0'
+        >
+          <TabsList aria-label={t('Usage metric')}>
+            {USAGE_METRIC_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
+              <TabsTrigger key={value} value={value} className='px-2.5 text-xs'>
+                <Icon className='size-3.5' />
+                {t(labelKey)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
         <Tabs
           value={String(selectedRange)}
           onValueChange={(value) => handleRangeChange(Number(value))}
@@ -246,7 +267,7 @@ export function UserCharts(props: UserChartsProps) {
                   themeReady &&
                   spec && (
                     <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}`}
+                      key={`user-${chart.value}-${metric}-${topUserLimit}-${resolvedTheme}`}
                       spec={{
                         ...spec,
                         theme: resolvedTheme === 'dark' ? 'dark' : 'light',

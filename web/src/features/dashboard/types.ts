@@ -26,6 +26,7 @@ export interface QuotaDataItem {
   id?: number
   user_id?: number
   username?: string
+  display_name?: string
   model_name?: string
   created_at: number
   cache_read_tokens?: number
@@ -36,6 +37,7 @@ export interface QuotaDataItem {
 }
 
 export interface FlowQuotaDataItem {
+  display_name?: string
   user_id?: number
   username?: string
   node_name?: string
@@ -50,7 +52,9 @@ export interface FlowQuotaDataItem {
   quota?: number
 }
 
-export type FlowMetric = 'quota' | 'tokens' | 'requests'
+export type UsageMetric = 'quota' | 'tokens' | 'requests'
+
+export type FlowMetric = UsageMetric
 
 export type FlowOverflowMode = 'aggregate' | 'hide'
 
@@ -207,6 +211,7 @@ export interface DashboardChartPreferences {
 // User analytics selections are held by the dashboard parent so they survive
 // switching between dashboard sub-sections, matching the model/flow filters.
 export interface UserChartsFilters {
+  metric: UsageMetric
   timeGranularity: TimeGranularity
   selectedRange: number
   topUserLimit: number
