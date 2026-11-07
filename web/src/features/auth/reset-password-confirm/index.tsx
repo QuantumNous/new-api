@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
-import { CheckIcon, CopyIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -26,9 +25,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useCountdown } from '@/hooks/use-countdown'
 import { api } from '@/lib/api'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
 import { createServerError } from '@/lib/server-error-message'
@@ -48,14 +45,12 @@ export function ResetPasswordConfirm({
 }: ResetPasswordConfirmProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [newPassword, setNewPassword] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [twoFACode, setTwoFACode] = useState('')
+  const [needsTwoFA, setNeedsTwoFA] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const {
-    secondsLeft,
-    isActive,
-    start: startCountdown,
-  } = useCountdown({ initialSeconds: 30 })
+  const [done, setDone] = useState(false)
 
   const isValidResetLink = Boolean(email && token)
 
@@ -64,49 +59,38 @@ export function ResetPasswordConfirm({
       toast.error(t('Invalid reset link, please request a new password reset'))
       return
     }
+    if (password !== confirmPassword) {
+      toast.error(t('Passwords do not match'))
+      return
+    }
 
-    startCountdown()
     setLoading(true)
     try {
-      const res = await api.post('/api/user/reset', { email, token }, {
-        skipBusinessError: true,
-      } as Record<string, unknown>)
+      const res = await api.post(
+        '/api/user/reset',
+        {
+          email,
+          token,
+          password,
+          ...(twoFACode ? { two_fa_code: twoFACode } : {}),
+        },
+        { skipBusinessError: true } as Record<string, unknown>
+      )
 
       if (res?.data?.success) {
-        const password = res.data.data
-        setNewPassword(password)
-        const copySuccess = await copyToClipboard(password)
-        if (copySuccess) {
-          toast.success(
-            t('Password reset and copied to clipboard: {{password}}', {
-              password,
-            })
-          )
-        } else {
-          toast.success(t('Password reset: {{password}}', { password }))
-        }
+        setDone(true)
+        toast.success(t('auth.resetPasswordConfirm.success'))
       } else {
+        if (res?.data?.code === 'TWO_FA_REQUIRED') setNeedsTwoFA(true)
         handleServerError(createServerError(res.data, t('Request failed')))
       }
     } catch (error) {
+      const code = (error as { response?: { data?: { code?: string } } })
+        ?.response?.data?.code
+      if (code === 'TWO_FA_REQUIRED') setNeedsTwoFA(true)
       handleServerError(AuthOperationError.from(error))
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function handleCopy() {
-    if (!newPassword) return
-
-    const copySuccess = await copyToClipboard(newPassword)
-    if (copySuccess) {
-      setCopied(true)
-      toast.success(
-        t('Password copied to clipboard: {{password}}', {
-          password: newPassword,
-        })
-      )
-      setTimeout(() => setCopied(false), 2000)
     }
   }
 
@@ -118,9 +102,9 @@ export function ResetPasswordConfirm({
             {t('Reset password')}
           </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            {newPassword
+            {done
               ? t('auth.resetPasswordConfirm.success')
-              : t('auth.resetPasswordConfirm.description')}
+              : t('Choose a new password for your account.')}
           </p>
         </div>
 
@@ -144,58 +128,66 @@ export function ResetPasswordConfirm({
             />
           </div>
 
-          {newPassword && (
-            <div className='space-y-2'>
-              <Label htmlFor='password'>{t('New password')}</Label>
-              <div className='flex gap-2'>
+          {!done && (
+            <>
+              <div className='space-y-2'>
+                <Label htmlFor='password'>{t('New password')}</Label>
                 <Input
                   id='password'
-                  value={newPassword}
-                  disabled
-                  className='font-mono'
+                  type='password'
+                  autoComplete='new-password'
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
-                <Button
-                  type='button'
-                  size='icon'
-                  variant='outline'
-                  onClick={handleCopy}
-                >
-                  {copied ? (
-                    <CheckIcon className='h-4 w-4' />
-                  ) : (
-                    <CopyIcon className='h-4 w-4' />
-                  )}
-                </Button>
               </div>
-              <p className='text-muted-foreground text-xs'>
-                {t('Password has been copied to clipboard')}
-              </p>
-            </div>
+              <div className='space-y-2'>
+                <Label htmlFor='confirm-password'>
+                  {t('Confirm new password')}
+                </Label>
+                <Input
+                  id='confirm-password'
+                  type='password'
+                  autoComplete='new-password'
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+              {needsTwoFA && (
+                <div className='space-y-2'>
+                  <Label htmlFor='two-fa-code'>
+                    {t('Two-factor authentication code')}
+                  </Label>
+                  <Input
+                    id='two-fa-code'
+                    inputMode='numeric'
+                    autoComplete='one-time-code'
+                    value={twoFACode}
+                    onChange={(e) => setTwoFACode(e.target.value)}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           <Button
             className='w-full'
             onClick={
-              newPassword
+              done
                 ? () => navigate({ to: '/sign-in', replace: true })
                 : handleSubmit
             }
             disabled={
-              newPassword ? false : loading || isActive || !isValidResetLink
+              done
+                ? false
+                : loading || !isValidResetLink || !password || !confirmPassword
             }
           >
-            {newPassword && t('auth.resetPasswordConfirm.backToLogin')}
-            {!newPassword &&
-              isActive &&
-              t('auth.resetPasswordConfirm.retry', {
-                seconds: secondsLeft,
-              })}
-            {!newPassword &&
-              !isActive &&
-              t('auth.resetPasswordConfirm.confirm')}
+            {done
+              ? t('auth.resetPasswordConfirm.backToLogin')
+              : t('auth.resetPasswordConfirm.confirm')}
           </Button>
 
-          {!newPassword && (
+          {!done && (
             <Button
               variant='link'
               className='w-full'

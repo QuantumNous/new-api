@@ -153,15 +153,15 @@ ASVS 4.0.3
 | V2.5.3 (current password not revealed) | OK | |
 | V2.7.2 (10 minute expiry) | OK | |
 | V2.7.3 (single use) | OK | deleted after redeem |
-| V2.5.6 (secure recovery mechanism) | PARTIAL | an e-mail link is acceptable, but the user does not choose the new password, G1 |
-| V2.5.7 (MFA not bypassed by recovery) | GAP | reset does not ask for TOTP or a passkey; a mailbox takeover bypasses 2FA, G1 |
+| V2.5.6 (secure recovery mechanism) | OK | mailed one-time link; the user chooses the password, nothing is returned (G1 closed) |
+| V2.5.7 (MFA not bypassed by recovery) | PARTIAL | reset asks for a TOTP or backup code when 2FA is on (`controller/misc.go` `ResetPassword`); a passkey-only account has no code to give, so it is not yet covered |
 | V2.2.3 (notification after reset) | GAP | no mail after a reset, G9 |
 | V8.3.1 (no sensitive data in query string) | GAP | reset token and e-mail in the URL query, G8 |
 | V3.3.3 | OK | all sessions revoked |
 
 Validated by: `TestResetUserPasswordByEmailRequiresSingleActiveMatch` (`model/user_update_test.go`), `TestPasswordResetBumpsAuthVersionAndRevokesSessions`, `TestPasswordResetDoesNotClearSessionIssuanceHistory` (`service/auth_session_test.go`).
 
-Open: G1, G8, G9, G13.
+Open: G8, G9, G13 (G1 closed except passkey-only accounts).
 
 ## 7. OAuth, WeChat and Telegram login
 
