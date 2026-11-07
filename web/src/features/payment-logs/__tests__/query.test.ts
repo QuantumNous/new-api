@@ -69,6 +69,59 @@ describe('buildPaymentLogQuery', () => {
     )
   })
 
+  it('treats ISO dates as Gregorian days and sends numeric bounds only', () => {
+    const params = buildPaymentLogQuery({
+      page: 1,
+      pageSize: 20,
+      fromDate: ' 2026-11-07 ',
+      toDate: '2026-11-07',
+    })
+
+    expect(params.start_time).toBe(
+      Math.floor(new Date(2026, 10, 7, 0, 0, 0).getTime() / 1000)
+    )
+    expect(params.end_time).toBe(
+      Math.floor(new Date(2026, 10, 7, 23, 59, 59).getTime() / 1000)
+    )
+
+    const start = new Date((params.start_time as number) * 1000)
+    expect([
+      start.getFullYear(),
+      start.getMonth() + 1,
+      start.getDate(),
+    ]).toEqual([2026, 11, 7])
+    expect(
+      Object.values(params).some(
+        (value) =>
+          typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      )
+    ).toBe(false)
+  })
+
+  it('rejects localized or non-Gregorian date strings', () => {
+    const params = buildPaymentLogQuery({
+      page: 1,
+      pageSize: 20,
+      fromDate: '07/11/2026',
+      toDate: '٢٠٢٦-١١-٠٧',
+    })
+
+    expect(params.start_time).toBeUndefined()
+    expect(params.end_time).toBeUndefined()
+  })
+
+  it('ignores impossible Gregorian days instead of rolling them over', () => {
+    const params = buildPaymentLogQuery({
+      page: 1,
+      pageSize: 20,
+      fromDate: '2026-02-30',
+      toDate: '2026-02-29',
+    })
+
+    expect(params.start_time).toBeUndefined()
+    expect(params.end_time).toBeUndefined()
+  })
+
   it('ignores malformed dates instead of sending invalid bounds', () => {
     const params = buildPaymentLogQuery({
       page: 1,

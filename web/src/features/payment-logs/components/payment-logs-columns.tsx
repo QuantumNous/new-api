@@ -38,9 +38,9 @@ export function usePaymentLogColumns(): ColumnDef<PaymentLogEntry>[] {
       header: t('Transaction Reference'),
       meta: { mobileTitle: true },
       cell: ({ row }) => (
-        <div className='flex max-w-[300px] min-w-[220px] items-center gap-1'>
+        <div className='flex min-w-0 max-w-full items-center gap-1'>
           <span
-            className='truncate font-mono text-sm'
+            className='min-w-0 truncate font-mono text-sm'
             title={row.original.trade_no}
             dir='ltr'
           >
@@ -55,7 +55,7 @@ export function usePaymentLogColumns(): ColumnDef<PaymentLogEntry>[] {
           />
         </div>
       ),
-      size: 300,
+      size: 280,
     },
     {
       accessorKey: 'user_email',
@@ -66,7 +66,7 @@ export function usePaymentLogColumns(): ColumnDef<PaymentLogEntry>[] {
         const primary =
           entry.user_email || entry.username || `#${entry.user_id}`
         return (
-          <div className='flex min-w-[180px] flex-col gap-0.5'>
+          <div className='flex min-w-0 flex-col gap-0.5'>
             <span className='truncate text-sm font-medium' dir='ltr'>
               {primary}
             </span>
@@ -76,14 +76,14 @@ export function usePaymentLogColumns(): ColumnDef<PaymentLogEntry>[] {
           </div>
         )
       },
-      size: 220,
+      size: 230,
     },
     {
       accessorKey: 'payment_provider',
       header: t('Payment gateway'),
       meta: { mobileOrder: 30 },
       cell: ({ row }) => (
-        <div className='flex min-w-[130px] flex-col gap-0.5'>
+        <div className='flex min-w-0 flex-col gap-0.5'>
           <span className='text-sm font-medium'>
             {getPaymentProviderLabel(row.original.payment_provider, t)}
           </span>
@@ -96,7 +96,7 @@ export function usePaymentLogColumns(): ColumnDef<PaymentLogEntry>[] {
       ),
       filterFn: (row, id, value) =>
         (value as string[]).includes(String(row.getValue(id))),
-      size: 150,
+      size: 140,
     },
     {
       accessorKey: 'amount',
@@ -112,7 +112,7 @@ export function usePaymentLogColumns(): ColumnDef<PaymentLogEntry>[] {
           })}
         </span>
       ),
-      size: 150,
+      size: 140,
     },
     {
       accessorKey: 'money',
@@ -123,7 +123,7 @@ export function usePaymentLogColumns(): ColumnDef<PaymentLogEntry>[] {
           {formatNumber(row.original.money, locale)}
         </span>
       ),
-      size: 130,
+      size: 120,
     },
     {
       accessorKey: 'status',
@@ -142,18 +142,19 @@ export function usePaymentLogColumns(): ColumnDef<PaymentLogEntry>[] {
       },
       filterFn: (row, id, value) =>
         (value as string[]).includes(String(row.getValue(id))),
-      size: 120,
+      size: 110,
     },
     {
       accessorKey: 'create_time',
-      header: t('Created'),
+      header: t('Created At'),
       meta: { mobileHidden: true },
       cell: ({ row }) => (
-        <div className='min-w-[160px] font-mono text-sm' dir='ltr'>
+        <div className='min-w-0 font-mono text-sm whitespace-nowrap' dir='ltr'>
+          {/* Fixed Gregorian tokens; never rendered through a locale calendar. */}
           {formatTimestampToDate(row.original.create_time)}
         </div>
       ),
-      size: 180,
+      size: 170,
     },
   ]
 }

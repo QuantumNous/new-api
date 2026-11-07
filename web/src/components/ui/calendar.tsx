@@ -27,13 +27,21 @@ import {
   DayPicker,
   getDefaultClassNames,
   type DayButton,
-  type Locale,
 } from 'react-day-picker'
 
 import { Button, buttonVariants } from '@/components/ui/button'
 import { useDirection } from '@/components/ui/direction'
 import { currentIntlLocale } from '@/lib/format'
 import { cn } from '@/lib/utils'
+
+/**
+ * Build an Intl locale that always resolves to the Gregorian calendar, so
+ * Arabic interfaces keep displaying Gregorian dates even when the browser's
+ * default calendar for that language is Umm al-Qura (Hijri).
+ */
+function toGregorianCalendarLocale(code: string) {
+  return /-u-/.test(code) ? code : `${code}-u-ca-gregory`
+}
 
 function Calendar({
   className,
@@ -52,6 +60,9 @@ function Calendar({
   // DayPicker uses `dir` for arrow-key navigation and the orientation of the
   // previous/next chevrons, so hand it the document direction explicitly.
   const direction = useDirection()
+  const calendarLocale = toGregorianCalendarLocale(
+    locale?.code ?? currentIntlLocale() ?? 'en'
+  )
 
   return (
     <DayPicker
@@ -65,7 +76,7 @@ function Calendar({
       locale={locale}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString(locale?.code ?? currentIntlLocale(), {
+          date.toLocaleString(calendarLocale, {
             month: 'short',
           }),
         ...formatters,
@@ -204,7 +215,7 @@ function Calendar({
           )
         },
         DayButton: ({ ...props }) => (
-          <CalendarDayButton locale={locale} {...props} />
+          <CalendarDayButton calendarLocale={calendarLocale} {...props} />
         ),
         WeekNumber: ({ children, ...props }) => {
           return (
@@ -226,9 +237,9 @@ function CalendarDayButton({
   className,
   day,
   modifiers,
-  locale,
+  calendarLocale,
   ...props
-}: React.ComponentProps<typeof DayButton> & { locale?: Partial<Locale> }) {
+}: React.ComponentProps<typeof DayButton> & { calendarLocale: string }) {
   const defaultClassNames = getDefaultClassNames()
 
   const ref = React.useRef<HTMLButtonElement>(null)
@@ -240,9 +251,7 @@ function CalendarDayButton({
     <Button
       variant='ghost'
       size='icon'
-      data-day={day.date.toLocaleDateString(
-        locale?.code ?? currentIntlLocale()
-      )}
+      data-day={day.date.toLocaleDateString(calendarLocale)}
       data-selected-single={
         modifiers.selected &&
         !modifiers.range_start &&

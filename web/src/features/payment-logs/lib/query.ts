@@ -20,8 +20,15 @@ import type { GetPaymentLogsParams } from '../types'
 
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 
+/**
+ * Convert an ISO Gregorian calendar date (YYYY-MM-DD) into Unix seconds.
+ *
+ * The admin ledger backend accepts `start_time` / `end_time` as Unix seconds,
+ * so the UI's ISO date is parsed exactly once, here, using the browser's
+ * Gregorian `Date`. There is no Hijri conversion in this path.
+ */
 function parseDateBoundary(value: string, endOfDay: boolean) {
-  const match = DATE_PATTERN.exec(value)
+  const match = DATE_PATTERN.exec(value.trim())
   if (!match) return undefined
 
   const year = Number(match[1])
@@ -44,6 +51,11 @@ function parseDateBoundary(value: string, endOfDay: boolean) {
   return Math.floor(date.getTime() / 1000)
 }
 
+/**
+ * Build the query sent to `GET /api/admin/payments/logs` from the current
+ * filter state. Blank filters are omitted, the keyword is trimmed, and date
+ * boundaries are inclusive whole days (00:00:00 to 23:59:59 local time).
+ */
 export function buildPaymentLogQuery(input: {
   page: number
   pageSize: number
