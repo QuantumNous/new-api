@@ -166,7 +166,7 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 		if c == nil || c.Request == nil {
 			return "", false, fmt.Errorf("missing request context for client_header placeholder")
 		}
-		clientHeaderValue := c.Request.Header.Get(name)
+		clientHeaderValue := common.CombinedHeaderValue(c.Request.Header, name)
 		if strings.TrimSpace(clientHeaderValue) == "" {
 			return "", false, nil
 		}
@@ -254,7 +254,7 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 					continue
 				}
 			}
-			value := strings.TrimSpace(c.Request.Header.Get(name))
+			value := strings.TrimSpace(common.CombinedHeaderValue(c.Request.Header, name))
 			if value == "" {
 				continue
 			}

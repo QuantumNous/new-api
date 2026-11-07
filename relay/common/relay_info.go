@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -677,7 +678,7 @@ func cloneRequestHeaders(c *gin.Context) map[string]string {
 	}
 	headers := make(map[string]string, len(c.Request.Header))
 	for key := range c.Request.Header {
-		value := strings.TrimSpace(c.Request.Header.Get(key))
+		value := strings.TrimSpace(CombinedHeaderValue(c.Request.Header, key))
 		if value == "" {
 			continue
 		}
@@ -687,6 +688,18 @@ func cloneRequestHeaders(c *gin.Context) map[string]string {
 		return nil
 	}
 	return headers
+}
+
+// CombinedHeaderValue returns every line of a request header as one field
+// value, the form forwarded upstream and seen by billing: lines are joined with
+// "," (RFC 9110 section 5.3), except Cookie lines, which are joined with "; "
+// (RFC 9113 section 8.2.3).
+func CombinedHeaderValue(header http.Header, name string) string {
+	separator := ","
+	if http.CanonicalHeaderKey(name) == "Cookie" {
+		separator = "; "
+	}
+	return strings.Join(header.Values(name), separator)
 }
 
 func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Request, ws *websocket.Conn) (*RelayInfo, error) {
