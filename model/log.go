@@ -55,20 +55,20 @@ func sanitizeClickHouseLikePattern(input string) (string, error) {
 }
 
 type Log struct {
-	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2"`
-	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
-	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type"`
+	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2;index:idx_logs_model_time,priority:3;index:idx_logs_channel_time,priority:3;index:idx_logs_username_time,priority:3"`
+	UserId            int    `json:"user_id" gorm:"index:idx_user_id_id,priority:1;index:idx_logs_user_time,priority:1"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type;index:idx_logs_model_time,priority:2;index:idx_logs_channel_time,priority:2;index:idx_logs_username_time,priority:2;index:idx_logs_user_time,priority:2"`
 	Type              int    `json:"type" gorm:"index:idx_created_at_type"`
 	Content           string `json:"content"`
-	Username          string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
+	Username          string `json:"username" gorm:"index:idx_logs_username_time,priority:1;index:index_username_model_name,priority:2;default:''"`
 	TokenName         string `json:"token_name" gorm:"index;default:''"`
-	ModelName         string `json:"model_name" gorm:"index;index:index_username_model_name,priority:1;default:''"`
+	ModelName         string `json:"model_name" gorm:"index:idx_logs_model_time,priority:1;index:index_username_model_name,priority:1;default:''"`
 	Quota             int    `json:"quota" gorm:"default:0"`
 	PromptTokens      int    `json:"prompt_tokens" gorm:"default:0"`
 	CompletionTokens  int    `json:"completion_tokens" gorm:"default:0"`
 	UseTime           int    `json:"use_time" gorm:"default:0"`
 	IsStream          bool   `json:"is_stream"`
-	ChannelId         int    `json:"channel" gorm:"index"`
+	ChannelId         int    `json:"channel" gorm:"index:idx_logs_channel_time,priority:1"`
 	ChannelName       string `json:"channel_name" gorm:"->"`
 	TokenId           int    `json:"token_id" gorm:"default:0;index"`
 	Group             string `json:"group" gorm:"index"`
@@ -523,12 +523,11 @@ func (f LogFilter) apply(tx *gorm.DB) (*gorm.DB, error) {
 	return tx, nil
 }
 
+// GetAllLogs returns an administrator log page with an exact total and resolved
+// channel names. Negative offsets are treated as the first page.
 func GetAllLogs(filter LogFilter, startIdx int, num int) (logs []*Log, total int64, err error) {
+	startIdx = max(startIdx, 0)
 	tx, err := filter.apply(LOG_DB)
-	if err != nil {
-		return nil, 0, err
-	}
-	err = tx.Model(&Log{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -536,7 +535,7 @@ func GetAllLogs(filter LogFilter, startIdx int, num int) (logs []*Log, total int
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		order = clickHouseLogOrder("logs.")
 	}
-	err = tx.Order(order).Limit(num).Offset(startIdx).Find(&logs).Error
+	logs, total, err = queryLogPage(tx, order, startIdx, num)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -587,29 +586,54 @@ func GetAllLogs(filter LogFilter, startIdx int, num int) (logs []*Log, total int
 	return logs, total, err
 }
 
-const logSearchCountLimit = 10000
-
+// GetUserLogs returns one user's logs with an exact total and display IDs based
+// on the effective page offset, treating negative offsets as the first page.
 func GetUserLogs(userId int, filter LogFilter, startIdx int, num int) (logs []*Log, total int64, err error) {
+	startIdx = max(startIdx, 0)
 	tx, err := filter.apply(LOG_DB.Where("logs.user_id = ?", userId))
 	if err != nil {
 		return nil, 0, err
-	}
-	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
-	if err != nil {
-		common.SysError(common.LogText("failed to count user logs: %s", err.Error()))
-		return nil, 0, common.NewMessage("Failed to query logs")
 	}
 	order := "logs.id desc"
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		order = clickHouseLogOrder("logs.")
 	}
-	err = tx.Order(order).Limit(num).Offset(startIdx).Find(&logs).Error
+	logs, total, err = queryLogPage(tx, order, startIdx, num)
 	if err != nil {
 		common.SysError(common.LogText("failed to search user logs: %s", err.Error()))
 		return nil, 0, common.NewMessage("Failed to query logs")
 	}
 
 	formatUserLogs(logs, startIdx)
+	return logs, total, err
+}
+
+// queryLogPage loads a page and its exact total, skipping COUNT when a partial
+// page establishes the total and delaying full-row reads during deep pagination.
+func queryLogPage(tx *gorm.DB, order string, startIdx int, num int) (logs []*Log, total int64, err error) {
+	tx = tx.Model(&Log{})
+	startIdx = max(startIdx, 0)
+	page := tx.Session(&gorm.Session{}).Order(order).Limit(num).Offset(startIdx)
+	if startIdx > 0 && !common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		// Page over narrow index keys before loading content and JSON metadata.
+		// The derived table also supports MySQL 5.7, which rejects LIMIT in an
+		// IN subquery. Keep the caller's ordering, including its tie breaker.
+		page = page.Select("logs.id")
+		err = tx.Session(&gorm.Session{NewDB: true}).Model(&Log{}).
+			Joins("JOIN (?) AS log_page ON log_page.id = logs.id", page).
+			Order(order).Find(&logs).Error
+	} else {
+		err = page.Find(&logs).Error
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	// A partial page establishes an exact total unless it is an empty page
+	// past the end. Full pages and out-of-range pages still need COUNT.
+	if num > 0 && len(logs) < num && (startIdx == 0 || len(logs) > 0) {
+		return logs, int64(startIdx) + int64(len(logs)), nil
+	}
+	err = tx.Session(&gorm.Session{}).Count(&total).Error
 	return logs, total, err
 }
 
