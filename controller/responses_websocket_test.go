@@ -40,6 +40,7 @@ var responsesWSTestUserSequence atomic.Int64
 
 func setupResponsesWSRequestTest(t *testing.T) (*model.User, *model.Token) {
 	t.Helper()
+	require.NoError(t, i18n.Init())
 	previousDB := model.DB
 	previousLogDB := model.LOG_DB
 	previousType := common.MainDatabaseType()
@@ -748,61 +749,150 @@ func TestResponsesWebSocketDisconnectSettlesDeliveredOutputOnce(t *testing.T) {
 	assert.Empty(t, keys, "client cancellation must not affect model health")
 }
 
-func TestResponsesWebSocketCancelErrorDoesNotFinishActiveRequest(t *testing.T) {
-	complete := make(chan struct{})
-	defer close(complete)
-	allowCreated := make(chan struct{}, 1)
-	defer close(allowCreated)
-	receivedCreate := make(chan struct{}, 1)
-	fixture := newResponsesWSBillingTest(t, `tier("base", p * 2)`, func(ws *websocket.Conn, _ *http.Request) {
-		_, create, err := ws.ReadMessage()
-		if !assert.NoError(t, err) || !assert.Contains(t, string(create), `"type":"response.create"`) {
-			return
-		}
-		receivedCreate <- struct{}{}
-		<-allowCreated
-		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"active","status":"in_progress"}}`))) {
-			return
-		}
-		_, cancel, err := ws.ReadMessage()
-		if !assert.NoError(t, err) || !assert.JSONEq(t, `{"type":"response.cancel","response_id":"wrong"}`, string(cancel)) {
-			return
-		}
-		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"response_not_found","message":"No such response"}}`))) {
-			return
-		}
-		<-complete
-		if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","response":{"id":"active","status":"completed","usage":{"input_tokens":1000,"output_tokens":10,"total_tokens":1010}}}`))) {
-			return
-		}
-		_, _, _ = ws.ReadMessage()
-	})
-	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi"}`)))
-	select {
-	case <-receivedCreate:
-	case <-time.After(3 * time.Second):
-		t.Fatal("upstream did not receive the initial request")
+func TestResponsesWebSocketControlErrorDoesNotFinishActiveRequest(t *testing.T) {
+	for _, eventType := range []string{"response.cancel", "response.interrupt"} {
+		t.Run(eventType, func(t *testing.T) {
+			control := fmt.Sprintf(`{"type":%q,"response_id":"wrong"}`, eventType)
+			complete := make(chan struct{})
+			defer close(complete)
+			allowCreated := make(chan struct{}, 1)
+			defer close(allowCreated)
+			receivedCreate := make(chan struct{}, 1)
+			fixture := newResponsesWSBillingTest(t, `tier("base", p * 2)`, func(ws *websocket.Conn, _ *http.Request) {
+				_, create, err := ws.ReadMessage()
+				if !assert.NoError(t, err) || !assert.Contains(t, string(create), `"type":"response.create"`) {
+					return
+				}
+				receivedCreate <- struct{}{}
+				<-allowCreated
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"active","status":"in_progress"}}`))) {
+					return
+				}
+				_, receivedControl, err := ws.ReadMessage()
+				if !assert.NoError(t, err) || !assert.JSONEq(t, control, string(receivedControl)) {
+					return
+				}
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"response_not_found","message":"No such response"}}`))) {
+					return
+				}
+				<-complete
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","response":{"id":"active","status":"completed","usage":{"input_tokens":1000,"output_tokens":10,"total_tokens":1010}}}`))) {
+					return
+				}
+				_, _, _ = ws.ReadMessage()
+			})
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi"}`)))
+			select {
+			case <-receivedCreate:
+			case <-time.After(3 * time.Second):
+				t.Fatal("upstream did not receive the initial request")
+			}
+			// Queue cancellation before the upstream accepts the response. The following
+			// conflict is an acknowledgement that the client loop processed both frames.
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(control)))
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"before-acceptance"}`)))
+			assert.Equal(t, float64(http.StatusConflict), readResponsesWSTestEvent(t, fixture.client)["status"])
+			allowCreated <- struct{}{}
+			assert.Equal(t, "response.created", readResponsesWSTestEvent(t, fixture.client)["type"])
+			cancelError := readResponsesWSTestEvent(t, fixture.client)
+			assert.Equal(t, "error", cancelError["type"])
+			assert.Equal(t, float64(http.StatusBadRequest), cancelError["status"])
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"overlapping","stream_id":"other","event_id":"busy"}`)))
+			conflict := readResponsesWSTestEvent(t, fixture.client)
+			assert.Equal(t, "error", conflict["type"])
+			assert.Equal(t, float64(http.StatusConflict), conflict["status"])
+			assert.Equal(t, "other", conflict["stream_id"])
+			assert.Equal(t, "busy", conflict["event_id"])
+			complete <- struct{}{}
+			assert.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+			fixture.closeAndWait(t)
+			assertResponsesWSAccounting(t, fixture, []int{1000})
+		})
 	}
-	// Queue cancellation before the upstream accepts the response. The following
-	// conflict is an acknowledgement that the client loop processed both frames.
-	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.cancel","response_id":"wrong"}`)))
-	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"before-acceptance"}`)))
-	assert.Equal(t, float64(http.StatusConflict), readResponsesWSTestEvent(t, fixture.client)["status"])
-	allowCreated <- struct{}{}
-	assert.Equal(t, "response.created", readResponsesWSTestEvent(t, fixture.client)["type"])
-	cancelError := readResponsesWSTestEvent(t, fixture.client)
-	assert.Equal(t, "error", cancelError["type"])
-	assert.Equal(t, float64(http.StatusBadRequest), cancelError["status"])
-	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"overlapping","stream_id":"other","event_id":"busy"}`)))
-	conflict := readResponsesWSTestEvent(t, fixture.client)
-	assert.Equal(t, "error", conflict["type"])
-	assert.Equal(t, float64(http.StatusConflict), conflict["status"])
-	assert.Equal(t, "other", conflict["stream_id"])
-	assert.Equal(t, "busy", conflict["event_id"])
-	complete <- struct{}{}
-	assert.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
-	fixture.closeAndWait(t)
-	assertResponsesWSAccounting(t, fixture, []int{1000})
+}
+
+func TestResponsesWebSocketInterruptLifecycle(t *testing.T) {
+	for _, terminalType := range []string{"response.completed", "response.incomplete"} {
+		t.Run(terminalType, func(t *testing.T) {
+			finish := make(chan struct{}, 1)
+			defer close(finish)
+			interrupt := `{"type":"response.interrupt","event_id":"interrupt_1","response_id":"first","mode":"discard_partial_items","extension":{"keep":false}}`
+			fixture := newResponsesWSBillingTest(t, `tier("base", p * 2)`, func(ws *websocket.Conn, _ *http.Request) {
+				if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+					return
+				}
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"first","status":"in_progress"}}`))) {
+					return
+				}
+				_, control, err := ws.ReadMessage()
+				if !assert.NoError(t, err) || !assert.Equal(t, interrupt, string(control), "forward the original interrupt without rewriting its fields") {
+					return
+				}
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.interrupt.accepted","response_id":"first"}`))) {
+					return
+				}
+				<-finish
+				terminal := fmt.Sprintf(`{"type":%q,"response":{"id":"first","status":%q,"usage":{"input_tokens":1000,"output_tokens":10,"total_tokens":1010}}}`, terminalType, strings.TrimPrefix(terminalType, "response."))
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(terminal))) {
+					return
+				}
+				_, next, err := ws.ReadMessage()
+				if !assert.NoError(t, err) || !assert.Contains(t, string(next), `"type":"response.create"`, "a late interrupt must not reach upstream") {
+					return
+				}
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"second","status":"in_progress"}}`))) {
+					return
+				}
+				<-finish
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","response":{"id":"second","status":"completed","usage":{"input_tokens":500,"output_tokens":10,"total_tokens":510}}}`))) {
+					return
+				}
+				_, _, err = ws.ReadMessage()
+				assert.True(t, websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure), "unexpected upstream control after completion: %v", err)
+			})
+
+			// Unknown targets on an idle connection still fail without starting a request.
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(interrupt)))
+			idleError := readResponsesWSTestEvent(t, fixture.client)
+			assert.Equal(t, float64(http.StatusBadRequest), idleError["status"])
+			assert.Equal(t, "interrupt_1", idleError["event_id"])
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi"}`)))
+			require.Equal(t, "response.created", readResponsesWSTestEvent(t, fixture.client)["type"])
+			for _, invalid := range []string{
+				`{"type":"response.interrupt","event_id":"bad_interrupt"}`,
+				`{"type":"response.interrupt","event_id":"bad_interrupt","response_id":" "}`,
+				`{"type":"response.interrupt","event_id":"bad_interrupt","response_id":123}`,
+			} {
+				require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(invalid)))
+				invalidError := readResponsesWSTestEvent(t, fixture.client)
+				assert.Equal(t, float64(http.StatusBadRequest), invalidError["status"])
+				assert.Equal(t, "bad_interrupt", invalidError["event_id"])
+			}
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(interrupt)))
+			accepted := readResponsesWSTestEvent(t, fixture.client)
+			require.Equal(t, "response.interrupt.accepted", accepted["type"])
+			assert.Equal(t, "first", accepted["response_id"])
+			// An interrupt acknowledgement is not a terminal event or a refund.
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"overlapping"}`)))
+			assert.Equal(t, float64(http.StatusConflict), readResponsesWSTestEvent(t, fixture.client)["status"])
+			finish <- struct{}{}
+			require.Equal(t, terminalType, readResponsesWSTestEvent(t, fixture.client)["type"])
+
+			// Ignore late interrupts for the previous terminal response both while
+			// idle and while a subsequent response owns the persistent connection.
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(interrupt)))
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"next"}`)))
+			require.Equal(t, "response.created", readResponsesWSTestEvent(t, fixture.client)["type"])
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(interrupt)))
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"overlapping"}`)))
+			assert.Equal(t, float64(http.StatusConflict), readResponsesWSTestEvent(t, fixture.client)["status"])
+			finish <- struct{}{}
+			require.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+			fixture.closeAndWait(t)
+			assert.Equal(t, int32(1), fixture.connections.Load())
+			assertResponsesWSAccounting(t, fixture, []int{1000, 500})
+		})
+	}
 }
 
 func TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation(t *testing.T) {

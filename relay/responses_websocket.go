@@ -34,6 +34,7 @@ import (
 )
 
 const responsesWSEventTypeResponseCreate = "response.create"
+const responsesWSEventTypeResponseInterrupt = "response.interrupt"
 const responsesWSWriteTimeout = 30 * time.Second
 
 // ResponsesWSRequestRunner executes the existing authentication and rate-limit
@@ -70,7 +71,7 @@ type responsesWSMessage struct {
 	err  error
 }
 
-// responsesWSControl is a client control event (response.cancel) whose
+// responsesWSControl is a client control event (response.cancel or response.interrupt) whose
 // envelope the read loop already parsed.
 type responsesWSControl struct {
 	body              []byte
@@ -107,13 +108,15 @@ type responsesWSSession struct {
 	unregister    func()
 	stateMu       sync.Mutex
 	current       *responsesWSCallState
+	// The request worker writes this under stateMu so the client reader can
+	// recognize a late interrupt before admitting or forwarding a control.
+	lastResponseID string
 
 	// clientWriteBudget is guarded by clientWriteMu.
 	clientWriteBudget helper.StreamWriteBudget
 
 	// These fields belong to the serial request worker and describe the actual
 	// established connection. Per-request token/user data is never stored here.
-	lastResponseID  string
 	lockedModel     string
 	lockedChannelID int
 	lockedGroup     string
@@ -154,10 +157,36 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner Res
 			continue
 		}
 		if eventType != responsesWSEventTypeResponseCreate {
-			// Controls are owned by the active request too. In particular a cancel
+			// Controls are owned by the active request too. In particular a control
 			// arriving during authentication must not precede its upstream create.
 			state := s.getCurrent()
-			if eventType != "response.cancel" || state == nil {
+			if eventType == responsesWSEventTypeResponseInterrupt {
+				var interrupt struct {
+					ResponseID string `json:"response_id"`
+				}
+				if err := common.Unmarshal(message, &interrupt); err != nil {
+					s.sendError(envelope.EventID, streamID, newResponsesWSInvalidRequestError(err))
+					continue
+				}
+				if strings.TrimSpace(interrupt.ResponseID) == "" {
+					s.sendError(envelope.EventID, streamID, newResponsesWSInvalidRequestError(errors.New("response_id is required for response.interrupt")))
+					continue
+				}
+				s.stateMu.Lock()
+				alreadyTerminal := interrupt.ResponseID == s.lastResponseID
+				s.stateMu.Unlock()
+				if alreadyTerminal {
+					// The client can still be consuming the previous response when
+					// it interrupts. Its terminal event already acknowledges completion;
+					// an extra error here would poison the next create on this socket.
+					continue
+				}
+				if state == nil {
+					s.sendError(envelope.EventID, streamID, newResponsesWSInvalidRequestError(errors.New("no active response to interrupt")))
+					continue
+				}
+			}
+			if (eventType != "response.cancel" && eventType != responsesWSEventTypeResponseInterrupt) || state == nil {
 				s.sendError(envelope.EventID, streamID, newResponsesWSInvalidRequestError(fmt.Errorf("unsupported websocket event %q", eventType)))
 				continue
 			}
@@ -441,7 +470,9 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 						}
 						accumulator.Observe(&event.ResponsesStreamResponse, incoming.body)
 						info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+						s.stateMu.Lock()
 						s.lastResponseID = responseID
+						s.stateMu.Unlock()
 						state.terminal = &incoming
 						if ambiguous {
 							state.closeCode = websocket.CloseInternalServerErr
@@ -475,7 +506,9 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			switch event.Type {
 			case "response.completed", "response.done", "response.incomplete", "response.failed", "response.cancelled", "response.canceled":
 				if event.Response != nil {
+					s.stateMu.Lock()
 					s.lastResponseID = event.Response.ID
+					s.stateMu.Unlock()
 				}
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 				state.terminal = &incoming
@@ -518,7 +551,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	}
 }
 
-// A single generation is active, but a cancel can fail independently. Correlate
+// A single generation is active, but a control can fail independently. Correlate
 // available IDs first; uncorrelated control/server errors require a bounded
 // connection close because continuing could leave the generation stuck forever.
 func responsesWSErrorEndsRequest(event responsesWSErrorEvent, streamID, responseID string, control []byte) (terminal, ambiguous, controlError bool) {
