@@ -5895,6 +5895,8 @@
     "Size:": "サイズ:",
     "sk_xxx or rk_xxx": "sk_xxx または rk_xxx",
     "Skip async task polling delay": "非同期タスクのポーリング遅延をスキップ",
+    "Skip Auto Test": "自動テストをスキップ",
+    "Skip scheduled tests to save quota. Manual tests still run.": "クォータを節約するために定期テストをスキップします。手動テストは引き続き実行できます。",
     "Skip pre-consumption when the wallet balance and limited API key balance both exceed this amount. Set to 0 to always pre-consume. Subscriptions and asynchronous tasks always reserve quota.": "ウォレット残高と上限付き API キーの残高が両方ともこの金額を超える場合、事前引き落としを省略します。0 にすると常に事前引き落としを行います。サブスクリプションと非同期タスクでは常にクォータを確保します。",
     "Skip retry on failure": "失敗時にリトライしない",
     "Skip SMTP TLS certificate verification": "SMTP TLS証明書の検証をスキップ",

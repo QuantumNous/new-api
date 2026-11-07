@@ -326,6 +326,49 @@ func TestResolveChannelTestUserIDUsesRequestUser(t *testing.T) {
 	require.Equal(t, 2, userID)
 }
 
+func TestRunChannelTestTaskSkipsOptedOutChannelsOnlyWhenScheduled(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{Username: "channel-test-root", Role: common.RoleRootUser}).Error)
+	// Unsupported test types finish locally, so each attempt is counted without
+	// sending an upstream request or charging quota.
+	for _, skip := range []*int{nil, common.GetPointer(0), common.GetPointer(1)} {
+		require.NoError(t, db.Create(&model.Channel{
+			Name: "quota-limited", Key: "test-key", Type: constant.ChannelTypeTaskPlugin,
+			Status: common.ChannelStatusAutoDisabled, AutoBan: common.GetPointer(1), SkipAutoTest: skip,
+		}).Error)
+	}
+	monitor := operation_setting.GetMonitorSetting()
+	originalMonitor := *monitor
+	originalInterval := common.RequestInterval
+	common.RequestInterval = 0
+	t.Cleanup(func() {
+		*monitor = originalMonitor
+		common.RequestInterval = originalInterval
+	})
+
+	for _, test := range []struct {
+		name        string
+		mode        string
+		monitorMode string
+		wantRuns    int
+	}{
+		{name: "scheduled", monitorMode: operation_setting.ChannelTestModeScheduledAll, wantRuns: 2},
+		{name: "scheduled whitespace", mode: " \t", monitorMode: operation_setting.ChannelTestModeScheduledAll, wantRuns: 2},
+		{name: "scheduled auto ban only", monitorMode: operation_setting.ChannelTestModeAutoBanOnly, wantRuns: 2},
+		{name: "scheduled passive recovery", monitorMode: operation_setting.ChannelTestModePassiveRecovery, wantRuns: 2},
+		{name: "manual test all", mode: operation_setting.ChannelTestModeScheduledAll, monitorMode: operation_setting.ChannelTestModePassiveRecovery, wantRuns: 3},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			monitor.ChannelTestMode = test.monitorMode
+			var total int
+			summary, err := runChannelTestTask(context.Background(), test.mode, false, func(_, count int) { total = count })
+			require.NoError(t, err)
+			assert.Equal(t, test.wantRuns, summary.Tested)
+			assert.Equal(t, test.wantRuns, total)
+		})
+	}
+}
+
 func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *testing.T) {
 	channels := []*model.Channel{
 		{Id: 1, Status: common.ChannelStatusEnabled},
@@ -333,7 +376,7 @@ func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *te
 		{Id: 3, Status: common.ChannelStatusManuallyDisabled},
 	}
 
-	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery)
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery, true)
 
 	require.Len(t, selected, 1)
 	require.Equal(t, 2, selected[0].Id)
@@ -346,7 +389,7 @@ func TestSelectChannelsForAutomaticTestScheduledSkipsManualDisabled(t *testing.T
 		{Id: 3, Status: common.ChannelStatusManuallyDisabled},
 	}
 
-	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll)
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll, true)
 
 	require.Len(t, selected, 2)
 	require.Equal(t, 1, selected[0].Id)
@@ -364,7 +407,7 @@ func TestSelectChannelsForAutomaticTestAutoBanOnlyUsesEligibleChannels(t *testin
 		{Id: 5, Status: common.ChannelStatusEnabled},
 	}
 
-	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeAutoBanOnly)
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeAutoBanOnly, true)
 
 	require.Len(t, selected, 2)
 	require.Equal(t, 1, selected[0].Id)

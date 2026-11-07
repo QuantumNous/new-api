@@ -5895,6 +5895,8 @@
     "Size:": "大小：",
     "sk_xxx or rk_xxx": "sk_xxx 或 rk_xxx",
     "Skip async task polling delay": "跳過異步任務輪詢延遲",
+    "Skip Auto Test": "略過自動測試",
+    "Skip scheduled tests to save quota. Manual tests still run.": "略過排程測試以節省額度，手動測試仍會執行。",
     "Skip pre-consumption when the wallet balance and limited API key balance both exceed this amount. Set to 0 to always pre-consume. Subscriptions and asynchronous tasks always reserve quota.": "錢包餘額和有限額的 API 權杖餘額都超過此金額時，略過預扣。設為 0 則一律預扣。訂閱和非同步任務一律預留額度。",
     "Skip retry on failure": "失敗後不重試",
     "Skip SMTP TLS certificate verification": "跳過 SMTP TLS 證書驗證",

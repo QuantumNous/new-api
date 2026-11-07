@@ -5895,6 +5895,8 @@
     "Size:": "Размер:",
     "sk_xxx or rk_xxx": "sk_xxx или rk_xxx",
     "Skip async task polling delay": "Пропускать задержку опроса асинхронных задач",
+    "Skip Auto Test": "Пропустить автотест",
+    "Skip scheduled tests to save quota. Manual tests still run.": "Пропускать плановые тесты для экономии квоты. Ручные тесты продолжают работать.",
     "Skip pre-consumption when the wallet balance and limited API key balance both exceed this amount. Set to 0 to always pre-consume. Subscriptions and asynchronous tasks always reserve quota.": "Предсписание пропускается, если баланс кошелька и остаток лимита API-ключа превышают эту сумму. Значение 0 включает предсписание всегда. Для подписок и асинхронных задач квота резервируется всегда.",
     "Skip retry on failure": "Не повторять при ошибке",
     "Skip SMTP TLS certificate verification": "Пропустить проверку TLS-сертификата SMTP",

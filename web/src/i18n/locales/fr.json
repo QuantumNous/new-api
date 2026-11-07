@@ -5895,6 +5895,8 @@
     "Size:": "Taille :",
     "sk_xxx or rk_xxx": "sk_xxx ou rk_xxx",
     "Skip async task polling delay": "Ignorer le délai de polling des tâches asynchrones",
+    "Skip Auto Test": "Ignorer le test automatique",
+    "Skip scheduled tests to save quota. Manual tests still run.": "Ignorer les tests planifiés pour économiser le quota. Les tests manuels restent actifs.",
     "Skip pre-consumption when the wallet balance and limited API key balance both exceed this amount. Set to 0 to always pre-consume. Subscriptions and asynchronous tasks always reserve quota.": "Aucun pré-débit si le solde du portefeuille et celui de la clé API à quota limité dépassent ce montant. La valeur 0 impose le pré-débit. Les abonnements et tâches asynchrones réservent toujours un quota.",
     "Skip retry on failure": "Ne pas réessayer en cas d'échec",
     "Skip SMTP TLS certificate verification": "Ignorer la vérification du certificat TLS SMTP",

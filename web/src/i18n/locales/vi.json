@@ -5895,6 +5895,8 @@
     "Size:": "Kích thước:",
     "sk_xxx or rk_xxx": "sk_xxx hoặc rk_xxx",
     "Skip async task polling delay": "Bỏ qua độ trễ thăm dò tác vụ bất đồng bộ",
+    "Skip Auto Test": "Bỏ qua kiểm tra tự động",
+    "Skip scheduled tests to save quota. Manual tests still run.": "Bỏ qua kiểm tra định kỳ để tiết kiệm hạn ngạch. Kiểm tra thủ công vẫn hoạt động.",
     "Skip pre-consumption when the wallet balance and limited API key balance both exceed this amount. Set to 0 to always pre-consume. Subscriptions and asynchronous tasks always reserve quota.": "Bỏ qua khấu trừ trước khi số dư ví và số dư hạn mức khóa API đều vượt mức này. Đặt 0 để luôn khấu trừ trước. Gói đăng ký và tác vụ bất đồng bộ luôn giữ trước hạn mức.",
     "Skip retry on failure": "Không thử lại khi thất bại",
     "Skip SMTP TLS certificate verification": "Bỏ qua xác minh chứng chỉ TLS SMTP",

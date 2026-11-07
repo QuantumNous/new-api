@@ -2288,6 +2288,29 @@ export function ChannelMutateDrawer({
           </FormItem>
         )}
       />
+      <FormField
+        control={form.control}
+        name='skip_auto_test'
+        render={({ field }) => (
+          <FormItem className='flex items-center justify-between'>
+            <div className='space-y-0.5'>
+              <FormLabel>{t('Skip Auto Test')}</FormLabel>
+              <FormDescription>
+                {t(
+                  'Skip scheduled tests to save quota. Manual tests still run.'
+                )}
+              </FormDescription>
+            </div>
+            <FormControl>
+              <Switch
+                disabled={isSubmitting}
+                checked={field.value === 1}
+                onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
+              />
+            </FormControl>
+          </FormItem>
+        )}
+      />
     </div>
   )
 
