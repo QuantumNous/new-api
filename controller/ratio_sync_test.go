@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,6 +82,12 @@ func TestPricingSyncCompleteSourcesAndArrayFormats(t *testing.T) {
 	expressions, err := common.Marshal(map[string]string{"sync-already": expression})
 	require.NoError(t, err)
 	config.UpdateConfigFromMap(config.GlobalConfig.Get("billing_setting"), map[string]string{"billing_mode": `{"sync-already":"tiered_expr"}`, "billing_expr": string(expressions)})
+	fetchSetting := system_setting.GetFetchSetting()
+	originalFetchSetting := *fetchSetting
+	fetchSetting.EnableSSRFProtection = true
+	fetchSetting.AllowPrivateIp = true
+	fetchSetting.AllowedPorts = []string{"1-65535"}
+	t.Cleanup(func() { *fetchSetting = originalFetchSetting })
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var data any
 		if r.URL.Path == "/ratio_config" {
