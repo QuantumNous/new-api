@@ -413,6 +413,22 @@ func ClaudeUsesManualThinking(model string, intent Intent) bool {
 	return capabilities.supportsManual && intent.BudgetTokens != nil && intent.Mode != ModeAdaptive
 }
 
+// ClaudeRejectsNativeThinking reports whether a known Claude model rejects the
+// request's own thinking object: manual thinking on a model that only accepts
+// adaptive thinking, or budget_tokens sent with adaptive thinking.
+func ClaudeRejectsNativeThinking(model string, thinking *dto.Thinking) bool {
+	if thinking == nil || !isKnownClaudeModel(model) {
+		return false
+	}
+	switch thinking.Type {
+	case "enabled":
+		return !claudeCapabilitiesFor(model).supportsManual
+	case "adaptive":
+		return thinking.BudgetTokens != nil
+	}
+	return false
+}
+
 func IsKnownClaudeModel(model string) bool {
 	return isKnownClaudeModel(model)
 }
