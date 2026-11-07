@@ -22,6 +22,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { GroupBadge } from '@/components/group-badge'
+import { BadgeCell } from '@/components/data-table'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -58,6 +59,7 @@ import type { UsageLog } from '../../data/schema'
 import {
   formatModelName,
   decodeBillingExprB64,
+  getReasoningEffortVariant,
   getTieredBillingSummary,
   hasAnyCacheTokens,
   parseLogOther,
@@ -697,6 +699,37 @@ export function useCommonLogsColumns(
           )
         },
         meta: { mobileTitle: true },
+      },
+      {
+        id: 'reasoning_effort',
+        header: t('Reasoning Effort'),
+        accessorFn: (log) => {
+          if (!isDisplayableLogType(log.type)) {
+            return ''
+          }
+
+          const effort = parseLogOther(log.other)?.reasoning_effort
+          return typeof effort === 'string' ? effort.trim() : ''
+        },
+        cell: ({ getValue }) => {
+          const effort = getValue<string>()
+          if (!effort) {
+            return <span className='text-muted-foreground'>—</span>
+          }
+
+          return (
+            <BadgeCell>
+              <StatusBadge
+                label={effort}
+                variant={getReasoningEffortVariant(effort)}
+                size='sm'
+                copyable={false}
+              />
+            </BadgeCell>
+          )
+        },
+        meta: { label: t('Reasoning Effort') },
+        size: 85,
       },
       {
         accessorKey: 'is_stream',
