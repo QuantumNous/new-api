@@ -37,8 +37,8 @@ import {
 } from './api'
 import { ActiveUsersPanel } from './components/active-users-panel'
 import { ActivityTrendPanel } from './components/activity-trend-panel'
+import { FailedRequestsPanel } from './components/failed-requests-panel'
 import { FlowPanel } from './components/flow/flow-panel'
-import { ModelUsagePanel } from './components/model-usage-panel'
 import { OverviewStatCards } from './components/overview-stat-cards'
 import { PerformanceOverview } from './components/performance-overview'
 import { RevenuePanel } from './components/revenue-panel'
@@ -304,6 +304,10 @@ export function AdminOverview() {
                 <PerformanceOverview />
               </FadeIn>
 
+              <FadeIn delay={0.08}>
+                <FailedRequestsPanel />
+              </FadeIn>
+
               <FadeIn delay={0.1}>
                 <ActivityTrendPanel
                   rows={quotaRows}
@@ -361,18 +365,12 @@ export function AdminOverview() {
                 </FadeIn>
               </div>
               <FadeIn delay={0.25}>
-                <ModelUsagePanel
-                  models={modelUsage}
-                  loading={quotaQuery.isLoading}
-                />
-              </FadeIn>
-              <FadeIn delay={0.3}>
                 <UserCharts
                   filters={userChartsFilters}
                   onFiltersChange={setUserChartsFilters}
                 />
               </FadeIn>
-              <FadeIn delay={0.35}>
+              <FadeIn delay={0.3}>
                 <FlowPanel />
               </FadeIn>
             </>
