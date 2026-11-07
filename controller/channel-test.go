@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -570,6 +571,11 @@ func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData ho
 }
 
 func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dto.Usage, error) {
+	// A typed nil *dto.Usage is not a nil interface, so normalize it before the
+	// type switch; otherwise it would be returned as a successful usage.
+	if u, ok := usageAny.(*dto.Usage); ok && u == nil {
+		usageAny = nil
+	}
 	switch u := usageAny.(type) {
 	case *dto.Usage:
 		return u, nil
@@ -1013,7 +1019,7 @@ func runChannelTestWorkers(
 
 					result := channelTestSummary{}
 					if channel != nil && channel.Status != common.ChannelStatusManuallyDisabled {
-						result = run(ctx, channel)
+						result = runChannelTestSafely(ctx, channel, run)
 					}
 
 					results <- result
@@ -1060,6 +1066,20 @@ func runChannelTestWorkers(
 		}
 	}
 	return summary
+}
+
+// runChannelTestSafely isolates a panic in one channel test so it is counted as
+// a failed test instead of crashing the whole process from a worker goroutine.
+// The channel status is left unchanged because the panic is a local defect, not
+// an upstream failure.
+func runChannelTestSafely(ctx context.Context, channel *model.Channel, run func(context.Context, *model.Channel) channelTestSummary) (result channelTestSummary) {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(common.LogText("channel test panic: channel_id=%d name=%s type=%d err=%v\n%s", channel.Id, channel.Name, channel.Type, r, debug.Stack()))
+			result = channelTestSummary{Tested: 1, Failed: 1}
+		}
+	}()
+	return run(ctx, channel)
 }
 
 // performChannelTests runs channel health checks with the configured bounded
