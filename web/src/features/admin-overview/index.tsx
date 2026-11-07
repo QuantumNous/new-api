@@ -37,6 +37,7 @@ import {
 } from './api'
 import { ActiveUsersPanel } from './components/active-users-panel'
 import { ActivityTrendPanel } from './components/activity-trend-panel'
+import { ClientBalancesPanel } from './components/client-balances-panel'
 import { FailedRequestsPanel } from './components/failed-requests-panel'
 import { FlowPanel } from './components/flow/flow-panel'
 import { OverviewStatCards } from './components/overview-stat-cards'
@@ -59,9 +60,9 @@ import {
 
 const TREND_DAYS = 30
 const TOP_MODEL_LIMIT = 6
-// The admin analytics are live: every panel polls once per second so the
-// numbers on screen always reflect the current second.
-const REFRESH_MS = 1000
+// The control panel is live: every panel polls once every 3 seconds so the
+// numbers on screen stay current without overwhelming the backend.
+const REFRESH_MS = 3000
 
 export function AdminOverview() {
   const { t } = useTranslation()
@@ -243,7 +244,7 @@ export function AdminOverview() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Home')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t('Control Panel')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <span className='text-muted-foreground flex items-center gap-1.5 text-xs'>
           {!hasError && (
@@ -254,7 +255,7 @@ export function AdminOverview() {
           )}
           {hasError
             ? t('Failed to load')
-            : t('Live data, refreshed every second')}
+            : t('Live data, refreshed every 3 seconds')}
         </span>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
@@ -298,6 +299,10 @@ export function AdminOverview() {
                   )}
                   loading={statsLoading}
                 />
+              </FadeIn>
+
+              <FadeIn delay={0.02}>
+                <ClientBalancesPanel />
               </FadeIn>
 
               <FadeIn delay={0.05}>

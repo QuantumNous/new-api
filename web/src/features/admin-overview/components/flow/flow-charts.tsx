@@ -342,8 +342,8 @@ export function FlowCharts(props: FlowChartsProps) {
       requireServerSuccess(await getFlowQuotaDates(flowQueryParams, isAdmin)),
     select: (res) =>
       requireSuccessfulFlowRows(res, t('Please try again later.')),
-    refetchInterval: 1000,
-    staleTime: 900,
+    refetchInterval: 3000,
+    staleTime: 2900,
   })
 
   const maskSensitive = props.sensitiveVisible === false

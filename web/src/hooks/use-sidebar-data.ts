@@ -23,7 +23,6 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
-  House,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -135,9 +134,9 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
         title: t('Admin'),
         items: [
           {
-            title: t('Home'),
+            title: t('Control Panel'),
             url: '/admin/overview',
-            icon: House,
+            icon: LayoutDashboard,
             requiredRole: ROLE.ADMIN,
           },
           {
