@@ -18,29 +18,44 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 
-import { type TopNavLink } from '../types'
+import type { TopNavLink } from '../types'
 
 type TopNavProps = React.HTMLAttributes<HTMLElement> & {
   links: TopNavLink[]
 }
 
+const HORIZONTAL_LINK_CLASS =
+  'focus-visible:ring-ring/40 min-w-0 truncate rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none'
+
+const DRAWER_LINK_CLASS =
+  'focus-visible:ring-ring/40 flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none'
+
 /**
- * 顶部导航栏组件
- * 在大屏幕显示水平导航，在小屏幕显示下拉菜单
+ * Top navigation.
+ *
+ * From the `lg` breakpoint up, links render inline in the header and can shrink
+ * with an ellipsis instead of overlapping their neighbours. Below `lg` — phones
+ * and portrait tablets — the links move into a slide-in drawer opened from the
+ * hamburger button. The drawer takes the start edge of the page, so it opens
+ * from the right in RTL layouts.
  */
 export function TopNav({ className, links, ...props }: TopNavProps) {
-  // 规范化链接，确保所有可选属性都有默认值
+  const { t } = useTranslation()
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+
   const normalizedLinks = useMemo(
     () =>
       links.map((link) => ({
@@ -52,77 +67,129 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
     [links]
   )
 
+  const closeDrawer = () => setIsDrawerOpen(false)
+
   return (
     <>
-      {/* 移动端下拉菜单 */}
-      <div className='lg:hidden'>
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger
-            render={<Button size='icon' variant='outline' className='size-7' />}
+      <div className='flex shrink-0 items-center lg:hidden'>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='size-8'
+          aria-label={t('Open navigation menu')}
+          aria-expanded={isDrawerOpen}
+          aria-haspopup='dialog'
+          onClick={() => setIsDrawerOpen(true)}
+        >
+          <Menu className='size-[1.15rem]' aria-hidden='true' />
+        </Button>
+
+        <Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+          <SheetContent
+            side='left'
+            className='w-72 max-w-[85vw] gap-0 p-0'
           >
-            <Menu />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side='bottom' align='start'>
-            {normalizedLinks.map(
-              ({ title, href, isActive, disabled, external }) => (
-                <DropdownMenuItem
-                  key={`${title}-${href}`}
-                  render={
-                    external ? (
+            <SheetHeader className='border-border border-b py-3 ps-4 pe-12'>
+              <SheetTitle>{t('Navigation')}</SheetTitle>
+              <SheetDescription className='sr-only'>
+                {t('Main navigation links')}
+              </SheetDescription>
+            </SheetHeader>
+            <nav
+              aria-label={t('Navigation')}
+              className='flex flex-col gap-1 p-2'
+            >
+              {normalizedLinks.map(
+                ({ title, href, isActive, disabled, external }) => {
+                  const linkClassName = cn(
+                    DRAWER_LINK_CLASS,
+                    isActive
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                    disabled && 'pointer-events-none opacity-50'
+                  )
+
+                  if (external) {
+                    return (
                       <a
+                        key={`${title}:${href}`}
                         href={href}
+                        title={title}
                         target='_blank'
                         rel='noopener noreferrer'
-                        className={!isActive ? 'text-muted-foreground' : ''}
+                        aria-disabled={disabled}
+                        tabIndex={disabled ? -1 : undefined}
+                        onClick={closeDrawer}
+                        className={linkClassName}
                       >
-                        {title}
+                        <span className='min-w-0 truncate'>{title}</span>
                       </a>
-                    ) : (
-                      <Link
-                        to={href}
-                        className={!isActive ? 'text-muted-foreground' : ''}
-                        disabled={disabled}
-                      >
-                        {title}
-                      </Link>
                     )
                   }
-                ></DropdownMenuItem>
-              )
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+
+                  return (
+                    <Link
+                      key={`${title}:${href}`}
+                      to={href}
+                      title={title}
+                      disabled={disabled}
+                      onClick={closeDrawer}
+                      className={linkClassName}
+                    >
+                      <span className='min-w-0 truncate'>{title}</span>
+                    </Link>
+                  )
+                }
+              )}
+            </nav>
+          </SheetContent>
+        </Sheet>
       </div>
 
-      {/* 桌面端水平导航 */}
       <nav
-        className={cn(
-          'hidden items-center space-x-4 lg:flex lg:space-x-4 xl:space-x-6',
-          className
-        )}
+        className={cn('hidden min-w-0 items-center gap-0.5 lg:flex', className)}
         {...props}
       >
-        {normalizedLinks.map(({ title, href, isActive, disabled, external }) =>
-          external ? (
-            <a
-              key={`${title}-${href}`}
-              href={href}
-              target='_blank'
-              rel='noopener noreferrer'
-              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
-            >
-              {title}
-            </a>
-          ) : (
-            <Link
-              key={`${title}-${href}`}
-              to={href}
-              disabled={disabled}
-              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
-            >
-              {title}
-            </Link>
-          )
+        {normalizedLinks.map(
+          ({ title, href, isActive, disabled, external }) => {
+            const linkClassName = cn(
+              HORIZONTAL_LINK_CLASS,
+              isActive
+                ? 'text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
+              disabled && 'pointer-events-none opacity-50'
+            )
+
+            if (external) {
+              return (
+                <a
+                  key={`${title}:${href}`}
+                  href={href}
+                  title={title}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  aria-disabled={disabled}
+                  tabIndex={disabled ? -1 : undefined}
+                  className={linkClassName}
+                >
+                  {title}
+                </a>
+              )
+            }
+
+            return (
+              <Link
+                key={`${title}:${href}`}
+                to={href}
+                title={title}
+                disabled={disabled}
+                className={linkClassName}
+              >
+                {title}
+              </Link>
+            )
+          }
         )}
       </nav>
     </>
