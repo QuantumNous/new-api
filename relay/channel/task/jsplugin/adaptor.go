@@ -639,17 +639,11 @@ func isOpenAIImageEndpoint(c *gin.Context) bool {
 	return exists && ok && pinned.Protocol == pluginruntime.ProtocolOpenAIImage
 }
 
-func acquireOpenAIImageReplySlot(c *gin.Context) error {
-	ctx := context.Background()
-	if c != nil && c.Request != nil {
-		ctx = c.Request.Context()
-	}
-	select {
-	case openAIImageReplySlot <- struct{}{}:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+func acquireOpenAIImageReplySlot() {
+	// The upstream response has already completed when this is acquired. Do not
+	// use the submission deadline here: abandoning the body after the provider
+	// has finished can refund work that was already billed upstream.
+	openAIImageReplySlot <- struct{}{}
 }
 
 func releaseOpenAIImageReplySlot() {
@@ -685,11 +679,7 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 	}
 	replyLimit := submitReplyLimit(c)
 	if isOpenAIImageEndpoint(c) {
-		if err = acquireOpenAIImageReplySlot(c); err != nil {
-			failure := service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusBadGateway, common.UpstreamAddresses(c)...)
-			failure.NoRetry = streaming
-			return nil, failure
-		}
+		acquireOpenAIImageReplySlot()
 		defer releaseOpenAIImageReplySlot()
 	}
 	if eventStream {
