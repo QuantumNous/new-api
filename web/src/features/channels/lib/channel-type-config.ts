@@ -180,6 +180,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  64: {
+    id: 64,
+    name: CHANNEL_TYPES[64],
+    icon: 'Huawei',
+    defaultBaseUrl: 'https://api.modelarts-maas.com',
+    hints: {
+      baseUrl: 'Default: https://api.modelarts-maas.com',
+      key: 'Huawei Cloud MaaS API Key',
+      models: 'Use model IDs from Huawei Modelarts Maas',
+    },
+  },
 }
 
 /**
