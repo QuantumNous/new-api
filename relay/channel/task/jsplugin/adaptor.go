@@ -132,6 +132,11 @@ const maxTaskArtifacts = 64
 // maxTaskPluginPersistedJSONBytes is the shared ceiling for taskData and plugin state.
 const maxTaskPluginPersistedJSONBytes = 1 << 20
 
+// Large OpenAI image replies are read and decoded before the plugin engine can
+// process them. Keep only one such reply in this process at a time because the
+// JSON path temporarily holds the body as bytes, a string, and a decoded value.
+var openAIImageReplySlot = make(chan struct{}, 1)
+
 type TaskAdaptor struct {
 	plugin         *pluginruntime.LoadedPlugin
 	info           *relaycommon.RelayInfo
@@ -609,15 +614,13 @@ func relaysSubmitEvents(c *gin.Context) bool {
 	return native
 }
 
-// submitReplyLimit bounds the submit reply and each of its SSE events. A
-// native route that declares retainResult: false delivers the reply once and
-// never persists it, so it may be as large as a downloaded file, which lets a
-// vendor return Base64 images.
+// submitReplyLimit bounds the submit reply and each of its SSE events. Native
+// routes that declare retainResult: false and OpenAI Image endpoints deliver
+// immediate replies once without persisting the upstream snapshot, so they may
+// be as large as a downloaded file, which lets a vendor return Base64 images.
 func submitReplyLimit(c *gin.Context) int64 {
-	if value, exists := c.Get(pluginruntime.ContextKeyPinnedEndpoint); exists {
-		if pinned, ok := value.(pluginruntime.PinnedEndpoint); ok && pinned.Protocol == pluginruntime.ProtocolOpenAIImage {
-			return max(maxInlineFileBytes(), maxTaskPluginPersistedJSONBytes)
-		}
+	if isOpenAIImageEndpoint(c) {
+		return max(maxInlineFileBytes(), maxTaskPluginPersistedJSONBytes)
 	}
 	if value, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
 		if pinned, ok := value.(pluginruntime.PinnedRoute); ok && pinned.Route.RetainResult != nil && !*pinned.Route.RetainResult {
@@ -625,6 +628,32 @@ func submitReplyLimit(c *gin.Context) int64 {
 		}
 	}
 	return maxTaskPluginPersistedJSONBytes
+}
+
+func isOpenAIImageEndpoint(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	value, exists := c.Get(pluginruntime.ContextKeyPinnedEndpoint)
+	pinned, ok := value.(pluginruntime.PinnedEndpoint)
+	return exists && ok && pinned.Protocol == pluginruntime.ProtocolOpenAIImage
+}
+
+func acquireOpenAIImageReplySlot(c *gin.Context) error {
+	ctx := context.Background()
+	if c != nil && c.Request != nil {
+		ctx = c.Request.Context()
+	}
+	select {
+	case openAIImageReplySlot <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func releaseOpenAIImageReplySlot() {
+	<-openAIImageReplySlot
 }
 
 func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (submitted *channel.TaskSubmitResponse, taskErr *dto.TaskError) {
@@ -655,6 +684,14 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("unexpected SSE response for a JSON submission"), "plugin_submit_response_invalid", http.StatusBadGateway)
 	}
 	replyLimit := submitReplyLimit(c)
+	if isOpenAIImageEndpoint(c) {
+		if err = acquireOpenAIImageReplySlot(c); err != nil {
+			failure := service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusBadGateway, common.UpstreamAddresses(c)...)
+			failure.NoRetry = streaming
+			return nil, failure
+		}
+		defer releaseOpenAIImageReplySlot()
+	}
 	if eventStream {
 		// Every failure after accepting this stream is non-retryable: the
 		// upstream may already have performed billable work.
