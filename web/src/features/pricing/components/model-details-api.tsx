@@ -25,7 +25,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import type { BundledLanguage } from 'shiki/bundle/web'
 
 import {
@@ -106,10 +106,10 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
 
   if (lang === 'curl') {
     return [
-      `curl ${url} \\`,
-      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `curl "${url}" \\`,
+      `  -H "Authorization: Bearer ${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${bodyJson.replace(/\n/g, '\n     ')}'`,
+      `  -d '${bodyJson.replaceAll('\n', '\n  ')}'`,
     ].join('\n')
   }
 
@@ -118,13 +118,13 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
       'from openai import OpenAI',
       '',
       'client = OpenAI(',
-      `    base_url="${ctx.baseUrl}/v1",`,
-      `    api_key="<YOUR_API_KEY>",`,
+      `  base_url="${ctx.baseUrl}/v1",`,
+      `  api_key="${ctx.apiKeyEnv}",`,
       ')',
       '',
       isResponses
-        ? `response = client.${fnCall}(\n    model="${ctx.modelName}",\n    input="${userMessage}",\n)\n\nprint(response.output_text)`
-        : `completion = client.${fnCall}(\n    model="${ctx.modelName}",\n    messages=[\n        {"role": "user", "content": "${userMessage}"}\n    ],\n)\n\nprint(completion.choices[0].message.content)`,
+        ? `response = client.${fnCall}(\n  model="${ctx.modelName}",\n  input="${userMessage}",\n)\n\nprint(response.output_text)`
+        : `completion = client.${fnCall}(\n  model="${ctx.modelName}",\n  messages=[\n    {"role": "user", "content": "${userMessage}"}\n  ],\n)\n\nprint(completion.choices[0].message.content)`,
     ].join('\n')
   }
 
@@ -134,7 +134,7 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
       '',
       `const client = new OpenAI({`,
       `  baseURL: '${ctx.baseUrl}/v1',`,
-      `  apiKey: process.env.${ctx.apiKeyEnv},`,
+      `  apiKey: '${ctx.apiKeyEnv}',`,
       `})`,
       '',
       isResponses
@@ -147,7 +147,7 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
     `const response = await fetch('${url}', {`,
     `  method: 'POST',`,
     `  headers: {`,
-    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+    `    Authorization: \`Bearer ${ctx.apiKeyEnv}\`,`,
     `    'Content-Type': 'application/json',`,
     `  },`,
     `  body: JSON.stringify(${bodyJson}),`,
@@ -173,11 +173,11 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
       2
     )
     return [
-      `curl ${url} \\`,
-      `  -H "x-api-key: $${ctx.apiKeyEnv}" \\`,
+      `curl "${url}" \\`,
+      `  -H "x-api-key: ${ctx.apiKeyEnv}" \\`,
       `  -H "anthropic-version: 2023-06-01" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n  ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -185,14 +185,14 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
       'import anthropic',
       '',
       'client = anthropic.Anthropic(',
-      `    base_url="${ctx.baseUrl}",`,
-      `    api_key="<YOUR_API_KEY>",`,
+      `  base_url="${ctx.baseUrl}",`,
+      `  api_key="${ctx.apiKeyEnv}",`,
       ')',
       '',
       `message = client.messages.create(`,
-      `    model="${ctx.modelName}",`,
-      `    max_tokens=1024,`,
-      `    messages=[{"role": "user", "content": "${userMessage}"}],`,
+      `  model="${ctx.modelName}",`,
+      `  max_tokens=1024,`,
+      `  messages=[{"role": "user", "content": "${userMessage}"}],`,
       ')',
       '',
       'print(message.content[0].text)',
@@ -204,7 +204,7 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
       '',
       `const client = new Anthropic({`,
       `  baseURL: '${ctx.baseUrl}',`,
-      `  apiKey: process.env.${ctx.apiKeyEnv},`,
+      `  apiKey: '${ctx.apiKeyEnv}',`,
       `})`,
       '',
       `const message = await client.messages.create({`,
@@ -220,7 +220,7 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
     `const response = await fetch('${url}', {`,
     `  method: 'POST',`,
     `  headers: {`,
-    `    'x-api-key': process.env.${ctx.apiKeyEnv},`,
+    `    'x-api-key': '${ctx.apiKeyEnv}',`,
     `    'anthropic-version': '2023-06-01',`,
     `    'Content-Type': 'application/json',`,
     `  },`,
@@ -237,7 +237,7 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
 }
 
 function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
-  const url = `${ctx.baseUrl}${ctx.endpointPath}?key=$${ctx.apiKeyEnv}`
+  const url = `${ctx.baseUrl}${ctx.endpointPath}`
   const userMessage = 'Explain quantum entanglement in one paragraph.'
 
   if (lang === 'curl') {
@@ -247,38 +247,60 @@ function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
       2
     )
     return [
-      `curl '${url}' \\`,
-      `  -H 'Content-Type: application/json' \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `curl "${url}" \\`,
+      `  -H "Authorization: Bearer ${ctx.apiKeyEnv}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '${body.replaceAll('\n', '\n  ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
     return [
-      'import google.generativeai as genai',
+      'from google import genai',
+      'from google.genai import types',
       '',
-      `genai.configure(api_key="<YOUR_API_KEY>")`,
+      'client = genai.Client(',
+      `  api_key="${ctx.apiKeyEnv}",`,
+      '  http_options=types.HttpOptions(',
+      `    base_url="${ctx.baseUrl}",`,
+      '    api_version="v1beta",',
+      '  ),',
+      ')',
       '',
-      `model = genai.GenerativeModel("${ctx.modelName}")`,
-      `response = model.generate_content("${userMessage}")`,
+      'response = client.models.generate_content(',
+      `  model="${ctx.modelName}",`,
+      `  contents="${userMessage}",`,
+      ')',
       '',
-      `print(response.text)`,
+      'print(response.text)',
     ].join('\n')
   }
   if (lang === 'typescript') {
     return [
-      `import { GoogleGenerativeAI } from '@google/generative-ai'`,
+      `import { GoogleGenAI } from '@google/genai'`,
       '',
-      `const genAI = new GoogleGenerativeAI(process.env.${ctx.apiKeyEnv}!)`,
-      `const model = genAI.getGenerativeModel({ model: '${ctx.modelName}' })`,
+      `const genAI = new GoogleGenAI({`,
+      `  apiKey: '${ctx.apiKeyEnv}',`,
+      `  httpOptions: {`,
+      `    baseUrl: '${ctx.baseUrl}',`,
+      `    apiVersion: 'v1beta',`,
+      `  },`,
+      `})`,
       '',
-      `const result = await model.generateContent('${userMessage}')`,
-      `console.log(result.response.text())`,
+      `const response = await genAI.models.generateContent({`,
+      `  model: '${ctx.modelName}',`,
+      `  contents: '${userMessage}',`,
+      `})`,
+      '',
+      `console.log(response.text)`,
     ].join('\n')
   }
   return [
     `const response = await fetch('${url}', {`,
     `  method: 'POST',`,
-    `  headers: { 'Content-Type': 'application/json' },`,
+    `  headers: {`,
+    `    Authorization: \`Bearer ${ctx.apiKeyEnv}\`,`,
+    `    'Content-Type': 'application/json',`,
+    `  },`,
     `  body: JSON.stringify({`,
     `    contents: [{ parts: [{ text: '${userMessage}' }] }],`,
     `  }),`,
@@ -296,21 +318,21 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
   if (lang === 'curl') {
     const body = JSON.stringify({ model: ctx.modelName, input: text }, null, 2)
     return [
-      `curl ${url} \\`,
-      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `curl "${url}" \\`,
+      `  -H "Authorization: Bearer ${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n  ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
     return [
       'from openai import OpenAI',
       '',
-      `client = OpenAI(base_url="${ctx.baseUrl}/v1", api_key="<YOUR_API_KEY>")`,
+      `client = OpenAI(base_url="${ctx.baseUrl}/v1", api_key="${ctx.apiKeyEnv}")`,
       '',
       'response = client.embeddings.create(',
-      `    model="${ctx.modelName}",`,
-      `    input="${text}",`,
+      `  model="${ctx.modelName}",`,
+      `  input="${text}",`,
       ')',
       '',
       'print(response.data[0].embedding[:8])',
@@ -322,7 +344,7 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
       '',
       `const client = new OpenAI({`,
       `  baseURL: '${ctx.baseUrl}/v1',`,
-      `  apiKey: process.env.${ctx.apiKeyEnv},`,
+      `  apiKey: '${ctx.apiKeyEnv}',`,
       `})`,
       '',
       `const response = await client.embeddings.create({`,
@@ -337,7 +359,7 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
     `const response = await fetch('${url}', {`,
     `  method: 'POST',`,
     `  headers: {`,
-    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+    `    Authorization: \`Bearer ${ctx.apiKeyEnv}\`,`,
     `    'Content-Type': 'application/json',`,
     `  },`,
     `  body: JSON.stringify({`,
@@ -348,6 +370,71 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
     '',
     `const data = await response.json()`,
     `console.log(data.data[0].embedding.slice(0, 8))`,
+  ].join('\n')
+}
+
+function buildRerankSample(lang: Lang, ctx: SampleContext): string {
+  const url = `${ctx.baseUrl}${ctx.endpointPath}`
+  const query = 'Which document mentions renewable energy?'
+  const documents = [
+    'Solar and wind power are renewable energy sources.',
+    'The museum opens at nine in the morning.',
+    'Batteries can store renewable energy for later use.',
+  ]
+
+  if (lang === 'curl') {
+    const body = JSON.stringify(
+      { model: ctx.modelName, query, documents, top_n: 3 },
+      null,
+      2
+    )
+    return [
+      `curl "${url}" \\`,
+      `  -H "Authorization: Bearer ${ctx.apiKeyEnv}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '${body.replaceAll('\n', '\n  ')}'`,
+    ].join('\n')
+  }
+  if (lang === 'python') {
+    return [
+      'from rerankers import Reranker',
+      '',
+      `query = "${query}"`,
+      'documents = [',
+      ...documents.map((document) => `  "${document}",`),
+      ']',
+      '',
+      'ranker = Reranker(',
+      `  "${ctx.modelName}",`,
+      '  model_type="jina",',
+      `  api_key="${ctx.apiKeyEnv}",`,
+      `  url="${url}",`,
+      '  verbose=0,',
+      ')',
+      '',
+      'results = ranker.rank(query, documents)',
+      '',
+      'for result in results.top_k(3):',
+      '  print(result.score, result.document.text)',
+    ].join('\n')
+  }
+  return [
+    `const response = await fetch('${url}', {`,
+    `  method: 'POST',`,
+    `  headers: {`,
+    `    Authorization: \`Bearer ${ctx.apiKeyEnv}\`,`,
+    `    'Content-Type': 'application/json',`,
+    `  },`,
+    `  body: JSON.stringify({`,
+    `    model: '${ctx.modelName}',`,
+    `    query: '${query}',`,
+    `    documents: ${JSON.stringify(documents)},`,
+    `    top_n: 3,`,
+    `  }),`,
+    `})`,
+    '',
+    `const data = await response.json()`,
+    `console.log(data.results)`,
   ].join('\n')
 }
 
@@ -362,23 +449,23 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
       2
     )
     return [
-      `curl ${url} \\`,
-      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `curl "${url}" \\`,
+      `  -H "Authorization: Bearer ${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n  ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
     return [
       'from openai import OpenAI',
       '',
-      `client = OpenAI(base_url="${ctx.baseUrl}/v1", api_key="<YOUR_API_KEY>")`,
+      `client = OpenAI(base_url="${ctx.baseUrl}/v1", api_key="${ctx.apiKeyEnv}")`,
       '',
       'response = client.images.generate(',
-      `    model="${ctx.modelName}",`,
-      `    prompt="${prompt}",`,
-      `    size="1024x1024",`,
-      `    n=1,`,
+      `  model="${ctx.modelName}",`,
+      `  prompt="${prompt}",`,
+      `  size="1024x1024",`,
+      `  n=1,`,
       ')',
       '',
       'print(response.data[0].url)',
@@ -390,7 +477,7 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
       '',
       `const client = new OpenAI({`,
       `  baseURL: '${ctx.baseUrl}/v1',`,
-      `  apiKey: process.env.${ctx.apiKeyEnv},`,
+      `  apiKey: '${ctx.apiKeyEnv}',`,
       `})`,
       '',
       `const response = await client.images.generate({`,
@@ -407,7 +494,7 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
     `const response = await fetch('${url}', {`,
     `  method: 'POST',`,
     `  headers: {`,
-    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+    `    Authorization: \`Bearer ${ctx.apiKeyEnv}\`,`,
     `    'Content-Type': 'application/json',`,
     `  },`,
     `  body: JSON.stringify({`,
@@ -430,8 +517,8 @@ function buildSample(
 ): string {
   if (endpointType === 'anthropic') return buildAnthropicSample(lang, ctx)
   if (endpointType === 'gemini') return buildGeminiSample(lang, ctx)
-  if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
-    return buildEmbeddingSample(lang, ctx)
+  if (endpointType === 'embeddings') return buildEmbeddingSample(lang, ctx)
+  if (endpointType === 'jina-rerank') return buildRerankSample(lang, ctx)
   if (endpointType === 'image-generation') return buildImageSample(lang, ctx)
   return buildChatSample(lang, ctx)
 }
@@ -489,7 +576,7 @@ function CodeSamplesSection(props: {
 
   const code = buildSample(lang, activeEndpoint.type, {
     baseUrl,
-    apiKeyEnv: 'NEW_API_KEY',
+    apiKeyEnv: '<YOUR_API_KEY>',
     modelName: props.model.model_name || '',
     endpointType: activeEndpoint.type,
     endpointPath: activeEndpoint.path,
@@ -500,14 +587,16 @@ function CodeSamplesSection(props: {
       <SectionTitle icon={ScrollText}>{t('Code samples')}</SectionTitle>
 
       <div className='flex flex-wrap items-center gap-2'>
-        {endpoints.length > 1 && (
+        {endpoints.length > 0 && (
           <Tabs value={endpointType} onValueChange={setEndpointType}>
             <TabsList className='bg-muted/40 h-8 p-0.5'>
               {endpoints.map((ep) => (
                 <TabsTrigger
                   key={ep.type}
                   value={ep.type}
-                  className='h-7 px-2.5 text-xs'
+                  disabled={endpoints.length === 1}
+                  tabIndex={endpoints.length === 1 ? -1 : undefined}
+                  className='h-7 px-2.5 text-xs aria-disabled:opacity-100'
                 >
                   {ep.type}
                 </TabsTrigger>
@@ -538,11 +627,16 @@ function CodeSamplesSection(props: {
       </div>
 
       <p className='text-muted-foreground mt-2 text-xs'>
-        {t('Replace')}{' '}
-        <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
-          {'<YOUR_API_KEY>'}
-        </code>{' '}
-        {t('with the API key from your token settings.')}
+        <Trans
+          t={t}
+          i18nKey='Replace <code>{{apiKey}}</code> with the API key from your token settings.'
+          values={{ apiKey: '<YOUR_API_KEY>' }}
+          components={{
+            code: (
+              <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]' />
+            ),
+          }}
+        />
       </p>
     </section>
   )
@@ -733,15 +827,19 @@ function AuthSection() {
         <ChevronRight className='text-muted-foreground mt-0.5 size-3.5 shrink-0' />
         <div className='space-y-1.5 text-xs leading-relaxed'>
           <p>
-            {t('All requests must include')}{' '}
-            <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
-              Authorization: Bearer &lt;TOKEN&gt;
-            </code>{' '}
-            {t('header. Anthropic-formatted endpoints accept the')}{' '}
-            <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]'>
-              x-api-key
-            </code>{' '}
-            {t('header instead.')}
+            <Trans
+              t={t}
+              i18nKey='Except for endpoints using the Anthropic format, requests must include the <code>{{authHeader}}</code> header. Endpoints using the Anthropic format may use either the <code>{{authHeader}}</code> or <code>{{xApiKeyHeader}}</code> header.'
+              values={{
+                authHeader: 'Authorization: Bearer <YOUR_API_KEY>',
+                xApiKeyHeader: 'x-api-key: <YOUR_API_KEY>',
+              }}
+              components={{
+                code: (
+                  <code className='bg-muted rounded px-1 py-0.5 font-mono text-[11px]' />
+                ),
+              }}
+            />
           </p>
           <p className='text-muted-foreground'>
             {t(
