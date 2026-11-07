@@ -540,13 +540,26 @@ func streamCutKind(relayInfo *relaycommon.RelayInfo, completionTokens int) strin
 	}
 }
 
+// truncatedResponseMultiplierForTokens maps delivered output tokens to the
+// upstream-cut charge tier: <=500 -> 0.3, (500,1000] -> 0.5, >1000 -> 0.9.
+func truncatedResponseMultiplierForTokens(tokens int) float64 {
+	switch {
+	case tokens <= 500:
+		return 0.3
+	case tokens <= 1000:
+		return 0.5
+	default:
+		return 0.9
+	}
+}
+
 // applyTruncatedResponseMultiplier discounts the charge when the upstream
 // dropped the stream before the answer was complete (see streamCutKind). The
 // prompt was genuinely consumed upstream and stays at full price; only the
-// delivered completion part is scaled by the configured
-// TruncatedResponseMultiplier (0-1). Client disconnects are never discounted:
-// the user chose to abandon the request. It runs after the empty-response
-// policy, which owns streams that delivered nothing at all.
+// delivered completion part is scaled by the tier from
+// truncatedResponseMultiplierForTokens. Client disconnects are never
+// discounted: the user chose to abandon the request. It runs after the
+// empty-response policy, which owns streams that delivered nothing at all.
 //
 // OpenAI-format chat streams that die before a finish_reason are failed by
 // streamTruncated (#394) and refunded before settlement, so this discount
@@ -569,16 +582,10 @@ func applyTruncatedResponseMultiplier(relayInfo *relaycommon.RelayInfo, summary 
 	if summary.EmptyResponseDetected {
 		return
 	}
-	multiplier := GetQuotaSetting().TruncatedResponseMultiplier
-	if math.IsNaN(multiplier) || multiplier < 0 {
-		multiplier = 0
-	}
-	if multiplier > 1 {
-		multiplier = 1
-	}
-	if multiplier >= 1 || summary.Quota <= 0 {
+	if summary.Quota <= 0 {
 		return
 	}
+	multiplier := truncatedResponseMultiplierForTokens(summary.CompletionTokens)
 	summary.TruncatedResponseMultiplier = multiplier
 	if relayInfo.PriceData.UsePrice || tieredApplied {
 		// Per-call and expression billing have no input/output split, so the

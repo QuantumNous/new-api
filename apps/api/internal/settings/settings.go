@@ -131,7 +131,7 @@ func ValidateOptionValue(key string, value string) error {
 		}
 		return nil
 	}
-	if key == "quota_setting.empty_response_multiplier" || key == "quota_setting.truncated_response_multiplier" {
+	if key == "quota_setting.empty_response_multiplier" {
 		multiplier, convErr := strconv.ParseFloat(value, 64)
 		if convErr != nil || math.IsNaN(multiplier) || math.IsInf(multiplier, 0) ||
 			multiplier < 0 || multiplier > 1 {

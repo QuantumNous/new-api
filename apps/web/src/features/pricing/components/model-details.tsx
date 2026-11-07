@@ -82,7 +82,6 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
   const { t } = useTranslation()
   const { status } = useStatus()
   const emptyMultiplier = status?.empty_response_multiplier
-  const truncatedMultiplier = status?.truncated_response_multiplier
   const showRechargePrice = props.showRechargePrice ?? false
 
   const isDynamic =
@@ -140,31 +139,36 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
                 tokenUnit={props.tokenUnit}
                 showRechargePrice={showRechargePrice}
               />
-              {typeof emptyMultiplier === 'number' &&
-                typeof truncatedMultiplier === 'number' && (
-                  <div className='text-muted-foreground flex items-start gap-2 rounded-lg border border-dashed px-3 py-2.5 text-xs'>
-                    <Info
-                      className='mt-0.5 size-3.5 shrink-0'
-                      aria-hidden='true'
+              {typeof emptyMultiplier === 'number' && (
+                <div className='text-muted-foreground flex items-start gap-2 rounded-lg border border-dashed px-3 py-2.5 text-xs'>
+                  <Info
+                    className='mt-0.5 size-3.5 shrink-0'
+                    aria-hidden='true'
+                  />
+                  <p>
+                    <Trans
+                      i18nKey='pricing.model.emptyResponseNote'
+                      values={{
+                        empty: emptyMultiplier,
+                        emptyRefund: Math.round((1 - emptyMultiplier) * 100),
+                      }}
+                      components={{
+                        0: <span className='text-amber-500' />,
+                      }}
                     />
-                    <p>
-                      <Trans
-                        i18nKey='pricing.model.emptyResponseNote'
-                        values={{
-                          empty: emptyMultiplier,
-                          emptyRefund: Math.round((1 - emptyMultiplier) * 100),
-                          truncated: truncatedMultiplier,
-                          truncatedRefund: Math.round(
-                            (1 - truncatedMultiplier) * 100
-                          ),
-                        }}
-                        components={{
-                          0: <span className='text-amber-500' />,
-                        }}
-                      />
-                    </p>
-                  </div>
-                )}
+                  </p>
+                </div>
+              )}
+              <div className='text-muted-foreground rounded-lg border border-dashed px-3 py-2.5 text-xs'>
+                <p className='mb-1'>
+                  {t('pricing.model.upstreamCutTableLabel')}
+                </p>
+                <ul className='ml-5 list-disc space-y-0.5 pl-3'>
+                  <li>{t('home.policy.empty.tier.500')}</li>
+                  <li>{t('home.policy.empty.tier.1000')}</li>
+                  <li>{t('home.policy.empty.tier.1000plus')}</li>
+                </ul>
+              </div>
             </CardContent>
           </Card>
 

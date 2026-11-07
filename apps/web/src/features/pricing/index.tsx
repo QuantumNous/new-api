@@ -48,31 +48,23 @@ export function Pricing() {
   const { t } = useTranslation()
   const { status } = useStatus()
   const emptyMultiplier = status?.empty_response_multiplier
-  const truncatedMultiplier = status?.truncated_response_multiplier
   const [selectedModelName, setSelectedModelName] = useState<string | null>(
     null
   )
 
   const chargeNoticeItems =
-    typeof emptyMultiplier === 'number' &&
-    typeof truncatedMultiplier === 'number'
+    typeof emptyMultiplier === 'number'
       ? [
-          { text: t('home.policy.empty.item.normal'), dot: 'bg-emerald-500' },
+          { text: t('pricing.charge.normal'), dot: 'bg-emerald-500' },
+          { text: t('pricing.charge.upstream'), dot: 'bg-amber-500' },
           {
-            text: t('home.policy.empty.item.upstream-cut', {
-              multiplier: truncatedMultiplier,
-              refundPercent: Math.round((1 - truncatedMultiplier) * 100),
-            }),
-            dot: 'bg-amber-500',
-          },
-          {
-            text: t('home.policy.empty.item.empty-response', {
-              multiplier: emptyMultiplier,
+            text: t('pricing.charge.empty-response', {
               refundPercent: Math.round((1 - emptyMultiplier) * 100),
+              multiplier: emptyMultiplier,
             }),
             dot: 'bg-orange-500',
           },
-          { text: t('home.policy.empty.item.client-cut'), dot: 'bg-sky-500' },
+          { text: t('pricing.charge.client'), dot: 'bg-sky-500' },
         ]
       : []
 
@@ -245,8 +237,8 @@ export function Pricing() {
             </p>
           </div>
           {chargeNoticeItems.length > 0 && (
-            <div className='absolute end-0 bottom-0 z-10 hidden w-72 xl:block'>
-              <div className='bg-card-surface text-foreground backdrop-blur-card rounded-xl border border-lime-500/50 px-3 py-2 text-[11px] leading-relaxed dark:border-lime-400/50'>
+            <div className='absolute end-0 bottom-0 z-10 hidden w-64 xl:block'>
+              <div className='bg-card-surface text-foreground backdrop-blur-card rounded-xl border border-lime-500/50 px-2.5 py-1.5 text-[10px] leading-snug dark:border-lime-400/50'>
                 <div className='mb-1 flex items-center gap-1.5 font-medium text-lime-600 dark:text-lime-400'>
                   <Info className='size-3' aria-hidden='true' />
                   {t('home.policy.empty.title')}
@@ -267,7 +259,7 @@ export function Pricing() {
           )}
         </header>
         {chargeNoticeItems.length > 0 && (
-          <div className='bg-card-surface text-foreground backdrop-blur-card w-full rounded-xl border border-lime-500/50 px-3 py-2 text-[11px] leading-relaxed xl:hidden dark:border-lime-400/50'>
+          <div className='bg-card-surface text-foreground backdrop-blur-card w-full rounded-xl border border-lime-500/50 px-2.5 py-1.5 text-[10px] leading-snug xl:hidden dark:border-lime-400/50'>
             <div className='mb-1 flex items-center gap-1.5 font-medium text-lime-600 dark:text-lime-400'>
               <Info className='size-3.5' aria-hidden='true' />
               {t('home.policy.empty.title')}

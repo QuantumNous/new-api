@@ -33,10 +33,12 @@ export function UsagePolicy() {
   const { t } = useTranslation()
   const { status } = useStatus()
   const emptyMultiplier = status?.empty_response_multiplier
-  const truncatedMultiplier = status?.truncated_response_multiplier
-  const showMultiplier =
-    typeof emptyMultiplier === 'number' ||
-    typeof truncatedMultiplier === 'number'
+
+  const upstreamCutTiers = [
+    t('home.policy.empty.tier.500'),
+    t('home.policy.empty.tier.1000'),
+    t('home.policy.empty.tier.1000plus'),
+  ]
 
   const welcome = [
     t('home.policy.welcome.item.roleplay'),
@@ -45,22 +47,24 @@ export function UsagePolicy() {
     t('home.policy.welcome.item.translate'),
   ]
 
-  const items = [
-    t('home.policy.empty.item.normal'),
-    typeof truncatedMultiplier === 'number'
-      ? t('home.policy.empty.item.upstream-cut', {
-          multiplier: truncatedMultiplier,
-          refundPercent: Math.round((1 - truncatedMultiplier) * 100),
-        })
-      : null,
-    typeof emptyMultiplier === 'number'
-      ? t('home.policy.empty.item.empty-response', {
-          multiplier: emptyMultiplier,
-          refundPercent: Math.round((1 - emptyMultiplier) * 100),
-        })
-      : null,
-    t('home.policy.empty.item.client-cut'),
-  ].filter((item): item is string => item != null)
+  const items: { label: string; children?: string[] }[] = [
+    { label: t('home.policy.empty.item.normal') },
+    {
+      label: t('home.policy.empty.item.upstream-cut'),
+      children: upstreamCutTiers,
+    },
+    ...(typeof emptyMultiplier === 'number'
+      ? [
+          {
+            label: t('home.policy.empty.item.empty-response', {
+              multiplier: emptyMultiplier,
+              refundPercent: Math.round((1 - emptyMultiplier) * 100),
+            }),
+          },
+        ]
+      : []),
+    { label: t('home.policy.empty.item.client-cut') },
+  ]
 
   return (
     <section className='relative z-10 px-6 py-16 md:py-20'>
@@ -102,37 +106,49 @@ export function UsagePolicy() {
           </div>
 
           {/* Charge rules — covers normal completion, upstream cut, empty
-              response, and client cut. Renders once at least one multiplier
-              has loaded so the bullets never show an empty value. */}
-          {showMultiplier && (
-            <div className='border-border/60 bg-card-surface backdrop-blur-card flex flex-col gap-4 rounded-xl border p-6'>
-              <div className='flex items-center gap-3'>
-                <span className='inline-flex size-10 items-center justify-center rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400'>
-                  <MessageSquareOff className='size-5' />
-                </span>
-                <h3 className='text-base font-semibold'>
-                  {t('home.policy.empty.title')}
-                </h3>
-              </div>
-              <p className='text-muted-foreground/80 text-sm leading-relaxed'>
-                {t('home.policy.empty.body')}
-              </p>
-              <ul className='mt-1 grid gap-2'>
-                {items.map((item) => (
-                  <li
-                    key={item}
-                    className='text-muted-foreground flex items-start gap-2 text-[13px] leading-relaxed'
-                  >
+              response, and client cut. */}
+          <div className='border-border/60 bg-card-surface backdrop-blur-card flex flex-col gap-4 rounded-xl border p-6'>
+            <div className='flex items-center gap-3'>
+              <span className='inline-flex size-10 items-center justify-center rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400'>
+                <MessageSquareOff className='size-5' />
+              </span>
+              <h3 className='text-base font-semibold'>
+                {t('home.policy.empty.title')}
+              </h3>
+            </div>
+            <p className='text-muted-foreground/80 text-sm leading-relaxed'>
+              {t('home.policy.empty.body')}
+            </p>
+            <ul className='mt-1 grid gap-2'>
+              {items.map((item) => (
+                <li
+                  key={item.label}
+                  className='text-muted-foreground text-[13px] leading-relaxed'
+                >
+                  <div className='flex items-start gap-2'>
                     <span
                       className='mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-500'
                       aria-hidden='true'
                     />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+                    {item.label}
+                  </div>
+                  {item.children && (
+                    <ul className='mt-1 ml-5 grid gap-1 border-l border-amber-500/20 pl-3'>
+                      {item.children.map((child) => (
+                        <li key={child} className='flex items-start gap-2'>
+                          <span
+                            className='mt-1.5 size-1 shrink-0 rounded-full bg-amber-500/60'
+                            aria-hidden='true'
+                          />
+                          {child}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </section>

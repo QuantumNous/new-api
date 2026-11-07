@@ -1115,7 +1115,6 @@ func TestCalculateTextQuotaSummaryPerCallWithOutputNotWaived(t *testing.T) {
 
 func TestCalculateTextQuotaSummaryObservedReasoningOnlyChargedAsUpstreamTruncated(t *testing.T) {
 	setEmptyResponseMultiplier(t, 0.3)
-	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	relayInfo := perCallRelayInfo(0.38, 1)
 	relayInfo.StreamContentObserved = true
@@ -1180,7 +1179,6 @@ func TestCalculateTextQuotaSummaryObservedMediaNotWaived(t *testing.T) {
 }
 
 func TestApplyTruncatedResponseMultiplierHandlerStopNotClassified(t *testing.T) {
-	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	relayInfo := perCallRelayInfo(0.38, 1)
 	relayInfo.StreamContentObserved = true
@@ -1197,7 +1195,6 @@ func TestApplyTruncatedResponseMultiplierHandlerStopNotClassified(t *testing.T) 
 }
 
 func TestApplyTruncatedResponseMultiplierFinishReasonSuppressesDiscount(t *testing.T) {
-	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	relayInfo := perCallRelayInfo(0.38, 1)
 	relayInfo.StreamContentObserved = true
@@ -1384,13 +1381,6 @@ func TestCalculateTextQuotaSummaryPerCallImageModelNotWaived(t *testing.T) {
 	assert.False(t, summary.EmptyResponseWaived)
 }
 
-func setTruncatedResponseMultiplier(t *testing.T, multiplier float64) {
-	t.Helper()
-	old := quotaSetting.TruncatedResponseMultiplier
-	quotaSetting.TruncatedResponseMultiplier = multiplier
-	t.Cleanup(func() { quotaSetting.TruncatedResponseMultiplier = old })
-}
-
 func truncatedCutRelayInfo() *relaycommon.RelayInfo {
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "some-token-model",
@@ -1411,7 +1401,6 @@ func truncatedCutRelayInfo() *relaycommon.RelayInfo {
 // full quota = (1000 + 100*3) * 2 = 2600; completion side = 600.
 // A 0.3 cut multiplier discounts the completion side by 0.7 -> 2600-420.
 func TestApplyTruncatedResponseMultiplierTokenBilledDiscountsCompletionOnly(t *testing.T) {
-	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	ctx := ctxRaw
 	relayInfo := truncatedCutRelayInfo()
@@ -1428,8 +1417,47 @@ func TestApplyTruncatedResponseMultiplierTokenBilledDiscountsCompletionOnly(t *t
 	assert.Equal(t, 0.3, summary.TruncatedResponseMultiplier)
 }
 
+// TestApplyTruncatedResponseMultiplierTokenTiers pins the fixed tier ladder for
+// upstream stream cuts: delivered output <=500 tokens charges 0.3x, (500,1000]
+// charges 0.5x, >1000 charges 0.9x, including the 500/501 and 1000/1001 tier
+// boundaries. Fixture: prompt 1000 at ratio 2, completion at ratio 2*3=6, so
+// quota = 2000 + 6*tokens after the tier fold.
+func TestApplyTruncatedResponseMultiplierTokenTiers(t *testing.T) {
+	cases := []struct {
+		name             string
+		completionTokens int
+		wantMultiplier   float64
+		wantQuota        int
+	}{
+		{"500 tokens stays in the 0.3 tier", 500, 0.3, 2900},
+		{"501 tokens crosses into the 0.5 tier", 501, 0.5, 3503},
+		{"1000 tokens stays in the 0.5 tier", 1000, 0.5, 5000},
+		{"1001 tokens crosses into the 0.9 tier", 1001, 0.9, 7405},
+		{"1500 tokens stays in the 0.9 tier", 1500, 0.9, 10100},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
+			relayInfo := truncatedCutRelayInfo()
+			relayInfo.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, nil)
+			usage := &dto.Usage{
+				PromptTokens:     1000,
+				CompletionTokens: tc.completionTokens,
+				TotalTokens:      1000 + tc.completionTokens,
+			}
+
+			summary := calculateTextQuotaSummary(ctxRaw, relayInfo, usage)
+			applyTruncatedResponseMultiplier(relayInfo, &summary, false)
+
+			require.True(t, summary.TruncatedResponseApplied)
+			assert.Equal(t, "upstream", summary.StreamCut)
+			assert.Equal(t, tc.wantMultiplier, summary.TruncatedResponseMultiplier)
+			assert.Equal(t, tc.wantQuota, summary.Quota)
+		})
+	}
+}
+
 func TestApplyTruncatedResponseMultiplierClientGoneChargesFullPrice(t *testing.T) {
-	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	ctx := ctxRaw
 	relayInfo := truncatedCutRelayInfo()
@@ -1445,7 +1473,6 @@ func TestApplyTruncatedResponseMultiplierClientGoneChargesFullPrice(t *testing.T
 }
 
 func TestApplyTruncatedResponseMultiplierNoCutCases(t *testing.T) {
-	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	ctx := ctxRaw
 	cases := []struct {
@@ -1479,7 +1506,6 @@ func TestApplyTruncatedResponseMultiplierNoCutCases(t *testing.T) {
 }
 
 func TestApplyTruncatedResponseMultiplierPerCallFoldsTotal(t *testing.T) {
-	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	ctx := ctxRaw
 	relayInfo := perCallRelayInfo(0.38, 1)
@@ -1501,7 +1527,6 @@ func TestApplyTruncatedResponseMultiplierPerCallFoldsTotal(t *testing.T) {
 // policy: the cut badge still marks the log, but only one discount applies.
 func TestApplyTruncatedResponseMultiplierEmptyPolicyTakesPrecedence(t *testing.T) {
 	setEmptyResponseMultiplier(t, 0.1)
-	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	ctx := ctxRaw
 	relayInfo := truncatedCutRelayInfo()
@@ -1519,7 +1544,6 @@ func TestApplyTruncatedResponseMultiplierEmptyPolicyTakesPrecedence(t *testing.T
 }
 
 func TestApplyTruncatedResponseMultiplierForcedUpstreamCut(t *testing.T) {
-	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	ctx := ctxRaw
 	relayInfo := perCallRelayInfo(0.38, 1)
@@ -1544,7 +1568,6 @@ func TestApplyTruncatedResponseMultiplierForcedUpstreamCut(t *testing.T) {
 // see a channel failure. A client disconnect or a clean stream must not mark
 // the attempt, because neither says anything about the channel.
 func TestApplyTruncatedResponseMultiplierMarksSettledUpstreamFailure(t *testing.T) {
-	setTruncatedResponseMultiplier(t, 0.3)
 	ctxRaw, _ := fiberadapter.NewSyntheticContext(nil)
 	ctx := ctxRaw
 
