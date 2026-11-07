@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/volcengine"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -38,8 +39,13 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
-	if err := helper.ApplyReasoningModelSuffix(c, info, request); err != nil {
-		return newConvertRequestFailedError(c, info, err)
+
+	// 官方方舟 Messages 直通，保留客户端 JSON。
+	officialMessages := volcengine.UseOfficialMessagesAPI(info)
+	if !officialMessages {
+		if err := helper.ApplyReasoningModelSuffix(c, info, request); err != nil {
+			return newConvertRequestFailedError(c, info, err)
+		}
 	}
 
 	adaptor := GetAdaptor(info.ApiType)
@@ -48,7 +54,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 	adaptor.Init(info)
 
-	if info.ChannelSetting.SystemPrompt != "" {
+	if !officialMessages && info.ChannelSetting.SystemPrompt != "" {
 		if request.System == nil {
 			request.SetStringSystem(info.ChannelSetting.SystemPrompt)
 		} else if info.ChannelSetting.SystemPromptOverride {
@@ -73,7 +79,8 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 	}
 
-	if !model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
+	if !officialMessages &&
+		!model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
 		usage, newApiErr := textRequestViaResponses(c, info, adaptor, request)
@@ -86,7 +93,33 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	var requestBody io.Reader
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	if officialMessages {
+		storage, storageErr := common.GetBodyStorage(c)
+		if storageErr != nil {
+			return types.NewErrorWithStatusCode(storageErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		raw, readErr := storage.Bytes()
+		if readErr != nil {
+			return types.NewErrorWithStatusCode(readErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		jsonData, prepErr := volcengine.PrepareOfficialMessagesBody(raw, info.UpstreamModelName, info.IsModelMapped)
+		if prepErr != nil {
+			return types.NewError(prepErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		if len(info.ParamOverride) > 0 {
+			jsonData, prepErr = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+			if prepErr != nil {
+				return newAPIErrorFromParamOverride(prepErr)
+			}
+		}
+		logger.LogDebug(c, "requestBody: %s", jsonData)
+		body, closer, bodyErr := relaycommon.NewOutboundJSONBody(jsonData)
+		if bodyErr != nil {
+			return types.NewError(bodyErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		defer closer.Close()
+		requestBody = body
+	} else if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
