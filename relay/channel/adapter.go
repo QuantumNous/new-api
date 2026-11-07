@@ -34,6 +34,13 @@ type Adaptor interface {
 	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
 }
 
+// ResponsesOnlyAdaptor marks channels whose upstream text API only accepts
+// OpenAI Responses requests. Relay converts standard text request formats
+// instead of forwarding an endpoint the upstream does not implement.
+type ResponsesOnlyAdaptor interface {
+	ResponsesOnly() bool
+}
+
 type TaskAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 

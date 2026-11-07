@@ -72,6 +72,15 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 	}
 }
 
+func shouldTextRequestViaResponses(info *relaycommon.RelayInfo, adaptor channel.Adaptor, passThroughGlobal bool) bool {
+	if responsesOnly, ok := adaptor.(channel.ResponsesOnlyAdaptor); ok && responsesOnly.ResponsesOnly() {
+		return true
+	}
+	return !passThroughGlobal &&
+		!info.ChannelSetting.PassThroughBodyEnabled &&
+		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName)
+}
+
 func textRequestViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request any) (*dto.Usage, *types.NewAPIError) {
 	paramOverrideApplied := false
 	if chatRequest, ok := request.(*dto.GeneralOpenAIRequest); ok {
@@ -166,6 +175,13 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 	httpResp = resp.(*http.Response)
 	clientStream := info.IsStream
 	upstreamStream := isResponsesEventStreamContentType(httpResp.Header.Get("Content-Type"))
+	if responsesOnly, ok := adaptor.(channel.ResponsesOnlyAdaptor); ok &&
+		responsesOnly.ResponsesOnly() &&
+		httpResp.StatusCode == http.StatusOK {
+		// Codex requires streaming Responses even when the client did not ask
+		// for a stream; its SSE response headers are not always normalized.
+		upstreamStream = true
+	}
 	info.IsStream = clientStream || upstreamStream
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)

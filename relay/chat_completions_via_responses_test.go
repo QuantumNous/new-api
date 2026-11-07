@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -21,6 +22,27 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type responsesOnlyTestAdaptor struct {
+	relaychannel.Adaptor
+}
+
+func (responsesOnlyTestAdaptor) ResponsesOnly() bool {
+	return true
+}
+
+func TestResponsesOnlyAdaptorOverridesPassThroughRouting(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-6-luna",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:      21,
+			ChannelType:    constant.ChannelTypeCodex,
+			ChannelSetting: dto.ChannelSettings{PassThroughBodyEnabled: true},
+		},
+	}
+	assert.True(t, shouldTextRequestViaResponses(info, responsesOnlyTestAdaptor{}, true))
+	assert.False(t, shouldTextRequestViaResponses(info, &openaichannel.Adaptor{}, true))
+}
 
 func TestPrepareResponsesRequestRetainsConvertedAdaptor(t *testing.T) {
 	type capturedRequest struct {
