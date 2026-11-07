@@ -32,7 +32,6 @@ import {
   Radio,
   Receipt,
   ServerCog,
-  Settings,
   ShieldCheck,
   Ticket,
   User,
@@ -42,14 +41,14 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarBadges, SidebarData } from '@/components/layout/types'
-import { getSiteSectionNavItems } from '@/features/system-settings/site/section-registry.tsx'
+import { getSystemSettingsNavItems } from '@/features/system-settings/nav'
 import { ROLE } from '@/lib/roles'
 
 /**
  * Root navigation groups for the application sidebar.
  *
- * These are shown when the URL does not match any nested sidebar view
- * registered in `layout/lib/sidebar-view-registry.ts`.
+ * These groups make up the single main sidebar for every authenticated
+ * page, including system settings.
  */
 export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
   const { t } = useTranslation()
@@ -184,17 +183,12 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             icon: PlugZap,
             requiredRole: ROLE.SUPER_ADMIN,
           },
-          {
-            title: t('System Settings'),
-            icon: Settings,
-            requiredRole: ROLE.SUPER_ADMIN,
-            // The site configuration pages (branding, notice, header navigation
-            // and sidebar modules) are grouped directly under System Settings.
-            items: getSiteSectionNavItems(t),
-            // Model pricing lives in System Settings.
-            badge: badges.modelPricing,
-          },
         ],
+      },
+      {
+        id: 'system-settings',
+        title: t('System Settings'),
+        items: getSystemSettingsNavItems(t, badges),
       },
     ],
   }

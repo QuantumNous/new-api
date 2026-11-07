@@ -235,6 +235,14 @@ function isNavItemVisible(
 
   // Handle collapsible type (with sub-items)
   if ('items' in item && item.items) {
+    // A module-level section (e.g. System Settings) is gated as one unit when
+    // it declares its own config URL, regardless of individual sub-pages.
+    if (item.configUrls?.length) {
+      return item.configUrls.some((url) =>
+        isModuleEnabled(url as string, adminConfig, userConfig)
+      )
+    }
+
     // If has sub-items, show this collapsible item if at least one sub-item is visible
     return item.items.some((subItem) =>
       isModuleEnabled(subItem.url as string, adminConfig, userConfig)

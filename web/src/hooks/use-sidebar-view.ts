@@ -16,18 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useLocation } from '@tanstack/react-router'
 import { Compass, ExternalLink, Link2 } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { resolveSidebarView } from '@/components/layout/lib/sidebar-view-registry'
-import type {
-  NavCollapsible,
-  NavGroup,
-  ResolvedSidebarView,
-  SidebarBadges,
-} from '@/components/layout/types'
+import type { NavCollapsible, NavGroup, SidebarBadges } from '@/components/layout/types'
 import { useModelPricingIssueBadge } from '@/features/system-settings/models/pricing-issues'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
@@ -37,25 +30,17 @@ import { useSidebarConfig } from './use-sidebar-config'
 import { useSidebarData } from './use-sidebar-data'
 import { useTopNavLinks } from './use-top-nav-links'
 
-/** Sentinel key used for the root navigation in animation `key=` props */
-const ROOT_VIEW_KEY = '__root'
-
 /**
- * Resolve the active sidebar view for the current location.
+ * Resolve the navigation for the one main application sidebar.
  *
- * - Returns the matching nested {@link SidebarView} (with its nav
- *   groups) when the URL belongs to a registered drill-in workspace.
- * - Otherwise returns the root navigation, narrowed by:
- *     · admin-only group visibility (role-based);
- *     · `useSidebarConfig` (admin × user `sidebar_modules` overlay).
- *
- * Nested views are intentionally NOT passed through `useSidebarConfig`
- * — those filters target known dashboard URLs only, and gating is
- * already enforced at the route level (`beforeLoad` redirects).
+ * The sidebar is always the root navigation — including on system settings
+ * pages, which no longer swap in a separate mini-dashboard. It is narrowed by:
+ *   · admin/settings role visibility;
+ *   · `useSidebarConfig` (admin × user `sidebar_modules` overlay);
+ *   · moving the header links into it below the `lg` breakpoint.
  */
-export function useSidebarView(): ResolvedSidebarView {
+export function useSidebarView(): { navGroups: NavGroup[] } {
   const { t } = useTranslation()
-  const pathname = useLocation({ select: (l) => l.pathname })
   const userRole = useAuthStore((s) => s.auth.user?.role)
   const modelPricingBadge = useModelPricingIssueBadge()
   const badges: SidebarBadges = { modelPricing: modelPricingBadge }
@@ -66,17 +51,22 @@ export function useSidebarView(): ResolvedSidebarView {
   const isCompactTopNav = useMediaQuery('(max-width: 1023px)')
   const topNavLinks = useTopNavLinks()
 
-  const rootNavGroups = useMemo<NavGroup[]>(() => {
+  const navGroups = useMemo<NavGroup[]>(() => {
     const role = userRole ?? ROLE.GUEST
     const isAdmin = role >= ROLE.ADMIN
     const groups = configFilteredRoot
-      .filter((group) => (group.id === 'admin' ? isAdmin : true))
+      .filter((group) => {
+        if (group.id === 'admin') return isAdmin
+        if (group.id === 'system-settings') return role >= ROLE.SUPER_ADMIN
+        return true
+      })
       .map((group) => {
         const items = group.items.filter(
           (item) => item.requiredRole === undefined || role >= item.requiredRole
         )
         return items.length === group.items.length ? group : { ...group, items }
       })
+      .filter((group) => group.items.length > 0)
 
     if (!isCompactTopNav || topNavLinks.length === 0) {
       return groups
@@ -116,19 +106,5 @@ export function useSidebarView(): ResolvedSidebarView {
     )
   }, [configFilteredRoot, isCompactTopNav, t, topNavLinks, userRole])
 
-  const view = resolveSidebarView(pathname)
-
-  if (view) {
-    return {
-      key: view.id,
-      view,
-      navGroups: view.getNavGroups(t, badges),
-    }
-  }
-
-  return {
-    key: ROOT_VIEW_KEY,
-    view: null,
-    navGroups: rootNavGroups,
-  }
+  return { navGroups }
 }

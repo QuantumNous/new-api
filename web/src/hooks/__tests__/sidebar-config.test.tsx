@@ -203,13 +203,35 @@ describe('audit log sidebar entry', () => {
 })
 
 describe('system settings navigation', () => {
-  it('groups the site configuration pages directly under System Settings', () => {
+  it('lists every settings section in its own group after Task Plugins', () => {
     const { result } = sidebarFor()
-    const entry = result.current
-      .find((group) => group.id === 'admin')
-      ?.items.find((item) => item.title === 'System Settings')
+    const adminGroup = result.current.find((group) => group.id === 'admin')
+    const settingsGroup = result.current.find(
+      (group) => group.id === 'system-settings'
+    )
 
-    expect(entry?.items?.map((subItem) => subItem.url)).toEqual([
+    expect(adminGroup?.items.slice(-1).map((item) => item.title)).toEqual([
+      'Task Plugins',
+    ])
+    expect(result.current.slice(-1).map((group) => group.id)).toEqual([
+      'system-settings',
+    ])
+    expect(settingsGroup?.title).toBe('System Settings')
+    expect(settingsGroup?.items.map((item) => item.title)).toEqual([
+      'Site & Branding',
+      'Authentication',
+      'Billing & Payment',
+      'Models',
+      'Request policies',
+      'Security & Limits',
+      'Console Content',
+      'Operations',
+    ])
+    expect(
+      settingsGroup?.items
+        .find((item) => item.title === 'Site & Branding')
+        ?.items?.map((subItem) => subItem.url)
+    ).toEqual([
       '/system-settings/site/system-info',
       '/system-settings/site/notice',
       '/system-settings/site/header-navigation',
@@ -217,14 +239,66 @@ describe('system settings navigation', () => {
     ])
   })
 
-  it('hides the group when the admin disables the settings module', () => {
+  it('hides the whole settings group when the admin disables the settings module', () => {
     const { result } = sidebarFor({ admin: { enabled: true, setting: false } })
 
-    expect(
-      result.current
-        .flatMap((group) => group.items)
-        .some((item) => item.title === 'System Settings')
-    ).toBe(false)
+    expect(result.current.some((group) => group.id === 'system-settings')).toBe(
+      false
+    )
+  })
+
+  it('keeps the main sidebar on settings routes instead of a drill-in view', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, data: [] },
+    })
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    client.setQueryData(['status'], { SidebarModulesAdmin: '' })
+    useAuthStore.getState().auth.setUser({
+      id: 1,
+      username: 'root',
+      role: ROLE.SUPER_ADMIN,
+      permissions: { sidebar_settings: true },
+    })
+
+    function MainSidebarProbe() {
+      const { navGroups } = useSidebarView()
+      return (
+        <ul aria-label='Main sidebar'>
+          {navGroups.map((group) => (
+            <li key={group.id ?? group.title} data-group={group.id}>
+              {group.title}
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    const router = createRouter({
+      routeTree: createRootRoute({ component: MainSidebarProbe }),
+      history: createMemoryHistory({
+        initialEntries: ['/system-settings/site/system-info'],
+      }),
+    })
+    await router.load()
+    render(
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    )
+
+    const groups = screen
+      .getAllByRole('listitem')
+      .map((item) => item.getAttribute('data-group'))
+    expect(groups).toEqual([
+      'chat',
+      'general',
+      'personal',
+      'admin',
+      'system-settings',
+    ])
+    expect(screen.queryByText('Back to Dashboard')).toBeNull()
   })
 })
 
@@ -289,15 +363,17 @@ describe('model pricing badge', () => {
       .querySelectorAll('li')
   }
 
-  it('counts each task model once on the System Settings entry of the main sidebar', async () => {
+  it('counts each task model once on the Billing & Payment entry of the main sidebar', async () => {
     await renderSidebar('/dashboard/overview', ROLE.SUPER_ADMIN, () => [
       issue('kling-v3', 'kling'),
       issue('shared-video', 'alpha'),
       issue('shared-video', 'beta'),
     ])
 
-    expect(await screen.findByText('System Settings: 2')).toBeInTheDocument()
-    expect(badgedEntries()).toHaveLength(1)
+    expect(
+      await screen.findByText('Billing & Payment: 2')
+    ).toBeInTheDocument()
+    expect(badgedEntries()).toHaveLength(2)
   })
 
   it('inside System Settings shows the count on Billing & Payment and Model Pricing', async () => {
@@ -317,14 +393,16 @@ describe('model pricing badge', () => {
       ROLE.SUPER_ADMIN,
       () => issues
     )
-    await screen.findByText('System Settings: 1')
+    await screen.findByText('Billing & Payment: 1')
 
     // A plugin action refreshes the count it may have changed.
     issues = [issue('kling-v3', 'kling'), issue('vidu-q3', 'vidu')]
     await act(() =>
       client.invalidateQueries({ queryKey: MODEL_PRICING_ISSUES_QUERY_KEY })
     )
-    expect(await screen.findByText('System Settings: 2')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Billing & Payment: 2')
+    ).toBeInTheDocument()
 
     // Every pricing save runs this invalidation.
     issues = []
