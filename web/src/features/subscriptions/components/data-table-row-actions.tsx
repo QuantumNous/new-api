@@ -16,11 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { MoreHorizontalCircle01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import type { Row } from '@tanstack/react-table'
-import { Pencil, Power, PowerOff, RotateCcw } from 'lucide-react'
+import { Pencil, Power, PowerOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { DataTableRowActionMenu } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenuGroup,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
 import {
   Tooltip,
   TooltipContent,
@@ -50,9 +57,9 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     setOpen('toggle-status')
   }
 
-  const handleResetSubscriptions = () => {
+  const handleInitializeSubscriptions = () => {
     setCurrentRow(row.original)
-    setOpen('reset-subscriptions')
+    setOpen('initialize-plan-subscriptions')
   }
 
   return (
@@ -74,22 +81,38 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         <TooltipContent>{t('Edit')}</TooltipContent>
       </Tooltip>
 
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              disabled={!complianceConfirmed}
-              onClick={handleResetSubscriptions}
-              aria-label={t('Reset subscription quota')}
+      <DataTableRowActionMenu
+        ariaLabel={t('More actions')}
+        modal={false}
+        trigger={
+          <Button
+            variant='ghost'
+            size='icon-sm'
+            disabled={!complianceConfirmed}
+            className='data-popup-open:bg-muted'
+          >
+            <HugeiconsIcon
+              icon={MoreHorizontalCircle01Icon}
+              strokeWidth={2}
+              aria-hidden='true'
             />
-          }
-        >
-          <RotateCcw />
-        </TooltipTrigger>
-        <TooltipContent>{t('Reset subscription quota')}</TooltipContent>
-      </Tooltip>
+          </Button>
+        }
+      >
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={handleInitializeSubscriptions}>
+            {t('Initialize subscription quota')}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              setCurrentRow(row.original)
+              setOpen('restore-plan-windows')
+            }}
+          >
+            {t('Reset window quota')}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DataTableRowActionMenu>
 
       <Tooltip>
         <TooltipTrigger

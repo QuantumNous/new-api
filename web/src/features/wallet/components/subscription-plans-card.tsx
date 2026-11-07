@@ -51,7 +51,13 @@ import {
   updateBillingPreference,
 } from '@/features/subscriptions/api'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
-import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
+import { SubscriptionQuotaSummary } from '@/features/subscriptions/components/subscription-quota-summary'
+import { SubscriptionResetSchedule } from '@/features/subscriptions/components/subscription-reset-schedule'
+import {
+  formatDuration,
+  formatResetPeriod,
+  formatTimestamp,
+} from '@/features/subscriptions/lib'
 import type {
   PlanRecord,
   UserSubscriptionRecord,
@@ -231,7 +237,10 @@ export function SubscriptionPlansCard({
 
   const getUsagePercent = (sub: UserSubscriptionRecord) => {
     const total = Number(sub?.subscription?.amount_total || 0)
-    const used = Number(sub?.subscription?.amount_used || 0)
+    const used =
+      sub?.subscription?.quota_model_version === 1
+        ? Number(sub?.subscription?.total_amount_used || 0)
+        : Number(sub?.subscription?.amount_used || 0)
     if (total <= 0) return 0
     return Math.round((used / total) * 100)
   }
@@ -401,11 +410,13 @@ export function SubscriptionPlansCard({
                 {allSubscriptions.map((sub) => {
                   const subscription = sub.subscription
                   const totalAmount = Number(subscription?.amount_total || 0)
-                  const usedAmount = Number(subscription?.amount_used || 0)
-                  const remainAmount =
-                    totalAmount > 0 ? Math.max(0, totalAmount - usedAmount) : 0
                   const planTitle =
-                    planTitleMap.get(subscription?.plan_id) || ''
+                    subscription?.plan_title ||
+                    planTitleMap.get(subscription?.plan_id) ||
+                    ''
+                  const versionLabel = subscription?.plan_version
+                    ? ` · ${t('Version')} ${subscription.plan_version}`
+                    : ''
                   const remainDays = getRemainingDays(sub)
                   const usagePercent = getUsagePercent(sub)
                   const now = Date.now() / 1000
@@ -413,7 +424,6 @@ export function SubscriptionPlansCard({
                   const isCancelled = subscription?.status === 'cancelled'
                   const isActive =
                     subscription?.status === 'active' && !isExpired
-                  const nextResetTime = subscription?.next_reset_time ?? 0
                   let statusBadge = (
                     <StatusBadge
                       label={t('Expired')}
@@ -455,7 +465,7 @@ export function SubscriptionPlansCard({
                         <div className='flex items-center gap-2'>
                           <span className='font-medium'>
                             {planTitle
-                              ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
+                              ? `${planTitle}${versionLabel} · ${t('Subscription')} #${subscription?.id}`
                               : `${t('Subscription')} #${subscription?.id}`}
                           </span>
                           {statusBadge}
@@ -470,35 +480,21 @@ export function SubscriptionPlansCard({
                       </div>
                       <div className='text-muted-foreground mt-1.5'>
                         {endTimeLabel}{' '}
-                        {new Date(
-                          (subscription?.end_time || 0) * 1000
-                        ).toLocaleString()}
+                        {formatTimestamp(subscription?.end_time || 0)}
                       </div>
-                      {isActive && nextResetTime > 0 && (
-                        <div className='text-muted-foreground mt-1'>
-                          {t('Next reset')}:{' '}
-                          {new Date(nextResetTime * 1000).toLocaleString()}
-                        </div>
+                      {isActive && (
+                        <SubscriptionResetSchedule
+                          lastResetTime={subscription?.last_reset_time}
+                          nextResetTime={subscription?.next_reset_time}
+                          resetPolicySource={subscription?.reset_policy_source}
+                          legacyResetBaselineAt={
+                            subscription?.legacy_reset_baseline_at
+                          }
+                          className='text-muted-foreground mt-1'
+                        />
                       )}
                       <div className='text-muted-foreground mt-1'>
-                        {t('Total Quota')}:{' '}
-                        {totalAmount > 0 ? (
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={<span className='cursor-help' />}
-                            >
-                              {formatQuota(usedAmount)}/
-                              {formatQuota(totalAmount)} · {t('Remaining')}{' '}
-                              {formatQuota(remainAmount)}
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
-                              {t('Remaining')} {remainAmount}
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          t('Unlimited')
-                        )}
+                        <SubscriptionQuotaSummary subscription={subscription} />
                         {totalAmount > 0 && (
                           <span className='ml-2'>
                             {t('Used')} {usagePercent}%
@@ -534,6 +530,13 @@ export function SubscriptionPlansCard({
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
+              let windowQuotaBenefit: string | null = null
+              if (formatResetPeriod(plan, t) !== t('No Reset')) {
+                windowQuotaBenefit =
+                  totalAmount > 0
+                    ? `${t('Window quota')}: ${formatQuota(Number(plan.window_amount || 0))}`
+                    : `${t('Window quota')}: ${t('Ignored')}`
+              }
 
               const benefits = [
                 `${t('Validity Period')}: ${formatDuration(plan, t)}`,
@@ -543,6 +546,7 @@ export function SubscriptionPlansCard({
                 totalAmount > 0
                   ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
                   : `${t('Total Quota')}: ${t('Unlimited')}`,
+                windowQuotaBenefit,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
@@ -561,6 +565,11 @@ export function SubscriptionPlansCard({
                         <h4 className='truncate font-semibold'>
                           {plan.title || t('Subscription Plans')}
                         </h4>
+                        {p.version ? (
+                          <p className='text-muted-foreground text-xs'>
+                            {t('Version')} {p.version}
+                          </p>
+                        ) : null}
                         {plan.subtitle && (
                           <p className='text-muted-foreground truncate text-xs'>
                             {plan.subtitle}

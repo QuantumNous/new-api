@@ -1,6 +1,8 @@
 package model
 
 import (
+	"crypto/sha256"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
@@ -13,6 +15,7 @@ import (
 	"github.com/samber/hot"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Subscription duration units
@@ -24,6 +27,12 @@ const (
 	SubscriptionDurationCustom = "custom"
 )
 
+const (
+	SubscriptionResetPolicySourceVersion           = "plan_version"
+	SubscriptionResetPolicySourceLegacy            = "legacy"
+	SubscriptionResetPolicySourceMigrationBaseline = "migration_baseline"
+)
+
 // Subscription quota reset period
 const (
 	SubscriptionResetNever   = "never"
@@ -31,6 +40,11 @@ const (
 	SubscriptionResetWeekly  = "weekly"
 	SubscriptionResetMonthly = "monthly"
 	SubscriptionResetCustom  = "custom"
+)
+
+const (
+	SubscriptionQuotaActionRestoreWindow = "restore_window"
+	SubscriptionQuotaActionInitialize    = "initialize"
 )
 
 var (
@@ -179,7 +193,9 @@ type SubscriptionPlan struct {
 	DowngradeGroup string `json:"downgrade_group" gorm:"type:varchar(64);default:''"`
 
 	// Total quota (amount in quota units, 0 = unlimited)
-	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
+	TotalAmount       int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
+	WindowAmount      int64 `json:"window_amount" gorm:"type:bigint;not null;default:0"`
+	QuotaModelVersion int   `json:"quota_model_version" gorm:"type:int;not null;default:0"`
 
 	// Quota reset period for plan
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
@@ -187,6 +203,124 @@ type SubscriptionPlan struct {
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
+}
+
+// SubscriptionPlanVersion is an immutable purchase-time representation of a
+// logical subscription plan. Terms are stored through the existing common JSON
+// wrapper so new plan fields can be added without changing historical rows.
+type SubscriptionPlanVersion struct {
+	Id            int    `json:"id"`
+	PlanId        int    `json:"plan_id" gorm:"index;uniqueIndex:idx_subscription_plan_version,priority:1"`
+	Version       int    `json:"version" gorm:"uniqueIndex:idx_subscription_plan_version,priority:2"`
+	TermsSnapshot string `json:"terms_snapshot" gorm:"type:text;not null"`
+	CreatedAt     int64  `json:"created_at" gorm:"bigint;not null"`
+}
+
+func (v *SubscriptionPlanVersion) BeforeCreate(tx *gorm.DB) error {
+	if v == nil || v.PlanId <= 0 || v.Version <= 0 || v.TermsSnapshot == "" {
+		return errors.New("invalid subscription plan version")
+	}
+	if v.CreatedAt == 0 {
+		v.CreatedAt = common.GetTimestamp()
+	}
+	return nil
+}
+
+func (v *SubscriptionPlanVersion) BeforeUpdate(tx *gorm.DB) error {
+	return errors.New("subscription plan versions are immutable")
+}
+
+func (v *SubscriptionPlanVersion) BeforeDelete(tx *gorm.DB) error {
+	return errors.New("subscription plan versions are immutable")
+}
+
+func (v *SubscriptionPlanVersion) PlanTerms() (*SubscriptionPlan, error) {
+	if v == nil || v.TermsSnapshot == "" {
+		return nil, errors.New("subscription plan version terms are empty")
+	}
+	var plan SubscriptionPlan
+	if err := common.Unmarshal([]byte(v.TermsSnapshot), &plan); err != nil {
+		return nil, fmt.Errorf("decode subscription plan version terms: %w", err)
+	}
+	plan.Id = v.PlanId
+	return &plan, nil
+}
+
+func CreateSubscriptionPlanVersionTx(tx *gorm.DB, plan *SubscriptionPlan) (*SubscriptionPlanVersion, error) {
+	if tx == nil || plan == nil || plan.Id <= 0 {
+		return nil, errors.New("invalid subscription plan version arguments")
+	}
+	terms, err := common.Marshal(plan)
+	if err != nil {
+		return nil, fmt.Errorf("encode subscription plan version terms: %w", err)
+	}
+	var latest SubscriptionPlanVersion
+	query := tx.Where("plan_id = ?", plan.Id).Order("version desc").Limit(1).Find(&latest)
+	versionNumber := 1
+	if query.Error != nil {
+		return nil, query.Error
+	}
+	if query.RowsAffected > 0 {
+		versionNumber = latest.Version + 1
+	}
+	version := &SubscriptionPlanVersion{
+		PlanId:        plan.Id,
+		Version:       versionNumber,
+		TermsSnapshot: string(terms),
+	}
+	if err := tx.Create(version).Error; err != nil {
+		return nil, err
+	}
+	return version, nil
+}
+
+func getSubscriptionPlanVersionByIdTx(tx *gorm.DB, id int) (*SubscriptionPlanVersion, error) {
+	if id <= 0 {
+		return nil, errors.New("invalid subscription plan version id")
+	}
+	if tx == nil {
+		tx = DB
+	}
+	var version SubscriptionPlanVersion
+	if err := tx.First(&version, id).Error; err != nil {
+		return nil, err
+	}
+	return &version, nil
+}
+
+func GetSubscriptionPlanVersionById(id int) (*SubscriptionPlanVersion, error) {
+	return getSubscriptionPlanVersionByIdTx(nil, id)
+}
+
+func GetOrCreateCurrentSubscriptionPlanVersionTx(tx *gorm.DB, plan *SubscriptionPlan) (*SubscriptionPlanVersion, error) {
+	if tx == nil || plan == nil || plan.Id <= 0 {
+		return nil, errors.New("invalid current subscription plan version arguments")
+	}
+	var version SubscriptionPlanVersion
+	query := tx.Where("plan_id = ?", plan.Id).Order("version desc").Limit(1).Find(&version)
+	if query.Error != nil {
+		return nil, query.Error
+	}
+	if query.RowsAffected > 0 {
+		return &version, nil
+	}
+	return CreateSubscriptionPlanVersionTx(tx, plan)
+}
+
+func GetOrCreateCurrentSubscriptionPlanVersion(planId int) (*SubscriptionPlanVersion, error) {
+	if planId <= 0 {
+		return nil, errors.New("invalid subscription plan id")
+	}
+	var result *SubscriptionPlanVersion
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		plan, err := getSubscriptionPlanByIdTx(tx, planId)
+		if err != nil {
+			return err
+		}
+		result, err = GetOrCreateCurrentSubscriptionPlanVersionTx(tx, plan)
+		return err
+	})
+	return result, err
 }
 
 func (p *SubscriptionPlan) BeforeCreate(tx *gorm.DB) error {
@@ -212,10 +346,11 @@ func (p *SubscriptionPlan) NormalizeDefaults() {
 
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
-	Id     int     `json:"id"`
-	UserId int     `json:"user_id" gorm:"index"`
-	PlanId int     `json:"plan_id" gorm:"index"`
-	Money  float64 `json:"money"`
+	Id            int     `json:"id"`
+	UserId        int     `json:"user_id" gorm:"index"`
+	PlanId        int     `json:"plan_id" gorm:"index"`
+	PlanVersionId int     `json:"plan_version_id" gorm:"index"`
+	Money         float64 `json:"money"`
 
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
@@ -224,7 +359,45 @@ type SubscriptionOrder struct {
 	CreateTime      int64  `json:"create_time"`
 	CompleteTime    int64  `json:"complete_time"`
 
-	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
+	ProviderPayload   string `json:"provider_payload" gorm:"type:text"`
+	PlanTermsSnapshot string `json:"plan_terms_snapshot" gorm:"type:text"`
+}
+
+func (o *SubscriptionOrder) CapturePlanTerms(plan *SubscriptionPlan) {
+	if plan == nil {
+		return
+	}
+	data, err := common.Marshal(plan)
+	if err == nil {
+		o.PlanTermsSnapshot = string(data)
+	}
+}
+
+func (o *SubscriptionOrder) PlanTerms() (*SubscriptionPlan, error) {
+	if o == nil || o.PlanTermsSnapshot == "" {
+		return nil, nil
+	}
+	var plan SubscriptionPlan
+	if err := common.Unmarshal([]byte(o.PlanTermsSnapshot), &plan); err != nil {
+		return nil, fmt.Errorf("decode subscription plan terms snapshot: %w", err)
+	}
+	return &plan, nil
+}
+
+func (p *SubscriptionPlan) ValidateQuotaConfiguration() error {
+	if p == nil || p.QuotaModelVersion == 0 {
+		return nil
+	}
+	if NormalizeResetPeriod(p.QuotaResetPeriod) == SubscriptionResetNever || p.TotalAmount == 0 {
+		return nil
+	}
+	if p.WindowAmount <= 0 {
+		return common.NewMessage("Window quota must be greater than zero when quota reset is enabled")
+	}
+	if p.WindowAmount > p.TotalAmount {
+		return common.NewMessage("Window quota cannot exceed total quota")
+	}
+	return nil
 }
 
 func (o *SubscriptionOrder) Insert() error {
@@ -251,12 +424,29 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 
 // User subscription instance
 type UserSubscription struct {
-	Id     int `json:"id"`
-	UserId int `json:"user_id" gorm:"index;index:idx_user_sub_active,priority:1"`
-	PlanId int `json:"plan_id" gorm:"index"`
+	Id            int    `json:"id"`
+	UserId        int    `json:"user_id" gorm:"index;index:idx_user_sub_active,priority:1"`
+	PlanId        int    `json:"plan_id" gorm:"index"`
+	PlanVersionId int    `json:"plan_version_id" gorm:"index"`
+	PlanTitle     string `json:"plan_title,omitempty" gorm:"-"`
+	PlanVersion   int    `json:"plan_version,omitempty" gorm:"-"`
 
-	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
-	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
+	AmountTotal              int64  `json:"amount_total" gorm:"type:bigint;not null;default:0"`
+	AmountUsed               int64  `json:"amount_used" gorm:"type:bigint;not null;default:0"`
+	WindowAmount             int64  `json:"window_amount" gorm:"type:bigint;not null;default:0"`
+	QuotaModelVersion        int    `json:"quota_model_version" gorm:"type:int;not null;default:0"`
+	QuotaResetPeriod         string `json:"quota_reset_period" gorm:"type:varchar(16);not null;default:''"`
+	QuotaResetCustomSeconds  int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;not null;default:0"`
+	LegacyResetPeriod        string `json:"-" gorm:"type:varchar(16);not null;default:''"`
+	LegacyResetCustomSeconds int64  `json:"-" gorm:"type:bigint;not null;default:0"`
+	ResetPolicySource        string `json:"reset_policy_source,omitempty" gorm:"type:varchar(32);not null;default:''"`
+	LegacyResetBaselineAt    int64  `json:"legacy_reset_baseline_at,omitempty" gorm:"type:bigint;not null;default:0"`
+	AmountReserved           int64  `json:"amount_reserved" gorm:"type:bigint;not null;default:0"`
+	WindowAmountReserved     int64  `json:"window_amount_reserved,omitempty" gorm:"-"`
+	ResetGeneration          int64  `json:"reset_generation" gorm:"type:bigint;not null;default:0"`
+	TotalAmountUsed          int64  `json:"total_amount_used" gorm:"type:bigint;not null;default:0"`
+	WindowAmountUsed         int64  `json:"window_amount_used" gorm:"type:bigint;not null;default:0"`
+	HistoricalAmountUsed     int64  `json:"historical_amount_used" gorm:"type:bigint;not null;default:0"`
 
 	StartTime int64  `json:"start_time" gorm:"bigint"`
 	EndTime   int64  `json:"end_time" gorm:"bigint;index;index:idx_user_sub_active,priority:3"`
@@ -278,6 +468,49 @@ type UserSubscription struct {
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
+}
+
+// SubscriptionQuotaOperation is the durable audit receipt for an administrator
+// quota restoration. The idempotency key is unique so a retried request cannot
+// grant quota a second time.
+type SubscriptionQuotaOperation struct {
+	IdempotencyKey     string `json:"idempotency_key" gorm:"primaryKey;type:varchar(128)"`
+	UserId             int    `json:"user_id" gorm:"index"`
+	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
+	Action             string `json:"action" gorm:"type:varchar(32);not null"`
+	AdminId            int    `json:"admin_id" gorm:"index"`
+	Reason             string `json:"reason" gorm:"type:text;not null"`
+	ReturnedQuota      int64  `json:"returned_quota" gorm:"type:bigint;not null;default:0"`
+	TotalRemaining     int64  `json:"total_remaining" gorm:"type:bigint;not null;default:0"`
+	WindowRemaining    int64  `json:"window_remaining" gorm:"type:bigint;not null;default:0"`
+	Unlimited          bool   `json:"unlimited" gorm:"not null;default:false"`
+	CreatedAt          int64  `json:"created_at" gorm:"bigint;not null"`
+}
+
+type SubscriptionQuotaRestoreResult struct {
+	IdempotencyKey     string `json:"idempotency_key"`
+	UserId             int    `json:"user_id"`
+	UserSubscriptionId int    `json:"user_subscription_id"`
+	Action             string `json:"action"`
+	ReturnedQuota      int64  `json:"returned_quota"`
+	TotalRemaining     int64  `json:"total_remaining"`
+	WindowRemaining    int64  `json:"window_remaining"`
+	Unlimited          bool   `json:"unlimited"`
+	CreatedAt          int64  `json:"created_at"`
+}
+
+// SubscriptionPlanQuotaOperation freezes the result of a batch restoration so
+// retries cannot grant another window or include subscriptions added later.
+type SubscriptionPlanQuotaOperation struct {
+	IdempotencyKey string `json:"idempotency_key" gorm:"primaryKey;type:varchar(128)"`
+	Action         string `json:"action" gorm:"type:varchar(32);not null;default:restore_window"`
+	PlanId         int    `json:"plan_id" gorm:"index;not null"`
+	AdminId        int    `json:"-" gorm:"index;not null"`
+	Reason         string `json:"-" gorm:"type:text;not null"`
+	MatchedCount   int    `json:"matched_count" gorm:"not null"`
+	ResetCount     int    `json:"reset_count" gorm:"not null"`
+	UserCount      int    `json:"user_count" gorm:"not null"`
+	CreatedAt      int64  `json:"created_at" gorm:"bigint;not null"`
 }
 
 func (s *UserSubscription) BeforeCreate(tx *gorm.DB) error {
@@ -382,6 +615,103 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 	return next.Unix()
 }
 
+func calcRollingSubscriptionResetTime(anchor, after time.Time, plan *SubscriptionPlan, endUnix int64) int64 {
+	if plan == nil {
+		return 0
+	}
+	period := NormalizeResetPeriod(plan.QuotaResetPeriod)
+	if period == SubscriptionResetNever {
+		return 0
+	}
+	anchor = anchor.UTC()
+	after = after.UTC()
+	var next time.Time
+	switch period {
+	case SubscriptionResetDaily, SubscriptionResetWeekly, SubscriptionResetCustom:
+		var interval time.Duration
+		switch period {
+		case SubscriptionResetDaily:
+			interval = 24 * time.Hour
+		case SubscriptionResetWeekly:
+			interval = 7 * 24 * time.Hour
+		default:
+			if plan.QuotaResetCustomSeconds <= 0 || plan.QuotaResetCustomSeconds > int64((1<<63-1)/time.Second) {
+				return 0
+			}
+			interval = time.Duration(plan.QuotaResetCustomSeconds) * time.Second
+		}
+		elapsed := after.Sub(anchor)
+		intervals := int64(0)
+		if elapsed >= 0 {
+			intervals = int64(elapsed / interval)
+		}
+		next = anchor.Add(time.Duration(intervals+1) * interval)
+	case SubscriptionResetMonthly:
+		months := (after.Year()-anchor.Year())*12 + int(after.Month()-anchor.Month())
+		boundary := func(monthOffset int) time.Time {
+			monthStart := time.Date(anchor.Year(), anchor.Month()+time.Month(monthOffset), 1, anchor.Hour(), anchor.Minute(), anchor.Second(), anchor.Nanosecond(), time.UTC)
+			lastDay := monthStart.AddDate(0, 1, -1).Day()
+			day := min(anchor.Day(), lastDay)
+			return time.Date(monthStart.Year(), monthStart.Month(), day, anchor.Hour(), anchor.Minute(), anchor.Second(), anchor.Nanosecond(), time.UTC)
+		}
+		if months < 0 {
+			months = 0
+		}
+		if boundary(months).After(after) {
+			months--
+		}
+		next = boundary(months + 1)
+	default:
+		return 0
+	}
+	if !next.After(after) || endUnix > 0 && next.Unix() >= endUnix {
+		return 0
+	}
+	return next.Unix()
+}
+
+func rollingSubscriptionLastResetTime(anchor, now time.Time, plan *SubscriptionPlan) int64 {
+	if plan == nil {
+		return 0
+	}
+	anchor = anchor.UTC()
+	now = now.UTC()
+	period := NormalizeResetPeriod(plan.QuotaResetPeriod)
+	switch period {
+	case SubscriptionResetDaily, SubscriptionResetWeekly, SubscriptionResetCustom:
+		interval := 24 * time.Hour
+		if period == SubscriptionResetWeekly {
+			interval = 7 * 24 * time.Hour
+		} else if period == SubscriptionResetCustom {
+			if plan.QuotaResetCustomSeconds <= 0 || plan.QuotaResetCustomSeconds > int64((1<<63-1)/time.Second) {
+				return 0
+			}
+			interval = time.Duration(plan.QuotaResetCustomSeconds) * time.Second
+		}
+		elapsed := now.Sub(anchor)
+		if elapsed < 0 {
+			return anchor.Unix()
+		}
+		return anchor.Add(time.Duration(int64(elapsed/interval)) * interval).Unix()
+	case SubscriptionResetMonthly:
+		months := (now.Year()-anchor.Year())*12 + int(now.Month()-anchor.Month())
+		boundary := func(monthOffset int) time.Time {
+			monthStart := time.Date(anchor.Year(), anchor.Month()+time.Month(monthOffset), 1, anchor.Hour(), anchor.Minute(), anchor.Second(), anchor.Nanosecond(), time.UTC)
+			lastDay := monthStart.AddDate(0, 1, -1).Day()
+			return time.Date(monthStart.Year(), monthStart.Month(), min(anchor.Day(), lastDay), anchor.Hour(), anchor.Minute(), anchor.Second(), anchor.Nanosecond(), time.UTC)
+		}
+		if months < 0 {
+			return anchor.Unix()
+		}
+		if boundary(months).After(now) {
+			months--
+		}
+		return boundary(max(months, 0)).Unix()
+	default:
+		return 0
+	}
+}
+
 func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
 	return getSubscriptionPlanByIdTx(nil, id)
 }
@@ -481,7 +811,7 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 	return target, nil
 }
 
-func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, planVersionId int, source string) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -490,6 +820,9 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
+	}
+	if err := plan.ValidateQuotaConfiguration(); err != nil {
+		return nil, err
 	}
 	if plan.MaxPurchasePerUser > 0 {
 		var count int64
@@ -502,7 +835,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, common.NewMessage("Purchase limit for this plan has been reached")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -510,6 +843,20 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	resetBase := now
 	nextReset := calcNextResetTime(resetBase, plan, endUnix)
+	resetPeriodSnapshot := ""
+	resetCustomSecondsSnapshot := int64(0)
+	legacyResetPeriodSnapshot := ""
+	legacyResetCustomSecondsSnapshot := int64(0)
+	resetPolicySource := SubscriptionResetPolicySourceLegacy
+	if plan.QuotaModelVersion > 0 {
+		resetPolicySource = SubscriptionResetPolicySourceVersion
+		resetPeriodSnapshot = NormalizeResetPeriod(plan.QuotaResetPeriod)
+		resetCustomSecondsSnapshot = plan.QuotaResetCustomSeconds
+		nextReset = calcRollingSubscriptionResetTime(resetBase, resetBase, plan, endUnix)
+	} else {
+		legacyResetPeriodSnapshot = NormalizeResetPeriod(plan.QuotaResetPeriod)
+		legacyResetCustomSecondsSnapshot = plan.QuotaResetCustomSeconds
+	}
 	lastReset := int64(0)
 	if nextReset > 0 {
 		lastReset = now.Unix()
@@ -534,27 +881,50 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		allowWalletOverflow = *plan.AllowWalletOverflow
 	}
 	sub := &UserSubscription{
-		UserId:              userId,
-		PlanId:              plan.Id,
-		AmountTotal:         plan.TotalAmount,
-		AmountUsed:          0,
-		StartTime:           now.Unix(),
-		EndTime:             endUnix,
-		Status:              "active",
-		Source:              source,
-		LastResetTime:       lastReset,
-		NextResetTime:       nextReset,
-		UpgradeGroup:        upgradeGroup,
-		PrevUserGroup:       prevGroup,
-		DowngradeGroup:      strings.TrimSpace(plan.DowngradeGroup),
-		AllowWalletOverflow: allowWalletOverflow,
-		CreatedAt:           common.GetTimestamp(),
-		UpdatedAt:           common.GetTimestamp(),
+		UserId:                   userId,
+		PlanId:                   plan.Id,
+		PlanVersionId:            planVersionId,
+		AmountTotal:              plan.TotalAmount,
+		AmountUsed:               0,
+		WindowAmount:             plan.WindowAmount,
+		QuotaModelVersion:        plan.QuotaModelVersion,
+		QuotaResetPeriod:         resetPeriodSnapshot,
+		QuotaResetCustomSeconds:  resetCustomSecondsSnapshot,
+		LegacyResetPeriod:        legacyResetPeriodSnapshot,
+		LegacyResetCustomSeconds: legacyResetCustomSecondsSnapshot,
+		ResetPolicySource:        resetPolicySource,
+		StartTime:                now.Unix(),
+		EndTime:                  endUnix,
+		Status:                   "active",
+		Source:                   source,
+		LastResetTime:            lastReset,
+		NextResetTime:            nextReset,
+		UpgradeGroup:             upgradeGroup,
+		PrevUserGroup:            prevGroup,
+		DowngradeGroup:           strings.TrimSpace(plan.DowngradeGroup),
+		AllowWalletOverflow:      allowWalletOverflow,
+		CreatedAt:                common.GetTimestamp(),
+		UpdatedAt:                common.GetTimestamp(),
 	}
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
 	}
 	return sub, nil
+}
+
+func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanTx(tx, userId, plan, 0, source)
+}
+
+func CreateUserSubscriptionFromPlanVersionTx(tx *gorm.DB, userId int, version *SubscriptionPlanVersion, source string) (*UserSubscription, error) {
+	if version == nil {
+		return nil, errors.New("subscription plan version is nil")
+	}
+	plan, err := version.PlanTerms()
+	if err != nil {
+		return nil, err
+	}
+	return createUserSubscriptionFromPlanTx(tx, userId, plan, version.Id, source)
 }
 
 func refreshSubscriptionUserGroupCache(userId int, operation string) {
@@ -593,7 +963,24 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
+		var err error
+		var plan *SubscriptionPlan
+		var planVersion *SubscriptionPlanVersion
+		if order.PlanVersionId > 0 {
+			planVersion, err = getSubscriptionPlanVersionByIdTx(tx, order.PlanVersionId)
+			if err != nil {
+				return err
+			}
+			if planVersion.PlanId != order.PlanId {
+				return errors.New("subscription order plan version mismatch")
+			}
+			plan, err = planVersion.PlanTerms()
+		} else {
+			plan, err = order.PlanTerms()
+			if err == nil && plan == nil {
+				plan, err = getSubscriptionPlanByIdTx(tx, order.PlanId)
+			}
+		}
 		if err != nil {
 			return err
 		}
@@ -606,7 +993,12 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
 			return err
 		}
-		subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		var subscription *UserSubscription
+		if planVersion != nil {
+			subscription, err = CreateUserSubscriptionFromPlanVersionTx(tx, order.UserId, planVersion, "order")
+		} else {
+			subscription, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		}
 		if err != nil {
 			return err
 		}
@@ -715,7 +1107,11 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.M
 	if userId <= 0 || planId <= 0 {
 		return nil, errors.New("invalid userId or planId")
 	}
-	plan, err := GetSubscriptionPlanById(planId)
+	planVersion, err := GetOrCreateCurrentSubscriptionPlanVersion(planId)
+	if err != nil {
+		return nil, err
+	}
+	versionPlan, err := planVersion.PlanTerms()
 	if err != nil {
 		return nil, err
 	}
@@ -726,7 +1122,7 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.M
 		if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&userRow).Error; err != nil {
 			return err
 		}
-		subscription, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin")
+		subscription, err := CreateUserSubscriptionFromPlanVersionTx(tx, userId, planVersion, "admin")
 		if err == nil {
 			groupChanged = subscription.PrevUserGroup != ""
 		}
@@ -737,7 +1133,7 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.M
 	}
 	if groupChanged {
 		refreshSubscriptionUserGroupCache(userId, common.LogText("admin subscription creation"))
-		return common.NewMessage("User group will be upgraded to {{group}}", map[string]any{"group": plan.UpgradeGroup}), nil
+		return common.NewMessage("User group will be upgraded to {{group}}", map[string]any{"group": versionPlan.UpgradeGroup}), nil
 	}
 	return nil, nil
 }
@@ -779,8 +1175,16 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		if plan.AllowBalancePay != nil && !*plan.AllowBalancePay {
 			return common.NewMessage("This plan does not allow balance redemption")
 		}
+		planVersion, err := GetOrCreateCurrentSubscriptionPlanVersionTx(tx, plan)
+		if err != nil {
+			return err
+		}
+		versionPlan, err := planVersion.PlanTerms()
+		if err != nil {
+			return err
+		}
 
-		requiredQuota, err := calcSubscriptionBalanceQuota(plan.PriceAmount)
+		requiredQuota, err := calcSubscriptionBalanceQuota(versionPlan.PriceAmount)
 		if err != nil {
 			return err
 		}
@@ -799,7 +1203,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			}
 		}
 
-		subscription, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, PaymentMethodBalance)
+		subscription, err := CreateUserSubscriptionFromPlanVersionTx(tx, userId, planVersion, PaymentMethodBalance)
 		if err != nil {
 			return err
 		}
@@ -809,7 +1213,8 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		order := &SubscriptionOrder{
 			UserId:          userId,
 			PlanId:          plan.Id,
-			Money:           plan.PriceAmount,
+			PlanVersionId:   planVersion.Id,
+			Money:           versionPlan.PriceAmount,
 			TradeNo:         tradeNo,
 			PaymentMethod:   PaymentMethodBalance,
 			PaymentProvider: PaymentProviderBalance,
@@ -818,12 +1223,13 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			CompleteTime:    now,
 			ProviderPayload: fmt.Sprintf("charged_quota=%d", requiredQuota),
 		}
+		order.CapturePlanTerms(versionPlan)
 		if err := tx.Create(order).Error; err != nil {
 			return err
 		}
 
-		logPlanTitle = plan.Title
-		logMoney = plan.PriceAmount
+		logPlanTitle = versionPlan.Title
+		logMoney = versionPlan.PriceAmount
 		chargedQuota = requiredQuota
 		if subscription.PrevUserGroup != "" {
 			upgradeGroup = strings.TrimSpace(subscription.UpgradeGroup)
@@ -863,7 +1269,7 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	return buildSubscriptionSummaries(subs), nil
+	return buildSubscriptionSummaries(DB, subs)
 }
 
 // HasActiveUserSubscription returns whether the user has any active subscription.
@@ -912,21 +1318,62 @@ func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	return buildSubscriptionSummaries(subs), nil
+	return buildSubscriptionSummaries(DB, subs)
 }
 
-func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
+func buildSubscriptionSummaries(db *gorm.DB, subs []UserSubscription) ([]SubscriptionSummary, error) {
 	if len(subs) == 0 {
-		return []SubscriptionSummary{}
+		return []SubscriptionSummary{}, nil
+	}
+
+	type reservationKey struct {
+		subscriptionId int
+		generation     int64
+	}
+	type windowReservation struct {
+		UserSubscriptionId int
+		ResetGeneration    int64
+		Amount             int64
+	}
+	ids := make([]int, 0, len(subs))
+	for i := range subs {
+		ids = append(ids, subs[i].Id)
+	}
+	var reservations []windowReservation
+	if err := db.Model(&SubscriptionPreConsumeRecord{}).
+		Select("user_subscription_id, reset_generation, COALESCE(SUM(pre_consumed), 0) AS amount").
+		Where("user_subscription_id IN ? AND status = ?", ids, "reserved").
+		Group("user_subscription_id, reset_generation").
+		Scan(&reservations).Error; err != nil {
+		return nil, err
+	}
+	reservedByWindow := make(map[reservationKey]int64, len(reservations))
+	for _, reservation := range reservations {
+		reservedByWindow[reservationKey{reservation.UserSubscriptionId, reservation.ResetGeneration}] = reservation.Amount
 	}
 	result := make([]SubscriptionSummary, 0, len(subs))
 	for _, sub := range subs {
 		subCopy := sub
+		if subCopy.PlanVersionId > 0 {
+			version, err := getSubscriptionPlanVersionByIdTx(db, subCopy.PlanVersionId)
+			if err != nil {
+				return nil, err
+			}
+			versionPlan, err := version.PlanTerms()
+			if err != nil {
+				return nil, err
+			}
+			subCopy.PlanTitle = versionPlan.Title
+			subCopy.PlanVersion = version.Version
+		} else if plan, err := getSubscriptionPlanByIdTx(db, subCopy.PlanId); err == nil {
+			subCopy.PlanTitle = plan.Title
+		}
+		subCopy.WindowAmountReserved = reservedByWindow[reservationKey{sub.Id, sub.ResetGeneration}]
 		result = append(result, SubscriptionSummary{
 			Subscription: &subCopy,
 		})
 	}
-	return result
+	return result, nil
 }
 
 // AdminInvalidateUserSubscription marks a user subscription as cancelled and ends it immediately.
@@ -1019,9 +1466,24 @@ func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *Subscript
 	if tx == nil || sub == nil || plan == nil {
 		return errors.New("invalid reset args")
 	}
-	sub.AmountUsed = 0
+	if sub.QuotaModelVersion > 0 {
+		sub.AmountUsed = sub.TotalAmountUsed
+	} else {
+		sub.AmountUsed = 0
+	}
 	if advanceResetTime {
-		nextReset := calcNextResetTime(time.Unix(now, 0), plan, sub.EndTime)
+		resetPlan := plan
+		if sub.QuotaModelVersion == 0 && sub.LegacyResetPeriod != "" {
+			resetPlan = &SubscriptionPlan{QuotaResetPeriod: sub.LegacyResetPeriod, QuotaResetCustomSeconds: sub.LegacyResetCustomSeconds}
+		}
+		nextReset := calcNextResetTime(time.Unix(now, 0), resetPlan, sub.EndTime)
+		if sub.QuotaModelVersion > 0 {
+			nextReset = calcRollingSubscriptionResetTime(time.Unix(now, 0), time.Unix(now, 0), &SubscriptionPlan{
+				QuotaResetPeriod:        sub.QuotaResetPeriod,
+				QuotaResetCustomSeconds: sub.QuotaResetCustomSeconds,
+			}, sub.EndTime)
+			sub.ResetGeneration++
+		}
 		sub.NextResetTime = nextReset
 		if nextReset > 0 {
 			sub.LastResetTime = now
@@ -1134,6 +1596,255 @@ func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*Subscripti
 	return result, nil
 }
 
+func AdminRestoreUserSubscriptionQuota(userId, subscriptionId int, action, idempotencyKey string, adminId int, reason string) (*SubscriptionQuotaRestoreResult, error) {
+	return adminRestoreUserSubscriptionQuota(DB, GetDBTimestamp(), userId, subscriptionId, action, idempotencyKey, adminId, reason)
+}
+
+func adminRestoreUserSubscriptionQuota(db *gorm.DB, now int64, userId, subscriptionId int, action, idempotencyKey string, adminId int, reason string) (*SubscriptionQuotaRestoreResult, error) {
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	reason = strings.TrimSpace(reason)
+	if userId <= 0 || subscriptionId <= 0 || adminId <= 0 {
+		return nil, errors.New("invalid subscription quota restoration identity")
+	}
+	if len(idempotencyKey) == 0 || len(idempotencyKey) > 128 || reason == "" || len(reason) > 2000 {
+		return nil, errors.New("invalid subscription quota restoration request")
+	}
+	if action != SubscriptionQuotaActionRestoreWindow && action != SubscriptionQuotaActionInitialize {
+		return nil, errors.New("invalid subscription quota restoration action")
+	}
+
+	var result *SubscriptionQuotaRestoreResult
+	err := db.Transaction(func(tx *gorm.DB) error {
+		var operation SubscriptionQuotaOperation
+		lookup := tx.Where("idempotency_key = ?", idempotencyKey).First(&operation)
+		if lookup.Error == nil {
+			if operation.UserId != userId || operation.UserSubscriptionId != subscriptionId || operation.Action != action || operation.AdminId != adminId || operation.Reason != reason {
+				return errors.New("subscription quota restoration idempotency key conflicts with another request")
+			}
+			result = subscriptionQuotaRestoreResult(&operation)
+			return nil
+		}
+		if !errors.Is(lookup.Error, gorm.ErrRecordNotFound) {
+			return lookup.Error
+		}
+
+		var sub UserSubscription
+		if err := lockForUpdate(tx).Where("id = ? AND user_id = ?", subscriptionId, userId).First(&sub).Error; err != nil {
+			return err
+		}
+		// A concurrent retry may have committed while this request waited on the
+		// subscription row lock. Re-read its receipt before applying the mutation.
+		lookup = tx.Where("idempotency_key = ?", idempotencyKey).First(&operation)
+		if lookup.Error == nil {
+			if operation.UserId != userId || operation.UserSubscriptionId != subscriptionId || operation.Action != action || operation.AdminId != adminId || operation.Reason != reason {
+				return errors.New("subscription quota restoration idempotency key conflicts with another request")
+			}
+			result = subscriptionQuotaRestoreResult(&operation)
+			return nil
+		}
+		if !errors.Is(lookup.Error, gorm.ErrRecordNotFound) {
+			return lookup.Error
+		}
+		if sub.Status != "active" || sub.EndTime <= now {
+			return errors.New("subscription quota can only be restored for an active subscription")
+		}
+		if sub.TotalAmountUsed < 0 || sub.WindowAmountUsed < 0 || sub.AmountReserved < 0 || sub.AmountUsed < 0 {
+			return errors.New("subscription quota accounting is invalid")
+		}
+		maxInt64 := int64(^uint64(0) >> 1)
+		if sub.QuotaModelVersion > 0 && sub.TotalAmountUsed > maxInt64-sub.AmountReserved {
+			return errors.New("subscription reservation accounting is invalid")
+		}
+
+		beforeUsed := sub.TotalAmountUsed
+		inFlight := sub.AmountReserved
+		if sub.QuotaModelVersion == 0 {
+			if err := tx.Model(&SubscriptionPreConsumeRecord{}).
+				Select("COALESCE(SUM(pre_consumed), 0)").
+				Where("user_subscription_id = ? AND status = ?", sub.Id, "consumed").
+				Scan(&inFlight).Error; err != nil {
+				return err
+			}
+			if inFlight < 0 || inFlight > sub.AmountUsed {
+				return errors.New("subscription reservation accounting is invalid")
+			}
+			beforeUsed = sub.AmountUsed - inFlight
+		}
+		legacyResetPeriod := sub.LegacyResetPeriod
+		if legacyResetPeriod == "" {
+			legacyResetPeriod = sub.QuotaResetPeriod
+		}
+		legacyResetEnabled := NormalizeResetPeriod(legacyResetPeriod) != SubscriptionResetNever
+		legacyHasWindow := sub.QuotaModelVersion == 0 && legacyResetEnabled
+		afterUsed := beforeUsed
+		switch action {
+		case SubscriptionQuotaActionRestoreWindow:
+			if sub.AmountTotal > 0 {
+				windowAmount := sub.WindowAmount
+				if legacyHasWindow {
+					windowAmount = sub.AmountTotal
+				}
+				afterUsed = max(beforeUsed-max(windowAmount, 0), 0)
+			}
+		case SubscriptionQuotaActionInitialize:
+			afterUsed = 0
+		}
+		if sub.AmountTotal > 0 && afterUsed+inFlight > sub.AmountTotal {
+			return errors.New("subscription total use exceeds original quota")
+		}
+		if sub.QuotaModelVersion > 0 {
+			sub.TotalAmountUsed = afterUsed
+			sub.AmountUsed = afterUsed
+		} else {
+			sub.AmountUsed = afterUsed + inFlight
+		}
+		sub.WindowAmountUsed = 0
+		if sub.QuotaModelVersion > 0 {
+			sub.ResetGeneration++
+		}
+
+		var windowReserved int64
+		if sub.AmountTotal > 0 && NormalizeResetPeriod(sub.QuotaResetPeriod) != SubscriptionResetNever {
+			if err := tx.Model(&SubscriptionPreConsumeRecord{}).
+				Select("COALESCE(SUM(pre_consumed), 0)").
+				Where("user_subscription_id = ? AND status = ? AND reset_generation = ?", sub.Id, "reserved", sub.ResetGeneration).
+				Scan(&windowReserved).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Save(&sub).Error; err != nil {
+			return err
+		}
+
+		returned := int64(0)
+		if sub.AmountTotal > 0 {
+			returned = beforeUsed - afterUsed
+		}
+		totalRemaining := int64(0)
+		if sub.AmountTotal > 0 {
+			usedForTotal := sub.AmountUsed
+			if sub.QuotaModelVersion > 0 {
+				usedForTotal = sub.TotalAmountUsed + sub.AmountReserved
+			}
+			totalRemaining = max(sub.AmountTotal-usedForTotal, 0)
+		}
+		windowRemaining := int64(0)
+		if sub.QuotaModelVersion > 0 && sub.AmountTotal > 0 && NormalizeResetPeriod(sub.QuotaResetPeriod) != SubscriptionResetNever {
+			windowRemaining = max(sub.WindowAmount-sub.WindowAmountUsed-windowReserved, 0)
+		} else if legacyHasWindow && sub.AmountTotal > 0 {
+			windowRemaining = totalRemaining
+		}
+		operation = SubscriptionQuotaOperation{
+			IdempotencyKey: idempotencyKey, UserId: userId, UserSubscriptionId: subscriptionId,
+			Action: action, AdminId: adminId, Reason: reason, ReturnedQuota: returned,
+			TotalRemaining: totalRemaining, WindowRemaining: windowRemaining,
+			Unlimited: sub.AmountTotal == 0, CreatedAt: now,
+		}
+		if err := tx.Create(&operation).Error; err != nil {
+			return err
+		}
+		result = subscriptionQuotaRestoreResult(&operation)
+		return nil
+	})
+	if err != nil {
+		// Concurrent requests can both observe a missing receipt under snapshot
+		// isolation. The unique key still prevents a second grant; return the
+		// committed receipt to the matching retry after the losing transaction.
+		var operation SubscriptionQuotaOperation
+		if lookupErr := db.Where("idempotency_key = ?", idempotencyKey).First(&operation).Error; lookupErr == nil {
+			if operation.UserId == userId && operation.UserSubscriptionId == subscriptionId && operation.Action == action && operation.AdminId == adminId && operation.Reason == reason {
+				return subscriptionQuotaRestoreResult(&operation), nil
+			}
+		}
+		return nil, err
+	}
+	return result, nil
+}
+
+func AdminRestorePlanSubscriptionWindows(planId int, idempotencyKey string, adminId int, reason string) (*SubscriptionPlanQuotaOperation, error) {
+	return AdminRestorePlanSubscriptionQuota(planId, SubscriptionQuotaActionRestoreWindow, idempotencyKey, adminId, reason)
+}
+
+func AdminRestorePlanSubscriptionQuota(planId int, action, idempotencyKey string, adminId int, reason string) (*SubscriptionPlanQuotaOperation, error) {
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	reason = strings.TrimSpace(reason)
+	if planId <= 0 || adminId <= 0 || len(idempotencyKey) == 0 || len(idempotencyKey) > 128 || reason == "" || len(reason) > 2000 || (action != SubscriptionQuotaActionRestoreWindow && action != SubscriptionQuotaActionInitialize) {
+		return nil, common.NewMessage("Invalid parameters")
+	}
+	var result SubscriptionPlanQuotaOperation
+	now := GetDBTimestamp()
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		// Serialize batches for this plan before selecting the active subscriptions.
+		var plan SubscriptionPlan
+		if err := lockForUpdate(tx).First(&plan, planId).Error; err != nil {
+			return err
+		}
+		lookup := lockForUpdate(tx).Where("idempotency_key = ?", idempotencyKey).First(&result)
+		if lookup.Error == nil {
+			if result.PlanId != planId || result.Action != action || result.AdminId != adminId || result.Reason != reason {
+				return common.NewMessage("Idempotency key conflicts with another request")
+			}
+			return nil
+		}
+		if !errors.Is(lookup.Error, gorm.ErrRecordNotFound) {
+			return lookup.Error
+		}
+		var subs []UserSubscription
+		if err := lockForUpdate(tx).
+			Where("plan_id = ? AND status = ? AND end_time > ?", planId, "active", now).
+			Order("id asc").Find(&subs).Error; err != nil {
+			return err
+		}
+		result = SubscriptionPlanQuotaOperation{
+			IdempotencyKey: idempotencyKey, Action: action, PlanId: planId, AdminId: adminId,
+			Reason: reason, MatchedCount: len(subs), CreatedAt: now,
+		}
+		userIds := make(map[int]struct{})
+		batchKey := sha256.Sum256([]byte(idempotencyKey))
+		for i := range subs {
+			sub := &subs[i]
+			period := sub.QuotaResetPeriod
+			if sub.QuotaModelVersion == 0 && sub.LegacyResetPeriod != "" {
+				period = sub.LegacyResetPeriod
+			}
+			if action == SubscriptionQuotaActionRestoreWindow && (sub.AmountTotal == 0 || NormalizeResetPeriod(period) == SubscriptionResetNever) {
+				continue
+			}
+			key := fmt.Sprintf("plan-window:%x:%d", batchKey, sub.Id)
+			if action == SubscriptionQuotaActionInitialize {
+				key = fmt.Sprintf("plan-initialize:%x:%d", batchKey, sub.Id)
+			}
+			// Nested GORM transactions use savepoints; all per-subscription receipts
+			// and quota updates still commit or roll back with the batch.
+			if _, err := adminRestoreUserSubscriptionQuota(tx, now, sub.UserId, sub.Id, action, key, adminId, reason); err != nil {
+				return err
+			}
+			result.ResetCount++
+			userIds[sub.UserId] = struct{}{}
+		}
+		result.UserCount = len(userIds)
+		return tx.Create(&result).Error
+	})
+	if err != nil {
+		var committed SubscriptionPlanQuotaOperation
+		if lookupErr := DB.Where("idempotency_key = ?", idempotencyKey).First(&committed).Error; lookupErr == nil && committed.PlanId == planId && committed.Action == action && committed.AdminId == adminId && committed.Reason == reason {
+			return &committed, nil
+		}
+		return nil, err
+	}
+	return &result, nil
+}
+
+func subscriptionQuotaRestoreResult(operation *SubscriptionQuotaOperation) *SubscriptionQuotaRestoreResult {
+	return &SubscriptionQuotaRestoreResult{
+		IdempotencyKey: operation.IdempotencyKey, UserId: operation.UserId,
+		UserSubscriptionId: operation.UserSubscriptionId, Action: operation.Action,
+		ReturnedQuota: operation.ReturnedQuota, TotalRemaining: operation.TotalRemaining,
+		WindowRemaining: operation.WindowRemaining, Unlimited: operation.Unlimited,
+		CreatedAt: operation.CreatedAt,
+	}
+}
+
 type SubscriptionPreConsumeResult struct {
 	UserSubscriptionId int
 	PreConsumed        int64
@@ -1242,14 +1953,19 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 
 // SubscriptionPreConsumeRecord stores idempotent pre-consume operations per request.
 type SubscriptionPreConsumeRecord struct {
-	Id                 int    `json:"id"`
-	RequestId          string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
-	UserId             int    `json:"user_id" gorm:"index"`
-	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
-	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
-	Status             string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
-	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;index"`
+	Id                  int    `json:"id"`
+	RequestId           string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
+	UserId              int    `json:"user_id" gorm:"index"`
+	UserSubscriptionId  int    `json:"user_subscription_id" gorm:"index"`
+	PlanVersionId       int    `json:"plan_version_id" gorm:"index"`
+	PreConsumed         int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
+	ResetGeneration     int64  `json:"reset_generation" gorm:"type:bigint;not null;default:0"`
+	SettledAmount       int64  `json:"settled_amount" gorm:"type:bigint;not null;default:0"`
+	SettlementAmount    int64  `json:"settlement_amount" gorm:"type:bigint;not null;default:0"`
+	WalletSettledAmount int64  `json:"wallet_settled_amount" gorm:"type:bigint;not null;default:0"`
+	Status              string `json:"status" gorm:"type:varchar(32);index"` // reserved/consumed/settled/refunded
+	CreatedAt           int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt           int64  `json:"updated_at" gorm:"bigint;index"`
 }
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
@@ -1268,23 +1984,42 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	if tx == nil || sub == nil || plan == nil {
 		return errors.New("invalid reset args")
 	}
+	resetPlan := plan
+	if sub.QuotaResetPeriod != "" {
+		resetPlan = &SubscriptionPlan{QuotaResetPeriod: sub.QuotaResetPeriod, QuotaResetCustomSeconds: sub.QuotaResetCustomSeconds}
+	} else if sub.LegacyResetPeriod != "" {
+		resetPlan = &SubscriptionPlan{QuotaResetPeriod: sub.LegacyResetPeriod, QuotaResetCustomSeconds: sub.LegacyResetCustomSeconds}
+	}
 	if sub.NextResetTime > 0 && sub.NextResetTime > now {
 		return nil
 	}
-	if NormalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetNever {
+	if NormalizeResetPeriod(resetPlan.QuotaResetPeriod) == SubscriptionResetNever {
 		return nil
+	}
+	if sub.QuotaResetPeriod != "" {
+		anchor := time.Unix(sub.StartTime, 0).UTC()
+		nowTime := time.Unix(now, 0).UTC()
+		next := calcRollingSubscriptionResetTime(anchor, nowTime, resetPlan, sub.EndTime)
+		last := rollingSubscriptionLastResetTime(anchor, nowTime, resetPlan)
+		if last > sub.LastResetTime {
+			sub.WindowAmountUsed = 0
+			sub.ResetGeneration++
+		}
+		sub.LastResetTime = last
+		sub.NextResetTime = next
+		return tx.Save(sub).Error
 	}
 	baseUnix := sub.LastResetTime
 	if baseUnix <= 0 {
 		baseUnix = sub.StartTime
 	}
 	base := time.Unix(baseUnix, 0)
-	next := calcNextResetTime(base, plan, sub.EndTime)
+	next := calcNextResetTime(base, resetPlan, sub.EndTime)
 	advanced := false
 	for next > 0 && next <= now {
 		advanced = true
 		base = time.Unix(next, 0)
-		next = calcNextResetTime(base, plan, sub.EndTime)
+		next = calcNextResetTime(base, resetPlan, sub.EndTime)
 	}
 	if !advanced {
 		if sub.NextResetTime == 0 && next > 0 {
@@ -1292,12 +2027,90 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 			sub.LastResetTime = base.Unix()
 			return tx.Save(sub).Error
 		}
+		if sub.NextResetTime > 0 && sub.NextResetTime <= now {
+			// A migration can replace an inferred legacy period with a labeled
+			// baseline after the persisted schedule has already passed. Advance
+			// the schedule without resetting usage until the baseline period is
+			// actually complete.
+			sub.LastResetTime = base.Unix()
+			sub.NextResetTime = next
+			return tx.Save(sub).Error
+		}
 		return nil
 	}
 	sub.AmountUsed = 0
 	sub.LastResetTime = base.Unix()
 	sub.NextResetTime = next
+	sub.ResetGeneration++
 	return tx.Save(sub).Error
+}
+
+func snapshotLegacySubscriptionResetPolicies(db *gorm.DB) error {
+	if db == nil {
+		return errors.New("db is nil")
+	}
+	type legacyResetPolicy struct {
+		Id                      int
+		EndTime                 int64
+		LegacyResetPeriod       string
+		LegacyCustomSeconds     int64
+		QuotaResetPeriod        string
+		QuotaResetCustomSeconds int64
+	}
+	subscriptionsTable := db.NamingStrategy.TableName("UserSubscription")
+	plansTable := db.NamingStrategy.TableName("SubscriptionPlan")
+	var lastId int
+	for {
+		var policies []legacyResetPolicy
+		err := db.Table(subscriptionsTable+" AS subscriptions").
+			Select("subscriptions.id, subscriptions.end_time, subscriptions.legacy_reset_period, subscriptions.legacy_reset_custom_seconds AS legacy_custom_seconds, plans.quota_reset_period, plans.quota_reset_custom_seconds").
+			Joins("LEFT JOIN "+plansTable+" AS plans ON plans.id = subscriptions.plan_id").
+			Where("subscriptions.id > ? AND subscriptions.quota_model_version = 0 AND subscriptions.reset_policy_source = ''", lastId).
+			Order("subscriptions.id asc").
+			Limit(500).
+			Find(&policies).Error
+		if err != nil {
+			return err
+		}
+		if len(policies) == 0 {
+			return nil
+		}
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			migrationTime := common.GetTimestamp()
+			for _, policy := range policies {
+				period := NormalizeResetPeriod(policy.LegacyResetPeriod)
+				customSeconds := policy.LegacyCustomSeconds
+				updates := map[string]any{
+					"reset_policy_source":      SubscriptionResetPolicySourceMigrationBaseline,
+					"legacy_reset_baseline_at": migrationTime,
+				}
+				if policy.LegacyResetPeriod == "" {
+					period = NormalizeResetPeriod(policy.QuotaResetPeriod)
+					customSeconds = policy.QuotaResetCustomSeconds
+					updates["legacy_reset_period"] = period
+					updates["legacy_reset_custom_seconds"] = customSeconds
+					resetBase := time.Unix(migrationTime, 0)
+					nextReset := calcNextResetTime(resetBase, &SubscriptionPlan{
+						QuotaResetPeriod:        period,
+						QuotaResetCustomSeconds: customSeconds,
+					}, policy.EndTime)
+					updates["last_reset_time"] = migrationTime
+					updates["next_reset_time"] = nextReset
+					if NormalizeResetPeriod(period) == SubscriptionResetNever || nextReset == 0 {
+						updates["last_reset_time"] = 0
+					}
+				}
+				if err := tx.Model(&UserSubscription{}).Where("id = ? AND quota_model_version = 0 AND reset_policy_source = ''", policy.Id).
+					Updates(updates).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		lastId = policies[len(policies)-1].Id
+	}
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
@@ -1315,6 +2128,10 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 
 	returnValue := &SubscriptionPreConsumeResult{}
 
+	txOptions := &sql.TxOptions{Isolation: sql.LevelReadCommitted}
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		txOptions = nil
+	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var existing SubscriptionPreConsumeRecord
 		query := tx.Where("request_id = ?", requestId).Limit(1).Find(&existing)
@@ -1322,8 +2139,17 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			return query.Error
 		}
 		if query.RowsAffected > 0 {
+			if existing.UserId != userId {
+				return errors.New("subscription pre-consume request belongs to another user")
+			}
 			if existing.Status == "refunded" {
 				return errors.New("subscription pre-consume already refunded")
+			}
+			if existing.Status == "settled" {
+				return errors.New("subscription pre-consume already settled")
+			}
+			if existing.Status != "reserved" && existing.Status != "consumed" {
+				return errors.New("subscription pre-consume is not active")
 			}
 			var sub UserSubscription
 			if err := tx.Where("id = ?", existing.UserSubscriptionId).First(&sub).Error; err != nil {
@@ -1334,6 +2160,10 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = sub.AmountUsed
 			returnValue.AmountUsedAfter = sub.AmountUsed
+			if sub.QuotaModelVersion > 0 {
+				returnValue.AmountUsedBefore = sub.TotalAmountUsed
+				returnValue.AmountUsedAfter = sub.TotalAmountUsed + sub.AmountReserved
+			}
 			return nil
 		}
 
@@ -1357,35 +2187,81 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				return err
 			}
 			usedBefore := sub.AmountUsed
-			if sub.AmountTotal > 0 {
-				remain := sub.AmountTotal - usedBefore
-				if remain < amount {
+			resetGeneration := sub.ResetGeneration
+			newQuotaModel := sub.QuotaModelVersion > 0
+			if newQuotaModel {
+				maxInt64 := int64(^uint64(0) >> 1)
+				if sub.AmountReserved < 0 || sub.TotalAmountUsed < 0 || sub.TotalAmountUsed > maxInt64-sub.AmountReserved || amount > maxInt64-sub.AmountReserved {
+					return errors.New("subscription reservation exceeds supported quota")
+				}
+				usedBefore = sub.TotalAmountUsed + sub.AmountReserved
+				if sub.AmountTotal > 0 && (sub.TotalAmountUsed > sub.AmountTotal || sub.AmountReserved > sub.AmountTotal-sub.TotalAmountUsed || amount > sub.AmountTotal-sub.TotalAmountUsed-sub.AmountReserved) {
 					continue
 				}
+				if sub.AmountTotal > 0 && NormalizeResetPeriod(sub.QuotaResetPeriod) != SubscriptionResetNever {
+					var windowReserved int64
+					if err := tx.Model(&SubscriptionPreConsumeRecord{}).
+						Select("COALESCE(SUM(pre_consumed), 0)").
+						Where("user_subscription_id = ? AND status = ? AND reset_generation = ?", sub.Id, "reserved", resetGeneration).
+						Scan(&windowReserved).Error; err != nil {
+						return err
+					}
+					if sub.WindowAmountUsed > sub.WindowAmount || windowReserved > sub.WindowAmount-sub.WindowAmountUsed || amount > sub.WindowAmount-sub.WindowAmountUsed-windowReserved {
+						continue
+					}
+				}
+			} else if sub.AmountTotal > 0 && sub.AmountTotal-usedBefore < amount {
+				continue
 			}
 			record := &SubscriptionPreConsumeRecord{
 				RequestId:          requestId,
 				UserId:             userId,
 				UserSubscriptionId: sub.Id,
+				PlanVersionId:      sub.PlanVersionId,
 				PreConsumed:        amount,
+				ResetGeneration:    resetGeneration,
 				Status:             "consumed",
 			}
-			if err := tx.Create(record).Error; err != nil {
-				var dup SubscriptionPreConsumeRecord
-				if err2 := tx.Where("request_id = ?", requestId).First(&dup).Error; err2 == nil {
-					if dup.Status == "refunded" {
-						return errors.New("subscription pre-consume already refunded")
-					}
-					returnValue.UserSubscriptionId = sub.Id
-					returnValue.PreConsumed = dup.PreConsumed
-					returnValue.AmountTotal = sub.AmountTotal
-					returnValue.AmountUsedBefore = sub.AmountUsed
-					returnValue.AmountUsedAfter = sub.AmountUsed
-					return nil
-				}
-				return err
+			if newQuotaModel {
+				record.Status = "reserved"
 			}
-			sub.AmountUsed += amount
+			insert := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(record)
+			if insert.Error != nil {
+				return insert.Error
+			}
+			if insert.RowsAffected == 0 {
+				var dup SubscriptionPreConsumeRecord
+				if err := tx.Where("request_id = ?", requestId).First(&dup).Error; err != nil {
+					return err
+				}
+				if dup.UserId != userId || dup.UserSubscriptionId != sub.Id {
+					return errors.New("subscription pre-consume request conflicts with another reservation")
+				}
+				if dup.Status == "refunded" {
+					return errors.New("subscription pre-consume already refunded")
+				}
+				if dup.Status == "settled" {
+					return errors.New("subscription pre-consume already settled")
+				}
+				if dup.Status != "reserved" && dup.Status != "consumed" {
+					return errors.New("subscription pre-consume is not active")
+				}
+				returnValue.UserSubscriptionId = sub.Id
+				returnValue.PreConsumed = dup.PreConsumed
+				returnValue.AmountTotal = sub.AmountTotal
+				returnValue.AmountUsedBefore = sub.AmountUsed
+				returnValue.AmountUsedAfter = sub.AmountUsed
+				if newQuotaModel {
+					returnValue.AmountUsedBefore = sub.TotalAmountUsed
+					returnValue.AmountUsedAfter = sub.TotalAmountUsed + sub.AmountReserved
+				}
+				return nil
+			}
+			if newQuotaModel {
+				sub.AmountReserved += amount
+			} else {
+				sub.AmountUsed += amount
+			}
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
@@ -1394,10 +2270,13 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
+			if newQuotaModel {
+				returnValue.AmountUsedAfter = usedBefore + amount
+			}
 			return nil
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
-	})
+	}, txOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -1415,19 +2294,339 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			Where("request_id = ?", requestId).First(&record).Error; err != nil {
 			return err
 		}
-		if record.Status == "refunded" {
+		if record.Status == "refunded" || record.Status == "settled" {
 			return nil
+		}
+		var sub UserSubscription
+		if err := lockForUpdate(tx).
+			Where("id = ?", record.UserSubscriptionId).First(&sub).Error; err != nil {
+			return err
+		}
+		if sub.QuotaModelVersion > 0 {
+			if sub.AmountReserved < record.PreConsumed {
+				return errors.New("subscription reservation accounting is invalid")
+			}
+			sub.AmountReserved -= record.PreConsumed
+			if err := tx.Save(&sub).Error; err != nil {
+				return err
+			}
+			record.Status = "refunded"
+			return tx.Save(&record).Error
 		}
 		if record.PreConsumed <= 0 {
 			record.Status = "refunded"
 			return tx.Save(&record).Error
 		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
+		if record.ResetGeneration != sub.ResetGeneration {
+			record.Status = "refunded"
+			return tx.Save(&record).Error
+		}
+		sub.AmountUsed = max(sub.AmountUsed-record.PreConsumed, 0)
+		if err := tx.Save(&sub).Error; err != nil {
 			return err
 		}
 		record.Status = "refunded"
 		return tx.Save(&record).Error
 	})
+}
+
+// AdjustUserSubscriptionReservation changes the amount held by an in-flight request.
+func AdjustUserSubscriptionReservation(requestId string, delta int64) error {
+	if strings.TrimSpace(requestId) == "" {
+		return errors.New("requestId is empty")
+	}
+	if delta == 0 {
+		return nil
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var record SubscriptionPreConsumeRecord
+		if err := lockForUpdate(tx).Where("request_id = ?", requestId).First(&record).Error; err != nil {
+			return err
+		}
+		if record.Status != "reserved" && record.Status != "consumed" {
+			return errors.New("subscription reservation is no longer active")
+		}
+		var sub UserSubscription
+		if err := lockForUpdate(tx).Where("id = ?", record.UserSubscriptionId).First(&sub).Error; err != nil {
+			return err
+		}
+		if sub.QuotaModelVersion == 0 {
+			minInt64 := -int64(^uint64(0)>>1) - 1
+			if delta == minInt64 || delta < 0 && record.PreConsumed < -delta {
+				return errors.New("subscription reservation adjustment cannot be negative")
+			}
+			if record.ResetGeneration != sub.ResetGeneration && delta < 0 {
+				record.PreConsumed += delta
+				return tx.Save(&record).Error
+			}
+			nextUsed := sub.AmountUsed + delta
+			if nextUsed < 0 || sub.AmountTotal > 0 && nextUsed > sub.AmountTotal {
+				return errors.New("subscription used exceeds total")
+			}
+			sub.AmountUsed = nextUsed
+			record.PreConsumed += delta
+			if err := tx.Save(&sub).Error; err != nil {
+				return err
+			}
+			return tx.Save(&record).Error
+		}
+		maxInt64 := int64(^uint64(0) >> 1)
+		minInt64 := -maxInt64 - 1
+		if delta == minInt64 || delta < 0 && record.PreConsumed < -delta || delta > 0 && delta > maxInt64-sub.AmountReserved || delta > 0 && (sub.AmountTotal > 0 && (sub.TotalAmountUsed > sub.AmountTotal || sub.AmountReserved > sub.AmountTotal-sub.TotalAmountUsed || delta > sub.AmountTotal-sub.TotalAmountUsed-sub.AmountReserved)) {
+			return errors.New("subscription reservation exceeds available quota")
+		}
+		if delta > 0 && sub.AmountTotal > 0 && NormalizeResetPeriod(sub.QuotaResetPeriod) != SubscriptionResetNever && record.ResetGeneration == sub.ResetGeneration {
+			var windowReserved int64
+			if err := tx.Model(&SubscriptionPreConsumeRecord{}).
+				Select("COALESCE(SUM(pre_consumed), 0)").
+				Where("user_subscription_id = ? AND status = ? AND reset_generation = ?", sub.Id, "reserved", record.ResetGeneration).
+				Scan(&windowReserved).Error; err != nil {
+				return err
+			}
+			if sub.WindowAmountUsed > sub.WindowAmount || windowReserved > sub.WindowAmount-sub.WindowAmountUsed || delta > sub.WindowAmount-sub.WindowAmountUsed-windowReserved {
+				return errors.New("subscription reservation exceeds current window quota")
+			}
+		}
+		record.PreConsumed += delta
+		sub.AmountReserved += delta
+		if err := tx.Save(&sub).Error; err != nil {
+			return err
+		}
+		return tx.Save(&record).Error
+	})
+}
+
+// SubscriptionSettlement records the committed funding portions of a request.
+type SubscriptionSettlement struct {
+	SubscriptionAmount  int64
+	WalletAmount        int64
+	UnfundedAmount      int64
+	TotalUsed           int64
+	AllowWalletOverflow bool
+}
+
+// PrepareSubscriptionTaskSettlement gives completion's additional charge its
+// own durable record. Submission is already settled; its original generation
+// must still govern which window completion may charge. Legacy subscriptions
+// return an empty record and retain their existing adjustment path.
+func PrepareSubscriptionTaskSettlement(requestId string) (*SubscriptionPreConsumeRecord, int64, error) {
+	var completion SubscriptionPreConsumeRecord
+	var submitted int64
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var original SubscriptionPreConsumeRecord
+		if err := lockForUpdate(tx).Where("request_id = ?", requestId).First(&original).Error; err != nil {
+			return err
+		}
+		var sub UserSubscription
+		if err := tx.First(&sub, original.UserSubscriptionId).Error; err != nil {
+			return err
+		}
+		if sub.QuotaModelVersion == 0 {
+			return nil
+		}
+		if original.Status == "reserved" || original.Status == "consumed" {
+			return nil
+		}
+		if original.Status != "settled" {
+			return errors.New("task submission funding has not settled")
+		}
+		submitted = original.SettlementAmount
+		if submitted == 0 {
+			submitted = original.SettledAmount
+		}
+		completion = SubscriptionPreConsumeRecord{
+			RequestId: fmt.Sprintf("%x", common.Sha256Raw([]byte("task-completion:"+requestId))),
+			UserId:    original.UserId, UserSubscriptionId: original.UserSubscriptionId,
+			PlanVersionId:   original.PlanVersionId,
+			ResetGeneration: original.ResetGeneration, Status: "reserved",
+		}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&completion).Error; err != nil {
+			return err
+		}
+		return tx.Where("request_id = ?", completion.RequestId).First(&completion).Error
+	})
+	return &completion, submitted, err
+}
+
+// SettleUserSubscriptionPreConsume retains the subscription-only settlement API.
+func SettleUserSubscriptionPreConsume(requestId string, delta int64) error {
+	result, err := SettleUserSubscriptionFunding(requestId, delta)
+	if err == nil && result.UnfundedAmount > 0 {
+		return errors.New("subscription settlement exceeds total quota")
+	}
+	return err
+}
+
+// SettleUserSubscriptionFunding commits the subscription portion once, even
+// when the remaining actual cost needs a separate wallet transaction.
+func SettleUserSubscriptionFunding(requestId string, delta int64) (*SubscriptionSettlement, error) {
+	if strings.TrimSpace(requestId) == "" {
+		return nil, errors.New("requestId is empty")
+	}
+	result := &SubscriptionSettlement{}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var record SubscriptionPreConsumeRecord
+		if err := lockForUpdate(tx).Where("request_id = ?", requestId).First(&record).Error; err != nil {
+			return err
+		}
+		if record.Status != "reserved" && record.Status != "consumed" && record.Status != "settled" {
+			return errors.New("subscription pre-consume is not settleable")
+		}
+		maxInt64 := int64(^uint64(0) >> 1)
+		minInt64 := -maxInt64 - 1
+		if record.PreConsumed < 0 || delta == minInt64 || delta > 0 && record.PreConsumed > maxInt64-delta || delta < 0 && record.PreConsumed < -delta {
+			return errors.New("subscription settlement cannot be negative")
+		}
+		actual := record.PreConsumed + delta
+		var sub UserSubscription
+		if err := lockForUpdate(tx).Where("id = ?", record.UserSubscriptionId).First(&sub).Error; err != nil {
+			return err
+		}
+		if record.Status == "settled" {
+			// Records settled before funding splits have no SettlementAmount.
+			settlementAmount := record.SettlementAmount
+			if settlementAmount == 0 {
+				settlementAmount = record.SettledAmount
+			}
+			if sub.QuotaModelVersion > 0 && actual != settlementAmount {
+				return errors.New("subscription settlement amount does not match committed charge")
+			}
+			result.SubscriptionAmount = record.SettledAmount
+			result.WalletAmount = record.WalletSettledAmount
+			result.UnfundedAmount = settlementAmount - record.SettledAmount - record.WalletSettledAmount
+			result.TotalUsed = sub.AmountUsed
+			result.AllowWalletOverflow = sub.QuotaModelVersion > 0 && sub.AllowWalletOverflow
+			return nil
+		}
+		record.SettlementAmount = actual
+		if sub.QuotaModelVersion > 0 {
+			if sub.TotalAmountUsed < 0 || sub.HistoricalAmountUsed < 0 || sub.AmountReserved < record.PreConsumed || sub.WindowAmountUsed < 0 {
+				return errors.New("subscription quota accounting is invalid")
+			}
+			otherReserved := sub.AmountReserved - record.PreConsumed
+			if sub.AmountTotal > 0 {
+				available := max(max(sub.AmountTotal-sub.TotalAmountUsed, 0)-otherReserved, 0)
+				actual = min(actual, available)
+			}
+			if actual > maxInt64-sub.TotalAmountUsed || actual > maxInt64-sub.HistoricalAmountUsed {
+				return errors.New("subscription settlement exceeds supported quota")
+			}
+			if record.ResetGeneration == sub.ResetGeneration && NormalizeResetPeriod(sub.QuotaResetPeriod) != SubscriptionResetNever && sub.AmountTotal > 0 {
+				var otherWindowReserved int64
+				if err := tx.Model(&SubscriptionPreConsumeRecord{}).
+					Select("COALESCE(SUM(pre_consumed), 0)").
+					Where("user_subscription_id = ? AND status = ? AND reset_generation = ? AND request_id <> ?", sub.Id, "reserved", record.ResetGeneration, requestId).
+					Scan(&otherWindowReserved).Error; err != nil {
+					return err
+				}
+				// The shared charge updates both counters once. Any further
+				// subscription charge uses only the remaining total allowance.
+				windowCharge := min(actual, max(max(sub.WindowAmount-sub.WindowAmountUsed, 0)-otherWindowReserved, 0))
+				sub.WindowAmountUsed += windowCharge
+			}
+			sub.AmountReserved = otherReserved
+			sub.TotalAmountUsed += actual
+			sub.HistoricalAmountUsed += actual
+			sub.AmountUsed = sub.TotalAmountUsed
+			record.SettledAmount = actual
+		} else {
+			charge := delta
+			if record.ResetGeneration != sub.ResetGeneration {
+				// Legacy resets erase the old counter, so charge the full request
+				// into the only counter available instead of losing its usage.
+				charge = actual
+			}
+			if charge > 0 && sub.AmountUsed > maxInt64-charge {
+				return errors.New("subscription settlement exceeds supported quota")
+			}
+			newUsed := sub.AmountUsed + charge
+			if newUsed < 0 {
+				newUsed = 0
+			}
+			if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+				return errors.New("subscription used exceeds total")
+			}
+			sub.AmountUsed = newUsed
+			record.SettledAmount = actual
+		}
+		if err := tx.Save(&sub).Error; err != nil {
+			return err
+		}
+		record.Status = "settled"
+		if err := tx.Save(&record).Error; err != nil {
+			return err
+		}
+		result.SubscriptionAmount = record.SettledAmount
+		result.UnfundedAmount = record.SettlementAmount - record.SettledAmount
+		result.TotalUsed = sub.AmountUsed
+		result.AllowWalletOverflow = sub.QuotaModelVersion > 0 && sub.AllowWalletOverflow
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// SettleSubscriptionWalletOverflow commits a request's remaining cost and its
+// idempotency marker in one transaction. It preserves wallet settlement's
+// existing unconditional debit semantics, bypassing the asynchronous batch queue.
+func SettleSubscriptionWalletOverflow(requestId string) (int64, error) {
+	var charged, walletAmount int64
+	var userId int
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var record SubscriptionPreConsumeRecord
+		if err := lockForUpdate(tx).Where("request_id = ?", requestId).First(&record).Error; err != nil {
+			return err
+		}
+		if record.Status != "settled" {
+			return errors.New("subscription funding has not settled")
+		}
+		walletAmount = record.WalletSettledAmount
+		remaining := record.SettlementAmount - record.SettledAmount - walletAmount
+		if remaining <= 0 {
+			return nil
+		}
+		var sub UserSubscription
+		if err := tx.First(&sub, record.UserSubscriptionId).Error; err != nil {
+			return err
+		}
+		if sub.QuotaModelVersion == 0 || !sub.AllowWalletOverflow {
+			return errors.New("subscription wallet overflow is disabled")
+		}
+		userId = record.UserId
+		var user User
+		if err := lockForUpdate(tx).First(&user, userId).Error; err != nil {
+			return err
+		}
+		minInt64 := -int64(^uint64(0)>>1) - 1
+		if int64(user.Quota) < minInt64+remaining {
+			return errors.New("wallet settlement exceeds supported quota")
+		}
+		update := tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota - ?", remaining))
+		if update.Error != nil {
+			return update.Error
+		}
+		if update.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		record.WalletSettledAmount += remaining
+		if err := tx.Save(&record).Error; err != nil {
+			return err
+		}
+		charged = remaining
+		walletAmount = record.WalletSettledAmount
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	if charged > 0 {
+		if err := cacheDecrUserQuota(userId, charged); err != nil {
+			common.SysLog(common.LogText("failed to decrease user quota cache after subscription settlement: %s", err.Error()))
+		}
+	}
+	return walletAmount, nil
 }
 
 // ResetDueSubscriptions resets subscriptions whose next_reset_time has passed.
@@ -1484,8 +2683,10 @@ func CleanupSubscriptionPreConsumeRecords(olderThanSeconds int64) (int64, error)
 }
 
 type SubscriptionPlanInfo struct {
-	PlanId    int
-	PlanTitle string
+	PlanId        int    `json:"plan_id"`
+	PlanTitle     string `json:"plan_title"`
+	PlanVersionId int    `json:"plan_version_id"`
+	PlanVersion   int    `json:"plan_version"`
 }
 
 func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*SubscriptionPlanInfo, error) {
@@ -1500,13 +2701,33 @@ func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*Subsc
 	if err := DB.Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
 		return nil, err
 	}
-	plan, err := getSubscriptionPlanByIdTx(nil, sub.PlanId)
-	if err != nil {
-		return nil, err
+	var planTitle string
+	planVersionID := sub.PlanVersionId
+	planVersionNumber := 0
+	if sub.PlanVersionId > 0 {
+		version, err := GetSubscriptionPlanVersionById(sub.PlanVersionId)
+		if err != nil {
+			return nil, err
+		}
+		versionPlan, err := version.PlanTerms()
+		if err != nil {
+			return nil, err
+		}
+		planTitle = versionPlan.Title
+		planVersionNumber = version.Version
+	}
+	if planTitle == "" {
+		plan, err := getSubscriptionPlanByIdTx(nil, sub.PlanId)
+		if err != nil {
+			return nil, err
+		}
+		planTitle = plan.Title
 	}
 	info := &SubscriptionPlanInfo{
-		PlanId:    sub.PlanId,
-		PlanTitle: plan.Title,
+		PlanId:        sub.PlanId,
+		PlanTitle:     planTitle,
+		PlanVersionId: planVersionID,
+		PlanVersion:   planVersionNumber,
 	}
 	_ = getSubscriptionPlanInfoCache().SetWithTTL(cacheKey, *info, subscriptionPlanInfoCacheTTL())
 	return info, nil

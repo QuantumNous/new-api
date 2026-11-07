@@ -15,7 +15,9 @@ import (
 // ---- Shared types ----
 
 type SubscriptionPlanDTO struct {
-	Plan model.SubscriptionPlan `json:"plan"`
+	Plan          model.SubscriptionPlan `json:"plan"`
+	PlanVersionId int                    `json:"plan_version_id"`
+	Version       int                    `json:"version"`
 }
 
 type BillingPreferenceRequest struct {
@@ -42,8 +44,15 @@ func GetSubscriptionPlans(c *gin.Context) {
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
 		p.NormalizeDefaults()
+		version, err := model.GetOrCreateCurrentSubscriptionPlanVersion(p.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
+			Plan:          p,
+			PlanVersionId: version.Id,
+			Version:       version.Version,
 		})
 	}
 	common.ApiSuccess(c, result)
@@ -126,8 +135,15 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
 		p.NormalizeDefaults()
+		version, err := model.GetOrCreateCurrentSubscriptionPlanVersion(p.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
+			Plan:          p,
+			PlanVersionId: version.Id,
+			Version:       version.Version,
 		})
 	}
 	common.ApiSuccess(c, result)
@@ -184,6 +200,11 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorT(c, "Total quota cannot be negative")
 		return
 	}
+	if req.Plan.WindowAmount < 0 {
+		common.ApiErrorT(c, "Window quota cannot be negative")
+		return
+	}
+	req.Plan.QuotaModelVersion = 1
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -199,11 +220,21 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		}
 	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
+	if err := req.Plan.ValidateQuotaConfiguration(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorT(c, "Custom reset cycle must be greater than 0 seconds")
 		return
 	}
-	err := model.DB.Create(&req.Plan).Error
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&req.Plan).Error; err != nil {
+			return err
+		}
+		_, err := model.CreateSubscriptionPlanVersionTx(tx, &req.Plan)
+		return err
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -258,6 +289,11 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorT(c, "Total quota cannot be negative")
 		return
 	}
+	if req.Plan.WindowAmount < 0 {
+		common.ApiErrorT(c, "Window quota cannot be negative")
+		return
+	}
+	req.Plan.QuotaModelVersion = 1
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -273,6 +309,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		}
 	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
+	if err := req.Plan.ValidateQuotaConfiguration(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorT(c, "Custom reset cycle must be greater than 0 seconds")
 		return
@@ -295,6 +335,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"waffo_pancake_product_id":   req.Plan.WaffoPancakeProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
+			"window_amount":              req.Plan.WindowAmount,
+			"quota_model_version":        req.Plan.QuotaModelVersion,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"downgrade_group":            req.Plan.DowngradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
@@ -310,7 +352,12 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err
 		}
-		return nil
+		var savedPlan model.SubscriptionPlan
+		if err := tx.First(&savedPlan, id).Error; err != nil {
+			return err
+		}
+		_, err := model.CreateSubscriptionPlanVersionTx(tx, &savedPlan)
+		return err
 	})
 	if err != nil {
 		common.ApiError(c, err)
@@ -339,7 +386,18 @@ func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
-	if err := model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Update("enabled", *req.Enabled).Error; err != nil {
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Update("enabled", *req.Enabled).Error; err != nil {
+			return err
+		}
+		var plan model.SubscriptionPlan
+		if err := tx.First(&plan, id).Error; err != nil {
+			return err
+		}
+		_, err := model.CreateSubscriptionPlanVersionTx(tx, &plan)
+		return err
+	})
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -405,6 +463,17 @@ type AdminCreateUserSubscriptionRequest struct {
 type AdminResetSubscriptionRequest struct {
 	PlanId           int   `json:"plan_id"`
 	AdvanceResetTime *bool `json:"advance_reset_time"`
+}
+
+type AdminRestoreSubscriptionQuotaRequest struct {
+	Action         string `json:"action"`
+	IdempotencyKey string `json:"idempotency_key"`
+	Reason         string `json:"reason"`
+}
+
+type AdminRestorePlanSubscriptionWindowsRequest struct {
+	IdempotencyKey string `json:"idempotency_key"`
+	Reason         string `json:"reason"`
 }
 
 func resolveAdvanceResetTime(value *bool) bool {
@@ -484,6 +553,26 @@ func AdminResetUserSubscriptionsByPlan(c *gin.Context) {
 	common.ApiSuccess(c, result)
 }
 
+func AdminRestoreUserSubscriptionQuota(c *gin.Context) {
+	userId, _ := strconv.Atoi(c.Param("id"))
+	subscriptionId, _ := strconv.Atoi(c.Param("subscription_id"))
+	if userId <= 0 || subscriptionId <= 0 {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	var req AdminRestoreSubscriptionQuotaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	result, err := model.AdminRestoreUserSubscriptionQuota(userId, subscriptionId, req.Action, req.IdempotencyKey, c.GetInt("id"), req.Reason)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
 func AdminResetPlanSubscriptions(c *gin.Context) {
 	planId, _ := strconv.Atoi(c.Param("id"))
 	if planId <= 0 {
@@ -511,6 +600,44 @@ func AdminResetPlanSubscriptions(c *gin.Context) {
 		"user_count":         result.UserCount,
 		"advance_reset_time": result.AdvanceResetTime,
 	})
+	common.ApiSuccess(c, result)
+}
+
+func AdminRestorePlanSubscriptionWindows(c *gin.Context) {
+	planId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || planId <= 0 {
+		common.ApiErrorT(c, "Invalid ID")
+		return
+	}
+	var req AdminRestorePlanSubscriptionWindowsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	result, err := model.AdminRestorePlanSubscriptionWindows(planId, req.IdempotencyKey, c.GetInt("id"), req.Reason)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
+func AdminInitializePlanSubscriptions(c *gin.Context) {
+	planId, _ := strconv.Atoi(c.Param("id"))
+	if planId <= 0 {
+		common.ApiErrorT(c, "Invalid ID")
+		return
+	}
+	var req AdminRestorePlanSubscriptionWindowsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorT(c, "Invalid parameters")
+		return
+	}
+	result, err := model.AdminRestorePlanSubscriptionQuota(planId, model.SubscriptionQuotaActionInitialize, req.IdempotencyKey, c.GetInt("id"), req.Reason)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, result)
 }
 
