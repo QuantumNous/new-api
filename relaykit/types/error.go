@@ -85,6 +85,7 @@ const (
 	// quota error
 	ErrorCodeInsufficientUserQuota      ErrorCode = "insufficient_user_quota"
 	ErrorCodePreConsumeTokenQuotaFailed ErrorCode = "pre_consume_token_quota_failed"
+	ErrorCodeUpstreamQuotaInsufficient  ErrorCode = "upstream_quota_insufficient"
 )
 
 type NewAPIError struct {

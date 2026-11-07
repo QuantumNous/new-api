@@ -220,6 +220,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			return
 		}
 
+		newAPIError = service.NormalizeUpstreamQuotaError(newAPIError)
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
