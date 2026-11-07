@@ -133,9 +133,9 @@ func serveTaskPluginImageProtocol(c *gin.Context, pinned pluginruntime.PinnedEnd
 	}
 	response, ok := payload.(map[string]any)
 	data, hasData := response["data"].([]any)
-	if !ok || !hasData {
+	if !ok || !hasData || len(data) == 0 {
 		logger.LogError(c, common.LogText("task protocol image render hook must return an object with a data array"))
-		respondPluginProtocolError(c, http.StatusInternalServerError, "task_protocol_error", "Task protocol request failed")
+		respondPluginProtocolError(c, http.StatusBadGateway, "task_protocol_error", "Task plugin returned no images")
 		return
 	}
 	if _, present := response["created"]; !present {

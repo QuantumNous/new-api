@@ -614,6 +614,11 @@ func relaysSubmitEvents(c *gin.Context) bool {
 // never persists it, so it may be as large as a downloaded file, which lets a
 // vendor return Base64 images.
 func submitReplyLimit(c *gin.Context) int64 {
+	if value, exists := c.Get(pluginruntime.ContextKeyPinnedEndpoint); exists {
+		if pinned, ok := value.(pluginruntime.PinnedEndpoint); ok && pinned.Protocol == pluginruntime.ProtocolOpenAIImage {
+			return max(maxInlineFileBytes(), maxTaskPluginPersistedJSONBytes)
+		}
+	}
 	if value, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
 		if pinned, ok := value.(pluginruntime.PinnedRoute); ok && pinned.Route.RetainResult != nil && !*pinned.Route.RetainResult {
 			return max(maxInlineFileBytes(), maxTaskPluginPersistedJSONBytes)
