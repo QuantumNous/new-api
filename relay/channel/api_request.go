@@ -1,9 +1,11 @@
 package channel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -407,12 +409,17 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	dialer := *websocket.DefaultDialer
-	if info.ChannelSetting.Proxy != "" {
-		proxyURL, _, proxyErr := common2.ParseProxyURLRuntime(info.ChannelSetting.Proxy)
+	if proxyValue := service.EffectiveOutboundProxy(info.ChannelSetting.Proxy); proxyValue != "" {
+		proxyURL, _, proxyErr := common2.ParseProxyURLRuntime(proxyValue)
 		if proxyErr != nil {
 			return nil, proxyErr
 		}
-		dialer.Proxy = http.ProxyURL(proxyURL)
+		// gorilla/websocket only dials http and socks5 proxies. Dial the accepted
+		// schemes here, including https and socks5h, and disable its proxy wrapper.
+		dialer.Proxy = func(*http.Request) (*url.URL, error) { return nil, nil }
+		dialer.NetDialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return service.DialContextThroughProxy(ctx, proxyURL, network, addr)
+		}
 	}
 	if info.ChannelSetting.TLSInsecureSkipVerify {
 		dialer.TLSClientConfig = common2.InsecureTLSConfig
@@ -444,6 +451,7 @@ func toWebSocketURL(raw string) string {
 	}
 }
 
+// DoRequest sends the prepared upstream request and returns the upstream response.
 func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	return doRequest(c, req, info)
 }
@@ -454,6 +462,28 @@ func keepUpstreamRedirectResponse(_ *http.Request, _ []*http.Request) error {
 	return http.ErrUseLastResponse
 }
 
+// outboundProxyForLog reports whether the relay used a channel proxy, the system
+// proxy, or neither. The target omits proxy credentials.
+func outboundProxyForLog(channelProxy string) (source, target string) {
+	channelProxy = strings.TrimSpace(channelProxy)
+	systemProxy := strings.TrimSpace(common2.GetSystemProxy())
+	raw := ""
+	switch {
+	case channelProxy != "":
+		source, raw = "channel", channelProxy
+	case systemProxy != "":
+		source, raw = "system", systemProxy
+	default:
+		return "direct-or-env", "none"
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" {
+		return source, "invalid"
+	}
+	return source, parsed.Scheme + "://" + parsed.Host
+}
+
+// doRequest dials the upstream, logs the selected outbound proxy, and returns the response.
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	client, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
 	if err != nil {
@@ -486,11 +516,17 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 
 	common2.SetContextKey(c, appconstant.ContextKeyUpstreamRequestOrigin, req.URL.Scheme+"://"+req.URL.Host)
+	proxySource, proxyTarget := outboundProxyForLog(info.ChannelSetting.Proxy)
+	upstream := ""
+	if req.URL != nil {
+		upstream = req.URL.Scheme + "://" + req.URL.Host
+	}
 	resp, err := relayClient.Do(req)
 	if err != nil {
-		logger.LogError(c, common2.LogText("do request failed: %s", err.Error()))
+		logger.LogError(c, common2.LogText("outbound proxy=%s target=%s upstream=%s result=failed error=%s", proxySource, proxyTarget, upstream, err.Error()))
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
+	logger.LogInfo(c, common2.LogText("outbound proxy=%s target=%s upstream=%s result=success status=%d", proxySource, proxyTarget, upstream, resp.StatusCode))
 	if resp == nil {
 		return nil, errors.New("resp is nil")
 	}
