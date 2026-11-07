@@ -24,6 +24,8 @@ import { SectionPageLayout } from '@/components/layout'
 import { FadeIn } from '@/components/page-transition'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { getDefaultDays, getSavedGranularity } from '@/features/dashboard/lib'
+import type { UserChartsFilters } from '@/features/dashboard/types'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { getStartOfDay } from '@/lib/time'
 
@@ -38,9 +40,11 @@ import { ActiveUsersPanel } from './components/active-users-panel'
 import { ActivityTrendPanel } from './components/activity-trend-panel'
 import { ModelUsagePanel } from './components/model-usage-panel'
 import { OverviewStatCards } from './components/overview-stat-cards'
+import { PerformanceOverview } from './components/performance-overview'
 import { RevenuePanel } from './components/revenue-panel'
 import { TokenUsagePanel } from './components/token-usage-panel'
 import { TopModelsPanel } from './components/top-models-panel'
+import { UserCharts } from './components/user-analytics'
 import {
   buildDailyRevenue,
   buildHourlyActiveUsers,
@@ -62,6 +66,16 @@ const LIVE_REFRESH_MS = 15 * 1000
 export function AdminOverview() {
   const { t } = useTranslation()
   const [now, setNow] = useState(() => new Date())
+  const [userChartsFilters, setUserChartsFilters] = useState<UserChartsFilters>(
+    () => {
+      const granularity = getSavedGranularity()
+      return {
+        timeGranularity: granularity,
+        selectedRange: getDefaultDays(granularity),
+        topUserLimit: 10,
+      }
+    }
+  )
   useEffect(() => {
     const timer = window.setInterval(
       () => setNow(new Date()),
@@ -319,6 +333,10 @@ export function AdminOverview() {
               </FadeIn>
 
               <FadeIn delay={0.05}>
+                <PerformanceOverview />
+              </FadeIn>
+
+              <FadeIn delay={0.1}>
                 <ActivityTrendPanel
                   rows={quotaRows}
                   now={now}
@@ -378,6 +396,12 @@ export function AdminOverview() {
                 <ModelUsagePanel
                   models={modelUsage}
                   loading={quotaQuery.isLoading}
+                />
+              </FadeIn>
+              <FadeIn delay={0.3}>
+                <UserCharts
+                  filters={userChartsFilters}
+                  onFiltersChange={setUserChartsFilters}
                 />
               </FadeIn>
             </>

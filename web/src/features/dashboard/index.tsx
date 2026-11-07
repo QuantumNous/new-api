@@ -31,9 +31,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/stores/auth-store'
 
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
@@ -41,9 +39,7 @@ import { OverviewDashboard } from './components/overview/overview-dashboard'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
-  getDefaultDays,
   getSavedChartPreferences,
-  getSavedGranularity,
   saveChartPreferences,
 } from './lib'
 import {
@@ -55,7 +51,6 @@ import type {
   DashboardChartPreferences,
   DashboardFilters,
   QuotaDataItem,
-  UserChartsFilters,
 } from './types'
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
@@ -69,16 +64,6 @@ const LOG_STAT_CARD_FALLBACK_KEYS = [
   'average-rpm',
   'average-tpm',
 ] as const
-const PERFORMANCE_METRIC_FALLBACK_KEYS = [
-  'success-rate',
-  'average-latency',
-  'throughput',
-] as const
-const PERFORMANCE_MODEL_FALLBACK_KEYS = [
-  'primary-model',
-  'secondary-model',
-] as const
-
 const LazyLogStatCards = lazy(() =>
   import('./components/models/log-stat-cards').then((m) => ({
     default: m.LogStatCards,
@@ -94,18 +79,6 @@ const LazyModelCharts = lazy(() =>
 const LazyConsumptionDistributionChart = lazy(() =>
   import('./components/models/consumption-distribution-chart').then((m) => ({
     default: m.ConsumptionDistributionChart,
-  }))
-)
-
-const LazyPerformanceOverview = lazy(() =>
-  import('./components/models/performance-overview').then((m) => ({
-    default: m.PerformanceOverview,
-  }))
-)
-
-const LazyUserCharts = lazy(() =>
-  import('./components/users/user-charts').then((m) => ({
-    default: m.UserCharts,
   }))
 )
 
@@ -158,29 +131,6 @@ function ModelChartsFallback() {
   )
 }
 
-function PerformanceOverviewFallback() {
-  return (
-    <div className='overflow-hidden rounded-lg border'>
-      <div className='flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-5'>
-        <div className='flex items-center gap-2'>
-          <Skeleton className='h-4 w-24' />
-        </div>
-        {PERFORMANCE_METRIC_FALLBACK_KEYS.map((key) => (
-          <div key={key} className='flex items-center gap-1.5'>
-            <Skeleton className='h-3 w-14' />
-            <Skeleton className='h-4 w-16' />
-          </div>
-        ))}
-        <div className='ms-auto flex items-center gap-2'>
-          {PERFORMANCE_MODEL_FALLBACK_KEYS.map((key) => (
-            <Skeleton key={key} className='h-5 w-28 rounded-full' />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   overview: {
     titleKey: 'Overview',
@@ -191,16 +141,12 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   flow: {
     titleKey: 'Flow',
   },
-  users: {
-    titleKey: 'User Analytics',
-  },
 }
 
 export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const params = route.useParams()
-  const userRole = useAuthStore((state) => state.auth.user?.role)
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
@@ -210,16 +156,6 @@ export function Dashboard() {
     useState<DashboardChartPreferences>(() => getSavedChartPreferences())
   const [modelFilters, setModelFilters] = useState<DashboardFilters>(() =>
     buildDefaultDashboardFilters(getSavedChartPreferences())
-  )
-  const [userChartsFilters, setUserChartsFilters] = useState<UserChartsFilters>(
-    () => {
-      const granularity = getSavedGranularity()
-      return {
-        timeGranularity: granularity,
-        selectedRange: getDefaultDays(granularity),
-        topUserLimit: 10,
-      }
-    }
   )
   const [flowSensitiveVisible, setFlowSensitiveVisible] = useState(true)
 
@@ -249,13 +185,9 @@ export function Dashboard() {
   )
 
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
-  const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
   const visibleSections = useMemo(
-    () =>
-      DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
-      ),
-    [isAdmin]
+    () => DASHBOARD_SECTION_IDS.filter((section) => section !== 'overview'),
+    []
   )
   const handleSectionChange = useCallback(
     (section: string) => {
@@ -361,14 +293,7 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
-              {isAdmin && (
-                <FadeIn delay={0.05}>
-                  <Suspense fallback={<PerformanceOverviewFallback />}>
-                    <LazyPerformanceOverview />
-                  </Suspense>
-                </FadeIn>
-              )}
-              <FadeIn delay={0.1}>
+              <FadeIn delay={0.05}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyConsumptionDistributionChart
                     data={modelData}
@@ -395,16 +320,6 @@ export function Dashboard() {
                 </Suspense>
               </FadeIn>
             </>
-          )}
-          {activeSection === 'users' && (
-            <FadeIn>
-              <Suspense fallback={<ModelChartsFallback />}>
-                <LazyUserCharts
-                  filters={userChartsFilters}
-                  onFiltersChange={setUserChartsFilters}
-                />
-              </Suspense>
-            </FadeIn>
           )}
           {activeSection === 'flow' && (
             <FadeIn>

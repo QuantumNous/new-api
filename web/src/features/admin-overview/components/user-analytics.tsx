@@ -25,8 +25,8 @@ import { useTranslation } from 'react-i18next'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TitledCard } from '@/components/ui/titled-card'
 import { useTheme } from '@/context/theme-provider'
-import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
 import {
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
@@ -43,6 +43,8 @@ import type {
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
+
+import { getAdminUserQuotaRows } from '../api'
 
 let themeManagerPromise: Promise<
   (typeof import('@visactor/vchart'))['ThemeManager']
@@ -80,8 +82,8 @@ export function UserCharts(props: UserChartsProps) {
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
   >(null)
 
-  // The selection is owned by the dashboard parent so it persists across
-  // sub-section switches; the rolling window is derived from the chosen range.
+  // The selection is owned by the admin overview parent so it persists across
+  // re-renders; the rolling window is derived from the chosen range.
   const timeGranularity = props.filters.timeGranularity
   const selectedRange = props.filters.selectedRange
   const topUserLimit = props.filters.topUserLimit
@@ -138,10 +140,10 @@ export function UserCharts(props: UserChartsProps) {
   }, [resolvedTheme])
 
   const { data: userData, isLoading } = useQuery({
-    queryKey: ['dashboard', 'user-quota', timeRange],
+    queryKey: ['admin-overview', 'user-quota', timeRange],
     queryFn: async () =>
-      requireServerSuccess(await getUserQuotaDataByUsers(timeRange)),
-    select: (res) => (res.success ? res.data : []),
+      requireServerSuccess(await getAdminUserQuotaRows(timeRange)),
+    select: (res) => (res.success ? (res.data ?? []) : []),
     staleTime: 60_000,
   })
 
@@ -157,110 +159,119 @@ export function UserCharts(props: UserChartsProps) {
   )
 
   return (
-    <div className='space-y-3'>
-      <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
-        <Tabs
-          value={String(selectedRange)}
-          onValueChange={(value) => handleRangeChange(Number(value))}
-          className='shrink-0'
-        >
-          <TabsList>
-            {TIME_RANGE_PRESETS.map((preset) => (
-              <TabsTrigger
-                key={preset.days}
-                value={String(preset.days)}
-                className='px-2.5 text-xs'
+    <TitledCard
+      title={t('User Analytics')}
+      description={t('Consumption ranking and trend across all users')}
+      icon={<Users />}
+      iconTone='info'
+    >
+      <div className='space-y-3'>
+        <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
+          <Tabs
+            value={String(selectedRange)}
+            onValueChange={(value) => handleRangeChange(Number(value))}
+            className='shrink-0'
+          >
+            <TabsList>
+              {TIME_RANGE_PRESETS.map((preset) => (
+                <TabsTrigger
+                  key={preset.days}
+                  value={String(preset.days)}
+                  className='px-2.5 text-xs'
+                >
+                  {t(preset.label)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+
+          <Tabs
+            value={timeGranularity}
+            onValueChange={(value) =>
+              handleGranularityChange(value as TimeGranularity)
+            }
+            className='shrink-0'
+          >
+            <TabsList>
+              {TIME_GRANULARITY_OPTIONS.map((opt) => (
+                <TabsTrigger
+                  key={opt.value}
+                  value={opt.value}
+                  className='px-2.5 text-xs'
+                >
+                  {t(opt.label)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+
+          <Tabs
+            value={String(topUserLimit)}
+            onValueChange={(value) => handleTopUserLimitChange(Number(value))}
+            className='shrink-0'
+          >
+            <TabsList>
+              <span className='text-muted-foreground px-2 text-xs font-medium whitespace-nowrap'>
+                {t('Top Users')}
+              </span>
+              {TOP_USER_LIMIT_OPTIONS.map((limit) => (
+                <TabsTrigger
+                  key={limit}
+                  value={String(limit)}
+                  className='px-2.5 text-xs'
+                >
+                  {t('Top {{count}}', { count: limit })}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+
+          {isLoading && (
+            <Loader2 className='text-muted-foreground size-4 animate-spin' />
+          )}
+        </div>
+
+        <div className='grid gap-3'>
+          {USER_CHARTS.map((chart) => {
+            const spec = chartData[chart.specKey]
+
+            return (
+              <div
+                key={chart.value}
+                className='overflow-hidden rounded-lg border'
               >
-                {t(preset.label)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+                <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
+                  <IconBadge tone='info' size='sm'>
+                    <Users />
+                  </IconBadge>
+                  <div className='text-sm font-semibold'>
+                    {t(chart.labelKey)}
+                  </div>
+                </div>
 
-        <Tabs
-          value={timeGranularity}
-          onValueChange={(value) =>
-            handleGranularityChange(value as TimeGranularity)
-          }
-          className='shrink-0'
-        >
-          <TabsList>
-            {TIME_GRANULARITY_OPTIONS.map((opt) => (
-              <TabsTrigger
-                key={opt.value}
-                value={opt.value}
-                className='px-2.5 text-xs'
-              >
-                {t(opt.label)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
-        <Tabs
-          value={String(topUserLimit)}
-          onValueChange={(value) => handleTopUserLimitChange(Number(value))}
-          className='shrink-0'
-        >
-          <TabsList>
-            <span className='text-muted-foreground px-2 text-xs font-medium whitespace-nowrap'>
-              {t('Top Users')}
-            </span>
-            {TOP_USER_LIMIT_OPTIONS.map((limit) => (
-              <TabsTrigger
-                key={limit}
-                value={String(limit)}
-                className='px-2.5 text-xs'
-              >
-                {t('Top {{count}}', { count: limit })}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
-        {isLoading && (
-          <Loader2 className='text-muted-foreground size-4 animate-spin' />
-        )}
-      </div>
-
-      <div className='grid gap-3'>
-        {USER_CHARTS.map((chart) => {
-          const spec = chartData[chart.specKey]
-
-          return (
-            <div
-              key={chart.value}
-              className='overflow-hidden rounded-lg border'
-            >
-              <div className='flex w-full items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
-                <IconBadge tone='info' size='sm'>
-                  <Users />
-                </IconBadge>
-                <div className='text-sm font-semibold'>{t(chart.labelKey)}</div>
+                <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
+                  {isLoading ? (
+                    <Skeleton className='h-full w-full' />
+                  ) : (
+                    themeReady &&
+                    spec && (
+                      <VChart
+                        key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}`}
+                        spec={{
+                          ...spec,
+                          theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+                          background: 'transparent',
+                        }}
+                        option={VCHART_OPTION}
+                      />
+                    )
+                  )}
+                </div>
               </div>
-
-              <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
-                {isLoading ? (
-                  <Skeleton className='h-full w-full' />
-                ) : (
-                  themeReady &&
-                  spec && (
-                    <VChart
-                      key={`user-${chart.value}-${topUserLimit}-${resolvedTheme}`}
-                      spec={{
-                        ...spec,
-                        theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                        background: 'transparent',
-                      }}
-                      option={VCHART_OPTION}
-                    />
-                  )
-                )}
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
-    </div>
+    </TitledCard>
   )
 }
