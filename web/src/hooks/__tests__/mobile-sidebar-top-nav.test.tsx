@@ -47,10 +47,12 @@ vi.mock('@/hooks/use-top-nav-links', () => ({
 function SidebarProbe() {
   const { navGroups } = useSidebarView()
   const general = navGroups.find((group) => group.id === 'general')
-  const navigation = general?.items.find(
-    (item) => item.title === 'Navigation'
-  )
-  const navigationItems = navigation?.items ?? []
+  const apiKeysIndex =
+    general?.items.findIndex((item) => item.url === '/keys') ?? -1
+  const headerItems =
+    general?.items
+      .slice(apiKeysIndex + 1)
+      .filter((item) => item.title === 'Home' || item.title === 'Docs') ?? []
 
   return (
     <div>
@@ -58,7 +60,7 @@ function SidebarProbe() {
         {general?.items.map((item) => item.title).join('|')}
       </span>
       <span data-testid='links'>
-        {navigationItems
+        {headerItems
           .map(
             (item) => `${item.title}:${item.external ? 'external' : 'internal'}`
           )
@@ -100,16 +102,18 @@ afterEach(() => {
 })
 
 describe('mobile sidebar header navigation', () => {
-  it('injects the header links right below API Keys on compact viewports', async () => {
+  it('adds the header links directly below API Keys without a Navigation group', async () => {
     await renderProbe()
 
     const titles = screen.getByTestId('titles').textContent?.split('|') ?? []
-    expect(titles.slice(0, 4)).toEqual([
+    expect(titles.slice(0, 5)).toEqual([
       'Overview',
       'Dashboard',
       'API Keys',
-      'Navigation',
+      'Home',
+      'Docs',
     ])
+    expect(titles).not.toContain('Navigation')
     expect(screen.getByTestId('links')).toHaveTextContent(
       'Home:internal|Docs:external'
     )
@@ -120,7 +124,8 @@ describe('mobile sidebar header navigation', () => {
 
     await renderProbe()
 
-    expect(screen.getByTestId('titles')).not.toHaveTextContent('Navigation')
+    expect(screen.getByTestId('titles')).not.toHaveTextContent('Home')
+    expect(screen.getByTestId('titles')).not.toHaveTextContent('Docs')
     expect(screen.getByTestId('links')).toHaveTextContent('')
   })
 })
