@@ -7400,6 +7400,17 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "V5 allowance": "Лимит V5",
+    "Subscription Anlas": "Anlas по подписке",
+    "Purchased Anlas": "Купленные Anlas",
+    "Purchased V5 allowance": "Купленный лимит V5",
+    "Next +1%": "Следующий +1%",
+    "Refill paused": "Восстановление приостановлено",
+    "Refresh NovelAI resources": "Обновить ресурсы NovelAI",
+    "NovelAI balance request failed": "Не удалось запросить баланс NovelAI",
+    "NovelAI balance request failed (HTTP {{status}})": "Не удалось запросить баланс NovelAI (HTTP {{status}})",
+    "Invalid NovelAI subscription response": "Некорректный ответ о подписке NovelAI",
+    "Inactive": "Неактивна"
   }
 }

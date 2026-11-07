@@ -78,6 +78,12 @@ func SetRelayRouter(router *gin.Engine) {
 		relayV1Router.GET("/responses", controller.ResponsesWebSocket)
 	}
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
+	novelaiRouter := router.Group("/ai")
+	novelaiRouter.Use(middleware.RouteTag("relay"), middleware.SystemPerformanceCheck(),
+		middleware.TokenAuth(), middleware.ModelRequestRateLimit(), middleware.Distribute())
+	novelaiRouter.POST("/generate-image", func(c *gin.Context) {
+		controller.Relay(c, types.RelayFormatOpenAIImage)
+	})
 	{
 		// WebSocket 路由（统一到 Relay）
 		wsRouter := relayV1Router.Group("")

@@ -7400,6 +7400,17 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "V5 allowance": "Quota V5",
+    "Subscription Anlas": "Anlas d'abonnement",
+    "Purchased Anlas": "Anlas achetés",
+    "Purchased V5 allowance": "Quota V5 acheté",
+    "Next +1%": "Prochain +1 %",
+    "Refill paused": "Recharge en pause",
+    "Refresh NovelAI resources": "Actualiser les ressources NovelAI",
+    "NovelAI balance request failed": "Échec de la requête de solde NovelAI",
+    "NovelAI balance request failed (HTTP {{status}})": "Échec de la requête de solde NovelAI (HTTP {{status}})",
+    "Invalid NovelAI subscription response": "Réponse d'abonnement NovelAI invalide",
+    "Inactive": "Inactif"
   }
 }

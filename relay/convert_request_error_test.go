@@ -51,6 +51,8 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 		tiered, passThrough, insufficient, retryReset bool
 		override                                      any
 		count, status                                 int
+		novelAI                                       bool
+		overridePath                                  string
 	}{
 		{name: "top-level count", body: `{"model":"gpt-image-2","n":2,"parameters":{}}`, count: 2},
 		{name: "legacy channel quantity override", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4},
@@ -59,6 +61,13 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 		{name: "oversized override rejected", body: `{"model":"gpt-image-2","n":1}`, override: 129, status: http.StatusBadRequest},
 		{name: "insufficient reservation blocks upstream", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4, insufficient: true, status: http.StatusForbidden},
 		{name: "retry drops the previous attempt's quantity", body: `{"model":"gpt-image-2","n":1}`, count: 1, retryReset: true},
+		{name: "NovelAI nested quantity", body: `{"model":"nai-diffusion-4-5-full","prompt":"test","n":1,"parameters":{"n_samples":3}}`, count: 3, novelAI: true},
+		{name: "NovelAI flat quantity", body: `{"model":"nai-diffusion-4-5-full","prompt":"test","extra_fields":{"n_samples":2}}`, count: 2, novelAI: true},
+		{name: "NovelAI final override quantity", body: `{"model":"nai-diffusion-4-5-full","prompt":"test","n":1}`, override: 4, overridePath: "parameters.n_samples", count: 4, novelAI: true, tiered: true},
+		{name: "NovelAI oversized override", body: `{"model":"nai-diffusion-4-5-full","prompt":"test"}`, override: 129, overridePath: "parameters.n_samples", status: http.StatusBadRequest, novelAI: true},
+		{name: "NovelAI negative override", body: `{"model":"nai-diffusion-4-5-full","prompt":"test"}`, override: -1, overridePath: "parameters.n_samples", status: http.StatusBadRequest, novelAI: true},
+		{name: "NovelAI insufficient reservation", body: `{"model":"nai-diffusion-4-5-full","prompt":"test","parameters":{"n_samples":4}}`, count: 4, insufficient: true, novelAI: true, status: http.StatusForbidden},
+		{name: "NovelAI invalid passthrough cannot bypass validation", body: `{"model":"nai-diffusion-4-5-full","input":"test","action":"generate","parameters":{"width":832,"height":1216,"steps":23,"n_samples":129}}`, passThrough: true, novelAI: true, status: http.StatusBadRequest},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			received := make(chan []byte, 1)
@@ -76,10 +85,17 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(tc.body))
 			c.Request.Header.Set("Content-Type", "application/json")
 			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+			if tc.novelAI {
+				common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeNovelAI)
+			}
 			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
 			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.passThrough})
 			if tc.override != nil {
-				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": "n", "mode": "set", "value": tc.override}}})
+				path := tc.overridePath
+				if path == "" {
+					path = "n"
+				}
+				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": path, "mode": "set", "value": tc.override}}})
 			}
 			request, err := helper.GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
 			require.NoError(t, err)
@@ -87,7 +103,7 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			if tc.insufficient {
 				reservation.limit = reservation.held
 			}
-			info := &relaycommon.RelayInfo{Request: request, OriginModelName: "gpt-image-2", RelayMode: relayconstant.RelayModeImagesGenerations,
+			info := &relaycommon.RelayInfo{Request: request, OriginModelName: request.Model, RelayMode: relayconstant.RelayModeImagesGenerations,
 				RequestURLPath: c.Request.URL.Path, Billing: reservation,
 				PriceData: hosttypes.PriceData{UsePrice: true, ModelPrice: 0.04, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}},
 			}
@@ -112,7 +128,11 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			assert.Equal(t, http.StatusBadGateway, apiErr.StatusCode)
 			require.Len(t, received, 1)
 			body := <-received
-			assert.Equal(t, int64(tc.count), ojson.GetBytes(body, "n").Int())
+			countPath := "n"
+			if tc.novelAI {
+				countPath = "parameters.n_samples"
+			}
+			assert.Equal(t, int64(tc.count), ojson.GetBytes(body, countPath).Int())
 			assert.Equal(t, tc.count*20000, info.PriceData.QuotaToPreConsume)
 			assert.GreaterOrEqual(t, reservation.held, info.PriceData.QuotaToPreConsume)
 			assert.Nil(t, info.BillingImageCount)

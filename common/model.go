@@ -10,6 +10,7 @@ var (
 		"o4-mini-deep-research",
 	}
 	ImageGenerationModels = []string{
+		"prefix:nai-diffusion",
 		"dall-e-3",
 		"dall-e-2",
 		"prefix:dall-e", // Deprecated upstream models; retained for compatible routes.

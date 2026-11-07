@@ -36,8 +36,10 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { createServerError } from '@/lib/server-error-message'
 
 import { getCodexUsage, updateChannelBalance } from '../../api'
+import { CHANNEL_TYPE_NOVELAI } from '../../constants'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
+import { NovelAIBalance } from '../novelai-balance'
 import {
   CodexUsageDialog,
   type CodexUsageDialogData,
@@ -161,6 +163,19 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
         onRefresh={handleQueryCodexUsage}
         isRefreshing={isQuerying}
       />
+    )
+  }
+
+  if (currentRow.type === CHANNEL_TYPE_NOVELAI) {
+    return (
+      <Dialog
+        open={props.open}
+        onOpenChange={props.onOpenChange}
+        title={t('Query Balance')}
+        description={currentRow.name}
+      >
+        {props.open && <NovelAIBalance channel={currentRow} detailed />}
+      </Dialog>
     )
   }
 

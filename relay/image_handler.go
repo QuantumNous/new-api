@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/novelai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -23,6 +24,9 @@ import (
 
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
+	if c.Request.URL.Path == "/ai/generate-image" && info.ApiType != constant.APITypeNovelAI {
+		return types.NewErrorWithStatusCode(errors.New("NovelAI native requests require a NovelAI channel"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
 	info.BillingImageCount = nil
 	info.ImageRequestCount = 0
 
@@ -117,6 +121,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		if info.ApiType == constant.APITypeNovelAI {
+			imageCount, err = novelai.ValidateRequest(jsonData)
+			if err != nil {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+		}
 		logger.LogDebug(c, "image request body: %s", jsonData)
 		body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
 		if err != nil {
@@ -125,6 +135,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		defer closer.Close()
 		requestBody = body
 	}
+	if info.ApiType == constant.APITypeNovelAI && jsonData == nil {
+		return types.NewErrorWithStatusCode(errors.New("NovelAI requires a JSON image generation request"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
 	if billingErr := service.PrepareImageBillingForRequest(c, info, imageCount); billingErr != nil {
 		return billingErr
 	}
@@ -132,6 +145,15 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
+	if info.ApiType == constant.APITypeNovelAI && (err != nil || resp == nil || resp.(*http.Response).StatusCode == http.StatusOK) {
+		// NovelAI has no idempotency guarantee: a lost or unreadable success
+		// may already have consumed Anlas, so never submit it a second time.
+		defer func() {
+			if newAPIError != nil {
+				types.ErrOptionWithSkipRetry()(newAPIError)
+			}
+		}()
+	}
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}

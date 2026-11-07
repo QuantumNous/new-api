@@ -46,6 +46,31 @@ const plugins = [
   },
 ]
 
+test('NovelAI is searchable and selects its built-in image channel', async () => {
+  const select = vi.fn()
+  const user = userEvent.setup()
+  render(
+    <ChannelProviderPicker
+      isCreating
+      plugins={[]}
+      canBindPlugin={false}
+      loading={false}
+      failed={false}
+      disabled={false}
+      onRetry={vi.fn()}
+      onSelect={select}
+    />
+  )
+  await user.type(screen.getByRole('combobox'), 'NovelAI')
+  const option = screen.getByRole('option', {
+    name: 'NovelAI Built-in #64',
+  })
+  expect(option).toHaveAccessibleDescription('Image Generation')
+  expect(within(option).getByRole('img', { name: 'NovelAI' })).toBeVisible()
+  await user.click(option)
+  expect(select).toHaveBeenCalledWith({ kind: 'builtin', type: 64 })
+})
+
 const migratedProviders = [
   { type: 36, label: 'SunoAPI', key: 'sunoapi' },
   { type: 50, label: 'Kling', key: 'kling' },

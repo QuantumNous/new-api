@@ -36,3 +36,10 @@ func TestDeepSeekToolRoutingNamesReportTheirEndpoint(t *testing.T) {
 	}
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAI}, common.GetEndpointTypesByChannelType(constant.ChannelTypeDeepSeek, "deepseek-flash"))
 }
+
+func TestNovelAIReportsOnlyImageEndpointIncludingAliases(t *testing.T) {
+	for _, name := range []string{"nai-diffusion-5-full", "nai-diffusion-4-5-full", "image-alias"} {
+		assert.Equal(t, []constant.EndpointType{constant.EndpointTypeImageGeneration}, common.GetEndpointTypesByChannelType(constant.ChannelTypeNovelAI, name))
+	}
+	assert.True(t, common.IsImageGenerationModel("nai-diffusion-5-full"))
+}

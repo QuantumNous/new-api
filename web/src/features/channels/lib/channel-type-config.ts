@@ -20,6 +20,7 @@ import {
   CHANNEL_TYPES,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_NOVELAI,
 } from '../constants'
 
 // ============================================================================
@@ -49,6 +50,12 @@ export interface ChannelTypeConfig {
  * Configuration for each channel type
  */
 export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
+  [CHANNEL_TYPE_NOVELAI]: {
+    id: CHANNEL_TYPE_NOVELAI,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_NOVELAI],
+    icon: 'NovelAI',
+    supportedModels: ['nai-diffusion-5-full', 'nai-diffusion-4-5-full'],
+  },
   [CHANNEL_TYPE_SGLANG]: {
     id: CHANNEL_TYPE_SGLANG,
     name: CHANNEL_TYPES[CHANNEL_TYPE_SGLANG],

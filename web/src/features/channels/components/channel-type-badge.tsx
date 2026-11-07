@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import NovelAIIcon from '@lobehub/icons/es/NovelAI/components/Mono'
 import { useQuery } from '@tanstack/react-query'
 import { Puzzle, Server } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -35,7 +36,11 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { getTaskPluginOptions } from '../api'
-import { CHANNEL_TYPE_OPTIONS, CHANNEL_TYPE_TASK_PLUGIN } from '../constants'
+import {
+  CHANNEL_TYPE_NOVELAI,
+  CHANNEL_TYPE_OPTIONS,
+  CHANNEL_TYPE_TASK_PLUGIN,
+} from '../constants'
 import { getChannelTypeIcon } from '../lib/channel-utils'
 
 export function ChannelTypeLogo(props: {
@@ -45,6 +50,16 @@ export function ChannelTypeLogo(props: {
   className?: string
 }) {
   const size = props.size ?? 16
+  if (props.type === CHANNEL_TYPE_NOVELAI) {
+    return (
+      <NovelAIIcon
+        size={size}
+        className={cn('shrink-0', props.className)}
+        role='img'
+        aria-label='NovelAI'
+      />
+    )
+  }
   if (props.type === CHANNEL_TYPE_TASK_PLUGIN && props.plugin) {
     return <PluginIcon plugin={props.plugin} size={size} />
   }

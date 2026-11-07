@@ -7400,6 +7400,17 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "V5 allowance": "V5 電量",
+    "Subscription Anlas": "訂閱 Anlas",
+    "Purchased Anlas": "購買 Anlas",
+    "Purchased V5 allowance": "購買電量",
+    "Next +1%": "下次恢復 1%",
+    "Refill paused": "暫停回電",
+    "Refresh NovelAI resources": "重新整理 NAI 電量和點數",
+    "NovelAI balance request failed": "NAI 額度查詢失敗",
+    "NovelAI balance request failed (HTTP {{status}})": "NAI 額度查詢失敗（HTTP {{status}}）",
+    "Invalid NovelAI subscription response": "NAI 傳回的訂閱資訊無效",
+    "Inactive": "未生效"
   }
 }
