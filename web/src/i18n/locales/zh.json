@@ -3531,6 +3531,7 @@
     "Listing also depends on metadata visibility and the user’s group access.": "是否展示还取决于元数据展示策略和用户可用分组。",
     "Listing hidden": "已隐藏",
     "Live data, refreshed every minute": "实时数据，每分钟刷新",
+    "Live data, refreshed every second": "实时数据，每秒刷新",
     "Live refresh pauses when no task is running": "无任务运行时暂停自动刷新",
     "LLM Leaderboard": "LLM 排行榜",
     "LLM prompt helper": "LLM 辅助设计提示词",

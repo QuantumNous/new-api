@@ -3531,6 +3531,7 @@
     "Listing also depends on metadata visibility and the user’s group access.": "Listing also depends on metadata visibility and the user’s group access.",
     "Listing hidden": "Listing hidden",
     "Live data, refreshed every minute": "Live data, refreshed every minute",
+    "Live data, refreshed every second": "Live data, refreshed every second",
     "Live refresh pauses when no task is running": "Live refresh pauses when no task is running",
     "LLM Leaderboard": "LLM Leaderboard",
     "LLM prompt helper": "LLM prompt helper",

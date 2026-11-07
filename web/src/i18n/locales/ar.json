@@ -3531,6 +3531,7 @@
     "Listing also depends on metadata visibility and the user’s group access.": "يعتمد الإدراج في القائمة أيضًا على ظهور البيانات الوصفية وصلاحية وصول مجموعة المستخدم.",
     "Listing hidden": "الإدراج في القائمة مخفي",
     "Live data, refreshed every minute": "بيانات مباشرة، تُحدَّث كل دقيقة",
+    "Live data, refreshed every second": "بيانات مباشرة، تُحدَّث كل ثانية",
     "Live refresh pauses when no task is running": "يتوقف التحديث المباشر عند عدم وجود مهمة قيد التشغيل",
     "LLM Leaderboard": "لوحة صدارة LLM",
     "LLM prompt helper": "مساعد موجّه النموذج اللغوي",

@@ -60,30 +60,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { getFlowQuotaDates } from '@/features/dashboard/api'
-import {
-  buildDashboardFlowData,
-  buildFlowSankeySpec,
-  buildQueryParams,
-  flowNodeFilterFromSankeyDatum,
-  flowSankeyDatumValue,
-  getDefaultDays,
-  getFlowStages,
-} from '@/features/dashboard/lib'
-import {
-  compactFlowSelectionLabel,
-  flowDisplayState,
-  requireSuccessfulFlowRows,
-} from '@/features/dashboard/lib/flow-selection'
-import type {
-  DashboardFilters,
-  FlowLinkSelection,
-  FlowMetric,
-  FlowNodeFilter,
-  FlowNodeKind,
-  FlowOverflowMode,
-  FlowRole,
-} from '@/features/dashboard/types'
+import { buildQueryParams, getDefaultDays } from '@/features/dashboard/lib'
+import type { DashboardFilters } from '@/features/dashboard/types'
 import { currentIntlLocale, formatQuota } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 import { requireServerSuccess } from '@/lib/server-error-message'
@@ -94,6 +72,27 @@ import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { getFlowQuotaDates } from '../../api'
+import {
+  buildDashboardFlowData,
+  buildFlowSankeySpec,
+  flowNodeFilterFromSankeyDatum,
+  flowSankeyDatumValue,
+  getFlowStages,
+} from '../../lib/flow'
+import {
+  compactFlowSelectionLabel,
+  flowDisplayState,
+  requireSuccessfulFlowRows,
+} from '../../lib/flow-selection'
+import type {
+  FlowLinkSelection,
+  FlowMetric,
+  FlowNodeFilter,
+  FlowNodeKind,
+  FlowOverflowMode,
+  FlowRole,
+} from '../../types'
 import { FlowNodeFilterControl } from './flow-node-filter'
 
 interface FlowChartsProps {
@@ -343,7 +342,8 @@ export function FlowCharts(props: FlowChartsProps) {
       requireServerSuccess(await getFlowQuotaDates(flowQueryParams, isAdmin)),
     select: (res) =>
       requireSuccessfulFlowRows(res, t('Please try again later.')),
-    staleTime: 60_000,
+    refetchInterval: 1000,
+    staleTime: 900,
   })
 
   const maskSensitive = props.sensitiveVisible === false

@@ -19,9 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { DomTooltipHandler } from '@visactor/vchart'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import type { FlowQuotaDataItem } from '@/features/dashboard/types'
-
-import { buildDashboardFlowData, buildFlowSankeySpec } from '../flow'
+import { buildDashboardFlowData, buildFlowSankeySpec } from '../lib/flow'
+import type { FlowQuotaDataItem } from '../types'
 
 // VChart only enables its DOM tooltip when the environment has a 2D canvas,
 // which jsdom lacks. The check runs once, when VChart is imported.

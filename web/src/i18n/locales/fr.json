@@ -3531,6 +3531,7 @@
     "Listing also depends on metadata visibility and the user’s group access.": "L’affichage dépend aussi de la visibilité des métadonnées et des groupes accessibles à l’utilisateur.",
     "Listing hidden": "Masqué",
     "Live data, refreshed every minute": "Données en direct, actualisées chaque minute",
+    "Live data, refreshed every second": "Données en direct, actualisées chaque seconde",
     "Live refresh pauses when no task is running": "L'actualisation en direct est suspendue lorsqu'aucune tâche n'est en cours",
     "LLM Leaderboard": "Classement des LLM",
     "LLM prompt helper": "Assistant prompt LLM",

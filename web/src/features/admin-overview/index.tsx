@@ -30,7 +30,6 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import { getStartOfDay } from '@/lib/time'
 
 import {
-  getAdminLiveStat,
   getAdminLogStat,
   getAdminQuotaRows,
   getAdminRegisteredUserTotal,
@@ -38,6 +37,7 @@ import {
 } from './api'
 import { ActiveUsersPanel } from './components/active-users-panel'
 import { ActivityTrendPanel } from './components/activity-trend-panel'
+import { FlowPanel } from './components/flow/flow-panel'
 import { ModelUsagePanel } from './components/model-usage-panel'
 import { OverviewStatCards } from './components/overview-stat-cards'
 import { PerformanceOverview } from './components/performance-overview'
@@ -59,9 +59,9 @@ import {
 
 const TREND_DAYS = 30
 const TOP_MODEL_LIMIT = 6
-const OVERVIEW_REFRESH_MS = 60 * 1000
-const ALL_TIME_REFRESH_MS = 5 * 60 * 1000
-const LIVE_REFRESH_MS = 15 * 1000
+// The admin analytics are live: every panel polls once per second so the
+// numbers on screen always reflect the current second.
+const REFRESH_MS = 1000
 
 export function AdminOverview() {
   const { t } = useTranslation()
@@ -77,10 +77,7 @@ export function AdminOverview() {
     }
   )
   useEffect(() => {
-    const timer = window.setInterval(
-      () => setNow(new Date()),
-      OVERVIEW_REFRESH_MS
-    )
+    const timer = window.setInterval(() => setNow(new Date()), REFRESH_MS)
     return () => window.clearInterval(timer)
   }, [])
   const today = getStartOfDay(now)
@@ -109,8 +106,8 @@ export function AdminOverview() {
           end_timestamp: Math.floor(Date.now() / 1000) + 3600,
         })
       ),
-    refetchInterval: OVERVIEW_REFRESH_MS,
-    staleTime: OVERVIEW_REFRESH_MS - 5000,
+    refetchInterval: REFRESH_MS,
+    staleTime: REFRESH_MS - 100,
   })
 
   const activeUsersQuery = useQuery({
@@ -124,8 +121,8 @@ export function AdminOverview() {
         })
       )
     },
-    refetchInterval: OVERVIEW_REFRESH_MS,
-    staleTime: OVERVIEW_REFRESH_MS - 5000,
+    refetchInterval: REFRESH_MS,
+    staleTime: REFRESH_MS - 100,
   })
 
   const allTimeRevenueQuery = useQuery({
@@ -136,8 +133,8 @@ export function AdminOverview() {
           end_timestamp: Math.floor(Date.now() / 1000),
         })
       ),
-    refetchInterval: ALL_TIME_REFRESH_MS,
-    staleTime: ALL_TIME_REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+    staleTime: REFRESH_MS - 100,
   })
 
   const rateQuery = useQuery({
@@ -151,45 +148,16 @@ export function AdminOverview() {
         })
       )
     },
-    refetchInterval: LIVE_REFRESH_MS,
-    staleTime: LIVE_REFRESH_MS - 5000,
-  })
-
-  // Live aggregates read straight from the logs table, so the headline
-  // numbers do not wait for the periodic quota_data export.
-  const liveTodayQuery = useQuery({
-    queryKey: ['admin-overview', 'live-today', todayStart],
-    queryFn: async () =>
-      requireServerSuccess(
-        await getAdminLiveStat({
-          start_timestamp: todayStart,
-          end_timestamp: Math.floor(Date.now() / 1000),
-        })
-      ),
-    refetchInterval: LIVE_REFRESH_MS,
-    staleTime: LIVE_REFRESH_MS - 5000,
-  })
-
-  const liveActiveUsersQuery = useQuery({
-    queryKey: ['admin-overview', 'live-active-users'],
-    queryFn: async () => {
-      const timestamp = Math.floor(Date.now() / 1000)
-      return requireServerSuccess(
-        await getAdminLiveStat({
-          start_timestamp: timestamp - 24 * 3600,
-          end_timestamp: timestamp,
-        })
-      )
-    },
-    refetchInterval: LIVE_REFRESH_MS,
-    staleTime: LIVE_REFRESH_MS - 5000,
+    refetchInterval: REFRESH_MS,
+    staleTime: REFRESH_MS - 100,
   })
 
   const registeredUsersQuery = useQuery({
     queryKey: ['admin-overview', 'registered-users'],
     queryFn: async () =>
       requireServerSuccess(await getAdminRegisteredUserTotal()),
-    staleTime: ALL_TIME_REFRESH_MS,
+    refetchInterval: REFRESH_MS,
+    staleTime: REFRESH_MS - 100,
   })
 
   const quotaRows = useMemo(
@@ -286,7 +254,7 @@ export function AdminOverview() {
           )}
           {hasError
             ? t('Failed to load')
-            : t('Live data, refreshed every minute')}
+            : t('Live data, refreshed every second')}
         </span>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
@@ -403,6 +371,9 @@ export function AdminOverview() {
                   filters={userChartsFilters}
                   onFiltersChange={setUserChartsFilters}
                 />
+              </FadeIn>
+              <FadeIn delay={0.35}>
+                <FlowPanel />
               </FadeIn>
             </>
           )}

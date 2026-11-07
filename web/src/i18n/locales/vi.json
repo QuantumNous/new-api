@@ -3531,6 +3531,7 @@
     "Listing also depends on metadata visibility and the user’s group access.": "Việc hiển thị còn phụ thuộc vào cài đặt siêu dữ liệu và quyền truy cập nhóm của người dùng.",
     "Listing hidden": "Đã ẩn",
     "Live data, refreshed every minute": "Dữ liệu trực tiếp, làm mới mỗi phút",
+    "Live data, refreshed every second": "Dữ liệu trực tiếp, làm mới mỗi giây",
     "Live refresh pauses when no task is running": "Tự động làm mới tạm dừng khi không có tác vụ nào đang chạy",
     "LLM Leaderboard": "Bảng xếp hạng LLM",
     "LLM prompt helper": "Trợ lý prompt LLM",

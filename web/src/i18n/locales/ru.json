@@ -3531,6 +3531,7 @@
     "Listing also depends on metadata visibility and the user’s group access.": "Отображение также зависит от настроек видимости метаданных и доступа пользователя к группам.",
     "Listing hidden": "Скрыто",
     "Live data, refreshed every minute": "Актуальные данные, обновление раз в минуту",
+    "Live data, refreshed every second": "Актуальные данные, обновление каждую секунду",
     "Live refresh pauses when no task is running": "Автообновление приостанавливается, когда нет выполняемых задач",
     "LLM Leaderboard": "Рейтинг LLM",
     "LLM prompt helper": "Помощник с промптом для LLM",

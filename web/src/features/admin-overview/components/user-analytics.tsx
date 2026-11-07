@@ -144,7 +144,8 @@ export function UserCharts(props: UserChartsProps) {
     queryFn: async () =>
       requireServerSuccess(await getAdminUserQuotaRows(timeRange)),
     select: (res) => (res.success ? (res.data ?? []) : []),
-    staleTime: 60_000,
+    refetchInterval: 1000,
+    staleTime: 900,
   })
 
   const chartData = useMemo(

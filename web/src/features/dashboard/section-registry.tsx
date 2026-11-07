@@ -32,11 +32,6 @@ const DASHBOARD_SECTIONS = [
     titleKey: 'Model Call Analytics',
     build: () => null,
   },
-  {
-    id: 'flow',
-    titleKey: 'Flow',
-    build: () => null,
-  },
 ] as const
 
 export type DashboardSectionId = (typeof DASHBOARD_SECTIONS)[number]['id']

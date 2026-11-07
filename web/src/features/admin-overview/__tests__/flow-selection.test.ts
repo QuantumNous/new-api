@@ -18,13 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'vitest'
 
-import type { FlowUserFilterOption } from '../types'
 import {
   compactFlowSelectionLabel,
   flowDisplayState,
   requireSuccessfulFlowRows,
   visibleFlowUsers,
-} from './flow-selection'
+} from '../lib/flow-selection'
+import type { FlowUserFilterOption } from '../types'
 
 const users: FlowUserFilterOption[] = [
   {

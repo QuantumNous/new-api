@@ -3531,6 +3531,7 @@
     "Listing also depends on metadata visibility and the user’s group access.": "表示はメタデータの表示設定とユーザーのグループアクセスにも依存します。",
     "Listing hidden": "非表示",
     "Live data, refreshed every minute": "リアルタイムデータ（1分ごとに更新）",
+    "Live data, refreshed every second": "リアルタイムデータ（1秒ごとに更新）",
     "Live refresh pauses when no task is running": "実行中のタスクがない場合、自動更新は一時停止します",
     "LLM Leaderboard": "LLM リーダーボード",
     "LLM prompt helper": "LLMプロンプトヘルパー",
