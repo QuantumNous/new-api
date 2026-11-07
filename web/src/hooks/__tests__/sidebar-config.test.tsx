@@ -202,6 +202,32 @@ describe('audit log sidebar entry', () => {
   })
 })
 
+describe('system settings navigation', () => {
+  it('groups the site configuration pages directly under System Settings', () => {
+    const { result } = sidebarFor()
+    const entry = result.current
+      .find((group) => group.id === 'admin')
+      ?.items.find((item) => item.title === 'System Settings')
+
+    expect(entry?.items?.map((subItem) => subItem.url)).toEqual([
+      '/system-settings/site/system-info',
+      '/system-settings/site/notice',
+      '/system-settings/site/header-navigation',
+      '/system-settings/site/sidebar-modules',
+    ])
+  })
+
+  it('hides the group when the admin disables the settings module', () => {
+    const { result } = sidebarFor({ admin: { enabled: true, setting: false } })
+
+    expect(
+      result.current
+        .flatMap((group) => group.items)
+        .some((item) => item.title === 'System Settings')
+    ).toBe(false)
+  })
+})
+
 describe('model pricing badge', () => {
   function issue(modelName: string, pluginKey: string): ModelPricingIssue {
     return {

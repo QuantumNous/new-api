@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link, useLocation } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
-import { type ReactNode, useState, useEffect } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -46,6 +46,12 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from '@/components/ui/sidebar'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 import { checkIsActive } from '../lib/url-utils'
 import type {
@@ -118,6 +124,57 @@ function NavBadge({ children }: { children: ReactNode }) {
 }
 
 /**
+ * Navigation label that truncates with an ellipsis.
+ *
+ * When the title does not fit the current sidebar width, hovering reveals the
+ * full text in a tooltip. Overflow is measured against the rendered label, so
+ * the tooltip disappears again once the sidebar is widened or the label fits.
+ */
+function NavItemLabel({ text }: { text: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [isTruncated, setIsTruncated] = useState(false)
+  const { state, isMobile } = useSidebar()
+
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+
+    const measure = () => {
+      setIsTruncated(element.scrollWidth > element.clientWidth)
+    }
+    measure()
+
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [text, state])
+
+  const labelClassName = 'min-w-0 flex-1 truncate'
+
+  if (!isTruncated || isMobile || state !== 'expanded') {
+    return (
+      <span ref={ref} className={labelClassName}>
+        {text}
+      </span>
+    )
+  }
+
+  return (
+    <TooltipProvider delay={200}>
+      <Tooltip>
+        <TooltipTrigger render={<span ref={ref} className={labelClassName} />}>
+          {text}
+        </TooltipTrigger>
+        <TooltipContent side='inline-end' align='center'>
+          {text}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+/**
  * Sidebar menu link item
  */
 function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
@@ -136,7 +193,7 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
         }
       >
         {item.icon && <item.icon className='shrink-0' />}
-        <span className='min-w-0 flex-1 truncate'>{item.title}</span>
+        <NavItemLabel text={item.title} />
         {item.badge && <NavBadge>{item.badge}</NavBadge>}
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -179,7 +236,7 @@ function SidebarMenuCollapsible({
         render={<SidebarMenuButton tooltip={item.title} />}
       >
         {item.icon && <item.icon className='shrink-0' />}
-        <span className='min-w-0 flex-1 truncate'>{item.title}</span>
+        <NavItemLabel text={item.title} />
         {item.badge && <NavBadge>{item.badge}</NavBadge>}
         <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90' />
       </CollapsibleTrigger>
@@ -198,7 +255,7 @@ function SidebarMenuCollapsible({
                 }
               >
                 {subItem.icon && <subItem.icon className='shrink-0' />}
-                <span className='min-w-0 flex-1 truncate'>{subItem.title}</span>
+                <NavItemLabel text={subItem.title} />
                 {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
@@ -232,7 +289,7 @@ function SidebarMenuCollapsedDropdown({
           }
         >
           {item.icon && <item.icon className='shrink-0' />}
-          <span className='min-w-0 flex-1 truncate'>{item.title}</span>
+          <NavItemLabel text={item.title} />
           {item.badge && <NavBadge>{item.badge}</NavBadge>}
           <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[popup-open]/dropdown-trigger:rotate-90' />
         </DropdownMenuTrigger>

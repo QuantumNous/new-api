@@ -42,6 +42,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarBadges, SidebarData } from '@/components/layout/types'
+import { getSiteSectionNavItems } from '@/features/system-settings/site/section-registry.tsx'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -185,10 +186,11 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
           },
           {
             title: t('System Settings'),
-            url: '/system-settings/site',
-            activeUrls: ['/system-settings'],
             icon: Settings,
             requiredRole: ROLE.SUPER_ADMIN,
+            // The site configuration pages (branding, notice, header navigation
+            // and sidebar modules) are grouped directly under System Settings.
+            items: getSiteSectionNavItems(t),
             // Model pricing lives in System Settings.
             badge: badges.modelPricing,
           },
