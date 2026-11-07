@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useLocation } from '@tanstack/react-router'
+import { Compass, ExternalLink, Link2 } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { resolveSidebarView } from '@/components/layout/lib/sidebar-view-registry'
 import type {
+  NavCollapsible,
   NavGroup,
   ResolvedSidebarView,
   SidebarBadges,
@@ -30,8 +32,10 @@ import { useModelPricingIssueBadge } from '@/features/system-settings/models/pri
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { useMediaQuery } from './use-media-query'
 import { useSidebarConfig } from './use-sidebar-config'
 import { useSidebarData } from './use-sidebar-data'
+import { useTopNavLinks } from './use-top-nav-links'
 
 /** Sentinel key used for the root navigation in animation `key=` props */
 const ROOT_VIEW_KEY = '__root'
@@ -57,11 +61,15 @@ export function useSidebarView(): ResolvedSidebarView {
   const badges: SidebarBadges = { modelPricing: modelPricingBadge }
   const rootSidebarData = useSidebarData(badges)
   const configFilteredRoot = useSidebarConfig(rootSidebarData.navGroups)
+  // The header navigation is inline from `lg` up and hidden below it, so the
+  // same links move into the main sidebar for phones and tablets only.
+  const isCompactTopNav = useMediaQuery('(max-width: 1023px)')
+  const topNavLinks = useTopNavLinks()
 
   const rootNavGroups = useMemo<NavGroup[]>(() => {
     const role = userRole ?? ROLE.GUEST
     const isAdmin = role >= ROLE.ADMIN
-    return configFilteredRoot
+    const groups = configFilteredRoot
       .filter((group) => (group.id === 'admin' ? isAdmin : true))
       .map((group) => {
         const items = group.items.filter(
@@ -69,7 +77,44 @@ export function useSidebarView(): ResolvedSidebarView {
         )
         return items.length === group.items.length ? group : { ...group, items }
       })
-  }, [configFilteredRoot, userRole])
+
+    if (!isCompactTopNav || topNavLinks.length === 0) {
+      return groups
+    }
+
+    const generalIndex = groups.findIndex((group) => group.id === 'general')
+    if (generalIndex === -1) {
+      return groups
+    }
+
+    const general = groups[generalIndex]
+    const apiKeysIndex = general.items.findIndex((item) => item.url === '/keys')
+    const insertIndex =
+      apiKeysIndex === -1 ? general.items.length : apiKeysIndex + 1
+    const navigation: NavCollapsible = {
+      title: t('Navigation'),
+      icon: Compass,
+      items: topNavLinks.map((link) => ({
+        title: link.title,
+        url: link.href,
+        external: link.external,
+        icon: link.external ? ExternalLink : Link2,
+      })),
+    }
+
+    return groups.map((group, index) =>
+      index === generalIndex
+        ? {
+            ...group,
+            items: [
+              ...general.items.slice(0, insertIndex),
+              navigation,
+              ...general.items.slice(insertIndex),
+            ],
+          }
+        : group
+    )
+  }, [configFilteredRoot, isCompactTopNav, t, topNavLinks, userRole])
 
   const view = resolveSidebarView(pathname)
 

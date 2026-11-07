@@ -247,11 +247,20 @@ function SidebarMenuCollapsible({
               <SidebarMenuSubButton
                 isActive={checkIsActive(href, subItem)}
                 render={
-                  <Link
-                    to={subItem.url}
-                    preload={isMobile ? false : undefined}
-                    onClick={() => setOpenMobile(false)}
-                  />
+                  subItem.external ? (
+                    <a
+                      href={String(subItem.url)}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      onClick={() => setOpenMobile(false)}
+                    />
+                  ) : (
+                    <Link
+                      to={subItem.url}
+                      preload={isMobile ? false : undefined}
+                      onClick={() => setOpenMobile(false)}
+                    />
+                  )
                 }
               >
                 {subItem.icon && <subItem.icon className='shrink-0' />}

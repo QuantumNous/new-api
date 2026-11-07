@@ -28,37 +28,15 @@ type SearchProps = {
   className?: string
   type?: React.HTMLInputTypeAttribute
   placeholder?: string
-  /**
-   * Render an icon-only button, for headers that need to save horizontal space
-   * on small screens while keeping the full search field on wider ones.
-   */
-  compact?: boolean
 }
 
 export function Search({
   className = '',
   placeholder,
-  compact = false,
 }: SearchProps) {
   const { t } = useTranslation()
   const { setOpen } = useSearch()
   const resolvedPlaceholder = placeholder ?? t('Search')
-
-  if (compact) {
-    return (
-      <Button
-        variant='outline'
-        className={cn(
-          'bg-muted/25 text-muted-foreground hover:bg-accent size-8 flex-none justify-center rounded-md p-0 shadow-none',
-          className
-        )}
-        onClick={() => setOpen(true)}
-        aria-label={resolvedPlaceholder}
-      >
-        <SearchIcon aria-hidden='true' size={16} />
-      </Button>
-    )
-  }
 
   return (
     <Button

@@ -122,18 +122,15 @@ export function AppHeader({
         <div className='ms-2 flex items-center'>{leftContent}</div>
       ) : null}
 
-      {/* Below `lg` TopNav renders its own hamburger trigger, so it must not be
-          hidden by a wrapper — that would remove the whole navigation on
-          phones and tablets. */}
-      {showTopNav && <TopNav links={links} className='me-1' />}
-
       {rightContent ?? (
         <div className='ms-auto flex shrink-0 items-center gap-1 sm:gap-2'>
+          {showTopNav && (
+            <div className='me-1 hidden lg:block'>
+              <TopNav links={links} />
+            </div>
+          )}
           {showSearch && (
-            <>
-              <Search compact className='xl:hidden' />
-              <Search className='hidden xl:flex' />
-            </>
+            <Search className='w-8 flex-none [&>span]:hidden sm:[&>span]:inline' />
           )}
           {showNotifications && (
             <NotificationPopover

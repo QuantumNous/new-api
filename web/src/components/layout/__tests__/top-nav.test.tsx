@@ -22,8 +22,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { TopNav } from '@/components/layout/components/top-nav'
@@ -52,60 +51,32 @@ async function renderTopNav(direction: 'ltr' | 'rtl' = 'ltr') {
   render(<RouterProvider router={router} />)
 }
 
-async function openDrawer() {
-  const user = userEvent.setup()
-  const trigger = screen.getByRole('button', { name: 'Open navigation menu' })
-  await user.click(trigger)
-  const drawer = await screen.findByRole('dialog')
-  return { user, trigger, drawer }
-}
-
-describe('top navigation responsiveness', () => {
-  it('shows a hamburger that opens a drawer containing every link', async () => {
+describe('top navigation', () => {
+  it('renders every link inline from the lg breakpoint up', async () => {
     await renderTopNav()
 
-    const { drawer } = await openDrawer()
+    const nav = screen.getByRole('navigation')
+    expect(nav.className).toContain('lg:flex')
+    expect(nav.className).toContain('hidden')
 
     for (const link of LINKS) {
-      expect(within(drawer).getByRole('link', { name: link.title })).toBeTruthy()
+      expect(within(nav).getByRole('link', { name: link.title })).toBeTruthy()
     }
   })
 
-  it('marks the hamburger as expanded while the drawer is open', async () => {
+  it('does not render a mobile drawer trigger or dialog', async () => {
     await renderTopNav()
 
-    const { trigger } = await openDrawer()
-
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: /navigation menu/i })
+    ).toBeNull()
   })
 
-  it('closes the drawer after a destination is chosen', async () => {
-    await renderTopNav()
-
-    const { user, drawer } = await openDrawer()
-    await user.click(within(drawer).getByRole('link', { name: 'Home' }))
-
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull()
-    })
-  })
-
-  it('keeps the inline link row for wide viewports', async () => {
-    await renderTopNav()
-
-    const inlineNav = screen
-      .getAllByRole('navigation')
-      .find((element) => element.textContent?.includes('Models Workspace'))
-
-    expect(inlineNav?.className).toContain('lg:flex')
-    expect(inlineNav?.querySelectorAll('a')).toHaveLength(LINKS.length)
-  })
-
-  it('opens the drawer from the start edge in a right-to-left layout', async () => {
+  it('keeps the same links in a right-to-left layout', async () => {
     await renderTopNav('rtl')
 
-    const { drawer } = await openDrawer()
-
-    expect(drawer).toHaveAttribute('data-side', 'right')
+    const nav = screen.getByRole('navigation')
+    expect(within(nav).getAllByRole('link')).toHaveLength(LINKS.length)
   })
 })
