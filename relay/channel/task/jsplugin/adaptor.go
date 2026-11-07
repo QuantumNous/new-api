@@ -345,11 +345,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 	if descriptor.BodyType == "multipart" {
-		form, parseErr := common.ParseMultipartFormReusable(c)
-		if parseErr != nil {
-			return nil, parseErr
-		}
-		defer form.RemoveAll()
+		var form *multipart.Form
 		var body bytes.Buffer
 		writer := multipart.NewWriter(&body)
 		for _, part := range descriptor.Parts {
@@ -368,6 +364,14 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 					return nil, err
 				}
 				continue
+			}
+			// Text-only multipart output may originate from a JSON request.
+			if form == nil {
+				form, err = common.ParseMultipartFormReusable(c)
+				if err != nil {
+					return nil, err
+				}
+				defer form.RemoveAll()
 			}
 			field, index, validRef := pluginruntime.ParseFileReference(part.FileRef)
 			files := form.File[field]
