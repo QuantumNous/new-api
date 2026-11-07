@@ -108,6 +108,11 @@ function ConvertTo-TomlString([string]$Value) {
 
 function Update-CodexConfig([string]$Path, [string]$BaseUrl, [string]$ApiKey, [string]$Stamp) {
   Backup-File $Path $Stamp
+  $codexHome = Split-Path -Parent $Path
+  $tokenFile = Join-Path $codexHome 'newapi-token.txt'
+  $tokenCommand = Join-Path $codexHome 'newapi-token.cmd'
+  Write-Utf8File $tokenFile $ApiKey
+  Write-Utf8File $tokenCommand "@echo off`r`ntype `"%~dp0newapi-token.txt`"`r`n"
   $text = ''
   if (Test-Path -LiteralPath $Path) {
     $text = [IO.File]::ReadAllText($Path)
@@ -143,7 +148,6 @@ function Update-CodexConfig([string]$Path, [string]$BaseUrl, [string]$ApiKey, [s
   $output = New-Object System.Collections.Generic.List[string]
   $hasProvider = $false
   $hasModel = $false
-  $hasModelCatalog = $false
   for ($index = 0; $index -lt $topLevelEnd; $index++) {
     $line = $withoutProvider[$index]
     if ($line -match '^\s*model_provider\s*=') {
@@ -154,10 +158,6 @@ function Update-CodexConfig([string]$Path, [string]$BaseUrl, [string]$ApiKey, [s
       continue
     }
     if ($line -match '^\s*model_catalog_url\s*=') {
-      if (-not $hasModelCatalog) {
-        $output.Add(('model_catalog_url = ' + (ConvertTo-TomlString $CodexModelCatalogUrl)))
-        $hasModelCatalog = $true
-      }
       continue
     }
     if ($line -match '^\s*model\s*=') {
@@ -180,9 +180,6 @@ function Update-CodexConfig([string]$Path, [string]$BaseUrl, [string]$ApiKey, [s
   if (-not $hasModel) {
     $prefix.Add('model = "gpt-5.6-sol"')
   }
-  if (-not $hasModelCatalog) {
-    $prefix.Add(('model_catalog_url = ' + (ConvertTo-TomlString $CodexModelCatalogUrl)))
-  }
   if ($prefix.Count -gt 0) {
     $output.InsertRange(0, $prefix)
   }
@@ -194,8 +191,12 @@ function Update-CodexConfig([string]$Path, [string]$BaseUrl, [string]$ApiKey, [s
   $output.Add('[model_providers.newapi]')
   $output.Add("name = `"$ProviderName`"")
   $output.Add(('base_url = ' + (ConvertTo-TomlString ($BaseUrl + '/v1'))))
+  $output.Add(('model_catalog_url = ' + (ConvertTo-TomlString $CodexModelCatalogUrl)))
   $output.Add('wire_api = "responses"')
-  $output.Add(('experimental_bearer_token = ' + (ConvertTo-TomlString $ApiKey)))
+  $output.Add('')
+  $output.Add('[model_providers.newapi.auth]')
+  $output.Add('command = "cmd.exe"')
+  $output.Add(('args = ["/d", "/c", ' + (ConvertTo-TomlString $tokenCommand) + ']'))
   Write-Utf8File $Path (($output -join "`r`n") + "`r`n")
 }
 
@@ -652,11 +653,11 @@ function Normalize-BaseUrl([string]$Value) {
 try {
   Write-Host ''
   Write-Host "$ProviderName - Windows 客户端配置" -ForegroundColor White
-  Write-Host '为 NekoAI 配置 Claude Code、Codex CLI、Gemini CLI 或 DeepSeek Harness。' -ForegroundColor DarkGray
+  Write-Host '为 NekoAI 配置 Claude Code、Codex、Gemini CLI 或 DeepSeek Harness。' -ForegroundColor DarkGray
 
   Write-Heading '第 1 步 - 选择客户端'
   Write-Host '  1. Claude Code'
-  Write-Host '  2. Codex CLI'
+  Write-Host '  2. Codex'
   Write-Host '  3. Gemini CLI'
   Write-Host '  4. DeepSeek Harness'
   $choice = ''
@@ -718,9 +719,9 @@ try {
     $path = Join-Path $codexHome 'config.toml'
     Update-CodexConfig $path $baseUrl $apiKey $stamp
     Write-Host ''
-    Write-Host 'Codex CLI 配置完成。' -ForegroundColor Green
+    Write-Host 'Codex 配置完成。' -ForegroundColor Green
     Write-Detail "配置文件：$path"
-    Write-Detail '请打开新终端并运行 codex 以应用配置。'
+    Write-Detail '请重启 Codex CLI 或桌面端以应用配置。'
   } elseif ($choice -eq '3') {
     $directory = Join-Path $env:USERPROFILE '.gemini'
     Update-GeminiConfig $directory $baseUrl $apiKey 'gemini-2.5-pro' $stamp

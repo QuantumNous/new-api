@@ -82,11 +82,11 @@ describe('agent setup helpers', () => {
       [
         'model_provider = "newapi"',
         'model = "gpt-5.6-sol"',
-        'model_catalog_url = "https://ai.nekocore.cn/codex/models"',
         '',
         '[model_providers.newapi]',
         'name = "NekoAI"',
         'base_url = "https://gateway.example.com/v1"',
+        'model_catalog_url = "https://ai.nekocore.cn/codex/models"',
         'wire_api = "responses"',
         'experimental_bearer_token = "sk-test"',
       ].join('\n')

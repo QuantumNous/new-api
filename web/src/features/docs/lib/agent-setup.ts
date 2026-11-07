@@ -75,11 +75,11 @@ export function buildCodexConfig(
   return [
     'model_provider = "newapi"',
     `model = "${DEFAULT_CODEX_MODEL}"`,
-    `model_catalog_url = "${CODEX_MODEL_CATALOG_URL}"`,
     '',
     '[model_providers.newapi]',
     `name = "${SETUP_PROVIDER_NAME}"`,
     `base_url = "${escapeTomlString(`${gateway}/v1`)}"`,
+    `model_catalog_url = "${CODEX_MODEL_CATALOG_URL}"`,
     'wire_api = "responses"',
     `experimental_bearer_token = "${escapeTomlString(apiKey)}"`,
   ].join('\n')

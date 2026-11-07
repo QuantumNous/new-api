@@ -117,8 +117,21 @@ def toml_string(value):
     return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
+def write_codex_token_helper(codex_home, api_key):
+    token_path = codex_home / 'newapi-token.txt'
+    helper_path = codex_home / 'newapi-token'
+    write_text(token_path, api_key)
+    write_text(
+        helper_path,
+        '#!/bin/sh\nexec cat "$(dirname "$0")/newapi-token.txt"\n',
+    )
+    os.chmod(helper_path, 0o700)
+    return helper_path
+
+
 def update_codex_config(path, base_url, api_key, stamp):
     backup_file(path, stamp)
+    token_helper = write_codex_token_helper(path.parent, api_key)
     text = path.read_text(encoding='utf-8') if path.exists() else ''
     lines = text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
 
@@ -142,7 +155,6 @@ def update_codex_config(path, base_url, api_key, stamp):
     output = []
     has_provider = False
     has_model = False
-    has_model_catalog = False
     for line in without_provider[:top_level_end]:
         if re.match(r'^\s*model_provider\s*=', line):
             if not has_provider:
@@ -150,11 +162,6 @@ def update_codex_config(path, base_url, api_key, stamp):
                 has_provider = True
             continue
         if re.match(r'^\s*model_catalog_url\s*=', line):
-            if not has_model_catalog:
-                output.append(
-                    f'model_catalog_url = {toml_string(CODEX_MODEL_CATALOG_URL)}'
-                )
-                has_model_catalog = True
             continue
         if re.match(r'^\s*model\s*=', line):
             if not has_model:
@@ -168,10 +175,6 @@ def update_codex_config(path, base_url, api_key, stamp):
         prefix.append('model_provider = "newapi"')
     if not has_model:
         prefix.append(f'model = {toml_string(DEFAULT_CODEX_MODEL)}')
-    if not has_model_catalog:
-        prefix.append(
-            f'model_catalog_url = {toml_string(CODEX_MODEL_CATALOG_URL)}'
-        )
 
     output = prefix + output + without_provider[top_level_end:]
     while output and not output[-1].strip():
@@ -182,8 +185,11 @@ def update_codex_config(path, base_url, api_key, stamp):
             '[model_providers.newapi]',
             f'name = {toml_string(PROVIDER_NAME)}',
             f'base_url = {toml_string(base_url + "/v1")}',
+            f'model_catalog_url = {toml_string(CODEX_MODEL_CATALOG_URL)}',
             'wire_api = "responses"',
-            f'experimental_bearer_token = {toml_string(api_key)}',
+            '',
+            '[model_providers.newapi.auth]',
+            f'command = {toml_string(str(token_helper))}',
         ]
     )
     write_text(path, '\n'.join(output) + '\n')
@@ -584,11 +590,11 @@ def main():
     os.umask(0o077)
     home = Path.home()
     print(f'\n{PROVIDER_NAME} - {platform.system()} 客户端配置')
-    print('为 NekoAI 配置 Claude Code、Codex CLI、Gemini CLI 或 DeepSeek Harness。')
+    print('为 NekoAI 配置 Claude Code、Codex、Gemini CLI 或 DeepSeek Harness。')
 
     heading('第 1 步 - 选择客户端')
     print('  1. Claude Code')
-    print('  2. Codex CLI')
+    print('  2. Codex')
     print('  3. Gemini CLI')
     print('  4. DeepSeek Harness')
     choice = ''
@@ -618,9 +624,9 @@ def main():
         codex_home.mkdir(mode=0o700, parents=True, exist_ok=True)
         config_path = codex_home / 'config.toml'
         update_codex_config(config_path, base_url, api_key, stamp)
-        print('\nCodex CLI 配置完成。')
+        print('\nCodex 配置完成。')
         detail(f'配置文件：{config_path}')
-        detail('请打开新终端并运行 codex 以应用配置。')
+        detail('请重启 Codex CLI 或桌面端以应用配置。')
     elif choice == '3':
         directory = home / '.gemini'
         directory.mkdir(mode=0o700, parents=True, exist_ok=True)
