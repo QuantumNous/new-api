@@ -80,7 +80,19 @@ type TokenCountMeta struct {
 	estimatePromptTokens int
 }
 
+// ClaudeIterationPricing freezes the price of an advisor sub-inference before dispatch.
+type ClaudeIterationPricing struct {
+	PriceData    hosttypes.PriceData
+	Snapshot     *billingexpr.BillingSnapshot
+	RequestInput *billingexpr.RequestInput
+}
+
 type RelayInfo struct {
+	// ClaudeUsageIterations holds usage.iterations[] of the last Claude response so settlement can price
+	// the passes that the top-level usage counters exclude (advisor sub-inferences, compaction).
+	ClaudeUsageIterations []dto.ClaudeUsageIteration
+	ClaudeAdvisorPricing  map[string]ClaudeIterationPricing
+
 	TokenId           int
 	TokenKey          string
 	TokenGroup        string

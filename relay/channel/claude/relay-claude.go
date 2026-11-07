@@ -232,6 +232,9 @@ func countClaudeStreamBillableTools(info *relaycommon.RelayInfo, claudeResponse 
 	if claudeResponse.Type == "message_delta" && claudeResponse.Usage != nil {
 		// message_delta usage is cumulative, so the last report wins.
 		recordClaudeServerToolUse(info, claudeResponse.Usage.ServerToolUse)
+		if claudeResponse.Usage.Iterations != nil {
+			info.ClaudeUsageIterations = claudeResponse.Usage.Iterations
+		}
 	}
 }
 
@@ -370,6 +373,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage = &dto.Usage{}
 	}
 	if claudeResponse.Usage != nil {
+		info.ClaudeUsageIterations = claudeResponse.Usage.Iterations
 		claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
 		claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
 		claudeInfo.Usage.TotalTokens = claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens

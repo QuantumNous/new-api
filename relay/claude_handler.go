@@ -9,12 +9,15 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/middleware"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,6 +35,10 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	request, err := common.DeepCopy(claudeReq)
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to ClaudeRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	if apiErr := checkClaudeAdvisorToolModels(c, info, request); apiErr != nil {
+		return apiErr
 	}
 
 	err = helper.ModelMappedHelper(c, info, request)
@@ -153,5 +160,53 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
+	return nil
+}
+
+// checkClaudeAdvisorToolModels admits the models named by advisor_* tools the same way the request model is
+// admitted: they run on the operator's provider key and are billed by the provider, so they must be inside the
+// token's model limit and must have a configured price (fail closed).
+func checkClaudeAdvisorToolModels(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) *types.NewAPIError {
+	info.ClaudeUsageIterations = nil
+	info.ClaudeAdvisorPricing = make(map[string]relaycommon.ClaudeIterationPricing)
+	tools, _ := request.Tools.([]any)
+	for _, t := range tools {
+		tool, ok := t.(map[string]any)
+		if !ok {
+			continue
+		}
+		typ, _ := tool["type"].(string)
+		advisorModel, _ := tool["model"].(string)
+		if !strings.HasPrefix(typ, "advisor_") || advisorModel == "" {
+			continue
+		}
+		if common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
+			limit, _ := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
+			allowed, _ := limit.(map[string]bool)
+			if !middleware.TokenModelLimitAllows(allowed, advisorModel) {
+				return types.NewErrorWithStatusCode(fmt.Errorf("this token has no access to advisor model %s", advisorModel),
+					types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+			}
+		}
+		ratioOK := ratio_setting.HasConfiguredModelRatio(advisorModel)
+		expression := billing_setting.GetBillingMode(advisorModel) == billing_setting.BillingModeTieredExpr
+		if _, priced := ratio_setting.GetModelPrice(advisorModel, false); !ratioOK && !priced && !expression {
+			return types.NewErrorWithStatusCode(fmt.Errorf("advisor model %s has no configured price", advisorModel),
+				types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		advisorInfo := &relaycommon.RelayInfo{
+			OriginModelName: advisorModel, UserId: info.UserId,
+			UserGroup: info.UserGroup, UsingGroup: info.UsingGroup,
+			RelayFormat: info.RelayFormat, Request: request,
+			RequestHeaders: info.RequestHeaders, BillingRequestInput: info.BillingRequestInput,
+		}
+		price, err := helper.ModelPriceHelper(c, advisorInfo, info.GetEstimatePromptTokens(), &types.TokenCountMeta{})
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		info.ClaudeAdvisorPricing[advisorModel] = relaycommon.ClaudeIterationPricing{
+			PriceData: price, Snapshot: advisorInfo.TieredBillingSnapshot, RequestInput: advisorInfo.BillingRequestInput,
+		}
+	}
 	return nil
 }
