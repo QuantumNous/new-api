@@ -163,10 +163,16 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 		c.Data(http.StatusOK, contentType, audioData)
 	}
 
+	// MiniMax 按字符计费，优先使用上游返回的真实 usage_characters；
+	// 若上游未返回（成功但字符数缺失），回退到本地预估的输入字符数，避免免费请求
+	billingTokens := int(minimaxResp.ExtraInfo.UsageCharacters)
+	if billingTokens <= 0 {
+		billingTokens = info.GetEstimatePromptTokens()
+	}
 	usage = &dto.Usage{
-		PromptTokens:     info.GetEstimatePromptTokens(),
+		PromptTokens:     billingTokens,
 		CompletionTokens: 0,
-		TotalTokens:      int(minimaxResp.ExtraInfo.UsageCharacters),
+		TotalTokens:      billingTokens,
 	}
 
 	return usage, nil
