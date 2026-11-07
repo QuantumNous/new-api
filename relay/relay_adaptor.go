@@ -149,6 +149,7 @@ var taskPluginKeys = map[constant.TaskPlatform]string{
 	constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeGemini)):      "google",
 	constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeMiniMax)):     "hailuo",
 	constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeSora)):        "sora",
+	constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeYiSu)):        "yisu",
 	constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeOpenAI)):      "sora",
 	constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeVertexAi)):    "vertex-ai",
 }

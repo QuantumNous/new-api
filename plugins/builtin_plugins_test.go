@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var expectedKeys = []string{"alibaba", "doubao", "google", "hailuo", "jimeng", "kling", "sora", "sunoapi", "vertex-ai", "vidu", "xai"}
+var expectedKeys = []string{"alibaba", "doubao", "google", "hailuo", "jimeng", "kling", "sora", "sunoapi", "vertex-ai", "vidu", "xai", "yisu"}
 
 func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing.T) {
 	generation := jsplugin.DefaultRegistry.Generation()
@@ -129,6 +129,7 @@ func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing
 		{54, "doubao"},
 		{55, "sora"},
 		{48, "xai"},
+		{64, "yisu"},
 	}
 	for _, channelType := range channelTypes {
 		plugin, found := generation.GetByChannelType(channelType.value)
@@ -307,6 +308,16 @@ func TestBuiltInPluginsAddressNewAPIUpstreamOnNativeRoutes(t *testing.T) {
 			content:          "/v1/videos/tid/content",
 		},
 		{
+			key:              "yisu",
+			driver:           map[string]any{"action": "text_to_video", "model": "YiSu-1-1-Flash", "upstreamModel": "YiSu-1-1-Flash", "requestBody": map[string]any{"prompt": "a cat"}},
+			vendorKey:        "vendor-key",
+			vendorAuthPrefix: "Bearer vendor-key",
+			vendorSubmit:     "/v1/videos",
+			gatewaySubmit:    "/v1/videos",
+			vendorQuery:      "/v1/videos/tid",
+			gatewayQuery:     "/v1/videos/tid",
+		},
+		{
 			key:              "xai",
 			driver:           map[string]any{"action": "text_to_video", "model": "grok-imagine-video", "upstreamModel": "grok-imagine-video", "requestBody": map[string]any{"model": "grok-imagine-video", "prompt": "a cat"}},
 			vendorKey:        "vendor-key",
@@ -457,5 +468,111 @@ func TestBuiltInPluginsAddressNewAPIUpstreamOnNativeRoutes(t *testing.T) {
 				assert.Equal(t, variant.wantSSEHeader, hasSSEHeader)
 			})
 		}
+	})
+}
+
+// TestBuiltInYiSuPluginFollowsVideoAPIContract pins the parts of the vendor's
+// /v1/videos contract the plugin owns: status mapping, request validation and
+// default omission.
+func TestBuiltInYiSuPluginFollowsVideoAPIContract(t *testing.T) {
+	generation := jsplugin.DefaultRegistry.Generation()
+	require.NotNil(t, generation)
+	plugin, found := generation.Get("yisu")
+	require.True(t, found)
+
+	call := func(hook string, args ...any) map[string]any {
+		value, err := plugin.Engine.Call(t.Context(), hook, args...)
+		require.NoError(t, err, hook)
+		encoded, err := common.Marshal(value)
+		require.NoError(t, err)
+		var result map[string]any
+		require.NoError(t, common.Unmarshal(encoded, &result))
+		return result
+	}
+	decode := func(body map[string]any) (map[string]any, error) {
+		value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_video", "decodeRequest"}, map[string]any{
+			"model": "YiSu-1-1-Flash",
+			"body":  map[string]any{"kind": "json", "value": body},
+		})
+		if err != nil {
+			return nil, err
+		}
+		encoded, err := common.Marshal(value)
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(encoded, &decoded))
+		return decoded, nil
+	}
+
+	t.Run("poll statuses", func(t *testing.T) {
+		statuses := []struct {
+			upstream string
+			want     string
+		}{
+			{"queued", "QUEUED"},
+			{"running", "IN_PROGRESS"},
+			{"uploading", "IN_PROGRESS"},
+			{"succeeded", "SUCCESS"},
+			{"failed", "FAILURE"},
+			{"mystery", "UNKNOWN"},
+		}
+		for _, status := range statuses {
+			parsed := call("parseTaskResult", map[string]any{}, map[string]any{"status": status.upstream})
+			assert.Equal(t, status.want, parsed["status"], "upstream status %q", status.upstream)
+		}
+		failed := call("parseTaskResult", map[string]any{}, map[string]any{"status": "failed", "error": "2 validation errors"})
+		assert.Equal(t, "2 validation errors", failed["reason"])
+	})
+
+	t.Run("request validation", func(t *testing.T) {
+		decoded, err := decode(map[string]any{
+			"model": "YiSu-1-1-Flash", "prompt": "a cat", "duration": 10, "size": "16:9",
+			"metadata": map[string]any{"quality": "1080p", "references": []any{map[string]any{"type": "video", "url": "https://example.com/clip.mp4"}}},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "image_to_video", decoded["action"])
+		body, _ := decoded["requestBody"].(map[string]any)
+		assert.Equal(t, float64(10), body["duration"])
+		assert.Equal(t, "16:9", body["size"])
+
+		defaults, err := decode(map[string]any{"model": "YiSu-1-1-Flash", "prompt": "a cat"})
+		require.NoError(t, err)
+		assert.Equal(t, "text_to_video", defaults["action"])
+		defaultBody, _ := defaults["requestBody"].(map[string]any)
+		assert.NotContains(t, defaultBody, "duration")
+		assert.NotContains(t, defaultBody, "size")
+		assert.NotContains(t, defaultBody, "metadata")
+
+		invalid := []struct {
+			name string
+			body map[string]any
+		}{
+			{"duration below range", map[string]any{"model": "YiSu-1-1-Flash", "prompt": "a cat", "duration": 4}},
+			{"fractional duration", map[string]any{"model": "YiSu-1-1-Flash", "prompt": "a cat", "duration": 5.5}},
+			{"bad size", map[string]any{"model": "YiSu-1-1-Flash", "prompt": "a cat", "size": "21:9"}},
+			{"bad quality", map[string]any{"model": "YiSu-1-1-Flash", "prompt": "a cat", "metadata": map[string]any{"quality": "4k"}}},
+			{"non-object metadata", map[string]any{"model": "YiSu-1-1-Flash", "prompt": "a cat", "metadata": []any{}}},
+			{"audio only references", map[string]any{"model": "YiSu-1-1-Flash", "prompt": "a cat", "metadata": map[string]any{"references": []any{map[string]any{"type": "audio", "url": "https://example.com/a.mp3"}}}}},
+		}
+		for _, tc := range invalid {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := decode(tc.body)
+				require.Error(t, err)
+			})
+		}
+	})
+
+	t.Run("render exposes the video link", func(t *testing.T) {
+		value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_video", "render"},
+			map[string]any{"protocol": "openai_video", "operation": "retrieve"},
+			map[string]any{"task_id": "task_test", "status": "SUCCESS", "data": map[string]any{"output_url": "https://cdn.example/v.mp4", "cost": 1}})
+		require.NoError(t, err)
+		encoded, err := common.Marshal(value)
+		require.NoError(t, err)
+		var rendered map[string]any
+		require.NoError(t, common.Unmarshal(encoded, &rendered))
+		assert.Equal(t, "https://cdn.example/v.mp4", rendered["video_url"])
+		assert.Equal(t, "https://cdn.example/v.mp4", rendered["url"])
+		assert.Equal(t, "https://cdn.example/v.mp4", rendered["output_url"])
 	})
 }

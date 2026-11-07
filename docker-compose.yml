@@ -2,7 +2,7 @@
 # 
 # Quick Start:
 #   1. docker-compose up -d
-#   2. Access at http://localhost:3000
+#   2. Access at http://localhost:3001
 #
 # Using MySQL instead of PostgreSQL:
 #   1. Comment out the postgres service and SQL_DSN line 15
@@ -21,7 +21,7 @@ services:
     restart: always
     command: --log-dir /app/logs
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
       - ./data:/data
       - ./logs:/app/logs
@@ -60,6 +60,7 @@ services:
 #      - clickhouse  # Uncomment if using ClickHouse for LOG_SQL_DSN
     networks:
       - new-api-network
+      - authentik_default # lets new-api reach the authentik server (OIDC token/userinfo endpoints at http://server:9000)
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
       interval: 30s
@@ -128,3 +129,5 @@ volumes:
 networks:
   new-api-network:
     driver: bridge
+  authentik_default:
+    external: true
