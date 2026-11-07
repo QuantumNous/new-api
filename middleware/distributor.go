@@ -32,6 +32,14 @@ type ModelRequest struct {
 }
 
 func Distribute() func(c *gin.Context) {
+	return distribute(false)
+}
+
+func DistributeForEstimate() gin.HandlerFunc {
+	return distribute(true)
+}
+
+func distribute(estimate bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var channel *model.Channel
 		defer func() {
@@ -51,7 +59,7 @@ func Distribute() func(c *gin.Context) {
 			return
 		}
 		_, pinned, _ := constraints.ResolvedPin()
-		if !pinned {
+		if !pinned || strings.Contains(c.Request.URL.Path, "/mj/") {
 			// Select a channel for the user
 			// check token model mapping
 			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
@@ -108,7 +116,11 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 			if channel == nil {
-				channel, _, selectErr = service.SelectChannelForRequest(c, modelRequest.Model, &service.RetryParam{
+				selectChannel := service.SelectChannelForRequest
+				if estimate {
+					selectChannel = service.SelectChannelForEstimate
+				}
+				channel, _, selectErr = selectChannel(c, modelRequest.Model, &service.RetryParam{
 					Ctx:         c,
 					ModelName:   modelRequest.Model,
 					TokenGroup:  usingGroup,
@@ -131,9 +143,12 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if channelErr := setupContextForSelectedChannel(c, channel, modelRequest.Model, estimate); channelErr != nil && estimate {
+			abortWithOpenAiMessage(c, channelErr.StatusCode, channelErr.Error())
+			return
+		}
 		c.Next()
-		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
+		if !estimate && channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
@@ -390,7 +405,6 @@ func getJSONStringValue(result ojson.Result, field string) (string, error) {
 func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
-	var err error
 	if modelName := c.GetString("resolved_task_model"); modelName != "" {
 		modelRequest.Model = modelName
 	} else if strings.Contains(c.Request.URL.Path, "/mj/") {
@@ -401,30 +415,32 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			relayMode == relayconstant.RelayModeMidjourneyTaskImageSeed {
 			shouldSelectChannel = false
 		} else {
-			midjourneyRequest := taskdto.MidjourneyRequest{}
-			err = common.UnmarshalBodyReusable(c, &midjourneyRequest)
-			if err != nil {
+			// Keep body read errors intact so oversized requests still return 413.
+			if _, err := common.GetRequestBody(c); err != nil {
 				return nil, false, err
 			}
-			midjourneyModel, mjErr, success := service.GetMjRequestModel(relayMode, &midjourneyRequest)
+			prepared, mjErr := service.PrepareMidjourneySubmit(c, c.GetInt("id"), relayMode)
 			if mjErr != nil {
 				return nil, false, fmt.Errorf("%s", mjErr.Description)
 			}
-			if midjourneyModel == "" {
-				if !success {
-					return nil, false, fmt.Errorf("%s", i18n.T(c, i18n.MsgDistributorInvalidParseModel))
-				} else {
-					// task fetch, task fetch by condition, notify
-					shouldSelectChannel = false
+			if prepared.OriginChannelID > 0 {
+				constraints := service.GetChannelConstraints(c)
+				constraints.AddPin(taskdto.ChannelPin{ChannelId: prepared.OriginChannelID, Source: taskdto.PinSourceOriginTask, Rank: taskdto.PinRankOriginTask, RetryMode: taskdto.PinRetrySameChannel})
+				if pin, _, _ := constraints.ResolvedPin(); pin.ChannelId != prepared.OriginChannelID {
+					return nil, false, errors.New("origin_task_channel_mismatch")
 				}
 			}
-			modelRequest.Model = midjourneyModel
+			modelRequest.Model = prepared.ModelName
 		}
 		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/videos/") && strings.HasSuffix(c.Request.URL.Path, "/remix") {
 		relayMode := relayconstant.RelayModeVideoSubmit
 		c.Set("relay_mode", relayMode)
 		shouldSelectChannel = false
+		if c.GetBool("request_estimate") {
+			modelRequest.Model = c.GetString("resolved_task_model")
+			shouldSelectChannel = true
+		}
 	} else if strings.Contains(c.Request.URL.Path, "/v1/videos") {
 		//curl https://api.openai.com/v1/videos \
 		//  -H "Authorization: Bearer $OPENAI_API_KEY" \
@@ -584,6 +600,10 @@ func getTaskOriginModelName(c *gin.Context) string {
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {
+	return setupContextForSelectedChannel(c, channel, modelName, false)
+}
+
+func setupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string, estimate bool) *types.NewAPIError {
 	c.Set("original_model", modelName) // for retry
 	expectedPlugin := c.GetString("expected_task_plugin_key")
 	if channel == nil {
@@ -668,6 +688,15 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
 
+	if estimate {
+		key, keyErr := channel.GetEstimateKey()
+		if keyErr != nil {
+			return keyErr
+		}
+		common.SetContextKey(c, constant.ContextKeyChannelKey, key)
+		common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, channel.GetBaseURL())
+		return nil
+	}
 	key, index, newAPIError := channel.GetNextEnabledKey()
 	if newAPIError != nil {
 		return newAPIError

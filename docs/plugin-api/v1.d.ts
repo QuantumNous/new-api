@@ -96,7 +96,7 @@ export declare function buildQueryRequest(ctx: TaskQueryContext): RequestDescrip
 export declare function buildBatchQueryRequest(ctx: BatchQueryContext, tasks: readonly TaskQueryContext[]): RequestDescriptor;
 export declare function parseTaskResult(ctx: TaskQueryContext, body: unknown, response: HookHTTPResponse): NormalizedTaskResult;
 export declare function parseBatchResult(ctx: BatchQueryContext, body: unknown, response: HookHTTPResponse): readonly (NormalizedTaskResult & {taskId: string; data?: unknown; state?: unknown})[];
-export declare function extractUsage(ctx: DriverContext & {usagePurpose?: "facts" | "billing_ratios"}): Readonly<Record<string, string | number | boolean>> | null;
+export declare function extractUsage(ctx: DriverContext & {usagePurpose?: "facts" | "billing_ratios"; /** Present only during request estimation; these caller-supplied facts never alter requestBody. */ mediaInfo?: readonly {pointer?: string; field?: string; index?: number; type: "image" | "audio"; width?: number; height?: number; durationSeconds?: number}[]}): Readonly<Record<string, string | number | boolean>> | null;
 export declare function extractUsageOnSubmit(ctx: DriverContext, taskData: unknown): Readonly<Record<string, string | number | boolean>> | null;
 export declare function extractUsageOnComplete(task: TaskQueryContext, result: NormalizedTaskResult, data: unknown): Readonly<Record<string, string | number | boolean>> | null;
 export declare function listArtifacts(task: {taskId: string; status: string; action: string; data: unknown; producerVersion: string}): readonly TaskArtifact[];

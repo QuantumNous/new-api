@@ -1,4 +1,8 @@
 # English translations
+estimate.invalid_request: "Invalid estimate request"
+estimate.unsupported: "This request does not support cost estimation"
+estimate.pricing_failed: "Unable to calculate the request price"
+estimate.media_failed: "Unable to read the media required for estimation"
 
 # Errors returned to AI clients
 common.database_error: "Database error, please contact the administrator"

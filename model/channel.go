@@ -295,6 +295,52 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	}
 }
 
+// GetEstimateKey returns the key the current polling position would select
+// without advancing or persisting that position.
+func (channel *Channel) GetEstimateKey() (string, *types.NewAPIError) {
+	if !channel.ChannelInfo.IsMultiKey {
+		return channel.Key, nil
+	}
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return "", types.NewError(errors.New("no keys available"), types.ErrorCodeChannelNoAvailableKey)
+	}
+	if channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModeRandom {
+		enabledIndexes := make([]int, 0, len(keys))
+		for index := range len(keys) {
+			if status, exists := channel.ChannelInfo.MultiKeyStatusList[index]; !exists || status == common.ChannelStatusEnabled {
+				enabledIndexes = append(enabledIndexes, index)
+			}
+		}
+		if len(enabledIndexes) == 0 {
+			return "", types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
+		}
+		return keys[enabledIndexes[rand.Intn(len(enabledIndexes))]], nil
+	}
+	channelInfo := channel.ChannelInfo
+	if channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
+		lock := GetChannelPollingLock(channel.Id)
+		lock.Lock()
+		defer lock.Unlock()
+		currentInfo, err := CacheGetChannelInfo(channel.Id)
+		if err != nil {
+			return "", types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		channelInfo = *currentInfo
+	}
+	start := channelInfo.MultiKeyPollingIndex
+	if start < 0 || start >= len(keys) {
+		start = 0
+	}
+	for offset := range len(keys) {
+		index := (start + offset) % len(keys)
+		if status, exists := channelInfo.MultiKeyStatusList[index]; !exists || status == common.ChannelStatusEnabled {
+			return keys[index], nil
+		}
+	}
+	return "", types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
+}
+
 func (channel *Channel) SaveChannelInfo() error {
 	return DB.Model(channel).Update("channel_info", channel.ChannelInfo).Error
 }

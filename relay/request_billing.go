@@ -23,6 +23,18 @@ import (
 // provide the current request body through BodyStorage or BillingRequestInput;
 // channel retries retain the resulting billing session and pricing snapshot.
 func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
+	if err := PrepareRequestPricing(c, info); err != nil {
+		return err
+	}
+	if info.PriceData.FreeModel {
+		logger.LogInfo(c, common.LogText("model %s is free, skipping pre-consume", info.OriginModelName))
+		return nil
+	}
+	return service.PreConsumeBilling(c, info.PriceData.QuotaToPreConsume, info)
+}
+
+// PrepareRequestPricing calculates nominal pre-consume without opening a funding session.
+func PrepareRequestPricing(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	meta := &types.TokenCountMeta{TokenType: types.TokenTypeTokenizer}
 	if info.Request != nil && (needSensitiveCheck || constant.CountToken) {
@@ -56,15 +68,11 @@ func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.N
 	}
 	info.SetEstimatePromptTokens(tokens)
 
-	priceData, err := helper.ModelPriceHelper(c, info, tokens, meta)
+	_, err = helper.ModelPriceHelper(c, info, tokens, meta)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 	}
-	if priceData.FreeModel {
-		logger.LogInfo(c, common.LogText("model %s is free, skipping pre-consume", info.OriginModelName))
-		return nil
-	}
-	return service.PreConsumeBilling(c, priceData.QuotaToPreConsume, info)
+	return nil
 }
 
 // RefundFailedRequestBilling applies the common final-failure policy after all

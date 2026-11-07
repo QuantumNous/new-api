@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,5 +30,6 @@ func SetVideoRouter(router *gin.Engine) {
 	{
 		videoV1Router.GET("/video/generations/:task_id", controller.RelayTaskFetch)
 		videoV1Router.POST("/videos/:video_id/remix", controller.RelayTask)
+		registerRequestEstimateRoute("POST", "/v1/videos/:video_id/remix", types.RelayFormatTask)
 	}
 }

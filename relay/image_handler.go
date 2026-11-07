@@ -195,3 +195,86 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
 	return nil
 }
+
+// PrepareImageRequestEstimate resolves the image parameters that affect billing
+// without invoking a provider upload or request method.
+func PrepareImageRequestEstimate(c *gin.Context, info *relaycommon.RelayInfo) (int, *types.NewAPIError) {
+	request, ok := info.Request.(*dto.ImageRequest)
+	if !ok {
+		return 0, types.NewErrorWithStatusCode(fmt.Errorf("invalid image request type %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	requestCopy, err := common.DeepCopy(request)
+	if err != nil {
+		return 0, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if err := helper.ModelMappedHelper(c, info, requestCopy); err != nil {
+		return 0, types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+		count, err := requestCopy.ImageCount(true)
+		if err != nil {
+			return 0, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		info.Request = requestCopy
+		return count, nil
+	}
+
+	adaptor := GetAdaptor(info.ApiType)
+	if adaptor == nil {
+		return 0, types.NewErrorWithStatusCode(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	adaptor.Init(info)
+	var converted any
+	if estimator, ok := adaptor.(interface {
+		ConvertImageRequestForEstimate(*gin.Context, *relaycommon.RelayInfo, dto.ImageRequest) (any, error)
+	}); ok {
+		converted, err = estimator.ConvertImageRequestForEstimate(c, info, *requestCopy)
+	} else {
+		converted, err = adaptor.ConvertImageRequest(c, info, *requestCopy)
+	}
+	if err != nil {
+		return 0, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if converted == nil {
+		return 0, types.NewErrorWithStatusCode(fmt.Errorf("image conversion returned no request"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	if _, isMultipartConversion := converted.(*bytes.Buffer); !isMultipartConversion {
+		convertedJSON, marshalErr := common.Marshal(converted)
+		if marshalErr != nil {
+			return 0, types.NewError(marshalErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		if len(info.ParamOverride) > 0 {
+			convertedJSON, err = relaycommon.ApplyParamOverrideWithRelayInfo(convertedJSON, info)
+			if err != nil {
+				return 0, newAPIErrorFromParamOverride(err)
+			}
+		}
+		var effective dto.ImageRequest
+		if err = common.Unmarshal(convertedJSON, &effective); err != nil {
+			return 0, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if effective.Model == "" && effective.N == nil {
+			var replicateInput struct {
+				Input struct {
+					NumOutputs *uint `json:"num_outputs"`
+				} `json:"input"`
+			}
+			if decodeErr := common.Unmarshal(convertedJSON, &replicateInput); decodeErr == nil && replicateInput.Input.NumOutputs != nil {
+				effective = *requestCopy
+				effective.N = replicateInput.Input.NumOutputs
+			}
+		} else if effective.BillingParameters == nil {
+			effective.BillingParameters = requestCopy.BillingParameters
+		}
+		if effective.Model != "" || effective.N != nil {
+			requestCopy = &effective
+		}
+	}
+	count, err := requestCopy.ImageCount(true)
+	if err != nil {
+		return 0, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	info.Request = requestCopy
+	return count, nil
+}

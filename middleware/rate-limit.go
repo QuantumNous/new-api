@@ -194,6 +194,18 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// EstimateRateLimit keeps trial requests in their own abuse-prevention bucket.
+func EstimateRateLimit() gin.HandlerFunc {
+	limit := defNext
+	if common.CriticalRateLimitEnable {
+		limit = rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "EST")
+	}
+	return func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+		limit(c)
+	}
+}
+
 func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	if !common.CriticalRateLimitEnable {
 		return defNext

@@ -1,22 +1,113 @@
 package router
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
 
+var (
+	requestEstimateRouter      *gin.Engine
+	requestEstimateRouteMu     sync.RWMutex
+	requestEstimateRouteFormat map[string]types.RelayFormat
+)
+
+func resetRequestEstimateRouter() {
+	requestEstimateRouteMu.Lock()
+	defer requestEstimateRouteMu.Unlock()
+	requestEstimateRouter = gin.New()
+	requestEstimateRouteFormat = make(map[string]types.RelayFormat)
+}
+
+func registerRequestEstimateRoute(method, path string, relayFormat types.RelayFormat) {
+	requestEstimateRouteMu.Lock()
+	defer requestEstimateRouteMu.Unlock()
+	if requestEstimateRouter == nil {
+		return
+	}
+	key := method + " " + path
+	if existing, ok := requestEstimateRouteFormat[key]; ok {
+		if existing != relayFormat {
+			panic("request estimate route has conflicting relay format: " + key)
+		}
+		return
+	}
+	requestEstimateRouter.Handle(method, path, func(c *gin.Context) {
+		c.Header("X-Request-Estimate-Relay-Format", string(relayFormat))
+	})
+	requestEstimateRouteFormat[key] = relayFormat
+}
+
+func registerRequestEstimateTaskRoute(method, path string) {
+	requestEstimateRouteMu.Lock()
+	defer requestEstimateRouteMu.Unlock()
+	if requestEstimateRouter == nil {
+		return
+	}
+	key := method + " " + path
+	if existing, ok := requestEstimateRouteFormat[key]; ok && existing != types.RelayFormatTask {
+		panic("request estimate route has conflicting relay format: " + key)
+	}
+	if _, exists := requestEstimateRouteFormat[key]; exists {
+		return
+	}
+	requestEstimateRouter.Handle(method, path, func(c *gin.Context) {
+		c.Header("X-Request-Estimate-Relay-Format", string(types.RelayFormatTask))
+		c.Header("X-Request-Estimate-Task-Plugin-Key", c.Param("key"))
+	})
+	requestEstimateRouteFormat[key] = types.RelayFormatTask
+}
+
+func resolveRequestEstimateRoute(method, path string, generation *pluginruntime.RoutingGeneration) (types.RelayFormat, bool) {
+	requestEstimateRouteMu.RLock()
+	if requestEstimateRouter == nil || isGeminiCountTokensPath(path) {
+		requestEstimateRouteMu.RUnlock()
+		return "", false
+	}
+	request := httptest.NewRequest(method, path, nil)
+	response := httptest.NewRecorder()
+	requestEstimateRouter.ServeHTTP(response, request)
+	relayFormat := types.RelayFormat(response.Header().Get("X-Request-Estimate-Relay-Format"))
+	requestEstimateRouteMu.RUnlock()
+	if relayFormat != "" {
+		return relayFormat, true
+	}
+	if _, found := generation.LookupDeclaredRequestRoute(method, path); found {
+		return types.RelayFormatTask, true
+	}
+	return "", false
+}
+
+func isGeminiCountTokensPath(path string) bool {
+	return strings.HasSuffix(path, ":countTokens")
+}
+
+func registerRelayEndpoint(router *gin.RouterGroup, method, path string, relayFormat types.RelayFormat) {
+	registerRequestEstimateRoute(method, router.BasePath()+path, relayFormat)
+	router.Handle(method, path, func(c *gin.Context) { controller.Relay(c, relayFormat) })
+}
+
 func SetRelayRouter(router *gin.Engine) {
+	resetRequestEstimateRouter()
 	router.Use(middleware.CORS())
 	router.Use(middleware.DecompressRequestMiddleware())
 	router.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	router.Use(middleware.StatsMiddleware())
+	const chatPath = "/chat/completions"
+	router.POST("/v1/requests/estimate", middleware.EstimateRateLimit(), middleware.EstimateTokenAuth(), middleware.EstimateTarget(resolveRequestEstimateRoute), middleware.RouteTaskPluginEndpoint(), middleware.PrepareTaskPluginEndpoint(), middleware.PrepareRequestEstimateNativeRoute(), middleware.DistributeForEstimate(), func(c *gin.Context) {
+		relayFormat, _ := c.Get("estimate_relay_format")
+		controller.RequestEstimate(c, relayFormat.(types.RelayFormat))
+	})
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.RouteTag("relay"))
@@ -94,35 +185,21 @@ func SetRelayRouter(router *gin.Engine) {
 		// claude related routes
 		// TODO: /messages/count_tokens is disabled. The current controller.CountClaudeTokens
 		// httpRouter.POST("/messages/count_tokens", controller.CountClaudeTokens)
-		httpRouter.POST("/messages", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatClaude)
-		})
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/messages", types.RelayFormatClaude)
 
 		// chat related routes
-		httpRouter.POST("/completions", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAI)
-		})
-		httpRouter.POST("/chat/completions", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAI)
-		})
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/completions", types.RelayFormatOpenAI)
+		registerRelayEndpoint(httpRouter, http.MethodPost, chatPath, types.RelayFormatOpenAI)
 
 		// response related routes
-		httpRouter.POST("/responses/compact", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
-		})
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/responses/compact", types.RelayFormatOpenAIResponsesCompaction)
 
 		// alpha search related routes (Codex standalone web search)
-		httpRouter.POST("/alpha/search", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIAlphaSearch)
-		})
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/alpha/search", types.RelayFormatOpenAIAlphaSearch)
 
 		// DeepSeek Search and Fetch API routes
-		httpRouter.POST("/tools/search", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatDeepSeekTools)
-		})
-		httpRouter.POST("/tools/fetch", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatDeepSeekTools)
-		})
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/tools/search", types.RelayFormatDeepSeekTools)
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/tools/fetch", types.RelayFormatDeepSeekTools)
 
 		// image related routes. /images/generations and /images/edits are
 		// host protocol endpoints (openai_image) registered by
@@ -132,38 +209,22 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 
 		// embedding related routes
-		httpRouter.POST("/embeddings", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatEmbedding)
-		})
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/embeddings", types.RelayFormatEmbedding)
 
 		// audio related routes
-		httpRouter.POST("/audio/transcriptions", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIAudio)
-		})
-		httpRouter.POST("/audio/translations", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIAudio)
-		})
-		httpRouter.POST("/audio/speech", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIAudio)
-		})
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/audio/transcriptions", types.RelayFormatOpenAIAudio)
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/audio/translations", types.RelayFormatOpenAIAudio)
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/audio/speech", types.RelayFormatOpenAIAudio)
 
 		// rerank related routes
-		httpRouter.POST("/rerank", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatRerank)
-		})
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/rerank", types.RelayFormatRerank)
 
 		// gemini relay routes
-		httpRouter.POST("/engines/:model/embeddings", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatGemini)
-		})
-		httpRouter.POST("/models/*path", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatGemini)
-		})
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/engines/:model/embeddings", types.RelayFormatGemini)
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/models/*path", types.RelayFormatGemini)
 
 		// other relay routes
-		httpRouter.POST("/moderations", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAI)
-		})
+		registerRelayEndpoint(httpRouter, http.MethodPost, "/moderations", types.RelayFormatOpenAI)
 
 		// not implemented
 		httpRouter.POST("/images/variations", controller.RelayNotImplemented)
@@ -195,7 +256,7 @@ func SetRelayRouter(router *gin.Engine) {
 	// before auth/channel selection instead of silently relaying it as
 	// generateContent (#7283).
 	relayGeminiRouter.Use(func(c *gin.Context) {
-		if strings.HasSuffix(c.Request.URL.Path, ":countTokens") {
+		if isGeminiCountTokensPath(c.Request.URL.Path) {
 			controller.RelayNotFound(c)
 			c.Abort()
 		}
@@ -215,9 +276,7 @@ func SetRelayRouter(router *gin.Engine) {
 	relayGeminiRouter.Use(middleware.Distribute())
 	{
 		// Gemini API 路径格式: /v1beta/models/{model_name}:{action}
-		relayGeminiRouter.POST("/models/*path", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatGemini)
-		})
+		registerRelayEndpoint(relayGeminiRouter, http.MethodPost, "/models/*path", types.RelayFormatGemini)
 	}
 }
 
@@ -225,21 +284,14 @@ func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {
 	relayMjRouter.GET("/image/:id", relay.RelayMidjourneyImage)
 	relayMjRouter.Use(middleware.TokenAuth(), middleware.Distribute())
 	{
-		relayMjRouter.POST("/submit/action", controller.RelayMidjourney)
-		relayMjRouter.POST("/submit/shorten", controller.RelayMidjourney)
-		relayMjRouter.POST("/submit/modal", controller.RelayMidjourney)
-		relayMjRouter.POST("/submit/imagine", controller.RelayMidjourney)
-		relayMjRouter.POST("/submit/change", controller.RelayMidjourney)
-		relayMjRouter.POST("/submit/simple-change", controller.RelayMidjourney)
-		relayMjRouter.POST("/submit/describe", controller.RelayMidjourney)
-		relayMjRouter.POST("/submit/blend", controller.RelayMidjourney)
-		relayMjRouter.POST("/submit/edits", controller.RelayMidjourney)
-		relayMjRouter.POST("/submit/video", controller.RelayMidjourney)
+		for _, path := range []string{"/submit/action", "/submit/shorten", "/submit/modal", "/submit/imagine", "/submit/change", "/submit/simple-change", "/submit/describe", "/submit/blend", "/submit/edits", "/submit/video", "/insight-face/swap"} {
+			registerRequestEstimateRoute(http.MethodPost, relayMjRouter.BasePath()+path, types.RelayFormatMjProxy)
+			relayMjRouter.POST(path, controller.RelayMidjourney)
+		}
 		//relayMjRouter.POST("/notify", controller.RelayMidjourney)
 		relayMjRouter.GET("/task/:id/fetch", controller.RelayMidjourney)
 		relayMjRouter.GET("/task/:id/image-seed", controller.RelayMidjourney)
 		relayMjRouter.POST("/task/list-by-condition", controller.RelayMidjourney)
-		relayMjRouter.POST("/insight-face/swap", controller.RelayMidjourney)
 		relayMjRouter.POST("/submit/upload-discord-images", controller.RelayMidjourney)
 	}
 }
