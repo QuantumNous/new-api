@@ -91,6 +91,54 @@ func TestRelayInfoMetaTypedNilReceiver(t *testing.T) {
 	assert.NotNil(t, firstOptions.PreserveEffortTail)
 }
 
+func TestRelayInfoClaudeThinkingToReasoningContentSettingWiresToConverter(t *testing.T) {
+	tests := []struct {
+		name    string
+		setting string
+		enabled bool
+	}{
+		{name: "disabled", setting: `{"claude_thinking_to_reasoning_content":false}`},
+		{name: "enabled", setting: `{"claude_thinking_to_reasoning_content":true}`, enabled: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var settings dto.ChannelOtherSettings
+			require.NoError(t, common.UnmarshalJsonStr(tt.setting, &settings))
+			info := &RelayInfo{ChannelMeta: &ChannelMeta{ChannelOtherSettings: settings}}
+
+			options := info.ConvOptions()
+			require.NotNil(t, options)
+			assert.Equal(t, tt.enabled, options.PreserveAssistantReasoning)
+
+			converted, err := relayconvert.ClaudeMessagesRequestToOpenAIChat(dto.ClaudeRequest{
+				Model: "standard",
+				Messages: []dto.ClaudeMessage{{
+					Role: "assistant",
+					Content: []dto.ClaudeMediaMessage{
+						{Type: "thinking", Thinking: jsonString("private analysis")},
+						{Type: "text", Text: jsonString("visible answer")},
+					},
+				}},
+			}, info)
+			require.NoError(t, err)
+			require.Len(t, converted.Messages, 1)
+			if tt.enabled {
+				require.NotNil(t, converted.Messages[0].ReasoningContent)
+				assert.Equal(t, "private analysis", *converted.Messages[0].ReasoningContent)
+			} else {
+				assert.Nil(t, converted.Messages[0].ReasoningContent)
+			}
+			parts := converted.Messages[0].ParseContent()
+			require.Len(t, parts, 1)
+			assert.Equal(t, "visible answer", parts[0].Text)
+		})
+	}
+}
+
+func jsonString(value string) *string {
+	return &value
+}
+
 func TestRelayInfoResponsesToolStateRoundTrip(t *testing.T) {
 	info := &RelayInfo{}
 	state := &convmeta.ResponsesToolState{CustomToolNames: map[string]struct{}{"exec": {}}}
