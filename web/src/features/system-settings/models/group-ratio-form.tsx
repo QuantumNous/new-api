@@ -18,7 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Code2, Eye, HelpCircle } from 'lucide-react'
 import { memo, useCallback, useState, type ReactNode } from 'react'
-import { useWatch, type UseFormReturn } from 'react-hook-form'
+import {
+  useWatch,
+  type SubmitErrorHandler,
+  type UseFormReturn,
+} from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -64,17 +68,7 @@ import {
   GroupRatioVisualEditor,
   type GroupSettingsSection,
 } from './group-ratio-visual-editor'
-
-type GroupFormValues = {
-  GroupRatio: string
-  TopupGroupRatio: string
-  UserUsableGroups: string
-  GroupGroupRatio: string
-  AutoGroups: string
-  MaxTokenAutoGroups: number
-  DefaultUseAutoGroup: boolean
-  GroupSpecialUsableGroup: string
-}
+import type { GroupFormValues } from './ratio-settings-schema'
 
 type GroupRatioFormProps = {
   form: UseFormReturn<GroupFormValues>
@@ -106,6 +100,21 @@ export const GroupRatioForm = memo(function GroupRatioForm({
   const toggleEditMode = useCallback(() => {
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
   }, [])
+
+  const onInvalid: SubmitErrorHandler<GroupFormValues> = (errors) => {
+    const field = Object.keys(errors)[0] as keyof GroupFormValues | undefined
+    if (!field) return
+
+    if (field === 'MaxTokenAutoGroups' && Object.keys(errors).length === 1) {
+      setEditMode('visual')
+      setSection('auto')
+    } else {
+      // JSON mode exposes every setting, including malformed stored values
+      // that the visual editor cannot represent.
+      setEditMode('json')
+    }
+    requestAnimationFrame(() => form.setFocus(field))
+  }
 
   return (
     <div className='space-y-6'>
@@ -151,13 +160,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
           <Button
             type='button'
             size='sm'
-            onClick={form.handleSubmit(onSave, (errors) => {
-              if (errors.MaxTokenAutoGroups) {
-                setEditMode('visual')
-                setSection('auto')
-                requestAnimationFrame(() => form.setFocus('MaxTokenAutoGroups'))
-              }
-            })}
+            onClick={form.handleSubmit(onSave, onInvalid)}
             disabled={isSaving}
           >
             {isSaving ? t('Saving...') : t('Save group settings')}
@@ -216,10 +219,12 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                     </SettingsSwitchContent>
                     <FormControl>
                       <Switch
+                        ref={field.ref}
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
+                    <FormMessage />
                   </SettingsSwitchItem>
                 )}
               />
@@ -230,7 +235,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             }
           />
         ) : (
-          <SettingsForm onSubmit={form.handleSubmit(onSave)}>
+          <SettingsForm onSubmit={form.handleSubmit(onSave, onInvalid)}>
             <FormField
               control={form.control}
               name='GroupRatio'
@@ -427,10 +432,12 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   </SettingsSwitchContent>
                   <FormControl>
                     <Switch
+                      ref={field.ref}
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
+                  <FormMessage />
                 </SettingsSwitchItem>
               )}
             />

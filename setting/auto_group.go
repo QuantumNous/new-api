@@ -27,9 +27,30 @@ func ContainsAutoGroup(group string) bool {
 	return slices.Contains(autoGroups, group)
 }
 
+// ParseAutoGroups validates the complete array before any settings are changed.
+func ParseAutoGroups(jsonString string) ([]string, error) {
+	var values []any
+	if err := common.UnmarshalJsonStr(jsonString, &values); err != nil || values == nil {
+		return nil, common.NewMessage("Expected a JSON array of group identifiers")
+	}
+	groups := make([]string, len(values))
+	for i, value := range values {
+		group, ok := value.(string)
+		if !ok {
+			return nil, common.NewMessage("Expected a JSON array of group identifiers")
+		}
+		groups[i] = group
+	}
+	return groups, nil
+}
+
 func UpdateAutoGroupsByJsonString(jsonString string) error {
-	autoGroups = make([]string, 0)
-	return common.Unmarshal([]byte(jsonString), &autoGroups)
+	groups, err := ParseAutoGroups(jsonString)
+	if err != nil {
+		return err
+	}
+	autoGroups = groups
+	return nil
 }
 
 func AutoGroups2JsonString() string {
