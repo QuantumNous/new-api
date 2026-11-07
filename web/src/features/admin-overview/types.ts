@@ -50,6 +50,17 @@ export interface AdminLogStat {
   tpm: number
 }
 
+/**
+ * Real-time usage aggregates of `GET /api/log/live_stat` (admin), computed
+ * directly from the logs table for the requested window.
+ */
+export interface AdminLiveStat {
+  quota: number
+  requests: number
+  tokens: number
+  users: number
+}
+
 /** Integer usage totals kept in raw quota units / token counts. */
 export interface UsageTotals {
   quota: number

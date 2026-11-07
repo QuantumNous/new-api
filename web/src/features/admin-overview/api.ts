@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { AdminLogStat, OverviewQuotaRow, OverviewUserRow } from './types'
+import type { AdminLiveStat, AdminLogStat, OverviewQuotaRow, OverviewUserRow } from './types'
 
 function validateOverviewResponse<
   T extends { success: boolean; data?: unknown },
@@ -78,6 +78,22 @@ export async function getAdminLogStat(params: {
     message?: string
     data?: AdminLogStat
   }>('/api/log/stat', { params })
+  return validateOverviewResponse(res.data)
+}
+
+/**
+ * Real-time usage aggregates read straight from the logs table.
+ * Admin-only (`GET /api/log/live_stat`); the window must stay bounded.
+ */
+export async function getAdminLiveStat(params: {
+  start_timestamp: number
+  end_timestamp?: number
+}) {
+  const res = await api.get<{
+    success: boolean
+    message?: string
+    data?: AdminLiveStat
+  }>('/api/log/live_stat', { params })
   return validateOverviewResponse(res.data)
 }
 
