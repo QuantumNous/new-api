@@ -22,7 +22,9 @@ import {
   buildDailyRevenue,
   buildHourlyActiveUsers,
   buildModelUsage,
+  buildMonthlyRevenue,
   buildTodayTokenSeries,
+  buildTodayUsageSparkline,
   countActiveUsers,
   sumUsage,
   sumUsageSince,
@@ -37,6 +39,40 @@ function timestampDaysAgo(days: number, hour = 12): number {
 }
 
 describe('admin overview aggregation', () => {
+  it('builds the request trend from request counts rather than quota', () => {
+    const now = new Date(2026, 10, 7, 0, 0, 0)
+    const today = now.getTime() / 1000
+    const rows: OverviewQuotaRow[] = [
+      { created_at: today + 3600, count: 3, quota: 100 },
+      { created_at: today + 3600, count: 2, quota: 200 },
+      { created_at: today - 3600, count: 7, quota: 300 },
+    ]
+    expect(buildTodayUsageSparkline(rows, today, 2, 'count')).toEqual([0, 5, 0])
+    expect(buildTodayUsageSparkline(rows, today, 2, 'quota')).toEqual([
+      0, 300, 0,
+    ])
+  })
+
+  it('shows complete monthly totals in chronological order across a year boundary', () => {
+    const now = new Date(2026, 0, 15)
+    const rows: OverviewQuotaRow[] = [
+      { created_at: new Date(2025, 11, 1).getTime() / 1000, quota: 100 },
+      { created_at: new Date(2025, 11, 31).getTime() / 1000, quota: 200 },
+      { created_at: new Date(2026, 0, 3).getTime() / 1000, quota: 400 },
+    ]
+
+    expect(
+      buildMonthlyRevenue(rows, 2, now).map(({ year, month, quota }) => ({
+        year,
+        month,
+        quota,
+      }))
+    ).toEqual([
+      { year: 2025, month: 11, quota: 300 },
+      { year: 2026, month: 0, quota: 400 },
+    ])
+  })
+
   it('keeps quota, token and request sums as exact integers', () => {
     const rows: OverviewQuotaRow[] = [
       { created_at: 1, quota: 1_500_000, token_used: 1200, count: 3 },

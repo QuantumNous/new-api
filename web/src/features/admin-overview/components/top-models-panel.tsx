@@ -23,7 +23,12 @@ import { useTranslation } from 'react-i18next'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
-import { formatInteger, formatLogQuota, formatPercent, formatTokens } from '@/lib/format'
+import {
+  formatInteger,
+  formatLogQuota,
+  formatPercent,
+  formatTokens,
+} from '@/lib/format'
 
 import type { ModelUsage } from '../types'
 
@@ -35,6 +40,7 @@ const RANK_COLORS = [
 
 export interface TopModelsPanelProps {
   models: ModelUsage[]
+  totalTokens: number
   loading: boolean
 }
 
@@ -44,7 +50,6 @@ export function TopModelsPanel(props: TopModelsPanelProps) {
     (max, model) => Math.max(max, model.tokens),
     0
   )
-  const totalQuota = props.models.reduce((sum, model) => sum + model.quota, 0)
   const hasData = maxTokens > 0
 
   let content: ReactNode
@@ -61,14 +66,18 @@ export function TopModelsPanel(props: TopModelsPanelProps) {
       <ol className='space-y-4'>
         {props.models.map((model, index) => {
           const share = maxTokens > 0 ? (model.tokens / maxTokens) * 100 : 0
-          const totalShare = totalQuota > 0 ? (model.quota / totalQuota) * 100 : 0
-          const rankColor = RANK_COLORS[index] ?? 'bg-muted text-muted-foreground'
+          const totalShare =
+            props.totalTokens > 0 ? (model.tokens / props.totalTokens) * 100 : 0
+          const rankColor =
+            RANK_COLORS[index] ?? 'bg-muted text-muted-foreground'
 
           return (
             <li key={model.model}>
               <div className='flex items-center justify-between gap-3'>
                 <span className='flex min-w-0 items-center gap-2'>
-                  <span className={`flex size-5 shrink-0 items-center justify-center rounded-md font-mono text-[10px] font-bold tabular-nums ${rankColor}`}>
+                  <span
+                    className={`flex size-5 shrink-0 items-center justify-center rounded-md font-mono text-[10px] font-bold tabular-nums ${rankColor}`}
+                  >
                     {index + 1}
                   </span>
                   <span
@@ -95,7 +104,7 @@ export function TopModelsPanel(props: TopModelsPanelProps) {
                 <span>
                   {t('Revenue')}: {formatLogQuota(model.quota)}
                 </span>
-                <span className='shrink-0 font-medium text-foreground tabular-nums'>
+                <span className='text-foreground shrink-0 font-medium tabular-nums'>
                   {t('Share of usage')}: {formatPercent(totalShare)}
                 </span>
               </div>
