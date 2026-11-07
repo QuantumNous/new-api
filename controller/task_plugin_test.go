@@ -653,6 +653,7 @@ func TestTaskPluginChangesReportPricingIssuesOfServingPlugin(t *testing.T) {
 	require.NoError(t, model.InitLogDB())
 	key := "pricing-notice-probe"
 	cleanupTaskPluginControllerRuntime(t, key)
+	require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: "doc-1", ChannelId: 1, Enabled: true}).Error)
 	upload := func(version string) string {
 		body, err := common.Marshal(map[string]any{"source": taskPluginControllerTestSource(key, version)})
 		require.NoError(t, err)
@@ -727,6 +728,17 @@ func TestSwitchedOffPluginPricesAreNotPricingIssues(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, kling.Models)
+	_, live := jsplugin.DefaultRegistry.Get("kling")
+	require.True(t, live)
+	// Live plugins, built-ins included, have nothing to price before a channel
+	// serves their models or a provider price is saved.
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{billing_setting.PluginBillingExprOption: `{}`}))
+	freshIssues, err := model.GetModelPricingIssues("")
+	require.NoError(t, err)
+	assert.Empty(t, freshIssues)
+	for _, name := range kling.Models {
+		require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: name, ChannelId: 1, Enabled: true}).Error)
+	}
 	prices, err := common.Marshal(map[string]string{
 		key + "::doc-1":              `tier("base", u("units") * 0.1)`,
 		key + "::retired-model":      `tier("base", u("units") * 0.1)`,
@@ -1168,12 +1180,12 @@ func deleteTaskPluginVersionRequest(t *testing.T, key, version string) *httptest
 func TestTaskPluginListAndDetailReportSkippedRoutes(t *testing.T) {
 	setupTaskPluginControllerTest(t)
 	cleanupTaskPluginControllerRuntime(t, "skipped-probe")
-	// Stands in for the router, which skips a third-party plugin's routes
-	// under the host's namespaces.
+	// Stands in for the router, which skips a route a host route answers
+	// first.
 	require.NoError(t, jsplugin.DefaultRegistry.SetGenerationPreparer(func(candidate, _ *jsplugin.RoutingGeneration) (jsplugin.PreparedRoutingGeneration, error) {
 		var skipped []jsplugin.SkippedRoute
 		if plugin, ok := candidate.Get("skipped-probe"); ok {
-			skipped = append(skipped, jsplugin.SkippedRoute{PluginKey: "skipped-probe", Route: plugin.Meta.Routes[0], Reason: "host_namespace"})
+			skipped = append(skipped, jsplugin.SkippedRoute{PluginKey: "skipped-probe", Route: plugin.Meta.Routes[0], Reason: "host_route"})
 		}
 		return jsplugin.PreparedRoutingGeneration{Generation: candidate.WithSkippedRoutes(skipped)}, nil
 	}))

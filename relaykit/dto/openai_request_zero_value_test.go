@@ -327,3 +327,15 @@ func TestSGLangRequestExtensionsRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// 契约:gpt-image-2.6 新增的请求字段是已知字段,不能落进 Extra 被序列化丢掉。
+func TestImageRequestPreserveGPTImage26Fields(t *testing.T) {
+	raw := []byte(`{"model":"gpt-image-2.6-flare","prompt":"p","complexity":"low","markup":{"image_url":"https://x/o.png"},"svg":{"model":"m"},"frame_count":2,"frame_duration_ms":0}`)
+
+	var req ImageRequest
+	require.NoError(t, kitutil.Unmarshal(raw, &req))
+
+	encoded, err := kitutil.Marshal(req)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(raw), string(encoded))
+}

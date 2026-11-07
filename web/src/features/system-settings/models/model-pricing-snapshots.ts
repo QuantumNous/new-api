@@ -89,14 +89,6 @@ export const getModeLabel = (mode?: string) => {
   return 'Per-token (deprecated)'
 }
 
-export const getModeVariant = (
-  mode?: string
-): 'warning' | 'info' | 'success' => {
-  if (mode === 'per-request') return 'warning'
-  if (mode === 'tiered_expr') return 'info'
-  return 'success'
-}
-
 const getExpressionSummary = (
   row: ModelPricingSnapshot,
   t: (key: string) => string
@@ -313,4 +305,27 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
       ([a], [b]) => a.localeCompare(b)
     ),
   })
+}
+
+/** One model's saved price next to its draft; the saved price is shown first. */
+export const buildModelRow = (
+  name: string,
+  saved?: ModelPricingSnapshot,
+  draft?: ModelPricingSnapshot
+): ModelRow => ({
+  ...(saved ?? draft ?? { name, billingMode: 'per-token', hasConflict: false }),
+  saved,
+  draft,
+  isDraftChanged: getSnapshotSignature(saved) !== getSnapshotSignature(draft),
+  isDraftDeleted: Boolean(saved && !draft),
+  isDraftNew: Boolean(!saved && draft),
+})
+
+export type PriceChangeKind = 'added' | 'modified' | 'deleted'
+
+export const getPriceChangeKind = (row: ModelRow): PriceChangeKind | null => {
+  if (row.isDraftDeleted) return 'deleted'
+  if (row.isDraftNew) return 'added'
+  if (row.isDraftChanged) return 'modified'
+  return null
 }
