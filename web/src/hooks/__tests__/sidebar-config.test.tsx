@@ -95,21 +95,19 @@ function sidebarFor(admin?: object, user?: object, canConfigure = true) {
 }
 
 describe('security sidebar visibility', () => {
-  it('old configurations show Security & Access immediately after Profile and keep API Keys', () => {
+  it('old configurations keep Wallet and Profile next to Users, and Security & Access in the security group', () => {
     const { result } = sidebarFor(
       { personal: { enabled: true, personal: true, topup: true } },
       { personal: { enabled: true, personal: true } }
     )
-    expect(
+    const titlesOf = (groupId: string) =>
       result.current
-        .find((group) => group.id === 'personal')
-        ?.items.map((item) => item.title)
-    ).toEqual(['Wallet', 'Profile', 'Security & Access'])
-    expect(
-      result.current
-        .flatMap((group) => group.items)
-        .some((item) => item.title === 'API Keys')
-    ).toBe(true)
+        .find((group) => group.id === groupId)
+        ?.items.map((item) => item.title) ?? []
+
+    expect(titlesOf('users-billing').slice(-2)).toEqual(['Wallet', 'Profile'])
+    expect(titlesOf('security')).toContain('Security & Access')
+    expect(titlesOf('api-models')).toContain('API Keys')
   })
   it.each([
     [{ personal: { enabled: true, security: false } }, undefined],
@@ -157,21 +155,26 @@ describe('audit log sidebar entry', () => {
     expect(titles).toContain('Usage Logs')
   })
 
-  it('legacy configurations show a separate Audit Logs link immediately after Usage Logs', () => {
+  it('legacy configurations show Audit Logs as its own entry in the security group', () => {
     const { result } = sidebarFor(
       { console: { enabled: true, log: true } },
       { console: { enabled: true, log: true } }
     )
-    const items =
-      result.current.find((group) => group.id === 'general')?.items ?? []
-    const usageIndex = items.findIndex((item) => item.title === 'Usage Logs')
-    expect(items[usageIndex + 1]).toMatchObject({
-      title: 'Audit Logs',
-      url: '/usage-logs/audit',
-    })
-    const selected = items.filter((item) =>
-      checkIsActive('/usage-logs/audit', item)
+    const securityItems =
+      result.current.find((group) => group.id === 'security')?.items ?? []
+    const logItems =
+      result.current.find((group) => group.id === 'logs-operations')?.items ??
+      []
+
+    expect(securityItems).toContainEqual(
+      expect.objectContaining({ title: 'Audit Logs', url: '/usage-logs/audit' })
     )
+    expect(logItems.map((item) => item.title)).toContain('Usage Logs')
+    expect(logItems.map((item) => item.title)).not.toContain('Audit Logs')
+
+    const selected = result.current
+      .flatMap((group) => group.items)
+      .filter((item) => checkIsActive('/usage-logs/audit', item))
     expect(selected.map((item) => item.title)).toEqual(['Audit Logs'])
   })
 
@@ -203,32 +206,44 @@ describe('audit log sidebar entry', () => {
 })
 
 describe('system settings navigation', () => {
-  it('lists every settings section in its own group after Task Plugins', () => {
+  it('orders the sidebar in six groups and keeps every settings section once', () => {
     const { result } = sidebarFor()
-    const adminGroup = result.current.find((group) => group.id === 'admin')
-    const settingsGroup = result.current.find(
-      (group) => group.id === 'system-settings'
-    )
 
-    expect(adminGroup?.items.slice(-1).map((item) => item.title)).toEqual([
-      'Task Plugins',
+    expect(result.current.map((group) => group.id)).toEqual([
+      'dashboard',
+      'users-billing',
+      'api-models',
+      'security',
+      'logs-operations',
+      'system',
     ])
-    expect(result.current.slice(-1).map((group) => group.id)).toEqual([
-      'system-settings',
-    ])
-    expect(settingsGroup?.title).toBe('System Settings')
-    expect(settingsGroup?.items.map((item) => item.title)).toEqual([
-      'Site & Branding',
-      'Authentication',
-      'Billing & Payment',
-      'Models',
-      'Request policies',
-      'Security & Limits',
-      'Console Content',
-      'Operations',
+    expect(result.current[0].items.map((item) => item.title)).toEqual([
+      'Overview',
+      'Dashboard',
+      'Control Panel',
+      'Playground',
+      'Chat',
     ])
     expect(
-      settingsGroup?.items
+      result.current
+        .flatMap((group) => group.items)
+        .filter((item) => item.items?.length)
+        .map((item) => item.title)
+    ).toEqual([
+      'Billing & Payment',
+      'Authentication',
+      'Security & Limits',
+      'Operations',
+      'Site & Branding',
+      'Console Content',
+      'Models',
+      'Request policies',
+    ])
+
+    const systemGroup = result.current.find((group) => group.id === 'system')
+    expect(systemGroup?.items.at(-1)?.title).toBe('Task Plugins')
+    expect(
+      systemGroup?.items
         .find((item) => item.title === 'Site & Branding')
         ?.items?.map((subItem) => subItem.url)
     ).toEqual([
@@ -239,12 +254,17 @@ describe('system settings navigation', () => {
     ])
   })
 
-  it('hides the whole settings group when the admin disables the settings module', () => {
+  it('hides every settings section when the admin disables the settings module', () => {
     const { result } = sidebarFor({ admin: { enabled: true, setting: false } })
+    const titles = result.current
+      .flatMap((group) => group.items)
+      .map((item) => item.title)
 
-    expect(result.current.some((group) => group.id === 'system-settings')).toBe(
-      false
-    )
+    expect(titles).not.toContain('Site & Branding')
+    expect(titles).not.toContain('Billing & Payment')
+    expect(titles).not.toContain('Authentication')
+    expect(titles).not.toContain('Operations')
+    expect(titles).toContain('API Keys')
   })
 
   it('keeps the main sidebar on settings routes instead of a drill-in view', async () => {
@@ -292,11 +312,12 @@ describe('system settings navigation', () => {
       .getAllByRole('listitem')
       .map((item) => item.getAttribute('data-group'))
     expect(groups).toEqual([
-      'chat',
-      'general',
-      'personal',
-      'admin',
-      'system-settings',
+      'dashboard',
+      'users-billing',
+      'api-models',
+      'security',
+      'logs-operations',
+      'system',
     ])
     expect(screen.queryByText('Back to Dashboard')).toBeNull()
   })
@@ -370,9 +391,7 @@ describe('model pricing badge', () => {
       issue('shared-video', 'beta'),
     ])
 
-    expect(
-      await screen.findByText('Billing & Payment: 2')
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Billing & Payment: 2')).toBeInTheDocument()
     expect(badgedEntries()).toHaveLength(2)
   })
 
@@ -400,9 +419,7 @@ describe('model pricing badge', () => {
     await act(() =>
       client.invalidateQueries({ queryKey: MODEL_PRICING_ISSUES_QUERY_KEY })
     )
-    expect(
-      await screen.findByText('Billing & Payment: 2')
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Billing & Payment: 2')).toBeInTheDocument()
 
     // Every pricing save runs this invalidation.
     issues = []

@@ -19,7 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { ExternalLink, Link2 } from 'lucide-react'
 import { useMemo } from 'react'
 
-import type { NavGroup, NavLink, SidebarBadges } from '@/components/layout/types'
+import type {
+  NavGroup,
+  NavLink,
+  SidebarBadges,
+} from '@/components/layout/types'
 import { useModelPricingIssueBadge } from '@/features/system-settings/models/pricing-issues'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
@@ -34,7 +38,8 @@ import { useTopNavLinks } from './use-top-nav-links'
  *
  * The sidebar is always the root navigation — including on system settings
  * pages, which no longer swap in a separate mini-dashboard. It is narrowed by:
- *   · admin/settings role visibility;
+ *   · per-item role visibility (`requiredRole`), which mirrors the route guard
+ *     for the admin and super administrator entries spread across the groups;
  *   · `useSidebarConfig` (admin × user `sidebar_modules` overlay);
  *   · adding the header links below `API Keys` below the `lg` breakpoint.
  */
@@ -51,13 +56,7 @@ export function useSidebarView(): { navGroups: NavGroup[] } {
 
   const navGroups = useMemo<NavGroup[]>(() => {
     const role = userRole ?? ROLE.GUEST
-    const isAdmin = role >= ROLE.ADMIN
     const groups = configFilteredRoot
-      .filter((group) => {
-        if (group.id === 'admin') return isAdmin
-        if (group.id === 'system-settings') return role >= ROLE.SUPER_ADMIN
-        return true
-      })
       .map((group) => {
         const items = group.items.filter(
           (item) => item.requiredRole === undefined || role >= item.requiredRole
@@ -70,15 +69,17 @@ export function useSidebarView(): { navGroups: NavGroup[] } {
       return groups
     }
 
-    const generalIndex = groups.findIndex((group) => group.id === 'general')
-    if (generalIndex === -1) {
+    const apiGroupIndex = groups.findIndex((group) => group.id === 'api-models')
+    if (apiGroupIndex === -1) {
       return groups
     }
 
-    const general = groups[generalIndex]
-    const apiKeysIndex = general.items.findIndex((item) => item.url === '/keys')
+    const apiGroup = groups[apiGroupIndex]
+    const apiKeysIndex = apiGroup.items.findIndex(
+      (item) => item.url === '/keys'
+    )
     const insertIndex =
-      apiKeysIndex === -1 ? general.items.length : apiKeysIndex + 1
+      apiKeysIndex === -1 ? apiGroup.items.length : apiKeysIndex + 1
     const headerLinks: NavLink[] = topNavLinks.map((link) => ({
       title: link.title,
       url: link.href,
@@ -87,13 +88,13 @@ export function useSidebarView(): { navGroups: NavGroup[] } {
     }))
 
     return groups.map((group, index) =>
-      index === generalIndex
+      index === apiGroupIndex
         ? {
             ...group,
             items: [
-              ...general.items.slice(0, insertIndex),
+              ...apiGroup.items.slice(0, insertIndex),
               ...headerLinks,
-              ...general.items.slice(insertIndex),
+              ...apiGroup.items.slice(insertIndex),
             ],
           }
         : group

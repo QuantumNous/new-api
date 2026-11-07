@@ -18,11 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  BadgeDollarSign,
   Box,
   ClipboardList,
-  CreditCard,
   FileText,
   FlaskConical,
+  Gauge,
+  Image,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -32,6 +34,7 @@ import {
   Receipt,
   ServerCog,
   ShieldCheck,
+  Tags,
   Ticket,
   User,
   Users,
@@ -40,24 +43,51 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarBadges, SidebarData } from '@/components/layout/types'
-import { getSystemSettingsNavItems } from '@/features/system-settings/nav'
+import { getSystemSettingsSectionNavItems } from '@/features/system-settings/nav'
 import { ROLE } from '@/lib/roles'
 
 /**
  * Root navigation groups for the application sidebar.
  *
- * These groups make up the single main sidebar for every authenticated
- * page, including system settings.
+ * The groups follow a single enterprise hierarchy, ordered from the highest to
+ * the lowest priority:
+ *   1. Dashboard & Monitoring — daily entry points and analytics
+ *   2. Users & Billing — accounts, balances and payments
+ *   3. API & Models — upstream channels, model catalogue and credentials
+ *   4. Security & Limits — authentication, request limits and auditing
+ *   5. Logs & Operations — consumption logs and runtime behaviour
+ *   6. System Configuration — platform identity, content and advanced settings
+ *
+ * Settings sections that belong to a group above are rendered there instead of
+ * in one oversized "System Settings" list, while every item keeps its own URL
+ * and its `requiredRole` keeps the route guard mirrored in the sidebar.
  */
 export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
   const { t } = useTranslation()
+  const settings = getSystemSettingsSectionNavItems(t, badges)
 
   return {
     navGroups: [
       {
-        id: 'chat',
-        title: t('Chat'),
+        id: 'dashboard',
+        title: t('Dashboard & Monitoring'),
         items: [
+          {
+            title: t('Overview'),
+            url: '/dashboard/overview',
+            icon: Activity,
+          },
+          {
+            title: t('Dashboard'),
+            url: '/dashboard/models',
+            icon: LayoutDashboard,
+          },
+          {
+            title: t('Control Panel'),
+            url: '/admin/overview',
+            icon: Gauge,
+            requiredRole: ROLE.ADMIN,
+          },
           {
             title: t('Playground'),
             url: '/playground',
@@ -71,47 +101,34 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
         ],
       },
       {
-        id: 'general',
-        title: t('General'),
+        id: 'users-billing',
+        title: t('Users & Billing'),
         items: [
           {
-            title: t('Overview'),
-            url: '/dashboard/overview',
-            icon: Activity,
+            title: t('Users'),
+            url: '/users',
+            icon: Users,
+            requiredRole: ROLE.ADMIN,
+          },
+          settings.billing,
+          {
+            title: t('Payment Logs'),
+            url: '/admin/payments',
+            icon: Receipt,
+            requiredRole: ROLE.ADMIN,
           },
           {
-            title: t('Dashboard'),
-            url: '/dashboard/models',
-            icon: LayoutDashboard,
+            title: t('Redemption Codes'),
+            url: '/redemption-codes',
+            icon: Ticket,
+            requiredRole: ROLE.ADMIN,
           },
           {
-            title: t('API Keys'),
-            url: '/keys',
-            icon: Key,
+            title: t('Subscriptions'),
+            url: '/subscriptions',
+            icon: BadgeDollarSign,
+            requiredRole: ROLE.ADMIN,
           },
-          {
-            title: t('Usage Logs'),
-            url: '/usage-logs/common',
-            icon: FileText,
-          },
-          {
-            title: t('Audit Logs'),
-            url: '/usage-logs/audit',
-            icon: ClipboardList,
-          },
-          {
-            title: t('Task Logs'),
-            url: '/usage-logs/task',
-            activeUrls: ['/usage-logs/drawing'],
-            configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
-            icon: ListTodo,
-          },
-        ],
-      },
-      {
-        id: 'personal',
-        title: t('Personal'),
-        items: [
           {
             title: t('Wallet'),
             url: '/wallet',
@@ -122,6 +139,49 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             url: '/profile',
             icon: User,
           },
+        ],
+      },
+      {
+        id: 'api-models',
+        title: t('API & Models'),
+        items: [
+          {
+            title: t('Channels'),
+            url: '/channels',
+            icon: Radio,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            title: t('Models'),
+            url: '/models/metadata',
+            icon: Box,
+            requiredRole: ROLE.ADMIN,
+          },
+          {
+            title: t('Group Pricing'),
+            url: '/system-settings/billing/group-pricing',
+            icon: Tags,
+            configUrls: ['/system-settings'],
+            requiredRole: ROLE.SUPER_ADMIN,
+          },
+          {
+            title: t('API Keys'),
+            url: '/keys',
+            icon: Key,
+          },
+        ],
+      },
+      {
+        id: 'security',
+        title: t('Security & Limits'),
+        items: [
+          settings.auth,
+          settings.security,
+          {
+            title: t('Audit Logs'),
+            url: '/usage-logs/audit',
+            icon: ClipboardList,
+          },
           {
             title: t('Security & Access'),
             url: '/security',
@@ -130,52 +190,41 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
         ],
       },
       {
-        id: 'admin',
-        title: t('Admin'),
+        id: 'logs-operations',
+        title: t('Logs & Operations'),
         items: [
           {
-            title: t('Control Panel'),
-            url: '/admin/overview',
-            icon: LayoutDashboard,
-            requiredRole: ROLE.ADMIN,
+            title: t('Usage Logs'),
+            url: '/usage-logs/common',
+            icon: FileText,
           },
           {
-            title: t('Channels'),
-            url: '/channels',
-            icon: Radio,
+            title: t('Task Logs'),
+            url: '/usage-logs/task',
+            icon: ListTodo,
           },
           {
-            title: t('Models'),
-            url: '/models/metadata',
-            icon: Box,
+            title: t('Drawing Logs'),
+            url: '/usage-logs/drawing',
+            icon: Image,
           },
-          {
-            title: t('Users'),
-            url: '/users',
-            icon: Users,
-          },
-          {
-            title: t('Redemption Codes'),
-            url: '/redemption-codes',
-            icon: Ticket,
-          },
-          {
-            title: t('Subscriptions'),
-            url: '/subscriptions',
-            icon: CreditCard,
-          },
-          {
-            title: t('Payment Logs'),
-            url: '/admin/payments',
-            icon: Receipt,
-            requiredRole: ROLE.ADMIN,
-          },
+          settings.operations,
+        ],
+      },
+      {
+        id: 'system',
+        title: t('System Configuration'),
+        items: [
           {
             title: t('System Info'),
             url: '/system-info',
             icon: ServerCog,
             requiredRole: ROLE.SUPER_ADMIN,
           },
+          settings.site,
+          settings.content,
+          settings.models,
+          settings.policies,
           {
             title: t('Task Plugins'),
             url: '/task-plugins',
@@ -183,11 +232,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             requiredRole: ROLE.SUPER_ADMIN,
           },
         ],
-      },
-      {
-        id: 'system-settings',
-        title: t('System Settings'),
-        items: getSystemSettingsNavItems(t, badges),
       },
     ],
   }

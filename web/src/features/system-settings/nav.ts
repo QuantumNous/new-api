@@ -28,7 +28,9 @@ import {
   Wrench,
 } from 'lucide-react'
 
-import type { NavItem, SidebarBadges } from '@/components/layout/types'
+import type { NavCollapsible, SidebarBadges } from '@/components/layout/types'
+import { ROLE } from '@/lib/roles'
+
 import { getAuthSectionNavItems } from './auth/section-registry.tsx'
 import { getBillingSectionNavItems } from './billing/section-registry.tsx'
 import { getContentSectionNavItems } from './content/section-registry.tsx'
@@ -39,66 +41,90 @@ import { getSecuritySectionNavItems } from './security/section-registry.tsx'
 import { getSiteSectionNavItems } from './site/section-registry.tsx'
 
 /**
+ * Settings sections, keyed so the main sidebar can place each of them in the
+ * group it belongs to (billing with billing, operations with logs, and so on)
+ * instead of listing all of them in one oversized settings group.
+ */
+export type SystemSettingsSectionId =
+  | 'site'
+  | 'auth'
+  | 'billing'
+  | 'models'
+  | 'policies'
+  | 'security'
+  | 'content'
+  | 'operations'
+
+/**
  * System settings sections rendered in the main admin sidebar.
  *
  * Every entry points at the same admin settings module, so disabling
- * "System Settings" in the sidebar configuration hides the whole group.
+ * "System Settings" in the sidebar configuration hides all of them, and the
+ * super administrator requirement mirrors the `/system-settings` route guard.
  */
-export function getSystemSettingsNavItems(
+export function getSystemSettingsSectionNavItems(
   t: TFunction,
   badges: SidebarBadges
-): NavItem[] {
-  return [
-    {
+): Record<SystemSettingsSectionId, NavCollapsible> {
+  return {
+    site: {
       title: t('Site & Branding'),
       icon: Settings,
       configUrls: ['/system-settings'],
+      requiredRole: ROLE.SUPER_ADMIN,
       items: getSiteSectionNavItems(t),
     },
-    {
+    auth: {
       title: t('Authentication'),
       icon: Shield,
       configUrls: ['/system-settings'],
+      requiredRole: ROLE.SUPER_ADMIN,
       items: getAuthSectionNavItems(t),
     },
-    {
+    billing: {
       title: t('Billing & Payment'),
       icon: CreditCard,
       configUrls: ['/system-settings'],
+      requiredRole: ROLE.SUPER_ADMIN,
       badge: badges.modelPricing,
       items: getBillingSectionNavItems(t, {
         'model-pricing': badges.modelPricing,
       }),
     },
-    {
+    models: {
       title: t('Models'),
       icon: Box,
       configUrls: ['/system-settings'],
+      requiredRole: ROLE.SUPER_ADMIN,
       items: getModelsSectionNavItems(t),
     },
-    {
+    policies: {
       title: t('Request policies'),
       icon: Route,
       configUrls: ['/system-settings'],
+      requiredRole: ROLE.SUPER_ADMIN,
       items: getPolicySectionNavItems(t),
     },
-    {
+    security: {
       title: t('Security & Limits'),
       icon: ShieldAlert,
       configUrls: ['/system-settings'],
+      requiredRole: ROLE.SUPER_ADMIN,
       items: getSecuritySectionNavItems(t),
     },
-    {
+    content: {
       title: t('Console Content'),
       icon: Layout,
       configUrls: ['/system-settings'],
+      requiredRole: ROLE.SUPER_ADMIN,
       items: getContentSectionNavItems(t),
     },
-    {
+    operations: {
       title: t('Operations'),
       icon: Wrench,
       configUrls: ['/system-settings'],
+      requiredRole: ROLE.SUPER_ADMIN,
       items: getOperationsSectionNavItems(t),
     },
-  ]
+  }
 }

@@ -46,18 +46,18 @@ vi.mock('@/hooks/use-top-nav-links', () => ({
 
 function SidebarProbe() {
   const { navGroups } = useSidebarView()
-  const general = navGroups.find((group) => group.id === 'general')
+  const apiGroup = navGroups.find((group) => group.id === 'api-models')
   const apiKeysIndex =
-    general?.items.findIndex((item) => item.url === '/keys') ?? -1
+    apiGroup?.items.findIndex((item) => item.url === '/keys') ?? -1
   const headerItems =
-    general?.items
+    apiGroup?.items
       .slice(apiKeysIndex + 1)
       .filter((item) => item.title === 'Home' || item.title === 'Docs') ?? []
 
   return (
     <div>
       <span data-testid='titles'>
-        {general?.items.map((item) => item.title).join('|')}
+        {apiGroup?.items.map((item) => item.title).join('|')}
       </span>
       <span data-testid='links'>
         {headerItems
@@ -107,8 +107,8 @@ describe('mobile sidebar header navigation', () => {
 
     const titles = screen.getByTestId('titles').textContent?.split('|') ?? []
     expect(titles.slice(0, 5)).toEqual([
-      'Overview',
-      'Dashboard',
+      'Channels',
+      'Models',
       'API Keys',
       'Home',
       'Docs',
