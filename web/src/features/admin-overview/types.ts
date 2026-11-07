@@ -64,6 +64,14 @@ export interface DailyRevenuePoint {
   quota: number
 }
 
+/** One month of the revenue trend. `quota` stays an exact integer. */
+export interface MonthlyRevenuePoint {
+  month: number
+  year: number
+  label: string
+  quota: number
+}
+
 /** One chart series of the token usage chart. */
 export interface TokenSeriesEntry {
   key: string

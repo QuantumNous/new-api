@@ -7408,6 +7408,10 @@
     "Copy transaction reference": "取引参照番号をコピー",
     "Epay": "Epay",
     "Creem": "Creem",
-    "Waffo Pancake": "Waffo Pancake"
+    "Waffo Pancake": "Waffo Pancake",
+    "Daily average": "1日平均",
+    "vs yesterday": "前日比",
+    "Share of usage": "使用割合",
+    "Revenue over the last {{count}} months": "過去 {{count}} か月の収益"
   }
 }

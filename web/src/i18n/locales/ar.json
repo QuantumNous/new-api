@@ -7408,6 +7408,10 @@
     "Copy transaction reference": "نسخ مرجع المعاملة",
     "Epay": "Epay",
     "Creem": "Creem",
-    "Waffo Pancake": "Waffo Pancake"
+    "Waffo Pancake": "Waffo Pancake",
+    "Daily average": "المتوسط اليومي",
+    "vs yesterday": "مقارنة بالأمس",
+    "Share of usage": "نسبة الاستخدام",
+    "Revenue over the last {{count}} months": "الإيرادات خلال آخر {{count}} أشهر"
   }
 }

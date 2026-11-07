@@ -22,6 +22,7 @@ import type {
   DailyRevenuePoint,
   HourlyActivityPoint,
   ModelUsage,
+  MonthlyRevenuePoint,
   OverviewQuotaRow,
   OverviewUserRow,
   TokenSeriesEntry,
@@ -109,6 +110,48 @@ export function buildDailyRevenue(
   }
 
   return [...buckets.values()]
+}
+
+/**
+ * Build one revenue point per calendar month for the last `months` months.
+ * Values remain exact integer quota units; labels use the interface date format.
+ */
+export function buildMonthlyRevenue(
+  rows: readonly OverviewQuotaRow[],
+  months: number,
+  now: Date = new Date()
+): MonthlyRevenuePoint[] {
+  const points: MonthlyRevenuePoint[] = []
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  for (let offset = 0; offset < months; offset++) {
+    const date = new Date(monthStart)
+    date.setMonth(monthStart.getMonth() - offset)
+    const month = date.getMonth()
+    const year = date.getFullYear()
+    const label = `${date.toLocaleString(undefined, {
+      month: 'short',
+      year: 'numeric',
+    })}`
+    points.push({ month, year, label, quota: 0 })
+  }
+
+  for (const row of rows) {
+    const timestamp = getTimestamp(row.created_at)
+    if (timestamp === 0) continue
+    const d = new Date(timestamp * 1000)
+    for (const point of points) {
+      if (
+        d.getFullYear() === point.year &&
+        d.getMonth() === point.month
+      ) {
+        point.quota += toIntegerUnits(row.quota)
+        break
+      }
+    }
+  }
+
+  return points
 }
 
 /** Aggregate quota rows per model, ordered by token usage then quota. */
@@ -263,3 +306,13 @@ export function buildHourlyActiveUsers(
     activeUsers: bucket.users.size,
   }))
 }
+
+/** Return the second-to-last daily revenue point, interpreted as "yesterday". */
+export function revenueYesterday(
+  revenueTrend: readonly DailyRevenuePoint[]
+): DailyRevenuePoint | undefined {
+  if (revenueTrend.length < 2) return undefined
+  return revenueTrend.at(-2)
+}
+
+

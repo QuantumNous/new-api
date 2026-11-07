@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/chart'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
-import { formatCompactNumber, formatInteger } from '@/lib/format'
+import { formatCompactNumber, formatInteger, formatTokens } from '@/lib/format'
 
 import type { TokenSeriesEntry, TokenSeriesPoint } from '../types'
 
@@ -81,6 +81,7 @@ export function TokenUsagePanel(props: TokenUsagePanelProps) {
         <BarChart
           data={chartData}
           margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+          barCategoryGap='15%'
         >
           <CartesianGrid vertical={false} strokeDasharray='3 3' />
           <XAxis
@@ -95,16 +96,47 @@ export function TokenUsagePanel(props: TokenUsagePanelProps) {
             axisLine={false}
             width={44}
             tickFormatter={(value) => formatCompactNumber(Number(value))}
+            allowDecimals={false}
           />
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <ChartLegend content={<ChartLegendContent />} />
+          <ChartTooltip
+            cursor={{ fill: 'var(--muted)' }}
+            content={
+              <ChartTooltipContent
+                formatter={(value) => formatTokens(Number(value))}
+              />
+            }
+          />
+          <ChartLegend
+            content={<ChartLegendContent className='flex-wrap' />}
+          />
+          <defs>
+            {props.series.map((entry, index) => {
+              const color = SERIES_COLORS[index] ?? SERIES_COLORS.at(-1)
+              return (
+                <linearGradient
+                  key={entry.key}
+                  id={`tokenSeriesGradient-${entry.key}`}
+                  x1='0'
+                  y1='0'
+                  x2='0'
+                  y2='1'
+                >
+                  <stop offset='0%' stopColor={color} stopOpacity={0.95} />
+                  <stop offset='100%' stopColor={color} stopOpacity={0.55} />
+                </linearGradient>
+              )
+            })}
+          </defs>
           {props.series.map((entry) => (
             <Bar
               key={entry.key}
               dataKey={entry.key}
               stackId='tokens'
-              fill={`var(--color-${entry.key})`}
+              fill={`url(#tokenSeriesGradient-${entry.key})`}
+              maxBarSize={40}
               radius={[2, 2, 0, 0]}
+              animationDuration={450}
+              animationEasing='ease-out'
             />
           ))}
         </BarChart>

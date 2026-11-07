@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CircleDollarSign } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ArrowDownIcon, ArrowUpIcon, CircleDollarSign } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ChartContainer,
   ChartTooltip,
@@ -29,88 +30,75 @@ import {
 } from '@/components/ui/chart'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
-import {
-  formatCompactNumber,
-  formatQuota,
-  quotaUnitsToDollars,
-} from '@/lib/format'
+import { formatCompactNumber, formatLogQuota, formatPercent } from '@/lib/format'
 
-import type { DailyRevenuePoint } from '../types'
+import type { DailyRevenuePoint, MonthlyRevenuePoint } from '../types'
+
+type ChartView = 'daily' | 'monthly'
 
 export interface RevenuePanelProps {
   points: DailyRevenuePoint[]
+  monthlyPoints: MonthlyRevenuePoint[]
   revenueToday: number
   revenueMonth: number
   revenueAllTime: number | null
+  revenueYesterday: number | undefined
   loading: boolean
 }
 
+// Money stays in integer quota units through every aggregation; the only
+// floating-point step is the exact halving below, formatted at display time.
+const MONTHS_SHOWN = 2
+
 export function RevenuePanel(props: RevenuePanelProps) {
   const { t } = useTranslation()
+  const [view, setView] = useState<ChartView>('daily')
+  const hasData =
+    props.points.some((point) => point.quota > 0) ||
+    props.monthlyPoints.some((point) => point.quota > 0)
+
+  const dayOverDayDelta =
+    props.revenueYesterday != null
+      ? props.revenueToday - props.revenueYesterday
+      : undefined
+  const dayOverDayPercent =
+    props.revenueYesterday != null && props.revenueYesterday > 0
+      ? ((props.revenueToday - props.revenueYesterday) /
+          props.revenueYesterday) *
+        100
+      : undefined
+
+  const description =
+    view === 'monthly'
+      ? t('Revenue over the last {{count}} months', { count: MONTHS_SHOWN })
+      : t('Revenue over the last 30 days')
+
   const chartConfig = {
     quota: {
       label: t('Revenue'),
       color: 'var(--chart-1)',
     },
   } satisfies ChartConfig
-  const hasData = props.points.some((point) => point.quota > 0)
 
   let chartContent: ReactNode
   if (props.loading) {
     chartContent = <Skeleton className='h-full w-full' />
-  } else if (hasData) {
+  } else if (!hasData) {
+    chartContent = <EmptyChart />
+  } else if (view === 'monthly') {
     chartContent = (
-      <ChartContainer
-        config={chartConfig}
-        className='aspect-auto h-full w-full'
-      >
-        <AreaChart
-          data={props.points}
-          margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-        >
-          <CartesianGrid vertical={false} strokeDasharray='3 3' />
-          <XAxis
-            dataKey='label'
-            tickLine={false}
-            axisLine={false}
-            minTickGap={24}
-            tickMargin={8}
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            width={48}
-            tickFormatter={(value) =>
-              formatCompactNumber(quotaUnitsToDollars(Number(value)))
-            }
-          />
-          <ChartTooltip
-            cursor={false}
-            content={
-              <ChartTooltipContent
-                formatter={(value) => formatQuota(Number(value))}
-              />
-            }
-          />
-          <Area
-            dataKey='quota'
-            type='monotone'
-            stroke='var(--color-quota)'
-            fill='var(--color-quota)'
-            fillOpacity={0.16}
-            strokeWidth={2}
-          />
-        </AreaChart>
-      </ChartContainer>
+      <MonthlyChart points={props.monthlyPoints} chartConfig={chartConfig} />
     )
   } else {
-    chartContent = <EmptyChart />
+    chartContent = (
+      <DailyChart points={props.points} chartConfig={chartConfig} />
+    )
   }
 
   return (
     <TitledCard
       title={t('Sales & Revenue')}
-      description={t('Revenue over the last 30 days')}
+      description={description}
       icon={<CircleDollarSign />}
       iconTone='success'
       action={
@@ -119,29 +107,56 @@ export function RevenuePanel(props: RevenuePanelProps) {
             {t('Revenue this month')}
           </div>
           <div className='font-mono text-sm font-semibold tabular-nums'>
-            {formatQuota(props.revenueMonth)}
+            {formatLogQuota(props.revenueMonth)}
           </div>
         </div>
       }
     >
       <div className='flex flex-col gap-4'>
+        <Tabs
+          value={view}
+          onValueChange={(v) => setView(v as ChartView)}
+          className='w-fit'
+        >
+          <TabsList>
+            <TabsTrigger value='daily'>{t('Daily')}</TabsTrigger>
+            <TabsTrigger value='monthly'>{t('Monthly')}</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <div className='h-56 w-full'>{chartContent}</div>
 
-        <dl className='grid grid-cols-3 gap-2'>
+        <dl className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
           <SummaryCell
             label={t('Today')}
-            value={formatQuota(props.revenueToday)}
+            value={formatLogQuota(props.revenueToday)}
+            sub={
+              dayOverDayDelta !== undefined ? (
+                <RevenueTrend
+                  delta={dayOverDayDelta}
+                  percent={dayOverDayPercent}
+                />
+              ) : (
+                <span className='text-muted-foreground text-[11px]'>
+                  {t('vs yesterday')}
+                </span>
+              )
+            }
           />
           <SummaryCell
             label={t('This month')}
-            value={formatQuota(props.revenueMonth)}
+            value={formatLogQuota(props.revenueMonth)}
+          />
+          <SummaryCell
+            label={t('Daily average')}
+            value={formatLogQuota(props.revenueMonth / MONTHS_SHOWN)}
           />
           <SummaryCell
             label={t('All time')}
             value={
               props.revenueAllTime == null
                 ? '-'
-                : formatQuota(props.revenueAllTime)
+                : formatLogQuota(props.revenueAllTime)
             }
           />
         </dl>
@@ -154,7 +169,30 @@ export function RevenuePanel(props: RevenuePanelProps) {
   )
 }
 
-function SummaryCell(props: { label: string; value: string }) {
+function RevenueTrend(props: { delta: number; percent?: number }) {
+  const isPositive = props.delta >= 0
+  const color = isPositive ? 'text-success' : 'text-destructive'
+  const Arrow = isPositive ? ArrowUpIcon : ArrowDownIcon
+  const sign = props.delta > 0 ? '+' : ''
+
+  return (
+    <div className='flex items-center gap-1.5'>
+      <Arrow className={`size-3.5 shrink-0 ${color}`} aria-hidden='true' />
+      <span className={`text-[11px] font-semibold tabular-nums ${color}`}>
+        {sign}
+        {formatLogQuota(props.delta)}
+      </span>
+      {props.percent != null && (
+        <span className='text-muted-foreground text-[11px] tabular-nums'>
+          ({sign}
+          {formatPercent(Math.abs(props.percent))})
+        </span>
+      )}
+    </div>
+  )
+}
+
+function SummaryCell(props: { label: string; value: string; sub?: ReactNode }) {
   return (
     <div className='bg-muted/40 rounded-lg px-2.5 py-2'>
       <dt className='text-muted-foreground truncate text-[11px] font-medium'>
@@ -163,7 +201,122 @@ function SummaryCell(props: { label: string; value: string }) {
       <dd className='mt-1 truncate font-mono text-xs font-semibold tabular-nums'>
         {props.value}
       </dd>
+      {props.sub != null && <div className='mt-1 text-[11px]'>{props.sub}</div>}
     </div>
+  )
+}
+
+function DailyChart({
+  points,
+  chartConfig,
+}: {
+  points: DailyRevenuePoint[]
+  chartConfig: ChartConfig
+}) {
+  return (
+    <ChartContainer config={chartConfig} className='aspect-auto h-full w-full'>
+      <AreaChart
+        data={points}
+        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+      >
+        <defs>
+          <linearGradient id='revenueDailyGradient' x1='0' y1='0' x2='0' y2='1'>
+            <stop
+              offset='5%'
+              stopColor='var(--color-quota)'
+              stopOpacity={0.6}
+            />
+            <stop
+              offset='95%'
+              stopColor='var(--color-quota)'
+              stopOpacity={0.04}
+            />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} strokeDasharray='3 3' />
+        <XAxis
+          dataKey='label'
+          tickLine={false}
+          axisLine={false}
+          minTickGap={24}
+          tickMargin={8}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          width={56}
+          tickFormatter={(value) => formatCompactNumber(Number(value))}
+        />
+        <ChartTooltip
+          cursor={{ stroke: 'var(--border)' }}
+          content={
+            <ChartTooltipContent
+              formatter={(value) => formatLogQuota(Number(value))}
+            />
+          }
+        />
+        <Area
+          type='monotone'
+          dataKey='quota'
+          stroke='var(--color-quota)'
+          fill='url(#revenueDailyGradient)'
+          strokeWidth={2}
+          animationDuration={450}
+          animationEasing='ease-out'
+          activeDot={{ r: 4, strokeWidth: 2 }}
+        />
+      </AreaChart>
+    </ChartContainer>
+  )
+}
+
+function MonthlyChart({
+  points,
+  chartConfig,
+}: {
+  points: MonthlyRevenuePoint[]
+  chartConfig: ChartConfig
+}) {
+  return (
+    <ChartContainer config={chartConfig} className='aspect-auto h-full w-full'>
+      <LineChart
+        data={points}
+        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+      >
+        <CartesianGrid vertical={false} strokeDasharray='3 3' />
+        <XAxis
+          dataKey='label'
+          tickLine={false}
+          axisLine={false}
+          minTickGap={24}
+          tickMargin={8}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          width={56}
+          tickFormatter={(value) => formatCompactNumber(Number(value))}
+        />
+        <ChartTooltip
+          cursor={false}
+          content={
+            <ChartTooltipContent
+              formatter={(value) => formatLogQuota(Number(value))}
+            />
+          }
+        />
+        <Line
+          type='monotone'
+          dataKey='quota'
+          stroke='var(--color-quota)'
+          strokeWidth={2.5}
+          dot={{ r: 4, strokeWidth: 2 }}
+          activeDot={{ r: 5, strokeWidth: 2 }}
+          animationDuration={450}
+          animationEasing='ease-out'
+        />
+      </LineChart>
+    </ChartContainer>
   )
 }
 

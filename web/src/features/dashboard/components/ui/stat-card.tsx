@@ -41,7 +41,7 @@ export interface StatCardDetail {
 interface StatCardProps {
   title: string
   value: string | number
-  description: string
+  description?: ReactNode
   icon: LucideIcon
   sparkline?: number[]
   sparklineVariant?: StatCardSparklineVariant
@@ -236,6 +236,20 @@ export function StatCard(props: StatCardProps) {
   const tone = props.tone ?? 'accent-3'
   const iconTone = props.iconTone ?? ICON_TONE_BY_STAT_TONE[tone]
   const sparklineVariant = props.sparklineVariant ?? 'bars'
+  const descriptionContent =
+    typeof props.description === 'string' ? (
+      <p
+        className={cn(
+          'text-muted-foreground/60 line-clamp-1 text-[11px] leading-relaxed sm:text-xs',
+          props.compactMobile && 'hidden sm:block'
+        )}
+      >
+        {props.description}
+      </p>
+    ) : (
+      props.description
+    )
+
   let valueContent: ReactNode
   if (props.loading) {
     valueContent = (
@@ -276,14 +290,7 @@ export function StatCard(props: StatCardProps) {
         <div className='text-foreground font-mono text-base font-semibold tracking-tight break-all tabular-nums sm:text-2xl'>
           {props.value}
         </div>
-        <p
-          className={cn(
-            'text-muted-foreground/60 line-clamp-1 text-[11px] leading-relaxed sm:text-xs',
-            props.compactMobile && 'hidden sm:block'
-          )}
-        >
-          {props.description}
-        </p>
+        {descriptionContent}
       </div>
     )
   }
@@ -300,7 +307,7 @@ export function StatCard(props: StatCardProps) {
   return (
     <div
       className={cn(
-        'group flex flex-col justify-between sm:min-h-32 sm:gap-3',
+        'group flex flex-col justify-between gap-1.5 sm:min-h-32',
         props.compactMobile ? 'gap-1' : 'gap-1.5'
       )}
     >

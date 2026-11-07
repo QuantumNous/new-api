@@ -40,9 +40,11 @@ import {
   buildDailyRevenue,
   buildHourlyActiveUsers,
   buildModelUsage,
+  buildMonthlyRevenue,
   buildTodayQuotaSparkline,
   buildTodayTokenSeries,
   countActiveUsers,
+  revenueYesterday,
   sumUsageSince,
 } from './lib/aggregate'
 
@@ -142,6 +144,14 @@ export function AdminOverview() {
     () => buildDailyRevenue(quotaRows, TREND_DAYS),
     [quotaRows]
   )
+  const monthlyRevenueTrend = useMemo(
+    () => buildMonthlyRevenue(quotaRows, 2),
+    [quotaRows]
+  )
+  const revenueYesterdayValue = useMemo(
+    () => revenueYesterday(revenueTrend),
+    [revenueTrend]
+  )
   const tokenSeries = useMemo(
     () => buildTodayTokenSeries(quotaRows, todayStart, currentHour),
     [quotaRows, todayStart, currentHour]
@@ -188,6 +198,7 @@ export function AdminOverview() {
             <OverviewStatCards
               revenueToday={totalsToday.quota}
               revenueMonth={totalsMonth.quota}
+              revenueYesterday={revenueYesterdayValue?.quota}
               tokensToday={totalsToday.tokens}
               requestsToday={totalsToday.requests}
               activeUsers={activeUserCount}
@@ -203,9 +214,11 @@ export function AdminOverview() {
             <FadeIn delay={0.05}>
               <RevenuePanel
                 points={revenueTrend}
+                monthlyPoints={monthlyRevenueTrend}
                 revenueToday={totalsToday.quota}
                 revenueMonth={totalsMonth.quota}
                 revenueAllTime={allTimeRevenue}
+                revenueYesterday={revenueYesterdayValue?.quota}
                 loading={quotaQuery.isLoading}
               />
             </FadeIn>

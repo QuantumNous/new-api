@@ -7408,6 +7408,10 @@
     "Copy transaction reference": "复制交易参考号",
     "Epay": "Epay",
     "Creem": "Creem",
-    "Waffo Pancake": "Waffo Pancake"
+    "Waffo Pancake": "Waffo Pancake",
+    "Daily average": "日均",
+    "vs yesterday": "较昨日",
+    "Share of usage": "使用占比",
+    "Revenue over the last {{count}} months": "最近 {{count}} 个月的收入"
   }
 }

@@ -7408,6 +7408,10 @@
     "Copy transaction reference": "Copy transaction reference",
     "Epay": "Epay",
     "Creem": "Creem",
-    "Waffo Pancake": "Waffo Pancake"
+    "Waffo Pancake": "Waffo Pancake",
+    "Daily average": "Daily average",
+    "vs yesterday": "vs yesterday",
+    "Share of usage": "Share of usage",
+    "Revenue over the last {{count}} months": "Revenue over the last {{count}} months"
   }
 }

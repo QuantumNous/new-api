@@ -7408,6 +7408,10 @@
     "Copy transaction reference": "Копировать номер транзакции",
     "Epay": "Epay",
     "Creem": "Creem",
-    "Waffo Pancake": "Waffo Pancake"
+    "Waffo Pancake": "Waffo Pancake",
+    "Daily average": "Среднее за день",
+    "vs yesterday": "к вчерашнему дню",
+    "Share of usage": "Доля использования",
+    "Revenue over the last {{count}} months": "Доход за последние {{count}} мес."
   }
 }

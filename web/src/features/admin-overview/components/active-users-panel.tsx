@@ -91,6 +91,26 @@ export function ActiveUsersPanel(props: ActiveUsersPanelProps) {
                 data={props.points}
                 margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
               >
+                <defs>
+                  <linearGradient
+                    id='activeUsersGradient'
+                    x1='0'
+                    y1='0'
+                    x2='0'
+                    y2='1'
+                  >
+                    <stop
+                      offset='5%'
+                      stopColor='var(--color-activeUsers)'
+                      stopOpacity={0.95}
+                    />
+                    <stop
+                      offset='95%'
+                      stopColor='var(--color-activeUsers)'
+                      stopOpacity={0.35}
+                    />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid vertical={false} strokeDasharray='3 3' />
                 <XAxis
                   dataKey='label'
@@ -106,11 +126,21 @@ export function ActiveUsersPanel(props: ActiveUsersPanelProps) {
                   allowDecimals={false}
                   tickFormatter={(value) => formatInteger(Number(value))}
                 />
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <ChartTooltip
+                  cursor={{ fill: 'var(--muted)' }}
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value) => formatInteger(Number(value))}
+                    />
+                  }
+                />
                 <Bar
                   dataKey='activeUsers'
-                  fill='var(--color-activeUsers)'
-                  radius={[2, 2, 0, 0]}
+                  fill='url(#activeUsersGradient)'
+                  radius={[3, 3, 0, 0]}
+                  maxBarSize={40}
+                  animationDuration={450}
+                  animationEasing='ease-out'
                 />
               </BarChart>
             </ChartContainer>

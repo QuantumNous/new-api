@@ -23,9 +23,15 @@ import { useTranslation } from 'react-i18next'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
-import { formatCompactNumber, formatInteger, formatQuota } from '@/lib/format'
+import { formatInteger, formatLogQuota, formatPercent, formatTokens } from '@/lib/format'
 
 import type { ModelUsage } from '../types'
+
+const RANK_COLORS = [
+  'bg-amber-500 text-white',
+  'bg-slate-400 text-slate-900',
+  'bg-amber-700 text-white',
+] as const
 
 export interface TopModelsPanelProps {
   models: ModelUsage[]
@@ -38,6 +44,7 @@ export function TopModelsPanel(props: TopModelsPanelProps) {
     (max, model) => Math.max(max, model.tokens),
     0
   )
+  const totalQuota = props.models.reduce((sum, model) => sum + model.quota, 0)
   const hasData = maxTokens > 0
 
   let content: ReactNode
@@ -51,41 +58,50 @@ export function TopModelsPanel(props: TopModelsPanelProps) {
     )
   } else if (hasData) {
     content = (
-      <ol className='space-y-3'>
-        {props.models.map((model, index) => (
-          <li key={model.model}>
-            <div className='flex items-center justify-between gap-3'>
-              <span className='flex min-w-0 items-center gap-2'>
-                <span className='bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-md font-mono text-[10px] tabular-nums'>
-                  {index + 1}
+      <ol className='space-y-4'>
+        {props.models.map((model, index) => {
+          const share = maxTokens > 0 ? (model.tokens / maxTokens) * 100 : 0
+          const totalShare = totalQuota > 0 ? (model.quota / totalQuota) * 100 : 0
+          const rankColor = RANK_COLORS[index] ?? 'bg-muted text-muted-foreground'
+
+          return (
+            <li key={model.model}>
+              <div className='flex items-center justify-between gap-3'>
+                <span className='flex min-w-0 items-center gap-2'>
+                  <span className={`flex size-5 shrink-0 items-center justify-center rounded-md font-mono text-[10px] font-bold tabular-nums ${rankColor}`}>
+                    {index + 1}
+                  </span>
+                  <span
+                    className='truncate font-mono text-xs sm:text-sm'
+                    dir='auto'
+                    title={model.model}
+                  >
+                    {model.model}
+                  </span>
                 </span>
-                <span
-                  className='truncate font-mono text-xs sm:text-sm'
-                  dir='auto'
-                  title={model.model}
-                >
-                  {model.model}
+                <span className='shrink-0 font-mono text-xs font-semibold tabular-nums'>
+                  {formatTokens(model.tokens)}
                 </span>
-              </span>
-              <span className='shrink-0 font-mono text-xs font-semibold tabular-nums'>
-                {formatCompactNumber(model.tokens)}
-              </span>
-            </div>
-            <Progress
-              value={maxTokens > 0 ? (model.tokens / maxTokens) * 100 : 0}
-              aria-label={`${model.model}: ${formatCompactNumber(model.tokens)} ${t('Tokens')}`}
-              className='mt-1.5 gap-0'
-            />
-            <div className='text-muted-foreground mt-1 flex items-center justify-between gap-2 text-[11px]'>
-              <span>
-                {t('Requests')}: {formatInteger(model.requests)}
-              </span>
-              <span>
-                {t('Revenue')}: {formatQuota(model.quota)}
-              </span>
-            </div>
-          </li>
-        ))}
+              </div>
+              <Progress
+                value={share}
+                aria-label={`${model.model}: ${formatTokens(model.tokens)} ${t('Tokens')}`}
+                className='mt-1.5 gap-0'
+              />
+              <div className='text-muted-foreground mt-1 flex items-center justify-between gap-2 text-[11px]'>
+                <span>
+                  {t('Requests')}: {formatInteger(model.requests)}
+                </span>
+                <span>
+                  {t('Revenue')}: {formatLogQuota(model.quota)}
+                </span>
+                <span className='shrink-0 font-medium text-foreground tabular-nums'>
+                  {t('Share of usage')}: {formatPercent(totalShare)}
+                </span>
+              </div>
+            </li>
+          )
+        })}
       </ol>
     )
   } else {

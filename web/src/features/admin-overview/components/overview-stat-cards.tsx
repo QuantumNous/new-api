@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Coins, Cpu, Users, Wallet } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, Coins, Cpu, Users, Wallet } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,6 +38,7 @@ export interface OverviewStatCardsProps {
   revenueSparkline: number[]
   monthSparkline: number[]
   tokensSparkline: number[]
+  revenueYesterday: number | undefined
   loading: boolean
 }
 
@@ -48,16 +49,33 @@ export function OverviewStatCards(props: OverviewStatCardsProps) {
       ? (props.activeUsers / props.registeredUsers) * 100
       : 0
 
+  const todayVsYesterdayPct =
+    props.revenueYesterday != null && props.revenueYesterday > 0
+      ? ((props.revenueToday - props.revenueYesterday) /
+          props.revenueYesterday) *
+        100
+      : undefined
+
   return (
     <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4'>
       <StatCardTile>
         <StatCard
           title={t('Revenue today')}
           value={formatQuota(props.revenueToday)}
-          description={`${t('This month')}: ${formatQuota(props.revenueMonth)}`}
+          description={
+            <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
+              <span className='text-muted-foreground/60'>
+                {t('This month')}: {formatQuota(props.revenueMonth)}
+              </span>
+              {todayVsYesterdayPct !== undefined && (
+                <YesterdayTrend percent={todayVsYesterdayPct} />
+              )}
+            </div>
+          }
           icon={Wallet}
           tone='accent-1'
           sparkline={props.revenueSparkline}
+          sparklineVariant='line'
           loading={props.loading}
         />
       </StatCardTile>
@@ -66,10 +84,20 @@ export function OverviewStatCards(props: OverviewStatCardsProps) {
         <StatCard
           title={t('Revenue this month')}
           value={formatQuota(props.revenueMonth)}
-          description={`${t('Today')}: ${formatQuota(props.revenueToday)}`}
+          description={
+            <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
+              <span className='text-muted-foreground/60'>
+                {t('Today')}: {formatQuota(props.revenueToday)}
+              </span>
+              {todayVsYesterdayPct !== undefined && (
+                <YesterdayTrend percent={todayVsYesterdayPct} />
+              )}
+            </div>
+          }
           icon={Coins}
           tone='accent-2'
           sparkline={props.monthSparkline}
+          sparklineVariant='line'
           loading={props.loading}
         />
       </StatCardTile>
@@ -111,9 +139,27 @@ export function OverviewStatCards(props: OverviewStatCardsProps) {
   )
 }
 
+/** Green/red "vs yesterday" percentage badge with an up/down arrow. */
+function YesterdayTrend(props: { percent: number }) {
+  const isPositive = props.percent >= 0
+  const Arrow = isPositive ? ArrowUpIcon : ArrowDownIcon
+
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums ${
+        isPositive ? 'text-success' : 'text-destructive'
+      }`}
+    >
+      <Arrow className='size-3 shrink-0' aria-hidden='true' />
+      {formatPercent(Math.abs(props.percent))}
+      <span className='sr-only'>{` ${'vs yesterday'}`}</span>
+    </span>
+  )
+}
+
 function StatCardTile(props: { children: ReactNode }) {
   return (
-    <div className='bg-card rounded-2xl border p-3 shadow-xs sm:p-4'>
+    <div className='bg-card rounded-2xl border p-3 shadow-xs transition-shadow duration-200 hover:shadow-md sm:p-4'>
       {props.children}
     </div>
   )

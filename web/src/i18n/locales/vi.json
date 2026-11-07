@@ -7408,6 +7408,10 @@
     "Copy transaction reference": "Sao chép mã tham chiếu giao dịch",
     "Epay": "Epay",
     "Creem": "Creem",
-    "Waffo Pancake": "Waffo Pancake"
+    "Waffo Pancake": "Waffo Pancake",
+    "Daily average": "Trung bình ngày",
+    "vs yesterday": "so với hôm qua",
+    "Share of usage": "Tỷ lệ sử dụng",
+    "Revenue over the last {{count}} months": "Doanh thu trong {{count}} tháng qua"
   }
 }
