@@ -272,8 +272,10 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 
 	// 1. 退还资金来源（钱包或订阅）
 	var fundingErr error
+	transactionalRefund := false
 	if taskIsSubscription(task) && task.PrivateData.Execution != nil && task.PrivateData.Execution.RequestID != "" {
-		fundingErr = model.RefundSubscriptionPreConsume(task.PrivateData.Execution.RequestID)
+		quota, fundingErr = model.RefundSubscriptionTaskFunding(task)
+		transactionalRefund = true
 	} else {
 		fundingErr = taskAdjustFunding(task, -quota)
 	}
@@ -281,13 +283,17 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 		logger.LogWarn(ctx, common.LogText("failed to refund the funding source, task %s: %s", task.TaskID, fundingErr.Error()))
 		return false
 	}
+	if quota == 0 {
+		return true
+	}
 
 	// 2. 退还令牌额度
-	taskAdjustTokenQuota(ctx, task, -quota)
-
 	// 3. 回减预扣时累计的用户和渠道用量，请求次数保持不变
-	model.UpdateUserUsedQuota(task.UserId, -quota)
-	model.UpdateChannelUsedQuota(task.ChannelId, -quota)
+	if !transactionalRefund {
+		taskAdjustTokenQuota(ctx, task, -quota)
+		model.UpdateUserUsedQuota(task.UserId, -quota)
+		model.UpdateChannelUsedQuota(task.ChannelId, -quota)
+	}
 
 	// 4. 记录日志
 	other := taskBillingOther(task)
@@ -307,8 +313,10 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 	// 5. 资金退款完成后再清除持久化标记。
 	// 回写失败必须显式告警，避免漏掉潜在的重复退款风险。
 	task.Quota = 0
-	if err := task.UpdateQuota(); err != nil {
-		logger.LogError(ctx, common.LogText("refund succeeded but clearing the task quota failed, task %s: %s", task.TaskID, err.Error()))
+	if !transactionalRefund {
+		if err := task.UpdateQuota(); err != nil {
+			logger.LogError(ctx, common.LogText("refund succeeded but clearing the task quota failed, task %s: %s", task.TaskID, err.Error()))
+		}
 	}
 	return true
 }

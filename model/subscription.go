@@ -1723,6 +1723,36 @@ func adminRestoreUserSubscriptionQuota(db *gorm.DB, now int64, userId, subscript
 		if sub.AmountTotal > 0 && afterUsed+inFlight > sub.AmountTotal {
 			return errors.New("subscription total use exceeds original quota")
 		}
+		// Attribute administrative credits to existing usage, so a later task
+		// refund cannot subtract the same counter twice. Untracked legacy usage
+		// is credited first, then tracked charges in settlement order.
+		var charges []SubscriptionPreConsumeRecord
+		chargesQuery := lockForUpdate(tx).Where("user_subscription_id = ? AND accounting_version = ? AND counter_amount > 0", sub.Id, 1)
+		if sub.QuotaModelVersion == 0 {
+			chargesQuery = chargesQuery.Where("charged_generation = ?", sub.ResetGeneration)
+		}
+		if err := chargesQuery.Order("id asc").Find(&charges).Error; err != nil {
+			return err
+		}
+		var attributed int64
+		for _, charge := range charges {
+			if charge.CounterAmount > beforeUsed-attributed {
+				return errors.New("subscription charge attribution exceeds usage")
+			}
+			attributed += charge.CounterAmount
+		}
+		credit := max(beforeUsed-afterUsed-(beforeUsed-attributed), 0)
+		for i := range charges {
+			if credit == 0 {
+				break
+			}
+			amount := min(credit, charges[i].CounterAmount)
+			charges[i].CounterAmount -= amount
+			credit -= amount
+			if err := tx.Save(&charges[i]).Error; err != nil {
+				return err
+			}
+		}
 		if sub.QuotaModelVersion > 0 {
 			sub.TotalAmountUsed = afterUsed
 			sub.AmountUsed = afterUsed
@@ -1984,20 +2014,27 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 
 // SubscriptionPreConsumeRecord stores idempotent pre-consume operations per request.
 type SubscriptionPreConsumeRecord struct {
-	Id                  int    `json:"id"`
-	RequestId           string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
-	UserId              int    `json:"user_id" gorm:"index"`
-	UserSubscriptionId  int    `json:"user_subscription_id" gorm:"index"`
-	PlanVersionId       int    `json:"plan_version_id" gorm:"index"`
-	PreConsumed         int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
-	ResetGeneration     int64  `json:"reset_generation" gorm:"type:bigint;not null;default:0"`
-	SettledAmount       int64  `json:"settled_amount" gorm:"type:bigint;not null;default:0"`
-	SettlementAmount    int64  `json:"settlement_amount" gorm:"type:bigint;not null;default:0"`
-	WalletSettledAmount int64  `json:"wallet_settled_amount" gorm:"type:bigint;not null;default:0"`
-	WalletAuthorized    bool   `json:"wallet_authorized" gorm:"not null;default:false"`
-	Status              string `json:"status" gorm:"type:varchar(32);index"` // reserved/consumed/settled/refunded
-	CreatedAt           int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt           int64  `json:"updated_at" gorm:"bigint;index"`
+	Id                   int    `json:"id"`
+	RequestId            string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
+	UserId               int    `json:"user_id" gorm:"index"`
+	UserSubscriptionId   int    `json:"user_subscription_id" gorm:"index"`
+	PlanVersionId        int    `json:"plan_version_id" gorm:"index"`
+	PreConsumed          int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
+	ResetGeneration      int64  `json:"reset_generation" gorm:"type:bigint;not null;default:0"`
+	SettledAmount        int64  `json:"settled_amount" gorm:"type:bigint;not null;default:0"`
+	SettlementAmount     int64  `json:"settlement_amount" gorm:"type:bigint;not null;default:0"`
+	WalletSettledAmount  int64  `json:"wallet_settled_amount" gorm:"type:bigint;not null;default:0"`
+	WalletAuthorized     bool   `json:"wallet_authorized" gorm:"not null;default:false"`
+	AccountingVersion    int    `json:"accounting_version" gorm:"not null;default:0"`
+	CounterAmount        int64  `json:"counter_amount" gorm:"type:bigint;not null;default:0"`
+	WindowCharged        int64  `json:"window_charged" gorm:"type:bigint;not null;default:0"`
+	ChargedGeneration    int64  `json:"charged_generation" gorm:"type:bigint;not null;default:0"`
+	RefundedAmount       int64  `json:"refunded_amount" gorm:"type:bigint;not null;default:0"`
+	WalletRefundedAmount int64  `json:"wallet_refunded_amount" gorm:"type:bigint;not null;default:0"`
+	FundingClosed        bool   `json:"funding_closed" gorm:"not null;default:false"`
+	Status               string `json:"status" gorm:"type:varchar(32);index"` // reserved/consumed/settled/refunded
+	CreatedAt            int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt            int64  `json:"updated_at" gorm:"bigint;index"`
 }
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
@@ -2010,6 +2047,48 @@ func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
 func (r *SubscriptionPreConsumeRecord) BeforeUpdate(tx *gorm.DB) error {
 	r.UpdatedAt = common.GetTimestamp()
 	return nil
+}
+
+// Subscription counters and their funding attribution share one lock order,
+// including administrator restores that update several request receipts.
+func lockSubscriptionFundingTx(tx *gorm.DB, requestId string) (*UserSubscription, *SubscriptionPreConsumeRecord, error) {
+	var identity SubscriptionPreConsumeRecord
+	if err := tx.Select("user_subscription_id").Where("request_id = ?", requestId).First(&identity).Error; err != nil {
+		return nil, nil, err
+	}
+	var sub UserSubscription
+	if err := lockForUpdate(tx).First(&sub, identity.UserSubscriptionId).Error; err != nil {
+		return nil, nil, err
+	}
+	var record SubscriptionPreConsumeRecord
+	if err := lockForUpdate(tx).Where("request_id = ?", requestId).First(&record).Error; err != nil {
+		return nil, nil, err
+	}
+	if record.UserSubscriptionId != sub.Id {
+		return nil, nil, errors.New("subscription funding identity changed")
+	}
+	return &sub, &record, nil
+}
+
+// The subscription row must already be locked. Locking reads observe committed
+// reservations after waiting for that lock, even under MySQL REPEATABLE READ.
+func subscriptionWindowReservedTx(tx *gorm.DB, subscriptionId int, generation int64, excludeRequest string) (int64, error) {
+	var records []SubscriptionPreConsumeRecord
+	query := lockForUpdate(tx).Select("pre_consumed").Where("user_subscription_id = ? AND status = ? AND reset_generation = ?", subscriptionId, "reserved", generation)
+	if excludeRequest != "" {
+		query = query.Where("request_id <> ?", excludeRequest)
+	}
+	if err := query.Order("id").Find(&records).Error; err != nil {
+		return 0, err
+	}
+	var reserved int64
+	for _, record := range records {
+		if record.PreConsumed < 0 || record.PreConsumed > int64(^uint64(0)>>1)-reserved {
+			return 0, errors.New("subscription reservation accounting is invalid")
+		}
+		reserved += record.PreConsumed
+	}
+	return reserved, nil
 }
 
 func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64) error {
@@ -2327,18 +2406,13 @@ func RefundSubscriptionPreConsume(requestId string) error {
 		return errors.New("requestId is empty")
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var record SubscriptionPreConsumeRecord
-		if err := lockForUpdate(tx).
-			Where("request_id = ?", requestId).First(&record).Error; err != nil {
+		lockedSub, lockedRecord, err := lockSubscriptionFundingTx(tx, requestId)
+		if err != nil {
 			return err
 		}
+		sub, record := *lockedSub, *lockedRecord
 		if record.Status == "refunded" || record.Status == "settled" {
 			return nil
-		}
-		var sub UserSubscription
-		if err := lockForUpdate(tx).
-			Where("id = ?", record.UserSubscriptionId).First(&sub).Error; err != nil {
-			return err
 		}
 		if sub.QuotaModelVersion > 0 {
 			if sub.AmountReserved < record.PreConsumed {
@@ -2377,16 +2451,13 @@ func AdjustUserSubscriptionReservation(requestId string, delta int64) error {
 		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var record SubscriptionPreConsumeRecord
-		if err := lockForUpdate(tx).Where("request_id = ?", requestId).First(&record).Error; err != nil {
+		lockedSub, lockedRecord, err := lockSubscriptionFundingTx(tx, requestId)
+		if err != nil {
 			return err
 		}
+		sub, record := *lockedSub, *lockedRecord
 		if record.Status != "reserved" && record.Status != "consumed" {
 			return errors.New("subscription reservation is no longer active")
-		}
-		var sub UserSubscription
-		if err := lockForUpdate(tx).Where("id = ?", record.UserSubscriptionId).First(&sub).Error; err != nil {
-			return err
 		}
 		if sub.QuotaModelVersion == 0 {
 			minInt64 := -int64(^uint64(0)>>1) - 1
@@ -2414,11 +2485,8 @@ func AdjustUserSubscriptionReservation(requestId string, delta int64) error {
 			return errors.New("subscription reservation exceeds available quota")
 		}
 		if delta > 0 && sub.AmountTotal > 0 && NormalizeResetPeriod(sub.QuotaResetPeriod) != SubscriptionResetNever && record.ResetGeneration == sub.ResetGeneration {
-			var windowReserved int64
-			if err := tx.Model(&SubscriptionPreConsumeRecord{}).
-				Select("COALESCE(SUM(pre_consumed), 0)").
-				Where("user_subscription_id = ? AND status = ? AND reset_generation = ?", sub.Id, "reserved", record.ResetGeneration).
-				Scan(&windowReserved).Error; err != nil {
+			windowReserved, err := subscriptionWindowReservedTx(tx, sub.Id, record.ResetGeneration, "")
+			if err != nil {
 				return err
 			}
 			if sub.WindowAmountUsed > sub.WindowAmount || windowReserved > sub.WindowAmount-sub.WindowAmountUsed || delta > sub.WindowAmount-sub.WindowAmountUsed-windowReserved {
@@ -2445,24 +2513,19 @@ type SubscriptionSettlement struct {
 
 // PrepareSubscriptionTaskSettlement gives completion's additional charge its
 // own durable record. Submission is already settled; its original generation
-// must still govern which window completion may charge. Legacy subscriptions
-// return an empty record and retain their existing adjustment path.
+// must still govern which window completion may charge.
 func PrepareSubscriptionTaskSettlement(requestId string) (*SubscriptionPreConsumeRecord, int64, error) {
 	var completion SubscriptionPreConsumeRecord
 	var submitted int64
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		var original SubscriptionPreConsumeRecord
-		if err := lockForUpdate(tx).Where("request_id = ?", requestId).First(&original).Error; err != nil {
-			return err
-		}
-		var sub UserSubscription
-		if err := tx.First(&sub, original.UserSubscriptionId).Error; err != nil {
+		_, original, err := lockSubscriptionFundingTx(tx, requestId)
+		if err != nil {
 			return err
 		}
 		if original.Status == "reserved" || original.Status == "consumed" {
 			return nil
 		}
-		if original.Status != "settled" {
+		if original.Status != "settled" || original.FundingClosed {
 			return errors.New("task submission funding has not settled")
 		}
 		submitted = original.SettlementAmount
@@ -2478,7 +2541,7 @@ func PrepareSubscriptionTaskSettlement(requestId string) (*SubscriptionPreConsum
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&completion).Error; err != nil {
 			return err
 		}
-		return tx.Where("request_id = ?", completion.RequestId).First(&completion).Error
+		return lockForUpdate(tx).Where("request_id = ?", completion.RequestId).First(&completion).Error
 	})
 	return &completion, submitted, err
 }
@@ -2500,11 +2563,12 @@ func SettleUserSubscriptionFunding(requestId string, delta int64) (*Subscription
 	}
 	result := &SubscriptionSettlement{}
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		var record SubscriptionPreConsumeRecord
-		if err := lockForUpdate(tx).Where("request_id = ?", requestId).First(&record).Error; err != nil {
+		lockedSub, lockedRecord, err := lockSubscriptionFundingTx(tx, requestId)
+		if err != nil {
 			return err
 		}
-		if record.Status != "reserved" && record.Status != "consumed" && record.Status != "settled" {
+		sub, record := *lockedSub, *lockedRecord
+		if record.FundingClosed || record.Status != "reserved" && record.Status != "consumed" && record.Status != "settled" {
 			return errors.New("subscription pre-consume is not settleable")
 		}
 		maxInt64 := int64(^uint64(0) >> 1)
@@ -2513,10 +2577,6 @@ func SettleUserSubscriptionFunding(requestId string, delta int64) (*Subscription
 			return errors.New("subscription settlement cannot be negative")
 		}
 		actual := record.PreConsumed + delta
-		var sub UserSubscription
-		if err := lockForUpdate(tx).Where("id = ?", record.UserSubscriptionId).First(&sub).Error; err != nil {
-			return err
-		}
 		if record.Status == "settled" {
 			// Records settled before funding splits have no SettlementAmount.
 			settlementAmount := record.SettlementAmount
@@ -2547,17 +2607,15 @@ func SettleUserSubscriptionFunding(requestId string, delta int64) (*Subscription
 				return errors.New("subscription settlement exceeds supported quota")
 			}
 			if record.ResetGeneration == sub.ResetGeneration && NormalizeResetPeriod(sub.QuotaResetPeriod) != SubscriptionResetNever && sub.AmountTotal > 0 {
-				var otherWindowReserved int64
-				if err := tx.Model(&SubscriptionPreConsumeRecord{}).
-					Select("COALESCE(SUM(pre_consumed), 0)").
-					Where("user_subscription_id = ? AND status = ? AND reset_generation = ? AND request_id <> ?", sub.Id, "reserved", record.ResetGeneration, requestId).
-					Scan(&otherWindowReserved).Error; err != nil {
+				otherWindowReserved, err := subscriptionWindowReservedTx(tx, sub.Id, record.ResetGeneration, requestId)
+				if err != nil {
 					return err
 				}
 				// The shared charge updates both counters once. Any further
 				// subscription charge uses only the remaining total allowance.
 				windowCharge := min(actual, max(max(sub.WindowAmount-sub.WindowAmountUsed, 0)-otherWindowReserved, 0))
 				sub.WindowAmountUsed += windowCharge
+				record.WindowCharged = windowCharge
 			}
 			sub.AmountReserved = otherReserved
 			sub.TotalAmountUsed += actual
@@ -2584,6 +2642,9 @@ func SettleUserSubscriptionFunding(requestId string, delta int64) (*Subscription
 			sub.AmountUsed = newUsed
 			record.SettledAmount = actual
 		}
+		record.AccountingVersion = 1
+		record.CounterAmount = actual
+		record.ChargedGeneration = sub.ResetGeneration
 		if err := tx.Save(&sub).Error; err != nil {
 			return err
 		}
@@ -2610,21 +2671,18 @@ func SettleSubscriptionWalletOverflow(requestId string) (int64, error) {
 	var charged, walletAmount int64
 	var userId int
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		var record SubscriptionPreConsumeRecord
-		if err := lockForUpdate(tx).Where("request_id = ?", requestId).First(&record).Error; err != nil {
+		lockedSub, lockedRecord, err := lockSubscriptionFundingTx(tx, requestId)
+		if err != nil {
 			return err
 		}
-		if record.Status != "settled" {
+		sub, record := *lockedSub, *lockedRecord
+		if record.Status != "settled" || record.FundingClosed {
 			return errors.New("subscription funding has not settled")
 		}
 		walletAmount = record.WalletSettledAmount
 		remaining := record.SettlementAmount - record.SettledAmount - walletAmount
 		if remaining <= 0 {
 			return nil
-		}
-		var sub UserSubscription
-		if err := tx.First(&sub, record.UserSubscriptionId).Error; err != nil {
-			return err
 		}
 		if sub.QuotaModelVersion == 0 || !sub.AllowWalletOverflow || !record.WalletAuthorized {
 			return errors.New("subscription wallet overflow is disabled")

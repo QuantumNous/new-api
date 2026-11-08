@@ -55,7 +55,7 @@ func TestSubscriptionSettlementFundingMatrix(t *testing.T) {
 				require.NoError(t, sqlDB.Close())
 			})
 			for range 2 {
-				require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.Task{}, &model.Log{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{}))
+				require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.Task{}, &model.Log{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{}, &model.SubscriptionQuotaOperation{}))
 			}
 			var version string
 			query := "select version()"
@@ -465,6 +465,106 @@ type subscriptionFundingReleasedRecord struct {
 
 func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 	t.Helper()
+	t.Run("settled task refunds both funding portions once", func(t *testing.T) {
+		ctx, info, sub := subscriptionFundingFixture(t, db, 400, 340, 100, 60, true)
+		session, apiErr := NewBillingSession(ctx, info, 10)
+		require.Nil(t, apiErr)
+		require.NoError(t, session.Settle(10))
+		task := model.Task{TaskID: info.RequestId, UserId: info.UserId, Quota: 10, PrivateData: model.TaskPrivateData{
+			BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id,
+			Execution: &model.TaskExecutionSnapshot{RequestID: info.RequestId},
+		}}
+		require.NoError(t, db.Create(&task).Error)
+		t.Cleanup(func() {
+			require.NoError(t, db.Delete(&task).Error)
+			require.NoError(t, db.Where("user_id = ?", info.UserId).Delete(&model.Log{}).Error)
+		})
+		RecalculateTaskQuota(ctx, &task, 90, common.NewMessage("completion"))
+		token := model.Token{UserId: info.UserId, Key: fmt.Sprintf("refund-%d", sub.Id), RemainQuota: 910, UsedQuota: 90}
+		require.NoError(t, db.Create(&token).Error)
+		t.Cleanup(func() { require.NoError(t, db.Unscoped().Delete(&token).Error) })
+		task.PrivateData.TokenId = token.Id
+		require.NoError(t, task.Update())
+		require.NoError(t, db.Model(&model.User{}).Where("id = ?", info.UserId).Update("used_quota", 90).Error)
+		stale := task
+		failWrite := true
+		callback := "subscription_refund_task_failure"
+		require.NoError(t, db.Callback().Update().Before("gorm:update").Register(callback, func(tx *gorm.DB) {
+			if tx.Statement.Table == "tasks" && failWrite {
+				tx.AddError(errors.New("task receipt unavailable"))
+			}
+		}))
+		t.Cleanup(func() { require.NoError(t, db.Callback().Update().Remove(callback)) })
+		require.False(t, RefundTaskQuota(ctx, &task, "failed receipt"))
+		require.NoError(t, db.First(&token, token.Id).Error)
+		assert.Equal(t, 910, token.RemainQuota)
+		assert.Equal(t, 90, task.Quota)
+		failWrite = false
+		require.True(t, RefundTaskQuota(ctx, &task, "failed after settlement"))
+		require.True(t, RefundTaskQuota(ctx, &stale, "duplicate refund"))
+		wallet, err := model.GetUserQuota(info.UserId, true)
+		require.NoError(t, err)
+		assert.Equal(t, 200, wallet)
+		require.NoError(t, db.First(&sub, sub.Id).Error)
+		assert.EqualValues(t, 340, sub.TotalAmountUsed)
+		assert.EqualValues(t, 60, sub.WindowAmountUsed)
+		assert.EqualValues(t, 340, sub.HistoricalAmountUsed)
+		assert.Zero(t, task.Quota)
+		require.NoError(t, db.First(&token, token.Id).Error)
+		assert.Equal(t, 1000, token.RemainQuota)
+		assert.Zero(t, token.UsedQuota)
+		var user model.User
+		require.NoError(t, db.First(&user, info.UserId).Error)
+		assert.Zero(t, user.UsedQuota)
+	})
+	for _, legacy := range []bool{false, true} {
+		for _, reset := range []string{"natural", model.SubscriptionQuotaActionRestoreWindow, model.SubscriptionQuotaActionInitialize} {
+			t.Run(fmt.Sprintf("task refund preserves later usage legacy=%t reset=%s", legacy, reset), func(t *testing.T) {
+				ctx, info, sub := subscriptionFundingFixture(t, db, 500, 0, 100, 0, false)
+				if legacy {
+					sub.QuotaModelVersion = 0
+					sub.LegacyResetPeriod = model.SubscriptionResetDaily
+					require.NoError(t, db.Save(&sub).Error)
+				}
+				session, apiErr := NewBillingSession(ctx, info, 10)
+				require.Nil(t, apiErr)
+				require.NoError(t, session.Settle(10))
+				task := model.Task{TaskID: info.RequestId, UserId: info.UserId, Quota: 10, PrivateData: model.TaskPrivateData{
+					BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id,
+					Execution: &model.TaskExecutionSnapshot{RequestID: info.RequestId},
+				}}
+				require.NoError(t, db.Create(&task).Error)
+				t.Cleanup(func() {
+					require.NoError(t, db.Delete(&task).Error)
+					require.NoError(t, db.Where("user_id = ?", info.UserId).Delete(&model.Log{}).Error)
+					require.NoError(t, db.Where("user_subscription_id = ?", sub.Id).Delete(&model.SubscriptionQuotaOperation{}).Error)
+				})
+				RecalculateTaskQuota(ctx, &task, 90, common.NewMessage("completion"))
+				if reset == "natural" {
+					updates := map[string]any{"window_amount_used": 0, "reset_generation": gorm.Expr("reset_generation + 1")}
+					if legacy {
+						updates["amount_used"] = 0
+					}
+					require.NoError(t, db.Model(&sub).Updates(updates).Error)
+				} else {
+					_, err := model.AdminRestoreUserSubscriptionQuota(info.UserId, sub.Id, reset, fmt.Sprintf("refund-reset-%d", sub.Id), 1, "test reset")
+					require.NoError(t, err)
+				}
+				otherRequest := info.RequestId + "-other"
+				_, err := model.PreConsumeUserSubscription(otherRequest, info.UserId, "", 0, 20)
+				require.NoError(t, err)
+				require.NoError(t, model.SettleUserSubscriptionPreConsume(otherRequest, 0))
+				require.True(t, RefundTaskQuota(ctx, &task, "refund after reset"))
+				require.NoError(t, db.First(&sub, sub.Id).Error)
+				assert.EqualValues(t, 20, sub.AmountUsed)
+				if !legacy {
+					assert.EqualValues(t, 20, sub.TotalAmountUsed)
+					assert.EqualValues(t, 20, sub.WindowAmountUsed)
+					assert.EqualValues(t, 20, sub.HistoricalAmountUsed)
+				}
+			})
+		}
+	}
 	t.Run("strict task authorization survives old-node private data rewrites", func(t *testing.T) {
 		ctx, info, sub := subscriptionFundingFixture(t, db, 400, 340, 100, 60, true)
 		info.UserSetting.BillingPreference = "subscription_only"
