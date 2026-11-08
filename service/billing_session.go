@@ -54,37 +54,46 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		return errors.New("actual quota must not be negative")
 	}
 	delta := actualQuota - s.preConsumedQuota
+	committedQuota := actualQuota
+	var fundingErr error
 	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
 	if !s.fundingSettled {
-		err := s.funding.Settle(delta)
+		fundingErr = s.funding.Settle(delta)
 		if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.settlement != nil {
 			// Publish committed portions even when a later funding step fails.
 			s.relayInfo.SubscriptionPostDelta = sub.settlement.SubscriptionAmount - s.relayInfo.SubscriptionPreConsumed
 			s.relayInfo.SubscriptionAmountUsedAfterPreConsume = sub.settlement.TotalUsed - s.relayInfo.SubscriptionPostDelta
 			s.relayInfo.SubscriptionWalletConsumed = sub.settlement.WalletAmount
 			s.relayInfo.SubscriptionUnfunded = sub.settlement.UnfundedAmount
+			committedQuota = int(sub.settlement.SubscriptionAmount + sub.settlement.WalletAmount)
 		}
-		if err != nil {
-			return err
+		if fundingErr != nil {
+			if sub, ok := s.funding.(*SubscriptionFunding); !ok || sub.settlement == nil {
+				return fundingErr
+			}
 		}
-		s.fundingSettled = true
+		s.fundingSettled = fundingErr == nil
 	}
 	// 2) 调整令牌额度
 	var tokenErr error
-	if delta != 0 && !s.relayInfo.IsPlayground {
-		if delta > 0 {
-			tokenErr = model.DecreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta)
+	tokenDelta := committedQuota - s.tokenConsumed
+	if tokenDelta != 0 && !s.relayInfo.IsPlayground {
+		if tokenDelta > 0 {
+			tokenErr = model.DecreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, tokenDelta)
 		} else {
-			tokenErr = model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, -delta)
+			tokenErr = model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, -tokenDelta)
 		}
 		if tokenErr != nil {
-			// 资金来源已提交，令牌调整失败只能记录日志；标记 settled 防止 Refund 误退资金
+			// Keep the committed funding and retry only the outstanding token adjustment.
 			common.SysLog(common.LogText("error adjusting token quota after funding settled (userId=%d, tokenId=%d, delta=%d): %s",
-				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
+				s.relayInfo.UserId, s.relayInfo.TokenId, tokenDelta, tokenErr.Error()))
 		}
 	}
-	s.settled = true
-	return tokenErr
+	if tokenErr == nil {
+		s.tokenConsumed = committedQuota
+	}
+	s.settled = s.fundingSettled && tokenErr == nil
+	return errors.Join(fundingErr, tokenErr)
 }
 
 // Refund 退还所有预扣费，幂等安全，异步执行。

@@ -581,6 +581,10 @@ func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 	}
 	t.Run("wallet transaction failure retains subscription and retries once", func(t *testing.T) {
 		ctx, info, sub := subscriptionFundingFixture(t, db, 400, 340, 100, 60, true)
+		token := model.Token{UserId: info.UserId, Key: fmt.Sprintf("partial-token-%d", info.UserId), RemainQuota: 1000}
+		require.NoError(t, db.Create(&token).Error)
+		t.Cleanup(func() { require.NoError(t, db.Unscoped().Delete(&token).Error) })
+		info.IsPlayground, info.TokenId, info.TokenKey = false, token.Id, token.Key
 		session, apiErr := NewBillingSession(ctx, info, 10)
 		require.Nil(t, apiErr)
 		// Fail the wallet marker write after its debit, so the wallet transaction
@@ -594,6 +598,8 @@ func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 		}))
 		t.Cleanup(func() { require.NoError(t, db.Callback().Update().Remove(callback)) })
 		require.ErrorContains(t, session.Settle(90), "wallet marker write failed")
+		require.NoError(t, db.First(&token, token.Id).Error)
+		assert.EqualValues(t, 940, token.RemainQuota)
 		assert.False(t, session.NeedsRefund())
 		session.Refund(ctx)
 		subs, err := model.GetAllUserSubscriptions(info.UserId)
@@ -609,6 +615,9 @@ func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 		assert.EqualValues(t, 0, other.Snapshot()["wallet_quota_deducted"])
 		failWallet = false
 		require.NoError(t, session.Settle(90))
+		require.NoError(t, session.Settle(90))
+		require.NoError(t, db.First(&token, token.Id).Error)
+		assert.EqualValues(t, 910, token.RemainQuota)
 		// Recover the split from the durable record, independent of this session.
 		result, err := model.SettleUserSubscriptionFunding(info.RequestId, 80)
 		require.NoError(t, err)
@@ -751,7 +760,10 @@ func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 		require.ErrorContains(t, session.Settle(90), "token adjustment failed")
 		assert.False(t, session.NeedsRefund())
 		session.Refund(ctx)
+		require.NoError(t, db.Callback().Update().Remove(callback))
 		require.NoError(t, session.Settle(90))
+		require.NoError(t, db.First(&token, token.Id).Error)
+		assert.EqualValues(t, 110, token.RemainQuota)
 		wallet, err := model.GetUserQuota(info.UserId, true)
 		require.NoError(t, err)
 		assert.Equal(t, 170, wallet)
