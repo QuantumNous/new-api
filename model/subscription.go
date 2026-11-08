@@ -2446,9 +2446,6 @@ func PrepareSubscriptionTaskSettlement(requestId string) (*SubscriptionPreConsum
 		if err := tx.First(&sub, original.UserSubscriptionId).Error; err != nil {
 			return err
 		}
-		if sub.QuotaModelVersion == 0 {
-			return nil
-		}
 		if original.Status == "reserved" || original.Status == "consumed" {
 			return nil
 		}

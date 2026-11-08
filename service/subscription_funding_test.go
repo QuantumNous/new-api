@@ -709,7 +709,7 @@ func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 		assert.Equal(t, 200, wallet)
 		require.NoError(t, session.Settle(10))
 	})
-	t.Run("legacy async completion retains settled record behavior", func(t *testing.T) {
+	t.Run("legacy async completion charges the extra usage exactly once", func(t *testing.T) {
 		ctx, info, sub := subscriptionFundingFixture(t, db, 400, 340, 100, 60, true)
 		require.NoError(t, db.Model(&sub).Update("quota_model_version", 0).Error)
 		session, apiErr := NewBillingSession(ctx, info, 10)
@@ -725,9 +725,10 @@ func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 			require.NoError(t, db.Where("user_id = ?", info.UserId).Delete(&model.Log{}).Error)
 		})
 		RecalculateTaskQuota(ctx, &task, 30, common.NewMessage("legacy completion"))
+		RecalculateTaskQuota(ctx, &task, 30, common.NewMessage("legacy completion retry"))
 		assert.Equal(t, 30, task.Quota)
 		require.NoError(t, db.First(&sub, sub.Id).Error)
-		assert.EqualValues(t, 350, sub.AmountUsed)
+		assert.EqualValues(t, 370, sub.AmountUsed)
 		wallet, err := model.GetUserQuota(info.UserId, true)
 		require.NoError(t, err)
 		assert.Equal(t, 200, wallet)
