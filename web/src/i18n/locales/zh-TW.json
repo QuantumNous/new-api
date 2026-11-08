@@ -6044,6 +6044,7 @@
     "Subscription Management": "訂閱管理",
     "Subscription Only": "僅用訂閱",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "管理員在支付閘道設定中確認合規條款之前，訂閱套餐的建立和修改會被鎖定。",
+    "Subscription plan has changed. Refresh and confirm the current terms before paying": "訂閱方案已變更，請重新整理並確認目前條款後再付款",
     "Subscription plan is not enabled": "訂閱方案未啟用",
     "Subscription plan title cannot be empty": "訂閱方案標題不能為空",
     "Subscription Plans": "訂閱套餐",

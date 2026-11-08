@@ -17,8 +17,9 @@ import (
 )
 
 type SubscriptionEpayPayRequest struct {
-	PlanId        int    `json:"plan_id"`
-	PaymentMethod string `json:"payment_method"`
+	PlanId                int    `json:"plan_id"`
+	ExpectedPlanVersionId int    `json:"expected_plan_version_id"`
+	PaymentMethod         string `json:"payment_method"`
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
@@ -37,7 +38,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	planVersion, err := model.GetOrCreateCurrentSubscriptionPlanVersion(plan.Id)
+	planVersion, err := model.GetOrCreateCurrentSubscriptionPlanVersion(plan.Id, req.ExpectedPlanVersionId)
 	if err != nil {
 		common.ApiError(c, err)
 		return

@@ -6044,6 +6044,7 @@
     "Subscription Management": "Quản lý đăng ký",
     "Subscription Only": "Chỉ đăng ký",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "Việc tạo và thay đổi gói đăng ký bị khóa cho đến khi quản trị viên xác nhận điều khoản tuân thủ trong cài đặt Cổng thanh toán.",
+    "Subscription plan has changed. Refresh and confirm the current terms before paying": "Gói đã thay đổi. Hãy tải lại và xác nhận điều khoản hiện tại trước khi thanh toán",
     "Subscription plan is not enabled": "Gói đăng ký chưa được bật",
     "Subscription plan title cannot be empty": "Tiêu đề gói đăng ký không được để trống",
     "Subscription Plans": "Gói đăng ký",

@@ -89,3 +89,58 @@ func TestAdminRestoreUserSubscriptionQuotaRequiresAdminAndIsIdempotent(t *testin
 	assert.Equal(t, "customer support request", operations[0].Reason)
 	assert.Greater(t, operations[0].CreatedAt, int64(0))
 }
+
+func TestSubscriptionPurchasesRejectUnconfirmedPlanVersion(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	confirmPaymentComplianceForTest(t)
+	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}, &model.SubscriptionPlanVersion{}, &model.SubscriptionOrder{}, &model.UserSubscription{}))
+	plan := model.SubscriptionPlan{Title: "confirmed terms", Enabled: true, PriceAmount: 10, DurationUnit: model.SubscriptionDurationMonth, DurationValue: 1, TotalAmount: 400, WindowAmount: 100, QuotaModelVersion: 1}
+	require.NoError(t, db.Create(&plan).Error)
+	version, err := model.GetOrCreateCurrentSubscriptionPlanVersion(plan.Id)
+	require.NoError(t, err)
+	require.NoError(t, db.Model(&plan).Updates(map[string]any{"title": "new terms", "price_amount": 20}).Error)
+	user := model.User{Username: "version-confirm", Password: "unused", Quota: 10_000_000, AffCode: "version-confirm"}
+	require.NoError(t, db.Create(&user).Error)
+	for _, handler := range []struct {
+		name string
+		fn   gin.HandlerFunc
+	}{
+		{"balance", SubscriptionRequestBalancePay}, {"stripe", SubscriptionRequestStripePay},
+		{"creem", SubscriptionRequestCreemPay}, {"epay", SubscriptionRequestEpay},
+		{"waffo", SubscriptionRequestWaffoPancakePay},
+	} {
+		t.Run(handler.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Set("id", user.Id)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/purchase", strings.NewReader(fmt.Sprintf(`{"plan_id":%d,"expected_plan_version_id":%d}`, plan.Id, version.Id)))
+			ctx.Request.Header.Set("Content-Type", "application/json")
+			handler.fn(ctx)
+			assert.Contains(t, recorder.Body.String(), "Subscription plan has changed")
+			var orders int64
+			require.NoError(t, db.Model(&model.SubscriptionOrder{}).Count(&orders).Error)
+			assert.Zero(t, orders)
+			var unchanged model.User
+			require.NoError(t, db.First(&unchanged, user.Id).Error)
+			assert.Equal(t, user.Quota, unchanged.Quota)
+		})
+	}
+	// Both listing APIs expose terms belonging to the accompanying version ID.
+	for _, handler := range []gin.HandlerFunc{GetSubscriptionPlans, AdminListSubscriptionPlans} {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/plans", nil)
+		handler(ctx)
+		var response struct {
+			Data []SubscriptionPlanDTO `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.Len(t, response.Data, 1)
+		current, err := model.GetSubscriptionPlanVersionById(response.Data[0].PlanVersionId)
+		require.NoError(t, err)
+		terms, err := current.PlanTerms()
+		require.NoError(t, err)
+		assert.Equal(t, terms.Title, response.Data[0].Plan.Title)
+		assert.Equal(t, terms.PriceAmount, response.Data[0].Plan.PriceAmount)
+	}
+}

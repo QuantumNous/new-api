@@ -6044,6 +6044,7 @@
     "Subscription Management": "Gestion des abonnements",
     "Subscription Only": "Abonnement uniquement",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "La création et la modification des forfaits d’abonnement sont verrouillées jusqu’à ce que l’administrateur confirme les conditions de conformité dans les paramètres de la passerelle de paiement.",
+    "Subscription plan has changed. Refresh and confirm the current terms before paying": "L’offre a changé. Actualisez et confirmez les conditions avant de payer",
     "Subscription plan is not enabled": "Le forfait d'abonnement n'est pas activé",
     "Subscription plan title cannot be empty": "Le titre du forfait d'abonnement ne peut pas être vide",
     "Subscription Plans": "Plans d'abonnement",

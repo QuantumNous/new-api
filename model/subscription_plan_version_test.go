@@ -50,6 +50,24 @@ func TestSubscriptionPurchaseRejectsStaleCachedEligibilityMatrix(t *testing.T) {
 	})
 }
 
+func TestSubscriptionPurchaseRejectsChangedConfirmedTermsMatrix(t *testing.T) {
+	runSubscriptionAccountingMatrix(t, func(t *testing.T) {
+		plan := createPlanVersionTestPlan(t, "confirmed")
+		version, err := GetOrCreateCurrentSubscriptionPlanVersion(plan.Id)
+		require.NoError(t, err)
+		require.NoError(t, DB.Model(plan).Update("price_amount", 20).Error)
+		err = PurchaseSubscriptionWithBalance(1, plan.Id, version.Id)
+		require.ErrorContains(t, err, "Subscription plan has changed")
+		_, err = GetOrCreateCurrentSubscriptionPlanVersion(plan.Id, version.Id)
+		require.ErrorContains(t, err, "Subscription plan has changed")
+		current, err := GetOrCreateCurrentSubscriptionPlanVersion(plan.Id)
+		require.NoError(t, err)
+		confirmed, err := GetOrCreateCurrentSubscriptionPlanVersion(plan.Id, current.Id)
+		require.NoError(t, err)
+		assert.Equal(t, current.Id, confirmed.Id)
+	})
+}
+
 func TestSubscriptionLazyVersionConcurrentPurchasesMatrix(t *testing.T) {
 	runSubscriptionAccountingMatrix(t, func(t *testing.T) {
 		plan := createPlanVersionTestPlan(t, "concurrent legacy plan")

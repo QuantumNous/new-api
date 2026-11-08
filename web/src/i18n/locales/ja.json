@@ -6044,6 +6044,7 @@
     "Subscription Management": "サブスクリプション管理",
     "Subscription Only": "サブスクリプションのみ",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "管理者が支払いゲートウェイ設定でコンプライアンス条件を確認するまで、サブスクリプションプランの作成と変更はロックされます。",
+    "Subscription plan has changed. Refresh and confirm the current terms before paying": "プランが変更されました。更新して現在の条件を確認してからお支払いください",
     "Subscription plan is not enabled": "サブスクリプションプランは有効になっていません",
     "Subscription plan title cannot be empty": "サブスクリプションプランのタイトルを入力してください",
     "Subscription Plans": "サブスクリプションプラン",

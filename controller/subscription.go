@@ -25,7 +25,8 @@ type BillingPreferenceRequest struct {
 }
 
 type SubscriptionBalancePayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId                int `json:"plan_id"`
+	ExpectedPlanVersionId int `json:"expected_plan_version_id"`
 }
 
 // ---- User APIs ----
@@ -126,7 +127,7 @@ func SubscriptionRequestBalancePay(c *gin.Context) {
 		return
 	}
 
-	if err := model.PurchaseSubscriptionWithBalance(userId, req.PlanId); err != nil {
+	if err := model.PurchaseSubscriptionWithBalance(userId, req.PlanId, req.ExpectedPlanVersionId); err != nil {
 		common.ApiError(c, err)
 		return
 	}

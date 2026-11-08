@@ -345,7 +345,7 @@ func GetOrCreateCurrentSubscriptionPlanVersionTx(tx *gorm.DB, plan *Subscription
 	return result, err
 }
 
-func GetOrCreateCurrentSubscriptionPlanVersion(planId int) (*SubscriptionPlanVersion, error) {
+func GetOrCreateCurrentSubscriptionPlanVersion(planId int, expectedVersion ...int) (*SubscriptionPlanVersion, error) {
 	if planId <= 0 {
 		return nil, errors.New("invalid subscription plan id")
 	}
@@ -356,6 +356,9 @@ func GetOrCreateCurrentSubscriptionPlanVersion(planId int) (*SubscriptionPlanVer
 			return err
 		}
 		result, err = GetOrCreateCurrentSubscriptionPlanVersionTx(tx, plan)
+		if err == nil && len(expectedVersion) > 0 && expectedVersion[0] != 0 && expectedVersion[0] != result.Id {
+			return common.NewMessage("Subscription plan has changed. Refresh and confirm the current terms before paying")
+		}
 		return err
 	})
 	return result, err
@@ -1192,7 +1195,7 @@ func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
 }
 
 // PurchaseSubscriptionWithBalance creates a subscription by deducting the user's wallet quota.
-func PurchaseSubscriptionWithBalance(userId int, planId int) error {
+func PurchaseSubscriptionWithBalance(userId int, planId int, expectedVersion ...int) error {
 	if userId <= 0 || planId <= 0 {
 		return errors.New("invalid userId or planId")
 	}
@@ -1218,6 +1221,9 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		planVersion, err := GetOrCreateCurrentSubscriptionPlanVersionTx(tx, plan)
 		if err != nil {
 			return err
+		}
+		if len(expectedVersion) > 0 && expectedVersion[0] != 0 && expectedVersion[0] != planVersion.Id {
+			return common.NewMessage("Subscription plan has changed. Refresh and confirm the current terms before paying")
 		}
 		versionPlan, err := planVersion.PlanTerms()
 		if err != nil {

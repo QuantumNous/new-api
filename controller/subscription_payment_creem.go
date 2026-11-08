@@ -16,7 +16,8 @@ import (
 )
 
 type SubscriptionCreemPayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId                int `json:"plan_id"`
+	ExpectedPlanVersionId int `json:"expected_plan_version_id"`
 }
 
 func SubscriptionRequestCreemPay(c *gin.Context) {
@@ -45,7 +46,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	planVersion, err := model.GetOrCreateCurrentSubscriptionPlanVersion(plan.Id)
+	planVersion, err := model.GetOrCreateCurrentSubscriptionPlanVersion(plan.Id, req.ExpectedPlanVersionId)
 	if err != nil {
 		common.ApiError(c, err)
 		return

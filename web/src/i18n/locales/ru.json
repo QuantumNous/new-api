@@ -6044,6 +6044,7 @@
     "Subscription Management": "Управление подписками",
     "Subscription Only": "Только подписка",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "Создание и изменение планов подписки заблокированы, пока администратор не подтвердит условия соответствия в настройках платежного шлюза.",
+    "Subscription plan has changed. Refresh and confirm the current terms before paying": "План изменён. Обновите страницу и подтвердите условия перед оплатой",
     "Subscription plan is not enabled": "План подписки не включен",
     "Subscription plan title cannot be empty": "Название плана подписки не может быть пустым",
     "Subscription Plans": "Планы подписки",

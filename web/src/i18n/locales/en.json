@@ -6044,6 +6044,7 @@
     "Subscription Management": "Subscription Management",
     "Subscription Only": "Subscription Only",
     "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.": "Subscription plan creation and changes are locked until the administrator confirms compliance terms in Payment Gateway settings.",
+    "Subscription plan has changed. Refresh and confirm the current terms before paying": "Subscription plan has changed. Refresh and confirm the current terms before paying",
     "Subscription plan is not enabled": "Subscription plan is not enabled",
     "Subscription plan title cannot be empty": "Subscription plan title cannot be empty",
     "Subscription Plans": "Subscription Plans",
