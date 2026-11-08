@@ -7461,6 +7461,8 @@
     "Failed to load wallet data": "Tải dữ liệu ví thất bại",
     "Your balance may be out of date. Check your connection and retry.": "Số dư có thể không còn chính xác. Hãy kiểm tra kết nối và thử lại.",
     "Failed to prepare attachments": "Chuẩn bị tệp đính kèm thất bại",
-    "Your draft was kept. Please try again.": "Bản nháp của bạn đã được giữ lại. Vui lòng thử lại."
+    "Your draft was kept. Please try again.": "Bản nháp của bạn đã được giữ lại. Vui lòng thử lại.",
+    "Hide sidebar toggle on home page": "Ẩn nút thanh bên trên trang chủ",
+    "Hides the mobile navigation menu button on the public home page. The console sidebar is unaffected.": "Ẩn nút menu điều hướng trên thiết bị di động ở trang chủ công khai. Thanh bên của bảng điều khiển không bị ảnh hưởng."
   }
 }

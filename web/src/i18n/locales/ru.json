@@ -7461,6 +7461,8 @@
     "Failed to load wallet data": "Не удалось загрузить данные кошелька",
     "Your balance may be out of date. Check your connection and retry.": "Возможно, баланс устарел. Проверьте соединение и повторите попытку.",
     "Failed to prepare attachments": "Не удалось подготовить вложения",
-    "Your draft was kept. Please try again.": "Черновик сохранён. Повторите попытку."
+    "Your draft was kept. Please try again.": "Черновик сохранён. Повторите попытку.",
+    "Hide sidebar toggle on home page": "Скрыть кнопку боковой панели на главной странице",
+    "Hides the mobile navigation menu button on the public home page. The console sidebar is unaffected.": "Скрывает кнопку мобильного меню навигации на публичной главной странице. Боковая панель консоли не затрагивается."
   }
 }

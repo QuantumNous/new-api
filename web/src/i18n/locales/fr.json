@@ -7461,6 +7461,8 @@
     "Failed to load wallet data": "Échec du chargement des données du portefeuille",
     "Your balance may be out of date. Check your connection and retry.": "Votre solde est peut-être obsolète. Vérifiez votre connexion et réessayez.",
     "Failed to prepare attachments": "Échec de la préparation des pièces jointes",
-    "Your draft was kept. Please try again.": "Votre brouillon a été conservé. Veuillez réessayer."
+    "Your draft was kept. Please try again.": "Votre brouillon a été conservé. Veuillez réessayer.",
+    "Hide sidebar toggle on home page": "Masquer le bouton de la barre latérale sur la page d’accueil",
+    "Hides the mobile navigation menu button on the public home page. The console sidebar is unaffected.": "Masque le bouton du menu de navigation mobile sur la page d’accueil publique. La barre latérale de la console n’est pas affectée."
   }
 }

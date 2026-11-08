@@ -263,3 +263,28 @@ describe('module guard status freshness', () => {
     }
   )
 })
+
+// The public header reads this flag from the persisted system config, so the
+// status mapping is the contract that must stay true.
+test('maps the home page sidebar toggle flag from status', async () => {
+  apiClient.get = async (url) => {
+    if (url !== '/api/status') throw new Error(`Unexpected GET ${url}`)
+    statusRequests.push(url)
+    return {
+      data: {
+        success: true,
+        data: {
+          system_name: 'mapped',
+          hide_home_page_sidebar_toggle: true,
+        },
+      },
+    }
+  }
+  const queryClient = createQueryClient()
+
+  await ensureStatus(queryClient)
+
+  expect(useSystemConfigStore.getState().config.hideHomePageSidebarToggle).toBe(
+    true
+  )
+})

@@ -7461,6 +7461,8 @@
     "Failed to load wallet data": "加载钱包数据失败",
     "Your balance may be out of date. Check your connection and retry.": "你的余额可能不是最新的，请检查网络后重试。",
     "Failed to prepare attachments": "准备附件失败",
-    "Your draft was kept. Please try again.": "已保留你的草稿，请重试。"
+    "Your draft was kept. Please try again.": "已保留你的草稿，请重试。",
+    "Hide sidebar toggle on home page": "隐藏主页侧边栏按钮",
+    "Hides the mobile navigation menu button on the public home page. The console sidebar is unaffected.": "在公开主页隐藏移动端导航菜单按钮，控制台侧边栏不受影响。"
   }
 }

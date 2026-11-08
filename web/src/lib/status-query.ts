@@ -99,6 +99,7 @@ export function mapStatusDataToConfig(
     displayTokenStatEnabled: data.display_token_stat_enabled as
       | boolean
       | undefined,
+    hideHomePageSidebarToggle: data.hide_home_page_sidebar_toggle === true,
     currency,
   }
 }

@@ -38,6 +38,7 @@ const defaultSiteSettings: SiteSettings = {
   'legal.privacy_policy': '',
   HeaderNavModules: '',
   SidebarModulesAdmin: '',
+  HideHomePageSidebarToggle: false,
 }
 
 export function SiteSettings() {

@@ -51,6 +51,7 @@ import {
 const headerNavSchema = z.object({
   home: z.boolean(),
   console: z.boolean(),
+  hideHomePageSidebarToggle: z.boolean(),
   pricingEnabled: z.boolean(),
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
@@ -64,9 +65,14 @@ type HeaderNavFormValues = z.infer<typeof headerNavSchema>
 type HeaderNavigationSectionProps = {
   config: HeaderNavModulesConfig
   initialSerialized: string
+  hideHomePageSidebarToggle: boolean
 }
 
-const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
+const toFormValues = (
+  config: HeaderNavModulesConfig,
+  hideHomePageSidebarToggle: boolean
+): HeaderNavFormValues => ({
+  hideHomePageSidebarToggle,
   home:
     config.home === undefined ? HEADER_NAV_DEFAULT.home : Boolean(config.home),
   console:
@@ -100,10 +106,14 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
 export function HeaderNavigationSection({
   config,
   initialSerialized,
+  hideHomePageSidebarToggle,
 }: HeaderNavigationSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
-  const formDefaults = useMemo(() => toFormValues(config), [config])
+  const formDefaults = useMemo(
+    () => toFormValues(config, hideHomePageSidebarToggle),
+    [config, hideHomePageSidebarToggle]
+  )
 
   const form = useForm<HeaderNavFormValues>({
     resolver: zodResolver(headerNavSchema),
@@ -134,18 +144,22 @@ export function HeaderNavigationSection({
     }
 
     const serialized = serializeHeaderNavModules(payload)
-    if (serialized === initialSerialized) {
-      return
+    if (serialized !== initialSerialized) {
+      await updateOption.mutateAsync({
+        key: 'HeaderNavModules',
+        value: serialized,
+      })
     }
-
-    await updateOption.mutateAsync({
-      key: 'HeaderNavModules',
-      value: serialized,
-    })
+    if (values.hideHomePageSidebarToggle !== hideHomePageSidebarToggle) {
+      await updateOption.mutateAsync({
+        key: 'HideHomePageSidebarToggle',
+        value: values.hideHomePageSidebarToggle,
+      })
+    }
   }
 
   const resetToDefault = () => {
-    form.reset(toFormValues(HEADER_NAV_DEFAULT))
+    form.reset(toFormValues(HEADER_NAV_DEFAULT, false))
   }
 
   const simpleModules: Array<{
@@ -243,6 +257,30 @@ export function HeaderNavigationSection({
               />
             ))}
           </div>
+
+          <FormField
+            control={form.control}
+            name='hideHomePageSidebarToggle'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Hide sidebar toggle on home page')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Hides the mobile navigation menu button on the public home page. The console sidebar is unaffected.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
 
           <div className='grid gap-4 lg:grid-cols-2'>
             {accessModules.map((module) => (

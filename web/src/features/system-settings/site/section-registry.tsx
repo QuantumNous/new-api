@@ -71,6 +71,9 @@ const SITE_SECTIONS = [
         <HeaderNavigationSection
           config={headerNavConfig}
           initialSerialized={headerNavSerialized}
+          hideHomePageSidebarToggle={Boolean(
+            settings.HideHomePageSidebarToggle
+          )}
         />
       )
     },

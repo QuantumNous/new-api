@@ -44,6 +44,8 @@ export interface SystemConfig {
   footerHtml?: string
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
+  /** Admin toggle: hide the navigation toggle button on the public home page. */
+  hideHomePageSidebarToggle?: boolean
   currency: CurrencyConfig
 }
 

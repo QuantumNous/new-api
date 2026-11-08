@@ -7461,6 +7461,8 @@
     "Failed to load wallet data": "Failed to load wallet data",
     "Your balance may be out of date. Check your connection and retry.": "Your balance may be out of date. Check your connection and retry.",
     "Failed to prepare attachments": "Failed to prepare attachments",
-    "Your draft was kept. Please try again.": "Your draft was kept. Please try again."
+    "Your draft was kept. Please try again.": "Your draft was kept. Please try again.",
+    "Hide sidebar toggle on home page": "Hide sidebar toggle on home page",
+    "Hides the mobile navigation menu button on the public home page. The console sidebar is unaffected.": "Hides the mobile navigation menu button on the public home page. The console sidebar is unaffected."
   }
 }
