@@ -143,6 +143,8 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 	return topUp
 }
 
+// UpdatePendingTopUpStatus locks and transitions a pending top-up, rejecting
+// provider mismatches and distinguishing missing orders from database errors.
 func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, targetStatus string) error {
 	if tradeNo == "" {
 		return errors.New("payment order number not provided")

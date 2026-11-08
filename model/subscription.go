@@ -685,6 +685,8 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	return tx.Save(&topup).Error
 }
 
+// updatePendingSubscriptionOrderStatus locks and transitions a matching pending
+// order, leaving terminal statuses unchanged and preserving lookup errors.
 func updatePendingSubscriptionOrderStatus(tradeNo string, expectedPaymentProvider string, targetStatus string) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
@@ -713,10 +715,12 @@ func updatePendingSubscriptionOrderStatus(tradeNo string, expectedPaymentProvide
 	})
 }
 
+// ExpireSubscriptionOrder expires a pending order belonging to the expected provider.
 func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) error {
 	return updatePendingSubscriptionOrderStatus(tradeNo, expectedPaymentProvider, common.TopUpStatusExpired)
 }
 
+// FailSubscriptionOrder fails a pending order belonging to the expected provider.
 func FailSubscriptionOrder(tradeNo string, expectedPaymentProvider string) error {
 	return updatePendingSubscriptionOrderStatus(tradeNo, expectedPaymentProvider, common.TopUpStatusFailed)
 }

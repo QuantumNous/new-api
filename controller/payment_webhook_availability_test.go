@@ -26,14 +26,16 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
+// setupStripeAsyncFailureTestDB isolates each fixture in uniquely prefixed tables
+// and removes those tables before closing the connection, including on setup failure.
 func setupStripeAsyncFailureTestDB(t *testing.T, dialect string) {
 	t.Helper()
 	previousDB, previousLogDB := model.DB, model.LOG_DB
 	previousRedisEnabled := common.RedisEnabled
 	previousMainDBType, previousLogDBType := common.MainDatabaseType(), common.LogDatabaseType()
-	common.RedisEnabled = false
 	var driver gorm.Dialector
 	databaseType := common.DatabaseTypeSQLite
 	switch dialect {
@@ -56,22 +58,27 @@ func setupStripeAsyncFailureTestDB(t *testing.T, dialect string) {
 	default:
 		t.Fatalf("unsupported test database dialect: %s", dialect)
 	}
-	common.SetDatabaseTypes(databaseType, databaseType)
-	db, err := gorm.Open(driver, &gorm.Config{})
+	db, err := gorm.Open(driver, &gorm.Config{
+		NamingStrategy: schema.NamingStrategy{TablePrefix: "stripe_" + common.GetUUID() + "_"},
+	})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	model.DB, model.LOG_DB = db, db
+	common.RedisEnabled = false
+	common.SetDatabaseTypes(databaseType, databaseType)
 	t.Cleanup(func() {
 		model.DB, model.LOG_DB = previousDB, previousLogDB
 		common.RedisEnabled = previousRedisEnabled
 		common.SetDatabaseTypes(previousMainDBType, previousLogDBType)
-		sqlDB, dbErr := db.DB()
-		if dbErr == nil {
-			_ = sqlDB.Close()
-		}
+		assert.NoError(t, db.Migrator().DropTable(&model.SubscriptionOrder{}))
+		assert.NoError(t, db.Migrator().DropTable(&model.TopUp{}))
+		assert.NoError(t, sqlDB.Close())
 	})
 	require.NoError(t, db.AutoMigrate(&model.TopUp{}, &model.SubscriptionOrder{}))
 }
 
+// stripeAsyncPaymentFailedEvent identifies the order referenced by a failed checkout.
 func stripeAsyncPaymentFailedEvent(tradeNo string) stripe.Event {
 	return stripe.Event{Data: &stripe.EventData{Object: map[string]any{"client_reference_id": tradeNo}}}
 }

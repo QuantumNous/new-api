@@ -236,6 +236,7 @@ func sessionAsyncPaymentSucceeded(ctx context.Context, event stripe.Event, calle
 
 // sessionAsyncPaymentFailed marks orders as failed when delayed payment methods
 // ultimately fail (e.g. bank transfer not received, SEPA rejected).
+// It checks subscription orders first, falling back to top-ups only when absent.
 func sessionAsyncPaymentFailed(ctx context.Context, event stripe.Event, callerIp string) {
 	referenceId := event.GetObjectValue("client_reference_id")
 	logger.LogWarn(ctx, common.LogText("Stripe async payment failed trade_no=%s client_ip=%s", referenceId, callerIp))
