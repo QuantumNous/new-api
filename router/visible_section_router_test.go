@@ -62,6 +62,43 @@ func TestCreateUserPersistsVisibleSections(t *testing.T) {
 	assert.Equal(t, []string{"dashboard", "usage_logs"}, created.GetSetting().VisibleSections)
 }
 
+// Administrative and control-plane endpoints must carry the same visible
+// section guard as the rest of the control panel: a restricted administrator
+// must not be able to reach them directly, even though the sidebar hides the
+// matching page.
+func TestAdministrativeEndpointsEnforceVisibleSections(t *testing.T) {
+	engine := setupVisibleSectionRouterTest(t)
+
+	restrictedToken := createSectionTestAdmin(t, "section-admin-restricted", []string{"dashboard"})
+
+	cases := []struct {
+		name     string
+		path     string
+		granted  string
+		username string
+	}{
+		{name: "group list", path: "/api/group/", granted: "usage_logs", username: "section-admin-group"},
+		{name: "prefill groups", path: "/api/prefill_group/", granted: "models", username: "section-admin-prefill"},
+		{name: "task plugin options", path: "/api/task_plugin_options", granted: "channels", username: "section-admin-plugin-options"},
+		{name: "permission catalog", path: "/api/authz/catalog", granted: "users", username: "section-admin-catalog"},
+		{name: "status test", path: "/api/status/test", granted: "system_settings", username: "section-admin-status"},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name+" is closed without the section", func(t *testing.T) {
+			response := sectionTestRequest(engine, http.MethodGet, testCase.path, restrictedToken, "")
+			assert.Equal(t, http.StatusForbidden, response.Code, response.Body.String())
+			assert.Contains(t, response.Body.String(), "this section is not available")
+		})
+
+		t.Run(testCase.name+" is open with the section", func(t *testing.T) {
+			grantedToken := createSectionTestAdmin(t, testCase.username, []string{testCase.granted})
+			response := sectionTestRequest(engine, http.MethodGet, testCase.path, grantedToken, "")
+			assert.NotContains(t, response.Body.String(), "this section is not available", response.Body.String())
+		})
+	}
+}
+
 func setupVisibleSectionRouterTest(t *testing.T) *gin.Engine {
 	t.Helper()
 	setupRelayRouterTestDB(t)
@@ -70,6 +107,7 @@ func setupVisibleSectionRouterTest(t *testing.T) *gin.Engine {
 		&model.AuditLog{},
 		&model.Redemption{},
 		&model.Option{},
+		&model.PrefillGroup{},
 	))
 	previousSecret := common.SessionSecret
 	common.SessionSecret = "visible-section-router-test-secret"

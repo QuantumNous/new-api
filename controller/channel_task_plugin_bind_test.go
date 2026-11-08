@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func setupTaskPluginBindChannelTest(t *testing.T) {
+func setupChannelControllerTest(t *testing.T) {
 	t.Helper()
 	wasMaster := common.IsMasterNode
 	common.IsMasterNode = true
@@ -57,7 +57,7 @@ func postAddChannel(t *testing.T, userID, role int, body string) *httptest.Respo
 }
 
 func TestAddChannelTaskPluginRequiresBindPermission(t *testing.T) {
-	setupTaskPluginBindChannelTest(t)
+	setupChannelControllerTest(t)
 	const key = "channel-bind"
 	source := `
 export const meta = {apiVersion: 1, key: "channel-bind", name: "Bind", version: "1.0.0", author: {name: "Test"}, models: ["doc"], fetchMode: "per_task"};
@@ -87,7 +87,7 @@ export function parseTaskResult() { return {}; }
 }
 
 func TestUpdateChannelTaskPluginRequiresBindPermission(t *testing.T) {
-	setupTaskPluginBindChannelTest(t)
+	setupChannelControllerTest(t)
 	const key = "channel-bind-update"
 	source := `
 export const meta = {apiVersion: 1, key: "channel-bind-update", name: "Bind", version: "1.0.0", author: {name: "Test"}, models: ["doc"], fetchMode: "per_task"};
@@ -131,7 +131,7 @@ export function parseTaskResult() { return {}; }
 }
 
 func TestAddChannelTaskPluginPersistsPluginDefaultBaseURLAndAuditsSource(t *testing.T) {
-	setupTaskPluginBindChannelTest(t)
+	setupChannelControllerTest(t)
 	for key, baseURLField := range map[string]string{"bind-default-url": `baseUrl: "http://10.0.0.5:8000/",`, "bind-no-default": ""} {
 		source := fmt.Sprintf(`
 export const meta = {apiVersion: 1, key: %q, name: "Bind", version: "1.0.0", author: {name: "Test"}, %s models: ["doc"], fetchMode: "per_task"};
@@ -179,7 +179,7 @@ func putUpdateChannel(t *testing.T, userID, role int, body string) *httptest.Res
 }
 
 func TestNewAPIChannelPluginBindingsRequireBindPermission(t *testing.T) {
-	setupTaskPluginBindChannelTest(t)
+	setupChannelControllerTest(t)
 	const key = "gateway-bind"
 	source := `
 export const meta = {apiVersion: 1, key: "gateway-bind", name: "Gateway", version: "1.0.0", author: {name: "Test"}, models: ["gateway-doc"], fetchMode: "per_task", upstreams: ["vendor", "new_api"]};

@@ -857,6 +857,15 @@ func TestChannel(c *gin.Context) {
 			return
 		}
 	}
+	// The channel test contacts the upstream directly, so an upstream that
+	// reaches into the internal network is reserved for the root account. The
+	// policy is applied to a copy: the cached channel must not be mutated.
+	channelCopy := *channel
+	channelSettings := channelCopy.GetSetting()
+	if !applyChannelUpstreamPolicy(c, &channelCopy, channelCopy.GetBaseURL(), channelSettings.Proxy, channelSettings, false) {
+		return
+	}
+	channel = &channelCopy
 	//defer func() {
 	//	if channel.ChannelInfo.IsMultiKey {
 	//		go func() { _ = channel.SaveChannelInfo() }()

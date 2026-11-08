@@ -35,6 +35,14 @@ type ChannelSettings struct {
 	// TLSInsecureSkipVerify accepts upstream certificates that fail
 	// verification, such as self-signed ones, for this channel only.
 	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify,omitempty"`
+	// AllowPrivateNetwork authorizes the channel to reach an internal
+	// network (RFC 1918, loopback, link-local, CGNAT). Only the root account
+	// may grant it: a channel that may talk to internal services turns every
+	// compromised administrator session into a pivot into the deployment
+	// network. The flag is granted automatically when the root account points
+	// a channel at an internal upstream and is what lets the outbound dialer
+	// accept a hostname that resolves to an internal address.
+	AllowPrivateNetwork bool `json:"allow_private_network,omitempty"`
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,

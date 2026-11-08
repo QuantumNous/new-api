@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -25,21 +26,49 @@ type RedisLimiter struct {
 }
 
 var (
-	instance *RedisLimiter
-	once     sync.Once
+	// instance holds the shared limiter. It is read on every rate limited
+	// request and can be rebound when the Redis client changes, so it is
+	// published through an atomic pointer: a concurrent reader never observes
+	// a half initialized limiter and a rebind never races with a read.
+	instance atomic.Pointer[RedisLimiter]
+	// once guards the first initialization only. Later rebinds are handled by
+	// the atomic swap in New.
+	once sync.Once
 )
 
+// maxLimiterRebindAttempts bounds the compare-and-swap retries used when
+// several callers rebind the shared limiter at the same time.
+const maxLimiterRebindAttempts = 8
+
+// New returns the shared limiter bound to the given Redis client.
+//
+// The first call initializes the limiter. When the client changes afterwards
+// (re-initialization or tests) the limiter is rebound so the cached script
+// SHAs always belong to the client that will execute them. The rebind is
+// published with a compare-and-swap, so concurrent callers either observe the
+// previous limiter or the new one, never a partially initialized instance.
 func New(ctx context.Context, r *redis.Client) *RedisLimiter {
 	once.Do(func() {
-		instance = loadRedisLimiter(ctx, r)
+		instance.Store(loadRedisLimiter(ctx, r))
 	})
-	if instance.client != r {
+
+	for range maxLimiterRebindAttempts {
+		current := instance.Load()
+		if current != nil && current.client == r {
+			return current
+		}
 		// 更换 Redis 客户端（重新初始化或测试）后必须重新绑定脚本与连接，
 		// 否则脚本 SHA 会指向旧客户端。
-		instance = loadRedisLimiter(ctx, r)
+		rebound := loadRedisLimiter(ctx, r)
+		if instance.CompareAndSwap(current, rebound) {
+			return rebound
+		}
+		// 另一个调用方抢先完成了重新绑定：重新读取当前实例后再试。
 	}
 
-	return instance
+	// 竞争过于激烈时，返回一个绑定到 r 的独立实例，
+	// 避免把指向其他客户端的限流器交给调用方。
+	return loadRedisLimiter(ctx, r)
 }
 
 func loadRedisLimiter(ctx context.Context, r *redis.Client) *RedisLimiter {

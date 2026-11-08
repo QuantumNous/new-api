@@ -334,6 +334,13 @@ func FetchUpstreamModels(c *gin.Context) {
 		return
 	}
 
+	// Fetching the model list contacts the upstream directly, so an upstream
+	// that reaches into the internal network is reserved for the root account.
+	channelSettings := channel.GetSetting()
+	if !applyChannelUpstreamPolicy(c, channel, channel.GetBaseURL(), channelSettings.Proxy, channelSettings, false) {
+		return
+	}
+
 	ids, err := fetchChannelUpstreamModelIDs(channel)
 	if err != nil {
 		common.ApiErrorT(c, "Failed to fetch models: {{error}}", map[string]any{"error": err.Error()})
@@ -769,6 +776,20 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 
+	// An upstream that reaches into the internal network is reserved for the
+	// root account.
+	channelSettings := addChannelRequest.Channel.GetSetting()
+	if !applyChannelUpstreamPolicy(
+		c,
+		addChannelRequest.Channel,
+		addChannelRequest.Channel.GetBaseURL(),
+		channelSettings.Proxy,
+		channelSettings,
+		settingRequestsInternalNetwork(channelSettingJSON(addChannelRequest.Channel.Setting)),
+	) {
+		return
+	}
+
 	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
 	keys := make([]string, 0)
 	inputIndices := make([]int, 0)
@@ -1176,6 +1197,21 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 
+	// The effective upstream of the updated channel: the request may leave the
+	// base URL or the proxy untouched. An upstream that reaches into the
+	// internal network is reserved for the root account.
+	effectiveBaseURL := originChannel.GetBaseURL()
+	if channel.BaseURL != nil {
+		effectiveBaseURL = channel.GetBaseURL()
+	}
+	effectiveSettings := originChannel.GetSetting()
+	if settingProvided {
+		effectiveSettings = channel.GetSetting()
+	}
+	if !applyChannelUpstreamPolicy(c, &channel.Channel, effectiveBaseURL, effectiveSettings.Proxy, effectiveSettings, settingProvided && settingRequestsInternalNetwork(channelSettingJSON(channel.Setting))) {
+		return
+	}
+
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
 		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
@@ -1510,6 +1546,13 @@ func FetchModels(c *gin.Context) {
 		}
 	}
 
+	// The request may carry an arbitrary base URL, so the internal network
+	// policy applies before the upstream is contacted.
+	previewSettings := channel.GetSetting()
+	if !applyChannelUpstreamPolicy(c, channel, channel.GetBaseURL(), previewSettings.Proxy, previewSettings, settingRequestsInternalNetwork(channelSettingJSON(channel.Setting))) {
+		return
+	}
+
 	models, err := fetchChannelUpstreamModelIDs(channel)
 	if err != nil {
 		common.ApiErrorT(c, "Failed to fetch models: {{error}}", map[string]any{"error": err.Error()})
@@ -1633,6 +1676,13 @@ func CopyChannel(c *gin.Context) {
 	if err := clone.ValidateSettings(); err != nil {
 		common.SysError(common.LogText("failed to validate cloned channel: %s", err.Error()))
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "Failed to copy channel: invalid channel settings"})
+		return
+	}
+
+	// A copy keeps the upstream of the source channel, so the internal
+	// network policy applies to the copy as well.
+	cloneSettings := clone.GetSetting()
+	if !applyChannelUpstreamPolicy(c, &clone, clone.GetBaseURL(), cloneSettings.Proxy, cloneSettings, false) {
 		return
 	}
 

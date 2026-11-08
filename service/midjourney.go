@@ -345,7 +345,19 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 		req.Header.Set("mj-api-secret", auth)
 	}
 	defer cancel()
-	resp, err := GetHttpClient().Do(req)
+	// The request targets the upstream of the Midjourney channel, so the
+	// client of the channel settings is used: it validates the address it
+	// connects to and honours the internal network permission of the channel.
+	client := GetHttpClient()
+	if channelID := c.GetInt("channel_id"); channelID > 0 {
+		if channel, channelErr := model.CacheGetChannel(channelID); channelErr == nil {
+			channelSetting := channel.GetSetting()
+			if channelClient, clientErr := GetHttpClientWithProxySettings(channelSetting.Proxy, channelSetting); clientErr == nil {
+				client = channelClient
+			}
+		}
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		common.SysLog(common.LogText("do request failed: %s", err.Error()))
 		return MidjourneyErrorWithStatusCodeWrapper(constant.MjErrorUnknown, "do_request_failed", http.StatusInternalServerError), nullBytes, err

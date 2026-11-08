@@ -152,12 +152,15 @@ func InitHttpClient() {
 }
 
 // GetHttpClient returns the general outbound client used by relay/provider
-// integrations. Do not attach the SSRF-protected dialer here: provider base URLs
-// are root/operator-managed deployment targets, not arbitrary user-controlled
-// input, and may legitimately point at private networks, private-link endpoints,
-// self-hosted services, or local proxies. Code paths that fetch arbitrary
-// user-controlled URLs must use GetSSRFProtectedHTTPClient or
-// ValidateSSRFProtectedFetchURL instead.
+// integrations. The client validates the address it connects to, so a host
+// name that resolves to an internal address is rejected: the dial time check
+// closes the DNS rebinding window between the configuration check and the
+// connection. Provider base URLs that legitimately point at an internal
+// network are served by a channel that holds the internal network permission,
+// which the root account grants.
+//
+// Code paths that fetch arbitrary user-controlled URLs must use
+// GetSSRFProtectedHTTPClient or ValidateSSRFProtectedFetchURL instead.
 func GetHttpClient() *http.Client {
 	return httpClient
 }
@@ -318,7 +321,7 @@ func configureProxyTransport(transport *http.Transport, proxyURL *url.URL) error
 	}
 }
 
-func newTransportFactory(proxyURL *url.URL, tlsConfig *tls.Config) (func() *http.Transport, error) {
+func newTransportFactory(proxyURL *url.URL, tlsConfig *tls.Config, policy HTTPTransportPolicy) (func() *http.Transport, error) {
 	// Validate proxy configuration once before creating shard transports.
 	if proxyURL != nil {
 		probe := newRelayHTTPTransport()
@@ -331,7 +334,7 @@ func newTransportFactory(proxyURL *url.URL, tlsConfig *tls.Config) (func() *http
 		if proxyURL != nil {
 			_ = configureProxyTransport(transport, proxyURL)
 		} else {
-			transport.Proxy = http.ProxyFromEnvironment
+			applyPinnedDialer(transport, policy.AllowPrivateNetwork)
 		}
 		if tlsConfig != nil {
 			transport.TLSClientConfig = tlsConfig.Clone()
@@ -340,11 +343,26 @@ func newTransportFactory(proxyURL *url.URL, tlsConfig *tls.Config) (func() *http
 	}, nil
 }
 
+// applyPinnedDialer installs the dial time validation on a transport that
+// connects to the target host of the request. The dialer resolves the host
+// when the connection is established and pins the connection to the validated
+// address, which closes the DNS rebinding window between a name based check
+// and the actual connection.
+func applyPinnedDialer(transport *http.Transport, allowPrivateNetwork bool) {
+	if transport == nil {
+		return
+	}
+	// The environment proxy resolves the target host itself, so the request is
+	// marked when the connection is established through it.
+	transport.Proxy = proxyFromEnvironment
+	transport.DialContext = newPinnedDialer(allowPrivateNetwork).DialContext
+}
+
 func newHTTPClientFromPolicy(policy HTTPTransportPolicy, proxyURL *url.URL, tlsConfig *tls.Config) (*http.Client, error) {
 	if policy.TLSInsecureSkipVerify {
 		tlsConfig = common.InsecureTLSConfig
 	}
-	factory, err := newTransportFactory(proxyURL, tlsConfig)
+	factory, err := newTransportFactory(proxyURL, tlsConfig, policy)
 	if err != nil {
 		return nil, err
 	}
@@ -373,6 +391,7 @@ func newDirectHTTPClient(policy HTTPTransportPolicy, tlsConfig *tls.Config) *htt
 	if err != nil {
 		// Direct clients cannot fail proxy configuration.
 		transport := newRelayHTTPTransport()
+		applyPinnedDialer(transport, policy.AllowPrivateNetwork)
 		applyHTTPTransportPolicy(transport, policy)
 		return newRelayHTTPClient(transport)
 	}

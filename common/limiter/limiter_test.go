@@ -17,18 +17,18 @@ import (
 func useLimiterMiniRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
 	t.Helper()
 
-	previousInstance := instance
+	previousInstance := instance.Load()
 
 	redisServer := miniredis.RunT(t)
 	redisClient := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
 	require.NoError(t, redisClient.Ping(context.Background()).Err())
 
-	instance = nil
+	instance.Store(nil)
 	once = sync.Once{}
 
 	t.Cleanup(func() {
 		_ = redisClient.Close()
-		instance = previousInstance
+		instance.Store(previousInstance)
 		once = sync.Once{}
 		if previousInstance != nil {
 			once.Do(func() {})
@@ -136,4 +136,75 @@ func TestReserveSuccessSlotConcurrentBurstCannotExceedLimit(t *testing.T) {
 	wg.Wait()
 
 	assert.EqualValues(t, limit, reservedCount.Load())
+}
+
+// The shared limiter is rebound whenever the Redis client changes, which can
+// happen concurrently with in-flight requests. The pointer must be published
+// atomically: an unsynchronized rebind races with every reader and can expose
+// a limiter whose script SHAs belong to another client.
+func TestNewRebindsAtomicallyUnderConcurrentCalls(t *testing.T) {
+	ctx := context.Background()
+
+	serverA := miniredis.RunT(t)
+	serverB := miniredis.RunT(t)
+	clientA := redis.NewClient(&redis.Options{Addr: serverA.Addr()})
+	clientB := redis.NewClient(&redis.Options{Addr: serverB.Addr()})
+	require.NoError(t, clientA.Ping(ctx).Err())
+	require.NoError(t, clientB.Ping(ctx).Err())
+
+	previousInstance := instance.Load()
+	instance.Store(nil)
+	once = sync.Once{}
+	t.Cleanup(func() {
+		_ = clientA.Close()
+		_ = clientB.Close()
+		instance.Store(previousInstance)
+		once = sync.Once{}
+		if previousInstance != nil {
+			once.Do(func() {})
+		}
+	})
+
+	const workers = 16
+	var wg sync.WaitGroup
+	for i := range workers {
+		wg.Go(func() {
+			client := clientA
+			if i%2 == 1 {
+				client = clientB
+			}
+			redisLimiter := New(ctx, client)
+			if !assert.NotNil(t, redisLimiter) {
+				return
+			}
+			assert.Same(t, client, redisLimiter.client)
+
+			allowed, err := redisLimiter.Allow(ctx, "rateLimit:race:"+client.Options().Addr, WithCapacity(10), WithRate(10), WithRequested(1))
+			assert.NoError(t, err)
+			assert.True(t, allowed)
+		})
+	}
+	wg.Wait()
+}
+
+// A rebind must produce a limiter that is usable with the new client, and the
+// previously published limiter must stay intact for concurrent readers.
+func TestNewRebindsToTheNewClient(t *testing.T) {
+	ctx := context.Background()
+	_, clientA := useLimiterMiniRedis(t)
+	first := New(ctx, clientA)
+	require.Same(t, clientA, first.client)
+
+	secondServer := miniredis.RunT(t)
+	clientB := redis.NewClient(&redis.Options{Addr: secondServer.Addr()})
+	require.NoError(t, clientB.Ping(ctx).Err())
+	t.Cleanup(func() { _ = clientB.Close() })
+
+	second := New(ctx, clientB)
+	assert.Same(t, clientB, second.client)
+	assert.Same(t, clientA, first.client)
+
+	allowed, err := second.Allow(ctx, "rateLimit:rebind", WithCapacity(1), WithRate(1), WithRequested(1))
+	require.NoError(t, err)
+	assert.True(t, allowed)
 }
