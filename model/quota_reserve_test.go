@@ -331,6 +331,168 @@ func TestSettleUserQuotaDebitUnderConcurrentSettlementsNeverOverdraws(t *testing
 	assert.Equal(t, 0, getUserQuotaFromDB(t, user.Id))
 }
 
+func TestDecreaseUserQuotaRejectsInsufficientBalanceWithoutRedis(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+
+	user := createReserveTestUser(t, 100)
+
+	// 扣减受 quota >= ? 约束：余额不足时返回严格错误，且不做部分扣减。
+	require.ErrorIs(t, DecreaseUserQuota(user.Id, 101, false), ErrInsufficientUserQuota)
+	assert.Equal(t, 100, getUserQuotaFromDB(t, user.Id))
+
+	require.NoError(t, DecreaseUserQuota(user.Id, 100, false))
+	assert.Equal(t, 0, getUserQuotaFromDB(t, user.Id))
+
+	require.ErrorIs(t, DecreaseUserQuota(user.Id, 1, false), ErrInsufficientUserQuota)
+	assert.Equal(t, 0, getUserQuotaFromDB(t, user.Id))
+}
+
+func TestConcurrentDecreaseUserQuotaNeverOverdraws(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+
+	const (
+		balance = 100
+		amount  = 30
+		workers = 10
+	)
+	user := createReserveTestUser(t, balance)
+
+	errs := make([]error, workers)
+	var waitGroup sync.WaitGroup
+	for i := range workers {
+		waitGroup.Go(func() { errs[i] = DecreaseUserQuota(user.Id, amount, false) })
+	}
+	waitGroup.Wait()
+
+	succeeded := 0
+	for _, err := range errs {
+		if err == nil {
+			succeeded++
+			continue
+		}
+		require.ErrorIs(t, err, ErrInsufficientUserQuota)
+	}
+	assert.Equal(t, balance/amount, succeeded)
+	assert.Equal(t, balance-succeeded*amount, getUserQuotaFromDB(t, user.Id))
+	assert.GreaterOrEqual(t, getUserQuotaFromDB(t, user.Id), 0)
+}
+
+// Redis 为权威值时，并发扣减也必须由 Lua 原子比较并扣减串行化：只有余额覆盖
+// 的扣减会成功，其余返回 ErrInsufficientUserQuota，缓存余额永远不为负。
+func TestConcurrentDecreaseUserQuotaRedisNeverOverdraws(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	useUserCacheMiniRedis(t)
+
+	const (
+		balance = 100
+		amount  = 30
+		workers = 10
+	)
+	user := createReserveTestUser(t, balance)
+	require.NoError(t, populateUserCache(user))
+
+	errs := make([]error, workers)
+	var waitGroup sync.WaitGroup
+	for i := range workers {
+		waitGroup.Go(func() { errs[i] = DecreaseUserQuota(user.Id, amount, false) })
+	}
+	waitGroup.Wait()
+
+	succeeded := 0
+	for _, err := range errs {
+		if err == nil {
+			succeeded++
+			continue
+		}
+		require.ErrorIs(t, err, ErrInsufficientUserQuota)
+	}
+	assert.Equal(t, balance/amount, succeeded)
+
+	cached, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, balance-succeeded*amount, cached.Quota)
+	assert.GreaterOrEqual(t, cached.Quota, 0)
+	assert.Equal(t, cached.Quota, getUserQuotaFromDB(t, user.Id), "the live cache and database must stay in sync")
+}
+
+// Redis 故障时额度增减同步降级为数据库条件更新：扣减不会丢失也不会扣成负数。
+func TestDecreaseUserQuotaFailsSafeWhenRedisUnavailable(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	server := useUserCacheMiniRedis(t)
+
+	user := createReserveTestUser(t, 100)
+	require.NoError(t, populateUserCache(user))
+
+	server.Close()
+
+	require.NoError(t, DecreaseUserQuota(user.Id, 30, false))
+	assert.Equal(t, 70, getUserQuotaFromDB(t, user.Id))
+
+	require.ErrorIs(t, DecreaseUserQuota(user.Id, 80, false), ErrInsufficientUserQuota)
+	assert.Equal(t, 70, getUserQuotaFromDB(t, user.Id), "an uncovered deduction must not move the balance")
+}
+
+// 退款/充值在 Redis 故障时也必须同步落库，不能因为缓存不可用而丢失增量。
+func TestIncreaseUserQuotaSurvivesRedisFailure(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	server := useUserCacheMiniRedis(t)
+
+	user := createReserveTestUser(t, 100)
+	require.NoError(t, populateUserCache(user))
+
+	server.Close()
+
+	require.NoError(t, IncreaseUserQuota(user.Id, 50, false))
+	assert.Equal(t, 150, getUserQuotaFromDB(t, user.Id))
+}
+
+// S-03：额度增减必须同步更新 Redis（不再 fire-and-forget），函数返回时缓存
+// 已反映最新余额，不依赖后台协程。
+func TestUserQuotaUpdateSyncsCacheSynchronously(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	useUserCacheMiniRedis(t)
+
+	user := createReserveTestUser(t, 100)
+	require.NoError(t, populateUserCache(user))
+
+	require.NoError(t, DecreaseUserQuota(user.Id, 40, false))
+	cached, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 60, cached.Quota)
+
+	require.NoError(t, IncreaseUserQuota(user.Id, 15, false))
+	cached, err = cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 75, cached.Quota)
+}
+
+// S-03：批量模式下 Redis 优先同步扣减，增量随后进入 outbox 等待异步落库。
+func TestUserQuotaUpdateRedisFirstOutboxSecond(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	useUserCacheMiniRedis(t)
+	common.BatchUpdateEnabled = true
+
+	user := createReserveTestUser(t, 100)
+	require.NoError(t, populateUserCache(user))
+
+	require.NoError(t, DecreaseUserQuota(user.Id, 40, false))
+
+	cached, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 60, cached.Quota, "the live cache must be updated synchronously")
+	assert.Equal(t, 100, getUserQuotaFromDB(t, user.Id), "the outbox delta is not flushed yet")
+
+	batchUpdate()
+	assert.Equal(t, 60, getUserQuotaFromDB(t, user.Id))
+}
+
 func TestRefundWalletPreConsumeCreditsExactlyOnce(t *testing.T) {
 	const (
 		startQuota  = 1_000

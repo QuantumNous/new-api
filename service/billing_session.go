@@ -265,10 +265,12 @@ func (s *BillingSession) reserveFunding(delta int, requireAvailableQuota bool) e
 			return nil
 		}
 		// 与结算补扣（SettleBilling 正差额 → WalletFunding.Settle）语义一致：
-		// 全额无条件扣减，余额不足的部分记为欠费（余额可为负），不中断请求，
-		// 保证日志记录的预扣额度与用户余额的实际变动始终对账一致。
-		// DecreaseUserQuota 仅在数据库错误时失败。
+		// 全额扣减但受余额约束，余额不足时不再记账为欠费（余额不可为负），
+		// 直接以 402 终止请求；保证日志记录的预扣额度与余额变动始终对账一致。
 		if err := model.DecreaseUserQuota(funding.userId, delta, false); err != nil {
+			if errors.Is(err, model.ErrInsufficientUserQuota) {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusPaymentRequired, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			}
 			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 		}
 		funding.consumed += delta

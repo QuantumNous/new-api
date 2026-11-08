@@ -1447,28 +1447,9 @@ func IncreaseUserQuota(id int, quota int, db bool) (err error) {
 	if err := common.ValidateWalletQuota(quota); err != nil {
 		return err
 	}
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, quota)
-		gopool.Go(func() {
-			if err := cacheIncrUserQuota(id, int64(quota)); err != nil {
-				common.SysLog(common.LogText("failed to increase user quota: %s", err.Error()))
-			}
-		})
-		return nil
-	}
-	if err := increaseUserQuota(id, quota); err != nil {
-		return err
-	}
-	gopool.Go(func() {
-		if err := cacheIncrUserQuota(id, int64(quota)); err != nil {
-			common.SysLog(common.LogText("failed to increase user quota: %s", err.Error()))
-		}
-	})
-	return nil
-}
-
-func increaseUserQuota(id int, quota int) (err error) {
-	return increaseUserQuotaTx(DB, id, quota)
+	// Redis 优先同步增减，成功后再持久化（outbox 或直写）；不再有 fire-and-forget
+	// 协程，避免数据库提交后缓存更新失败留下的过期余额窗口。
+	return applyUserQuotaDelta(id, quota, db)
 }
 
 func increaseUserQuotaTx(tx *gorm.DB, id int, quota int) error {
@@ -1495,25 +1476,12 @@ func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota cannot be negative")
 	}
-	gopool.Go(func() {
-		err := cacheDecrUserQuota(id, int64(quota))
-		if err != nil {
-			common.SysLog(common.LogText("failed to decrease user quota: %s", err.Error()))
-		}
-	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
+	if quota == 0 {
 		return nil
 	}
-	return decreaseUserQuota(id, quota)
-}
-
-func decreaseUserQuota(id int, quota int) (err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", quota)).Error
-	if err != nil {
-		return err
-	}
-	return err
+	// Redis 优先同步比较并扣减：余额不足时返回 ErrInsufficientUserQuota（映射为
+	// HTTP 402），绝不把余额扣成负数；成功后按 outbox 或直写持久化。
+	return applyUserQuotaDelta(id, -quota, db)
 }
 
 // SettleUserQuotaDebit debits a settlement charge from the wallet with a single
@@ -1526,9 +1494,10 @@ func decreaseUserQuota(id int, quota int) (err error) {
 // into debt and the caller must log a reconciliation error. It returns the
 // amount actually deducted so the caller can detect that shortfall.
 //
-// The lookup fails with gorm.ErrRecordNotFound for an unknown user, and the
-// write always goes to the database instead of the batch queue so the
-// reservation/accounting invariant cannot be deferred.
+// The deduction is applied to the live Redis balance first (atomic
+// compare-and-decrement, synchronous) and persisted with a `quota >= ?`
+// conditional update, so no concurrent settlement can overdraw. The lookup
+// fails with gorm.ErrRecordNotFound for an unknown user.
 func SettleUserQuotaDebit(id int, quota int) (int, error) {
 	if quota < 0 {
 		return 0, errors.New("quota cannot be negative")
@@ -1537,6 +1506,43 @@ func SettleUserQuotaDebit(id int, quota int) (int, error) {
 		return 0, nil
 	}
 
+	if common.RedisEnabled {
+		result, err := cacheTryReserveUserQuota(id, int64(quota))
+		if err == nil && result == cacheQuotaMiss {
+			if _, hydrateErr := GetUserCache(id); hydrateErr == nil {
+				result, err = cacheTryReserveUserQuota(id, int64(quota))
+			}
+		}
+		if err == nil && result == cacheQuotaInsufficient {
+			// 余额不足以覆盖结算差额：不记欠费，由调用方记录对账错误。
+			return 0, nil
+		}
+		if err == nil && result == cacheQuotaOK {
+			if persistErr := applyUserQuotaDeltaDB(id, -quota); persistErr != nil {
+				compensateUserQuotaCache(id, int64(quota))
+				return 0, persistErr
+			}
+			return quota, nil
+		}
+		common.SysLog(common.LogText("user quota cache settle unavailable, falling back to database: %v", err))
+	}
+
+	deducted, err := settleUserQuotaDebitDB(id, quota)
+	if err != nil {
+		return 0, err
+	}
+	if deducted == 0 {
+		return 0, nil
+	}
+	if err := invalidateUserCache(id); err != nil {
+		common.SysLog(common.LogText("failed to invalidate user cache after settlement: %s", err.Error()))
+	}
+	return deducted, nil
+}
+
+// settleUserQuotaDebitDB 用条件更新扣减结算差额，余额不足时不做部分扣减，
+// 返回 0 由调用方记录对账错误；用户不存在返回 gorm.ErrRecordNotFound。
+func settleUserQuotaDebitDB(id int, quota int) (int, error) {
 	result := DB.Model(&User{}).
 		Where("id = ? AND quota >= ?", id, quota).
 		Update("quota", gorm.Expr("quota - ?", quota))
@@ -1551,14 +1557,8 @@ func SettleUserQuotaDebit(id int, quota int) (int, error) {
 		if count == 0 {
 			return 0, gorm.ErrRecordNotFound
 		}
-		// 余额不足以覆盖结算差额：不记欠费，由调用方记录对账错误。
 		return 0, nil
 	}
-	gopool.Go(func() {
-		if err := cacheDecrUserQuota(id, int64(quota)); err != nil {
-			common.SysLog(common.LogText("failed to decrease user quota: %s", err.Error()))
-		}
-	})
 	return quota, nil
 }
 

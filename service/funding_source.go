@@ -47,6 +47,11 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	}
 	reserved, err := model.TryReserveUserQuota(w.userId, amount)
 	if err != nil {
+		// 数据库侧原子守卫判定余额不足时同样按“余额不足”处理，避免把扣成
+		// 负数或漏扣的异常当成普通错误重试。
+		if errors.Is(err, model.ErrInsufficientUserQuota) {
+			return ErrInsufficientWalletQuota
+		}
 		return err
 	}
 	if !reserved {
