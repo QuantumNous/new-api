@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -767,6 +768,105 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 	tx.Where("type = ?", LogTypeConsume).Scan(&token)
 	return token
+}
+
+// ExternalBillingRow per-user external (third-party) channel usage aggregation.
+type ExternalBillingRow struct {
+	Username         string `json:"username"`
+	PromptTokens     int64  `json:"prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens"`
+	TotalTokens      int64  `json:"total_tokens"`
+	Quota            int64  `json:"quota"`
+	ModelCount       int64  `json:"model_count"`
+	// MatchedLogs is an internal sentinel: a bare aggregate query always returns
+	// one row (all zeros) even when nothing matched, so zeroed counters cannot be
+	// distinguished from a real zero-quota call. Counting matching rows is the
+	// only reliable way to tell "no usage" apart. Never serialised.
+	MatchedLogs int64 `json:"-"`
+}
+
+// SumExternalByUser aggregates, per user, consumption on external channels
+// (channels.tag = 'external') covering all models, regardless of whether an
+// explicit configured price exists (previously restricted to the model price
+// map, which silently dropped ratio-billed models). startTimestamp/endTimestamp
+// are unix seconds (0 = open).
+func SumExternalByUser(startTimestamp int64, endTimestamp int64, username string) ([]ExternalBillingRow, error) {
+	// Resolve external channel ids through the main DB: LOG_DB may be a
+	// separate database (e.g. ClickHouse) without a channels table, so a
+	// cross-database JOIN would fail there.
+	var externalChannelIds []int64
+	if err := DB.Table("channels").Where("tag = ?", "external").Pluck("id", &externalChannelIds).Error; err != nil {
+		common.SysError("failed to resolve external channels: " + err.Error())
+		return nil, errors.New("查询外部渠道统计数据失败")
+	}
+	if len(externalChannelIds) == 0 {
+		return nil, nil
+	}
+	tx := LOG_DB.Table("logs").
+		Select("username, COALESCE(sum(prompt_tokens),0) prompt_tokens, COALESCE(sum(completion_tokens),0) completion_tokens, COALESCE(sum(prompt_tokens),0)+COALESCE(sum(completion_tokens),0) total_tokens, COALESCE(sum(quota),0) quota, count(DISTINCT model_name) model_count").
+		Where("logs.channel_id IN ?", externalChannelIds).
+		Where("logs.type = ?", LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", endTimestamp)
+	}
+	if username != "" {
+		tx = tx.Where("logs.username = ?", username)
+	}
+	tx = tx.Group("logs.username")
+	var rows []ExternalBillingRow
+	if err := tx.Scan(&rows).Error; err != nil {
+		common.SysError("failed to query external billing stat: " + err.Error())
+		return nil, errors.New("查询外部渠道统计数据失败")
+	}
+	return rows, nil
+}
+
+// SumExternalSelfStat returns the callers own external-channel consumption,
+// scoped by the authenticated user ID rather than the username. Filtering and
+// aggregating on logs.user_id (the authoritative identity) guarantees that a
+// username rename or reuse can neither drop history nor leak another
+// accounts totals; username is only echoed back for display.
+func SumExternalSelfStat(startTimestamp int64, endTimestamp int64, userId int, username string) (*ExternalBillingRow, error) {
+	// Resolve external channel ids through the main DB: LOG_DB may be a
+	// separate database (e.g. ClickHouse) without a channels table, so a
+	// cross-database JOIN would fail there.
+	var externalChannelIds []int64
+	if err := DB.Table("channels").Where("tag = ?", "external").Pluck("id", &externalChannelIds).Error; err != nil {
+		common.SysError("failed to resolve external channels: " + err.Error())
+		return nil, errors.New("查询外部渠道统计数据失败")
+	}
+	if len(externalChannelIds) == 0 {
+		return nil, nil
+	}
+	row := &ExternalBillingRow{}
+	tx := LOG_DB.Table("logs").
+		Select("COALESCE(sum(prompt_tokens),0) prompt_tokens, COALESCE(sum(completion_tokens),0) completion_tokens, COALESCE(sum(prompt_tokens),0)+COALESCE(sum(completion_tokens),0) total_tokens, COALESCE(sum(quota),0) quota, count(DISTINCT model_name) model_count, count(*) matched_logs").
+		Where("logs.channel_id IN ?", externalChannelIds).
+		Where("logs.type = ?", LogTypeConsume).
+		Where("logs.user_id = ?", userId)
+	if startTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", endTimestamp)
+	}
+	if err := tx.Scan(row).Error; err != nil {
+		common.SysError("failed to query self external billing stat: " + err.Error())
+		return nil, errors.New("查询外部渠道统计数据失败")
+	}
+	// A bare aggregate always yields one row (zeros) even with no match, so an
+	// all-zero row would render as a phantom account with no usage. Report no
+	// row at all when nothing matched; the controller then returns [].
+	if row.MatchedLogs == 0 {
+		return nil, nil
+	}
+	// Scan only populates the selected aggregate columns and clears the rest, so
+	// restore the display name after the query.
+	row.Username = username
+	return row, nil
 }
 
 func CountOldLog(ctx context.Context, targetTimestamp int64) (int64, error) {
