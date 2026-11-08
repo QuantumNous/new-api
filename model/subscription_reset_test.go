@@ -81,6 +81,25 @@ func TestUnlimitedSubscriptionReservationOverflowMatrix(t *testing.T) {
 	})
 }
 
+func TestSubscriptionCleanupRetainsOutstandingFundingMatrix(t *testing.T) {
+	runSubscriptionAccountingMatrix(t, func(t *testing.T) {
+		for _, status := range []string{"reserved", "consumed", "settled", "refunded"} {
+			record := SubscriptionPreConsumeRecord{RequestId: status, Status: status, PreConsumed: 10}
+			require.NoError(t, DB.Create(&record).Error)
+			require.NoError(t, DB.Model(&record).UpdateColumn("updated_at", GetDBTimestamp()-30*86400).Error)
+		}
+		deleted, err := CleanupSubscriptionPreConsumeRecords(7 * 86400)
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, deleted)
+		var records []SubscriptionPreConsumeRecord
+		require.NoError(t, DB.Order("request_id").Find(&records).Error)
+		require.Len(t, records, 3)
+		assert.Equal(t, "consumed", records[0].Status)
+		assert.Equal(t, "reserved", records[1].Status)
+		assert.Equal(t, "settled", records[2].Status)
+	})
+}
+
 func TestAdminRestorePlanSubscriptionWindowsMatrix(t *testing.T) {
 	cases := []struct {
 		name string
