@@ -6558,6 +6558,8 @@
     "Token name": "Имя токена",
     "Token Name": "Имя токена",
     "Token name is too long": "Слишком длинное имя токена",
+    "Only administrators can specify a token key": "Только администраторы могут задавать ключ токена",
+    "Token key must be 32 to 128 letters or digits": "Ключ токена должен содержать от 32 до 128 букв или цифр",
     "Token obtained from your Gotify application": "Токен, полученный из вашего приложения Gotify",
     "Token operation details": "Подробности операции с токенами",
     "Token or per-call pricing": "По токенам или за запрос",

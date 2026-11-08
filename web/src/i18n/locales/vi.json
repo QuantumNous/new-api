@@ -6558,6 +6558,8 @@
     "Token name": "Tên token",
     "Token Name": "Tên mã thông báo",
     "Token name is too long": "Tên token quá dài",
+    "Only administrators can specify a token key": "Chỉ quản trị viên mới có thể chỉ định khóa token",
+    "Token key must be 32 to 128 letters or digits": "Khóa token phải gồm 32 đến 128 chữ cái hoặc chữ số",
     "Token obtained from your Gotify application": "Mã thông báo thu được từ ứng dụng Gotify của bạn",
     "Token operation details": "Chi tiết thao tác mã thông báo",
     "Token or per-call pricing": "Tính phí theo token hoặc theo yêu cầu",

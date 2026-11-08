@@ -6558,6 +6558,8 @@
     "Token name": "Nom du jeton",
     "Token Name": "Nom du jeton",
     "Token name is too long": "Le nom du jeton est trop long",
+    "Only administrators can specify a token key": "Seuls les administrateurs peuvent définir la clé du jeton",
+    "Token key must be 32 to 128 letters or digits": "La clé du jeton doit contenir de 32 à 128 lettres ou chiffres",
     "Token obtained from your Gotify application": "Jeton obtenu depuis votre application Gotify",
     "Token operation details": "Détails de l’opération sur les jetons",
     "Token or per-call pricing": "Par jeton ou par requête",

@@ -6558,6 +6558,8 @@
     "Token name": "トークン名",
     "Token Name": "トークン名",
     "Token name is too long": "トークン名が長すぎます",
+    "Only administrators can specify a token key": "トークンキーを指定できるのは管理者のみです",
+    "Token key must be 32 to 128 letters or digits": "トークンキーは 32～128 文字の英数字である必要があります",
     "Token obtained from your Gotify application": "Gotifyアプリケーションから取得したトークン",
     "Token operation details": "トークン操作の詳細",
     "Token or per-call pricing": "トークン単位またはリクエスト単位の課金",

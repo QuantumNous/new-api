@@ -6558,6 +6558,8 @@
     "Token name": "Token name",
     "Token Name": "Token Name",
     "Token name is too long": "Token name is too long",
+    "Only administrators can specify a token key": "Only administrators can specify a token key",
+    "Token key must be 32 to 128 letters or digits": "Token key must be 32 to 128 letters or digits",
     "Token obtained from your Gotify application": "Token obtained from your Gotify application",
     "Token operation details": "Token operation details",
     "Token or per-call pricing": "Token or per-call pricing",

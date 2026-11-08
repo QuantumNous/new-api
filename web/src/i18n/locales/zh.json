@@ -6558,6 +6558,8 @@
     "Token name": "令牌名称",
     "Token Name": "令牌名称",
     "Token name is too long": "令牌名称过长",
+    "Only administrators can specify a token key": "只有管理员可以指定令牌密钥",
+    "Token key must be 32 to 128 letters or digits": "令牌密钥必须是 32 到 128 位字母或数字",
     "Token obtained from your Gotify application": "从您的 Gotify 应用程序获取的 Token",
     "Token operation details": "令牌操作详情",
     "Token or per-call pricing": "按 token 或按次计费",
