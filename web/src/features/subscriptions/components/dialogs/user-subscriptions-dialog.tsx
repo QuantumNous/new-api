@@ -124,6 +124,7 @@ export function UserSubscriptionsDialog(props: Props) {
     action: 'restore_window' | 'initialize'
     idempotencyKey: string
     reason: string
+    submitted?: boolean
     unlimited: boolean
   } | null>(null)
 
@@ -222,9 +223,10 @@ export function UserSubscriptionsDialog(props: Props) {
   }
 
   const handleQuotaRestore = async () => {
-    if (!props.user?.id || !quotaRestoreAction) return
+    if (!props.user?.id || !quotaRestoreAction || restoringQuota) return
     const reason = quotaRestoreAction.reason.trim()
     if (!reason) return
+    setQuotaRestoreAction({ ...quotaRestoreAction, reason, submitted: true })
     setRestoringQuota(true)
     try {
       const res = await restoreUserSubscriptionQuota(
@@ -522,9 +524,12 @@ export function UserSubscriptionsDialog(props: Props) {
               value={quotaRestoreAction.reason}
               onChange={(event) =>
                 setQuotaRestoreAction((current) =>
-                  current ? { ...current, reason: event.target.value } : current
+                  current && !current.submitted
+                    ? { ...current, reason: event.target.value }
+                    : current
                 )
               }
+              readOnly={quotaRestoreAction.submitted}
               placeholder={t('Enter reason for this operation')}
               maxLength={2000}
               rows={3}

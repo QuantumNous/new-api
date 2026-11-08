@@ -210,6 +210,8 @@ describe('UserSubscriptionsDialog quota restoration', () => {
     await user.click(confirm)
 
     await waitFor(() => expect(confirm).toBeEnabled())
+    expect(reason).toHaveAttribute('readonly')
+    await user.type(reason, ' changed')
     expect(screen.getByRole('textbox', { name: 'Reason' })).toHaveValue(
       'Retry after failure'
     )
@@ -223,7 +225,7 @@ describe('UserSubscriptionsDialog quota restoration', () => {
     expect(mockedRestoreUserSubscriptionQuota).toHaveBeenCalledTimes(2)
     const firstRequest = mockedRestoreUserSubscriptionQuota.mock.calls[0][2]
     const retryRequest = mockedRestoreUserSubscriptionQuota.mock.calls[1][2]
-    expect(retryRequest.idempotency_key).toBe(firstRequest.idempotency_key)
+    expect(retryRequest).toEqual(firstRequest)
   })
 
   it('explains that unlimited subscriptions do not gain quota during initialization', async () => {
