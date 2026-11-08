@@ -13,7 +13,7 @@ func getDBTimestampTx(tx *gorm.DB) int64 {
 	var err error
 	switch {
 	case common.UsingMainDatabase(common.DatabaseTypePostgreSQL):
-		err = tx.Raw("SELECT EXTRACT(EPOCH FROM NOW())::bigint").Scan(&ts).Error
+		err = tx.Raw("SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()))::bigint").Scan(&ts).Error
 	case common.UsingMainDatabase(common.DatabaseTypeSQLite):
 		err = tx.Raw("SELECT strftime('%s','now')").Scan(&ts).Error
 	default:
@@ -32,7 +32,7 @@ func GetDBTimestamp() int64 {
 	var err error
 	switch {
 	case common.UsingMainDatabase(common.DatabaseTypePostgreSQL):
-		err = DB.Raw("SELECT EXTRACT(EPOCH FROM NOW())::bigint").Scan(&ts).Error
+		err = DB.Raw("SELECT FLOOR(EXTRACT(EPOCH FROM clock_timestamp()))::bigint").Scan(&ts).Error
 	case common.UsingMainDatabase(common.DatabaseTypeSQLite):
 		err = DB.Raw("SELECT strftime('%s','now')").Scan(&ts).Error
 	default:
