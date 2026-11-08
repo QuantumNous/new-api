@@ -7400,6 +7400,17 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "V5 allowance": "Hạn mức V5",
+    "Subscription Anlas": "Anlas đăng ký",
+    "Purchased Anlas": "Anlas đã mua",
+    "Purchased V5 allowance": "Hạn mức V5 đã mua",
+    "Next +1%": "Lần hồi 1% tiếp theo",
+    "Refill paused": "Tạm dừng hồi",
+    "Refresh NovelAI resources": "Làm mới tài nguyên NovelAI",
+    "NovelAI balance request failed": "Không thể truy vấn số dư NovelAI",
+    "NovelAI balance request failed (HTTP {{status}})": "Không thể truy vấn số dư NovelAI (HTTP {{status}})",
+    "Invalid NovelAI subscription response": "Phản hồi đăng ký NovelAI không hợp lệ",
+    "Inactive": "Không hoạt động"
   }
 }

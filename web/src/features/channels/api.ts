@@ -297,11 +297,12 @@ export async function testChannel(
  * Update channel balance
  */
 export async function updateChannelBalance(
-  id: number
+  id: number,
+  signal?: AbortSignal
 ): Promise<ChannelBalanceResponse> {
   const res = await api.get(
     `/api/channel/update_balance/${id}`,
-    channelActionConfig()
+    channelActionConfig({ signal, disableDuplicate: Boolean(signal) })
   )
   return res.data
 }

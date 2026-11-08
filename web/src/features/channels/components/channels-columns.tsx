@@ -64,6 +64,7 @@ import { getCodexUsage, updateChannelBalance } from '../api'
 import {
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPE_TASK_PLUGIN,
+  CHANNEL_TYPE_NOVELAI,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
   MODEL_FETCHABLE_TYPES,
@@ -89,7 +90,7 @@ import {
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
 import type { Channel } from '../types'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
-import { TaskPluginChannelBadge } from './channel-type-badge'
+import { ChannelTypeLogo, TaskPluginChannelBadge } from './channel-type-badge'
 import { useChannels } from './channels-provider'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DataTableTagRowActions } from './data-table-tag-row-actions'
@@ -98,6 +99,7 @@ import {
   CodexUsageDialog,
   type CodexUsageDialogData,
 } from './dialogs/codex-usage-dialog'
+import { NovelAIBalance } from './novelai-balance'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
 function parseIonetMeta(otherInfo: string | null | undefined): null | {
@@ -429,6 +431,10 @@ export function BalanceCell({ channel }: { channel: Channel }) {
         </Tooltip>
       </TooltipProvider>
     )
+  }
+
+  if (channel.type === CHANNEL_TYPE_NOVELAI) {
+    return <NovelAIBalance channel={channel} />
   }
 
   // Regular channel row: show used and remaining with click to update
@@ -868,6 +874,11 @@ export function useChannelsColumns(
                       }
                     >
                       <ProviderBadge
+                        iconNode={
+                          type === CHANNEL_TYPE_NOVELAI ? (
+                            <ChannelTypeLogo type={type} size={18} />
+                          ) : undefined
+                        }
                         iconKey={`${iconName}.Color`}
                         iconSize={18}
                         label={typeName}
