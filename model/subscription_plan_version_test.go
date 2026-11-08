@@ -29,6 +29,26 @@ func createPlanVersionTestUser(t *testing.T, username string) *User {
 	return user
 }
 
+func TestSubscriptionPurchaseRejectsStaleCachedEligibilityMatrix(t *testing.T) {
+	runSubscriptionAccountingMatrix(t, func(t *testing.T) {
+		for _, field := range []string{"enabled", "allow_balance_pay"} {
+			t.Run(field, func(t *testing.T) {
+				plan := createPlanVersionTestPlan(t, field)
+				_, err := GetSubscriptionPlanById(plan.Id)
+				require.NoError(t, err)
+				require.NoError(t, DB.Model(plan).Update(field, false).Error)
+				err = PurchaseSubscriptionWithBalance(1, plan.Id)
+				require.Error(t, err)
+				if field == "enabled" {
+					assert.Contains(t, err.Error(), "not enabled")
+				} else {
+					assert.Contains(t, err.Error(), "does not allow balance")
+				}
+			})
+		}
+	})
+}
+
 func createPlanVersionTestPlan(t *testing.T, title string) *SubscriptionPlan {
 	t.Helper()
 	plan := &SubscriptionPlan{
