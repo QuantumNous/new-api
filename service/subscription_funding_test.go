@@ -87,6 +87,7 @@ func TestSubscriptionSettlementFundingMatrix(t *testing.T) {
 				assert.Zero(t, upgraded.PlanVersionId)
 				assert.Zero(t, upgraded.SettlementAmount)
 				assert.Zero(t, upgraded.WalletSettledAmount)
+				assert.False(t, upgraded.WalletAuthorized)
 				duplicate := model.SubscriptionPreConsumeRecord{RequestId: old.RequestId}
 				// Savepoints keep PostgreSQL usable after the expected unique violation.
 				err := db.Transaction(func(tx *gorm.DB) error { return tx.Table("ticket05_upgrade_records").Create(&duplicate).Error })
@@ -464,6 +465,32 @@ type subscriptionFundingReleasedRecord struct {
 
 func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 	t.Helper()
+	t.Run("strict task authorization survives old-node private data rewrites", func(t *testing.T) {
+		ctx, info, sub := subscriptionFundingFixture(t, db, 400, 340, 100, 60, true)
+		info.UserSetting.BillingPreference = "subscription_only"
+		session, apiErr := NewBillingSession(ctx, info, 10)
+		require.Nil(t, apiErr)
+		require.NoError(t, session.Settle(10))
+		// An older node drops the new preference JSON member on round-trip.
+		task := model.Task{TaskID: info.RequestId, UserId: info.UserId, Quota: 10, PrivateData: model.TaskPrivateData{
+			BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id,
+			Execution: &model.TaskExecutionSnapshot{RequestID: info.RequestId},
+		}}
+		require.NoError(t, db.Create(&task).Error)
+		t.Cleanup(func() {
+			require.NoError(t, db.Delete(&task).Error)
+			require.NoError(t, db.Where("user_id = ?", info.UserId).Delete(&model.Log{}).Error)
+		})
+		RecalculateTaskQuota(ctx, &task, 90, common.NewMessage("strict async completion"))
+		assert.Equal(t, 60, task.Quota)
+		wallet, err := model.GetUserQuota(info.UserId, true)
+		require.NoError(t, err)
+		assert.Equal(t, 200, wallet)
+		completion, _, err := model.PrepareSubscriptionTaskSettlement(info.RequestId)
+		require.NoError(t, err)
+		_, err = model.SettleSubscriptionWalletOverflow(completion.RequestId)
+		require.ErrorContains(t, err, "overflow is disabled")
+	})
 	t.Run("async completion splits the additional charge and retries", func(t *testing.T) {
 		ctx, info, sub := subscriptionFundingFixture(t, db, 400, 340, 100, 60, true)
 		session, apiErr := NewBillingSession(ctx, info, 10)

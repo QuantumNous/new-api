@@ -1988,6 +1988,7 @@ type SubscriptionPreConsumeRecord struct {
 	SettledAmount       int64  `json:"settled_amount" gorm:"type:bigint;not null;default:0"`
 	SettlementAmount    int64  `json:"settlement_amount" gorm:"type:bigint;not null;default:0"`
 	WalletSettledAmount int64  `json:"wallet_settled_amount" gorm:"type:bigint;not null;default:0"`
+	WalletAuthorized    bool   `json:"wallet_authorized" gorm:"not null;default:false"`
 	Status              string `json:"status" gorm:"type:varchar(32);index"` // reserved/consumed/settled/refunded
 	CreatedAt           int64  `json:"created_at" gorm:"bigint"`
 	UpdatedAt           int64  `json:"updated_at" gorm:"bigint;index"`
@@ -2139,7 +2140,7 @@ func snapshotLegacySubscriptionResetPolicies(db *gorm.DB) error {
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64, billingPreference ...string) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -2246,6 +2247,12 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				PreConsumed:        amount,
 				ResetGeneration:    resetGeneration,
 				Status:             "consumed",
+			}
+			// Missing authorization (including requests from older nodes) must
+			// never become permission to charge the wallet during task polling.
+			if len(billingPreference) > 0 {
+				pref := common.NormalizeBillingPreference(billingPreference[0])
+				record.WalletAuthorized = newQuotaModel && sub.AllowWalletOverflow && (pref == "subscription_first" || pref == "wallet_first")
 			}
 			if newQuotaModel {
 				record.Status = "reserved"
@@ -2460,7 +2467,7 @@ func PrepareSubscriptionTaskSettlement(requestId string) (*SubscriptionPreConsum
 			RequestId: fmt.Sprintf("%x", common.Sha256Raw([]byte("task-completion:"+requestId))),
 			UserId:    original.UserId, UserSubscriptionId: original.UserSubscriptionId,
 			PlanVersionId:   original.PlanVersionId,
-			ResetGeneration: original.ResetGeneration, Status: "reserved",
+			ResetGeneration: original.ResetGeneration, WalletAuthorized: original.WalletAuthorized, Status: "reserved",
 		}
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&completion).Error; err != nil {
 			return err
@@ -2517,7 +2524,7 @@ func SettleUserSubscriptionFunding(requestId string, delta int64) (*Subscription
 			result.WalletAmount = record.WalletSettledAmount
 			result.UnfundedAmount = settlementAmount - record.SettledAmount - record.WalletSettledAmount
 			result.TotalUsed = sub.AmountUsed
-			result.AllowWalletOverflow = sub.QuotaModelVersion > 0 && sub.AllowWalletOverflow
+			result.AllowWalletOverflow = sub.QuotaModelVersion > 0 && sub.AllowWalletOverflow && record.WalletAuthorized
 			return nil
 		}
 		record.SettlementAmount = actual
@@ -2581,7 +2588,7 @@ func SettleUserSubscriptionFunding(requestId string, delta int64) (*Subscription
 		result.SubscriptionAmount = record.SettledAmount
 		result.UnfundedAmount = record.SettlementAmount - record.SettledAmount
 		result.TotalUsed = sub.AmountUsed
-		result.AllowWalletOverflow = sub.QuotaModelVersion > 0 && sub.AllowWalletOverflow
+		result.AllowWalletOverflow = sub.QuotaModelVersion > 0 && sub.AllowWalletOverflow && record.WalletAuthorized
 		return nil
 	})
 	if err != nil {
@@ -2613,7 +2620,7 @@ func SettleSubscriptionWalletOverflow(requestId string) (int64, error) {
 		if err := tx.First(&sub, record.UserSubscriptionId).Error; err != nil {
 			return err
 		}
-		if sub.QuotaModelVersion == 0 || !sub.AllowWalletOverflow {
+		if sub.QuotaModelVersion == 0 || !sub.AllowWalletOverflow || !record.WalletAuthorized {
 			return errors.New("subscription wallet overflow is disabled")
 		}
 		userId = record.UserId

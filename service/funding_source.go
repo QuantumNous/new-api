@@ -4,7 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -99,7 +98,7 @@ func (s *SubscriptionFunding) Source() string { return BillingSourceSubscription
 
 func (s *SubscriptionFunding) PreConsume(_ int) error {
 	// amount 参数被忽略，使用内部 s.amount（已在构造时根据 preConsumedQuota 计算）
-	res, err := model.PreConsumeUserSubscription(s.requestId, s.userId, s.modelName, 0, s.amount)
+	res, err := model.PreConsumeUserSubscription(s.requestId, s.userId, s.modelName, 0, s.amount, s.billingPreference)
 	if err != nil {
 		return err
 	}
@@ -124,8 +123,7 @@ func (s *SubscriptionFunding) Settle(delta int) error {
 	if result.UnfundedAmount == 0 {
 		return nil
 	}
-	pref := common.NormalizeBillingPreference(s.billingPreference)
-	if !result.AllowWalletOverflow || pref != "subscription_first" && pref != "wallet_first" {
+	if !result.AllowWalletOverflow {
 		return errors.New("subscription settlement exceeds total quota")
 	}
 	walletAmount, err := model.SettleSubscriptionWalletOverflow(s.requestId)
