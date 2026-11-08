@@ -26,6 +26,7 @@ import type {
 } from '@/components/layout/types'
 import { useModelPricingIssueBadge } from '@/features/system-settings/models/pricing-issues'
 import { ROLE } from '@/lib/roles'
+import { filterNavGroupsByVisibleSections } from '@/lib/sidebar-sections'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { useMediaQuery } from './use-media-query'
@@ -45,10 +46,16 @@ import { useTopNavLinks } from './use-top-nav-links'
  */
 export function useSidebarView(): { navGroups: NavGroup[] } {
   const userRole = useAuthStore((s) => s.auth.user?.role)
+  const visibleSections = useAuthStore((s) => s.auth.user?.visible_sections)
   const modelPricingBadge = useModelPricingIssueBadge()
   const badges: SidebarBadges = { modelPricing: modelPricingBadge }
   const rootSidebarData = useSidebarData(badges)
   const configFilteredRoot = useSidebarConfig(rootSidebarData.navGroups)
+  // Administrator-managed allow-list, applied after the admin × user overlay.
+  const sectionFilteredRoot = useMemo(
+    () => filterNavGroupsByVisibleSections(configFilteredRoot, visibleSections),
+    [configFilteredRoot, visibleSections]
+  )
   // The header navigation is inline from `lg` up and hidden below it, so the
   // same links join the main sidebar for phones and tablets only.
   const isCompactTopNav = useMediaQuery('(max-width: 1023px)')
@@ -56,7 +63,7 @@ export function useSidebarView(): { navGroups: NavGroup[] } {
 
   const navGroups = useMemo<NavGroup[]>(() => {
     const role = userRole ?? ROLE.GUEST
-    const groups = configFilteredRoot
+    const groups = sectionFilteredRoot
       .map((group) => {
         const items = group.items.filter(
           (item) => item.requiredRole === undefined || role >= item.requiredRole
@@ -99,7 +106,7 @@ export function useSidebarView(): { navGroups: NavGroup[] } {
           }
         : group
     )
-  }, [configFilteredRoot, isCompactTopNav, topNavLinks, userRole])
+  }, [sectionFilteredRoot, isCompactTopNav, topNavLinks, userRole])
 
   return { navGroups }
 }

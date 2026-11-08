@@ -62,6 +62,7 @@ export const userSchema = z.object({
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
+  visible_sections: z.array(z.string()).optional(),
 })
 export type User = z.infer<typeof userSchema>
 
@@ -126,6 +127,8 @@ export interface UserFormData {
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
   admin_permissions?: AdminPermissionMatrix
+  /** Administrator-managed allow-list of console sections (empty = all). */
+  visible_sections?: string[]
 }
 
 export type ManageUserAction =

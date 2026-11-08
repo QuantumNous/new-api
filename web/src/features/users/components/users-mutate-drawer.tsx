@@ -97,6 +97,7 @@ import {
 } from '../lib'
 import type { User } from '../types'
 import { UserQuotaDialog } from './user-quota-dialog'
+import { UserVisibleSections } from './user-visible-sections'
 import { useUsers } from './users-provider'
 
 type UsersMutateDrawerProps = {
@@ -548,6 +549,35 @@ export function UsersMutateDrawer({
                     )}
                   </SideDrawerSection>
                 )}
+
+              {/* Sidebar Visibility (Update only) */}
+              {isUpdate && (
+                <SideDrawerSection>
+                  <h3 className='text-sm font-medium'>
+                    {t('Sidebar Visibility')}
+                  </h3>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Choose which console sections this user can see. Disabling a section hides it and blocks its API.'
+                    )}
+                  </p>
+                  <FormField
+                    control={form.control}
+                    name='visible_sections'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <UserVisibleSections
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </SideDrawerSection>
+              )}
 
               {/* Binding Information (Read-only) */}
               {isUpdate && (

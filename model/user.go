@@ -112,6 +112,11 @@ type User struct {
 	LastLoginAt          int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AuthVersion          int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
 	AdminPermissions     map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+	// VisibleSections is the administrator-controlled list of console sections a
+	// user may see. It is persisted inside the existing `setting` JSON text
+	// column (dto.UserSetting.VisibleSections), so no schema migration is needed.
+	// A nil pointer means "not provided" and leaves the stored value untouched.
+	VisibleSections *[]string `json:"visible_sections,omitempty" gorm:"-:all"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -219,6 +224,101 @@ func UpdateUserBindColumn(userId int, column string, value string) error {
 		return fmt.Errorf("invalid user bind column: %s", column)
 	}
 	return DB.Model(&User{}).Where("id = ?", userId).Update(column, value).Error
+}
+
+// userVisibleSectionKeys is the canonical, server-authoritative list of console
+// sections an administrator may grant or revoke for an individual user. The
+// frontend keeps a matching list; validate against this set so an unknown key
+// is rejected instead of silently stored.
+var userVisibleSectionKeys = []string{
+	"dashboard",
+	"chat",
+	"playground",
+	"api_keys",
+	"usage_logs",
+	"task_logs",
+	"drawing_logs",
+	"audit_logs",
+	"wallet",
+	"profile",
+	"security",
+	"channels",
+	"models",
+	"users",
+	"redemption",
+	"subscriptions",
+	"system_settings",
+	"system_info",
+	"task_plugins",
+}
+
+var userVisibleSectionSet = func() map[string]struct{} {
+	set := make(map[string]struct{}, len(userVisibleSectionKeys))
+	for _, key := range userVisibleSectionKeys {
+		set[key] = struct{}{}
+	}
+	return set
+}()
+
+// NormalizeVisibleSections trims, deduplicates and orders a user-supplied list
+// against the canonical section set. It returns an error when a key is not
+// recognized so callers can reject the whole request rather than persist an
+// inconsistent permission set.
+func NormalizeVisibleSections(sections []string) ([]string, error) {
+	normalized := make([]string, 0, len(sections))
+	seen := make(map[string]struct{}, len(sections))
+	for _, raw := range sections {
+		key := strings.TrimSpace(raw)
+		if key == "" {
+			continue
+		}
+		if _, ok := userVisibleSectionSet[key]; !ok {
+			return nil, fmt.Errorf("unknown visible section: %s", key)
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, key)
+	}
+	// Preserve the canonical order so equal sets serialize identically.
+	ordered := make([]string, 0, len(normalized))
+	for _, key := range userVisibleSectionKeys {
+		if _, ok := seen[key]; ok {
+			ordered = append(ordered, key)
+		}
+	}
+	return ordered, nil
+}
+
+// UpdateUserVisibleSectionsWithTx stores the administrator-managed visible
+// sections for a user inside the existing `setting` column. The caller owns the
+// transaction and the post-commit auth-cache refresh.
+func UpdateUserVisibleSectionsWithTx(tx *gorm.DB, userId int, sections []string) error {
+	if userId <= 0 {
+		return common.NewMessage("ID is empty!")
+	}
+	normalized, err := NormalizeVisibleSections(sections)
+	if err != nil {
+		return err
+	}
+	var current User
+	if err := lockForUpdate(tx).Select("id", "setting").First(&current, userId).Error; err != nil {
+		return err
+	}
+	setting := current.GetSetting()
+	// A full allow-list is equivalent to "unrestricted"; store nil so a later
+	// added section is not silently hidden for this account.
+	if len(normalized) == len(userVisibleSectionKeys) {
+		setting.VisibleSections = nil
+	} else {
+		setting.VisibleSections = normalized
+	}
+	serialized, err := common.Marshal(setting)
+	if err != nil {
+		return err
+	}
+	return tx.Model(&User{}).Where("id = ?", userId).Update("setting", string(serialized)).Error
 }
 
 // 根据用户角色生成默认的边栏配置

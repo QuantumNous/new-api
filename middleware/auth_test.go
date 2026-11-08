@@ -473,6 +473,43 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	assert.Equal(t, http.StatusOK, middlewareBearerRequest(router, "/api/user/self", profile).Code, "the deadline only retires legacy tokens")
 }
 
+func TestRequireVisibleSectionEnforcesAllowList(t *testing.T) {
+	setupDashboardAuthMiddlewareTest(t)
+
+	unrestricted := createMiddlewarePATUser(t, "visible-unrestricted", "visible-unrestricted-token")
+	restricted := createMiddlewarePATUser(t, "visible-restricted", "visible-restricted-token")
+	require.NoError(t, model.DB.Model(restricted).Update("setting", `{"visible_sections":["dashboard"]}`).Error)
+
+	rootUser := createMiddlewarePATUser(t, "visible-root", "visible-root-token")
+	require.NoError(t, model.DB.Model(rootUser).Update("role", common.RoleRootUser).Error)
+	require.NoError(t, model.DB.Model(rootUser).Update("setting", `{"visible_sections":["dashboard"]}`).Error)
+	rootUser.Role = common.RoleRootUser
+
+	for _, tc := range []struct {
+		name    string
+		user    *model.User
+		section string
+		blocked bool
+	}{
+		{name: "unrestricted user keeps access", user: unrestricted, section: "usage_logs"},
+		{name: "granted section is allowed", user: restricted, section: "dashboard"},
+		{name: "ungranted section is blocked", user: restricted, section: "usage_logs", blocked: true},
+		{name: "root bypasses the allow-list", user: rootUser, section: "usage_logs"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Set("id", tc.user.Id)
+			c.Set("role", tc.user.Role)
+			RequireVisibleSection(tc.section)(c)
+			assert.Equal(t, tc.blocked, c.IsAborted())
+			if tc.blocked {
+				assert.Equal(t, http.StatusForbidden, recorder.Code)
+			}
+		})
+	}
+}
+
 func TestAccessTokenIdentityAndSingleLookup(t *testing.T) {
 	setupDashboardAuthMiddlewareTest(t)
 	gin.SetMode(gin.TestMode)
