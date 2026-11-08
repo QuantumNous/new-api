@@ -3,7 +3,6 @@ package jsplugin
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,11 +17,11 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/base64"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
@@ -30,6 +29,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
@@ -48,6 +48,11 @@ type requestDescriptor struct {
 	RewriteModel   string            `json:"rewriteModel"`
 	BodyType       string            `json:"bodyType"`
 	Parts          []requestPart     `json:"parts"`
+
+	// ContentPath and MimeType are read from buildContentRequest only: the
+	// artifact's bytes are a base64 string at that path of the JSON reply.
+	ContentPath []any  `json:"contentPath"`
+	MimeType    string `json:"mimeType"`
 	// BodyText is the body as JSON.stringify wrote it, for a plugin that
 	// preserves JSON order: the upstream gets the members in that order.
 	BodyText json.RawMessage `json:"-"`
@@ -68,6 +73,9 @@ type orderedRequestDescriptor struct {
 	RewriteModel   string            `json:"rewriteModel"`
 	BodyType       string            `json:"bodyType"`
 	Parts          []requestPart     `json:"parts"`
+
+	ContentPath []any  `json:"contentPath"`
+	MimeType    string `json:"mimeType"`
 }
 
 type requestPart struct {
@@ -98,6 +106,27 @@ type taskResult struct {
 
 var taskArtifactKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$`)
 
+// gatewayCredentialHeaders carry the client's gateway credentials. Driver
+// hooks receive every other request header.
+var gatewayCredentialHeaders = []string{"Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key", "X-Goog-Api-Key", "Mj-Api-Secret"}
+
+// ClientRequestHeaders is the client's request headers as decoders and driver
+// hooks receive them: the first value of each under its canonical name,
+// without the headers that carry gateway credentials, and with Content-Type
+// and Accept always present.
+func ClientRequestHeaders(header http.Header) map[string]string {
+	headers := make(map[string]string, len(header)+2)
+	for name, values := range header {
+		name = http.CanonicalHeaderKey(name)
+		if len(values) > 0 && !slices.Contains(gatewayCredentialHeaders, name) {
+			headers[name] = values[0]
+		}
+	}
+	headers["Content-Type"] = header.Get("Content-Type")
+	headers["Accept"] = header.Get("Accept")
+	return headers
+}
+
 const maxTaskArtifacts = 64
 
 // maxTaskPluginPersistedJSONBytes is the shared ceiling for taskData and plugin state.
@@ -116,6 +145,11 @@ type TaskAdaptor struct {
 	// requestBodyText is the decoded requestBody as JSON text, which hooks
 	// of a plugin that preserves JSON order receive instead.
 	requestBodyText json.RawMessage
+	// keepReservation is set when the client of a native route already holds
+	// the relayed events of a submission whose stream stopped before the
+	// upstream finished it, or whose result the plugin could not read: the
+	// task then settles at the reserved quota.
+	keepReservation bool
 }
 
 func New(plugin *pluginruntime.LoadedPlugin) *TaskAdaptor { return &TaskAdaptor{plugin: plugin} }
@@ -152,16 +186,44 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 			}
 		}
 	}
+	// On a native path several plugins declare, the channel may have bound a
+	// plugin other than the one that prepared the request; it decodes again.
+	if pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
+		if pinned, ok := pinnedValue.(pluginruntime.PinnedRoute); ok && len(pinned.Candidates) > 1 && pinned.Plugin == a.plugin {
+			if requestValue, present := c.Get(pluginruntime.ContextKeyRouteRequest); present {
+				if requestContext, valid := requestValue.(pluginruntime.RouteRequestContext); valid {
+					requestContext.Params = pluginruntime.RouteParams(c.Params, pinned.Route)
+					resolvedValue, requestBodyText, callErr := a.plugin.Engine.CallPathWithMemberJSON(
+						context.WithoutCancel(c.Request.Context()), 0, a.plugin.Meta.JSONTextMember("requestBody"),
+						"native", []string{pinned.Route.Decode}, requestContext.JSValueFor(a.plugin.Meta),
+					)
+					resolved, resolvedOK := resolvedValue.(map[string]any)
+					kind, _ := resolved["kind"].(string)
+					resolvedModel, _ := resolved["model"].(string)
+					served, _, owned := model.ResolveTaskPluginModel(pinned.Generation, resolvedModel, a.plugin.Meta.Models)
+					if callErr != nil || !resolvedOK || kind != string(pluginruntime.RouteTypeSubmit) || !owned || served != c.GetString("resolved_task_model") {
+						return service.TaskErrorWrapperLocal(fmt.Errorf("final task plugin decoder rejected the pinned model"), "plugin_request_invalid", http.StatusBadRequest)
+					}
+					if _, forbidden := resolved["renderer"]; forbidden {
+						return service.TaskErrorWrapperLocal(fmt.Errorf("decoder must not return renderer"), "plugin_request_invalid", http.StatusBadRequest)
+					}
+					requestContext.RequestBody = resolved["requestBody"]
+					c.Set(pluginruntime.ContextKeyRouteRequest, requestContext)
+					c.Set("task_request", requestContext.RequestBody)
+					c.Set(pluginruntime.ContextKeyRequestBodyText, requestBodyText)
+					action := pinned.Route.Action
+					if resolvedAction, valid := resolved["action"].(string); valid && strings.TrimSpace(resolvedAction) != "" {
+						action = resolvedAction
+					}
+					c.Set("task_action", action)
+					info.Action = action
+				}
+			}
+		}
+	}
 	if _, exists := c.Get("task_request"); !exists {
 		if taskErr := relaycommon.ValidateBasicTaskRequest(c, info, "image_to_video"); taskErr != nil {
 			return taskErr
-		}
-	}
-	request, hasRequest := c.Get("task_request")
-	hasUsageProfiles := len(a.plugin.Meta.UsageProfiles) > 0
-	if hasRequest && !hasUsageProfiles {
-		if err := a.validateResolvedUsageRequest(request); err != nil {
-			return service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
 		}
 	}
 	if _, err := a.buildSubmit(c, info); err != nil {
@@ -171,14 +233,6 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		taskErr := service.TaskErrorWrapper(err, "plugin_request_invalid", http.StatusBadRequest, append(common.UpstreamAddresses(c), a.plugin.Meta.AllowedHosts...)...)
 		taskErr.LocalError = true
 		return taskErr
-	}
-	// The descriptor may rewrite the model. Validate profiled requests against
-	// that final model before any quota calculation or upstream submission; an
-	// upstream endpoint ID without a profile keeps the client model's profile.
-	if hasRequest && hasUsageProfiles {
-		if err := a.validateResolvedUsageRequest(request, info.UpstreamModelName, info.OriginModelName); err != nil {
-			return service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
-		}
 	}
 	return nil
 }
@@ -232,6 +286,9 @@ func (a *TaskAdaptor) ExtractUsageFactsValidated(c *gin.Context, info *relaycomm
 }
 
 func (a *TaskAdaptor) AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskData []byte) map[string]float64 {
+	if a.keepReservation {
+		return nil
+	}
 	var data any
 	if err := common.Unmarshal(taskData, &data); err != nil {
 		data = string(taskData)
@@ -455,7 +512,7 @@ func encodeFilePlaceholder(placeholder map[string]any, form *multipart.Form, lim
 	header := files[index]
 	maxBytes := limit
 	if raw, exists := placeholder["maxBytes"]; exists {
-		n, ok := usageNumber(raw, false)
+		n, ok := usageNumber(raw)
 		if !ok || n <= 0 || n != math.Trunc(n) {
 			return "", fmt.Errorf("invalid file placeholder")
 		}
@@ -482,9 +539,8 @@ func encodeFilePlaceholder(placeholder map[string]any, form *multipart.Form, lim
 		return "", fmt.Errorf("inlined files exceed the %d byte limit", limit)
 	}
 	*total += int64(len(data))
-	encoded := base64.StdEncoding.EncodeToString(data)
 	if encoding == "base64" {
-		return encoded, nil
+		return base64.StdEncoding.EncodeToString(data), nil
 	}
 	mimeType := "application/octet-stream"
 	if override, ok := placeholder["mimeType"].(string); ok && strings.TrimSpace(override) != "" {
@@ -492,45 +548,127 @@ func encodeFilePlaceholder(placeholder map[string]any, form *multipart.Form, lim
 	} else if contentType := header.Header.Get("Content-Type"); contentType != "" {
 		mimeType = contentType
 	}
-	return "data:" + mimeType + ";base64," + encoded, nil
+	return base64.EncodeDataURL(mimeType, data), nil
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, body io.Reader) (*http.Response, error) {
 	wasStream := info.IsStream
 	info.IsStream = false
 	defer func() { info.IsStream = wasStream }()
+	// A native route relays an SSE reply to the client as it arrives, so the
+	// vendor's work and what the client receives no longer depend on the
+	// client staying: from here the submission ignores the client leaving,
+	// keeps reading to the end and settles. Keep-alive comments reset the
+	// idle timeout, so the upstream request is bounded by the submission
+	// deadline of the host protocols (TASK_PLUGIN_PROTOCOL_TIMEOUT_SECONDS).
+	var release context.CancelFunc
+	if a.submit != nil && a.submit.ResponseType == "sse" && relaysSubmitEvents(c) {
+		detached := c.Request.WithContext(context.WithoutCancel(c.Request.Context()))
+		timeout := time.Duration(constant.TaskPluginProtocolTimeoutSeconds) * time.Second
+		if timeout <= 0 {
+			timeout = 10 * time.Minute
+		}
+		var upstream context.Context
+		upstream, release = context.WithTimeout(detached.Context(), timeout)
+		c.Request = detached.WithContext(upstream)
+		defer func() { c.Request = detached }()
+	}
 	if a.submit != nil && strings.TrimSpace(a.submit.Method) != "" {
 		originalMethod := c.Request.Method
 		c.Request.Method = strings.ToUpper(a.submit.Method)
 		defer func() { c.Request.Method = originalMethod }()
 	}
-	return channel.DoTaskApiRequest(a, c, info, body)
+	resp, err := channel.DoTaskApiRequest(a, c, info, body)
+	if release != nil {
+		if err != nil || resp == nil {
+			release()
+		} else {
+			resp.Body = deadlineBody{ReadCloser: resp.Body, release: release}
+		}
+	}
+	return resp, err
 }
 
-func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (_ *channel.TaskSubmitResponse, taskErr *dto.TaskError) {
+// deadlineBody releases the deadline of a relayed submission's upstream
+// request once its reply is closed.
+type deadlineBody struct {
+	io.ReadCloser
+	release context.CancelFunc
+}
+
+func (b deadlineBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.release()
+	return err
+}
+
+// relaysSubmitEvents reports whether the submission came through a native
+// route, whose client receives an SSE reply event by event.
+func relaysSubmitEvents(c *gin.Context) bool {
+	_, native := c.Get(pluginruntime.ContextKeyPinnedRoute)
+	return native
+}
+
+// submitReplyLimit bounds the submit reply and each of its SSE events. A
+// native route that declares retainResult: false delivers the reply once and
+// never persists it, so it may be as large as a downloaded file, which lets a
+// vendor return Base64 images.
+func submitReplyLimit(c *gin.Context) int64 {
+	if value, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
+		if pinned, ok := value.(pluginruntime.PinnedRoute); ok && pinned.Route.RetainResult != nil && !*pinned.Route.RetainResult {
+			return max(maxInlineFileBytes(), maxTaskPluginPersistedJSONBytes)
+		}
+	}
+	return maxTaskPluginPersistedJSONBytes
+}
+
+func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (submitted *channel.TaskSubmitResponse, taskErr *dto.TaskError) {
 	started := time.Now()
 	var responseBody any
 	var err error
 	streaming := a.submit != nil && a.submit.ResponseType == "sse"
 	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	acceptedStream := streaming || mediaType == "text/event-stream"
+	eventStream := mediaType == "text/event-stream"
+	acceptedStream := streaming || eventStream
+	relayed := false
 	defer func() {
-		if acceptedStream && taskErr != nil {
+		switch {
+		case taskErr == nil:
+		case relayed:
+			// The client already holds the vendor's events, so the task
+			// completes at the reserved quota instead of failing and refunding
+			// the vendor's work.
+			logger.LogWarn(c, common.LogText("task plugin %s could not read the result of a relayed submit stream; settling at the reserved quota: %s", a.plugin.Meta.Key, taskErr.Message))
+			a.keepReservation = true
+			submitted = &channel.TaskSubmitResponse{UpstreamTaskID: info.PublicTaskID, Immediate: &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, Progress: taskcommon.ProgressComplete}}
+			taskErr = nil
+		case acceptedStream:
 			taskErr.NoRetry = true
 		}
 	}()
-	if !streaming && acceptedStream {
+	if !streaming && eventStream {
 		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("unexpected SSE response for a JSON submission"), "plugin_submit_response_invalid", http.StatusBadGateway)
 	}
-	if streaming {
+	replyLimit := submitReplyLimit(c)
+	if eventStream {
 		// Every failure after accepting this stream is non-retryable: the
 		// upstream may already have performed billable work.
 		defer resp.Body.Close()
-		responseBody, err = a.readSubmitEvents(c.Request.Context(), resp, a.submitContext(c, info))
+		var client *gin.Context
+		if relaysSubmitEvents(c) {
+			client = c
+		}
+		var stopped bool
+		responseBody, stopped, err = a.readSubmitEvents(c.Request.Context(), resp, a.submitContext(c, info), submitEventStream{client: client, frameLimit: replyLimit})
+		relayed = client != nil && c.Writer.Written()
+		a.keepReservation = stopped
 	} else {
+		// A stream request may get a JSON reply too: a gateway released
+		// before relayed streams reads the vendor's stream on its native
+		// route and answers with one JSON body.
 		var body []byte
-		body, err = io.ReadAll(io.LimitReader(resp.Body, maxTaskPluginPersistedJSONBytes+1))
-		if err == nil && len(body) > maxTaskPluginPersistedJSONBytes {
+		body, err = io.ReadAll(io.LimitReader(resp.Body, replyLimit+1))
+		if err == nil && int64(len(body)) > replyLimit {
 			err = fmt.Errorf("task submit response exceeds size limit")
 		}
 		responseBody = string(body)
@@ -576,10 +714,16 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 		)
 		return nil, service.TaskErrorWrapper(err, "plugin_submit_response_invalid", http.StatusBadGateway, common.UpstreamAddresses(c)...)
 	}
+	// Only an immediate terminal result goes unpersisted; any other task data
+	// is stored and keeps the persisted limit.
+	dataLimit := int64(maxTaskPluginPersistedJSONBytes)
+	if parsed.Immediate != nil && (parsed.Immediate.Status == "SUCCESS" || parsed.Immediate.Status == "FAILURE") {
+		dataLimit = replyLimit
+	}
 	var taskData []byte
 	if parsed.TaskData != nil {
 		taskData, err = common.Marshal(parsed.TaskData)
-		if err != nil || len(taskData) > maxTaskPluginPersistedJSONBytes {
+		if err != nil || int64(len(taskData)) > dataLimit {
 			if err == nil {
 				err = fmt.Errorf("task data exceeds size limit")
 			}
@@ -609,6 +753,11 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 	}
 	response.Immediate = immediate
 	if immediate.Status != model.TaskStatusSuccess || !a.hasHook(c.Request.Context(), "extractUsageOnComplete") {
+		return response, nil
+	}
+	// A relayed stream that stopped early keeps the reservation: the plugin
+	// did not see the end of the vendor's work.
+	if a.keepReservation {
 		return response, nil
 	}
 	// Match the polling hook context without persisting a temporary task.
@@ -1083,6 +1232,35 @@ func (a *TaskAdaptor) ListArtifacts(task *model.Task) ([]channel.TaskArtifact, e
 	return validateTaskArtifacts(value)
 }
 
+// RendererArtifacts projects a SUCCESS task's artifacts for a presenter as
+// {key: {key, type, url, mimeType?}}, each url a gateway content address from
+// contentURL. Other tasks, and plugins without listArtifacts, have none.
+func RendererArtifacts(plugin *pluginruntime.LoadedPlugin, task *model.Task, contentURL func(taskID, artifactKey string) (string, error)) (map[string]any, error) {
+	projected := make(map[string]any)
+	if task == nil || task.Status != model.TaskStatusSuccess {
+		return projected, nil
+	}
+	artifacts, err := New(plugin).ListArtifacts(task)
+	if err != nil {
+		return nil, fmt.Errorf("project task artifacts: %w", err)
+	}
+	if len(artifacts) > 0 && contentURL == nil {
+		return nil, fmt.Errorf("task artifact projection is unavailable")
+	}
+	for _, artifact := range artifacts {
+		artifactURL, urlErr := contentURL(task.TaskID, artifact.Key)
+		if urlErr != nil {
+			return nil, fmt.Errorf("build task artifact content URL: %w", urlErr)
+		}
+		item := map[string]any{"key": artifact.Key, "type": artifact.Type, "url": artifactURL}
+		if artifact.MimeType != "" {
+			item["mimeType"] = artifact.MimeType
+		}
+		projected[artifact.Key] = item
+	}
+	return projected, nil
+}
+
 func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task, artifactKey string, clientRequest channel.TaskArtifactClientRequest) (*channel.TaskContentRequest, error) {
 	if !a.hasHook(context.Background(), "buildContentRequest") {
 		return nil, nil
@@ -1146,6 +1324,12 @@ func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task,
 			}
 		}
 	}
+	if err = pluginruntime.ValidateJSONPath(descriptor.ContentPath); err != nil {
+		return nil, fmt.Errorf("plugin returned an invalid artifact content path: %w", err)
+	}
+	if len(descriptor.MimeType) > 255 || strings.ContainsAny(descriptor.MimeType, "\r\n") {
+		return nil, fmt.Errorf("plugin returned an invalid artifact mimeType")
+	}
 	headers := descriptor.Headers
 	if !descriptor.Credentialless {
 		var overrides map[string]string
@@ -1171,6 +1355,8 @@ func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task,
 		Headers:        headers,
 		Body:           body,
 		Credentialless: descriptor.Credentialless,
+		ContentPath:    descriptor.ContentPath,
+		MimeType:       descriptor.MimeType,
 	}, nil
 }
 
@@ -1392,7 +1578,7 @@ func validateTaskArtifacts(value any) ([]channel.TaskArtifact, error) {
 		if rawMimeType, exists := item["mimeType"]; exists {
 			var mimeTypeOK bool
 			mimeType, mimeTypeOK = rawMimeType.(string)
-			if !mimeTypeOK {
+			if !mimeTypeOK || len(mimeType) > 255 || strings.ContainsAny(mimeType, "\r\n") {
 				return nil, fmt.Errorf("plugin artifact has invalid mimeType")
 			}
 		}
@@ -1422,6 +1608,7 @@ func (a *TaskAdaptor) requestDescriptor(ctx context.Context, hook string, args .
 		ResponseType: ordered.ResponseType, URL: ordered.URL, Method: ordered.Method, Headers: ordered.Headers,
 		Credentialless: ordered.Credentialless, Action: ordered.Action, Model: ordered.Model,
 		RewriteModel: ordered.RewriteModel, BodyType: ordered.BodyType, Parts: ordered.Parts,
+		ContentPath: ordered.ContentPath, MimeType: ordered.MimeType,
 	}
 	switch {
 	case len(ordered.Body) == 0 || string(ordered.Body) == "null":
@@ -1571,8 +1758,7 @@ func (a *TaskAdaptor) submitContext(c *gin.Context, info *relaycommon.RelayInfo)
 					routeRequest.Query[key] = append([]string(nil), values...)
 				}
 			}
-			requestHeaders["Content-Type"] = c.GetHeader("Content-Type")
-			requestHeaders["Accept"] = c.GetHeader("Accept")
+			requestHeaders = ClientRequestHeaders(c.Request.Header)
 			if strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
 				if form, err := common.ParseMultipartFormReusable(c); err == nil {
 					defer form.RemoveAll()
@@ -1679,48 +1865,6 @@ func (a *TaskAdaptor) usageRatios(ctx context.Context, models []string, hook str
 	return ratios, nil
 }
 
-func (a *TaskAdaptor) validateResolvedUsageRequest(request any, models ...string) error {
-	schema, _ := a.plugin.Meta.UsageForModels(models...)
-	return a.validateResolvedUsageValue(jsonValue(request), schema)
-}
-
-func (a *TaskAdaptor) validateResolvedUsageValue(value any, usageSchema map[string]pluginruntime.UsageFieldSchema) error {
-	switch typed := value.(type) {
-	case map[string]any:
-		for key, item := range typed {
-			limit, canonical := canonicalUsageLimit(key)
-			// A duration of -1 asks the vendor to pick the length. Plugins that
-			// declare duration-auto@1 reserve the longest duration for it and
-			// settle on the usage the vendor reports; usage facts stay
-			// non-negative.
-			if canonical && limit == relaycommon.MaxTaskDurationSeconds && a.plugin.Meta.AcceptsAutoDuration() {
-				if number, _ := usageNumber(item, true); number == -1 {
-					continue
-				}
-			}
-			if schema, declared := usageSchema[key]; declared {
-				if _, err := validateUsageValue(item, schema, true); err != nil {
-					return err
-				}
-			} else if canonical {
-				if err := validateUsageLimit(item, limit, true); err != nil {
-					return err
-				}
-			}
-			if err := a.validateResolvedUsageValue(item, usageSchema); err != nil {
-				return err
-			}
-		}
-	case []any:
-		for _, item := range typed {
-			if err := a.validateResolvedUsageValue(item, usageSchema); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 // validatedUsageRatios returns the normalized facts in a new map because the
 // hook result may be a host value, such as the request body, that must stay
 // unchanged.
@@ -1731,7 +1875,7 @@ func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any, models ...strin
 	for key, value := range facts {
 		validated[key] = value
 		if schema, declared := usageSchema[key]; declared {
-			number, err := validateUsageValue(value, schema, false)
+			number, err := validateUsageValue(value, schema)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -1743,7 +1887,7 @@ func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any, models ...strin
 			}
 			continue
 		}
-		number, numeric := usageNumber(value, false)
+		number, numeric := usageNumber(value)
 		if !numeric {
 			continue
 		}
@@ -1780,7 +1924,7 @@ func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any, models ...string)
 	for key, value := range values {
 		validated[key] = value
 		if schema, declared := usageSchema[key]; declared {
-			number, err := validateUsageValue(value, schema, false)
+			number, err := validateUsageValue(value, schema)
 			if err != nil {
 				return nil, err
 			}
@@ -1790,7 +1934,7 @@ func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any, models ...string)
 			continue
 		}
 		if limit, canonical := canonicalUsageLimit(key); canonical {
-			number, numeric := usageNumber(value, false)
+			number, numeric := usageNumber(value)
 			if !numeric {
 				return nil, fmt.Errorf("plugin usage value must be a number")
 			}
@@ -1802,13 +1946,13 @@ func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any, models ...string)
 		}
 		switch key {
 		case "upstreamUnits", "completionTokens", "totalTokens":
-			number, numeric := usageNumber(value, false)
+			number, numeric := usageNumber(value)
 			if !numeric || math.IsNaN(number) || math.IsInf(number, 0) || number < 0 {
 				return nil, fmt.Errorf("plugin usage value must be a finite non-negative number")
 			}
 			validated[key] = float64(common.QuotaFromFloat(number))
 		default:
-			if number, numeric := usageNumber(value, false); numeric {
+			if number, numeric := usageNumber(value); numeric {
 				validated[key] = number
 			}
 		}
@@ -1816,7 +1960,7 @@ func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any, models ...string)
 	return validated, nil
 }
 
-func validateUsageValue(value any, schema pluginruntime.UsageFieldSchema, allowNumericString bool) (float64, error) {
+func validateUsageValue(value any, schema pluginruntime.UsageFieldSchema) (float64, error) {
 	if len(schema.Enum) > 0 {
 		text, ok := value.(string)
 		if !ok {
@@ -1833,7 +1977,7 @@ func validateUsageValue(value any, schema pluginruntime.UsageFieldSchema, allowN
 		}
 		return 0, nil
 	}
-	number, ok := usageNumber(value, allowNumericString)
+	number, ok := usageNumber(value)
 	if !ok {
 		return 0, fmt.Errorf("plugin usage value must be a number")
 	}
@@ -1858,14 +2002,6 @@ func validateUsageValue(value any, schema pluginruntime.UsageFieldSchema, allowN
 	return number, nil
 }
 
-func validateUsageLimit(value any, limit int, allowNumericString bool) error {
-	number, ok := usageNumber(value, allowNumericString)
-	if !ok {
-		return fmt.Errorf("plugin usage value must be a number")
-	}
-	return validateUsageNumberLimit(number, limit)
-}
-
 func validateUsageNumberLimit(number float64, limit int) error {
 	if math.IsNaN(number) || math.IsInf(number, 0) || number < 0 {
 		return fmt.Errorf("plugin usage value must be a finite non-negative number")
@@ -1876,7 +2012,7 @@ func validateUsageNumberLimit(number float64, limit int) error {
 	return nil
 }
 
-func usageNumber(value any, allowNumericString bool) (float64, bool) {
+func usageNumber(value any) (float64, bool) {
 	switch number := value.(type) {
 	case float64:
 		return number, true
@@ -1884,12 +2020,6 @@ func usageNumber(value any, allowNumericString bool) (float64, bool) {
 		return float64(number), true
 	case int:
 		return float64(number), true
-	case string:
-		if !allowNumericString {
-			return 0, false
-		}
-		parsed, err := strconv.ParseFloat(strings.TrimSpace(number), 64)
-		return parsed, err == nil
 	default:
 		return 0, false
 	}

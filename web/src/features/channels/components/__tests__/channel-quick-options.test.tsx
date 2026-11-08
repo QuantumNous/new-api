@@ -40,8 +40,12 @@ import {
 import { CHANNEL_TYPE_ADVANCED_CUSTOM } from '../../lib/advanced-custom'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  transformChannelToFormDefaults,
+  transformFormDataToCreatePayload,
+  transformFormDataToUpdatePayload,
   type ChannelFormValues,
 } from '../../lib/channel-form'
+import { channelSchema } from '../../types'
 import { ChannelQuickOptions } from '../channel-quick-options'
 import type { PassthroughKind } from '../dialogs/passthrough-warning-dialog'
 
@@ -220,6 +224,43 @@ describe('header passthrough quick option', () => {
 })
 
 describe('body passthrough quick option', () => {
+  test.each([
+    { channelType: 1, enabled: true },
+    { channelType: CHANNEL_TYPE_ADVANCED_CUSTOM, enabled: true },
+    { channelType: CHANNEL_TYPE_ADVANCED_CUSTOM, enabled: false },
+    { channelType: CHANNEL_TYPE_ADVANCED_CUSTOM, enabled: undefined },
+  ])(
+    'channel type $channelType preserves body passthrough $enabled through create, update and reload',
+    ({ channelType, enabled }) => {
+      const channel = channelSchema.parse({
+        id: 42,
+        name: 'Body passthrough channel',
+        type: channelType,
+        key: '',
+        status: 1,
+        created_time: 0,
+        test_time: 0,
+        response_time: 0,
+        balance_updated_time: 0,
+        setting: JSON.stringify({ pass_through_body_enabled: enabled }),
+      })
+      const values = transformChannelToFormDefaults(channel)
+      const payloads = [
+        transformFormDataToCreatePayload(values).channel,
+        transformFormDataToUpdatePayload(values, channel.id),
+      ]
+      for (const payload of payloads) {
+        expect(
+          JSON.parse(payload.setting ?? '{}').pass_through_body_enabled
+        ).toBe(enabled === true)
+        expect(
+          transformChannelToFormDefaults({ ...channel, ...payload })
+            .pass_through_body_enabled
+        ).toBe(enabled === true)
+      }
+    }
+  )
+
   test('enabling asks for confirmation and disabling does not', async () => {
     const user = userEvent.setup()
     const confirm = vi.fn(() => Promise.resolve(true))

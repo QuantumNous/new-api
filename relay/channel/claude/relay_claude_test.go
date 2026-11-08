@@ -102,7 +102,11 @@ func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {
 
 			require.Len(t, resp.Content, 1)
 			assert.Equal(t, "tool_use", resp.Content[0].Type)
-			assert.Equal(t, tt.want, resp.Content[0].Input)
+			encoded, err := common.Marshal(resp.Content[0].Input)
+			require.NoError(t, err)
+			want, err := common.Marshal(tt.want)
+			require.NoError(t, err)
+			assert.Equal(t, string(want), string(encoded))
 		})
 	}
 }

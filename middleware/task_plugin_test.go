@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"os"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -21,12 +22,15 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	builtinplugins "github.com/QuantumNous/new-api/plugins"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 const genericTaskPluginSource = `
@@ -65,6 +69,8 @@ decodeJob: function(ctx) {
   if (ctx.params.category !== "video") throw new Error("bad params");
   if (ctx.query.tag.length !== 2 || ctx.query.tag[0] !== "first" || ctx.query.tag[1] !== "second") throw new Error("bad query");
   if (ctx.body.kind !== "json" || !Array.isArray(ctx.body.value) || ctx.body.value[0] !== "prompt") throw new Error("bad body");
+  // Decoders read the client's headers, without its gateway credentials.
+  if (ctx.requestHeaders["X-Dashscope-Async"] !== "enable" || ctx.requestHeaders.Authorization !== undefined) throw new Error("bad headers");
 	return {kind: "submit", model: "resolved-model", action: "resolved-action", requestBody: {prompt: "normalized"}};
 },
 jobCreated: function(ctx, task) { return task; },
@@ -77,7 +83,8 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 
 	router := gin.New()
 	reachedSubmit := false
-	router.POST("/vendor/jobs/:category", pinTaskPluginRoute(plugin, 0), PrepareTaskPluginRoute(), func(c *gin.Context) {
+	// The inner plugin router names wildcards by position.
+	router.POST("/vendor/jobs/:s2", pinTaskPluginRoute(plugin, 0), PrepareTaskPluginRoute(), func(c *gin.Context) {
 		reachedSubmit = true
 		requestContext, ok := c.MustGet(jsplugin.ContextKeyRouteRequest).(jsplugin.RouteRequestContext)
 		require.True(t, ok)
@@ -91,6 +98,8 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 	})
 	request := httptest.NewRequest(http.MethodPost, "/vendor/jobs/video?tag=first&tag=second", strings.NewReader(`["prompt",2]`))
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-DashScope-Async", "enable")
+	request.Header.Set("Authorization", "Bearer sk-gateway")
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
@@ -178,15 +187,27 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 	})
 }
 
-func TestPrepareTaskPluginNativeRouteRejectsMultipartBeforeDecoder(t *testing.T) {
+func TestPrepareTaskPluginNativeRoutePassesMultipartToDecoder(t *testing.T) {
 	plugin := compileTaskRoutePlugin(t, `
 export const meta = {
   apiVersion: 1, key: "route-multipart-test", name: "Multipart", version: "1.0.0",
   author: {name: "Test"},
   models: ["multipart-model"], fetchMode: "per_task",
-  routes: [{method: "POST", path: "/vendor/uploads", type: "submit", decode: "decodeUpload", render: "created"}],
+  routes: [
+    {method: "POST", path: "/vendor/uploads", type: "submit", decode: "decodeUpload", render: "created"},
+    {method: "POST", path: "/vendor/scoped", type: "submit", decode: "decodeUpload", render: "created", models: ["multipart-model"]},
+  ],
 };
-export const native = {decodeUpload: function() { throw new Error("decoder must not run"); }, created: function(ctx, task) { return task; }};
+export const native = {
+  decodeUpload: function(ctx) {
+    if (ctx.body.kind !== "multipart") throw new Error("multipart body expected");
+    return {kind: "submit", model: "multipart-model", requestBody: {
+      caption: ctx.body.fields.caption[0], tags: ctx.body.fields.tag.slice(),
+      files: ctx.body.files.map(function(file) { return [file.ref, file.filename, file.size]; }),
+    }};
+  },
+  created: function(ctx, task) { return task; },
+};
 export function buildSubmitRequest() { return {url: "https://example.com"}; }
 export function parseSubmitResponse() { return {taskId: "one"}; }
 export function buildQueryRequest() { return {url: "https://example.com"}; }
@@ -204,7 +225,9 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 	require.NoError(t, writer.Close())
 
 	router := gin.New()
+	var taskRequest any
 	router.POST("/vendor/uploads", pinTaskPluginRoute(plugin, 0), PrepareTaskPluginRoute(), func(c *gin.Context) {
+		taskRequest, _ = c.Get("task_request")
 		c.Status(http.StatusNoContent)
 	})
 	request := httptest.NewRequest(http.MethodPost, "/vendor/uploads", bytes.NewReader(body.Bytes()))
@@ -213,7 +236,29 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 
 	router.ServeHTTP(recorder, request)
 
+	require.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+	assert.Equal(t, map[string]any{
+		"caption": "hello",
+		"tags":    []any{"one", "two"},
+		"files":   []any{[]any{"request_file:media", "clip.bin", int64(11)}},
+	}, taskRequest)
+
+	form := httptest.NewRequest(http.MethodPost, "/vendor/uploads", strings.NewReader("caption=hello"))
+	form.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, form)
+	assert.Equal(t, http.StatusUnsupportedMediaType, recorder.Code, "submit routes still refuse url-encoded forms")
+
+	// A route scoped to models reads the model from a JSON body.
+	router.POST("/vendor/scoped", pinTaskPluginRoute(plugin, 1), PrepareTaskPluginRoute(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	scoped := httptest.NewRequest(http.MethodPost, "/vendor/scoped", bytes.NewReader(body.Bytes()))
+	scoped.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, scoped)
 	assert.Equal(t, http.StatusUnsupportedMediaType, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "this route requires a JSON body")
 }
 
 func TestPrepareTaskPluginRouteModelScope(t *testing.T) {
@@ -402,7 +447,6 @@ func TestBuildTaskPluginRouteRequestRejectsUnsafeBodies(t *testing.T) {
 		{name: "invalid json UTF-8", contentType: "application/json", body: []byte{'{', '"', 'x', '"', ':', '"', 0xff, '"', '}'}, errorText: "valid UTF-8"},
 		{name: "invalid form UTF-8", contentType: "application/x-www-form-urlencoded", body: []byte("x=%FF"), errorText: "valid UTF-8"},
 		{name: "too many repeated form fields", contentType: "application/x-www-form-urlencoded", body: []byte(strings.Repeat("x=v&", maxTaskPluginFormFields) + "x=v"), errorText: "exceeds 256 fields"},
-		{name: "oversized form field", contentType: "application/x-www-form-urlencoded", body: []byte("x=" + strings.Repeat("a", maxTaskPluginFieldValueBytes+1)), errorText: "exceeds 1048576 bytes"},
 		{name: "missing multipart boundary", contentType: "multipart/form-data", body: []byte("body"), errorText: "boundary is required"},
 	}
 	for _, testCase := range tests {
@@ -456,12 +500,6 @@ func TestBuildTaskPluginRouteRequestRejectsUnsafeBodies(t *testing.T) {
 			_, err = part.Write([]byte{0xff})
 			require.NoError(t, err)
 		}, errorText: "valid UTF-8"},
-		{name: "oversized multipart field", build: func(t *testing.T, writer *multipart.Writer) {
-			part, err := writer.CreateFormField("field")
-			require.NoError(t, err)
-			_, err = part.Write([]byte(strings.Repeat("a", maxTaskPluginFieldValueBytes+1)))
-			require.NoError(t, err)
-		}, errorText: "exceeds 1048576 bytes"},
 		{name: "nested multipart", build: func(t *testing.T, writer *multipart.Writer) {
 			header := make(textproto.MIMEHeader)
 			header.Set("Content-Disposition", `form-data; name="nested"`)
@@ -505,6 +543,30 @@ func TestBuildTaskPluginRouteRequestRejectsUnsafeBodies(t *testing.T) {
 			require.ErrorContains(t, err, testCase.errorText)
 		})
 	}
+
+	t.Run("multipart fields are bounded by the request body limit only", func(t *testing.T) {
+		previous := constant.MaxRequestBodyMB
+		t.Cleanup(func() { constant.MaxRequestBodyMB = previous })
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		// A JSON request sent as a field, larger than the old 1 MiB field cap.
+		require.NoError(t, writer.WriteField("request", strings.Repeat("a", 2<<20)))
+		require.NoError(t, writer.Close())
+		send := func(limitMB int) (map[string]any, error) {
+			constant.MaxRequestBodyMB = limitMB
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/body", bytes.NewReader(body.Bytes()))
+			c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+			request, err := buildTaskPluginRouteRequest(c)
+			decoded, _ := request.Body.(map[string]any)
+			return decoded, err
+		}
+		decoded, err := send(4)
+		require.NoError(t, err)
+		assert.Len(t, decoded["fields"].(map[string][]string)["request"][0], 2<<20)
+		_, err = send(1)
+		require.ErrorContains(t, err, "request body exceeds 1 MB")
+	})
 
 	t.Run("oversized multipart file", func(t *testing.T) {
 		previous := constant.MaxFileDownloadMB
@@ -1312,7 +1374,7 @@ export const native = {status: function(ctx, task) { return {id: task.task_id}; 
 	})
 
 	router := gin.New()
-	router.GET("/vendor/jobs/:id",
+	router.GET("/vendor/jobs/:s2",
 		pinTaskPluginRoute(plugin, 0),
 		func(c *gin.Context) {
 			c.Set("id", 7)
@@ -1994,6 +2056,618 @@ func TestPrepareTaskPluginEndpointFiltersEachSharedCandidate(t *testing.T) {
 			} else {
 				assert.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
 				assert.Equal(t, tc.wantKeys, gotKeys)
+			}
+		})
+	}
+}
+
+func TestRouteTaskPluginEndpointUsesSelectedChannel(t *testing.T) {
+	require.NoError(t, appI18n.Init())
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			dsn := ""
+			if dialect != "sqlite" {
+				dsn = os.Getenv("TEST_" + strings.ToUpper(dialect) + "_DSN")
+				if dsn == "" {
+					t.Skip("database test DSN not configured")
+				}
+			}
+			previousDB, previousMain, previousLog := model.DB, common.MainDatabaseType(), common.LogDatabaseType()
+			previousPath, previousMaster := common.SQLitePath, common.IsMasterNode
+			previousCache, previousRedis := common.MemoryCacheEnabled, common.RedisEnabled
+			common.SQLitePath, common.IsMasterNode = t.TempDir()+"/routing.db", false
+			common.RedisEnabled = false
+			t.Setenv("SQL_DSN", dsn)
+			require.NoError(t, model.InitDB())
+			database := model.DB
+			// Every table belongs to this run, including when a developer points
+			// a test DSN at a database shared with another test suite.
+			database.Config.NamingStrategy = schema.NamingStrategy{TablePrefix: "endpoint_route_" + common.GetUUID() + "_"}
+			require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.Task{}))
+			t.Cleanup(func() {
+				for _, table := range []any{&model.Ability{}, &model.Channel{}, &model.Task{}} {
+					require.NoError(t, database.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(table).Error)
+				}
+				common.MemoryCacheEnabled = true
+				model.InitChannelCache()
+				require.NoError(t, database.Migrator().DropTable(&model.Ability{}, &model.Channel{}, &model.Task{}))
+				model.DB = previousDB
+				common.SetDatabaseTypes(previousMain, previousLog)
+				common.SQLitePath, common.IsMasterNode = previousPath, previousMaster
+				common.MemoryCacheEnabled, common.RedisEnabled = previousCache, previousRedis
+				if previousDB != nil {
+					model.InitChannelCache()
+				}
+				sqlDB, err := database.DB()
+				require.NoError(t, err)
+				require.NoError(t, sqlDB.Close())
+			})
+			query := "SELECT version()"
+			if dialect == "sqlite" {
+				query = "SELECT sqlite_version()"
+			}
+			var version string
+			require.NoError(t, database.Raw(query).Scan(&version).Error)
+			t.Logf("database version: %s", version)
+
+			for _, memoryCache := range []bool{false, true} {
+				t.Run(fmt.Sprintf("memory_cache=%t", memoryCache), func(t *testing.T) {
+					common.MemoryCacheEnabled = memoryCache
+					for _, tc := range []struct {
+						name, path, model        string
+						pluginType               int
+						ordinaryType             int
+						ordinaryPriority         int64
+						pluginPriority           int64
+						pluginOnly, wantPlugin   bool
+						multipart, stream        bool
+						pinOrdinary, pinPlugin   bool
+						wrongGroup, wrongModel   bool
+						disabled, unrelated      bool
+						decoderRejects, syncOnly bool
+						originPin, retry         bool
+						legacy, mapped, shared   bool
+						wantStatus               int
+					}{
+						{name: "ordinary images bypass plugin decoder", decoderRejects: true},
+						{name: "ordinary images win by priority", ordinaryPriority: 20},
+						{name: "plugin images win by priority", pluginPriority: 20, wantPlugin: true},
+						{name: "type 61 plugin remains usable", pluginOnly: true, wantPlugin: true},
+						{name: "Alibaba legacy channel remains usable", legacy: true, pluginOnly: true, wantPlugin: true},
+						{name: "OpenAI can win against Alibaba for qwen-image-3.0", legacy: true, ordinaryPriority: 20},
+						{name: "Alibaba can win against OpenAI for qwen-image-3.0", legacy: true, pluginPriority: 20, wantPlugin: true},
+						{name: "bound New API uses plugin", pluginType: constant.ChannelTypeNewAPI, pluginPriority: 20, wantPlugin: true},
+						{name: "unbound New API uses ordinary relay", ordinaryType: constant.ChannelTypeNewAPI, decoderRejects: true},
+						{name: "unrelated type 61 cannot steal request", unrelated: true, pluginPriority: 20},
+						{name: "disabled plugin channel is ignored", disabled: true, pluginPriority: 20},
+						{name: "plugin in another group is ignored", wrongGroup: true, pluginPriority: 20},
+						{name: "plugin without requested model is ignored", wrongModel: true, pluginPriority: 20},
+						{name: "ordinary channel pin wins", pinOrdinary: true, pluginPriority: 20},
+						{name: "plugin channel pin wins", pinPlugin: true, wantPlugin: true},
+						{name: "ordinary model spelling is preserved", model: "CHANNEL-ROUTE-MODEL", decoderRejects: true},
+						{name: "mapped plugin alias remains usable", model: "friendly-image", mapped: true, pluginOnly: true, wantPlugin: true},
+						{name: "ordinary alias is not rewritten by plugin", model: "friendly-image", mapped: true, decoderRejects: true},
+						{name: "ordinary multipart edits are preserved", path: "/v1/images/edits", multipart: true, decoderRejects: true},
+						{name: "plugin multipart edits remain usable", path: "/v1/images/edits", multipart: true, pluginOnly: true, wantPlugin: true},
+						{name: "ordinary Responses bypass unsupported plugin mode", path: "/v1/responses", stream: true, syncOnly: true},
+						{name: "plugin Responses remain usable", path: "/v1/responses", pluginOnly: true, wantPlugin: true},
+						{name: "ordinary videos bypass plugin decoder", path: "/v1/videos", multipart: true, decoderRejects: true},
+						{name: "plugin videos remain usable", path: "/v1/videos", multipart: true, pluginOnly: true, wantPlugin: true},
+						{name: "selected plugin retains validation errors", pluginOnly: true, decoderRejects: true, wantStatus: http.StatusBadRequest},
+						{name: "selected plugin retains mode errors", path: "/v1/responses", pluginOnly: true, stream: true, syncOnly: true, wantStatus: http.StatusBadRequest},
+						{name: "origin task still pins its channel", pluginOnly: true, originPin: true, wantPlugin: true},
+						{name: "ordinary retries stay on ordinary channels", ordinaryPriority: 20, pluginPriority: 10, retry: true},
+						{name: "plugin retries stay on plugin channels", pluginPriority: 20, retry: true, wantPlugin: true},
+						{name: "rejected shared candidate still allows another plugin", pluginOnly: true, shared: true, decoderRejects: true, pluginPriority: 20, wantPlugin: true},
+					} {
+						t.Run(tc.name, func(t *testing.T) {
+							for _, table := range []any{&model.Ability{}, &model.Channel{}, &model.Task{}} {
+								require.NoError(t, database.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(table).Error)
+							}
+							key := "channel-route-test"
+							path := common.GetStringIfEmpty(tc.path, "/v1/images/generations")
+							modelName := common.GetStringIfEmpty(tc.model, "channel-route-model")
+							if tc.legacy {
+								key, modelName = "alibaba", "qwen-image-3.0"
+							}
+							decode := `return {model: ctx.model, action: "generate", requestBody: {normalized: true}};`
+							if tc.decoderRejects {
+								decode = `throw new Error("plugin rejected this request");`
+							} else if tc.originPin {
+								decode = `return {model: ctx.model, originTaskIds: ["task-route-origin"], requestBody: {normalized: true}};`
+							}
+							source := taskProtocolPluginSource(key, "1.0.0", `["channel-route-model"]`, path, decode)
+							if tc.syncOnly {
+								source = taskResponsesPluginSource(key, 0, `["channel-route-model"]`, `["sync"]`, `renderFinal: function() { return {}; },`, decode)
+							}
+							if !tc.legacy {
+								_, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
+								require.NoError(t, err)
+								t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
+							}
+							ordinary := &model.Channel{Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Name: "ordinary", Key: "ordinary-key", Group: "route-test", Models: modelName, Priority: common.GetPointer(tc.ordinaryPriority + 1)}
+							if tc.ordinaryType != 0 {
+								ordinary.Type = tc.ordinaryType
+							}
+							plugin := &model.Channel{Type: constant.ChannelTypeTaskPlugin, Status: common.ChannelStatusEnabled, Name: "plugin", Key: "plugin-key", Group: "route-test", Models: modelName, Priority: &tc.pluginPriority}
+							if tc.pluginType != 0 {
+								plugin.Type = tc.pluginType
+							}
+							plugin.SetSetting(kitdto.ChannelSettings{TaskPluginKey: key})
+							if tc.legacy {
+								plugin.Type = constant.ChannelTypeAli
+							}
+							if tc.mapped {
+								plugin.ModelMapping = common.GetPointer(`{"friendly-image":"channel-route-model"}`)
+							}
+							if tc.unrelated {
+								plugin.SetSetting(kitdto.ChannelSettings{TaskPluginKey: "unrelated"})
+							}
+							if tc.wrongGroup {
+								plugin.Group = "another-group"
+							}
+							if tc.wrongModel {
+								plugin.Models = "another-model"
+							}
+							if tc.disabled {
+								plugin.Status = common.ChannelStatusManuallyDisabled
+							}
+							channels := []*model.Channel{plugin}
+							if !tc.pluginOnly {
+								channels = append(channels, ordinary)
+							}
+							if tc.originPin || tc.retry || tc.shared {
+								alternate := &model.Channel{Type: ordinary.Type, Status: common.ChannelStatusEnabled, Name: "alternate", Key: "alternate-key", Group: "route-test", Models: modelName}
+								if tc.wantPlugin {
+									alternate.Type = plugin.Type
+									alternate.SetSetting(plugin.GetSetting())
+								}
+								if tc.shared {
+									const alternateKey = "channel-route-ztest"
+									alternateSource := taskProtocolPluginSource(alternateKey, "1.0.0", `["channel-route-model"]`, path, `return {model: ctx.model, requestBody: {normalized: true}};`)
+									_, err := jsplugin.DefaultRegistry.Register(alternateSource, jsplugin.Options{})
+									require.NoError(t, err)
+									t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(alternateKey)) })
+									alternate.SetSetting(kitdto.ChannelSettings{TaskPluginKey: alternateKey})
+								}
+								channels = append(channels, alternate)
+							}
+							for _, channel := range channels {
+								require.NoError(t, channel.Insert())
+							}
+							if tc.originPin {
+								require.NoError(t, database.Create(&model.Task{TaskID: "task-route-origin", UserId: 7, ChannelId: channels[len(channels)-1].Id, Platform: constant.TaskPlatform(key), Status: model.TaskStatusSuccess}).Error)
+							}
+							model.InitChannelCache()
+							body := []byte(fmt.Sprintf(`{"model":%q,"prompt":"a cat","size":"1024x1024","stream":%t}`, modelName, tc.stream))
+							contentType := "application/json"
+							if tc.multipart {
+								var form bytes.Buffer
+								writer := multipart.NewWriter(&form)
+								require.NoError(t, writer.WriteField("model", modelName))
+								require.NoError(t, writer.WriteField("prompt", "a cat"))
+								file, err := writer.CreateFormFile("image", "reference.png")
+								require.NoError(t, err)
+								_, err = file.Write([]byte("image bytes"))
+								require.NoError(t, err)
+								require.NoError(t, writer.Close())
+								body, contentType = form.Bytes(), writer.FormDataContentType()
+							}
+							reached := false
+							router := gin.New()
+							router.POST(path, func(c *gin.Context) {
+								common.SetContextKey(c, constant.ContextKeyUsingGroup, "route-test")
+								common.SetContextKey(c, constant.ContextKeyUserId, 7)
+								if tc.pinOrdinary || tc.pinPlugin {
+									id := ordinary.Id
+									if tc.pinPlugin {
+										id = plugin.Id
+									}
+									service.GetChannelConstraints(c).AddPin(dto.ChannelPin{ChannelId: id, Source: dto.PinSourceToken, Rank: dto.PinRankToken})
+								}
+							}, RouteTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), Distribute(), func(c *gin.Context) {
+								reached = true
+								_, pinned := c.Get(jsplugin.ContextKeyPinnedEndpoint)
+								assert.Equal(t, tc.wantPlugin, pinned)
+								_, relayEndpoint := c.Get(jsplugin.ContextKeyRelayEndpoint)
+								assert.Equal(t, !tc.wantPlugin, relayEndpoint)
+								expected := ordinary
+								if tc.wantPlugin {
+									expected = plugin
+									if tc.shared {
+										assert.Equal(t, "channel-route-ztest", c.GetString("task_plugin_key"))
+									} else {
+										assert.Equal(t, key, c.GetString("task_plugin_key"))
+									}
+									if tc.legacy {
+										assert.NotNil(t, c.MustGet("task_request"))
+									} else {
+										assert.Equal(t, map[string]any{"normalized": true}, c.MustGet("task_request"))
+									}
+									if tc.mapped {
+										assert.Equal(t, "channel-route-model", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).MappedModel)
+									}
+									if tc.originPin || tc.shared {
+										expected = channels[len(channels)-1]
+									}
+								} else {
+									assert.Empty(t, c.GetString("expected_task_plugin_key"))
+									assert.Empty(t, c.GetString("resolved_task_model"))
+									storage, err := common.GetBodyStorage(c)
+									require.NoError(t, err)
+									got, err := storage.Bytes()
+									require.NoError(t, err)
+									assert.Equal(t, body, got, "ordinary relay must receive the original body")
+								}
+								assert.Equal(t, expected.Id, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+								assert.Equal(t, expected.Key, common.GetContextKeyString(c, constant.ContextKeyChannelKey))
+								if tc.retry {
+									next, _, err := service.CacheGetRandomSatisfiedChannel(&service.RetryParam{Ctx: c, TokenGroup: "route-test", ModelName: modelName, Retry: common.GetPointer(1)})
+									require.NoError(t, err)
+									require.NotNil(t, next)
+									assert.Equal(t, channels[len(channels)-1].Id, next.Id)
+								}
+								c.Status(http.StatusNoContent)
+							})
+							request := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+							request.Header.Set("Content-Type", contentType)
+							recorder := httptest.NewRecorder()
+							router.ServeHTTP(recorder, request)
+							status := tc.wantStatus
+							if status == 0 {
+								status = http.StatusNoContent
+							}
+							assert.Equal(t, status, recorder.Code, recorder.Body.String())
+							assert.Equal(t, status == http.StatusNoContent, reached)
+							if tc.decoderRejects && status == http.StatusBadRequest {
+								assert.Contains(t, recorder.Body.String(), "plugin rejected this request")
+							}
+						})
+					}
+				})
+			}
+		})
+	}
+}
+
+// sharedRouteTestPluginSource declares the probe routes two plugins share;
+// decoder and presenter bodies name the plugin, and extra adds members to
+// native.
+func sharedRouteTestPluginSource(key, models, routes, extra string) string {
+	return fmt.Sprintf(`
+export const meta = {apiVersion: 1, key: %q, name: %q, version: "1.0.0", author: {name: "Test"}, models: %s, fetchMode: "per_task", routes: %s};
+export const native = {
+	createJob(ctx) {
+		const body = ctx.body.value || {};
+		if (body.reject === %q) throw new Error(%q + " rejects this job");
+		return {kind: "submit", model: body.model, requestBody: {by: %q, params: ctx.params}};
+	},
+	fetchJobs(ctx) { return {kind: "query", taskIds: ctx.body.value.ids}; },
+	jobStatus(ctx, task) { return {by: %q, tasks: Array.isArray(task) ? task.map(function(t) { return t.task_id; }) : [task.task_id], params: ctx.params, query: ctx.query, artifacts: ctx.artifacts}; },
+	%s
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+`, key, key, models, routes, key, key, key, key, extra)
+}
+
+// sharedTaskPluginRouteRouter serves the plugins' route groups as the inner
+// plugin router does, each pinned to its candidates, for caller 7.
+func sharedTaskPluginRouteRouter(t *testing.T, plugins ...*jsplugin.LoadedPlugin) *gin.Engine {
+	t.Helper()
+	registry := jsplugin.NewRegistry()
+	require.NoError(t, registry.ReplaceOverrides(plugins))
+	generation := registry.Generation()
+	router := gin.New()
+	for _, group := range generation.RouteGroups() {
+		router.Handle(group.Method, group.GinPath, func(c *gin.Context) {
+			c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Generation: generation, Plugin: group.Bindings[0].Plugin, Route: group.Bindings[0].Route, Candidates: group.Bindings})
+			c.Set("id", 7)
+			c.Next()
+		}, PrepareTaskPluginRoute(), func(c *gin.Context) {
+			pinned := c.MustGet(jsplugin.ContextKeyPinnedRoute).(jsplugin.PinnedRoute)
+			candidates := make([]string, 0, len(pinned.Candidates))
+			for _, candidate := range pinned.Candidates {
+				candidates = append(candidates, candidate.Plugin.Meta.Key)
+			}
+			c.JSON(http.StatusAccepted, gin.H{"plugin": pinned.Plugin.Meta.Key, "candidates": candidates, "model": c.GetString("resolved_task_model"), "request": c.MustGet("task_request")})
+		})
+	}
+	return router
+}
+
+func performSharedRouteRequest(router http.Handler, method, path, body string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
+// Every plugin declaring a submit path decodes the request; those accepting
+// the first acceptor's model stay candidates for distribution, and /{key}
+// keeps one plugin.
+func TestPrepareTaskPluginRouteDecodesEverySharedSubmitCandidate(t *testing.T) {
+	alpha := compileTaskRoutePlugin(t, sharedRouteTestPluginSource("share-alpha", `["probe-model", "alpha-only"]`,
+		`[{method: "POST", path: "/probe/v1/jobs/:kind", type: "submit", decode: "createJob", render: "jobStatus"}]`, ""))
+	beta := compileTaskRoutePlugin(t, sharedRouteTestPluginSource("share-beta", `["probe-model"]`,
+		`[{method: "POST", path: "/probe/v1/jobs/:variant", type: "submit", decode: "createJob", render: "jobStatus", models: ["probe-model"]}]`, ""))
+	router := sharedTaskPluginRouteRouter(t, beta, alpha)
+
+	for _, testCase := range []struct {
+		name, path, body string
+		status           int
+		want             string
+	}{
+		{name: "both accept", path: "/probe/v1/jobs/video", body: `{"model":"probe-model"}`, status: http.StatusAccepted,
+			want: `{"plugin":"share-alpha","candidates":["share-alpha","share-beta"],"model":"probe-model","request":{"by":"share-alpha","params":{"kind":"video"}}}`},
+		{name: "first rejects", path: "/probe/v1/jobs/video", body: `{"model":"probe-model","reject":"share-alpha"}`, status: http.StatusAccepted,
+			want: `{"plugin":"share-beta","candidates":["share-beta"],"model":"probe-model","request":{"by":"share-beta","params":{"variant":"video"}}}`},
+		{name: "route models scope each candidate", path: "/probe/v1/jobs/video", body: `{"model":"alpha-only"}`, status: http.StatusAccepted,
+			want: `{"plugin":"share-alpha","candidates":["share-alpha"],"model":"alpha-only","request":{"by":"share-alpha","params":{"kind":"video"}}}`},
+		{name: "every candidate rejects", path: "/probe/v1/jobs/video", body: `{"model":"other-model"}`, status: http.StatusBadRequest,
+			want: `{"code":"invalid_request","message":"share-alpha: model \"other-model\" is not served by this plugin; share-beta: model \"other-model\" is not allowed on this route","data":null}`},
+		{name: "the key address keeps one plugin", path: "/share-beta/probe/v1/jobs/video", body: `{"model":"probe-model","reject":"share-beta"}`, status: http.StatusBadRequest,
+			want: `{"code":"invalid_request","message":"share-beta rejects this job","data":null}`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := performSharedRouteRequest(router, http.MethodPost, testCase.path, testCase.body)
+			assert.Equal(t, testCase.status, recorder.Code, recorder.Body.String())
+			assert.JSONEq(t, testCase.want, recorder.Body.String())
+		})
+	}
+}
+
+// A case variant or a channel alias of a declared model is matched on a
+// native path as on the host protocols: the task takes the declared spelling
+// or keeps the alias, and a rejection names the client's model.
+func TestPrepareTaskPluginRouteMatchesChannelAliases(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}))
+	require.NoError(t, model.DB.Create(&model.Channel{Type: constant.ChannelTypeTaskPlugin, Status: common.ChannelStatusEnabled, Key: "key",
+		Models:       "scoped-alias,outside-alias,shared-alias",
+		ModelMapping: common.GetPointer(`{"scoped-alias":"scoped-model","outside-alias":"other-model","shared-alias":"shared-model"}`)}).Error)
+	// Replace any cached alias view, so the routes' generation builds its own
+	// from this channel.
+	model.InitChannelCache()
+	t.Cleanup(model.InitChannelCache)
+	shared := `[{method: "POST", path: "/probe/v1/shared", type: "submit", decode: "createJob", render: "jobStatus"}]`
+	router := sharedTaskPluginRouteRouter(t,
+		compileTaskRoutePlugin(t, sharedRouteTestPluginSource("alias-scoped", `["scoped-model", "other-model"]`, `[
+			{method: "POST", path: "/probe/v1/scoped", type: "submit", decode: "createJob", render: "jobStatus", models: ["scoped-model"]},
+			{method: "POST", path: "/probe/v1/single", type: "submit", decode: "createJob", render: "jobStatus"}]`, "")),
+		compileTaskRoutePlugin(t, sharedRouteTestPluginSource("alias-a", `["shared-model"]`, shared, "")),
+		compileTaskRoutePlugin(t, sharedRouteTestPluginSource("alias-b", `["shared-model"]`, shared, "")))
+
+	type result struct {
+		Plugin     string   `json:"plugin"`
+		Candidates []string `json:"candidates"`
+		Model      string   `json:"model"`
+		Message    string   `json:"message"`
+	}
+	for _, testCase := range []struct {
+		name, path, model string
+		status            int
+		want              result
+	}{
+		{name: "alias on a route with models", path: "/probe/v1/scoped", model: "scoped-alias", status: http.StatusAccepted,
+			want: result{Plugin: "alias-scoped", Candidates: []string{"alias-scoped"}, Model: "scoped-alias"}},
+		{name: "case variant on a route with models", path: "/probe/v1/scoped", model: "SCOPED-MODEL", status: http.StatusAccepted,
+			want: result{Plugin: "alias-scoped", Candidates: []string{"alias-scoped"}, Model: "scoped-model"}},
+		{name: "alias on a route without models", path: "/probe/v1/single", model: "scoped-alias", status: http.StatusAccepted,
+			want: result{Plugin: "alias-scoped", Candidates: []string{"alias-scoped"}, Model: "scoped-alias"}},
+		{name: "alias on a shared path", path: "/probe/v1/shared", model: "shared-alias", status: http.StatusAccepted,
+			want: result{Plugin: "alias-a", Candidates: []string{"alias-a", "alias-b"}, Model: "shared-alias"}},
+		{name: "case variant on a shared path", path: "/probe/v1/shared", model: "Shared-Model", status: http.StatusAccepted,
+			want: result{Plugin: "alias-a", Candidates: []string{"alias-a", "alias-b"}, Model: "shared-model"}},
+		{name: "alias of a model outside the route models", path: "/probe/v1/scoped", model: "outside-alias", status: http.StatusBadRequest,
+			want: result{Message: `model "outside-alias" is not allowed on this route`}},
+		{name: "declared model outside the route models", path: "/probe/v1/scoped", model: "other-model", status: http.StatusBadRequest,
+			want: result{Message: `model "other-model" is not allowed on this route`}},
+		{name: "alias of another plugin's model", path: "/probe/v1/single", model: "shared-alias", status: http.StatusBadRequest,
+			want: result{Message: `model "shared-alias" is not served by this plugin`}},
+		{name: "case variant of another plugin's model", path: "/probe/v1/single", model: "Shared-Model", status: http.StatusBadRequest,
+			want: result{Message: `model "Shared-Model" is not served by this plugin`}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			recorder := performSharedRouteRequest(router, http.MethodPost, testCase.path, fmt.Sprintf(`{"model":%q}`, testCase.model))
+			assert.Equal(t, testCase.status, recorder.Code, recorder.Body.String())
+			var got result
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &got))
+			assert.Equal(t, testCase.want, got)
+		})
+	}
+}
+
+// A query on a path several plugins declare is answered by the task's own
+// plugin; a task none of them owns is as unknown as a missing one.
+func TestPrepareTaskPluginRouteAnswersSharedQueriesByTaskOwner(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	alpha := compileTaskRoutePlugin(t, sharedRouteTestPluginSource("share-alpha", `["probe-model"]`, `[
+		{method: "GET", path: "/probe/v1/jobs/:task_id", type: "query", render: "jobStatus"},
+		{method: "POST", path: "/probe/v1/fetch", type: "dynamic", decode: "fetchJobs", render: "jobStatus"}
+	]`, ""))
+	beta := compileTaskRoutePlugin(t, sharedRouteTestPluginSource("share-beta", `["probe-model"]`, `[
+		{method: "GET", path: "/probe/v1/jobs/:job_id", type: "query", taskIdParam: "job_id", render: "jobStatus"},
+		{method: "POST", path: "/probe/v1/fetch", type: "dynamic", decode: "fetchJobs", render: "jobStatus"}
+	]`, ""))
+	insertTaskPluginRouteTask(t, &model.Task{TaskID: "task_alpha", UserId: 7, Platform: constant.TaskPlatform("share-alpha"), Status: model.TaskStatusInProgress})
+	insertTaskPluginRouteTask(t, &model.Task{TaskID: "task_beta", UserId: 7, Platform: constant.TaskPlatform("share-beta"), Status: model.TaskStatusInProgress})
+	insertTaskPluginRouteTask(t, &model.Task{TaskID: "task_foreign", UserId: 8, Platform: constant.TaskPlatform("share-beta"), Status: model.TaskStatusInProgress})
+	router := sharedTaskPluginRouteRouter(t, alpha, beta)
+
+	for _, testCase := range []struct{ method, path, body, want string }{
+		{http.MethodGet, "/probe/v1/jobs/task_alpha", "", `{"by":"share-alpha","tasks":["task_alpha"],"params":{"task_id":"task_alpha"},"query":{},"artifacts":{}}`},
+		{http.MethodGet, "/probe/v1/jobs/task_beta", "", `{"by":"share-beta","tasks":["task_beta"],"params":{"job_id":"task_beta"},"query":{},"artifacts":{}}`},
+		{http.MethodPost, "/probe/v1/fetch", `{"ids":["task_beta"]}`, `{"by":"share-beta","tasks":["task_beta"],"params":{},"query":{},"artifacts":{}}`},
+	} {
+		recorder := performSharedRouteRequest(router, testCase.method, testCase.path, testCase.body)
+		assert.Equal(t, http.StatusOK, recorder.Code, testCase.path)
+		assert.JSONEq(t, testCase.want, recorder.Body.String(), testCase.path)
+	}
+	missing := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/jobs/task_missing", "")
+	require.Equal(t, http.StatusNotFound, missing.Code)
+	for _, testCase := range []struct{ method, path, body string }{
+		{http.MethodGet, "/share-alpha/probe/v1/jobs/task_beta", ""},
+		{http.MethodGet, "/probe/v1/jobs/task_foreign", ""},
+		{http.MethodPost, "/probe/v1/fetch", `{"ids":["task_foreign"]}`},
+	} {
+		recorder := performSharedRouteRequest(router, testCase.method, testCase.path, testCase.body)
+		assert.Equal(t, http.StatusNotFound, recorder.Code, testCase.path)
+		assert.JSONEq(t, missing.Body.String(), recorder.Body.String(), testCase.path)
+		assert.NotContains(t, recorder.Body.String(), "task_beta")
+		assert.NotContains(t, recorder.Body.String(), "task_foreign")
+	}
+}
+
+// A query route whose taskIdParam is not a path parameter reads the task id
+// from the query string, as MiniMax's v1 query does.
+func TestPrepareTaskPluginRouteReadsQueryStringTaskID(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	plugin := compileTaskRoutePlugin(t, sharedRouteTestPluginSource("query-string-probe", `["probe-model"]`,
+		`[{method: "GET", path: "/probe/v1/query/job", type: "query", taskIdParam: "task_id", render: "jobStatus"}]`, ""))
+	insertTaskPluginRouteTask(t, &model.Task{TaskID: "task_qs", UserId: 7, Platform: constant.TaskPlatform("query-string-probe"), Status: model.TaskStatusInProgress})
+	router := sharedTaskPluginRouteRouter(t, plugin)
+
+	for _, path := range []string{"/probe/v1/query/job?task_id=task_qs", "/query-string-probe/probe/v1/query/job?task_id=task_qs"} {
+		recorder := performSharedRouteRequest(router, http.MethodGet, path, "")
+		require.Equal(t, http.StatusOK, recorder.Code, path)
+		assert.JSONEq(t, `{"by":"query-string-probe","tasks":["task_qs"],"params":{},"query":{"task_id":["task_qs"]},"artifacts":{}}`, recorder.Body.String())
+	}
+	missing := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/query/job", "")
+	assert.Equal(t, http.StatusBadRequest, missing.Code)
+	assert.Contains(t, missing.Body.String(), "task_id is required")
+	unknown := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/query/job?task_id=task_unknown", "")
+	assert.Equal(t, http.StatusNotFound, unknown.Code)
+}
+
+// A query presenter receives the artifacts of a finished task as the gateway
+// addresses Responses renderers get; a presenter with nothing to deliver for
+// the task answers like a missing one.
+func TestPrepareTaskPluginRouteGivesQueryPresentersArtifacts(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	previousSecret, previousAddress := common.CryptoSecret, system_setting.ServerAddress
+	common.CryptoSecret, system_setting.ServerAddress = "artifact-test-secret", "https://gateway.example"
+	t.Cleanup(func() { common.CryptoSecret, system_setting.ServerAddress = previousSecret, previousAddress })
+	listing := compileTaskRoutePlugin(t, sharedRouteTestPluginSource("artifact-probe", `["probe-model"]`, `[
+		{method: "GET", path: "/probe/v1/jobs/:task_id", type: "query", render: "jobStatus"},
+		{method: "GET", path: "/probe/v1/files/:task_id", type: "query", render: "fileOnly"}
+	]`, `fileOnly(ctx, task) { if (!ctx.artifacts.video) throw new Error("artifact_not_found"); return {url: ctx.artifacts.video.url}; },`)+
+		`export function listArtifacts(task) { return task.status === "SUCCESS" ? [{key: "video", type: "video", mimeType: "video/mp4"}] : []; }
+export function buildContentRequest() { return {url: "https://example.com/video.mp4"}; }`)
+	silent := compileTaskRoutePlugin(t, sharedRouteTestPluginSource("artifact-silent", `["probe-model"]`,
+		`[{method: "GET", path: "/silent/v1/jobs/:task_id", type: "query", render: "jobStatus"}]`, ""))
+	for taskID, platform := range map[string]string{"task_done": "artifact-probe", "task_running": "artifact-probe", "task_silent": "artifact-silent"} {
+		status := model.TaskStatus(model.TaskStatusSuccess)
+		if taskID == "task_running" {
+			status = model.TaskStatusInProgress
+		}
+		insertTaskPluginRouteTask(t, &model.Task{TaskID: taskID, UserId: 7, Platform: constant.TaskPlatform(platform), Status: status})
+	}
+	router := sharedTaskPluginRouteRouter(t, listing, silent)
+
+	done := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/jobs/task_done", "")
+	require.Equal(t, http.StatusOK, done.Code)
+	videoURL, err := service.BuildTaskArtifactContentURL("task_done", "video")
+	require.NoError(t, err)
+	var presented map[string]any
+	require.NoError(t, common.Unmarshal(done.Body.Bytes(), &presented))
+	assert.Equal(t, map[string]any{"video": map[string]any{"key": "video", "type": "video", "url": videoURL, "mimeType": "video/mp4"}}, presented["artifacts"])
+	file := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/files/task_done", "")
+	assert.JSONEq(t, fmt.Sprintf(`{"url":%q}`, videoURL), file.Body.String())
+
+	for _, path := range []string{"/probe/v1/jobs/task_running", "/silent/v1/jobs/task_silent"} {
+		recorder := performSharedRouteRequest(router, http.MethodGet, path, "")
+		require.Equal(t, http.StatusOK, recorder.Code, path)
+		assert.Contains(t, recorder.Body.String(), `"artifacts":{}`, path)
+	}
+	notReady := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/files/task_running", "")
+	assert.Equal(t, http.StatusNotFound, notReady.Code)
+	assert.Contains(t, notReady.Body.String(), `"code":"task_not_found"`)
+}
+
+// A native presenter answers with the vendor's own status by returning a reply
+// wrapper; anything else it returns is a 200 JSON body.
+func TestNativePresentersChooseTheVendorsStatus(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	plugin := compileTaskRoutePlugin(t, sharedRouteTestPluginSource("reply-probe", `["probe-model"]`, `[
+		{method: "GET", path: "/probe/v1/jobs/:task_id", type: "query", render: "pending"},
+		{method: "GET", path: "/probe/v1/moved/:task_id", type: "query", render: "moved"},
+		{method: "GET", path: "/probe/v1/broken/:task_id", type: "query", render: "broken"},
+		{method: "GET", path: "/probe/v1/plain/:task_id", type: "query", render: "jobStatus"}
+	]`, `pending(ctx, task) { return {__status: 202, __headers: {"retry-after": "5"}, __body: {status: "pending"}}; },
+	moved(ctx, task) { return {__status: 302, __headers: {Location: "https://cdn.example/v.mp4"}}; },
+	broken(ctx, task) { return {__status: 202, __headers: {"Set-Cookie": "a=b"}}; },
+	error(ctx, error) { return error.httpStatus === 404 ? {__status: 200, __body: {status: "not_found"}} : {message: error.message}; },`))
+	insertTaskPluginRouteTask(t, &model.Task{TaskID: "task_job", UserId: 7, Platform: "reply-probe", Status: model.TaskStatusInProgress})
+	router := sharedTaskPluginRouteRouter(t, plugin)
+
+	pending := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/jobs/task_job", "")
+	assert.Equal(t, http.StatusAccepted, pending.Code)
+	assert.Equal(t, "5", pending.Header().Get("Retry-After"))
+	assert.JSONEq(t, `{"status":"pending"}`, pending.Body.String())
+
+	moved := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/moved/task_job", "")
+	assert.Equal(t, http.StatusFound, moved.Code)
+	assert.Equal(t, "https://cdn.example/v.mp4", moved.Header().Get("Location"))
+	assert.Empty(t, moved.Body.String())
+
+	broken := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/broken/task_job", "")
+	assert.Equal(t, http.StatusInternalServerError, broken.Code, "a wrapper may set only Location and Retry-After")
+	assert.Empty(t, broken.Header().Get("Set-Cookie"))
+
+	plain := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/plain/task_job", "")
+	assert.Equal(t, http.StatusOK, plain.Code)
+
+	missing := performSharedRouteRequest(router, http.MethodGet, "/probe/v1/plain/task_missing", "")
+	assert.Equal(t, http.StatusOK, missing.Code, "the error presenter answers with the vendor's status too")
+	assert.JSONEq(t, `{"status":"not_found"}`, missing.Body.String())
+}
+
+func TestNativeRouteCredentialRewritesOnlyTheVendorsOwnForm(t *testing.T) {
+	for _, testCase := range []struct {
+		name, plugin, path   string
+		headers              map[string]string
+		wantAuthorization    string
+		wantRequestURI       string
+		wantGoogleKeyRemains bool
+	}{
+		{name: "Vidu Token form", plugin: "vidu", path: "/ent/v2/text2video", headers: map[string]string{"Authorization": "Token gateway-token"}, wantAuthorization: "Bearer gateway-token"},
+		{name: "Token form elsewhere", plugin: "doubao", path: "/api/v3/contents/generations/tasks", headers: map[string]string{"Authorization": "Token gateway-token"}, wantAuthorization: "Token gateway-token"},
+		{name: "Gemini header form", plugin: "google", path: "/v1beta/models/m:predictLongRunning", headers: map[string]string{"X-Goog-Api-Key": "gateway-token"}, wantAuthorization: "Bearer gateway-token"},
+		{name: "Gemini query form", plugin: "google", path: "/google/v1beta/models/m/operations/t?alt=json&key=gateway-token", wantAuthorization: "Bearer gateway-token", wantRequestURI: "/google/v1beta/models/m/operations/t?alt=json"},
+		{name: "Gemini forms do not replace Authorization", plugin: "google", path: "/v1beta/models/m:predictLongRunning?key=query-token", headers: map[string]string{"Authorization": "Bearer chosen-token", "X-Goog-Api-Key": "header-token"}, wantAuthorization: "Bearer chosen-token", wantRequestURI: "/v1beta/models/m:predictLongRunning"},
+		{name: "Gemini header form elsewhere", plugin: "vidu", path: "/vidu/ent/v2/text2video", headers: map[string]string{"X-Goog-Api-Key": "gateway-token"}, wantGoogleKeyRemains: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			router := gin.New()
+			var captured *http.Request
+			var query map[string][]string
+			router.Use(NativeRouteCredential(testCase.plugin), func(c *gin.Context) {
+				captured = c.Request
+				requestContext, err := buildTaskPluginRouteRequest(c)
+				require.NoError(t, err)
+				query = requestContext.Query
+				c.Status(http.StatusNoContent)
+			})
+			router.NoRoute(func(c *gin.Context) {})
+			request := httptest.NewRequest(http.MethodGet, testCase.path, nil)
+			for name, value := range testCase.headers {
+				request.Header.Set(name, value)
+			}
+			router.ServeHTTP(httptest.NewRecorder(), request)
+
+			require.NotNil(t, captured)
+			assert.Equal(t, testCase.wantAuthorization, captured.Header.Get("Authorization"))
+			assert.Equal(t, testCase.wantGoogleKeyRemains, captured.Header.Get("X-Goog-Api-Key") != "")
+			assert.NotContains(t, query, "key")
+			if testCase.wantRequestURI != "" {
+				assert.Equal(t, testCase.wantRequestURI, captured.RequestURI)
+				assert.NotContains(t, captured.URL.RawQuery, "key=")
 			}
 		})
 	}

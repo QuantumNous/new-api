@@ -3,7 +3,7 @@ package xai
 import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
-	"github.com/tidwall/gjson"
+	"github.com/MoeForge/moego/ojson"
 )
 
 // xaiResponsesToolUsage reads xAI's billed server-side tool counts from
@@ -11,13 +11,13 @@ import (
 // cumulative usage under response.usage; num_sources_used is not a billed
 // count). web_search_calls replaces the web_search_call items and is priced by
 // the web_search:grok* override; x_search is billed per fetched post and per
-// fetched profile. gjson truncates fractional values and reads non-numbers as
+// fetched profile. ojson truncates fractional values and reads non-numbers as
 // zero; SetBillableToolCount ignores negatives and settlement applies
 // MaxBillableToolCallCount.
 func xaiResponsesToolUsage(raw []byte) map[string]int {
-	details := gjson.GetBytes(raw, "usage.server_side_tool_usage_details")
+	details := ojson.GetBytes(raw, "usage.server_side_tool_usage_details")
 	if !details.Exists() {
-		details = gjson.GetBytes(raw, "response.usage.server_side_tool_usage_details")
+		details = ojson.GetBytes(raw, "response.usage.server_side_tool_usage_details")
 	}
 	if !details.IsObject() {
 		return nil

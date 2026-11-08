@@ -312,6 +312,44 @@ func TestSharedEndpointRebindsToSelectedType61Plugin(t *testing.T) {
 	assert.Equal(t, "beta", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).Plugin.Meta.Key)
 }
 
+// On a native path two plugins declare, the selected channel names the
+// executing plugin, which takes over the route and the task identity.
+func TestSharedNativeRouteRebindsToSelectedPlugin(t *testing.T) {
+	registry := jsplugin.NewRegistry()
+	for _, key := range []string{"route-alpha", "route-beta"} {
+		_, err := registry.Register(fmt.Sprintf(`
+export const meta = {apiVersion: 1, key: %q, name: %q, version: "1.0.0", author: {name: "Test"}, models: ["task-model"], fetchMode: "per_task",
+	routes: [{method: "POST", path: "/probe/v1/jobs", type: "submit", decode: "decode", render: "render"}]};
+export const native = {decode() { return {}; }, render() { return {}; }};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`, key, key), jsplugin.Options{})
+		require.NoError(t, err)
+	}
+	generation := registry.Generation()
+	candidates := generation.LookupDeclaredRoutes("POST", "/probe/v1/jobs")
+	require.Len(t, candidates, 2)
+	c, _ := gin.CreateTestContext(nil)
+	c.Set(jsplugin.ContextKeyPinnedPlugin, jsplugin.PinnedPlugin{Generation: generation, Plugin: candidates[0].Plugin})
+	c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Generation: generation, Plugin: candidates[0].Plugin, Route: candidates[0].Route, Candidates: candidates})
+	c.Set("expected_task_plugin_key", "route-alpha")
+	channel := &model.Channel{Id: 3, Type: constant.ChannelTypeTaskPlugin}
+	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "unrelated"})
+	assert.False(t, channelMatchesExpectedTaskPlugin(c, channel, "route-alpha"))
+	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "route-beta"})
+
+	require.Nil(t, SetupContextForSelectedChannel(c, channel, "task-model"))
+	pinned := c.MustGet(jsplugin.ContextKeyPinnedRoute).(jsplugin.PinnedRoute)
+	assert.Same(t, candidates[1].Plugin, pinned.Plugin)
+	assert.Equal(t, candidates[1].Route, pinned.Route)
+	assert.Same(t, candidates[1].Plugin, c.MustGet(jsplugin.ContextKeyPinnedPlugin).(jsplugin.PinnedPlugin).Plugin)
+	for _, key := range []string{"expected_task_plugin_key", "task_plugin_key", "platform"} {
+		assert.Equal(t, "route-beta", c.GetString(key), key)
+	}
+}
+
 func TestChannelMatchesExpectedTaskPluginUsesNewAPIExtensions(t *testing.T) {
 	channel := &model.Channel{Type: constant.ChannelTypeNewAPI}
 	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "single", TaskExtendPluginKeys: []string{"ext-alpha", "ext-beta"}})

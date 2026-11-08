@@ -2,17 +2,52 @@ package oaichat
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestOpenAIChatRequestToClaudeMessagesStopSequences(t *testing.T) {
+	tests := []struct {
+		name string
+		stop any
+		want []string
+	}{
+		{name: "string", stop: "END", want: []string{"END"}},
+		{name: "empty string", stop: "", want: []string{""}},
+		{name: "string slice", stop: []string{"END", ""}, want: []string{"END", ""}},
+		{name: "mixed slice", stop: []any{"END", 1, nil, "", "STOP"}, want: []string{"END", "", "STOP"}},
+		{name: "non-string slice", stop: []any{1, nil}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			maxTokens := uint(16)
+			got, err := OpenAIChatRequestToClaudeMessages(context.Background(), nil, dto.GeneralOpenAIRequest{
+				Model:     "claude-test",
+				MaxTokens: &maxTokens,
+				Messages:  []dto.Message{{Role: "user", Content: "hello"}},
+				Stop:      tt.stop,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			if len(tt.want) == 0 {
+				assert.Empty(t, got.StopSequences)
+				return
+			}
+			assert.Equal(t, tt.want, got.StopSequences)
+		})
+	}
+}
+
 func TestOpenAIChatRequestToClaudeMessagesNormalizesToolInputSchema(t *testing.T) {
 	tests := []struct {
 		name       string
-		parameters any
+		parameters json.RawMessage
 		wantSchema map[string]any
 	}{
 		{
@@ -24,10 +59,8 @@ func TestOpenAIChatRequestToClaudeMessagesNormalizesToolInputSchema(t *testing.T
 			},
 		},
 		{
-			name: "missing type and properties",
-			parameters: map[string]any{
-				"additionalProperties": false,
-			},
+			name:       "missing type and properties",
+			parameters: json.RawMessage(`{"additionalProperties":false}`),
 			wantSchema: map[string]any{
 				"type":                 "object",
 				"properties":           map[string]any{},
@@ -35,11 +68,8 @@ func TestOpenAIChatRequestToClaudeMessagesNormalizesToolInputSchema(t *testing.T
 			},
 		},
 		{
-			name: "non-string type",
-			parameters: map[string]any{
-				"type":       123,
-				"properties": map[string]any{},
-			},
+			name:       "non-string type",
+			parameters: json.RawMessage(`{"type":123,"properties":{}}`),
 			wantSchema: map[string]any{
 				"type":       123,
 				"properties": map[string]any{},
@@ -75,7 +105,9 @@ func TestOpenAIChatRequestToClaudeMessagesNormalizesToolInputSchema(t *testing.T
 			tool, ok := tools[0].(*dto.Tool)
 			require.True(t, ok)
 			assert.Equal(t, "get_current_time", tool.Name)
-			assert.Equal(t, tt.wantSchema, tool.InputSchema)
+			wantSchema, err := kitutil.Marshal(tt.wantSchema)
+			require.NoError(t, err)
+			assert.JSONEq(t, string(wantSchema), string(tool.InputSchema))
 		})
 	}
 }

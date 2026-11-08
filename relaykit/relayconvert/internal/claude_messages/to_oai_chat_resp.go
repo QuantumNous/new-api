@@ -6,12 +6,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/reasonmap"
 	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 type ClaudeResponseInfo struct {
@@ -482,12 +481,12 @@ func setMessageDeltaUsageInt(data string, path string, localValue int) string {
 		return data
 	}
 
-	upstreamValue := gjson.Get(data, path)
+	upstreamValue := ojson.Get(data, path)
 	if upstreamValue.Exists() && upstreamValue.Int() > 0 {
 		return data
 	}
 
-	patchedData, err := sjson.Set(data, path, localValue)
+	patchedData, err := ojson.Set(data, path, localValue)
 	if err != nil {
 		return data
 	}

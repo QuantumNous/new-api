@@ -173,6 +173,22 @@ func TestRedactVideoResponseBodyPreservesPollingPayloadShape(t *testing.T) {
 	assert.Equal(t, "https://media.example/video.mp4", video["uri"])
 }
 
+func TestRedactVideoResponseBodyDropsInteractionInlineVideo(t *testing.T) {
+	body := []byte(`{"id":"int_1","status":"completed","steps":[{"type":"model_output","content":[{"type":"video","mime_type":"video/mp4","data":"` + strings.Repeat("a", 1024) + `"},{"type":"text","text":"done"}]}]}`)
+
+	var stored map[string]any
+	require.NoError(t, common.Unmarshal(redactVideoResponseBody(body), &stored))
+	content := stored["steps"].([]any)[0].(map[string]any)["content"].([]any)
+	assert.Equal(t, map[string]any{"type": "video", "mime_type": "video/mp4"}, content[0])
+	assert.Equal(t, "done", content[1].(map[string]any)["text"])
+}
+
+func TestRedactVideoResponseBodyKeepsUntouchedBytes(t *testing.T) {
+	body := []byte(`{"name":"op","response":{"videos":[{"uri":"u","bytesBase64Encoded":"x"}],"durationSeconds":8.0,"bytesBase64Encoded":"y"},"done":true}`)
+
+	assert.Equal(t, `{"name":"op","response":{"videos":[{"uri":"u"}],"durationSeconds":8.0},"done":true}`, string(redactVideoResponseBody(body)))
+}
+
 func seedTaskPollingChannel(t *testing.T, id int, disableSleep bool) {
 	t.Helper()
 	ch := &model.Channel{
@@ -773,6 +789,40 @@ func TestSweepTimedOutTasksHonorsRefundRolloutBoundary(t *testing.T) {
 	assert.Equal(t, "Task timed out", reloadedModern.FailReason)
 	assert.Equal(t, initialQuota+modernTaskQuota, getUserQuota(t, userID))
 	assert.Equal(t, int64(1), countLogs(t))
+}
+
+// TASK_TIMEOUT_MINUTES defaults to 72 hours, the longest a vendor keeps a
+// task running (Ark can be configured to 72h, Vidu off-peak runs 48h).
+func TestSweepTimedOutTasksAtTheDefaultDeadline(t *testing.T) {
+	truncate(t)
+
+	const userID, initialQuota, taskQuota = 404, 10_000, 1_500
+	seedUser(t, userID, initialQuota)
+	running := makeTask(userID, 0, taskQuota, 0, BillingSourceWallet, 0)
+	running.TaskID = "running_for_60_hours"
+	running.Progress = "50%"
+	running.SubmitTime = time.Now().Add(-60 * time.Hour).Unix()
+	require.NoError(t, model.DB.Create(running).Error)
+	stuck := makeTask(userID, 0, taskQuota, 0, BillingSourceWallet, 0)
+	stuck.TaskID = "running_for_73_hours"
+	stuck.Progress = "50%"
+	stuck.SubmitTime = time.Now().Add(-73 * time.Hour).Unix()
+	require.NoError(t, model.DB.Create(stuck).Error)
+
+	previousTimeout := constant.TaskTimeoutMinutes
+	constant.TaskTimeoutMinutes = 4320
+	t.Cleanup(func() { constant.TaskTimeoutMinutes = previousTimeout })
+
+	sweepTimedOutTasks(context.Background())
+
+	var reloadedRunning, reloadedStuck model.Task
+	require.NoError(t, model.DB.First(&reloadedRunning, running.ID).Error)
+	require.NoError(t, model.DB.First(&reloadedStuck, stuck.ID).Error)
+	assert.NotEqualValues(t, model.TaskStatusFailure, reloadedRunning.Status)
+	assert.Equal(t, taskQuota, reloadedRunning.Quota)
+	assert.EqualValues(t, model.TaskStatusFailure, reloadedStuck.Status)
+	assert.Equal(t, "Task timed out", reloadedStuck.FailReason)
+	assert.Equal(t, initialQuota+taskQuota, getUserQuota(t, userID))
 }
 
 type scriptedPollingAdaptor struct {

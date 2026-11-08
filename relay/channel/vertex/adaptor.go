@@ -131,6 +131,10 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix string) (string, error) {
 	region := GetModelRegion(info.ApiVersion, info.OriginModelName)
+	googleAPIVersion := DefaultAPIVersion
+	if info.ChannelOtherSettings.VertexAPIVersion != "" {
+		googleAPIVersion = info.ChannelOtherSettings.VertexAPIVersion
+	}
 	if info.ChannelOtherSettings.VertexKeyType != dto.VertexKeyTypeAPIKey {
 		adc := &Credentials{}
 		if err := common.Unmarshal([]byte(info.ApiKey), adc); err != nil {
@@ -139,7 +143,7 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		a.AccountCredentials = *adc
 
 		if a.RequestMode == RequestModeGemini {
-			return BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, adc.ProjectID, region, modelName, suffix), nil
+			return BuildGoogleModelURL(info.ChannelBaseUrl, googleAPIVersion, adc.ProjectID, region, modelName, suffix), nil
 		} else if a.RequestMode == RequestModeClaude {
 			return BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, adc.ProjectID, region, modelName, suffix), nil
 		} else if a.RequestMode == RequestModeOpenSource {
@@ -158,7 +162,7 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		if a.RequestMode == RequestModeGemini {
 			return fmt.Sprintf(
 				"%s%skey=%s",
-				BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, projectID, region, modelName, suffix),
+				BuildGoogleModelURL(info.ChannelBaseUrl, googleAPIVersion, projectID, region, modelName, suffix),
 				keyPrefix,
 				info.ApiKey,
 			), nil

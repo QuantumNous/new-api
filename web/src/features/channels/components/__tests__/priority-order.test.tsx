@@ -34,7 +34,7 @@ import {
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CHANNEL_PRIORITY_GUIDE_KEYS } from '../../constants'
@@ -122,33 +122,35 @@ beforeEach(() => {
     role: 100,
     group: 'default',
   })
-  vi.spyOn(api, 'get').mockImplementation(async (url, config) => {
-    if (url === '/api/channel/priority/order') {
-      return { data: { success: true, data: current } }
-    }
-    if (url === '/api/channel' || url === '/api/channel/search') {
-      const field = config?.params?.sort_by ?? 'priority'
-      const desc = config?.params?.sort_order !== 'asc'
-      const items = current.items
-        .map(channel)
-        .sort(
-          (a, b) =>
-            ((Number(a[field as keyof Channel]) || 0) -
-              (Number(b[field as keyof Channel]) || 0)) *
-              (desc ? -1 : 1) || b.id - a.id
-        )
-      return {
-        data: {
-          success: true,
-          data: { items, total: 3, type_counts: { 1: 3 } },
-        },
+  vi.spyOn(api, 'get').mockImplementation(
+    async (url, config?: ApiRequestConfig) => {
+      if (url === '/api/channel/priority/order') {
+        return { data: { success: true, data: current } }
       }
+      if (url === '/api/channel' || url === '/api/channel/search') {
+        const field = config?.params?.sort_by ?? 'priority'
+        const desc = config?.params?.sort_order !== 'asc'
+        const items = current.items
+          .map(channel)
+          .sort(
+            (a, b) =>
+              ((Number(a[field as keyof Channel]) || 0) -
+                (Number(b[field as keyof Channel]) || 0)) *
+                (desc ? -1 : 1) || b.id - a.id
+          )
+        return {
+          data: {
+            success: true,
+            data: { items, total: 3, type_counts: { 1: 3 } },
+          },
+        }
+      }
+      if (url === '/api/group/') {
+        return { data: { success: true, data: ['default'] } }
+      }
+      return { data: { success: true, data: [] } }
     }
-    if (url === '/api/group/') {
-      return { data: { success: true, data: ['default'] } }
-    }
-    return { data: { success: true, data: [] } }
-  })
+  )
   vi.spyOn(api, 'post').mockImplementation(async (url, body) => {
     if (url !== '/api/channel/priority/reorder') {
       return { data: { success: true } }

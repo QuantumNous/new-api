@@ -1,6 +1,6 @@
 // xAI bills each output second by model and resolution, each input image, and
 // on grok-imagine-video each input video second of an edit or extension
-// (docs.x.ai/developers/models/<model>).
+// (docs.x.ai/developers/models/<model>). xAI checks which inputs a model takes.
 const VIDEO_MODELS = {
   // The only model that takes video input, so edits and extensions use it.
   "grok-imagine-video": { resolutions: ["480p", "720p"], videoInput: true },
@@ -8,7 +8,7 @@ const VIDEO_MODELS = {
   "grok-imagine-video-1.5-lite": { resolutions: ["480p", "720p", "1080p"] },
 };
 
-const ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"];
+const ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "21:9", "5:2"];
 const DEFAULT_RESOLUTION = "480p";
 const DEFAULT_DURATION = 8;
 const MAX_DURATION = 15;
@@ -19,9 +19,6 @@ const MAX_EXTENSION_SECONDS = 10;
 const MAX_EDIT_SECONDS = 9;
 // Extensions accept 2 to 15 seconds of input and return input plus extension.
 const MAX_EXTENSION_INPUT_SECONDS = 15;
-const MAX_REFERENCE_IMAGES = 7;
-const MAX_KEYFRAMES = 4;
-const MAX_REFERENCE_AUDIOS = 3;
 // Edits and extensions keep the input video's resolution, capped at 720p,
 // which neither the request nor the result reports: the cap is reserved and
 // the output file's MP4 header settles the resolution.
@@ -77,7 +74,7 @@ export const meta = {
     en: "xAI Grok Imagine video generation (text-to-video, image-to-video, reference-to-video, video editing, and video extension)",
     zh: "xAI Grok Imagine 视频生成（文生视频、图生视频、参考生视频、视频编辑、视频延长）",
   },
-  version: "1.1.0",
+  version: "1.2.0",
   author: { name: "QuantumNous" },
   channelTypes: [48], // xAI-type channels serve the video API with the same key
   baseUrl: "https://api.x.ai",
@@ -120,11 +117,14 @@ export const meta = {
       ],
     },
   ],
+  // xAI's own paths; the gateway also serves each under /xai.
   routes: [
-    { method: "POST", path: "/xai/v1/videos/generations", type: "submit", decode: "createGeneration", render: "videoCreated" },
-    { method: "POST", path: "/xai/v1/videos/edits", type: "submit", decode: "createEdit", render: "videoCreated", models: ["grok-imagine-video"] },
-    { method: "POST", path: "/xai/v1/videos/extensions", type: "submit", decode: "createExtension", render: "videoCreated", models: ["grok-imagine-video"] },
-    { method: "GET", path: "/xai/v1/videos/:request_id", type: "query", taskIdParam: "request_id", render: "videoStatus" },
+    { method: "POST", path: "/v1/videos/generations", type: "submit", decode: "createGeneration", render: "videoCreated" },
+    { method: "POST", path: "/v1/videos/edits", type: "submit", decode: "createEdit", render: "videoCreated", models: ["grok-imagine-video"] },
+    { method: "POST", path: "/v1/videos/extensions", type: "submit", decode: "createExtension", render: "videoCreated", models: ["grok-imagine-video"] },
+    // The host's GET /v1/videos/:task_id hands a task submitted on these
+    // routes to this query; other tasks keep the OpenAI video object there.
+    { method: "GET", path: "/v1/videos/:request_id", type: "query", taskIdParam: "request_id", render: "videoStatus" },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
@@ -137,8 +137,8 @@ function plainObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
 
-// Another New API gateway serves the xAI wire format only on this plugin's
-// prefixed native routes.
+// Another New API gateway serves the xAI wire format under /xai, the form
+// every gateway release serves.
 function apiRoot(ctx) {
   return ctx.baseUrl + (ctx.upstream && ctx.upstream.kind === "new_api" ? "/xai" : "");
 }
@@ -177,9 +177,10 @@ function promptField(source, required) {
   return prompt;
 }
 
-// Fields every operation accepts. storage_options is never forwarded: it
-// stores the output in the gateway's xAI account.
+// Fields every operation accepts. storage_options is refused: it stores the
+// output as a file in the gateway's xAI account, which xAI bills for storage.
 function commonFields(source, body) {
+  if (source.storage_options !== undefined && source.storage_options !== null) throw new Error("storage_options is not supported");
   if (source.user !== undefined && source.user !== null) {
     if (typeof source.user !== "string") throw new Error("user must be a string");
     body.user = source.user;
@@ -195,25 +196,22 @@ function commonFields(source, body) {
 // Validates a /v1/videos/generations request and keeps only documented
 // fields, so an unlisted field cannot carry a billable quantity past these
 // checks. Duration and resolution are always sent so the reserved charge
-// matches what xAI renders even if its defaults change.
+// matches what xAI renders even if its defaults change. A native decoder
+// passes no identity: it sees the client's model name, so the resolutions of
+// the model the channel sends are checked when the request is built.
 function generationRequest(source, identity) {
-  const model = videoModel(identity);
   const image = source.image === undefined || source.image === null ? null : mediaInput(source.image, "image");
   if (source.reference_images !== undefined && source.reference_images !== null && !Array.isArray(source.reference_images))
     throw new Error("reference_images must be an array");
-  if ((source.reference_images || []).length > MAX_REFERENCE_IMAGES) throw new Error("reference_images accepts at most " + MAX_REFERENCE_IMAGES + " items");
   const referenceImages = (source.reference_images || []).map(function (item, index) {
     return mediaInput(item, "reference_images[" + index + "]");
   });
   const lastFrame = source.last_frame === undefined || source.last_frame === null ? null : mediaInput(source.last_frame, "last_frame");
   if (source.keyframes !== undefined && source.keyframes !== null && !Array.isArray(source.keyframes)) throw new Error("keyframes must be an array");
   const keyframes = (source.keyframes || []).map(function (keyframe, index) {
-    const object = plainObject(keyframe);
-    const timestamp = object ? Number(object.timestamp_s) : NaN;
-    if (!Number.isFinite(timestamp) || timestamp <= 0) throw new Error("keyframes[" + index + "].timestamp_s must be a positive number");
-    return { image: mediaInput(object.image, "keyframes[" + index + "].image"), timestamp_s: timestamp };
+    const object = plainObject(keyframe) || {};
+    return { image: mediaInput(object.image, "keyframes[" + index + "].image"), timestamp_s: object.timestamp_s };
   });
-  if (keyframes.length > MAX_KEYFRAMES) throw new Error("keyframes accepts at most " + MAX_KEYFRAMES + " items");
   if (source.reference_audios !== undefined && source.reference_audios !== null && !Array.isArray(source.reference_audios))
     throw new Error("reference_audios must be an array");
   const referenceAudios = (source.reference_audios || []).map(function (audio, index) {
@@ -222,7 +220,6 @@ function generationRequest(source, identity) {
     if (typeof object.url === "string" && object.url.trim()) return { url: object.url.trim() };
     throw new Error("reference_audios[" + index + "] must be {voice_id} or {url}");
   });
-  if (referenceAudios.length > MAX_REFERENCE_AUDIOS) throw new Error("reference_audios accepts at most " + MAX_REFERENCE_AUDIOS + " items");
 
   let action = "text_to_video";
   if (referenceImages.length || referenceAudios.length) action = "reference_to_video";
@@ -230,8 +227,11 @@ function generationRequest(source, identity) {
   const prompt = promptField(source, action !== "image_to_video");
 
   const resolution = source.resolution === undefined || source.resolution === null ? DEFAULT_RESOLUTION : trimmed(source.resolution).toLowerCase();
-  const resolutions = VIDEO_MODELS[model].resolutions;
-  if (!resolutions.includes(resolution)) throw new Error(model + " resolution must be one of " + resolutions.join(", "));
+  if (identity) {
+    const model = videoModel(identity);
+    const resolutions = VIDEO_MODELS[model].resolutions;
+    if (!resolutions.includes(resolution)) throw new Error(model + " resolution must be one of " + resolutions.join(", "));
+  }
   if (action === "reference_to_video" && resolution === "1080p") throw new Error("reference-to-video supports resolution 480p or 720p");
   const duration = source.duration === undefined || source.duration === null ? DEFAULT_DURATION : integerField(source.duration, "duration", 1, MAX_DURATION);
 
@@ -254,10 +254,10 @@ function generationRequest(source, identity) {
 }
 
 // Edits and extensions take an input video; the output keeps its resolution
-// and aspect ratio, so those fields are not forwarded.
+// and aspect ratio, so those fields are not forwarded. Like generations, a
+// native decoder passes no identity.
 function videoInputRequest(action, source, identity) {
-  const model = videoModel(identity);
-  if (!VIDEO_MODELS[model].videoInput) throw new Error("video editing and extension require grok-imagine-video");
+  if (identity && !VIDEO_MODELS[videoModel(identity)].videoInput) throw new Error("video editing and extension require grok-imagine-video");
   const body = { prompt: promptField(source, true), video: mediaInput(source.video, "video") };
   if (action === "video_extension") {
     body.duration =
@@ -395,13 +395,23 @@ function responsesVideoText(ctx, task) {
   return '<video controls src="' + escaped + '"></video>';
 }
 
+// xAI's own request body. The model default of an omitted model is not
+// documented, so a model is required. duration also accepts xAI's seconds.
+// Only xAI's documented fields are read and sent; others, such as the
+// metadata, size, images and input_reference the host protocols map, are
+// dropped.
 function nativeRequest(ctx, action) {
   if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
   const body = plainObject(ctx.body.value);
   if (!body) throw new Error("request body must be an object");
   const model = typeof body.model === "string" ? body.model.trim() : "";
   if (!model) throw new Error("model is required");
-  const request = videoRequest(action, body, { model: model });
+  let request;
+  if (action === "generation") {
+    const source = Object.assign({}, body);
+    if (source.duration === undefined || source.duration === null) source.duration = source.seconds;
+    request = generationRequest(source, null);
+  } else request = videoInputRequest(action, body, null);
   return { kind: "submit", model: model, action: request.action, requestBody: Object.assign(request.body, { model: model }) };
 }
 
@@ -418,27 +428,21 @@ export const native = {
   videoCreated: function (ctx, task) {
     return { request_id: task.task_id };
   },
+  // xAI's own result, with its usage: a failed video xAI still billed keeps
+  // usage.cost_in_usd_ticks, which tells callers, including a downstream
+  // gateway running this plugin, that it was charged. A pending video answers
+  // 202 as xAI does.
   videoStatus: function (ctx, task) {
     const data = plainObject(task.data);
     // The poller can fail a task whose last snapshot was still pending.
     if (data && typeof data.status === "string" && !(task.status === "FAILURE" && data.status === "pending")) {
       const output = Object.assign({}, data);
       delete output.request_id;
-      // The gateway's upstream cost is not the caller's price.
-      delete output.usage;
-      // A billed failure settled as charged. Report it in xAI's moderated
-      // output shape so callers, including a downstream gateway running this
-      // plugin, see a charged result without the upstream cost.
-      if (task.status === "SUCCESS" && chargedFailure(data)) {
-        output.status = "done";
-        output.progress = 100;
-        output.video = { respect_moderation: false };
-      }
-      return output;
+      return output.status === "pending" ? { __status: 202, __body: output } : output;
     }
     if (task.status === "FAILURE") return { status: "failed", error: { code: "internal_error", message: task.fail_reason || "video generation failed" } };
     const progress = Number(String(task.progress || "0").replace("%", ""));
-    return { status: "pending", progress: Number.isFinite(progress) ? Math.min(Math.max(progress, 0), 99) : 0 };
+    return { __status: 202, __body: { status: "pending", progress: Number.isFinite(progress) ? Math.min(Math.max(progress, 0), 99) : 0 } };
   },
   error: function (ctx, error) {
     return { error: { code: error.code, message: error.message } };

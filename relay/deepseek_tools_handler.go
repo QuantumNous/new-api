@@ -15,8 +15,8 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 )
 
 // DeepSeekToolsHelper relays the DeepSeek Search and Fetch APIs like
@@ -110,9 +110,9 @@ func DeepSeekToolsHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErr
 	var billable bool
 	switch info.RelayMode {
 	case relayconstant.RelayModeToolsFetch:
-		billable = gjson.GetBytes(responseBody, "content").String() != ""
+		billable = ojson.GetBytes(responseBody, "content").String() != ""
 	default:
-		results := gjson.GetBytes(responseBody, "results")
+		results := ojson.GetBytes(responseBody, "results")
 		billable = results.IsArray() && len(results.Array()) > 0
 	}
 	if !billable {

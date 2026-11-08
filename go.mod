@@ -1,7 +1,7 @@
 module github.com/QuantumNous/new-api
 
-// +heroku goVersion go1.18
-go 1.26
+// +heroku goVersion go1.26.10
+go 1.26.10
 
 require (
 	github.com/Calcium-Ion/go-epay v0.0.5
@@ -32,7 +32,7 @@ require (
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/jinzhu/copier v0.4.0
 	github.com/joho/godotenv v1.5.1
-	github.com/klauspost/compress v1.18.3
+	github.com/klauspost/compress v1.18.7
 	github.com/mewkiz/flac v1.0.13
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	github.com/pkg/errors v0.9.1
@@ -46,7 +46,7 @@ require (
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	github.com/thanhpk/randstr v1.0.6
 	github.com/tidwall/gjson v1.19.0
-	github.com/tidwall/sjson v1.2.5
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tiktoken-go/tokenizer v0.8.1 // indirect
 	github.com/waffo-com/waffo-go v1.3.2
 	github.com/yapingcat/gomedia v0.0.0-20240906162731-17feea57090c
@@ -75,7 +75,7 @@ require (
 	github.com/dlclark/regexp2/v2 v2.5.1 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/paulmach/orb v0.12.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.25 // indirect
@@ -168,6 +168,7 @@ require (
 require (
 	github.com/Calcium-Ion/moejs v0.1.0-alpha.7
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
+	github.com/MoeForge/moego v0.1.0-alpha.1
 	github.com/QuantumNous/new-api/relaykit v0.0.0
 	github.com/QuantumNous/new-api/tokenkit v0.0.0
 )

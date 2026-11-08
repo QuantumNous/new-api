@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestJsonRawMessageToString(t *testing.T) {
@@ -219,18 +219,18 @@ func TestHostJSONCodecConformance(t *testing.T) {
 		encoded, err := Marshal(req)
 		require.NoError(t, err)
 
-		messages := gjson.GetBytes(encoded, "messages").Array()
+		messages := ojson.GetBytes(encoded, "messages").Array()
 		require.Len(t, messages, 2)
 
 		// Kimi K3 dynamic tool loading: tools survive and no content key is emitted.
 		assert.Equal(t, "system", messages[0].Get("role").String())
-		assert.JSONEq(t, gjson.GetBytes(raw, "messages.0.tools").Raw, messages[0].Get("tools").Raw)
+		assert.JSONEq(t, ojson.GetBytes(raw, "messages.0.tools").Raw, messages[0].Get("tools").Raw)
 		assert.False(t, messages[0].Get("content").Exists())
 
 		// Assistant tool-call replay still carries an explicit "content": null.
 		assistantContent := messages[1].Get("content")
 		assert.True(t, assistantContent.Exists())
-		assert.Equal(t, gjson.Null, assistantContent.Type)
-		assert.JSONEq(t, gjson.GetBytes(raw, "messages.1.tool_calls").Raw, messages[1].Get("tool_calls").Raw)
+		assert.Equal(t, ojson.Null, assistantContent.Type)
+		assert.JSONEq(t, ojson.GetBytes(raw, "messages.1.tool_calls").Raw, messages[1].Get("tool_calls").Raw)
 	})
 }

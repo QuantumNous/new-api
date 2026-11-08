@@ -32,6 +32,8 @@ quota.pre_consume_insufficient: "预扣费额度失败, 用户剩余额度: {{.R
 quota.subscription_insufficient: "订阅额度不足或未配置订阅: {{.Error}}"
 relay.model_price_not_configured: "模型 {{.Model}} 的价格尚未由管理员配置，暂时无法使用，请联系站点管理员开启该模型；Model {{.Model}} has not been priced by the administrator yet. Please contact the site administrator to enable this model."
 relay.model_price_not_configured_admin: "模型 {{.Model}} 的价格未配置。请前往「系统设置 → 运营设置」开启自用模式，或在「系统设置 → 分组与模型定价设置」中为该模型配置价格；Model {{.Model}} price not configured. Go to System Settings → Operation Settings to enable self-use mode, or configure the model price in System Settings → Group & Model Pricing."
+relay.task_usage_price_unsupported: "模型 {{.Model}} 使用了任务用量表达式；请为普通转发配置常规定价，并为插件单独配置计费表达式"
+relay.shared_task_price_needs_override: "模型 {{.Model}} 与任务插件 {{.Plugin}} 共用了计费表达式；请先为插件配置独立的计费表达式，再使用普通转发定价"
 relay.task_channel_disabled: "该任务所属渠道已被禁用"
 relay.group_saturated: "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 relay.group_upstream_saturated: "当前分组上游负载已饱和，请稍后再试"

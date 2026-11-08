@@ -216,15 +216,36 @@ func TestStreamScannerHandler_OrderPreserved(t *testing.T) {
 func TestStreamScannerHandler_DoneStopsScanner(t *testing.T) {
 	t.Parallel()
 
-	body := buildSSEBody(50) + "data: should_not_appear\n"
-	c, resp, info := setupStreamTest(t, strings.NewReader(body))
+	for _, test := range []struct {
+		name string
+		line string
+		want []string
+	}{
+		{name: "bare", line: "[DONE]", want: []string{"before"}},
+		{name: "bare with whitespace", line: " \t[DONE] \t\r", want: []string{"before"}},
+		{name: "data prefixed", line: "data: [DONE]", want: []string{"before"}},
+		{name: "data without space", line: "data:[DONE]", want: []string{"before"}},
+		{name: "data with whitespace", line: "data: \t[DONE] \t\r", want: []string{"before"}},
+		{name: "bare prefix is not done", line: "[DONE]extra", want: []string{"before", "after"}},
+		{name: "data prefix is not done", line: "data: [DONE]extra", want: []string{"before", "[DONE]extra", "after"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			body := "data: before\n" + test.line + "\ndata: after\ndata: [DONE]\n"
+			c, resp, info := setupStreamTest(t, strings.NewReader(body))
+			info.DisablePing = true
 
-	var count atomic.Int64
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
-		count.Add(1)
-	})
+			var received []string
+			StreamScannerHandler(c, resp, info, func(data string, _ *StreamResult) {
+				received = append(received, data)
+			})
 
-	assert.Equal(t, int64(50), count.Load(), "data after [DONE] must not be processed")
+			assert.Equal(t, test.want, received)
+			require.NotNil(t, info.StreamStatus)
+			assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+			assert.NoError(t, info.StreamStatus.EndError)
+			assert.Equal(t, len(test.want), info.ReceivedResponseCount)
+		})
+	}
 }
 
 func TestStreamScannerHandler_StopStopsStream(t *testing.T) {
@@ -657,4 +678,49 @@ func TestNewStreamScannerCallerLimit(t *testing.T) {
 	require.True(t, scanner.Scan())
 	assert.Equal(t, "data: ok", scanner.Text())
 	require.NoError(t, scanner.Err())
+}
+
+// ---------- Write deadlines ----------
+
+type deadlineRecorder struct {
+	*httptest.ResponseRecorder
+	deadlines []time.Time
+}
+
+func (r *deadlineRecorder) SetWriteDeadline(deadline time.Time) error {
+	r.deadlines = append(r.deadlines, deadline)
+	return nil
+}
+
+func TestStreamWriteBudget(t *testing.T) {
+	start := time.Unix(1_800_000_000, 0)
+	var budget StreamWriteBudget
+	steps := []struct {
+		name  string
+		at    time.Duration
+		bytes int
+		want  time.Duration
+	}{
+		{"small event", 0, 8 << 10, 31 * time.Second},
+		{"image event gets the time a slow client needs", 0, 3600 << 10, 481 * time.Second},
+		{"next write keeps the image budget", 60 * time.Second, 8 << 10, 482 * time.Second},
+		{"budget starts over once it ran out", 600 * time.Second, 8 << 10, 631 * time.Second},
+	}
+	for _, step := range steps {
+		assert.Equal(t, start.Add(step.want), budget.Deadline(start.Add(step.at), step.bytes), step.name)
+	}
+}
+
+func TestSetEventStreamHeadersBoundsStreamWritesByBudget(t *testing.T) {
+	recorder := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	SetEventStreamHeaders(c)
+
+	before := time.Now()
+	require.NoError(t, StringData(c, strings.Repeat("A", 3600<<10)))
+
+	require.NotEmpty(t, recorder.deadlines)
+	assert.False(t, recorder.deadlines[0].Before(before.Add(streamWriteTimeout+450*time.Second)))
+	assert.Contains(t, recorder.Body.String(), "data: AAAA")
 }

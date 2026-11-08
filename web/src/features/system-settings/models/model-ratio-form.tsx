@@ -17,14 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Code2, Eye, RotateCcw, Save } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
+import {
+  Code2,
+  Eye,
+  MoreHorizontal,
+  RotateCcw,
+  Save,
+  Undo2,
+} from 'lucide-react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useWatch, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import { DataTableRowActionMenu } from '@/components/data-table'
 import { JsonCodeEditor } from '@/components/json-code-editor'
 import { LearnMore } from '@/components/learn-more'
 import { Button } from '@/components/ui/button'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import {
   Form,
   FormControl,
@@ -36,9 +45,15 @@ import {
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
 import { getEnabledModels } from '@/features/channels/api'
+import {
+  buildPriceChangeRows,
+  pricingOptions,
+} from '@/features/model-pricing/pricing'
+import { useMediaQuery } from '@/hooks'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
+import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -49,6 +64,8 @@ import {
   ModelRatioVisualEditor,
   type ModelRatioVisualEditorHandle,
 } from './model-ratio-visual-editor'
+import { PriceChangesDialog } from './price-change-diff'
+import { formatJsonForTextarea } from './utils'
 
 type ModelFormValues = {
   ModelPrice: string
@@ -181,6 +198,27 @@ export const ModelRatioForm = memo(function ModelRatioForm({
   const isUnsetVariant = variant === 'unset'
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
   const visualEditorRef = useRef<ModelRatioVisualEditorHandle>(null)
+  const isMobile = useMediaQuery('(max-width: 639px)')
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [editorDirty, setEditorDirty] = useState(false)
+  const draftOptions = useWatch({
+    control: form.control,
+    compute: (values: ModelFormValues) => pricingOptions(values),
+  })
+  const exposeRatioEnabled = useWatch({
+    control: form.control,
+    name: 'ExposeRatioEnabled',
+  })
+  const changeRows = useMemo(
+    () => buildPriceChangeRows(pricingOptions(savedValues), draftOptions),
+    [savedValues, draftOptions]
+  )
+  // The open editor commits its edits into the draft when saving.
+  const pendingEditor = editMode === 'visual' && editorDirty
+  const hasChanges =
+    changeRows.length > 0 ||
+    pendingEditor ||
+    exposeRatioEnabled !== savedValues.ExposeRatioEnabled
 
   const enabledModelsQuery = useQuery({
     queryKey: ['enabled-models'],
@@ -223,14 +261,52 @@ export const ModelRatioForm = memo(function ModelRatioForm({
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
   }, [])
 
+  // Every price change is confirmed before it is saved.
   const handleSave = useCallback(async () => {
     if (editMode === 'visual') {
       const committed = await visualEditorRef.current?.commitOpenEditor()
       if (committed === false) return
     }
+    if (!(await form.trigger())) return
+    const changes = buildPriceChangeRows(
+      pricingOptions(savedValues),
+      pricingOptions(form.getValues())
+    )
+    if (changes.length === 0) {
+      await form.handleSubmit(onSave)()
+      return
+    }
+    setConfirmOpen(true)
+  }, [editMode, form, onSave, savedValues])
 
+  const handleConfirmSave = useCallback(async () => {
     await form.handleSubmit(onSave)()
-  }, [editMode, form, onSave])
+    setConfirmOpen(false)
+  }, [form, onSave])
+
+  const handleDiscard = useCallback(() => {
+    visualEditorRef.current?.closeEditor()
+    form.reset({
+      ...savedValues,
+      ModelPrice: formatJsonForTextarea(savedValues.ModelPrice),
+      ModelRatio: formatJsonForTextarea(savedValues.ModelRatio),
+      CacheRatio: formatJsonForTextarea(savedValues.CacheRatio),
+      CreateCacheRatio: formatJsonForTextarea(savedValues.CreateCacheRatio),
+      CompletionRatio: formatJsonForTextarea(savedValues.CompletionRatio),
+      ImageRatio: formatJsonForTextarea(savedValues.ImageRatio),
+      AudioRatio: formatJsonForTextarea(savedValues.AudioRatio),
+      AudioCompletionRatio: formatJsonForTextarea(
+        savedValues.AudioCompletionRatio
+      ),
+      BillingMode: formatJsonForTextarea(savedValues.BillingMode),
+      BillingExpr: formatJsonForTextarea(savedValues.BillingExpr),
+      PluginBillingExpr: formatJsonForTextarea(savedValues.PluginBillingExpr),
+    })
+  }, [form, savedValues])
+
+  const editModeLabel =
+    editMode === 'visual' ? t('Switch to JSON') : t('Switch to Visual')
+  const EditModeIcon = editMode === 'visual' ? Code2 : Eye
 
   return (
     <Form {...form}>
@@ -266,38 +342,92 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                 )}
               />
             </SettingsPageActionsPortal>
+            <FormDirtyIndicator
+              isDirty={hasChanges}
+              message={
+                changeRows.length > 0
+                  ? t('{{count}} unsaved price changes', {
+                      count: changeRows.length,
+                    })
+                  : undefined
+              }
+            />
+            {isMobile ? (
+              // Phones keep Save on the same row and move the rest here.
+              <DataTableRowActionMenu
+                ariaLabel={t('More actions')}
+                trigger={
+                  <Button type='button' variant='outline' size='icon-sm'>
+                    <MoreHorizontal aria-hidden='true' />
+                  </Button>
+                }
+              >
+                <DropdownMenuItem
+                  variant='destructive'
+                  onClick={onReset}
+                  disabled={isResetting}
+                >
+                  <RotateCcw />
+                  {t('Reset prices')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={toggleEditMode}>
+                  <EditModeIcon />
+                  {editModeLabel}
+                </DropdownMenuItem>
+                {hasChanges && (
+                  <DropdownMenuItem onClick={handleDiscard} disabled={isSaving}>
+                    <Undo2 />
+                    {t('Discard changes')}
+                  </DropdownMenuItem>
+                )}
+              </DataTableRowActionMenu>
+            ) : (
+              <>
+                <Button
+                  type='button'
+                  variant='destructive'
+                  size='sm'
+                  onClick={onReset}
+                  disabled={isResetting}
+                >
+                  <RotateCcw data-icon='inline-start' />
+                  {t('Reset prices')}
+                </Button>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={toggleEditMode}
+                >
+                  <EditModeIcon data-icon='inline-start' />
+                  {editModeLabel}
+                </Button>
+                {hasChanges && (
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={handleDiscard}
+                    disabled={isSaving}
+                  >
+                    <Undo2 data-icon='inline-start' />
+                    {t('Discard changes')}
+                  </Button>
+                )}
+              </>
+            )}
             <Button
               type='button'
-              variant='destructive'
               size='sm'
-              onClick={onReset}
-              disabled={isResetting}
+              onClick={handleSave}
+              disabled={isSaving || !hasChanges}
             >
-              <RotateCcw data-icon='inline-start' />
-              {t('Reset prices')}
-            </Button>
-            {editMode === 'json' && (
-              <Button
-                type='button'
-                size='sm'
-                onClick={handleSave}
-                disabled={isSaving}
-              >
-                <Save data-icon='inline-start' />
-                {isSaving ? t('Saving...') : t('Save model prices')}
-              </Button>
-            )}
-            <Button variant='outline' size='sm' onClick={toggleEditMode}>
-              {editMode === 'visual' ? (
-                <>
-                  <Code2 className='mr-2 h-4 w-4' />
-                  {t('Switch to JSON')}
-                </>
-              ) : (
-                <>
-                  <Eye className='mr-2 h-4 w-4' />
-                  {t('Switch to Visual')}
-                </>
+              <Save data-icon='inline-start' />
+              {isSaving ? t('Saving...') : t('Save model prices')}
+              {changeRows.length > 0 && (
+                <span className='bg-primary-foreground/20 ml-0.5 rounded-full px-1.5 text-xs tabular-nums'>
+                  {changeRows.length}
+                </span>
               )}
             </Button>
           </div>
@@ -338,6 +468,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               filterMode={isUnsetVariant ? 'unset' : 'all'}
               onSave={handleSave}
               isSaving={isSaving}
+              onEditorDirtyChange={setEditorDirty}
               onChange={(field, value) => {
                 const fieldMap: Record<string, keyof ModelFormValues> = {
                   'billing_setting.billing_mode': 'BillingMode',
@@ -366,6 +497,13 @@ export const ModelRatioForm = memo(function ModelRatioForm({
           </SettingsForm>
         )}
       </div>
+      <PriceChangesDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        rows={changeRows}
+        onConfirm={handleConfirmSave}
+        isLoading={isSaving}
+      />
     </Form>
   )
 })

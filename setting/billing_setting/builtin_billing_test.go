@@ -37,20 +37,24 @@ func TestGPT6AstraBuiltinBilling(t *testing.T) {
 	require.True(t, ok)
 
 	for _, tc := range []struct {
-		name                           string
-		input, output, cached, written int
-		request                        string
-		quota                          int
+		name                                       string
+		input, output, cached, written, written12h int
+		request                                    string
+		quota                                      int
 	}{
-		{"standard", 1000, 100, 0, 0, `{}`, 7500},
-		{"client flex cannot discount standard pricing", 1000, 100, 0, 0, `{"service_tier":"flex"}`, 7500},
-		{"cache at context boundary", 272000, 1000, 200000, 20000, `{}`, 510000},
-		{"whole request above boundary", 272001, 1000, 200000, 20000, `{}`, 1007510},
+		{"standard", 1000, 100, 0, 0, 0, `{}`, 7500},
+		{"client flex cannot discount standard pricing", 1000, 100, 0, 0, 0, `{"service_tier":"flex"}`, 7500},
+		{"cache at context boundary", 272000, 1000, 200000, 20000, 0, `{}`, 510000},
+		{"whole request above boundary", 272001, 1000, 200000, 20000, 0, `{}`, 1007510},
+		// The prompt caching guide example: 4000 of the 7000 writes are 12h.
+		{"12h cache writes", 12000, 0, 4000, 7000, 4000, `{}`, 75750},
+		{"12h cache writes above boundary", 300000, 0, 200000, 20000, 10000, `{}`, 1375000},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			usage := &dto.Usage{
 				PromptTokens: tc.input, CompletionTokens: tc.output,
-				PromptTokensDetails: dto.InputTokenDetails{CachedTokens: tc.cached, CacheWriteTokens: tc.written},
+				PromptTokensDetails: dto.InputTokenDetails{CachedTokens: tc.cached, CacheWriteTokens: tc.written,
+					CacheWriteTokensDetails: &dto.CacheWriteTokenDetails{TTL30mTokens: tc.written - tc.written12h, TTL12hTokens: tc.written12h}},
 			}
 			params := service.BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression))
 			result, err := billingexpr.ComputeTieredQuotaWithRequest(&billingexpr.BillingSnapshot{

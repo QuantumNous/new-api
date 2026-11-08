@@ -28,7 +28,7 @@ import userEvent from '@testing-library/user-event'
 import { Toaster } from 'sonner'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 
 import { SystemTasksPanel } from '../components/system-tasks-panel'
 
@@ -61,25 +61,27 @@ afterEach(() => {
 })
 
 it('filters history on the server and resets pagination without hiding active tasks', async () => {
-  const get = vi.spyOn(api, 'get').mockImplementation(async (_url, config) => {
-    if (config?.params?.scope === 'active') {
-      return {
-        data: {
-          success: true,
-          data: [
-            {
-              ...task,
-              task_id: 'active',
-              status: 'running',
-              locked_by: 'active-runner',
-            },
-          ],
-          total: 1,
-        },
+  const get = vi
+    .spyOn(api, 'get')
+    .mockImplementation(async (_url, config?: ApiRequestConfig) => {
+      if (config?.params?.scope === 'active') {
+        return {
+          data: {
+            success: true,
+            data: [
+              {
+                ...task,
+                task_id: 'active',
+                status: 'running',
+                locked_by: 'active-runner',
+              },
+            ],
+            total: 1,
+          },
+        }
       }
-    }
-    return { data: { success: true, data: [task], total: 21 } }
-  })
+      return { data: { success: true, data: [task], total: 21 } }
+    })
   const client = renderPanel()
   await screen.findByRole('combobox', { name: 'Type' })
   await userEvent.click(
@@ -132,13 +134,15 @@ it('keeps filters available and disables cleanup when history is empty', async (
 })
 
 it('requires confirmation and cleans all matching history pages using the selected filters', async () => {
-  vi.spyOn(api, 'get').mockImplementation(async (_url, config) => ({
-    data: {
-      success: true,
-      data: config?.params?.scope === 'active' ? [] : [task],
-      total: 21,
-    },
-  }))
+  vi.spyOn(api, 'get').mockImplementation(
+    async (_url, config?: ApiRequestConfig) => ({
+      data: {
+        success: true,
+        data: config?.params?.scope === 'active' ? [] : [task],
+        total: 21,
+      },
+    })
+  )
   const remove = vi
     .spyOn(api, 'delete')
     .mockResolvedValue({ data: { success: true, data: { deleted_count: 20 } } })
@@ -217,26 +221,28 @@ it('retains the confirmation and shows the server error when cleanup fails', asy
 
 it('shows history query failures without hiding active tasks and allows retry', async () => {
   let historyFailed = true
-  vi.spyOn(api, 'get').mockImplementation(async (_url, config) => {
-    if (config?.params?.scope === 'history' && historyFailed) {
-      return { data: { success: false, message: 'History unavailable' } }
+  vi.spyOn(api, 'get').mockImplementation(
+    async (_url, config?: ApiRequestConfig) => {
+      if (config?.params?.scope === 'history' && historyFailed) {
+        return { data: { success: false, message: 'History unavailable' } }
+      }
+      return {
+        data: {
+          success: true,
+          data: [
+            {
+              ...task,
+              locked_by:
+                config?.params?.scope === 'active'
+                  ? 'active-runner'
+                  : 'history-runner',
+            },
+          ],
+          total: 1,
+        },
+      }
     }
-    return {
-      data: {
-        success: true,
-        data: [
-          {
-            ...task,
-            locked_by:
-              config?.params?.scope === 'active'
-                ? 'active-runner'
-                : 'history-runner',
-          },
-        ],
-        total: 1,
-      },
-    }
-  })
+  )
   const client = renderPanel()
   expect(await screen.findByText('History unavailable')).toBeVisible()
   expect(screen.getByText('active-runner')).toBeVisible()
@@ -253,14 +259,16 @@ it('shows history query failures without hiding active tasks and allows retry', 
 
 it('refreshes history when the last running task finishes', async () => {
   let finished = false
-  vi.spyOn(api, 'get').mockImplementation(async (_url, config) => {
-    const active = config?.params?.scope === 'active'
-    const data =
-      active === finished
-        ? []
-        : [{ ...task, status: finished ? 'succeeded' : 'running' }]
-    return { data: { success: true, data, total: data.length } }
-  })
+  vi.spyOn(api, 'get').mockImplementation(
+    async (_url, config?: ApiRequestConfig) => {
+      const active = config?.params?.scope === 'active'
+      const data =
+        active === finished
+          ? []
+          : [{ ...task, status: finished ? 'succeeded' : 'running' }]
+      return { data: { success: true, data, total: data.length } }
+    }
+  )
   const client = renderPanel()
   await screen.findByText('No historical system tasks.')
   finished = true
