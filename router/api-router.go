@@ -28,7 +28,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/status", controller.GetStatus)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
-		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
+		apiRouter.GET("/status/test", middleware.AdminAuth(), middleware.RequireVisibleSection("system_settings"), controller.TestStatus)
 		apiRouter.GET("/notice", controller.GetNotice)
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
@@ -214,6 +214,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.POST("/subscription/epay/return", anonymousRequestBodyLimit, controller.SubscriptionEpayReturn)
 		optionRoute := apiRouter.Group("/option")
 		optionRoute.Use(middleware.RootAuth())
+		optionRoute.Use(middleware.RequireVisibleSection("system_settings"))
 		{
 			optionRoute.GET("/", controller.GetOptions)
 			optionRoute.GET("/request_policy", controller.GetRequestPolicy)
@@ -239,6 +240,7 @@ func SetApiRouter(router *gin.Engine) {
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
 		customOAuthRoute.Use(middleware.RootAuth())
+		customOAuthRoute.Use(middleware.RequireVisibleSection("system_settings"))
 		{
 			customOAuthRoute.POST("/discovery", controller.FetchCustomOAuthDiscovery)
 			customOAuthRoute.GET("/", controller.GetCustomOAuthProviders)
@@ -249,6 +251,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		performanceRoute := apiRouter.Group("/performance")
 		performanceRoute.Use(middleware.RootAuth())
+		performanceRoute.Use(middleware.RequireVisibleSection("system_info"))
 		{
 			performanceRoute.GET("/stats", controller.GetPerformanceStats)
 			performanceRoute.DELETE("/disk_cache", controller.ClearDiskCache)
@@ -259,12 +262,14 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		ratioSyncRoute := apiRouter.Group("/ratio_sync")
 		ratioSyncRoute.Use(middleware.RootAuth())
+		ratioSyncRoute.Use(middleware.RequireVisibleSection("system_settings"))
 		{
 			ratioSyncRoute.GET("/channels", controller.GetSyncableChannels)
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
 		taskPluginRoute := apiRouter.Group("/plugin/task")
 		taskPluginRoute.Use(middleware.RootAuth())
+		taskPluginRoute.Use(middleware.RequireVisibleSection("task_plugins"))
 		{
 			taskPluginRoute.GET("", controller.ListTaskPlugins)
 			taskPluginRoute.POST("", controller.UploadTaskPlugin)
@@ -280,7 +285,9 @@ func SetApiRouter(router *gin.Engine) {
 			taskPluginRoute.POST("/:key/dryrun", controller.DryRunTaskPlugin)
 			taskPluginRoute.DELETE("/:key/versions/:version", controller.DeleteTaskPluginVersion)
 		}
-		handlePermissionRoute(apiRouter.Group("", middleware.AdminAuth()), http.MethodGet, "/task_plugin_options", authz.TaskPluginBind, controller.GetTaskPluginOptions)
+		// The bind options are rendered by the channel editor and the task
+		// plugin pages, so either console section unlocks them.
+		handlePermissionRoute(apiRouter.Group("", middleware.AdminAuth(), middleware.RequireVisibleSection("channels", "task_plugins")), http.MethodGet, "/task_plugin_options", authz.TaskPluginBind, controller.GetTaskPluginOptions)
 		registerChannelRoutes(apiRouter)
 		registerAuthzRoutes(apiRouter)
 		tokenRoute := apiRouter.Group("/token")
@@ -346,6 +353,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		systemTaskRoute := apiRouter.Group("/system-task")
 		systemTaskRoute.Use(middleware.RootAuth())
+		systemTaskRoute.Use(middleware.RequireVisibleSection("system_info"))
 		{
 			systemTaskRoute.POST("/log-cleanup", controller.CreateLogCleanupSystemTask)
 			systemTaskRoute.GET("/list", controller.ListSystemTasks)
@@ -355,6 +363,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		systemInfoRoute := apiRouter.Group("/system-info")
 		systemInfoRoute.Use(middleware.RootAuth())
+		systemInfoRoute.Use(middleware.RequireVisibleSection("system_info"))
 		{
 			systemInfoRoute.GET("/instances", controller.ListSystemInstances)
 			systemInfoRoute.DELETE("/stale-instances", controller.DeleteStaleSystemInstances)
@@ -372,14 +381,20 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			logRoute.GET("/token", middleware.TokenAuthReadOnly(), controller.GetLogByKey)
 		}
+		// The group list feeds the channel, user, subscription and usage log
+		// pages, so any of those console sections unlocks it.
 		groupRoute := apiRouter.Group("/group")
 		groupRoute.Use(middleware.AdminAuth())
+		groupRoute.Use(middleware.RequireVisibleSection("channels", "users", "subscriptions", "usage_logs"))
 		{
 			groupRoute.GET("/", controller.GetGroups)
 		}
 
+		// Prefill groups are managed on the models page and read by the
+		// channel editor.
 		prefillGroupRoute := apiRouter.Group("/prefill_group")
 		prefillGroupRoute.Use(middleware.AdminAuth())
+		prefillGroupRoute.Use(middleware.RequireVisibleSection("models", "channels"))
 		{
 			prefillGroupRoute.GET("/", controller.GetPrefillGroups)
 			prefillGroupRoute.POST("/", controller.CreatePrefillGroup)

@@ -227,6 +227,10 @@ func TestFetchModelsAdvancedCustomCreatePreview(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
+	// The test server listens on the loopback interface, so the request acts
+	// as the root account: only the root account may target an internal
+	// network.
+	ctx.Set("role", common.RoleRootUser)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	FetchModels(ctx)
@@ -310,6 +314,10 @@ func TestFetchModelsAdvancedCustomEditPreviewUsesSavedKeyAndExplicitClears(t *te
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
+	// The test server listens on the loopback interface, so the request acts
+	// as the root account: only the root account may target an internal
+	// network.
+	ctx.Set("role", common.RoleRootUser)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	FetchModels(ctx)
@@ -386,6 +394,10 @@ func TestFetchModelsUsesSharedChannelFetchBehavior(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
+	// The test server listens on the loopback interface, so the request acts
+	// as the root account: only the root account may target an internal
+	// network.
+	ctx.Set("role", common.RoleRootUser)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(body))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 

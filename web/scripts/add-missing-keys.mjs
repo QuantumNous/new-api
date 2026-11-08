@@ -20,6 +20,8 @@ const newKeys = {
     'Recently active': 'Recently active',
     'View all clients': 'View all clients',
     'Total clients': 'Total clients',
+    'Unauthorized, only the root account can use internal network upstreams':
+      'Unauthorized, only the root account can use internal network upstreams',
   },
   zh: {
     'Control Panel': '控制台',
@@ -31,6 +33,8 @@ const newKeys = {
     'Recently active': '最近活跃',
     'View all clients': '查看全部客户',
     'Total clients': '客户总数',
+    'Unauthorized, only the root account can use internal network upstreams':
+      '无权进行此操作，只有超级管理员可以使用内网上游',
   },
   'zh-TW': {
     'Control Panel': '控制台',
@@ -42,6 +46,8 @@ const newKeys = {
     'Recently active': '最近活躍',
     'View all clients': '檢視全部客戶',
     'Total clients': '客戶總數',
+    'Unauthorized, only the root account can use internal network upstreams':
+      '無權進行此操作，只有超級管理員可以使用內網上游',
   },
   fr: {
     'Control Panel': 'Panneau de contrôle',
@@ -55,6 +61,8 @@ const newKeys = {
     'Recently active': 'Récemment actif',
     'View all clients': 'Voir tous les clients',
     'Total clients': 'Total des clients',
+    'Unauthorized, only the root account can use internal network upstreams':
+      'Non autorisé, seul le super administrateur peut utiliser des serveurs internes',
   },
   ja: {
     'Control Panel': 'コントロールパネル',
@@ -66,6 +74,8 @@ const newKeys = {
     'Recently active': '最近のアクティブ',
     'View all clients': 'すべての顧客を表示',
     'Total clients': '顧客総数',
+    'Unauthorized, only the root account can use internal network upstreams':
+      '権限不足のため、この操作は実行できません。内部ネットワークの宛先はスーパー管理者のみ利用できます',
   },
   ru: {
     'Control Panel': 'Панель управления',
@@ -79,6 +89,8 @@ const newKeys = {
     'Recently active': 'Недавно активные',
     'View all clients': 'Все клиенты',
     'Total clients': 'Всего клиентов',
+    'Unauthorized, only the root account can use internal network upstreams':
+      'Нет доступа, использовать внутренние серверы может только суперадминистратор',
   },
   vi: {
     'Control Panel': 'Bảng điều khiển',
@@ -91,6 +103,8 @@ const newKeys = {
     'Recently active': 'Hoạt động gần đây',
     'View all clients': 'Xem tất cả khách hàng',
     'Total clients': 'Tổng số khách hàng',
+    'Unauthorized, only the root account can use internal network upstreams':
+      'Không được phép, chỉ siêu quản trị viên mới có thể dùng máy chủ trong mạng nội bộ',
   },
   ar: {
     'Control Panel': 'لوحة التحكم',
@@ -102,6 +116,8 @@ const newKeys = {
     'Recently active': 'الأحدث نشاطًا',
     'View all clients': 'عرض جميع العملاء',
     'Total clients': 'إجمالي العملاء',
+    'Unauthorized, only the root account can use internal network upstreams':
+      'غير مصرّح، لا يمكن استخدام الخوادم داخل الشبكة الداخلية إلا من قبل المسؤول الأعلى',
   },
 }
 

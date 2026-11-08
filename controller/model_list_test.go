@@ -215,6 +215,49 @@ func TestGetUserModelsFiltersByRequestedGroup(t *testing.T) {
 	require.Empty(t, decodeUserModelsResponse(t, vipRecorder))
 }
 
+func TestGetUserModelsIgnoresRequestedUserIdentifiers(t *testing.T) {
+	originalUsableGroups := setting.UserUsableGroups2JSONString()
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default group"}`))
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUsableGroups))
+	})
+
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1004,
+		Username: "playground-session-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+		AffCode:  "aff-playground-session-user",
+	}).Error)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1005,
+		Username: "playground-other-user",
+		Password: "password",
+		Group:    "vip",
+		Status:   common.UserStatusEnabled,
+		AffCode:  "aff-playground-other-user",
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-session-user-model", ChannelId: 1, Enabled: true},
+		{Group: "vip", Model: "zz-other-user-model", ChannelId: 1, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?id=1005", nil)
+	context.Set("id", 1004)
+	context.Params = gin.Params{{Key: "id", Value: "1005"}}
+
+	GetUserModels(context)
+
+	// The response is resolved from the session user (default group), never
+	// from the requested identifiers (vip group).
+	models := decodeUserModelsResponse(t, recorder)
+	require.Equal(t, []string{"zz-session-user-model"}, models)
+}
+
 func TestGetUserModelsExpandsAutoGroupsInConfiguredOrder(t *testing.T) {
 	originalAutoGroups := setting.AutoGroups2JsonString()
 	originalUsableGroups := setting.UserUsableGroups2JSONString()

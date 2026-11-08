@@ -13,6 +13,9 @@ import (
 func registerAuthzRoutes(apiRouter *gin.RouterGroup) {
 	authzRoute := apiRouter.Group("/authz")
 	authzRoute.Use(middleware.AdminAuth())
+	// The catalog drives the permission matrix editor on the user management
+	// page, so it follows the users section.
+	authzRoute.Use(middleware.RequireVisibleSection("users"))
 	{
 		authzRoute.GET("/catalog", controller.GetPermissionCatalog)
 	}

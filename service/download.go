@@ -46,7 +46,9 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 		return nil, fmt.Errorf("failed to marshal worker payload: %v", err)
 	}
 
-	return GetHttpClient().Post(workerUrl, "application/json", bytes.NewBuffer(workerPayload))
+	// The worker is a root managed deployment target, so the fetch settings
+	// decide whether it may live in an internal network.
+	return GetSSRFProtectedHTTPClient().Post(workerUrl, "application/json", bytes.NewBuffer(workerPayload))
 }
 
 func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response, err error) {

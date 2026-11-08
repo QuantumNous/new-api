@@ -17,6 +17,10 @@ type HTTPTransportPolicy struct {
 	Protocol              string // dto.HTTPProtocolAuto or dto.HTTPProtocolHTTP1
 	Shards                int    // 1..dto.MaxHTTP2ConnectionShards
 	TLSInsecureSkipVerify bool
+	// AllowPrivateNetwork lets the outbound dialer connect to an internal
+	// address. It is reserved for channels the root account pointed at an
+	// internal upstream.
+	AllowPrivateNetwork bool
 }
 
 var httpTransportPolicyWarnings sync.Map
@@ -33,6 +37,7 @@ func defaultHTTPTransportPolicy() HTTPTransportPolicy {
 func NormalizeHTTPTransportPolicy(settings dto.ChannelSettings) HTTPTransportPolicy {
 	policy := defaultHTTPTransportPolicy()
 	policy.TLSInsecureSkipVerify = settings.TLSInsecureSkipVerify
+	policy.AllowPrivateNetwork = settings.AllowPrivateNetwork
 
 	protocol := strings.ToLower(strings.TrimSpace(settings.HTTPProtocol))
 	switch protocol {
@@ -86,7 +91,7 @@ func warnHTTPTransportPolicyOnce(field, value string) {
 }
 
 func (p HTTPTransportPolicy) cacheKeyPart() string {
-	return fmt.Sprintf("%s|%d|%t", p.Protocol, p.Shards, p.TLSInsecureSkipVerify)
+	return fmt.Sprintf("%s|%d|%t|%t", p.Protocol, p.Shards, p.TLSInsecureSkipVerify, p.AllowPrivateNetwork)
 }
 
 func (p HTTPTransportPolicy) String() string {

@@ -620,11 +620,16 @@ func generateDefaultSidebarConfig(userRole int) string {
 }
 
 func GetUserModels(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		id = c.GetInt("id")
+	// The models of the authenticated user are always resolved from the
+	// verified session context. Path or query parameters are ignored on
+	// purpose: the route is a self route today, and binding the user id to a
+	// request parameter would turn a later route refactor into an IDOR.
+	userID := c.GetInt("id")
+	if userID <= 0 {
+		common.ApiErrorT(c, "Unauthorized")
+		return
 	}
-	user, err := model.GetUserCache(id)
+	user, err := model.GetUserCache(userID)
 	if err != nil {
 		common.ApiError(c, err)
 		return
