@@ -53,6 +53,7 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 			for _, tc := range []struct {
 				name           string
 				initialStatus  int
+				autoExhaust    bool
 				manualOverride string
 				wantStatus     int
 			}{
@@ -60,6 +61,10 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 				{name: "manual disable is preserved", initialStatus: common.ChannelStatusManuallyDisabled, wantStatus: common.ChannelStatusManuallyDisabled},
 				{name: "manual disable after exhaustion is preserved", initialStatus: common.ChannelStatusEnabled, manualOverride: "status", wantStatus: common.ChannelStatusManuallyDisabled},
 				{name: "tag disable after exhaustion is preserved", initialStatus: common.ChannelStatusEnabled, manualOverride: "tag", wantStatus: common.ChannelStatusManuallyDisabled},
+				{name: "auto key exhaustion restores", initialStatus: common.ChannelStatusEnabled, autoExhaust: true, wantStatus: common.ChannelStatusEnabled},
+				{name: "auto disable for another reason is preserved", initialStatus: common.ChannelStatusAutoDisabled, wantStatus: common.ChannelStatusAutoDisabled},
+				{name: "manual disable after auto exhaustion is preserved", initialStatus: common.ChannelStatusEnabled, autoExhaust: true, manualOverride: "status", wantStatus: common.ChannelStatusManuallyDisabled},
+				{name: "tag disable after auto exhaustion is preserved", initialStatus: common.ChannelStatusEnabled, autoExhaust: true, manualOverride: "tag", wantStatus: common.ChannelStatusManuallyDisabled},
 			} {
 				t.Run(fmt.Sprintf("cache=%t/%s/%s", cacheEnabled, action, tc.name), func(t *testing.T) {
 					common.MemoryCacheEnabled = cacheEnabled
@@ -72,7 +77,18 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 						require.NoError(t, channel.Delete())
 						model.InitChannelCache()
 					})
-					for _, operation := range []string{"disable_key", action} {
+					operations := []string{"disable_key", action}
+					if tc.autoExhaust {
+						// Key two is already disabled, so a request failure on key
+						// one disables the whole channel automatically.
+						model.InitChannelCache()
+						require.True(t, model.UpdateChannelStatus(channel.Id, "key-one", common.ChannelStatusAutoDisabled, "provider rejected key"))
+						exhausted, err := model.GetChannelById(channel.Id, true)
+						require.NoError(t, err)
+						require.Equal(t, common.ChannelStatusAutoDisabled, exhausted.Status)
+						operations = []string{action}
+					}
+					for _, operation := range operations {
 						if operation == action {
 							if tc.manualOverride == "status" {
 								model.UpdateChannelStatus(channel.Id, "", common.ChannelStatusManuallyDisabled, "manual operation")
@@ -98,6 +114,9 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 					loaded, err := model.GetChannelById(channel.Id, true)
 					require.NoError(t, err)
 					assert.Equal(t, tc.wantStatus, loaded.Status)
+					if tc.wantStatus == common.ChannelStatusEnabled {
+						assert.Equal(t, "", loaded.GetOtherInfo()["status_reason"])
+					}
 					assert.NotContains(t, loaded.ChannelInfo.MultiKeyStatusList, 0)
 					assert.NotContains(t, loaded.ChannelInfo.MultiKeyDisabledReason, 0)
 					assert.NotContains(t, loaded.ChannelInfo.MultiKeyDisabledTime, 0)

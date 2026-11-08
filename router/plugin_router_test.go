@@ -407,11 +407,11 @@ func TestPluginStaticRouteConflictsAreExcluded(t *testing.T) {
 	}
 }
 
-// The host's namespaces (api and the first segment of every static route)
-// carry the top-level routes of built-in plugins only. Every plugin keeps its
-// /{key} address, so a key may not name a host segment or a built-in plugin's
-// own prefix.
-func TestHostNamespacesCarryOnlyBuiltInTopLevelRoutes(t *testing.T) {
+// Built-in and uploaded plugins alike serve their top-level paths, /v1 ones
+// included, unless a host route answers first or the first segment is another
+// plugin's key. Every plugin keeps its /{key} address, so a key may not name a
+// host segment or a built-in plugin's own prefix.
+func TestTopLevelRoutesSkipOnlyHostRoutesAndOtherKeys(t *testing.T) {
 	outer := newOuterPluginTestEngine()
 	outer.GET("/v1/models", func(c *gin.Context) { c.String(http.StatusOK, "host models") })
 	outer.GET("/v1beta/models", func(c *gin.Context) { c.String(http.StatusOK, "host gemini") })
@@ -428,9 +428,10 @@ func TestHostNamespacesCarryOnlyBuiltInTopLevelRoutes(t *testing.T) {
 		require.NoError(t, err)
 	}
 	third := compileRouterPlugin(t, "third-probe", "1.0.0", `[
-		{method: "POST", path: "/v1/videos/foo", type: "submit"},
+		{method: "POST", path: "/v1/systemone", type: "submit"},
 		{method: "POST", path: "/ent/v2/text2video", type: "submit"},
-		{method: "POST", path: "/beta/jobs", type: "submit"}
+		{method: "POST", path: "/beta/jobs", type: "submit"},
+		{method: "GET", path: "/v1/models", type: "query"}
 	]`)
 	overrides := []*jsplugin.LoadedPlugin{third, compileRouterPlugin(t, "beta", "1.0.0", `[{method: "POST", path: "/own/jobs", type: "submit"}]`)}
 	for _, key := range []string{"pg", "v1beta", "ali", "suno"} {
@@ -449,9 +450,11 @@ func TestHostNamespacesCarryOnlyBuiltInTopLevelRoutes(t *testing.T) {
 	for _, request := range []struct{ method, path, answer string }{
 		{http.MethodPost, "/v1/videos/foo", "builtin-probe"},
 		{http.MethodPost, "/builtin-probe/v1/videos/foo", "builtin-probe"},
-		{http.MethodPost, "/third-probe/v1/videos/foo", "third-probe"},
+		{http.MethodPost, "/v1/systemone", "third-probe"},
+		{http.MethodPost, "/third-probe/v1/systemone", "third-probe"},
 		{http.MethodGet, "/v1/models", "host models"},
 		{http.MethodGet, "/builtin-probe/v1/models", "builtin-probe"},
+		{http.MethodGet, "/third-probe/v1/models", "third-probe"},
 		{http.MethodPost, "/ent/v2/text2video", "third-probe"},
 		{http.MethodPost, "/beta/jobs", "fallback"},
 		{http.MethodPost, "/third-probe/beta/jobs", "third-probe"},
@@ -461,8 +464,8 @@ func TestHostNamespacesCarryOnlyBuiltInTopLevelRoutes(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []jsplugin.SkippedRoute{
 		{PluginKey: "builtin-probe", Route: builtIn.Meta.Routes[1], Reason: "host_route"},
-		{PluginKey: "third-probe", Route: third.Meta.Routes[0], Reason: "host_namespace"},
 		{PluginKey: "third-probe", Route: third.Meta.Routes[2], Reason: "key_namespace"},
+		{PluginKey: "third-probe", Route: third.Meta.Routes[3], Reason: "host_route"},
 	}, registry.Generation().SkippedRoutes())
 	routingErrors := registry.RoutingErrors()
 	assert.Len(t, routingErrors, 4)

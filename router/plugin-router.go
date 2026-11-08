@@ -258,11 +258,10 @@ func (b *pluginGenerationBuilder) admitPlugins(
 // a host path segment, or a built-in plugin's own prefix, rejects the plugin:
 // its /{key} address would not reach it.
 //
-// A top-level route is skipped when its first segment is a host namespace and
-// the plugin is not built in (host_namespace), when a host route of the same
-// method answers it first (host_route), or when its first segment is another
-// plugin's key or a built-in plugin's own prefix (key_namespace). A route
-// under the plugin's own prefix meets only the first two checks.
+// A top-level route is skipped when a host route of the same method answers it
+// first (host_route), or when its first segment is another plugin's key or a
+// built-in plugin's own prefix (key_namespace). A route under the plugin's own
+// prefix meets only the first check.
 func (b *pluginGenerationBuilder) validatePlugin(plugin *jsplugin.LoadedPlugin, candidate *jsplugin.RoutingGeneration) ([]jsplugin.SkippedRoute, error) {
 	key := plugin.Meta.Key
 	if _, hostSegment := b.hostSegments[key]; hostSegment {
@@ -298,13 +297,10 @@ func (b *pluginGenerationBuilder) validatePlugin(plugin *jsplugin.LoadedPlugin, 
 		}
 		route := binding.Route
 		first, _, _ := strings.Cut(strings.TrimPrefix(route.Path, "/"), "/")
-		_, hostSegment := b.hostSegments[first]
 		_, otherKey := otherKeys[first]
 		_, builtInPrefix := builtInPrefixes[first]
 		reason := ""
 		switch {
-		case hostSegment && !candidate.FactoryKey(key):
-			reason = "host_namespace"
 		case b.routeAnsweredByHost(route):
 			reason = "host_route"
 		case (otherKey || builtInPrefix) && !binding.OwnPrefix:

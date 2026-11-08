@@ -528,7 +528,7 @@
     "An unexpected error occurred": "Đã xảy ra lỗi không mong muốn",
     "An unknown error occurred": "Đã xảy ra lỗi không xác định",
     "Analyze data": "Phân tích dữ liệu",
-    "and": "and",
+    "and": "và",
     "And {{count}} more models": "Và {{count}} mô hình khác",
     "Announcement #{{index}} content cannot exceed 500 characters": "Nội dung của thông báo #{{index}} không được vượt quá 500 ký tự",
     "Announcement #{{index}} has an invalid publish date format": "Thông báo #{{index}} có định dạng ngày đăng không hợp lệ",
@@ -2857,7 +2857,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Với kênh tùy chỉnh nâng cao, thiết lập này chỉ áp dụng cho các route /v1/responses không chuyển đổi giao thức.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
@@ -7400,6 +7400,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "By clicking sign in, you agree to our": "Bằng cách nhấp đăng nhập, bạn đồng ý với",
+    "By creating an account, you agree to our": "Bằng cách tạo tài khoản, bạn đồng ý với"
   }
 }
