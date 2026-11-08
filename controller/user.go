@@ -1059,6 +1059,11 @@ func CreateUser(c *gin.Context) {
 		if err := cleanUser.InsertWithTx(tx, 0); err != nil {
 			return err
 		}
+		if user.VisibleSections != nil {
+			if err := model.UpdateUserVisibleSectionsWithTx(tx, cleanUser.Id, *user.VisibleSections); err != nil {
+				return err
+			}
+		}
 		touched, err := updateAdminPermissionsForUserInTx(c, tx, cleanUser.Id, cleanUser.Role, user.AdminPermissions)
 		authzTouched = touched
 		return err
@@ -1075,6 +1080,7 @@ func CreateUser(c *gin.Context) {
 	cleanUser.FinishInsert(0)
 
 	auditParams["username"] = cleanUser.Username
+	auditParams["visible_sections_updated"] = user.VisibleSections != nil
 	recordManageAuditFor(c, cleanUser.Id, "user.create", auditParams)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

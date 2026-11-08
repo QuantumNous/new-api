@@ -118,20 +118,20 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/passkey/verify/begin", middleware.UserCriticalRateLimit("security-verification"), middleware.DisableCache(), controller.PasskeyVerifyBegin)
 				selfRoute.POST("/passkey/verify/finish", middleware.UserCriticalRateLimit("security-verification"), middleware.DisableCache(), controller.PasskeyVerifyFinish)
 				selfRoute.DELETE("/passkey", middleware.DisableCache(), controller.PasskeyDelete)
-				selfRoute.GET("/aff", controller.GetAffCode)
-				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
-				selfRoute.GET("/topup/self", controller.GetUserTopUps)
-				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
-				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
-				selfRoute.POST("/amount", controller.RequestAmount)
-				selfRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.RequestStripePay)
-				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)
-				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.RequestCreemPay)
-				selfRoute.POST("/waffo/amount", controller.RequestWaffoAmount)
-				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
-				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
-				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
-				selfRoute.POST("/aff_transfer", middleware.UserCriticalRateLimit("aff-transfer"), controller.TransferAffQuota)
+				selfRoute.GET("/aff", middleware.RequireVisibleSection("wallet"), controller.GetAffCode)
+				selfRoute.GET("/topup/info", middleware.RequireVisibleSection("wallet"), controller.GetTopUpInfo)
+				selfRoute.GET("/topup/self", middleware.RequireVisibleSection("wallet"), controller.GetUserTopUps)
+				selfRoute.POST("/topup", middleware.CriticalRateLimit(), middleware.RequireVisibleSection("wallet"), controller.TopUp)
+				selfRoute.POST("/pay", middleware.CriticalRateLimit(), middleware.RequireVisibleSection("wallet"), controller.RequestEpay)
+				selfRoute.POST("/amount", middleware.RequireVisibleSection("wallet"), controller.RequestAmount)
+				selfRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), middleware.RequireVisibleSection("wallet"), controller.RequestStripePay)
+				selfRoute.POST("/stripe/amount", middleware.RequireVisibleSection("wallet"), controller.RequestStripeAmount)
+				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), middleware.RequireVisibleSection("wallet"), controller.RequestCreemPay)
+				selfRoute.POST("/waffo/amount", middleware.RequireVisibleSection("wallet"), controller.RequestWaffoAmount)
+				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), middleware.RequireVisibleSection("wallet"), controller.RequestWaffoPay)
+				selfRoute.POST("/waffo-pancake/amount", middleware.RequireVisibleSection("wallet"), controller.RequestWaffoPancakeAmount)
+				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), middleware.RequireVisibleSection("wallet"), controller.RequestWaffoPancakePay)
+				selfRoute.POST("/aff_transfer", middleware.UserCriticalRateLimit("aff-transfer"), middleware.RequireVisibleSection("wallet"), controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
 				// 2FA routes
@@ -152,10 +152,11 @@ func SetApiRouter(router *gin.Engine) {
 
 			adminRoute := userRoute.Group("/")
 			adminRoute.Use(middleware.AdminAuth())
+			adminRoute.Use(middleware.RequireVisibleSection("users"))
 			{
 				adminRoute.GET("/", controller.GetAllUsers)
-				adminRoute.GET("/topup", controller.GetAllTopUps)
-				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
+				adminRoute.GET("/topup", middleware.RequireVisibleSection("wallet"), controller.GetAllTopUps)
+				adminRoute.POST("/topup/complete", middleware.RequireVisibleSection("wallet"), controller.AdminCompleteTopUp)
 				adminRoute.GET("/search", controller.SearchUsers)
 				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
 				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)
@@ -176,6 +177,7 @@ func SetApiRouter(router *gin.Engine) {
 		// Subscription billing (plans, purchase, admin management)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())
+		subscriptionRoute.Use(middleware.RequireVisibleSection("subscriptions"))
 		{
 			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
 			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
@@ -188,6 +190,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
+		subscriptionAdminRoute.Use(middleware.RequireVisibleSection("subscriptions"))
 		{
 			subscriptionAdminRoute.GET("/plans", controller.AdminListSubscriptionPlans)
 			subscriptionAdminRoute.POST("/plans", controller.AdminCreateSubscriptionPlan)
@@ -309,6 +312,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
+		redemptionRoute.Use(middleware.RequireVisibleSection("redemption"))
 		{
 			redemptionRoute.GET("/", controller.GetAllRedemptions)
 			redemptionRoute.GET("/search", controller.SearchRedemptions)
@@ -321,21 +325,22 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		paymentLogRoute := apiRouter.Group("/admin/payments")
 		paymentLogRoute.Use(middleware.AdminAuth())
+		paymentLogRoute.Use(middleware.RequireVisibleSection("wallet"))
 		{
 			paymentLogRoute.GET("/logs", controller.GetAdminPaymentLogs)
 		}
 
-		handlePermissionRoute(apiRouter.Group("", middleware.DisableCache(), middleware.AdminAuth()), http.MethodGet, "/audit", authz.AuditRead, controller.GetAuditLogs)
+		handlePermissionRoute(apiRouter.Group("", middleware.DisableCache(), middleware.AdminAuth(), middleware.RequireVisibleSection("audit_logs")), http.MethodGet, "/audit", authz.AuditRead, controller.GetAuditLogs)
 		apiRouter.GET("/audit/self", middleware.DisableCache(), middleware.UserAuth(), middleware.RequireVisibleSection("audit_logs"), controller.GetAuditLogs)
 		logRoute := apiRouter.Group("/log")
-		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
-		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
-		logRoute.GET("/live_stat", middleware.AdminAuth(), middleware.DisableCache(), controller.GetLogsLiveStat)
+		logRoute.GET("/", middleware.AdminAuth(), middleware.RequireVisibleSection("usage_logs"), controller.GetAllLogs)
+		logRoute.GET("/stat", middleware.AdminAuth(), middleware.RequireVisibleSection("usage_logs"), controller.GetLogsStat)
+		logRoute.GET("/live_stat", middleware.AdminAuth(), middleware.RequireVisibleSection("usage_logs"), middleware.DisableCache(), controller.GetLogsLiveStat)
 		logRoute.GET("/self/stat", middleware.UserAuth(), middleware.RequireVisibleSection("dashboard"), controller.GetLogsSelfStat)
-		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), controller.GetChannelAffinityUsageCacheStats)
-		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
+		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), middleware.RequireVisibleSection("usage_logs"), controller.GetChannelAffinityUsageCacheStats)
+		logRoute.GET("/search", middleware.AdminAuth(), middleware.RequireVisibleSection("usage_logs"), controller.SearchAllLogs)
 		logRoute.GET("/self", middleware.UserAuth(), middleware.RequireVisibleSection("usage_logs"), controller.GetUserLogs)
-		logRoute.GET("/export", middleware.AdminAuth(), controller.ExportAllLogs)
+		logRoute.GET("/export", middleware.AdminAuth(), middleware.RequireVisibleSection("usage_logs"), controller.ExportAllLogs)
 		logRoute.GET("/self/export", middleware.UserAuth(), middleware.RequireVisibleSection("usage_logs"), controller.ExportUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.RequireVisibleSection("usage_logs"), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
@@ -357,10 +362,10 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		dataRoute := apiRouter.Group("/data")
-		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
-		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)
+		dataRoute.GET("/", middleware.AdminAuth(), middleware.RequireVisibleSection("dashboard"), controller.GetAllQuotaDates)
+		dataRoute.GET("/users", middleware.AdminAuth(), middleware.RequireVisibleSection("dashboard"), controller.GetQuotaDatesByUser)
 		dataRoute.GET("/self", middleware.UserAuth(), middleware.RequireVisibleSection("dashboard"), controller.GetUserQuotaDates)
-		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
+		dataRoute.GET("/flow", middleware.AdminAuth(), middleware.RequireVisibleSection("dashboard"), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), middleware.RequireVisibleSection("dashboard"), controller.GetUserFlowQuotaDates)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
@@ -384,17 +389,18 @@ func SetApiRouter(router *gin.Engine) {
 
 		mjRoute := apiRouter.Group("/mj")
 		mjRoute.GET("/self", middleware.UserAuth(), middleware.RequireVisibleSection("drawing_logs"), controller.GetUserMidjourney)
-		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)
+		mjRoute.GET("/", middleware.AdminAuth(), middleware.RequireVisibleSection("drawing_logs"), controller.GetAllMidjourney)
 
 		taskRoute := apiRouter.Group("/task")
 		{
 			taskRoute.GET("/self", middleware.UserAuth(), middleware.RequireVisibleSection("task_logs"), controller.GetUserTask)
-			taskRoute.GET("", middleware.AdminAuth(), controller.GetAllTask)
+			taskRoute.GET("", middleware.AdminAuth(), middleware.RequireVisibleSection("task_logs"), controller.GetAllTask)
 			taskRoute.GET("/:task_id/artifacts", middleware.UserAuth(), controller.GetDashboardTaskArtifacts)
 		}
 
 		vendorRoute := apiRouter.Group("/vendors")
 		vendorRoute.Use(middleware.AdminAuth())
+		vendorRoute.Use(middleware.RequireVisibleSection("models"))
 		{
 			vendorRoute.POST("/operations/preview", controller.PreviewVendorOperation)
 			vendorRoute.POST("/operations", controller.ApplyVendorOperation)
@@ -408,6 +414,7 @@ func SetApiRouter(router *gin.Engine) {
 
 		modelsRoute := apiRouter.Group("/models")
 		modelsRoute.Use(middleware.AdminAuth())
+		modelsRoute.Use(middleware.RequireVisibleSection("models"))
 		{
 			modelsRoute.GET("/sync_upstream/preview", controller.SyncUpstreamPreview)
 			modelsRoute.POST("/sync_upstream", controller.SyncUpstreamModels)
@@ -424,6 +431,7 @@ func SetApiRouter(router *gin.Engine) {
 		// Deployments (model deployment management)
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())
+		deploymentsRoute.Use(middleware.RequireVisibleSection("models"))
 		{
 			deploymentsRoute.GET("/settings", controller.GetModelDeploymentSettings)
 			deploymentsRoute.POST("/settings/test-connection", controller.TestIoNetConnection)
