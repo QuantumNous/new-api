@@ -295,6 +295,13 @@ export function MultiSelect(props: MultiSelectProps) {
     <Combobox
       multiple
       items={items}
+      filter={(value, query) => {
+        const term = query.trim().toLowerCase()
+        return (
+          value.toLowerCase().includes(term) ||
+          (labelMap.get(value) ?? '').toLowerCase().includes(term)
+        )
+      }}
       value={props.selected}
       onValueChange={handleValueChange}
       inputValue={inputValue}

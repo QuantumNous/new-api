@@ -708,10 +708,33 @@ const USER_COLORS = [
   '#5D7092',
 ]
 
-function getUserChartIdentity(item: QuotaDataItem): string {
+export function getUserChartIdentity(item: QuotaDataItem): string {
   return item.user_id && item.user_id > 0
     ? `user:${item.user_id}`
     : `username:${item.username || 'unknown'}`
+}
+
+export function getUserChartOptions(data: QuotaDataItem[]) {
+  const users = new Map<string, QuotaDataItem>()
+  for (const item of data) {
+    const identity = getUserChartIdentity(item)
+    const previous = users.get(identity)
+    if (!previous || item.created_at >= previous.created_at) {
+      users.set(identity, item)
+    }
+  }
+  return [...users]
+    .map(([value, item]) => {
+      const username = item.username || 'unknown'
+      const name = item.display_name?.trim()
+      return {
+        value,
+        label: name && name !== username ? `${name} (${username})` : username,
+      }
+    })
+    .sort(
+      (a, b) => a.label.localeCompare(b.label) || a.value.localeCompare(b.value)
+    )
 }
 
 export function processUserChartData(

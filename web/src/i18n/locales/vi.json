@@ -7339,6 +7339,11 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "User Analytics Filters": "Bộ lọc thống kê người dùng",
+    "Filter user rankings and trends by time range.": "Lọc xếp hạng và xu hướng sử dụng theo khoảng thời gian.",
+    "Search display names or usernames": "Tìm theo tên hiển thị hoặc tên người dùng",
+    "All users when empty. Options include users with usage in this time range.": "Để trống để xem tất cả. Danh sách gồm người dùng có lượt sử dụng trong khoảng thời gian này.",
+    "Choose both dates, with the end at or after the start.": "Chọn cả hai thời điểm; thời điểm kết thúc không được trước thời điểm bắt đầu."
   }
 }

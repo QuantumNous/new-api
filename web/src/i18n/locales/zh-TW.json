@@ -7339,6 +7339,11 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "User Analytics Filters": "使用者統計篩選",
+    "Filter user rankings and trends by time range.": "依時間範圍篩選使用者排名與用量趨勢。",
+    "Search display names or usernames": "搜尋顯示名稱或使用者名稱",
+    "All users when empty. Options include users with usage in this time range.": "留空表示所有使用者；選項為目前時間範圍內有使用紀錄的使用者。",
+    "Choose both dates, with the end at or after the start.": "請選擇完整時間範圍，結束時間不得早於開始時間。"
   }
 }

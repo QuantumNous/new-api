@@ -7339,6 +7339,11 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "User Analytics Filters": "User Analytics Filters",
+    "Filter user rankings and trends by time range.": "Filter user rankings and trends by time range.",
+    "Search display names or usernames": "Search display names or usernames",
+    "All users when empty. Options include users with usage in this time range.": "All users when empty. Options include users with usage in this time range.",
+    "Choose both dates, with the end at or after the start.": "Choose both dates, with the end at or after the start."
   }
 }

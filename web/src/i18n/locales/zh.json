@@ -7339,6 +7339,11 @@
     "Zhipu": "智谱",
     "Zhipu GLM": "智谱GLM",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "User Analytics Filters": "用户统计筛选",
+    "Filter user rankings and trends by time range.": "按时间范围筛选用户排名和用量趋势。",
+    "Search display names or usernames": "搜索显示名称或用户名",
+    "All users when empty. Options include users with usage in this time range.": "留空表示全部用户；候选项为当前时间范围内有使用记录的用户。",
+    "Choose both dates, with the end at or after the start.": "请选择完整时间范围，结束时间不能早于开始时间。"
   }
 }

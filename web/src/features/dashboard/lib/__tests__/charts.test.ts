@@ -21,7 +21,26 @@ import { describe, expect, test } from 'vitest'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import type { TimeGranularity } from '@/lib/time'
 
-import { processChartData, processUserChartData } from '../charts'
+import {
+  getUserChartOptions,
+  processChartData,
+  processUserChartData,
+} from '../charts'
+
+test('user choices keep same-name accounts distinct and use the latest label for each stable ID', () => {
+  expect(
+    getUserChartOptions([
+      { user_id: 1, username: 'old', display_name: 'Alex', created_at: 1 },
+      { user_id: 1, username: 'alex_a', display_name: 'Alex', created_at: 2 },
+      { user_id: 2, username: 'alex_b', display_name: 'Alex', created_at: 2 },
+      { username: 'legacy', display_name: '  ', created_at: 2 },
+    ])
+  ).toEqual([
+    { value: 'user:1', label: 'Alex (alex_a)' },
+    { value: 'user:2', label: 'Alex (alex_b)' },
+    { value: 'username:legacy', label: 'legacy' },
+  ])
+})
 
 const cases: Array<{
   granularity: TimeGranularity

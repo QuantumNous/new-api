@@ -22,11 +22,14 @@ import { Users, Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { MultiSelect } from '@/components/multi-select'
 import { IconBadge } from '@/components/ui/icon-badge'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/context/theme-provider'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
+import { ModelsFilter } from '@/features/dashboard/components/models/models-filter-dialog'
 import {
   USAGE_METRIC_OPTIONS,
   TIME_GRANULARITY_OPTIONS,
@@ -36,12 +39,18 @@ import {
   getDefaultDays,
   saveGranularity,
   processUserChartData,
+  getSavedChartPreferences,
 } from '@/features/dashboard/lib'
+import {
+  getUserChartIdentity,
+  getUserChartOptions,
+} from '@/features/dashboard/lib/charts'
 import type {
   ProcessedUserChartData,
   UserChartsFilters,
   UsageMetric,
 } from '@/features/dashboard/types'
+import dayjs from '@/lib/dayjs'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
@@ -89,18 +98,25 @@ export function UserCharts(props: UserChartsProps) {
   const metric = props.filters.metric
   const topUserLimit = props.filters.topUserLimit
   const onFiltersChange = props.onFiltersChange
+  const customRange = props.filters.customRange
+  const selectedUsers = props.filters.selectedUsers
+  const [preferences] = useState(getSavedChartPreferences)
 
   const timeRange = useMemo(() => {
-    const { start, end } = getRollingDateRange(selectedRange)
+    const { start, end } = customRange ?? getRollingDateRange(selectedRange)
     return {
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
     }
-  }, [selectedRange])
+  }, [selectedRange, customRange])
 
   const handleRangeChange = useCallback(
     (days: number) => {
-      onFiltersChange({ ...props.filters, selectedRange: days })
+      onFiltersChange({
+        ...props.filters,
+        selectedRange: days,
+        customRange: undefined,
+      })
     },
     [onFiltersChange, props.filters]
   )
@@ -111,10 +127,10 @@ export function UserCharts(props: UserChartsProps) {
       onFiltersChange({
         ...props.filters,
         timeGranularity: g,
-        selectedRange: getDefaultDays(g),
+        selectedRange: customRange ? selectedRange : getDefaultDays(g),
       })
     },
-    [onFiltersChange, props.filters]
+    [onFiltersChange, props.filters, customRange, selectedRange]
   )
 
   const handleTopUserLimitChange = useCallback(
@@ -148,20 +164,117 @@ export function UserCharts(props: UserChartsProps) {
     staleTime: 60_000,
   })
 
+  const userOptions = useMemo(() => {
+    // Keep selected labels when a new range has no usage for those accounts.
+    const options = new Map(
+      (selectedUsers ?? []).map((user) => [user.value, user])
+    )
+    for (const user of getUserChartOptions(userData ?? [])) {
+      options.set(user.value, user)
+    }
+    return [...options.values()]
+  }, [userData, selectedUsers])
+
   const chartData = useMemo(
     () =>
       processUserChartData(
-        isLoading ? [] : (userData ?? []),
+        isLoading
+          ? []
+          : (userData ?? []).filter(
+              (item) =>
+                !selectedUsers?.length ||
+                selectedUsers.some(
+                  (user) => user.value === getUserChartIdentity(item)
+                )
+            ),
         timeGranularity,
         t,
         topUserLimit,
         metric
       ),
-    [userData, isLoading, timeGranularity, t, topUserLimit, metric]
+    [
+      userData,
+      isLoading,
+      timeGranularity,
+      t,
+      topUserLimit,
+      metric,
+      selectedUsers,
+    ]
   )
 
   return (
     <div className='space-y-3'>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between'>
+        <div className='min-w-0 space-y-1.5 sm:w-96'>
+          <Label htmlFor='user-chart-users'>{t('Users')}</Label>
+          <MultiSelect
+            id='user-chart-users'
+            options={userOptions}
+            selected={(selectedUsers ?? []).map((user) => user.value)}
+            onChange={(values) =>
+              onFiltersChange({
+                ...props.filters,
+                selectedUsers: userOptions.filter((user) =>
+                  values.includes(user.value)
+                ),
+              })
+            }
+            placeholder={t('Search display names or usernames')}
+            emptyText={t('No users')}
+            maxVisibleChips={2}
+            disabled={isLoading}
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'All users when empty. Options include users with usage in this time range.'
+            )}
+          </p>
+        </div>
+        <ModelsFilter
+          preferences={preferences}
+          currentFilters={{
+            start_timestamp: new Date(timeRange.start_timestamp * 1000),
+            end_timestamp: new Date(timeRange.end_timestamp * 1000),
+            time_granularity: timeGranularity,
+          }}
+          onFilterChange={(filters) => {
+            if (!filters.start_timestamp || !filters.end_timestamp) return
+            onFiltersChange({
+              ...props.filters,
+              customRange: {
+                start: filters.start_timestamp,
+                end: filters.end_timestamp,
+              },
+              timeGranularity: filters.time_granularity ?? timeGranularity,
+            })
+          }}
+          onReset={() =>
+            onFiltersChange({
+              ...props.filters,
+              customRange: undefined,
+              selectedUsers: [],
+              selectedRange: preferences.defaultTimeRangeDays,
+              timeGranularity: preferences.defaultTimeGranularity,
+            })
+          }
+          titleKey='User Analytics Filters'
+          descriptionKey='Filter user rankings and trends by time range.'
+          showUsernameFilter={false}
+          requireTimeRange
+        />
+      </div>
+      {customRange && (
+        <p
+          className='text-muted-foreground text-sm'
+          role='status'
+          aria-label={t('Custom Time Range')}
+        >
+          {t('Custom Time Range')}:{' '}
+          {dayjs(customRange.start).format('YYYY-MM-DD HH:mm:ss')} –{' '}
+          {dayjs(customRange.end).format('YYYY-MM-DD HH:mm:ss')}
+        </p>
+      )}
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
         <Tabs
           value={metric}
@@ -181,7 +294,7 @@ export function UserCharts(props: UserChartsProps) {
         </Tabs>
 
         <Tabs
-          value={String(selectedRange)}
+          value={customRange ? '' : String(selectedRange)}
           onValueChange={(value) => handleRangeChange(Number(value))}
           className='shrink-0'
         >

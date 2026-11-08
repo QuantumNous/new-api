@@ -59,6 +59,8 @@ interface ModelsFilterProps {
   onReset: () => void
   titleKey?: string
   descriptionKey?: string
+  showUsernameFilter?: boolean
+  requireTimeRange?: boolean
 }
 
 // Quick-range presets imply a sensible granularity (matching the app's
@@ -110,6 +112,15 @@ export function ModelsFilter(props: ModelsFilterProps) {
   const [selectedRange, setSelectedRange] = useState<number | null>(() =>
     detectQuickRangeDays(props.currentFilters)
   )
+  const startTime = filters.start_timestamp?.getTime()
+  const endTime = filters.end_timestamp?.getTime()
+  const invalidTimeRange =
+    props.requireTimeRange &&
+    (startTime === undefined ||
+      endTime === undefined ||
+      !Number.isFinite(startTime) ||
+      !Number.isFinite(endTime) ||
+      startTime > endTime)
 
   const handleOpenChange = (nextOpen: boolean) => {
     // Sync the editing state from the applied filters every time the dialog
@@ -124,6 +135,7 @@ export function ModelsFilter(props: ModelsFilterProps) {
   }
 
   const handleApply = () => {
+    if (invalidTimeRange) return
     props.onFilterChange(
       cleanFilters(
         filters as unknown as Record<string, unknown>
@@ -150,8 +162,9 @@ export function ModelsFilter(props: ModelsFilterProps) {
     value: Date | string | undefined
   ) => {
     setFilters((prev) => ({ ...prev, [field]: value }))
-    if (field === 'start_timestamp' || field === 'end_timestamp')
+    if (field === 'start_timestamp' || field === 'end_timestamp') {
       setSelectedRange(null)
+    }
   }
 
   const handleQuickRange = (days: number) => {
@@ -190,7 +203,11 @@ export function ModelsFilter(props: ModelsFilterProps) {
             <RotateCcw className='mr-2 h-4 w-4' />
             {t('Reset')}
           </Button>
-          <Button onClick={handleApply} type='submit'>
+          <Button
+            onClick={handleApply}
+            type='submit'
+            disabled={invalidTimeRange}
+          >
             <Search className='mr-2 h-4 w-4' />
             {t('Apply Filters')}
           </Button>
@@ -229,8 +246,10 @@ export function ModelsFilter(props: ModelsFilterProps) {
 
           {/* Custom time range */}
           <div className='grid gap-2.5'>
-            <div className='grid gap-2'>
-              <Label htmlFor='start_timestamp'>{t('Start Time')}</Label>
+            <fieldset className='grid min-w-0 gap-2'>
+              <legend className='mb-2 text-sm font-medium'>
+                {t('Start Time')}
+              </legend>
               <DateTimePicker
                 value={filters.start_timestamp}
                 onChange={(date) =>
@@ -238,10 +257,12 @@ export function ModelsFilter(props: ModelsFilterProps) {
                 }
                 placeholder={t('Select start time')}
               />
-            </div>
+            </fieldset>
 
-            <div className='grid gap-2'>
-              <Label htmlFor='end_timestamp'>{t('End Time')}</Label>
+            <fieldset className='grid min-w-0 gap-2'>
+              <legend className='mb-2 text-sm font-medium'>
+                {t('End Time')}
+              </legend>
               <DateTimePicker
                 value={filters.end_timestamp}
                 onChange={(date) =>
@@ -249,7 +270,12 @@ export function ModelsFilter(props: ModelsFilterProps) {
                 }
                 placeholder={t('Select end time')}
               />
-            </div>
+            </fieldset>
+            {invalidTimeRange && (
+              <p role='alert' className='text-destructive text-sm'>
+                {t('Choose both dates, with the end at or after the start.')}
+              </p>
+            )}
           </div>
 
           <SectionDivider label={t('Chart Settings')} />
@@ -257,12 +283,10 @@ export function ModelsFilter(props: ModelsFilterProps) {
           <div className='grid gap-2'>
             <Label htmlFor='time_granularity'>{t('Time Granularity')}</Label>
             <Select
-              items={[
-                ...TIME_GRANULARITY_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: t(option.label),
-                })),
-              ]}
+              items={TIME_GRANULARITY_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.label),
+              }))}
               value={filters.time_granularity}
               onValueChange={(value) =>
                 handleChange('time_granularity', value as TimeGranularity)
@@ -284,7 +308,7 @@ export function ModelsFilter(props: ModelsFilterProps) {
           </div>
 
           {/* Admin-only fields */}
-          {isAdmin && (
+          {isAdmin && props.showUsernameFilter !== false && (
             <>
               <SectionDivider label={t('Admin Only')} />
 

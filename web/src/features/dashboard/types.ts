@@ -215,6 +215,8 @@ export interface UserChartsFilters {
   timeGranularity: TimeGranularity
   selectedRange: number
   topUserLimit: number
+  customRange?: { start: Date; end: Date }
+  selectedUsers?: { value: string; label: string }[]
 }
 
 // ============================================================================
