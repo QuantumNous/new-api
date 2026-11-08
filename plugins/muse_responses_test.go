@@ -34,6 +34,7 @@ func TestMuseImageProtocol(t *testing.T) {
 	decoded := alibabaObject(t, decode)
 	assert.Equal(t, map[string]any{
 		"model": model, "prompt": "a red paper boat on a blue lake", "n": float64(2), "size": "1536x1024",
+		"response_format": "b64_json",
 	}, decoded["requestBody"])
 
 	request, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{
@@ -45,6 +46,7 @@ func TestMuseImageProtocol(t *testing.T) {
 	assert.Equal(t, "https://muse.example/v1/images/generations", submitted["url"])
 	assert.Equal(t, map[string]any{
 		"model": model, "prompt": "a red paper boat on a blue lake", "n": float64(2), "size": "1536x1024",
+		"response_format": "b64_json",
 	}, submitted["body"])
 
 	usage, err := plugin.Engine.Call(t.Context(), "extractUsage", map[string]any{

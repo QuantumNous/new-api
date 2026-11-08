@@ -73,7 +73,8 @@ function imageRequest(source, identity, operation) {
   if (!MUSE_SIZES.includes(size)) throw new Error("size must be one of " + MUSE_SIZES.join(", "));
   if (body.response_format !== undefined && body.response_format !== "url" && body.response_format !== "b64_json")
     throw new Error("response_format must be url or b64_json");
-  return { model: model, prompt: prompt, n: count, size: size };
+  const responseFormat = body.response_format === undefined ? "url" : body.response_format;
+  return { model: model, prompt: prompt, n: count, size: size, response_format: responseFormat };
 }
 
 function imageEntries(body) {
