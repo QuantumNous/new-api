@@ -43,9 +43,10 @@ export function ResetSubscriptionsDialog() {
   const isOpen = open === 'initialize-plan-subscriptions' || isWindowReset
   const plan = currentRow?.plan
   const planLabel = plan?.title || (plan?.id ? `#${plan.id}` : '-')
+  const reasonTooLong = new TextEncoder().encode(reason.trim()).length > 2000
 
   const handleConfirm = async () => {
-    if (!plan?.id || resetting || !reason.trim()) return
+    if (!plan?.id || resetting || !reason.trim() || reasonTooLong) return
     setResetting(true)
     try {
       let request = restoreRequest
@@ -98,7 +99,7 @@ export function ResetSubscriptionsDialog() {
         isWindowReset ? t('Restore window') : t('Initialize traffic')
       }
       handleConfirm={handleConfirm}
-      disabled={!plan?.id || !reason.trim()}
+      disabled={!plan?.id || !reason.trim() || reasonTooLong}
       isLoading={resetting}
     >
       <p className='text-muted-foreground text-sm'>
@@ -118,9 +119,18 @@ export function ResetSubscriptionsDialog() {
           readOnly={!!restoreRequest}
           placeholder={t('Enter reason for this operation')}
           aria-label={t('Reason')}
+          aria-invalid={reasonTooLong}
+          aria-describedby={
+            reasonTooLong ? 'plan-quota-reason-error' : undefined
+          }
           maxLength={2000}
           rows={3}
         />
+        {reasonTooLong && (
+          <span id='plan-quota-reason-error' className='text-destructive'>
+            {t('Reason must not exceed 2000 UTF-8 bytes')}
+          </span>
+        )}
       </label>
     </ConfirmDialog>
   )

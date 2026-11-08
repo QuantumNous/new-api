@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -131,6 +131,27 @@ afterEach(() => {
 })
 
 describe('UserSubscriptionsDialog quota restoration', () => {
+  it('keeps an oversized UTF-8 reason editable until corrected', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+    const reason = await openRestoreDialog(user, 'Restore window quota')
+    fireEvent.change(reason, { target: { value: '中'.repeat(667) } })
+    const confirm = screen.getByRole('button', { name: 'Restore window' })
+    expect(confirm).toBeDisabled()
+    expect(reason).toHaveAttribute('aria-invalid', 'true')
+    expect(reason).not.toHaveAttribute('readonly')
+    expect(mockedRestoreUserSubscriptionQuota).not.toHaveBeenCalled()
+    fireEvent.change(reason, {
+      target: { value: '  ' + '中'.repeat(666) + 'ab  ' },
+    })
+    expect(confirm).toBeEnabled()
+    await user.click(confirm)
+    expect(mockedRestoreUserSubscriptionQuota).toHaveBeenCalledWith(
+      7,
+      11,
+      expect.objectContaining({ reason: '中'.repeat(666) + 'ab' })
+    )
+  })
   it('offers per-subscription initialization without the legacy plan reset action', async () => {
     const user = userEvent.setup()
     renderDialog()

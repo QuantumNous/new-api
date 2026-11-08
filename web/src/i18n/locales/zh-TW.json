@@ -5055,6 +5055,7 @@
     "Real exchange rate between USD and your payment gateway currency": "美元與您的支付閘道貨幣之間的實際匯率",
     "Realtime pricing must be converted manually.": "Realtime 定價需要手動轉換。",
     "Reason": "原因",
+    "Reason must not exceed 2000 UTF-8 bytes": "原因的 UTF-8 編碼長度不能超過 2000 位元組",
     "Reason:": "原因：",
     "Reasoning": "推理",
     "Reasoning Effort": "推理強度",

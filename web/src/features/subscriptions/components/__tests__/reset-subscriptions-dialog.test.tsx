@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -91,6 +91,25 @@ async function openResetDialog(
 }
 
 describe('plan window quota restoration', () => {
+  it('keeps an oversized UTF-8 reason editable until corrected', async () => {
+    const user = userEvent.setup()
+    renderActions()
+    await openResetDialog(user, 'Reset window quota')
+    const reason = screen.getByRole('textbox', { name: 'Reason' })
+    fireEvent.change(reason, { target: { value: '中'.repeat(667) } })
+    const confirm = screen.getByRole('button', { name: 'Restore window' })
+    expect(confirm).toBeDisabled()
+    expect(reason).toHaveAttribute('aria-invalid', 'true')
+    expect(reason).not.toHaveAttribute('readonly')
+    expect(restore).not.toHaveBeenCalled()
+    fireEvent.change(reason, { target: { value: '中'.repeat(666) + 'ab' } })
+    expect(confirm).toBeEnabled()
+    await user.click(confirm)
+    expect(restore).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({ reason: '中'.repeat(666) + 'ab' })
+    )
+  })
   it('requires a reason, prevents duplicate submissions, and refreshes after success', async () => {
     const user = userEvent.setup()
     let resolveRestore!: (

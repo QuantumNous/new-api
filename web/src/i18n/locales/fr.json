@@ -5055,6 +5055,7 @@
     "Real exchange rate between USD and your payment gateway currency": "Taux de change réel entre l'USD et la devise de votre passerelle de paiement",
     "Realtime pricing must be converted manually.": "Les tarifs Realtime doivent être convertis manuellement.",
     "Reason": "Raison",
+    "Reason must not exceed 2000 UTF-8 bytes": "Le motif ne doit pas dépasser 2000 octets UTF-8",
     "Reason:": "Raison :",
     "Reasoning": "Raisonnement",
     "Reasoning Effort": "Effort de raisonnement",

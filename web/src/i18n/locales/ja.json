@@ -5055,6 +5055,7 @@
     "Real exchange rate between USD and your payment gateway currency": "USDと決済ゲートウェイ通貨の間の実質為替レート",
     "Realtime pricing must be converted manually.": "Realtimeの料金は手動で変換してください。",
     "Reason": "理由",
+    "Reason must not exceed 2000 UTF-8 bytes": "理由は UTF-8 で2000バイト以内にしてください",
     "Reason:": "理由：",
     "Reasoning": "理由",
     "Reasoning Effort": "推論強度",

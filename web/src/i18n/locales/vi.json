@@ -5055,6 +5055,7 @@
     "Real exchange rate between USD and your payment gateway currency": "Tỷ giá hối đoái thực giữa USD và tiền tệ của cổng thanh toán của bạn",
     "Realtime pricing must be converted manually.": "Cần chuyển đổi thủ công giá Realtime.",
     "Reason": "Lý do",
+    "Reason must not exceed 2000 UTF-8 bytes": "Lý do không được vượt quá 2000 byte UTF-8",
     "Reason:": "Lý do:",
     "Reasoning": "Lý luận",
     "Reasoning Effort": "Cường độ suy luận",

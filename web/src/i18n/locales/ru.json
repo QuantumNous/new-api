@@ -5055,6 +5055,7 @@
     "Real exchange rate between USD and your payment gateway currency": "Реальный обменный курс между USD и валютой вашего платежного шлюза",
     "Realtime pricing must be converted manually.": "Тарифы Realtime необходимо преобразовать вручную.",
     "Reason": "Причина",
+    "Reason must not exceed 2000 UTF-8 bytes": "Причина не должна превышать 2000 байт в UTF-8",
     "Reason:": "Причина:",
     "Reasoning": "Обоснование",
     "Reasoning Effort": "Интенсивность рассуждения",

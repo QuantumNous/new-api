@@ -128,6 +128,10 @@ export function UserSubscriptionsDialog(props: Props) {
     unlimited: boolean
   } | null>(null)
 
+  const reasonTooLong =
+    new TextEncoder().encode(quotaRestoreAction?.reason.trim() || '').length >
+    2000
+
   const planTitleMap = useMemo(() => {
     const map = new Map<number, string>()
     plans.forEach((p) => {
@@ -225,7 +229,7 @@ export function UserSubscriptionsDialog(props: Props) {
   const handleQuotaRestore = async () => {
     if (!props.user?.id || !quotaRestoreAction || restoringQuota) return
     const reason = quotaRestoreAction.reason.trim()
-    if (!reason) return
+    if (!reason || reasonTooLong) return
     setQuotaRestoreAction({ ...quotaRestoreAction, reason, submitted: true })
     setRestoringQuota(true)
     try {
@@ -515,7 +519,7 @@ export function UserSubscriptionsDialog(props: Props) {
               : t('Initialize traffic')
           }
           handleConfirm={handleQuotaRestore}
-          disabled={!quotaRestoreAction.reason.trim()}
+          disabled={!quotaRestoreAction.reason.trim() || reasonTooLong}
           isLoading={restoringQuota}
         >
           <label className='grid gap-2 text-sm'>
@@ -534,7 +538,19 @@ export function UserSubscriptionsDialog(props: Props) {
               maxLength={2000}
               rows={3}
               aria-label={t('Reason')}
+              aria-invalid={reasonTooLong}
+              aria-describedby={
+                reasonTooLong ? 'subscription-quota-reason-error' : undefined
+              }
             />
+            {reasonTooLong && (
+              <span
+                id='subscription-quota-reason-error'
+                className='text-destructive'
+              >
+                {t('Reason must not exceed 2000 UTF-8 bytes')}
+              </span>
+            )}
           </label>
           {quotaRestoreAction.unlimited && (
             <p className='text-muted-foreground text-sm'>

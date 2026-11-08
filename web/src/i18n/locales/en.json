@@ -5055,6 +5055,7 @@
     "Real exchange rate between USD and your payment gateway currency": "Real exchange rate between USD and your payment gateway currency",
     "Realtime pricing must be converted manually.": "Realtime pricing must be converted manually.",
     "Reason": "Reason",
+    "Reason must not exceed 2000 UTF-8 bytes": "Reason must not exceed 2000 UTF-8 bytes",
     "Reason:": "Reason:",
     "Reasoning": "Reasoning",
     "Reasoning Effort": "Reasoning Effort",
