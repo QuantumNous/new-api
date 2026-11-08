@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 // NormalizeOrigin validates and canonicalizes a browser origin. Only an exact
@@ -41,44 +43,58 @@ func NormalizeOrigin(raw string) (string, error) {
 	return parsedURL.Scheme + "://" + net.JoinHostPort(hostname, port), nil
 }
 
+// sessionCookieSecureByDefault reports whether refresh cookies must be marked
+// Secure when SESSION_COOKIE_SECURE is unset. Release mode - anything other
+// than GIN_MODE=debug, matching how main.go selects the Gin mode - defaults to
+// secure, so an unconfigured production deployment never issues a refresh
+// token that can travel over plain HTTP. Debug mode keeps the local-HTTP
+// compatibility mode and warns at startup.
+func sessionCookieSecureByDefault() bool {
+	return !strings.EqualFold(strings.TrimSpace(os.Getenv("GIN_MODE")), gin.DebugMode)
+}
+
 func InitSessionCookieSettings() error {
 	secureRaw := strings.TrimSpace(os.Getenv("SESSION_COOKIE_SECURE"))
 	trustedURLsRaw := strings.TrimSpace(os.Getenv("SESSION_COOKIE_TRUSTED_URL"))
+	debugMode := !sessionCookieSecureByDefault()
 
 	SessionCookieSecure = false
 	SessionCookieTrustedURLs = nil
 
-	if secureRaw == "" || strings.EqualFold(secureRaw, "false") {
-		if trustedURLsRaw != "" {
-			return fmt.Errorf("SESSION_COOKIE_TRUSTED_URL requires SESSION_COOKIE_SECURE=true")
+	secure := !debugMode
+	if secureRaw != "" {
+		if !strings.EqualFold(secureRaw, "true") && !strings.EqualFold(secureRaw, "false") {
+			return fmt.Errorf("SESSION_COOKIE_SECURE must be true or false")
 		}
-		return nil
+		secure = strings.EqualFold(secureRaw, "true")
+	}
+	// Insecure trusted origins exist only to keep a debug server on another
+	// localhost port usable while cookies cannot be Secure. Release deployments
+	// must list exact https origins.
+	allowInsecureTrustedOrigin := debugMode && !secure
+
+	if trustedURLsRaw != "" {
+		if !secure && !debugMode {
+			return fmt.Errorf("SESSION_COOKIE_TRUSTED_URL requires SESSION_COOKIE_SECURE=true in release mode")
+		}
+		trustedURLs := strings.SplitSeq(trustedURLsRaw, ",")
+		for trustedURL := range trustedURLs {
+			trustedURL = strings.TrimSpace(trustedURL)
+			if trustedURL == "" {
+				return fmt.Errorf("SESSION_COOKIE_TRUSTED_URL contains an empty URL")
+			}
+			normalizedOrigin, err := NormalizeOrigin(trustedURL)
+			if err != nil {
+				return fmt.Errorf("invalid SESSION_COOKIE_TRUSTED_URL: %w", err)
+			}
+			if !strings.HasPrefix(normalizedOrigin, "https://") &&
+				!(allowInsecureTrustedOrigin && strings.HasPrefix(normalizedOrigin, "http://")) {
+				return fmt.Errorf("SESSION_COOKIE_TRUSTED_URL must contain only https URLs with hosts")
+			}
+			SessionCookieTrustedURLs = append(SessionCookieTrustedURLs, normalizedOrigin)
+		}
 	}
 
-	if !strings.EqualFold(secureRaw, "true") {
-		return fmt.Errorf("SESSION_COOKIE_SECURE must be true or false")
-	}
-
-	if trustedURLsRaw == "" {
-		return fmt.Errorf("SESSION_COOKIE_SECURE=true requires SESSION_COOKIE_TRUSTED_URL")
-	}
-
-	trustedURLs := strings.SplitSeq(trustedURLsRaw, ",")
-	for trustedURL := range trustedURLs {
-		trustedURL = strings.TrimSpace(trustedURL)
-		if trustedURL == "" {
-			return fmt.Errorf("SESSION_COOKIE_TRUSTED_URL contains an empty URL")
-		}
-		normalizedOrigin, err := NormalizeOrigin(trustedURL)
-		if err != nil {
-			return fmt.Errorf("invalid SESSION_COOKIE_TRUSTED_URL: %w", err)
-		}
-		if !strings.HasPrefix(normalizedOrigin, "https://") {
-			return fmt.Errorf("SESSION_COOKIE_TRUSTED_URL must contain only https URLs with hosts")
-		}
-		SessionCookieTrustedURLs = append(SessionCookieTrustedURLs, normalizedOrigin)
-	}
-
-	SessionCookieSecure = true
+	SessionCookieSecure = secure
 	return nil
 }

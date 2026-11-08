@@ -66,7 +66,7 @@ func TestSessionCookieOriginGuard(t *testing.T) {
 	}
 }
 
-func TestSessionCookieOriginGuardDevelopmentCompatibility(t *testing.T) {
+func TestSessionCookieOriginGuardIgnoresSecureCookieFlag(t *testing.T) {
 	previousSecure := common.SessionCookieSecure
 	previousTrustedURLs := common.SessionCookieTrustedURLs
 	t.Cleanup(func() {
@@ -81,9 +81,10 @@ func TestSessionCookieOriginGuardDevelopmentCompatibility(t *testing.T) {
 		origin   string
 		expected int
 	}{
-		{name: "insecure mode allows mismatched development origins", origin: "http://localhost:3001", expected: http.StatusNoContent},
-		{name: "insecure mode allows missing origin", expected: http.StatusNoContent},
-		{name: "secure mode rejects mismatched development origins", secure: true, origin: "http://localhost:3001", expected: http.StatusForbidden},
+		{name: "insecure cookies still accept the same origin", origin: "http://localhost:3000", expected: http.StatusNoContent},
+		{name: "insecure cookies still reject a mismatched origin", origin: "http://localhost:3001", expected: http.StatusForbidden},
+		{name: "insecure cookies still reject a missing origin", expected: http.StatusForbidden},
+		{name: "secure cookies reject a mismatched origin", secure: true, origin: "http://localhost:3001", expected: http.StatusForbidden},
 	}
 
 	for _, test := range tests {

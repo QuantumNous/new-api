@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -169,15 +168,20 @@ func StripeWebhook(c *gin.Context) {
 		return
 	}
 
-	payload, err := io.ReadAll(c.Request.Body)
+	payload, err := readPaymentWebhookBody(c)
 	if err != nil {
+		status := http.StatusServiceUnavailable
+		if err == errPaymentWebhookBodyTooLarge {
+			status = http.StatusRequestEntityTooLarge
+		}
 		logger.LogError(ctx, common.LogText("Stripe webhook failed to read request body path=%q client_ip=%s error=%q", c.Request.RequestURI, c.ClientIP(), err.Error()))
-		c.AbortWithStatus(http.StatusServiceUnavailable)
+		c.AbortWithStatus(status)
 		return
 	}
 
 	signature := c.GetHeader("Stripe-Signature")
-	logger.LogInfo(ctx, common.LogText("Stripe webhook received request path=%q client_ip=%s signature=%q body=%q", c.Request.RequestURI, c.ClientIP(), signature, string(payload)))
+	// 回调正文和签名可能包含客户 PII，并可作为重放材料，只记录元数据。
+	logger.LogInfo(ctx, common.LogText("Stripe webhook received request path=%q client_ip=%s content_length=%d signature_present=%t", c.Request.RequestURI, c.ClientIP(), len(payload), signature != ""))
 	event, err := webhook.ConstructEventWithOptions(payload, signature, setting.StripeWebhookSecret, webhook.ConstructEventOptions{
 		IgnoreAPIVersionMismatch: true,
 	})

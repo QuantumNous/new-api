@@ -70,10 +70,11 @@ func LogStartupSuccess(startTime time.Time, port string) {
 	defer LogWriterMu.RUnlock()
 
 	if SessionCookieSecure == false {
-		// Warn when the local HTTP compatibility mode disables cookie transport
-		// security and refresh/logout Origin validation.
+		// Warn whenever cookie transport security is off, including the
+		// GIN_MODE=debug local-HTTP fallback. The refresh/logout Origin check
+		// stays enabled in every mode.
 		fmt.Fprintf(gin.DefaultWriter, "\n")
-		fmt.Fprintf(gin.DefaultWriter, "  \033[33m%s\033[0m\n", LogText("Warning: Refresh cookie is not secure and refresh/logout Origin validation is disabled. Please set SESSION_COOKIE_SECURE=true in production."))
+		fmt.Fprintf(gin.DefaultWriter, "  \033[33m%s\033[0m\n", LogText("Warning: SESSION_COOKIE_SECURE is off, so refresh cookies can be sent over plain HTTP. Enable it for any deployment reachable over the network; the refresh/logout Origin check stays enabled."))
 		fmt.Fprintf(gin.DefaultWriter, "\n")
 	}
 

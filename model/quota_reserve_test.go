@@ -322,3 +322,55 @@ func TestSettleUserQuotaDebitUnderConcurrentSettlementsNeverOverdraws(t *testing
 	assert.Equal(t, 100, total, "concurrent settlements must charge the balance exactly once")
 	assert.Equal(t, 0, getUserQuotaFromDB(t, user.Id))
 }
+
+func TestRefundWalletPreConsumeCreditsExactlyOnce(t *testing.T) {
+	const (
+		startQuota  = 1_000
+		preConsumed = 400
+		requestId   = "refund-replay-request"
+	)
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	user := createReserveTestUser(t, startQuota)
+	require.NoError(t, DecreaseUserQuota(user.Id, preConsumed, true))
+	require.Equal(t, startQuota-preConsumed, getUserQuotaFromDB(t, user.Id))
+	// Startup migration runs on every boot, so the refund table must accept a
+	// repeated AutoMigrate without losing its unique request id index.
+	require.NoError(t, DB.AutoMigrate(&WalletRefundRecord{}))
+	require.NoError(t, DB.AutoMigrate(&WalletRefundRecord{}))
+
+	// Replay the same refund the way a retried background task or a manual
+	// operator retry would: the balance must be credited exactly once.
+	require.NoError(t, RefundWalletPreConsume(requestId, user.Id, preConsumed))
+	require.NoError(t, RefundWalletPreConsume(requestId, user.Id, preConsumed))
+	assert.Equal(t, startQuota, getUserQuotaFromDB(t, user.Id))
+
+	var records int64
+	require.NoError(t, DB.Model(&WalletRefundRecord{}).Where("request_id = ?", requestId).Count(&records).Error)
+	assert.EqualValues(t, 1, records)
+}
+
+func TestRefundWalletPreConsumeConcurrentReplayCreditsExactlyOnce(t *testing.T) {
+	const (
+		startQuota  = 1_000
+		preConsumed = 400
+		requestId   = "refund-concurrent-request"
+		workers     = 8
+	)
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	user := createReserveTestUser(t, startQuota)
+	require.NoError(t, DecreaseUserQuota(user.Id, preConsumed, true))
+
+	errs := make([]error, workers)
+	var waitGroup sync.WaitGroup
+	for i := range workers {
+		waitGroup.Go(func() { errs[i] = RefundWalletPreConsume(requestId, user.Id, preConsumed) })
+	}
+	waitGroup.Wait()
+
+	for _, err := range errs {
+		require.NoError(t, err)
+	}
+	assert.Equal(t, startQuota, getUserQuotaFromDB(t, user.Id), "concurrent refunds must credit the wallet once")
+}

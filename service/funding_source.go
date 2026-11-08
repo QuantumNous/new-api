@@ -34,8 +34,9 @@ type FundingSource interface {
 var ErrInsufficientWalletQuota = errors.New("wallet quota insufficient")
 
 type WalletFunding struct {
-	userId   int
-	consumed int // 实际预扣的用户额度
+	refundKey string
+	userId    int
+	consumed  int // 实际预扣的用户额度
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
@@ -79,9 +80,16 @@ func (w *WalletFunding) Refund() error {
 	if w.consumed <= 0 {
 		return nil
 	}
-	// IncreaseUserQuota 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
-	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
-	return model.IncreaseUserQuota(w.userId, w.consumed, false)
+	if w.refundKey == "" {
+		return errors.New("wallet refund requires an idempotency key")
+	}
+	// 退款必须由持久化的 refundKey 唯一记录去重：同一笔退款的重试、并发退款或
+	// 进程崩溃后的重放都会命中已提交的记录，不会重复 IncreaseUserQuota。
+	// 任务重试会以同一 relay request id 重新预扣，因此 key 由请求 id 加上本次
+	// 预扣的随机后缀组成，每笔预扣都能被退回。
+	return refundWithRetry(func() error {
+		return model.RefundWalletPreConsume(w.refundKey, w.userId, w.consumed)
+	})
 }
 
 // ---------------------------------------------------------------------------

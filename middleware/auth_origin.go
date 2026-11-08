@@ -11,16 +11,12 @@ import (
 )
 
 // SessionCookieOriginGuard protects cookie-authenticated refresh/logout
-// endpoints when secure cookie mode is enabled. In insecure local development
-// mode it preserves the legacy behavior and intentionally performs no Origin
-// validation. It never adds CORS response headers and must not be installed on
-// relay routes.
+// endpoints from cross-site requests. It always validates the browser Origin,
+// falling back to a single Referer, independently of whether the refresh cookie
+// is marked Secure: a plain-HTTP deployment is still reachable by CSRF. It never
+// adds CORS response headers and must not be installed on relay routes.
 func SessionCookieOriginGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !common.SessionCookieSecure {
-			c.Next()
-			return
-		}
 		origin, ok := requestBrowserOrigin(c.Request)
 		if !ok || !isAllowedSessionOrigin(c.Request, origin) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{

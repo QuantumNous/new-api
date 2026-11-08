@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -130,31 +131,60 @@ func resetSessionCookieSettingsAfterTest(t *testing.T) {
 	})
 }
 
-func TestInitSessionCookieSettingsDefaultsToInsecure(t *testing.T) {
-	resetSessionCookieSettingsAfterTest(t)
-	t.Setenv("SESSION_COOKIE_SECURE", "")
-	t.Setenv("SESSION_COOKIE_TRUSTED_URL", "")
+func TestInitSessionCookieSettingsDefaultsByGinMode(t *testing.T) {
+	t.Run("release mode requires secure cookies", func(t *testing.T) {
+		resetSessionCookieSettingsAfterTest(t)
+		t.Setenv("GIN_MODE", gin.ReleaseMode)
+		t.Setenv("SESSION_COOKIE_SECURE", "")
+		t.Setenv("SESSION_COOKIE_TRUSTED_URL", "")
 
-	require.NoError(t, InitSessionCookieSettings())
-	assert.False(t, SessionCookieSecure)
-	assert.Empty(t, SessionCookieTrustedURLs)
+		require.NoError(t, InitSessionCookieSettings())
+		assert.True(t, SessionCookieSecure)
+		assert.Empty(t, SessionCookieTrustedURLs)
+	})
+
+	t.Run("debug mode keeps the local HTTP fallback", func(t *testing.T) {
+		resetSessionCookieSettingsAfterTest(t)
+		t.Setenv("GIN_MODE", gin.DebugMode)
+		t.Setenv("SESSION_COOKIE_SECURE", "")
+		t.Setenv("SESSION_COOKIE_TRUSTED_URL", "")
+
+		require.NoError(t, InitSessionCookieSettings())
+		assert.False(t, SessionCookieSecure)
+		assert.Empty(t, SessionCookieTrustedURLs)
+	})
 }
 
-func TestInitSessionCookieSettingsRequiresBothEnvVars(t *testing.T) {
-	t.Run("secure without trusted url", func(t *testing.T) {
+func TestInitSessionCookieSettingsTrustedURLRules(t *testing.T) {
+	t.Run("secure cookies do not require a trusted url", func(t *testing.T) {
 		resetSessionCookieSettingsAfterTest(t)
+		t.Setenv("GIN_MODE", gin.ReleaseMode)
 		t.Setenv("SESSION_COOKIE_SECURE", "true")
 		t.Setenv("SESSION_COOKIE_TRUSTED_URL", "")
+
+		require.NoError(t, InitSessionCookieSettings())
+		assert.True(t, SessionCookieSecure)
+		assert.Empty(t, SessionCookieTrustedURLs)
+	})
+
+	t.Run("release mode rejects insecure cookies with a trusted url", func(t *testing.T) {
+		resetSessionCookieSettingsAfterTest(t)
+		t.Setenv("GIN_MODE", gin.ReleaseMode)
+		t.Setenv("SESSION_COOKIE_SECURE", "false")
+		t.Setenv("SESSION_COOKIE_TRUSTED_URL", "https://example.com")
 
 		require.Error(t, InitSessionCookieSettings())
 	})
 
-	t.Run("trusted url without secure", func(t *testing.T) {
+	t.Run("debug mode allows an insecure local trusted origin", func(t *testing.T) {
 		resetSessionCookieSettingsAfterTest(t)
-		t.Setenv("SESSION_COOKIE_SECURE", "")
-		t.Setenv("SESSION_COOKIE_TRUSTED_URL", "https://example.com")
+		t.Setenv("GIN_MODE", gin.DebugMode)
+		t.Setenv("SESSION_COOKIE_SECURE", "false")
+		t.Setenv("SESSION_COOKIE_TRUSTED_URL", "http://localhost:3001")
 
-		require.Error(t, InitSessionCookieSettings())
+		require.NoError(t, InitSessionCookieSettings())
+		assert.False(t, SessionCookieSecure)
+		assert.Equal(t, []string{"http://localhost:3001"}, SessionCookieTrustedURLs)
 	})
 }
 

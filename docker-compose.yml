@@ -40,8 +40,8 @@ services:
 #      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值 （Streaming timeout in seconds, default is 120s. Increase if experiencing empty completions）
 #      - RELAY_IDLE_CONN_TIMEOUT=90  # Relay HTTP 客户端空闲连接超时时间，单位秒，默认跟随 Go 标准库，设置为0表示不限制 (Relay HTTP client idle keep-alive timeout in seconds, defaults to Go standard library; set 0 to disable)
       - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET is required in release mode; set a long random string in .env (openssl rand -hex 32)}  # release 模式必填，长随机字符串，所有节点必须一致 (required in release mode; long random string, identical on every node)
-#      - SESSION_COOKIE_SECURE=true  # true：启用 Secure Refresh Cookie 和严格 refresh/logout OriginGuard；false/未配置：关闭 OriginGuard，仅用于本地 HTTP (true: Secure cookie + strict refresh/logout OriginGuard; false/unset: guard disabled for local HTTP only)
-#      - SESSION_COOKIE_TRUSTED_URL=https://example.com,https://admin.example.com  # Secure=true 时必填的精确 HTTPS Origin；不是 relay CORS 白名单，不支持通配符/路径 (Required exact HTTPS origins when Secure=true; not a relay CORS allowlist, no wildcard/path)
+#      - SESSION_COOKIE_SECURE=true  # 未配置时 release 模式为 true，GIN_MODE=debug 为 false；OriginGuard 始终开启 (default: true outside GIN_MODE=debug, false in debug; the OriginGuard is always on)
+#      - SESSION_COOKIE_TRUSTED_URL=https://example.com,https://admin.example.com  # 跨域面板或 TLS 在反向代理终止时的精确 Origin；不是 relay CORS 白名单，不支持通配符/路径 (Exact origins for a cross-origin panel or TLS terminated by a reverse proxy; not a relay CORS allowlist, no wildcard/path)
 #      - TRUSTED_PROXIES=172.20.0.0/16  # 未配置时不信任任何代理（只读 TCP 对端 IP）；位于反向代理之后必须显式列出代理 IP/CIDR，none 表示不信任代理 (Unset trusts no proxies and ignores forwarded headers; behind a reverse proxy list its IPs/CIDRs, none disables trust)
 #      - USER_SESSION_ACTIVE_LIMIT=50
 #      - USER_SESSION_ISSUANCE_LIMIT=100

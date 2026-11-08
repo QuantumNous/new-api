@@ -694,7 +694,7 @@
       "post": {
         "summary": "刷新面板登录",
         "deprecated": false,
-        "description": "使用 HttpOnly Refresh Cookie 轮换刷新令牌并返回新的 AuthBundle；SESSION_COOKIE_SECURE=true 时要求同源或可信 Origin，false/未配置时保持本地 HTTP 兼容模式。已有内存会话时通过 X-Auth-Session 绑定预期 SID，Cookie 不匹配返回 409 AUTH_SESSION_MISMATCH 且不修改 Cookie。",
+        "description": "使用 HttpOnly Refresh Cookie 轮换刷新令牌并返回新的 AuthBundle；refresh/logout 始终要求同源或可信 Origin；SESSION_COOKIE_SECURE 只控制 Cookie 是否标记 Secure（除 GIN_MODE=debug 外默认为 true）。已有内存会话时通过 X-Auth-Session 绑定预期 SID，Cookie 不匹配返回 409 AUTH_SESSION_MISMATCH 且不修改 Cookie。",
         "tags": [
           "用户登陆注册"
         ],
@@ -726,7 +726,7 @@
       "post": {
         "summary": "撤销当前登录会话",
         "deprecated": false,
-        "description": "撤销明确的 Bearer/X-Auth-Session 会话；仅当 HttpOnly Refresh Cookie 属于同一 SID 时才撤销并清除 Cookie，避免跨标签页误踢其他账号。SESSION_COOKIE_SECURE=true 时要求同源或可信 Origin，false/未配置时保持本地 HTTP 兼容模式。",
+        "description": "撤销明确的 Bearer/X-Auth-Session 会话；仅当 HttpOnly Refresh Cookie 属于同一 SID 时才撤销并清除 Cookie，避免跨标签页误踢其他账号。refresh/logout 始终要求同源或可信 Origin；SESSION_COOKIE_SECURE 只控制 Cookie 是否标记 Secure（除 GIN_MODE=debug 外默认为 true）。",
         "tags": [
           "用户登陆注册"
         ],

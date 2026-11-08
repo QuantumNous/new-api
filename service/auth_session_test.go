@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -441,4 +443,42 @@ func TestUserAuthVersionInvalidatesExistingSession(t *testing.T) {
 	assert.ErrorIs(t, err, ErrLoginSessionRevoked)
 	_, err = CreateLoginSessionAtAuthVersion(user.Id, identity.UserAuthVersion, "2fa", "127.0.0.1", "test-agent")
 	assert.ErrorIs(t, err, ErrLoginSessionRevoked, "a pending 2FA flow must not survive an auth-version change")
+}
+
+func TestRefreshCookieAttributesFollowSecureSetting(t *testing.T) {
+	previousSecure := common.SessionCookieSecure
+	t.Cleanup(func() { common.SessionCookieSecure = previousSecure })
+
+	gin.SetMode(gin.TestMode)
+	for _, secure := range []bool{true, false} {
+		common.SessionCookieSecure = secure
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/user/auth/refresh", nil)
+
+		WriteRefreshCookie(c, "not-a-refresh-token")
+
+		cookies := recorder.Result().Cookies()
+		require.Len(t, cookies, 2)
+		refresh, hint := cookies[0], cookies[1]
+		assert.Equal(t, RefreshCookieName, refresh.Name)
+		assert.True(t, refresh.HttpOnly)
+		assert.Equal(t, secure, refresh.Secure)
+		assert.Equal(t, http.SameSiteStrictMode, refresh.SameSite)
+		assert.Equal(t, "/api/user/auth", refresh.Path)
+		assert.Equal(t, SessionHintCookieName, hint.Name)
+		assert.False(t, hint.HttpOnly)
+		assert.Equal(t, secure, hint.Secure)
+		assert.Equal(t, http.SameSiteStrictMode, hint.SameSite)
+
+		recorder = httptest.NewRecorder()
+		c, _ = gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/user/auth/logout", nil)
+		ClearRefreshCookie(c)
+		cleared := recorder.Result().Cookies()
+		require.Len(t, cleared, 2)
+		assert.True(t, cleared[0].HttpOnly)
+		assert.Equal(t, secure, cleared[0].Secure)
+		assert.Equal(t, http.SameSiteStrictMode, cleared[0].SameSite)
+	}
 }

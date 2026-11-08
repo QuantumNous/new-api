@@ -413,9 +413,18 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		}
 		relayInfo.UserQuota = userQuota
 
+		// 一次任务重试会在同一 relay request id 下重新预扣，每一笔预扣都必须
+		// 能单独退回；因此在请求 id 后追加本次预扣的随机后缀作为退款幂等键。
+		refundKey := relayInfo.RequestId
+		if refundKey == "" {
+			refundKey = common.NewRequestId()
+		} else {
+			refundKey += ":" + common.GetRandomString(8)
+		}
+
 		session := &BillingSession{
 			relayInfo: relayInfo,
-			funding:   &WalletFunding{userId: relayInfo.UserId},
+			funding:   &WalletFunding{refundKey: refundKey, userId: relayInfo.UserId},
 			lang:      i18n.StatedLang(c),
 		}
 		if apiErr := session.preConsume(c, preConsumedQuota); apiErr != nil {

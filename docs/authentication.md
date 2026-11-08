@@ -93,29 +93,32 @@
 
 ## Refresh/Logout 的 Origin 校验
 
-refresh/logout 的 Origin 防护与 Refresh Cookie 的 Secure 模式绑定：
+refresh/logout 的 Origin 防护与 Refresh Cookie 的 Secure 标志相互独立：
 
-- 未配置 `SESSION_COOKIE_SECURE` 或显式设为 `false` 时，Refresh Cookie 可用于本地 HTTP，refresh/logout 的 OriginGuard 关闭，并且不得配置 `SESSION_COOKIE_TRUSTED_URL`。这使 `http://localhost` 上不同端口的 Rsbuild/Vite 开发代理可以正常转发请求。该模式仅用于可信的本地开发环境，不应暴露到公网。
-- `SESSION_COOKIE_SECURE=true` 时，Refresh Cookie 仅通过 HTTPS 发送，同时启用严格 OriginGuard。`POST /api/user/auth/refresh` 和 `POST /api/user/auth/logout` 会校验浏览器的 `Origin`；缺少 `Origin` 时只接受合法的单一 `Referer` 作为回退。允许来源包括请求自身的精确 Origin，以及 `SESSION_COOKIE_TRUSTED_URL` 中配置的精确 Origin。
+- `POST /api/user/auth/refresh` 和 `POST /api/user/auth/logout` 始终校验浏览器的 `Origin`；缺少 `Origin` 时只接受合法的单一 `Referer` 作为回退。允许来源包括请求自身的精确 Origin，以及 `SESSION_COOKIE_TRUSTED_URL` 中配置的精确 Origin。即使 Cookie 未开启 Secure（例如本地 HTTP），OriginGuard 也不会关闭。
+- 未配置 `SESSION_COOKIE_SECURE` 时，默认值由运行模式决定：`GIN_MODE=debug` 为 `false`（启动时打印警告），其他情况（release）为 `true`。显式设置 `SESSION_COOKIE_SECURE` 可覆盖默认值。
+- `SESSION_COOKIE_SECURE=true` 时，Refresh Cookie 仅通过 HTTPS 发送。
 
-Secure 模式的 Origin 校验不信任客户端直接发送的 `X-Forwarded-Proto`。TLS 在反向代理终止时，应将面板的公开 HTTPS Origin 明确写入 `SESSION_COOKIE_TRUSTED_URL`。
+Origin 校验不信任客户端直接发送的 `X-Forwarded-Proto`。TLS 在反向代理终止时，应将面板的公开 HTTPS Origin 明确写入 `SESSION_COOKIE_TRUSTED_URL`。
 
 `SESSION_COOKIE_TRUSTED_URL` 现在具有明确的新语义：它是 refresh/logout Cookie 端点的可信 Origin 列表，不是 CORS 白名单。配置规则如下：
 
-- 仅在 `SESSION_COOKIE_SECURE=true` 时配置；多个值用英文逗号分隔。
+- 多个值用英文逗号分隔。release 模式下要求 `SESSION_COOKIE_SECURE=true`；只有 `GIN_MODE=debug` 且 Cookie 不 Secure 时允许本地 `http://` Origin，便于开发代理调试。
 - 每项必须是精确的 HTTPS Origin，例如 `https://panel.example.com` 或 `https://panel.example.com:8443`。
 - 不接受通配符、路径、查询参数、用户信息或域名后缀匹配。
 - 不会修改 relay、旧 billing dashboard、`/api/usage/token` 或 `/api/log/token` 的 CORS 行为。浏览器使用 `sk-` key 直连 relay 的场景保持不变。
 
-本地 HTTP 开发示例（OriginGuard 关闭）：
+本地 HTTP 开发示例（OriginGuard 仍然开启）：
 
 ```env
+GIN_MODE=debug
 SESSION_SECRET=<local-random-value>
 SESSION_COOKIE_SECURE=false
-# SESSION_COOKIE_TRUSTED_URL 不得设置
+# 只有开发服务器与被代理端口不同源时才需要，例如 Rsbuild 开发代理
+SESSION_COOKIE_TRUSTED_URL=http://localhost:3001
 ```
 
-生产 HTTPS 示例（OriginGuard 开启）：
+生产 HTTPS 示例：
 
 ```env
 SESSION_SECRET=<high-entropy-random-value>
@@ -123,7 +126,7 @@ SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_TRUSTED_URL=https://panel.example.com,https://admin.example.com
 ```
 
-该开关只控制面板 Refresh Cookie 和 refresh/logout 的 OriginGuard，不会修改 relay、旧 billing dashboard、`/api/usage/token` 或 `/api/log/token` 的 CORS 行为。
+该配置只控制面板 Refresh Cookie 和 refresh/logout 的 OriginGuard，不会修改 relay、旧 billing dashboard、`/api/usage/token` 或 `/api/log/token` 的 CORS 行为。
 
 ## 可信代理与 IP 限流
 

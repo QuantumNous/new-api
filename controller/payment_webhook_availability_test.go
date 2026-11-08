@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Calcium-Ion/go-epay/epay"
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -282,4 +284,74 @@ func TestEpayCallbacksVerifyBeforeSettlement(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestPaymentWebhookLogsExcludeRawPayloadsAndSignatures(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	originalCreemAPIKey := setting.CreemApiKey
+	originalCreemProducts := setting.CreemProducts
+	originalCreemWebhookSecret := setting.CreemWebhookSecret
+	originalStripeAPIKey := setting.StripeApiSecret
+	originalStripePriceID := setting.StripePriceId
+	originalStripeWebhookSecret := setting.StripeWebhookSecret
+	t.Cleanup(func() {
+		setting.CreemApiKey = originalCreemAPIKey
+		setting.CreemProducts = originalCreemProducts
+		setting.CreemWebhookSecret = originalCreemWebhookSecret
+		setting.StripeApiSecret = originalStripeAPIKey
+		setting.StripePriceId = originalStripePriceID
+		setting.StripeWebhookSecret = originalStripeWebhookSecret
+	})
+	setting.CreemApiKey = "creem_api_key"
+	setting.CreemProducts = `[{"productId":"prod_logs"}]`
+	setting.CreemWebhookSecret = "creem-webhook-secret"
+	setting.StripeApiSecret = "sk_logs"
+	setting.StripePriceId = "price_logs"
+	setting.StripeWebhookSecret = "whsec_logs"
+
+	previousWriter, previousErrorWriter := gin.DefaultWriter, gin.DefaultErrorWriter
+	var stdout, stderr bytes.Buffer
+	common.LogWriterMu.Lock()
+	gin.DefaultWriter = &stdout
+	gin.DefaultErrorWriter = &stderr
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultWriter, gin.DefaultErrorWriter = previousWriter, previousErrorWriter
+		common.LogWriterMu.Unlock()
+	})
+
+	const (
+		bodyMarker      = "pii-marker-do-not-log@example.com"
+		signatureMarker = "signature-marker-do-not-log"
+	)
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/api/creem/webhook", CreemWebhook)
+	router.POST("/api/stripe/webhook", StripeWebhook)
+
+	creemBody := `{"id":"evt_logs","eventType":"checkout.completed","object":{"customer":{"email":"` + bodyMarker + `"}}}`
+	creemRequest := httptest.NewRequest(http.MethodPost, "/api/creem/webhook", strings.NewReader(creemBody))
+	creemRequest.Header.Set(CreemSignatureHeader, signatureMarker)
+	creemResponse := httptest.NewRecorder()
+	router.ServeHTTP(creemResponse, creemRequest)
+	require.Equal(t, http.StatusUnauthorized, creemResponse.Code)
+
+	stripeBody := `{"id":"evt_logs","type":"checkout.session.completed","customer_details":{"email":"` + bodyMarker + `"}}`
+	stripeRequest := httptest.NewRequest(http.MethodPost, "/api/stripe/webhook", strings.NewReader(stripeBody))
+	stripeRequest.Header.Set("Stripe-Signature", "t=1700000000,v1="+signatureMarker)
+	stripeResponse := httptest.NewRecorder()
+	router.ServeHTTP(stripeResponse, stripeRequest)
+	require.Equal(t, http.StatusBadRequest, stripeResponse.Code)
+
+	oversizedRequest := httptest.NewRequest(http.MethodPost, "/api/creem/webhook", strings.NewReader(strings.Repeat("a", int(maxPaymentWebhookBodyBytes)+1)))
+	oversizedRequest.Header.Set(CreemSignatureHeader, signatureMarker)
+	oversizedResponse := httptest.NewRecorder()
+	router.ServeHTTP(oversizedResponse, oversizedRequest)
+	require.Equal(t, http.StatusRequestEntityTooLarge, oversizedResponse.Code)
+
+	logged := stdout.String() + stderr.String()
+	assert.NotEmpty(t, logged)
+	assert.NotContains(t, logged, bodyMarker, "raw webhook bodies must never be logged")
+	assert.NotContains(t, logged, signatureMarker, "webhook signatures must never be logged")
 }
