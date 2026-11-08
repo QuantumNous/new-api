@@ -15,8 +15,14 @@ func RefundSubscriptionTaskFunding(task *Task) (int, error) {
 	return reduceSubscriptionTaskFunding(task, 0)
 }
 
+// ReduceSubscriptionTaskFunding refunds the difference from a lower final
+// price. Completion funding is reversed first, wallet before subscription.
+func ReduceSubscriptionTaskFunding(task *Task, target int) (int, error) {
+	return reduceSubscriptionTaskFunding(task, target)
+}
+
 func reduceSubscriptionTaskFunding(task *Task, target int) (int, error) {
-	if task == nil || task.ID <= 0 || task.PrivateData.Execution == nil || task.PrivateData.Execution.RequestID == "" || target != 0 {
+	if task == nil || task.ID <= 0 || task.PrivateData.Execution == nil || task.PrivateData.Execution.RequestID == "" || target < 0 {
 		return 0, errors.New("invalid subscription task refund")
 	}
 	requestId := task.PrivateData.Execution.RequestID
@@ -44,6 +50,25 @@ func reduceSubscriptionTaskFunding(task *Task, target int) (int, error) {
 		if err := lockForUpdate(tx).Where("request_id IN ?", []string{requestId, completionId}).Order("id desc").Find(&records).Error; err != nil {
 			return err
 		}
+		var funded int64
+		for _, record := range records {
+			if record.Status == "refunded" || record.Status == "reserved" {
+				continue
+			}
+			amount := record.SettledAmount - record.RefundedAmount
+			if record.Status == "consumed" {
+				amount = record.PreConsumed
+			}
+			wallet := record.WalletSettledAmount - record.WalletRefundedAmount
+			if amount < 0 || wallet < 0 || amount > int64(^uint64(0)>>1)-funded || wallet > int64(^uint64(0)>>1)-funded-amount {
+				return errors.New("subscription refund accounting is invalid")
+			}
+			funded += amount + wallet
+		}
+		if int64(target) > funded {
+			return errors.New("subscription refund target exceeds committed funding")
+		}
+		remaining := funded - int64(target)
 		for i := range records {
 			record := &records[i]
 			if record.UserId != persisted.UserId || record.UserSubscriptionId != sub.Id {
@@ -61,20 +86,35 @@ func reduceSubscriptionTaskFunding(task *Task, target int) (int, error) {
 				return errors.New("settled subscription funding requires legacy reconciliation")
 			}
 			if record.Status == "reserved" {
+				if target > 0 && record.PreConsumed > 0 {
+					return errors.New("subscription task funding has not settled")
+				}
 				if sub.AmountReserved < record.PreConsumed {
 					return errors.New("subscription reservation accounting is invalid")
 				}
 				sub.AmountReserved -= record.PreConsumed
 			} else {
+				wallet := min(remaining, record.WalletSettledAmount-record.WalletRefundedAmount)
+				remaining -= wallet
+				walletCredit += wallet
+				record.WalletRefundedAmount += wallet
 				amount := record.SettledAmount - record.RefundedAmount
 				counter := record.CounterAmount
 				if record.Status == "consumed" {
 					amount, counter = record.PreConsumed, record.PreConsumed
 					record.ChargedGeneration = record.ResetGeneration
+					record.SettledAmount = amount
+					record.CounterAmount = counter
+					record.AccountingVersion = 1
+					record.Status = "settled"
 				}
 				if amount < 0 || counter < 0 || counter > amount || record.WindowCharged < 0 || record.WindowCharged > amount {
 					return errors.New("subscription refund accounting is invalid")
 				}
+				amount = min(amount, remaining)
+				remaining -= amount
+				counter = min(counter, amount)
+				window := min(record.WindowCharged, amount)
 				if sub.QuotaModelVersion > 0 {
 					if counter > sub.TotalAmountUsed || amount > sub.HistoricalAmountUsed {
 						return errors.New("subscription refund exceeds attributed usage")
@@ -83,10 +123,10 @@ func reduceSubscriptionTaskFunding(task *Task, target int) (int, error) {
 					sub.AmountUsed = sub.TotalAmountUsed
 					sub.HistoricalAmountUsed -= amount
 					if record.ChargedGeneration == sub.ResetGeneration {
-						if record.WindowCharged > sub.WindowAmountUsed {
+						if window > sub.WindowAmountUsed {
 							return errors.New("subscription refund exceeds attributed window usage")
 						}
-						sub.WindowAmountUsed -= record.WindowCharged
+						sub.WindowAmountUsed -= window
 					}
 				} else if record.ChargedGeneration == sub.ResetGeneration {
 					if counter > sub.AmountUsed {
@@ -95,17 +135,13 @@ func reduceSubscriptionTaskFunding(task *Task, target int) (int, error) {
 					sub.AmountUsed -= counter
 				}
 				record.RefundedAmount += amount
-				record.CounterAmount = 0
-				record.WindowCharged = 0
+				record.CounterAmount -= counter
+				record.WindowCharged -= window
 			}
-			wallet := record.WalletSettledAmount - record.WalletRefundedAmount
-			if wallet < 0 || wallet > int64(^uint64(0)>>1)-walletCredit {
-				return errors.New("subscription wallet refund exceeds supported quota")
-			}
-			walletCredit += wallet
-			record.WalletRefundedAmount += wallet
 			record.FundingClosed = true
-			record.Status = "refunded"
+			if target == 0 || record.Status == "reserved" || record.SettledAmount == record.RefundedAmount && record.WalletSettledAmount == record.WalletRefundedAmount {
+				record.Status = "refunded"
+			}
 			if err := tx.Save(record).Error; err != nil {
 				return err
 			}

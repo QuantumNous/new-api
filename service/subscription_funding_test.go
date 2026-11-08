@@ -465,6 +465,55 @@ type subscriptionFundingReleasedRecord struct {
 
 func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 	t.Helper()
+	for _, completion := range []bool{false, true} {
+		t.Run(fmt.Sprintf("downward task pricing refunds exactly once completion=%t", completion), func(t *testing.T) {
+			ctx, info, sub := subscriptionFundingFixture(t, db, 400, 340, 100, 60, true)
+			initial := 100
+			if completion {
+				initial = 10
+			}
+			session, apiErr := NewBillingSession(ctx, info, 10)
+			require.Nil(t, apiErr)
+			require.NoError(t, session.Settle(initial))
+			task := model.Task{TaskID: info.RequestId, UserId: info.UserId, Quota: initial, PrivateData: model.TaskPrivateData{
+				BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id,
+				Execution: &model.TaskExecutionSnapshot{RequestID: info.RequestId},
+			}}
+			require.NoError(t, db.Create(&task).Error)
+			t.Cleanup(func() {
+				require.NoError(t, db.Delete(&task).Error)
+				require.NoError(t, db.Where("user_id = ?", info.UserId).Delete(&model.Log{}).Error)
+			})
+			if completion {
+				RecalculateTaskQuota(ctx, &task, 100, common.NewMessage("completion"))
+			}
+			token := model.Token{UserId: info.UserId, Key: fmt.Sprintf("reprice-%d", sub.Id), RemainQuota: 900, UsedQuota: 100}
+			require.NoError(t, db.Create(&token).Error)
+			t.Cleanup(func() { require.NoError(t, db.Unscoped().Delete(&token).Error) })
+			task.PrivateData.TokenId = token.Id
+			require.NoError(t, task.Update())
+			require.NoError(t, db.Model(&model.User{}).Where("id = ?", info.UserId).Update("used_quota", 100).Error)
+			for _, target := range []int{60, 30, 5} {
+				stale := task
+				RecalculateTaskQuota(ctx, &task, target, common.NewMessage("lower price"))
+				RecalculateTaskQuota(ctx, &stale, target, common.NewMessage("duplicate lower price"))
+				require.Equal(t, target, task.Quota)
+				require.NoError(t, db.First(&token, token.Id).Error)
+				assert.Equal(t, 1000-target, token.RemainQuota)
+				assert.Equal(t, target, token.UsedQuota)
+				require.NoError(t, db.First(&sub, sub.Id).Error)
+				assert.EqualValues(t, 340+target, sub.TotalAmountUsed)
+				assert.EqualValues(t, 340+target, sub.HistoricalAmountUsed)
+				wallet, err := model.GetUserQuota(info.UserId, true)
+				require.NoError(t, err)
+				assert.Equal(t, 200, wallet)
+			}
+			require.True(t, RefundTaskQuota(ctx, &task, "failure after repricing"))
+			require.NoError(t, db.First(&sub, sub.Id).Error)
+			assert.EqualValues(t, 340, sub.TotalAmountUsed)
+			assert.EqualValues(t, 60, sub.WindowAmountUsed)
+		})
+	}
 	t.Run("settled task refunds both funding portions once", func(t *testing.T) {
 		ctx, info, sub := subscriptionFundingFixture(t, db, 400, 340, 100, 60, true)
 		session, apiErr := NewBillingSession(ctx, info, 10)
@@ -554,6 +603,12 @@ func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 				_, err := model.PreConsumeUserSubscription(otherRequest, info.UserId, "", 0, 20)
 				require.NoError(t, err)
 				require.NoError(t, model.SettleUserSubscriptionPreConsume(otherRequest, 0))
+				RecalculateTaskQuota(ctx, &task, 30, common.NewMessage("lower price after reset"))
+				require.Equal(t, 30, task.Quota)
+				require.NoError(t, db.First(&sub, sub.Id).Error)
+				if !legacy {
+					assert.EqualValues(t, 20, sub.WindowAmountUsed)
+				}
 				require.True(t, RefundTaskQuota(ctx, &task, "refund after reset"))
 				require.NoError(t, db.First(&sub, sub.Id).Error)
 				assert.EqualValues(t, 20, sub.AmountUsed)

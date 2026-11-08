@@ -333,6 +333,20 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	quotaDelta := actualQuota - preConsumedQuota
 	var subscriptionSettlement *model.SubscriptionSettlement
 	var subscriptionCharged, walletCharged int64
+	transactionalReduction := false
+	if taskIsSubscription(task) && task.PrivateData.Execution != nil && task.PrivateData.Execution.RequestID != "" && quotaDelta < 0 {
+		refunded, err := model.ReduceSubscriptionTaskFunding(task, actualQuota)
+		if err != nil {
+			logger.LogError(ctx, common.LogText("failed to adjust funding for the difference, task %s: %s", task.TaskID, err.Error()))
+			return
+		}
+		if refunded == 0 {
+			return
+		}
+		quotaDelta = -refunded
+		preConsumedQuota = actualQuota + refunded
+		transactionalReduction = true
+	}
 	if taskIsSubscription(task) && task.PrivateData.Execution != nil && task.PrivateData.Execution.RequestID != "" && quotaDelta >= 0 {
 		record, submitted, err := model.PrepareSubscriptionTaskSettlement(task.PrivateData.Execution.RequestID)
 		if err != nil {
@@ -380,23 +394,23 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	))
 
 	// 调整资金来源
-	if subscriptionSettlement == nil {
+	if subscriptionSettlement == nil && !transactionalReduction {
 		if err := taskAdjustFunding(task, quotaDelta); err != nil {
 			logger.LogError(ctx, common.LogText("failed to adjust funding for the difference, task %s: %s", task.TaskID, err.Error()))
 			return
 		}
 	}
 	// 调整令牌额度
-	taskAdjustTokenQuota(ctx, task, quotaDelta)
-
-	task.Quota = actualQuota
-	if err := task.UpdateQuota(); err != nil {
-		logger.LogError(ctx, common.LogText("failed to write back the settled task quota, task %s: %s", task.TaskID, err.Error()))
+	if !transactionalReduction {
+		taskAdjustTokenQuota(ctx, task, quotaDelta)
+		task.Quota = actualQuota
+		if err := task.UpdateQuota(); err != nil {
+			logger.LogError(ctx, common.LogText("failed to write back the settled task quota, task %s: %s", task.TaskID, err.Error()))
+		}
+		// 提交阶段已经累计过一次请求；结算阶段只调整最终用量。
+		model.UpdateUserUsedQuota(task.UserId, quotaDelta)
+		model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
 	}
-
-	// 提交阶段已经累计过一次请求；结算阶段只调整最终用量。
-	model.UpdateUserUsedQuota(task.UserId, quotaDelta)
-	model.UpdateChannelUsedQuota(task.ChannelId, quotaDelta)
 
 	var logType int
 	var logQuota int
