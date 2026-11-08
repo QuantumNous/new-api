@@ -2,6 +2,7 @@ package billing
 
 import (
 	"fmt"
+	"strings"
 	"github.com/QuantumNous/new-api/internal/usage"
 	"math"
 	"strconv"
@@ -280,9 +281,46 @@ func formatQuota(quota int, withUnitSuffix bool) string {
 	}
 }
 
+// validateTieredBillingOption rejects billing_setting.* payloads whose JSON
+// shape is wrong or whose expressions cannot compile. Syntax problems must be
+// caught at save time: GetBillingMode/GetBillingExpr only do exact map lookups
+// at request time, so a malformed entry would otherwise silently fall back to
+// ratio billing or fail the request mid-billing. An empty expression string is
+// accepted (treated as unset for that model).
+func validateTieredBillingOption(key, value string) error {
+	switch key {
+	case "billing_setting.billing_mode":
+		modes := map[string]string{}
+		if err := common.Unmarshal([]byte(value), &modes); err != nil {
+			return fmt.Errorf("billing_setting.billing_mode 必须是 {模型: 模式} 形式的 JSON: %w", err)
+		}
+		for model, mode := range modes {
+			if mode != BillingModeRatio && mode != BillingModeTieredExpr {
+				return fmt.Errorf("billing_setting.billing_mode[%s]: 未知计费模式 %q（仅支持 ratio / tiered_expr）", model, mode)
+			}
+		}
+	case "billing_setting.billing_expr":
+		exprs := map[string]string{}
+		if err := common.Unmarshal([]byte(value), &exprs); err != nil {
+			return fmt.Errorf("billing_setting.billing_expr 必须是 {模型: 表达式} 形式的 JSON: %w", err)
+		}
+		for model, exprStr := range exprs {
+			if strings.TrimSpace(exprStr) == "" {
+				continue
+			}
+			if _, err := price_expression.CompileFromCache(exprStr); err != nil {
+				return fmt.Errorf("billing_setting.billing_expr[%s] 表达式无法编译: %w", model, err)
+			}
+		}
+	}
+	return nil
+}
+
 func init() {
 	settings.OnSeedPaymentOptions = seedPaymentOptions
 	settings.OnApplyPaymentOption = applyPaymentOption
+
+	settings.OnValidateTieredBillingOption = validateTieredBillingOption
 
 	settings.OnIsToolPriceOptionKey = func(key string) bool {
 		return key == price_expression.ToolPriceOptionKey

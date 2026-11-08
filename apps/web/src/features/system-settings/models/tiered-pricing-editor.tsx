@@ -1649,6 +1649,11 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
   const [requestRuleGroups, setRequestRuleGroups] = useState<
     RequestRuleGroup[]
   >(() => tryParseRequestRuleExpr(currentRequestRuleExpr) || [])
+  // False while the visual editor is only DISPLAYING a config derived from the
+  // saved expression (or the empty default). Until the admin edits something,
+  // the draft must never be rewritten: an expression the visual parser cannot
+  // round-trip would otherwise be replaced by the all-zero default on mount.
+  const [visualEdited, setVisualEdited] = useState(false)
   const initRef = useRef(false)
 
   useEffect(() => {
@@ -1669,6 +1674,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
       combineBillingExpr(currentExpr || '', currentRequestRuleExpr || '')
     )
     setRequestRuleGroups(tryParseRequestRuleExpr(currentRequestRuleExpr) || [])
+    setVisualEdited(false)
   }, [currentExpr, currentRequestRuleExpr])
 
   useEffect(() => {
@@ -1682,32 +1688,45 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
 
   const effectiveExpr = useMemo(() => {
     if (editorMode === 'visual') {
+      // No parsed config (unparsable expression): keep the stored value
+      // instead of generating the all-zero placeholder from nothing.
+      if (!visualConfig) return currentExpr
       return generateExprFromVisualConfig(visualConfig)
     }
     const { billingExpr } = splitBillingExprAndRequestRules(rawExpr)
     return billingExpr
-  }, [editorMode, visualConfig, rawExpr])
+  }, [editorMode, visualConfig, rawExpr, currentExpr])
 
   useEffect(() => {
+    // Visual mode only owns the draft after the admin actually edits it — a
+    // pristine visual view (parsed or default) must never push values back,
+    // otherwise reopening a model could overwrite the stored expression with
+    // the generated default ("p * 0 + c * 0").
+    if (editorMode === 'visual' && !visualEdited) return
     if (effectiveExpr !== currentExpr) {
       onBillingExprChange(effectiveExpr)
     }
-  }, [effectiveExpr, currentExpr, onBillingExprChange])
+  }, [editorMode, visualEdited, effectiveExpr, currentExpr, onBillingExprChange])
 
   useEffect(() => {
     if (editorMode !== 'visual') return
+    // Unparsable stored rules cannot be rendered by the visual editor; pushing
+    // the regenerated (empty) form here would silently delete them.
+    if (!canUseVisualRules) return
     const ruleExpr = buildRequestRuleExpr(requestRuleGroups)
     if (ruleExpr !== currentRequestRuleExpr) {
       onRequestRuleExprChange(ruleExpr)
     }
   }, [
     editorMode,
+    canUseVisualRules,
     requestRuleGroups,
     currentRequestRuleExpr,
     onRequestRuleExprChange,
   ])
 
   const handleVisualChange = useCallback((next: VisualConfig) => {
+    setVisualEdited(true)
     setVisualConfig(next)
   }, [])
 
@@ -1734,15 +1753,29 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
         }
         const parsedGroups = tryParseRequestRuleExpr(ruleStr)
         setRequestRuleGroups(parsedGroups || [])
-        onRequestRuleExprChange(ruleStr)
+        if (canUseVisualRules) {
+          onRequestRuleExprChange(ruleStr)
+        }
+        setVisualEdited(false)
       } else {
-        const expr = generateExprFromVisualConfig(visualConfig)
-        const ruleExpr = buildRequestRuleExpr(requestRuleGroups)
-        setRawExpr(combineBillingExpr(expr, ruleExpr) || expr)
+        // Leaving a pristine visual view keeps the untouched raw expression;
+        // regenerating would replace it with the all-zero default config.
+        if (visualEdited) {
+          const expr = generateExprFromVisualConfig(visualConfig)
+          const ruleExpr = buildRequestRuleExpr(requestRuleGroups)
+          setRawExpr(combineBillingExpr(expr, ruleExpr) || expr)
+        }
       }
       setEditorMode(next)
     },
-    [rawExpr, visualConfig, requestRuleGroups, onRequestRuleExprChange]
+    [
+      rawExpr,
+      visualConfig,
+      visualEdited,
+      requestRuleGroups,
+      canUseVisualRules,
+      onRequestRuleExprChange,
+    ]
   )
 
   const applyPreset = useCallback(
@@ -1755,6 +1788,9 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
       if (parsed) {
         setVisualConfig(parsed)
         setEditorMode('visual')
+        // The admin explicitly chose this content — the visual view owns the
+        // draft from here, so the sync effect may push the generated expr.
+        setVisualEdited(true)
       } else {
         setEditorMode('raw')
         setVisualConfig(null)

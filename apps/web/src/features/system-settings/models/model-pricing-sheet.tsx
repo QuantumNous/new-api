@@ -28,6 +28,7 @@ import {
 } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -61,6 +62,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  BILLING_PRICING_VARS,
+  combineBillingExpr,
+  parseTiersFromExpr,
+} from '@/features/pricing/lib/billing-expr'
 import { cn } from '@/lib/utils'
 
 import {
@@ -380,9 +386,10 @@ export const ModelPricingEditorPanel = forwardRef<
   const handleModeChange = (value: string) => {
     const nextMode = value as PricingMode
     setPricingMode(nextMode)
-    if (nextMode === 'tiered_expr' && !billingExpr) {
-      setBillingExpr('tier("base", p * 0 + c * 0)')
-    }
+    // Deliberately no zero-price prefill here. The tiered editor shows an
+    // empty default tier and only writes an expression once the admin edits
+    // it; validatePricingValues rejects an empty or all-zero expression at
+    // commit, so a model can never silently start billing "p * 0 + c * 0".
   }
 
   const watchedValues = form.watch()
@@ -457,6 +464,36 @@ export const ModelPricingEditorPanel = forwardRef<
   }, [editData, laneEnabled, lanePrices, pricingMode, promptPrice, t])
 
   const validatePricingValues = useCallback(() => {
+    if (pricingMode === 'tiered_expr') {
+      const expr = billingExpr.trim()
+      if (!expr) {
+        toast.error(
+          t('Billing expression is required for expression pricing.')
+        )
+        return false
+      }
+      // An expression whose every tier prices every lane at 0 bills nothing.
+      // That is almost always the untouched default rather than intent, so
+      // block it at commit instead of letting the backend charge 0×0.
+      const combined = combineBillingExpr(expr, requestRuleExpr)
+      const tiers = parseTiersFromExpr(combined)
+      const allTiersZero =
+        tiers.length > 0 &&
+        tiers.every((tier) =>
+          BILLING_PRICING_VARS.every(
+            (variable) => !Number(tier[variable.field as string])
+          )
+        )
+      if (allTiersZero) {
+        toast.error(
+          t(
+            'Every tier is priced at 0 — fill in the unit prices before saving.'
+          )
+        )
+        return false
+      }
+    }
+
     if (
       pricingMode === 'per-token' &&
       toNumberOrNull(promptPrice) === null &&
@@ -483,7 +520,7 @@ export const ModelPricingEditorPanel = forwardRef<
     }
 
     return true
-  }, [form, laneEnabled, lanePrices, pricingMode, promptPrice, t])
+  }, [billingExpr, requestRuleExpr, pricingMode, form, laneEnabled, lanePrices, promptPrice, t])
 
   const buildSubmitData = useCallback(
     (values: ModelPricingFormValues) => {

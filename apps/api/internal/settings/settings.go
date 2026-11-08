@@ -81,6 +81,11 @@ var (
 	OnValidateToolPriceOption func(value string) error
 	OnApplyToolPriceOption    func(value string)
 
+	// OnValidateTieredBillingOption validates billing_setting.* payloads before
+	// they are persisted (JSON shape + expression compilability). Wired by the
+	// billing domain, which owns the settings struct and the expr compiler.
+	OnValidateTieredBillingOption func(key, value string) error
+
 	// OnApplyUserInsightSetting applies a user_insight_setting.<key> option
 	// with domain-owned locking. blocked_clients is read on the relay hot path
 	// under usage's blockedClientsLock, so the generic reflect write in
@@ -115,6 +120,9 @@ func GatewayRoutingOptionKeyList() []string {
 }
 
 func ValidateOptionValue(key string, value string) error {
+	if strings.HasPrefix(key, "billing_setting.") && OnValidateTieredBillingOption != nil {
+		return OnValidateTieredBillingOption(key, value)
+	}
 	if OnIsToolPriceOptionKey != nil && OnIsToolPriceOptionKey(key) {
 		if OnValidateToolPriceOption != nil {
 			return OnValidateToolPriceOption(value)
