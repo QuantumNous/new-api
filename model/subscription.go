@@ -1661,7 +1661,7 @@ func adminRestoreUserSubscriptionQuota(db *gorm.DB, now int64, userId, subscript
 		if sub.QuotaModelVersion == 0 {
 			if err := tx.Model(&SubscriptionPreConsumeRecord{}).
 				Select("COALESCE(SUM(pre_consumed), 0)").
-				Where("user_subscription_id = ? AND status = ?", sub.Id, "consumed").
+				Where("user_subscription_id = ? AND status = ? AND reset_generation = ?", sub.Id, "consumed", sub.ResetGeneration).
 				Scan(&inFlight).Error; err != nil {
 				return err
 			}

@@ -686,6 +686,24 @@ func TestAdminRestoreLegacySubscriptionWindowUsesLegacyCycleQuota(t *testing.T) 
 	assert.Zero(t, updated.NextResetTime)
 }
 
+func TestLegacyInitializationIgnoresErasedReservationsMatrix(t *testing.T) {
+	runSubscriptionAccountingMatrix(t, func(t *testing.T) {
+		now := GetDBTimestamp()
+		sub := UserSubscription{UserId: 1, AmountTotal: 1000, AmountUsed: 150, ResetGeneration: 2, Status: "active", EndTime: now + 3600}
+		require.NoError(t, DB.Create(&sub).Error)
+		require.NoError(t, DB.Create(&[]SubscriptionPreConsumeRecord{
+			{RequestId: "erased", UserId: 1, UserSubscriptionId: sub.Id, PreConsumed: 500, ResetGeneration: 1, Status: "consumed"},
+			{RequestId: "current", UserId: 1, UserSubscriptionId: sub.Id, PreConsumed: 50, ResetGeneration: 2, Status: "consumed"},
+		}).Error)
+		result, err := AdminRestoreUserSubscriptionQuota(1, sub.Id, SubscriptionQuotaActionInitialize, "initialize-current", 501, "Clear settled usage")
+		require.NoError(t, err)
+		assert.EqualValues(t, 100, result.ReturnedQuota)
+		assert.EqualValues(t, 50, getSubscriptionResetSub(t, sub.Id).AmountUsed)
+		require.NoError(t, RefundSubscriptionPreConsume("erased"))
+		assert.EqualValues(t, 50, getSubscriptionResetSub(t, sub.Id).AmountUsed)
+	})
+}
+
 func TestAdminRestoreUnlimitedAndRejectsInactiveOrConflictingRequests(t *testing.T) {
 	truncateTables(t)
 	now := GetDBTimestamp()
