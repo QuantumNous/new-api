@@ -401,6 +401,9 @@ func GetUser(c *gin.Context) {
 		return
 	}
 	user.AdminPermissions = authz.Capabilities(user.Id, user.Role)
+	if sections := user.GetSetting().VisibleSections; len(sections) > 0 {
+		user.VisibleSections = &sections
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -521,6 +524,7 @@ func buildSelfUserData(user *model.User) map[string]any {
 		"setting":           user.Setting,
 		"stripe_customer":   user.StripeCustomer,
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"visible_sections":  userSetting.VisibleSections,
 		"permissions":       permissions,
 	}
 }
@@ -681,6 +685,14 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 	updatePassword := updatedUser.Password != ""
+	if updatedUser.VisibleSections != nil {
+		normalized, err := model.NormalizeVisibleSections(*updatedUser.VisibleSections)
+		if err != nil {
+			common.ApiErrorT(c, "Invalid parameters")
+			return
+		}
+		updatedUser.VisibleSections = &normalized
+	}
 	auditParams := map[string]any{
 		"username": originUser.Username,
 		"id":       updatedUser.Id,
@@ -696,10 +708,16 @@ func UpdateUser(c *gin.Context) {
 		auditParams["password_reset"] = updatePassword
 		auditParams["admin_permissions_updated"] = updatedUser.AdminPermissions != nil
 	}
+	auditParams["visible_sections_updated"] = updatedUser.VisibleSections != nil
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := updatedUser.EditWithTx(tx, updatePassword); err != nil {
 			return err
+		}
+		if updatedUser.VisibleSections != nil {
+			if err := model.UpdateUserVisibleSectionsWithTx(tx, updatedUser.Id, *updatedUser.VisibleSections); err != nil {
+				return err
+			}
 		}
 		touched, err := updateAdminPermissionsForUserInTx(c, tx, updatedUser.Id, originUser.Role, updatedUser.AdminPermissions)
 		authzTouched = touched

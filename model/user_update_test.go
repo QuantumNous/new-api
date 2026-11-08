@@ -235,6 +235,41 @@ func TestUpdateUserSettingOnlyUpdatesSetting(t *testing.T) {
 	assert.Equal(t, "zh", got.GetSetting().Language)
 }
 
+func TestUpdateUserVisibleSectionsStoresNormalizedAllowList(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	user := User{
+		Id:       5,
+		Username: "visible-sections-user",
+		Password: "password",
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	}
+	user.SetSetting(dto.UserSetting{Language: "zh"})
+	require.NoError(t, DB.Create(&user).Error)
+
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return UpdateUserVisibleSectionsWithTx(tx, user.Id, []string{"usage_logs", "dashboard", "usage_logs"})
+	}))
+
+	var got User
+	require.NoError(t, DB.First(&got, user.Id).Error)
+	setting := got.GetSetting()
+	assert.Equal(t, []string{"dashboard", "usage_logs"}, setting.VisibleSections, "deduplicated and canonically ordered")
+	assert.Equal(t, "zh", setting.Language, "other setting fields are preserved")
+
+	require.Error(t, DB.Transaction(func(tx *gorm.DB) error {
+		return UpdateUserVisibleSectionsWithTx(tx, user.Id, []string{"not_a_section"})
+	}))
+
+	// A full allow-list is equivalent to unrestricted access and collapses to nil.
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return UpdateUserVisibleSectionsWithTx(tx, user.Id, userVisibleSectionKeys)
+	}))
+	require.NoError(t, DB.First(&got, user.Id).Error)
+	assert.Nil(t, got.GetSetting().VisibleSections)
+}
+
 func TestEnsureEmailAvailableRejectsExistingEmailCaseInsensitive(t *testing.T) {
 	setupUserUpdateTestState(t)
 

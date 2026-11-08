@@ -25,9 +25,10 @@ import {
 } from '@/lib/admin-permissions'
 import { quotaUnitsToDollars } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
+import { SIDEBAR_SECTIONS } from '@/lib/sidebar-sections'
 
 import { DEFAULT_GROUP } from '../constants'
-import { type UserFormData, type User } from '../types'
+import type { UserFormData, User } from '../types'
 
 // ============================================================================
 // Form Schema
@@ -44,6 +45,7 @@ export const userFormSchema = z.object({
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
+  visible_sections: z.array(z.string()).optional(),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -62,6 +64,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   remark: '',
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
+  visible_sections: [...SIDEBAR_SECTIONS],
 }
 
 // ============================================================================
@@ -102,6 +105,9 @@ export function transformFormDataToPayload(
     payload.group = data.group
     payload.remark = data.remark || undefined
     payload.id = userId
+    // The allow-list is always written so re-enabling every section clears a
+    // previous restriction (the backend collapses a full list back to "all").
+    payload.visible_sections = data.visible_sections ?? [...SIDEBAR_SECTIONS]
   }
 
   return payload
@@ -122,5 +128,9 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
     admin_permissions: user.admin_permissions ?? {},
+    visible_sections:
+      user.visible_sections && user.visible_sections.length > 0
+        ? user.visible_sections
+        : [...SIDEBAR_SECTIONS],
   }
 }
