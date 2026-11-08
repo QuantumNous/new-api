@@ -80,6 +80,32 @@ func TestSubscriptionLazyVersionConcurrentPurchasesMatrix(t *testing.T) {
 	})
 }
 
+func TestSubscriptionCurrentVersionReconcilesOldNodeEditsMatrix(t *testing.T) {
+	runSubscriptionAccountingMatrix(t, func(t *testing.T) {
+		plan := createPlanVersionTestPlan(t, "before old-node edit")
+		first, err := GetOrCreateCurrentSubscriptionPlanVersion(plan.Id)
+		require.NoError(t, err)
+		require.NoError(t, DB.Model(plan).Updates(map[string]any{"title": "after old-node edit", "price_amount": 0, "allow_balance_pay": false}).Error)
+		second, err := GetOrCreateCurrentSubscriptionPlanVersion(plan.Id)
+		require.NoError(t, err)
+		assert.Equal(t, first.Version+1, second.Version)
+		terms, err := second.PlanTerms()
+		require.NoError(t, err)
+		assert.Equal(t, "after old-node edit", terms.Title)
+		assert.Zero(t, terms.PriceAmount)
+		require.NotNil(t, terms.AllowBalancePay)
+		assert.False(t, *terms.AllowBalancePay)
+		third, err := GetOrCreateCurrentSubscriptionPlanVersion(plan.Id)
+		require.NoError(t, err)
+		assert.Equal(t, second.Id, third.Id)
+		old, err := GetSubscriptionPlanVersionById(first.Id)
+		require.NoError(t, err)
+		oldTerms, err := old.PlanTerms()
+		require.NoError(t, err)
+		assert.Equal(t, "before old-node edit", oldTerms.Title)
+	})
+}
+
 func createPlanVersionTestPlan(t *testing.T, title string) *SubscriptionPlan {
 	t.Helper()
 	plan := &SubscriptionPlan{

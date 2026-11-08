@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -323,8 +324,19 @@ func GetOrCreateCurrentSubscriptionPlanVersionTx(tx *gorm.DB, plan *Subscription
 			return query.Error
 		}
 		if query.RowsAffected > 0 {
-			result = &version
-			return nil
+			terms, err := version.PlanTerms()
+			if err != nil {
+				return err
+			}
+			terms.NormalizeDefaults()
+			authoritative.NormalizeDefaults()
+			terms.CreatedAt, terms.UpdatedAt = 0, 0
+			current := authoritative
+			current.CreatedAt, current.UpdatedAt = 0, 0
+			if reflect.DeepEqual(*terms, current) {
+				result = &version
+				return nil
+			}
 		}
 		var err error
 		result, err = createSubscriptionPlanVersionLocked(tx, &authoritative)
