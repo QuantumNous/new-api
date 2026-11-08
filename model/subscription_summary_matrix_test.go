@@ -89,7 +89,15 @@ func TestSubscriptionSummaryWindowReservationsMatrix(t *testing.T) {
 			require.NoError(t, db.Create(&records).Error)
 
 			var subscriptions []UserSubscription
-			require.NoError(t, db.Where("id = ?", sub.Id).Find(&subscriptions).Error)
+			require.NoError(t, subscriptionUsageQuery(db).Where("id = ?", sub.Id).Find(&subscriptions).Error)
+			// A settlement after the usage SELECT must not change the reservations
+			// associated with the already-read usage counters.
+			require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Model(&sub).Updates(map[string]any{"total_amount_used": 120, "window_amount_used": 70, "amount_reserved": 30}).Error; err != nil {
+					return err
+				}
+				return tx.Model(&records[0]).Update("status", "settled").Error
+			}))
 			summaries, err := buildSubscriptionSummaries(db, subscriptions)
 			require.NoError(t, err)
 			require.Len(t, summaries, 1)

@@ -442,7 +442,7 @@ type UserSubscription struct {
 	ResetPolicySource        string `json:"reset_policy_source,omitempty" gorm:"type:varchar(32);not null;default:''"`
 	LegacyResetBaselineAt    int64  `json:"legacy_reset_baseline_at,omitempty" gorm:"type:bigint;not null;default:0"`
 	AmountReserved           int64  `json:"amount_reserved" gorm:"type:bigint;not null;default:0"`
-	WindowAmountReserved     int64  `json:"window_amount_reserved,omitempty" gorm:"-"`
+	WindowAmountReserved     int64  `json:"window_amount_reserved,omitempty" gorm:"->;-:migration"`
 	ResetGeneration          int64  `json:"reset_generation" gorm:"type:bigint;not null;default:0"`
 	TotalAmountUsed          int64  `json:"total_amount_used" gorm:"type:bigint;not null;default:0"`
 	WindowAmountUsed         int64  `json:"window_amount_used" gorm:"type:bigint;not null;default:0"`
@@ -1263,7 +1263,7 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	}
 	now := common.GetTimestamp()
 	var subs []UserSubscription
-	err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+	err := subscriptionUsageQuery(DB).Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
 		Order("end_time desc, id desc").
 		Find(&subs).Error
 	if err != nil {
@@ -1312,7 +1312,7 @@ func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 		return nil, errors.New("invalid userId")
 	}
 	var subs []UserSubscription
-	err := DB.Where("user_id = ?", userId).
+	err := subscriptionUsageQuery(DB).Where("user_id = ?", userId).
 		Order("end_time desc, id desc").
 		Find(&subs).Error
 	if err != nil {
@@ -1321,36 +1321,22 @@ func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	return buildSubscriptionSummaries(DB, subs)
 }
 
+// subscriptionUsageQuery reads counters and current-window reservations in one
+// database snapshot, including on PostgreSQL at READ COMMITTED isolation.
+func subscriptionUsageQuery(db *gorm.DB) *gorm.DB {
+	reserved := db.Session(&gorm.Session{NewDB: true}).Model(&SubscriptionPreConsumeRecord{}).
+		Select("COALESCE(SUM(pre_consumed), 0)").
+		Where("user_subscription_id = subscription_usage.id AND reset_generation = subscription_usage.reset_generation AND status = ?", "reserved")
+	return db.Model(&UserSubscription{}).
+		Table("? AS subscription_usage", clause.Table{Name: db.NamingStrategy.TableName("UserSubscription")}).
+		Select("subscription_usage.*, (?) AS window_amount_reserved", reserved)
+}
+
 func buildSubscriptionSummaries(db *gorm.DB, subs []UserSubscription) ([]SubscriptionSummary, error) {
 	if len(subs) == 0 {
 		return []SubscriptionSummary{}, nil
 	}
 
-	type reservationKey struct {
-		subscriptionId int
-		generation     int64
-	}
-	type windowReservation struct {
-		UserSubscriptionId int
-		ResetGeneration    int64
-		Amount             int64
-	}
-	ids := make([]int, 0, len(subs))
-	for i := range subs {
-		ids = append(ids, subs[i].Id)
-	}
-	var reservations []windowReservation
-	if err := db.Model(&SubscriptionPreConsumeRecord{}).
-		Select("user_subscription_id, reset_generation, COALESCE(SUM(pre_consumed), 0) AS amount").
-		Where("user_subscription_id IN ? AND status = ?", ids, "reserved").
-		Group("user_subscription_id, reset_generation").
-		Scan(&reservations).Error; err != nil {
-		return nil, err
-	}
-	reservedByWindow := make(map[reservationKey]int64, len(reservations))
-	for _, reservation := range reservations {
-		reservedByWindow[reservationKey{reservation.UserSubscriptionId, reservation.ResetGeneration}] = reservation.Amount
-	}
 	result := make([]SubscriptionSummary, 0, len(subs))
 	for _, sub := range subs {
 		subCopy := sub
@@ -1368,7 +1354,6 @@ func buildSubscriptionSummaries(db *gorm.DB, subs []UserSubscription) ([]Subscri
 		} else if plan, err := getSubscriptionPlanByIdTx(db, subCopy.PlanId); err == nil {
 			subCopy.PlanTitle = plan.Title
 		}
-		subCopy.WindowAmountReserved = reservedByWindow[reservationKey{sub.Id, sub.ResetGeneration}]
 		result = append(result, SubscriptionSummary{
 			Subscription: &subCopy,
 		})
