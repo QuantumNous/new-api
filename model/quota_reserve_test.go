@@ -1,14 +1,20 @@
 package model
 
 import (
+	"errors"
 	"math"
+	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -274,21 +280,23 @@ func TestSettleUserQuotaDebitChargesFullAmountWhenFunded(t *testing.T) {
 	assert.Equal(t, 700, getUserQuotaFromDB(t, user.Id))
 }
 
-func TestSettleUserQuotaDebitStopsAtZeroBalance(t *testing.T) {
+func TestSettleUserQuotaDebitRejectsChargeBeyondBalance(t *testing.T) {
 	truncateTables(t)
 	resetBatchUpdateTestState(t)
 
 	user := createReserveTestUser(t, 100)
 
+	// 预扣保证结算差额有余额覆盖；一旦不满足，条件更新拒绝整笔扣款而不是
+	// 部分扣减或记账欠费，由调用方记录对账错误。
 	deducted, err := SettleUserQuotaDebit(user.Id, 400)
 	require.NoError(t, err)
-	assert.Equal(t, 100, deducted, "a settlement larger than the wallet charges at most the balance")
-	assert.Equal(t, 0, getUserQuotaFromDB(t, user.Id))
+	assert.Zero(t, deducted, "an uncovered settlement is not partially charged")
+	assert.Equal(t, 100, getUserQuotaFromDB(t, user.Id), "an uncovered settlement must not move the balance")
 
 	deducted, err = SettleUserQuotaDebit(user.Id, 50)
 	require.NoError(t, err)
-	assert.Zero(t, deducted, "an exhausted wallet must not create debt")
-	assert.Equal(t, 0, getUserQuotaFromDB(t, user.Id))
+	assert.Equal(t, 50, deducted)
+	assert.Equal(t, 50, getUserQuotaFromDB(t, user.Id))
 }
 
 func TestSettleUserQuotaDebitUnderConcurrentSettlementsNeverOverdraws(t *testing.T) {
@@ -373,4 +381,230 @@ func TestRefundWalletPreConsumeConcurrentReplayCreditsExactlyOnce(t *testing.T) 
 		require.NoError(t, err)
 	}
 	assert.Equal(t, startQuota, getUserQuotaFromDB(t, user.Id), "concurrent refunds must credit the wallet once")
+}
+
+// injectUserTableUpdateFailure 模拟批量刷新期间数据库故障：outbox 行已持久化，
+// 但目标用户行更新失败。返回的开关置为 false 后可恢复。
+func injectUserTableUpdateFailure(t *testing.T) *atomic.Bool {
+	t.Helper()
+	failing := &atomic.Bool{}
+	failing.Store(true)
+	const callback = "test:inject_users_table_update_failure"
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callback, func(tx *gorm.DB) {
+		if failing.Load() && tx.Statement.Table == "users" {
+			tx.AddError(errors.New("injected users table update failure"))
+		}
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Update().Remove(callback) })
+	return failing
+}
+
+func TestBatchUpdateOutboxSurvivesApplyFailureAndReplaysExactlyOnce(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	common.BatchUpdateEnabled = true
+
+	user := createReserveTestUser(t, 1000)
+	// 同一轮里既有扣减也有退还（退款/充值），净增量必须在恢复后恰好应用一次。
+	require.NoError(t, DecreaseUserQuota(user.Id, 300, false))
+	require.NoError(t, IncreaseUserQuota(user.Id, 200, false))
+	UpdateUserUsedQuotaAndRequestCount(user.Id, 300)
+
+	failing := injectUserTableUpdateFailure(t)
+	batchUpdate()
+
+	// 目标行更新失败：内存增量已经持久化到 outbox，数据库保持不变，行等待重试。
+	assert.Equal(t, 1000, getUserQuotaFromDB(t, user.Id))
+	var pending []QuotaOutbox
+	require.NoError(t, DB.Where("status = ?", quotaOutboxStatusPending).Find(&pending).Error)
+	require.Len(t, pending, 1)
+	assert.EqualValues(t, -100, pending[0].QuotaDelta)
+	assert.EqualValues(t, 300, pending[0].UsedQuotaDelta)
+	assert.EqualValues(t, 1, pending[0].RequestCountDelta)
+	assert.Positive(t, pending[0].Attempts, "a failed apply must be recorded for retry")
+	assert.NotEmpty(t, pending[0].LastError)
+
+	// 数据库恢复后按启动恢复流程重放，增量恰好应用一次。
+	failing.Store(false)
+	RecoverQuotaOutbox()
+	var got User
+	require.NoError(t, DB.Select("quota", "used_quota", "request_count").First(&got, user.Id).Error)
+	assert.Equal(t, 900, got.Quota)
+	assert.Equal(t, 300, got.UsedQuota)
+	assert.Equal(t, 1, got.RequestCount)
+
+	// 重复恢复必须幂等，不得二次扣减。
+	RecoverQuotaOutbox()
+	RecoverQuotaOutbox()
+	assert.Equal(t, 900, getUserQuotaFromDB(t, user.Id))
+	var remaining int64
+	require.NoError(t, DB.Model(&QuotaOutbox{}).Where("status = ?", quotaOutboxStatusPending).Count(&remaining).Error)
+	assert.Zero(t, remaining)
+}
+
+func TestBatchUpdateOutboxRecoveryKeepsCacheConsistentWithDatabase(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	useUserCacheMiniRedis(t)
+	common.BatchUpdateEnabled = true
+
+	user := createReserveTestUser(t, 1000)
+	require.NoError(t, populateUserCache(user))
+
+	reserved, err := TryReserveUserQuota(user.Id, 300)
+	require.NoError(t, err)
+	require.True(t, reserved)
+	cached, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	require.Equal(t, 700, cached.Quota, "the reservation is visible in the live cache")
+
+	// flush 期间数据库故障：缓存已经是 700，数据库仍是 1000，增量保存在 outbox。
+	failing := injectUserTableUpdateFailure(t)
+	batchUpdate()
+	assert.Equal(t, 1000, getUserQuotaFromDB(t, user.Id))
+
+	// 缓存失效后（TTL 过期/重启），重放必须让数据库回到正确余额，随后水合的
+	// 缓存也必须一致。
+	failing.Store(false)
+	RecoverQuotaOutbox()
+	assert.Equal(t, 700, getUserQuotaFromDB(t, user.Id))
+
+	cacheAfter, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 700, cacheAfter.Quota)
+
+	require.NoError(t, invalidateUserCache(user.Id))
+	hydrated, err := GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 700, hydrated.Quota, "cache rehydration after recovery must match the database")
+}
+
+func TestOutboxRecoveryKeepsConsumeLogsAndUsedQuotaInSync(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	common.BatchUpdateEnabled = true
+
+	user := createReserveTestUser(t, 1000)
+	require.NoError(t, LOG_DB.Create(&Log{UserId: user.Id, Type: LogTypeConsume, Quota: 300, CreatedAt: common.GetTimestamp()}).Error)
+	UpdateUserUsedQuotaAndRequestCount(user.Id, 300)
+
+	failing := injectUserTableUpdateFailure(t)
+	batchUpdate()
+	failing.Store(false)
+	RecoverQuotaOutbox()
+
+	var logTotal, usedTotal int64
+	require.NoError(t, LOG_DB.Model(&Log{}).Where("user_id = ? AND type = ?", user.Id, LogTypeConsume).
+		Select("COALESCE(SUM(quota), 0)").Scan(&logTotal).Error)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
+		Select("COALESCE(SUM(used_quota), 0)").Scan(&usedTotal).Error)
+	assert.EqualValues(t, 300, logTotal)
+	assert.Equal(t, logTotal, usedTotal, "consume logs and accumulated used quota must reconcile after recovery")
+}
+
+// 启动迁移会在每次引导时运行，outbox 表必须能重复 AutoMigrate 且保留可用性。
+func TestQuotaOutboxMigrationIsIdempotent(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+
+	require.NoError(t, DB.AutoMigrate(&QuotaOutbox{}))
+	require.NoError(t, DB.AutoMigrate(&QuotaOutbox{}))
+	require.True(t, DB.Migrator().HasTable(&QuotaOutbox{}))
+
+	row := QuotaOutbox{TargetType: quotaOutboxTargetUser, TargetId: 42, QuotaDelta: -5, Status: quotaOutboxStatusPending}
+	require.NoError(t, DB.Create(&row).Error)
+	require.NotZero(t, row.Id)
+}
+
+// outbox 是新的数据库表：与仓库中其他跨库测试一致，配置 DSN 后会在真实
+// MySQL/PostgreSQL 上运行，未配置时跳过。所有增量类型都必须恰好应用一次。
+func TestQuotaOutboxDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []struct {
+		name common.DatabaseType
+		env  string
+	}{
+		{common.DatabaseTypeSQLite, ""},
+		{common.DatabaseTypeMySQL, "TEST_OUTBOX_MYSQL_DSN"},
+		{common.DatabaseTypePostgreSQL, "TEST_OUTBOX_POSTGRES_DSN"},
+	} {
+		t.Run(string(dialect.name), func(t *testing.T) {
+			var driver gorm.Dialector = sqlite.Open(":memory:")
+			if dialect.env != "" {
+				dsn := os.Getenv(dialect.env)
+				if dsn == "" {
+					t.Skip(dialect.env + " is not configured")
+				}
+				if dialect.name == common.DatabaseTypeMySQL {
+					driver = mysql.Open(dsn)
+				} else {
+					driver = postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
+				}
+			}
+			db, err := gorm.Open(driver, &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(1)
+			t.Cleanup(func() { _ = sqlDB.Close() })
+
+			oldDB := DB
+			DB = db
+			t.Cleanup(func() { DB = oldDB })
+			oldRedis := common.RedisEnabled
+			common.RedisEnabled = false
+			t.Cleanup(func() { common.RedisEnabled = oldRedis })
+
+			require.NoError(t, db.AutoMigrate(&QuotaOutbox{}, &User{}, &Token{}, &Channel{}))
+			// 启动迁移在每次引导时重复执行，必须幂等。
+			require.NoError(t, db.AutoMigrate(&QuotaOutbox{}))
+
+			resetBatchUpdateTestState(t)
+			common.BatchUpdateEnabled = true
+
+			user := User{Username: "outbox-matrix-" + common.GetRandomString(6), Password: "unused-password-hash", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, Quota: 1000, AffCode: "outbox-aff-" + common.GetRandomString(8)}
+			require.NoError(t, db.Create(&user).Error)
+			token := Token{UserId: user.Id, Key: "outbox-token-" + common.GetRandomString(8), Name: "outbox", Status: common.TokenStatusEnabled, ExpiredTime: -1, RemainQuota: 500}
+			require.NoError(t, db.Create(&token).Error)
+			channel := Channel{Name: "outbox-channel-" + common.GetRandomString(6), Key: "sk-outbox", Status: common.ChannelStatusEnabled}
+			require.NoError(t, db.Create(&channel).Error)
+
+			require.NoError(t, DecreaseUserQuota(user.Id, 300, false))
+			require.NoError(t, DecreaseTokenQuota(token.Id, token.Key, 120))
+			UpdateUserUsedQuota(user.Id, 300)
+			UpdateChannelUsedQuota(channel.Id, 300)
+			batchUpdate()
+
+			var storedUser User
+			require.NoError(t, db.Select("quota", "used_quota").First(&storedUser, user.Id).Error)
+			assert.Equal(t, 700, storedUser.Quota)
+			assert.Equal(t, 300, storedUser.UsedQuota)
+			var storedToken Token
+			require.NoError(t, db.First(&storedToken, token.Id).Error)
+			assert.Equal(t, 380, storedToken.RemainQuota)
+			assert.Equal(t, 120, storedToken.UsedQuota)
+			var storedChannel Channel
+			require.NoError(t, db.First(&storedChannel, channel.Id).Error)
+			assert.EqualValues(t, 300, storedChannel.UsedQuota)
+			var pending int64
+			require.NoError(t, db.Model(&QuotaOutbox{}).Where("status = ?", quotaOutboxStatusPending).Count(&pending).Error)
+			assert.Zero(t, pending)
+
+			// 已处理行重放必须幂等。
+			RecoverQuotaOutbox()
+			require.NoError(t, db.Select("quota").First(&storedUser, user.Id).Error)
+			assert.Equal(t, 700, storedUser.Quota)
+
+			// 模拟 flush 后目标更新未提交：pending 行在恢复后恰好应用一次。
+			leftover := QuotaOutbox{TargetType: quotaOutboxTargetUser, TargetId: user.Id, QuotaDelta: -50, Status: quotaOutboxStatusPending}
+			require.NoError(t, db.Create(&leftover).Error)
+			RecoverQuotaOutbox()
+			require.NoError(t, db.Select("quota").First(&storedUser, user.Id).Error)
+			assert.Equal(t, 650, storedUser.Quota)
+
+			// 恢复可重复执行，余额不再变化。
+			RecoverQuotaOutbox()
+			require.NoError(t, db.Select("quota").First(&storedUser, user.Id).Error)
+			assert.Equal(t, 650, storedUser.Quota)
+		})
+	}
 }

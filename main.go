@@ -243,6 +243,8 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		common.SysError(common.LogText("server forced to shutdown: %v", err))
 	}
+	// 退出前把批量额度增量落库到 outbox，避免优雅停机丢失未刷新的增量。
+	model.FlushBatchUpdates()
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
 	if common.DataExportEnabled {
 		model.SaveQuotaDataCache()
@@ -331,6 +333,10 @@ func InitResources() error {
 	}
 
 	model.CheckSetup()
+
+	// Replay pending batch quota increments persisted by a previous process
+	// before serving traffic, so a crash mid-flush can never lose quota.
+	model.RecoverQuotaOutbox()
 
 	// Initialize options, should after model.InitDB()
 	if common.IsMasterNode {

@@ -754,7 +754,7 @@ export function extractUsage() { return {seconds:2}; }
 			if tc.wantCode != "" {
 				require.NotNil(t, taskErr)
 				assert.Equal(t, tc.wantCode, taskErr.Code)
-				assert.Equal(t, http.StatusForbidden, taskErr.StatusCode)
+				assert.Equal(t, http.StatusPaymentRequired, taskErr.StatusCode)
 				return
 			}
 			require.Nil(t, taskErr, "submission error: %+v", taskErr)

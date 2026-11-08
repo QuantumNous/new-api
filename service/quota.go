@@ -450,11 +450,12 @@ func postConsumeQuotaWithResult(relayInfo *relaycommon.RelayInfo, quota int, pre
 			relayInfo.SubscriptionPostDelta += delta
 		}
 	} else {
-		// Wallet：结算扣费受余额约束，不允许把余额扣成负数。
+		// Wallet：结算扣费使用条件更新，不允许把余额扣成负数；无法覆盖的差额
+		// 不再记账为欠费，记录对账错误。
 		if quota > 0 {
 			deducted, deductErr := model.SettleUserQuotaDebit(relayInfo.UserId, quota)
 			if deductErr == nil && deducted < quota {
-				common.SysLog(common.LogText("wallet balance exhausted at settlement (userId=%d, requested=%d, deducted=%d)", relayInfo.UserId, quota, deducted))
+				common.SysError(common.LogText("wallet settlement reconciliation required: charge not covered by balance (userId=%d, requested=%d, deducted=%d)", relayInfo.UserId, quota, deducted))
 			}
 			err = deductErr
 		} else {

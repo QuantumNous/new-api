@@ -252,19 +252,20 @@ func TestPreConsumePolicyDatabaseMatrix(t *testing.T) {
 				name                  string
 				threshold, multiplier float64
 				wallet, token         int
-				force, unlimited      bool
+				unlimited             bool
 				wantHeld              int
 			}{
-				{"above threshold", 10, 1, 5500000, 5500000, false, false, 0},
-				{"custom threshold", 20, 1, 5500000, 5500000, false, false, 1500},
-				{"zero disables bypass", 0, 1, 5500000, 5500000, false, false, 1500},
-				{"wallet equals threshold", 10, 1, 5000000, 5500000, false, false, 1500},
-				{"token equals threshold", 10, 1, 5500000, 5000000, false, false, 1500},
-				{"fractional threshold", 10.5, 1, 5250001, 5250001, false, false, 0},
-				{"unlimited token", 10, 1, 5500000, 0, false, true, 0},
-				{"forced reservation", 10, 1, 5500000, 5500000, true, false, 1500},
-				{"half input cost", 0, 0.5, 100000, 100000, false, false, 750},
-				{"fractional multiple refunds excess", 0, 2.5, 100000, 100000, false, false, 3750},
+				// 信任额度旁路已移除：无论历史阈值如何配置，余额超过阈值也
+				// 必须原子预留，不再存在“缓存余额充足就直接放行”的路径。
+				{"above legacy threshold reserves fully", 10, 1, 5500000, 5500000, false, 1500},
+				{"custom threshold reserves fully", 20, 1, 5500000, 5500000, false, 1500},
+				{"zero threshold reserves fully", 0, 1, 5500000, 5500000, false, 1500},
+				{"wallet equals threshold reserves fully", 10, 1, 5000000, 5500000, false, 1500},
+				{"token equals threshold reserves fully", 10, 1, 5500000, 5000000, false, 1500},
+				{"fractional threshold reserves fully", 10.5, 1, 5250001, 5250001, false, 1500},
+				{"unlimited token still reserves wallet", 10, 1, 5500000, 0, true, 1500},
+				{"half input cost", 0, 0.5, 100000, 100000, false, 750},
+				{"fractional multiple refunds excess", 0, 2.5, 100000, 100000, false, 3750},
 			}
 			for i, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
@@ -276,8 +277,7 @@ func TestPreConsumePolicyDatabaseMatrix(t *testing.T) {
 					require.NoError(t, db.Create(&token).Error)
 					ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 					ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-					ctx.Set("token_quota", tc.token)
-					info := &relaycommon.RelayInfo{UserId: user.Id, TokenId: token.Id, TokenKey: token.Key, TokenUnlimited: tc.unlimited, ForcePreConsume: tc.force, OriginModelName: "policy-model", UserGroup: "default", UsingGroup: "default", BillingRequestInput: &billingexpr.RequestInput{}}
+					info := &relaycommon.RelayInfo{UserId: user.Id, TokenId: token.Id, TokenKey: token.Key, TokenUnlimited: tc.unlimited, OriginModelName: "policy-model", UserGroup: "default", UsingGroup: "default", BillingRequestInput: &billingexpr.RequestInput{}}
 					info.UserSetting.BillingPreference = "wallet_only"
 					price, err := helper.ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{MaxTokens: 10000})
 					require.NoError(t, err)

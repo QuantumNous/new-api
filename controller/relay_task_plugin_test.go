@@ -685,7 +685,7 @@ func TestExecuteTaskSubmissionRefundsWhenFinalReserveFails(t *testing.T) {
 	})
 	require.Nil(t, outcome)
 	require.NotNil(t, taskErr)
-	assert.Equal(t, http.StatusForbidden, taskErr.StatusCode)
+	assert.Equal(t, http.StatusPaymentRequired, taskErr.StatusCode)
 	assert.Equal(t, []string{"reserve", "refund"}, events)
 	assert.Equal(t, 1, billing.refunds)
 	assert.False(t, c.Writer.Written())

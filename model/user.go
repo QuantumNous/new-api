@@ -1516,21 +1516,19 @@ func decreaseUserQuota(id int, quota int) (err error) {
 	return err
 }
 
-// SettleUserQuotaDebit debits a settlement charge from the wallet and never lets
-// the stored balance go below zero.
+// SettleUserQuotaDebit debits a settlement charge from the wallet with a single
+// conditional update, so the stored balance never goes below zero.
 //
-// Requests that take the trust shortcut skip the atomic pre-consume
-// reservation, so their whole cost reaches settlement without having been
-// checked against the balance. Concurrent trusted requests could otherwise all
-// debit the wallet that only covers one of them, driving it arbitrarily
-// negative. This debit is therefore clamped to the available balance inside a
-// single row-locked transaction: the user pays what the wallet holds and the
-// uncovered remainder is not turned into debt.
+// Every request reserves its estimated cost atomically before reaching the
+// upstream (see TryReserveUserQuota), so a positive settlement charge is the
+// amount by which actual usage exceeded the reservation. The charge is deducted
+// only when the balance still covers it; the uncovered remainder is not turned
+// into debt and the caller must log a reconciliation error. It returns the
+// amount actually deducted so the caller can detect that shortfall.
 //
-// It returns the amount actually deducted so the caller can report a partial
-// charge. The lookup fails with gorm.ErrRecordNotFound for an unknown user, and
-// the write always goes to the database instead of the batch queue so the
-// invariant cannot be deferred.
+// The lookup fails with gorm.ErrRecordNotFound for an unknown user, and the
+// write always goes to the database instead of the batch queue so the
+// reservation/accounting invariant cannot be deferred.
 func SettleUserQuotaDebit(id int, quota int) (int, error) {
 	if quota < 0 {
 		return 0, errors.New("quota cannot be negative")
@@ -1539,29 +1537,29 @@ func SettleUserQuotaDebit(id int, quota int) (int, error) {
 		return 0, nil
 	}
 
-	deducted := 0
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		var user User
-		if err := lockForUpdate(tx).Select("id", "quota").Where("id = ?", id).First(&user).Error; err != nil {
-			return err
+	result := DB.Model(&User{}).
+		Where("id = ? AND quota >= ?", id, quota).
+		Update("quota", gorm.Expr("quota - ?", quota))
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	if result.RowsAffected == 0 {
+		var count int64
+		if err := DB.Model(&User{}).Where("id = ?", id).Count(&count).Error; err != nil {
+			return 0, err
 		}
-		deducted = min(max(user.Quota, 0), quota)
-		if deducted == 0 {
-			return nil
+		if count == 0 {
+			return 0, gorm.ErrRecordNotFound
 		}
-		return tx.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", deducted)).Error
+		// 余额不足以覆盖结算差额：不记欠费，由调用方记录对账错误。
+		return 0, nil
+	}
+	gopool.Go(func() {
+		if err := cacheDecrUserQuota(id, int64(quota)); err != nil {
+			common.SysLog(common.LogText("failed to decrease user quota: %s", err.Error()))
+		}
 	})
-	if err != nil {
-		return 0, err
-	}
-	if deducted > 0 {
-		gopool.Go(func() {
-			if err := cacheDecrUserQuota(id, int64(deducted)); err != nil {
-				common.SysLog(common.LogText("failed to decrease user quota: %s", err.Error()))
-			}
-		})
-	}
-	return deducted, nil
+	return quota, nil
 }
 
 func DeltaUpdateUserQuota(id int, delta int) (err error) {
@@ -1624,21 +1622,25 @@ func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 	//}
 }
 
-func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, requestCount int) {
+// updateUserQuotaUsedQuotaAndRequestCount 按增量更新用户额度、已用额度与请求数。
+// 返回错误而不是仅记录日志：调用方（outbox 应用流程）据此保留待处理行并重试。
+func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, requestCount int) error {
+	return updateUserQuotaUsedQuotaAndRequestCountTx(DB, id, quota, usedQuota, requestCount)
+}
+
+// updateUserQuotaUsedQuotaAndRequestCountTx 在给定事务中按增量更新用户账务字段。
+func updateUserQuotaUsedQuotaAndRequestCountTx(tx *gorm.DB, id int, quota int, usedQuota int, requestCount int) error {
 	if quota == 0 && usedQuota == 0 && requestCount == 0 {
-		return
+		return nil
 	}
 
-	err := DB.Model(&User{}).Where("id = ?", id).Updates(
+	return tx.Model(&User{}).Where("id = ?", id).Updates(
 		map[string]any{
 			"quota":         gorm.Expr("quota + ?", quota),
 			"used_quota":    gorm.Expr("used_quota + ?", usedQuota),
 			"request_count": gorm.Expr("request_count + ?", requestCount),
 		},
 	).Error
-	if err != nil {
-		common.SysLog(common.LogText("failed to batch update user quota, used quota and request count: %s", err.Error()))
-	}
 }
 
 // GetUsernameById gets username from Redis first, falls back to DB if needed
