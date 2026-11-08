@@ -45,6 +45,10 @@ interface LogStatCardsProps {
 
 const MAX_INLINE_STAT_CHARS = 7
 
+// The merged cache card key: renders the token-based read/creation rates as
+// one composite value plus the request-count-based hit rate as its caption.
+const CACHE_RATE_CARD_KEY = 'cacheRate'
+
 function formatStatNumber(value: number, locale: Intl.LocalesArgument) {
   const fullValue = formatNumber(value, locale)
   const displayValue =
@@ -58,8 +62,14 @@ function formatStatNumber(value: number, locale: Intl.LocalesArgument) {
   }
 }
 
+// Cache rate values are ratios already clamped to [0, 1]; an empty range
+// renders 0.0%, matching how the other stat cards show 0 for missing data.
+function formatRatePercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`
+}
+
 export function LogStatCards(props: LogStatCardsProps) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const statCardsConfig = useModelStatCardsConfig()
   const user = useAuthStore((state) => state.auth.user)
   const isAdmin = !!(user?.role && user.role >= 10)
@@ -113,10 +123,41 @@ export function LogStatCards(props: LogStatCardsProps) {
     }
   }, [filters, isAdmin, onDataUpdate])
 
+  // Average over the whole selected range: token-based rates divide the
+  // period's summed cache tokens by its summed input tokens, and the hit
+  // rate divides cache-hit requests by total requests. No usage in range
+  // yields 0.0% rather than a placeholder.
+  const cacheRates = (() => {
+    if (!stats) {
+      return { cacheReadRate: 0, cacheCreationRate: 0, cacheHitRate: 0 }
+    }
+    const readRate =
+      stats.totalPromptTokens > 0
+        ? Math.min(stats.totalCacheReadTokens / stats.totalPromptTokens, 1)
+        : 0
+    const creationRate =
+      stats.totalPromptTokens > 0
+        ? Math.min(
+            stats.totalCacheCreationTokens / stats.totalPromptTokens,
+            1
+          )
+        : 0
+    const hitRate =
+      stats.totalCount > 0
+        ? Math.min(stats.totalCacheHitCount / stats.totalCount, 1)
+        : 0
+    return {
+      cacheReadRate: readRate,
+      cacheCreationRate: creationRate,
+      cacheHitRate: hitRate,
+    }
+  })()
+
   const adaptedStats = {
     rpm: stats?.totalCount ?? 0,
     quota: stats?.totalQuota ?? 0,
     tpm: stats?.totalTokens ?? 0,
+    ...cacheRates,
     cacheRead: stats?.totalCacheReadTokens ?? 0,
     cacheCreation: stats?.totalCacheCreationTokens ?? 0,
   }
@@ -124,20 +165,34 @@ export function LogStatCards(props: LogStatCardsProps) {
   const items = statCardsConfig.map((config) => {
     const rawValue = config.getValue(adaptedStats, timeRangeMinutes)
     const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-    const formatted =
-      config.key === 'quota'
-        ? {
-            displayValue: formatQuota(rawValue),
-            fullValue: formatQuota(rawValue),
-          }
-        : formatStatNumber(rawValue, locale)
+    let formatted: { displayValue: string; fullValue: string }
+    let desc = config.description
+    if (config.key === 'quota') {
+      formatted = {
+        displayValue: formatQuota(rawValue),
+        fullValue: formatQuota(rawValue),
+      }
+    } else if (config.key === CACHE_RATE_CARD_KEY) {
+      const readPct = formatRatePercent(cacheRates.cacheReadRate)
+      const creationPct = formatRatePercent(cacheRates.cacheCreationRate)
+      const hitPct = formatRatePercent(cacheRates.cacheHitRate)
+      formatted = {
+        displayValue: `${readPct} / ${creationPct}`,
+        fullValue: `${t('Cache Read Rate')} ${readPct} / ${t(
+          'Cache Creation Rate'
+        )} ${creationPct} / ${t('Cache Hit Rate')} ${hitPct}`,
+      }
+      desc = t('Read / creation · hit {{rate}}', { rate: hitPct })
+    } else {
+      formatted = formatStatNumber(rawValue, locale)
+    }
 
     return {
       key: config.key,
       title: config.title,
       value: formatted.displayValue,
       fullValue: formatted.fullValue,
-      desc: config.description,
+      desc,
       icon: config.icon,
       iconTone: config.iconTone,
     }
@@ -145,7 +200,7 @@ export function LogStatCards(props: LogStatCardsProps) {
 
   return (
     <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid min-w-0 grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-7'>
+      <div className='divide-border/60 grid min-w-0 grid-cols-2 divide-x sm:grid-cols-3 lg:auto-cols-fr lg:grid-flow-col'>
         {items.map((it, idx) => {
           const Icon = it.icon
           let valueContent
@@ -193,7 +248,7 @@ export function LogStatCards(props: LogStatCardsProps) {
                 'min-w-0 px-2.5 py-1.5 sm:px-3 sm:py-4 xl:px-4',
                 idx === items.length - 1 &&
                   items.length % 2 !== 0 &&
-                  'col-span-2 sm:col-span-1'
+                  'col-span-2 sm:col-span-1 lg:col-span-1'
               )}
             >
               <div className='flex min-w-0 items-center gap-1.5 sm:gap-2'>

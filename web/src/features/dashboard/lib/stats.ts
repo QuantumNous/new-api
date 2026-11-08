@@ -27,7 +27,7 @@ export function safeDivide(
   precision: number = 3
 ): number {
   const result = value / divisor
-  if (isNaN(result) || !isFinite(result)) return 0
+  if (Number.isNaN(result) || !Number.isFinite(result)) return 0
   const factor = Math.pow(10, precision)
   return Math.round(result * factor) / factor
 }
@@ -44,6 +44,12 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
         totalQuota: acc.totalQuota + (Number(item.quota) || 0),
         totalCount: acc.totalCount + (Number(item.count) || 0),
         totalTokens: acc.totalTokens + (Number(item.token_used) || 0),
+        // The cache-rate cards divide the official cache_read totals by the
+        // request prompt denominator; official cards read totalCacheReadTokens.
+        totalPromptTokens:
+          acc.totalPromptTokens + (Number(item.prompt_tokens) || 0),
+        totalCacheHitCount:
+          acc.totalCacheHitCount + (Number(item.cache_hit_count) || 0),
         totalCacheReadTokens:
           acc.totalCacheReadTokens +
           (Number.isFinite(cacheRead) ? Math.max(0, cacheRead) : 0),
@@ -56,8 +62,10 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
       totalQuota: 0,
       totalCount: 0,
       totalTokens: 0,
+      totalPromptTokens: 0,
       totalCacheReadTokens: 0,
       totalCacheCreationTokens: 0,
+      totalCacheHitCount: 0,
     }
   )
 }

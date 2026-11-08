@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useId, useMemo } from 'react'
+import { useEffect, useId, useMemo, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
@@ -58,6 +58,40 @@ const logSettingsSchema = z.object({
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
+// Persisted option values, flattened to the same keys the settings form
+// submits. The form nests the log_setting keys, so the baseline copy lives in
+// option-key space to make "did the server echo a value we already saved?"
+// comparisons direct.
+type LogSettingsSnapshot = {
+  LogConsumeEnabled: boolean
+  'log_setting.user_export_enabled': boolean
+  'log_setting.max_range_days': number
+}
+
+function snapshotOf(
+  logConsumeEnabled: boolean,
+  userExportEnabled: boolean,
+  maxRangeDays: number
+): LogSettingsSnapshot {
+  return {
+    LogConsumeEnabled: logConsumeEnabled,
+    'log_setting.user_export_enabled': userExportEnabled,
+    'log_setting.max_range_days': maxRangeDays,
+  }
+}
+
+function sameSnapshot(
+  a: LogSettingsSnapshot,
+  b: LogSettingsSnapshot
+): boolean {
+  return (
+    a.LogConsumeEnabled === b.LogConsumeEnabled &&
+    a['log_setting.user_export_enabled'] ===
+      b['log_setting.user_export_enabled'] &&
+    a['log_setting.max_range_days'] === b['log_setting.max_range_days']
+  )
+}
+
 type LogSettingsSectionProps = {
   defaultValues: {
     LogConsumeEnabled: boolean
@@ -71,38 +105,90 @@ export function LogSettingsSection(props: LogSettingsSectionProps) {
   const updateOption = useUpdateOption()
   const recordingTitleId = useId()
   const searchTitleId = useId()
+  // Flat locals: the reset effect's dependency array must consist of simple
+  // identifiers, and the parent registry rebuilds the defaults object on
+  // every render, so dependending on the object identity would reset away
+  // unsaved edits.
+  const {
+    LogConsumeEnabled: logConsumeEnabledDefault,
+    'log_setting.user_export_enabled': userExportEnabledDefault,
+    'log_setting.max_range_days': maxRangeDaysDefault,
+  } = props.defaultValues
   const formDefaults = useMemo<LogSettingsFormValues>(
     () => ({
-      LogConsumeEnabled: props.defaultValues.LogConsumeEnabled,
+      LogConsumeEnabled: logConsumeEnabledDefault,
       log_setting: {
-        user_export_enabled:
-          props.defaultValues['log_setting.user_export_enabled'],
-        max_range_days: props.defaultValues['log_setting.max_range_days'],
+        user_export_enabled: userExportEnabledDefault,
+        max_range_days: maxRangeDaysDefault,
       },
     }),
-    [props.defaultValues]
+    [logConsumeEnabledDefault, userExportEnabledDefault, maxRangeDaysDefault]
   )
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: formDefaults,
   })
 
+  // Last values known to be persisted on the server. defaultValues comes from
+  // a query and can lag behind our own successful saves; comparing against it
+  // would silently drop a reversal saved inside that window. Own a snapshot
+  // and advance it per saved key so a refetch that echoes older values does
+  // not resurrect them over an edit made in flight.
+  const lastSavedRef = useRef<LogSettingsSnapshot>(
+    snapshotOf(
+      logConsumeEnabledDefault,
+      userExportEnabledDefault,
+      maxRangeDaysDefault
+    )
+  )
+
   useEffect(() => {
+    const saved = snapshotOf(
+      logConsumeEnabledDefault,
+      userExportEnabledDefault,
+      maxRangeDaysDefault
+    )
+    if (sameSnapshot(saved, lastSavedRef.current)) return
+    lastSavedRef.current = saved
     form.reset(formDefaults)
-  }, [formDefaults, form])
+  }, [
+    formDefaults,
+    form,
+    logConsumeEnabledDefault,
+    userExportEnabledDefault,
+    maxRangeDaysDefault,
+  ])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    const changes = [
-      ['LogConsumeEnabled', values.LogConsumeEnabled],
+    const changes: Array<
+      [keyof LogSettingsSnapshot, boolean | number, boolean | number]
+    > = [
+      [
+        'LogConsumeEnabled',
+        values.LogConsumeEnabled,
+        lastSavedRef.current.LogConsumeEnabled,
+      ],
       [
         'log_setting.user_export_enabled',
         values.log_setting.user_export_enabled,
+        lastSavedRef.current['log_setting.user_export_enabled'],
       ],
-      ['log_setting.max_range_days', values.log_setting.max_range_days],
-    ] as const
-    for (const [key, value] of changes) {
-      if (value === props.defaultValues[key]) continue
-      await updateOption.mutateAsync({ key, value })
+      [
+        'log_setting.max_range_days',
+        values.log_setting.max_range_days,
+        lastSavedRef.current['log_setting.max_range_days'],
+      ],
+    ]
+    for (const [key, value, savedValue] of changes) {
+      if (value === savedValue) continue
+      try {
+        await updateOption.mutateAsync({ key, value })
+      } catch {
+        // The mutation's onError already reports the failure; stop applying
+        // the remaining options so they keep their last saved values.
+        return
+      }
+      lastSavedRef.current = { ...lastSavedRef.current, [key]: value }
     }
   }
 

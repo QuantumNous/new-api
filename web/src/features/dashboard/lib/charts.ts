@@ -23,6 +23,9 @@ import type {
   QuotaDataItem,
   ProcessedChartData,
   ProcessedUserChartData,
+  CacheRateChartRow,
+  CacheRateMetric,
+  VChartSpec,
 } from '@/features/dashboard/types'
 import { getCurrencyDisplay } from '@/lib/currency'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
@@ -690,6 +693,326 @@ export function processChartData(
     },
     totalQuotaDisplay: formatQuotaTotal(totalQuotaRaw),
     totalCountDisplay: formatInt(totalTimes),
+  }
+}
+
+const CACHE_RATE_METRIC_TITLES: Record<CacheRateMetric, string> = {
+  read: 'Cache Read Rate',
+  creation: 'Cache Creation Rate',
+  hit: 'Cache Hit Rate',
+}
+
+// One line per series; more becomes unreadable. Series are ranked by input
+// token volume (the rate denominator) so the busiest models/channels stay.
+const MAX_CACHE_RATE_SERIES = 10
+
+export interface CacheRateChartOptions {
+  metric: CacheRateMetric
+  timeGranularity: TimeGranularity
+  t?: TFunction
+}
+
+/**
+ * Build a line chart spec showing the cache read/creation rate per time
+ * bucket for up to 10 series (models or channels).
+ *
+ * Rates are share-of-input-tokens (sum(cache) / sum(prompt) per bucket),
+ * clamped at 100% because OpenAI cache-write counts and OpenRouter-Claude
+ * prompt bases can make the naive ratio exceed 1.
+ */
+export function processCacheRateChartData(
+  rows: CacheRateChartRow[],
+  options: CacheRateChartOptions
+): VChartSpec {
+  const tt: TFunction = options.t ?? ((x) => x)
+  const metricTitle = tt(CACHE_RATE_METRIC_TITLES[options.metric])
+  const timeGranularity = options.timeGranularity
+  const formatRate = (value: number) => `${(Number(value) || 0).toFixed(1)}%`
+
+  const emptySpec = {
+    type: 'line',
+    data: [{ id: 'cacheRateData', values: [] }],
+    xField: 'Time',
+    yField: 'Rate',
+    seriesField: 'Series',
+    title: {
+      visible: true,
+      text: metricTitle,
+      subtext: tt('No data available'),
+    },
+    legends: { visible: true, selectMode: 'single' },
+    background: { fill: 'transparent' },
+  }
+
+  if (!rows || rows.length === 0) return emptySpec
+
+  // Aggregate per time bucket and series.
+  const timeSeriesMap = new Map<
+    string,
+    Map<
+      string,
+      {
+        prompt: number
+        cacheRead: number
+        cacheWrite: number
+        count: number
+        hits: number
+      }
+    >
+  >()
+  // All-series totals per time bucket (not limited to the top-10 series), so
+  // the tooltip "Total" row matches the stat cards' whole-range rate.
+  const timeTotalsMap = new Map<
+    string,
+    {
+      prompt: number
+      cacheRead: number
+      cacheWrite: number
+      count: number
+      hits: number
+    }
+  >()
+  // Series ranking key: requests for the hit metric, input tokens otherwise.
+  const seriesRankTotals = new Map<string, number>()
+  const timeTimestamps = new Map<string, number>()
+  let lastTimestamp = 0
+
+  rows.forEach((row) => {
+    const timestamp = Number(row.created_at) || 0
+    lastTimestamp = Math.max(lastTimestamp, timestamp)
+    const timeKey = formatChartTime(timestamp, timeGranularity)
+    const series = row.series || 'Unknown'
+    timeTimestamps.set(
+      timeKey,
+      Math.min(timeTimestamps.get(timeKey) ?? timestamp, timestamp)
+    )
+
+    const prompt = Number(row.prompt_tokens) || 0
+    const cacheRead = Number(row.cache_read_tokens) || 0
+    const cacheWrite = Number(row.cache_creation_tokens) || 0
+    const count = Number(row.count) || 0
+    const hits = Number(row.cache_hit_count) || 0
+    const rankValue = options.metric === 'hit' ? count : prompt
+    seriesRankTotals.set(series, (seriesRankTotals.get(series) || 0) + rankValue)
+
+    const timeTotals = timeTotalsMap.get(timeKey) || {
+      prompt: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      count: 0,
+      hits: 0,
+    }
+    timeTotalsMap.set(timeKey, {
+      prompt: timeTotals.prompt + prompt,
+      cacheRead: timeTotals.cacheRead + cacheRead,
+      cacheWrite: timeTotals.cacheWrite + cacheWrite,
+      count: timeTotals.count + count,
+      hits: timeTotals.hits + hits,
+    })
+
+    let seriesMap = timeSeriesMap.get(timeKey)
+    if (!seriesMap) {
+      seriesMap = new Map()
+      timeSeriesMap.set(timeKey, seriesMap)
+    }
+    const existing = seriesMap.get(series) || {
+      prompt: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      count: 0,
+      hits: 0,
+    }
+    seriesMap.set(series, {
+      prompt: existing.prompt + prompt,
+      cacheRead: existing.cacheRead + cacheRead,
+      cacheWrite: existing.cacheWrite + cacheWrite,
+      count: existing.count + count,
+      hits: existing.hits + hits,
+    })
+  })
+
+  // Pad time points when the range is short so the x-axis stays readable.
+  // Sort by the earliest timestamp of each bucket: formatted keys like
+  // "12-31" sort after "01-01" of the next year, so string order breaks
+  // across year boundaries (same fix as upstream #7628).
+  let chartTimes = [...timeTimestamps]
+    .sort((a, b) => a[1] - b[1])
+    .map(([time]) => time)
+  if (chartTimes.length < MAX_CHART_TREND_POINTS) {
+    let intervalSec = 3600
+    if (timeGranularity === 'week') intervalSec = 604800
+    else if (timeGranularity === 'day') intervalSec = 86400
+    chartTimes = Array.from({ length: MAX_CHART_TREND_POINTS }, (_, i) =>
+      formatChartTime(
+        lastTimestamp - (MAX_CHART_TREND_POINTS - 1 - i) * intervalSec,
+        timeGranularity
+      )
+    )
+  }
+
+  const topSeries = [...seriesRankTotals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_CACHE_RATE_SERIES)
+    .map(([series]) => series)
+
+  const values: Array<{
+    Time: string
+    Series: string
+    Rate: number
+    TimePrompt: number
+    TimeCache: number
+    TimeCount: number
+    TimeHits: number
+  }> = []
+  chartTimes.forEach((time) => {
+    const seriesMap = timeSeriesMap.get(time)
+    const totals = timeTotalsMap.get(time)
+    const timePrompt = totals?.prompt ?? 0
+    let timeCache = 0
+    if (totals) {
+      timeCache =
+        options.metric === 'read' ? totals.cacheRead : totals.cacheWrite
+    }
+    const timeCount = totals?.count ?? 0
+    const timeHits = totals?.hits ?? 0
+    topSeries.forEach((series) => {
+      const agg = seriesMap?.get(series)
+      if (!agg) return
+      if (options.metric === 'hit') {
+        // Request-count hit rate: cache-hit requests / total requests.
+        if (agg.count <= 0) return
+        const rate = Math.min(agg.hits / agg.count, 1) * 100
+        values.push({
+          Time: time,
+          Series: series,
+          Rate: Math.round(rate * 10) / 10,
+          TimePrompt: timePrompt,
+          TimeCache: timeCache,
+          TimeCount: timeCount,
+          TimeHits: timeHits,
+        })
+        return
+      }
+      // Token-based read/creation rate: cache tokens / input tokens.
+      const prompt = agg.prompt
+      if (prompt <= 0) return
+      const numerator =
+        options.metric === 'read' ? agg.cacheRead : agg.cacheWrite
+      const rate = Math.min(numerator / prompt, 1) * 100
+      values.push({
+        Time: time,
+        Series: series,
+        Rate: Math.round(rate * 10) / 10,
+        TimePrompt: timePrompt,
+        TimeCache: timeCache,
+        TimeCount: timeCount,
+        TimeHits: timeHits,
+      })
+    })
+  })
+  if (values.length === 0) return emptySpec
+
+  const colorDomain = [...topSeries].sort()
+  const colorRange = getDashboardChartColors(colorDomain.length)
+
+  return {
+    type: 'line',
+    data: [{ id: 'cacheRateData', values }],
+    xField: 'Time',
+    yField: 'Rate',
+    seriesField: 'Series',
+    stack: false,
+    legends: { visible: true, selectMode: 'single' },
+    color: {
+      type: 'ordinal',
+      domain: colorDomain,
+      range: colorRange,
+    },
+    title: {
+      visible: true,
+      text: metricTitle,
+    },
+    axes: [
+      { orient: 'bottom', type: 'band' },
+      {
+        orient: 'left',
+        type: 'linear',
+        max: 100,
+        label: {
+          formatMethod: (value: number) => `${value}%`,
+        },
+      },
+    ],
+    tooltip: {
+      mark: {
+        content: [
+          {
+            key: (datum: Record<string, unknown>) => datum?.Series,
+            value: (datum: Record<string, unknown>) =>
+              formatRate(Number(datum?.Rate) || 0),
+          },
+        ],
+      },
+      dimension: {
+        content: [
+          {
+            key: (datum: Record<string, unknown>) => datum?.Series,
+            value: (datum: Record<string, unknown>) =>
+              Number(datum?.Rate) || 0,
+          },
+        ],
+        updateContent: (
+          array: Array<{
+            key: string
+            value: string | number
+            datum?: Record<string, unknown>
+          }>
+        ) => {
+          array.sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
+          for (let i = 0; i < array.length; i++) {
+            array[i].value = formatRate(Number(array[i].value) || 0)
+          }
+          if (array.length > 0) {
+            const first = array[0].datum as
+              | {
+                  TimePrompt?: number
+                  TimeCache?: number
+                  TimeCount?: number
+                  TimeHits?: number
+                }
+              | undefined
+            if (!first) return array
+            if (options.metric === 'hit') {
+              const denominator = Number(first.TimeCount) || 0
+              if (denominator > 0) {
+                const overall = (Number(first.TimeHits) || 0) / denominator
+                array.unshift({
+                  key: tt('Total:'),
+                  value: formatRate(Math.min(overall, 1) * 100),
+                })
+              }
+            } else if (Number(first.TimePrompt) > 0) {
+              const overall =
+                (Number(first.TimeCache) || 0) / Number(first.TimePrompt)
+              array.unshift({
+                key: tt('Total:'),
+                value: formatRate(Math.min(overall, 1) * 100),
+              })
+            }
+          }
+          return array
+        },
+      },
+    },
+    line: {
+      style: {
+        lineWidth: 2,
+        curveType: 'monotone',
+      },
+    },
+    point: { visible: false },
+    background: { fill: 'transparent' },
+    animation: true,
   }
 }
 
