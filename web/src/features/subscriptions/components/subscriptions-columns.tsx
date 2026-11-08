@@ -171,7 +171,11 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         meta: { mobileHidden: true },
         cell: ({ row }) => {
           const total = Number(row.original.plan.total_amount || 0)
-          const window = Number(row.original.plan.window_amount || 0)
+          const window = Number(
+            row.original.plan.quota_model_version
+              ? row.original.plan.window_amount || 0
+              : total
+          )
           return (
             <span className='text-muted-foreground'>
               {total > 0 ? formatQuota(total) : t('Unlimited')}

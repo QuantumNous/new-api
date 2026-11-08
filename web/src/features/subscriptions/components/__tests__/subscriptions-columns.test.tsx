@@ -27,11 +27,11 @@ import { expect, it } from 'vitest'
 import type { PlanRecord } from '../../types'
 import { useSubscriptionsColumns } from '../subscriptions-columns'
 
-function PlanTitleCell(props: { plan: PlanRecord }) {
+function PlanTitleCell(props: { plan: PlanRecord; column?: string }) {
   const table = useReactTable({
     data: [props.plan],
     columns: useSubscriptionsColumns().filter(
-      (column) => column.id === 'title'
+      (column) => column.id === (props.column || 'title')
     ),
     getCoreRowModel: getCoreRowModel(),
   })
@@ -67,4 +67,15 @@ it('shows the current plan version beneath the plan title', () => {
 
   expect(screen.getByText('Weekly plan')).toBeInTheDocument()
   expect(screen.getByText(/Version 4/)).toBeInTheDocument()
+})
+
+it('uses the legacy cycle limit as the window quota', () => {
+  render(<PlanTitleCell column='total_amount' plan={{ plan: {
+    id: 10, title: 'Legacy', price_amount: 10, currency: 'USD',
+    duration_unit: 'month', duration_value: 1, quota_reset_period: 'weekly',
+    enabled: true, sort_order: 0, allow_balance_pay: true,
+    allow_wallet_overflow: true, max_purchase_per_user: 0,
+    total_amount: 500_000, window_amount: 0, quota_model_version: 0,
+  } }} />)
+  expect(screen.getByText(/Window quota/)).toHaveTextContent('$1 / Window quota: $1')
 })
