@@ -71,6 +71,7 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
   }
 
   const handleConfirm = async () => {
+    if (loading) return
     if (!amount && mode !== 'override') return
     if (quotaValue <= 0 && mode !== 'override') return
 
@@ -120,7 +121,7 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
       bodyClassName='space-y-4'
       footer={
         <>
-          <Button variant='outline' onClick={handleCancel}>
+          <Button variant='outline' onClick={handleCancel} disabled={loading}>
             {t('Cancel')}
           </Button>
           <Button onClick={handleConfirm} disabled={loading}>
@@ -145,6 +146,7 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
                   mode === m &&
                     'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
                 )}
+                disabled={loading}
                 onClick={() => {
                   setMode(m)
                   setAmount('')
@@ -168,9 +170,12 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
             min={mode === 'override' ? undefined : 0}
             placeholder={placeholder}
             value={amount}
+            disabled={loading}
             onChange={(e) => setAmount(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleConfirm()
+              if (e.key !== 'Enter' || loading) return
+              e.preventDefault()
+              void handleConfirm()
             }}
           />
         </div>

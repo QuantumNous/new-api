@@ -54,6 +54,7 @@ import {
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -177,20 +178,19 @@ export function PromptInputProvider({
   const openRef = useRef<() => void>(() => {})
 
   const add = useCallback((files: File[] | FileList) => {
-    const incoming = Array.from(files)
+    const incoming = [...files]
     if (incoming.length === 0) return
 
-    setAttachements((prev) =>
-      prev.concat(
-        incoming.map((file) => ({
-          id: nanoid(),
-          type: 'file' as const,
-          url: URL.createObjectURL(file),
-          mediaType: file.type,
-          filename: file.name,
-        }))
-      )
-    )
+    setAttachements((prev) => [
+      ...prev,
+      ...incoming.map((file) => ({
+        id: nanoid(),
+        type: 'file' as const,
+        url: URL.createObjectURL(file),
+        mediaType: file.type,
+        filename: file.name,
+      })),
+    ])
   }, [])
 
   const remove = useCallback((id: string) => {
@@ -509,7 +509,7 @@ export const PromptInput = ({
 
   const addLocal = useCallback(
     (fileList: File[] | FileList) => {
-      const incoming = Array.from(fileList)
+      const incoming = [...fileList]
       const accepted = incoming.filter((f) => matchesAccept(f))
       if (incoming.length && accepted.length === 0) {
         onError?.({
@@ -552,7 +552,7 @@ export const PromptInput = ({
             filename: file.name,
           })
         }
-        return prev.concat(next)
+        return [...prev, ...next]
       })
     },
     [matchesAccept, maxFiles, maxFileSize, onError, t]
@@ -726,44 +726,61 @@ export const PromptInput = ({
       form.reset()
     }
 
-    // Convert blob URLs to data URLs asynchronously
-    Promise.all(
-      files.map(async ({ id, ...item }) => {
-        if (item.url && item.url.startsWith('blob:')) {
-          return {
-            ...item,
-            url: await convertBlobUrlToDataUrl(item.url),
-          }
-        }
-        return item
-      })
-    ).then((convertedFiles: FileUIPart[]) => {
+    const restoreDraft = () => {
+      if (usingProvider) return
+      const field = form.elements.namedItem('message')
+      if (
+        field instanceof HTMLInputElement ||
+        field instanceof HTMLTextAreaElement
+      ) {
+        field.value = text
+      }
+    }
+
+    const submit = async () => {
+      // Convert blob URLs to data URLs asynchronously
+      let convertedFiles: FileUIPart[]
+      try {
+        convertedFiles = await Promise.all(
+          files.map(async ({ id, ...item }) => {
+            if (item.url && item.url.startsWith('blob:')) {
+              return {
+                ...item,
+                url: await convertBlobUrlToDataUrl(item.url),
+              }
+            }
+            return item
+          })
+        )
+      } catch (error) {
+        // Reset above already happened, so put the draft back before stopping:
+        // a failed attachment conversion must not discard what the user wrote.
+        restoreDraft()
+        toast.error(t('Failed to prepare attachments'), {
+          description: t('Your draft was kept. Please try again.'),
+        })
+        // eslint-disable-next-line no-console
+        console.error('Failed to prepare attachments:', error)
+        return
+      }
+
       try {
         const result = onSubmit({ text, files: convertedFiles }, event)
 
         // Handle both sync and async onSubmit
         if (result instanceof Promise) {
-          result
-            .then(() => {
-              clear()
-              if (usingProvider) {
-                controller.textInput.clear()
-              }
-            })
-            .catch(() => {
-              // Don't clear on error - user may want to retry
-            })
-        } else {
-          // Sync function completed without throwing, clear attachments
-          clear()
-          if (usingProvider) {
-            controller.textInput.clear()
-          }
+          await result
         }
-      } catch (_error) {
+        clear()
+        if (usingProvider) {
+          controller.textInput.clear()
+        }
+      } catch {
         // Don't clear on error - user may want to retry
       }
-    })
+    }
+
+    void submit()
   }
 
   // Render with or without local provider
@@ -842,9 +859,7 @@ export const PromptInputTextarea = ({
     ) {
       e.preventDefault()
       const lastAttachment =
-        attachments.files.length > 0
-          ? attachments.files[attachments.files.length - 1]
-          : undefined
+        attachments.files.length > 0 ? attachments.files.at(-1) : undefined
       if (lastAttachment) {
         attachments.remove(lastAttachment.id)
       }
@@ -889,7 +904,10 @@ export const PromptInputTextarea = ({
 
   return (
     <InputGroupTextarea
-      className={cn('field-sizing-content max-h-48 min-h-16 break-all', className)}
+      className={cn(
+        'field-sizing-content max-h-48 min-h-16 break-all',
+        className
+      )}
       name='message'
       onCompositionEnd={() => setIsComposing(false)}
       onCompositionStart={() => setIsComposing(true)}

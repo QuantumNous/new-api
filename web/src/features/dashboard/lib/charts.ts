@@ -28,6 +28,19 @@ import { getCurrencyDisplay } from '@/lib/currency'
 import { currentIntlLocale, formatInteger } from '@/lib/format'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
 
+const CHART_STROKE_FALLBACK = 'rgba(127, 127, 127, 0.9)'
+
+// Canvas charts cannot resolve CSS custom properties, so read the themed
+// foreground color once per spec build instead of hardcoding black.
+function resolveChartStrokeColor(): string {
+  if (typeof document === 'undefined') return CHART_STROKE_FALLBACK
+  const value = window
+    .getComputedStyle(document.documentElement)
+    .getPropertyValue('--foreground')
+    .trim()
+  return value || CHART_STROKE_FALLBACK
+}
+
 type TFunction = (key: string) => string
 type TooltipLineItem = {
   key: string
@@ -76,6 +89,7 @@ export function processChartData(
 ): ProcessedChartData {
   const tt: TFunction = t ?? ((x) => x)
   const otherLabel = tt('Other')
+  const strokeColor = resolveChartStrokeColor()
 
   const formatInt = (value: number) =>
     Intl.NumberFormat(currentIntlLocale(), {
@@ -471,8 +485,8 @@ export function processChartData(
         style:
           chartCornerRadius == null ? {} : { cornerRadius: chartCornerRadius },
         state: {
-          hover: { outerRadius: 0.85, stroke: '#000', lineWidth: 1 },
-          selected: { outerRadius: 0.85, stroke: '#000', lineWidth: 1 },
+          hover: { outerRadius: 0.85, stroke: strokeColor, lineWidth: 1 },
+          selected: { outerRadius: 0.85, stroke: strokeColor, lineWidth: 1 },
         },
       },
       title: {
@@ -507,7 +521,7 @@ export function processChartData(
       color: modelColor,
       bar: {
         state: {
-          hover: { stroke: '#000', lineWidth: 1 },
+          hover: { stroke: strokeColor, lineWidth: 1 },
         },
       },
       tooltip: {
@@ -674,7 +688,7 @@ export function processChartData(
       },
       bar: {
         state: {
-          hover: { stroke: '#000', lineWidth: 1 },
+          hover: { stroke: strokeColor, lineWidth: 1 },
         },
       },
       tooltip: {
@@ -716,6 +730,7 @@ export function processUserChartData(
   limit = 10
 ): ProcessedUserChartData {
   const tt: TFunction = t ?? ((x) => x)
+  const strokeColor = resolveChartStrokeColor()
   const { config } = getCurrencyDisplay()
   const quotaPerUnit = config.quotaPerUnit
 
@@ -838,7 +853,7 @@ export function processUserChartData(
       },
       legends: { visible: false },
       bar: {
-        state: { hover: { stroke: '#000', lineWidth: 1 } },
+        state: { hover: { stroke: strokeColor, lineWidth: 1 } },
       },
       label: {
         visible: true,

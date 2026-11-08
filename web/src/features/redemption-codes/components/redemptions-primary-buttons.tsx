@@ -52,6 +52,8 @@ export function RedemptionsPrimaryButtons() {
       } else {
         handleServerError(result, t(ERROR_MESSAGES.DELETE_INVALID_FAILED))
       }
+    } catch (error) {
+      handleServerError(error, t(ERROR_MESSAGES.DELETE_INVALID_FAILED))
     } finally {
       setIsDeleting(false)
     }

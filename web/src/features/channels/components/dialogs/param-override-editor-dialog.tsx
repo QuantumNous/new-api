@@ -1880,9 +1880,9 @@ export function ParamOverrideEditorDialog(
               </p>
             </div>
           ) : (
-            <div className='flex h-full'>
-              {/* Left sidebar */}
-              <div className='flex w-[280px] flex-shrink-0 flex-col border-e'>
+            <div className='flex h-full flex-col sm:flex-row'>
+              {/* Left sidebar: stacked above the editor on phones, side-by-side from sm */}
+              <div className='flex max-h-[45dvh] w-full flex-col border-b sm:max-h-none sm:w-[280px] sm:flex-shrink-0 sm:border-e sm:border-b-0'>
                 <div className='flex items-center justify-between border-b px-3 py-2'>
                   <div className='flex items-center gap-2'>
                     <span className='text-sm font-medium'>{t('Rules')}</span>

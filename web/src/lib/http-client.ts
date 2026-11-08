@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import axios, { type AxiosRequestConfig } from 'axios'
 import { t } from 'i18next'
+import { toast } from 'sonner'
 
 import {
   applyAuthRotation,
@@ -83,6 +84,13 @@ function redirectToSignIn(): void {
   }
 }
 
+function redirectToForbidden(): void {
+  if (typeof window === 'undefined') return
+  if (window.location.pathname !== '/403') {
+    window.location.replace('/403')
+  }
+}
+
 api.interceptors.response.use(
   (response) => {
     if (response.config.acceptAuthRotation && response.data?.success === true) {
@@ -138,6 +146,14 @@ api.interceptors.response.use(
           cause: error,
         })
       }
+    }
+    if (status === 403) {
+      // Authorization is still valid: keep the session and explain the denial
+      // instead of treating it like an expired login.
+      if (!skipErrorHandler) {
+        toast.error(t('Access Denied'), { id: 'access-denied' })
+      }
+      redirectToForbidden()
     }
     if (axios.isAxiosError(error)) error.message = getServerErrorMessage(error)
     throw error

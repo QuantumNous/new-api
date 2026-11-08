@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { Row } from '@tanstack/react-table'
 import { Trash2, Edit, Power, PowerOff } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -51,6 +52,7 @@ export function DataTableRowActions<TData>({
   const { t } = useTranslation()
   const redemption = redemptionSchema.parse(row.original)
   const { setOpen, setCurrentRow, triggerRefresh } = useRedemptions()
+  const [isPending, setIsPending] = useState(false)
   const isEnabled = redemption.status === REDEMPTION_STATUS.ENABLED
   const isUsed = redemption.status === REDEMPTION_STATUS.USED
   const isExpired = isRedemptionExpired(
@@ -59,6 +61,8 @@ export function DataTableRowActions<TData>({
   )
 
   const handleToggleStatus = async () => {
+    if (isPending) return
+    setIsPending(true)
     const newStatus = isEnabled
       ? REDEMPTION_STATUS.DISABLED
       : REDEMPTION_STATUS.ENABLED
@@ -76,6 +80,8 @@ export function DataTableRowActions<TData>({
       }
     } catch (error) {
       handleServerError(error)
+    } finally {
+      setIsPending(false)
     }
   }
 
@@ -106,7 +112,7 @@ export function DataTableRowActions<TData>({
 
       <DataTableRowActionMenu ariaLabel={t('Open menu')} modal={false}>
         {canToggle && (
-          <DropdownMenuItem onClick={handleToggleStatus}>
+          <DropdownMenuItem disabled={isPending} onClick={handleToggleStatus}>
             {isEnabled ? (
               <>
                 {t('Disable')}

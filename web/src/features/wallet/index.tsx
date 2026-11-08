@@ -19,10 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
@@ -63,6 +65,7 @@ export function Wallet(props: WalletProps) {
   const { t } = useTranslation()
   const [user, setUser] = useState<UserWalletData | null>(null)
   const [userLoading, setUserLoading] = useState(true)
+  const [userLoadFailed, setUserLoadFailed] = useState(false)
   const [topupAmount, setTopupAmount] = useState(0)
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null)
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
@@ -113,13 +116,17 @@ export function Wallet(props: WalletProps) {
   const fetchUser = useCallback(async () => {
     try {
       setUserLoading(true)
+      setUserLoadFailed(false)
       const response = await getSelf()
       if (response.success && response.data) {
         setUser(response.data as UserWalletData)
+        return
       }
+      setUserLoadFailed(true)
+      handleServerError(response)
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch user data:', error)
+      setUserLoadFailed(true)
+      handleServerError(error)
     } finally {
       setUserLoading(false)
     }
@@ -288,7 +295,18 @@ export function Wallet(props: WalletProps) {
         <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
-            <WalletStatsCard user={user} loading={userLoading} />
+            {userLoadFailed ? (
+              <ErrorState
+                className='min-h-0'
+                title={t('Failed to load wallet data')}
+                description={t(
+                  'Your balance may be out of date. Check your connection and retry.'
+                )}
+                onRetry={fetchUser}
+              />
+            ) : (
+              <WalletStatsCard user={user} loading={userLoading} />
+            )}
 
             <div
               className={

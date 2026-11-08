@@ -57,6 +57,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useTheme } from '@/context/theme-provider'
 import { cn } from '@/lib/utils'
 
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
@@ -187,31 +188,68 @@ const codeMirrorTheme = EditorView.theme({
   },
 })
 
-const codeMirrorHighlightStyle = syntaxHighlighting(
-  HighlightStyle.define([
-    { tag: highlightTags.heading, color: '#e06c75', fontWeight: '600' },
-    { tag: [highlightTags.strong, highlightTags.emphasis], color: '#d19a66' },
-    { tag: [highlightTags.link, highlightTags.url], color: '#61afef' },
-    {
-      tag: [highlightTags.monospace, highlightTags.contentSeparator],
-      color: '#98c379',
-    },
-    {
-      tag: [highlightTags.keyword, highlightTags.processingInstruction],
-      color: '#c678dd',
-    },
-    {
-      tag: [highlightTags.atom, highlightTags.bool, highlightTags.number],
-      color: '#d19a66',
-    },
-    { tag: [highlightTags.string, highlightTags.inserted], color: '#98c379' },
-    { tag: [highlightTags.deleted, highlightTags.invalid], color: '#e06c75' },
-    {
-      tag: [highlightTags.meta, highlightTags.comment],
-      color: 'var(--muted-foreground)',
-    },
-  ])
-)
+const LIGHT_SYNTAX_COLORS = {
+  heading: '#9c3d8f',
+  emphasis: '#8a6d1f',
+  link: '#2f6fdb',
+  string: '#3f7f3a',
+  keyword: '#8c3ba8',
+  atom: '#8a6d1f',
+  deleted: '#c0392b',
+}
+
+const DARK_SYNTAX_COLORS: typeof LIGHT_SYNTAX_COLORS = {
+  heading: '#e06c75',
+  emphasis: '#d19a66',
+  link: '#61afef',
+  string: '#98c379',
+  keyword: '#c678dd',
+  atom: '#d19a66',
+  deleted: '#e06c75',
+}
+
+// The editor used to force a dark palette, which washed out light mode. Build
+// the highlight style from the active theme's palette instead.
+function createCodeMirrorHighlightStyle(palette: typeof LIGHT_SYNTAX_COLORS) {
+  return syntaxHighlighting(
+    HighlightStyle.define([
+      {
+        tag: highlightTags.heading,
+        color: palette.heading,
+        fontWeight: '600',
+      },
+      {
+        tag: [highlightTags.strong, highlightTags.emphasis],
+        color: palette.emphasis,
+      },
+      { tag: [highlightTags.link, highlightTags.url], color: palette.link },
+      {
+        tag: [highlightTags.monospace, highlightTags.contentSeparator],
+        color: palette.string,
+      },
+      {
+        tag: [highlightTags.keyword, highlightTags.processingInstruction],
+        color: palette.keyword,
+      },
+      {
+        tag: [highlightTags.atom, highlightTags.bool, highlightTags.number],
+        color: palette.atom,
+      },
+      {
+        tag: [highlightTags.string, highlightTags.inserted],
+        color: palette.string,
+      },
+      {
+        tag: [highlightTags.deleted, highlightTags.invalid],
+        color: palette.deleted,
+      },
+      {
+        tag: [highlightTags.meta, highlightTags.comment],
+        color: 'var(--muted-foreground)',
+      },
+    ])
+  )
+}
 
 function getRequestedCodeLanguage(language?: string) {
   const normalized = language?.trim().toLowerCase() || 'plaintext'
@@ -281,6 +319,7 @@ function getCodeBlockMaxHeight(
 }
 
 function getCodeMirrorExtensions(options: {
+  highlightStyle: Extension
   language: BundledLanguage | string
   onKeyDown: (event: globalThis.KeyboardEvent) => void
   placeholder?: string
@@ -289,7 +328,7 @@ function getCodeMirrorExtensions(options: {
 }): Extension[] {
   const extensions: Extension[] = [
     getCodeMirrorLanguageExtension(options.language),
-    codeMirrorHighlightStyle,
+    options.highlightStyle,
     codeMirrorTheme,
     EditorState.tabSize.of(2),
     EditorState.readOnly.of(options.readOnly),
@@ -330,6 +369,14 @@ function CodeMirrorCodeView({
   const initialValueRef = useRef(value)
   const onChangeRef = useRef(onChange)
   const onKeyDownRef = useRef(onKeyDown)
+  const { resolvedTheme } = useTheme()
+  const highlightStyle = useMemo(
+    () =>
+      createCodeMirrorHighlightStyle(
+        resolvedTheme === 'dark' ? DARK_SYNTAX_COLORS : LIGHT_SYNTAX_COLORS
+      ),
+    [resolvedTheme]
+  )
   const editorMinHeight = `${Math.max(4, rows) * 1.5 + 2}rem`
   // onKeyDown is delivered through a ref so a new handler identity from the
   // parent (recreated on every keystroke-driven render) does not invalidate
@@ -338,13 +385,14 @@ function CodeMirrorCodeView({
   const editorExtensions = useMemo(
     () =>
       getCodeMirrorExtensions({
+        highlightStyle,
         language,
         onKeyDown: (event) => onKeyDownRef.current?.(event),
         placeholder,
         readOnly,
         showLineNumbers,
       }),
-    [language, placeholder, readOnly, showLineNumbers]
+    [highlightStyle, language, placeholder, readOnly, showLineNumbers]
   )
 
   useEffect(() => {
