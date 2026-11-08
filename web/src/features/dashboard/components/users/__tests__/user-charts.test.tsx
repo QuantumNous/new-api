@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -81,6 +82,7 @@ const client = new QueryClient({
 afterEach(async () => {
   cleanup()
   client.clear()
+  vi.useRealTimers()
   await i18next.changeLanguage('en')
   window.localStorage.clear()
 })
@@ -302,4 +304,159 @@ test('Chinese locale translates the metric selector and both chart headings', as
   expect(screen.getByRole('tablist', { name: '统计指标' })).toBeInTheDocument()
   expect(screen.getByText('用户用量排名')).toBeInTheDocument()
   expect(screen.getByText('用户用量趋势')).toBeInTheDocument()
+})
+
+test('rolling presets query the current window every minute and stop when leaving the section', async () => {
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+  vi.setSystemTime(new Date('2026-11-09T00:00:00Z'))
+  const request = vi.spyOn(api, 'get').mockResolvedValue({
+    data: { success: true, data: usage },
+  })
+  render(
+    <Dashboard initialFilters={{ selectedRange: 7, metric: 'requests' }} />
+  )
+  await waitFor(() =>
+    expect(screen.getByLabelText('User Usage Ranking')).toHaveTextContent(
+      '"value":3'
+    )
+  )
+  request.mockResolvedValue({
+    data: { success: true, data: [{ ...usage[0], count: 9 }] },
+  })
+  await act(() => vi.advanceTimersByTimeAsync(60_000))
+  await waitFor(() =>
+    expect(request).toHaveBeenLastCalledWith('/api/data/users', {
+      params: {
+        start_timestamp: Date.parse('2026-11-02T00:01:00Z') / 1000,
+        end_timestamp: Date.parse('2026-11-09T00:01:00Z') / 1000,
+      },
+    })
+  )
+  for (const name of ['User Usage Ranking', 'User Usage Trend']) {
+    expect(screen.getByLabelText(name)).toHaveTextContent('"value":9')
+  }
+  fireEvent.click(screen.getByRole('button', { name: 'Toggle users' }))
+  request.mockClear()
+  await act(() => vi.advanceTimersByTimeAsync(120_000))
+  expect(request).not.toHaveBeenCalled()
+})
+
+test('applying a quick range keeps its preset selected and advances after returning to the section', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-11-09T00:00:00Z'))
+  const request = vi.spyOn(api, 'get').mockResolvedValue({
+    data: { success: true, data: usage },
+  })
+  const user = userEvent.setup()
+  render(<Dashboard />)
+  await user.click(screen.getByRole('button', { name: 'Filter' }))
+  await user.click(screen.getByRole('button', { name: '7 Days' }))
+  await user.click(screen.getByRole('button', { name: 'Apply Filters' }))
+  expect(screen.getByRole('tab', { name: '7 Days' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  expect(
+    screen.queryByRole('status', { name: 'Custom Time Range' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Toggle users' }))
+  vi.setSystemTime(new Date('2026-11-09T01:00:00Z'))
+  await user.click(screen.getByRole('button', { name: 'Toggle users' }))
+  await waitFor(() =>
+    expect(request).toHaveBeenLastCalledWith('/api/data/users', {
+      params: {
+        start_timestamp: Date.parse('2026-11-02T01:00:00Z') / 1000,
+        end_timestamp: Date.parse('2026-11-09T01:00:00Z') / 1000,
+      },
+    })
+  )
+  await user.click(screen.getByRole('button', { name: 'Filter' }))
+  expect(
+    within(screen.getByRole('group', { name: 'End Time' })).getByLabelText(
+      'Time'
+    )
+  ).toHaveValue(new Date('2026-11-09T01:00:00Z').toTimeString().slice(0, 8))
+})
+
+test('an exact seven-day custom range stays fixed through dialog apply, elapsed time and section changes', async () => {
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+  vi.setSystemTime(new Date('2026-11-09T00:00:00Z'))
+  const request = vi.spyOn(api, 'get').mockResolvedValue({
+    data: { success: true, data: usage },
+  })
+  const user = userEvent.setup()
+  render(
+    <Dashboard
+      initialFilters={{
+        customRange: {
+          start: new Date('2026-11-01T00:00:00Z'),
+          end: new Date('2026-11-08T00:00:00Z'),
+        },
+      }}
+    />
+  )
+  await user.click(screen.getByRole('button', { name: 'Filter' }))
+  expect(screen.getByRole('button', { name: '7 Days' })).toHaveAttribute(
+    'aria-pressed',
+    'false'
+  )
+  await user.click(screen.getByRole('button', { name: 'Apply Filters' }))
+  await waitFor(() =>
+    expect(screen.getByLabelText('User Usage Ranking')).toHaveTextContent(
+      'user:1'
+    )
+  )
+  request.mockClear()
+  await act(() => vi.advanceTimersByTimeAsync(120_000))
+  expect(request).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: 'Toggle users' }))
+  await user.click(screen.getByRole('button', { name: 'Toggle users' }))
+  await waitFor(() =>
+    expect(request).toHaveBeenLastCalledWith('/api/data/users', {
+      params: {
+        start_timestamp: Date.parse('2026-11-01T00:00:00Z') / 1000,
+        end_timestamp: Date.parse('2026-11-08T00:00:00Z') / 1000,
+      },
+    })
+  )
+  expect(
+    screen.getByRole('status', { name: 'Custom Time Range' })
+  ).toBeInTheDocument()
+})
+
+test('editing a quick range creates fixed dates without polling overwriting the draft', async () => {
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+  vi.setSystemTime(new Date(2026, 10, 9, 10, 0, 0))
+  const request = vi.spyOn(api, 'get').mockResolvedValue({
+    data: { success: true, data: usage },
+  })
+  const user = userEvent.setup()
+  render(<Dashboard />)
+  await user.click(screen.getByRole('button', { name: 'Filter' }))
+  await user.click(screen.getByRole('button', { name: '7 Days' }))
+  const endInput = within(
+    screen.getByRole('group', { name: 'End Time' })
+  ).getByLabelText('Time')
+  fireEvent.change(endInput, { target: { value: '09:30:00' } })
+  await act(() => vi.advanceTimersByTimeAsync(60_000))
+  expect(endInput).toHaveValue('09:30:00')
+  expect(screen.getByRole('button', { name: '7 Days' })).toHaveAttribute(
+    'aria-pressed',
+    'false'
+  )
+  await user.click(screen.getByRole('button', { name: 'Apply Filters' }))
+  await waitFor(() =>
+    expect(request).toHaveBeenLastCalledWith('/api/data/users', {
+      params: {
+        start_timestamp: new Date(2026, 10, 2, 10, 0, 0).getTime() / 1000,
+        end_timestamp: new Date(2026, 10, 9, 9, 30, 0).getTime() / 1000,
+      },
+    })
+  )
+  expect(
+    screen.getByRole('status', { name: 'Custom Time Range' })
+  ).toHaveTextContent('2026-11-09 09:30:00')
+  request.mockClear()
+  await act(() => vi.advanceTimersByTimeAsync(60_000))
+  expect(request).not.toHaveBeenCalled()
 })

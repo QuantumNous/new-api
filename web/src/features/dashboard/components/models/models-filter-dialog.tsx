@@ -55,7 +55,13 @@ interface ModelsFilterProps {
   // The filters currently applied to the dashboard. The dialog edits a copy of
   // these so reopening it never discards a manually picked range.
   currentFilters: DashboardFilters
-  onFilterChange: (filters: DashboardFilters) => void
+  onFilterChange: (
+    filters: DashboardFilters,
+    quickRangeDays: number | null
+  ) => void
+  // Explicit null means custom dates, even if they span a preset duration.
+  // Omit this for existing callers that only store absolute timestamps.
+  currentQuickRangeDays?: number | null
   onReset: () => void
   titleKey?: string
   descriptionKey?: string
@@ -110,7 +116,9 @@ export function ModelsFilter(props: ModelsFilterProps) {
       props.currentFilters ?? buildDefaultDashboardFilters(props.preferences)
   )
   const [selectedRange, setSelectedRange] = useState<number | null>(() =>
-    detectQuickRangeDays(props.currentFilters)
+    props.currentQuickRangeDays === undefined
+      ? detectQuickRangeDays(props.currentFilters)
+      : props.currentQuickRangeDays
   )
   const startTime = filters.start_timestamp?.getTime()
   const endTime = filters.end_timestamp?.getTime()
@@ -126,10 +134,18 @@ export function ModelsFilter(props: ModelsFilterProps) {
     // Sync the editing state from the applied filters every time the dialog
     // opens so a previously applied manual range is preserved.
     if (nextOpen) {
-      const applied =
+      let applied =
         props.currentFilters ?? buildDefaultDashboardFilters(props.preferences)
+      if (props.currentQuickRangeDays != null) {
+        const { start, end } = getRollingDateRange(props.currentQuickRangeDays)
+        applied = { ...applied, start_timestamp: start, end_timestamp: end }
+      }
       setFilters(applied)
-      setSelectedRange(detectQuickRangeDays(applied))
+      setSelectedRange(
+        props.currentQuickRangeDays === undefined
+          ? detectQuickRangeDays(applied)
+          : props.currentQuickRangeDays
+      )
     }
     setOpen(nextOpen)
   }
@@ -139,7 +155,8 @@ export function ModelsFilter(props: ModelsFilterProps) {
     props.onFilterChange(
       cleanFilters(
         filters as unknown as Record<string, unknown>
-      ) as typeof filters
+      ) as typeof filters,
+      selectedRange
     )
     setOpen(false)
   }
@@ -229,6 +246,7 @@ export function ModelsFilter(props: ModelsFilterProps) {
                   type='button'
                   size='sm'
                   variant={selectedRange === range.days ? 'default' : 'outline'}
+                  aria-pressed={selectedRange === range.days}
                   onClick={() => handleQuickRange(range.days)}
                   className={cn(
                     'flex-1',

@@ -102,14 +102,6 @@ export function UserCharts(props: UserChartsProps) {
   const selectedUsers = props.filters.selectedUsers
   const [preferences] = useState(getSavedChartPreferences)
 
-  const timeRange = useMemo(() => {
-    const { start, end } = customRange ?? getRollingDateRange(selectedRange)
-    return {
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    }
-  }, [selectedRange, customRange])
-
   const handleRangeChange = useCallback(
     (days: number) => {
       onFiltersChange({
@@ -157,11 +149,22 @@ export function UserCharts(props: UserChartsProps) {
   }, [resolvedTheme])
 
   const { data: userData, isLoading } = useQuery({
-    queryKey: ['dashboard', 'user-quota', timeRange],
-    queryFn: async () =>
-      requireServerSuccess(await getUserQuotaDataByUsers(timeRange)),
+    // Cache rolling presets by duration, but resolve their dates on each fetch.
+    // Polling then advances the window without accumulating a cache per minute.
+    queryKey: ['dashboard', 'user-quota', customRange ?? selectedRange],
+    queryFn: async () => {
+      const { start, end } = customRange ?? getRollingDateRange(selectedRange)
+      return requireServerSuccess(
+        await getUserQuotaDataByUsers({
+          start_timestamp: Math.floor(start.getTime() / 1000),
+          end_timestamp: Math.floor(end.getTime() / 1000),
+        })
+      )
+    },
     select: (res) => (res.success ? res.data : []),
     staleTime: 60_000,
+    refetchInterval: customRange ? false : 60_000,
+    refetchOnWindowFocus: !customRange,
   })
 
   const userOptions = useMemo(() => {
@@ -234,18 +237,23 @@ export function UserCharts(props: UserChartsProps) {
         <ModelsFilter
           preferences={preferences}
           currentFilters={{
-            start_timestamp: new Date(timeRange.start_timestamp * 1000),
-            end_timestamp: new Date(timeRange.end_timestamp * 1000),
+            start_timestamp: customRange?.start,
+            end_timestamp: customRange?.end,
             time_granularity: timeGranularity,
           }}
-          onFilterChange={(filters) => {
+          currentQuickRangeDays={customRange ? null : selectedRange}
+          onFilterChange={(filters, quickRangeDays) => {
             if (!filters.start_timestamp || !filters.end_timestamp) return
             onFiltersChange({
               ...props.filters,
-              customRange: {
-                start: filters.start_timestamp,
-                end: filters.end_timestamp,
-              },
+              selectedRange: quickRangeDays ?? selectedRange,
+              customRange:
+                quickRangeDays === null
+                  ? {
+                      start: filters.start_timestamp,
+                      end: filters.end_timestamp,
+                    }
+                  : undefined,
               timeGranularity: filters.time_granularity ?? timeGranularity,
             })
           }}
