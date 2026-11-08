@@ -17,8 +17,9 @@ import (
 )
 
 type SubscriptionEpayPayRequest struct {
-	PlanId        int    `json:"plan_id"`
-	PaymentMethod string `json:"payment_method"`
+	PlanId                int    `json:"plan_id"`
+	ExpectedPlanVersionId int    `json:"expected_plan_version_id"`
+	PaymentMethod         string `json:"payment_method"`
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
@@ -33,6 +34,16 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	plan, err := model.GetSubscriptionPlanById(req.PlanId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	planVersion, err := model.GetOrCreateCurrentSubscriptionPlanVersion(plan.Id, req.ExpectedPlanVersionId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	plan, err = planVersion.PlanTerms()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -87,6 +98,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
+		PlanVersionId:   planVersion.Id,
 		Money:           plan.PriceAmount,
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
@@ -94,6 +106,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
+	order.CapturePlanTerms(plan)
 	if err := order.Insert(); err != nil {
 		common.ApiErrorT(c, "Failed to create order")
 		return

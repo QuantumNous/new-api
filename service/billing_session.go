@@ -50,38 +50,67 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	if s.settled {
 		return nil
 	}
-	delta := actualQuota - s.preConsumedQuota
-	if delta == 0 {
-		s.settled = true
-		return nil
+	if actualQuota < 0 {
+		return errors.New("actual quota must not be negative")
 	}
-	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
-	if !s.fundingSettled {
-		if err := s.funding.Settle(delta); err != nil {
+	if sub, ok := s.funding.(*SubscriptionFunding); ok {
+		tokenId := s.relayInfo.TokenId
+		if s.relayInfo.IsPlayground {
+			tokenId = 0
+		}
+		if err := model.RegisterSubscriptionFundingAccounting(sub.requestId, tokenId, int64(s.tokenConsumed), 0); err != nil {
 			return err
 		}
-		s.fundingSettled = true
+	}
+	delta := actualQuota - s.preConsumedQuota
+	committedQuota := actualQuota
+	var fundingErr error
+	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
+	if !s.fundingSettled {
+		fundingErr = s.funding.Settle(delta)
+		if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.settlement != nil {
+			// Publish committed portions even when a later funding step fails.
+			s.relayInfo.SubscriptionPostDelta = sub.settlement.SubscriptionAmount - s.relayInfo.SubscriptionPreConsumed
+			s.relayInfo.SubscriptionAmountUsedAfterPreConsume = sub.settlement.TotalUsed - s.relayInfo.SubscriptionPostDelta
+			s.relayInfo.SubscriptionWalletConsumed = sub.settlement.WalletAmount
+			s.relayInfo.SubscriptionUnfunded = sub.settlement.UnfundedAmount
+			committedQuota = int(sub.settlement.SubscriptionAmount + sub.settlement.WalletAmount)
+		}
+		if fundingErr != nil {
+			if sub, ok := s.funding.(*SubscriptionFunding); !ok || sub.settlement == nil {
+				return fundingErr
+			}
+		}
+		s.fundingSettled = fundingErr == nil
 	}
 	// 2) 调整令牌额度
 	var tokenErr error
-	if !s.relayInfo.IsPlayground {
-		if delta > 0 {
-			tokenErr = model.DecreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, delta)
+	tokenDelta := committedQuota - s.tokenConsumed
+	if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.settlement != nil {
+		var publication *model.SubscriptionFundingPublication
+		publication, tokenErr = model.PublishSubscriptionFundingAccounting(sub.requestId)
+		if tokenErr == nil {
+			committedQuota = int(publication.Amount)
+			s.relayInfo.SubscriptionWalletConsumed = publication.WalletAmount
+			s.relayInfo.SubscriptionUnfunded = publication.UnfundedAmount
+		}
+	} else if tokenDelta != 0 && !s.relayInfo.IsPlayground {
+		if tokenDelta > 0 {
+			tokenErr = model.DecreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, tokenDelta)
 		} else {
-			tokenErr = model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, -delta)
+			tokenErr = model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, -tokenDelta)
 		}
 		if tokenErr != nil {
-			// 资金来源已提交，令牌调整失败只能记录日志；标记 settled 防止 Refund 误退资金
+			// Keep the committed funding and retry only the outstanding token adjustment.
 			common.SysLog(common.LogText("error adjusting token quota after funding settled (userId=%d, tokenId=%d, delta=%d): %s",
-				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
+				s.relayInfo.UserId, s.relayInfo.TokenId, tokenDelta, tokenErr.Error()))
 		}
 	}
-	// 3) 更新 relayInfo 上的订阅 PostDelta（用于日志）
-	if s.funding.Source() == BillingSourceSubscription {
-		s.relayInfo.SubscriptionPostDelta += int64(delta)
+	if tokenErr == nil {
+		s.tokenConsumed = committedQuota
 	}
-	s.settled = true
-	return tokenErr
+	s.settled = s.fundingSettled && tokenErr == nil
+	return errors.Join(fundingErr, tokenErr)
 }
 
 // Refund 退还所有预扣费，幂等安全，异步执行。
@@ -105,19 +134,12 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	tokenKey := s.relayInfo.TokenKey
 	isPlayground := s.relayInfo.IsPlayground
 	tokenConsumed := s.tokenConsumed
-	extraReserved := s.extraReserved
-	subscriptionId := s.relayInfo.SubscriptionId
 	funding := s.funding
 
 	gopool.Go(func() {
 		// 1) 退还资金来源
 		if err := funding.Refund(); err != nil {
 			common.SysLog(common.LogText("error refunding billing source: %s", err.Error()))
-		}
-		if extraReserved > 0 && funding.Source() == BillingSourceSubscription && subscriptionId > 0 {
-			if err := model.PostConsumeUserSubscriptionDelta(subscriptionId, -int64(extraReserved)); err != nil {
-				common.SysLog(common.LogText("error refunding subscription extra reserved quota: %s", err.Error()))
-			}
 		}
 		// 2) 退还令牌额度
 		if tokenConsumed > 0 && !isPlayground {
@@ -138,6 +160,9 @@ func (s *BillingSession) NeedsRefund() bool {
 func (s *BillingSession) needsRefundLocked() bool {
 	if s.settled || s.refunded || s.fundingSettled {
 		// fundingSettled 时资金来源已提交结算，不能再退预扣费
+		return false
+	}
+	if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.settlement != nil {
 		return false
 	}
 	if s.tokenConsumed > 0 {
@@ -285,7 +310,7 @@ func (s *BillingSession) reserveFunding(delta int, requireAvailableQuota bool) e
 		funding.consumed += delta
 		return nil
 	case *SubscriptionFunding:
-		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, int64(delta)); err != nil {
+		if err := funding.Reserve(delta); err != nil {
 			return types.NewErrorWithStatusCode(
 				errors.New(i18n.Translate(s.lang, i18n.MsgQuotaSubscriptionInsufficient, map[string]any{"Error": err.Error()})),
 				types.ErrorCodeInsufficientUserQuota,
@@ -309,7 +334,7 @@ func (s *BillingSession) rollbackFundingReserve(delta int) {
 			funding.consumed -= delta
 		}
 	case *SubscriptionFunding:
-		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, -int64(delta)); err != nil {
+		if err := funding.Reserve(-delta); err != nil {
 			common.SysLog(common.LogText("error rolling back subscription funding reserve: %s", err.Error()))
 		}
 	}
@@ -433,10 +458,11 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 			relayInfo: relayInfo,
 			lang:      i18n.StatedLang(c),
 			funding: &SubscriptionFunding{
-				requestId: relayInfo.RequestId,
-				userId:    relayInfo.UserId,
-				modelName: relayInfo.GetBillingModelName(),
-				amount:    subConsume,
+				requestId:         relayInfo.RequestId,
+				userId:            relayInfo.UserId,
+				modelName:         relayInfo.GetBillingModelName(),
+				amount:            subConsume,
+				billingPreference: pref,
 			},
 		}
 		// 必须传 subConsume 而非 preConsumedQuota，保证 SubscriptionFunding.amount、

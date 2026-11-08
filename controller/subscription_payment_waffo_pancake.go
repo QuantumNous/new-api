@@ -17,7 +17,8 @@ import (
 )
 
 type SubscriptionWaffoPancakePayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId                int `json:"plan_id"`
+	ExpectedPlanVersionId int `json:"expected_plan_version_id"`
 }
 
 func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
@@ -32,6 +33,16 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	}
 
 	plan, err := model.GetSubscriptionPlanById(req.PlanId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	planVersion, err := model.GetOrCreateCurrentSubscriptionPlanVersion(plan.Id, req.ExpectedPlanVersionId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	plan, err = planVersion.PlanTerms()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -82,6 +93,7 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
+		PlanVersionId:   planVersion.Id,
 		Money:           plan.PriceAmount,
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodWaffoPancake,
@@ -89,6 +101,7 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
+	order.CapturePlanTerms(plan)
 	if err := order.Insert(); err != nil {
 		logger.LogError(c.Request.Context(), common.LogText("Waffo Pancake failed to create subscription order user_id=%d plan_id=%d trade_no=%s error=%q", userId, plan.Id, tradeNo, err.Error()))
 		paymentError(c, common.NewMessage("Failed to create order"))

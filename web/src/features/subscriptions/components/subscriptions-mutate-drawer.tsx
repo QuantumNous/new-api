@@ -152,6 +152,17 @@ export function SubscriptionsMutateDrawer({
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
+  const totalAmount = form.watch('total_amount')
+  let windowQuotaDescription = t(
+    'Quota available in each reset window. Later windows may have partial or no quota when total quota is used up.'
+  )
+  if (totalAmount === 0) {
+    windowQuotaDescription = t(
+      'Unlimited total quota; window quota is not applied.'
+    )
+  } else if (resetPeriod === 'never') {
+    windowQuotaDescription = t('Enable quota reset to apply a window quota.')
+  }
   // Gate "+ Create on Pancake" on the same checks the mint handler runs.
   const watchedTitle = form.watch('title')
   const watchedPrice = form.watch('price_amount')
@@ -367,7 +378,9 @@ export function SubscriptionsMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {t('Quota ({{currency}})', { currency: currencyLabel })}
+                        {t('Total quota ({{currency}})', {
+                          currency: currencyLabel,
+                        })}
                       </FormLabel>
                       <FormControl>
                         <Input
@@ -391,7 +404,7 @@ export function SubscriptionsMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Total quota included in the plan, usable per billing period. 0 means unlimited.'
+                          'Total quota for the full subscription term. 0 means unlimited.'
                         )}
                       </FormDescription>
                       <FormMessage />
@@ -704,6 +717,40 @@ export function SubscriptionsMutateDrawer({
                           </SelectGroup>
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='window_amount'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Window quota ({{currency}})', {
+                          currency: currencyLabel,
+                        })}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={0}
+                          step={tokensOnly ? 1 : 0.01}
+                          disabled={
+                            resetPeriod === 'never' || totalAmount === 0
+                          }
+                          onChange={(e) =>
+                            field.onChange(
+                              Number.parseFloat(e.target.value) || 0
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {windowQuotaDescription}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -322,6 +322,32 @@ func is64BitIntegerType(dbType common.DatabaseType, dataType string) bool {
 	}
 }
 
+func ensureSubscriptionPlanVersions(db *gorm.DB) error {
+	if db == nil {
+		return fmt.Errorf("database is nil")
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		var plans []SubscriptionPlan
+		if err := tx.Find(&plans).Error; err != nil {
+			return err
+		}
+		for i := range plans {
+			var count int64
+			if err := tx.Model(&SubscriptionPlanVersion{}).
+				Where("plan_id = ?", plans[i].Id).
+				Count(&count).Error; err != nil {
+				return err
+			}
+			if count == 0 {
+				if _, err := CreateSubscriptionPlanVersionTx(tx, &plans[i]); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
+
 func migrateDB() error {
 	if err := migrateTokenKeyUniqueness(DB); err != nil {
 		return err
@@ -364,9 +390,12 @@ func migrateDB() error {
 		&TwoFA{},
 		&TwoFABackupCode{},
 		&Checkin{},
+		&SubscriptionPlanVersion{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
+		&SubscriptionQuotaOperation{},
+		&SubscriptionPlanQuotaOperation{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
@@ -394,9 +423,15 @@ func migrateDB() error {
 			return err
 		}
 	} else {
-		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
+		if err := DB.AutoMigrate(&SubscriptionPlan{}, &SubscriptionPlanVersion{}); err != nil {
 			return err
 		}
+	}
+	if err := ensureSubscriptionPlanVersions(DB); err != nil {
+		return fmt.Errorf("ensure subscription plan versions: %w", err)
+	}
+	if err := snapshotLegacySubscriptionResetPolicies(DB); err != nil {
+		return fmt.Errorf("snapshot legacy subscription reset policies: %w", err)
 	}
 	return nil
 }
@@ -531,6 +566,8 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`upgrade_group`" + ` varchar(64) DEFAULT '',
 ` + "`downgrade_group`" + ` varchar(64) DEFAULT '',
 ` + "`total_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`window_amount`" + ` bigint NOT NULL DEFAULT 0,
+` + "`quota_model_version`" + ` integer NOT NULL DEFAULT 0,
 ` + "`quota_reset_period`" + ` varchar(16) DEFAULT 'never',
 ` + "`quota_reset_custom_seconds`" + ` bigint DEFAULT 0,
 ` + "`created_at`" + ` bigint,
@@ -568,6 +605,8 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "upgrade_group", DDL: "`upgrade_group` varchar(64) DEFAULT ''"},
 		{Name: "downgrade_group", DDL: "`downgrade_group` varchar(64) DEFAULT ''"},
 		{Name: "total_amount", DDL: "`total_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "window_amount", DDL: "`window_amount` bigint NOT NULL DEFAULT 0"},
+		{Name: "quota_model_version", DDL: "`quota_model_version` integer NOT NULL DEFAULT 0"},
 		{Name: "quota_reset_period", DDL: "`quota_reset_period` varchar(16) DEFAULT 'never'"},
 		{Name: "quota_reset_custom_seconds", DDL: "`quota_reset_custom_seconds` bigint DEFAULT 0"},
 		{Name: "created_at", DDL: "`created_at` bigint"},

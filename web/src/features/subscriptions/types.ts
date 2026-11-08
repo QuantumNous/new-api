@@ -39,6 +39,8 @@ export const subscriptionPlanSchema = z.object({
   allow_wallet_overflow: z.boolean().optional().default(true),
   max_purchase_per_user: z.number(),
   total_amount: z.number(),
+  window_amount: z.number().optional().default(0),
+  quota_model_version: z.number().optional().default(0),
   upgrade_group: z.string().optional(),
   downgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
@@ -50,6 +52,8 @@ export type SubscriptionPlan = z.infer<typeof subscriptionPlanSchema>
 
 export interface PlanRecord {
   plan: SubscriptionPlan
+  plan_version_id?: number
+  version?: number
 }
 
 // ============================================================================
@@ -60,13 +64,26 @@ export const userSubscriptionSchema = z.object({
   id: z.number(),
   user_id: z.number(),
   plan_id: z.number(),
+  plan_version_id: z.number().optional(),
+  plan_title: z.string().optional(),
+  plan_version: z.number().optional(),
   status: z.string(),
   source: z.string().optional(),
   start_time: z.number(),
   end_time: z.number(),
   amount_total: z.number(),
   amount_used: z.number(),
+  amount_reserved: z.number().optional(),
+  last_reset_time: z.number().optional(),
   next_reset_time: z.number().optional(),
+  window_amount: z.number().optional(),
+  quota_model_version: z.number().optional(),
+  reset_policy_source: z.string().optional(),
+  legacy_reset_baseline_at: z.number().optional(),
+  total_amount_used: z.number().optional(),
+  window_amount_used: z.number().optional(),
+  window_amount_reserved: z.number().optional(),
+  historical_amount_used: z.number().optional(),
 })
 
 export type UserSubscription = z.infer<typeof userSubscriptionSchema>
@@ -91,6 +108,7 @@ export interface PlanPayload {
 
 export interface SubscriptionPayRequest {
   plan_id: number
+  expected_plan_version_id?: number
   payment_method?: string
 }
 
@@ -117,21 +135,36 @@ export interface CreateUserSubscriptionRequest {
   plan_id: number
 }
 
-export interface ResetUserSubscriptionsRequest {
-  plan_id: number
-  advance_reset_time: boolean
+export interface RestorePlanWindowsRequest {
+  idempotency_key: string
+  reason: string
 }
 
-export interface ResetPlanSubscriptionsRequest {
-  advance_reset_time: boolean
-}
-
-export interface SubscriptionResetResult {
+export interface RestorePlanWindowsResult {
+  idempotency_key: string
   plan_id: number
   matched_count: number
   reset_count: number
   user_count: number
-  advance_reset_time: boolean
+  created_at: number
+}
+
+export interface SubscriptionQuotaRestoreRequest {
+  action: 'restore_window' | 'initialize'
+  idempotency_key: string
+  reason: string
+}
+
+export interface SubscriptionQuotaRestoreResult {
+  idempotency_key: string
+  user_id: number
+  user_subscription_id: number
+  action: 'restore_window' | 'initialize'
+  returned_quota: number
+  total_remaining: number
+  window_remaining: number
+  unlimited: boolean
+  created_at: number
 }
 
 // ============================================================================
@@ -152,4 +185,5 @@ export type SubscriptionsDialogType =
   | 'create'
   | 'update'
   | 'toggle-status'
-  | 'reset-subscriptions'
+  | 'initialize-plan-subscriptions'
+  | 'restore-plan-windows'

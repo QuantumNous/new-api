@@ -53,6 +53,11 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
           return (
             <div className='max-w-full min-w-0'>
               <div className='truncate font-medium'>{plan.title}</div>
+              {row.original.version ? (
+                <div className='text-muted-foreground text-xs'>
+                  {t('Version')} {row.original.version}
+                </div>
+              ) : null}
               {plan.subtitle && (
                 <div className='text-muted-foreground truncate text-xs'>
                   {plan.subtitle}
@@ -166,9 +171,16 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         meta: { mobileHidden: true },
         cell: ({ row }) => {
           const total = Number(row.original.plan.total_amount || 0)
+          const window = Number(
+            row.original.plan.quota_model_version
+              ? row.original.plan.window_amount || 0
+              : total
+          )
           return (
             <span className='text-muted-foreground'>
               {total > 0 ? formatQuota(total) : t('Unlimited')}
+              {row.original.plan.quota_reset_period !== 'never' &&
+                ` / ${t('Window quota')}: ${total > 0 ? formatQuota(window) : t('Ignored')}`}
             </span>
           )
         },

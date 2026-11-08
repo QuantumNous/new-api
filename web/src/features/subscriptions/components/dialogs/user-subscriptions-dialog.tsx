@@ -47,7 +47,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet'
-import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { getServerMessage } from '@/lib/server-error-message'
@@ -58,10 +58,12 @@ import {
   createUserSubscription,
   invalidateUserSubscription,
   deleteUserSubscription,
-  resetUserSubscriptionsByPlan,
+  restoreUserSubscriptionQuota,
 } from '../../api'
 import { formatTimestamp } from '../../lib'
 import type { PlanRecord, UserSubscriptionRecord } from '../../types'
+import { SubscriptionQuotaSummary } from '../subscription-quota-summary'
+import { SubscriptionResetSchedule } from '../subscription-reset-schedule'
 
 interface Props {
   open: boolean
@@ -112,16 +114,23 @@ export function UserSubscriptionsDialog(props: Props) {
   const [plans, setPlans] = useState<PlanRecord[]>([])
   const [subs, setSubs] = useState<UserSubscriptionRecord[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
-  const [resetting, setResetting] = useState(false)
-  const [advanceResetTime, setAdvanceResetTime] = useState(true)
-  const [resetAction, setResetAction] = useState<{
-    planId: number
-    planTitle: string
-  } | null>(null)
+  const [restoringQuota, setRestoringQuota] = useState(false)
   const [confirmAction, setConfirmAction] = useState<{
     type: 'invalidate' | 'delete'
     subId: number
   } | null>(null)
+  const [quotaRestoreAction, setQuotaRestoreAction] = useState<{
+    subId: number
+    action: 'restore_window' | 'initialize'
+    idempotencyKey: string
+    reason: string
+    submitted?: boolean
+    unlimited: boolean
+  } | null>(null)
+
+  const reasonTooLong =
+    new TextEncoder().encode(quotaRestoreAction?.reason.trim() || '').length >
+    2000
 
   const planTitleMap = useMemo(() => {
     const map = new Map<number, string>()
@@ -217,20 +226,38 @@ export function UserSubscriptionsDialog(props: Props) {
     }
   }
 
-  const handleResetConfirm = async () => {
-    if (!props.user?.id || !resetAction) return
-    setResetting(true)
+  const handleQuotaRestore = async () => {
+    if (!props.user?.id || !quotaRestoreAction || restoringQuota) return
+    const reason = quotaRestoreAction.reason.trim()
+    if (!reason || reasonTooLong) return
+    setQuotaRestoreAction({ ...quotaRestoreAction, reason, submitted: true })
+    setRestoringQuota(true)
     try {
-      const res = await resetUserSubscriptionsByPlan(props.user.id, {
-        plan_id: resetAction.planId,
-        advance_reset_time: advanceResetTime,
-      })
-      if (res.success) {
-        toast.success(
-          t('Reset {{count}} active subscriptions', {
-            count: res.data?.reset_count || 0,
-          })
-        )
+      const res = await restoreUserSubscriptionQuota(
+        props.user.id,
+        quotaRestoreAction.subId,
+        {
+          action: quotaRestoreAction.action,
+          idempotency_key: quotaRestoreAction.idempotencyKey,
+          reason,
+        }
+      )
+      if (res.success && res.data) {
+        if (res.data.unlimited) {
+          toast.success(t('Quota is unlimited; restoration did not add quota.'))
+        } else {
+          toast.success(
+            t(
+              'Restored {{returned}} quota. Total remaining: {{total}}; window remaining: {{window}}.',
+              {
+                returned: formatQuota(res.data.returned_quota),
+                total: formatQuota(res.data.total_remaining),
+                window: formatQuota(res.data.window_remaining),
+              }
+            )
+          )
+        }
+        setQuotaRestoreAction(null)
         await loadData()
         props.onSuccess?.()
       } else {
@@ -239,9 +266,15 @@ export function UserSubscriptionsDialog(props: Props) {
     } catch (error) {
       handleServerError(error, t('Operation failed'))
     } finally {
-      setResetting(false)
-      setResetAction(null)
+      setRestoringQuota(false)
     }
+  }
+
+  const newIdempotencyKey = () => {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+      return globalThis.crypto.randomUUID()
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`
   }
 
   return (
@@ -298,7 +331,12 @@ export function UserSubscriptionsDialog(props: Props) {
                     return (
                       <div>
                         <div className='font-medium'>
-                          {planTitleMap.get(sub.plan_id) || `#${sub.plan_id}`}
+                          {sub.plan_title ||
+                            planTitleMap.get(sub.plan_id) ||
+                            `#${sub.plan_id}`}
+                          {sub.plan_version
+                            ? ` · ${t('Version')} ${sub.plan_version}`
+                            : ''}
                         </div>
                         <div className='text-muted-foreground text-sm'>
                           {t('Source')}: {sub.source || '-'}
@@ -328,6 +366,13 @@ export function UserSubscriptionsDialog(props: Props) {
                         <div>
                           {t('End')}: {formatTimestamp(sub.end_time)}
                         </div>
+                        <SubscriptionResetSchedule
+                          lastResetTime={sub.last_reset_time}
+                          nextResetTime={sub.next_reset_time}
+                          resetPolicySource={sub.reset_policy_source}
+                          legacyResetBaselineAt={sub.legacy_reset_baseline_at}
+                          className='text-sm'
+                        />
                       </div>
                     )
                   },
@@ -337,11 +382,7 @@ export function UserSubscriptionsDialog(props: Props) {
                   header: t('Total Quota'),
                   cell: (record) => {
                     const sub = record.subscription
-                    const total = Number(sub.amount_total || 0)
-                    const used = Number(sub.amount_used || 0)
-                    return total > 0
-                      ? `${formatQuota(used)}/${formatQuota(total)}`
-                      : t('Unlimited')
+                    return <SubscriptionQuotaSummary subscription={sub} />
                   },
                 },
                 {
@@ -360,17 +401,34 @@ export function UserSubscriptionsDialog(props: Props) {
                       <DataTableRowActionMenu ariaLabel={t('Actions')}>
                         <DropdownMenuItem
                           disabled={!isActive}
-                          onClick={() => {
-                            setAdvanceResetTime(true)
-                            setResetAction({
-                              planId: sub.plan_id,
-                              planTitle:
-                                planTitleMap.get(sub.plan_id) ||
-                                `#${sub.plan_id}`,
+                          onClick={() =>
+                            setQuotaRestoreAction({
+                              subId: sub.id,
+                              action: 'restore_window',
+                              idempotencyKey: newIdempotencyKey(),
+                              reason: '',
+                              unlimited: Number(sub.amount_total || 0) === 0,
                             })
-                          }}
+                          }
                         >
-                          {t('Reset quota')}
+                          {t('Restore window quota')}
+                          <DropdownMenuShortcut>
+                            <RotateCcw size={16} />
+                          </DropdownMenuShortcut>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={!isActive}
+                          onClick={() =>
+                            setQuotaRestoreAction({
+                              subId: sub.id,
+                              action: 'initialize',
+                              idempotencyKey: newIdempotencyKey(),
+                              reason: '',
+                              unlimited: Number(sub.amount_total || 0) === 0,
+                            })
+                          }
+                        >
+                          {t('Initialize subscription quota')}
                           <DropdownMenuShortcut>
                             <RotateCcw size={16} />
                           </DropdownMenuShortcut>
@@ -437,26 +495,68 @@ export function UserSubscriptionsDialog(props: Props) {
         />
       )}
 
-      {resetAction && (
+      {quotaRestoreAction && (
         <ConfirmDialog
           open
-          onOpenChange={(v) => !v && setResetAction(null)}
-          title={t('Reset subscription quota')}
-          desc={t('Reset active {{plan}} subscriptions for this user?', {
-            plan: resetAction.planTitle,
-          })}
-          confirmText={t('Reset quota')}
-          handleConfirm={handleResetConfirm}
-          isLoading={resetting}
+          onOpenChange={(open) => !open && setQuotaRestoreAction(null)}
+          title={
+            quotaRestoreAction.action === 'restore_window'
+              ? t('Restore window quota')
+              : t('Initialize subscription quota')
+          }
+          desc={
+            quotaRestoreAction.action === 'restore_window'
+              ? t(
+                  'Restore up to one window quota and clear current window usage. Total quota, history, in-flight requests, and subscription dates stay unchanged.'
+                )
+              : t(
+                  'Clear settled total and window usage while preserving historical consumption, in-flight requests, and subscription dates.'
+                )
+          }
+          confirmText={
+            quotaRestoreAction.action === 'restore_window'
+              ? t('Restore window')
+              : t('Initialize traffic')
+          }
+          handleConfirm={handleQuotaRestore}
+          disabled={!quotaRestoreAction.reason.trim() || reasonTooLong}
+          isLoading={restoringQuota}
         >
-          <label className='flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm'>
-            <span>{t('Advance next reset time')}</span>
-            <Switch
-              checked={advanceResetTime}
-              onCheckedChange={(checked) => setAdvanceResetTime(!!checked)}
-              aria-label={t('Advance next reset time')}
+          <label className='grid gap-2 text-sm'>
+            <span>{t('Reason')}</span>
+            <Textarea
+              value={quotaRestoreAction.reason}
+              onChange={(event) =>
+                setQuotaRestoreAction((current) =>
+                  current && !current.submitted
+                    ? { ...current, reason: event.target.value }
+                    : current
+                )
+              }
+              readOnly={quotaRestoreAction.submitted}
+              placeholder={t('Enter reason for this operation')}
+              maxLength={2000}
+              rows={3}
+              aria-label={t('Reason')}
+              aria-invalid={reasonTooLong}
+              aria-describedby={
+                reasonTooLong ? 'subscription-quota-reason-error' : undefined
+              }
             />
+            {reasonTooLong && (
+              <span
+                id='subscription-quota-reason-error'
+                className='text-destructive'
+              >
+                {t('Reason must not exceed 2000 UTF-8 bytes')}
+              </span>
+            )}
           </label>
+          {quotaRestoreAction.unlimited && (
+            <p className='text-muted-foreground text-sm'>
+              {t('Quota is unlimited; restoration did not add quota.')}
+            </p>
+          )}
         </ConfirmDialog>
       )}
     </>

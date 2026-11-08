@@ -16,7 +16,8 @@ import (
 )
 
 type SubscriptionCreemPayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId                int `json:"plan_id"`
+	ExpectedPlanVersionId int `json:"expected_plan_version_id"`
 }
 
 func SubscriptionRequestCreemPay(c *gin.Context) {
@@ -41,6 +42,16 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	}
 
 	plan, err := model.GetSubscriptionPlanById(req.PlanId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	planVersion, err := model.GetOrCreateCurrentSubscriptionPlanVersion(plan.Id, req.ExpectedPlanVersionId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	plan, err = planVersion.PlanTerms()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -88,6 +99,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
+		PlanVersionId:   planVersion.Id,
 		Money:           plan.PriceAmount,
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodCreem,
@@ -95,6 +107,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}
+	order.CapturePlanTerms(plan)
 	if err := order.Insert(); err != nil {
 		paymentError(c, common.NewMessage("Failed to create order"))
 		return

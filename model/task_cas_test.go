@@ -52,8 +52,11 @@ func TestMain(m *testing.M) {
 		&Ability{},
 		&TopUp{},
 		&SubscriptionPlan{},
+		&SubscriptionPlanVersion{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
+		&SubscriptionPreConsumeRecord{},
+		&SubscriptionQuotaOperation{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
 		&SystemInstance{},
@@ -87,7 +90,10 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM abilities")
 		DB.Exec("DELETE FROM top_ups")
 		DB.Exec("DELETE FROM subscription_orders")
+		DB.Exec("DELETE FROM subscription_pre_consume_records")
+		DB.Exec("DELETE FROM subscription_quota_operations")
 		DB.Exec("DELETE FROM subscription_plans")
+		DB.Exec("DELETE FROM subscription_plan_versions")
 		DB.Exec("DELETE FROM user_subscriptions")
 		DB.Exec("DELETE FROM perf_metrics")
 		DB.Exec("DELETE FROM system_instances")
