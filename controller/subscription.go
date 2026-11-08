@@ -49,8 +49,17 @@ func GetSubscriptionPlans(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+		terms, err := version.PlanTerms()
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if !terms.Enabled {
+			continue
+		}
+		terms.NormalizeDefaults()
 		result = append(result, SubscriptionPlanDTO{
-			Plan:          p,
+			Plan:          *terms,
 			PlanVersionId: version.Id,
 			Version:       version.Version,
 		})
@@ -140,8 +149,14 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+		terms, err := version.PlanTerms()
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		terms.NormalizeDefaults()
 		result = append(result, SubscriptionPlanDTO{
-			Plan:          p,
+			Plan:          *terms,
 			PlanVersionId: version.Id,
 			Version:       version.Version,
 		})
