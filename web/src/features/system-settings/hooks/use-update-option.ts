@@ -62,6 +62,11 @@ export function useUpdateOption() {
         // Always refresh system-options
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
 
+        // The channel editor reads this switch from the channel ops snapshot.
+        if (variables.key === 'global.pass_through_request_enabled') {
+          queryClient.invalidateQueries({ queryKey: ['channel-ops'] })
+        }
+
         // If updating frontend-display-related config, also refresh status
         if (STATUS_RELATED_KEYS.has(variables.key)) {
           queryClient.invalidateQueries({ queryKey: ['status'] })

@@ -210,6 +210,9 @@ export type AdvancedCustomConverterDefaults = {
 
 export const ADVANCED_CUSTOM_MODEL_REGEX_PREFIX = 're:'
 
+/** Replaced with the mapped model name when the upstream path is built. */
+export const ADVANCED_CUSTOM_MODEL_PLACEHOLDER = '{model}'
+
 export type AdvancedCustomModelRuleKind = 'exact' | 'regex'
 
 const openAIChatPath = '/v1/chat/completions'
@@ -756,6 +759,26 @@ export function advancedCustomConfigUsesRelativeUpstreamPath(
   return (normalized.advanced_routes || []).some((route) =>
     getAdvancedCustomRouteUpstreamPath(route).startsWith('/')
   )
+}
+
+/**
+ * Whether any forwarded route forwards the original body untouched. Such a
+ * route also bypasses model mapping, parameter override and system prompt,
+ * like the channel-level switch.
+ */
+export function advancedCustomConfigUsesPassThrough(
+  config: AdvancedCustomConfig | null
+): boolean {
+  if (!config) return false
+  const normalized = normalizeAdvancedCustomConfig(config)
+  return (normalized.advanced_routes || []).some((route) => {
+    const incomingPath = route.incoming_path?.trim() || ''
+    return (
+      Boolean(incomingPath) &&
+      !isAdvancedCustomManagementPath(incomingPath) &&
+      route.pass_through_body_enabled === true
+    )
+  })
 }
 
 export function getAdvancedCustomStats(value: string | undefined): {

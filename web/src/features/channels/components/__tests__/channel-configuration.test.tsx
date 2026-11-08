@@ -56,6 +56,7 @@ const originalAuth = useAuthStore.getState().auth
 let client: QueryClient
 let editingChannel: Channel
 let pluginOptions: TaskPluginOption[]
+let globalPassThroughRequest = false
 const plugins: TaskPluginOption[] = [
   {
     key: 'video-a',
@@ -132,6 +133,7 @@ function ConfigurationHarness(props: {
 
 beforeEach(() => {
   pluginOptions = plugins
+  globalPassThroughRequest = false
   editingChannel = channelSchema.parse({
     id: 42,
     name: 'Existing channel',
@@ -186,6 +188,17 @@ beforeEach(() => {
     }
     if (url === '/api/prefill_group') {
       return { data: { success: true, data: [] } }
+    }
+    if (url === '/api/channel/ops') {
+      return {
+        data: {
+          success: true,
+          data: {
+            retry_times: 0,
+            pass_through_request_enabled: globalPassThroughRequest,
+          },
+        },
+      }
     }
     throw new Error(`Unexpected GET ${url}`)
   })
@@ -1230,6 +1243,329 @@ test('quick options and detailed settings share changes across tabs and save the
     upstream_model_update_check_enabled: true,
     upstream_model_update_auto_sync_enabled: true,
   })
+})
+
+test('marks the settings that stop applying while the channel switch is on', async () => {
+  editingChannel.setting = JSON.stringify({ pass_through_body_enabled: true })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const hint =
+    'Turn off request body passthrough for this setting to take effect'
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Model Mapping' })).getByText(
+      mappingPassthroughHint
+    )
+  ).toBeVisible()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Override Rules' })).getByText(
+      paramOverrideChannelHint
+    )
+  ).toBeVisible()
+  const requestProcessing = within(
+    screen.getByRole('group', { name: 'Request processing' })
+  )
+  expect(requestProcessing.getByText(hint)).toBeVisible()
+  expect(requestProcessing.queryByText(/Embedding/)).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
+  const quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  await user.click(quick.getByRole('switch', { name: 'Pass Through Body' }))
+  expect(screen.queryByText(hint)).not.toBeInTheDocument()
+  expect(screen.queryByText(mappingPassthroughHint)).not.toBeInTheDocument()
+  expect(screen.queryByText(paramOverrideChannelHint)).not.toBeInTheDocument()
+})
+
+test('words model mapping by request shape instead of by channel type', async () => {
+  editingChannel = { ...editingChannel, type: 24 }
+  editingChannel.setting = JSON.stringify({ pass_through_body_enabled: true })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Model Mapping' })).getByText(
+      mappingPassthroughHint
+    )
+  ).toBeVisible()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Request processing' })).getByText(
+      channelPassthroughHint
+    )
+  ).toBeVisible()
+})
+
+test.each([39, 41])(
+  'shows the request-shape mapping wording on channel type %i',
+  async (type) => {
+    editingChannel = { ...editingChannel, type }
+    editingChannel.setting = JSON.stringify({
+      pass_through_body_enabled: true,
+    })
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+    expect(
+      within(screen.getByRole('group', { name: 'Model Mapping' })).getByText(
+        mappingPassthroughHint
+      )
+    ).toBeVisible()
+  }
+)
+
+test('the global request body passthrough hint links root users to the setting that turns it off', async () => {
+  globalPassThroughRequest = true
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Model Mapping' })).getByText(
+      mappingPassthroughHint
+    )
+  ).toBeVisible()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const link = await within(
+    screen.getByRole('group', { name: 'Override Rules' })
+  ).findByRole('link', { name: 'global request body passthrough' })
+  expect(link).toHaveAttribute('href', '/system-settings/models/global')
+  expect(
+    within(screen.getByRole('group', { name: 'Request processing' })).getByText(
+      /global request body passthrough/
+    )
+  ).toBeVisible()
+  expect(
+    within(screen.getByRole('group', { name: 'Override Rules' })).getByRole(
+      'link',
+      { name: 'global request body passthrough' }
+    )
+  ).toBeVisible()
+})
+
+test('an operator without system settings access gets the global passthrough hint without a link', async () => {
+  globalPassThroughRequest = true
+  useAuthStore.setState({
+    auth: {
+      ...originalAuth,
+      user: { id: 2, username: 'operator', role: ROLE.ADMIN },
+    },
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Model Mapping' })).getByText(
+      mappingPassthroughHint
+    )
+  ).toBeVisible()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Override Rules' })).getByText(
+      /global request body passthrough/
+    )
+  ).toBeVisible()
+  expect(screen.queryByRole('link')).not.toBeInTheDocument()
+})
+
+const routePassthroughHint =
+  'This setting only applies to the routes without request body passthrough'
+const channelPassthroughHint =
+  'Turn off request body passthrough for this setting to take effect'
+const mappingPassthroughHint =
+  'While request body passthrough is on, model mapping only applies to requests whose upstream URL carries the model id, plus embedding, task and Alpha Search requests'
+const paramOverrideChannelHint =
+  'Turn off request body passthrough for this setting to apply to chat requests; embedding and Alpha Search requests are unaffected'
+const paramOverrideRouteHint =
+  'Routes with request body passthrough on do not apply this setting; embedding and Alpha Search requests are unaffected'
+const mappingRoutePassthroughHint =
+  'Routes with request body passthrough on skip the model name rewrite; requests whose upstream URL carries the model id, embedding requests, task requests and Alpha Search requests still apply the mapping'
+
+function advancedCustomChannel(
+  routes: Array<{
+    incoming_path: string
+    upstream_path: string
+    pass_through_body_enabled?: boolean
+  }>,
+  channelSwitch = false
+): Channel {
+  return {
+    ...editingChannel,
+    type: 58,
+    setting: channelSwitch
+      ? JSON.stringify({ pass_through_body_enabled: true })
+      : editingChannel.setting,
+    settings: JSON.stringify({
+      advanced_custom: {
+        advanced_routes: routes.map((route) => ({
+          converter: 'none',
+          ...route,
+        })),
+      },
+    }),
+  }
+}
+
+test('a route-level body passthrough narrows the settings it bypasses instead of disabling them', async () => {
+  editingChannel = advancedCustomChannel([
+    {
+      incoming_path: '/v1/chat/completions',
+      upstream_path: '/v1/chat/completions',
+      pass_through_body_enabled: true,
+    },
+  ])
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Model Mapping' })).getByText(
+      mappingRoutePassthroughHint
+    )
+  ).toBeVisible()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Override Rules' })).getByText(
+      paramOverrideRouteHint
+    )
+  ).toBeVisible()
+  expect(
+    within(screen.getByRole('group', { name: 'Request processing' })).getByText(
+      routePassthroughHint
+    )
+  ).toBeVisible()
+  expect(screen.queryByText(channelPassthroughHint)).not.toBeInTheDocument()
+})
+
+test('the channel switch keeps the channel wording when a route also has passthrough', async () => {
+  editingChannel = advancedCustomChannel(
+    [
+      {
+        incoming_path: '/v1/chat/completions',
+        upstream_path: '/v1/chat/completions',
+        pass_through_body_enabled: true,
+      },
+    ],
+    true
+  )
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Model Mapping' })).getByText(
+      mappingPassthroughHint
+    )
+  ).toBeVisible()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const overrideRules = within(
+    screen.getByRole('group', { name: 'Override Rules' })
+  )
+  expect(overrideRules.getByText(paramOverrideChannelHint)).toBeVisible()
+  expect(
+    overrideRules.queryByText(routePassthroughHint)
+  ).not.toBeInTheDocument()
+})
+
+test('an advanced custom route whose upstream path keeps {model} explains the route-scoped mapping', async () => {
+  editingChannel = advancedCustomChannel([
+    {
+      incoming_path: '/v1beta/models/{model}:generateContent',
+      upstream_path: '/v1beta/models/{model}:generateContent',
+      pass_through_body_enabled: true,
+    },
+  ])
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Model Mapping' })).getByText(
+      mappingRoutePassthroughHint
+    )
+  ).toBeVisible()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Request processing' })).getByText(
+      routePassthroughHint
+    )
+  ).toBeVisible()
+})
+
+test('the channel switch still marks model mapping on an advanced custom channel', async () => {
+  editingChannel = advancedCustomChannel(
+    [
+      {
+        incoming_path: '/v1/chat/completions',
+        upstream_path: '/v1/chat/completions',
+      },
+    ],
+    true
+  )
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Model Mapping' })).getByText(
+      mappingPassthroughHint
+    )
+  ).toBeVisible()
+})
+test('shows only the widest passthrough switch while several are on', async () => {
+  globalPassThroughRequest = true
+  editingChannel.setting = JSON.stringify({ pass_through_body_enabled: true })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const overrideRules = within(
+    screen.getByRole('group', { name: 'Override Rules' })
+  )
+  expect(
+    overrideRules.getByText(/global request body passthrough/)
+  ).toBeVisible()
+  expect(
+    overrideRules.queryByText(paramOverrideChannelHint)
+  ).not.toBeInTheDocument()
+})
+
+test('keeps the URL-only Claude beta query control outside the passthrough hint', async () => {
+  editingChannel = { ...editingChannel, type: 14 }
+  editingChannel.setting = JSON.stringify({ pass_through_body_enabled: true })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const fieldGroup = within(
+    screen.getByRole('group', { name: 'Field passthrough controls' })
+  )
+  expect(fieldGroup.getByText(channelPassthroughHint)).toBeVisible()
+  expect(
+    fieldGroup.queryByText('Allow Claude beta query passthrough')
+  ).not.toBeInTheDocument()
+  expect(screen.getByText('Allow Claude beta query passthrough')).toBeVisible()
 })
 
 test.each(['stacked', 'inline'])(
@@ -2574,6 +2910,23 @@ test('on wide screens redirecting a fetched model opens the floating panel besid
   expect(
     screen.getByRole('combobox', { name: 'Request Model Name' })
   ).toHaveValue('upstream')
+})
+
+test('the floating redirect panel repeats the passthrough warning while body passthrough is on', async () => {
+  useWideScreen()
+  editingChannel.setting = JSON.stringify({ pass_through_body_enabled: true })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await screen.findByRole('checkbox', { name: 'upstream-model' })
+  await user.click(
+    screen.getByRole('button', { name: 'Redirect upstream-model' })
+  )
+  const panel = within(
+    await screen.findByRole('complementary', { name: 'Model redirects' })
+  )
+  expect(panel.getByText(mappingPassthroughHint)).toBeVisible()
 })
 
 test.each(['current session', 'saved preference'])(
