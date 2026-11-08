@@ -1,6 +1,7 @@
 package ollama
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -316,7 +317,7 @@ func requestOpenAI2Embeddings(r dto.EmbeddingRequest) *OllamaEmbeddingRequest {
 
 func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var oResp OllamaEmbeddingResponse
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
@@ -341,8 +342,10 @@ func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
 	url := fmt.Sprintf("%s/api/tags", baseURL)
 
-	client := &http.Client{}
-	request, err := http.NewRequest("GET", url, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client := service.HTTPClientWithTimeout(10 * time.Second)
+	request, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
@@ -359,12 +362,12 @@ func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(response.Body)
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
 		return nil, fmt.Errorf("server returned error %d: %s", response.StatusCode, string(body))
 	}
 
 	var tagsResponse OllamaTagsResponse
-	body, err := io.ReadAll(response.Body)
+	body, err := io.ReadAll(io.LimitReader(response.Body, 4<<20))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
@@ -391,10 +394,10 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	client := &http.Client{
-		Timeout: 30 * 60 * 1000 * time.Millisecond, // 30分钟超时，支持大模型
-	}
-	request, err := http.NewRequest("POST", url, strings.NewReader(string(requestBody)))
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	client := service.HTTPClientWithTimeout(30 * time.Minute)
+	request, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(requestBody)))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %v", err)
 	}
@@ -411,7 +414,7 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(response.Body)
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
 		return fmt.Errorf("failed to pull model, status %d: %s", response.StatusCode, string(body))
 	}
 
@@ -432,10 +435,10 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	client := &http.Client{
-		Timeout: 60 * 60 * 1000 * time.Millisecond, // 1小时超时，支持超大模型
-	}
-	request, err := http.NewRequest("POST", url, strings.NewReader(string(requestBody)))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+	client := service.HTTPClientWithTimeout(time.Hour)
+	request, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(requestBody)))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %v", err)
 	}
@@ -452,7 +455,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(response.Body)
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
 		return fmt.Errorf("failed to pull model, status %d: %s", response.StatusCode, string(body))
 	}
 
@@ -508,8 +511,10 @@ func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	client := &http.Client{}
-	request, err := http.NewRequest("DELETE", url, strings.NewReader(string(requestBody)))
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client := service.HTTPClientWithTimeout(10 * time.Second)
+	request, err := http.NewRequestWithContext(ctx, "DELETE", url, strings.NewReader(string(requestBody)))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %v", err)
 	}
@@ -526,7 +531,7 @@ func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(response.Body)
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
 		return fmt.Errorf("failed to delete model, status %d: %s", response.StatusCode, string(body))
 	}
 
@@ -541,8 +546,10 @@ func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
 
 	url := fmt.Sprintf("%s/api/version", trimmedBase)
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	request, err := http.NewRequest("GET", url, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client := service.HTTPClientWithTimeout(10 * time.Second)
+	request, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %v", err)
 	}
@@ -557,7 +564,7 @@ func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
 	}
 	defer response.Body.Close()
 
-	body, err := io.ReadAll(response.Body)
+	body, err := io.ReadAll(io.LimitReader(response.Body, 4<<20))
 	if err != nil {
 		return "", fmt.Errorf("failed to read response: %v", err)
 	}

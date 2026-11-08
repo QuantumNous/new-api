@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -29,15 +30,14 @@ func getWeChatIdByCode(code string) (string, error) {
 	if code == "" {
 		return "", common.NewMessage("Invalid parameters")
 	}
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/wechat/user?code=%s", common.WeChatServerAddress, url.QueryEscape(code)), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/api/wechat/user?code=%s", common.WeChatServerAddress, url.QueryEscape(code)), nil)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("Authorization", common.WeChatServerToken)
-	client := http.Client{
-		Timeout: 5 * time.Second,
-	}
-	httpResponse, err := client.Do(req)
+	httpResponse, err := service.HTTPClientWithTimeout(5 * time.Second).Do(req)
 	if err != nil {
 		return "", err
 	}

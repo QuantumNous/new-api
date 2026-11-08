@@ -1,6 +1,7 @@
 package baidu
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -216,14 +217,14 @@ func getBaiduAccessTokenHelper(apiKey string) (*BaiduAccessToken, error) {
 	if len(parts) != 2 {
 		return nil, errors.New("invalid baidu apikey")
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=%s&client_secret=%s",
+	req, err := http.NewRequestWithContext(context.Background(), "POST", fmt.Sprintf("https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=%s&client_secret=%s",
 		parts[0], parts[1]), nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
-	res, err := service.GetHttpClient().Do(req)
+	res, err := service.HTTPClientWithTimeout(15 * time.Second).Do(req)
 	if err != nil {
 		return nil, err
 	}

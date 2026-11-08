@@ -190,6 +190,19 @@ var RelayResponseHeaderTimeout int // unit is second
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 
+// RelayNonStreamTimeout bounds a whole non-streaming relay request when
+// RELAY_TIMEOUT is unset. 0 derives the budget from RelayResponseHeaderTimeout.
+var RelayNonStreamTimeout int // unit is second
+
+// RelayStreamIdleTimeout cancels a streaming relay whose upstream stops sending
+// bytes for this long. It bounds a stalled body without truncating a healthy
+// stream that keeps emitting data. 0 disables the watchdog.
+var RelayStreamIdleTimeout int // unit is second
+
+// RelayMaxResponseBytes caps how much of an upstream response body the relay
+// reads, so a stalled or malicious upstream cannot exhaust process memory.
+var RelayMaxResponseBytes int64
+
 var GeminiSafetySetting string
 
 // https://docs.cohere.com/docs/safety-modes Type; NONE/CONTEXTUAL/STRICT

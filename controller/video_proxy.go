@@ -237,7 +237,7 @@ func proxyTaskMedia(c *gin.Context, task *model.Task, descriptor *relaychannel.T
 		}
 	}
 	if client == nil {
-		client = http.DefaultClient
+		client = service.HTTPClientWithTimeout(5 * time.Minute)
 	}
 
 	req, err := http.NewRequestWithContext(c.Request.Context(), method, parsedURL.String(), bytes.NewReader(descriptor.Body))
@@ -431,7 +431,7 @@ func (b *taskMediaCancelBody) Close() error {
 
 func doTaskMediaRequest(client *http.Client, request *http.Request, responseHeaderTimeout time.Duration) (*http.Response, error) {
 	if client == nil {
-		client = http.DefaultClient
+		client = service.HTTPClientWithTimeout(5 * time.Minute)
 	}
 	requestContext, cancel := context.WithCancel(request.Context())
 	request = request.Clone(requestContext)

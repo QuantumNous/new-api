@@ -888,7 +888,7 @@ func (a *TaskAdaptor) doFetchDescriptor(baseURL, key, proxy string, descriptor r
 	if method == "" {
 		method = http.MethodGet
 	}
-	req, err := http.NewRequest(method, descriptor.URL, requestBody)
+	req, err := http.NewRequestWithContext(context.Background(), method, descriptor.URL, requestBody)
 	if err != nil {
 		return nil, err
 	}

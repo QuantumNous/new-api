@@ -109,7 +109,7 @@ func newHTTPClient() *http.Client {
 		}
 		return dialer.DialContext(ctx, network, addr)
 	}
-	return &http.Client{Transport: transport}
+	return &http.Client{Transport: transport, Timeout: 60 * time.Second}
 }
 
 var (

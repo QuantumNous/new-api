@@ -129,6 +129,51 @@ func newRelayHTTPTransport() *http.Transport {
 	return transport
 }
 
+// auxiliaryHTTPTimeout bounds every outbound call that is not a relay request
+// (security checks, model listing, notifications, token fetches). RELAY_TIMEOUT
+// only governs relay traffic, so these paths must carry their own deadline
+// instead of inheriting an unbounded client.
+const auxiliaryHTTPTimeout = 10 * time.Second
+
+var auxiliaryHTTPClients sync.Map // time.Duration -> *http.Client
+
+// HTTPClientWithTimeout returns a cached client that shares the relay
+// connection pool but enforces its own total timeout. Use it for auxiliary
+// calls so a bare &http.Client{} is never needed.
+func HTTPClientWithTimeout(timeout time.Duration) *http.Client {
+	if timeout <= 0 {
+		timeout = auxiliaryHTTPTimeout
+	}
+	if cached, ok := auxiliaryHTTPClients.Load(timeout); ok {
+		return cached.(*http.Client)
+	}
+	var transport http.RoundTripper = http.DefaultTransport
+	if base := GetHttpClient(); base != nil && base.Transport != nil {
+		transport = base.Transport
+	}
+	client := &http.Client{
+		Transport:     transport,
+		CheckRedirect: checkRedirect,
+		Timeout:       timeout,
+	}
+	actual, _ := auxiliaryHTTPClients.LoadOrStore(timeout, client)
+	return actual.(*http.Client)
+}
+
+// preInitHTTPClient serves callers that run before InitHttpClient (tests, CLI
+// helpers). It reuses the process default client's transport, so a test that
+// substitutes a TLS-trusting client is still honoured, while relay deadlines
+// and body limits are applied per request by NewRelayResponseGuard instead of
+// relying on http.DefaultClient's missing timeout.
+func preInitHTTPClient() *http.Client {
+	base := http.DefaultClient
+	client := &http.Client{Transport: base.Transport, CheckRedirect: base.CheckRedirect}
+	if client.Transport == nil {
+		client.Transport = http.DefaultTransport
+	}
+	return client
+}
+
 func newRelayHTTPClient(transport http.RoundTripper) *http.Client {
 	client := &http.Client{
 		Transport:     transport,
@@ -136,6 +181,13 @@ func newRelayHTTPClient(transport http.RoundTripper) *http.Client {
 	}
 	if common.RelayTimeout != 0 {
 		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
+	} else {
+		// A blanket client timeout would truncate legitimate long-lived streams.
+		// doRequest instead applies a hard total deadline to non-streaming
+		// requests and an idle-read watchdog to streaming ones, so an upstream
+		// that sends headers and then stalls can never hold the goroutine open
+		// (see service.NewRelayResponseGuard).
+		client.Timeout = 0
 	}
 	return client
 }
@@ -166,9 +218,14 @@ func GetHttpClient() *http.Client {
 // ssrfProtectedHTTPClient 由 InitHttpClient 在启动时初始化，运行期只读。
 func GetSSRFProtectedHTTPClient() *http.Client {
 	if fetchSetting := system_setting.GetFetchSetting(); fetchSetting != nil && !fetchSetting.EnableSSRFProtection {
-		return GetHttpClient()
+		if client := GetHttpClient(); client != nil {
+			return client
+		}
 	}
-	return ssrfProtectedHTTPClient
+	if ssrfProtectedHTTPClient != nil {
+		return ssrfProtectedHTTPClient
+	}
+	return preInitHTTPClient()
 }
 
 func newProxyURLConfig(parsedURL *url.URL) *proxyURLConfig {
@@ -429,7 +486,7 @@ func getOrCreateDirectClient(policy HTTPTransportPolicy) (*http.Client, error) {
 			return client, nil
 		}
 		// Compatibility with pre-init callers: never assign httpClient outside InitHttpClient.
-		return http.DefaultClient, nil
+		return preInitHTTPClient(), nil
 	}
 
 	if client, ok := proxyClients.get("", policy); ok {

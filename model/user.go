@@ -1487,29 +1487,57 @@ func increaseUserQuota(id int, quota int) (err error) {
 	return ErrWalletQuotaLimitExceeded
 }
 
+// ErrUserQuotaInsufficient reports a wallet debit the stored balance cannot
+// cover. Guarded debit paths return it instead of writing a negative balance.
+var ErrUserQuotaInsufficient = errors.New("user quota insufficient")
+
 func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
 		return errors.New("quota cannot be negative")
 	}
+	if !db && common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
+		gopool.Go(func() {
+			if err := cacheDecrUserQuota(id, int64(quota)); err != nil {
+				common.SysLog(common.LogText("failed to decrease user quota: %s", err.Error()))
+			}
+		})
+		return nil
+	}
+	if err := decreaseUserQuota(id, quota); err != nil {
+		return err
+	}
+	// Only mirror a committed debit into the cache: a rejected debit must not
+	// lower the cached balance that authorizes later reservations.
 	gopool.Go(func() {
-		err := cacheDecrUserQuota(id, int64(quota))
-		if err != nil {
+		if err := cacheDecrUserQuota(id, int64(quota)); err != nil {
 			common.SysLog(common.LogText("failed to decrease user quota: %s", err.Error()))
 		}
 	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
-		return nil
-	}
-	return decreaseUserQuota(id, quota)
+	return nil
 }
 
+// decreaseUserQuota debits a wallet only while the stored balance covers the
+// charge. The guard sits in the UPDATE itself, so two concurrent debits cannot
+// both pass a stale balance check and drive the wallet negative.
 func decreaseUserQuota(id int, quota int) (err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", quota)).Error
-	if err != nil {
+	result := DB.Model(&User{}).
+		Where("id = ? AND quota >= ?", id, quota).
+		Update("quota", gorm.Expr("quota - ?", quota))
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 1 {
+		return nil
+	}
+	var count int64
+	if err := DB.Model(&User{}).Where("id = ?", id).Count(&count).Error; err != nil {
 		return err
 	}
-	return err
+	if count == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return ErrUserQuotaInsufficient
 }
 
 // SettleUserQuotaDebit debits a settlement charge from the wallet and never lets
@@ -1545,7 +1573,18 @@ func SettleUserQuotaDebit(id int, quota int) (int, error) {
 		if deducted == 0 {
 			return nil
 		}
-		return tx.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", deducted)).Error
+		result := tx.Model(&User{}).
+			Where("id = ? AND quota >= ?", id, deducted).
+			Update("quota", gorm.Expr("quota - ?", deducted))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			// A concurrent debit consumed the balance between the locked read and
+			// this write. Fail instead of reporting a charge that never landed.
+			return ErrUserQuotaInsufficient
+		}
+		return nil
 	})
 	if err != nil {
 		return 0, err
@@ -1620,21 +1659,63 @@ func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 	//}
 }
 
-func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, requestCount int) {
+// updateUserQuotaUsedQuotaAndRequestCount applies one user's accumulated batch
+// deltas inside the caller's transaction.
+//
+// The wallet delta is guarded by the stored balance, so a batch flush can never
+// push an account negative. When the balance cannot cover the whole debit, the
+// charge is clamped to what is left and the shortfall is reported instead of
+// being dropped silently.
+func updateUserQuotaUsedQuotaAndRequestCount(tx *gorm.DB, id int, quota int, usedQuota int, requestCount int) error {
 	if quota == 0 && usedQuota == 0 && requestCount == 0 {
-		return
+		return nil
 	}
 
-	err := DB.Model(&User{}).Where("id = ?", id).Updates(
-		map[string]any{
-			"quota":         gorm.Expr("quota + ?", quota),
-			"used_quota":    gorm.Expr("used_quota + ?", usedQuota),
-			"request_count": gorm.Expr("request_count + ?", requestCount),
-		},
-	).Error
-	if err != nil {
-		common.SysLog(common.LogText("failed to batch update user quota, used quota and request count: %s", err.Error()))
+	updates := make(map[string]any, 3)
+	if usedQuota != 0 {
+		updates["used_quota"] = gorm.Expr("used_quota + ?", usedQuota)
 	}
+	if requestCount != 0 {
+		updates["request_count"] = gorm.Expr("request_count + ?", requestCount)
+	}
+	if quota == 0 {
+		return tx.Model(&User{}).Where("id = ?", id).Updates(updates).Error
+	}
+
+	updates["quota"] = gorm.Expr("quota + ?", quota)
+	result := tx.Model(&User{}).Where("id = ? AND quota + ? >= 0", id, quota).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 1 {
+		return nil
+	}
+
+	var user User
+	if err := tx.Select("quota").Where("id = ?", id).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			common.SysError(common.LogText("batch quota update skipped, user %d no longer exists (quota delta=%d)", id, quota))
+			return nil
+		}
+		return err
+	}
+	applied := quota
+	if quota < 0 {
+		applied = -min(max(user.Quota, 0), -quota)
+	}
+	if applied == 0 {
+		delete(updates, "quota")
+		if len(updates) == 0 {
+			return nil
+		}
+	} else {
+		updates["quota"] = gorm.Expr("quota + ?", applied)
+	}
+	if err := tx.Model(&User{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return err
+	}
+	common.SysError(common.LogText("batch quota debit clamped for user %d: requested=%d applied=%d balance=%d", id, quota, applied, user.Quota))
+	return nil
 }
 
 // GetUsernameById gets username from Redis first, falls back to DB if needed

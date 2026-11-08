@@ -79,7 +79,7 @@ func RelayMidjourneyImage(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		responseBody, _ := io.ReadAll(resp.Body)
+		responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		c.JSON(resp.StatusCode, gin.H{
 			"error": string(responseBody),
 		})

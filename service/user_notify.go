@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -176,7 +177,7 @@ func sendBarkNotify(barkURL string, data dto.Notify) error {
 		}
 
 		// 直接发送请求
-		req, err = http.NewRequest(http.MethodGet, finalURL, nil)
+		req, err = http.NewRequestWithContext(context.Background(), http.MethodGet, finalURL, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create bark request: %v", err)
 		}
@@ -269,7 +270,7 @@ func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data d
 		}
 
 		// 直接发送请求
-		req, err = http.NewRequest(http.MethodPost, finalURL, bytes.NewBuffer(payloadBytes))
+		req, err = http.NewRequestWithContext(context.Background(), http.MethodPost, finalURL, bytes.NewBuffer(payloadBytes))
 		if err != nil {
 			return fmt.Errorf("failed to create gotify request: %v", err)
 		}

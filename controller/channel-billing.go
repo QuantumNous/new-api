@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -149,8 +150,15 @@ func GetClaudeAuthHeader(token string) http.Header {
 	return h
 }
 
+const (
+	channelUpstreamFetchTimeout  = 30 * time.Second
+	maxChannelFetchResponseBytes = 4 << 20
+)
+
 func GetResponseBody(method, url string, channel *model.Channel, headers http.Header) ([]byte, error) {
-	req, err := http.NewRequest(method, url, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), channelUpstreamFetchTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -166,16 +174,16 @@ func GetResponseBody(method, url string, channel *model.Channel, headers http.He
 	if err != nil {
 		return nil, err
 	}
+	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status code: %d", res.StatusCode)
 	}
-	body, err := io.ReadAll(res.Body)
+	body, err := io.ReadAll(io.LimitReader(res.Body, maxChannelFetchResponseBytes+1))
 	if err != nil {
 		return nil, err
 	}
-	err = res.Body.Close()
-	if err != nil {
-		return nil, err
+	if int64(len(body)) > maxChannelFetchResponseBytes {
+		return nil, fmt.Errorf("channel response exceeds %d bytes", maxChannelFetchResponseBytes)
 	}
 	return body, nil
 }
@@ -556,7 +564,9 @@ func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, e
 		return channelBalanceResult{}, sanitizeFetchModelsError(err, key)
 	}
 
-	request, err := http.NewRequest(http.MethodGet, requestURL, nil)
+	requestCtx, cancelRequest := context.WithTimeout(context.Background(), channelUpstreamFetchTimeout)
+	defer cancelRequest()
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return channelBalanceResult{}, sanitizeFetchModelsError(err, key)
 	}

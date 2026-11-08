@@ -109,6 +109,27 @@ func persistUserQuotaDelta(id int, delta int) error {
 		addNewRecord(BatchUpdateTypeUserQuota, id, delta)
 		return nil
 	}
+	if delta < 0 {
+		// 预扣只在数据库余额覆盖这笔扣减时落库：缓存侧的原子预扣成功并不代表
+		// 数据库余额仍足够（批量模式下数据库会落后于缓存）。
+		result := DB.Model(&User{}).
+			Where("id = ? AND quota >= ?", id, -delta).
+			Update("quota", gorm.Expr("quota - ?", -delta))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 1 {
+			return nil
+		}
+		var count int64
+		if err := DB.Model(&User{}).Where("id = ?", id).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return ErrUserQuotaInsufficient
+	}
 	result := DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota + ?", delta))
 	if result.Error != nil {
 		return result.Error

@@ -335,7 +335,9 @@ func sanitizeAdvancedCustomRequestError(err error, key string, requestURL string
 }
 
 func getFetchModelsResponseBody(method string, requestURL string, channel *model.Channel, headers http.Header) ([]byte, error) {
-	request, err := http.NewRequest(method, requestURL, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, method, requestURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +362,7 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status code: %d", response.StatusCode)
 	}
-	return io.ReadAll(response.Body)
+	return io.ReadAll(io.LimitReader(response.Body, 8<<20))
 }
 
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {

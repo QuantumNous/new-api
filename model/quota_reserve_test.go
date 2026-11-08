@@ -2,7 +2,10 @@ package model
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -60,19 +63,25 @@ func resetBatchUpdateTestState(t *testing.T) {
 	t.Helper()
 	oldBatchEnabled := common.BatchUpdateEnabled
 	common.BatchUpdateEnabled = false
+	t.Setenv("BATCH_UPDATE_OUTBOX_DIR", t.TempDir())
+	resetBatchOutbox()
+	clearBatchUpdateAccumulators()
+	t.Cleanup(func() {
+		common.BatchUpdateEnabled = oldBatchEnabled
+		clearBatchUpdateAccumulators()
+		resetBatchOutbox()
+	})
+}
+
+func clearBatchUpdateAccumulators() {
 	for i := range BatchUpdateTypeCount {
 		batchUpdateLocks[i].Lock()
 		batchUpdateStores[i] = make(map[int]int)
 		batchUpdateLocks[i].Unlock()
 	}
-	t.Cleanup(func() {
-		common.BatchUpdateEnabled = oldBatchEnabled
-		for i := range BatchUpdateTypeCount {
-			batchUpdateLocks[i].Lock()
-			batchUpdateStores[i] = make(map[int]int)
-			batchUpdateLocks[i].Unlock()
-		}
-	})
+	batchUpdateRetriesLock.Lock()
+	batchUpdateRetries = nil
+	batchUpdateRetriesLock.Unlock()
 }
 
 func TestTryReserveQuotaWithoutRedis(t *testing.T) {
@@ -321,4 +330,169 @@ func TestSettleUserQuotaDebitUnderConcurrentSettlementsNeverOverdraws(t *testing
 	}
 	assert.Equal(t, 100, total, "concurrent settlements must charge the balance exactly once")
 	assert.Equal(t, 0, getUserQuotaFromDB(t, user.Id))
+}
+
+// A wallet that only covers three requests must admit exactly three of two
+// hundred concurrent reservations. The old snapshot trust check let all of them
+// start and settled the overage to zero, which is free service delivery.
+func TestConcurrentReservationsNeverExceedTheWalletBalance(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	useUserCacheMiniRedis(t)
+	common.BatchUpdateEnabled = true
+
+	const (
+		attempts = 200
+		allowed  = 3
+		price    = 100
+	)
+	user := createReserveTestUser(t, allowed*price)
+	require.NoError(t, populateUserCache(user))
+
+	var (
+		waitGroup sync.WaitGroup
+		reserved  atomic.Int64
+		rejected  atomic.Int64
+		failures  atomic.Int64
+	)
+	for range attempts {
+		waitGroup.Go(func() {
+			ok, err := TryReserveUserQuota(user.Id, price)
+			switch {
+			case err != nil:
+				failures.Add(1)
+			case ok:
+				reserved.Add(1)
+			default:
+				rejected.Add(1)
+			}
+		})
+	}
+	waitGroup.Wait()
+
+	require.Zero(t, failures.Load(), "every request must be admitted or rejected cleanly")
+	assert.EqualValues(t, allowed, reserved.Load())
+	assert.EqualValues(t, attempts-allowed, rejected.Load())
+
+	batchUpdate()
+	assert.Zero(t, getUserQuotaFromDB(t, user.Id))
+}
+
+func TestDecreaseUserQuotaNeverOverdrawsTheWallet(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+
+	user := createReserveTestUser(t, 50)
+
+	err := DecreaseUserQuota(user.Id, 51, true)
+	assert.ErrorIs(t, err, ErrUserQuotaInsufficient)
+	assert.Equal(t, 50, getUserQuotaFromDB(t, user.Id), "a rejected debit must not touch the balance")
+
+	require.NoError(t, DecreaseUserQuota(user.Id, 50, true))
+	assert.Zero(t, getUserQuotaFromDB(t, user.Id))
+}
+
+// Every wallet debit entry point must reject a charge the balance cannot cover
+// instead of writing a negative quota, including the delta helper legacy code
+// still calls.
+func TestUserQuotaDebitPathsNeverOverdrawTheWallet(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+
+	debitPaths := []struct {
+		name  string
+		debit func(userID, amount int) error
+	}{
+		{"DecreaseUserQuota", func(id, amount int) error { return DecreaseUserQuota(id, amount, true) }},
+		{"DeltaUpdateUserQuota", func(id, amount int) error { return DeltaUpdateUserQuota(id, -amount) }},
+	}
+	for _, path := range debitPaths {
+		t.Run(path.name, func(t *testing.T) {
+			user := createReserveTestUser(t, 30)
+
+			require.NoError(t, path.debit(user.Id, 30))
+			assert.Zero(t, getUserQuotaFromDB(t, user.Id))
+
+			assert.Error(t, path.debit(user.Id, 1), "an exhausted wallet must reject further debits")
+			assert.Zero(t, getUserQuotaFromDB(t, user.Id), "quota must never drop below zero")
+		})
+	}
+}
+
+func TestBatchFlushClampsDebitsBeyondTheWalletBalance(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	common.BatchUpdateEnabled = true
+
+	user := createReserveTestUser(t, 100)
+	require.NoError(t, DecreaseUserQuota(user.Id, 400, false))
+
+	batchUpdate()
+	assert.Zero(t, getUserQuotaFromDB(t, user.Id), "a batch debit may never drive the wallet negative")
+}
+
+// A process killed between staging a batch and committing it must replay the
+// staged deltas on the next start, and a batch that already committed must not
+// be charged twice.
+func TestBatchOutboxRecoveryAppliesStagedDeltasExactlyOnce(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	common.BatchUpdateEnabled = true
+
+	// Phase 1: the process dies before the database transaction commits.
+	beforeCommit := createReserveTestUser(t, 1000)
+	require.NoError(t, DecreaseUserQuota(beforeCommit.Id, 300, false))
+	outbox, err := getBatchOutbox()
+	require.NoError(t, err)
+	batchID := newBatchID()
+	require.NoError(t, outbox.stage(batchID, copyBatchUpdateStores()))
+	clearBatchUpdateAccumulators()
+	crashFile := filepath.Join(filepath.Dir(outbox.path), "batch-outbox-previous-process.wal")
+	require.NoError(t, os.Rename(outbox.path, crashFile))
+	resetBatchOutbox()
+
+	RecoverBatchOutbox()
+	assert.Equal(t, 700, getUserQuotaFromDB(t, beforeCommit.Id))
+	assert.NoFileExists(t, crashFile)
+
+	// Phase 2: the process dies after the commit but before the log was compacted.
+	afterCommit := createReserveTestUser(t, 1000)
+	require.NoError(t, DecreaseUserQuota(afterCommit.Id, 250, false))
+	outbox, err = getBatchOutbox()
+	require.NoError(t, err)
+	snapshot := copyBatchUpdateStores()
+	batchID = newBatchID()
+	require.NoError(t, outbox.stage(batchID, snapshot))
+	require.NoError(t, applyBatchQuotaDeltas(batchID, snapshot))
+	assert.Equal(t, 750, getUserQuotaFromDB(t, afterCommit.Id))
+	clearBatchUpdateAccumulators()
+	crashFile = filepath.Join(filepath.Dir(outbox.path), "batch-outbox-previous-process-2.wal")
+	require.NoError(t, os.Rename(outbox.path, crashFile))
+	resetBatchOutbox()
+
+	RecoverBatchOutbox()
+	assert.Equal(t, 750, getUserQuotaFromDB(t, afterCommit.Id), "an already committed batch must not be charged twice")
+	assert.NoFileExists(t, crashFile)
+}
+
+// A database failure during a flush must keep the deltas for the next attempt
+// instead of dropping them.
+func TestBatchUpdateRetriesFailedFlushWithoutLosingDeltas(t *testing.T) {
+	truncateTables(t)
+	resetBatchUpdateTestState(t)
+	common.BatchUpdateEnabled = true
+
+	user := createReserveTestUser(t, 1000)
+	require.NoError(t, DecreaseUserQuota(user.Id, 400, false))
+	require.NoError(t, DB.Migrator().DropTable(&BatchQuotaJournal{}))
+	t.Cleanup(func() { _ = DB.AutoMigrate(&BatchQuotaJournal{}) })
+
+	batchUpdate()
+	assert.Equal(t, 1000, getUserQuotaFromDB(t, user.Id), "a failed flush must not touch the balance")
+	assert.Equal(t, 1, pendingBatchRetryCount(), "the failed batch must stay queued for a retry")
+
+	require.NoError(t, DB.AutoMigrate(&BatchQuotaJournal{}))
+	batchUpdate()
+	assert.Equal(t, 600, getUserQuotaFromDB(t, user.Id))
+	assert.Zero(t, pendingBatchRetryCount())
 }

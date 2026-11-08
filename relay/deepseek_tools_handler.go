@@ -97,7 +97,7 @@ func DeepSeekToolsHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErr
 		return newAPIError
 	}
 
-	responseBody, err := io.ReadAll(httpResp.Body)
+	responseBody, err := io.ReadAll(io.LimitReader(httpResp.Body, 8<<20))
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}

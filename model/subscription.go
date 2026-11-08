@@ -793,9 +793,16 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			return common.NewMessage("Insufficient balance")
 		}
 		if requiredQuota > 0 {
-			if err := tx.Model(&User{}).Where("id = ?", userId).
-				Update("quota", gorm.Expr("quota - ?", requiredQuota)).Error; err != nil {
-				return err
+			result := tx.Model(&User{}).
+				Where("id = ? AND quota >= ?", userId, requiredQuota).
+				Update("quota", gorm.Expr("quota - ?", requiredQuota))
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				// SQLite cannot take the row lock above, so the balance guard in
+				// the UPDATE is what keeps concurrent purchases from overdrawing.
+				return common.NewMessage("Insufficient balance")
 			}
 		}
 

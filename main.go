@@ -319,6 +319,10 @@ func InitResources() error {
 		common.FatalLog(common.LogText("failed to initialize database: %s", err.Error()))
 		return err
 	}
+	// Replay quota deltas a previous process staged but never committed. This
+	// must happen before relay traffic is served so a crash during a batch flush
+	// cannot lose revenue.
+	model.RecoverBatchOutbox()
 	if err = authz.Init(model.DB); err != nil {
 		common.FatalLog(common.LogText("failed to initialize authorization: %s", err.Error()))
 		return err

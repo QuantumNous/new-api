@@ -290,6 +290,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 	}
 	client := &http.Client{
 		Transport: transport,
+		Timeout:   30 * time.Second,
 		// The transport is customised for github.io IPv4 preference, so SSRF is
 		// enforced on the request URL and on every redirect hop instead of at dial
 		// time: an upstream or redirect that resolves to a private address fails.

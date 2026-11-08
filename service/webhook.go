@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -93,7 +94,7 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 			return fmt.Errorf("request reject: %v", err)
 		}
 
-		req, err = http.NewRequest(http.MethodPost, webhookURL, bytes.NewBuffer(payloadBytes))
+		req, err = http.NewRequestWithContext(context.Background(), http.MethodPost, webhookURL, bytes.NewBuffer(payloadBytes))
 		if err != nil {
 			return fmt.Errorf("failed to create webhook request: %v", err)
 		}

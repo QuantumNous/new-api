@@ -146,7 +146,7 @@ func FetchCodexModels(
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
 		return resp.StatusCode, nil, err
 	}
