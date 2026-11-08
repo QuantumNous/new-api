@@ -3,6 +3,7 @@ package model
 import (
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -46,6 +47,36 @@ func TestSubscriptionPurchaseRejectsStaleCachedEligibilityMatrix(t *testing.T) {
 				}
 			})
 		}
+	})
+}
+
+func TestSubscriptionLazyVersionConcurrentPurchasesMatrix(t *testing.T) {
+	runSubscriptionAccountingMatrix(t, func(t *testing.T) {
+		plan := createPlanVersionTestPlan(t, "concurrent legacy plan")
+		start := make(chan struct{})
+		versions := make(chan *SubscriptionPlanVersion, 2)
+		errors := make(chan error, 2)
+		var workers sync.WaitGroup
+		for range 2 {
+			workers.Go(func() {
+				<-start
+				version, err := GetOrCreateCurrentSubscriptionPlanVersion(plan.Id)
+				versions <- version
+				errors <- err
+			})
+		}
+		close(start)
+		workers.Wait()
+		for range 2 {
+			require.NoError(t, <-errors)
+		}
+		first, second := <-versions, <-versions
+		require.NotNil(t, first)
+		require.NotNil(t, second)
+		assert.Equal(t, first.Id, second.Id)
+		var count int64
+		require.NoError(t, DB.Model(&SubscriptionPlanVersion{}).Where("plan_id = ?", plan.Id).Count(&count).Error)
+		assert.EqualValues(t, 1, count)
 	})
 }
 

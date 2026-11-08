@@ -250,12 +250,27 @@ func CreateSubscriptionPlanVersionTx(tx *gorm.DB, plan *SubscriptionPlan) (*Subs
 	if tx == nil || plan == nil || plan.Id <= 0 {
 		return nil, errors.New("invalid subscription plan version arguments")
 	}
+	var version *SubscriptionPlanVersion
+	err := tx.Transaction(func(tx *gorm.DB) error {
+		var authoritative SubscriptionPlan
+		if err := lockForUpdate(tx).First(&authoritative, plan.Id).Error; err != nil {
+			return err
+		}
+		var err error
+		version, err = createSubscriptionPlanVersionLocked(tx, &authoritative)
+		return err
+	})
+	return version, err
+}
+
+// The parent plan lock serializes version allocation, including an empty history.
+func createSubscriptionPlanVersionLocked(tx *gorm.DB, plan *SubscriptionPlan) (*SubscriptionPlanVersion, error) {
 	terms, err := common.Marshal(plan)
 	if err != nil {
 		return nil, fmt.Errorf("encode subscription plan version terms: %w", err)
 	}
 	var latest SubscriptionPlanVersion
-	query := tx.Where("plan_id = ?", plan.Id).Order("version desc").Limit(1).Find(&latest)
+	query := lockForUpdate(tx).Where("plan_id = ?", plan.Id).Order("version desc").Limit(1).Find(&latest)
 	versionNumber := 1
 	if query.Error != nil {
 		return nil, query.Error
@@ -296,15 +311,26 @@ func GetOrCreateCurrentSubscriptionPlanVersionTx(tx *gorm.DB, plan *Subscription
 	if tx == nil || plan == nil || plan.Id <= 0 {
 		return nil, errors.New("invalid current subscription plan version arguments")
 	}
-	var version SubscriptionPlanVersion
-	query := tx.Where("plan_id = ?", plan.Id).Order("version desc").Limit(1).Find(&version)
-	if query.Error != nil {
-		return nil, query.Error
-	}
-	if query.RowsAffected > 0 {
-		return &version, nil
-	}
-	return CreateSubscriptionPlanVersionTx(tx, plan)
+	var result *SubscriptionPlanVersion
+	err := tx.Transaction(func(tx *gorm.DB) error {
+		var authoritative SubscriptionPlan
+		if err := lockForUpdate(tx).First(&authoritative, plan.Id).Error; err != nil {
+			return err
+		}
+		var version SubscriptionPlanVersion
+		query := lockForUpdate(tx).Where("plan_id = ?", plan.Id).Order("version desc").Limit(1).Find(&version)
+		if query.Error != nil {
+			return query.Error
+		}
+		if query.RowsAffected > 0 {
+			result = &version
+			return nil
+		}
+		var err error
+		result, err = createSubscriptionPlanVersionLocked(tx, &authoritative)
+		return err
+	})
+	return result, err
 }
 
 func GetOrCreateCurrentSubscriptionPlanVersion(planId int) (*SubscriptionPlanVersion, error) {
