@@ -1,10 +1,12 @@
 package cohere
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -85,36 +87,55 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	createdTime := common.GetTimestamp()
 	usage := &dto.Usage{}
 	responseText := ""
-	scanner := helper.NewStreamScanner(resp.Body)
-	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		if atEOF && len(data) == 0 {
+	// The scanner runs in its own goroutine, so the handler owns its shutdown:
+	// canceling the request context releases a producer blocked on a send when the
+	// client disconnects, and closing the body before waiting releases a producer
+	// parked on a stalled upstream read.
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	dataChan := make(chan string, 16)
+	var wg sync.WaitGroup
+	defer func() {
+		cancel()
+		service.CloseResponseBodyGracefully(resp)
+		wg.Wait()
+	}()
+
+	wg.Go(func() {
+		defer close(dataChan)
+		scanner := helper.NewStreamScanner(resp.Body)
+		scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+			if atEOF && len(data) == 0 {
+				return 0, nil, nil
+			}
+			if i := strings.Index(string(data), "\n"); i >= 0 {
+				return i + 1, data[0:i], nil
+			}
+			if atEOF {
+				return len(data), data, nil
+			}
 			return 0, nil, nil
-		}
-		if i := strings.Index(string(data), "\n"); i >= 0 {
-			return i + 1, data[0:i], nil
-		}
-		if atEOF {
-			return len(data), data, nil
-		}
-		return 0, nil, nil
-	})
-	dataChan := make(chan string)
-	stopChan := make(chan bool)
-	go func() {
+		})
 		for scanner.Scan() {
-			data := scanner.Text()
-			dataChan <- data
+			select {
+			case dataChan <- scanner.Text():
+			case <-ctx.Done():
+				return
+			}
 		}
 		if err := scanner.Err(); err != nil {
 			common.SysLog(common.LogText("error reading stream: %s", err.Error()))
 		}
-		stopChan <- true
-	}()
+	})
+
 	helper.SetEventStreamHeaders(c)
 	isFirst := true
 	c.Stream(func(w io.Writer) bool {
 		select {
-		case data := <-dataChan:
+		case data, ok := <-dataChan:
+			if !ok {
+				c.Render(-1, common.CustomEvent{Data: "data: [DONE]"})
+				return false
+			}
 			if isFirst {
 				isFirst = false
 				info.FirstResponseTime = time.Now()
@@ -163,8 +184,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			}
 			c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonStr)})
 			return true
-		case <-stopChan:
-			c.Render(-1, common.CustomEvent{Data: "data: [DONE]"})
+		case <-ctx.Done():
 			return false
 		}
 	})

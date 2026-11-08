@@ -208,6 +208,17 @@ func main() {
 	srv := &http.Server{
 		Addr:    ":" + port,
 		Handler: server,
+		// Bound the request-header read so a Slowloris client cannot park a
+		// connection and its goroutine indefinitely. The request body gets a
+		// larger budget because audio and file uploads legitimately take time.
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       5 * time.Minute,
+		// Non-streaming responses must finish within this budget. SSE handlers
+		// replace the connection deadline before every write (see
+		// helper.StreamWriteBudget), so a long stream re-arms its own deadline
+		// instead of being cut off here.
+		WriteTimeout: 10 * time.Minute,
+		IdleTimeout:  2 * time.Minute,
 	}
 
 	go func() {
