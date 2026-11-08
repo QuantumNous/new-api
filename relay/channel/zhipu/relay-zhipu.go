@@ -2,6 +2,7 @@ package zhipu
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -156,69 +157,100 @@ func streamMetaResponseZhipu2OpenAI(zhipuResponse *ZhipuStreamMetaResponse) (*dt
 }
 
 func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	type streamEvent struct {
+		meta bool
+		data string
+	}
+
 	var usage *dto.Usage
-	scanner := helper.NewStreamScanner(resp.Body)
-	scanner.Split(bufio.ScanLines)
-	dataChan := make(chan string)
-	metaChan := make(chan string)
-	stopChan := make(chan bool)
-	go func() {
+	// The scanner runs in its own goroutine, so the handler owns its shutdown:
+	// canceling the request context releases a producer blocked on a send when the
+	// client disconnects, and closing the body before waiting releases a producer
+	// parked on a stalled upstream read.
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	events := make(chan streamEvent, 16)
+	var wg sync.WaitGroup
+	defer func() {
+		cancel()
+		service.CloseResponseBodyGracefully(resp)
+		wg.Wait()
+	}()
+
+	wg.Go(func() {
+		defer close(events)
+		send := func(event streamEvent) bool {
+			select {
+			case events <- event:
+				return true
+			case <-ctx.Done():
+				return false
+			}
+		}
+		scanner := helper.NewStreamScanner(resp.Body)
+		scanner.Split(bufio.ScanLines)
 		for scanner.Scan() {
-			data := scanner.Text()
-			lines := strings.Split(data, "\n")
+			lines := strings.Split(scanner.Text(), "\n")
 			for i, line := range lines {
 				if len(line) < 5 {
 					continue
 				}
-				if line[:5] == "data:" {
-					dataChan <- line[5:]
-					if i != len(lines)-1 {
-						dataChan <- "\n"
+				switch {
+				case strings.HasPrefix(line, "data:"):
+					if !send(streamEvent{data: line[5:]}) {
+						return
 					}
-				} else if line[:5] == "meta:" {
-					metaChan <- line[5:]
+					if i != len(lines)-1 && !send(streamEvent{data: "\n"}) {
+						return
+					}
+				case strings.HasPrefix(line, "meta:"):
+					if !send(streamEvent{meta: true, data: line[5:]}) {
+						return
+					}
 				}
 			}
 		}
 		if err := scanner.Err(); err != nil {
 			common.SysLog(common.LogText("error reading stream: %s", err.Error()))
 		}
-		stopChan <- true
-	}()
+	})
+
 	helper.SetEventStreamHeaders(c)
 	c.Stream(func(w io.Writer) bool {
 		select {
-		case data := <-dataChan:
-			response := streamResponseZhipu2OpenAI(data)
-			jsonResponse, err := json.Marshal(response)
+		case event, ok := <-events:
+			if !ok {
+				c.Render(-1, common.CustomEvent{Data: "data: [DONE]"})
+				return false
+			}
+			if event.meta {
+				var zhipuResponse ZhipuStreamMetaResponse
+				err := common.UnmarshalJsonStr(event.data, &zhipuResponse)
+				if err != nil {
+					common.SysLog(common.LogText("error unmarshalling stream response: %s", err.Error()))
+					return true
+				}
+				response, zhipuUsage := streamMetaResponseZhipu2OpenAI(&zhipuResponse)
+				jsonResponse, err := common.Marshal(response)
+				if err != nil {
+					common.SysLog(common.LogText("error marshalling stream response: %s", err.Error()))
+					return true
+				}
+				usage = zhipuUsage
+				c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonResponse)})
+				return true
+			}
+			response := streamResponseZhipu2OpenAI(event.data)
+			jsonResponse, err := common.Marshal(response)
 			if err != nil {
 				common.SysLog(common.LogText("error marshalling stream response: %s", err.Error()))
 				return true
 			}
 			c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonResponse)})
 			return true
-		case data := <-metaChan:
-			var zhipuResponse ZhipuStreamMetaResponse
-			err := json.Unmarshal([]byte(data), &zhipuResponse)
-			if err != nil {
-				common.SysLog(common.LogText("error unmarshalling stream response: %s", err.Error()))
-				return true
-			}
-			response, zhipuUsage := streamMetaResponseZhipu2OpenAI(&zhipuResponse)
-			jsonResponse, err := json.Marshal(response)
-			if err != nil {
-				common.SysLog(common.LogText("error marshalling stream response: %s", err.Error()))
-				return true
-			}
-			usage = zhipuUsage
-			c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonResponse)})
-			return true
-		case <-stopChan:
-			c.Render(-1, common.CustomEvent{Data: "data: [DONE]"})
+		case <-ctx.Done():
 			return false
 		}
 	})
-	service.CloseResponseBodyGracefully(resp)
 	return usage, nil
 }
 

@@ -1,9 +1,11 @@
 package palm
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -54,21 +56,30 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 	responseText := ""
 	responseId := helper.GetResponseID(c)
 	createdTime := common.GetTimestamp()
-	dataChan := make(chan string)
-	stopChan := make(chan bool)
-	go func() {
+	// The upstream body is read in its own goroutine, so the handler owns its
+	// shutdown: canceling the request context releases a producer blocked on a send
+	// when the client disconnects, and closing the body before waiting releases a
+	// read parked on a stalled upstream.
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	dataChan := make(chan string, 4)
+	var wg sync.WaitGroup
+	defer func() {
+		cancel()
+		service.CloseResponseBodyGracefully(resp)
+		wg.Wait()
+	}()
+
+	wg.Go(func() {
+		defer close(dataChan)
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			common.SysLog(common.LogText("error reading stream response: %s", err.Error()))
-			stopChan <- true
 			return
 		}
-		service.CloseResponseBodyGracefully(resp)
 		var palmResponse PaLMChatResponse
 		err = json.Unmarshal(responseBody, &palmResponse)
 		if err != nil {
 			common.SysLog(common.LogText("error unmarshalling stream response: %s", err.Error()))
-			stopChan <- true
 			return
 		}
 		fullTextResponse := streamResponsePaLM2OpenAI(&palmResponse)
@@ -80,24 +91,28 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 		jsonResponse, err := json.Marshal(fullTextResponse)
 		if err != nil {
 			common.SysLog(common.LogText("error marshalling stream response: %s", err.Error()))
-			stopChan <- true
 			return
 		}
-		dataChan <- string(jsonResponse)
-		stopChan <- true
-	}()
+		select {
+		case dataChan <- string(jsonResponse):
+		case <-ctx.Done():
+		}
+	})
+
 	helper.SetEventStreamHeaders(c)
 	c.Stream(func(w io.Writer) bool {
 		select {
-		case data := <-dataChan:
+		case data, ok := <-dataChan:
+			if !ok {
+				c.Render(-1, common.CustomEvent{Data: "data: [DONE]"})
+				return false
+			}
 			c.Render(-1, common.CustomEvent{Data: "data: " + data})
 			return true
-		case <-stopChan:
-			c.Render(-1, common.CustomEvent{Data: "data: [DONE]"})
+		case <-ctx.Done():
 			return false
 		}
 	})
-	service.CloseResponseBodyGracefully(resp)
 	return nil, responseText
 }
 

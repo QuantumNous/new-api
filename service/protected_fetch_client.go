@@ -18,6 +18,18 @@ type ssrfResolver interface {
 	LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error)
 }
 
+const (
+	// protectedFetchDefaultTimeout bounds a whole protected fetch (dial, TLS,
+	// headers, body). RELAY_TIMEOUT=0 disables the relay timeout, and a fetch of a
+	// user-supplied URL must not inherit that unbounded behaviour: an upstream that
+	// accepts the connection and then stalls would park the goroutine forever.
+	protectedFetchDefaultTimeout = 5 * time.Minute
+	// protectedFetchResponseHeaderTimeout only bounds the wait for response
+	// headers, so a silent upstream fails fast while a large media download may
+	// still use the whole client timeout for its body.
+	protectedFetchResponseHeaderTimeout = 30 * time.Second
+)
+
 type protectedFetchDialer struct {
 	resolver      ssrfResolver
 	dialContext   func(ctx context.Context, network, address string) (net.Conn, error)
@@ -91,8 +103,12 @@ func newProtectedFetchHTTPClientWithProxy(resolver ssrfResolver, dialContext fun
 		},
 		CheckRedirect: checkProtectedFetchRedirect,
 	}
-	if common.RelayTimeout != 0 {
-		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
+	if common.RelayTimeout > 0 {
+		// Clamp before converting so an excessively large value cannot overflow
+		// time.Duration and wrap into a tiny timeout.
+		client.Timeout = time.Duration(min(common.RelayTimeout, maxTimeoutSeconds)) * time.Second
+	} else {
+		client.Timeout = protectedFetchDefaultTimeout
 	}
 	return client
 }
@@ -154,12 +170,13 @@ func (t *ssrfProtectedRoundTripper) newTransport(proxyURL *url.URL) *http.Transp
 	}
 
 	transport := &http.Transport{
-		MaxIdleConns:        common.RelayMaxIdleConns,
-		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
-		IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
-		ForceAttemptHTTP2:   true,
-		Proxy:               proxyFunc,
-		DialContext:         dialContext,
+		MaxIdleConns:          common.RelayMaxIdleConns,
+		MaxIdleConnsPerHost:   common.RelayMaxIdleConnsPerHost,
+		IdleConnTimeout:       time.Duration(common.RelayIdleConnTimeout) * time.Second,
+		ResponseHeaderTimeout: protectedFetchResponseHeaderTimeout,
+		ForceAttemptHTTP2:     true,
+		Proxy:                 proxyFunc,
+		DialContext:           dialContext,
 	}
 	if common.TLSInsecureSkipVerify {
 		transport.TLSClientConfig = common.InsecureTLSConfig.Clone()
