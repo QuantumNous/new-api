@@ -94,6 +94,17 @@ func GetCustomOAuthProviderById(id int) (*CustomOAuthProvider, error) {
 	return &provider, nil
 }
 
+// GetCustomOAuthProvidersByIds returns the providers for the given ids in one
+// query, so a list of bindings does not issue one query per binding.
+func GetCustomOAuthProvidersByIds(ids []int) ([]*CustomOAuthProvider, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var providers []*CustomOAuthProvider
+	err := DB.Where("id IN ?", ids).Find(&providers).Error
+	return providers, err
+}
+
 // GetCustomOAuthProviderBySlug returns a custom OAuth provider by slug
 func GetCustomOAuthProviderBySlug(slug string) (*CustomOAuthProvider, error) {
 	var provider CustomOAuthProvider

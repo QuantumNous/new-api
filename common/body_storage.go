@@ -40,6 +40,52 @@ type ReplayableBody interface {
 // ErrStorageClosed 存储已关闭错误
 var ErrStorageClosed = fmt.Errorf("body storage is closed")
 
+const (
+	// BodyMemoryLimitBytes caps how much of one request body stays in RAM; larger
+	// payloads are offloaded to a temporary file so a 128MB upstream response does
+	// not have to fit in the heap.
+	BodyMemoryLimitBytes int64 = 5 << 20
+	// BodyMemoryBudgetBytes caps the payload memory of the whole process. Once the
+	// tracked in-memory bodies reach it, further payloads go to disk even though
+	// each one is below BodyMemoryLimitBytes, so concurrency cannot exhaust RAM.
+	BodyMemoryBudgetBytes int64 = 64 << 20
+)
+
+// bodyMemoryAvailable reports whether size more bytes still fit in the
+// process-wide body memory budget.
+func bodyMemoryAvailable(size int64) bool {
+	return atomic.LoadInt64(&diskCacheStats.CurrentMemoryUsageBytes)+size <= BodyMemoryBudgetBytes
+}
+
+// newOffloadedStorage writes a payload that must not stay in RAM to a temporary
+// file. The file is created with os.CreateTemp and removed when the storage is
+// closed, independent of the disk-cache setting.
+func newOffloadedStorage(reader io.Reader, maxBytes int64) (*diskStorage, error) {
+	file, err := os.CreateTemp("", "new-api-body-*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp body file: %w", err)
+	}
+	filePath := file.Name()
+	written, err := io.Copy(file, io.LimitReader(reader, maxBytes+1))
+	if err == nil && written > maxBytes {
+		err = ErrRequestBodyTooLarge
+	}
+	if err == nil {
+		_, err = file.Seek(0, io.SeekStart)
+	}
+	if err != nil {
+		file.Close()
+		os.Remove(filePath)
+		return nil, fmt.Errorf("failed to offload body to a temp file: %w", err)
+	}
+	IncrementDiskFiles(written)
+	return &diskStorage{
+		file:     file,
+		filePath: filePath,
+		size:     written,
+	}, nil
+}
+
 // memoryStorage 内存存储实现
 type memoryStorage struct {
 	data   []byte
@@ -285,6 +331,17 @@ func (d *diskStorage) IsDisk() bool {
 // CreateBodyStorage 根据数据大小创建合适的存储
 func CreateBodyStorage(data []byte) (BodyStorage, error) {
 	size := int64(len(data))
+
+	// 超出单请求限制或全局内存预算的数据必须先落盘，不能在堆内存中驻留。
+	if size > BodyMemoryLimitBytes || !bodyMemoryAvailable(size) {
+		storage, err := newOffloadedStorage(bytes.NewReader(data), size)
+		if err != nil {
+			SysError(LogText("failed to offload body storage to disk, falling back to memory: %v", err))
+			return newMemoryStorage(data), nil
+		}
+		return storage, nil
+	}
+
 	threshold := GetDiskCacheThresholdBytes()
 
 	// 检查是否应该使用磁盘缓存
@@ -325,25 +382,55 @@ func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes
 		return storage, nil
 	}
 
-	// 使用内存读取
-	data, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(data)) > maxBytes {
-		return nil, ErrRequestBodyTooLarge
+	// 长度已知且在当前内存预算内：直接读入内存。
+	if contentLength > 0 && contentLength <= BodyMemoryLimitBytes && bodyMemoryAvailable(contentLength) {
+		data, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
+		if err != nil {
+			return nil, err
+		}
+		if int64(len(data)) > maxBytes {
+			return nil, ErrRequestBodyTooLarge
+		}
+		storage, err := CreateBodyStorage(data)
+		if err != nil {
+			return nil, err
+		}
+		if storage.IsDisk() {
+			IncrementDiskCacheHits()
+		} else {
+			IncrementMemoryCacheHits()
+		}
+		return storage, nil
 	}
 
-	storage, err := CreateBodyStorage(data)
+	// 长度未知或超出内存预算：先读满内存上限，确认还有剩余数据时才把整段数据
+	// offload 到临时文件，避免普通的分块请求也全部写磁盘。
+	headLimit := min(BodyMemoryLimitBytes+1, maxBytes+1)
+	head, err := io.ReadAll(io.LimitReader(reader, headLimit))
 	if err != nil {
 		return nil, err
 	}
-	// 如果最终使用内存存储，记录内存缓存命中
-	if !storage.IsDisk() {
-		IncrementMemoryCacheHits()
-	} else {
-		IncrementDiskCacheHits()
+	if int64(len(head)) > maxBytes {
+		return nil, ErrRequestBodyTooLarge
 	}
+	if int64(len(head)) < headLimit {
+		storage, err := CreateBodyStorage(head)
+		if err != nil {
+			return nil, err
+		}
+		if storage.IsDisk() {
+			IncrementDiskCacheHits()
+		} else {
+			IncrementMemoryCacheHits()
+		}
+		return storage, nil
+	}
+
+	storage, err := newOffloadedStorage(io.MultiReader(bytes.NewReader(head), reader), maxBytes)
+	if err != nil {
+		return nil, err
+	}
+	IncrementDiskCacheHits()
 	return storage, nil
 }
 

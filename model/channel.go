@@ -743,6 +743,27 @@ func hasEnabledMultiKey(keys []string, statusList map[int]int) bool {
 	return false
 }
 
+// GetChannelStatusesByIds returns the stored status of each requested channel in
+// one query, so a batch operation can skip channels that already match the
+// target state instead of reading them one by one.
+func GetChannelStatusesByIds(channelIds []int) (map[int]int, error) {
+	statuses := make(map[int]int, len(channelIds))
+	if len(channelIds) == 0 {
+		return statuses, nil
+	}
+	var rows []struct {
+		Id     int
+		Status int
+	}
+	if err := DB.Model(&Channel{}).Select("id, status").Where("id IN ?", channelIds).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		statuses[row.Id] = row.Status
+	}
+	return statuses, nil
+}
+
 func UpdateChannelStatus(channelId int, usingKey string, status int, reason string) bool {
 	if common.MemoryCacheEnabled {
 		channelStatusLock.Lock()

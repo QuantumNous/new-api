@@ -442,10 +442,23 @@ func buildUserOAuthBindingsResponse(userId int) ([]UserOAuthBindingResponse, err
 		return nil, err
 	}
 
+	providerIds := make([]int, 0, len(bindings))
+	for _, binding := range bindings {
+		providerIds = append(providerIds, binding.ProviderId)
+	}
+	providers, err := model.GetCustomOAuthProvidersByIds(providerIds)
+	if err != nil {
+		return nil, err
+	}
+	providerById := make(map[int]*model.CustomOAuthProvider, len(providers))
+	for _, provider := range providers {
+		providerById[provider.Id] = provider
+	}
+
 	response := make([]UserOAuthBindingResponse, 0, len(bindings))
 	for _, binding := range bindings {
-		provider, err := model.GetCustomOAuthProviderById(binding.ProviderId)
-		if err != nil {
+		provider, ok := providerById[binding.ProviderId]
+		if !ok {
 			continue
 		}
 		response = append(response, UserOAuthBindingResponse{

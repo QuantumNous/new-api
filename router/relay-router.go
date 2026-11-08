@@ -222,8 +222,13 @@ func SetRelayRouter(router *gin.Engine) {
 }
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {
-	relayMjRouter.GET("/image/:id", relay.RelayMidjourneyImage)
-	relayMjRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	// 图片是任务产出的租户数据，必须先通过 TokenAuth 才能访问。Distribute 只
+	// 服务于需要选择上游渠道的请求，图片服务沿用任务自身的渠道，因此单独分组。
+	relayMjRouter.Use(middleware.TokenAuth())
+	{
+		relayMjRouter.GET("/image/:id", relay.RelayMidjourneyImage)
+	}
+	relayMjRouter.Use(middleware.Distribute())
 	{
 		relayMjRouter.POST("/submit/action", controller.RelayMidjourney)
 		relayMjRouter.POST("/submit/shorten", controller.RelayMidjourney)

@@ -412,6 +412,9 @@ func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+// emailQuery stays case-insensitive: rows written before email normalization
+// existed may still hold mixed-case addresses, and a login or registration must
+// not silently miss them.
 func emailQuery(tx *gorm.DB, email string) *gorm.DB {
 	if tx == nil {
 		tx = DB

@@ -146,6 +146,42 @@ func TestGeminiRelayHandsLongRunningPredictionToPluginRoute(t *testing.T) {
 	}
 }
 
+func TestMidjourneyImageRequiresTokenAndOwnership(t *testing.T) {
+	setupRelayRouterTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Midjourney{}))
+
+	owner := model.User{Username: "mj-owner", Status: common.UserStatusEnabled, Group: "default", Quota: 100, AffCode: "mjowner"}
+	require.NoError(t, model.DB.Create(&owner).Error)
+	intruder := model.User{Username: "mj-intruder", Status: common.UserStatusEnabled, Group: "default", Quota: 100, AffCode: "mjintruder"}
+	require.NoError(t, model.DB.Create(&intruder).Error)
+	require.NoError(t, model.DB.Create(&model.Token{
+		UserId:         intruder.Id,
+		Key:            "mjintruderkey",
+		Status:         common.TokenStatusEnabled,
+		ExpiredTime:    -1,
+		UnlimitedQuota: true,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Midjourney{
+		UserId:    owner.Id,
+		MjId:      "mj-owned-task",
+		ImageUrl:  "https://example.com/image.png",
+		ChannelId: 1,
+	}).Error)
+
+	engine := gin.New()
+	SetRelayRouter(engine)
+
+	anonymous := httptest.NewRecorder()
+	engine.ServeHTTP(anonymous, httptest.NewRequest(http.MethodGet, "/mj/image/mj-owned-task", nil))
+	assert.Equal(t, http.StatusUnauthorized, anonymous.Code, "the image route must sit behind TokenAuth")
+
+	tokenRequest := httptest.NewRequest(http.MethodGet, "/mj/image/mj-owned-task", nil)
+	tokenRequest.Header.Set("Authorization", "Bearer mjintruderkey")
+	intruderResponse := httptest.NewRecorder()
+	engine.ServeHTTP(intruderResponse, tokenRequest)
+	assert.Equal(t, http.StatusNotFound, intruderResponse.Code, "another tenant must not fetch the image")
+}
+
 func setupRelayRouterTestDB(t *testing.T) {
 	t.Helper()
 

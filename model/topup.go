@@ -20,9 +20,9 @@ type TopUp struct {
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	CreateTime      int64   `json:"create_time"`
+	CreateTime      int64   `json:"create_time" gorm:"index"`
 	CompleteTime    int64   `json:"complete_time"`
-	Status          string  `json:"status"`
+	Status          string  `json:"status" gorm:"index"`
 }
 
 const (

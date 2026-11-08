@@ -1339,9 +1339,20 @@ func BatchUpdateChannelStatus(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
+	// 一次查询读出现状：批量启用时已经启用且无特殊原因的渠道无需逐条
+	// SELECT + UPDATE。其余状态变更还要维护缓存、多 Key 状态与 Ability，
+	// 仍逐条更新以保持原有语义。
+	statuses, err := model.GetChannelStatusesByIds(req.Ids)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	changedCount := 0
 	var disabledIDs []int
 	for _, id := range req.Ids {
+		if status, ok := statuses[id]; ok && req.Status == common.ChannelStatusEnabled && status == common.ChannelStatusEnabled {
+			continue
+		}
 		if model.UpdateChannelStatus(id, "", req.Status, "manual batch operation") {
 			changedCount++
 			if req.Status != common.ChannelStatusEnabled {

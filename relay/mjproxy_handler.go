@@ -29,8 +29,11 @@ import (
 func RelayMidjourneyImage(c *gin.Context) {
 	taskId := c.Param("id")
 	midjourneyTask := model.GetByOnlyMJId(taskId)
-	if midjourneyTask == nil {
-		c.JSON(400, gin.H{
+	// A task id is not a capability: the image belongs to the user who submitted
+	// the task, so another tenant holding the id must not be able to fetch it.
+	// Both cases answer the same way so ids cannot be probed for existence.
+	if midjourneyTask == nil || midjourneyTask.UserId != c.GetInt("id") {
+		c.JSON(http.StatusNotFound, gin.H{
 			"error": "midjourney_task_not_found",
 		})
 		return
