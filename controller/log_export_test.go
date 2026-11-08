@@ -244,3 +244,25 @@ func TestAcquireLogExportLock(t *testing.T) {
 		})
 	}
 }
+
+// The caller's own statistics must be scoped by user id: usernames are reusable
+// after a hard delete, and a username query parameter must not widen the scope.
+func TestGetLogsSelfStatScopesByUserIdNotReusedUsername(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, _ := newAuditTestDatabase(t, "sqlite", "")
+	useLogExportDatabases(t, db, db, common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+	username := "reused-self-stat"
+	now := time.Now().Unix()
+	rows := []model.Log{
+		{UserId: 1, Username: username, Type: model.LogTypeConsume, Quota: 100, CreatedAt: now},
+		{UserId: 2, Username: username, Type: model.LogTypeConsume, Quota: 700, CreatedAt: now},
+	}
+	for i := range rows {
+		require.NoError(t, db.Create(&rows[i]).Error)
+	}
+
+	response := callLogHandler(t, GetLogsSelfStat, 2, common.RoleCommonUser, "username="+username)[0]
+	require.Equal(t, true, response["success"])
+	assert.EqualValues(t, 700, response["data"].(map[string]any)["quota"])
+}

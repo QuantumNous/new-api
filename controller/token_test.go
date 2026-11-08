@@ -791,7 +791,7 @@ func verifyAPITokenAudit(t *testing.T) {
 	tokenRoutes.GET("/", GetAllTokens)
 	tokenRoutes.GET("/:id", GetToken)
 	tokenRoutes.GET("/search", SearchTokens)
-	router.GET("/api/audit/self", middleware.UserAuth(), GetAuditLogs)
+	router.GET("/api/audit/self", middleware.UserAuth(), GetSelfAuditLogs)
 
 	for index, tc := range []struct {
 		name, method, path, body, action string

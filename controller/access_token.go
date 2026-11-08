@@ -342,19 +342,34 @@ func RevokeLegacyAccessToken(c *gin.Context) {
 	common.ApiSuccess(c, nil)
 }
 
-func GetAuditLogs(c *gin.Context) {
+// GetSelfAuditLogs always scopes the query to the authenticated caller. It never
+// inspects the route it was registered on, so a new route cannot silently turn
+// the self view into an administrator view.
+func GetSelfAuditLogs(c *gin.Context) {
+	filter := auditLogFilterFromQuery(c)
+	filter.UserId = c.GetInt("id")
+	filter.Username = ""
+	filter.SelfView = true
+	respondAuditLogs(c, filter)
+}
+
+// GetAdminAuditLogs serves the administrator-wide audit view and applies no
+// implicit user scoping.
+func GetAdminAuditLogs(c *gin.Context) {
+	respondAuditLogs(c, auditLogFilterFromQuery(c))
+}
+
+func auditLogFilterFromQuery(c *gin.Context) model.AuditLogFilter {
+	return model.AuditLogFilter{Username: c.Query("username"), Category: c.Query("category"), TokenRef: c.Query("token_ref"), ExcludeTokenRef: c.Query("exclude_token_ref"), RequestId: c.Query("request_id")}
+}
+
+func respondAuditLogs(c *gin.Context, filter model.AuditLogFilter) {
 	page := common.GetPageQuery(c)
 	if page.Page < 1 || page.PageSize < 1 || page.Page > 100000000 {
 		common.ApiErrorMsg(c, "Invalid audit pagination")
 		return
 	}
-	filter := model.AuditLogFilter{Username: c.Query("username"), Category: c.Query("category"), TokenRef: c.Query("token_ref"), ExcludeTokenRef: c.Query("exclude_token_ref"), RequestId: c.Query("request_id")}
 	viewerRole := c.GetInt("role")
-	if c.FullPath() == "/api/audit/self" {
-		filter.UserId = c.GetInt("id")
-		filter.Username = ""
-		filter.SelfView = true
-	}
 	if !model.ValidAuditCategory(filter.Category) || !model.ValidTokenFingerprint(filter.TokenRef) || !model.ValidTokenFingerprint(filter.ExcludeTokenRef) {
 		common.ApiErrorMsg(c, "Invalid audit filters")
 		return
