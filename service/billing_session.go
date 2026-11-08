@@ -53,6 +53,15 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	if actualQuota < 0 {
 		return errors.New("actual quota must not be negative")
 	}
+	if sub, ok := s.funding.(*SubscriptionFunding); ok {
+		tokenId := s.relayInfo.TokenId
+		if s.relayInfo.IsPlayground {
+			tokenId = 0
+		}
+		if err := model.RegisterSubscriptionFundingAccounting(sub.requestId, tokenId, int64(s.tokenConsumed), 0); err != nil {
+			return err
+		}
+	}
 	delta := actualQuota - s.preConsumedQuota
 	committedQuota := actualQuota
 	var fundingErr error
@@ -77,7 +86,15 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	// 2) 调整令牌额度
 	var tokenErr error
 	tokenDelta := committedQuota - s.tokenConsumed
-	if tokenDelta != 0 && !s.relayInfo.IsPlayground {
+	if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.settlement != nil {
+		var publication *model.SubscriptionFundingPublication
+		publication, tokenErr = model.PublishSubscriptionFundingAccounting(sub.requestId)
+		if tokenErr == nil {
+			committedQuota = int(publication.Amount)
+			s.relayInfo.SubscriptionWalletConsumed = publication.WalletAmount
+			s.relayInfo.SubscriptionUnfunded = publication.UnfundedAmount
+		}
+	} else if tokenDelta != 0 && !s.relayInfo.IsPlayground {
 		if tokenDelta > 0 {
 			tokenErr = model.DecreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, tokenDelta)
 		} else {

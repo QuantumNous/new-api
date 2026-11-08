@@ -88,6 +88,11 @@ func TestSubscriptionSettlementFundingMatrix(t *testing.T) {
 				assert.Zero(t, upgraded.SettlementAmount)
 				assert.Zero(t, upgraded.WalletSettledAmount)
 				assert.False(t, upgraded.WalletAuthorized)
+				assert.False(t, upgraded.WalletRecoveryPending)
+				assert.False(t, upgraded.TokenAccountingReady)
+				assert.Zero(t, upgraded.FundingTokenId)
+				assert.Zero(t, upgraded.TokenAccounted)
+				assert.Zero(t, upgraded.FundingTaskId)
 				duplicate := model.SubscriptionPreConsumeRecord{RequestId: old.RequestId}
 				// Savepoints keep PostgreSQL usable after the expected unique violation.
 				err := db.Transaction(func(tx *gorm.DB) error { return tx.Table("ticket05_upgrade_records").Create(&duplicate).Error })
@@ -141,7 +146,9 @@ func TestSubscriptionLifecycleConcurrencyMatrix(t *testing.T) {
 				common.SetDatabaseTypes(oldMain, oldLog)
 				require.NoError(t, sqlDB.Close())
 			})
-			require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{}, &model.SubscriptionQuotaOperation{}))
+			for range 2 {
+				require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.SubscriptionPreConsumeRecord{}, &model.SubscriptionQuotaOperation{}))
+			}
 			var version string
 			versionQuery := "SELECT VERSION()"
 			if dialect == "sqlite" {
@@ -398,6 +405,43 @@ func TestSubscriptionLifecycleConcurrencyMatrix(t *testing.T) {
 				require.NoError(t, db.First(&updated, sub.Id).Error)
 				assert.EqualValues(t, 0, updated.AmountReserved)
 				assert.EqualValues(t, 10, updated.WindowAmountUsed)
+			})
+
+			t.Run("foreground and maintenance share wallet and token receipts", func(t *testing.T) {
+				ctx, info, _ := subscriptionFundingFixture(t, db, 400, 340, 100, 60, true)
+				token := model.Token{UserId: info.UserId, Key: fmt.Sprintf("recovery-%s-%d", dialect, info.UserId), RemainQuota: 1000}
+				require.NoError(t, db.Create(&token).Error)
+				t.Cleanup(func() { require.NoError(t, db.Unscoped().Delete(&token).Error) })
+				info.IsPlayground, info.TokenId, info.TokenKey = false, token.Id, token.Key
+				session, apiErr := NewBillingSession(ctx, info, 10)
+				require.Nil(t, apiErr)
+				require.NoError(t, model.RegisterSubscriptionFundingAccounting(info.RequestId, token.Id, 10, 0))
+				_, err := model.SettleUserSubscriptionFunding(info.RequestId, 80)
+				require.NoError(t, err)
+				start := make(chan struct{})
+				var wait sync.WaitGroup
+				results := make(chan error, 2)
+				wait.Go(func() {
+					<-start
+					results <- session.Settle(90)
+				})
+				wait.Go(func() {
+					<-start
+					_, err := model.RetryPendingSubscriptionWalletSettlements(300)
+					results <- err
+				})
+				close(start)
+				wait.Wait()
+				close(results)
+				for err := range results {
+					require.NoError(t, err)
+				}
+				wallet, err := model.GetUserQuota(info.UserId, true)
+				require.NoError(t, err)
+				assert.Equal(t, 170, wallet)
+				require.NoError(t, db.First(&token, token.Id).Error)
+				assert.Equal(t, 910, token.RemainQuota)
+				assert.Equal(t, 90, token.UsedQuota)
 			})
 
 			t.Run("concurrent settlements preserve total accounting", func(t *testing.T) {
@@ -674,8 +718,14 @@ func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 		require.NoError(t, err)
 		assert.Equal(t, 200, wallet)
 		failWallet = false
-		// Reload the persisted task to exercise a retry independent of memory.
-		require.NoError(t, db.First(&task, task.ID).Error)
+		// Maintenance recovers the charge without a foreground task retry.
+		completed, err := model.RetryPendingSubscriptionWalletSettlements(300)
+		require.NoError(t, err)
+		assert.Equal(t, 1, completed)
+		completed, err = model.RetryPendingSubscriptionWalletSettlements(300)
+		require.NoError(t, err)
+		assert.Zero(t, completed)
+		// A stale foreground task must not publish the recovered amount again.
 		RecalculateTaskQuota(ctx, &task, 90, common.NewMessage("async retry"))
 		RecalculateTaskQuota(ctx, &task, 90, common.NewMessage("async duplicate"))
 		wallet, err = model.GetUserQuota(info.UserId, true)
@@ -772,8 +822,12 @@ func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 		// Fail the wallet marker write after its debit, so the wallet transaction
 		// must roll back while the earlier subscription transaction stays committed.
 		failWallet := true
+		failRecoveryToken := false
 		callback := "ticket05_wallet_failure"
 		require.NoError(t, db.Callback().Update().Before("gorm:update").Register(callback, func(tx *gorm.DB) {
+			if tx.Statement.Table == "tokens" && failRecoveryToken {
+				tx.AddError(errors.New("recovery token write failed"))
+			}
 			if record, ok := tx.Statement.Dest.(*model.SubscriptionPreConsumeRecord); ok && record.WalletSettledAmount > 0 && failWallet {
 				tx.AddError(errors.New("wallet marker write failed"))
 			}
@@ -796,6 +850,20 @@ func runSubscriptionSettlementFundingCases(t *testing.T, db *gorm.DB) {
 		assert.EqualValues(t, 30, other.Snapshot()["unfunded_quota"])
 		assert.EqualValues(t, 0, other.Snapshot()["wallet_quota_deducted"])
 		failWallet = false
+		failRecoveryToken = true
+		completed, err := model.RetryPendingSubscriptionWalletSettlements(300)
+		require.ErrorContains(t, err, "recovery token write failed")
+		assert.Zero(t, completed)
+		wallet, err = model.GetUserQuota(info.UserId, true)
+		require.NoError(t, err)
+		assert.Equal(t, 200, wallet, "a failed recovery must roll back its wallet debit")
+		failRecoveryToken = false
+		completed, err = model.RetryPendingSubscriptionWalletSettlements(300)
+		require.NoError(t, err)
+		assert.Equal(t, 1, completed)
+		completed, err = model.RetryPendingSubscriptionWalletSettlements(300)
+		require.NoError(t, err)
+		assert.Zero(t, completed)
 		require.NoError(t, session.Settle(90))
 		require.NoError(t, session.Settle(90))
 		require.NoError(t, db.First(&token, token.Id).Error)

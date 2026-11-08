@@ -2014,27 +2014,32 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 
 // SubscriptionPreConsumeRecord stores idempotent pre-consume operations per request.
 type SubscriptionPreConsumeRecord struct {
-	Id                   int    `json:"id"`
-	RequestId            string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
-	UserId               int    `json:"user_id" gorm:"index"`
-	UserSubscriptionId   int    `json:"user_subscription_id" gorm:"index"`
-	PlanVersionId        int    `json:"plan_version_id" gorm:"index"`
-	PreConsumed          int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
-	ResetGeneration      int64  `json:"reset_generation" gorm:"type:bigint;not null;default:0"`
-	SettledAmount        int64  `json:"settled_amount" gorm:"type:bigint;not null;default:0"`
-	SettlementAmount     int64  `json:"settlement_amount" gorm:"type:bigint;not null;default:0"`
-	WalletSettledAmount  int64  `json:"wallet_settled_amount" gorm:"type:bigint;not null;default:0"`
-	WalletAuthorized     bool   `json:"wallet_authorized" gorm:"not null;default:false"`
-	AccountingVersion    int    `json:"accounting_version" gorm:"not null;default:0"`
-	CounterAmount        int64  `json:"counter_amount" gorm:"type:bigint;not null;default:0"`
-	WindowCharged        int64  `json:"window_charged" gorm:"type:bigint;not null;default:0"`
-	ChargedGeneration    int64  `json:"charged_generation" gorm:"type:bigint;not null;default:0"`
-	RefundedAmount       int64  `json:"refunded_amount" gorm:"type:bigint;not null;default:0"`
-	WalletRefundedAmount int64  `json:"wallet_refunded_amount" gorm:"type:bigint;not null;default:0"`
-	FundingClosed        bool   `json:"funding_closed" gorm:"not null;default:false"`
-	Status               string `json:"status" gorm:"type:varchar(32);index"` // reserved/consumed/settled/refunded
-	CreatedAt            int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt            int64  `json:"updated_at" gorm:"bigint;index"`
+	Id                    int    `json:"id"`
+	RequestId             string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
+	UserId                int    `json:"user_id" gorm:"index"`
+	UserSubscriptionId    int    `json:"user_subscription_id" gorm:"index"`
+	PlanVersionId         int    `json:"plan_version_id" gorm:"index"`
+	PreConsumed           int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
+	ResetGeneration       int64  `json:"reset_generation" gorm:"type:bigint;not null;default:0"`
+	SettledAmount         int64  `json:"settled_amount" gorm:"type:bigint;not null;default:0"`
+	SettlementAmount      int64  `json:"settlement_amount" gorm:"type:bigint;not null;default:0"`
+	WalletSettledAmount   int64  `json:"wallet_settled_amount" gorm:"type:bigint;not null;default:0"`
+	WalletAuthorized      bool   `json:"wallet_authorized" gorm:"not null;default:false"`
+	WalletRecoveryPending bool   `json:"wallet_recovery_pending" gorm:"not null;default:false;index"`
+	AccountingVersion     int    `json:"accounting_version" gorm:"not null;default:0"`
+	CounterAmount         int64  `json:"counter_amount" gorm:"type:bigint;not null;default:0"`
+	WindowCharged         int64  `json:"window_charged" gorm:"type:bigint;not null;default:0"`
+	ChargedGeneration     int64  `json:"charged_generation" gorm:"type:bigint;not null;default:0"`
+	RefundedAmount        int64  `json:"refunded_amount" gorm:"type:bigint;not null;default:0"`
+	WalletRefundedAmount  int64  `json:"wallet_refunded_amount" gorm:"type:bigint;not null;default:0"`
+	FundingClosed         bool   `json:"funding_closed" gorm:"not null;default:false"`
+	TokenAccountingReady  bool   `json:"token_accounting_ready" gorm:"not null;default:false"`
+	FundingTokenId        int    `json:"funding_token_id" gorm:"not null;default:0"`
+	TokenAccounted        int64  `json:"token_accounted" gorm:"type:bigint;not null;default:0"`
+	FundingTaskId         int64  `json:"funding_task_id" gorm:"type:bigint;not null;default:0"`
+	Status                string `json:"status" gorm:"type:varchar(32);index"` // reserved/consumed/settled/refunded
+	CreatedAt             int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt             int64  `json:"updated_at" gorm:"bigint;index"`
 }
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
@@ -2643,6 +2648,7 @@ func SettleUserSubscriptionFunding(requestId string, delta int64) (*Subscription
 			record.SettledAmount = actual
 		}
 		record.AccountingVersion = 1
+		record.WalletRecoveryPending = sub.QuotaModelVersion > 0 && sub.AllowWalletOverflow && record.WalletAuthorized && record.SettlementAmount > record.SettledAmount
 		record.CounterAmount = actual
 		record.ChargedGeneration = sub.ResetGeneration
 		if err := tx.Save(&sub).Error; err != nil {
@@ -2676,38 +2682,11 @@ func SettleSubscriptionWalletOverflow(requestId string) (int64, error) {
 			return err
 		}
 		sub, record := *lockedSub, *lockedRecord
-		if record.Status != "settled" || record.FundingClosed {
-			return errors.New("subscription funding has not settled")
-		}
-		walletAmount = record.WalletSettledAmount
-		remaining := record.SettlementAmount - record.SettledAmount - walletAmount
-		if remaining <= 0 {
-			return nil
-		}
-		if sub.QuotaModelVersion == 0 || !sub.AllowWalletOverflow || !record.WalletAuthorized {
-			return errors.New("subscription wallet overflow is disabled")
-		}
 		userId = record.UserId
-		var user User
-		if err := lockForUpdate(tx).First(&user, userId).Error; err != nil {
+		charged, err = settleSubscriptionWalletOverflowTx(tx, &sub, &record)
+		if err != nil {
 			return err
 		}
-		minInt64 := -int64(^uint64(0)>>1) - 1
-		if int64(user.Quota) < minInt64+remaining {
-			return errors.New("wallet settlement exceeds supported quota")
-		}
-		update := tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota - ?", remaining))
-		if update.Error != nil {
-			return update.Error
-		}
-		if update.RowsAffected != 1 {
-			return gorm.ErrRecordNotFound
-		}
-		record.WalletSettledAmount += remaining
-		if err := tx.Save(&record).Error; err != nil {
-			return err
-		}
-		charged = remaining
 		walletAmount = record.WalletSettledAmount
 		return nil
 	})
@@ -2720,6 +2699,37 @@ func SettleSubscriptionWalletOverflow(requestId string) (int64, error) {
 		}
 	}
 	return walletAmount, nil
+}
+
+func settleSubscriptionWalletOverflowTx(tx *gorm.DB, sub *UserSubscription, record *SubscriptionPreConsumeRecord) (int64, error) {
+	if record.Status != "settled" || record.FundingClosed {
+		return 0, errors.New("subscription funding has not settled")
+	}
+	remaining := record.SettlementAmount - record.SettledAmount - record.WalletSettledAmount
+	if remaining <= 0 {
+		if record.WalletRecoveryPending {
+			record.WalletRecoveryPending = false
+			return 0, tx.Save(record).Error
+		}
+		return 0, nil
+	}
+	if sub.QuotaModelVersion == 0 || !sub.AllowWalletOverflow || !record.WalletAuthorized {
+		return 0, errors.New("subscription wallet overflow is disabled")
+	}
+	var user User
+	if err := lockForUpdate(tx).First(&user, record.UserId).Error; err != nil {
+		return 0, err
+	}
+	minInt64 := -int64(^uint64(0)>>1) - 1
+	if int64(user.Quota) < minInt64+remaining {
+		return 0, errors.New("wallet settlement exceeds supported quota")
+	}
+	if err := tx.Model(&user).Update("quota", gorm.Expr("quota - ?", remaining)).Error; err != nil {
+		return 0, err
+	}
+	record.WalletSettledAmount += remaining
+	record.WalletRecoveryPending = false
+	return remaining, tx.Save(record).Error
 }
 
 // ResetDueSubscriptions resets subscriptions whose next_reset_time has passed.

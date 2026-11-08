@@ -50,6 +50,9 @@ func runSubscriptionQuotaResetOnce() {
 	defer subscriptionResetRunning.Store(false)
 
 	ctx := context.Background()
+	if _, err := model.RetryPendingSubscriptionWalletSettlements(subscriptionResetBatchSize); err != nil {
+		logger.LogWarn(ctx, common.LogText("subscription wallet settlement recovery failed: %v", err))
+	}
 	totalReset := 0
 	totalExpired := 0
 	for {

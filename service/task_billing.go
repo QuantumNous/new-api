@@ -333,7 +333,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	quotaDelta := actualQuota - preConsumedQuota
 	var subscriptionSettlement *model.SubscriptionSettlement
 	var subscriptionCharged, walletCharged int64
-	transactionalReduction := false
+	accountingPublished := false
 	if taskIsSubscription(task) && task.PrivateData.Execution != nil && task.PrivateData.Execution.RequestID != "" && quotaDelta < 0 {
 		refunded, err := model.ReduceSubscriptionTaskFunding(task, actualQuota)
 		if err != nil {
@@ -345,7 +345,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		}
 		quotaDelta = -refunded
 		preConsumedQuota = actualQuota + refunded
-		transactionalReduction = true
+		accountingPublished = true
 	}
 	if taskIsSubscription(task) && task.PrivateData.Execution != nil && task.PrivateData.Execution.RequestID != "" && quotaDelta >= 0 {
 		record, submitted, err := model.PrepareSubscriptionTaskSettlement(task.PrivateData.Execution.RequestID)
@@ -354,6 +354,10 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 			return
 		}
 		if record.RequestId != "" {
+			if err := model.RegisterSubscriptionFundingAccounting(record.RequestId, task.PrivateData.TokenId, 0, task.ID); err != nil {
+				logger.LogError(ctx, common.LogText("failed to prepare task subscription settlement, task %s: %s", task.TaskID, err.Error()))
+				return
+			}
 			funding := &SubscriptionFunding{requestId: record.RequestId, billingPreference: task.PrivateData.BillingPreference}
 			err := funding.Settle(actualQuota - int(submitted))
 			subscriptionSettlement = funding.settlement
@@ -365,8 +369,19 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 			walletCharged = subscriptionSettlement.WalletAmount - record.WalletSettledAmount
 			// Publish only committed money; the unchanged intended completion
 			// cost is recovered from the original submission on an explicit retry.
-			actualQuota = int(submitted + subscriptionSettlement.SubscriptionAmount + subscriptionSettlement.WalletAmount)
-			quotaDelta = actualQuota - preConsumedQuota
+			publication, publishErr := model.PublishSubscriptionFundingAccounting(record.RequestId)
+			if publishErr != nil {
+				logger.LogError(ctx, common.LogText("failed to write back the settled task quota, task %s: %s", task.TaskID, publishErr.Error()))
+				return
+			}
+			actualQuota = publication.TaskQuota
+			subscriptionCharged = publication.SubscriptionAmount - record.SettledAmount
+			walletCharged = publication.WalletAmount - record.WalletSettledAmount
+			subscriptionSettlement.UnfundedAmount = publication.UnfundedAmount
+			quotaDelta = publication.TaskDelta
+			preConsumedQuota = actualQuota - quotaDelta
+			task.Quota = actualQuota
+			accountingPublished = true
 			if err != nil {
 				logger.LogError(ctx, common.LogText("task subscription settlement remains partially funded, task %s: %s", task.TaskID, err.Error()))
 			}
@@ -394,14 +409,14 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	))
 
 	// 调整资金来源
-	if subscriptionSettlement == nil && !transactionalReduction {
+	if subscriptionSettlement == nil && !accountingPublished {
 		if err := taskAdjustFunding(task, quotaDelta); err != nil {
 			logger.LogError(ctx, common.LogText("failed to adjust funding for the difference, task %s: %s", task.TaskID, err.Error()))
 			return
 		}
 	}
 	// 调整令牌额度
-	if !transactionalReduction {
+	if !accountingPublished {
 		taskAdjustTokenQuota(ctx, task, quotaDelta)
 		task.Quota = actualQuota
 		if err := task.UpdateQuota(); err != nil {
