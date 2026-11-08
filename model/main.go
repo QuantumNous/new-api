@@ -367,6 +367,7 @@ func migrateDB() error {
 		&SubscriptionOrder{},
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
+		&WalletRefundRecord{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
@@ -398,6 +399,7 @@ func migrateDB() error {
 			return err
 		}
 	}
+	ensurePerformanceIndexes(DB, "main database", mainDatabaseIndexes)
 	return nil
 }
 
@@ -408,7 +410,11 @@ func migrateLOGDB() error {
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		return migrateClickHouseLogDB()
 	}
-	return LOG_DB.AutoMigrate(&Log{})
+	if err := LOG_DB.AutoMigrate(&Log{}); err != nil {
+		return err
+	}
+	ensurePerformanceIndexes(LOG_DB, "log database", logDatabaseIndexes)
+	return nil
 }
 
 func migrateClickHouseLogDB() error {

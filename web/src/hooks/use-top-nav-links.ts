@@ -46,7 +46,7 @@ export type TopNavLink = {
 export function useTopNavLinks(): TopNavLink[] {
   const { t } = useTranslation()
   const { status } = useStatus()
-  const { auth } = useAuthStore()
+  const isAuthed = useAuthStore((state) => !!state.auth.user)
 
   // Parse HeaderNavModules
   const modules = useMemo(() => {
@@ -57,8 +57,6 @@ export function useTopNavLinks(): TopNavLink[] {
 
   // Documentation link (may be external)
   const docsLink: string | undefined = status?.docs_link as string | undefined
-
-  const isAuthed = !!auth?.user
 
   const links: TopNavLink[] = []
 

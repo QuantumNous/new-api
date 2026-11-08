@@ -83,7 +83,7 @@ export function PublicHeader(props: PublicHeaderProps) {
     useState<AuthPromptTarget | null>(null)
   const [authPromptSecondsLeft, setAuthPromptSecondsLeft] =
     useState(AUTH_PROMPT_SECONDS)
-  const { auth } = useAuthStore()
+  const user = useAuthStore((state) => state.auth.user)
   const {
     systemName,
     logo: systemLogo,
@@ -100,7 +100,6 @@ export function PublicHeader(props: PublicHeaderProps) {
   // Only the public home page is affected; the console sidebar keeps its trigger.
   const showMenuToggle = !(pathname === '/' && hideHomeSidebarToggle)
 
-  const user = auth.user
   const isAuthenticated = !!user
   const displaySiteName = customSiteName || systemName
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks

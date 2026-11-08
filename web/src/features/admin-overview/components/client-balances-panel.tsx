@@ -100,6 +100,7 @@ export function ClientBalancesPanel() {
         })
       ),
     refetchInterval: LIVE_REFRESH_MS,
+    refetchIntervalInBackground: false,
     staleTime: LIVE_REFRESH_MS - 100,
   })
 

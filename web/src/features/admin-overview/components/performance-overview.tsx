@@ -49,6 +49,7 @@ export function PerformanceOverview() {
         await getPerfMetricsSummary(PERFORMANCE_WINDOW_HOURS)
       ),
     refetchInterval: LIVE_REFRESH_MS,
+    refetchIntervalInBackground: false,
     staleTime: LIVE_REFRESH_MS - 100,
     retry: false,
   })

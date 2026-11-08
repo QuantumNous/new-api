@@ -133,6 +133,7 @@ export function ViewLogsDialog({
       ),
     enabled: open && deploymentId !== null && Boolean(containerId),
     refetchInterval: open && autoRefresh ? 5000 : false,
+    refetchIntervalInBackground: false,
   })
 
   const logsText = useMemo(() => {

@@ -60,8 +60,13 @@ function preloadImage(
 export function useSystemConfig(options: UseSystemConfigOptions = {}) {
   const { autoLoad = false } = options
   const queryClient = useQueryClient()
-  const { config, loading, loadedLogoUrl, setLoadedLogoUrl, setLoading } =
-    useSystemConfigStore()
+  const config = useSystemConfigStore((state) => state.config)
+  const loading = useSystemConfigStore((state) => state.loading)
+  const loadedLogoUrl = useSystemConfigStore((state) => state.loadedLogoUrl)
+  const setLoadedLogoUrl = useSystemConfigStore(
+    (state) => state.setLoadedLogoUrl
+  )
+  const setLoading = useSystemConfigStore((state) => state.setLoading)
 
   // Load config from backend via the shared `/api/status` cache.
   // `ensureStatus` writes the mapped config into this store itself, so there is

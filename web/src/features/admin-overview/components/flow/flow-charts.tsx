@@ -344,6 +344,7 @@ export function FlowCharts(props: FlowChartsProps) {
     select: (res) =>
       requireSuccessfulFlowRows(res, t('Please try again later.')),
     refetchInterval: LIVE_REFRESH_MS,
+    refetchIntervalInBackground: false,
     staleTime: LIVE_REFRESH_MS - 100,
   })
 

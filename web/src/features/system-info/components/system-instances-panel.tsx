@@ -510,6 +510,7 @@ export function SystemInstancesPanel() {
     staleTime: 30 * 1000,
     retry: false,
     refetchInterval: INSTANCE_POLL_INTERVAL_MS,
+    refetchIntervalInBackground: false,
   })
 
   const instances = instancesQuery.data ?? []

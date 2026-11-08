@@ -295,7 +295,7 @@ function filterNavItems(
  */
 export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
   const { status } = useStatus()
-  const { auth } = useAuthStore()
+  const authUser = useAuthStore((state) => state.auth.user)
 
   const adminConfig = useMemo(
     () =>
@@ -311,11 +311,11 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
     // historical sidebar_modules value from a previous role would otherwise
     // hide admin entries for someone who has no in-product UI to restore
     // them.
-    if (auth?.user?.permissions?.sidebar_settings === false) {
+    if (authUser?.permissions?.sidebar_settings === false) {
       return null
     }
-    return parseUserSidebarConfig(auth?.user?.sidebar_modules)
-  }, [auth?.user?.permissions?.sidebar_settings, auth?.user?.sidebar_modules])
+    return parseUserSidebarConfig(authUser?.sidebar_modules)
+  }, [authUser?.permissions?.sidebar_settings, authUser?.sidebar_modules])
 
   const filteredNavGroups = useMemo(
     () =>
@@ -338,15 +338,15 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
  */
 export function useIsSidebarModuleVisible(url: string): boolean {
   const { status } = useStatus()
-  const { auth } = useAuthStore()
+  const authUser = useAuthStore((state) => state.auth.user)
 
   const adminConfig = parseSidebarConfig(
     status?.SidebarModulesAdmin as string | null | undefined
   )
   const userConfig =
-    auth?.user?.permissions?.sidebar_settings === false
+    authUser?.permissions?.sidebar_settings === false
       ? null
-      : parseUserSidebarConfig(auth?.user?.sidebar_modules)
+      : parseUserSidebarConfig(authUser?.sidebar_modules)
 
   return isModuleEnabled(url, adminConfig, userConfig)
 }

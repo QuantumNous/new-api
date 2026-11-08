@@ -2,7 +2,9 @@ package model
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -686,6 +688,51 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
+// logStatCacheTTL keeps repeated dashboard polls from re-running the same
+// aggregate over the logs table. Rate figures are always read live, because a
+// 30 second old rpm/tpm would be visibly wrong.
+const logStatCacheTTL = 30 * time.Second
+
+type logQuotaCacheEntry struct {
+	quota     int
+	expiresAt time.Time
+}
+
+var logQuotaCache = struct {
+	sync.Mutex
+	entries map[string]logQuotaCacheEntry
+}{entries: make(map[string]logQuotaCacheEntry)}
+
+// cachedLogQuota returns the summed quota for one stat query, reusing a result
+// for 30 seconds. Entries are bounded and expired ones are dropped before the
+// map grows, so the cache cannot leak memory under arbitrary filter values.
+func cachedLogQuota(key string, load func() (int, error)) (int, error) {
+	now := time.Now()
+	logQuotaCache.Lock()
+	entry, ok := logQuotaCache.entries[key]
+	logQuotaCache.Unlock()
+	if ok && now.Before(entry.expiresAt) {
+		return entry.quota, nil
+	}
+
+	quota, err := load()
+	if err != nil {
+		return 0, err
+	}
+
+	logQuotaCache.Lock()
+	defer logQuotaCache.Unlock()
+	if len(logQuotaCache.entries) >= 1024 {
+		for cacheKey, cached := range logQuotaCache.entries {
+			if now.After(cached.expiresAt) {
+				delete(logQuotaCache.entries, cacheKey)
+			}
+		}
+	}
+	logQuotaCache.entries[key] = logQuotaCacheEntry{quota: quota, expiresAt: now.Add(logStatCacheTTL)}
+	return quota, nil
+}
+
 // SumUsedQuota aggregates consume logs. A positive userId scopes the result to
 // that tenant; username filtering is only for the administrator-wide view.
 // Usernames are reusable after a hard delete, so they must never define a tenant
@@ -737,11 +784,21 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	// 只统计最近60秒的rpm和tpm
 	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
 
-	// 执行查询
-	if err := tx.Scan(&stat).Error; err != nil {
-		common.SysError(common.LogText("failed to query log stat: %s", err.Error()))
-		return stat, common.NewMessage("Failed to query statistics")
+	// 执行查询；总量按查询条件短时缓存，rpm/tpm 仍实时读取。
+	quotaCacheKey := fmt.Sprintf("%d|%d|%d|%s|%d|%s|%s|%d|%s",
+		logType, startTimestamp, endTimestamp, modelName, userId, username, tokenName, channel, group)
+	quota, err := cachedLogQuota(quotaCacheKey, func() (int, error) {
+		var quotaStat Stat
+		if err := tx.Scan(&quotaStat).Error; err != nil {
+			common.SysError(common.LogText("failed to query log stat: %s", err.Error()))
+			return 0, common.NewMessage("Failed to query statistics")
+		}
+		return quotaStat.Quota, nil
+	})
+	if err != nil {
+		return stat, err
 	}
+	stat.Quota = quota
 	var rateStat struct {
 		Rpm int
 		Tpm int

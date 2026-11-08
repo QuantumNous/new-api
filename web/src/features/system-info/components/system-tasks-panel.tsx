@@ -48,6 +48,7 @@ export function SystemTasksPanel() {
     retry: false,
     refetchInterval: (query) =>
       query.state.data?.length ? ACTIVE_POLL_INTERVAL_MS : false,
+    refetchIntervalInBackground: false,
   })
 
   const activeTasks = tasksQuery.data ?? []

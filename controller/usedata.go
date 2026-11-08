@@ -28,9 +28,25 @@ func parseFlowQuotaTimeRange(c *gin.Context) (int64, int64, bool) {
 	return startTimestamp, endTimestamp, true
 }
 
+// defaultQuotaDataRangeSeconds bounds a dashboard request that omits both
+// timestamps, so the aggregate table cannot be swept in one query.
+const defaultQuotaDataRangeSeconds = 7 * 24 * 3600
+
+func boundedQuotaDataRange(startTimestamp int64, endTimestamp int64) (int64, int64) {
+	if startTimestamp > 0 {
+		return startTimestamp, endTimestamp
+	}
+	end := endTimestamp
+	if end <= 0 {
+		end = common.GetTimestamp()
+	}
+	return end - defaultQuotaDataRangeSeconds, end
+}
+
 func GetAllQuotaDates(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	startTimestamp, endTimestamp = boundedQuotaDataRange(startTimestamp, endTimestamp)
 	username := c.Query("username")
 	dates, err := model.GetAllQuotaDates(startTimestamp, endTimestamp, username)
 	if err != nil {
@@ -48,6 +64,7 @@ func GetAllQuotaDates(c *gin.Context) {
 func GetQuotaDatesByUser(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	startTimestamp, endTimestamp = boundedQuotaDataRange(startTimestamp, endTimestamp)
 	dates, err := model.GetQuotaDataGroupByUser(startTimestamp, endTimestamp)
 	if err != nil {
 		common.ApiError(c, err)

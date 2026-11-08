@@ -17,7 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-// The control panel is live: every panel polls on this interval so the numbers
-// on screen stay current. The backend merges unflushed traffic into its reads,
-// so this interval is what actually caps how stale the numbers can be.
-export const LIVE_REFRESH_MS = 5000
+// The control panel stays current without hammering the aggregate endpoints:
+// heavy overview panels poll every 30 seconds, and only while the tab is
+// visible (refetchIntervalInBackground is false on every panel query).
+export const LIVE_REFRESH_MS = 30_000
+
+// All-time revenue scans the whole statistics range, so it refreshes far less
+// often than the live cards.
+export const ALL_TIME_REFRESH_MS = 5 * 60_000

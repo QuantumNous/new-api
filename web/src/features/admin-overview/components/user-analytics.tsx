@@ -146,6 +146,7 @@ export function UserCharts(props: UserChartsProps) {
       requireServerSuccess(await getAdminUserQuotaRows(timeRange)),
     select: (res) => (res.success ? (res.data ?? []) : []),
     refetchInterval: LIVE_REFRESH_MS,
+    refetchIntervalInBackground: false,
     staleTime: LIVE_REFRESH_MS - 100,
   })
 

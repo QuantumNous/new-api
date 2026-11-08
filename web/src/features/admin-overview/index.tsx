@@ -46,7 +46,7 @@ import { RevenuePanel } from './components/revenue-panel'
 import { TokenUsagePanel } from './components/token-usage-panel'
 import { TopModelsPanel } from './components/top-models-panel'
 import { UserCharts } from './components/user-analytics'
-import { LIVE_REFRESH_MS } from './constants'
+import { ALL_TIME_REFRESH_MS, LIVE_REFRESH_MS } from './constants'
 import {
   buildDailyRevenue,
   buildHourlyActiveUsers,
@@ -106,6 +106,7 @@ export function AdminOverview() {
         })
       ),
     refetchInterval: LIVE_REFRESH_MS,
+    refetchIntervalInBackground: false,
     staleTime: LIVE_REFRESH_MS - 100,
   })
 
@@ -121,6 +122,7 @@ export function AdminOverview() {
       )
     },
     refetchInterval: LIVE_REFRESH_MS,
+    refetchIntervalInBackground: false,
     staleTime: LIVE_REFRESH_MS - 100,
   })
 
@@ -132,8 +134,9 @@ export function AdminOverview() {
           end_timestamp: Math.floor(Date.now() / 1000),
         })
       ),
-    refetchInterval: LIVE_REFRESH_MS,
-    staleTime: LIVE_REFRESH_MS - 100,
+    refetchInterval: ALL_TIME_REFRESH_MS,
+    refetchIntervalInBackground: false,
+    staleTime: ALL_TIME_REFRESH_MS - 100,
   })
 
   const rateQuery = useQuery({
@@ -148,6 +151,7 @@ export function AdminOverview() {
       )
     },
     refetchInterval: LIVE_REFRESH_MS,
+    refetchIntervalInBackground: false,
     staleTime: LIVE_REFRESH_MS - 100,
   })
 
@@ -156,6 +160,7 @@ export function AdminOverview() {
     queryFn: async () =>
       requireServerSuccess(await getAdminRegisteredUserTotal()),
     refetchInterval: LIVE_REFRESH_MS,
+    refetchIntervalInBackground: false,
     staleTime: LIVE_REFRESH_MS - 100,
   })
 

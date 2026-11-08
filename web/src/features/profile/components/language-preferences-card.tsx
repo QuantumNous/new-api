@@ -43,7 +43,8 @@ type LanguagePreferencesCardProps = {
 
 export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
   const { t, i18n } = useTranslation()
-  const { auth } = useAuthStore()
+  const authUser = useAuthStore((state) => state.auth.user)
+  const setUser = useAuthStore((state) => state.auth.setUser)
   const [saving, setSaving] = useState(false)
 
   const savedLanguage = useMemo(() => {
@@ -73,13 +74,13 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
         throw createServerError(response, t('Failed to update settings'))
       }
 
-      if (auth.user) {
+      if (authUser) {
         const existingSetting =
-          typeof auth.user.setting === 'string'
-            ? parseUserSettings(auth.user.setting)
-            : (auth.user.setting ?? {})
-        auth.setUser({
-          ...auth.user,
+          typeof authUser.setting === 'string'
+            ? parseUserSettings(authUser.setting)
+            : (authUser.setting ?? {})
+        setUser({
+          ...authUser,
           setting: JSON.stringify({
             ...existingSetting,
             language: nextLanguage,
