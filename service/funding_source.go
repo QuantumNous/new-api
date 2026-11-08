@@ -64,14 +64,14 @@ func (w *WalletFunding) Settle(delta int) error {
 	if delta < 0 {
 		return model.IncreaseUserQuota(w.userId, -delta, false)
 	}
-	// 结算补扣受余额上限约束：信任额度旁路不预扣，全额在结算时发生，
-	// 并发请求不能把钱包扣成负数，未覆盖的差额不再记为欠费。
+	// 预扣已原子预留估算额度，此处补扣的是实际用量超出预留的差额。差额无法
+	// 被余额覆盖时不再记账为欠费，记录对账错误：用户获得了超出已付费用的服务。
 	deducted, err := model.SettleUserQuotaDebit(w.userId, delta)
 	if err != nil {
 		return err
 	}
 	if deducted < delta {
-		common.SysLog(common.LogText("wallet balance exhausted at settlement (userId=%d, requested=%d, deducted=%d)", w.userId, delta, deducted))
+		common.SysError(common.LogText("wallet settlement reconciliation required: charge not covered by balance (userId=%d, requested=%d, deducted=%d)", w.userId, delta, deducted))
 	}
 	return nil
 }

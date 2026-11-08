@@ -118,10 +118,11 @@ func taskAdjustFunding(task *model.Task, delta int) error {
 		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
 	}
 	if delta > 0 {
-		// 结算补扣受余额约束，避免任务结算把钱包扣成负数。
+		// 结算补扣使用条件更新，避免任务结算把钱包扣成负数；无法覆盖的差额
+		// 记录对账错误而不记账为欠费。
 		deducted, err := model.SettleUserQuotaDebit(task.UserId, delta)
 		if err == nil && deducted < delta {
-			common.SysLog(common.LogText("wallet balance exhausted at task settlement (userId=%d, requested=%d, deducted=%d)", task.UserId, delta, deducted))
+			common.SysError(common.LogText("task settlement reconciliation required: charge not covered by balance (userId=%d, requested=%d, deducted=%d)", task.UserId, delta, deducted))
 		}
 		return err
 	}
