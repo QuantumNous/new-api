@@ -575,6 +575,24 @@ func TestServeAssetsAnswersAHeldPath(t *testing.T) {
 	response := requestPath(t, app, http.MethodGet, "/assets/app.js")
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 	assert.Equal(t, "console.log('app')", readBody(t, response))
+	// Content-hashed chunk files are safe to cache forever; a stale copy can
+	// never mismatch the HTML that references it.
+	assert.Equal(t, "public, max-age=31536000, immutable", response.Header.Get("Cache-Control"))
+}
+
+// TestServeAssetsNeverCachesHTML pins the contract that keeps index.html in
+// lockstep with the chunk set of the binary serving it: a cached document
+// from an older deploy names chunks that no longer exist, and the lazy route
+// then 404s into a bogus "500" error page.
+func TestServeAssetsNeverCachesHTML(t *testing.T) {
+	server, app := webEngine(t)
+	server.ServeAssets("/", stubAssets{files: map[string]string{
+		"/index.html": "<html>index</html>",
+	}})
+
+	response := requestPath(t, app, http.MethodGet, "/index.html")
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, "no-store", response.Header.Get("Cache-Control"))
 }
 
 // TestServeAssetsFallsThroughOnAMiss is the difference from fiber's filesystem

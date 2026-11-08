@@ -2,7 +2,8 @@ package identity
 
 func isAllowedSecurityProofScope(scope string) bool {
 	switch scope {
-	case SecurityProofScopeChannelKeyRead, SecurityProofScopePasskeyRegister, SecurityProofScopePasskeyDelete:
+	case SecurityProofScopeChannelKeyRead, SecurityProofScopePasskeyRegister, SecurityProofScopePasskeyDelete,
+		SecurityProofScopeAccessTokenGenerate, SecurityProofScopeAccessTokenUpdate, SecurityProofScopeAccessTokenRevoke:
 		return true
 	default:
 		return false

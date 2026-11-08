@@ -20,6 +20,7 @@ func init() {
 		dbx.Migration{Model: &TwoFABackupCode{}, Name: "TwoFABackupCode"},
 		dbx.Migration{Model: &CustomOAuthProvider{}, Name: "CustomOAuthProvider"},
 		dbx.Migration{Model: &UserOAuthBinding{}, Name: "UserOAuthBinding"},
+		dbx.Migration{Model: &UserAccessToken{}, Name: "UserAccessToken"},
 		dbx.Migration{Model: &policy.CasbinRule{}, Name: "CasbinRule"},
 		dbx.Migration{Model: &policy.AuthzRole{}, Name: "AuthzRole"},
 		dbx.Migration{Model: &QQBinding{}, Name: "QQBinding"},

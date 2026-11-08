@@ -167,7 +167,7 @@ func classifyDashboardCredential(c contract.Context) (*identity.UserBase, authto
 		}
 		return user, authID, dashboardCredentialInternal, nil
 	}
-	patUser, err := identity.ValidateAccessToken(raw)
+	patUser, patToken, err := identity.AuthenticateAccessToken(raw)
 	if err != nil {
 		return nil, authtoken.AuthIdentity{}, dashboardCredentialPAT, err
 	}
@@ -178,7 +178,14 @@ func classifyDashboardCredential(c contract.Context) (*identity.UserBase, authto
 	if err != nil {
 		return nil, authtoken.AuthIdentity{}, dashboardCredentialPAT, err
 	}
-	return user, authtoken.AuthIdentity{UserID: user.Id, UserAuthVersion: user.AuthVersion}, dashboardCredentialPAT, nil
+	authID = authtoken.AuthIdentity{UserID: user.Id, UserAuthVersion: user.AuthVersion}
+	// Scoped PATs carry their token id in the session slot ("pat:<id>", the
+	// upstream convention). Browser session IDs are UUIDs and can never carry
+	// this prefix; legacy unscoped tokens leave it empty and keep full access.
+	if patToken != nil {
+		authID.SessionID = identity.AccessTokenSessionID(patToken.Id)
+	}
+	return user, authID, dashboardCredentialPAT, nil
 }
 
 // authorizationToken delegates to the identity capability so the credential
@@ -203,7 +210,7 @@ func setDashboardAuthContext(c contract.Context, user *identity.UserBase, authID
 }
 
 func writeDashboardAuthError(c contract.Context, err error) {
-	if errors.Is(err, authtoken.ErrAuthTokenExpired) {
+	if errors.Is(err, authtoken.ErrAuthTokenExpired) || errors.Is(err, identity.ErrAccessTokenExpired) {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, common.H{"success": false, "code": "AUTH_TOKEN_EXPIRED", "message": common.TranslateCtxMessage(c, i18n.MsgAuthNotLoggedIn)})
 		return
 	}
@@ -219,19 +226,50 @@ func writeDashboardAuthError(c contract.Context, err error) {
 	c.AbortWithStatusJSON(http.StatusInternalServerError, common.H{"success": false, "code": "AUTH_INTERNAL_ERROR", "message": common.TranslateCtxMessage(c, i18n.MsgDatabaseError)})
 }
 
+// patRequestScopes returns the scope grant of the PAT that authenticated the
+// request. Legacy unscoped tokens and browser sessions return nil (no scope
+// restriction is applied on top of the role checks).
+func patRequestScopes(c contract.Context) []string {
+	authID, ok := authtoken.ReadAuthIdentity(c)
+	if !ok {
+		return nil
+	}
+	tokenID, ok := identity.ParseAccessTokenSessionID(authID.SessionID)
+	if !ok {
+		return nil
+	}
+	token, err := identity.GetUserAccessToken(authID.UserID, tokenID)
+	if err != nil || token == nil {
+		return nil
+	}
+	return token.GetScopes()
+}
+
 func RequirePermission(permission policy.Permission) func(c contract.Context) {
 	return func(c contract.Context) {
 		role := c.GetInt("role")
 		userID := c.GetInt("id")
-		if policy.Can(userID, role, permission) {
-			c.Next()
+		if !policy.Can(userID, role, permission) {
+			_ = c.JSON(http.StatusForbidden, common.H{
+				"success": false,
+				"message": common.TranslateCtxMessage(c, i18n.MsgAuthInsufficientPrivilege),
+			})
+			c.Abort()
 			return
 		}
-		_ = c.JSON(http.StatusForbidden, common.H{
-			"success": false,
-			"message": common.TranslateCtxMessage(c, i18n.MsgAuthInsufficientPrivilege),
-		})
-		c.Abort()
+		// A scoped PAT must also carry the matching grant. Legacy unscoped
+		// tokens (no token row) are unrestricted, preserving existing callers.
+		if scopes := patRequestScopes(c); scopes != nil &&
+			!identity.AccessTokenAllows(scopes, permission.Resource+":"+permission.Action) {
+			_ = c.JSON(http.StatusForbidden, common.H{
+				"success": false,
+				"code":    "ACCESS_TOKEN_SCOPE_INSUFFICIENT",
+				"message": "访问令牌缺少所需权限：" + permission.Resource + ":" + permission.Action,
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
 	}
 }
 

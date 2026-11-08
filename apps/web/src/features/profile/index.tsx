@@ -21,17 +21,18 @@ import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
+import { AccessTokensCard } from '@/features/security/components/access-tokens-card'
 import { useStatus } from '@/hooks/use-status'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
-import { QQBindCodeCard } from './components/qq-bind-code-card'
 import { LanguagePreferencesCard } from './components/language-preferences-card'
 import { LoginSessionsCard } from './components/login-sessions-card'
 import { PasskeyCard } from './components/passkey-card'
 import { ProfileHeader } from './components/profile-header'
 import { ProfileSecurityCard } from './components/profile-security-card'
 import { ProfileSettingsCard } from './components/profile-settings-card'
+import { QQBindCodeCard } from './components/qq-bind-code-card'
 import { SidebarModulesCard } from './components/sidebar-modules-card'
 import { TwoFACard } from './components/two-fa-card'
 import { useProfile } from './hooks'
@@ -70,9 +71,10 @@ export function Profile() {
                 />
                 <ProfileSecurityCard profile={profile} loading={loading} />
                 <LoginSessionsCard />
+                <AccessTokensCard />
               </div>
 
-              <div className='max-xl:contents max-xl:space-y-0 space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
+              <div className='space-y-4 max-xl:contents max-xl:space-y-0 sm:space-y-6 xl:sticky xl:top-6'>
                 {/* show 恒为 true：后端 CheckinSetting.ShowBindCodeCard 尚未经 /api/status 暴露，接线后改为读配置 */}
                 <QQBindCodeCard show className='max-xl:order-first' />
                 {checkinEnabled && (

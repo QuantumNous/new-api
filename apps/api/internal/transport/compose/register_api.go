@@ -155,6 +155,15 @@ func SetApiRouter(router contract.Engine) {
 				selfRoute.PUT("/self", middleware.CriticalRateLimit(), middleware.DisableCache(), identity.UpdateSelf)
 				selfRoute.DELETE("/self", identity.DeleteSelf)
 				selfRoute.GET("/token", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), middleware.DisableCache(), identity.GenerateAccessToken)
+				// Scoped personal access tokens (Profile -> Security & Access).
+				selfRoute.GET("/access_tokens", middleware.DisableCache(), identity.ListAccessTokens)
+				selfRoute.GET("/access_tokens/catalog", middleware.DisableCache(), identity.GetAccessTokenCatalog)
+				selfRoute.POST("/access_tokens", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), middleware.DisableCache(), identity.CreateAccessToken)
+				selfRoute.PATCH("/access_tokens/:id", middleware.DisableCache(), identity.UpdateAccessToken)
+				// The literal path must precede the parameterised one: fiber scans
+				// its stack in registration order, so ":id" would swallow "legacy".
+				selfRoute.DELETE("/access_tokens/legacy", middleware.CriticalRateLimit(), middleware.DisableCache(), identity.RevokeLegacyAccessToken)
+				selfRoute.DELETE("/access_tokens/:id", middleware.CriticalRateLimit(), middleware.DisableCache(), identity.DeleteAccessToken)
 				selfRoute.GET("/passkey", identity.PasskeyStatus)
 				selfRoute.POST("/passkey/register/begin", middleware.DisableCache(), identity.PasskeyRegisterBegin)
 				selfRoute.POST("/passkey/register/finish", middleware.DisableCache(), identity.PasskeyRegisterFinish)

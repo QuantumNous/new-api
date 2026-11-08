@@ -21,6 +21,8 @@ DELETE /api/user/:id/2fa
 DELETE /api/user/:id/bindings/:binding_type
 DELETE /api/user/:id/oauth/bindings/:provider_id
 DELETE /api/user/:id/reset_passkey
+DELETE /api/user/access_tokens/:id
+DELETE /api/user/access_tokens/legacy
 DELETE /api/user/oauth/bindings/:provider_id
 DELETE /api/user/passkey
 DELETE /api/user/qq/bind
@@ -142,6 +144,8 @@ GET /api/user/2fa/stats
 GET /api/user/2fa/status
 GET /api/user/:id
 GET /api/user/:id/oauth/bindings
+GET /api/user/access_tokens
+GET /api/user/access_tokens/catalog
 GET /api/user/aff
 GET /api/user/checkin
 GET /api/user/codepay/notify
@@ -165,6 +169,7 @@ GET /api/vendors/:id
 GET /api/vendors/search
 GET /api/verification
 PATCH /api/subscription/admin/plans/:id
+PATCH /api/user/access_tokens/:id
 POST /api/channel/
 POST /api/channel/:id/codex/refresh
 POST /api/channel/:id/codex/usage/reset
@@ -245,6 +250,7 @@ POST /api/user/2fa/backup_codes
 POST /api/user/2fa/disable
 POST /api/user/2fa/enable
 POST /api/user/2fa/setup
+POST /api/user/access_tokens
 POST /api/user/aff_transfer
 POST /api/user/amount
 POST /api/user/auth/logout

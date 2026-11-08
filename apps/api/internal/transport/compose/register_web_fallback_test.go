@@ -39,7 +39,7 @@ func TestWebRouterFallbackDispatch(t *testing.T) {
 			if tc.wantIndexBody {
 				assert.Equal(t, indexMarker, recorder.Body.String())
 				assert.Contains(t, recorder.Header().Get("Content-Type"), "text/html")
-				assert.Equal(t, "no-cache", recorder.Header().Get("Cache-Control"))
+				assert.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
 			} else {
 				assert.NotContains(t, recorder.Body.String(), indexMarker, "API-shaped paths must not receive the SPA index")
 			}
