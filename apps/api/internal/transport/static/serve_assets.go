@@ -30,7 +30,10 @@ func ServeStatic(router contract.Engine, assets WebAssets) {
 			handler.RelayNotFound(cc)
 			return
 		}
-		cc.SetHeader("Cache-Control", "no-cache")
+		// no-store, not no-cache: no-cache still lets a browser (or an
+		// intermediary) keep the document and reuse it after a 304, which
+		// pairs a stale index.html with a chunk set that no longer exists.
+		cc.SetHeader("Cache-Control", "no-store")
 		_ = cc.Data(http.StatusOK, "text/html; charset=utf-8", assets.IndexPage)
 	})
 }

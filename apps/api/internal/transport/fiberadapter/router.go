@@ -780,6 +780,16 @@ func sendAsset(c contract.Context, fallback *fallbackRef) error {
 		}
 	}
 
+	// The index.html document must never be reused across deploys: it names the
+	// content-hashed chunk set of the binary that served it, and a stale copy
+	// (browser heuristic cache or an intermediary revalidating with 304) makes
+	// lazy routes 404 into bogus "500" error pages. Chunks are content-hashed,
+	// so they are safe to cache forever.
+	if strings.HasSuffix(assetPath, ".html") {
+		c.SetHeader("Cache-Control", "no-store")
+	} else {
+		c.SetHeader("Cache-Control", "public, max-age=31536000, immutable")
+	}
 	http.ServeContent(c.ResponseWriter(), c.HTTPRequest(), info.Name(), info.ModTime(), file)
 	return nil
 }
