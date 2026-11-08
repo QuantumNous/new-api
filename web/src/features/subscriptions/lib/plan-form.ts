@@ -113,7 +113,13 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     allow_wallet_overflow: plan.allow_wallet_overflow !== false,
     max_purchase_per_user: Number(plan.max_purchase_per_user || 0),
     total_amount: quotaUnitsToDollars(Number(plan.total_amount || 0)),
-    window_amount: quotaUnitsToDollars(Number(plan.window_amount || 0)),
+    window_amount: quotaUnitsToDollars(
+      Number(
+        !plan.quota_model_version && plan.quota_reset_period !== 'never'
+          ? plan.total_amount || 0
+          : plan.window_amount || 0
+      )
+    ),
     upgrade_group: plan.upgrade_group || '',
     downgrade_group: plan.downgrade_group || '',
     stripe_price_id: plan.stripe_price_id || '',

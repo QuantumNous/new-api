@@ -1,7 +1,11 @@
 import type { TFunction } from 'i18next'
 import { describe, expect, it } from 'vitest'
 
-import { getPlanFormSchema } from '../lib/plan-form'
+import {
+  getPlanFormSchema,
+  planToFormValues,
+  formValuesToPlanPayload,
+} from '../lib/plan-form'
 
 const translate = ((key: string) => key) as TFunction
 
@@ -22,6 +26,21 @@ const validPlan = {
 
 describe('subscription plan form quota validation', () => {
   const schema = getPlanFormSchema(translate)
+
+  it('lets a legacy periodic plan keep its cycle allowance when edited', () => {
+    const values = planToFormValues({
+      ...validPlan,
+      id: 10,
+      currency: 'USD',
+      total_amount: 500_000,
+      window_amount: 0,
+      quota_model_version: 0,
+    })
+    expect(schema.safeParse(values).success).toBe(true)
+    const payload = formValuesToPlanPayload(values)
+    expect(payload.plan.window_amount).toBe(500_000)
+    expect(payload.plan.quota_model_version).toBe(1)
+  })
 
   it('rejects a finite reset plan with no window quota', () => {
     expect(schema.safeParse({ ...validPlan, window_amount: 0 }).success).toBe(
