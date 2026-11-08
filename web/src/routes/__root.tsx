@@ -27,22 +27,22 @@ import {
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { useEffect } from 'react'
 
-import { NavigationProgress } from '@/components/navigation-progress'
-import { Toaster } from '@/components/ui/sonner'
-import { ThemeCustomizationProvider } from '@/context/theme-customization-provider'
-import { saveAffiliateCode } from '@/features/auth/lib/storage'
-import { GeneralError } from '@/features/errors/general-error'
-import { NotFoundError } from '@/features/errors/not-found-error'
-import { getSetupStatus } from '@/features/setup/api'
-import { useSystemConfig } from '@/hooks/use-system-config'
+import { NavigationProgress } from '@/shared/components/navigation-progress'
+import { Toaster } from '@/shared/components/ui/sonner'
+import { ThemeCustomizationProvider } from '@/shared/context/theme-customization-provider'
+import { saveAffiliateCode } from '@/shared/features/auth/lib/storage'
+import { GeneralError } from '@/shared/features/errors/general-error'
+import { NotFoundError } from '@/shared/features/errors/not-found-error'
+import { getSetupStatus } from '@/shared/features/setup/api'
+import { useSystemConfig } from '@/shared/hooks/use-system-config'
 import {
   bootstrapAuthentication,
   clearAuthenticatedClientState,
   clearAuthentication,
-} from '@/lib/auth-session'
-import { subscribeAuthSessionEvents } from '@/lib/auth-session-sync'
-import { resolveLegacyRoute } from '@/lib/legacy-route'
-import { useAuthStore } from '@/stores/auth-store'
+} from '@/shared/lib/auth-session'
+import { subscribeAuthSessionEvents } from '@/shared/lib/auth-session-sync'
+import { resolveLegacyRoute } from '@/shared/lib/legacy-route'
+import { useAuthStore } from '@/shared/stores/auth-store'
 
 function RootComponent() {
   const navigate = useNavigate()
@@ -86,7 +86,7 @@ function RootComponent() {
 
         if (currentSID && event.sid === currentSID) {
           clearAuthenticatedClientState(queryClient, false)
-          void navigate({ to: '/sign-in', replace: true })
+          void navigate({ to: '/login', replace: true })
         }
       }),
     [navigate, queryClient]

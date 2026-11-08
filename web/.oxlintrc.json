@@ -20,7 +20,7 @@
     "coverage",
     ".tanstack",
     ".eslintrc.cjs",
-    "src/components/ui",
+    "src/shared/components/ui",
     "src/routeTree.gen.ts"
   ],
   "rules": {

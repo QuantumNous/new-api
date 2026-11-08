@@ -19,10 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
-import { AuthenticatedLayout } from '@/components/layout'
-import { ModelDetails } from '@/features/pricing/components/model-details'
-import { getModuleAccessForGuard } from '@/lib/nav-modules'
-import { useAuthStore } from '@/stores/auth-store'
+import { useClientSidebarView } from '@/apps/client/layout/client-sidebar-view'
+import { AuthenticatedLayout } from '@/shared/components/layout'
+import { ModelDetails } from '@/shared/features/pricing/components/model-details'
+import { getModuleAccessForGuard } from '@/shared/lib/nav-modules'
+import { useAuthStore } from '@/shared/stores/auth-store'
 
 const modelDetailsSearchSchema = z.object({
   search: z.string().optional(),
@@ -43,13 +44,14 @@ const modelDetailsSearchSchema = z.object({
  */
 function ModelDetailsPage() {
   const signedIn = useAuthStore((s) => !!s.auth.user)
+  const { navGroups } = useClientSidebarView()
 
   if (!signedIn) {
     return <ModelDetails />
   }
 
   return (
-    <AuthenticatedLayout>
+    <AuthenticatedLayout navGroups={navGroups}>
       <ModelDetails variant='console' />
     </AuthenticatedLayout>
   )
@@ -66,7 +68,7 @@ export const Route = createFileRoute('/pricing/$modelId/')({
       const { auth } = useAuthStore.getState()
       if (!auth.user) {
         throw redirect({
-          to: '/sign-in',
+          to: '/login',
           search: { redirect: location.href },
         })
       }

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
 
-import { MaintenanceError } from '@/features/errors/maintenance-error'
+import { MaintenanceError } from '@/shared/features/errors/maintenance-error'
 
 export const Route = createFileRoute('/(errors)/503')({
   component: MaintenanceError,

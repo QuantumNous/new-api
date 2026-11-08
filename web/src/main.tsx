@@ -21,22 +21,22 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 
-import { installBuildMetadata } from '@/lib/build-metadata'
-import { applyFaviconToDom } from '@/lib/dom-utils'
-import '@/lib/dayjs'
-import { initializeFrontendCache } from '@/lib/frontend-cache'
-import { createAppQueryClient } from '@/lib/query-client'
-import { readCachedStatus, statusQueryOptions } from '@/lib/status-query'
+import { installBuildMetadata } from '@/shared/lib/build-metadata'
+import { applyFaviconToDom } from '@/shared/lib/dom-utils'
+import '@/shared/lib/dayjs'
+import { initializeFrontendCache } from '@/shared/lib/frontend-cache'
+import { createAppQueryClient } from '@/shared/lib/query-client'
+import { readCachedStatus, statusQueryOptions } from '@/shared/lib/status-query'
 
-import { DirectionProvider } from './context/direction-provider'
-import { FontProvider } from './context/font-provider'
-import { ThemeProvider } from './context/theme-provider'
-import { i18nReady } from './i18n/config'
+import { DirectionProvider } from './shared/context/direction-provider'
+import { FontProvider } from './shared/context/font-provider'
+import { ThemeProvider } from './shared/context/theme-provider'
+import { i18nReady } from './shared/i18n/config'
 // Generated Routes
 import { routeTree } from './routeTree.gen'
 
 // Styles
-import './styles/index.css'
+import './shared/styles/index.css'
 
 // Ensure VChart theme is initialized before any chart mounts (prevents white default theme flash)
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.

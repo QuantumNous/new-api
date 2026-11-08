@@ -19,9 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
-import { Rankings } from '@/features/rankings'
-import { getModuleAccessForGuard } from '@/lib/nav-modules'
-import { useAuthStore } from '@/stores/auth-store'
+import { Rankings } from '@/shared/features/rankings'
+import { getModuleAccessForGuard } from '@/shared/lib/nav-modules'
+import { useAuthStore } from '@/shared/stores/auth-store'
 
 const rankingsSearchSchema = z.object({
   period: z
@@ -44,7 +44,7 @@ export const Route = createFileRoute('/rankings/')({
       const { auth } = useAuthStore.getState()
       if (!auth.user) {
         throw redirect({
-          to: '/sign-in',
+          to: '/login',
           search: { redirect: location.href },
         })
       }

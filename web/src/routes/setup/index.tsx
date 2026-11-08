@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { SetupWizard } from '@/features/setup'
-import { getSetupStatus } from '@/features/setup/api'
+import { SetupWizard } from '@/shared/features/setup'
+import { getSetupStatus } from '@/shared/features/setup/api'
 
 export const Route = createFileRoute('/setup/')({
   beforeLoad: async () => {

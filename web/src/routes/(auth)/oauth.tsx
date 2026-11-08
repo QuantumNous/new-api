@@ -20,12 +20,12 @@ import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import i18next from 'i18next'
 import { useEffect } from 'react'
 
-import { wechatLoginByCode } from '@/features/auth/api'
-import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
-import { applyAuthBundle, isAuthBundle } from '@/lib/api'
-import { handleServerError } from '@/lib/handle-server-error'
-import { AuthOperationError } from '@/lib/secure-verification'
-import { createServerError } from '@/lib/server-error-message'
+import { wechatLoginByCode } from '@/shared/features/auth/api'
+import { sanitizeAuthRedirect } from '@/shared/features/auth/lib/auth-redirect'
+import { applyAuthBundle, isAuthBundle } from '@/shared/lib/api'
+import { handleServerError } from '@/shared/lib/handle-server-error'
+import { AuthOperationError } from '@/shared/lib/secure-verification'
+import { createServerError } from '@/shared/lib/server-error-message'
 
 function OAuthComponent() {
   const navigate = useNavigate()
@@ -45,7 +45,7 @@ function OAuthComponent() {
             applyAuthBundle(res.data)
             const target =
               sanitizeAuthRedirect(search?.redirect, window.location.origin) ??
-              '/dashboard'
+              '/app/workspace'
             navigate({ href: target, replace: true })
             return
           }
@@ -57,7 +57,7 @@ function OAuthComponent() {
           AuthOperationError.from(error, i18next.t('OAuth failed'))
         )
       }
-      navigate({ to: '/sign-in', replace: true })
+      navigate({ to: '/login', replace: true })
     })()
   }, [navigate, search])
 

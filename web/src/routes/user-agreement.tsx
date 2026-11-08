@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
 
-import { UserAgreement } from '@/features/legal'
+import { UserAgreement } from '@/shared/features/legal'
 
 export const Route = createFileRoute('/user-agreement')({
   component: UserAgreement,

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-const LOCALES_DIR = path.resolve('src/i18n/locales')
+const LOCALES_DIR = path.resolve('src/shared/i18n/locales')
 
 function stableStringify(obj) {
   return JSON.stringify(obj, null, 2) + '\n'

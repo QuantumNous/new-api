@@ -27,28 +27,28 @@ import i18next from 'i18next'
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
-import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
+import { OAuthCallbackScreen } from '@/shared/features/auth/components/oauth-callback-screen'
 import {
   OAUTH_POPUP_CALLBACK_MESSAGE,
   OAUTH_POPUP_RESULT_MESSAGE,
-} from '@/features/auth/constants'
-import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
-import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
+} from '@/shared/features/auth/constants'
+import { useAuthRedirect } from '@/shared/features/auth/hooks/use-auth-redirect'
+import { sanitizeAuthRedirect } from '@/shared/features/auth/lib/auth-redirect'
 import {
   parseTelegramBindCallback,
   postTelegramBindResult,
   startOAuthBindResponseDeadline,
-} from '@/features/auth/lib/oauth-bind-window'
+} from '@/shared/features/auth/lib/oauth-bind-window'
 import {
   getOAuthSessionStorage,
   consumeOAuthLoginRedirect,
   resolveOAuthCallbackMode,
-} from '@/features/auth/lib/oauth-callback-mode'
-import type { LoginResponse } from '@/features/auth/types'
-import { api } from '@/lib/api'
-import { handleServerError } from '@/lib/handle-server-error'
-import { AuthOperationError } from '@/lib/secure-verification'
-import { getServerErrorMessageKey } from '@/lib/server-error-message'
+} from '@/shared/features/auth/lib/oauth-callback-mode'
+import type { LoginResponse } from '@/shared/features/auth/types'
+import { api } from '@/shared/lib/api'
+import { handleServerError } from '@/shared/lib/handle-server-error'
+import { AuthOperationError } from '@/shared/lib/secure-verification'
+import { getServerErrorMessageKey } from '@/shared/lib/server-error-message'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
   skipBusinessError?: boolean
@@ -191,7 +191,7 @@ function OAuthCallback() {
       }
     }
 
-    const safeNavigate = (target: unknown, fallback = '/dashboard') => {
+    const safeNavigate = (target: unknown, fallback = '/app/workspace') => {
       const href =
         sanitizeAuthRedirect(target, window.location.origin) ?? fallback
       void navigate({ href, replace: true })
@@ -199,7 +199,7 @@ function OAuthCallback() {
 
     if (!code && !search.error) {
       toast.error(i18next.t('Missing code'))
-      safeNavigate('/sign-in', '/sign-in')
+      safeNavigate('/login', '/login')
       return
     }
 
@@ -251,7 +251,7 @@ function OAuthCallback() {
           AuthOperationError.from(error, i18next.t('OAuth failed'))
         )
       }
-      safeNavigate('/sign-in', '/sign-in')
+      safeNavigate('/login', '/login')
     })()
     return () => {
       active = false

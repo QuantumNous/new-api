@@ -29,6 +29,22 @@ export default defineConfig(({ envMode }) => {
     splitChunks: {
       preset: 'default',
       cacheGroups: {
+        // Portal isolation: admin and client domain code never share a chunk,
+        // so the client entry cannot pull in admin logic (and vice versa).
+        admin: {
+          test: /src[\\/]apps[\\/]admin[\\/]/,
+          name: 'admin',
+          chunks: 'all',
+          priority: 40,
+          enforce: true,
+        },
+        client: {
+          test: /src[\\/]apps[\\/]client[\\/]/,
+          name: 'client',
+          chunks: 'all',
+          priority: 30,
+          enforce: true,
+        },
         'vendor-react': {
           test: /node_modules[\\/](react|react-dom)[\\/]/,
           name: 'vendor-react',
@@ -92,9 +108,10 @@ export default defineConfig(({ envMode }) => {
         plugins: [
           tanstackRouter({
             target: 'react',
-            // Dev: avoid per-route async chunks (reduces white flash on navigation + faster HMR feedback).
-            // Prod: keep route-based code splitting.
-            autoCodeSplitting: isProd,
+            // Every route is lazily loaded with `lazyRouteComponent`, and the
+            // build keeps route-based code splitting in all modes so the two
+            // portal branches stay in separate chunks during development too.
+            autoCodeSplitting: true,
           }),
         ],
       },

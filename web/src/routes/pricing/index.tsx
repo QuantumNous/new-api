@@ -19,9 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
-import { PricingPage } from '@/features/pricing'
-import { getModuleAccessForGuard } from '@/lib/nav-modules'
-import { useAuthStore } from '@/stores/auth-store'
+import { PricingPage } from '@/shared/features/pricing'
+import { getModuleAccessForGuard } from '@/shared/lib/nav-modules'
+import { useAuthStore } from '@/shared/stores/auth-store'
 
 const pricingSearchSchema = z.object({
   search: z.string().optional(),
@@ -47,7 +47,7 @@ export const Route = createFileRoute('/pricing/')({
       const { auth } = useAuthStore.getState()
       if (!auth.user) {
         throw redirect({
-          to: '/sign-in',
+          to: '/login',
           search: { redirect: location.href },
         })
       }

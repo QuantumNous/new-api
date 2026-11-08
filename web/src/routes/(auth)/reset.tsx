@@ -21,7 +21,7 @@ import { createFileRoute, useSearch } from '@tanstack/react-router'
 import {
   ResetPasswordConfirm,
   type ResetPasswordSearchParams,
-} from '@/features/auth/reset-password-confirm'
+} from '@/shared/features/auth/reset-password-confirm'
 
 export const Route = createFileRoute('/(auth)/reset')({
   component: ResetPassword,

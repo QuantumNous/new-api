@@ -1,0 +1,274 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ArrowDownIcon,
+} from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
+import * as React from 'react'
+import {
+  DayPicker,
+  getDefaultClassNames,
+  type DayButton,
+} from 'react-day-picker'
+
+import { Button, buttonVariants } from '@/shared/components/ui/button'
+import { useDirection } from '@/shared/components/ui/direction'
+import { currentIntlLocale } from '@/shared/lib/format'
+import { cn } from '@/shared/lib/utils'
+
+/**
+ * Build an Intl locale that always resolves to the Gregorian calendar, so
+ * Arabic interfaces keep displaying Gregorian dates even when the browser's
+ * default calendar for that language is Umm al-Qura (Hijri).
+ */
+function toGregorianCalendarLocale(code: string) {
+  return /-u-/.test(code) ? code : `${code}-u-ca-gregory`
+}
+
+function Calendar({
+  className,
+  classNames,
+  showOutsideDays = true,
+  captionLayout = 'label',
+  buttonVariant = 'ghost',
+  locale,
+  formatters,
+  components,
+  ...props
+}: React.ComponentProps<typeof DayPicker> & {
+  buttonVariant?: React.ComponentProps<typeof Button>['variant']
+}) {
+  const defaultClassNames = getDefaultClassNames()
+  // DayPicker uses `dir` for arrow-key navigation and the orientation of the
+  // previous/next chevrons, so hand it the document direction explicitly.
+  const direction = useDirection()
+  const calendarLocale = toGregorianCalendarLocale(
+    locale?.code ?? currentIntlLocale() ?? 'en'
+  )
+
+  return (
+    <DayPicker
+      dir={direction}
+      showOutsideDays={showOutsideDays}
+      className={cn(
+        'group/calendar bg-background p-2 [--cell-radius:var(--radius-md)] [--cell-size:--spacing(7)] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent',
+        className
+      )}
+      captionLayout={captionLayout}
+      locale={locale}
+      formatters={{
+        formatMonthDropdown: (date) =>
+          date.toLocaleString(calendarLocale, {
+            month: 'short',
+          }),
+        ...formatters,
+      }}
+      classNames={{
+        root: cn('w-fit', defaultClassNames.root),
+        months: cn(
+          'relative flex flex-col gap-4 md:flex-row',
+          defaultClassNames.months
+        ),
+        month: cn('flex w-full flex-col gap-4', defaultClassNames.month),
+        nav: cn(
+          'absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1',
+          defaultClassNames.nav
+        ),
+        button_previous: cn(
+          buttonVariants({ variant: buttonVariant }),
+          'size-(--cell-size) p-0 select-none aria-disabled:opacity-50',
+          defaultClassNames.button_previous
+        ),
+        button_next: cn(
+          buttonVariants({ variant: buttonVariant }),
+          'size-(--cell-size) p-0 select-none aria-disabled:opacity-50',
+          defaultClassNames.button_next
+        ),
+        month_caption: cn(
+          'flex h-(--cell-size) w-full items-center justify-center px-(--cell-size)',
+          defaultClassNames.month_caption
+        ),
+        dropdowns: cn(
+          'flex h-(--cell-size) w-full items-center justify-center gap-1.5 text-sm font-medium',
+          defaultClassNames.dropdowns
+        ),
+        dropdown_root: cn(
+          'relative rounded-(--cell-radius)',
+          defaultClassNames.dropdown_root
+        ),
+        dropdown: cn(
+          'absolute inset-0 bg-popover opacity-0',
+          defaultClassNames.dropdown
+        ),
+        caption_label: cn(
+          'font-medium select-none',
+          captionLayout === 'label'
+            ? 'text-sm'
+            : 'flex items-center gap-1 rounded-(--cell-radius) text-sm [&>svg]:size-3.5 [&>svg]:text-muted-foreground',
+          defaultClassNames.caption_label
+        ),
+        month_grid: 'w-full border-collapse',
+        weekdays: cn('flex', defaultClassNames.weekdays),
+        weekday: cn(
+          'flex-1 rounded-(--cell-radius) text-[0.8rem] font-normal text-muted-foreground select-none',
+          defaultClassNames.weekday
+        ),
+        week: cn('mt-2 flex w-full', defaultClassNames.week),
+        week_number_header: cn(
+          'w-(--cell-size) select-none',
+          defaultClassNames.week_number_header
+        ),
+        week_number: cn(
+          'text-[0.8rem] text-muted-foreground select-none',
+          defaultClassNames.week_number
+        ),
+        day: cn(
+          'group/day relative aspect-square h-full w-full rounded-(--cell-radius) p-0 text-center select-none [&:last-child[data-selected=true]_button]:rounded-e-(--cell-radius)',
+          props.showWeekNumber
+            ? '[&:nth-child(2)[data-selected=true]_button]:rounded-s-(--cell-radius)'
+            : '[&:first-child[data-selected=true]_button]:rounded-s-(--cell-radius)',
+          defaultClassNames.day
+        ),
+        range_start: cn(
+          'relative isolate z-0 rounded-s-(--cell-radius) bg-muted after:absolute after:inset-y-0 after:end-0 after:w-4 after:bg-muted',
+          defaultClassNames.range_start
+        ),
+        range_middle: cn('rounded-none', defaultClassNames.range_middle),
+        range_end: cn(
+          'relative isolate z-0 rounded-e-(--cell-radius) bg-muted after:absolute after:inset-y-0 after:start-0 after:w-4 after:bg-muted',
+          defaultClassNames.range_end
+        ),
+        today: cn(
+          'rounded-(--cell-radius) bg-muted text-foreground data-[selected=true]:rounded-none',
+          defaultClassNames.today
+        ),
+        outside: cn(
+          'text-muted-foreground aria-selected:text-muted-foreground',
+          defaultClassNames.outside
+        ),
+        disabled: cn(
+          'text-muted-foreground opacity-50',
+          defaultClassNames.disabled
+        ),
+        hidden: cn('invisible', defaultClassNames.hidden),
+        ...classNames,
+      }}
+      components={{
+        Root: ({ className, rootRef, ...props }) => {
+          return (
+            <div
+              data-slot='calendar'
+              ref={rootRef}
+              className={cn(className)}
+              {...props}
+            />
+          )
+        },
+        Chevron: ({ className, orientation, ...props }) => {
+          if (orientation === 'left') {
+            return (
+              <HugeiconsIcon
+                icon={ArrowLeftIcon}
+                strokeWidth={2}
+                className={cn('size-4', className)}
+                {...props}
+              />
+            )
+          }
+
+          if (orientation === 'right') {
+            return (
+              <HugeiconsIcon
+                icon={ArrowRightIcon}
+                strokeWidth={2}
+                className={cn('size-4', className)}
+                {...props}
+              />
+            )
+          }
+
+          return (
+            <HugeiconsIcon
+              icon={ArrowDownIcon}
+              strokeWidth={2}
+              className={cn('size-4', className)}
+              {...props}
+            />
+          )
+        },
+        DayButton: ({ ...props }) => (
+          <CalendarDayButton calendarLocale={calendarLocale} {...props} />
+        ),
+        WeekNumber: ({ children, ...props }) => {
+          return (
+            <td {...props}>
+              <div className='flex size-(--cell-size) items-center justify-center text-center'>
+                {children}
+              </div>
+            </td>
+          )
+        },
+        ...components,
+      }}
+      {...props}
+    />
+  )
+}
+
+function CalendarDayButton({
+  className,
+  day,
+  modifiers,
+  calendarLocale,
+  ...props
+}: React.ComponentProps<typeof DayButton> & { calendarLocale: string }) {
+  const defaultClassNames = getDefaultClassNames()
+
+  const ref = React.useRef<HTMLButtonElement>(null)
+  React.useEffect(() => {
+    if (modifiers.focused) ref.current?.focus()
+  }, [modifiers.focused])
+
+  return (
+    <Button
+      variant='ghost'
+      size='icon'
+      data-day={day.date.toLocaleDateString(calendarLocale)}
+      data-selected-single={
+        modifiers.selected &&
+        !modifiers.range_start &&
+        !modifiers.range_end &&
+        !modifiers.range_middle
+      }
+      data-range-start={modifiers.range_start}
+      data-range-end={modifiers.range_end}
+      data-range-middle={modifiers.range_middle}
+      className={cn(
+        'group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-middle=true]:bg-muted data-[range-middle=true]:text-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground dark:hover:text-foreground relative isolate z-10 flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 border-0 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-(--cell-radius) data-[range-end=true]:rounded-e-(--cell-radius) data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-(--cell-radius) data-[range-start=true]:rounded-s-(--cell-radius) [&>span]:text-xs [&>span]:opacity-70',
+        defaultClassNames.day,
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Calendar, CalendarDayButton }

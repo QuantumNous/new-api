@@ -20,7 +20,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 // This script is executed from the web/ package root (see package.json script).
-const LOCALES_DIR = path.resolve('src/i18n/locales')
+const LOCALES_DIR = path.resolve('src/shared/i18n/locales')
 const FALLBACK_COMPARE_LOCALE = 'en' // used for "still English" detection only
 const OBFUSCATED_KEYS = [
   {

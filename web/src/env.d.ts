@@ -18,6 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 /// <reference types="@rsbuild/core/types" />
 
+interface ImportMetaEnv {
+  /** Origin of the client portal, used for cross-portal redirects in subdomain deployments. */
+  readonly VITE_CLIENT_BASE_URL?: string
+  /** Origin of the admin portal, used for cross-portal redirects in subdomain deployments. */
+  readonly VITE_ADMIN_BASE_URL?: string
+}
+
 declare module '@visactor/react-vchart' {
   export const VChart: React.ComponentType<Record<string, unknown>>
 }
