@@ -2191,7 +2191,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			newQuotaModel := sub.QuotaModelVersion > 0
 			if newQuotaModel {
 				maxInt64 := int64(^uint64(0) >> 1)
-				if sub.AmountReserved < 0 || sub.TotalAmountUsed < 0 || sub.TotalAmountUsed > maxInt64-sub.AmountReserved || amount > maxInt64-sub.AmountReserved {
+				if sub.AmountReserved < 0 || sub.TotalAmountUsed < 0 || sub.TotalAmountUsed > maxInt64-sub.AmountReserved || amount > maxInt64-sub.TotalAmountUsed-sub.AmountReserved {
 					return errors.New("subscription reservation exceeds supported quota")
 				}
 				usedBefore = sub.TotalAmountUsed + sub.AmountReserved
@@ -2372,7 +2372,7 @@ func AdjustUserSubscriptionReservation(requestId string, delta int64) error {
 		}
 		maxInt64 := int64(^uint64(0) >> 1)
 		minInt64 := -maxInt64 - 1
-		if delta == minInt64 || delta < 0 && record.PreConsumed < -delta || delta > 0 && delta > maxInt64-sub.AmountReserved || delta > 0 && (sub.AmountTotal > 0 && (sub.TotalAmountUsed > sub.AmountTotal || sub.AmountReserved > sub.AmountTotal-sub.TotalAmountUsed || delta > sub.AmountTotal-sub.TotalAmountUsed-sub.AmountReserved)) {
+		if sub.AmountReserved < 0 || sub.TotalAmountUsed < 0 || sub.TotalAmountUsed > maxInt64-sub.AmountReserved || record.PreConsumed < 0 || delta == minInt64 || delta < 0 && record.PreConsumed < -delta || delta > 0 && (delta > maxInt64-sub.TotalAmountUsed-sub.AmountReserved || delta > maxInt64-record.PreConsumed) || delta > 0 && (sub.AmountTotal > 0 && (sub.TotalAmountUsed > sub.AmountTotal || sub.AmountReserved > sub.AmountTotal-sub.TotalAmountUsed || delta > sub.AmountTotal-sub.TotalAmountUsed-sub.AmountReserved)) {
 			return errors.New("subscription reservation exceeds available quota")
 		}
 		if delta > 0 && sub.AmountTotal > 0 && NormalizeResetPeriod(sub.QuotaResetPeriod) != SubscriptionResetNever && record.ResetGeneration == sub.ResetGeneration {

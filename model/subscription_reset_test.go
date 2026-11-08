@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,67 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
+
+// runSubscriptionAccountingMatrix isolates the real accounting operations in
+// fresh databases, without touching application tables or cached plan IDs.
+func runSubscriptionAccountingMatrix(t *testing.T, test func(*testing.T)) {
+	t.Helper()
+	for _, engine := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(engine, func(t *testing.T) {
+			dsn := os.Getenv("TEST_SUBSCRIPTION_" + strings.ToUpper(engine) + "_DSN")
+			var dialect gorm.Dialector
+			switch engine {
+			case "sqlite":
+				dialect = sqlite.Open(filepath.Join(t.TempDir(), "accounting.db"))
+			case "mysql":
+				dialect = mysql.Open(dsn)
+			case "postgres":
+				dialect = postgres.Open(dsn)
+			}
+			if engine != "sqlite" && dsn == "" {
+				t.Skip("database DSN is not configured")
+			}
+			db, err := gorm.Open(dialect, &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: fmt.Sprintf("accounting_%x_", time.Now().UnixNano())}})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(5)
+			if engine == "sqlite" {
+				sqlDB.SetMaxOpenConns(1)
+			}
+			previousDB, previousType := DB, common.MainDatabaseType()
+			DB = db
+			common.SetMainDatabaseType(common.DatabaseType(engine))
+			t.Cleanup(func() {
+				DB = previousDB
+				common.SetMainDatabaseType(previousType)
+				require.NoError(t, db.Migrator().DropTable(&SubscriptionPreConsumeRecord{}, &UserSubscription{}, &SubscriptionPlanVersion{}, &SubscriptionPlan{}, &SubscriptionQuotaOperation{}, &User{}))
+				require.NoError(t, sqlDB.Close())
+			})
+			require.NoError(t, db.AutoMigrate(&SubscriptionPlan{}, &SubscriptionPlanVersion{}, &UserSubscription{}, &SubscriptionPreConsumeRecord{}, &SubscriptionQuotaOperation{}, &User{}))
+			test(t)
+		})
+	}
+}
+
+func TestUnlimitedSubscriptionReservationOverflowMatrix(t *testing.T) {
+	runSubscriptionAccountingMatrix(t, func(t *testing.T) {
+		now := GetDBTimestamp()
+		plan := &SubscriptionPlan{Title: "Unlimited", QuotaResetPeriod: SubscriptionResetNever}
+		require.NoError(t, DB.Create(plan).Error)
+		sub := &UserSubscription{UserId: 1, PlanId: plan.Id, QuotaModelVersion: 1, TotalAmountUsed: math.MaxInt64 - 2, StartTime: now, EndTime: now + 3600, Status: "active"}
+		require.NoError(t, DB.Create(sub).Error)
+		_, err := PreConsumeUserSubscription("overflow-initial", sub.UserId, "", 0, 3)
+		require.Error(t, err)
+		_, err = PreConsumeUserSubscription("overflow-adjust", sub.UserId, "", 0, 1)
+		require.NoError(t, err)
+		require.Error(t, AdjustUserSubscriptionReservation("overflow-adjust", 2))
+		require.NoError(t, SettleUserSubscriptionPreConsume("overflow-adjust", 0))
+		updated := getSubscriptionResetSub(t, sub.Id)
+		assert.EqualValues(t, math.MaxInt64-1, updated.TotalAmountUsed)
+		assert.Zero(t, updated.AmountReserved)
+	})
+}
 
 func TestAdminRestorePlanSubscriptionWindowsMatrix(t *testing.T) {
 	cases := []struct {
