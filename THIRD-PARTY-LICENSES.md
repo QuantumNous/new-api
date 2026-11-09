@@ -17,7 +17,7 @@ Transitive dependencies should be audited before a final external release.
 | backend  | production  | Go        | `github.com/MoeForge/moego`                             | `v0.1.0-alpha.1`                     | MIT                     |
 | backend  | production  | Go        | `github.com/abema/go-mp4`                               | `v1.4.1`                             | MIT                     |
 | backend  | test        | Go        | `github.com/alicebob/miniredis/v2`                      | `v2.38.0`                            | MIT                     |
-| backend  | production  | Go        | `github.com/andybalholm/brotli`                         | `v1.2.0`                             | MIT                     |
+| backend  | production  | Go        | `github.com/andybalholm/brotli`                         | `v1.2.1`                             | MIT                     |
 | backend  | production  | Go        | `github.com/anknown/ahocorasick`                        | `v0.0.0-20190904063843-d75dbd5169c0` | MIT                     |
 | backend  | production  | Go        | `github.com/aws/aws-sdk-go-v2`                          | `v1.41.5`                            | Apache-2.0              |
 | backend  | production  | Go        | `github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream` | `v1.7.8`                             | Apache-2.0              |
