@@ -287,6 +287,12 @@ func ClaimSystemTask(id int64, taskType string, runnerID string, lockUntil int64
 			_ = ReleaseSystemTaskLock(task.TaskID, runnerID)
 			return nil, false, err
 		}
+		if taskType == SystemTaskTypeIQTest {
+			if err := InterruptIQBatch(expiredTaskID); err != nil {
+				_ = ReleaseSystemTaskLock(task.TaskID, runnerID)
+				return nil, false, err
+			}
+		}
 	}
 
 	result := DB.Model(&SystemTask{}).
@@ -427,6 +433,11 @@ func ExpireStaleSystemTaskLocks(now int64) error {
 	for _, lock := range locks {
 		if err := MarkSystemTaskLeaseExpired(lock.TaskID); err != nil {
 			return err
+		}
+		if lock.Type == SystemTaskTypeIQTest {
+			if err := InterruptIQBatch(lock.TaskID); err != nil {
+				return err
+			}
 		}
 		result := DB.Where("type = ? AND task_id = ? AND locked_by = ? AND locked_until < ?", lock.Type, lock.TaskID, lock.LockedBy, now).
 			Delete(&SystemTaskLock{})

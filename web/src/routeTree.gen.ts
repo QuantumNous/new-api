@@ -30,6 +30,7 @@ import { Route as errors500RouteImport } from './routes/(errors)/500'
 import { Route as errors503RouteImport } from './routes/(errors)/503'
 import { Route as AuthenticatedBeginnerGuideRouteImport } from './routes/_authenticated/beginner-guide'
 import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authenticated/chat2link'
+import { Route as AuthenticatedIqTestsRouteImport } from './routes/_authenticated/iq-tests'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as DesktopConnectRouteImport } from './routes/desktop/connect'
@@ -186,6 +187,11 @@ const AuthenticatedBeginnerGuideRoute =
 const AuthenticatedChat2linkRoute = AuthenticatedChat2linkRouteImport.update({
   id: '/chat2link',
   path: '/chat2link',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedIqTestsRoute = AuthenticatedIqTestsRouteImport.update({
+  id: '/iq-tests',
+  path: '/iq-tests',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSystemSettingsRouteRoute =
@@ -515,6 +521,7 @@ export interface FileRoutesByFullPath {
   '/503': typeof errors503Route
   '/beginner-guide': typeof AuthenticatedBeginnerGuideRoute
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/iq-tests': typeof AuthenticatedIqTestsRoute
   '/desktop/connect': typeof DesktopConnectRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
@@ -588,6 +595,7 @@ export interface FileRoutesByTo {
   '/503': typeof errors503Route
   '/beginner-guide': typeof AuthenticatedBeginnerGuideRoute
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/iq-tests': typeof AuthenticatedIqTestsRoute
   '/desktop/connect': typeof DesktopConnectRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
@@ -665,6 +673,7 @@ export interface FileRoutesById {
   '/(errors)/503': typeof errors503Route
   '/_authenticated/beginner-guide': typeof AuthenticatedBeginnerGuideRoute
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
+  '/_authenticated/iq-tests': typeof AuthenticatedIqTestsRoute
   '/desktop/connect': typeof DesktopConnectRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
@@ -741,6 +750,7 @@ export interface FileRouteTypes {
     | '/503'
     | '/beginner-guide'
     | '/chat2link'
+    | '/iq-tests'
     | '/desktop/connect'
     | '/oauth/$provider'
     | '/about/'
@@ -814,6 +824,7 @@ export interface FileRouteTypes {
     | '/503'
     | '/beginner-guide'
     | '/chat2link'
+    | '/iq-tests'
     | '/desktop/connect'
     | '/oauth/$provider'
     | '/about'
@@ -890,6 +901,7 @@ export interface FileRouteTypes {
     | '/(errors)/503'
     | '/_authenticated/beginner-guide'
     | '/_authenticated/chat2link'
+    | '/_authenticated/iq-tests'
     | '/desktop/connect'
     | '/oauth/$provider'
     | '/about/'
@@ -1113,6 +1125,13 @@ declare module '@tanstack/react-router' {
       path: '/chat2link'
       fullPath: '/chat2link'
       preLoaderRoute: typeof AuthenticatedChat2linkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/iq-tests': {
+      id: '/_authenticated/iq-tests'
+      path: '/iq-tests'
+      fullPath: '/iq-tests'
+      preLoaderRoute: typeof AuthenticatedIqTestsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/system-settings': {
@@ -1582,6 +1601,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   AuthenticatedBeginnerGuideRoute: typeof AuthenticatedBeginnerGuideRoute
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
+  AuthenticatedIqTestsRoute: typeof AuthenticatedIqTestsRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -1616,6 +1636,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
     AuthenticatedSystemSettingsRouteRouteWithChildren,
   AuthenticatedBeginnerGuideRoute: AuthenticatedBeginnerGuideRoute,
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,
+  AuthenticatedIqTestsRoute: AuthenticatedIqTestsRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,

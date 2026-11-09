@@ -22,6 +22,7 @@ import {
   Boxes,
   ChevronDown,
   FileText,
+  FlaskConical,
   KeyRound,
   LayoutGrid,
   List,
@@ -70,6 +71,7 @@ const NAV_ICONS = {
   overview: LayoutGrid,
   requests: List,
   models: Boxes,
+  'iq-tests': FlaskConical,
   reports: FileText,
   playground: MessageSquare,
   keys: KeyRound,
@@ -320,6 +322,20 @@ export function TerminalLayout(props: TerminalLayoutProps) {
                         key={item.id}
                         to='/wallet'
                         hash={item.href.includes('#') ? 'redeem' : undefined}
+                        className={className}
+                        title={t(item.title)}
+                        aria-label={t(item.title)}
+                      >
+                        <Icon size={16} />
+                        <span className='ci-appNavText'>{t(item.title)}</span>
+                      </Link>
+                    )
+                  }
+                  if (path === '/iq-tests') {
+                    return (
+                      <Link
+                        key={item.id}
+                        to='/iq-tests'
                         className={className}
                         title={t(item.title)}
                         aria-label={t(item.title)}

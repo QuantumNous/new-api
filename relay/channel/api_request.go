@@ -465,6 +465,15 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	// transparent stream retries.
 	relayClient := *client
 	relayClient.CheckRedirect = keepUpstreamRedirectResponse
+	if c.GetBool("iq_test") {
+		// IQ calls are deadline-bound, non-replayable POSTs, even when an adaptor
+		// built its request without propagating the incoming context.
+		req = req.WithContext(c.Request.Context())
+		req.GetBody = nil
+		req.Header.Del("Idempotency-Key")
+		req.Header.Del("X-Idempotency-Key")
+	}
+
 	if common2.DebugEnabled && req != nil && req.URL != nil {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)
 		logger.LogDebug(c, "http transport select: host=%s protocol=%s shards=%d policy=%s",

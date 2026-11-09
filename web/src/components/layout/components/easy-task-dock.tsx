@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import {
   BookOpen,
+  FlaskConical,
   KeyRound,
   LayoutDashboard,
   Menu,
@@ -50,6 +51,12 @@ const EASY_TASKS = [
     to: '/pricing',
     icon: Sparkles,
     tone: 'money',
+  },
+  {
+    titleKey: 'IQ tests',
+    to: '/iq-tests',
+    icon: FlaskConical,
+    tone: 'signal',
   },
   {
     titleKey: 'Beginner guide',

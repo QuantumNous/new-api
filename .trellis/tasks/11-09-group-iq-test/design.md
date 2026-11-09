@@ -1,6 +1,6 @@
 # Group IQ Tests — Technical Design
 
-Status: planning; proposed defaults require the final PRD review. This is one cohesive end-to-end deliverable; backend, preview, and gallery changes are ordered steps, not separately released child products.
+Status: approved for implementation on 2026-11-09; focused verification only, per the user's request. This is one cohesive end-to-end deliverable; backend, preview, and gallery changes are ordered steps, not separately released child products.
 
 ## 1. Boundaries and Reuse
 
@@ -118,6 +118,6 @@ Detailed rationale: `research/preview-security.md`.
 - Roll back first by disabling scheduling and hiding navigation; old code can ignore the additive tables. Do not drop artwork/state or erase operational logs during rollback without a separate approved action.
 - Development validation uses mocked providers and local fixtures only. Production/manual provider execution needs separate authorization because it incurs costs.
 
-## 7. Final Review Defaults
+## 7. Approved Defaults and Verification Budget
 
-Not yet user-approved: latest-only artifacts; usable-group visibility; system-funded bounded calls; administrator manual-run capability; initial disabled state; no retries/catch-up/overlap; the proposed numeric safety bounds. These are explicit scope/cost defaults for approval, not facts inferred from the repository.
+The user approved latest-only artifacts, usable-group visibility, site-funded bounded calls, administrator manual runs, initially disabled schedules, and no retries/catch-up/overlap. Numeric safety limits implement that approved bounded-execution proposal. Keep verification targeted: one focused backend gate, focused frontend tests, necessary type/build checks, and one local isolation/rendering smoke check. Do not run unrelated full suites or production provider calls.

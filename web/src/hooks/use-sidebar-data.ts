@@ -85,6 +85,11 @@ export function useSidebarData(): SidebarData {
               icon: CreditCard,
             },
             {
+              title: t('IQ tests'),
+              url: '/iq-tests',
+              icon: FlaskConical,
+            },
+            {
               title: t('Beginner guide'),
               url: '/beginner-guide',
               icon: BookOpen,
@@ -135,6 +140,11 @@ export function useSidebarData(): SidebarData {
           {
             title: t('Playground'),
             url: '/playground',
+            icon: FlaskConical,
+          },
+          {
+            title: t('IQ tests'),
+            url: '/iq-tests',
             icon: FlaskConical,
           },
           {

@@ -40,6 +40,7 @@ type testResult struct {
 	context     *gin.Context
 	localErr    error
 	newAPIError *types.NewAPIError
+	text        string
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
@@ -71,6 +72,17 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 }
 
 func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+	return testChannelWithIQ(ctx, channel, testUserID, testModel, endpointType, isStream, nil)
+}
+
+// The optional IQ path shares channel setup, mapping, pricing and conversion,
+// but never enters health updates or the public relay retry controller.
+type iqChannelTestOptions struct {
+	group  string
+	prompt string
+}
+
+func testChannelWithIQ(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, iq *iqChannelTestOptions) testResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -168,6 +180,11 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	c.Set("base_url", channel.GetBaseURL())
 	group, _ := model.GetUserGroup(testUserID, false)
 	c.Set("group", group)
+	if iq != nil {
+		c.Set("group", iq.group)
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, iq.group)
+		c.Set("iq_test", true)
+	}
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
 	if newAPIError != nil {
@@ -229,6 +246,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 
 	request := buildTestRequest(testModel, endpointType, channel, isStream)
+	if iq != nil {
+		request = buildIQRequest(testModel, endpointType, iq.prompt, isStream)
+	}
 
 	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 
@@ -241,6 +261,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 
 	info.IsChannelTest = true
+	if iq != nil {
+		info.DisablePing = true
+	}
 	info.InitChannelMeta(c)
 
 	err = attachTestBillingRequestInput(info, request)
@@ -293,7 +316,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	//// 创建一个用于日志的 info 副本，移除 ApiKey
 	//logInfo := info
 	//logInfo.ApiKey = ""
-	common.SysLog(common.LogText("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
+	if iq == nil {
+		common.SysLog(common.LogText("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
+	}
 
 	priceData, err := helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
 	if err != nil {
@@ -414,6 +439,10 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	//	}
 	//}
 
+	var iqInput []byte
+	if iq != nil {
+		iqInput = bytes.Clone(jsonData)
+	}
 	if len(info.ParamOverride) > 0 {
 		jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 		if err != nil {
@@ -432,6 +461,17 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	}
 
+	if iq != nil {
+		// Enforce the output budget after channel overrides/adaptor conversion.
+		jsonData, err = restoreIQInput(jsonData, iqInput)
+		if err != nil {
+			return testResult{localErr: err}
+		}
+		jsonData, err = boundIQRequest(jsonData, endpointType)
+		if err != nil {
+			return testResult{localErr: err}
+		}
+	}
 	requestBody := bytes.NewBuffer(jsonData)
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
 	resp, err := adaptor.DoRequest(c, info, requestBody)
@@ -441,6 +481,16 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			localErr:    err,
 			newAPIError: types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError),
 		}
+	}
+	if iq != nil {
+		if resp == nil {
+			return testResult{localErr: errors.New("empty upstream response")}
+		}
+		httpResp, ok := resp.(*http.Response)
+		if !ok || httpResp == nil {
+			return testResult{localErr: errors.New("invalid upstream response")}
+		}
+		return captureIQResponse(c, httpResp, info, testUserID, channel.Id, priceData, tik)
 	}
 	var httpResp *http.Response
 	if resp != nil {

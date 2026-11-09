@@ -46,6 +46,13 @@ type ScheduledSystemTaskHandler interface {
 	NewPayload() any
 }
 
+// CalendarSystemTaskHandler owns an atomic persisted due-slot check. Other
+// scheduled handlers retain their existing completion-relative intervals.
+type CalendarSystemTaskHandler interface {
+	SystemTaskHandler
+	Schedule(now time.Time) error
+}
+
 var (
 	systemTaskHandlersMu sync.RWMutex
 	systemTaskHandlers   = map[string]SystemTaskHandler{}
@@ -266,6 +273,12 @@ func runSystemTaskScheduler() {
 	scheduledHandlers := make([]ScheduledSystemTaskHandler, 0, len(handlers))
 	taskTypes := make([]string, 0, len(handlers))
 	for _, handler := range handlers {
+		if calendar, ok := handler.(CalendarSystemTaskHandler); ok {
+			if err := calendar.Schedule(time.Unix(now, 0)); err != nil {
+				logger.LogWarn(context.Background(), "IQ calendar scheduling failed")
+			}
+			continue
+		}
 		scheduled, ok := handler.(ScheduledSystemTaskHandler)
 		if !ok || !scheduled.Enabled() {
 			continue

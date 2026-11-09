@@ -49,6 +49,7 @@ export const CONSOLE_NAV: ConsoleNavItem[] = [
     group: 'main',
   },
   { id: 'models', title: 'Models', href: '/pricing', group: 'main' },
+  { id: 'iq-tests', title: 'IQ tests', href: '/iq-tests', group: 'main' },
   {
     id: 'reports',
     title: 'Reports',

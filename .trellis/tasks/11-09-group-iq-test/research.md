@@ -63,7 +63,7 @@ This architecture still requires deliberate handling of document extraction, nav
 - `web/components.json`: this project uses the installed Base UI/shadcn setup; no new UI library or iframe service is necessary.
 - `web/package.json`: Bun scripts provide Vitest, type checking, lint, formatting, build, and i18n sync. Bun/Go are installed, but `web/node_modules` is absent at this planning checkpoint; no business-code test has been run or claimed.
 
-The final-review defaults are latest-only artwork storage, no artwork-history UI, site-funded bounded test execution, schedule-disabled deployment, and usable-group-filtered authenticated access. These are proposals and are not yet user-approved. Operational task/audit traces remain distinct from artwork history and should not be cleaned up by latest-result replacement.
+The final-review defaults are latest-only artwork storage, no artwork-history UI, site-funded bounded test execution, schedule-disabled deployment, and usable-group-filtered authenticated access. These defaults were subsequently approved by the user before implementation. Operational task/audit traces remain distinct from artwork history and should not be cleaned up by latest-result replacement.
 
 The first MDN browser read produced a tool-managed spill file outside the repository. It is inventoried in `.group-iq-test-temp-artifacts.md` as a non-business intermediate output; do not delete it or the inventory until the user agrees at completion. Trellis logs are excluded from that cleanup.
 
