@@ -42,6 +42,9 @@ import type {
   ApiResponse,
 } from './types'
 
+/** Strict per-request timeout for every credential/auth call so a hung server cannot leave a form spinner running forever. */
+export const AUTH_REQUEST_TIMEOUT_MS = 10_000
+
 // ============================================================================
 // Authentication APIs
 // ============================================================================
@@ -72,7 +75,7 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
         username: payload.username,
         ...passwordFields,
       },
-      { skipAuthRefresh: true }
+      { skipAuthRefresh: true, timeout: AUTH_REQUEST_TIMEOUT_MS }
     )
     if (payload.passwordEncryptionEnabled && !res.data?.success) {
       clearPasswordEncryptionCache()
@@ -90,6 +93,7 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
 export async function login2fa(payload: TwoFAPayload) {
   const res = await api.post<Login2FAResponse>('/api/user/login/2fa', payload, {
     skipAuthRefresh: true,
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
   })
   return res.data
 }
@@ -137,6 +141,7 @@ export async function logout(): Promise<ApiResponse> {
         headers: sid ? { 'X-Auth-Session': sid } : undefined,
         skipAuthRefresh: true,
         skipErrorHandler: true,
+        timeout: AUTH_REQUEST_TIMEOUT_MS,
       })
       return res.data
     },
@@ -155,6 +160,7 @@ export async function sendPasswordResetEmail(
 ): Promise<ApiResponse> {
   const res = await api.get('/api/reset_password', {
     params: { email, turnstile },
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
   })
   return res.data
 }
@@ -191,6 +197,7 @@ export async function createOAuthAuthorization(
       skipAuthRefresh: intent === 'login',
       ...(proofToken ? { headers: { 'X-Security-Proof': proofToken } } : {}),
       singleUseAuthorization: intent === 'bind',
+      timeout: AUTH_REQUEST_TIMEOUT_MS,
       signal,
       skipBusinessError: true,
       skipErrorHandler: true,
@@ -225,7 +232,10 @@ export async function createOAuthFlow(
 
 // WeChat login by authorization code
 export async function wechatLoginByCode(code: string): Promise<ApiResponse> {
-  const res = await api.get('/api/oauth/wechat', { params: { code } })
+  const res = await api.get('/api/oauth/wechat', {
+    params: { code },
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
+  })
   return res.data
 }
 
@@ -235,6 +245,7 @@ export async function telegramLogin(
   const res = await api.get('/api/oauth/telegram/login', {
     params: authorization,
     disableDuplicate: true,
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
     skipAuthRefresh: true,
     skipBusinessError: true,
     skipErrorHandler: true,
@@ -250,6 +261,7 @@ export async function telegramLogin(
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
   const res = await api.post(`/api/user/register`, payload, {
     params: { turnstile: payload.turnstile ?? '' },
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
   })
   return res.data
 }
@@ -261,6 +273,7 @@ export async function sendEmailVerification(
 ): Promise<ApiResponse> {
   const res = await api.get('/api/verification', {
     params: { email, turnstile },
+    timeout: AUTH_REQUEST_TIMEOUT_MS,
   })
   return res.data
 }
@@ -279,7 +292,7 @@ export async function bindEmail(
       new_code: newCode,
       old_code: oldCode,
     },
-    { singleUseAuthorization: true, signal }
+    { singleUseAuthorization: true, signal, timeout: AUTH_REQUEST_TIMEOUT_MS }
   )
   return res.data
 }

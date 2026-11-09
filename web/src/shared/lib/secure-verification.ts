@@ -21,6 +21,8 @@ import axios from 'axios'
 import {
   getServerErrorMessageKey,
   getServerMessage,
+  isNetworkTimeoutError,
+  NETWORK_TIMEOUT_MESSAGE,
   safeServerErrorMessage,
 } from './server-error-message'
 
@@ -40,6 +42,11 @@ export class AuthOperationError extends Error {
     fallback = 'Verification failed. Please try again.'
   ): AuthOperationError {
     if (error instanceof AuthOperationError) return error
+    if (isNetworkTimeoutError(error)) {
+      return new AuthOperationError(NETWORK_TIMEOUT_MESSAGE, 'NETWORK_TIMEOUT', {
+        cause: error,
+      })
+    }
     if (axios.isAxiosError<{ message?: string; code?: string }>(error)) {
       return new AuthOperationError(
         getServerErrorMessageKey(error) ||

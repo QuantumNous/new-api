@@ -200,6 +200,7 @@
     "Access Codex using ChatGPT subscription credentials": "Truy cập Codex bằng thông tin xác thực gói đăng ký ChatGPT",
     "Access Denied": "Truy cập bị từ chối",
     "Access Denied Message": "Thông báo từ chối truy cập",
+    "Access Denied: Administrator privileges required.": "Truy cập bị từ chối: cần quyền quản trị viên.",
     "Access Forbidden": "Truy cập bị cấm",
     "Access hosted model predictions through Replicate": "Truy cập dịch vụ dự đoán của mô hình được lưu trữ trên Replicate",
     "Access model services through MokaAI": "Truy cập dịch vụ mô hình qua MokaAI",
@@ -3971,6 +3972,7 @@
     "Nested JSON: source group →": "JSON lồng nhau: nhóm nguồn →",
     "Network connection failed or server not responding": "Kết nối mạng thất bại hoặc máy chủ không phản hồi",
     "Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H)": "Proxy mạng cho kênh này (hỗ trợ HTTP, HTTPS, SOCKS5 và SOCKS5H)",
+    "Network timeout. The server took too long to respond. Please try again.": "Hết thời gian chờ mạng. Máy chủ phản hồi quá lâu. Vui lòng thử lại.",
     "Never": "Không bao giờ",
     "Never expires": "Không hết hạn",
     "Never used": "Chưa từng dùng",
@@ -7465,7 +7467,6 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "Access Denied: Administrator privileges required.": "Truy cập bị từ chối: cần quyền quản trị viên."
+    "Zoom": "Zoom"
   }
 }

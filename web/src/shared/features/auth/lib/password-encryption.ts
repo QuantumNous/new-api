@@ -65,7 +65,7 @@ async function getPasswordEncryptionKey(): Promise<PasswordEncryptionKey> {
   const response = await api.get<{
     success: boolean
     data?: PasswordEncryptionKey
-  }>('/api/user/login/encryption-key')
+  }>('/api/user/login/encryption-key', { timeout: 10_000 })
   const key = response.data?.data
   if (!response.data?.success || !key?.kid || !key.public_key) {
     throw new Error('Password encryption key is unavailable')
