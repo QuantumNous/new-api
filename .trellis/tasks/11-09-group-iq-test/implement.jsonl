@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"Backend layer conventions and applicable spec routing."}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Authenticated frontend routing, viewer-scoped data, sidebar/easy-console regression contracts."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Define configuration, execution, result, API, and preview boundaries once."}
+{"file":".trellis/tasks/11-09-group-iq-test/research.md","reason":"Repository evidence, confirmed scope, dependency direction, scheduling and execution pitfalls; follow relevant frontend skills before implementation."}
+{"file":".trellis/tasks/11-09-group-iq-test/research/preview-security.md","reason":"Approved lightweight active-HTML preview boundary, external sources, and explicit browser-sandbox limitations."}

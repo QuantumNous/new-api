@@ -1,0 +1,4 @@
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"Verify authenticated guards, group/viewer isolation, UI/navigation regressions, and frontend validation conventions."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Review end-to-end prompt/schedule/group/result contracts and error/data-loss boundaries."}
+{"file":".trellis/tasks/11-09-group-iq-test/research.md","reason":"Verify no per-channel expansion, retries/replays, unapproved scope, baseline masking, or dependency cycles."}
+{"file":".trellis/tasks/11-09-group-iq-test/research/preview-security.md","reason":"Verify real isolation/resource behavior without overstating CSP, iframe, or arbitrary-script guarantees."}
