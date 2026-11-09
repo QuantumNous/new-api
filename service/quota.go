@@ -177,12 +177,27 @@ func ReserveRealtimeQuota(ctx *gin.Context, info *relaycommon.RelayInfo, usage *
 		return err
 	}
 	info.FinalPreConsumedQuota = info.Billing.GetPreConsumedQuota()
+	info.RealtimeBilling.ReservedToolQuota = info.RealtimeBilling.ToolQuota
 	return nil
 }
 
 // Reservation and settlement must use the same captured rates, audio/text
 // categories and vendor-reported tool charges, including mapped model names.
 func calculateRealtimeQuota(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage) (int, *billingexpr.TieredResult, []ToolSurchargeItem) {
+	if info.RealtimeBilling == nil {
+		info.RealtimeBilling = &relaycommon.RealtimeBillingState{ToolPrices: make(map[string]float64)}
+	}
+	if info.RealtimeBilling.ToolPrices == nil {
+		info.RealtimeBilling.ToolPrices = make(map[string]float64)
+	}
+	// Keep the provider's raw usage for logs; normalize its nonbillable audio
+	// transcript only for pricing, including mixed audio/text-only turns.
+	billable := *usage
+	companion := min(info.RealtimeBilling.AudioCompanionTextTokens, usage.OutputTokenDetails.TextTokens)
+	billable.OutputTokenDetails.TextTokens -= companion
+	billable.OutputTokens -= companion
+	billable.TotalTokens -= companion
+	usage = &billable
 	price := info.PriceData
 	amount := decimal.NewFromInt(int64(usage.InputTokenDetails.TextTokens))
 	amount = amount.Add(decimal.NewFromInt(int64(usage.OutputTokenDetails.TextTokens)).Mul(decimal.NewFromFloat(price.CompletionRatio)))
@@ -203,6 +218,7 @@ func calculateRealtimeQuota(ctx *gin.Context, info *relaycommon.RelayInfo, usage
 	}
 
 	var result *billingexpr.TieredResult
+	fallback := false
 	if snap := info.TieredBillingSnapshot; snap != nil {
 		canonical := &dto.Usage{
 			PromptTokens: usage.InputTokens, CompletionTokens: usage.OutputTokens, TotalTokens: usage.TotalTokens,
@@ -211,14 +227,27 @@ func calculateRealtimeQuota(ctx *gin.Context, info *relaycommon.RelayInfo, usage
 		params := BuildTieredTokenParams(canonical, false, billingexpr.UsedVarsByHash(snap.ExprString, snap.ExprHash))
 		if ok, tieredQuota, tieredResult := TryTieredSettle(info, params); ok {
 			quota, result = tieredQuota, tieredResult
+			fallback = tieredResult == nil
 		}
 	}
 	summary := textQuotaSummary{ModelName: info.GetBillingModelName(), GroupRatio: price.GroupRatioInfo.GroupRatio}
 	summary.ToolCallSurchargeQuota = calculateTextToolCallSurcharge(ctx, info, &summary)
+	info.RealtimeBilling.ToolQuota = summary.ToolCallSurchargeQuota
+	if fallback {
+		// The fallback is the complete reservation, including its search fees.
+		// Only searches not covered by that reservation may be added again.
+		summary.ToolCallSurchargeQuota = decimal.Max(decimal.Zero,
+			summary.ToolCallSurchargeQuota.Sub(info.RealtimeBilling.ReservedToolQuota))
+	}
 	quota = composeTieredTextQuota(info, summary, quota, result)
+	if info.RealtimeBilling.UsageIncomplete {
+		quota = max(quota, info.FinalPreConsumedQuota)
+	}
 	return quota, result, summary.ToolSurchargeItems
 }
 
+// PostWssConsumeQuota settles a complete realtime session once and records its
+// audio/text split, frozen tool charges and any incomplete upstream usage.
 func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelName string,
 	usage *dto.RealtimeUsage, extraContent []*common.Message) {
 
@@ -252,7 +281,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 
 	// record all the consume log even if quota is 0
-	if totalTokens == 0 && len(toolItems) == 0 {
+	if totalTokens == 0 && len(toolItems) == 0 && !relayInfo.RealtimeBilling.UsageIncomplete {
 		// in this case, must be some error happened
 		// we cannot just return, because we may have to return the pre-consumed quota
 		quota = 0
@@ -276,6 +305,9 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
 	appendToolSurchargeLogInfo(other, toolItems)
+	if relayInfo.RealtimeBilling.UsageIncomplete {
+		other.SetAdmin("realtime_usage_incomplete", true)
+	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,

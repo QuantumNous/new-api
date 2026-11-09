@@ -22,12 +22,24 @@ import (
 	"github.com/MoeForge/moego/ojson"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/shopspring/decimal"
 )
 
 type ThinkingContentInfo struct {
 	IsFirstThinkingContent  bool
 	SendLastThinkingContent bool
 	HasSentThinkingContent  bool
+}
+
+// RealtimeBillingState keeps tool prices and the surcharge included in the
+// last successful reservation stable across turns and final settlement.
+type RealtimeBillingState struct {
+	ToolPrices        map[string]float64
+	ToolQuota         decimal.Decimal
+	ReservedToolQuota decimal.Decimal
+	UsageIncomplete   bool
+	// Qwen does not bill the text accompanying an audio output a second time.
+	AudioCompanionTextTokens int
 }
 
 const (
@@ -116,6 +128,7 @@ type RelayInfo struct {
 	RealtimeTools      []dto.RealTimeTool
 	IsFirstRequest     bool
 	AudioUsage         bool
+	RealtimeBilling    *RealtimeBillingState
 	ReasoningEffort    string
 	// ReasoningConversion is the suffix-derived reasoning intent attached
 	// after model mapping. Converters read it via ReasoningState().

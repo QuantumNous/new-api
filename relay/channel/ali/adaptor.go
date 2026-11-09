@@ -89,6 +89,8 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	}
 }
 
+// GetRequestURL selects the native speech/WebSocket endpoints or the matching
+// HTTP compatibility endpoint without mutating the configured channel URL.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode == constant.RelayModeRealtime {
 		endpoint, err := url.Parse(info.ChannelBaseUrl)
@@ -145,6 +147,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return fullRequestURL, nil
 }
 
+// SetupRequestHeader authenticates the upstream and enables SSE only for HTTP
+// streaming endpoints; realtime sessions use their WebSocket handshake.
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("Authorization", "Bearer "+info.ApiKey)
@@ -208,6 +212,8 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	return request, nil
 }
 
+// ConvertAudioRequest validates Qwen's speech formats and billing units before
+// producing a native request, preserving classified 400 errors without retries.
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	if info.RelayMode != constant.RelayModeAudioSpeech {
 		return nil, errors.New("only audio speech (TTS) is supported for ali channel")
@@ -216,6 +222,9 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	aliReq, err := convertOpenAITTSRequestToAli(request)
 	if err != nil {
 		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if err := validateAliTTSBilling(info); err != nil {
+		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 	jsonData, err := common.Marshal(aliReq)
 	if err != nil {
@@ -228,6 +237,8 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	return request, nil
 }
 
+// DoRequest uses a WebSocket connection for realtime audio and the shared HTTP
+// transport for other relay modes.
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	if info.RelayMode == constant.RelayModeRealtime {
 		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
@@ -238,6 +249,8 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
+// DoResponse selects the mode-specific response parser and usage contract,
+// including character-count speech and native realtime audio/text usage.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayMode == constant.RelayModeRealtime {
 		return handleAliRealtimeResponse(c, info)

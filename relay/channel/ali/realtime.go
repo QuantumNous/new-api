@@ -50,12 +50,18 @@ type aliRealtimeUsage struct {
 }
 
 type aliRealtimeSession struct {
-	info       *relaycommon.RelayInfo
-	usage      dto.RealtimeUsage
-	responses  map[string]struct{}
-	toolCounts map[string]int
+	info             *relaycommon.RelayInfo
+	usage            dto.RealtimeUsage
+	responses        map[string]struct{}
+	toolCounts       map[string]int
+	outputPCM16      bool
+	pendingResponse  bool
+	awaitingResponse bool
+	outputDelivered  bool
 }
 
+// account records each completed upstream response once, preserving validated
+// token usage even if its search counters or the next reservation are invalid.
 func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 	var event struct {
 		Type     string `json:"type"`
@@ -70,13 +76,28 @@ func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 		return errors.New("invalid Qwen realtime event")
 	}
 	if event.Type != dto.RealtimeEventTypeResponseDone {
+		if event.Type == "response.created" || event.Type == "response.audio.delta" || event.Type == "response.text.delta" {
+			s.pendingResponse = true
+			s.awaitingResponse = false
+		}
+		if event.Type == "response.audio.delta" || event.Type == "response.text.delta" {
+			s.outputDelivered = true
+		}
 		return nil
+	}
+	if s.info.RealtimeBilling == nil {
+		s.info.RealtimeBilling = &relaycommon.RealtimeBillingState{ToolPrices: make(map[string]float64)}
 	}
 	response := event.Response
 	if response == nil {
 		return errors.New("Qwen response.done is missing response")
 	}
 	if response.Usage == nil {
+		if s.outputDelivered {
+			s.info.RealtimeBilling.UsageIncomplete = true
+		}
+		s.outputDelivered = false
+		s.pendingResponse, s.awaitingResponse = false, false
 		if response.Status == "cancelled" || response.Status == "failed" || response.Status == "incomplete" {
 			return nil
 		}
@@ -100,6 +121,27 @@ func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 		u.TotalTokens != u.InputTokens+u.OutputTokens {
 		return errors.New("Qwen realtime token totals do not match their details")
 	}
+	s.pendingResponse, s.awaitingResponse, s.outputDelivered = false, false, false
+	// Account tokens before validating plugins: a malformed/oversized search
+	// count must not make an otherwise completed audio response free.
+	counters := []*int{&s.usage.TotalTokens, &s.usage.InputTokens, &s.usage.OutputTokens,
+		&s.usage.InputTokenDetails.TextTokens, &s.usage.InputTokenDetails.AudioTokens,
+		&s.usage.OutputTokenDetails.TextTokens, &s.usage.OutputTokenDetails.AudioTokens}
+	for i, counter := range counters {
+		value, clamp := common.QuotaFromFloatChecked(float64(*counter) + float64(values[i]))
+		*counter = value
+		if s.info.QuotaClamp == nil {
+			s.info.QuotaClamp = clamp
+		}
+	}
+	if u.OutputDetails.AudioTokens > 0 {
+		value, clamp := common.QuotaFromFloatChecked(float64(s.info.RealtimeBilling.AudioCompanionTextTokens) + float64(u.OutputDetails.TextTokens))
+		s.info.RealtimeBilling.AudioCompanionTextTokens = value
+		if s.info.QuotaClamp == nil {
+			s.info.QuotaClamp = clamp
+		}
+	}
+	s.responses[response.ID] = struct{}{}
 	search := u.Plugins.Search
 	if search == nil {
 		search = response.Plugins.Search
@@ -117,23 +159,10 @@ func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 		}
 		searchCount = s.toolCounts[searchKey] + int(search.Count)
 		if searchCount > relaycommon.MaxBillableToolCallCount {
+			s.info.SetBillableToolCount(searchKey, relaycommon.MaxBillableToolCallCount)
 			return errors.New("Qwen realtime session exceeded the supported search count")
 		}
 	}
-
-	// Each response is bounded above; use checked accumulation for a long-lived
-	// session too. Stop accepting new turns if any counter saturates.
-	counters := []*int{&s.usage.TotalTokens, &s.usage.InputTokens, &s.usage.OutputTokens,
-		&s.usage.InputTokenDetails.TextTokens, &s.usage.InputTokenDetails.AudioTokens,
-		&s.usage.OutputTokenDetails.TextTokens, &s.usage.OutputTokenDetails.AudioTokens}
-	for i, counter := range counters {
-		value, clamp := common.QuotaFromFloatChecked(float64(*counter) + float64(values[i]))
-		*counter = value
-		if s.info.QuotaClamp == nil {
-			s.info.QuotaClamp = clamp
-		}
-	}
-	s.responses[response.ID] = struct{}{}
 	if searchKey != "" {
 		s.toolCounts[searchKey] = searchCount
 		s.info.SetBillableToolCount(searchKey, searchCount)
@@ -141,6 +170,8 @@ func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 	return service.ReserveRealtimeQuota(c, s.info, &s.usage)
 }
 
+// validateAliRealtimeEvent bounds client-controlled billing quantities and
+// rejects input formats whose sample rate is incompatible with native Qwen.
 func validateAliRealtimeEvent(message []byte) error {
 	var event struct {
 		Type     string                     `json:"type"`
@@ -182,14 +213,90 @@ func validateAliRealtimeEvent(message []byte) error {
 	return nil
 }
 
+// translateFormats changes only the output codec label: OpenAI pcm16 and Qwen
+// pcm both mean 24 kHz mono PCM16 output. Input pcm16 is deliberately rejected
+// by validation because OpenAI's 24 kHz input is incompatible with Qwen's 16 kHz.
+func (s *aliRealtimeSession) translateFormats(message []byte, upstream bool) ([]byte, error) {
+	var event map[string]json.RawMessage
+	if err := common.Unmarshal(message, &event); err != nil {
+		return nil, err
+	}
+	var eventType string
+	if err := common.Unmarshal(event["type"], &eventType); err != nil {
+		return nil, errors.New("realtime events must have a string type")
+	}
+	field := "session"
+	if !upstream && eventType == "response.create" {
+		field = "response"
+	} else if eventType != "session.update" && eventType != "session.created" && eventType != "session.updated" {
+		return message, nil
+	}
+	var settings map[string]json.RawMessage
+	if raw, ok := event[field]; !ok || common.Unmarshal(raw, &settings) != nil {
+		return message, nil
+	}
+	var format string
+	_ = common.Unmarshal(settings["output_audio_format"], &format)
+	if upstream {
+		if !s.outputPCM16 || format != "pcm" {
+			return message, nil
+		}
+		settings["output_audio_format"] = json.RawMessage(`"pcm16"`)
+	} else {
+		if format != "pcm16" {
+			return message, nil
+		}
+		settings["output_audio_format"] = json.RawMessage(`"pcm"`)
+	}
+	raw, err := common.Marshal(settings)
+	if err != nil {
+		return nil, err
+	}
+	event[field] = raw
+	return common.Marshal(event)
+}
+
+// aliRealtimeTimeouts bounds lost-client detection and the final upstream
+// usage reconciliation, independently of the lifetime of the HTTP request.
+type aliRealtimeTimeouts struct {
+	pingInterval time.Duration
+	pongWait     time.Duration
+	settleWait   time.Duration
+}
+
+// handleAliRealtimeResponse bridges a native Qwen session and returns its
+// cumulative usage even after client disconnects or reservation failures.
 func handleAliRealtimeResponse(c *gin.Context, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	return relayAliRealtime(c, info, aliRealtimeTimeouts{20 * time.Second, 60 * time.Second, 10 * time.Second})
+}
+
+// relayAliRealtime forwards events with one writer per peer. A lost client
+// stops new input, but leaves the upstream open for a bounded response.done
+// reconciliation. Missing terminal usage retains the reservation and is audited.
+func relayAliRealtime(c *gin.Context, info *relaycommon.RelayInfo, timeouts aliRealtimeTimeouts) (any, *types.NewAPIError) {
 	if info == nil || info.ClientWs == nil || info.TargetWs == nil {
 		return nil, types.NewErrorWithStatusCode(errors.New("invalid Qwen realtime connection"), types.ErrorCodeBadResponse, http.StatusBadGateway)
 	}
 	info.IsStream = true
 	info.InputAudioFormat, info.OutputAudioFormat = "pcm", "pcm"
 	session := &aliRealtimeSession{info: info, responses: make(map[string]struct{}), toolCounts: make(map[string]int)}
-	ctx := c.Request.Context()
+	if info.RealtimeBilling == nil {
+		info.RealtimeBilling = &relaycommon.RealtimeBillingState{ToolPrices: make(map[string]float64)}
+	}
+	clientDone := c.Request.Context().Done()
+	_ = info.ClientWs.SetReadDeadline(time.Now().Add(timeouts.pongWait))
+	info.ClientWs.SetPongHandler(func(string) error {
+		return info.ClientWs.SetReadDeadline(time.Now().Add(timeouts.pongWait))
+	})
+	ping := time.NewTicker(timeouts.pingInterval)
+	defer ping.Stop()
+	var settleTimer *time.Timer
+	var settleTimeout <-chan time.Time
+	defer func() {
+		if settleTimer != nil {
+			settleTimer.Stop()
+		}
+	}()
 	type packet struct {
 		upstream bool
 		kind     int
@@ -221,50 +328,117 @@ func handleAliRealtimeResponse(c *gin.Context, info *relaycommon.RelayInfo) (any
 	}()
 
 	var relayErr error
+	draining := false
+	closeCode, closeText := websocket.CloseNormalClosure, ""
 relayLoop:
 	for {
+		var clientErr error
 		select {
-		case <-ctx.Done():
+		case <-settleTimeout:
+			relayErr = errors.New("Qwen realtime terminal usage was not received before the settlement deadline")
 			break relayLoop
+		case <-clientDone:
+			clientErr = c.Request.Context().Err()
+		case <-ping.C:
+			if !draining {
+				clientErr = info.ClientWs.WriteControl(websocket.PingMessage, nil, time.Now().Add(time.Second))
+			}
 		case p, ok := <-packets:
 			if !ok {
 				break relayLoop
 			}
 			if p.err != nil {
-				if !websocket.IsCloseError(p.err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					relayErr = p.err
+				if p.upstream {
+					var closed *websocket.CloseError
+					if errors.As(p.err, &closed) && closed.Code != websocket.CloseAbnormalClosure && closed.Code != websocket.CloseNoStatusReceived {
+						closeCode, closeText = closed.Code, closed.Text
+					} else {
+						closeCode = websocket.CloseInternalServerErr
+						relayErr = p.err
+					}
+					break relayLoop
 				}
-				break relayLoop
-			}
-			if p.kind != websocket.TextMessage {
-				relayErr = errors.New("Qwen realtime expects text JSON frames with Base64 audio")
-				break relayLoop
-			}
-			destination := info.TargetWs
-			if p.upstream {
+				clientErr = p.err
+			} else if p.upstream {
+				if p.kind != websocket.TextMessage {
+					relayErr = errors.New("Qwen realtime expects text JSON frames with Base64 audio")
+					break relayLoop
+				}
 				info.SetFirstResponseTime()
 				if err := session.account(c, p.data); err != nil {
 					relayErr = err
 					break relayLoop
 				}
-				destination = info.ClientWs
-			} else if err := validateAliRealtimeEvent(p.data); err != nil {
+				if draining {
+					if !session.pendingResponse && !session.awaitingResponse {
+						break relayLoop
+					}
+					continue
+				}
+				message, err := session.translateFormats(p.data, true)
+				if err != nil {
+					relayErr = err
+					break relayLoop
+				}
 				_ = info.ClientWs.SetWriteDeadline(time.Now().Add(30 * time.Second))
-				helper.WssError(c, info.ClientWs, types.OpenAIError{Message: err.Error(), Type: "invalid_request_error", Code: "invalid_request"})
-				continue
+				clientErr = info.ClientWs.WriteMessage(p.kind, message)
+			} else if !draining {
+				message, err := session.translateFormats(p.data, false)
+				if p.kind != websocket.TextMessage {
+					err = errors.New("Qwen realtime expects text JSON frames with Base64 audio")
+				}
+				if err == nil {
+					err = validateAliRealtimeEvent(message)
+				}
+				if err != nil {
+					_ = info.ClientWs.SetWriteDeadline(time.Now().Add(30 * time.Second))
+					helper.WssError(c, info.ClientWs, types.OpenAIError{Message: err.Error(), Type: "invalid_request_error", Code: "invalid_request"})
+					continue
+				}
+				_ = info.TargetWs.SetWriteDeadline(time.Now().Add(30 * time.Second))
+				if err := info.TargetWs.WriteMessage(p.kind, message); err != nil {
+					relayErr = err
+					break relayLoop
+				}
+				// Only a valid forwarded update may change the downstream format.
+				var event struct {
+					Type    string `json:"type"`
+					Session struct {
+						OutputFormat string `json:"output_audio_format"`
+					} `json:"session"`
+				}
+				_ = common.Unmarshal(p.data, &event)
+				if event.Type == "session.update" && event.Session.OutputFormat != "" {
+					session.outputPCM16 = event.Session.OutputFormat == "pcm16"
+				}
+				if event.Type == "response.create" || event.Type == "input_audio_buffer.append" || event.Type == "input_audio_buffer.commit" {
+					session.awaitingResponse = true
+				}
 			}
-			_ = destination.SetWriteDeadline(time.Now().Add(30 * time.Second))
-			if err := destination.WriteMessage(p.kind, p.data); err != nil {
-				relayErr = err
+		}
+		if clientErr != nil && !draining {
+			_ = info.ClientWs.Close()
+			if !session.pendingResponse && !session.awaitingResponse {
 				break relayLoop
 			}
+			draining = true
+			clientDone = nil
+			ping.Stop()
+			// Probe the upstream while its last response is allowed to finish.
+			// Do not cancel it: Qwen cancellation may omit billable usage.
+			_ = info.TargetWs.WriteControl(websocket.PingMessage, nil, time.Now().Add(time.Second))
+			settleTimer = time.NewTimer(timeouts.settleWait)
+			settleTimeout = settleTimer.C
 		}
 	}
 	if relayErr != nil {
+		closeCode = websocket.CloseInternalServerErr
 		logger.LogWarn(c, common.LogText("realtime error: %s", relayErr.Error()))
 		_ = info.ClientWs.SetWriteDeadline(time.Now().Add(time.Second))
 		helper.WssError(c, info.ClientWs, types.OpenAIError{Message: "Qwen realtime session stopped: " + relayErr.Error(), Type: "server_error", Code: "realtime_error"})
 	}
+	// Never put reserved pseudo-codes such as 1006 onto the wire.
+	_ = info.ClientWs.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(closeCode, closeText), time.Now().Add(time.Second))
 	_ = info.TargetWs.Close()
 	_ = info.ClientWs.Close()
 	// Account for response.done frames already read before either peer closed.
@@ -275,6 +449,10 @@ relayLoop:
 				logger.LogWarn(c, common.LogText("realtime error: %s", err.Error()))
 			}
 		}
+	}
+	if session.pendingResponse || session.awaitingResponse {
+		info.RealtimeBilling.UsageIncomplete = true
+		logger.LogWarn(c, "Qwen realtime usage is incomplete; retaining the existing reservation")
 	}
 	// Return accumulated usage even on disconnect/quota failure: WssHelper must
 	// settle completed turns instead of refunding the whole conversation.

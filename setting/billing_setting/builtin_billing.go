@@ -12,6 +12,14 @@ const deepSeekFlashExpr = deepSeekPeak + ` ? tier("peak", p * 0.3 + cr * 0.006 +
 // Built-in token prices use actual USD per million tokens. Keep new model
 // defaults here instead of splitting them across the legacy ratio tables.
 var builtinBillingExpr = map[string]string{
+	// https://docs.modelstudio.console.alibabacloud.com/en/model-studio/model-pricing
+	// China (mainland), USD per million tokens, checked 2026-11-09, matching
+	// the Ali channel's default endpoint. International deployments must set
+	// their regional prices. The relay excludes text accompanying audio output.
+	"qwen-audio-3.0-realtime-plus":  `tier("china_mainland", p * 0.688 + ai * 5.501 + c * 5.501 + ao * 20.628)`,
+	"qwen-audio-3.0-realtime-flash": `tier("china_mainland", p * 0.212 + ai * 0.848 + c * 0.636 + ao * 1.696)`,
+	"qwen-audio-3.1-realtime-plus":  `tier("china_mainland", p * 0.707 + ai * 5.653 + c * 5.653 + ao * 21.2)`,
+	"qwen-audio-3.1-realtime-flash": `tier("china_mainland", p * 0.212 + ai * 0.848 + c * 0.636 + ao * 1.696)`,
 	// https://developers.openai.com/api/docs/pricing (Standard, 2026-09-09).
 	// The Images API reports image output in output_tokens, normalized to c.
 	"gpt-image-2":            `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`,

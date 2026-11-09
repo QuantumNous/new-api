@@ -8,11 +8,14 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -26,6 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestAliTTSRequest covers supported native fields and rejects unsupported
+// codecs, controls and invalid text before an upstream request can be billed.
 func TestAliTTSRequest(t *testing.T) {
 	for _, tc := range []struct {
 		name, extra, voice, language string
@@ -42,6 +47,7 @@ func TestAliTTSRequest(t *testing.T) {
 		{name: "invalid language", extra: `,"language":"xx"`, invalid: true},
 		{name: "non-string language", extra: `,"language":false`, invalid: true},
 		{name: "unsupported MP3", extra: `,"response_format":"mp3"`, invalid: true},
+		{name: "implicit MP3", extra: `,"response_format":""`, invalid: true},
 		{name: "unsupported SSE", extra: `,"stream_format":"sse"`, invalid: true},
 		{name: "unsupported speed", extra: `,"speed":1.2`, invalid: true},
 		{name: "explicit zero speed", extra: `,"speed":0`, invalid: true},
@@ -49,7 +55,7 @@ func TestAliTTSRequest(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var request dto.AudioRequest
-			require.NoError(t, common.UnmarshalJsonStr(`{"model":"qwen3-tts-flash","input":"Hello 世界","voice":"alloy"`+tc.extra+`}`, &request))
+			require.NoError(t, common.UnmarshalJsonStr(`{"model":"qwen3-tts-flash","input":"Hello 世界","voice":"alloy","response_format":"wav"`+tc.extra+`}`, &request))
 			info := &relaycommon.RelayInfo{RelayMode: constant.RelayModeAudioSpeech}
 			body, err := (&Adaptor{}).ConvertAudioRequest(nil, info, request)
 			if tc.invalid {
@@ -66,12 +72,46 @@ func TestAliTTSRequest(t *testing.T) {
 		})
 	}
 	for _, n := range []int{600, 601} {
-		_, err := convertOpenAITTSRequestToAli(dto.AudioRequest{Model: "qwen3-tts-flash", Input: strings.Repeat("中", n), Voice: "Cherry"})
+		_, err := convertOpenAITTSRequestToAli(dto.AudioRequest{Model: "qwen3-tts-flash", Input: strings.Repeat("中", n), Voice: "Cherry", ResponseFormat: "wav"})
 		if n == 600 {
 			require.NoError(t, err)
 		} else {
 			require.Error(t, err)
 		}
+	}
+}
+
+// TestAliTTSBillingUnits prevents character quantities from being charged as
+// tokens when channel mapping selects a Qwen TTS upstream.
+func TestAliTTSBillingUnits(t *testing.T) {
+	for _, tc := range []struct {
+		name, alias, expr   string
+		perRequest, invalid bool
+	}{
+		{name: "native character ratio", alias: "qwen3-tts-flash"},
+		{name: "tokenized alias", alias: "gpt-4o-mini-tts", invalid: true},
+		{name: "token expression", alias: "qwen3-tts-flash", expr: `tier("tokens", p * 2 + ao * 10)`, invalid: true},
+		{name: "fixed alias", alias: "gpt-4o-mini-tts", perRequest: true},
+		{name: "fixed expression", alias: "gpt-4o-mini-tts", expr: `tier("request", fixed(0.01))`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{RelayMode: constant.RelayModeAudioSpeech,
+				OriginModelName: tc.alias, Request: &dto.AudioRequest{Model: tc.alias},
+				PriceData: hosttypes.PriceData{UsePrice: tc.perRequest}}
+			if tc.expr != "" {
+				info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{ExprString: tc.expr, ExprHash: billingexpr.ExprHashString(tc.expr)}
+			}
+			body, err := (&Adaptor{}).ConvertAudioRequest(nil, info, dto.AudioRequest{Model: "qwen3-tts-flash", Voice: "Cherry", Input: "你好", ResponseFormat: "wav"})
+			if tc.invalid {
+				var apiErr *types.NewAPIError
+				require.ErrorAs(t, err, &apiErr)
+				assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+				assert.Nil(t, body, "reject before an upstream request is made")
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, body)
+			}
+		})
 	}
 }
 
@@ -83,6 +123,7 @@ type aliTestBody struct {
 	fail, closed bool
 }
 
+// Read simulates a broken upstream body as well as normal audio delivery.
 func (b *aliTestBody) Read(p []byte) (int, error) {
 	if b.fail {
 		return 0, io.ErrUnexpectedEOF
@@ -92,6 +133,8 @@ func (b *aliTestBody) Read(p []byte) (int, error) {
 
 func (b *aliTestBody) Close() error { b.closed = true; return nil }
 
+// TestAliTTSResponseAndBilling checks decoded audio, character accounting and
+// failure handling before a successful binary response is committed.
 func TestAliTTSResponseAndBilling(t *testing.T) {
 	wav, err := hex.DecodeString(aliTestWAVHex)
 	require.NoError(t, err)
@@ -149,6 +192,8 @@ func TestAliTTSResponseAndBilling(t *testing.T) {
 	}
 }
 
+// TestAliTTSAudioDownload rejects unsafe URLs and redirects without forwarding
+// channel credentials or contacting forbidden destinations.
 func TestAliTTSAudioDownload(t *testing.T) {
 	wav, err := hex.DecodeString(aliTestWAVHex)
 	require.NoError(t, err)
@@ -204,6 +249,29 @@ func TestAliTTSAudioDownload(t *testing.T) {
 			}
 		})
 	}
+	t.Run("redirect destination is validated", func(t *testing.T) {
+		var received atomic.Int32
+		forbidden := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			received.Add(1)
+			_, _ = w.Write(wav)
+		}))
+		defer forbidden.Close()
+		allowed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, forbidden.URL, http.StatusFound)
+		}))
+		defer allowed.Close()
+		endpoint, err := url.Parse(allowed.URL)
+		require.NoError(t, err)
+		fetch.AllowPrivateIp = true
+		fetch.AllowedPorts = []string{endpoint.Port()}
+		body, err := common.Marshal(map[string]any{"output": map[string]any{"audio": map[string]string{"url": allowed.URL}}})
+		require.NoError(t, err)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/audio/speech", nil)
+		_, apiErr := handleAliTTSResponse(c, &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(string(body)))}, &relaycommon.RelayInfo{})
+		require.NotNil(t, apiErr)
+		assert.Zero(t, received.Load(), "the forbidden redirect must not receive a request")
+	})
 }
 
 type aliTestBilling struct {
@@ -217,6 +285,8 @@ func (b *aliTestBilling) Refund(*gin.Context)      {}
 func (b *aliTestBilling) NeedsRefund() bool        { return false }
 func (b *aliTestBilling) GetPreConsumedQuota() int { return b.reserved }
 func (b *aliTestBilling) Reserve(int) error        { return errors.New("realtime must check available funds") }
+
+// ReserveBeforeSubmit records the cumulative target or simulates depleted funds.
 func (b *aliTestBilling) ReserveBeforeSubmit(target int) error {
 	if b.fail {
 		return errors.New("insufficient quota")
@@ -228,6 +298,8 @@ func (b *aliTestBilling) ReserveBeforeSubmit(target int) error {
 
 const aliTestRealtimeUsage = `{"total_tokens":377,"input_tokens":336,"output_tokens":41,"input_tokens_details":{"text_tokens":228,"audio_tokens":108},"output_tokens_details":{"text_tokens":9,"audio_tokens":32}}`
 
+// TestAliRealtimeUsageAccounting deduplicates completed responses, preserves
+// usage on reservation failure, and excludes only audio's companion text.
 func TestAliRealtimeUsageAccounting(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	billing := &aliTestBilling{}
@@ -238,8 +310,8 @@ func TestAliRealtimeUsageAccounting(t *testing.T) {
 	for _, id := range []string{"first", "first", "second"} {
 		require.NoError(t, s.account(c, []byte(`{"type":"response.done","response":{"id":"`+id+`","status":"completed","usage":`+aliTestRealtimeUsage+`}}`)))
 	}
-	assert.Equal(t, []int{727, 1454}, billing.targets)
-	assert.Equal(t, 1454, info.FinalPreConsumedQuota)
+	assert.Equal(t, []int{700, 1400}, billing.targets)
+	assert.Equal(t, 1400, info.FinalPreConsumedQuota)
 	assert.Equal(t, dto.RealtimeUsage{TotalTokens: 754, InputTokens: 672, OutputTokens: 82, InputTokenDetails: dto.InputTokenDetails{TextTokens: 456, AudioTokens: 216}, OutputTokenDetails: dto.OutputTokenDetails{TextTokens: 18, AudioTokens: 64}}, s.usage)
 	require.NoError(t, s.account(c, []byte(`{"type":"response.done","response":{"id":"cancelled","status":"cancelled"}}`)))
 	assert.Len(t, billing.targets, 2)
@@ -256,8 +328,14 @@ func TestAliRealtimeUsageAccounting(t *testing.T) {
 	billing.fail = true
 	require.ErrorContains(t, s.account(c, []byte(`{"type":"response.done","response":{"id":"unfunded","usage":`+aliTestRealtimeUsage+`}}`)), "insufficient quota")
 	assert.Equal(t, 1131, s.usage.TotalTokens, "completed turns must remain billable when the next reservation fails")
+	billing.fail = false
+	require.NoError(t, s.account(c, []byte(`{"type":"response.done","response":{"id":"text-only","usage":{"total_tokens":60,"input_tokens":30,"output_tokens":30,"input_tokens_details":{"text_tokens":30},"output_tokens_details":{"text_tokens":30}}}}`)))
+	assert.Equal(t, 2220, info.FinalPreConsumedQuota, "text-only output is charged even in a session with earlier audio output")
+	assert.Equal(t, 1191, s.usage.TotalTokens, "raw usage retains the companion text for logs")
 }
 
+// TestAliRealtimeEventValidation bounds client billing quantities and enforces
+// native sample-rate requirements without dropping valid extension fields.
 func TestAliRealtimeEventValidation(t *testing.T) {
 	for _, raw := range []string{
 		`{"type":"session.update","session":{"turn_detection":null,"speech_rate":0.5,"enable_speech_emotion":false,"tools":[{"type":"function","function":{"name":"weather"}}]}}`,
@@ -280,6 +358,8 @@ func TestAliRealtimeEventValidation(t *testing.T) {
 	}
 }
 
+// TestAliRealtimeSearchUsage accumulates the provider's supported search
+// strategies and rejects unknown strategies or unsafe call counts.
 func TestAliRealtimeSearchUsage(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	info := &relaycommon.RelayInfo{Billing: &aliTestBilling{}}
@@ -293,12 +373,14 @@ func TestAliRealtimeSearchUsage(t *testing.T) {
 	}
 	require.NotNil(t, info.ResponsesUsageInfo)
 	assert.Equal(t, 3, info.ResponsesUsageInfo.BuiltInTools["search_strategy_turbo"].CallCount)
-	for _, search := range []string{`{"count":-1,"strategy":"turbo"}`, `{"count":9223372036854775807,"strategy":"turbo"}`, `{"count":1,"strategy":"unknown"}`} {
-		require.Error(t, s.account(c, []byte(`{"type":"response.done","response":{"id":"invalid","usage":{"plugins":{"search":`+search+`}}}}`)))
+	for i, search := range []string{`{"count":-1,"strategy":"turbo"}`, `{"count":9223372036854775807,"strategy":"turbo"}`, `{"count":1,"strategy":"unknown"}`} {
+		require.Error(t, s.account(c, []byte(fmt.Sprintf(`{"type":"response.done","response":{"id":"invalid%d","usage":{"plugins":{"search":%s}}}}`, i, search))))
 		assert.Equal(t, 3, info.ResponsesUsageInfo.BuiltInTools["search_strategy_turbo"].CallCount)
 	}
 }
 
+// TestAliRealtimeWebsocketRelay exercises mapping, authentication, validation,
+// event forwarding and cumulative reservations through real local sockets.
 func TestAliRealtimeWebsocketRelay(t *testing.T) {
 	upgrader := websocket.Upgrader{}
 	clientEvent := `{"type":"session.update","session":{"input_audio_format":"pcm","output_audio_format":"pcm","turn_detection":{"type":"smart_turn_v2"},"enable_speech_emotion":false,"future":{"preserve":0}}}`
@@ -383,12 +465,14 @@ func TestAliRealtimeWebsocketRelay(t *testing.T) {
 	case got := <-finished:
 		require.Nil(t, got.err)
 		assert.Equal(t, 377, got.usage.(*dto.RealtimeUsage).TotalTokens)
-		assert.Equal(t, []int{727}, got.targets)
+		assert.Equal(t, []int{700}, got.targets)
 	case <-time.After(5 * time.Second):
-		t.Fatal("realtime relay did not stop after disconnect")
+		require.FailNow(t, "realtime relay did not stop after disconnect")
 	}
 }
 
+// TestAliRealtimeHandshakeAndURL preserves configured endpoints and exposes
+// upstream handshake status codes such as rate limiting to the caller.
 func TestAliRealtimeHandshakeAndURL(t *testing.T) {
 	for _, base := range []string{"https://dashscope.aliyuncs.com", "https://workspace.cn-beijing.maas.aliyuncs.com/", "wss://workspace.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime"} {
 		info := &relaycommon.RelayInfo{RelayMode: constant.RelayModeRealtime, ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: base, UpstreamModelName: "qwen & model"}}
@@ -408,6 +492,8 @@ func TestAliRealtimeHandshakeAndURL(t *testing.T) {
 	assert.Equal(t, 429, apiErr.StatusCode)
 }
 
+// TestAliRealtimeUsageSaturation keeps cumulative quantities nonnegative and
+// auditable when an upstream session exceeds the supported quota range.
 func TestAliRealtimeUsageSaturation(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	info := &relaycommon.RelayInfo{Billing: &aliTestBilling{}}
@@ -417,4 +503,152 @@ func TestAliRealtimeUsageSaturation(t *testing.T) {
 	require.NotNil(t, info.QuotaClamp)
 	assert.Equal(t, common.MaxQuota, s.usage.TotalTokens)
 	assert.GreaterOrEqual(t, s.usage.OutputTokens, 0)
+}
+
+// TestAliRealtimePCMOutputCompatibility preserves extension fields while
+// translating only the compatible 24 kHz output codec label.
+func TestAliRealtimePCMOutputCompatibility(t *testing.T) {
+	s := &aliRealtimeSession{outputPCM16: true}
+	client := []byte(`{"type":"session.update","session":{"input_audio_format":"pcm","output_audio_format":"pcm16","future":{"n":9007199254740993,"enabled":false}}}`)
+	forwarded, err := s.translateFormats(client, false)
+	require.NoError(t, err)
+	require.NoError(t, validateAliRealtimeEvent(forwarded))
+	assert.JSONEq(t, `{"type":"session.update","session":{"input_audio_format":"pcm","output_audio_format":"pcm","future":{"n":9007199254740993,"enabled":false}}}`, string(forwarded))
+	server, err := s.translateFormats([]byte(`{"type":"session.updated","session":{"output_audio_format":"pcm","future":0}}`), true)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"session.updated","session":{"output_audio_format":"pcm16","future":0}}`, string(server))
+	wrongRate, err := s.translateFormats([]byte(`{"type":"session.update","session":{"input_audio_format":"pcm16","output_audio_format":"pcm16"}}`), false)
+	require.NoError(t, err)
+	require.ErrorContains(t, validateAliRealtimeEvent(wrongRate), "16 kHz input")
+}
+
+// TestAliRealtimeSearchLimitKeepsCompletedUsage prevents an invalid plugin
+// counter from discarding already validated audio and text usage.
+func TestAliRealtimeSearchLimitKeepsCompletedUsage(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{Billing: &aliTestBilling{}}
+	s := &aliRealtimeSession{info: info, responses: make(map[string]struct{}), toolCounts: map[string]int{"search_strategy_turbo": relaycommon.MaxBillableToolCallCount}}
+	usage := strings.TrimSuffix(aliTestRealtimeUsage, "}") + `,"plugins":{"search":{"count":1,"strategy":"turbo"}}}`
+	require.ErrorContains(t, s.account(c, []byte(`{"type":"response.done","response":{"id":"last","usage":`+usage+`}}`)), "search count")
+	assert.Equal(t, 377, s.usage.TotalTokens)
+	assert.Equal(t, 108, s.usage.InputTokenDetails.AudioTokens)
+	assert.Equal(t, 32, s.usage.OutputTokenDetails.AudioTokens)
+}
+
+type aliRealtimeResult struct {
+	usage *dto.RealtimeUsage
+	info  *relaycommon.RelayInfo
+	err   *types.NewAPIError
+}
+
+// aliRealtimeFixture connects real local WebSocket peers so timeout, close and
+// final-usage tests exercise network lifecycle rather than mocked readers.
+func aliRealtimeFixture(t *testing.T, upstreamHandler func(*websocket.Conn), timeouts aliRealtimeTimeouts) (*websocket.Conn, <-chan aliRealtimeResult) {
+	t.Helper()
+	upgrader := websocket.Upgrader{}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		require.NoError(t, err)
+		defer conn.Close()
+		upstreamHandler(conn)
+	}))
+	t.Cleanup(upstream.Close)
+	finished := make(chan aliRealtimeResult, 1)
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		client, err := upgrader.Upgrade(w, r, nil)
+		require.NoError(t, err)
+		defer client.Close()
+		target, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(upstream.URL, "http"), nil)
+		require.NoError(t, err)
+		defer target.Close()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = r
+		info := &relaycommon.RelayInfo{ClientWs: client, TargetWs: target, Billing: &aliTestBilling{},
+			FinalPreConsumedQuota: 100, PriceData: hosttypes.PriceData{ModelRatio: 1, CompletionRatio: 3, AudioRatio: 2, AudioCompletionRatio: 4, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}}}
+		usage, apiErr := relayAliRealtime(c, info, timeouts)
+		finished <- aliRealtimeResult{usage: usage.(*dto.RealtimeUsage), info: info, err: apiErr}
+	}))
+	t.Cleanup(gateway.Close)
+	client, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(gateway.URL, "http"), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	_ = client.SetReadDeadline(time.Now().Add(5 * time.Second))
+	return client, finished
+}
+
+// TestAliRealtimeDisconnectReconciliation holds the terminal event until the
+// relay probes the upstream after losing its client, exposing premature closes.
+func TestAliRealtimeDisconnectReconciliation(t *testing.T) {
+	for _, terminal := range []string{"valid", "missing", "malformed"} {
+		t.Run(terminal, func(t *testing.T) {
+			client, finished := aliRealtimeFixture(t, func(upstream *websocket.Conn) {
+				upstream.SetPingHandler(func(data string) error {
+					if terminal == "valid" {
+						return upstream.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.done","response":{"id":"last","usage":`+aliTestRealtimeUsage+`}}`))
+					}
+					if terminal == "malformed" {
+						return upstream.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.done","response":{"id":"last","usage":{"input_tokens":-1}}}`))
+					}
+					return upstream.WriteControl(websocket.PongMessage, []byte(data), time.Now().Add(time.Second))
+				})
+				require.NoError(t, upstream.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"last"}}`)))
+				require.NoError(t, upstream.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.audio.delta","delta":"AAABAA=="}`)))
+				_, _, _ = upstream.ReadMessage()
+			}, aliRealtimeTimeouts{time.Second, 3 * time.Second, 50 * time.Millisecond})
+			for range 2 {
+				_, _, err := client.ReadMessage()
+				require.NoError(t, err)
+			}
+			require.NoError(t, client.Close())
+			select {
+			case result := <-finished:
+				require.Nil(t, result.err)
+				if terminal == "valid" {
+					assert.Equal(t, 377, result.usage.TotalTokens)
+					assert.Equal(t, 700, result.info.FinalPreConsumedQuota)
+					assert.False(t, result.info.RealtimeBilling.UsageIncomplete)
+				} else {
+					assert.True(t, result.info.RealtimeBilling.UsageIncomplete)
+					assert.Equal(t, 100, result.info.FinalPreConsumedQuota)
+				}
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "relay did not complete bounded usage reconciliation")
+			}
+		})
+	}
+}
+
+// TestAliRealtimeHeartbeatAndCloseStatus detects silent clients and preserves
+// the upstream close reason instead of exposing an abnormal 1006 close.
+func TestAliRealtimeHeartbeatAndCloseStatus(t *testing.T) {
+	t.Run("silent client", func(t *testing.T) {
+		_, finished := aliRealtimeFixture(t, func(upstream *websocket.Conn) {
+			_, _, _ = upstream.ReadMessage()
+		}, aliRealtimeTimeouts{10 * time.Millisecond, 50 * time.Millisecond, 50 * time.Millisecond})
+		// No client reader is running, so Gorilla cannot answer incoming pings.
+		select {
+		case result := <-finished:
+			require.Nil(t, result.err)
+			assert.Zero(t, result.usage.TotalTokens)
+			assert.False(t, result.info.RealtimeBilling.UsageIncomplete)
+		case <-time.After(5 * time.Second):
+			require.FailNow(t, "silent client was not disconnected")
+		}
+	})
+	t.Run("upstream close code", func(t *testing.T) {
+		client, finished := aliRealtimeFixture(t, func(upstream *websocket.Conn) {
+			require.NoError(t, upstream.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "session expired"), time.Now().Add(time.Second)))
+			_, _, _ = upstream.ReadMessage()
+		}, aliRealtimeTimeouts{time.Second, 3 * time.Second, 50 * time.Millisecond})
+		_, _, err := client.ReadMessage()
+		var closed *websocket.CloseError
+		require.ErrorAs(t, err, &closed)
+		assert.Equal(t, websocket.ClosePolicyViolation, closed.Code)
+		assert.Equal(t, "session expired", closed.Text)
+		select {
+		case <-finished:
+		case <-time.After(5 * time.Second):
+			require.FailNow(t, "relay did not stop after upstream close")
+		}
+	})
 }

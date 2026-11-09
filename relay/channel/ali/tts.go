@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -63,6 +64,8 @@ var openAIToAliVoiceMap = map[string]string{
 	"shimmer": "Serena",
 }
 
+// convertOpenAITTSRequestToAli validates the supported HTTP speech contract
+// without silently substituting a different audio codec or unsupported controls.
 func convertOpenAITTSRequestToAli(request dto.AudioRequest) (*AliTTSRequest, error) {
 	if strings.TrimSpace(request.Input) == "" || utf8.RuneCountInString(request.Input) > aliTTSMaxCharacters {
 		return nil, fmt.Errorf("Qwen TTS input must contain 1 to %d characters", aliTTSMaxCharacters)
@@ -73,8 +76,8 @@ func convertOpenAITTSRequestToAli(request dto.AudioRequest) (*AliTTSRequest, err
 	if request.StreamFormat != "" && request.StreamFormat != "audio" {
 		return nil, errors.New("Qwen HTTP TTS supports stream_format=audio only")
 	}
-	if request.ResponseFormat != "" && request.ResponseFormat != "wav" && request.ResponseFormat != "pcm" {
-		return nil, errors.New("Qwen HTTP TTS supports response_format=wav or pcm; the default is wav")
+	if request.ResponseFormat != "wav" && request.ResponseFormat != "pcm" {
+		return nil, errors.New("Qwen HTTP TTS does not support the OpenAI default MP3 format; explicitly set response_format to wav or pcm")
 	}
 	if request.Speed != nil && *request.Speed != 1 {
 		return nil, errors.New("Qwen HTTP TTS does not support changing speed; omit speed or use 1")
@@ -125,6 +128,27 @@ func convertOpenAITTSRequestToAli(request dto.AudioRequest) (*AliTTSRequest, err
 	}, nil
 }
 
+// validateAliTTSBilling rejects token-priced aliases and expressions because
+// this upstream reports characters, not input or output audio tokens. Fixed
+// per-request pricing and the existing character-count TTS ratio mode are safe.
+func validateAliTTSBilling(info *relaycommon.RelayInfo) error {
+	if snap := info.TieredBillingSnapshot; snap != nil {
+		vars := billingexpr.UsedVarsByHash(snap.ExprString, snap.ExprHash)
+		for _, name := range []string{"p", "c", "len", "cr", "cc", "cc1h", "cc12h", "img", "img_cr", "img_o", "ai", "ao"} {
+			if vars[name] {
+				return errors.New("Qwen HTTP TTS reports characters and cannot use a token-priced billing expression; configure per-request pricing or character-count TTS ratios")
+			}
+		}
+		return nil
+	}
+	if !info.PriceData.UsePrice && info.Request != nil && info.Request.GetTokenCountMeta().TokenType != types.TokenTypeTextNumber {
+		return errors.New("Qwen HTTP TTS cannot bill a token-priced model alias; use a character-count TTS model name or per-request pricing")
+	}
+	return nil
+}
+
+// handleAliTTSResponse downloads and validates the complete audio before
+// writing a successful response, retaining only the provider's character usage.
 func handleAliTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewErrorWithStatusCode(errors.New("empty Qwen TTS response"), types.ErrorCodeBadResponse, http.StatusBadGateway)

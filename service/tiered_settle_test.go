@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"net/http"
@@ -1179,6 +1180,8 @@ func TestSamePriceCacheReadsRemainInInput(t *testing.T) {
 	}
 }
 
+// TestRealtimeCumulativeReservationAndSettlement verifies wallet and token
+// balances after normal final settlement and a repeated idempotent settlement.
 func TestRealtimeCumulativeReservationAndSettlement(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
@@ -1231,10 +1234,16 @@ func TestRealtimeCumulativeReservationAndSettlement(t *testing.T) {
 			// The second turn has already completed when its usage arrives. Even
 			// on insufficient funds it must settle, with no refund of earlier turns.
 			PostWssConsumeQuota(ctx, info, info.UpstreamModelName, cumulative, nil)
-			require.NoError(t, info.Billing.Settle(1454))
 			wallet, err = model.GetUserQuota(info.UserId, true)
 			require.NoError(t, err)
 			assert.Equal(t, tc.wallet-1454, wallet)
+			require.NoError(t, model.DB.First(&token, info.TokenId).Error)
+			assert.Equal(t, tc.token-1454, token.RemainQuota)
+			assert.Equal(t, 1454, token.UsedQuota)
+			require.NoError(t, info.Billing.Settle(1454))
+			wallet, err = model.GetUserQuota(info.UserId, true)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wallet-1454, wallet, "the second settlement must be idempotent")
 			require.NoError(t, model.DB.First(&token, info.TokenId).Error)
 			assert.Equal(t, tc.token-1454, token.RemainQuota)
 			assert.Equal(t, 1454, token.UsedQuota)
@@ -1247,6 +1256,8 @@ func TestRealtimeCumulativeReservationAndSettlement(t *testing.T) {
 	}
 }
 
+// TestRealtimeTieredAudioAndSearchBilling keeps model and tool prices stable
+// across cumulative reservations even when administrators change live prices.
 func TestRealtimeTieredAudioAndSearchBilling(t *testing.T) {
 	const modelName = "realtime-audio-billing-test"
 	const toolKey = "search_strategy_turbo:" + modelName
@@ -1272,8 +1283,80 @@ func TestRealtimeTieredAudioAndSearchBilling(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, "audio", result.MatchedTier)
 	assert.Equal(t, []ToolSurchargeItem{{Name: "search_strategy_turbo", Count: 2, Price: 2}}, items)
+	operation_setting.SetToolPriceForTest(toolKey, 10)
+	quota, _, items = calculateRealtimeQuota(ctx, info, usage)
+	assert.Equal(t, 1340, quota, "settlement must retain the reserved search price")
+	assert.Equal(t, float64(2), items[0].Price)
+	info.SetBillableToolCount("search_strategy_turbo", 3)
+	require.NoError(t, ReserveRealtimeQuota(ctx, info, usage))
+	assert.Equal(t, 1840, info.FinalPreConsumedQuota, "later turns use the captured price too")
 }
 
+// TestRealtimeExpressionFailureDoesNotRepeatSearchFees exercises a frozen
+// expression whose later branch fails after searches have already been reserved.
+func TestRealtimeExpressionFailureDoesNotRepeatSearchFees(t *testing.T) {
+	const modelName = "realtime-fallback-test"
+	const toolKey = "search_strategy_turbo:" + modelName
+	operation_setting.SetToolPriceForTest(toolKey, 2)
+	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest(toolKey) })
+	for _, newSearches := range []int{0, 1} {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		info := &relaycommon.RelayInfo{OriginModelName: modelName, Billing: &recordingBillingSettler{},
+			PriceData:             types.PriceData{GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0.5}},
+			TieredBillingSnapshot: makeSnapshot(`len <= 100 ? tier("audio", p * 2 + c * 4 + ai * 10 + ao * 20) : tier("bad", float("bad"))`, 0.5, 0, 0)}
+		info.SetBillableToolCount("search_strategy_turbo", 2)
+		usage := &dto.RealtimeUsage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150,
+			InputTokenDetails:  dto.InputTokenDetails{TextTokens: 40, AudioTokens: 60},
+			OutputTokenDetails: dto.OutputTokenDetails{TextTokens: 20, AudioTokens: 30}}
+		require.NoError(t, ReserveRealtimeQuota(ctx, info, usage))
+		require.Equal(t, 1340, info.FinalPreConsumedQuota)
+		usage.InputTokens++
+		usage.InputTokenDetails.TextTokens++
+		usage.TotalTokens++
+		info.SetBillableToolCount("search_strategy_turbo", 2+newSearches)
+		require.ErrorContains(t, ReserveRealtimeQuota(ctx, info, usage), "failed to evaluate")
+		quota, result, _ := calculateRealtimeQuota(ctx, info, usage)
+		assert.Nil(t, result)
+		assert.Equal(t, 1340+newSearches*500, quota, "only newly incurred searches may be added to the reservation fallback")
+	}
+}
+
+// TestRealtimeUnreconciledUsageKeepsReservation distinguishes an unused
+// connection from delivered output whose terminal usage never arrived.
+func TestRealtimeUnreconciledUsageKeepsReservation(t *testing.T) {
+	for _, incomplete := range []bool{false, true} {
+		t.Run(fmt.Sprint(incomplete), func(t *testing.T) {
+			truncate(t)
+			seedUser(t, 8191, 1000)
+			seedToken(t, 8192, 8191, "realtime-unreconciled", 1000)
+			seedChannel(t, 8193)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/realtime", nil)
+			info := &relaycommon.RelayInfo{UserId: 8191, TokenId: 8192, TokenKey: "realtime-unreconciled", ForcePreConsume: true,
+				OriginModelName: "voice", StartTime: time.Now(), ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 8193},
+				UserSetting:     dto.UserSetting{BillingPreference: "wallet_only"},
+				RealtimeBilling: &relaycommon.RealtimeBillingState{ToolPrices: make(map[string]float64), UsageIncomplete: incomplete}}
+			require.Nil(t, PreConsumeBilling(ctx, 100, info))
+			PostWssConsumeQuota(ctx, info, "voice", &dto.RealtimeUsage{}, nil)
+			want := 0
+			if incomplete {
+				want = 100
+			}
+			balance, err := model.GetUserQuota(info.UserId, true)
+			require.NoError(t, err)
+			assert.Equal(t, 1000-want, balance)
+			var log model.Log
+			require.NoError(t, model.LOG_DB.Where("user_id = ?", info.UserId).Take(&log).Error)
+			assert.Equal(t, want, log.Quota)
+			if incomplete {
+				assert.Contains(t, log.Other, `"realtime_usage_incomplete":true`)
+			}
+		})
+	}
+}
+
+// TestRealtimeUnsafeChargesCannotReserve rejects overflowing charges before
+// they can change an existing reservation or bypass available-funds checks.
 func TestRealtimeUnsafeChargesCannotReserve(t *testing.T) {
 	for _, expr := range []string{`tier("overflow", p * 1e20)`, `invalid +-+ expr`} {
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
