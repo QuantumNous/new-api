@@ -23,6 +23,7 @@ import { SidebarInset, SidebarProvider } from '@/shared/components/ui/sidebar'
 import { LayoutProvider } from '@/shared/context/layout-provider'
 import { SearchProvider } from '@/shared/context/search-provider'
 import { getCookie } from '@/shared/lib/cookies'
+import type { Portal } from '@/shared/lib/portal-url'
 import { cn } from '@/shared/lib/utils'
 import { useAuthStore } from '@/shared/stores/auth-store'
 
@@ -34,6 +35,8 @@ type AuthenticatedLayoutProps = {
   children?: React.ReactNode
   /** Navigation owned by the portal that renders this layout. */
   navGroups: NavGroup[]
+  /** Portal that owns the chrome, forwarded to shared header actions. */
+  portal?: Portal
 }
 
 export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
@@ -47,7 +50,7 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
       <SearchProvider>
         <SidebarProvider defaultOpen={defaultOpen} className='flex-col'>
           <SkipToMain />
-          <AppHeader />
+          <AppHeader portal={props.portal} />
           <div className='flex min-h-0 w-full flex-1'>
             <AppSidebar navGroups={props.navGroups} />
             <SidebarInset

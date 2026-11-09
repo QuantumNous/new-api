@@ -20,6 +20,12 @@ import { redirect } from '@tanstack/react-router'
 
 import { resolveAuthentication } from '@/shared/lib/auth-session'
 import { isCrossOriginPortal, portalHref } from '@/shared/lib/portal-url'
+import {
+  firstVisibleClientPath,
+  isSectionVisible,
+  resolveSectionForUrl,
+} from '@/shared/lib/sidebar-sections'
+import { useAuthStore } from '@/shared/stores/auth-store'
 
 /**
  * Client portal guard.
@@ -47,4 +53,28 @@ export async function requireClientAccess(locationHref: string): Promise<void> {
     to: '/login',
     search: { redirect: locationHref },
   })
+}
+
+/**
+ * Client route visibility guard.
+ *
+ * `visible_sections` is enforced by the server on the APIs, but a page route
+ * must decide before the component renders: otherwise a deep link shows a page
+ * whose every request will fail with 403. Unmapped paths stay allowed so new
+ * client features are not hidden by default, matching the sidebar filter.
+ */
+export function requireVisibleClientSection(locationHref: string): void {
+  const sections = useAuthStore.getState().auth.user?.visible_sections
+  // Empty or absent means unrestricted.
+  if (!sections || sections.length === 0) return
+
+  const pathname = new URL(locationHref, 'http://localhost').pathname
+  if (isSectionVisible(sections, resolveSectionForUrl(pathname))) return
+
+  const fallback = firstVisibleClientPath(sections)
+  if (fallback && fallback !== pathname) {
+    throw redirect({ href: fallback, replace: true })
+  }
+
+  throw redirect({ to: '/403', replace: true })
 }

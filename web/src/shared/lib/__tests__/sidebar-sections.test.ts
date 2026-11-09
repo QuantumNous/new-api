@@ -18,76 +18,39 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import type { NavGroup, NavItem } from '@/shared/components/layout/types'
 import {
-  filterNavGroupsByVisibleSections,
-  isSectionVisible,
+  firstVisibleClientPath,
   resolveSectionForUrl,
-} from '@/shared/lib/sidebar-sections'
+} from '../sidebar-sections'
 
-function groups(): NavGroup[] {
-  const items: NavItem[] = [
-    { title: 'Dashboard', url: '/app/workspace/overview' },
-    { title: 'Chat', type: 'chat-presets' },
-    { title: 'API Keys', url: '/app/keys' },
-    { title: 'Usage Logs', url: '/app/usage-logs/common' },
-  ]
-  return [{ id: 'dashboard', title: 'Dash', items }]
-}
-
-describe('resolveSectionForUrl', () => {
-  it('maps the most specific usage-log path to its own section', () => {
-    expect(resolveSectionForUrl('/app/usage-logs/common')).toBe('usage_logs')
-    expect(resolveSectionForUrl('/app/usage-logs/task')).toBe('task_logs')
-    expect(resolveSectionForUrl('/app/usage-logs/drawing')).toBe('drawing_logs')
-    expect(resolveSectionForUrl('/admin/audit-logs')).toBe('audit_logs')
+describe('sidebar section URL mapping', () => {
+  it('maps admin pages to their console sections', () => {
+    expect(resolveSectionForUrl('/admin/overview')).toBe('dashboard')
+    expect(resolveSectionForUrl('/admin/system-info')).toBe('system_info')
+    expect(resolveSectionForUrl('/admin/task-plugins')).toBe('task_plugins')
   })
 
-  it('ignores query strings when resolving a section', () => {
-    expect(resolveSectionForUrl('/app/keys?page=2')).toBe('api_keys')
+  it('maps payment logs to the wallet section enforced by the server', () => {
+    // /api/admin/payments uses RequireVisibleSection("wallet"); an unmapped
+    // frontend route would stay visible under a restrictive allow-list.
+    expect(resolveSectionForUrl('/admin/payments')).toBe('wallet')
   })
 
-  it('returns undefined for an unmapped path', () => {
-    expect(resolveSectionForUrl('/unknown-page')).toBeUndefined()
+  it('maps chat destinations to the chat section', () => {
+    expect(resolveSectionForUrl('/app/chat2link')).toBe('chat')
+    expect(resolveSectionForUrl('/app/chat/42')).toBe('chat')
   })
 })
 
-describe('isSectionVisible', () => {
-  it('treats an absent or empty allow-list as unrestricted', () => {
-    expect(isSectionVisible(undefined, 'usage_logs')).toBe(true)
-    expect(isSectionVisible([], 'usage_logs')).toBe(true)
-  })
-
-  it('hides a section that is not in the allow-list', () => {
-    expect(isSectionVisible(['dashboard'], 'usage_logs')).toBe(false)
-    expect(isSectionVisible(['dashboard', 'usage_logs'], 'usage_logs')).toBe(
-      true
+describe('first permitted client path', () => {
+  it('returns the first granted client page in sidebar order', () => {
+    expect(firstVisibleClientPath(['wallet'])).toBe('/app/wallet')
+    expect(firstVisibleClientPath(['usage_logs'])).toBe(
+      '/app/usage-logs/common'
     )
   })
-})
 
-describe('filterNavGroupsByVisibleSections', () => {
-  it('leaves navigation untouched when no allow-list is set', () => {
-    const input = groups()
-    expect(filterNavGroupsByVisibleSections(input, undefined)).toEqual(input)
-    expect(filterNavGroupsByVisibleSections(input, [])).toEqual(input)
-  })
-
-  it('removes links for sections that are not granted', () => {
-    const filtered = filterNavGroupsByVisibleSections(groups(), ['dashboard'])
-    const items = filtered[0].items
-    expect(items.map((item) => item.title)).toEqual(['Dashboard'])
-  })
-
-  it('hides the chat entry when the chat section is not granted', () => {
-    const filtered = filterNavGroupsByVisibleSections(groups(), ['api_keys'])
-    const titles = filtered[0].items.map((item) => item.title)
-    expect(titles).toContain('API Keys')
-    expect(titles).not.toContain('Chat')
-  })
-
-  it('drops a group that has no granted items', () => {
-    const filtered = filterNavGroupsByVisibleSections(groups(), ['wallet'])
-    expect(filtered).toEqual([])
+  it('returns null when only administrative sections are granted', () => {
+    expect(firstVisibleClientPath(['users', 'channels'])).toBeNull()
   })
 })

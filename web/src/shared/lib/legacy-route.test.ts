@@ -23,7 +23,6 @@ import { resolveLegacyRoute } from './legacy-route'
 describe('legacy frontend route migration', () => {
   test('maps former public and console routes to their current destinations', () => {
     const routes = {
-      '/login': '/login',
       '/forbidden': '/403',
       '/console': '/app/workspace',
       '/console/models': '/admin/models',
@@ -46,9 +45,15 @@ describe('legacy frontend route migration', () => {
     }
   })
 
+  test('never redirects canonical routes onto themselves', () => {
+    expect(resolveLegacyRoute('/login')).toBe(null)
+    expect(resolveLegacyRoute('/login?registered=1')).toBe(null)
+    expect(resolveLegacyRoute('/login?redirect=%2Fkeys#continue')).toBe(null)
+  })
+
   test('preserves search and hash while applying route-specific behavior', () => {
-    expect(resolveLegacyRoute('/login?redirect=%2Fkeys#continue')).toBe(
-      '/login?redirect=%2Fkeys#continue'
+    expect(resolveLegacyRoute('/forbidden?from=bookmark#continue')).toBe(
+      '/403?from=bookmark#continue'
     )
     expect(resolveLegacyRoute('/console/topup?source=email#orders')).toBe(
       '/app/wallet?source=email#orders'

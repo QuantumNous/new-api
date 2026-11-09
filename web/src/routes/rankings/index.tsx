@@ -20,8 +20,8 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
 import { Rankings } from '@/shared/features/rankings'
+import { resolveAuthentication } from '@/shared/lib/auth-session'
 import { getModuleAccessForGuard } from '@/shared/lib/nav-modules'
-import { useAuthStore } from '@/shared/stores/auth-store'
 
 const rankingsSearchSchema = z.object({
   period: z
@@ -41,8 +41,10 @@ export const Route = createFileRoute('/rankings/')({
       throw redirect({ to: '/' })
     }
     if (access.requireAuth) {
-      const { auth } = useAuthStore.getState()
-      if (!auth.user) {
+      // Resolve against the server too: a valid refresh cookie with an empty
+      // in-memory store must not send a signed-in visitor back to /login.
+      const outcome = await resolveAuthentication()
+      if (outcome.kind !== 'authenticated') {
         throw redirect({
           to: '/login',
           search: { redirect: location.href },

@@ -55,8 +55,11 @@ export function useTopNavLinks(): TopNavLink[] {
     )
   }, [status])
 
-  // Documentation link (may be external)
-  const docsLink: string | undefined = status?.docs_link as string | undefined
+  // Documentation link (may be external). Only a configured destination is
+  // rendered: a hard-coded /docs fallback points at a route that does not
+  // exist in this app and would land users on the 404 page.
+  const docsLink: string | undefined =
+    typeof status?.docs_link === 'string' ? status.docs_link.trim() : undefined
 
   const links: TopNavLink[] = []
 
@@ -84,13 +87,9 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
   }
 
-  // Docs (supports external links)
-  if (modules?.docs !== false) {
-    if (docsLink) {
-      links.push({ title: t('Docs'), href: docsLink, external: true })
-    } else {
-      links.push({ title: t('Docs'), href: '/docs' })
-    }
+  // Docs (only when the administrator configured a destination)
+  if (modules?.docs !== false && docsLink) {
+    links.push({ title: t('Docs'), href: docsLink, external: true })
   }
 
   // About

@@ -22,16 +22,40 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { useStatus } from '@/shared/hooks/use-status'
+import { useAuthStore } from '@/shared/stores/auth-store'
 
 import { AuthLayout } from '../auth-layout'
 import { TermsFooter } from '../components/terms-footer'
+import { clearStaleLoginState } from '../lib/login-recovery'
 import { UserAuthForm } from './components/user-auth-form'
 
 export function SignIn() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { redirect, registered } = useSearch({ from: '/(auth)/login' })
-  const { status } = useStatus()
+  const search = useSearch({ from: '/(auth)/login' })
+  // Normalize the validated (but still user-controlled) search payload once.
+  const redirect =
+    typeof search?.redirect === 'string' ? search.redirect : undefined
+  const registered = search?.registered === '1'
+  const { status: rawStatus } = useStatus()
+  // A corrupt cached status could be any JSON value; never pass a non-object
+  // into the form's optional-field reads.
+  const status = rawStatus && typeof rawStatus === 'object' ? rawStatus : null
+
+  useEffect(() => {
+    // Belt-and-braces hydration check: a malformed in-memory user should not
+    // reach the form even though the route guard normally redirects valid
+    // sessions away.
+    const { user } = useAuthStore.getState().auth
+    if (
+      user !== null &&
+      (typeof user !== 'object' ||
+        !Number.isFinite(user.id) ||
+        typeof user.username !== 'string')
+    ) {
+      clearStaleLoginState()
+    }
+  }, [])
 
   useEffect(() => {
     if (!registered) return

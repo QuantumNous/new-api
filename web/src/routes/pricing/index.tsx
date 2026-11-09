@@ -20,8 +20,8 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
 import { PricingPage } from '@/shared/features/pricing'
+import { resolveAuthentication } from '@/shared/lib/auth-session'
 import { getModuleAccessForGuard } from '@/shared/lib/nav-modules'
-import { useAuthStore } from '@/shared/stores/auth-store'
 
 const pricingSearchSchema = z.object({
   search: z.string().optional(),
@@ -44,8 +44,10 @@ export const Route = createFileRoute('/pricing/')({
       throw redirect({ to: '/' })
     }
     if (access.requireAuth) {
-      const { auth } = useAuthStore.getState()
-      if (!auth.user) {
+      // Resolve against the server too: a valid refresh cookie with an empty
+      // in-memory store must not send a signed-in visitor back to /login.
+      const outcome = await resolveAuthentication()
+      if (outcome.kind !== 'authenticated') {
         throw redirect({
           to: '/login',
           search: { redirect: location.href },

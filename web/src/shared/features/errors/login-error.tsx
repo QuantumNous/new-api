@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/shared/components/ui/button'
+import { clearStaleLoginState } from '@/shared/features/auth/lib/login-recovery'
 
 /**
  * Fallback shown when the login route itself crashes (for example a failed
@@ -33,7 +34,16 @@ export function LoginError() {
       <h1 className='text-xl font-semibold'>
         {t('Something went wrong, please refresh')}
       </h1>
-      <Button onClick={() => window.location.reload()}>{t('Refresh')}</Button>
+      <Button
+        onClick={() => {
+          // A crash here usually means stale local data survived; clear it
+          // before reloading so the retry starts from a clean boot.
+          clearStaleLoginState()
+          window.location.reload()
+        }}
+      >
+        {t('Refresh')}
+      </Button>
     </div>
   )
 }

@@ -59,12 +59,16 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   },
   admin: {
     enabled: true,
+    overview: true,
     channel: true,
     models: true,
     redemption: true,
     user: true,
     setting: true,
     subscription: true,
+    payment: true,
+    system_info: true,
+    task_plugins: true,
   },
 }
 
@@ -104,7 +108,11 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/app/keys': { section: 'console', module: 'token' },
   '/app/usage-logs': { section: 'console', module: 'log' },
   '/app/usage-logs/common': { section: 'console', module: 'log' },
+  '/admin/overview': { section: 'admin', module: 'overview' },
   '/admin/audit-logs': { section: 'console', module: 'audit' },
+  '/admin/payments': { section: 'admin', module: 'payment' },
+  '/admin/system-info': { section: 'admin', module: 'system_info' },
+  '/admin/task-plugins': { section: 'admin', module: 'task_plugins' },
   '/app/usage-logs/drawing': { section: 'console', module: 'midjourney' },
   '/app/usage-logs/task': { section: 'console', module: 'task' },
   '/app/wallet': { section: 'personal', module: 'topup' },
@@ -119,7 +127,10 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/admin/subscriptions': { section: 'admin', module: 'subscription' },
   '/admin/system-settings': { section: 'admin', module: 'setting' },
   '/admin/system-settings/site': { section: 'admin', module: 'setting' },
-  '/admin/system-settings/site/system-info': { section: 'admin', module: 'setting' },
+  '/admin/system-settings/site/system-info': {
+    section: 'admin',
+    module: 'setting',
+  },
   '/admin/system-settings/site/notice': { section: 'admin', module: 'setting' },
   '/admin/system-settings/site/header-navigation': {
     section: 'admin',

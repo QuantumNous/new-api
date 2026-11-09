@@ -109,7 +109,14 @@ export function readCachedStatus(): StatusData | null {
   try {
     if (typeof window === 'undefined') return null
     const raw = window.localStorage.getItem(STATUS_STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as StatusData) : null
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    // A stale key can hold valid JSON of the wrong shape (an array, a string,
+    // `null`); only a plain object is a usable status snapshot.
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null
+    }
+    return parsed as StatusData
   } catch {
     return null
   }

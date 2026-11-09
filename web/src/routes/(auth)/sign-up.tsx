@@ -20,6 +20,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { DASHBOARD_DEFAULT_SECTION } from '@/apps/client/features/dashboard/section-registry'
 import { SignUp } from '@/shared/features/auth/sign-up'
+import { resolveAuthentication } from '@/shared/lib/auth-session'
 import { isCrossOriginPortal, portalHref } from '@/shared/lib/portal-url'
 import { ROLE } from '@/shared/lib/roles'
 import { useAuthStore } from '@/shared/stores/auth-store'
@@ -27,6 +28,11 @@ import { useAuthStore } from '@/shared/stores/auth-store'
 export const Route = createFileRoute('/(auth)/sign-up')({
   component: SignUp,
   beforeLoad: async () => {
+    // Confirm the session against the server: an empty in-memory store does not
+    // mean the visitor is anonymous while a valid refresh cookie exists.
+    const outcome = await resolveAuthentication()
+    if (outcome.kind !== 'authenticated') return
+
     const { auth } = useAuthStore.getState()
 
     // 如果已经有用户信息，说明已登录，注册页对其无意义，跳转到对应门户首页
