@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func runOriginGuardRequest(t *testing.T, origin, referer string) *httptest.ResponseRecorder {
@@ -133,4 +134,68 @@ func TestSessionCookieOriginGuardDoesNotTrustForwardedProtoFromClient(t *testing
 	router.ServeHTTP(response, request)
 
 	assert.Equal(t, http.StatusForbidden, response.Code)
+}
+
+// A TLS-terminating reverse proxy delivers plain HTTP with the browser origin in
+// X-Forwarded-Proto/X-Forwarded-Host. That pair must satisfy the guard when the
+// immediate peer is a trusted proxy, and only then.
+func TestSessionCookieOriginGuardHonorsForwardedOriginFromTrustedProxy(t *testing.T) {
+	previousTrustedURLs := common.SessionCookieTrustedURLs
+	common.SessionCookieTrustedURLs = nil
+	require.NoError(t, common.ConfigureTrustedProxies(gin.New(), []string{"10.0.0.0/8"}))
+	t.Cleanup(func() {
+		common.SessionCookieTrustedURLs = previousTrustedURLs
+		_ = common.ConfigureTrustedProxies(gin.New(), nil)
+	})
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/api/user/auth/refresh", SessionCookieOriginGuard(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	tests := []struct {
+		name        string
+		remoteAddr  string
+		origin      string
+		forwardHost string
+		expected    int
+	}{
+		{
+			name:        "trusted proxy promotes scheme and public host",
+			remoteAddr:  "10.0.0.7:45000",
+			origin:      "https://panel.example.com",
+			forwardHost: "panel.example.com",
+			expected:    http.StatusNoContent,
+		},
+		{
+			name:        "trusted proxy forwarded origin still must match",
+			remoteAddr:  "10.0.0.7:45000",
+			origin:      "https://evil.example.com",
+			forwardHost: "panel.example.com",
+			expected:    http.StatusForbidden,
+		},
+		{
+			name:        "public peer cannot spoof forwarded origin",
+			remoteAddr:  "198.51.100.9:45000",
+			origin:      "https://panel.example.com",
+			forwardHost: "panel.example.com",
+			expected:    http.StatusForbidden,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "http://backend.internal/api/user/auth/refresh", nil)
+			request.RemoteAddr = test.remoteAddr
+			request.Host = "backend.internal:8080"
+			request.Header.Set("Origin", test.origin)
+			request.Header.Set("X-Forwarded-Proto", "https")
+			request.Header.Set("X-Forwarded-Host", test.forwardHost)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+
+			assert.Equal(t, test.expected, response.Code)
+		})
+	}
 }

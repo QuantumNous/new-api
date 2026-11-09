@@ -149,11 +149,14 @@ api.interceptors.response.use(
     }
     if (status === 403) {
       // Authorization is still valid: keep the session and explain the denial
-      // instead of treating it like an expired login.
+      // instead of treating it like an expired login. A caller that opts out of
+      // the shared error handler (for example logout, which can be rejected by
+      // the cookie-origin guard) also opts out of the forced /403 navigation,
+      // so a session-endpoint rejection cannot bounce the user out of the page.
       if (!skipErrorHandler) {
         toast.error(t('Access Denied'), { id: 'access-denied' })
+        redirectToForbidden()
       }
-      redirectToForbidden()
     }
     if (axios.isAxiosError(error)) error.message = getServerErrorMessage(error)
     throw error

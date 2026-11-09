@@ -67,9 +67,16 @@ export class AuthRotationError extends Error {
   }
 }
 
+/** Bound the refresh round trip so a stalled proxy/upstream cannot pin the
+ *  bootstrap at "checking" and freeze the root route guard indefinitely. A
+ *  timeout surfaces as a transient error, letting the guards fall back to
+ *  /login instead of hanging. */
+const AUTH_REFRESH_TIMEOUT_MS = 10_000
+
 const authClient = axios.create({
   baseURL: '',
   withCredentials: true,
+  timeout: AUTH_REFRESH_TIMEOUT_MS,
   headers: {
     // no-store forbids storage; no-cache also revalidates any older cached response.
     'Cache-Control': 'no-cache, no-store',

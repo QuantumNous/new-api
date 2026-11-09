@@ -99,7 +99,7 @@ refresh/logout 的 Origin 防护与 Refresh Cookie 的 Secure 标志相互独立
 - 未配置 `SESSION_COOKIE_SECURE` 时，默认值由运行模式决定：`GIN_MODE=debug` 为 `false`（启动时打印警告），其他情况（release）为 `true`。显式设置 `SESSION_COOKIE_SECURE` 可覆盖默认值。
 - `SESSION_COOKIE_SECURE=true` 时，Refresh Cookie 仅通过 HTTPS 发送。
 
-Origin 校验不信任客户端直接发送的 `X-Forwarded-Proto`。TLS 在反向代理终止时，应将面板的公开 HTTPS Origin 明确写入 `SESSION_COOKIE_TRUSTED_URL`。
+当 TLS 在反向代理终止时，后端只看到明文 HTTP，`request.TLS` 为空、`request.Host` 可能是内网跳地址。此时若直连对端是 `TRUSTED_PROXIES` 中的可信代理，OriginGuard 会采用该代理写入的 `X-Forwarded-Proto` 与 `X-Forwarded-Host` 重建浏览器实际访问的 Origin；不可信直连客户端发送的这些头会被忽略，无法绕过校验。仍建议将面板的公开 HTTPS Origin 写入 `SESSION_COOKIE_TRUSTED_URL`，以覆盖前端与后端不同源、或可信代理未重写转发头的部署。
 
 `SESSION_COOKIE_TRUSTED_URL` 现在具有明确的新语义：它是 refresh/logout Cookie 端点的可信 Origin 列表，不是 CORS 白名单。配置规则如下：
 

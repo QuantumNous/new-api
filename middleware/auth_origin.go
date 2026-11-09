@@ -55,12 +55,8 @@ func requestBrowserOrigin(request *http.Request) (string, bool) {
 }
 
 func isAllowedSessionOrigin(request *http.Request, origin string) bool {
-	requestScheme := "http"
-	if request.TLS != nil {
-		requestScheme = "https"
-	}
-	requestOrigin, err := common.NormalizeOrigin(requestScheme + "://" + request.Host)
-	if err == nil && subtle.ConstantTimeCompare([]byte(origin), []byte(requestOrigin)) == 1 {
+	if requestOrigin, ok := requestExternalOrigin(request); ok &&
+		subtle.ConstantTimeCompare([]byte(origin), []byte(requestOrigin)) == 1 {
 		return true
 	}
 	for _, trustedOrigin := range common.SessionCookieTrustedURLs {
@@ -69,4 +65,43 @@ func isAllowedSessionOrigin(request *http.Request, origin string) bool {
 		}
 	}
 	return false
+}
+
+// requestExternalOrigin reconstructs the origin the browser actually addressed.
+//
+// A TLS-terminating reverse proxy delivers plain HTTP to the backend, so
+// request.TLS is nil and request.Host is the internal hop even though the
+// browser sent an https Origin. When the immediate peer is a trusted proxy
+// (TRUSTED_PROXIES), the proxy's X-Forwarded-Proto and X-Forwarded-Host are
+// authoritative and are used instead. An untrusted direct client cannot set
+// these headers to bypass the CSRF check because the trust gate rejects them.
+func requestExternalOrigin(request *http.Request) (string, bool) {
+	scheme := "http"
+	if request.TLS != nil {
+		scheme = "https"
+	}
+	host := request.Host
+	if common.IsTrustedProxyIP(request.RemoteAddr) {
+		if forwardedProto := firstForwardedValue(request.Header.Get("X-Forwarded-Proto")); forwardedProto != "" {
+			scheme = forwardedProto
+		}
+		if forwardedHost := firstForwardedValue(request.Header.Get("X-Forwarded-Host")); forwardedHost != "" {
+			host = forwardedHost
+		}
+	}
+	origin, err := common.NormalizeOrigin(scheme + "://" + host)
+	if err != nil {
+		return "", false
+	}
+	return origin, true
+}
+
+// firstForwardedValue returns the first, canonicalized value of a comma-joined
+// forwarded header, so a chained proxy list cannot smuggle extra origins.
+func firstForwardedValue(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	value, _, _ := strings.Cut(raw, ",")
+	return strings.ToLower(strings.TrimSpace(value))
 }
