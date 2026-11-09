@@ -43,7 +43,8 @@ export function OtpForm() {
   const sessionID = useAuthStore((state) => state.auth.session?.sid)
   const verification = useSecureVerification()
   const { requestLoginVerification, cancel } = verification
-  const { handleLoginSuccess, redirectToLogin } = useAuthRedirect()
+  const { handleLoginSuccess, redirectToLogin, redirectToAdminLogin } =
+    useAuthRedirect()
   const completed = useRef(false)
 
   useEffect(() => {
@@ -74,8 +75,20 @@ export function OtpForm() {
           return
         }
         completed.current = true
-        await handleLoginSuccess(bundle, pending.redirectTo)
-        toast.success(t('Signed in'))
+        const signedIn = await handleLoginSuccess(bundle, pending.redirectTo, {
+          requiredRole: pending.requiredRole,
+        })
+        if (signedIn) {
+          toast.success(t('Signed in'))
+          return
+        }
+        // A role-gated challenge that failed its requirement belongs to the
+        // admin portal and must never fall back to the client login.
+        if (pending.requiredRole !== undefined) {
+          redirectToAdminLogin()
+        } else {
+          redirectToLogin()
+        }
       } catch (error) {
         if (!active) return
         handleServerError(AuthOperationError.from(error))
@@ -93,6 +106,7 @@ export function OtpForm() {
     requestLoginVerification,
     cancel,
     handleLoginSuccess,
+    redirectToAdminLogin,
     redirectToLogin,
     t,
   ])

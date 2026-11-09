@@ -34,7 +34,7 @@ describe('authentication redirect validation', () => {
         'https://dashboard.example.com/dashboard?tab=quota#daily',
         origin
       )
-    ).toBe('/app/workspace?tab=quota#daily')
+    ).toBe('/dashboard?tab=quota#daily')
   })
 
   test('rejects external and ambiguously parsed redirect targets', () => {

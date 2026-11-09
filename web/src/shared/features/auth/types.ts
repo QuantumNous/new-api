@@ -218,4 +218,22 @@ export interface CustomOAuthProviderInfo {
 
 export interface AuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
   redirectTo?: string
+  /**
+   * Render only explicit username/password credentials.
+   *
+   * Hides OAuth providers, Passkey and WeChat so the admin portal exposes no
+   * alternative identity path and no registration entry point.
+   */
+  credentialsOnly?: boolean
+  /** Minimum role required after authentication; lower roles are denied. */
+  requiredRole?: number
+}
+
+/**
+ * Authorization applied to a completed login before any navigation happens.
+ * A denied account is signed out instead of being routed to another portal.
+ */
+export interface LoginGuard {
+  requiredRole?: number
+  deniedMessage?: string
 }

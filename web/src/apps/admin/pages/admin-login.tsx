@@ -29,9 +29,11 @@ import { useAuthStore } from '@/shared/stores/auth-store'
  * Administrator sign-in.
  *
  * Visually distinct from the client login and intentionally minimal: the same
- * hardened credential form is reused, but the surrounding shell only offers
- * administrator access. The RBAC decision itself is enforced by
- * `requireAdminAccess` on every admin route, not by this page.
+ * hardened credential form is reused in `credentialsOnly` mode, so no OAuth
+ * provider, Passkey, WeChat or registration entry point is reachable here.
+ * `requiredRole` revokes the fresh session of an account below the Admin role
+ * instead of forwarding it to the client portal. The RBAC decision remains
+ * enforced by `requireAdminAccess` on every admin route.
  */
 export function AdminLogin() {
   const { t } = useTranslation()
@@ -72,7 +74,11 @@ export function AdminLogin() {
               {t('Use an administrator or root account to continue.')}
             </p>
           </div>
-          <UserAuthForm redirectTo='/admin/overview' />
+          <UserAuthForm
+            redirectTo='/admin/overview'
+            credentialsOnly
+            requiredRole={ROLE.ADMIN}
+          />
         </div>
       </div>
     </div>

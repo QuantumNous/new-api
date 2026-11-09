@@ -82,6 +82,8 @@ export type AuthBootstrapState = 'idle' | 'checking' | 'complete'
 export interface PendingLoginVerification {
   challenge: LoginChallenge
   redirectTo?: string
+  /** Minimum role the account must hold once the challenge is completed. */
+  requiredRole?: number
 }
 
 interface AuthState {

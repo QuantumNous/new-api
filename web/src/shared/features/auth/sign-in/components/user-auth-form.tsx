@@ -45,14 +45,17 @@ import { OAuthProviders } from '@/shared/features/auth/components/oauth-provider
 import { loginFormSchema } from '@/shared/features/auth/constants'
 import { useAuthRedirect } from '@/shared/features/auth/hooks/use-auth-redirect'
 import { useTurnstile } from '@/shared/features/auth/hooks/use-turnstile'
-import { beginPasskeyLogin, finishPasskeyLogin } from '@/shared/features/auth/passkey'
+import {
+  beginPasskeyLogin,
+  finishPasskeyLogin,
+} from '@/shared/features/auth/passkey'
 import {
   requestPasskeyAssertion,
   rememberPasskeyRPID,
   type PasskeyDomains,
 } from '@/shared/features/auth/passkey/assertion'
 import { PasskeyDomainSelector } from '@/shared/features/auth/passkey/components/passkey-domain-selector'
-import type { AuthFormProps } from '@/shared/features/auth/types'
+import type { AuthFormProps, LoginGuard } from '@/shared/features/auth/types'
 import { useStatus } from '@/shared/hooks/use-status'
 import { handleServerError } from '@/shared/lib/handle-server-error'
 import { isPasskeySupported as detectPasskeySupport } from '@/shared/lib/passkey'
@@ -63,6 +66,8 @@ import { cn } from '@/shared/lib/utils'
 export function UserAuthForm({
   className,
   redirectTo,
+  credentialsOnly = false,
+  requiredRole,
   ...props
 }: AuthFormProps) {
   const { t } = useTranslation()
@@ -84,9 +89,10 @@ export function UserAuthForm({
   const loginFailedMessage = t('Login failed')
 
   const { status } = useStatus()
-  const passkeyLoginEnabled = Boolean(
-    status?.passkey_login ?? status?.data?.passkey_login
-  )
+  // The admin portal accepts credentials only: no OAuth, Passkey or WeChat.
+  const passkeyLoginEnabled =
+    !credentialsOnly &&
+    Boolean(status?.passkey_login ?? status?.data?.passkey_login)
   const passwordLoginEnabled =
     (status?.password_login_enabled ??
       status?.data?.password_login_enabled ??
@@ -103,6 +109,8 @@ export function UserAuthForm({
     validateTurnstile,
   } = useTurnstile()
   const { handleLoginResult } = useAuthRedirect()
+  const loginGuard: LoginGuard | undefined =
+    requiredRole === undefined ? undefined : { requiredRole }
 
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
@@ -111,15 +119,17 @@ export function UserAuthForm({
     isPasskeyLoading ||
     !passkeySupported ||
     (requiresLegalConsent && !agreedToLegal)
-  const hasWeChatLogin = Boolean(status?.wechat_login)
-  const hasOAuthLogin = Boolean(
-    status?.github_oauth ||
-    status?.discord_oauth ||
-    status?.oidc_enabled ||
-    status?.linuxdo_oauth ||
-    status?.telegram_oauth ||
-    (status?.custom_oauth_providers?.length ?? 0) > 0
-  )
+  const hasWeChatLogin = !credentialsOnly && Boolean(status?.wechat_login)
+  const hasOAuthLogin =
+    !credentialsOnly &&
+    Boolean(
+      status?.github_oauth ||
+      status?.discord_oauth ||
+      status?.oidc_enabled ||
+      status?.linuxdo_oauth ||
+      status?.telegram_oauth ||
+      (status?.custom_oauth_providers?.length ?? 0) > 0
+    )
   const hasAlternativeLogin =
     passkeyLoginEnabled || hasWeChatLogin || hasOAuthLogin
 
@@ -184,7 +194,7 @@ export function UserAuthForm({
 
       if (res.success) {
         form.setValue('password', '')
-        if (await handleLoginResult(res.data, redirectTo)) {
+        if (await handleLoginResult(res.data, redirectTo, loginGuard)) {
           toast.success(t('Welcome back!'))
         }
       } else {
@@ -225,7 +235,7 @@ export function UserAuthForm({
       const res = await wechatLoginByCode(wechatCode)
       if (res?.success) {
         handleWeChatDialogChange(false)
-        if (await handleLoginResult(res.data, redirectTo)) {
+        if (await handleLoginResult(res.data, redirectTo, loginGuard)) {
           toast.success(t('Signed in via WeChat'))
         }
       } else {
@@ -277,7 +287,7 @@ export function UserAuthForm({
       }
 
       rememberPasskeyRPID(passkey.rpID)
-      if (await handleLoginResult(finish.data, redirectTo)) {
+      if (await handleLoginResult(finish.data, redirectTo, loginGuard)) {
         toast.success(t('Signed in with Passkey'))
       }
     } catch (error: unknown) {
@@ -299,7 +309,7 @@ export function UserAuthForm({
     }
   }
 
-  const alternativeLoginMethods = (
+  const alternativeLoginMethods = credentialsOnly ? null : (
     <>
       {passkeyLoginEnabled && (
         <div className='mt-2 space-y-1'>
@@ -351,7 +361,7 @@ export function UserAuthForm({
       >
         {hasAlternativeLogin && alternativeLoginMethods}
 
-        {passwordLoginEnabled && (
+        {(passwordLoginEnabled || credentialsOnly) && (
           <>
             {/* Username Field */}
             <FormField

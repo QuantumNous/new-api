@@ -18,7 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
+import { DASHBOARD_DEFAULT_SECTION } from '@/apps/client/features/dashboard/section-registry'
 import { SignUp } from '@/shared/features/auth/sign-up'
+import { isCrossOriginPortal, portalHref } from '@/shared/lib/portal-url'
+import { ROLE } from '@/shared/lib/roles'
 import { useAuthStore } from '@/shared/stores/auth-store'
 
 export const Route = createFileRoute('/(auth)/sign-up')({
@@ -26,9 +29,20 @@ export const Route = createFileRoute('/(auth)/sign-up')({
   beforeLoad: async () => {
     const { auth } = useAuthStore.getState()
 
-    // 如果已经有用户信息，说明已登录，注册页对其无意义，跳转到 dashboard
-    if (auth.user) {
-      throw redirect({ to: '/app/workspace' })
+    // 如果已经有用户信息，说明已登录，注册页对其无意义，跳转到对应门户首页
+    if (!auth.user) return
+
+    if (auth.user.role >= ROLE.ADMIN) {
+      if (isCrossOriginPortal('admin')) {
+        throw redirect({ href: portalHref('admin', '/admin/overview') })
+      }
+      throw redirect({ to: '/admin/overview', replace: true })
     }
+
+    throw redirect({
+      to: '/app/workspace/$section',
+      params: { section: DASHBOARD_DEFAULT_SECTION },
+      replace: true,
+    })
   },
 })
