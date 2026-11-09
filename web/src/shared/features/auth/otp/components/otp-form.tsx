@@ -50,7 +50,7 @@ export function OtpForm() {
   useEffect(() => {
     if (completed.current) return
     if (!pending) {
-      redirectToLogin()
+      void redirectToLogin()
       return
     }
     if (sessionID !== initialSessionID) {
@@ -71,7 +71,7 @@ export function OtpForm() {
           return
         }
         if (!bundle) {
-          redirectToLogin()
+          void redirectToLogin()
           return
         }
         completed.current = true
@@ -87,12 +87,12 @@ export function OtpForm() {
         if (pending.requiredRole !== undefined) {
           redirectToAdminLogin()
         } else {
-          redirectToLogin()
+          void redirectToLogin()
         }
       } catch (error) {
         if (!active) return
         handleServerError(AuthOperationError.from(error))
-        redirectToLogin()
+        void redirectToLogin()
       }
     })()
     return () => {

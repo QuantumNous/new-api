@@ -175,10 +175,12 @@ export function useAuthRedirect() {
   )
 
   /**
-   * Redirect to login page
+   * Redirect to login page. Returns the router navigation promise so callers
+   * that must guarantee the transition (for example after sign-up) can await it
+   * and fall back if a route guard stalls.
    */
   const redirectToLogin = useCallback(() => {
-    void navigate({ to: '/login', replace: true })
+    return navigate({ to: '/login', replace: true })
   }, [navigate])
 
   /**
