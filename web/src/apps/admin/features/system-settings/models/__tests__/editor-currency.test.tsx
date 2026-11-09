@@ -30,23 +30,22 @@ import userEvent from '@testing-library/user-event'
 import { createRef } from 'react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-import { evaluateBillingExpression } from '@/shared/features/pricing/lib/billing-expression/runtime'
-import { tryParseTaskVisualConfig } from '@/shared/features/pricing/lib/task-expr'
-import { tryParseVisualConfig } from '@/shared/features/pricing/lib/tier-expr'
-import type { BillingUsageSchema } from '@/shared/features/pricing/types'
+import { previewModelPricing } from '@/apps/admin/features/model-pricing/api'
 import {
   ModelPricingEditorPanel,
   type ModelPricingEditorPanelHandle,
   type ModelRatioData,
 } from '@/apps/admin/features/system-settings/models/model-pricing-sheet'
+import { evaluateBillingExpression } from '@/shared/features/pricing/lib/billing-expression/runtime'
+import { tryParseTaskVisualConfig } from '@/shared/features/pricing/lib/task-expr'
+import { tryParseVisualConfig } from '@/shared/features/pricing/lib/tier-expr'
+import type { BillingUsageSchema } from '@/shared/features/pricing/types'
 import { api } from '@/shared/lib/api'
 import { usePricingPreferencesStore } from '@/shared/stores/pricing-preferences-store'
 import {
   DEFAULT_CURRENCY_CONFIG,
   useSystemConfigStore,
 } from '@/shared/stores/system-config-store'
-
-import { previewModelPricing } from '@/shared/features/model-pricing/api'
 
 const clients: QueryClient[] = []
 

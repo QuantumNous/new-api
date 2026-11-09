@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from '@/shared/components/ui/tooltip'
 
-import type { PlanRecord } from '../types'
+import type { PlanRecord } from '@/shared/features/subscriptions/types'
 import { useSubscriptions } from './subscriptions-provider'
 
 interface DataTableRowActionsProps {

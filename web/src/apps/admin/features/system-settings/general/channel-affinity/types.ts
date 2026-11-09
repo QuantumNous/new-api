@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 /**
  * Channel affinity shared module.
  *
- * The implementation lives in `@/shared/features/channel-affinity/types` because it is shared by both
+ * Implementation lives in `@/shared/features/channel-affinity/types` because it is shared by both
  * portals. This module keeps the admin-local import path stable.
  */
-export * from '@/shared/features/channel-affinity/types'
+export * from '@/apps/admin/features/channel-affinity/types'

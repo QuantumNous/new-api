@@ -37,7 +37,12 @@ export const Route = createFileRoute('/admin/login')({
   component: AdminLogin,
   validateSearch: searchSchema,
   beforeLoad: async () => {
-    await resolveAuthentication()
+    // Only a positively resolved session may leave the admin login page: the
+    // /admin guard redirects unresolved sessions here, and bouncing an
+    // unresolved session (transient refresh failure) back and forth would
+    // create an infinite redirect loop.
+    const outcome = await resolveAuthentication()
+    if (outcome.kind !== 'authenticated') return
 
     const { auth } = useAuthStore.getState()
     if (!auth.user) return

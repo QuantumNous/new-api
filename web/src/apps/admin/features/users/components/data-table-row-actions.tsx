@@ -33,6 +33,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { UserSubscriptionsDialog } from '@/apps/admin/features/subscriptions/components/dialogs/user-subscriptions-dialog'
 import { ConfirmDialog } from '@/shared/components/confirm-dialog'
 import { DataTableRowActionMenu } from '@/shared/components/data-table/core/row-action-menu'
 import { Button } from '@/shared/components/ui/button'
@@ -47,7 +48,6 @@ import {
   TooltipTrigger,
 } from '@/shared/components/ui/tooltip'
 import type { AdminUserManageAction } from '@/shared/features/auth/secure-verification'
-import { UserSubscriptionsDialog } from '@/shared/features/subscriptions/components/dialogs/user-subscriptions-dialog'
 import { handleServerError } from '@/shared/lib/handle-server-error'
 import { AuthOperationError } from '@/shared/lib/secure-verification'
 

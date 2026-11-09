@@ -22,9 +22,14 @@ import { useDeferredValue, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/apps/admin/features/model-pricing/pricing-issues'
 import { CodeBlockEditor } from '@/shared/components/ai-elements/code-block'
 import { Dialog } from '@/shared/components/dialog'
-import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/shared/components/ui/alert'
 import { Button } from '@/shared/components/ui/button'
 import {
   Field,
@@ -35,7 +40,6 @@ import {
 } from '@/shared/components/ui/field'
 import { Input } from '@/shared/components/ui/input'
 import { Spinner } from '@/shared/components/ui/spinner'
-import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/shared/features/model-pricing/pricing-issues'
 
 import { activateTaskPlugin, uploadTaskPlugin } from '../api'
 import {

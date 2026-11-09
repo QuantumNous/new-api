@@ -23,7 +23,7 @@ import { Dialog } from '@/shared/components/dialog'
 import { formatTimestampToDate } from '@/shared/lib/format'
 import { handleServerError } from '@/shared/lib/handle-server-error'
 
-import { getAffinityUsageCache } from './api'
+import { api } from '@/shared/lib/api'
 
 function formatRate(hit: number, total: number): string {
   if (!total || total <= 0) return '-'
@@ -62,11 +62,18 @@ export function CacheStatsDialog(props: Props) {
 
     setStats(null)
 
-    void getAffinityUsageCache(props.target)
+    void api
+      .get('/api/log/channel_affinity_usage_cache', {
+        params: props.target,
+        disableDuplicate: true,
+      } as Record<string, unknown>)
       .then((res) => {
+        const payload = res.data as
+          | { success?: boolean; data?: Record<string, unknown> }
+          | undefined
         if (seq !== seqRef.current) return
-        if (res.success) setStats((res.data as Record<string, unknown>) || {})
-        else handleServerError(res, t('Request failed'))
+        if (payload?.success) setStats(payload.data || {})
+        else handleServerError(payload ?? {}, t('Request failed'))
       })
       .catch((error) => {
         if (seq !== seqRef.current) return

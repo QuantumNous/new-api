@@ -39,12 +39,20 @@ export function AdminLogin() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const role = useAuthStore((state) => state.auth.user?.role)
+  const bootstrapState = useAuthStore((state) => state.auth.bootstrapState)
 
   useEffect(() => {
-    if (role !== undefined && role >= ROLE.ADMIN) {
+    // Forward only a positively resolved session. A stale user kept in memory
+    // across a transient refresh failure must not ping-pong with the admin
+    // route guard, which sends unresolved sessions back to this page.
+    if (
+      bootstrapState === 'complete' &&
+      role !== undefined &&
+      role >= ROLE.ADMIN
+    ) {
       void navigate({ to: '/admin/overview', replace: true })
     }
-  }, [navigate, role])
+  }, [bootstrapState, navigate, role])
 
   return (
     <div className='flex min-h-svh items-center justify-center bg-slate-950 p-4 text-slate-100'>

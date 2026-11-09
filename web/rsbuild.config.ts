@@ -29,21 +29,22 @@ export default defineConfig(({ envMode }) => {
     splitChunks: {
       preset: 'default',
       cacheGroups: {
-        // Portal isolation: admin and client domain code never share a chunk,
-        // so the client entry cannot pull in admin logic (and vice versa).
+        // Portal isolation: admin and client domain code is grouped into its
+        // own async chunk per portal, so visiting one portal never downloads
+        // the other's code. `chunks: 'async'` keeps route-config modules
+        // (guards, beforeLoad) in the small initial chunks instead of dragging
+        // the whole portal bundle into the entry HTML.
         admin: {
           test: /src[\\/]apps[\\/]admin[\\/]/,
           name: 'admin',
-          chunks: 'all',
+          chunks: 'async',
           priority: 40,
-          enforce: true,
         },
         client: {
           test: /src[\\/]apps[\\/]client[\\/]/,
           name: 'client',
-          chunks: 'all',
+          chunks: 'async',
           priority: 30,
-          enforce: true,
         },
         'vendor-react': {
           test: /node_modules[\\/](react|react-dom)[\\/]/,

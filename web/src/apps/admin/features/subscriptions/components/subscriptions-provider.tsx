@@ -21,10 +21,10 @@ import React, { useState } from 'react'
 import {
   getOptionValue,
   useSystemOptions,
-} from '@/shared/hooks/use-system-options'
+} from '../../system-settings/hooks/use-system-options'
 import useDialogState from '@/shared/hooks/use-dialog'
 
-import { type PlanRecord, type SubscriptionsDialogType } from '../types'
+import type { PlanRecord, SubscriptionsDialogType } from '@/shared/features/subscriptions/types'
 
 const CURRENT_COMPLIANCE_TERMS_VERSION = 'v1'
 

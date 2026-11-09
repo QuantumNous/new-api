@@ -73,15 +73,15 @@ import {
   createWaffoPancakeSubscriptionProduct,
   listWaffoPancakeSubscriptionProductOptions,
 } from '../api'
-import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
+import { getDurationUnitOptions, getResetPeriodOptions } from '@/shared/features/subscriptions/constants'
 import {
   getPlanFormSchema,
   PLAN_FORM_DEFAULTS,
   planToFormValues,
   formValuesToPlanPayload,
   type PlanFormValues,
-} from '../lib'
-import type { PlanRecord } from '../types'
+} from '@/shared/features/subscriptions/lib'
+import type { PlanRecord } from '@/shared/features/subscriptions/types'
 import { useSubscriptions } from './subscriptions-provider'
 
 interface Props {

@@ -24,23 +24,30 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
+import {
+  useModelPricing,
+  useSaveModelPricing,
+} from '@/apps/admin/features/model-pricing/api'
 import { ConfirmDialog } from '@/shared/components/confirm-dialog'
 import { ErrorState } from '@/shared/components/error-state'
 import { LoadingState } from '@/shared/components/loading-state'
+import { SettingsPageTitleStatusPortal } from '@/shared/components/settings/settings-page-context'
+import { SettingsSection } from '@/shared/components/settings/settings-section'
 import { Button } from '@/shared/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/shared/components/ui/tabs'
 import {
   buildPricingChanges,
-  useModelPricing,
-  useSaveModelPricing,
   type ModelPricingConfig,
 } from '@/shared/features/model-pricing/api'
 import { pricingOptions } from '@/shared/features/model-pricing/pricing'
 import { useMediaQuery } from '@/shared/hooks'
 import { handleServerError } from '@/shared/lib/handle-server-error'
 
-import { SettingsPageTitleStatusPortal } from '@/shared/components/settings/settings-page-context'
-import { SettingsSection } from '@/shared/components/settings/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { positiveIntegerSchema } from '../utils/numeric-field'
 import { GroupRatioForm } from './group-ratio-form'

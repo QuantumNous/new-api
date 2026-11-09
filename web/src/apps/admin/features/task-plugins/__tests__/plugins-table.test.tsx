@@ -25,7 +25,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import {
   MODEL_PRICING_ISSUES_QUERY_KEY,
   type ModelPricingIssue,
-} from '@/shared/features/model-pricing/pricing-issues'
+} from '@/apps/admin/features/model-pricing/pricing-issues'
 import { api } from '@/shared/lib/api'
 
 import { PluginsTable } from '../components/plugins-table'

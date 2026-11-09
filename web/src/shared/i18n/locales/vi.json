@@ -5965,6 +5965,7 @@
     "Some files could not be deleted ({{failed}}/{{total}})": "Không thể xóa một số tệp ({{failed}}/{{total}})",
     "Some matching models are hidden or have no available channel.": "Một số mô hình khớp đã bị ẩn hoặc không có kênh khả dụng.",
     "Some plugin information could not be read": "Không đọc được một số thông tin plugin",
+    "Something went wrong, please refresh": "Đã xảy ra lỗi, vui lòng tải lại trang",
     "Something went wrong!": "Có gì đó không ổn!",
     "Sonnet Model": "Mô hình Sonnet",
     "Sora": "Sora",

@@ -38,6 +38,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { useModelPricing } from '@/apps/admin/features/model-pricing/api'
 import {
   DataTableBulkActions,
   DataTableToolbar,
@@ -47,7 +48,6 @@ import {
   useDataTable,
 } from '@/shared/components/data-table'
 import { Button } from '@/shared/components/ui/button'
-import { useModelPricing } from '@/shared/features/model-pricing/api'
 import {
   applyPricingDraft,
   PRICING_KEYS,

@@ -1,3 +1,4 @@
+import type { PolicyConfig } from '@/shared/features/request-policies/api'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,9 +18,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /**
- * Request policy shared module.
+ * Request policy settings API.
  *
- * The implementation lives in `@/shared/features/request-policies/api` because it is shared by both
- * portals. This module keeps the admin-local import path stable.
+ * The types stay in `@/shared/features/request-policies/api` because the
+ * client usage-logs feature reads the event shapes; the admin endpoints live
+ * here so the client bundle never includes them.
  */
+import { api } from '@/shared/lib/api'
+import { requireServerSuccess } from '@/shared/lib/server-error-message'
+
 export * from '@/shared/features/request-policies/api'
+
+type Response<T> = { success: boolean; message?: string; data: T }
+export async function getPolicyConfig() {
+  const response = await api.get<Response<PolicyConfig>>(
+    '/api/option/request_policy'
+  )
+  return requireServerSuccess(response.data).data
+}
+export async function savePolicyConfig(options: Record<string, string>) {
+  const response = await api.patch<Response<PolicyConfig>>(
+    '/api/option/request_policy',
+    { options }
+  )
+  return requireServerSuccess(response.data).data
+}

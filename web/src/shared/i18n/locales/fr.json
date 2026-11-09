@@ -5965,6 +5965,7 @@
     "Some files could not be deleted ({{failed}}/{{total}})": "Certains fichiers n'ont pas pu être supprimés ({{failed}}/{{total}})",
     "Some matching models are hidden or have no available channel.": "Certains modèles correspondants sont masqués ou n’ont aucun canal disponible.",
     "Some plugin information could not be read": "Certaines informations du plugin sont illisibles",
+    "Something went wrong, please refresh": "Une erreur est survenue, veuillez actualiser la page",
     "Something went wrong!": "Quelque chose s'est mal passé !",
     "Sonnet Model": "Modèle Sonnet",
     "Sora": "Sora",

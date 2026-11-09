@@ -22,6 +22,8 @@ import { Eye, MoreHorizontal, Trash2, Upload } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getChannelTypeLabel } from '@/apps/admin/features/channels/lib'
+import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/apps/admin/features/model-pricing/pricing-issues'
 import { ConfirmDialog } from '@/shared/components/confirm-dialog'
 import { DataTablePage, useDataTable } from '@/shared/components/data-table'
 import { Badge } from '@/shared/components/ui/badge'
@@ -33,8 +35,6 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/components/ui/dropdown-menu'
 import { Switch } from '@/shared/components/ui/switch'
-import { getChannelTypeLabel } from '@/apps/admin/features/channels/lib'
-import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/shared/features/model-pricing/pricing-issues'
 import { handleServerError } from '@/shared/lib/handle-server-error'
 import { resolveLocalizedText } from '@/shared/lib/localized-text'
 

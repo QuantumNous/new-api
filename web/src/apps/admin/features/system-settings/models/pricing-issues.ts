@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 /**
  * Model pricing issue reporting.
  *
- * The implementation lives in `@/shared/features/model-pricing/pricing-issues` because it is shared by both
- * portals. This module keeps the admin-local import path stable.
+ * The implementation lives in `@/apps/admin/features/model-pricing/pricing-issues`.
+ * This module keeps the admin-local import path stable.
  */
-export * from '@/shared/features/model-pricing/pricing-issues'
+export * from '@/apps/admin/features/model-pricing/pricing-issues'

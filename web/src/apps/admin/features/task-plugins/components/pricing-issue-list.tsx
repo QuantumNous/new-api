@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 import {
   PRICING_ISSUE_REASONS,
   type ModelPricingIssue,
-} from '@/shared/features/model-pricing/pricing-issues'
+} from '@/apps/admin/features/model-pricing/pricing-issues'
 
 /** A plugin reports one issue per model; a long catalog stays readable. */
 const VISIBLE_ISSUES = 5

@@ -60,8 +60,8 @@ import {
   deleteUserSubscription,
   resetUserSubscriptionsByPlan,
 } from '../../api'
-import { formatTimestamp } from '../../lib'
-import type { PlanRecord, UserSubscriptionRecord } from '../../types'
+import { formatTimestamp } from '@/shared/features/subscriptions/lib'
+import type { PlanRecord, UserSubscriptionRecord } from '@/shared/features/subscriptions/types'
 
 interface Props {
   open: boolean

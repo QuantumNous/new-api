@@ -28,7 +28,7 @@ import {
   useDataTable,
 } from '@/shared/components/data-table'
 import {
-  getAdminPlans,
+  getPublicPlans,
   getSelfSubscriptionFull,
 } from '@/shared/features/subscriptions/api'
 import { useMediaQuery } from '@/shared/hooks'
@@ -103,7 +103,10 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     enabled: logCategory === 'common' && userId != null,
     queryFn: async () => {
       if (isAdmin) {
-        const plansResult = await getAdminPlans()
+        // Admin callers read the public plan list: it contains exactly the
+        // enabled plans, so "any enabled plan" is a non-empty result, and the
+        // client bundle never references the admin plans endpoint.
+        const plansResult = await getPublicPlans()
         return shouldShowBillingSource({
           isAdmin,
           plans: plansResult.success ? plansResult.data : undefined,

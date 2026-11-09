@@ -21,9 +21,9 @@ import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useModelPricing } from '@/apps/admin/features/model-pricing/api'
 import { DataTablePage, useDataTable } from '@/shared/components/data-table'
 import { ErrorState } from '@/shared/components/error-state'
-import { useModelPricing } from '@/shared/features/model-pricing/api'
 import { useMediaQuery } from '@/shared/hooks'
 import { useTableUrlState } from '@/shared/hooks/use-table-url-state'
 import {

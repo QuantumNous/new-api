@@ -22,13 +22,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import {
+  getModelPricing,
+  saveModelPricing,
+} from '@/apps/admin/features/model-pricing/api'
 import { ErrorState } from '@/shared/components/error-state'
 import { Button } from '@/shared/components/ui/button'
 import { ButtonGroup } from '@/shared/components/ui/button-group'
 import {
   buildPricingChanges,
-  getModelPricing,
-  saveModelPricing,
   invalidateModelPricing,
   type ModelPricingConfig,
   type ModelPricingChange,
