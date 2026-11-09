@@ -44,9 +44,28 @@ vi.mock('@/shared/hooks/use-status', () => ({
   }),
 }))
 
-const SUCCESS_MESSAGE = 'Account created successfully. Please log in.'
+const SUCCESS_PATH = '/login?registered=1'
 const TIMEOUT_MESSAGE =
   'Network timeout. The server took too long to respond. Please try again.'
+
+const originalLocation = window.location
+
+function stubLocation(): { href: string } {
+  const location = {
+    href: '',
+    pathname: '/sign-up',
+    search: '',
+    origin: 'http://localhost',
+    assign: vi.fn(),
+    replace: vi.fn(),
+  }
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    writable: true,
+    value: location,
+  })
+  return location
+}
 
 function renderSignUp() {
   const root = createRootRoute({ component: Outlet })
@@ -75,11 +94,11 @@ async function submitRegistration() {
     await screen.findByPlaceholderText('Enter your username'),
     'new-user'
   )
+  await user.type(screen.getByPlaceholderText(/Enter password/), 'password123')
   await user.type(
-    screen.getByPlaceholderText(/Enter password/),
+    screen.getByPlaceholderText('Confirm password'),
     'password123'
   )
-  await user.type(screen.getByPlaceholderText('Confirm password'), 'password123')
   await user.click(screen.getByRole('button', { name: 'Create account' }))
 }
 
@@ -90,23 +109,32 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    writable: true,
+    value: originalLocation,
+  })
 })
 
 describe('sign-up completion', () => {
-  it('shows the success toast and routes to /login after registration', async () => {
+  it('clears the submit state and hard-navigates to /login after registration', async () => {
+    const location = stubLocation()
     vi.spyOn(api, 'post').mockResolvedValue({
       data: { success: true, message: '' },
     })
-    const success = vi.spyOn(toast, 'success')
 
-    const router = renderSignUp()
+    renderSignUp()
     await submitRegistration()
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
-    expect(success).toHaveBeenCalledWith(SUCCESS_MESSAGE)
+    // A full document load is what guarantees the sign-up form unmounts; the
+    // router transition left it mounted with the spinner running.
+    await waitFor(() => expect(location.href).toBe(SUCCESS_PATH))
+    expect(screen.getByRole('button', { name: 'Create account' })).toBeEnabled()
+    expect(screen.getByPlaceholderText('Enter your username')).toHaveValue('')
   })
 
   it('clears the spinner and stays on the form when registration times out', async () => {
+    stubLocation()
     vi.spyOn(api, 'post').mockRejectedValue({ code: 'ECONNABORTED' })
     const error = vi.spyOn(toast, 'error')
 
@@ -115,8 +143,6 @@ describe('sign-up completion', () => {
 
     await waitFor(() => expect(error).toHaveBeenCalledWith(TIMEOUT_MESSAGE))
     expect(router.state.location.pathname).toBe('/sign-up')
-    expect(
-      screen.getByRole('button', { name: 'Create account' })
-    ).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Create account' })).toBeEnabled()
   })
 })
