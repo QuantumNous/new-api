@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 6
-- **Last Active**: 2026-11-02
+- **Total Sessions**: 7
+- **Last Active**: 2026-11-09
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~199 | Active |
+| `journal-1.md` | ~235 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 7 | 2026-11-09 | Scheduled group IQ tests and isolated gallery | `11d7d3d0b` | `iq-test` |
 | 6 | 2026-11-02 | 合作商账号与不限量套餐提交及远端整合 | `d2e908664`, `2f465c900` | `feat/partner-accounts` |
 | 5 | 2026-10-19 | 合作方 OAuth 授权日志（专表） | `431cc580c` | `feat/partner-oauth-audit-rc44` |
 | 4 | 2026-09-18 | 优化首页品牌与社群入口 | `7f4da2c1b` | `qq-image` |

@@ -197,3 +197,39 @@ Implemented partner tenant accounts, unlimited quota and per-user RPM; fixed rev
 ### Next Steps
 
 - Review items 1 (video remix limiter coverage) and 2 (partner plan compliance UI gate) remain open; the user requested only fixes 3/4 and commit/push.
+
+
+## Session 7: Scheduled group IQ tests and isolated gallery
+<!-- trellis-session: v=2 fp=b805d7b9f8935264 -->
+
+**Date**: 2026-11-09
+**Task**: Scheduled group IQ tests and isolated gallery
+**Branch**: `iq-test`
+
+### Summary
+
+Implemented administrator-configured prompts, concrete group/model targets, interval/daily Beijing schedules, durable single-attempt execution and authenticated latest-only HTML/SVG gallery. Completed focused mock/SQLite/frontend/build/browser checks; documented iframe self-navigation/resource limits and unavailable independent child review. User authorized commit and push; temporary outputs retained for cleanup consent.
+
+### Main Changes
+
+- Add bounded IQ persistence/scheduling/execution and private group-filtered APIs without viewer quota debit or retries.
+- Add /iq-tests in both console modes, active opaque-origin previews, versioned admin forms and seven locales; fix schedule input identity.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `11d7d3d0b` | feat(iq-tests): add scheduled group artwork tests |
+
+### Testing
+
+- [OK] Nine focused IQ backend test functions and affected channel-test regression passed; frontend feature tests, affected lint, typecheck and build passed.
+- [OK] One local built-app smoke verified Canvas/SVG, parent/storage isolation, blocked subresources and anonymous/member/mobile UI; observed and documented own-frame navigation limitation.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Push iq-test branch to origin; request consent before deleting inventoried temporary outputs. Keep Trellis logs and default-disabled schedules.
