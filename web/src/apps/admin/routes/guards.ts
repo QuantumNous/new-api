@@ -35,11 +35,14 @@ import { useAuthStore } from '@/shared/stores/auth-store'
  * returned to the client portal with an "Access Denied" toast.
  */
 export async function requireAdminAccess(locationHref: string): Promise<void> {
-  await resolveAuthentication()
+  const outcome = await resolveAuthentication()
 
   const { auth } = useAuthStore.getState()
 
-  if (!auth.user || !auth.accessToken) {
+  // Only a server-confirmed session may reach the admin portal. A stale,
+  // expired in-memory token whose refresh could not be confirmed is treated as
+  // anonymous so the console is never rendered against an unverified session.
+  if (outcome.kind !== 'authenticated' || !auth.user || !auth.accessToken) {
     if (isCrossOriginPortal('admin')) {
       throw redirect({
         href: `${portalHref('admin', '/admin/login')}?redirect=${encodeURIComponent(locationHref)}`,

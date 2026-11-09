@@ -20,7 +20,6 @@ import { redirect } from '@tanstack/react-router'
 
 import { resolveAuthentication } from '@/shared/lib/auth-session'
 import { isCrossOriginPortal, portalHref } from '@/shared/lib/portal-url'
-import { useAuthStore } from '@/shared/stores/auth-store'
 
 /**
  * Client portal guard.
@@ -31,10 +30,12 @@ import { useAuthStore } from '@/shared/stores/auth-store'
  * first. An in-memory session returns without a request.
  */
 export async function requireClientAccess(locationHref: string): Promise<void> {
-  await resolveAuthentication()
+  const outcome = await resolveAuthentication()
 
-  const { auth } = useAuthStore.getState()
-  if (auth.user && auth.accessToken) return
+  // Require a session the server has actually confirmed. Presence of a stale
+  // in-memory token is not enough: an expired token whose refresh could not be
+  // completed must not render protected UI, so it falls back to the login page.
+  if (outcome.kind === 'authenticated') return
 
   if (isCrossOriginPortal('client')) {
     throw redirect({
