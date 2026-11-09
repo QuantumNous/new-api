@@ -21,14 +21,23 @@ import { AlertTriangle, Download } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/apps/admin/features/model-pricing/pricing-issues'
 import { Dialog } from '@/shared/components/dialog'
 import { LoadingState } from '@/shared/components/loading-state'
-import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/shared/components/ui/alert'
 import { Button } from '@/shared/components/ui/button'
 import { Combobox } from '@/shared/components/ui/combobox'
 import { Spinner } from '@/shared/components/ui/spinner'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs'
-import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/shared/features/model-pricing/pricing-issues'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/shared/components/ui/tabs'
 
 import {
   activateTaskPlugin,

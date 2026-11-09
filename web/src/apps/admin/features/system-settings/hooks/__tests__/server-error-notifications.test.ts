@@ -28,7 +28,7 @@ import { createElement, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import { saveModelPricing } from '@/shared/features/model-pricing/api'
+import { saveModelPricing } from '@/apps/admin/features/model-pricing/api'
 import { useUpdateOption } from '@/apps/admin/features/system-settings/hooks/use-update-option'
 import { handleServerError } from '@/shared/lib/handle-server-error'
 import { api } from '@/shared/lib/http-client'
@@ -304,23 +304,23 @@ it.each([200, 401])(
       access_expires_at: 2_000_000_000,
     }
     const open = vi.spyOn(XMLHttpRequest.prototype, 'open')
-    vi.spyOn(XMLHttpRequest.prototype, 'send').mockImplementation(
-      function (this: XMLHttpRequest) {
-        Object.defineProperties(this, {
-          status: { value: refreshStatus, configurable: true },
-          statusText: { value: 'Refresh response', configurable: true },
-          responseText: {
-            value: JSON.stringify({
-              success: refreshStatus === 200,
-              data: fresh,
-            }),
-            configurable: true,
-          },
-          readyState: { value: 4, configurable: true },
-        })
-        this.onloadend?.(new ProgressEvent('loadend'))
-      }
-    )
+    vi.spyOn(XMLHttpRequest.prototype, 'send').mockImplementation(function (
+      this: XMLHttpRequest
+    ) {
+      Object.defineProperties(this, {
+        status: { value: refreshStatus, configurable: true },
+        statusText: { value: 'Refresh response', configurable: true },
+        responseText: {
+          value: JSON.stringify({
+            success: refreshStatus === 200,
+            data: fresh,
+          }),
+          configurable: true,
+        },
+        readyState: { value: 4, configurable: true },
+      })
+      this.onloadend?.(new ProgressEvent('loadend'))
+    })
     let requests = 0
     api.defaults.adapter = async (config) => {
       requests++

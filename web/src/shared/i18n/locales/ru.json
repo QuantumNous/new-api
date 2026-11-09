@@ -5965,6 +5965,7 @@
     "Some files could not be deleted ({{failed}}/{{total}})": "Не удалось удалить некоторые файлы ({{failed}}/{{total}})",
     "Some matching models are hidden or have no available channel.": "Часть соответствующих моделей скрыта или не имеет доступных каналов.",
     "Some plugin information could not be read": "Не удалось прочитать часть данных плагина",
+    "Something went wrong, please refresh": "Произошла ошибка, обновите страницу",
     "Something went wrong!": "Что-то пошло не так!",
     "Sonnet Model": "Модель Sonnet",
     "Sora": "Sora",

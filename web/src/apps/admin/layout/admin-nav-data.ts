@@ -31,12 +31,12 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { useModelPricingIssueBadge } from '@/apps/admin/features/model-pricing/pricing-issues'
 import { getSystemSettingsSectionNavItems } from '@/apps/admin/features/system-settings/nav'
 import type {
   SidebarBadges,
   SidebarData,
 } from '@/shared/components/layout/types'
-import { useModelPricingIssueBadge } from '@/shared/features/model-pricing/pricing-issues'
 import { ROLE } from '@/shared/lib/roles'
 
 /**

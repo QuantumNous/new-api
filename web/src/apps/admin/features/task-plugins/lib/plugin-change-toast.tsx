@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { toast } from 'sonner'
 
-import type { ModelPricingIssue } from '@/shared/features/model-pricing/pricing-issues'
+import type { ModelPricingIssue } from '@/apps/admin/features/model-pricing/pricing-issues'
 
 import { PricingIssueList } from '../components/pricing-issue-list'
 

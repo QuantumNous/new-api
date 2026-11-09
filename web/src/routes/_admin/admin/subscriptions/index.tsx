@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { Subscriptions } from '@/shared/features/subscriptions'
+import { Subscriptions } from '@/apps/admin/features/subscriptions'
 import { ROLE } from '@/shared/lib/roles'
 import { useAuthStore } from '@/shared/stores/auth-store'
 

@@ -33,6 +33,10 @@ import {
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import {
+  previewModelPricing,
+  previewModelPricingConversion,
+} from '@/apps/admin/features/model-pricing/api'
 import { sideDrawerContentClassName } from '@/shared/components/drawer-layout'
 import { Alert, AlertDescription } from '@/shared/components/ui/alert'
 import { Button } from '@/shared/components/ui/button'
@@ -60,18 +64,22 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/shared/components/ui/sheet'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs'
 import {
-  previewModelPricing,
-  previewModelPricingConversion,
-  type ModelPricingPluginVariant,
-} from '@/shared/features/model-pricing/api'
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/shared/components/ui/tabs'
+import type { ModelPricingPluginVariant } from '@/shared/features/model-pricing/api'
 import {
   getSitePricingCurrency,
   isValidPricingCurrency,
   USD_PRICING_CURRENCY,
 } from '@/shared/features/model-pricing/currency'
-import { pricingFromDraft, pricingRow } from '@/shared/features/model-pricing/pricing'
+import {
+  pricingFromDraft,
+  pricingRow,
+} from '@/shared/features/model-pricing/pricing'
 import { PricingAmountInput } from '@/shared/features/model-pricing/pricing-amount-input'
 import {
   PricingConversionDialog,

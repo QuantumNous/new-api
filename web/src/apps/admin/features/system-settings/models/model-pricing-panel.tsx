@@ -20,29 +20,20 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { ConfirmDialog } from '@/shared/components/confirm-dialog'
-import { ErrorState } from '@/shared/components/error-state'
-import { LoadingState } from '@/shared/components/loading-state'
-import { Button } from '@/shared/components/ui/button'
-import { DynamicPricingBreakdown } from '@/shared/features/pricing/components/dynamic-pricing-breakdown'
-import { ModelPriceCell } from '@/shared/features/pricing/components/model-price-cell'
-import { isDynamicPricingModel } from '@/shared/features/pricing/lib/dynamic-price'
 import {
-  buildPreviewRows,
-  createInitialLaneState,
-} from '@/shared/features/model-pricing/model-pricing-core'
+  useModelPricing,
+  useSaveModelPricing,
+} from '@/apps/admin/features/model-pricing/api'
 import {
   ModelPricingEditorPanel,
   type ModelPricingEditorPanelHandle,
 } from '@/apps/admin/features/system-settings/models/model-pricing-sheet'
-import { handleServerError } from '@/shared/lib/handle-server-error'
-import { usePricingPreferencesStore } from '@/shared/stores/pricing-preferences-store'
-import { useSystemConfigStore } from '@/shared/stores/system-config-store'
-
+import { ConfirmDialog } from '@/shared/components/confirm-dialog'
+import { ErrorState } from '@/shared/components/error-state'
+import { LoadingState } from '@/shared/components/loading-state'
+import { Button } from '@/shared/components/ui/button'
 import {
   useCanEditModelPricing,
-  useModelPricing,
-  useSaveModelPricing,
   type ModelPricingEntry,
 } from '@/shared/features/model-pricing/api'
 import {
@@ -50,7 +41,21 @@ import {
   isValidPricingCurrency,
   USD_PRICING_CURRENCY,
 } from '@/shared/features/model-pricing/currency'
-import { modelPricingDisplay, pricingFromDraft, pricingRow } from '@/shared/features/model-pricing/pricing'
+import {
+  buildPreviewRows,
+  createInitialLaneState,
+} from '@/shared/features/model-pricing/model-pricing-core'
+import {
+  modelPricingDisplay,
+  pricingFromDraft,
+  pricingRow,
+} from '@/shared/features/model-pricing/pricing'
+import { DynamicPricingBreakdown } from '@/shared/features/pricing/components/dynamic-pricing-breakdown'
+import { ModelPriceCell } from '@/shared/features/pricing/components/model-price-cell'
+import { isDynamicPricingModel } from '@/shared/features/pricing/lib/dynamic-price'
+import { handleServerError } from '@/shared/lib/handle-server-error'
+import { usePricingPreferencesStore } from '@/shared/stores/pricing-preferences-store'
+import { useSystemConfigStore } from '@/shared/stores/system-config-store'
 
 export function ModelPricingPanel(props: {
   modelName: string

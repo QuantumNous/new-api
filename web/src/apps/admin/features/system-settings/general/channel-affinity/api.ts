@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /**
- * Channel affinity shared module.
+ * Channel affinity settings API.
  *
- * The implementation lives in `@/shared/features/channel-affinity/api` because it is shared by both
- * portals. This module keeps the admin-local import path stable.
+ * The admin `/api/option` endpoints live in
+ * `@/apps/admin/features/channel-affinity/api`; this module keeps the
+ * admin-local import path stable.
  */
-export * from '@/shared/features/channel-affinity/api'
+export * from '@/apps/admin/features/channel-affinity/api'

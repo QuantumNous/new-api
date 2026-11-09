@@ -1,3 +1,4 @@
+import type { ModelPricingIssue } from '@/apps/admin/features/model-pricing/pricing-issues'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -20,7 +21,6 @@ import type {
   BillingUsageSchema,
   BillingUsageExample,
 } from '@/shared/features/pricing/types'
-import type { ModelPricingIssue } from '@/shared/features/model-pricing/pricing-issues'
 
 export type TaskPluginProtocolClaim =
   | string

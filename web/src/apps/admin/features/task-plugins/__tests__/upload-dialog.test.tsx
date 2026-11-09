@@ -24,7 +24,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import {
   MODEL_PRICING_ISSUES_QUERY_KEY,
   type ModelPricingIssue,
-} from '@/shared/features/model-pricing/pricing-issues'
+} from '@/apps/admin/features/model-pricing/pricing-issues'
 
 import { UploadDialog } from '../components/upload-dialog'
 import { MAX_PLUGIN_SOURCE_BYTES } from '../lib/plugin-url'

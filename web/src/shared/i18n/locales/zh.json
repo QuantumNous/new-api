@@ -5965,6 +5965,7 @@
     "Some files could not be deleted ({{failed}}/{{total}})": "部分文件删除失败（{{failed}}/{{total}}）",
     "Some matching models are hidden or have no available channel.": "部分匹配模型已隐藏或暂无可用渠道。",
     "Some plugin information could not be read": "部分插件信息无法读取",
+    "Something went wrong, please refresh": "出错了，请刷新页面重试",
     "Something went wrong!": "出现错误！",
     "Sonnet Model": "Sonnet 模型",
     "Sora": "Sora",

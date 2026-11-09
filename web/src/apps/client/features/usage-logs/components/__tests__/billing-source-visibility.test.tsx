@@ -73,7 +73,7 @@ async function renderLogs(props: {
   )
   vi.spyOn(api, 'get').mockImplementation(async (url) => {
     let data: unknown = { quota: 0, rpm: 0, tpm: 0 }
-    if (url === '/api/subscription/admin/plans') {
+    if (url === '/api/subscription/plans') {
       data = props.enabledPlans.map((enabled) => ({ plan: { enabled } }))
     } else if (url === '/api/subscription/self') {
       data = {

@@ -26,8 +26,8 @@ import { StatusBadge } from '@/shared/components/status-badge'
 import { TableId } from '@/shared/components/table-id'
 import { formatQuota } from '@/shared/lib/format'
 
-import { formatDuration, formatResetPeriod } from '../lib'
-import type { PlanRecord } from '../types'
+import { formatDuration, formatResetPeriod } from '@/shared/features/subscriptions/lib'
+import type { PlanRecord } from '@/shared/features/subscriptions/types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {

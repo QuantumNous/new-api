@@ -22,6 +22,7 @@ import { z } from 'zod'
 import { DASHBOARD_DEFAULT_SECTION } from '@/apps/client/features/dashboard/section-registry'
 import { sanitizeAuthRedirect } from '@/shared/features/auth/lib/auth-redirect'
 import { SignIn } from '@/shared/features/auth/sign-in'
+import { LoginError } from '@/shared/features/errors/login-error'
 import { resolveAuthentication } from '@/shared/lib/auth-session'
 import { isCrossOriginPortal, portalHref } from '@/shared/lib/portal-url'
 import { ROLE } from '@/shared/lib/roles'
@@ -31,7 +32,9 @@ const searchSchema = z.object({
   redirect: z.string().optional(),
   // Set by the sign-up success path, which hands off with a full document
   // load so the login page can show the confirmation toast exactly once.
-  registered: z.literal('1').optional(),
+  // Accepted as a plain string so unexpected values degrade to "no flag"
+  // instead of rejecting the whole search payload and crashing the route.
+  registered: z.string().optional(),
 })
 
 /** Session checks are already bounded by the refresh client's timeout; this
@@ -41,13 +44,15 @@ const SESSION_RESOLVE_TIMEOUT_MS = 10_000
 
 export const Route = createFileRoute('/(auth)/login')({
   component: SignIn,
+  errorComponent: LoginError,
   validateSearch: searchSchema,
   beforeLoad: async ({ search }) => {
     // 根 guard 可能因为没有会话提示而跳过了 refresh。此处必须回源确认，
     // 否则持有有效 Refresh Cookie 的用户会被要求重新输入密码。
     let sessionTimer: ReturnType<typeof globalThis.setTimeout> | undefined
+    let outcome: Awaited<ReturnType<typeof resolveAuthentication>> | undefined
     try {
-      await Promise.race([
+      outcome = await Promise.race([
         resolveAuthentication(),
         new Promise<never>((_, reject) => {
           sessionTimer = globalThis.setTimeout(
@@ -62,6 +67,12 @@ export const Route = createFileRoute('/(auth)/login')({
     } finally {
       globalThis.clearTimeout(sessionTimer)
     }
+
+    // Only a positively resolved session may leave the login page. Bouncing on
+    // an unresolved state (transient refresh failure, timeout) would ping-pong
+    // with the /app route guard, which sends that same unresolved session back
+    // here.
+    if (outcome?.kind !== 'authenticated') return
 
     const { auth } = useAuthStore.getState()
     if (!auth.user) return
