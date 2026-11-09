@@ -1,16 +1,32 @@
 package ali
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/go-audio/wav"
+)
+
+// Qwen's HTTP TTS API accepts at most 600 characters and produces 24 kHz,
+// mono, signed 16-bit PCM (Base64) or a WAV download. It does not document
+// speed controls or encoded output formats such as MP3.
+// https://docs.bailian.console.aliyun.com/zh/model-studio/qwen-tts-api
+const (
+	aliTTSMaxCharacters = 600
+	aliTTSMaxAudioBytes = 32 << 20
 )
 
 type AliTTSRequest struct {
@@ -19,125 +35,212 @@ type AliTTSRequest struct {
 }
 
 type AliTTSInput struct {
-	Text         string  `json:"text"`
-	Voice        string  `json:"voice,omitempty"`
-	LanguageType string  `json:"language_type,omitempty"`
-	Speed        float64 `json:"speed,omitempty"`
-	Volume       float64 `json:"volume,omitempty"`
-	Pitch        float64 `json:"pitch,omitempty"`
+	Text         string `json:"text"`
+	Voice        string `json:"voice"`
+	LanguageType string `json:"language_type,omitempty"`
 }
 
 type AliTTSResponse struct {
-	Output    AliTTSOutput `json:"output"`
-	Usage     AliTTSUsage  `json:"usage"`
-	RequestID string       `json:"request_id"`
-	Code      string       `json:"code,omitempty"`
-	Message   string       `json:"message,omitempty"`
-}
-
-type AliTTSOutput struct {
-	Audio AliTTSAudio `json:"audio,omitempty"`
-}
-
-type AliTTSAudio struct {
-	URL       string `json:"url,omitempty"`
-	Data      string `json:"data,omitempty"`
-	ID        string `json:"id,omitempty"`
-	ExpiresAt int64  `json:"expires_at,omitempty"`
-}
-
-type AliTTSUsage struct {
-	Characters int `json:"characters"`
+	Output struct {
+		Audio struct {
+			URL  string `json:"url"`
+			Data string `json:"data"`
+		} `json:"audio"`
+	} `json:"output"`
+	Usage struct {
+		Characters int64 `json:"characters"`
+	} `json:"usage"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 var openAIToAliVoiceMap = map[string]string{
 	"alloy":   "Cherry",
-	"echo":    "Alex",
-	"fable":   "Bella",
-	"onyx":    "Olivia",
-	"nova":    "Luna",
-	"shimmer": "Emily",
+	"echo":    "Ethan",
+	"fable":   "Serena",
+	"onyx":    "Ethan",
+	"nova":    "Chelsie",
+	"shimmer": "Serena",
 }
 
-func mapOpenAIVoiceToAli(openAIVoice string) string {
-	if voice, ok := openAIToAliVoiceMap[openAIVoice]; ok {
-		return voice
+func convertOpenAITTSRequestToAli(request dto.AudioRequest) (*AliTTSRequest, error) {
+	if strings.TrimSpace(request.Input) == "" || utf8.RuneCountInString(request.Input) > aliTTSMaxCharacters {
+		return nil, fmt.Errorf("Qwen TTS input must contain 1 to %d characters", aliTTSMaxCharacters)
 	}
-	return openAIVoice
-}
-
-func convertOpenAITTSRequestToAli(oaiReq dto.AudioRequest) *AliTTSRequest {
-	aliReq := &AliTTSRequest{
-		Model: oaiReq.Model,
-		Input: AliTTSInput{
-			Text:         oaiReq.Input,
-			Voice:        mapOpenAIVoiceToAli(oaiReq.Voice),
-			LanguageType: "Chinese",
-		},
+	if strings.TrimSpace(request.Voice) == "" {
+		return nil, errors.New("Qwen TTS voice is required")
 	}
-
-	if oaiReq.Speed != nil && *oaiReq.Speed > 0 {
-		aliReq.Input.Speed = *oaiReq.Speed
+	if request.StreamFormat != "" && request.StreamFormat != "audio" {
+		return nil, errors.New("Qwen HTTP TTS supports stream_format=audio only")
 	}
-
-	return aliReq
-}
-
-func handleAliTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	body, readErr := io.ReadAll(resp.Body)
-	if readErr != nil {
-		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("failed to read ali TTS response: %w", readErr),
-			types.ErrorCodeReadResponseBodyFailed,
-			http.StatusInternalServerError,
-		)
+	if request.ResponseFormat != "" && request.ResponseFormat != "wav" && request.ResponseFormat != "pcm" {
+		return nil, errors.New("Qwen HTTP TTS supports response_format=wav or pcm; the default is wav")
 	}
-	defer resp.Body.Close()
-
-	var aliResp AliTTSResponse
-	if unmarshalErr := common.Unmarshal(body, &aliResp); unmarshalErr != nil {
-		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("failed to unmarshal ali TTS response: %w", unmarshalErr),
-			types.ErrorCodeBadResponseBody,
-			http.StatusInternalServerError,
-		)
+	if request.Speed != nil && *request.Speed != 1 {
+		return nil, errors.New("Qwen HTTP TTS does not support changing speed; omit speed or use 1")
+	}
+	if request.Instructions != "" {
+		return nil, errors.New("Qwen HTTP TTS does not support instructions")
 	}
 
-	if aliResp.Code != "" && aliResp.Code != "Success" {
-		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("ali TTS error: %s - %s", aliResp.Code, aliResp.Message),
-			types.ErrorCodeBadResponse,
-			http.StatusBadRequest,
-		)
-	}
-
-	// 优先使用 URL，如果没有则使用 base64 data
-	if aliResp.Output.Audio.URL != "" {
-		c.Redirect(http.StatusFound, aliResp.Output.Audio.URL)
-	} else if aliResp.Output.Audio.Data != "" {
-		// 如果是 base64 编码的音频数据
-		audioData, decodeErr := base64.StdEncoding.DecodeString(aliResp.Output.Audio.Data)
-		if decodeErr != nil {
-			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("failed to decode audio data: %w", decodeErr),
-				types.ErrorCodeBadResponse,
-				http.StatusInternalServerError,
-			)
+	language := "Auto"
+	if len(request.Language) != 0 {
+		var value string
+		if err := common.Unmarshal(request.Language, &value); err != nil {
+			return nil, errors.New("Qwen TTS language must be a string")
 		}
-		c.Data(http.StatusOK, "audio/mpeg", audioData)
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "", "auto":
+		case "zh", "zh-cn", "zh-tw", "chinese":
+			language = "Chinese"
+		case "en", "english":
+			language = "English"
+		case "de", "german":
+			language = "German"
+		case "it", "italian":
+			language = "Italian"
+		case "pt", "portuguese":
+			language = "Portuguese"
+		case "es", "spanish":
+			language = "Spanish"
+		case "ja", "japanese":
+			language = "Japanese"
+		case "ko", "korean":
+			language = "Korean"
+		case "fr", "french":
+			language = "French"
+		case "ru", "russian":
+			language = "Russian"
+		default:
+			return nil, fmt.Errorf("unsupported Qwen TTS language %q", value)
+		}
+	}
+	voice := request.Voice
+	if mapped, ok := openAIToAliVoiceMap[voice]; ok {
+		voice = mapped
+	}
+	return &AliTTSRequest{
+		Model: request.Model,
+		Input: AliTTSInput{Text: request.Input, Voice: voice, LanguageType: language},
+	}, nil
+}
+
+func handleAliTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewErrorWithStatusCode(errors.New("empty Qwen TTS response"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+	if resp.StatusCode != http.StatusOK {
+		return nil, service.RelayErrorHandler(c.Request.Context(), resp, false)
+	}
+	// Bound both a Base64 envelope and the downloaded/decoded audio.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2*aliTTSMaxAudioBytes+1))
+	if err != nil || len(body) > 2*aliTTSMaxAudioBytes {
+		return nil, types.NewErrorWithStatusCode(errors.New("failed to read Qwen TTS response or response too large"), types.ErrorCodeReadResponseBodyFailed, http.StatusBadGateway)
+	}
+	var response AliTTSResponse
+	if err := common.Unmarshal(body, &response); err != nil {
+		return nil, types.NewErrorWithStatusCode(fmt.Errorf("invalid Qwen TTS response: %w", err), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+	}
+	if response.Code != "" && response.Code != "Success" {
+		return nil, types.NewErrorWithStatusCode(fmt.Errorf("Qwen TTS error: %s - %s", response.Code, response.Message), types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+
+	var audio []byte
+	fromURL := response.Output.Audio.URL != ""
+	if fromURL {
+		request, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, response.Output.Audio.URL, nil)
+		if err != nil {
+			return nil, types.NewErrorWithStatusCode(errors.New("invalid Qwen audio URL"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+		}
+		// The URL is upstream-controlled: use the fetch client, which validates
+		// DNS and redirects, and never forward the channel API key.
+		download, err := service.GetSSRFProtectedHTTPClient().Do(request)
+		if err != nil {
+			return nil, types.NewErrorWithStatusCode(errors.New("failed to download Qwen audio"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+		}
+		defer service.CloseResponseBodyGracefully(download)
+		if download.StatusCode != http.StatusOK {
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("Qwen audio download returned HTTP %d", download.StatusCode), types.ErrorCodeBadResponse, http.StatusBadGateway)
+		}
+		audio, err = io.ReadAll(io.LimitReader(download.Body, aliTTSMaxAudioBytes+1))
+		if err != nil {
+			return nil, types.NewErrorWithStatusCode(errors.New("failed to read Qwen audio download"), types.ErrorCodeReadResponseBodyFailed, http.StatusBadGateway)
+		}
 	} else {
-		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("no audio URL or data in ali TTS response"),
-			types.ErrorCodeBadResponse,
-			http.StatusBadRequest,
-		)
+		audio, err = base64.StdEncoding.DecodeString(response.Output.Audio.Data)
+		if err != nil {
+			return nil, types.NewErrorWithStatusCode(errors.New("invalid Base64 Qwen audio"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+		}
+	}
+	if len(audio) == 0 || len(audio) > aliTTSMaxAudioBytes {
+		return nil, types.NewErrorWithStatusCode(errors.New("Qwen audio is empty or too large"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+	}
+	format := "wav"
+	if request, ok := info.Request.(*dto.AudioRequest); ok && request.ResponseFormat == "pcm" {
+		format = "pcm"
+	}
+	audio, err = formatAliTTSAudio(audio, fromURL, format)
+	if err != nil {
+		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
 	}
 
-	usage = &dto.Usage{
-		PromptTokens:     info.GetEstimatePromptTokens(),
-		CompletionTokens: 0,
-		TotalTokens:      aliResp.Usage.Characters,
+	characters := response.Usage.Characters
+	if characters <= 0 {
+		characters = int64(max(info.GetEstimatePromptTokens(), 0))
+		if request, ok := info.Request.(*dto.AudioRequest); ok && request.Input != "" {
+			characters = int64(utf8.RuneCountInString(request.Input))
+		}
 	}
+	count, clamp := common.QuotaFromFloatChecked(float64(characters))
+	if info.QuotaClamp == nil {
+		info.QuotaClamp = clamp
+	}
+	c.Data(http.StatusOK, "audio/"+format, audio)
+	return &dto.Usage{PromptTokens: count, TotalTokens: count}, nil
+}
 
-	return usage, nil
+// formatAliTTSAudio preserves a valid WAV download or wraps raw PCM in a WAV
+// header; PCM requests receive only 24 kHz, mono, signed 16-bit samples.
+func formatAliTTSAudio(audio []byte, fromURL bool, format string) ([]byte, error) {
+	isWAV := len(audio) >= 12 && string(audio[:4]) == "RIFF" && string(audio[8:12]) == "WAVE"
+	if fromURL || isWAV {
+		decoder := wav.NewDecoder(bytes.NewReader(audio))
+		if err := decoder.FwdToPCM(); err != nil {
+			return nil, errors.New("Qwen audio download is not a valid WAV file")
+		}
+		if decoder.WavAudioFormat != 1 || decoder.NumChans != 1 || decoder.BitDepth != 16 || decoder.SampleRate != 24000 {
+			return nil, errors.New("Qwen audio must be 24 kHz mono PCM16")
+		}
+		pcm, err := io.ReadAll(decoder.PCMChunk)
+		if err != nil || len(pcm) == 0 || len(pcm)%2 != 0 || len(pcm) != decoder.PCMSize {
+			return nil, errors.New("Qwen audio contains incomplete PCM samples")
+		}
+		if format == "pcm" {
+			return pcm, nil
+		}
+		return audio, nil
+	}
+	if len(audio)%2 != 0 {
+		return nil, errors.New("Qwen audio contains incomplete PCM samples")
+	}
+	if format == "pcm" {
+		return audio, nil
+	}
+	// The response size limit above keeps both RIFF sizes within uint32.
+	result := make([]byte, 44+len(audio))
+	copy(result, "RIFF")
+	binary.LittleEndian.PutUint32(result[4:], uint32(36+len(audio)))
+	copy(result[8:], "WAVEfmt ")
+	binary.LittleEndian.PutUint32(result[16:], 16)
+	binary.LittleEndian.PutUint16(result[20:], 1)
+	binary.LittleEndian.PutUint16(result[22:], 1)
+	binary.LittleEndian.PutUint32(result[24:], 24000)
+	binary.LittleEndian.PutUint32(result[28:], 48000)
+	binary.LittleEndian.PutUint16(result[32:], 2)
+	binary.LittleEndian.PutUint16(result[34:], 16)
+	copy(result[36:], "data")
+	binary.LittleEndian.PutUint32(result[40:], uint32(len(audio)))
+	copy(result[44:], audio)
+	return result, nil
 }

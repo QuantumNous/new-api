@@ -16,6 +16,11 @@ func ClaudeStopReasonToOpenAIFinishReason(stopReason string) string {
 		return "length"
 	case "tool_use":
 		return "tool_calls"
+	case "pause_turn":
+		// Responses has no pause_turn finish reason. Treat the provider's
+		// resumable server-side loop as an incomplete response instead of a
+		// successful stop; the hosted output items preserve continuation state.
+		return "length"
 	case "refusal":
 		return types.FinishReasonContentFilter
 	default:

@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +11,12 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,6 +37,112 @@ func newImageTestContext(t *testing.T, body, contentType string, isStream bool) 
 		IsStream:    isStream,
 	}
 	return c, recorder, resp, info
+}
+
+func TestImageExpressionUsesCompletedCountAndProtectsAbortedStreams(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+	for _, tc := range []struct {
+		name, body      string
+		stream, abort   bool
+		requested, want int
+	}{
+		{"JSON uses actual count", `{"data":[{"b64_json":"first"},{"b64_json":"second"}]}`, false, false, 3, 2},
+		{"JSON wrapped as SSE uses actual count", `{"data":[{"b64_json":"first"}]}`, true, false, 3, 1},
+		{"empty response retains request", `{"data":[]}`, false, false, 3, 3},
+		{"JSON object data counts one image", `{"data":{"url":"https://example.com/a.png","b64_json":"first"}}`, false, false, 3, 1},
+		{"JSON wrapped as SSE counts object data once", `{"data":{"b64_json":"first"}}`, true, false, 3, 1},
+		{"completed stream refunds missing images", "data: {\"type\":\"image_generation.completed\",\"b64_json\":\"first\"}\n\ndata: [DONE]\n\n", true, false, 3, 1},
+		{"client abort cannot reduce count", "data: {\"type\":\"image_generation.completed\",\"b64_json\":\"first\"}\n\n", true, true, 3, 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			contentType := "application/json"
+			if strings.HasPrefix(tc.body, "data:") {
+				contentType = "text/event-stream"
+			}
+			c, _, resp, info := newImageTestContext(t, tc.body, contentType, tc.stream)
+			if tc.abort {
+				c, _, resp, info = newDisconnectingImageStream(t, tc.body, "first")
+			}
+			info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{EstimatedImageCount: &tc.requested}
+			if tc.stream {
+				_, err := OpenaiImageStreamHandler(c, info, resp)
+				require.Nil(t, err)
+			} else {
+				_, err := OpenaiImageHandler(c, info, resp)
+				require.Nil(t, err)
+			}
+			count := info.RequestedImageCount()
+			if info.BillingImageCount != nil {
+				count = *info.BillingImageCount
+			}
+			assert.Equal(t, tc.want, count)
+			assert.Empty(t, info.PriceData.OtherRatios(), "expression quantities must not add a legacy multiplier")
+		})
+	}
+}
+
+func TestImageCacheUsageAcrossResponseFormats(t *testing.T) {
+	previousTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = previousTimeout })
+	// Contract fixture for compatible upstreams. Live OpenAI cache response
+	// verification is a separate release check; this is not a captured response.
+	const usageJSON = `{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"text_tokens":400,"image_tokens":600,"cached_tokens":300,"cached_tokens_details":{"text_tokens":100,"image_tokens":200}}}`
+	for _, mode := range []string{"image_generation", "image_edit"} {
+		for _, stream := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/stream=%t", mode, stream), func(t *testing.T) {
+				body := `{"data":[{"b64_json":"image"}],"usage":` + usageJSON + `}`
+				contentType := "application/json"
+				if stream {
+					body = "data: {\"type\":\"" + mode + ".completed\",\"usage\":" + usageJSON + "}\n\ndata: [DONE]\n\n"
+					contentType = "text/event-stream"
+				}
+				ctx, recorder, response, info := newImageTestContext(t, body, contentType, stream)
+				info.RelayMode = relayconstant.RelayModeImagesGenerations
+				if mode == "image_edit" {
+					info.RelayMode = relayconstant.RelayModeImagesEdits
+					ctx.Request.URL.Path = "/v1/images/edits"
+				}
+				result, apiErr := (&Adaptor{}).DoResponse(ctx, response, info)
+				require.Nil(t, apiErr)
+				usage := result.(*dto.Usage)
+				assert.Equal(t, 1000, usage.PromptTokens)
+				assert.Equal(t, 300, usage.PromptTokensDetails.CachedTokens)
+				require.NotNil(t, usage.PromptTokensDetails.CachedTokensDetails)
+				assert.Equal(t, 200, *usage.PromptTokensDetails.CachedTokensDetails.ImageTokens)
+				assert.Contains(t, recorder.Body.String(), `"cached_tokens_details":{"text_tokens":100,"image_tokens":200}`)
+			})
+		}
+	}
+}
+
+func TestNormalizeOpenAIUsageMapsOutputImageTokens(t *testing.T) {
+	previousTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = previousTimeout })
+
+	const usageJSON = `{"input_tokens":15,"output_tokens":1352,"total_tokens":1367,"input_tokens_details":{"text_tokens":15,"image_tokens":0},"output_tokens_details":{"image_tokens":1120,"text_tokens":232}}`
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprintf("stream=%t", stream), func(t *testing.T) {
+			body := `{"data":[{"b64_json":"image"}],"usage":` + usageJSON + `}`
+			contentType := "application/json"
+			if stream {
+				body = "data: {\"type\":\"image_generation.completed\",\"usage\":" + usageJSON + "}\n\ndata: [DONE]\n\n"
+				contentType = "text/event-stream"
+			}
+			ctx, _, response, info := newImageTestContext(t, body, contentType, stream)
+			info.RelayMode = relayconstant.RelayModeImagesGenerations
+			result, apiErr := (&Adaptor{}).DoResponse(ctx, response, info)
+			require.Nil(t, apiErr)
+			usage := result.(*dto.Usage)
+			assert.Equal(t, 15, usage.PromptTokens)
+			assert.Equal(t, 1352, usage.CompletionTokens)
+			assert.Equal(t, 1120, usage.CompletionTokenDetails.ImageTokens)
+			assert.Equal(t, 232, usage.CompletionTokenDetails.TextTokens)
+		})
+	}
 }
 
 func TestOpenaiImageDoResponseUsesInfoIsStream(t *testing.T) {
@@ -344,6 +454,24 @@ func TestOpenaiImageHandlerUsesPositiveActualCountForFixedPrice(t *testing.T) {
 			usePrice:  false,
 			wantCount: 3,
 		},
+		{
+			name:      "object data with url and b64_json counts one image",
+			body:      `{"data":{"url":"https://example.com/a.png","b64_json":"` + longImage + `"}}`,
+			usePrice:  true,
+			wantCount: 1,
+		},
+		{
+			name:      "url and b64_json split across entries count one image",
+			body:      `{"data":[{"url":"https://example.com/a.png"},{"b64_json":"` + longImage + `"}]}`,
+			usePrice:  true,
+			wantCount: 1,
+		},
+		{
+			name:      "entries without image payload keep requested count",
+			body:      `{"data":[{"revised_prompt":"draw a cat"}]}`,
+			usePrice:  true,
+			wantCount: 3,
+		},
 	}
 
 	for _, tt := range tests {
@@ -357,6 +485,62 @@ func TestOpenaiImageHandlerUsesPositiveActualCountForFixedPrice(t *testing.T) {
 			require.Nil(t, err)
 			require.Equal(t, tt.wantCount, info.PriceData.OtherRatios()["n"])
 			require.Equal(t, tt.body, recorder.Body.String())
+		})
+	}
+}
+
+// TestOpenaiImageStreamHandlerWrapsNonStandardDataShapes covers the JSON-to-SSE
+// fallback when upstream returns data as an object, splits one image across a
+// url entry and a b64_json entry, or returns entries without any image payload.
+// Forwarded events and the billed quantity must both follow the real images.
+func TestOpenaiImageStreamHandlerWrapsNonStandardDataShapes(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	for _, tc := range []struct {
+		name       string
+		body       string
+		wantEvents int
+		wantCount  float64
+		wantBody   []string
+	}{
+		{
+			name:       "object data is forwarded as one completed event",
+			body:       `{"data":{"url":"https://example.com/a.png","b64_json":"first"}}`,
+			wantEvents: 1,
+			wantCount:  1,
+			wantBody:   []string{`"url":"https://example.com/a.png"`, `"b64_json":"first"`},
+		},
+		{
+			name:       "split url and b64_json entries bill one image",
+			body:       `{"data":[{"url":"https://example.com/a.png"},{"b64_json":"first"}]}`,
+			wantEvents: 2,
+			wantCount:  1,
+			wantBody:   []string{`"url":"https://example.com/a.png"`, `"b64_json":"first"`},
+		},
+		{
+			name:       "entries without image payload are dropped and keep requested count",
+			body:       `{"data":[{"revised_prompt":"draw a cat"}]}`,
+			wantEvents: 0,
+			wantCount:  3,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, recorder, resp, info := newImageTestContext(t, tc.body, "application/json", true)
+			info.PriceData.UsePrice = true
+			info.PriceData.AddOtherRatio("n", 3)
+
+			_, err := OpenaiImageStreamHandler(c, info, resp)
+			require.Nil(t, err)
+			out := recorder.Body.String()
+			assert.Equal(t, tc.wantEvents, strings.Count(out, "event: image_generation.completed"))
+			assert.Equal(t, tc.wantEvents, info.ReceivedResponseCount)
+			for _, want := range tc.wantBody {
+				assert.Contains(t, out, want)
+			}
+			assert.True(t, strings.HasSuffix(out, "data: [DONE]\n\n"))
+			assert.Equal(t, tc.wantCount, info.PriceData.OtherRatios()["n"])
 		})
 	}
 }

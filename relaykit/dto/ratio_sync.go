@@ -25,9 +25,9 @@ type TestResult struct {
 // Upstreams 为各渠道的上游值，具体数值 / "same" / nil
 
 type DifferenceItem struct {
-	Current    interface{}            `json:"current"`
-	Upstreams  map[string]interface{} `json:"upstreams"`
-	Confidence map[string]bool        `json:"confidence"`
+	Current    any             `json:"current"`
+	Upstreams  map[string]any  `json:"upstreams"`
+	Confidence map[string]bool `json:"confidence"`
 }
 
 type SyncableChannel struct {

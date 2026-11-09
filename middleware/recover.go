@@ -13,8 +13,8 @@ func RelayPanicRecover() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
-				common.SysLog(fmt.Sprintf("panic detected: %v", err))
-				common.SysLog(fmt.Sprintf("stacktrace from panic: %s", string(debug.Stack())))
+				common.SysLog(common.LogText("panic detected: %v", err))
+				common.SysLog(common.LogText("stacktrace from panic: %s", string(debug.Stack())))
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"error": gin.H{
 						"message": fmt.Sprintf("Panic detected, error: %v. Please submit a issue here: https://github.com/Calcium-Ion/new-api", err),
@@ -26,4 +26,18 @@ func RelayPanicRecover() gin.HandlerFunc {
 		}()
 		c.Next()
 	}
+}
+
+// PanicRecover is the server-wide panic recovery. Gin logs the panic stack
+// through common.ErrorLogWriter so it reaches the current log file.
+func PanicRecover() gin.HandlerFunc {
+	return gin.CustomRecoveryWithWriter(common.ErrorLogWriter, func(c *gin.Context, err any) {
+		common.SysLog(common.LogText("panic detected: %v", err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": gin.H{
+				"message": fmt.Sprintf("Panic detected, error: %v. Please submit a issue here: https://github.com/Calcium-Ion/new-api", err),
+				"type":    "new_api_panic",
+			},
+		})
+	})
 }

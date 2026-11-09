@@ -128,7 +128,7 @@ func StartSystemTaskRunner() {
 
 		runnerID := fmt.Sprintf("%s-%s", common.NodeName, common.GetRandomString(8))
 		gopool.Go(func() {
-			logger.LogInfo(context.Background(), fmt.Sprintf("system task runner started: runner=%s idle_interval=%s", runnerID, systemTaskRunnerIdleInterval))
+			logger.LogInfo(context.Background(), common.LogText("system task runner started: runner=%s idle_interval=%s", runnerID, systemTaskRunnerIdleInterval))
 
 			ticker := time.NewTicker(systemTaskRunnerIdleInterval)
 			defer ticker.Stop()
@@ -143,7 +143,7 @@ func StartSystemTaskRunner() {
 				if now.Sub(lastStaleLockCleanup) >= systemTaskStaleLockInterval {
 					lastStaleLockCleanup = now
 					if err := model.ExpireStaleSystemTaskLocks(common.GetTimestamp()); err != nil {
-						logger.LogWarn(context.Background(), fmt.Sprintf("system task stale lock cleanup failed: %v", err))
+						logger.LogWarn(context.Background(), common.LogText("system task stale lock cleanup failed: %v", err))
 					}
 				}
 				if now.Sub(lastScheduler) >= systemTaskSchedulerInterval {
@@ -230,7 +230,7 @@ func runSystemTaskClaimPass(runnerID string) {
 	}
 	pendingTasks, err := model.FindEarliestPendingSystemTasks(taskTypes)
 	if err != nil {
-		logger.LogWarn(context.Background(), fmt.Sprintf("system task runner query failed: %v", err))
+		logger.LogWarn(context.Background(), common.LogText("system task runner query failed: %v", err))
 		return
 	}
 	for _, handler := range handlers {
@@ -240,7 +240,7 @@ func runSystemTaskClaimPass(runnerID string) {
 		}
 		claimedTask, claimed, err := model.ClaimSystemTask(task.ID, handler.Type(), runnerID, systemTaskLockUntil())
 		if err != nil {
-			logger.LogWarn(context.Background(), fmt.Sprintf("system task claim failed: %v", err))
+			logger.LogWarn(context.Background(), common.LogText("system task claim failed: %v", err))
 			continue
 		}
 		if !claimed {
@@ -275,7 +275,7 @@ func runSystemTaskScheduler() {
 	}
 	latestTasks, err := model.GetLatestSystemTasks(taskTypes)
 	if err != nil {
-		logger.LogWarn(context.Background(), fmt.Sprintf("system task scheduler query failed: %v", err))
+		logger.LogWarn(context.Background(), common.LogText("system task scheduler query failed: %v", err))
 		return
 	}
 	for _, scheduled := range scheduledHandlers {
@@ -294,9 +294,9 @@ func runSystemTaskScheduler() {
 				continue
 			}
 			if activeErr != nil {
-				logger.LogWarn(context.Background(), fmt.Sprintf("system task scheduler active lookup failed: type=%s err=%v", scheduled.Type(), activeErr))
+				logger.LogWarn(context.Background(), common.LogText("system task scheduler active lookup failed: type=%s err=%v", scheduled.Type(), activeErr))
 			}
-			logger.LogWarn(context.Background(), fmt.Sprintf("system task scheduler create failed: type=%s err=%v", scheduled.Type(), err))
+			logger.LogWarn(context.Background(), common.LogText("system task scheduler create failed: type=%s err=%v", scheduled.Type(), err))
 			continue
 		}
 	}
@@ -509,16 +509,16 @@ func NewSystemTaskProgressReporter(task *model.SystemTask, runnerID string) func
 }
 
 func failSystemTask(task *model.SystemTask, runnerID string, err error) {
-	logger.LogWarn(context.Background(), fmt.Sprintf("system task %s failed: %v", task.TaskID, err))
+	logger.LogWarn(context.Background(), common.LogText("system task %s failed: %v", task.TaskID, err))
 	if finishErr := model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusFailed, nil, err.Error()); finishErr != nil {
-		logger.LogWarn(context.Background(), fmt.Sprintf("system task %s failed to save failure state: %v", task.TaskID, finishErr))
+		logger.LogWarn(context.Background(), common.LogText("system task %s failed to save failure state: %v", task.TaskID, finishErr))
 	}
 }
 
 func logSystemTaskLockError(ctx context.Context, task *model.SystemTask, err error) {
 	if errors.Is(err, model.ErrSystemTaskLockLost) {
-		logger.LogWarn(ctx, fmt.Sprintf("system task %s lock lost", task.TaskID))
+		logger.LogWarn(ctx, common.LogText("system task %s lock lost", task.TaskID))
 		return
 	}
-	logger.LogWarn(ctx, fmt.Sprintf("system task %s update failed: %v", task.TaskID, err))
+	logger.LogWarn(ctx, common.LogText("system task %s update failed: %v", task.TaskID, err))
 }

@@ -3,12 +3,17 @@ package service
 import (
 	"math"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -337,6 +342,10 @@ func (s *recordingBillingSettler) Reserve(targetQuota int) error {
 	return nil
 }
 
+func (s *recordingBillingSettler) ReserveBeforeSubmit(targetQuota int) error {
+	return s.Reserve(targetQuota)
+}
+
 func TestPrepareTieredBillingForSelectedGroupUpdatesReservation(t *testing.T) {
 	const expr = `tier("base", p)`
 	billing := &recordingBillingSettler{preConsumedQuota: 50_000}
@@ -393,7 +402,8 @@ func TestPrepareTieredBillingForSelectedGroupStartsBillingAfterFreeGroup(t *test
 			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0.20},
 		},
 	}
-	ctx, _ := gin.CreateTestContext(nil)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
 	require.Nil(t, PrepareTieredBillingForSelectedGroup(ctx, relayInfo))
 	require.NotNil(t, relayInfo.Billing)
@@ -752,6 +762,42 @@ func TestBuildTieredTokenParams_GPT_WithImage(t *testing.T) {
 	}
 }
 
+func TestImageCacheBilling(t *testing.T) {
+	const expression = `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`
+	for _, tc := range []struct {
+		name              string
+		details           *dto.CachedTokenDetails
+		expression        string
+		p, cr, img, imgCR float64
+		quota             int
+	}{
+		{"mixed cache", &dto.CachedTokenDetails{ImageTokens: common.GetPointer(200), TextTokens: common.GetPointer(100)}, expression, 300, 100, 400, 200, 4113},
+		{"explicit free image cache price", &dto.CachedTokenDetails{ImageTokens: common.GetPointer(200)}, `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 0 + c * 30)`, 300, 100, 400, 200, 3913},
+		{"explicit zero", &dto.CachedTokenDetails{ImageTokens: common.GetPointer(0)}, expression, 100, 300, 600, 0, 4338},
+		{"missing breakdown", nil, expression, 100, 300, 600, 0, 4338},
+		{"missing image modality", &dto.CachedTokenDetails{TextTokens: common.GetPointer(100)}, expression, 100, 300, 600, 0, 4338},
+		{"negative image count", &dto.CachedTokenDetails{ImageTokens: common.GetPointer(-1)}, expression, 100, 300, 600, 0, 4338},
+		{"image count exceeds cache", &dto.CachedTokenDetails{ImageTokens: common.GetPointer(301)}, expression, 100, 300, 600, 0, 4338},
+		{"modality sum exceeds cache", &dto.CachedTokenDetails{ImageTokens: common.GetPointer(200), TextTokens: common.GetPointer(101)}, expression, 100, 300, 600, 0, 4338},
+		{"old expression unchanged", &dto.CachedTokenDetails{ImageTokens: common.GetPointer(200)}, `p * 5 + cr * 1.25 + img * 8 + c * 30`, 100, 300, 600, 0, 4338},
+		{"only image cache separately priced", &dto.CachedTokenDetails{ImageTokens: common.GetPointer(200)}, `p * 5 + img_cr * 2 + c * 30`, 800, 100, 400, 200, 3700},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			usage := &dto.Usage{PromptTokens: 1000, CompletionTokens: 100,
+				PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 300, ImageTokens: 600, CachedTokensDetails: tc.details}}
+			params := BuildTieredTokenParams(usage, false, billingexpr.UsedVars(tc.expression))
+			assert.Equal(t, tc.p, params.P)
+			assert.Equal(t, tc.cr, params.CR)
+			assert.Equal(t, tc.img, params.Img)
+			assert.Equal(t, tc.imgCR, params.ImgCR)
+			assert.Equal(t, float64(1000), params.Len)
+			result, err := billingexpr.ComputeTieredQuota(makeSnapshot(tc.expression, 1, 1000, 100), params)
+			require.NoError(t, err)
+			assert.Equal(t, tc.quota, result.ActualQuotaAfterGroup)
+		})
+	}
+}
+
 func TestBuildTieredTokenParams_Claude_WithCache(t *testing.T) {
 	usage := &dto.Usage{
 		PromptTokens:     800,
@@ -904,6 +950,86 @@ func TestBuildTieredTokenParams_Len_Claude(t *testing.T) {
 	}
 }
 
+func TestBuildTieredTokenParams_ClaudeUnsplitCacheWrites(t *testing.T) {
+	expr := `tier("base", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6)`
+	for _, tc := range []struct {
+		name             string
+		split5m, split1h int
+		wantCC, wantCC1h float64
+	}{
+		{"total without split", 0, 0, 10000, 0},
+		{"split missing part of total", 0, 4000, 6000, 4000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			usage := &dto.Usage{
+				PromptTokens:                100,
+				CompletionTokens:            50,
+				UsageSemantic:               "anthropic",
+				PromptTokensDetails:         dto.InputTokenDetails{CachedCreationTokens: 10000},
+				ClaudeCacheCreation5mTokens: tc.split5m,
+				ClaudeCacheCreation1hTokens: tc.split1h,
+			}
+			params := BuildTieredTokenParams(usage, true, billingexpr.UsedVars(expr))
+			assert.Equal(t, tc.wantCC, params.CC)
+			assert.Equal(t, tc.wantCC1h, params.CC1h)
+			assert.Equal(t, float64(100+10000), params.Len, "len counts every cache write")
+		})
+	}
+}
+
+// A long-lived cache write without its own price costs a fixed multiple of the
+// short write price: 2x for OpenAI 12h, 6/3.75x for Claude 1h. The short price
+// is cc, or p when cc has no price either.
+func TestBuildTieredTokenParams_UnpricedLongTTLCacheWrites(t *testing.T) {
+	// The OpenAI prompt caching guide example: 12000 input tokens with 4000
+	// cache reads and 7000 writes, 3000 of them 30m and 4000 12h.
+	openai := dto.Usage{PromptTokens: 12000, PromptTokensDetails: dto.InputTokenDetails{
+		CachedTokens: 4000, CacheWriteTokens: 7000,
+		CacheWriteTokensDetails: &dto.CacheWriteTokenDetails{TTL30mTokens: 3000, TTL12hTokens: 4000},
+	}}
+	unsplit := openai
+	unsplit.PromptTokensDetails.CacheWriteTokensDetails = nil
+	claude := func(split5m, split1h int) dto.Usage {
+		return dto.Usage{PromptTokens: 100, UsageSemantic: "anthropic",
+			ClaudeCacheCreation5mTokens: split5m, ClaudeCacheCreation1hTokens: split1h,
+			PromptTokensDetails: dto.InputTokenDetails{CachedCreationTokens: split5m + split1h}}
+	}
+	for _, tc := range []struct {
+		name               string
+		usage              dto.Usage
+		expr               string
+		p, cc, cc1h, cc12h float64
+		cost               float64
+	}{
+		{"openai 30m and 12h priced", openai, `tier("base", p * 10 + cr * 1 + cc * 12.5 + cc12h * 25)`, 1000, 3000, 0, 4000, 151500},
+		{"openai 12h joins cc at twice its count", openai, `tier("base", p * 10 + cr * 1 + cc * 12.5)`, 1000, 11000, 0, 0, 151500},
+		{"openai 30m stays in p", openai, `tier("base", p * 10 + cr * 1 + cc12h * 25)`, 4000, 0, 0, 4000, 144000},
+		{"openai 12h bills twice in p", openai, `tier("base", p * 10 + cr * 1)`, 12000, 0, 0, 0, 124000},
+		{"openai writes without a ttl split", unsplit, `tier("base", p * 10 + cr * 1 + cc * 12.5 + cc12h * 25)`, 1000, 7000, 0, 0, 101500},
+		{"claude 1h joins cc at 1.6x", claude(0, 10000), `tier("base", p * 3 + c * 15 + cr * 0.3 + cc * 3.75)`, 100, 16000, 0, 0, 60300},
+		{"claude 5m bills as input", claude(10000, 0), `tier("base", p * 3 + c * 15)`, 10100, 0, 0, 0, 30300},
+		{"claude 5m bills as input beside priced 1h", claude(2000, 10000), `tier("base", p * 3 + cc1h * 6)`, 2100, 0, 10000, 0, 66300},
+		{"claude 1h bills as input at 1.6x", claude(2000, 10000), `tier("base", p * 3)`, 18100, 0, 0, 0, 54300},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			isClaude := tc.usage.UsageSemantic == "anthropic"
+			params := BuildTieredTokenParams(&tc.usage, isClaude, billingexpr.UsedVars(tc.expr))
+			assert.Equal(t, tc.p, params.P)
+			assert.Equal(t, tc.cc, params.CC)
+			assert.Equal(t, tc.cc1h, params.CC1h)
+			assert.Equal(t, tc.cc12h, params.CC12h)
+			wantLen := float64(tc.usage.PromptTokens)
+			if isClaude {
+				wantLen += float64(tc.usage.PromptTokensDetails.CacheCreationTokensTotal())
+			}
+			assert.Equal(t, wantLen, params.Len, "len keeps the unweighted counts")
+			cost, _, err := billingexpr.RunExpr(tc.expr, params)
+			require.NoError(t, err)
+			assert.Equal(t, tc.cost, cost)
+		})
+	}
+}
+
 func TestBuildTieredTokenParams_Len_TierCondition(t *testing.T) {
 	// Test that len-based tier conditions work correctly when p is reduced by cache
 	usage := &dto.Usage{
@@ -1023,4 +1149,140 @@ func BenchmarkRatioBilling_Parallel(b *testing.B) {
 			ratioQuota(usage, false, 1.5, 5.0, 0.1, 1.0, 1.5)
 		}
 	})
+}
+
+func TestSamePriceCacheReadsRemainInInput(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		usage       dto.Usage
+		extra       string
+		input, cost float64
+	}{
+		{"openai", dto.Usage{PromptTokens: 1000, CompletionTokens: 100, PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 200}}, "", 1000, 72000},
+		{"anthropic", dto.Usage{PromptTokens: 800, CompletionTokens: 100, UsageSemantic: "anthropic", PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 200}}, "", 1000, 72000},
+		{"anthropic mixed cache TTLs", dto.Usage{PromptTokens: 750, CompletionTokens: 100, UsageSemantic: "anthropic", ClaudeCacheCreation5mTokens: 30, ClaudeCacheCreation1hTokens: 20, PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 200, CachedCreationTokens: 50}}, " + cc * 75 + cc1h * 120", 950, 73650},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			merged := `tier("base", p * 60 + c * 120` + tc.extra + `)`
+			separate := `tier("base", p * 60 + c * 120 + cr * 60` + tc.extra + `)`
+			params := BuildTieredTokenParams(&tc.usage, tc.usage.UsageSemantic == "anthropic", billingexpr.UsedVars(merged))
+			assert.Equal(t, tc.input, params.P)
+			cost, _, err := billingexpr.RunExpr(merged, params)
+			require.NoError(t, err)
+			assert.Equal(t, tc.cost, cost)
+			separateParams := BuildTieredTokenParams(&tc.usage, tc.usage.UsageSemantic == "anthropic", billingexpr.UsedVars(separate))
+			previousCost, _, err := billingexpr.RunExpr(separate, separateParams)
+			require.NoError(t, err)
+			assert.Equal(t, previousCost, cost, "folding cache reads into input must preserve the charge")
+			assert.Equal(t, separateParams.Len, params.Len, "tier conditions keep the full context length")
+		})
+	}
+}
+
+func TestRealtimeCumulativeReservationAndSettlement(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		wallet, token int
+		insufficient  bool
+	}{
+		{"funded session", 5000, 5000, false},
+		{"wallet exhausted", 1000, 5000, true},
+		{"token exhausted rolls back wallet reserve", 5000, 1000, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncate(t)
+			seedUser(t, 8191, tc.wallet)
+			seedToken(t, 8192, 8191, "realtime-billing-test", tc.token)
+			seedChannel(t, 8193)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/realtime", nil)
+			info := &relaycommon.RelayInfo{
+				UserId: 8191, TokenId: 8192, TokenKey: "realtime-billing-test", ForcePreConsume: true,
+				OriginModelName: "voice-alias", StartTime: time.Now(), IsStream: true,
+				UserSetting: dto.UserSetting{BillingPreference: "wallet_only"},
+				ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 8193, UpstreamModelName: "qwen-audio-3.1-realtime-plus"},
+				PriceData:   types.PriceData{ModelRatio: 1, CompletionRatio: 3, AudioRatio: 2, AudioCompletionRatio: 4, GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1}},
+			}
+			require.Nil(t, PreConsumeBilling(ctx, 100, info))
+			usage := &dto.RealtimeUsage{TotalTokens: 377, InputTokens: 336, OutputTokens: 41,
+				InputTokenDetails:  dto.InputTokenDetails{TextTokens: 228, AudioTokens: 108},
+				OutputTokenDetails: dto.OutputTokenDetails{TextTokens: 9, AudioTokens: 32}}
+			require.NoError(t, ReserveRealtimeQuota(ctx, info, usage))
+			require.NoError(t, ReserveRealtimeQuota(ctx, info, usage), "the same cumulative usage must not reserve twice")
+			assert.Equal(t, 727, info.Billing.GetPreConsumedQuota())
+			cumulative := &dto.RealtimeUsage{TotalTokens: 754, InputTokens: 672, OutputTokens: 82,
+				InputTokenDetails:  dto.InputTokenDetails{TextTokens: 456, AudioTokens: 216},
+				OutputTokenDetails: dto.OutputTokenDetails{TextTokens: 18, AudioTokens: 64}}
+			err := ReserveRealtimeQuota(ctx, info, cumulative)
+			reserved := 1454
+			if tc.insufficient {
+				require.Error(t, err)
+				reserved = 727
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, reserved, info.Billing.GetPreConsumedQuota())
+			wallet, err := model.GetUserQuota(info.UserId, true)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wallet-reserved, wallet)
+			var token model.Token
+			require.NoError(t, model.DB.First(&token, info.TokenId).Error)
+			assert.Equal(t, tc.token-reserved, token.RemainQuota)
+			// The second turn has already completed when its usage arrives. Even
+			// on insufficient funds it must settle, with no refund of earlier turns.
+			PostWssConsumeQuota(ctx, info, info.UpstreamModelName, cumulative, nil)
+			require.NoError(t, info.Billing.Settle(1454))
+			wallet, err = model.GetUserQuota(info.UserId, true)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wallet-1454, wallet)
+			require.NoError(t, model.DB.First(&token, info.TokenId).Error)
+			assert.Equal(t, tc.token-1454, token.RemainQuota)
+			assert.Equal(t, 1454, token.UsedQuota)
+			var log model.Log
+			require.NoError(t, model.LOG_DB.Where("user_id = ?", info.UserId).Take(&log).Error)
+			assert.Equal(t, 1454, log.Quota)
+			assert.Equal(t, "voice-alias", log.ModelName)
+			assert.True(t, log.IsStream)
+		})
+	}
+}
+
+func TestRealtimeTieredAudioAndSearchBilling(t *testing.T) {
+	const modelName = "realtime-audio-billing-test"
+	const toolKey = "search_strategy_turbo:" + modelName
+	operation_setting.SetToolPriceForTest(toolKey, 2)
+	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest(toolKey) })
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	billing := &recordingBillingSettler{}
+	info := &relaycommon.RelayInfo{OriginModelName: modelName, Billing: billing,
+		ChannelMeta:           &relaycommon.ChannelMeta{UpstreamModelName: "qwen-audio-3.1-realtime-plus"},
+		PriceData:             types.PriceData{GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0.5}},
+		TieredBillingSnapshot: makeSnapshot(`tier("audio", p * 2 + c * 4 + ai * 10 + ao * 20)`, 0.5, 0, 0),
+	}
+	info.SetBillableToolCount("search_strategy_turbo", 2)
+	usage := &dto.RealtimeUsage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150,
+		InputTokenDetails:  dto.InputTokenDetails{TextTokens: 40, AudioTokens: 60},
+		OutputTokenDetails: dto.OutputTokenDetails{TextTokens: 20, AudioTokens: 30}}
+	// (40*2 + 20*4 + 60*10 + 30*20) * 0.5 quota/USD-million * 0.5 group = 340.
+	// Two searches at the alias-specific $2/1000 price add 1000 quota.
+	require.NoError(t, ReserveRealtimeQuota(ctx, info, usage))
+	assert.Equal(t, []int{1340}, billing.reserveTargets)
+	quota, result, items := calculateRealtimeQuota(ctx, info, usage)
+	assert.Equal(t, 1340, quota)
+	require.NotNil(t, result)
+	assert.Equal(t, "audio", result.MatchedTier)
+	assert.Equal(t, []ToolSurchargeItem{{Name: "search_strategy_turbo", Count: 2, Price: 2}}, items)
+}
+
+func TestRealtimeUnsafeChargesCannotReserve(t *testing.T) {
+	for _, expr := range []string{`tier("overflow", p * 1e20)`, `invalid +-+ expr`} {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		billing := &recordingBillingSettler{}
+		info := &relaycommon.RelayInfo{Billing: billing, TieredBillingSnapshot: makeSnapshot(expr, 1, 0, 0)}
+		usage := &dto.RealtimeUsage{InputTokens: 100, TotalTokens: 100, InputTokenDetails: dto.InputTokenDetails{TextTokens: 100}}
+		require.Error(t, ReserveRealtimeQuota(ctx, info, usage))
+		assert.Empty(t, billing.reserveTargets)
+		quota, _, _ := calculateRealtimeQuota(ctx, info, usage)
+		assert.GreaterOrEqual(t, quota, 0)
+	}
 }

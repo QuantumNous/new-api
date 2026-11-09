@@ -17,15 +17,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { t } from 'i18next'
 
 import { fetchTokenKey, getApiKeys } from '@/features/keys/api'
 import { API_KEY_STATUS } from '@/features/keys/constants'
+import {
+  requireServerSuccess,
+  createServerError,
+} from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
 export async function fetchActiveChatKey() {
   const result = await getApiKeys({ p: 1, size: 50 })
   if (!result.success) {
-    throw new Error(result.message || 'Failed to load API keys')
+    throw createServerError(result, t('Failed to load API keys'))
   }
 
   const items = result.data?.items ?? []
@@ -36,7 +41,7 @@ export async function fetchActiveChatKey() {
 
   const keyResult = await fetchTokenKey(active.id)
   if (!keyResult.success || !keyResult.data?.key) {
-    throw new Error(keyResult.message || 'Failed to load API key')
+    throw createServerError(keyResult, t('Failed to load API keys'))
   }
 
   return `sk-${keyResult.data.key}`
@@ -50,7 +55,7 @@ export function useActiveChatKey(enabled: boolean) {
 
   return useQuery({
     queryKey: ['chat-active-key', userId],
-    queryFn: fetchActiveChatKey,
+    queryFn: async () => requireServerSuccess(await fetchActiveChatKey()),
     enabled: enabled && Boolean(userId),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,

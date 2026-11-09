@@ -2,7 +2,6 @@ package service
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -23,10 +22,7 @@ type shardedRoundTripper struct {
 }
 
 func newShardedRoundTripper(policy HTTPTransportPolicy, factory func() *http.Transport) *shardedRoundTripper {
-	n := policy.Shards
-	if n < 1 {
-		n = 1
-	}
+	n := max(policy.Shards, 1)
 	shards := make([]http.RoundTripper, n)
 	for i := 0; i < n; i++ {
 		transport := factory()
@@ -72,15 +68,13 @@ func (s *shardedRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		}
 		logger.LogDebug(
 			req.Context(),
-			fmt.Sprintf(
-				"http transport: host=%s protocol=%s shard=%d/%d policy=%s negotiated=%s",
-				host,
-				s.policy.Protocol,
-				idx,
-				s.n,
-				s.policy.cacheKeyPart(),
-				proto,
-			),
+			"http transport: host=%s protocol=%s shard=%d/%d policy=%s negotiated=%s",
+			host,
+			s.policy.Protocol,
+			idx,
+			s.n,
+			s.policy.cacheKeyPart(),
+			proto,
 		)
 	}
 	return resp, err

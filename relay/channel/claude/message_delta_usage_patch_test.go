@@ -3,12 +3,12 @@ package claude
 import (
 	"testing"
 
+	"github.com/MoeForge/moego/ojson"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestPatchClaudeMessageDeltaUsageDataPreserveUnknownFields(t *testing.T) {
@@ -21,13 +21,13 @@ func TestPatchClaudeMessageDeltaUsageDataPreserveUnknownFields(t *testing.T) {
 
 	patchedData := patchClaudeMessageDeltaUsageData(originalData, usage)
 
-	require.Equal(t, "message_delta", gjson.Get(patchedData, "type").String())
-	require.Equal(t, "end_turn", gjson.Get(patchedData, "delta.stop_reason").String())
-	require.Equal(t, "trace_001", gjson.Get(patchedData, "vendor_meta.trace_id").String())
-	require.EqualValues(t, 53, gjson.Get(patchedData, "usage.output_tokens").Int())
-	require.EqualValues(t, 100, gjson.Get(patchedData, "usage.input_tokens").Int())
-	require.EqualValues(t, 30, gjson.Get(patchedData, "usage.cache_read_input_tokens").Int())
-	require.EqualValues(t, 50, gjson.Get(patchedData, "usage.cache_creation_input_tokens").Int())
+	require.Equal(t, "message_delta", ojson.Get(patchedData, "type").String())
+	require.Equal(t, "end_turn", ojson.Get(patchedData, "delta.stop_reason").String())
+	require.Equal(t, "trace_001", ojson.Get(patchedData, "vendor_meta.trace_id").String())
+	require.EqualValues(t, 53, ojson.Get(patchedData, "usage.output_tokens").Int())
+	require.EqualValues(t, 100, ojson.Get(patchedData, "usage.input_tokens").Int())
+	require.EqualValues(t, 30, ojson.Get(patchedData, "usage.cache_read_input_tokens").Int())
+	require.EqualValues(t, 50, ojson.Get(patchedData, "usage.cache_creation_input_tokens").Int())
 }
 
 func TestPatchClaudeMessageDeltaUsageDataZeroValueChecks(t *testing.T) {
@@ -40,9 +40,9 @@ func TestPatchClaudeMessageDeltaUsageDataZeroValueChecks(t *testing.T) {
 
 	patchedData := patchClaudeMessageDeltaUsageData(originalData, usage)
 
-	require.EqualValues(t, 9, gjson.Get(patchedData, "usage.input_tokens").Int())
-	require.EqualValues(t, 30, gjson.Get(patchedData, "usage.cache_read_input_tokens").Int())
-	assert.False(t, gjson.Get(patchedData, "usage.cache_creation_input_tokens").Exists())
+	require.EqualValues(t, 9, ojson.Get(patchedData, "usage.input_tokens").Int())
+	require.EqualValues(t, 30, ojson.Get(patchedData, "usage.cache_read_input_tokens").Int())
+	assert.False(t, ojson.Get(patchedData, "usage.cache_creation_input_tokens").Exists())
 }
 
 func TestShouldSkipClaudeMessageDeltaUsagePatch(t *testing.T) {
