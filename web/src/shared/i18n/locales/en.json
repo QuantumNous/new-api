@@ -200,6 +200,7 @@
     "Access Codex using ChatGPT subscription credentials": "Access Codex using ChatGPT subscription credentials",
     "Access Denied": "Access Denied",
     "Access Denied Message": "Access Denied Message",
+    "Access Denied: Administrator privileges required.": "Access Denied: Administrator privileges required.",
     "Access Forbidden": "Access Forbidden",
     "Access hosted model predictions through Replicate": "Access hosted model predictions through Replicate",
     "Access model services through MokaAI": "Access model services through MokaAI",
@@ -3971,6 +3972,7 @@
     "Nested JSON: source group →": "Nested JSON: source group →",
     "Network connection failed or server not responding": "Network connection failed or server not responding",
     "Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H)": "Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H)",
+    "Network timeout. The server took too long to respond. Please try again.": "Network timeout. The server took too long to respond. Please try again.",
     "Never": "Never",
     "Never expires": "Never expires",
     "Never used": "Never used",
@@ -7465,7 +7467,6 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "Access Denied: Administrator privileges required.": "Access Denied: Administrator privileges required."
+    "Zoom": "Zoom"
   }
 }

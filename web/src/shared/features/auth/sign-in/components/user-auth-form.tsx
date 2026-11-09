@@ -60,7 +60,10 @@ import { useStatus } from '@/shared/hooks/use-status'
 import { handleServerError } from '@/shared/lib/handle-server-error'
 import { isPasskeySupported as detectPasskeySupport } from '@/shared/lib/passkey'
 import { AuthOperationError } from '@/shared/lib/secure-verification'
-import { createServerError } from '@/shared/lib/server-error-message'
+import {
+  createServerError,
+  isNetworkTimeoutError,
+} from '@/shared/lib/server-error-message'
 import { cn } from '@/shared/lib/utils'
 
 export function UserAuthForm({
@@ -201,7 +204,15 @@ export function UserAuthForm({
         handleServerError(createServerError(res, loginFailedMessage))
       }
     } catch (error: unknown) {
-      handleServerError(AuthOperationError.from(error, loginFailedMessage))
+      if (isNetworkTimeoutError(error)) {
+        toast.error(
+          t(
+            'Network timeout. The server took too long to respond. Please try again.'
+          )
+        )
+      } else {
+        handleServerError(AuthOperationError.from(error, loginFailedMessage))
+      }
     } finally {
       setIsLoading(false)
     }
@@ -242,9 +253,17 @@ export function UserAuthForm({
         handleServerError(createServerError(res, loginFailedMessage))
       }
     } catch (error: unknown) {
-      handleServerError(
-        new AuthOperationError(loginFailedMessage, undefined, { cause: error })
-      )
+      if (isNetworkTimeoutError(error)) {
+        toast.error(
+          t(
+            'Network timeout. The server took too long to respond. Please try again.'
+          )
+        )
+      } else {
+        handleServerError(
+          new AuthOperationError(loginFailedMessage, undefined, { cause: error })
+        )
+      }
     } finally {
       setIsWeChatSubmitting(false)
     }

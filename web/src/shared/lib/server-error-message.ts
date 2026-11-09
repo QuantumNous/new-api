@@ -132,6 +132,32 @@ export function getServerErrorStatus(value: unknown): number | undefined {
   return undefined
 }
 
+export const NETWORK_TIMEOUT_MESSAGE =
+  'Network timeout. The server took too long to respond. Please try again.'
+
+/**
+ * Axios aborts an over-long request with code `ECONNABORTED`; a fetch-style
+ * abort surfaces as an `AbortError`. Both mean the auth request never got a
+ * usable response in time, as does an explicit ETIMEDOUT.
+ */
+export function isNetworkTimeoutError(value: unknown): boolean {
+  return getServerErrorSources(value).some((source) => {
+    if (
+      source.code === 'ECONNABORTED' || source.code === 'ETIMEDOUT'
+    ) {
+      return true
+    }
+    if (source.name === 'AbortError' || source.name === 'TimeoutError') {
+      return true
+    }
+    return (
+      (source.isAxiosError === true || source.name === 'AxiosError') &&
+      typeof source.message === 'string' &&
+      /timeout|timed out/i.test(source.message)
+    )
+  })
+}
+
 export function isServerErrorCancelled(value: unknown): boolean {
   return getServerErrorSources(value).some(
     (source) =>

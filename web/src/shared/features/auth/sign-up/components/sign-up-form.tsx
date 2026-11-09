@@ -52,7 +52,10 @@ import {
 import { useStatus } from '@/shared/hooks/use-status'
 import { handleServerError } from '@/shared/lib/handle-server-error'
 import { AuthOperationError } from '@/shared/lib/secure-verification'
-import { createServerError } from '@/shared/lib/server-error-message'
+import {
+  createServerError,
+  isNetworkTimeoutError,
+} from '@/shared/lib/server-error-message'
 import { cn } from '@/shared/lib/utils'
 
 export function SignUpForm({
@@ -177,9 +180,17 @@ export function SignUpForm({
         handleServerError(createServerError(res, t('Failed to create account')))
       }
     } catch (error) {
-      handleServerError(
-        AuthOperationError.from(error, t('Failed to create account'))
-      )
+      if (isNetworkTimeoutError(error)) {
+        toast.error(
+          t(
+            'Network timeout. The server took too long to respond. Please try again.'
+          )
+        )
+      } else {
+        handleServerError(
+          AuthOperationError.from(error, t('Failed to create account'))
+        )
+      }
     } finally {
       setIsLoading(false)
     }
@@ -227,9 +238,17 @@ export function SignUpForm({
         handleServerError(createServerError(res, t('Login failed')))
       }
     } catch (error: unknown) {
-      handleServerError(
-        new AuthOperationError(t('Login failed'), undefined, { cause: error })
-      )
+      if (isNetworkTimeoutError(error)) {
+        toast.error(
+          t(
+            'Network timeout. The server took too long to respond. Please try again.'
+          )
+        )
+      } else {
+        handleServerError(
+          new AuthOperationError(t('Login failed'), undefined, { cause: error })
+        )
+      }
     } finally {
       setIsWeChatSubmitting(false)
     }

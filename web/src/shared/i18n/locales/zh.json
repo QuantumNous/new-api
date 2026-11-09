@@ -200,6 +200,7 @@
     "Access Codex using ChatGPT subscription credentials": "使用 ChatGPT 订阅凭据接入 Codex",
     "Access Denied": "访问被拒绝",
     "Access Denied Message": "访问被拒绝消息",
+    "Access Denied: Administrator privileges required.": "拒绝访问：需要管理员权限。",
     "Access Forbidden": "禁止访问",
     "Access hosted model predictions through Replicate": "通过 Replicate 调用托管模型推理服务",
     "Access model services through MokaAI": "通过 MokaAI 接入模型服务",
@@ -3971,6 +3972,7 @@
     "Nested JSON: source group →": "嵌套 JSON：源分组 →",
     "Network connection failed or server not responding": "网络连接失败或服务器未响应",
     "Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H)": "此渠道的网络代理（支持 HTTP、HTTPS、SOCKS5 和 SOCKS5H）",
+    "Network timeout. The server took too long to respond. Please try again.": "网络超时。服务器响应时间过长，请重试。",
     "Never": "永不",
     "Never expires": "永不过期",
     "Never used": "从未使用",
@@ -7465,7 +7467,6 @@
     "Zhipu": "智谱",
     "Zhipu GLM": "智谱GLM",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放",
-    "Access Denied: Administrator privileges required.": "拒绝访问：需要管理员权限。"
+    "Zoom": "缩放"
   }
 }
