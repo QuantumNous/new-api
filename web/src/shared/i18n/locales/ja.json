@@ -229,6 +229,7 @@
     "Account binding request": "アカウント連携の申請",
     "Account Bindings": "アカウントバインディング",
     "Account bindings have changed. Start this operation again.": "アカウントの連携状態が変わりました。操作をやり直してください。",
+    "Account created successfully. Please log in.": "アカウントの作成に成功しました。ログインしてください。",
     "Account created! Please sign in": "アカウントが作成されました！ログインしてください",
     "Account deleted successfully": "アカウントが正常に削除されました",
     "Account deletion": "アカウント削除",

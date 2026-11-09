@@ -58,6 +58,8 @@ import {
 } from '@/shared/lib/server-error-message'
 import { cn } from '@/shared/lib/utils'
 
+const REGISTRATION_REDIRECT_TIMEOUT_MS = 5_000
+
 export function SignUpForm({
   className,
   ...props
@@ -174,11 +176,26 @@ export function SignUpForm({
       })
 
       if (res?.success) {
-        toast.success(t('Account created! Please sign in'))
-        redirectToLogin()
-      } else {
-        handleServerError(createServerError(res, t('Failed to create account')))
+        toast.success(t('Account created successfully. Please log in.'))
+        let redirectTimer: ReturnType<typeof globalThis.setTimeout> | undefined
+        try {
+          await Promise.race([
+            redirectToLogin(),
+            new Promise<never>((_, reject) => {
+              redirectTimer = globalThis.setTimeout(
+                () => reject(new Error('Login redirect timed out')),
+                REGISTRATION_REDIRECT_TIMEOUT_MS
+              )
+            }),
+          ])
+        } catch {
+          window.location.assign('/login')
+        } finally {
+          globalThis.clearTimeout(redirectTimer)
+        }
+        return
       }
+      handleServerError(createServerError(res, t('Failed to create account')))
     } catch (error) {
       if (isNetworkTimeoutError(error)) {
         toast.error(
