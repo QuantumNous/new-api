@@ -857,6 +857,27 @@ function normalizeBaseUrl(value: string | undefined): string {
 }
 
 /**
+ * Normalize a channel API key for submission.
+ *
+ * JSON credentials (for example a Codex credential object or a Vertex AI
+ * service-account key, including a JSON array) are returned with only
+ * surrounding whitespace removed, so their internal formatting is kept.
+ * Plain keys are split on newlines and each key is trimmed individually,
+ * so batch creation and multi-key replacement do not send padded keys
+ * upstream; blank lines are dropped.
+ */
+function normalizeChannelKey(value: string | undefined): string {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) return ''
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return trimmed
+  return trimmed
+    .split(/\r?\n/)
+    .map((key) => key.trim())
+    .filter((key) => key !== '')
+    .join('\n')
+}
+
+/**
  * Transform form data to API payload for creating channel
  */
 export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
@@ -871,7 +892,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     name: formData.name,
     type: formData.type,
     base_url: normalizeBaseUrl(formData.base_url) || null,
-    key: formData.key?.trim() ?? '',
+    key: normalizeChannelKey(formData.key),
     openai_organization: formData.openai_organization || null,
     models: formData.models,
     group: formatGroups(formData.group),
@@ -939,8 +960,9 @@ export function transformFormDataToUpdatePayload(
   }
 
   // Only include key if it was changed (not empty)
-  if (formData.key && formData.key.trim()) {
-    payload.key = formData.key.trim()
+  const normalizedKey = normalizeChannelKey(formData.key)
+  if (normalizedKey) {
+    payload.key = normalizedKey
   }
 
   // Clean up empty strings to null for optional fields
