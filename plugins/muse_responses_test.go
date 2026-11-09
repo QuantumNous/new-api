@@ -108,5 +108,41 @@ func TestMuseImageValidation(t *testing.T) {
 		"protocol": "openai_image", "operation": "edit", "model": "muse-image-1.0", "upstreamModel": "muse-image-1.0",
 		"body": map[string]any{"kind": "json", "value": base},
 	})
-	require.ErrorContains(t, err, "edits are not supported")
+	require.ErrorContains(t, err, "image is required")
+
+	decoded, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "decodeRequest"}, map[string]any{
+		"protocol": "openai_image", "operation": "edit", "model": "muse-image-1.0", "upstreamModel": "muse-image-1.0",
+		"body": map[string]any{"kind": "json", "value": map[string]any{
+			"model": "muse-image-1.0", "prompt": "add a red hat", "images": []any{
+				map[string]any{"image_url": "https://cdn.example/input.png"},
+			},
+		}},
+	})
+	require.NoError(t, err)
+	edit := alibabaObject(t, decoded)
+	assert.Equal(t, "image_edit", edit["action"])
+	assert.Equal(t, []any{map[string]any{"image_url": "https://cdn.example/input.png"}}, alibabaObject(t, edit["requestBody"])["images"])
+
+	submitted, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{
+		"model": "muse-image-1.0", "upstreamModel": "muse-image-1.0", "action": "image_edit",
+		"requestBody": edit["requestBody"], "baseUrl": "https://muse.example", "apiKey": "muse-key",
+	})
+	require.NoError(t, err)
+	submit := alibabaObject(t, submitted)
+	assert.Equal(t, "https://muse.example/v1/images/edits", submit["url"])
+
+	multipart, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "decodeRequest"}, map[string]any{
+		"protocol": "openai_image", "operation": "edit", "model": "muse-image-1.0", "upstreamModel": "muse-image-1.0",
+		"body": map[string]any{
+			"kind": "multipart",
+			"fields": map[string][]string{"model": {"muse-image-1.0"}, "prompt": {"add a red hat"}, "n": {"1"}},
+			"files": []any{map[string]any{"ref": "request_file:image", "field": "image", "mimeType": "image/png"}},
+		},
+	})
+	require.NoError(t, err)
+	multipartRequest := alibabaObject(t, alibabaObject(t, multipart)["requestBody"])
+	assert.Equal(t, "image_edit", alibabaObject(t, multipart)["action"])
+	assert.Equal(t, []any{map[string]any{"image_url": map[string]any{
+		"__fileRef": "request_file:image", "encoding": "dataUrl", "mimeType": "image/png", "maxBytes": float64(20 * 1024 * 1024),
+	}}}, multipartRequest["images"])
 }
