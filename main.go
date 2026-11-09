@@ -6,6 +6,7 @@ import (
 	"embed"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -163,9 +164,10 @@ func main() {
 		model.InitBatchUpdater()
 	}
 
+	host := os.Getenv("HOST")
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
-			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
+			log.Println(http.ListenAndServe(net.JoinHostPort(host, "8005"), nil))
 		})
 		go common.Monitor()
 		common.SysLog(common.LogText("pprof enabled"))
@@ -203,7 +205,7 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:    ":" + port,
+		Addr:    net.JoinHostPort(host, port),
 		Handler: server,
 	}
 
@@ -215,7 +217,7 @@ func main() {
 
 	time.Sleep(100 * time.Millisecond)
 
-	common.LogStartupSuccess(startTime, port)
+	common.LogStartupSuccess(startTime, host, port)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -59,7 +60,7 @@ func FatalLog(v ...any) {
 	os.Exit(1)
 }
 
-func LogStartupSuccess(startTime time.Time, port string) {
+func LogStartupSuccess(startTime time.Time, host, port string) {
 	duration := time.Since(startTime)
 	durationMs := duration.Milliseconds()
 
@@ -80,6 +81,16 @@ func LogStartupSuccess(startTime time.Time, port string) {
 	fmt.Fprintf(gin.DefaultWriter, "\n")
 	fmt.Fprintf(gin.DefaultWriter, "  \033[32m%s %s\033[0m  %s\n", SystemName, Version, LogText("ready in %d ms", durationMs))
 	fmt.Fprintf(gin.DefaultWriter, "\n")
+
+	if ip := net.ParseIP(host); host != "" && !ip.IsUnspecified() {
+		label := LogText("Network:")
+		if ip.IsLoopback() {
+			label = LogText("Local:")
+		}
+		fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1m%-8s\033[0m http://%s/\n", label, net.JoinHostPort(host, port))
+		fmt.Fprintf(gin.DefaultWriter, "\n")
+		return
+	}
 
 	if !IsRunningInContainer() {
 		fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1m%-8s\033[0m http://localhost:%s/\n", LogText("Local:"), port)
