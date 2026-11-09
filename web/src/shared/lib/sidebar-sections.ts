@@ -52,12 +52,18 @@ export type SidebarSection = (typeof SIDEBAR_SECTIONS)[number]
 const URL_SECTION_PREFIXES: { prefix: string; section: SidebarSection }[] = [
   { prefix: '/app/workspace', section: 'dashboard' },
   { prefix: '/admin/overview', section: 'dashboard' },
+  { prefix: '/app/chat2link', section: 'chat' },
+  { prefix: '/app/chat', section: 'chat' },
   { prefix: '/app/playground', section: 'playground' },
   { prefix: '/app/keys', section: 'api_keys' },
   { prefix: '/app/usage-logs/common', section: 'usage_logs' },
   { prefix: '/app/usage-logs/task', section: 'task_logs' },
   { prefix: '/app/usage-logs/drawing', section: 'drawing_logs' },
   { prefix: '/admin/audit-logs', section: 'audit_logs' },
+  // Payment logs are gated by the wallet section on the server
+  // (`RequireVisibleSection("wallet")` on /api/admin/payments). Mirror that
+  // here so the page is never exposed under a restrictive allow-list.
+  { prefix: '/admin/payments', section: 'wallet' },
   { prefix: '/app/usage-logs', section: 'usage_logs' },
   { prefix: '/app/wallet', section: 'wallet' },
   { prefix: '/app/profile', section: 'profile' },
@@ -96,6 +102,34 @@ export function isSectionVisible(
   if (!sections || sections.length === 0) return true
   if (!section) return true
   return sections.includes(section)
+}
+
+/**
+ * Client landing paths per section, in sidebar order. Used when a route is
+ * blocked by the visible-section allow-list so the visitor lands on a page
+ * they can open instead of a dead end.
+ */
+const CLIENT_SECTION_HOME_PATHS: { section: SidebarSection; path: string }[] = [
+  { section: 'dashboard', path: '/app/workspace/overview' },
+  { section: 'playground', path: '/app/playground' },
+  { section: 'chat', path: '/app/chat2link' },
+  { section: 'api_keys', path: '/app/keys' },
+  { section: 'usage_logs', path: '/app/usage-logs/common' },
+  { section: 'task_logs', path: '/app/usage-logs/task' },
+  { section: 'drawing_logs', path: '/app/usage-logs/drawing' },
+  { section: 'wallet', path: '/app/wallet' },
+  { section: 'profile', path: '/app/profile' },
+  { section: 'security', path: '/app/security' },
+]
+
+/** First client route the account is allowed to open, or null when none is. */
+export function firstVisibleClientPath(
+  sections: readonly string[]
+): string | null {
+  const match = CLIENT_SECTION_HOME_PATHS.find((entry) =>
+    sections.includes(entry.section)
+  )
+  return match?.path ?? null
 }
 
 function isNavItemAllowed(item: NavItem, sections: readonly string[]): boolean {

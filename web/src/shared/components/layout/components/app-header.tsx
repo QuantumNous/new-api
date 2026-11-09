@@ -24,6 +24,7 @@ import { Search } from '@/shared/components/search'
 import { SystemUpdateAction } from '@/shared/features/system-update/system-update-action'
 import { useNotifications } from '@/shared/hooks/use-notifications'
 import { useTopNavLinks } from '@/shared/hooks/use-top-nav-links'
+import type { Portal } from '@/shared/lib/portal-url'
 
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
@@ -92,6 +93,11 @@ type AppHeaderProps = {
    * @default true
    */
   showProfileDropdown?: boolean
+  /**
+   * Portal that owns the surrounding chrome, forwarded to the profile menu so
+   * admin chrome offers no client-account destinations.
+   */
+  portal?: Portal
 }
 
 export function AppHeader({
@@ -103,6 +109,7 @@ export function AppHeader({
   showNotifications = true,
   showConfigDrawer = true,
   showProfileDropdown = true,
+  portal = 'client',
 }: AppHeaderProps) {
   // Prioritize dynamically generated links from backend
   const dynamicLinks = useTopNavLinks()
@@ -146,7 +153,7 @@ export function AppHeader({
           )}
           <LanguageSwitcher />
           {showConfigDrawer && <ConfigDrawer />}
-          {showProfileDropdown && <ProfileDropdown />}
+          {showProfileDropdown && <ProfileDropdown portalContext={portal} />}
         </div>
       )}
     </Header>

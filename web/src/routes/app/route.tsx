@@ -19,13 +19,24 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute } from '@tanstack/react-router'
 
 import { ClientLayout } from '@/apps/client/layout/client-layout'
-import { requireClientAccess } from '@/apps/client/routes/guards'
+import {
+  requireClientAccess,
+  requireVisibleClientSection,
+} from '@/apps/client/routes/guards'
+import { GeneralError } from '@/shared/features/errors/general-error'
 
 /**
  * Client portal branch. Every `/app/*` route is guarded here, before any page
  * module is imported.
  */
 export const Route = createFileRoute('/app')({
-  beforeLoad: async ({ location }) => requireClientAccess(location.href),
+  beforeLoad: async ({ location }) => {
+    await requireClientAccess(location.href)
+    // Enforce the section allow-list before the page component renders.
+    requireVisibleClientSection(location.href)
+  },
   component: ClientLayout,
+  // Route-resolution failures inside the portal use the router boundary
+  // instead of a separate error page nested under the guarded layout.
+  errorComponent: GeneralError,
 })

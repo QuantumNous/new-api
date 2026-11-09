@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
-import { User, Wallet, LogOut, Settings, ShieldCheck } from 'lucide-react'
+import {
+  ExternalLink,
+  User,
+  Wallet,
+  LogOut,
+  Settings,
+  ShieldCheck,
+} from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -35,13 +42,28 @@ import useDialogState from '@/shared/hooks/use-dialog'
 import { useIsSidebarModuleVisible } from '@/shared/hooks/use-sidebar-config'
 import { useUserDisplay } from '@/shared/hooks/use-user-display'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/shared/lib/avatar'
+import {
+  isCrossOriginPortal,
+  portalHref,
+  type Portal,
+} from '@/shared/lib/portal-url'
 import { ROLE } from '@/shared/lib/roles'
 import { useAuthStore } from '@/shared/stores/auth-store'
 
 const avatarFallbackClassName = 'font-semibold text-white'
 
-export function ProfileDropdown() {
+type ProfileDropdownProps = {
+  /**
+   * Portal that owns the surrounding chrome. Admin chrome must not offer
+   * client-account destinations; it links across to the client portal instead.
+   */
+  portalContext?: Portal
+}
+
+export function ProfileDropdown(props: ProfileDropdownProps) {
   const { t } = useTranslation()
+  const portalContext = props.portalContext ?? 'client'
+  const isAdminPortal = portalContext === 'admin'
   const navigate = useNavigate()
   const [open, setOpen] = useDialogState()
   const user = useAuthStore((state) => state.auth.user)
@@ -55,6 +77,15 @@ export function ProfileDropdown() {
     () => getUserAvatarStyle(avatarName),
     [avatarName]
   )
+
+  /** The client portal may live on another origin in split deployments. */
+  const goToClientPortal = () => {
+    if (isCrossOriginPortal('client')) {
+      window.location.assign(portalHref('client', '/app/workspace'))
+      return
+    }
+    void navigate({ to: '/app/workspace' })
+  }
 
   return (
     <>
@@ -103,37 +134,52 @@ export function ProfileDropdown() {
 
           <DropdownMenuSeparator />
 
-          <DropdownMenuItem onClick={() => navigate({ to: '/app/profile' })}>
-            <User className='size-4' />
-            {t('Profile')}
-          </DropdownMenuItem>
-
-          {isSecurityVisible && (
-            <DropdownMenuItem onClick={() => navigate({ to: '/app/security' })}>
-              <ShieldCheck className='size-4' />
-              {t('Security & Access')}
+          {isAdminPortal ? (
+            <DropdownMenuItem onClick={goToClientPortal}>
+              <ExternalLink className='size-4' />
+              {t('Go to Client Portal')}
             </DropdownMenuItem>
-          )}
+          ) : (
+            <>
+              <DropdownMenuItem
+                onClick={() => navigate({ to: '/app/profile' })}
+              >
+                <User className='size-4' />
+                {t('Profile')}
+              </DropdownMenuItem>
 
-          {isWalletVisible && (
-            <DropdownMenuItem onClick={() => navigate({ to: '/app/wallet' })}>
-              <Wallet className='size-4' />
-              {t('Wallet')}
-            </DropdownMenuItem>
-          )}
+              {isSecurityVisible && (
+                <DropdownMenuItem
+                  onClick={() => navigate({ to: '/app/security' })}
+                >
+                  <ShieldCheck className='size-4' />
+                  {t('Security & Access')}
+                </DropdownMenuItem>
+              )}
 
-          {isSuperAdmin && (
-            <DropdownMenuItem
-              onClick={() =>
-                navigate({
-                  to: '/admin/system-settings/site/$section',
-                  params: { section: 'system-info' },
-                })
-              }
-            >
-              <Settings className='size-4' />
-              {t('System Settings')}
-            </DropdownMenuItem>
+              {isWalletVisible && (
+                <DropdownMenuItem
+                  onClick={() => navigate({ to: '/app/wallet' })}
+                >
+                  <Wallet className='size-4' />
+                  {t('Wallet')}
+                </DropdownMenuItem>
+              )}
+
+              {isSuperAdmin && (
+                <DropdownMenuItem
+                  onClick={() =>
+                    navigate({
+                      to: '/admin/system-settings/site/$section',
+                      params: { section: 'system-info' },
+                    })
+                  }
+                >
+                  <Settings className='size-4' />
+                  {t('System Settings')}
+                </DropdownMenuItem>
+              )}
+            </>
           )}
 
           <DropdownMenuSeparator />

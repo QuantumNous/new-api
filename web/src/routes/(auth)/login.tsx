@@ -21,21 +21,47 @@ import { z } from 'zod'
 
 import { DASHBOARD_DEFAULT_SECTION } from '@/apps/client/features/dashboard/section-registry'
 import { sanitizeAuthRedirect } from '@/shared/features/auth/lib/auth-redirect'
+import { clearStaleLoginState } from '@/shared/features/auth/lib/login-recovery'
 import { SignIn } from '@/shared/features/auth/sign-in'
+import { LoginRecoveryBoundary } from '@/shared/features/auth/sign-in/login-recovery-boundary'
 import { LoginError } from '@/shared/features/errors/login-error'
 import { resolveAuthentication } from '@/shared/lib/auth-session'
 import { isCrossOriginPortal, portalHref } from '@/shared/lib/portal-url'
 import { ROLE } from '@/shared/lib/roles'
 import { useAuthStore } from '@/shared/stores/auth-store'
 
+/**
+ * Coerce a search value to an optional string.
+ *
+ * Search params are user-controlled: repeated keys arrive as arrays and
+ * malformed payloads can be objects. Rejecting those would fail the whole
+ * route and show an error screen, so every unusable value degrades to
+ * `undefined` instead.
+ */
+const optionalSearchString = z.preprocess((value) => {
+  const candidate = Array.isArray(value) ? value[0] : value
+  if (candidate === undefined || candidate === null) return undefined
+  if (typeof candidate === 'string') return candidate
+  if (typeof candidate === 'number' || typeof candidate === 'boolean') {
+    return String(candidate)
+  }
+  return undefined
+}, z.string().optional())
+
 const searchSchema = z.object({
-  redirect: z.string().optional(),
+  redirect: optionalSearchString,
   // Set by the sign-up success path, which hands off with a full document
   // load so the login page can show the confirmation toast exactly once.
-  // Accepted as a plain string so unexpected values degrade to "no flag"
-  // instead of rejecting the whole search payload and crashing the route.
-  registered: z.string().optional(),
+  registered: optionalSearchString,
 })
+
+function LoginScreen() {
+  return (
+    <LoginRecoveryBoundary>
+      <SignIn />
+    </LoginRecoveryBoundary>
+  )
+}
 
 /** Session checks are already bounded by the refresh client's timeout; this
  *  extra bound makes sure a lock or stalled proxy can never leave the login
@@ -43,7 +69,7 @@ const searchSchema = z.object({
 const SESSION_RESOLVE_TIMEOUT_MS = 10_000
 
 export const Route = createFileRoute('/(auth)/login')({
-  component: SignIn,
+  component: LoginScreen,
   errorComponent: LoginError,
   validateSearch: searchSchema,
   beforeLoad: async ({ search }) => {
@@ -72,10 +98,19 @@ export const Route = createFileRoute('/(auth)/login')({
     // an unresolved state (transient refresh failure, timeout) would ping-pong
     // with the /app route guard, which sends that same unresolved session back
     // here.
-    if (outcome?.kind !== 'authenticated') return
+    if (outcome?.kind !== 'authenticated') {
+      // No confirmed session: any local auth data belongs to an expired or
+      // corrupt login. Drop it before the form mounts so the page starts from
+      // a clean, empty state instead of crashing on stale values.
+      clearStaleLoginState()
+      return
+    }
 
     const { auth } = useAuthStore.getState()
-    if (!auth.user) return
+    if (!auth.user) {
+      clearStaleLoginState()
+      return
+    }
 
     // Administrators sign in through the admin portal.
     if (auth.user.role >= ROLE.ADMIN) {

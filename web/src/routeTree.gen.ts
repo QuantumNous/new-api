@@ -42,7 +42,6 @@ import { Route as AdminAdminOverviewRouteImport } from './routes/_admin/admin/ov
 import { Route as AdminAdminPaymentsRouteImport } from './routes/_admin/admin/payments'
 import { Route as AdminAdminSystemSettingsRouteRouteImport } from './routes/_admin/admin/system-settings/route'
 import { Route as AppChatChatIdRouteImport } from './routes/app/chat/$chatId'
-import { Route as AppErrorsErrorRouteImport } from './routes/app/errors/$error'
 import { Route as AppKeysIndexRouteImport } from './routes/app/keys/index'
 import { Route as AppPlaygroundIndexRouteImport } from './routes/app/playground/index'
 import { Route as AppProfileIndexRouteImport } from './routes/app/profile/index'
@@ -242,11 +241,6 @@ const AdminAdminSystemSettingsRouteRoute =
 const AppChatChatIdRoute = AppChatChatIdRouteImport.update({
   id: '/chat/$chatId',
   path: '/chat/$chatId',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppErrorsErrorRoute = AppErrorsErrorRouteImport.update({
-  id: '/errors/$error',
-  path: '/errors/$error',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppKeysIndexRoute = AppKeysIndexRouteImport.update({
@@ -483,7 +477,6 @@ export interface FileRoutesByFullPath {
   '/admin/overview': typeof AdminAdminOverviewRoute
   '/admin/payments': typeof AdminAdminPaymentsRoute
   '/app/chat/$chatId': typeof AppChatChatIdRoute
-  '/app/errors/$error': typeof AppErrorsErrorRoute
   '/app/usage-logs/$section': typeof AppUsageLogsSectionRoute
   '/app/workspace/$section': typeof AppWorkspaceSectionRoute
   '/admin/': typeof AdminAdminIndexRoute
@@ -551,7 +544,6 @@ export interface FileRoutesByTo {
   '/admin/overview': typeof AdminAdminOverviewRoute
   '/admin/payments': typeof AdminAdminPaymentsRoute
   '/app/chat/$chatId': typeof AppChatChatIdRoute
-  '/app/errors/$error': typeof AppErrorsErrorRoute
   '/app/usage-logs/$section': typeof AppUsageLogsSectionRoute
   '/app/workspace/$section': typeof AppWorkspaceSectionRoute
   '/admin': typeof AdminAdminIndexRoute
@@ -624,7 +616,6 @@ export interface FileRoutesById {
   '/_admin/admin/overview': typeof AdminAdminOverviewRoute
   '/_admin/admin/payments': typeof AdminAdminPaymentsRoute
   '/app/chat/$chatId': typeof AppChatChatIdRoute
-  '/app/errors/$error': typeof AppErrorsErrorRoute
   '/app/usage-logs/$section': typeof AppUsageLogsSectionRoute
   '/app/workspace/$section': typeof AppWorkspaceSectionRoute
   '/_admin/admin/': typeof AdminAdminIndexRoute
@@ -696,7 +687,6 @@ export interface FileRouteTypes {
     | '/admin/overview'
     | '/admin/payments'
     | '/app/chat/$chatId'
-    | '/app/errors/$error'
     | '/app/usage-logs/$section'
     | '/app/workspace/$section'
     | '/admin/'
@@ -764,7 +754,6 @@ export interface FileRouteTypes {
     | '/admin/overview'
     | '/admin/payments'
     | '/app/chat/$chatId'
-    | '/app/errors/$error'
     | '/app/usage-logs/$section'
     | '/app/workspace/$section'
     | '/admin'
@@ -836,7 +825,6 @@ export interface FileRouteTypes {
     | '/_admin/admin/overview'
     | '/_admin/admin/payments'
     | '/app/chat/$chatId'
-    | '/app/errors/$error'
     | '/app/usage-logs/$section'
     | '/app/workspace/$section'
     | '/_admin/admin/'
@@ -1128,13 +1116,6 @@ declare module '@tanstack/react-router' {
       path: '/chat/$chatId'
       fullPath: '/app/chat/$chatId'
       preLoaderRoute: typeof AppChatChatIdRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/app/errors/$error': {
-      id: '/app/errors/$error'
-      path: '/errors/$error'
-      fullPath: '/app/errors/$error'
-      preLoaderRoute: typeof AppErrorsErrorRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/app/keys/': {
@@ -1523,7 +1504,6 @@ interface AppRouteRouteChildren {
   AppChat2linkRoute: typeof AppChat2linkRoute
   AppIndexRoute: typeof AppIndexRoute
   AppChatChatIdRoute: typeof AppChatChatIdRoute
-  AppErrorsErrorRoute: typeof AppErrorsErrorRoute
   AppUsageLogsSectionRoute: typeof AppUsageLogsSectionRoute
   AppWorkspaceSectionRoute: typeof AppWorkspaceSectionRoute
   AppKeysIndexRoute: typeof AppKeysIndexRoute
@@ -1539,7 +1519,6 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppChat2linkRoute: AppChat2linkRoute,
   AppIndexRoute: AppIndexRoute,
   AppChatChatIdRoute: AppChatChatIdRoute,
-  AppErrorsErrorRoute: AppErrorsErrorRoute,
   AppUsageLogsSectionRoute: AppUsageLogsSectionRoute,
   AppWorkspaceSectionRoute: AppWorkspaceSectionRoute,
   AppKeysIndexRoute: AppKeysIndexRoute,

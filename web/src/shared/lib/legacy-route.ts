@@ -57,10 +57,30 @@ function normalizeLegacyPath(pathname: string): string {
 function buildTargetHref(targetPath: string, source: URL): string {
   const target = new URL(targetPath, legacyOrigin)
   source.searchParams.forEach((value, key) => {
-    target.searchParams.append(key, value)
+    if (!target.searchParams.has(key)) {
+      target.searchParams.append(key, value)
+    }
   })
   target.hash = source.hash
   return `${target.pathname}${target.search}${target.hash}`
+}
+
+/**
+ * Build a migration target, but never return a redirect onto the exact same
+ * location. A self-redirect re-enters the root guard and, for routes that are
+ * already canonical, either loops or resets navigation state for no reason.
+ */
+function buildLegacyTarget(targetPath: string, source: URL): string | null {
+  const href = buildTargetHref(targetPath, source)
+  const target = new URL(href, legacyOrigin)
+  if (
+    target.pathname === normalizeLegacyPath(source.pathname) &&
+    target.search === source.search &&
+    target.hash === source.hash
+  ) {
+    return null
+  }
+  return href
 }
 
 export function resolveLegacyRoute(rawHref: string): string | null {
@@ -72,32 +92,37 @@ export function resolveLegacyRoute(rawHref: string): string | null {
   }
 
   const pathname = normalizeLegacyPath(source.pathname)
+  // `/login` is already the canonical sign-in route. Redirecting it to itself
+  // re-ran the root guard (and re-appended `registered=1`) on every visit.
   if (pathname === '/login') {
-    return buildTargetHref('/login', source)
+    return null
   }
   if (pathname === '/forbidden') {
-    return buildTargetHref('/403', source)
+    return buildLegacyTarget('/403', source)
   }
   if (pathname === '/console/topup') {
-    return buildTargetHref('/app/wallet', source)
+    return buildLegacyTarget('/app/wallet', source)
   }
   if (pathname === '/console/setting') {
     const tab = source.searchParams.get('tab') ?? ''
     const target = legacySettingsTabs[tab] ?? '/admin/system-settings'
-    return buildTargetHref(target, source)
+    return buildLegacyTarget(target, source)
   }
   if (pathname === '/console/chat') {
-    return buildTargetHref('/app/workspace', source)
+    return buildLegacyTarget('/app/workspace', source)
   }
   if (pathname.startsWith('/console/chat/')) {
     const chatID = pathname.slice('/console/chat/'.length)
-    return buildTargetHref(chatID ? `/app/chat/${chatID}` : '/app/workspace', source)
+    return buildLegacyTarget(
+      chatID ? `/app/chat/${chatID}` : '/app/workspace',
+      source
+    )
   }
 
   const target = legacyConsoleRoutes[pathname]
-  if (target) return buildTargetHref(target, source)
+  if (target) return buildLegacyTarget(target, source)
   if (pathname.startsWith('/console/')) {
-    return buildTargetHref('/app/workspace', source)
+    return buildLegacyTarget('/app/workspace', source)
   }
 
   return null

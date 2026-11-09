@@ -34,7 +34,7 @@ export function ClientLayout() {
   const { navGroups } = useClientSidebarView()
   return (
     <ClientErrorBoundary>
-      <AuthenticatedLayout navGroups={navGroups} />
+      <AuthenticatedLayout navGroups={navGroups} portal='client' />
     </ClientErrorBoundary>
   )
 }

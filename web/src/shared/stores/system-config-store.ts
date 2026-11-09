@@ -58,6 +58,97 @@ export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
   customCurrencyExchangeRate: 1,
 }
 
+export const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
+  systemName: DEFAULT_SYSTEM_NAME,
+  logo: DEFAULT_LOGO,
+  currency: { ...DEFAULT_CURRENCY_CONFIG },
+}
+
+const CURRENCY_DISPLAY_TYPES = new Set<CurrencyDisplayType>([
+  'USD',
+  'CNY',
+  'TOKENS',
+  'CUSTOM',
+])
+
+type UnknownRecord = Record<string, unknown>
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function finiteNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function nonEmptyString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value : fallback
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function optionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function normalizeCurrencyConfig(value: unknown): CurrencyConfig {
+  const record = isRecord(value) ? value : {}
+  const displayType = record.quotaDisplayType
+
+  return {
+    displayInCurrency:
+      typeof record.displayInCurrency === 'boolean'
+        ? record.displayInCurrency
+        : DEFAULT_CURRENCY_CONFIG.displayInCurrency,
+    quotaDisplayType:
+      typeof displayType === 'string' &&
+      CURRENCY_DISPLAY_TYPES.has(displayType as CurrencyDisplayType)
+        ? (displayType as CurrencyDisplayType)
+        : DEFAULT_CURRENCY_CONFIG.quotaDisplayType,
+    quotaPerUnit: finiteNumber(
+      record.quotaPerUnit,
+      DEFAULT_CURRENCY_CONFIG.quotaPerUnit
+    ),
+    usdExchangeRate: finiteNumber(
+      record.usdExchangeRate,
+      DEFAULT_CURRENCY_CONFIG.usdExchangeRate
+    ),
+    customCurrencySymbol: nonEmptyString(
+      record.customCurrencySymbol,
+      DEFAULT_CURRENCY_CONFIG.customCurrencySymbol
+    ),
+    customCurrencyExchangeRate: finiteNumber(
+      record.customCurrencyExchangeRate,
+      DEFAULT_CURRENCY_CONFIG.customCurrencyExchangeRate
+    ),
+  }
+}
+
+/**
+ * Coerce untrusted config (persisted storage, an old schema, a partially
+ * written object) into a complete, render-safe `SystemConfig`.
+ *
+ * `systemName` and `logo` are rendered directly, so a non-string there would
+ * crash React with "Objects are not valid as a React child".
+ */
+export function normalizeSystemConfig(value: unknown): SystemConfig {
+  const record = isRecord(value) ? value : {}
+
+  return {
+    systemName: nonEmptyString(record.systemName, DEFAULT_SYSTEM_NAME),
+    logo: nonEmptyString(record.logo, DEFAULT_LOGO),
+    footerHtml: optionalString(record.footerHtml),
+    demoSiteEnabled: optionalBoolean(record.demoSiteEnabled),
+    displayTokenStatEnabled: optionalBoolean(record.displayTokenStatEnabled),
+    hideHomePageSidebarToggle: optionalBoolean(
+      record.hideHomePageSidebarToggle
+    ),
+    currency: normalizeCurrencyConfig(record.currency),
+  }
+}
+
 interface SystemConfigState {
   config: SystemConfig
   loading: boolean
@@ -75,22 +166,21 @@ export const useSystemConfigStore = create<SystemConfigState>()(
   persist(
     (set) => ({
       config: {
-        systemName: DEFAULT_SYSTEM_NAME,
-        logo: DEFAULT_LOGO,
-        currency: { ...DEFAULT_CURRENCY_CONFIG },
+        ...DEFAULT_SYSTEM_CONFIG,
+        currency: { ...DEFAULT_SYSTEM_CONFIG.currency },
       },
       loading: true,
       loadedLogoUrl: DEFAULT_LOGO,
       setConfig: (newConfig) =>
         set((state) => ({
-          config: {
+          config: normalizeSystemConfig({
             ...state.config,
             ...newConfig,
             currency: {
               ...state.config.currency,
-              ...(newConfig.currency ?? {}),
+              ...newConfig.currency,
             },
-          },
+          }),
         })),
       setLoadedLogoUrl: (url) => set({ loadedLogoUrl: url }),
       setLoading: (loading) => set({ loading }),
@@ -101,6 +191,21 @@ export const useSystemConfigStore = create<SystemConfigState>()(
         config: state.config,
         loadedLogoUrl: state.loadedLogoUrl,
       }),
+      // A stale entry can contain valid JSON of the wrong shape (for example
+      // `config: null`). Left as-is, that crashes the auth layout while it
+      // reads `config.logo`, so every persisted value is normalized here.
+      merge: (persistedState, currentState) => {
+        if (!isRecord(persistedState)) return currentState
+
+        return {
+          ...currentState,
+          config: normalizeSystemConfig(persistedState.config),
+          loadedLogoUrl: nonEmptyString(
+            persistedState.loadedLogoUrl,
+            currentState.loadedLogoUrl
+          ),
+        }
+      },
     }
   )
 )
