@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { AuthenticatedLayout } from '@/shared/components/layout/components/authenticated-layout'
 
+import { ClientErrorBoundary } from './client-error-boundary'
 import { useClientSidebarView } from './client-sidebar-view'
 
 /**
@@ -25,8 +26,15 @@ import { useClientSidebarView } from './client-sidebar-view'
  *
  * Composes the shared authenticated shell with the client navigation only, so
  * no admin component can leak into this layout.
+ *
+ * The error boundary sits above the shell: a render crash inside the shared
+ * chrome or inside a lazily loaded page must not blank the whole portal.
  */
 export function ClientLayout() {
   const { navGroups } = useClientSidebarView()
-  return <AuthenticatedLayout navGroups={navGroups} />
+  return (
+    <ClientErrorBoundary>
+      <AuthenticatedLayout navGroups={navGroups} />
+    </ClientErrorBoundary>
+  )
 }
