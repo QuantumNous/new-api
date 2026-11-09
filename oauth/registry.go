@@ -15,6 +15,9 @@ var (
 	// customProviderSlugs tracks which providers are custom (can be unregistered)
 	customProviderSlugs     = make(map[string]bool)
 	customProviderConflicts = make(map[string]bool)
+	// customProviderLoadMu runs one full load at a time, so a load that read
+	// the database earlier never replaces a later one.
+	customProviderLoadMu sync.Mutex
 )
 
 // Register registers an OAuth provider with the given name
@@ -28,6 +31,11 @@ func Register(name string, provider Provider) {
 func RegisterCustom(name string, provider Provider) error {
 	mu.Lock()
 	defer mu.Unlock()
+	return registerCustomLocked(name, provider)
+}
+
+// registerCustomLocked registers a custom provider; the caller holds mu.
+func registerCustomLocked(name string, provider Provider) error {
 	if providers[name] != nil && !customProviderSlugs[name] {
 		customProviderConflicts[name] = true
 		return fmt.Errorf("custom OAuth provider %q conflicts with a built-in provider; rename the custom provider", name)
@@ -97,38 +105,40 @@ func IsCustomProvider(name string) bool {
 	return customProviderSlugs[name]
 }
 
-// LoadCustomProviders loads all custom OAuth providers from the database
+// LoadCustomProviders replaces the custom OAuth providers with the ones in the
+// database, all at once: a login never finds a provider missing mid-load. A
+// failed read keeps the current ones. A provider whose slug a built-in takes
+// is skipped and logged; it does not fail the load.
 func LoadCustomProviders() error {
-	// First, unregister all existing custom providers
-	mu.Lock()
-	for name := range customProviderSlugs {
-		delete(providers, name)
-	}
-	customProviderSlugs = make(map[string]bool)
-	customProviderConflicts = make(map[string]bool)
-	mu.Unlock()
-
-	// Load all custom providers from database
+	customProviderLoadMu.Lock()
+	defer customProviderLoadMu.Unlock()
 	customProviders, err := model.GetAllCustomOAuthProviders()
 	if err != nil {
 		common.SysError(common.LogText("Failed to load custom OAuth providers: %s", err.Error()))
 		return err
 	}
 
-	// Register each custom provider
-	var conflict error
-	for _, config := range customProviders {
-		provider := NewGenericOAuthProvider(config)
-		if err := RegisterCustom(config.Slug, provider); err != nil {
-			common.SysError(err.Error())
-			conflict = err
+	mu.Lock()
+	for name := range customProviderSlugs {
+		delete(providers, name)
+	}
+	customProviderSlugs = make(map[string]bool)
+	customProviderConflicts = make(map[string]bool)
+	conflicts := make([]error, len(customProviders))
+	for i, config := range customProviders {
+		conflicts[i] = registerCustomLocked(config.Slug, NewGenericOAuthProvider(config))
+	}
+	mu.Unlock()
+
+	for i, config := range customProviders {
+		if conflicts[i] != nil {
+			common.SysError(conflicts[i].Error())
 			continue
 		}
 		common.SysLog(common.LogText("Loaded custom OAuth provider: %s (%s)", config.Name, config.Slug))
 	}
-
 	common.SysLog(common.LogText("Loaded %d custom OAuth providers", len(customProviders)))
-	return conflict
+	return nil
 }
 
 // ReloadCustomProviders reloads all custom OAuth providers from the database

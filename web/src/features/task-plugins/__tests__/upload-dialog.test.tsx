@@ -216,7 +216,7 @@ describe('UploadDialog declaration preview', () => {
       within(connections).getByText('files.example.com, cdn.example.com:8443')
     ).toBeVisible()
     expect(
-      within(connections).queryByText('From marketplace index')
+      within(connections).queryByText('From the marketplace source')
     ).not.toBeInTheDocument()
   })
 

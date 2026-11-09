@@ -124,3 +124,36 @@ describe('price sorting', () => {
     }
   )
 })
+
+test('sorts a plugin model by the token price its ordinary requests pay', () => {
+  // Ratio 0.25 is $0.5 / 1M input tokens; the plugin has no price.
+  const dualUse = pricingModel('dual-use', {
+    model_ratio: 0.25,
+    completion_ratio: 4,
+    billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+    ordinary_pricing: true,
+    billing_plugin_variants: [
+      {
+        plugin_key: 'alpha',
+        plugin_name: 'Alpha',
+        billing_mode: 'tiered_expr',
+        billing_expr: '',
+        billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+      },
+    ],
+  })
+  expect(
+    sortModels([...models, dualUse], SORT_OPTIONS.INPUT_PRICE_LOW).map(
+      (m) => m.model_name
+    )
+  ).toEqual([
+    'expr-input-only',
+    'dual-use',
+    'expr-tokens',
+    'legacy-ratio',
+    'expr-long-context',
+    'legacy-per-call',
+    'expr-fixed',
+    'expr-task',
+  ])
+})

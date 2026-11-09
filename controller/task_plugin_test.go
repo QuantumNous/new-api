@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -17,9 +18,11 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/plugins"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/request_plugin_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -504,6 +507,235 @@ export function parseTaskResult() { return {}; }
 	t.Fatal("task plugin option not found")
 }
 
+// The bind options carry what the channel form needs from a provider plugin:
+// its channel config schema, key hint, key check, balance hooks, relay paths
+// and whether it serves the Responses WebSocket.
+func TestGetTaskPluginOptionsReportChannelCapabilities(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	const head = `export const meta = {apiVersion: 1, key: %q, name: "Caps", version: "1.0.0", author: {name: "Test"}, relay: %s%s};`
+	register := func(key, relay, extra, exports string) {
+		_, err := jsplugin.DefaultRegistry.Register(fmt.Sprintf(head, key, relay, extra)+exports, jsplugin.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister(key) })
+	}
+	register("caps-full", `[
+  {incoming_path: "/v1/responses", upstream_path: "/responses"},
+  {incoming_path: "/v1/chat/completions", upstream_path: "/chat-pro", models: ["pro"]},
+  {incoming_path: "/v1/chat/completions", upstream_path: "/chat"},
+]`, `, channelConfig: {type: "object", properties: {region: {type: "string", title: {en: "Region"}, default: "us"}}}, keyHint: {en: "AccessKey|SecretKey"}`, `
+export function checkKey() {}
+export function buildBalanceRequest() { return {path: "/balance"}; }
+export function parseBalance() { return {unlimited: true}; }
+`)
+	register("caps-bare", `[{incoming_path: "/v1/chat/completions", upstream_path: "/chat"}]`, "", "")
+
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/task_plugin_options", nil)
+	GetTaskPluginOptions(context)
+
+	var response struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Key                string                 `json:"key"`
+			ChannelConfig      json.RawMessage        `json:"channelConfig"`
+			KeyHint            jsplugin.LocalizedText `json:"keyHint"`
+			CheckKey           bool                   `json:"checkKey"`
+			Balance            bool                   `json:"balance"`
+			RelayPaths         []string               `json:"relayPaths"`
+			ResponsesWebsocket bool                   `json:"responsesWebsocket"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	found := 0
+	for _, option := range response.Data {
+		switch option.Key {
+		case "caps-full":
+			found++
+			assert.JSONEq(t, `{"type":"object","properties":{"region":{"type":"string","title":{"en":"Region"},"default":"us"}}}`, string(option.ChannelConfig))
+			assert.Equal(t, jsplugin.LocalizedText{"en": "AccessKey|SecretKey"}, option.KeyHint)
+			assert.True(t, option.CheckKey)
+			assert.True(t, option.Balance)
+			assert.Equal(t, []string{"/v1/responses", "/v1/chat/completions"}, option.RelayPaths, "each incoming path once")
+			assert.True(t, option.ResponsesWebsocket)
+		case "caps-bare":
+			found++
+			assert.Equal(t, "null", string(option.ChannelConfig))
+			assert.Nil(t, option.KeyHint)
+			assert.False(t, option.CheckKey)
+			assert.False(t, option.Balance)
+			assert.Equal(t, []string{"/v1/chat/completions"}, option.RelayPaths)
+			assert.False(t, option.ResponsesWebsocket)
+		}
+	}
+	assert.Equal(t, 2, found)
+}
+
+// The plugin list, the plugin detail and the bind options report the same
+// parts, stage hooks and credential hooks for a version the runtime serves. A
+// version it does not serve reports the parts its manifest and exports declare
+// and no credential hooks.
+func TestTaskPluginPagesReportPartsAndCredentialHooks(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	const head = `export const meta = {apiVersion: 1, key: %q, name: "Parts", version: %q, author: {name: "Test"}, %s};`
+	const task = `models: ["m"], fetchMode: "per_task"`
+	const relay = `relay: [{incoming_path: "/v1/chat/completions", upstream_path: "/chat"}]`
+	const taskPart = `
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`
+	const configSchema = `name: {en: "Limit", "zh-cn": "限额"}, optional: true, configSchema: {type: "object", properties: {limit: {type: "integer", title: "Limit", default: 3}}},
+  samples: [{name: "Try", format: "openai", body: {model: "m", messages: []}, reply: "Hi"}]`
+	const stages = "export function egress() {}\nexport function ingress() {}"
+	for _, upload := range []struct {
+		key, version, manifest, exports string
+		enabled                         bool
+	}{
+		{"parts-task", "1.0.0", task, taskPart + "export function login() {}\nexport function refresh() {}", true},
+		{"parts-relay", "1.0.0", relay, "export function login() {}", true},
+		{"parts-both", "1.0.0", task + ", " + relay, taskPart, true},
+		{"parts-both", "2.0.0", task + ", " + relay, taskPart + "export function login() {}", true},
+		{"parts-off", "1.0.0", relay, "export function login() {}", false},
+		{"parts-task-off", "1.0.0", task, taskPart + "export function login() {}\nexport function refresh() {}", false},
+		{"parts-transform", "1.0.0", configSchema, stages, true},
+		{"parts-transform-off", "1.0.0", configSchema, stages, false},
+	} {
+		cleanupTaskPluginControllerRuntime(t, upload.key)
+		source := fmt.Sprintf(head, upload.key, upload.version, upload.manifest) + upload.exports
+		recorder := postTaskPluginUpload(t, map[string]any{"source": source, "enabled": upload.enabled})
+		require.Contains(t, recorder.Body.String(), `"success":true`, upload.key+"@"+upload.version)
+	}
+	type flags struct {
+		Task           bool     `json:"task"`
+		Provider       bool     `json:"provider"`
+		Transform      bool     `json:"transform"`
+		TransformHooks []string `json:"transform_hooks"`
+		Login          bool     `json:"login"`
+		Refresh        bool     `json:"refresh"`
+	}
+	noStages := []string{}
+	transformFlags := flags{Transform: true, TransformHooks: []string{"ingress", "egress"}}
+	get := func(handler gin.HandlerFunc, key, target string, into any) {
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Params = gin.Params{{Key: "key", Value: key}}
+		context.Request = httptest.NewRequest(http.MethodGet, target, nil)
+		handler(context)
+		require.Contains(t, recorder.Body.String(), `"success":true`, target)
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), into))
+	}
+	var list struct {
+		Data []struct {
+			Meta struct {
+				Key      string          `json:"key"`
+				NameI18n json.RawMessage `json:"name_i18n"`
+			} `json:"meta"`
+			flags
+		} `json:"data"`
+	}
+	var options struct {
+		Data []struct {
+			Key          string          `json:"key"`
+			Name         string          `json:"name"`
+			NameI18n     json.RawMessage `json:"name_i18n"`
+			ConfigSchema json.RawMessage `json:"configSchema"`
+			Optional     *bool           `json:"optional"`
+			Samples      json.RawMessage `json:"samples"`
+			flags
+		} `json:"data"`
+	}
+	get(ListTaskPlugins, "", "/api/plugin/task", &list)
+	get(GetTaskPluginOptions, "", "/api/task_plugin_options", &options)
+	listed, offered := map[string]flags{}, map[string]flags{}
+	offeredSchemas := map[string]json.RawMessage{}
+	offeredOptional := map[string]*bool{}
+	listedNames, offeredNames := map[string]json.RawMessage{}, map[string]json.RawMessage{}
+	for _, item := range list.Data {
+		listed[item.Meta.Key] = item.flags
+		listedNames[item.Meta.Key] = item.Meta.NameI18n
+	}
+	for _, option := range options.Data {
+		offered[option.Key] = option.flags
+		offeredSchemas[option.Key] = option.ConfigSchema
+		offeredOptional[option.Key] = option.Optional
+		offeredNames[option.Key] = option.NameI18n
+		if option.Key == "parts-transform" {
+			assert.Equal(t, "Limit", option.Name)
+			// Samples as written, names as locale objects.
+			assert.JSONEq(t, `[{"name":{"en":"Try"},"format":"openai","body":{"model":"m","messages":[]},"reply":"Hi"}]`, string(option.Samples))
+		} else if strings.HasPrefix(option.Key, "parts-") {
+			assert.JSONEq(t, `[]`, string(option.Samples), option.Key)
+		}
+	}
+	for key, want := range map[string]flags{
+		"parts-task":      {Task: true, TransformHooks: noStages, Login: true, Refresh: true},
+		"parts-relay":     {Provider: true, TransformHooks: noStages, Login: true},
+		"parts-both":      {Task: true, Provider: true, TransformHooks: noStages},
+		"parts-transform": transformFlags,
+	} {
+		var detail struct {
+			Data flags `json:"data"`
+		}
+		get(GetTaskPlugin, key, "/api/plugin/task/"+key, &detail)
+		assert.Equal(t, want, detail.Data, key)
+		assert.Equal(t, want, listed[key], key)
+		assert.Equal(t, want, offered[key], key)
+	}
+	// The instance editor reads the normalized config schema from the detail
+	// meta and from the bind options.
+	const normalizedSchema = `{"type":"object","properties":{"limit":{"type":"integer","title":{"en":"Limit"},"default":3}}}`
+	var transformDetail struct {
+		Data struct {
+			Meta struct {
+				NameI18n     json.RawMessage `json:"name_i18n"`
+				ConfigSchema json.RawMessage `json:"configSchema"`
+			} `json:"meta"`
+		} `json:"data"`
+	}
+	get(GetTaskPlugin, "parts-transform", "/api/plugin/task/parts-transform", &transformDetail)
+	assert.JSONEq(t, normalizedSchema, string(transformDetail.Data.Meta.ConfigSchema))
+	assert.JSONEq(t, normalizedSchema, string(offeredSchemas["parts-transform"]))
+	assert.Equal(t, "null", string(offeredSchemas["parts-task"]))
+	// The request plugin settings read meta.optional from the bind options;
+	// a plugin that does not declare it is offered with false.
+	for key, want := range map[string]bool{"parts-transform": true, "parts-task": false} {
+		require.NotNil(t, offeredOptional[key], key)
+		assert.Equal(t, want, *offeredOptional[key], key)
+	}
+	// A name given in several locales is sent as name_i18n, next to the en
+	// name; a plain name sends none.
+	const nameI18n = `{"en":"Limit","zh-CN":"限额"}`
+	assert.JSONEq(t, nameI18n, string(transformDetail.Data.Meta.NameI18n))
+	assert.JSONEq(t, nameI18n, string(listedNames["parts-transform"]))
+	assert.JSONEq(t, nameI18n, string(offeredNames["parts-transform"]))
+	assert.Nil(t, listedNames["parts-task"])
+	assert.Nil(t, offeredNames["parts-task"])
+
+	// A provider plugin, a task plugin and a request processing plugin are
+	// switched off, and version 2.0.0 of a fourth is stored but not active.
+	for key, want := range map[string]flags{
+		"parts-off":           {Provider: true, TransformHooks: noStages},
+		"parts-task-off":      {Task: true, TransformHooks: noStages},
+		"parts-transform-off": transformFlags,
+	} {
+		var detail struct {
+			Data flags `json:"data"`
+		}
+		get(GetTaskPlugin, key, "/api/plugin/task/"+key, &detail)
+		assert.Equal(t, want, detail.Data, key)
+		assert.Equal(t, want, listed[key], key)
+		assert.NotContains(t, offered, key)
+	}
+	var inactive struct {
+		Data flags `json:"data"`
+	}
+	get(GetTaskPlugin, "parts-both", "/api/plugin/task/parts-both?version=2.0.0", &inactive)
+	assert.Equal(t, flags{Task: true, Provider: true, TransformHooks: noStages}, inactive.Data)
+}
+
 func TestDeleteActiveOverrideFallsBackToFactoryAndDeletesRecord(t *testing.T) {
 	setupTaskPluginControllerTest(t)
 	factorySource, err := plugins.Source("kling")
@@ -912,6 +1144,8 @@ func TestTaskPluginRuntimeReportsPluginLevelCompileErrors(t *testing.T) {
 	assert.NotEmpty(t, response.Data.PluginErrors[key])
 	_, registered := jsplugin.DefaultRegistry.Get(key)
 	assert.False(t, registered)
+	// The node registry lists the plugin this node failed to load.
+	assert.Equal(t, response.Data.PluginErrors[key], service.NodeSyncStates()[model.SyncTopicPlugins].Errors[key])
 }
 
 func TestTaskPluginRuntimeSurvivesDatabaseSyncFailure(t *testing.T) {
@@ -996,6 +1230,8 @@ func TestSyncTaskPluginsCachesRejectedDesiredSourceWithoutLosingIncumbent(t *tes
 		assert.Equal(t, "2.0.0", jsplugin.DefaultRegistry.OverridePlugins()[pluginKey].Meta.Version)
 		assert.Same(t, incumbent, jsplugin.DefaultRegistry.ActiveOverridePlugins()[pluginKey])
 		assert.Contains(t, jsplugin.DefaultRegistry.RoutingErrors()[pluginKey], "channelType 9002 conflicts")
+		nodeError := service.NodeSyncStates()[model.SyncTopicPlugins].Errors[pluginKey]
+		assert.Contains(t, nodeError, "channelType 9002 conflicts")
 		taskPluginSyncState.Lock()
 		assert.Equal(t, "retained-v2", taskPluginSyncState.hashes[pluginKey])
 		taskPluginSyncState.Unlock()
@@ -1012,6 +1248,7 @@ func TestSyncTaskPluginsCachesRejectedDesiredSourceWithoutLosingIncumbent(t *tes
 	require.True(t, ok)
 	assert.Equal(t, "2.0.0", active.Meta.Version)
 	assert.NotContains(t, jsplugin.DefaultRegistry.RoutingErrors(), pluginKey)
+	assert.NotContains(t, service.NodeSyncStates()[model.SyncTopicPlugins].Errors, pluginKey)
 }
 
 const dryRunPluginSource = `
@@ -1523,6 +1760,7 @@ func TestGetTaskPluginMarketplaceSourcesDefaultWhenUnset(t *testing.T) {
 	require.Equal(t, []setting.TaskPluginMarketplaceSource{
 		{Name: "Official", IndexURL: "https://www.newapi.ai/api/v1/plugins/index.json"},
 		{Name: "GitHub", IndexURL: "https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json"},
+		{Name: "Community", IndexURL: "https://www.newapi.ai/api/v1/community/index.json"},
 	}, response.Data)
 	var count int64
 	require.NoError(t, model.DB.Model(&model.Option{}).Where("key = ?", setting.TaskPluginMarketplaceSourcesKey).Count(&count).Error)
@@ -1698,4 +1936,206 @@ func TestUploadTaskPluginStoresSidecarIconAndServesIt(t *testing.T) {
 	context.Request = httptest.NewRequest(http.MethodGet, "/api/plugin/task/no-such-plugin/icon", nil)
 	GetTaskPluginIcon(context)
 	assert.Equal(t, http.StatusNotFound, missing.Code)
+}
+
+func TestRequestPluginInstancesAPI(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	originalOptions := common.OptionMap
+	common.OptionMap = map[string]string{}
+	t.Cleanup(func() { common.OptionMap = originalOptions })
+	for _, source := range []string{
+		`export const meta = {apiVersion: 1, key: "rp-api", name: {en: "Limit", zh: "限制"}, version: "1.0.0", author: {name: "Test"},
+  configSchema: {type: "object", properties: {limit: {type: "integer", title: "Limit", default: 3, minimum: 1}}}};
+export function ingress() { return {action: "continue", findings: [{rule: "seen", count: 1}]}; }
+export function validateConfig(config) { if (config.limit === 13) throw new Error("13 is unlucky"); }`,
+		`export const meta = {apiVersion: 1, key: "rp-api-task", name: "Task", version: "1.0.0", author: {name: "Test"}, models: ["m"], fetchMode: "per_task"};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }`,
+	} {
+		plugin, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = jsplugin.DefaultRegistry.Unregister(plugin.Meta.Key) })
+	}
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: "[]"}))
+	})
+	call := func(handler gin.HandlerFunc, method, body string) (int, string) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(method, "/api/request_plugin/instances", strings.NewReader(body))
+		handler(c)
+		return recorder.Code, recorder.Body.String()
+	}
+
+	models := make([]string, 101)
+	for index := range models {
+		models[index] = fmt.Sprintf("model-%d", index)
+	}
+	for name, tc := range map[string]struct{ body, message string }{
+		"enabled missing plugin": {`{"instances":[{"name":"A","plugin":"missing","enabled":true}]}`, "Plugin missing is not installed or is turned off"},
+		"no stage hooks":         {`{"instances":[{"name":"A","plugin":"rp-api-task"}]}`, "Plugin rp-api-task has no request processing hooks"},
+		"schema":                 {`{"instances":[{"name":"A","plugin":"rp-api","config":{"limit":0}}]}`, "Request plugin instance A has an invalid config"},
+		"validateConfig":         {`{"instances":[{"name":"A","plugin":"rp-api","config":{"limit":13}}]}`, "13 is unlucky"},
+		"empty name":             {`{"instances":[{"name":"  ","plugin":"rp-api"}]}`, "names must be 1 to 64 characters"},
+		"long name":              {`{"instances":[{"name":"` + strings.Repeat("名", 65) + `","plugin":"rp-api"}]}`, "names must be 1 to 64 characters"},
+		"duplicate ids":          {`{"instances":[{"id":"rp_same","name":"A","plugin":"rp-api"},{"id":"rp_same","name":"B","plugin":"rp-api"}]}`, "rp_same is used more than once"},
+		"empty group":            {`{"instances":[{"name":"A","plugin":"rp-api","groups":["vip",""]}]}`, "has an empty group"},
+		"too large":              {`{"instances":[{"name":"A","plugin":"rp-api","groups":["` + strings.Repeat("g", maxRequestPluginOptionBytes) + `"]}]}`, fmt.Sprintf("must not exceed %d bytes", maxRequestPluginOptionBytes)},
+		"empty model":            {`{"instances":[{"name":"A","plugin":"rp-api","models":["gpt"," "]}]}`, "Request plugin instance A has an empty model name"},
+		"long model":             {`{"instances":[{"name":"A","plugin":"rp-api","models":["` + strings.Repeat("m", 129) + `"]}]}`, "has a model name longer than 128 characters"},
+		"too many models":        {`{"instances":[{"name":"A","plugin":"rp-api","models":["` + strings.Join(models, `","`) + `"]}]}`, "lists more than 100 models"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			code, body := call(UpdateRequestPluginInstances, http.MethodPut, tc.body)
+			assert.Equal(t, http.StatusBadRequest, code)
+			assert.Contains(t, body, tc.message)
+			assert.Empty(t, request_plugin_setting.GetInstances())
+		})
+	}
+
+	// An older console still sends required; the plugin decides failures now.
+	code, body := call(UpdateRequestPluginInstances, http.MethodPut, `{"instances":[
+		{"name":" First ","plugin":"rp-api","enabled":true,"required":true,"global":true},
+		{"id":"rp_keepme1","name":"Second","plugin":"rp-api","groups":["vip"],"models":[" gpt-4o ","gpt-4o","claude"],"config":{"limit":5}},
+		{"name":"Gone","plugin":"missing"}]}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.NotContains(t, body, `"required"`)
+	var saved struct {
+		Data struct {
+			Instances []request_plugin_setting.Instance `json:"instances"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal([]byte(body), &saved))
+	instances := saved.Data.Instances
+	require.Len(t, instances, 3)
+	assert.Regexp(t, `^rp_[a-z0-9]{8}$`, instances[0].ID)
+	assert.Equal(t, "First", instances[0].Name)
+	assert.JSONEq(t, `{"limit":3}`, string(instances[0].Config))
+	assert.Equal(t, []string{}, instances[0].Groups)
+	// Models are trimmed and listed once; none means every model.
+	assert.Equal(t, []string{}, instances[0].Models)
+	assert.Contains(t, body, `"models":[]`)
+	assert.Equal(t, []string{"gpt-4o", "claude"}, instances[1].Models)
+	assert.Equal(t, "rp_keepme1", instances[1].ID)
+	assert.JSONEq(t, `{"limit":5}`, string(instances[1].Config))
+	assert.JSONEq(t, `{}`, string(instances[2].Config))
+	assert.Equal(t, instances, request_plugin_setting.GetInstances())
+
+	code, body = call(GetRequestPluginInstances, http.MethodGet, "")
+	require.Equal(t, http.StatusOK, code)
+	var read struct {
+		Data struct {
+			Instances []request_plugin_setting.Instance `json:"instances"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal([]byte(body), &read))
+	assert.Equal(t, instances, read.Data.Instances)
+
+	// The general settings API cannot skip the checks.
+	code, body = call(UpdateOption, http.MethodPut, `{"key":"request_plugin_setting.instances","value":"[]"}`)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Contains(t, body, `"success":false`)
+	assert.Len(t, request_plugin_setting.GetInstances(), 3)
+
+	code, body = call(DryRunRequestPlugins, http.MethodPost, `{"format":"openai","model":"gpt","body":{"model":"gpt"}}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Contains(t, body, `"success":true`)
+	assert.Contains(t, body, `"instance":"`+instances[0].ID+`"`)
+	assert.Contains(t, body, `"record":[{"plugin":"rp-api","name":{"en":"Limit","zh":"限制"},"stage":"ingress","findings":[{"count":1}]}]`)
+
+	// An editor tries its unsaved settings: that instance runs alone, even
+	// while it is switched off or bound to channels only.
+	code, body = call(DryRunRequestPlugins, http.MethodPost, `{"format":"openai","model":"gpt","body":{"model":"gpt"},
+		"instance":{"id":"rp_keepme1","name":"","plugin":"rp-api","enabled":false,"config":{"limit":5}}}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Contains(t, body, `"instance":"rp_keepme1"`)
+	assert.NotContains(t, body, instances[0].ID)
+	code, body = call(DryRunRequestPlugins, http.MethodPost, `{"format":"openai","model":"gpt","body":{"model":"gpt"},
+		"instance":{"name":"A","plugin":"rp-api","config":{"limit":13}}}`)
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Contains(t, body, "13 is unlucky")
+	// A reply runs the reply checks; without one the result has no reply.
+	code, body = call(DryRunRequestPlugins, http.MethodPost, `{"format":"openai","model":"gpt@effort:low","body":{"model":"gpt"},"reply":"Hello"}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Contains(t, body, `"reply":{"text":"Hello","stopped":null}`)
+	assert.Contains(t, body, `"reasoning_effort_before":"low"`)
+	code, body = call(DryRunRequestPlugins, http.MethodPost, `{"format":"openai","model":"gpt","body":{"model":"gpt"}}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.NotContains(t, body, `"reply"`)
+	assert.Contains(t, body, `"reasoning_effort_before":""`)
+	for _, bad := range []string{`{"format":"openai","model":"gpt"}`, `{"format":"openai","model":"gpt","body":[1]}`, `{"model":"gpt","body":{}}`, `{"format":"openai","model":"gpt","body":{},"channel_id":99}`,
+		`{"format":"openai","model":"gpt","body":{},"reply":"` + strings.Repeat("a", 16<<10+1) + `"}`} {
+		code, body = call(DryRunRequestPlugins, http.MethodPost, bad)
+		assert.Equal(t, http.StatusBadRequest, code, bad)
+		assert.Contains(t, body, `"success":false`)
+	}
+}
+
+func TestUploadTaskPluginAppliesMarketplaceKeyRulesAndCountsCommunityInstalls(t *testing.T) {
+	setupTaskPluginFactoryDisableTest(t)
+	// The install count runs beside the request; :memory: needs one connection.
+	sqlDB, err := model.DB.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	received := make(chan map[string]string, 8)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body := map[string]string{}
+		_ = common.DecodeJson(r.Body, &body)
+		body["path"] = r.URL.Path
+		received <- body
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+	previousInstallsURL := communityPluginInstallsURL
+	communityPluginInstallsURL = server.URL + "/api/v1/community/installs"
+	t.Cleanup(func() { communityPluginInstallsURL = previousInstallsURL })
+
+	const officialURL = "https://www.newapi.ai/api/v1/plugins/index.json"
+	const thirdPartyURL = "https://plugins.example.com/index.json"
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap[setting.TaskPluginMarketplaceSourcesKey] = fmt.Sprintf(`[{"name":"Official","index_url":%q},{"name":"Community","index_url":%q},{"name":"Mirror","index_url":%q}]`,
+		officialURL, setting.CommunityTaskPluginMarketplaceIndexURL, thirdPartyURL)
+	common.OptionMapRWMutex.Unlock()
+
+	upload := func(key, indexURL string) string {
+		body, err := common.Marshal(map[string]any{"source": taskPluginControllerTestSource(key, "1.0.0"), "marketplaceIndexUrl": indexURL})
+		require.NoError(t, err)
+		recorder := httptest.NewRecorder()
+		context, _ := gin.CreateTestContext(recorder)
+		context.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task", bytes.NewReader(body))
+		context.Request.Header.Set("Content-Type", "application/json")
+		UploadTaskPlugin(context)
+		return recorder.Body.String()
+	}
+	for _, key := range []string{"official-only", "bob_bar", "alice_foo"} {
+		cleanupTaskPluginControllerRuntime(t, key)
+	}
+
+	rejected := []struct{ key, indexURL, message string }{
+		{"alice_foo", "https://unlisted.example.com/index.json", "not in the source list"},
+		{"kling", setting.CommunityTaskPluginMarketplaceIndexURL, "cannot use the key of the built-in plugin kling"},
+		{"foo", setting.CommunityTaskPluginMarketplaceIndexURL, "an underscore, like alice_foo"},
+		{"bar", thirdPartyURL, "an underscore, like alice_foo"},
+	}
+	for _, tc := range rejected {
+		body := upload(tc.key, tc.indexURL)
+		assert.Contains(t, body, `"success":false`, tc.key)
+		assert.Contains(t, body, tc.message, tc.key)
+		_, err := model.GetTaskPluginVersion(tc.key, "1.0.0")
+		assert.ErrorIs(t, err, gorm.ErrRecordNotFound, tc.key)
+	}
+
+	assert.Contains(t, upload("official-only", officialURL), `"success":true`)
+	assert.Contains(t, upload("bob_bar", thirdPartyURL), `"success":true`)
+	assert.Contains(t, upload("alice_foo", setting.CommunityTaskPluginMarketplaceIndexURL), `"success":true`)
+
+	communityInstallReports.Wait()
+	require.Len(t, received, 1, "only the built-in community source counts installs")
+	count := <-received
+	gateway, err := model.GetTaskPluginGatewayID()
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"key": "alice_foo", "version": "1.0.0", "gateway": gateway, "path": "/api/v1/community/installs"}, count)
+	assert.Regexp(t, `^[0-9a-f]{64}$`, gateway)
 }

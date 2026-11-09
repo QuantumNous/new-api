@@ -18,6 +18,7 @@ import (
 
 	"github.com/Calcium-Ion/moejs"
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 )
 
@@ -26,7 +27,18 @@ const (
 	DefaultConcurrency = 8
 )
 
+// callMemoryLimit is what the JavaScript of one hook call may allocate, in
+// bytes, garbage included, before the runtime stops it; 0 means no limit. It
+// is part of the published plugin contract (docs/plugin-api/v1.md) and set by
+// PLUGIN_MEMORY_LIMIT_MB. Each call starts a new budget.
+func callMemoryLimit() int64 {
+	return int64(max(constant.PluginMemoryLimitMB, 0)) << 20
+}
+
 var ErrCallAdmissionTimeout = errors.New("plugin call admission timed out")
+
+// errCallTimeout is what interrupts a hook that runs past the call timeout.
+var errCallTimeout = errors.New("plugin call timed out")
 
 const hookErrorMessageLimit = 512
 
@@ -203,16 +215,24 @@ func Compile(source string, options Options) (*Engine, error) {
 // Export returns one module export without exposing engine values outside the
 // engine boundary. It is used for declarative exports such as meta.
 func (e *Engine) Export(ctx context.Context, exportName string) (any, error) {
+	value, _, err := e.exportWithMemberJSON(ctx, exportName)
+	return value, err
+}
+
+// exportWithMemberJSON is Export that also returns members of the export as
+// the text JSON.stringify writes for them, which keeps the member order of
+// their objects; one text per member, nil when the export has no such member.
+func (e *Engine) exportWithMemberJSON(ctx context.Context, exportName string, members ...string) (any, []json.RawMessage, error) {
 	select {
 	case e.semaphore <- struct{}{}:
 		defer func() { <-e.semaphore }()
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, nil, ctx.Err()
 	}
 
 	instance, err := e.getRuntime(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	reusable := true
 	defer func() {
@@ -227,20 +247,30 @@ func (e *Engine) Export(ctx context.Context, exportName string) (any, error) {
 	defer watchdog.stop()
 	value, found := instance.runtime.Export(exportName)
 	if !found || value.IsUndefined() {
-		return nil, fmt.Errorf("plugin export %q not found", exportName)
+		return nil, nil, fmt.Errorf("plugin export %q not found", exportName)
 	}
 	result, err := instance.runtime.ToGo(value)
+	texts := make([]json.RawMessage, len(members))
+	for index, member := range members {
+		if err != nil {
+			break
+		}
+		var memberValue moejs.Value
+		if memberValue, err = instance.runtime.Get(value, member); err == nil && !memberValue.IsUndefined() {
+			texts[index], err = instance.runtime.AppendJSON(nil, memberValue)
+		}
+	}
 	if err == nil {
-		return result, nil
+		return result, texts, nil
 	}
 	reusable = false
 	var interrupted *moejs.InterruptedError
 	if errors.As(err, &interrupted) {
-		return nil, fmt.Errorf("plugin %s@%s export %s interrupted: %w", e.key, e.version, exportName, interruptCause(interrupted))
+		return nil, nil, fmt.Errorf("plugin %s@%s export %s interrupted: %w", e.key, e.version, exportName, interruptCause(interrupted))
 	}
 	var exception *moejs.Exception
 	errors.As(err, &exception)
-	return nil, fmt.Errorf("plugin %s@%s export %s failed: %w%s", e.key, e.version, exportName, err, thrownAt(instance.runtime, exception))
+	return nil, nil, fmt.Errorf("plugin %s@%s export %s failed: %w%s", e.key, e.version, exportName, err, thrownAt(instance.runtime, exception))
 }
 
 // HasExport reports whether a module export was defined when the plugin
@@ -374,18 +404,34 @@ func (e *Engine) CallPathWithMemberJSON(
 	members []string,
 	args ...any,
 ) (result any, text json.RawMessage, err error) {
-	return e.call(ctx, callOptions{admissionTimeout: admissionTimeout, jsonMember: member}, exportName, members, args...)
+	return e.call(ctx, callOptions{admissionTimeout: admissionTimeout, jsonMembers: []string{member}}, exportName, members, args...)
+}
+
+// CallPathWithMembersJSON is CallPathWithMemberJSON for a result that may
+// carry its JSON value at one of several places: it returns the text of the
+// first of paths the result has. A path names nested members with dots, such
+// as "next.body".
+func (e *Engine) CallPathWithMembersJSON(
+	ctx context.Context,
+	admissionTimeout time.Duration,
+	paths []string,
+	exportName string,
+	members []string,
+	args ...any,
+) (result any, text json.RawMessage, err error) {
+	return e.call(ctx, callOptions{admissionTimeout: admissionTimeout, jsonMembers: paths}, exportName, members, args...)
 }
 
 // callOptions is what a hook call does besides calling: the bound on waiting
 // for a JavaScript slot, the Go value the result is stored in instead of
-// being returned (from its JSON.stringify text when stringify is set), and a
-// member of the result also returned as JSON text.
+// being returned (from its JSON.stringify text when stringify is set), a
+// member of the result also returned as JSON text, or no result at all.
 type callOptions struct {
 	admissionTimeout time.Duration
 	target           any
 	stringify        bool
-	jsonMember       string
+	jsonMembers      []string
+	discardResult    bool
 }
 
 func (e *Engine) call(ctx context.Context, opts callOptions, exportName string, members []string, args ...any) (any, json.RawMessage, error) {
@@ -409,6 +455,7 @@ func (e *Engine) call(ctx context.Context, opts callOptions, exportName string, 
 	}
 	call.runtime, call.hook = instance.runtime, hook.Name()
 	call.fetcher, _ = ctx.Value(fetcherContextKey{}).(Fetcher)
+	call.transform, _ = ctx.Value(transformContextKey{}).(*TransformContext)
 	instance.call = call
 	reusable := true
 	defer func() {
@@ -442,8 +489,7 @@ func (e *Engine) call(ctx context.Context, opts callOptions, exportName string, 
 		callArgs = append(callArgs, converted)
 	}
 
-	timedOut := errors.New("plugin call timed out")
-	call.watchdog = watchRuntimeContext(instance.runtime, ctx, e.timeout, timedOut)
+	call.watchdog = watchRuntimeContext(instance.runtime, ctx, e.timeout, errCallTimeout)
 	// utils.fetch pauses and restarts the watchdog; stop whichever watch is
 	// current when the call ends.
 	defer call.watchdog.stop()
@@ -455,6 +501,7 @@ func (e *Engine) call(ctx context.Context, opts callOptions, exportName string, 
 		var result any
 		var memberText json.RawMessage
 		switch {
+		case opts.discardResult:
 		case opts.target != nil && opts.stringify:
 			err = instance.runtime.Unmarshal(value, opts.target)
 		case opts.target != nil:
@@ -462,13 +509,10 @@ func (e *Engine) call(ctx context.Context, opts callOptions, exportName string, 
 		default:
 			result, err = instance.runtime.ToGo(value)
 		}
-		if err == nil && opts.jsonMember != "" {
+		if err == nil && len(opts.jsonMembers) > 0 {
 			// After the result's Go value: AppendJSON may run a toJSON or
 			// a getter, which ToGo never does.
-			var member moejs.Value
-			if member, err = instance.runtime.Get(value, opts.jsonMember); err == nil && !member.IsUndefined() {
-				memberText, err = instance.runtime.AppendJSON(nil, member)
-			}
+			memberText, err = memberJSON(instance.runtime, value, opts.jsonMembers)
 		}
 		if err == nil {
 			return result, memberText, nil
@@ -481,7 +525,7 @@ func (e *Engine) call(ctx context.Context, opts callOptions, exportName string, 
 		// json.Unmarshal do, which is the host codec (common/json.go), and
 		// Unmarshal and AppendJSON as JSON.stringify does (a BigInt, a cycle).
 		var internal *moejs.InternalError
-		if (opts.target != nil || opts.jsonMember != "") && !errors.As(err, &exception) && !errors.As(err, &internal) {
+		if (opts.target != nil || len(opts.jsonMembers) > 0) && !errors.As(err, &exception) && !errors.As(err, &internal) {
 			return nil, nil, &ResultError{err: err}
 		}
 	}
@@ -725,6 +769,8 @@ func (e *Engine) getRuntime(ctx context.Context) (*runtimeInstance, error) {
 	select {
 	case instance := <-e.pool:
 		instance.logContext.context = ctx
+		// What an earlier call allocated never counts against this one.
+		instance.runtime.ResetAllocation()
 		return instance, nil
 	default:
 		return e.newRuntime(ctx)
@@ -747,6 +793,28 @@ type runtimeWatchdog struct {
 	cancel       context.CancelFunc
 	interrupted  chan struct{}
 	paused       bool
+}
+
+// memberJSON is the JSON.stringify text of the first of paths value has a
+// value other than null or undefined at, nil when it has none.
+func memberJSON(runtime *moejs.Runtime, value moejs.Value, paths []string) (json.RawMessage, error) {
+	for _, path := range paths {
+		current := value
+		for name := range strings.SplitSeq(path, ".") {
+			if !current.IsObject() {
+				current = moejs.Undefined()
+				break
+			}
+			var err error
+			if current, err = runtime.Get(current, name); err != nil {
+				return nil, err
+			}
+		}
+		if !current.IsNullish() {
+			return runtime.AppendJSON(nil, current)
+		}
+	}
+	return nil, nil
 }
 
 func watchRuntimeContext(runtime *moejs.Runtime, ctx context.Context, timeout time.Duration, timeoutError error) *runtimeWatchdog {
@@ -803,7 +871,7 @@ func (w *runtimeWatchdog) resume() {
 func (e *Engine) newRuntime(ctx context.Context) (*runtimeInstance, error) {
 	// Code compiled from strings would bypass the upload-time syntax checks,
 	// so eval and the Function constructors throw an EvalError.
-	runtime := moejs.NewRuntime(moejs.Options{DisableDynamicCode: true})
+	runtime := moejs.NewRuntime(moejs.Options{DisableDynamicCode: true, MemoryLimit: callMemoryLimit()})
 	logContext := &runtimeLogContext{context: ctx}
 	instance := &runtimeInstance{runtime: runtime, logContext: logContext}
 	logOutput := e.log

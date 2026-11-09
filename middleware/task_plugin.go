@@ -27,6 +27,7 @@ import (
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	taskjsplugin "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
@@ -533,7 +534,7 @@ func RouteTaskPluginEndpoint() gin.HandlerFunc {
 			return
 		}
 
-		filter := dto.ChannelFilter{Kind: dto.FilterTaskPluginEndpoint}
+		filter := dto.ChannelFilter{Kind: dto.FilterTaskPluginEndpoint, RequestPath: c.Request.URL.Path}
 		for _, candidate := range endpoint.Candidates {
 			filter.TaskPluginKeys = append(filter.TaskPluginKeys, candidate.Plugin.Meta.Key)
 			filter.TaskPluginChannelTypes = append(filter.TaskPluginChannelTypes, candidate.Plugin.Meta.ChannelTypes...)
@@ -800,13 +801,7 @@ func PrepareTaskPluginEndpoint() gin.HandlerFunc {
 			abortWithOpenAiMessage(c, status, err.Error())
 			return
 		}
-		if body, ok := requestContext.Body.(map[string]any); ok {
-			if fields, ok := body["fields"].(map[string][]string); ok {
-				if values := fields["model"]; len(values) > 0 && values[0] != pinned.Model {
-					fields["model"][0] = pinned.Model
-				}
-			}
-		}
+		pinTaskPluginFormModel(requestContext, pinned.Model)
 		bodyObject, _ := requestContext.Body.(map[string]any)
 		bodyKind, _ := bodyObject["kind"].(string)
 		allowedBody := false
@@ -990,6 +985,70 @@ func PrepareTaskPluginEndpoint() gin.HandlerFunc {
 			time.Since(hookStarted).Milliseconds(),
 		)
 		c.Next()
+	}
+}
+
+// RefreshTaskPluginRequest decodes a task submission again after a request
+// plugin changed its stored body, so validation, pricing and the upstream
+// body read the changed body: the route request the decode hooks read, the
+// request body of the /v1/tasks entry, and a flag that makes the task
+// adaptor run the plugin's decoder again.
+func RefreshTaskPluginRequest(c *gin.Context) *dto.TaskError {
+	c.Set(pluginruntime.ContextKeyRequestRefreshed, true)
+	if value, exists := c.Get(pluginruntime.ContextKeyRouteRequest); exists {
+		previous, _ := value.(pluginruntime.RouteRequestContext)
+		requestContext, err := buildTaskPluginRouteRequest(c)
+		if err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+		}
+		requestContext.Params, requestContext.RequestBody = previous.Params, previous.RequestBody
+		if pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedEndpoint); exists {
+			pinned, _ := pinnedValue.(pluginruntime.PinnedEndpoint)
+			pinTaskPluginFormModel(requestContext, pinned.Model)
+			if protocolValue, exists := c.Get(pluginruntime.ContextKeyProtocolRequest); exists {
+				if protocolContext, ok := protocolValue.(pluginruntime.ProtocolRequestContext); ok {
+					protocolContext.RouteRequestContext = requestContext
+					c.Set(pluginruntime.ContextKeyProtocolRequest, protocolContext)
+				}
+			}
+		}
+		c.Set(pluginruntime.ContextKeyRouteRequest, requestContext)
+		return nil
+	}
+	value, _ := c.Get("task_request")
+	if _, entry := value.(map[string]any); !entry {
+		return nil
+	}
+	var requestBody map[string]any
+	if err := common.UnmarshalBodyReusable(c, &requestBody); err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", invalidRequestStatus(err))
+	}
+	c.Set("task_request", requestBody)
+	if pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedPlugin); exists {
+		if pinned, ok := pinnedValue.(pluginruntime.PinnedPlugin); ok && pinned.Plugin != nil && pinned.Plugin.Meta.PreservesJSONOrder() {
+			storage, err := common.GetBodyStorage(c)
+			var raw []byte
+			if err == nil {
+				raw, err = storage.Bytes()
+			}
+			if err != nil {
+				return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+			}
+			c.Set(pluginruntime.ContextKeyRequestBodyText, json.RawMessage(raw))
+		}
+	}
+	return nil
+}
+
+// pinTaskPluginFormModel sets the model field of a form body to the model the
+// endpoint was pinned to.
+func pinTaskPluginFormModel(requestContext pluginruntime.RouteRequestContext, model string) {
+	if body, ok := requestContext.Body.(map[string]any); ok {
+		if fields, ok := body["fields"].(map[string][]string); ok {
+			if values := fields["model"]; len(values) > 0 && values[0] != model {
+				fields["model"][0] = model
+			}
+		}
 	}
 }
 
@@ -1584,6 +1643,11 @@ func RespondTaskPluginError(c *gin.Context, taskErr *dto.TaskError) bool {
 		return false
 	}
 	sanitized := sanitizedTaskPluginError(taskErr.StatusCode, taskErr.Message)
+	if requestplugin.Stopped(taskErr) {
+		// A request plugin's stop keeps its code and message, as on chat
+		// routes.
+		sanitized.Code, sanitized.Message, sanitized.Retryable = taskErr.Code, taskErr.Message, false
+	}
 	requestID := c.GetString(common.RequestIdKey)
 	hasRenderer, err := pinned.Plugin.Engine.HasCallablePath(c.Request.Context(), "native", "error")
 	requestValue, exists := c.Get(pluginruntime.ContextKeyRouteRequest)

@@ -109,7 +109,11 @@ func CreateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if err := validateCustomOAuthProvider(provider); err != nil {
 		return err
 	}
-	return DB.Create(provider).Error
+	if err := DB.Create(provider).Error; err != nil {
+		return err
+	}
+	BumpSyncTopic(SyncTopicOAuthProviders)
+	return nil
 }
 
 // UpdateCustomOAuthProvider updates an existing custom OAuth provider
@@ -117,7 +121,11 @@ func UpdateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if err := validateCustomOAuthProvider(provider); err != nil {
 		return err
 	}
-	return DB.Save(provider).Error
+	if err := DB.Save(provider).Error; err != nil {
+		return err
+	}
+	BumpSyncTopic(SyncTopicOAuthProviders)
+	return nil
 }
 
 // DeleteCustomOAuthProvider deletes a custom OAuth provider by ID
@@ -126,7 +134,11 @@ func DeleteCustomOAuthProvider(id int) error {
 	if err := DB.Where("provider_id = ?", id).Delete(&UserOAuthBinding{}).Error; err != nil {
 		return err
 	}
-	return DB.Delete(&CustomOAuthProvider{}, id).Error
+	if err := DB.Delete(&CustomOAuthProvider{}, id).Error; err != nil {
+		return err
+	}
+	BumpSyncTopic(SyncTopicOAuthProviders)
+	return nil
 }
 
 // IsSlugTaken checks if a slug is already taken by another provider

@@ -29,6 +29,7 @@ import {
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
 import { isTokenBasedModel } from '../lib/model-helpers'
+import { withBasePricing } from '../lib/plugin-pricing'
 import { formatPrice, stripTrailingZeros } from '../lib/price'
 import type { PricingModel } from '../types'
 import type { ModelPriceCellOptions } from './model-price-cell'
@@ -48,7 +49,7 @@ export function CachedPriceCell(props: {
 
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
 
-  const model = props.model
+  const model = useMemo(() => withBasePricing(props.model), [props.model])
   const currency = useSystemConfigStore((state) => state.config.currency)
   const billingTime = useBillingTime(model.billing_expr)
   const dynamicSummary = useMemo(

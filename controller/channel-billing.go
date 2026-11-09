@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -58,6 +59,7 @@ const maxAdvancedCustomBalanceResponseBytes = 256 << 10
 type channelBalanceResult struct {
 	Balance     float64
 	RawResponse string
+	Detail      *model.ChannelBalanceDetail
 }
 
 type OpenAIUsageResponse struct {
@@ -621,12 +623,20 @@ func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, e
 	return channelBalanceResult{RawResponse: string(formatted)}, nil
 }
 
+// updateChannelBalance queries a built-in channel type's balance and stores
+// its detail next to the USD balance the query writes.
 func updateChannelBalance(channel *model.Channel) (channelBalanceResult, error) {
+	var result channelBalanceResult
+	var err error
 	if channel.Type == constant.ChannelTypeAdvancedCustom {
-		return fetchAdvancedCustomBalance(channel)
+		result, err = fetchAdvancedCustomBalance(channel)
+	} else {
+		var balance float64
+		balance, err = updateStandardChannelBalance(channel)
+		result = channelBalanceResult{Balance: balance}
 	}
-	balance, err := updateStandardChannelBalance(channel)
-	return channelBalanceResult{Balance: balance}, err
+	result.Detail = recordBuiltinBalance(channel, result, err)
+	return result, err
 }
 
 func updateStandardChannelBalance(channel *model.Channel) (float64, error) {
@@ -710,7 +720,28 @@ func UpdateChannelBalance(c *gin.Context) {
 		return
 	}
 	if channel.Type == constant.ChannelTypeTaskPlugin {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "Task Plugin channels do not support balance queries"})
+		plugin, ok := service.PluginOfChannel(channel)
+		if !ok || !pluginReportsBalance(plugin) {
+			common.ApiErrorT(c, "The plugin of this channel does not report a balance")
+			return
+		}
+		_, detail, err := updatePluginChannelBalance(channel, plugin, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		balance := channel.Balance
+		if detail != nil {
+			if usd, ok := usdBalance(detail.BalanceResult); ok {
+				balance = usd
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success":        true,
+			"message":        "",
+			"balance":        balance,
+			"balance_detail": detail,
+		})
 		return
 	}
 	if channel.ChannelInfo.IsMultiKey {
@@ -728,61 +759,60 @@ func UpdateChannelBalance(c *gin.Context) {
 	}
 	if result.RawResponse == "" {
 		response["balance"] = result.Balance
+		response["balance_detail"] = result.Detail
 	} else {
 		response["raw_response"] = result.RawResponse
 	}
 	c.JSON(http.StatusOK, response)
 }
 
+// updateAllChannelsBalance queries the balance of every enabled channel,
+// balanceUpdateConcurrency channels at once.
 func updateAllChannelsBalance() error {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
 		return err
 	}
-	for _, channel := range channels {
-		if channel.Status != common.ChannelStatusEnabled {
-			continue
-		}
-		if channel.ChannelInfo.IsMultiKey {
-			continue // skip multi-key channels
-		}
-		// TODO: support Azure
-		//if channel.Type != common.ChannelTypeOpenAI && channel.Type != common.ChannelTypeCustom {
-		//	continue
-		//}
-		result, err := updateChannelBalance(channel)
-		if err != nil {
-			continue
-		} else if result.RawResponse == "" {
-			// err is nil & balance <= 0 means quota is used up
-			if result.Balance <= 0 {
-				service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), "Insufficient balance")
+	queue := make(chan *model.Channel)
+	var workers sync.WaitGroup
+	for range balanceUpdateConcurrency {
+		workers.Go(func() {
+			for channel := range queue {
+				updateBalanceInRun(channel)
+				time.Sleep(common.RequestInterval)
 			}
-		}
-		time.Sleep(common.RequestInterval)
+		})
 	}
+	for _, channel := range channels {
+		if channel.Status == common.ChannelStatusEnabled {
+			queue <- channel
+		}
+	}
+	close(queue)
+	workers.Wait()
 	return nil
 }
 
+// UpdateAllChannelsBalance starts an update of all balances in the
+// background and answers at once.
 func UpdateAllChannelsBalance(c *gin.Context) {
-	// TODO: make it async
-	err := updateAllChannelsBalance()
-	if err != nil {
-		common.ApiError(c, err)
+	if !startBalanceUpdate() {
+		common.ApiSuccessT(c, "A balance update is already running", gin.H{"started": false})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
-	return
+	common.ApiSuccessT(c, "Balance update started in the background", gin.H{"started": true})
 }
 
 func AutomaticallyUpdateChannels(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Minute)
+		// A round an administrator's update still runs is skipped.
+		if !balanceUpdateRunning.CompareAndSwap(false, true) {
+			continue
+		}
 		common.SysLog(common.LogText("updating all channels"))
 		_ = updateAllChannelsBalance()
+		balanceUpdateRunning.Store(false)
 		common.SysLog(common.LogText("channels update done"))
 	}
 }

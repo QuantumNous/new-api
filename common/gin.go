@@ -211,8 +211,8 @@ func isPresetUpstreamHost(address string) bool {
 // upstream the admin configured for the selected channel and the proxies its
 // requests may go through. Preset default base URLs are public and stay
 // readable. The origin actually requested only counts for a configured base
-// URL or an Advanced Custom channel, whose routes may target absolute URLs;
-// other adaptors build official endpoints themselves.
+// URL or an Advanced Custom or provider plugin channel, whose routes may
+// target absolute URLs; other adaptors build official endpoints themselves.
 func UpstreamAddresses(c *gin.Context) []string {
 	// A channel without its own proxy dials through the environment proxy.
 	environmentProxy := httpproxy.FromEnvironment()
@@ -222,7 +222,8 @@ func UpstreamAddresses(c *gin.Context) []string {
 	}
 	baseURL := strings.TrimSpace(GetContextKeyString(c, constant.ContextKeyChannelBaseUrl))
 	candidates = append(candidates, baseURL)
-	if GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeAdvancedCustom || (baseURL != "" && !isPresetUpstreamHost(baseURL)) {
+	providerPlugin, _ := GetContextKey(c, constant.ContextKeyProviderPlugin)
+	if GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeAdvancedCustom || providerPlugin != nil || (baseURL != "" && !isPresetUpstreamHost(baseURL)) {
 		candidates = append(candidates, GetContextKeyString(c, constant.ContextKeyUpstreamRequestOrigin))
 	}
 	addresses := make([]string, 0, len(candidates))

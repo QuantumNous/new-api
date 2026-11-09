@@ -10,6 +10,11 @@ var GetMediaToken bool
 var GetMediaTokenNotStream bool
 var UpdateTask bool
 var MaxRequestBodyMB int
+
+// PluginMemoryLimitMB is what the JavaScript of one plugin hook call may
+// allocate, in MiB; 0 means no limit.
+var PluginMemoryLimitMB = 512
+
 var AnonymousRequestBodyLimitKB int
 var AzureDefaultAPIVersion string
 var NotifyLimitCount int

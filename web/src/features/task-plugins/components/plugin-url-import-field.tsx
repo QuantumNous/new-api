@@ -87,7 +87,7 @@ export function PluginUrlImportField(props: PluginUrlImportFieldProps) {
       }
       props.onError(
         t(
-          'Could not fetch this URL from the browser. The host may block cross-origin requests or be unreachable. Download the file and paste its source below.'
+          'Could not download from this address. Download the file yourself and paste its code below.'
         )
       )
     },
@@ -132,7 +132,7 @@ export function PluginUrlImportField(props: PluginUrlImportFieldProps) {
       </InputGroup>
       <FieldDescription id='task-plugin-url-hint'>
         {t(
-          'Fetched in your browser and placed in the source field below for review. GitHub and gist page URLs are rewritten to their raw URL automatically.'
+          'The file fills the code box below for review. GitHub and Gist page links also work.'
         )}
       </FieldDescription>
       {props.error ? <FieldError>{props.error}</FieldError> : null}

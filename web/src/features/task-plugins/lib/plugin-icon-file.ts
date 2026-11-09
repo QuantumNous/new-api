@@ -76,6 +76,23 @@ async function sha256Hex(
     .join('')
 }
 
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+
+/** Tells a PNG or SVG logo apart by its bytes; null for anything else. */
+function sniffPluginIconMediaType(
+  bytes: Uint8Array
+): PluginIconMediaType | null {
+  if (PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) {
+    return 'image/png'
+  }
+  const head = new TextDecoder().decode(bytes.subarray(0, 1024))
+  return /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!doctype[^>]*>\s*)?<svg[\s/>]/i.test(
+    head.replace(/^\uFEFF/, '')
+  )
+    ? 'image/svg+xml'
+    : null
+}
+
 export type FetchPluginIconOptions = {
   /** Index-declared digest; a mismatch yields null so a swapped file is never shown or stored. */
   sha256?: string
@@ -95,8 +112,10 @@ export async function fetchPluginIconDataUri(
   url: string,
   options: FetchPluginIconOptions = {}
 ): Promise<string | null> {
-  const mediaType = pluginIconMediaType(new URL(url).pathname)
-  if (!mediaType) return null
+  const pathname = new URL(url).pathname
+  const declared = pluginIconMediaType(pathname)
+  // A file named by its digest (community files) has no extension.
+  if (!declared && /\.[^/]*$/.test(pathname)) return null
   const fetchImpl = options.fetchImpl ?? globalThis.fetch
   let response: Response
   try {
@@ -109,6 +128,8 @@ export async function fetchPluginIconDataUri(
   if (!response.ok) return null
   const bytes = new Uint8Array(await response.arrayBuffer())
   if (bytes.length === 0 || bytes.length > MAX_PLUGIN_ICON_BYTES) return null
+  const mediaType = declared ?? sniffPluginIconMediaType(bytes)
+  if (!mediaType) return null
   const expected = options.sha256?.trim().toLowerCase()
   if (expected) {
     const actual = await sha256Hex(bytes)

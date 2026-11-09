@@ -14,6 +14,7 @@ Transitive dependencies should be audited before a final external release.
 | backend  | production  | Go        | `github.com/Calcium-Ion/go-epay`                        | `v0.0.5`                             | MIT                     |
 | backend  | production  | Go        | `github.com/Calcium-Ion/moejs`                          | `v0.1.0-alpha.7`                     | Apache-2.0              |
 | backend  | production  | Go        | `github.com/ClickHouse/clickhouse-go/v2`                | `v2.46.0`                            | Apache-2.0              |
+| backend  | production  | Go        | `github.com/HugoSmits86/nativewebp`                     | `v1.3.0`                             | MIT                     |
 | backend  | production  | Go        | `github.com/MoeForge/moego`                             | `v0.1.0-alpha.1`                     | MIT                     |
 | backend  | production  | Go        | `github.com/abema/go-mp4`                               | `v1.4.1`                             | MIT                     |
 | backend  | test        | Go        | `github.com/alicebob/miniredis/v2`                      | `v2.38.0`                            | MIT                     |
@@ -51,6 +52,7 @@ Transitive dependencies should be audited before a final external release.
 | backend  | production  | Go        | `github.com/joho/godotenv`                              | `v1.5.1`                             | MIT                     |
 | backend  | test        | Go        | `github.com/json-iterator/go`                           | `v1.1.12`                            | MIT                     |
 | backend  | production  | Go        | `github.com/klauspost/compress`                         | `v1.18.3`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `github.com/ledongthuc/pdf`                             | `v0.0.0-20261020125853-5e46805f718e` | BSD-3-Clause            |
 | backend  | production  | Go        | `github.com/mewkiz/flac`                                | `v1.0.13`                            | Unlicense               |
 | backend  | production  | Go        | `github.com/nicksnyder/go-i18n/v2`                      | `v2.6.1`                             | MIT                     |
 | backend  | test        | Go        | `github.com/openai/openai-go`                           | `v1.12.0`                            | Apache-2.0              |

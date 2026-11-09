@@ -1,6 +1,8 @@
 package helper
 
 import (
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -8,12 +10,16 @@ import (
 	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	kitreasoning "github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
+	"github.com/QuantumNous/new-api/setting/request_plugin_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -606,4 +612,63 @@ func TestApplyReasoningModelSuffixPreservesGpt51CodexMax(t *testing.T) {
 	assert.Equal(t, "gpt-5.1-codex-max", info.UpstreamModelName)
 	assert.Nil(t, info.ReasoningConversion)
 	assert.Equal(t, "gpt-5.1-codex-max", hostreasoning.BaseModelName("gpt-5.1-codex-max"))
+}
+
+// reasoningPluginContext installs a request plugin that sets effort high and
+// returns a request context holding the request's plan.
+func reasoningPluginContext(t *testing.T, override bool) *gin.Context {
+	t.Helper()
+	plugin, err := jsplugin.DefaultRegistry.Register(`export const meta = {apiVersion: 1, key: "rp-effort", name: "Effort", version: "1.0.0", author: {name: "Test"}};
+export function request(ctx) { return {action: "continue", effects: [{type: "reasoning.set", effort: "high", override: ctx.config.override}]}; }`, jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = jsplugin.DefaultRegistry.Unregister(plugin.Meta.Key) })
+	instances := fmt.Sprintf(`[{"id":"effort","name":"Effort","plugin":"rp-effort","enabled":true,"global":true,"config":{"override":%t}}]`, override)
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: instances}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: "[]"}))
+	})
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{}`))
+	_, _, apiErr := requestplugin.Ingress(c, types.RelayFormatOpenAI)
+	require.Nil(t, apiErr)
+	return c
+}
+
+func TestApplyReasoningModelSuffixRequestPluginSetsEffort(t *testing.T) {
+	t.Run("openai chat", func(t *testing.T) {
+		c := reasoningPluginContext(t, false)
+		request := &dto.GeneralOpenAIRequest{Model: "gpt-5.1"}
+		info := &relaycommon.RelayInfo{OriginModelName: "gpt-5.1", RelayFormat: types.RelayFormatOpenAI, Request: request,
+			ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI, UpstreamModelName: "gpt-5.1"}}
+
+		require.NoError(t, ApplyReasoningModelSuffix(c, info, request))
+		assert.Equal(t, "high", request.ReasoningEffort)
+		require.NotNil(t, info.ReasoningConversion)
+		assert.Equal(t, "high", info.ReasoningConversion.Effort)
+		require.Len(t, info.RequestPluginSteps, 1)
+		assert.Equal(t, "request", info.RequestPluginSteps[0].Stage)
+	})
+	t.Run("claude", func(t *testing.T) {
+		c := reasoningPluginContext(t, false)
+		request := &dto.ClaudeRequest{Model: "claude-opus-4-8"}
+		info := &relaycommon.RelayInfo{OriginModelName: "claude-opus-4-8", RelayFormat: types.RelayFormatClaude, Request: request,
+			ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeAnthropic, UpstreamModelName: "claude-opus-4-8"}}
+
+		require.NoError(t, ApplyReasoningModelSuffix(c, info, request))
+		require.NotNil(t, info.ReasoningConversion)
+		assert.Equal(t, "enabled", info.ReasoningConversion.Mode)
+		// The Claude adaptor turns the state into thinking, as for @effort.
+		assert.Equal(t, "high", info.ReasoningConversion.Effort)
+	})
+	t.Run("client effort stands without override", func(t *testing.T) {
+		for _, override := range []bool{false, true} {
+			c := reasoningPluginContext(t, override)
+			request := &dto.GeneralOpenAIRequest{Model: "gpt-5.1", ReasoningEffort: "low"}
+			info := &relaycommon.RelayInfo{OriginModelName: "gpt-5.1", RelayFormat: types.RelayFormatOpenAI, Request: request,
+				ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI, UpstreamModelName: "gpt-5.1"}}
+
+			require.NoError(t, ApplyReasoningModelSuffix(c, info, request))
+			assert.Equal(t, map[bool]string{false: "low", true: "high"}[override], request.ReasoningEffort)
+		}
+	})
 }

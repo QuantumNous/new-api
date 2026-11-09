@@ -4,11 +4,11 @@
   "title": "new-api Task Plugin v1 manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "key", "name", "version", "author", "models", "fetchMode"],
+  "required": ["apiVersion", "key", "name", "version", "author"],
   "properties": {
     "sortPriority": {"type": "integer", "minimum": -2147483648, "maximum": 2147483647, "default": 0},
     "website": {"oneOf": [{"const": ""}, {"type": "string", "format": "uri", "pattern": "^[Hh][Tt][Tt][Pp][Ss]://[^/@?#\\s]+(?:[/?#]|$)"}], "description": "Absolute HTTPS URL with a valid ASCII hostname (use punycode for internationalized domains) and no credentials; validated by the host."},
-    "apiVersion": {"const": 1}, "key": {"type": "string"}, "name": {"type": "string"}, "icon": {"type": "string", "maxLength": 128}, "description": {"$ref": "#/$defs/localizedText"}, "version": {"type": "string"},
+    "apiVersion": {"const": 1}, "key": {"type": "string"}, "name": {"allOf": [{"$ref": "#/$defs/localizedText"}, {"if": {"type": "object"}, "then": {"additionalProperties": {"maxLength": 128}}}]}, "icon": {"type": "string", "maxLength": 128}, "description": {"$ref": "#/$defs/localizedText"}, "version": {"type": "string"},
     "author": {"type": "object", "required": ["name"], "additionalProperties": false, "properties": {"name": {"type": "string"}, "url": {"type": "string", "format": "uri"}}},
     "baseUrl": {"type": "string", "format": "uri", "pattern": "^https?://", "maxLength": 191},
     "channelTypes": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 1}}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
@@ -21,10 +21,69 @@
     ]}},
     "submitResponseTypes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["json", "sse"]}},
     "requiredCapabilities": {"type": "array", "uniqueItems": true, "items": {"enum": ["json-clone@1", "submit-sse-delta@1", "json-order@1", "duration-auto@1"]}},
-    "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "usageSchema": {"type": "object", "additionalProperties": {"$ref": "#/$defs/usageField"}}, "usageExamples": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "facts"], "properties": {"label": {"type": "string"}, "facts": {"type": "object"}}}}, "usageProfiles": {"type": "array", "items": {"$ref": "#/$defs/usageProfile"}}, "auth": {}
+    "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "usageSchema": {"type": "object", "additionalProperties": {"$ref": "#/$defs/usageField"}}, "usageExamples": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "facts"], "properties": {"label": {"type": "string"}, "facts": {"type": "object"}}}}, "usageProfiles": {"type": "array", "items": {"$ref": "#/$defs/usageProfile"}}, "auth": {},
+    "relay": {"type": "array", "items": {"$ref": "#/$defs/relayRoute"}, "description": "The provider part: routes a type-61 channel bound to the plugin relays. A plugin without an exported buildSubmitRequest needs it or an exported stage hook, and must not declare the task fields; the host checks this at load."},
+    "configSchema": {"$ref": "#/$defs/configSchema"},
+    "channelConfig": {"$ref": "#/$defs/configSchema", "description": "The settings of each type-61 channel bound to the plugin, in the configSchema format: stored in the channel settings as plugin_config and read by the hooks as ctx.config with the defaults applied. A format url field is an upstream address (absolute http(s), ASCII host, no credentials, query or fragment, trailing slash stripped) that a relay upstream_path can start with as {config.<name>}; an object field may hold a value per model in additionalProperties. Only a plugin with a task part or relay routes may declare it; the host checks this at load."},
+    "keyHint": {"allOf": [{"$ref": "#/$defs/localizedText"}, {"if": {"type": "string"}, "then": {"maxLength": 256}, "else": {"additionalProperties": {"maxLength": 256}}}], "description": "The hint and example of the channel key field, such as AccessKey|SecretKey. Only a plugin with a task part or relay routes may declare it."},
+    "optional": {"type": "boolean", "description": "A request skips a failed instance of the plugin instead of stopping with 500 request_plugin_failed. Only a plugin with a request processing part may declare it; the host checks this at load, as for configSchema."},
+    "samples": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/sample"}, "description": "Requests the request plugin settings offer to try the plugin with, text only. At most 3 with the same lang; those without lang count as one value. Only a plugin with a request processing part may declare it. The host also refuses media and links in body and reply at load: see Samples in v1.md."}
   },
+  "anyOf": [
+    {"required": ["models", "fetchMode"]},
+    {"required": ["relay"], "properties": {"relay": {"minItems": 1}}},
+    {"not": {"anyOf": [{"required": ["fetchMode"]}, {"required": ["relay"]}]}, "description": "A request processing part alone, which the host reads from the exported stage hooks."}
+  ],
   "allOf": [{"if": {"required": ["requiredCapabilities"], "properties": {"requiredCapabilities": {"contains": {"const": "submit-sse-delta@1"}}}}, "then": {"required": ["submitResponseTypes"], "properties": {"submitResponseTypes": {"contains": {"const": "sse"}}}}}],
   "$defs": {
+    "sample": {
+      "type": "object", "additionalProperties": false, "required": ["name", "format", "body"],
+      "properties": {
+        "name": {"allOf": [{"$ref": "#/$defs/localizedText"}, {"if": {"type": "object"}, "then": {"additionalProperties": {"maxLength": 64}}, "else": {"maxLength": 64}}]},
+        "lang": {"type": "string", "pattern": "^[a-z]{2,3}$", "description": "Base language of the text, such as en or zh; absent for any language."},
+        "format": {"enum": ["openai", "openai_responses", "claude", "gemini"]},
+        "body": {"type": "object", "description": "A request body in format, at most 16 KB as JSON. \"[sample-image]\" as a whole element of a content or parts array stands for an image the settings supply."},
+        "reply": {"type": "string", "minLength": 1, "description": "An answer text of at most 4 KB, for trying a reply hook."}
+      }
+    },
+    "configSchema": {
+      "type": "object", "additionalProperties": false, "required": ["type", "properties"],
+      "properties": {
+        "type": {"const": "object"},
+        "properties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/configField"}},
+        "required": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+      },
+      "description": "The schema of a request processing instance's config. The host also requires an exported stage hook, nesting of at most 4 levels, members that apply to each field's type, and valid defaults and examples."
+    },
+    "configField": {
+      "type": "object", "additionalProperties": false, "required": ["type", "title"],
+      "properties": {
+        "type": {"enum": ["string", "number", "integer", "boolean", "array", "object"]},
+        "title": {"$ref": "#/$defs/usageLabel"},
+        "description": {"allOf": [{"$ref": "#/$defs/localizedText"}, {"if": {"type": "string"}, "then": {"maxLength": 512}, "else": {"additionalProperties": {"maxLength": 512}}}]},
+        "default": true,
+        "examples": {"type": "array"},
+        "enum": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": ["string", "number"]}},
+        "enumTitles": {"type": "array", "items": {"$ref": "#/$defs/usageLabel"}},
+        "minimum": {"type": "number"}, "maximum": {"type": "number"},
+        "unit": {"enum": ["byte", "pixel", "character", "second"], "description": "A form hint for a number or integer field: byte values get a KB/MB choice (1000-based, stored in bytes), the others a suffix."},
+        "minLength": {"type": "integer", "minimum": 0}, "maxLength": {"type": "integer", "minimum": 0},
+        "pattern": {"type": "string", "description": "An RE2 regular expression."},
+        "format": {"enum": ["textarea", "regex", "url", "password", "keywords", "json"], "description": "textarea, regex, url, password and keywords for a string, json for an object. All are form hints except url and keywords: a non-empty url value must be an absolute http(s) URL without credentials or fragment, and its host is one utils.fetch may address in ingress, egress, reply and report. password marks a secret the form hides. keywords, on a property of the schema itself only, is a list with one keyword per line that hooks read as {count, longest} and match with utils.keywords."},
+        "items": {"$ref": "#/$defs/configField"},
+        "minItems": {"type": "integer", "minimum": 0}, "maxItems": {"type": "integer", "minimum": 0}, "uniqueItems": {"type": "boolean"},
+        "properties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/configField"}},
+        "required": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "additionalProperties": {"$ref": "#/$defs/configField", "description": "meta.channelConfig only, on an object field without properties: a value per model, keyed by model name. The host also requires a string, number, integer or boolean field without default or visibleWhen."},
+        "visibleWhen": {
+          "type": "object", "minProperties": 1,
+          "additionalProperties": {"oneOf": [{"type": ["string", "number", "boolean"]}, {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": ["string", "number", "boolean"]}}]},
+          "description": "A form hint on a property, not on the schema or an items field: the form shows the property while every named sibling holds one of the listed values. The host also requires each key to name another property of the same object, of type string, number, integer or boolean, and each value to be valid for it; API responses always write lists."
+        }
+      },
+      "allOf": [{"if": {"required": ["enumTitles"]}, "then": {"required": ["enum"]}}, {"if": {"required": ["unit"]}, "then": {"properties": {"type": {"enum": ["number", "integer"]}}}}],
+      "description": "One field of an instance config. unit, visibleWhen and every format but url are form hints that never change the check, the defaults or the config. The form shows a slider for an integer field whose minimum and maximum are both set and at most 100 apart."
+    },
     "jsonChange": {
       "type": "object", "additionalProperties": false, "required": ["op", "path", "value"],
       "properties": {
@@ -105,6 +164,25 @@
       }
     },
     "route": {"type": "object", "additionalProperties": false, "required": ["method", "path", "type", "render"], "properties": {"method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]}, "path": {"type": "string", "pattern": "^/"}, "type": {"enum": ["submit", "query", "dynamic"]}, "action": {"type": "string"}, "taskIdParam": {"type": "string"}, "retainResult": {"type": "boolean"}, "decode": {"type": "string"}, "render": {"type": "string"}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}, "allOf": [{"if": {"properties": {"type": {"const": "query"}}}, "then": {"allOf": [{"not": {"required": ["decode"]}}, {"not": {"required": ["models"]}}, {"not": {"required": ["retainResult"]}}]}}, {"if": {"properties": {"type": {"enum": ["submit", "dynamic"]}}}, "then": {"required": ["decode"]}}]},
+    "relayRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["incoming_path", "upstream_path"],
+      "properties": {
+        "incoming_path": {"type": "string", "pattern": "^/"},
+        "upstream_path": {"type": "string", "minLength": 1},
+        "converter": {"type": "string", "description": "A registered Advanced Custom converter, plugin for the plugin's convert hooks, or <registered converter>+plugin for that converter's upstream protocol converted by the hooks."},
+        "models": {"type": "array", "items": {"type": "string"}},
+        "auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {"type": {"enum": ["none", "header", "query"]}, "name": {"type": "string"}, "value": {"type": "string"}}
+        },
+        "pass_through_body_enabled": {"type": "boolean"}
+      },
+      "description": "The keys of an Advanced Custom channel route; the host applies the same validation rules."
+    },
     "upstreamKind": {"enum": ["vendor", "new_api"]},
     "upstreamContext": {
       "type": "object",
@@ -127,6 +205,7 @@
         "apiKey": {"type": "string"},
         "authHeader": {"type": "string"},
         "auth": true,
+        "credential": true,
         "upstream": {"$ref": "#/$defs/upstreamContext"},
         "data": true,
         "state": true
@@ -141,6 +220,7 @@
         "apiKey": {"type": "string"},
         "authHeader": {"type": "string"},
         "auth": true,
+        "credential": true,
         "upstream": {"$ref": "#/$defs/upstreamContext"},
         "tasks": {"type": "array", "items": {"$ref": "#/$defs/taskQueryContext"}}
       }
@@ -153,6 +233,65 @@
         "status": {"type": "integer"},
         "headers": {"type": "object", "additionalProperties": {"type": "string"}}
       }
+    },
+    "transformResult": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["action"], "properties": {
+          "action": {"const": "continue"},
+          "effects": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/transformEffect"}},
+          "findings": {"type": "array", "maxItems": 64, "items": {"type": "object", "additionalProperties": false, "required": ["rule", "count"], "properties": {"rule": {"type": "string", "minLength": 1, "maxLength": 256}, "category": {"type": "string", "maxLength": 256}, "path": {"type": "string", "maxLength": 256}, "count": {"type": "integer", "minimum": 0}}}},
+          "notice": {"$ref": "#/$defs/transformNotice"}
+        }},
+        {"type": "object", "additionalProperties": false, "required": ["action", "code"], "properties": {
+          "action": {"const": "reject"},
+          "code": {"type": "string", "pattern": "^[a-z0-9_.-]{1,64}$"},
+          "message": {"type": "string", "maxLength": 256},
+          "ruleId": {"type": "string", "maxLength": 256},
+          "findings": {"type": "array", "maxItems": 64, "items": {"type": "object", "additionalProperties": false, "required": ["rule", "count"], "properties": {"rule": {"type": "string", "minLength": 1, "maxLength": 256}, "category": {"type": "string", "maxLength": 256}, "path": {"type": "string", "maxLength": 256}, "count": {"type": "integer", "minimum": 0}}}},
+          "notice": {"$ref": "#/$defs/transformNotice"}
+        }}
+      ],
+      "description": "The result of a stage hook (ingress, request, outbound, egress)."
+    },
+    "replyResult": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["action"], "properties": {
+          "action": {"const": "continue"},
+          "mask": {"type": "array", "maxItems": 1024, "items": {"type": "object", "additionalProperties": false, "required": ["index", "start", "end"], "properties": {"index": {"type": "integer"}, "start": {"type": "integer", "minimum": 0}, "end": {"type": "integer", "minimum": 1}, "category": {"type": "string", "maxLength": 256}}}},
+          "hold": {"type": "integer", "minimum": 0, "maximum": 8192, "default": 0},
+          "findings": {"type": "array", "maxItems": 64, "items": {"type": "object", "additionalProperties": false, "required": ["rule", "count"], "properties": {"rule": {"type": "string", "minLength": 1, "maxLength": 256}, "category": {"type": "string", "maxLength": 256}, "path": {"type": "string", "maxLength": 256}, "count": {"type": "integer", "minimum": 0}}}},
+          "notice": {"$ref": "#/$defs/transformNotice"}
+        }},
+        {"type": "object", "additionalProperties": false, "required": ["action"], "properties": {
+          "action": {"const": "pass"}
+        }},
+        {"type": "object", "additionalProperties": false, "required": ["action", "code"], "properties": {
+          "action": {"const": "stop"},
+          "code": {"type": "string", "pattern": "^[a-z0-9_.-]{1,64}$"},
+          "message": {"type": "string", "maxLength": 256},
+          "findings": {"type": "array", "maxItems": 64, "items": {"type": "object", "additionalProperties": false, "required": ["rule", "count"], "properties": {"rule": {"type": "string", "minLength": 1, "maxLength": 256}, "category": {"type": "string", "maxLength": 256}, "path": {"type": "string", "maxLength": 256}, "count": {"type": "integer", "minimum": 0}}}},
+          "notice": {"$ref": "#/$defs/transformNotice"}
+        }}
+      ],
+      "description": "The result of the reply hook. A mask names an output of the call and a span of its text in UTF-16 code units, start < end <= text.length; each span becomes ***. The host checks the spans at the call. pass lets the rest of the answer through without further calls."
+    },
+    "transformNotice": {
+      "oneOf": [
+        {"type": "string", "minLength": 1, "maxLength": 200},
+        {"type": "object", "required": ["en"], "maxProperties": 8, "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 200}}
+      ],
+      "description": "Plain explanation for the user of what the plugin did; the user's log shows it as it is."
+    },
+    "transformEffect": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["type", "ops"], "description": "On a form body (req.form true), only replace operations that set an existing text field to a string.", "properties": {"type": {"const": "json.patch"}, "ops": {"type": "array", "items": {"type": "object", "required": ["op", "path"], "properties": {"op": {"enum": ["add", "remove", "replace", "move", "copy", "test"]}, "path": {"type": "string"}, "from": {"type": "string"}, "value": true}}}}},
+        {"type": "object", "additionalProperties": false, "required": ["type"], "properties": {"type": {"const": "header.patch"}, "set": {"type": "object", "additionalProperties": {"type": "string"}}, "remove": {"type": "array", "items": {"type": "string"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "effort"], "properties": {"type": {"const": "reasoning.set"}, "effort": {"enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]}, "override": {"type": "boolean"}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "media", "format"], "properties": {"type": {"const": "media.reencode"}, "media": {"type": "integer", "minimum": 0}, "format": {"enum": ["auto", "jpeg", "png", "webp"]}, "quality": {"type": "integer", "minimum": 1, "maximum": 100}, "maxSide": {"type": "integer", "minimum": 16, "maximum": 16384}},
+          "if": {"properties": {"format": {"const": "webp"}}}, "then": {"not": {"required": ["quality"]}}},
+        {"type": "object", "additionalProperties": false, "required": ["type", "media", "text"], "description": "Replaces the text of a rewritable text file; on any other file of the call, or a text file read in part, it changes nothing.", "properties": {"type": {"const": "media.text"}, "media": {"type": "integer", "minimum": 0}, "text": {"type": "string"}}}
+      ],
+      "description": "ingress: json.patch, keeping model and stream, and media.text. request: reasoning.set. outbound: json.patch (keeping the billing members), header.patch, media.reencode (webp is lossless WebP) and media.text. egress: none."
     }
   }
 }

@@ -40,6 +40,7 @@ const website = 'https://example.com/plugin'
 test('marketplace card shows the plugin website separately from installation', () => {
   render(
     <MarketplacePluginCard
+      kind='task'
       indexUrl='https://example.com/index.json'
       plugin={{
         key: 'example',
@@ -89,7 +90,11 @@ test('installed table shows the same safe website as the plugin card', () => {
   client.setQueryData(['task-plugins'], [item])
   render(
     <QueryClientProvider client={client}>
-      <PluginsTable onDetails={() => undefined} onUpload={() => undefined} />
+      <PluginsTable
+        onKindChange={() => undefined}
+        onDetails={() => undefined}
+        onUpload={() => undefined}
+      />
     </QueryClientProvider>
   )
   const links = screen.getAllByRole('link', { name: 'Plugin website' })

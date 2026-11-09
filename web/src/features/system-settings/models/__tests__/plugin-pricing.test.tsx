@@ -134,7 +134,7 @@ it('keeps provider drafts across tabs and saves nested expressions with the mode
     </QueryClientProvider>
   )
   const user = userEvent.setup()
-  const defaultTab = await screen.findByRole('tab', { name: 'Default' })
+  const defaultTab = await screen.findByRole('tab', { name: 'Default price' })
   expect(defaultTab).toHaveAttribute('aria-selected', 'true')
   expect(
     await screen.findByText(
@@ -173,9 +173,9 @@ it('keeps provider drafts across tabs and saves nested expressions with the mode
   ).not.toBeInTheDocument()
   await user.click(screen.getByRole('tab', { name: 'Beta' }))
   expect(price).toHaveValue('1.5')
-  await user.click(screen.getByRole('tab', { name: 'Ordinary OpenAI' }))
+  await user.click(screen.getByRole('tab', { name: 'Ordinary price' }))
   await user.click(
-    screen.getByRole('button', { name: 'Configure ordinary OpenAI pricing' })
+    screen.getByRole('button', { name: 'Configure ordinary pricing' })
   )
   const ordinaryPrice = screen.getByRole('textbox', { name: 'Input price' })
   await user.clear(ordinaryPrice)
@@ -272,7 +272,7 @@ it('lets an administrator remove an unavailable provider’s saved price', async
     pluginBillingExpr: {},
     billingExpr: expression,
   })
-  expect(screen.getByRole('tab', { name: 'Default' })).toHaveAttribute(
+  expect(screen.getByRole('tab', { name: 'Default price' })).toHaveAttribute(
     'aria-selected',
     'true'
   )
@@ -419,7 +419,7 @@ it('opens task expression pricing when only provider metadata supplies a schema'
   expect(screen.getByRole('textbox', { name: 'seconds' })).toBeVisible()
 })
 
-it('configures ordinary OpenAI pricing while preserving inherited and saved plugin prices', async () => {
+it('configures ordinary pricing while preserving inherited and saved plugin prices', async () => {
   const expression = 'tier("base", u("seconds") * 0.4)'
   const savedOverride = 'tier("base", u("seconds") * 0.7)'
   const { ref, dirty } = renderEditor(
@@ -439,14 +439,14 @@ it('configures ordinary OpenAI pricing while preserving inherited and saved plug
     }))
   )
   const user = userEvent.setup()
-  await user.click(screen.getByRole('tab', { name: 'Ordinary OpenAI' }))
+  await user.click(screen.getByRole('tab', { name: 'Ordinary price' }))
   expect(dirty).toHaveBeenLastCalledWith(false)
   expect(await ref.current?.commitDraft()).toMatchObject({
     billingExpr: expression,
     pluginBillingExpr: { beta: savedOverride },
   })
   await user.click(
-    screen.getByRole('button', { name: 'Configure ordinary OpenAI pricing' })
+    screen.getByRole('button', { name: 'Configure ordinary pricing' })
   )
   const price = screen.getByRole('textbox', { name: 'Input price' })
   await user.clear(price)
@@ -484,19 +484,19 @@ it('starts ordinary image pricing per returned image and keeps the plugin image 
     ]
   )
   const user = userEvent.setup()
-  await user.click(screen.getByRole('tab', { name: 'Ordinary OpenAI' }))
+  await user.click(screen.getByRole('tab', { name: 'Ordinary price' }))
   await user.click(
-    screen.getByRole('button', { name: 'Configure ordinary OpenAI pricing' })
+    screen.getByRole('button', { name: 'Configure ordinary pricing' })
   )
   const price = screen.getByRole('textbox', { name: 'Price per image' })
   await user.clear(price)
   await user.type(price, '0.02')
   expect(
-    within(screen.getByRole('tabpanel', { name: 'Ordinary OpenAI' })).getByRole(
+    within(screen.getByRole('tabpanel', { name: 'Default price' })).getByRole(
       'tablist'
     )
   ).toHaveClass('flex-wrap')
-  const ordinary = screen.getByRole('tab', { name: 'Ordinary OpenAI' })
+  const ordinary = screen.getByRole('tab', { name: 'Default price' })
   await user.click(ordinary)
   await user.keyboard('{ArrowRight}{Enter}')
   expect(screen.getByRole('tab', { name: 'Alibaba' })).toHaveAttribute(
@@ -543,9 +543,13 @@ it.each([
         },
       ]
     )
+    expect(screen.getByRole('tab', { name: 'Default price' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
     expect(
-      screen.getByRole('tab', { name: 'Ordinary OpenAI' })
-    ).toHaveAttribute('aria-selected', 'true')
+      screen.getByRole('complementary', { name: 'Preview' })
+    ).toHaveTextContent('Default price · Preview')
     expect(screen.getByRole('textbox', { name: field })).toHaveValue(value)
     const user = userEvent.setup()
     await user.click(screen.getByRole('tab', { name: 'Alpha' }))
@@ -559,5 +563,100 @@ it.each([
       billingExpr: expression,
       pluginBillingExpr: { alpha: 'tier("base", u("seconds") * 0.6)' },
     })
+  }
+)
+
+it.each([
+  {
+    pricing: 'a token ratio',
+    editData: { name: 'chat-task', billingMode: 'per-token', ratio: '10' },
+    configured: false,
+  },
+  {
+    pricing: 'a per-call price',
+    editData: { name: 'chat-task', billingMode: 'per-request', price: '0.04' },
+    configured: true,
+  },
+] satisfies {
+  pricing: string
+  editData: ModelRatioData
+  configured: boolean
+}[])(
+  'shows whether a plugin that also relays the model inherits $pricing',
+  async (testCase) => {
+    renderEditor(testCase.editData, [
+      {
+        plugin_key: 'alpha',
+        plugin_name: 'Alpha',
+        usage_schema: { seconds: { type: 'number', unit: 'second' } },
+        configured: '',
+        effective: '',
+        compatible: false,
+        relay: true,
+      },
+    ])
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Alpha' }))
+    const panel = screen.getByRole('tabpanel', { name: 'Alpha' })
+    expect(
+      within(panel).queryByText('Not configured for this provider') !== null
+    ).toBe(!testCase.configured)
+    expect(within(panel).queryByText('Use model-level pricing') !== null).toBe(
+      testCase.configured
+    )
+  }
+)
+
+it.each([
+  {
+    expression: 'tier("base", p * 2 + c * 8)',
+    relay: false,
+    configured: false,
+  },
+  {
+    expression: 'tier("images", image_count * 0.04)',
+    relay: false,
+    configured: false,
+  },
+  { expression: 'tier("flat", 0.04)', relay: true, configured: false },
+  {
+    expression: 'tier("base", u("seconds") * 0.4)',
+    relay: true,
+    configured: true,
+  },
+  { expression: 'tier("flat", 0.04)', relay: false, configured: true },
+])(
+  'marks the inherited expression $expression for a plugin with relay $relay as configured: $configured',
+  async (testCase) => {
+    render(
+      <TaskPluginPricingEditor
+        variants={[
+          {
+            plugin_key: 'alpha',
+            plugin_name: 'Alpha',
+            usage_schema: { seconds: { type: 'number', unit: 'second' } },
+            configured: '',
+            effective: testCase.expression,
+            compatible: testCase.configured,
+            relay: testCase.relay,
+          },
+        ]}
+        expressions={{}}
+        onChange={vi.fn()}
+        modelExpression={testCase.expression}
+        modelBillingMode='tiered_expr'
+        currency={USD_PRICING_CURRENCY}
+      >
+        <span>Default editor</span>
+      </TaskPluginPricingEditor>
+    )
+    expect(
+      screen.queryByText(
+        'The model-level expression cannot be evaluated by: Alpha'
+      ) !== null
+    ).toBe(!testCase.configured)
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Alpha' }))
+    expect(
+      screen.queryByText('Not configured for this provider') !== null
+    ).toBe(!testCase.configured)
   }
 )

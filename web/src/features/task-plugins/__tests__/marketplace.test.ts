@@ -21,13 +21,15 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'vitest'
 
 import {
+  COMMUNITY_MARKETPLACE_INDEX_URL,
   deriveInstallState,
   findMarketplaceVersion,
+  findRevokedEntry,
   GITHUB_MARKETPLACE_INDEX_URL,
   indexHasIntegrityHashes,
-  isDefaultMarketplaceSource,
   isStaleFactoryOverride,
   marketplaceBuiltInVersion,
+  marketplaceSourceKind,
   parseMarketplaceIndex,
   resolvePluginSourceUrl,
 } from '../lib/marketplace'
@@ -420,6 +422,25 @@ describe('marketplace index parsing', () => {
     assert.equal(index.plugins[1].iconFile, undefined)
   })
 
+  test('keeps an extensionless community icon file named by its digest', () => {
+    const digest = 'a'.repeat(64)
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          key: 'alice_foo',
+          latest: '1.0.0',
+          iconFile: { path: `files/${digest}`, sha256: digest },
+          versions: [{ version: '1.0.0', path: `files/${'b'.repeat(64)}` }],
+        },
+      ],
+    })
+    assert.deepEqual(index.plugins[0].iconFile, {
+      path: `files/${digest}`,
+      sha256: digest,
+    })
+  })
+
   test('keeps a version baseUrl after trim and omits a blank one', () => {
     const index = parseMarketplaceIndex({
       indexVersion: 1,
@@ -615,16 +636,28 @@ describe('source integrity and trust labels', () => {
   })
 
   test('labels both built-in index URLs as official sources', () => {
-    assert.equal(isDefaultMarketplaceSource(OFFICIAL_INDEX_URL), true)
-    assert.equal(isDefaultMarketplaceSource(` ${OFFICIAL_INDEX_URL} `), true)
-    assert.equal(isDefaultMarketplaceSource(GITHUB_MARKETPLACE_INDEX_URL), true)
+    assert.equal(marketplaceSourceKind(OFFICIAL_INDEX_URL), 'official')
+    assert.equal(marketplaceSourceKind(` ${OFFICIAL_INDEX_URL} `), 'official')
+    assert.equal(
+      marketplaceSourceKind(GITHUB_MARKETPLACE_INDEX_URL),
+      'official'
+    )
   })
 
-  test('labels any other index URL as third-party', () => {
+  test('labels the built-in community address as community', () => {
     assert.equal(
-      isDefaultMarketplaceSource('https://mirror.example/index.json'),
-      false
+      marketplaceSourceKind(` ${COMMUNITY_MARKETPLACE_INDEX_URL} `),
+      'community'
     )
+  })
+
+  test.each([
+    'https://mirror.example/index.json',
+    `${COMMUNITY_MARKETPLACE_INDEX_URL}?official=1`,
+    OFFICIAL_INDEX_URL.replace('https:', 'http:'),
+    'https://newapi.ai/api/v1/community/index.json',
+  ])('labels %s as third-party', (indexUrl) => {
+    assert.equal(marketplaceSourceKind(indexUrl), 'third_party')
   })
 })
 
@@ -694,5 +727,105 @@ describe('marketplace display metadata', () => {
     })
     assert.equal(index.plugins.length, 1)
     assert.equal(index.plugins[0].website, undefined)
+  })
+})
+
+describe('community index fields', () => {
+  const digest = 'c'.repeat(64)
+
+  test('reads the author, repository, code, installs and recommendation', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          ...marketplacePlugin({ key: 'alice_foo' }),
+          author: { login: ' alice ', url: 'https://github.com/alice' },
+          repo: 'https://github.com/alice/newapi-plugins',
+          code: ' 40817265 ',
+          installs30d: 12,
+          recommended: true,
+        },
+      ],
+    })
+    const plugin = index.plugins[0]
+    assert.deepEqual(plugin.author, {
+      login: 'alice',
+      url: 'https://github.com/alice',
+    })
+    assert.equal(plugin.repo, 'https://github.com/alice/newapi-plugins')
+    assert.equal(plugin.code, '40817265')
+    assert.equal(plugin.installs30d, 12)
+    assert.equal(plugin.recommended, true)
+  })
+
+  test('drops malformed community fields without dropping the plugin', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          ...marketplacePlugin({ key: 'alice_foo' }),
+          author: { login: '', url: 'https://github.com/alice' },
+          repo: 'javascript:alert(1)',
+          installs30d: -1,
+          recommended: 'yes',
+        },
+      ],
+    })
+    const plugin = index.plugins[0]
+    assert.equal(plugin.author, undefined)
+    assert.equal(plugin.repo, undefined)
+    assert.equal(plugin.installs30d, undefined)
+    assert.equal(plugin.recommended, false)
+  })
+
+  test('puts recommended plugins first, then the most installed', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        { ...marketplacePlugin({ key: 'a_few' }), installs30d: 3 },
+        { ...marketplacePlugin({ key: 'a_many' }), installs30d: 50 },
+        {
+          ...marketplacePlugin({ key: 'a_pick' }),
+          installs30d: 1,
+          recommended: true,
+        },
+        marketplacePlugin({ key: 'a_none' }),
+      ],
+    })
+    assert.deepEqual(
+      index.plugins.map((plugin) => plugin.key),
+      ['a_pick', 'a_many', 'a_few', 'a_none']
+    )
+  })
+
+  test('reads takedown entries and skips ones without a valid digest', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [],
+      revoked: [
+        { sha256: ` ${digest.toUpperCase()} `, reason: { en: 'Steals keys' } },
+        { sha256: 'not-a-digest', reason: 'ignored' },
+        'junk',
+      ],
+    })
+    assert.deepEqual(index.revoked, [
+      { sha256: digest, key: undefined, reason: { en: 'Steals keys' } },
+    ])
+  })
+
+  test('matches an installed plugin to a takedown entry by its code digest', () => {
+    const index: MarketplaceIndex = {
+      indexVersion: 1,
+      name: '',
+      plugins: [],
+      revoked: [{ sha256: digest, reason: 'Steals keys' }],
+    }
+    assert.equal(
+      findRevokedEntry(index, digest.toUpperCase())?.reason,
+      'Steals keys'
+    )
+    assert.equal(findRevokedEntry(index, 'd'.repeat(64)), undefined)
+    assert.equal(findRevokedEntry(index, ''), undefined)
+    assert.equal(findRevokedEntry(undefined, digest), undefined)
   })
 })

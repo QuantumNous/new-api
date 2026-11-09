@@ -56,6 +56,8 @@ export const channelsQueryKeys = {
     [...channelsQueryKeys.lists(), params] as const,
   details: () => [...channelsQueryKeys.all, 'detail'] as const,
   detail: (id: number) => [...channelsQueryKeys.details(), id] as const,
+  pluginCredentials: (id: number) =>
+    [...channelsQueryKeys.detail(id), 'plugin_credentials'] as const,
 }
 
 function getChannelTestResponseTime(
@@ -656,8 +658,13 @@ export async function handleTestAllChannels(
   }
 }
 
+/** When the list reloads after the balance update starts on the server. */
+const BALANCE_UPDATE_REFRESH_DELAYS_MS = [10_000, 60_000]
+
 /**
- * Update balance for all enabled channels
+ * Update balance for all enabled channels. The server updates them in the
+ * background, so the list reloads a little later, twice; a run already in
+ * progress is reported instead.
  */
 export async function handleUpdateAllBalances(
   queryClient?: QueryClient,
@@ -665,14 +672,25 @@ export async function handleUpdateAllBalances(
 ): Promise<void> {
   try {
     const response = await updateAllChannelsBalance()
-    if (response.success) {
+    if (response.success && response.data?.started !== false) {
       toast.success(
         i18next.t(
-          'Updating all channel balances. This may take a while. Please refresh to see results.'
+          'Balances are updating in the background. The list will refresh on its own.'
         )
       )
-      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      for (const delay of BALANCE_UPDATE_REFRESH_DELAYS_MS) {
+        setTimeout(() => {
+          void queryClient?.invalidateQueries({
+            queryKey: channelsQueryKeys.lists(),
+          })
+        }, delay)
+      }
       onSuccess?.()
+    } else if (response.success) {
+      toast.info(
+        getServerMessage(response) ||
+          i18next.t('A balance update is already running')
+      )
     } else {
       handleServerError(response, i18next.t('Failed to update all balances'))
     }

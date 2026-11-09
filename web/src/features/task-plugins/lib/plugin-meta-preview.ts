@@ -404,6 +404,72 @@ export function parsePluginMetaPreview(source: string): PluginMetaPreview {
   return result
 }
 
+const TRANSFORM_EXPORTS = [
+  'ingress',
+  'request',
+  'outbound',
+  'egress',
+  'reply',
+  'report',
+]
+
+/**
+ * The parts a plugin source has, read the way the gateway reads them: a task
+ * part when it exports buildSubmitRequest, a provider part when meta.relay
+ * lists routes, and a request processing part when it exports a stage hook.
+ * Returns null when the source cannot be read without running it.
+ */
+export function readPluginSourceParts(
+  source: string
+): { task: boolean; provider: boolean; transform: boolean } | null {
+  if (pluginSourceByteLength(source) > MAX_PLUGIN_SOURCE_BYTES) return null
+  const tree = javascriptLanguage.parser.parse(source)
+  const exported = new Set<string>()
+  let relay: boolean | null = null
+  for (const declaration of tree.topNode.getChildren('ExportDeclaration')) {
+    for (let child = declaration.firstChild; child; child = child.nextSibling) {
+      if (child.name === 'ExportGroup') {
+        // `export {a as b}` exports b; `export {a}` exports a.
+        for (const name of child.getChildren('VariableName')) {
+          const next = name.nextSibling
+          if (next?.name !== 'as') {
+            exported.add(source.slice(name.from, name.to))
+          }
+        }
+        continue
+      }
+      if (child.name === 'VariableDeclaration') {
+        for (const variable of child.getChildren('VariableDefinition')) {
+          const name = source.slice(variable.from, variable.to)
+          exported.add(name)
+          if (name !== 'meta') continue
+          const value = readConstInitializer(variable)
+          const properties = value
+            ? staticObjectProperties(source, value)
+            : null
+          const routes = properties?.get('relay')
+          if (properties && !properties.has('relay')) relay = false
+          // Anything but a literal empty list counts as declaring routes.
+          if (routes) {
+            relay =
+              source.slice(routes.from, routes.to).replaceAll(/\s/g, '') !==
+              '[]'
+          }
+        }
+        continue
+      }
+      const name = child.getChild('VariableDefinition')
+      if (name) exported.add(source.slice(name.from, name.to))
+    }
+  }
+  if (relay === null) return null
+  return {
+    task: exported.has('buildSubmitRequest'),
+    provider: relay,
+    transform: TRANSFORM_EXPORTS.some((hook) => exported.has(hook)),
+  }
+}
+
 /** Source absence is a fact; only unresolved source fields fall back to index hints. */
 export function resolvePluginMetaPreview(
   plugin: MarketplacePlugin | undefined,

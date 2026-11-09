@@ -314,11 +314,17 @@ function duration(req) {
   if (!Number.isFinite(n) || n <= 0) n = 8;
   return n;
 }
+// The channel's region field, read as the built-in Vertex AI channel reads it:
+// a plain region, or a JSON map of model to region with a default.
 function region(ctx, model) {
-  const setting = ctx.userSetting || {};
-  const configured = setting.vertexRegion || setting.apiVersion || "global";
-  if (configured && typeof configured === "object") return configured[model] || configured.default || "global";
-  return String(configured || "global");
+  const other = String(ctx.channelOther || "").trim();
+  if (other.startsWith("{")) {
+    try {
+      const regions = JSON.parse(other);
+      return String(regions[model] || regions.default || "global");
+    } catch (e) {}
+  }
+  return other || "global";
 }
 function apiBase(baseUrl, project, location) {
   const base = String(baseUrl || "").replace(/\/$/, "");
