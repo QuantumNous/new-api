@@ -103,6 +103,32 @@ describe('phase 1 - portal separation (static analysis)', () => {
   })
 })
 
+describe('phase 1 - entry chunk hygiene', () => {
+  it('admin route configs never import a section registry', () => {
+    const files = collectSourceFiles(resolve(WEB_ROOT, 'src/routes/_admin'))
+    expect(files.length).toBeGreaterThan(0)
+
+    // `beforeLoad`/`validateSearch` code is bundled into the initial chunk, so
+    // importing a section registry there pulls the whole admin settings graph
+    // (components and admin-only API modules) into every visitor's download,
+    // including the client portal. Section ids come from the plain module
+    // `@/apps/admin/routes/section-ids` instead.
+    const offenders = files.filter((file) =>
+      /from ['"]@\/apps\/admin\/features\/.+\/section-registry(\.tsx?)?['"]/.test(
+        readSource(file)
+      )
+    )
+    expect(offenders).toEqual([])
+  })
+
+  it('the shared section-id module stays dependency-free', () => {
+    const source = readSource(
+      resolve(WEB_ROOT, 'src/apps/admin/routes/section-ids.ts')
+    )
+    expect(source).not.toMatch(/^import /m)
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Phase 2: simulated penetration tests
 // ---------------------------------------------------------------------------

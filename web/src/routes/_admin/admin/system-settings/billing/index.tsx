@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { BILLING_DEFAULT_SECTION } from '@/apps/admin/features/system-settings/billing/section-registry.tsx'
+import { SETTINGS_BILLING_DEFAULT_SECTION } from '@/apps/admin/routes/section-ids'
 
 export const Route = createFileRoute(
   '/_admin/admin/system-settings/billing/'
@@ -26,7 +26,7 @@ export const Route = createFileRoute(
   beforeLoad: () => {
     throw redirect({
       to: '/admin/system-settings/billing/$section',
-      params: { section: BILLING_DEFAULT_SECTION },
+      params: { section: SETTINGS_BILLING_DEFAULT_SECTION },
     })
   },
 })

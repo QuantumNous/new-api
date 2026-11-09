@@ -120,11 +120,18 @@ func setupVisibleSectionRouterTest(t *testing.T) *gin.Engine {
 
 func createSectionTestAdmin(t *testing.T, username string, sections []string) string {
 	t.Helper()
+	return createSectionTestUser(t, username, common.RoleAdminUser, sections)
+}
+
+// createSectionTestUser inserts an enabled user of any role plus a live login
+// session, and returns the dashboard access token that session issued.
+func createSectionTestUser(t *testing.T, username string, role int, sections []string) string {
+	t.Helper()
 	user := model.User{
 		Username:    username,
 		Password:    "section-password-123",
 		DisplayName: username,
-		Role:        common.RoleAdminUser,
+		Role:        role,
 		Status:      common.UserStatusEnabled,
 		Group:       "default",
 		AffCode:     "aff-" + username,

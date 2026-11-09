@@ -20,9 +20,9 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { ModelSettings } from '@/apps/admin/features/system-settings/models'
 import {
-  MODELS_DEFAULT_SECTION,
-  MODELS_SECTION_IDS,
-} from '@/apps/admin/features/system-settings/models/section-registry.tsx'
+  SETTINGS_MODELS_DEFAULT_SECTION,
+  SETTINGS_MODELS_SECTION_IDS,
+} from '@/apps/admin/routes/section-ids'
 
 export const Route = createFileRoute(
   '/_admin/admin/system-settings/models/$section'
@@ -42,11 +42,11 @@ export const Route = createFileRoute(
         replace: true,
       })
     }
-    const validSections = MODELS_SECTION_IDS as unknown as string[]
+    const validSections = SETTINGS_MODELS_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({
         to: '/admin/system-settings/models/$section',
-        params: { section: MODELS_DEFAULT_SECTION },
+        params: { section: SETTINGS_MODELS_DEFAULT_SECTION },
       })
     }
   },

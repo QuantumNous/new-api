@@ -18,13 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { AUTH_DEFAULT_SECTION } from '@/apps/admin/features/system-settings/auth/section-registry.tsx'
+import { SETTINGS_AUTH_DEFAULT_SECTION } from '@/apps/admin/routes/section-ids'
 
 export const Route = createFileRoute('/_admin/admin/system-settings/auth/')({
   beforeLoad: () => {
     throw redirect({
       to: '/admin/system-settings/auth/$section',
-      params: { section: AUTH_DEFAULT_SECTION },
+      params: { section: SETTINGS_AUTH_DEFAULT_SECTION },
     })
   },
 })

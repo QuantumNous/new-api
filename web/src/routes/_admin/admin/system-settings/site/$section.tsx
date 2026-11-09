@@ -20,19 +20,19 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { SiteSettings } from '@/apps/admin/features/system-settings/site'
 import {
-  SITE_DEFAULT_SECTION,
-  SITE_SECTION_IDS,
-} from '@/apps/admin/features/system-settings/site/section-registry.tsx'
+  SETTINGS_SITE_DEFAULT_SECTION,
+  SETTINGS_SITE_SECTION_IDS,
+} from '@/apps/admin/routes/section-ids'
 
 export const Route = createFileRoute(
   '/_admin/admin/system-settings/site/$section'
 )({
   beforeLoad: ({ params }) => {
-    const validSections = SITE_SECTION_IDS as unknown as string[]
+    const validSections = SETTINGS_SITE_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({
         to: '/admin/system-settings/site/$section',
-        params: { section: SITE_DEFAULT_SECTION },
+        params: { section: SETTINGS_SITE_DEFAULT_SECTION },
       })
     }
   },

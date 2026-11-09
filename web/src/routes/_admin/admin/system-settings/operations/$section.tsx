@@ -20,9 +20,9 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { OperationsSettings } from '@/apps/admin/features/system-settings/operations'
 import {
-  OPERATIONS_DEFAULT_SECTION,
-  OPERATIONS_SECTION_IDS,
-} from '@/apps/admin/features/system-settings/operations/section-registry.tsx'
+  SETTINGS_OPERATIONS_DEFAULT_SECTION,
+  SETTINGS_OPERATIONS_SECTION_IDS,
+} from '@/apps/admin/routes/section-ids'
 
 export const Route = createFileRoute(
   '/_admin/admin/system-settings/operations/$section'
@@ -36,11 +36,11 @@ export const Route = createFileRoute(
       })
     }
 
-    const validSections = OPERATIONS_SECTION_IDS as unknown as string[]
+    const validSections = SETTINGS_OPERATIONS_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({
         to: '/admin/system-settings/operations/$section',
-        params: { section: OPERATIONS_DEFAULT_SECTION },
+        params: { section: SETTINGS_OPERATIONS_DEFAULT_SECTION },
       })
     }
   },

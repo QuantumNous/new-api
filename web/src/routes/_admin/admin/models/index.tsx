@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { MODELS_DEFAULT_SECTION } from '@/apps/admin/features/models/section-registry'
+import { MODELS_PAGE_DEFAULT_SECTION } from '@/apps/admin/routes/section-ids'
 import { ROLE } from '@/shared/lib/roles'
 import { useAuthStore } from '@/shared/stores/auth-store'
 
@@ -34,7 +34,7 @@ export const Route = createFileRoute('/_admin/admin/models/')({
 
     throw redirect({
       to: '/admin/models/$section',
-      params: { section: MODELS_DEFAULT_SECTION },
+      params: { section: MODELS_PAGE_DEFAULT_SECTION },
     })
   },
 })

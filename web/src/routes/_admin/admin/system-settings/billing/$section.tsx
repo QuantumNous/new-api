@@ -20,19 +20,19 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { BillingSettings } from '@/apps/admin/features/system-settings/billing'
 import {
-  BILLING_DEFAULT_SECTION,
-  BILLING_SECTION_IDS,
-} from '@/apps/admin/features/system-settings/billing/section-registry.tsx'
+  SETTINGS_BILLING_DEFAULT_SECTION,
+  SETTINGS_BILLING_SECTION_IDS,
+} from '@/apps/admin/routes/section-ids'
 
 export const Route = createFileRoute(
   '/_admin/admin/system-settings/billing/$section'
 )({
   beforeLoad: ({ params }) => {
-    const validSections = BILLING_SECTION_IDS as unknown as string[]
+    const validSections = SETTINGS_BILLING_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({
         to: '/admin/system-settings/billing/$section',
-        params: { section: BILLING_DEFAULT_SECTION },
+        params: { section: SETTINGS_BILLING_DEFAULT_SECTION },
       })
     }
   },

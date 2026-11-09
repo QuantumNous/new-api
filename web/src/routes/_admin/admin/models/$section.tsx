@@ -21,9 +21,9 @@ import z from 'zod'
 
 import { Models } from '@/apps/admin/features/models'
 import {
-  MODELS_SECTION_IDS,
-  MODELS_DEFAULT_SECTION,
-} from '@/apps/admin/features/models/section-registry'
+  MODELS_PAGE_DEFAULT_SECTION,
+  MODELS_PAGE_SECTION_IDS,
+} from '@/apps/admin/routes/section-ids'
 import { ROLE } from '@/shared/lib/roles'
 import { useAuthStore } from '@/shared/stores/auth-store'
 
@@ -58,11 +58,11 @@ export const Route = createFileRoute('/_admin/admin/models/$section')({
       })
     }
 
-    const validSections = MODELS_SECTION_IDS as unknown as string[]
+    const validSections = MODELS_PAGE_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({
         to: '/admin/models/$section',
-        params: { section: MODELS_DEFAULT_SECTION },
+        params: { section: MODELS_PAGE_DEFAULT_SECTION },
       })
     }
   },
