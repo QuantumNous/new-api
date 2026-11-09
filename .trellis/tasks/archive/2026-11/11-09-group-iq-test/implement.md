@@ -57,7 +57,7 @@ Status: implementation and focused local validation complete; the user authorize
 - [x] Record the actually observed self-navigation and resource-exhaustion limitations honestly; do not claim a hardened sandbox or complete network air gap.
 - [x] Update linked backend/frontend executable IQ specs with contracts, discovered input/test-bootstrap gotchas and focused test evidence.
 - [x] Explicitly include intended Trellis artifacts in Git despite the root `.trellis/` ignore rule. Exclude session pointers, unrelated workspace traces, temporary docs/artifacts, node_modules and package-manager cache/log noise.
-- [ ] Commit verified business code/tests/spec/task changes, then complete/archive the task and record the session according to the workflow.
+- [x] Commit verified business code/tests/spec/task changes as `11d7d3d0b`, then complete/archive the task under `archive/2026-11/11-09-group-iq-test`. Record the session in the following journal commit according to the workflow.
 - [ ] At task completion, ask permission before removing artifacts listed in `.group-iq-test-temp-artifacts.md`. Do not delete Trellis logs.
 
 ## Validation Commands
