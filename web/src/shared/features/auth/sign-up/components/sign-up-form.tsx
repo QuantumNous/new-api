@@ -58,8 +58,6 @@ import {
 } from '@/shared/lib/server-error-message'
 import { cn } from '@/shared/lib/utils'
 
-const REGISTRATION_REDIRECT_TIMEOUT_MS = 5_000
-
 export function SignUpForm({
   className,
   ...props
@@ -82,7 +80,7 @@ export function SignUpForm({
     setTurnstileToken,
     validateTurnstile,
   } = useTurnstile()
-  const { redirectToLogin, handleLoginResult } = useAuthRedirect()
+  const { handleLoginResult } = useAuthRedirect()
   const {
     isSending: isSendingCode,
     secondsLeft,
@@ -176,23 +174,16 @@ export function SignUpForm({
       })
 
       if (res?.success) {
-        toast.success(t('Account created successfully. Please log in.'))
-        let redirectTimer: ReturnType<typeof globalThis.setTimeout> | undefined
-        try {
-          await Promise.race([
-            redirectToLogin(),
-            new Promise<never>((_, reject) => {
-              redirectTimer = globalThis.setTimeout(
-                () => reject(new Error('Login redirect timed out')),
-                REGISTRATION_REDIRECT_TIMEOUT_MS
-              )
-            }),
-          ])
-        } catch {
-          window.location.assign('/login')
-        } finally {
-          globalThis.clearTimeout(redirectTimer)
-        }
+        // Reset the form and stop the spinner before leaving, so no part of
+        // the submit state survives into the success transition.
+        form.reset()
+        setVerificationCode('')
+        // The login route re-resolves the session on entry, and that guard can
+        // leave a client-side transition pending: the URL changes but the
+        // sign-up form stays mounted with its spinner running. A full document
+        // load is the only transition guaranteed to unmount this form and mount
+        // /login; the `registered` flag lets the login page show the toast.
+        window.location.href = '/login?registered=1'
         return
       }
       handleServerError(createServerError(res, t('Failed to create account')))

@@ -16,8 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { useStatus } from '@/shared/hooks/use-status'
 
@@ -27,8 +29,20 @@ import { UserAuthForm } from './components/user-auth-form'
 
 export function SignIn() {
   const { t } = useTranslation()
-  const { redirect } = useSearch({ from: '/(auth)/login' })
+  const navigate = useNavigate()
+  const { redirect, registered } = useSearch({ from: '/(auth)/login' })
   const { status } = useStatus()
+
+  useEffect(() => {
+    if (!registered) return
+    toast.success(t('Account created successfully. Please log in.'))
+    // Drop the flag so a manual reload does not repeat the confirmation.
+    void navigate({
+      to: '/login',
+      search: { redirect },
+      replace: true,
+    })
+  }, [registered, redirect, navigate, t])
 
   return (
     <AuthLayout>

@@ -29,7 +29,15 @@ import { useAuthStore } from '@/shared/stores/auth-store'
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
+  // Set by the sign-up success path, which hands off with a full document
+  // load so the login page can show the confirmation toast exactly once.
+  registered: z.literal('1').optional(),
 })
+
+/** Session checks are already bounded by the refresh client's timeout; this
+ *  extra bound makes sure a lock or stalled proxy can never leave the login
+ *  transition pending with the URL changed but the old screen still mounted. */
+const SESSION_RESOLVE_TIMEOUT_MS = 10_000
 
 export const Route = createFileRoute('/(auth)/login')({
   component: SignIn,
@@ -37,7 +45,23 @@ export const Route = createFileRoute('/(auth)/login')({
   beforeLoad: async ({ search }) => {
     // 根 guard 可能因为没有会话提示而跳过了 refresh。此处必须回源确认，
     // 否则持有有效 Refresh Cookie 的用户会被要求重新输入密码。
-    await resolveAuthentication()
+    let sessionTimer: ReturnType<typeof globalThis.setTimeout> | undefined
+    try {
+      await Promise.race([
+        resolveAuthentication(),
+        new Promise<never>((_, reject) => {
+          sessionTimer = globalThis.setTimeout(
+            () => reject(new Error('Session resolution timed out')),
+            SESSION_RESOLVE_TIMEOUT_MS
+          )
+        }),
+      ])
+    } catch {
+      // A stalled session check must not pin the login transition; fall through
+      // and render the form for an anonymous visitor.
+    } finally {
+      globalThis.clearTimeout(sessionTimer)
+    }
 
     const { auth } = useAuthStore.getState()
     if (!auth.user) return
