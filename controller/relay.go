@@ -69,6 +69,8 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 	return err
 }
 
+// Relay dispatches provider attempts under the retry policy and finalizes even
+// empty successful responses before returning to the HTTP middleware.
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	requestId := c.GetString(common.RequestIdKey)
@@ -215,6 +217,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if newAPIError == nil {
+			// Empty successful retries still need to commit their binding, even
+			// when a heartbeat has already made the response headers visible.
+			c.Writer.WriteHeaderNow()
 			service.MarkRequestPolicySuccess(c, relayInfo.StreamStatus)
 			relayInfo.LastError = nil
 			return

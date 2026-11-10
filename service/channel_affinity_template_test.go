@@ -498,6 +498,7 @@ func (r *affinityObservingRecorder) WriteString(data string) (int, error) {
 	return r.Write([]byte(data))
 }
 
+// TestChannelAffinityBeforeResponseVisible checks binding before headers and body reach the client.
 func TestChannelAffinityBeforeResponseVisible(t *testing.T) {
 	setting := operation_setting.GetChannelAffinitySetting()
 	previous := *setting
@@ -554,6 +555,7 @@ func TestChannelAffinityBeforeResponseVisible(t *testing.T) {
 	}
 }
 
+// TestConcurrentChannelAffinityReservation elects one channel and preserves newer cache values.
 func TestConcurrentChannelAffinityReservation(t *testing.T) {
 	for _, backend := range []string{"memory", "redis"} {
 		t.Run(backend, func(t *testing.T) {
@@ -609,6 +611,7 @@ func TestConcurrentChannelAffinityReservation(t *testing.T) {
 	}
 }
 
+// TestChannelAffinitySelectionReservesBeforeDispatch checks reservation before upstream work.
 func TestChannelAffinitySelectionReservesBeforeDispatch(t *testing.T) {
 	db := setupChannelSelectAutoGroupsTest(t)
 	createChannelSelectAutoGroupsChannel(t, db, 2101, "default", "affinity-model")
@@ -642,6 +645,7 @@ func TestChannelAffinitySelectionReservesBeforeDispatch(t *testing.T) {
 	assert.Equal(t, first.Id, second.Id)
 }
 
+// TestChannelAffinityCacheFailureDoesNotExposeSuccess rejects output when binding storage fails.
 func TestChannelAffinityCacheFailureDoesNotExposeSuccess(t *testing.T) {
 	setting := operation_setting.GetChannelAffinitySetting()
 	previous := *setting
@@ -668,6 +672,7 @@ func TestChannelAffinityCacheFailureDoesNotExposeSuccess(t *testing.T) {
 	assert.Empty(t, recorder.Body.String())
 }
 
+// TestChannelAffinityHeartbeatThenRetry binds retry data without treating keepalive as success.
 func TestChannelAffinityHeartbeatThenRetry(t *testing.T) {
 	setting := operation_setting.GetChannelAffinitySetting()
 	previous := *setting
@@ -682,9 +687,8 @@ func TestChannelAffinityHeartbeatThenRetry(t *testing.T) {
 			t.Cleanup(func() { _, err := getChannelAffinityCache().DeleteMany([]string{t.Name()}); assert.NoError(t, err) })
 			ctx.Set("channel_id", 11)
 			BindChannelAffinityResponse(ctx, 11)
-			_, err := ctx.Writer.Write([]byte(": PING\n\n"))
-			require.NoError(t, err)
-			ctx.Writer.Flush()
+			require.NoError(t, getChannelAffinityCache().SetWithTTL(t.Name(), 11, time.Minute))
+			require.NoError(t, ctx.Writer.(interface{ WriteHeartbeat([]byte) error }).WriteHeartbeat([]byte(": PING\n\n")))
 			ctx.Set("channel_id", 22) // first upstream failed; permitted retry succeeded
 			expected := 11
 			if switchOnSuccess {
@@ -696,7 +700,7 @@ func TestChannelAffinityHeartbeatThenRetry(t *testing.T) {
 				assert.True(t, found)
 				assert.Equal(t, expected, bound, "bind the retry before its data becomes visible")
 			}
-			_, err = ctx.Writer.WriteString("data: encrypted-result-from-22\n\n")
+			_, err := ctx.Writer.WriteString("data: encrypted-result-from-22\n\n")
 			require.NoError(t, err)
 		})
 	}
@@ -710,6 +714,7 @@ type affinityTransportRecorder struct {
 func (w *affinityTransportRecorder) SetWriteDeadline(time.Time) error { return nil }
 func (w *affinityTransportRecorder) FlushError() error                { return w.flushErr }
 
+// TestChannelAffinityPreservesTransportControls preserves deadlines and flush errors.
 func TestChannelAffinityPreservesTransportControls(t *testing.T) {
 	transportErr := errors.New("transport flush failed")
 	ctx, _ := gin.CreateTestContext(&affinityTransportRecorder{httptest.NewRecorder(), transportErr})
@@ -722,6 +727,7 @@ func TestChannelAffinityPreservesTransportControls(t *testing.T) {
 	assert.ErrorIs(t, http.NewResponseController(ctx.Writer).Flush(), transportErr)
 }
 
+// TestChannelAffinityReservesAfterInvalidBinding reserves a replacement for an unusable channel.
 func TestChannelAffinityReservesAfterInvalidBinding(t *testing.T) {
 	db := setupChannelSelectAutoGroupsTest(t)
 	createChannelSelectAutoGroupsChannel(t, db, 2101, "default", "affinity-review")
@@ -750,6 +756,7 @@ func TestChannelAffinityReservesAfterInvalidBinding(t *testing.T) {
 	assert.Equal(t, selected.Id, bound)
 }
 
+// TestChannelAffinityCacheFailureAfterHeartbeat blocks retry data after a cache failure.
 func TestChannelAffinityCacheFailureAfterHeartbeat(t *testing.T) {
 	setting := operation_setting.GetChannelAffinitySetting()
 	previous := *setting
@@ -767,18 +774,17 @@ func TestChannelAffinityCacheFailureAfterHeartbeat(t *testing.T) {
 	setChannelAffinityContext(ctx, channelAffinityMeta{CacheKey: "session", TTLSeconds: 60})
 	ctx.Set("channel_id", 11)
 	BindChannelAffinityResponse(ctx, 11)
-	_, err := ctx.Writer.Write([]byte(": PING\n\n"))
-	require.NoError(t, err)
-	require.NoError(t, http.NewResponseController(ctx.Writer).Flush())
+	require.NoError(t, ctx.Writer.(interface{ WriteHeartbeat([]byte) error }).WriteHeartbeat([]byte(": PING\n\n")))
 	require.NoError(t, client.Close())
 	ctx.Set("channel_id", 22)
-	_, err = ctx.Writer.WriteString("data: encrypted result\n\n")
+	_, err := ctx.Writer.WriteString("data: encrypted result\n\n")
 	require.Error(t, err)
 	require.Error(t, http.NewResponseController(ctx.Writer).Flush())
 	assert.Equal(t, http.StatusOK, recorder.Code, "already committed headers cannot become 503")
 	assert.Equal(t, ": PING\n\n", recorder.Body.String(), "never expose data from the unbound retry")
 }
 
+// TestChannelAffinityLongStreamRenewsBinding restores expired bindings without overwriting newer ones.
 func TestChannelAffinityLongStreamRenewsBinding(t *testing.T) {
 	setting := operation_setting.GetChannelAffinitySetting()
 	previous := *setting
@@ -796,17 +802,17 @@ func TestChannelAffinityLongStreamRenewsBinding(t *testing.T) {
 		setChannelAffinityContext(ctx, channelAffinityMeta{CacheKey: "session", TTLSeconds: 60})
 		ctx.Set("channel_id", 11)
 		BindChannelAffinityResponse(ctx, 11)
-		_, err := ctx.Writer.WriteString(": PING\n\n")
+		_, err := ctx.Writer.WriteString("data: started\n\n")
 		require.NoError(t, err)
 		// Fake time drives the writer's renewal interval. Hot uses a runtime
 		// clock outside synctest, so expire its entry explicitly without waiting.
 		time.Sleep(31 * time.Second)
 		require.NoError(t, channelAffinityCache.SetWithTTL("session", 11, -time.Second))
-		require.NoError(t, http.NewResponseController(ctx.Writer).Flush())
+		require.NoError(t, ctx.Writer.(interface{ WriteHeartbeat([]byte) error }).WriteHeartbeat([]byte(": PING\n\n")))
 		time.Sleep(31 * time.Second)
 		bound, found, err := channelAffinityCache.Get("session")
 		require.NoError(t, err)
-		require.True(t, found, "binding must outlive the initial heartbeat's TTL")
+		require.True(t, found, "binding must outlive the initial response's TTL")
 		assert.Equal(t, 11, bound)
 		// A silent upstream can still exceed the renewed TTL. Restore the binding
 		// atomically before forwarding its next event, including the final event.
@@ -827,7 +833,7 @@ func TestChannelAffinityLongStreamRenewsBinding(t *testing.T) {
 		// A newer binding wins over this stream's subsequent renewal attempts.
 		require.NoError(t, channelAffinityCache.SetWithTTL("session", 22, time.Minute))
 		time.Sleep(31 * time.Second)
-		require.NoError(t, http.NewResponseController(ctx.Writer).Flush())
+		require.NoError(t, ctx.Writer.(interface{ WriteHeartbeat([]byte) error }).WriteHeartbeat([]byte(": PING\n\n")))
 		bound, found, err = channelAffinityCache.Get("session")
 		require.NoError(t, err)
 		require.True(t, found)
@@ -835,6 +841,7 @@ func TestChannelAffinityLongStreamRenewsBinding(t *testing.T) {
 	})
 }
 
+// TestChannelAffinityRedisConditionalRenewal checks conditional Redis value and TTL updates.
 func TestChannelAffinityRedisConditionalRenewal(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})

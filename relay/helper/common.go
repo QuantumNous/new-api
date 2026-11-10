@@ -45,6 +45,12 @@ func (writer *streamKeepAliveWriter) WriteString(data string) (int, error) {
 	return writer.ResponseWriter.WriteString(data)
 }
 
+// WriteHeartbeat forwards scanner heartbeats after request keepalive has stopped.
+func (writer *streamKeepAliveWriter) WriteHeartbeat(data []byte) error {
+	writer.stop()
+	return writeHeartbeat(writer.ResponseWriter, data)
+}
+
 func (writer *streamKeepAliveWriter) WriteHeader(status int) {
 	writer.stop()
 	writer.ResponseWriter.WriteHeader(status)
@@ -248,6 +254,7 @@ func StringData(c *gin.Context, str string) error {
 	return FlushWriter(c)
 }
 
+// PingData sends a gateway heartbeat without marking a pending upstream as successful.
 func PingData(c *gin.Context) error {
 	if c == nil || c.Writer == nil {
 		return errors.New("context or writer is nil")
@@ -257,10 +264,19 @@ func PingData(c *gin.Context) error {
 		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
 
-	if _, err := c.Writer.Write([]byte(": PING\n\n")); err != nil {
+	return writeHeartbeat(c.Writer, []byte(": PING\n\n"))
+}
+
+// writeHeartbeat preserves wrapper-specific heartbeat handling, falling back to
+// ordinary writes for transports that do not distinguish keepalive output.
+func writeHeartbeat(writer gin.ResponseWriter, data []byte) error {
+	if heartbeat, ok := writer.(interface{ WriteHeartbeat([]byte) error }); ok {
+		return heartbeat.WriteHeartbeat(data)
+	}
+	if _, err := writer.Write(data); err != nil {
 		return fmt.Errorf("write ping data failed: %w", err)
 	}
-	return FlushWriter(c)
+	return FlushWriter(&gin.Context{Writer: writer})
 }
 
 func ObjectData(c *gin.Context, object any) error {
