@@ -97,8 +97,8 @@ export function parseMarketplaceIndex(payload: unknown): MarketplaceIndex {
   return {
     indexVersion,
     name: typeof raw.name === 'string' ? raw.name : '',
-    // Community lists put recommended plugins first, then the most installed.
-    // An official index carries neither, so its order is unchanged.
+    // Recommended plugins come first, then the most installed. Only community
+    // lists carry install counts.
     plugins: plugins.sort((left, right) => {
       if (Boolean(left.recommended) !== Boolean(right.recommended)) {
         return left.recommended ? -1 : 1

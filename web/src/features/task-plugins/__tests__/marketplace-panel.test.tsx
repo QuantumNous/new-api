@@ -266,6 +266,57 @@ describe('MarketplacePanel community plugins', () => {
     expect(requestedUrls(fetchMock)).toContain(COMMUNITY_MARKETPLACE_INDEX_URL)
   })
 
+  test('the official list shows its recommended plugins in their own group', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          ...officialIndex,
+          plugins: [communityPlugin('sora'), communityPlugin('incho', true)],
+        })
+      )
+    )
+    renderPanel([officialSource])
+
+    expect(
+      await screen.findByRole('heading', { name: 'Recommended' })
+    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'More plugins' })).toBeVisible()
+  })
+
+  test('a list added by the administrator cannot mark plugins recommended', async () => {
+    const mirror = {
+      name: 'Mirror',
+      index_url: 'https://mirror.example/i.json',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        Response.json(
+          String(input) === mirror.index_url
+            ? {
+                indexVersion: 1,
+                name: 'Mirror catalog',
+                plugins: [
+                  communityPlugin('bob_bar'),
+                  communityPlugin('eve_ad', true),
+                ],
+              }
+            : officialIndex
+        )
+      )
+    )
+    const user = userEvent.setup()
+    renderPanel([officialSource, mirror])
+    await screen.findByRole('heading', { name: officialIndex.name })
+
+    await user.click(screen.getByRole('button', { name: 'Community plugins' }))
+
+    await screen.findByRole('heading', { name: 'Mirror catalog' })
+    expect(screen.getByRole('button', { name: 'Card eve_ad' })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Recommended' })).toBeNull()
+  })
+
   test('community tab puts the code lookup beside the warning, sized for 8 digits', async () => {
     vi.stubGlobal(
       'fetch',

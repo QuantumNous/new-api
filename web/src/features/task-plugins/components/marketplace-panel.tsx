@@ -381,11 +381,12 @@ function MarketplaceSourceSection(props: MarketplaceSourceSectionProps) {
   const kindPlugins = (props.index?.plugins ?? []).filter(
     (plugin) => marketplacePluginParts(plugin)[props.kind]
   )
-  // Only the built-in community list decides what is recommended.
+  // Only the built-in official and community lists decide what is
+  // recommended; a list added by the administrator cannot.
   const recommended =
-    sourceKind === 'community'
-      ? kindPlugins.filter((plugin) => plugin.recommended)
-      : []
+    sourceKind === 'third_party'
+      ? []
+      : kindPlugins.filter((plugin) => plugin.recommended)
   const groups = [{ title: '', plugins: kindPlugins }]
   if (recommended.length > 0 && recommended.length < kindPlugins.length) {
     groups.splice(
