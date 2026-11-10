@@ -1,21 +1,170 @@
 package controller
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Calcium-Ion/go-epay/epay"
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stripe/stripe-go/v81"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
+
+// setupStripeAsyncFailureTestDB isolates each fixture in uniquely prefixed tables
+// and removes those tables before closing the connection, including on setup failure.
+func setupStripeAsyncFailureTestDB(t *testing.T, dialect string) {
+	t.Helper()
+	previousDB, previousLogDB := model.DB, model.LOG_DB
+	previousRedisEnabled := common.RedisEnabled
+	previousMainDBType, previousLogDBType := common.MainDatabaseType(), common.LogDatabaseType()
+	var driver gorm.Dialector
+	databaseType := common.DatabaseTypeSQLite
+	switch dialect {
+	case "sqlite":
+		driver = sqlite.Open(filepath.Join(t.TempDir(), "payments.db"))
+	case "mysql":
+		dsn := os.Getenv("TEST_MYSQL_DSN")
+		if dsn == "" {
+			t.Skip("TEST_MYSQL_DSN is not configured")
+		}
+		databaseType = common.DatabaseTypeMySQL
+		driver = mysql.Open(dsn)
+	case "postgres":
+		dsn := os.Getenv("TEST_POSTGRES_DSN")
+		if dsn == "" {
+			t.Skip("TEST_POSTGRES_DSN is not configured")
+		}
+		databaseType = common.DatabaseTypePostgreSQL
+		driver = postgres.Open(dsn)
+	default:
+		t.Fatalf("unsupported test database dialect: %s", dialect)
+	}
+	db, err := gorm.Open(driver, &gorm.Config{
+		NamingStrategy: schema.NamingStrategy{TablePrefix: "stripe_" + common.GetUUID() + "_"},
+	})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	model.DB, model.LOG_DB = db, db
+	common.RedisEnabled = false
+	common.SetDatabaseTypes(databaseType, databaseType)
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = previousDB, previousLogDB
+		common.RedisEnabled = previousRedisEnabled
+		common.SetDatabaseTypes(previousMainDBType, previousLogDBType)
+		assert.NoError(t, db.Migrator().DropTable(&model.SubscriptionOrder{}))
+		assert.NoError(t, db.Migrator().DropTable(&model.TopUp{}))
+		assert.NoError(t, sqlDB.Close())
+	})
+	require.NoError(t, db.AutoMigrate(&model.TopUp{}, &model.SubscriptionOrder{}))
+}
+
+// stripeAsyncPaymentFailedEvent identifies the order referenced by a failed checkout.
+func stripeAsyncPaymentFailedEvent(tradeNo string) stripe.Event {
+	return stripe.Event{Data: &stripe.EventData{Object: map[string]any{"client_reference_id": tradeNo}}}
+}
+
+func TestStripeAsyncPaymentFailedUpdatesSubscriptionBeforeTopUp(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			setupStripeAsyncFailureTestDB(t, dialect)
+			gin.SetMode(gin.TestMode)
+
+			tradeNo := fmt.Sprintf("stripe-async-failed-subscription-%d", time.Now().UnixNano())
+			subscriptionOrder := &model.SubscriptionOrder{
+				TradeNo: tradeNo, PaymentProvider: model.PaymentProviderStripe,
+				Status: common.TopUpStatusPending, CreateTime: time.Now().Unix(),
+			}
+			require.NoError(t, subscriptionOrder.Insert())
+			topUp := &model.TopUp{
+				TradeNo: tradeNo, PaymentProvider: model.PaymentProviderStripe,
+				Status: common.TopUpStatusPending, CreateTime: time.Now().Unix(),
+			}
+			require.NoError(t, topUp.Insert())
+
+			sessionAsyncPaymentFailed(context.Background(), stripeAsyncPaymentFailedEvent(tradeNo), "127.0.0.1")
+			sessionAsyncPaymentFailed(context.Background(), stripeAsyncPaymentFailedEvent(tradeNo), "127.0.0.1")
+
+			updatedSubscriptionOrder := model.GetSubscriptionOrderByTradeNo(tradeNo)
+			require.NotNil(t, updatedSubscriptionOrder)
+			assert.Equal(t, common.TopUpStatusFailed, updatedSubscriptionOrder.Status)
+			assert.Equal(t, common.TopUpStatusPending, model.GetTopUpByTradeNo(tradeNo).Status)
+
+			require.NoError(t, model.DB.Model(&model.SubscriptionOrder{}).Where("trade_no = ?", tradeNo).Update("status", common.TopUpStatusSuccess).Error)
+			sessionAsyncPaymentFailed(context.Background(), stripeAsyncPaymentFailedEvent(tradeNo), "127.0.0.1")
+			assert.Equal(t, common.TopUpStatusSuccess, model.GetSubscriptionOrderByTradeNo(tradeNo).Status)
+			assert.Equal(t, common.TopUpStatusPending, model.GetTopUpByTradeNo(tradeNo).Status)
+		})
+	}
+}
+
+func TestStripeAsyncPaymentFailedFallsBackToTopUp(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			setupStripeAsyncFailureTestDB(t, dialect)
+			gin.SetMode(gin.TestMode)
+
+			tradeNo := fmt.Sprintf("stripe-async-failed-topup-%d", time.Now().UnixNano())
+			topUp := &model.TopUp{
+				TradeNo: tradeNo, PaymentProvider: model.PaymentProviderStripe,
+				Status: common.TopUpStatusPending, CreateTime: time.Now().Unix(),
+			}
+			require.NoError(t, topUp.Insert())
+
+			event := stripeAsyncPaymentFailedEvent(tradeNo)
+			sessionAsyncPaymentFailed(context.Background(), event, "127.0.0.1")
+			sessionAsyncPaymentFailed(context.Background(), event, "127.0.0.1")
+
+			updatedTopUp := model.GetTopUpByTradeNo(tradeNo)
+			require.NotNil(t, updatedTopUp)
+			assert.Equal(t, common.TopUpStatusFailed, updatedTopUp.Status)
+
+			require.NoError(t, model.DB.Model(&model.TopUp{}).Where("trade_no = ?", tradeNo).Update("status", common.TopUpStatusSuccess).Error)
+			sessionAsyncPaymentFailed(context.Background(), event, "127.0.0.1")
+			assert.Equal(t, common.TopUpStatusSuccess, model.GetTopUpByTradeNo(tradeNo).Status)
+		})
+	}
+}
+
+func TestStripeAsyncPaymentFailedDoesNotFallbackOnSubscriptionLookupError(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			setupStripeAsyncFailureTestDB(t, dialect)
+			gin.SetMode(gin.TestMode)
+
+			tradeNo := fmt.Sprintf("stripe-async-failed-lookup-error-%d", time.Now().UnixNano())
+			topUp := &model.TopUp{
+				TradeNo: tradeNo, PaymentProvider: model.PaymentProviderStripe,
+				Status: common.TopUpStatusPending, CreateTime: time.Now().Unix(),
+			}
+			require.NoError(t, topUp.Insert())
+			require.NoError(t, model.DB.Migrator().DropTable(&model.SubscriptionOrder{}))
+
+			sessionAsyncPaymentFailed(context.Background(), stripeAsyncPaymentFailedEvent(tradeNo), "127.0.0.1")
+
+			assert.Equal(t, common.TopUpStatusPending, model.GetTopUpByTradeNo(tradeNo).Status)
+		})
+	}
+}
 
 func confirmPaymentComplianceForTest(t *testing.T) {
 	t.Helper()
