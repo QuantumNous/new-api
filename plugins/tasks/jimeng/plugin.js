@@ -7,7 +7,7 @@ export const meta = {
     en: "Volcengine Jimeng video generation (text-to-video, image-to-video, and first-and-last-frame)",
     zh: "火山引擎即梦视频生成（文生视频、图生视频、首尾帧）",
   },
-  version: "1.1.0",
+  version: "1.2.0",
   author: { name: "QuantumNous" },
   channelTypes: [51],
   models: ["jimeng_vgfm_t2v_l20"],
@@ -42,7 +42,13 @@ export const meta = {
     { label: "3.0 Pro 10s", facts: { seconds: 10, product: "v30_pro" } },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
-  routes: [{ method: "POST", path: "/jimeng/", type: "dynamic", decode: "decodeRequest", render: "renderTask" }],
+  // Jimeng's Bearer API, which takes the bodies of the signed
+  // CVSync2AsyncSubmitTask and CVSync2AsyncGetResult actions; the gateway also
+  // serves each route under /jimeng.
+  routes: [
+    { method: "POST", path: "/api/common/v3/submit_task_v2", type: "submit", decode: "submitTask", render: "taskSubmitted" },
+    { method: "POST", path: "/api/common/v3/get_result_v2", type: "dynamic", decode: "getResult", render: "taskResult" },
+  ],
 };
 
 function trimmed(value) {
@@ -97,28 +103,12 @@ function viaGateway(ctx) {
   return !!(ctx.upstream && ctx.upstream.kind === "new_api") || isRelay(ctx.apiKey);
 }
 
-function imageValues(body) {
-  const images = [];
-  if (Array.isArray(body.image_urls)) {
-    body.image_urls.forEach(function (image) {
-      images.push(image);
-    });
-  }
-  if (Array.isArray(body.binary_data_base64)) {
-    body.binary_data_base64.forEach(function (image) {
-      images.push(image);
-    });
-  }
-  if (images.length > 0) return images;
-  if (Array.isArray(body.images)) {
-    body.images.forEach(function (image) {
-      images.push(image);
-    });
-  }
-  if (images.length === 0 && typeof body.image === "string" && body.image.trim() !== "") {
-    images.push(body.image);
-  }
-  return images;
+// Jimeng's common error codes for the statuses the gateway answers with
+// (volcengine.com/docs/6444/69728).
+const ERROR_CODES = { 400: 50200, 401: 50400, 403: 50400, 404: 50402, 413: 50213, 429: 50429 };
+
+function vendorImageCount(body) {
+  return (Array.isArray(body.image_urls) ? body.image_urls.length : 0) + (Array.isArray(body.binary_data_base64) ? body.binary_data_base64.length : 0);
 }
 
 function actionForImageCount(imageCount) {
@@ -127,41 +117,31 @@ function actionForImageCount(imageCount) {
   return "text_to_video";
 }
 
-function decodeNativeRequest(ctx) {
+function nativeBody(ctx) {
   if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
   const requestBody = ctx.body.value;
-  const query = ctx.query || {};
-  const actions = query.Action || [];
-  const action = actions.length ? actions[0] : "";
-  if (!action) throw new Error("Action query parameter is required");
+  return requestBody && typeof requestBody === "object" ? requestBody : {};
+}
 
-  const body = requestBody && typeof requestBody === "object" ? requestBody : {};
-  if (action === "CVSync2AsyncGetResult") {
-    if (typeof body.task_id !== "string" || body.task_id.trim() === "") {
-      throw new Error("task_id is required for CVSync2AsyncGetResult");
-    }
-    return { kind: "query", taskIds: [body.task_id] };
-  }
-  if (action !== "CVSync2AsyncSubmitTask") {
-    throw new Error("unsupported Jimeng Action");
-  }
-
-  const images = imageValues(body);
+// Jimeng's own submit body, which the driver sends as is with the channel's
+// req_key for Jimeng to check.
+function submitTask(ctx) {
+  const body = nativeBody(ctx);
+  const reqKey = typeof body.req_key === "string" ? body.req_key.trim() : "";
+  if (!reqKey) throw new Error("req_key is required");
   return {
     kind: "submit",
-    model: typeof body.req_key === "string" ? body.req_key : "",
-    action: actionForImageCount(images.length),
-    requestBody: {
-      model: typeof body.req_key === "string" ? body.req_key : "",
-      prompt: typeof body.prompt === "string" ? body.prompt : "",
-      images: images,
-      metadata: body,
-    },
+    model: reqKey,
+    action: actionForImageCount(vendorImageCount(body)),
+    requestBody: { model: reqKey, vendorBody: body },
   };
 }
 
+// Jimeng itself is called at the site root with a V4 signature; another New
+// API gateway serves the Bearer API under /jimeng instead.
 function endpoint(ctx, action) {
-  return ctx.baseUrl + (viaGateway(ctx) ? "/jimeng/" : "/") + "?Action=" + action + "&Version=2022-08-31";
+  if (viaGateway(ctx)) return ctx.baseUrl + "/jimeng/api/common/v3/" + (action === "CVSync2AsyncGetResult" ? "get_result_v2" : "submit_task_v2");
+  return ctx.baseUrl + "/?Action=" + action + "&Version=2022-08-31";
 }
 
 function requestHeaders(ctx, method, url, bodyText) {
@@ -217,7 +197,7 @@ function productForReqKey(reqKey) {
   if (key === "jimeng_ti2v_v30_pro" || key.includes("v30_pro")) return "v30_pro";
   if (key.includes("1080")) return "v30_1080p";
   if (key.includes("v30")) return "v30_720p";
-  return "s2_pro";
+  throw new Error("unsupported req_key " + key);
 }
 
 function submitImageCount(req) {
@@ -228,18 +208,28 @@ function submitImageCount(req) {
   return Array.isArray(req && req.images) ? req.images.length : 0;
 }
 
+// The req_key Jimeng receives: a native body's own, through the channel's
+// model mapping, or the one the host protocols derive from the model and the
+// images.
 function submitReqKey(ctx) {
   const req = (ctx && ctx.requestBody) || {};
+  if (req.vendorBody) return trimmed((ctx && ctx.upstreamModel) || req.model);
   const metadata = req.metadata || {};
   const base = metadata.req_key || (ctx && ctx.upstreamModel) || req.model || "";
-  return convertedReqKey(String(base), submitImageCount(req)) || "jimeng_vgfm_t2v_l20";
+  const resolved = convertedReqKey(String(base), submitImageCount(req));
+  if (!resolved) throw new Error("req_key is required");
+  return resolved;
 }
 
+// 3.0 req_keys render 121 frames (5 s) or 241 (10 s); S2.0 Pro is fixed at 5 s.
 function outboundSeconds(req, reqKey) {
   if (!isV3ReqKey(reqKey)) return 5;
-  const metadata = (req && req.metadata) || {};
-  if (Number(metadata.frames) === 241) return 10;
-  if (Number(metadata.frames) === 121) return 5;
+  const source = (req && (req.vendorBody || req.metadata)) || {};
+  if (source.frames !== undefined && source.frames !== null) {
+    if (Number(source.frames) === 241) return 10;
+    if (Number(source.frames) === 121) return 5;
+    throw new Error("frames must be 121 or 241");
+  }
   const seconds = Number(req && req.duration);
   return seconds === 10 ? 10 : 5;
 }
@@ -306,14 +296,32 @@ function decodeImageCount(req, hasInputReferenceFile) {
   return submitImageCount(req);
 }
 
+// The body is signed, so it is sent as the text the signature covers.
+// Jimeng reports no usage, so the request is the bill: a req_key the plugin
+// cannot price is refused before it is sent.
 export function buildSubmitRequest(ctx) {
   const req = ctx.requestBody || {};
+  const url = endpoint(ctx, "CVSync2AsyncSubmitTask");
+  if (req.vendorBody) {
+    const sent = Object.assign({}, req.vendorBody, { req_key: submitReqKey(ctx) });
+    productForReqKey(sent.req_key);
+    outboundSeconds(req, sent.req_key);
+    const vendorText = JSON.stringify(sent);
+    return {
+      url: url,
+      method: "POST",
+      headers: requestHeaders(ctx, "POST", url, vendorText),
+      body: vendorText,
+      action: actionForImageCount(vendorImageCount(sent)),
+    };
+  }
+  // The host protocols map the model, images and size onto Jimeng's fields;
+  // an omitted seed stays Jimeng's random default.
   const metadata = req.metadata || {};
   const images = req.images || [];
   const body = {
     req_key: ctx.upstreamModel,
     prompt: req.prompt || undefined,
-    seed: 0,
   };
   const aspectRatio = outboundAspectRatio(req);
   if (aspectRatio) body.aspect_ratio = aspectRatio;
@@ -331,7 +339,10 @@ export function buildSubmitRequest(ctx) {
   const urlCount = Array.isArray(body.image_urls) ? body.image_urls.length : 0;
   const metadataImageCount = binaryCount + urlCount;
   const imageCount = metadataImageCount > 0 ? metadataImageCount : images.length;
-  body.req_key = convertedReqKey(body.req_key, imageCount);
+  const converted = convertedReqKey(body.req_key, imageCount);
+  if (!converted) throw new Error("req_key is required");
+  body.req_key = converted;
+  productForReqKey(body.req_key);
   if (isV3ReqKey(body.req_key) && (body.frames === undefined || body.frames === null)) {
     body.frames = outboundSeconds(req, body.req_key) === 10 ? 241 : 121;
   }
@@ -341,10 +352,9 @@ export function buildSubmitRequest(ctx) {
   if (body.binary_data_base64 && body.binary_data_base64.length) ordered.binary_data_base64 = body.binary_data_base64;
   if (body.image_urls && body.image_urls.length) ordered.image_urls = body.image_urls;
   if (body.prompt) ordered.prompt = body.prompt;
-  ordered.seed = body.seed;
+  if (body.seed !== undefined) ordered.seed = body.seed;
   if (body.aspect_ratio) ordered.aspect_ratio = body.aspect_ratio;
   if (body.frames) ordered.frames = body.frames;
-  const url = endpoint(ctx, "CVSync2AsyncSubmitTask");
   const bodyText = JSON.stringify(ordered);
   return {
     url: url,
@@ -355,11 +365,12 @@ export function buildSubmitRequest(ctx) {
   };
 }
 
+// The query needs the req_key, which is kept in the plugin state.
 export function parseSubmitResponse(ctx, resp) {
   const body = resp.body || {};
   if (body.code !== 10000) throw new Error(body.message || "jimeng submit failed");
   if (!body.data || !body.data.task_id) throw new Error("missing task_id");
-  return { taskId: body.data.task_id, taskData: Object.assign({}, body, { req_key: submitReqKey(ctx) }), state: { req_key: submitReqKey(ctx) } };
+  return { taskId: body.data.task_id, taskData: body, state: { req_key: submitReqKey(ctx) } };
 }
 
 export function extractUsage(ctx) {
@@ -374,6 +385,7 @@ export function buildQueryRequest(ctx) {
   return { url: url, method: "POST", headers: requestHeaders(ctx, "POST", url, body), body: body };
 }
 
+// done only ends the task; the outer code tells success from failure.
 export function parseTaskResult(ctx, body) {
   const data = body.data || {};
   if (body.code !== 10000) {
@@ -384,6 +396,9 @@ export function parseTaskResult(ctx, body) {
     if (data.video_url) result.url = data.video_url;
     return result;
   }
+  if (data.status === "generating") return { code: 0, status: "IN_PROGRESS", progress: "50%", reason: "" };
+  if (data.status === "not_found") return { code: 0, status: "FAILURE", progress: "100%", reason: "the task was not found or has expired" };
+  if (data.status === "expired") return { code: 0, status: "FAILURE", progress: "100%", reason: "the task has expired" };
   if (data.status === "done") {
     const result = { code: 0, status: "SUCCESS", progress: "100%", reason: "" };
     if (data.video_url) result.url = data.video_url;
@@ -485,15 +500,6 @@ const legacyRenderers = {
     if (task.data && task.data.code !== 10000) output.error = { message: task.data.message || "", code: String(task.data.code || 0) };
     return output;
   },
-  jimeng_native: function (tasks) {
-    const task = Array.isArray(tasks) ? tasks[0] : tasks;
-    const stored = task && task.data && typeof task.data === "object" ? task.data : {};
-    const response = Object.assign({}, stored);
-    const data = stored.data && typeof stored.data === "object" ? stored.data : {};
-    response.code = stored.code === undefined ? 10000 : stored.code;
-    response.data = Object.assign({}, data, { task_id: task.task_id });
-    return response;
-  },
 };
 
 protocols.openai_video = {
@@ -546,6 +552,8 @@ protocols.openai_video = {
         seconds
       );
     }
+    // vendorBody carries a native request's own body; clients of this protocol cannot set it.
+    delete req.vendorBody;
     return {
       kind: "submit",
       model: ctx.model,
@@ -559,11 +567,40 @@ protocols.openai_video = {
 };
 
 export const native = {
-  decodeRequest: decodeNativeRequest,
-  renderTask: function (ctx, tasks) {
-    return legacyRenderers.jimeng_native(tasks);
+  submitTask: submitTask,
+  // The gateway answers from its last poll and cannot pass req_json, the
+  // watermark settings of a live query, to Jimeng.
+  getResult: function (ctx) {
+    const body = nativeBody(ctx);
+    if (typeof body.req_key !== "string" || body.req_key.trim() === "") throw new Error("req_key is required");
+    if (typeof body.task_id !== "string" || body.task_id.trim() === "") throw new Error("task_id is required");
+    if (body.req_json !== undefined && body.req_json !== null) throw new Error("req_json is not supported");
+    return { kind: "query", taskIds: [body.task_id] };
   },
+  // Jimeng's create reply.
+  taskSubmitted: function (ctx, task) {
+    return task.data && typeof task.data === "object" && !Array.isArray(task.data) ? task.data : {};
+  },
+  // Jimeng's last query reply; the dynamic route passes the queried task in a
+  // list. Before the first poll the task holds the create reply, which has no
+  // status yet; a task the gateway failed while Jimeng still reported it
+  // running reads as an internal error.
+  taskResult: function (ctx, tasks) {
+    const task = Array.isArray(tasks) ? tasks[0] : tasks;
+    const stored = task.data && typeof task.data === "object" && !Array.isArray(task.data) ? task.data : {};
+    const data = stored.data && typeof stored.data === "object" ? stored.data : null;
+    const running = stored.code === 10000 && !(data && ["done", "not_found", "expired"].includes(data.status));
+    if (task.status === "FAILURE" && running)
+      return Object.assign({}, stored, { code: 50500, status: 50500, message: task.fail_reason || "Internal Error", data: null });
+    if (stored.code === 10000 && !(data && data.status))
+      return Object.assign({}, stored, { data: { status: task.status === "IN_PROGRESS" ? "generating" : "in_queue" } });
+    return stored;
+  },
+  // Jimeng reports a task it does not have as not_found with a success code.
   error: function (ctx, error) {
-    return { code: error.httpStatus, message: error.message };
+    if (error.httpStatus === 404 && String(ctx.path || "").endsWith("/get_result_v2"))
+      return { __status: 200, __body: { code: 10000, data: { status: "not_found" }, message: "Success", request_id: error.requestId || "", status: 10000 } };
+    const code = ERROR_CODES[error.httpStatus] || 50500;
+    return { code: code, data: null, message: error.message, request_id: error.requestId || "", status: code };
   },
 };

@@ -14,6 +14,7 @@ Transitive dependencies should be audited before a final external release.
 | backend  | production  | Go        | `github.com/Calcium-Ion/go-epay`                        | `v0.0.5`                             | MIT                     |
 | backend  | production  | Go        | `github.com/Calcium-Ion/moejs`                          | `v0.1.0-alpha.7`                     | Apache-2.0              |
 | backend  | production  | Go        | `github.com/ClickHouse/clickhouse-go/v2`                | `v2.46.0`                            | Apache-2.0              |
+| backend  | production  | Go        | `github.com/MoeForge/moego`                             | `v0.1.0-alpha.1`                     | MIT                     |
 | backend  | production  | Go        | `github.com/abema/go-mp4`                               | `v1.4.1`                             | MIT                     |
 | backend  | test        | Go        | `github.com/alicebob/miniredis/v2`                      | `v2.38.0`                            | MIT                     |
 | backend  | production  | Go        | `github.com/andybalholm/brotli`                         | `v1.2.0`                             | MIT                     |
@@ -65,7 +66,6 @@ Transitive dependencies should be audited before a final external release.
 | backend  | production  | Go        | `github.com/tcolgate/mp3`                               | `v0.0.0-20170426193717-e79c5a46d300` | MIT                     |
 | backend  | production  | Go        | `github.com/thanhpk/randstr`                            | `v1.0.6`                             | MIT                     |
 | backend  | production  | Go        | `github.com/tidwall/gjson`                              | `v1.19.0`                            | MIT                     |
-| backend  | production  | Go        | `github.com/tidwall/sjson`                              | `v1.2.5`                             | MIT                     |
 | backend  | production  | Go        | `github.com/tiktoken-go/tokenizer`                      | `v0.8.1`                             | MIT                     |
 | backend  | production  | Go        | `github.com/waffo-com/waffo-go`                         | `v1.3.2`                             | MIT                     |
 | backend  | production  | Go        | `github.com/waffo-com/waffo-pancake-sdk-go`             | `v0.3.1`                             | MIT                     |
@@ -108,7 +108,7 @@ Transitive dependencies should be audited before a final external release.
 | web      | production  | npm       | `clsx`                                                  | `2.1.1`                              | MIT                     |
 | web      | production  | npm       | `cmdk`                                                  | `1.1.1`                              | MIT                     |
 | web      | production  | npm       | `dayjs`                                                 | `1.11.21`                            | MIT                     |
-| web      | production  | npm       | `dompurify`                                             | `3.4.16`                             | Apache-2.0 OR MPL-2.0   |
+| web      | production  | npm       | `dompurify`                                             | `3.4.17`                             | Apache-2.0 OR MPL-2.0   |
 | web      | production  | npm       | `i18next`                                               | `26.3.6`                             | MIT                     |
 | web      | production  | npm       | `i18next-browser-languagedetector`                      | `8.2.1`                              | MIT                     |
 | web      | production  | npm       | `input-otp`                                             | `1.4.2`                              | MIT                     |

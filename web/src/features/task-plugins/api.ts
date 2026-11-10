@@ -24,6 +24,7 @@ import type {
   MarketplaceSource,
   TaskPluginDetail,
   TaskPluginListItem,
+  TaskPluginPricingNotice,
   TaskPluginRecord,
   TaskPluginUsage,
   TaskPluginDryRunRequest,
@@ -147,12 +148,12 @@ export async function updateMarketplaceSources(sources: MarketplaceSource[]) {
 }
 
 export async function activateTaskPlugin(key: string, version: string) {
-  const response = await api.post<ApiResponse<null>>(
+  const response = await api.post<ApiResponse<TaskPluginPricingNotice>>(
     `/api/plugin/task/${encodeURIComponent(key)}/activate`,
     { version },
     mutationConfig
   )
-  requireSuccess(response.data)
+  return requireSuccess(response.data)
 }
 
 export async function setTaskPluginStatus(
@@ -160,12 +161,12 @@ export async function setTaskPluginStatus(
   enabled: boolean,
   options?: { cascade?: boolean; force?: boolean }
 ) {
-  const response = await api.post<ApiResponse<null>>(
+  const response = await api.post<ApiResponse<TaskPluginPricingNotice>>(
     `/api/plugin/task/${encodeURIComponent(key)}/status`,
     { enabled },
     { ...mutationConfig, params: options }
   )
-  requireSuccess(response.data)
+  return requireSuccess(response.data)
 }
 
 export async function deleteTaskPluginVersion(
@@ -173,11 +174,11 @@ export async function deleteTaskPluginVersion(
   version: string,
   force = false
 ) {
-  const response = await api.delete<ApiResponse<null>>(
+  const response = await api.delete<ApiResponse<TaskPluginPricingNotice>>(
     `/api/plugin/task/${encodeURIComponent(key)}/versions/${encodeURIComponent(version)}`,
     { ...mutationConfig, params: force ? { force: true } : undefined }
   )
-  requireSuccess(response.data)
+  return requireSuccess(response.data)
 }
 
 export async function getTaskPluginEnabledOption() {

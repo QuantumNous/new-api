@@ -114,7 +114,7 @@ func TestGoogleThroughNewAPIGateway(t *testing.T) {
 		{
 			name: "succeeded", wantStatus: "SUCCESS",
 			task: map[string]any{"status": "SUCCESS", "data": map[string]any{"name": "models/" + veo + "/operations/op-private", "done": true,
-				"response": map[string]any{"generateVideoResponse": map[string]any{"generatedVideos": []any{
+				"response": map[string]any{"generateVideoResponse": map[string]any{"generatedSamples": []any{
 					map[string]any{"video": map[string]any{"uri": "https://generativelanguage.example/v1beta/files/f1:download?alt=media"}},
 				}}}}},
 		},
@@ -148,6 +148,21 @@ func TestGoogleThroughNewAPIGateway(t *testing.T) {
 			}, descriptor)
 		})
 	}
+
+	// The REST operation names its videos generatedSamples; generatedVideos
+	// is the SDKs' name after conversion and carries no artifact.
+	t.Run("only generatedSamples carries the video", func(t *testing.T) {
+		for field, want := range map[string]any{"generatedSamples": []any{map[string]any{"key": "video", "type": "video"}}, "generatedVideos": []any{}} {
+			listed, err := plugin.Engine.Call(t.Context(), "listArtifacts", map[string]any{"status": "SUCCESS", "data": map[string]any{"name": "op", "done": true,
+				"response": map[string]any{"generateVideoResponse": map[string]any{field: []any{map[string]any{"video": map[string]any{"uri": "https://generativelanguage.example/v1beta/files/f1:download?alt=media"}}}}}}})
+			require.NoError(t, err)
+			encoded, err := common.Marshal(listed)
+			require.NoError(t, err)
+			wantEncoded, err := common.Marshal(want)
+			require.NoError(t, err)
+			assert.JSONEq(t, string(wantEncoded), string(encoded), field)
+		}
+	})
 
 	t.Run("native bodies are checked before billing", func(t *testing.T) {
 		for _, tc := range []struct {

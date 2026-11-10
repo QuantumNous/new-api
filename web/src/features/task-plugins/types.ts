@@ -20,6 +20,7 @@ import type {
   BillingUsageSchema,
   BillingUsageExample,
 } from '@/features/pricing/types'
+import type { ModelPricingIssue } from '@/features/system-settings/models/pricing-issues'
 
 export type TaskPluginProtocolClaim =
   | string
@@ -99,6 +100,8 @@ export type TaskPluginListItem = {
   factory_meta?: TaskPluginMeta
   channel_count: number
   in_flight_count: number
+  /** Declared routes the gateway serves only under /{key}, as "METHOD /path". */
+  skipped_routes?: string[]
 }
 
 export type TaskPluginUsage = {
@@ -112,7 +115,19 @@ export type TaskPluginDetail = {
   source: string
   layer: 'factory' | 'override'
   has_icon?: boolean
+  /** Declared routes the gateway serves only under /{key}, as "METHOD /path". */
+  skipped_routes?: string[]
+  /** Set when the upload put this version into service. */
+  pricing_issues?: ModelPricingIssue[]
 }
+
+/**
+ * Answer of an activation, a switch-on or the deletion of the active version:
+ * the prices the plugin now serving the key cannot charge.
+ */
+export type TaskPluginPricingNotice = {
+  pricing_issues?: ModelPricingIssue[] | null
+} | null
 
 export type ApiResponse<T> = {
   success: boolean
@@ -183,6 +198,7 @@ export type PluginPreviewField<T> =
   | { state: 'unknown' }
 
 export type PluginPreviewValues = {
+  key: string
   models: string[]
   protocols: TaskPluginProtocolClaim[]
   routes: TaskPluginRoute[]

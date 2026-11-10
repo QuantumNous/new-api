@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -309,4 +310,145 @@ func TestPricingSharedPluginVariantsUseEachSchemaAndExpression(t *testing.T) {
 	encoded, err := common.Marshal(single)
 	require.NoError(t, err)
 	assert.Contains(t, string(encoded), "billing_plugin_variants")
+}
+
+// Prices saved while a plugin fit stop fitting when it changes: a dropped model
+// leaves its provider price stale, and a new provider without the usage the
+// model expression reads cannot charge it. Unpriced models are listed too,
+// including those whose only expression prices ordinary channels. Only stale
+// prices count for a model no enabled channel serves under any spelling.
+func TestModelPricingIssuesFollowPluginChanges(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	saved := config.GlobalConfig.ExportAllConfigs()
+	t.Cleanup(func() {
+		require.NoError(t, DB.Where(commonKeyCol+" IN ?", modelPricingOptionKeys).Delete(&Option{}).Error)
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+	})
+	pluginSource := func(key, name, version, models, usageSchema string) string {
+		source := strings.ReplaceAll(pricingUsagePluginSource(version, usageSchema), "pricing-usage-probe", key)
+		source = strings.Replace(source, "Pricing Usage Probe", name, 1)
+		return strings.Replace(source, `["pricing-usage-model"]`, models, 1)
+	}
+	savePricing := func(options map[string]string) {
+		for key, value := range options {
+			require.NoError(t, DB.Save(&Option{Key: key, Value: value}).Error)
+		}
+		require.NoError(t, config.GlobalConfig.LoadFromDB(options))
+	}
+	const seconds = `{seconds:{type:"number",unit:"second"}}`
+	_, err := jsplugin.DefaultRegistry.Register(pluginSource("issue-alpha", "Alpha", "1.0.0", `["issue-priced","issue-per-call","issue-unpriced","issue-ordinary","issue-shared","issue-dropped","issue-idle"]`, seconds), jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("issue-alpha") })
+	savePricing(map[string]string{
+		"ModelPrice":                            `{"issue-per-call":0.3}`,
+		"billing_setting.billing_mode":          `{"issue-priced":"tiered_expr","issue-ordinary":"tiered_expr","issue-shared":"tiered_expr"}`,
+		"billing_setting.billing_expr":          `{"issue-priced":"u(\"seconds\") * 0.1","issue-ordinary":"tier(\"image\", fixed(0.02)) * image_count","issue-shared":"u(\"seconds\") * 0.2"}`,
+		billing_setting.PluginBillingExprOption: `{"issue-alpha::issue-dropped":"u(\"seconds\") * 0.5"}`,
+	})
+	unpriced := ModelPricingIssue{ModelName: "issue-unpriced", PluginKey: "issue-alpha", PluginName: "Alpha", Reason: ModelPricingIssueUnconfigured}
+	ordinary := ModelPricingIssue{ModelName: "issue-ordinary", PluginKey: "issue-alpha", PluginName: "Alpha", Reason: ModelPricingIssueUnconfigured}
+	// Other tests leave their plugins in the shared registry.
+	ownIssues := func() []ModelPricingIssue {
+		issues, err := GetModelPricingIssues("")
+		require.NoError(t, err)
+		return slices.DeleteFunc(issues, func(issue ModelPricingIssue) bool { return !strings.HasPrefix(issue.PluginKey, "issue-") })
+	}
+
+	assert.Empty(t, ownIssues(), "no channel serves the models yet")
+
+	// Channels serve declared models under their own spelling, a case variant
+	// or a channel alias; a disabled ability serves nothing.
+	mapping := `{"ordinary-alias":"issue-ordinary"}`
+	require.NoError(t, DB.Create(&Channel{
+		Id: 940, Type: constant.ChannelTypeTaskPlugin, Key: "key-940", Status: common.ChannelStatusEnabled, Name: "channel-940",
+		Models: "ordinary-alias", ModelMapping: &mapping,
+	}).Error)
+	for _, name := range []string{"issue-priced", "issue-per-call", "Issue-Unpriced", "ordinary-alias", "issue-shared"} {
+		insertPricingEndpointAbility(t, 940, name)
+	}
+	require.NoError(t, DB.Create(&Ability{Group: "default", Model: "issue-idle", ChannelId: 940, Enabled: false}).Error)
+	InitChannelCache()
+
+	assert.Equal(t, []ModelPricingIssue{ordinary, unpriced}, ownIssues())
+
+	// Beta also declares the dropped model, which no channel serves: its
+	// unpriced variant is not an issue, while Alpha's stale price still is.
+	_, err = jsplugin.DefaultRegistry.Register(pluginSource("issue-alpha", "Alpha", "1.1.0", `["issue-priced","issue-per-call","issue-unpriced","issue-ordinary","issue-shared","issue-idle"]`, seconds), jsplugin.Options{})
+	require.NoError(t, err)
+	_, err = jsplugin.DefaultRegistry.Register(pluginSource("issue-beta", "Beta", "1.0.0", `["issue-shared","issue-dropped"]`, `{credits:{type:"number",unit:"credit"}}`), jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("issue-beta") })
+	incompatible := ModelPricingIssue{ModelName: "issue-shared", PluginKey: "issue-beta", PluginName: "Beta", Reason: ModelPricingIssueIncompatible}
+
+	assert.Equal(t, []ModelPricingIssue{
+		{ModelName: "issue-dropped", PluginKey: "issue-alpha", PluginName: "Alpha", Reason: ModelPricingIssueStale},
+		ordinary,
+		incompatible,
+		unpriced,
+	}, ownIssues())
+	issues, err := GetModelPricingIssues("issue-beta")
+	require.NoError(t, err)
+	assert.Equal(t, []ModelPricingIssue{incompatible}, issues)
+
+	// A provider price that reads the provider's own usage replaces the model
+	// expression for that provider only.
+	savePricing(map[string]string{
+		billing_setting.PluginBillingExprOption: `{"issue-alpha::issue-dropped":"u(\"seconds\") * 0.5","issue-beta::issue-shared":"u(\"credits\") * 2"}`,
+	})
+	issues, err = GetModelPricingIssues("issue-beta")
+	require.NoError(t, err)
+	assert.Empty(t, issues)
+}
+
+// The full snapshot lists a built-in price, with its expression as the editor
+// default, once the price is saved or an enabled channel serves the model. A
+// request for named models keeps every built-in default.
+func TestModelPricingSnapshotListsUsedBuiltinPrices(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	clearPricing := func() {
+		require.NoError(t, DB.Where(commonKeyCol+" IN ?", modelPricingOptionKeys).Delete(&Option{}).Error)
+	}
+	clearPricing()
+	t.Cleanup(clearPricing)
+	require.NoError(t, DB.Create(&Option{Key: "billing_setting.billing_mode", Value: `{"deepseek-v4-pro":"tiered_expr"}`}).Error)
+	insertPricingEndpointAbility(t, 950, "gpt-image-2")
+	require.NoError(t, DB.Create(&Ability{Group: "default", Model: "gpt-image-2.5-flare", ChannelId: 950, Enabled: false}).Error)
+
+	full, err := GetModelPricingSnapshot(nil)
+	require.NoError(t, err)
+	listed := make(map[string]bool, len(full.Entries))
+	for _, entry := range full.Entries {
+		listed[entry.ModelName] = true
+	}
+	var modes, expressions, namedExpressions map[string]string
+	require.NoError(t, common.UnmarshalJsonStr(full.Options["billing_setting.billing_mode"], &modes))
+	require.NoError(t, common.UnmarshalJsonStr(full.Options["billing_setting.billing_expr"], &expressions))
+	named, err := GetModelPricingSnapshot([]string{"deepseek-v4-pro"})
+	require.NoError(t, err)
+	require.NoError(t, common.UnmarshalJsonStr(named.Options["billing_setting.billing_expr"], &namedExpressions))
+	for _, tc := range []struct {
+		name   string
+		listed bool
+	}{
+		{"deepseek-v4-pro", true},
+		{"gpt-image-2", true},
+		{"gpt-image-2.5-flare", false},
+		{"gpt-6-astra", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			builtin, ok := billing_setting.GetBuiltinBillingExpr(tc.name)
+			require.True(t, ok)
+			assert.Equal(t, tc.listed, listed[tc.name])
+			if tc.listed {
+				assert.Equal(t, billing_setting.BillingModeTieredExpr, modes[tc.name])
+				assert.Equal(t, builtin, expressions[tc.name])
+			} else {
+				assert.NotContains(t, modes, tc.name)
+				assert.NotContains(t, expressions, tc.name)
+			}
+			assert.Equal(t, builtin, namedExpressions[tc.name])
+		})
+	}
 }
