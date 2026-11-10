@@ -1,14 +1,20 @@
 package minimax
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -210,4 +216,221 @@ func miniMaxImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	}
 
 	return &dto.Usage{}, nil
+}
+
+func isLegacyMiniMaxImageModel(model string) bool {
+	switch model {
+	case "", "image-01", "image-01-live":
+		return true
+	default:
+		return false
+	}
+}
+
+func relayImageModel(info *relaycommon.RelayInfo) string {
+	if info == nil {
+		return ""
+	}
+	if info.ChannelMeta != nil && info.UpstreamModelName != "" {
+		return info.UpstreamModelName
+	}
+	return info.OriginModelName
+}
+
+func imageModelName(info *relaycommon.RelayInfo, request dto.ImageRequest) string {
+	if request.Model != "" {
+		return request.Model
+	}
+	return relayImageModel(info)
+}
+
+func convertOpenAICompatibleImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	switch info.RelayMode {
+	case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
+	default:
+		return nil, fmt.Errorf("unsupported image relay mode: %d", info.RelayMode)
+	}
+	if info.RelayMode == constant.RelayModeImagesEdits && isMultipartImageRequest(c) {
+		c.Request.Header.Set("Content-Type", "application/json")
+		return convertH3MultipartEditRequest(c, request)
+	}
+	return passthroughOpenAIImageRequest(request)
+}
+
+func isMultipartImageRequest(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	return strings.HasPrefix(c.Request.Header.Get("Content-Type"), "multipart/form-data")
+}
+
+func passthroughOpenAIImageRequest(request dto.ImageRequest) (map[string]any, error) {
+	payload, err := imageRequestPayload(request)
+	if err != nil {
+		return nil, err
+	}
+	normalizeH3EditImages(payload)
+	return payload, nil
+}
+
+func imageRequestPayload(request dto.ImageRequest) (map[string]any, error) {
+	body, err := common.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	var payload map[string]any
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+	for k, raw := range request.Extra {
+		var v any
+		if err := common.Unmarshal(raw, &v); err != nil {
+			continue
+		}
+		payload[k] = v
+	}
+	return payload, nil
+}
+
+func normalizeH3EditImages(payload map[string]any) {
+	if images, ok := payload["images"]; ok {
+		if refs := h3ImageRefs(images); len(refs) > 0 {
+			payload["images"] = refs
+		}
+		return
+	}
+	if image, ok := payload["image"]; ok {
+		if refs := h3ImageRefs(image); len(refs) > 0 {
+			payload["images"] = refs
+			delete(payload, "image")
+		}
+	}
+}
+
+func h3ImageRefs(v any) []map[string]string {
+	switch x := v.(type) {
+	case string:
+		if x == "" {
+			return nil
+		}
+		return []map[string]string{{"image_url": x}}
+	case []any:
+		var refs []map[string]string
+		for _, item := range x {
+			refs = append(refs, h3ImageRefs(item)...)
+		}
+		return refs
+	case map[string]any:
+		if url, ok := x["image_url"].(string); ok && url != "" {
+			return []map[string]string{{"image_url": url}}
+		}
+		if url, ok := x["url"].(string); ok && url != "" {
+			return []map[string]string{{"image_url": url}}
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func convertH3MultipartEditRequest(c *gin.Context, request dto.ImageRequest) (any, error) {
+	payload, err := imageRequestPayload(request)
+	if err != nil {
+		return nil, err
+	}
+	form, err := common.ParseMultipartFormReusable(c)
+	if err != nil {
+		return nil, err
+	}
+	var refs []map[string]string
+	appendFiles := func(files []*multipart.FileHeader) error {
+		for _, fh := range files {
+			ref, err := h3DataURIFromFile(fh)
+			if err != nil {
+				return err
+			}
+			refs = append(refs, map[string]string{"image_url": ref})
+		}
+		return nil
+	}
+	if form != nil && form.File != nil {
+		if err := appendFiles(form.File["image"]); err != nil {
+			return nil, err
+		}
+		if err := appendFiles(form.File["image[]"]); err != nil {
+			return nil, err
+		}
+		for name, files := range form.File {
+			if strings.HasPrefix(name, "image[") && name != "image[]" {
+				if err := appendFiles(files); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	if form != nil {
+		for _, value := range form.Value["image"] {
+			refs = append(refs, h3ImageRefs(value)...)
+		}
+	}
+	if len(refs) > 0 {
+		payload["images"] = refs
+		delete(payload, "image")
+	} else {
+		normalizeH3EditImages(payload)
+	}
+	return payload, nil
+}
+
+func h3DataURIFromFile(fh *multipart.FileHeader) (string, error) {
+	file, err := fh.Open()
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+	mimeType := fh.Header.Get("Content-Type")
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		mimeType = h3ImageMIMEType(fh.Filename)
+	}
+	return "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
+
+func h3ImageMIMEType(filename string) string {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".webp":
+		return "image/webp"
+	default:
+		return "image/png"
+	}
+}
+
+func miniMaxOpenAIImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+	service.CloseResponseBodyGracefully(resp)
+
+	var probe struct {
+		BaseResp struct {
+			StatusCode int    `json:"status_code"`
+			StatusMsg  string `json:"status_msg"`
+		} `json:"base_resp"`
+	}
+	if err := common.Unmarshal(body, &probe); err == nil && probe.BaseResp.StatusCode != 0 {
+		return nil, types.WithOpenAIError(types.OpenAIError{
+			Message: probe.BaseResp.StatusMsg,
+			Type:    "minimax_image_error",
+			Code:    fmt.Sprintf("%d", probe.BaseResp.StatusCode),
+		}, resp.StatusCode)
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	return openai.OpenaiImageHandler(c, info, resp)
 }

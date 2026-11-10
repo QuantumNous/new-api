@@ -135,3 +135,93 @@ func ioNopCloser(body string) nopReadCloser {
 func uintPtr(v uint) *uint {
 	return &v
 }
+
+func TestGetRequestURLForH3Image(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		OriginModelName: "MiniMax-H3-Image",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "https://api.minimax.io",
+			UpstreamModelName: "MiniMax-H3-Image",
+		},
+	}
+
+	got, err := GetRequestURL(info)
+	if err != nil {
+		t.Fatalf("GetRequestURL returned error: %v", err)
+	}
+	want := "https://api.minimax.io/v1/images/generations"
+	if got != want {
+		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
+	}
+
+	info.RelayMode = relayconstant.RelayModeImagesEdits
+	got, err = GetRequestURL(info)
+	if err != nil {
+		t.Fatalf("GetRequestURL(edits) returned error: %v", err)
+	}
+	want = "https://api.minimax.io/v1/images/edits"
+	if got != want {
+		t.Fatalf("GetRequestURL(edits) = %q, want %q", got, want)
+	}
+}
+
+func TestConvertImageRequestH3Passthrough(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		OriginModelName: "MiniMax-H3-Image",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "MiniMax-H3-Image",
+		},
+	}
+	aspect, err := json.Marshal("16:9")
+	if err != nil {
+		t.Fatalf("json.Marshal aspect: %v", err)
+	}
+	area, err := json.Marshal("1K")
+	if err != nil {
+		t.Fatalf("json.Marshal area: %v", err)
+	}
+	request := dto.ImageRequest{
+		Model:  "MiniMax-H3-Image",
+		Prompt: "a red fox in snowfall",
+		Size:   "1024x1024",
+		Extra: map[string]json.RawMessage{
+			"aspect_ratio": aspect,
+			"area":         area,
+		},
+	}
+
+	got, err := adaptor.ConvertImageRequest(gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()), info, request)
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+	body, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal returned error: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+	if payload["model"] != "MiniMax-H3-Image" {
+		t.Fatalf("model = %#v, want MiniMax-H3-Image", payload["model"])
+	}
+	if payload["prompt"] != request.Prompt {
+		t.Fatalf("prompt = %#v, want %q", payload["prompt"], request.Prompt)
+	}
+	if payload["size"] != "1024x1024" {
+		t.Fatalf("size = %#v, want 1024x1024", payload["size"])
+	}
+	if payload["aspect_ratio"] != "16:9" {
+		t.Fatalf("aspect_ratio = %#v, want 16:9", payload["aspect_ratio"])
+	}
+	if payload["area"] != "1K" {
+		t.Fatalf("area = %#v, want 1K", payload["area"])
+	}
+}

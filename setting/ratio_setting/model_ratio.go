@@ -267,6 +267,7 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-ai/DeepSeek-R1":                 0.8,
 	"deepseek-ai/DeepSeek-V3-0324":            0.8,
 	"deepseek-ai/DeepSeek-V3.1":               0.8,
+	"MiniMax-H3-Image":                        1.15, // $2.3 / 1M text input tokens
 }
 
 var defaultModelPrice = map[string]float64{
@@ -326,10 +327,11 @@ var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
 var defaultCompletionRatio = map[string]float64{
-	"gpt-4-gizmo-*":  2,
-	"gpt-4o-gizmo-*": 3,
-	"gpt-4-all":      2,
-	"gpt-image-1":    8,
+	"gpt-4-gizmo-*":    2,
+	"gpt-4o-gizmo-*":   3,
+	"gpt-4-all":        2,
+	"gpt-image-1":      8,
+	"MiniMax-H3-Image": 3.8 / 2.3, // $3.8 / 1M image output tokens
 }
 
 // InitRatioSettings initializes all model related settings maps
@@ -641,7 +643,8 @@ func ModelRatio2JSONString() string {
 }
 
 var defaultImageRatio = map[string]float64{
-	"gpt-image-1": 2,
+	"gpt-image-1":      2,
+	"MiniMax-H3-Image": 1.5 / 2.3, // $1.5 / 1M image input tokens
 }
 var imageRatioMap = types.NewRWMap[string, float64]()
 var audioRatioMap = types.NewRWMap[string, float64]()
