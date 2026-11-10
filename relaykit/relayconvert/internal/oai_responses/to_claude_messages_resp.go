@@ -71,8 +71,9 @@ func ResponsesResponseToClaudeMessagesResponse(resp *dto.OpenAIResponsesResponse
 	return claudeResponse, usage, nil
 }
 
-func responsesArgumentsToClaudeInput(arguments string) map[string]any {
-	input := make(map[string]any)
+func responsesArgumentsToClaudeInput(arguments string) any {
+	// Preserve JSON values without rounding integers or decimals through float64.
+	input := make(map[string]json.RawMessage)
 	if strings.TrimSpace(arguments) == "" {
 		return input
 	}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,7 +207,9 @@ func TestConvertResponseDirectAndMultiHopConverters(t *testing.T) {
 	assert.Equal(t, "text", claudeValue.Content[0].Type)
 	assert.Equal(t, "tool_use", claudeValue.Content[1].Type)
 	assert.Equal(t, "lookup", claudeValue.Content[1].Name)
-	assert.Equal(t, map[string]any{"q": "x"}, claudeValue.Content[1].Input)
+	input, err := kitutil.Marshal(claudeValue.Content[1].Input)
+	require.NoError(t, err)
+	assert.Equal(t, `{"q":"x"}`, string(input))
 	assert.Equal(t, 11, toClaude.Usage.TotalTokens)
 
 	toGemini, err := ConvertResponse(nil, &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}, types.RelayFormatGemini, responses)
@@ -226,6 +229,68 @@ func TestConvertResponseDirectAndMultiHopConverters(t *testing.T) {
 	assert.Equal(t, "lookup", geminiValue.Candidates[0].Content.Parts[1].FunctionCall.FunctionName)
 	assert.Equal(t, map[string]any{"q": "x"}, geminiValue.Candidates[0].Content.Parts[1].FunctionCall.Arguments)
 	assert.Equal(t, 11, toGemini.Usage.TotalTokens)
+}
+
+func TestConvertResponsesToClaudePreservesToolArguments(t *testing.T) {
+	tests := []struct {
+		name      string
+		arguments string
+		wantInput string
+	}{
+		{
+			name:      "large integer",
+			arguments: `{"id":9007199254740993}`,
+			wantInput: `{"id":9007199254740993}`,
+		},
+		{
+			name:      "nested integers and precise decimal",
+			arguments: `{"nested":{"amount":0.1234567890123456789,"ids":[9007199254740993,-9007199254740993]}}`,
+			wantInput: `{"nested":{"amount":0.1234567890123456789,"ids":[9007199254740993,-9007199254740993]}}`,
+		},
+		{
+			name:      "number outside float64 range",
+			arguments: `{"amount":1e400}`,
+			wantInput: `{"amount":1e400}`,
+		},
+		{
+			name:      "ordinary object",
+			arguments: `{"active":true,"items":[1,"x",null]}`,
+			wantInput: `{"active":true,"items":[1,"x",null]}`,
+		},
+		{name: "empty arguments", wantInput: `{}`},
+		{name: "whitespace arguments", arguments: " \n\t", wantInput: `{}`},
+		{name: "empty object", arguments: `{}`, wantInput: `{}`},
+		{name: "null", arguments: `null`, wantInput: `{"input":"null"}`},
+		{name: "array", arguments: `["x",1]`, wantInput: `{"input":"[\"x\",1]"}`},
+		{name: "malformed object", arguments: `{"id":`, wantInput: `{"input":"{\"id\":"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			arguments, err := kitutil.Marshal(tt.arguments)
+			require.NoError(t, err)
+			response := &dto.OpenAIResponsesResponse{
+				ID: "resp_tool",
+				Output: []dto.ResponsesOutput{{
+					Type:      "function_call",
+					CallId:    "call_lookup",
+					Name:      "lookup",
+					Arguments: arguments,
+				}},
+			}
+			result, err := ConvertResponse(nil, nil, types.RelayFormatClaude, response)
+			require.NoError(t, err)
+			require.IsType(t, &dto.ClaudeResponse{}, result.Value)
+			claude := result.Value.(*dto.ClaudeResponse)
+			require.Len(t, claude.Content, 1)
+			assert.Equal(t, "tool_use", claude.Content[0].Type)
+			assert.Equal(t, "call_lookup", claude.Content[0].Id)
+			assert.Equal(t, "lookup", claude.Content[0].Name)
+			input, err := kitutil.Marshal(claude.Content[0].Input)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantInput, string(input))
+		})
+	}
 }
 
 func TestConvertResponsePreservesInterleavedResponsesBlocksForClaude(t *testing.T) {
