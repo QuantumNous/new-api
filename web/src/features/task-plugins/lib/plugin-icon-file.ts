@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { fetchFromPluginSite } from './plugin-site'
+
 /** Mirrors the gateway's cap on an uploaded plugin logo. */
 export const MAX_PLUGIN_ICON_BYTES = 512 * 1024
 
@@ -116,7 +118,7 @@ export async function fetchPluginIconDataUri(
   const declared = pluginIconMediaType(pathname)
   // A file named by its digest (community files) has no extension.
   if (!declared && /\.[^/]*$/.test(pathname)) return null
-  const fetchImpl = options.fetchImpl ?? globalThis.fetch
+  const fetchImpl = options.fetchImpl ?? fetchFromPluginSite
   let response: Response
   try {
     // Revalidate so a logo republished in place is not read from a stale

@@ -17,9 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, test, vi } from 'vitest'
+
+import { usePluginSiteStore } from '@/stores/plugin-site-store'
 
 import type { MarketplaceInstallTarget } from '../components/marketplace-install-dialog'
 import { MarketplacePanel } from '../components/marketplace-panel'
@@ -118,6 +120,7 @@ afterEach(() => {
   for (const queryClient of queryClients) queryClient.clear()
   queryClients.length = 0
   vi.unstubAllGlobals()
+  usePluginSiteStore.setState({ site: 'auto', fallbackUntil: 0 })
 })
 
 describe('MarketplacePanel source switch', () => {
@@ -476,5 +479,33 @@ describe('MarketplacePanel community plugins', () => {
     expect(requestedUrls(fetchMock)).toContain(
       'https://www.newapi.ai/api/v1/community/resolve?code=12345679'
     )
+  })
+})
+
+describe('MarketplacePanel download site', () => {
+  test('picking the mainland China site reloads the list from www.newapi.pro', async () => {
+    const fetchMock = installIndexFetchMock()
+    renderPanel([officialSource])
+    expect(
+      await screen.findByRole('heading', { name: officialIndex.name })
+    ).toBeInTheDocument()
+    expect(requestedUrls(fetchMock)).toEqual([DEFAULT_MARKETPLACE_INDEX_URL])
+
+    await userEvent.click(
+      screen.getByRole('combobox', { name: 'Plugin download site' })
+    )
+    await userEvent.click(
+      screen.getByRole('option', { name: 'Mainland China (www.newapi.pro)' })
+    )
+
+    await waitFor(() =>
+      expect(requestedUrls(fetchMock)).toContain(
+        'https://www.newapi.pro/api/v1/plugins/index.json'
+      )
+    )
+    expect(
+      screen.getByRole('combobox', { name: 'Plugin download site' })
+    ).toHaveTextContent('Mainland China (www.newapi.pro)')
+    expect(usePluginSiteStore.getState().site).toBe('pro')
   })
 })

@@ -64,6 +64,7 @@ import {
   SEGMENTED_SWITCH_CLASS,
   SEGMENTED_SWITCH_ITEM_CLASS,
 } from './plugin-kind-switch'
+import { PluginSiteSelect } from './plugin-site-select'
 
 type MarketplacePanelProps = {
   /** The kind the page URL names; without one the default kind is shown. */
@@ -174,6 +175,7 @@ export function MarketplacePanel(props: MarketplacePanelProps) {
             />
           </div>
           <div className='flex shrink-0 gap-2'>
+            <PluginSiteSelect />
             <Button
               variant='outline'
               size='sm'

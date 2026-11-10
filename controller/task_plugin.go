@@ -53,9 +53,14 @@ type taskPluginUploadRequest struct {
 	MarketplaceIndexURL string `json:"marketplaceIndexUrl"`
 }
 
-// communityPluginInstallsURL receives the install count of a plugin installed
-// from the built-in community source. Tests point it at a local server.
-var communityPluginInstallsURL = "https://www.newapi.ai/api/v1/community/installs"
+// communityPluginInstallsURLs receive the install count of a plugin installed
+// from the built-in community source, tried in order: www.newapi.ai, then the
+// mainland China site www.newapi.pro when newapi.ai does not answer. Both
+// sites count into the same list. Tests point them at local servers.
+var communityPluginInstallsURLs = []string{
+	"https://www.newapi.ai/api/v1/community/installs",
+	"https://www.newapi.pro/api/v1/community/installs",
+}
 
 // communityInstallReports tracks the install counts still being sent.
 var communityInstallReports sync.WaitGroup
@@ -72,19 +77,30 @@ func reportCommunityPluginInstall(key, version string) {
 		if err != nil {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, communityPluginInstallsURL, bytes.NewReader(body))
-		if err != nil {
-			return
+		for _, installsURL := range communityPluginInstallsURLs {
+			// Any answer counts as delivered; only a site that cannot be
+			// reached within 10 seconds moves on to the next one.
+			if postCommunityPluginInstall(installsURL, body) {
+				return
+			}
 		}
-		request.Header.Set("Content-Type", "application/json")
-		response, err := http.DefaultClient.Do(request)
-		if err != nil {
-			return
-		}
-		_ = response.Body.Close()
 	})
+}
+
+func postCommunityPluginInstall(installsURL string, body []byte) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, installsURL, bytes.NewReader(body))
+	if err != nil {
+		return false
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return false
+	}
+	_ = response.Body.Close()
+	return true
 }
 
 func UploadTaskPlugin(c *gin.Context) {

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -2088,9 +2089,14 @@ func TestUploadTaskPluginAppliesMarketplaceKeyRulesAndCountsCommunityInstalls(t 
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	t.Cleanup(server.Close)
-	previousInstallsURL := communityPluginInstallsURL
-	communityPluginInstallsURL = server.URL + "/api/v1/community/installs"
-	t.Cleanup(func() { communityPluginInstallsURL = previousInstallsURL })
+	// newapi.ai cannot be reached, so the count goes to the second site.
+	unreachable, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	unreachableURL := "http://" + unreachable.Addr().String() + "/api/v1/community/installs"
+	require.NoError(t, unreachable.Close())
+	previousInstallsURLs := communityPluginInstallsURLs
+	communityPluginInstallsURLs = []string{unreachableURL, server.URL + "/api/v1/community/installs"}
+	t.Cleanup(func() { communityPluginInstallsURLs = previousInstallsURLs })
 
 	const officialURL = "https://www.newapi.ai/api/v1/plugins/index.json"
 	const thirdPartyURL = "https://plugins.example.com/index.json"

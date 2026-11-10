@@ -29,6 +29,7 @@ import type {
   TaskPluginListItem,
 } from '../types'
 import { pluginProtocolClaimsSchema } from './plugin-meta-preview'
+import { fetchFromPluginSite } from './plugin-site'
 import { getPluginWebsite } from './plugin-website'
 
 export const SUPPORTED_INDEX_VERSION = 1
@@ -411,7 +412,7 @@ export async function fetchMarketplaceIndex(
 ): Promise<MarketplaceIndex> {
   // Revalidate so the hashes checked at install time are the host's current
   // ones rather than a copy cached before a republish.
-  const response = await fetch(indexUrl, { cache: 'no-cache' })
+  const response = await fetchFromPluginSite(indexUrl, { cache: 'no-cache' })
   if (!response.ok) {
     throw new Error(
       i18next.t('The source returned HTTP {{status}}', {
@@ -432,7 +433,7 @@ export async function resolveCommunityPlugin(
 ): Promise<MarketplacePlugin | null> {
   const url = new URL('resolve', COMMUNITY_MARKETPLACE_INDEX_URL)
   url.searchParams.set('code', code.trim())
-  const response = await fetch(url, { cache: 'no-cache' })
+  const response = await fetchFromPluginSite(url, { cache: 'no-cache' })
   if (response.status === 404) return null
   if (!response.ok) {
     throw new Error(
