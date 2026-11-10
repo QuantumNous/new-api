@@ -210,3 +210,37 @@ func TestDeepSeekBuiltinBilling(t *testing.T) {
 		assert.Equal(t, 375, result.ActualQuotaAfterGroup, model)
 	}
 }
+
+func TestMiniMaxH3BuiltinBilling(t *testing.T) {
+	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
+	saved := *settings
+	savedRatios, savedPrices := ratio_setting.ModelRatio2JSONString(), ratio_setting.ModelPrice2JSONString()
+	savedOptions := common.OptionMap
+	t.Cleanup(func() {
+		*settings, common.OptionMap = saved, savedOptions
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+	})
+	common.OptionMap = map[string]string{"billing_setting.billing_mode": `{}`, "billing_setting.billing_expr": `{}`}
+	require.NoError(t, config.GlobalConfig.LoadFromDB(common.OptionMap))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	for _, tc := range []struct {
+		model string
+		quota int
+	}{
+		{"MiniMax-H3-Image", 3800},
+		{"MiniMax-H3-Image-Highspeed", 6450},
+	} {
+		expression, ok := billing_setting.GetBillingExpr(tc.model)
+		require.True(t, ok)
+		usage := &dto.Usage{PromptTokens: 2000, CompletionTokens: 1000, PromptTokensDetails: dto.InputTokenDetails{TextTokens: 1000, ImageTokens: 1000}}
+		params := service.BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression))
+		result, err := billingexpr.ComputeTieredQuotaWithRequest(&billingexpr.BillingSnapshot{ExprString: expression, ExprHash: billingexpr.ExprHashString(expression), GroupRatio: 1, QuotaPerUnit: 500000}, params, billingexpr.RequestInput{})
+		require.NoError(t, err)
+		assert.Equal(t, tc.quota, result.ActualQuotaAfterGroup)
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"`+tc.model+`":9}`))
+		assert.Equal(t, billing_setting.BillingModeRatio, billing_setting.GetBillingMode(tc.model), "administrator overrides must win")
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	}
+}
