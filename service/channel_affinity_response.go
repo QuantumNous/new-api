@@ -21,6 +21,25 @@ func BindChannelAffinityResponse(c *gin.Context, initialChannelID int) {
 	c.Writer = &channelAffinityResponseWriter{ResponseWriter: c.Writer, ctx: c, initialChannelID: initialChannelID}
 }
 
+// FinalizeChannelAffinityResponse commits empty success responses and returns any
+// sticky binding failure hidden by Gin's error-free WriteHeaderNow interface.
+func FinalizeChannelAffinityResponse(c *gin.Context) error {
+	c.Writer.WriteHeaderNow()
+	var writer http.ResponseWriter = c.Writer
+	for {
+		if affinity, ok := writer.(*channelAffinityResponseWriter); ok {
+			affinity.mutex.Lock()
+			defer affinity.mutex.Unlock()
+			return affinity.commitErr
+		}
+		unwrapper, ok := writer.(interface{ Unwrap() http.ResponseWriter })
+		if !ok {
+			return nil
+		}
+		writer = unwrapper.Unwrap()
+	}
+}
+
 type channelAffinityResponseWriter struct {
 	gin.ResponseWriter
 	ctx                *gin.Context
@@ -40,16 +59,18 @@ func (w *channelAffinityResponseWriter) Unwrap() http.ResponseWriter {
 func (w *channelAffinityResponseWriter) commitAffinity(heartbeat bool) error {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
+	// Terminal SSE errors must remain deliverable after a binding failure. The
+	// sticky error still blocks success output and is returned at finalization.
+	status, _ := common.GetContextKeyType[*relaycommon.StreamStatus](w.ctx, constant.ContextKeyResponseStreamStatus)
+	if status != nil && status.ResponseFailed() {
+		return nil
+	}
 	if w.commitErr == nil {
 		if w.Status() < http.StatusOK || w.Status() >= http.StatusMultipleChoices {
 			return nil
 		}
 		channelID := w.committedChannelID
 		if !heartbeat {
-			status, _ := common.GetContextKeyType[*relaycommon.StreamStatus](w.ctx, constant.ContextKeyResponseStreamStatus)
-			if status != nil && status.ResponseFailed() {
-				return nil
-			}
 			channelID = channelAffinityTarget(w.ctx, w.initialChannelID)
 		}
 		key, ttl, active := channelAffinityBinding(w.ctx)
