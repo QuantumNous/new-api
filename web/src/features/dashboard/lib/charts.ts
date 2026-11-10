@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { dataScheme as vchartDefaultDataScheme } from '@visactor/vchart/esm/theme/color-scheme/builtin/default'
 
-import { MAX_CHART_TREND_POINTS } from '@/features/dashboard/constants'
 import type {
   QuotaDataItem,
   ProcessedChartData,
@@ -280,29 +279,6 @@ export function processChartData(
     range: modelColorRange,
   }
 
-  // Pad time points if too few (default 7 points)
-  const MAX_TREND_POINTS = MAX_CHART_TREND_POINTS
-  const fillTimePoints = (times: string[]) => {
-    if (times.length >= MAX_TREND_POINTS) return times
-    const lastTime = Math.max(
-      ...data.map((item) => Number(item.created_at) || 0)
-    )
-    let intervalSec = 3600
-    if (timeGranularity === 'week') {
-      intervalSec = 604800
-    } else if (timeGranularity === 'day') {
-      intervalSec = 86400
-    }
-    const padded = Array.from({ length: MAX_TREND_POINTS }, (_, i) =>
-      formatChartTime(
-        lastTime - (MAX_TREND_POINTS - 1 - i) * intervalSec,
-        timeGranularity
-      )
-    )
-    return padded
-  }
-  const chartTimes = fillTimePoints(sortedTimes)
-
   const totalTimes = [...modelTotalsMap.values()].reduce(
     (sum, x) => sum + (Number(x.count) || 0),
     0
@@ -329,7 +305,7 @@ export function processChartData(
     TimeSum: number
   }> = []
 
-  chartTimes.forEach((time) => {
+  sortedTimes.forEach((time) => {
     let timeData = sortedModels.map((model) => {
       const stats = timeModelMap.get(time)?.get(model)
       const rawQuota = Number(stats?.quota) || 0
@@ -364,7 +340,7 @@ export function processChartData(
   )
 
   const areaValues: typeof lineValues = []
-  chartTimes.forEach((time) => {
+  sortedTimes.forEach((time) => {
     const buckets = new Map<string, { rawQuota: number; usage: number }>()
     const modelMap = timeModelMap.get(time)
     let timeSum = 0
@@ -412,7 +388,7 @@ export function processChartData(
     Model: string
     Count: number
   }> = []
-  chartTimes.forEach((time) => {
+  sortedTimes.forEach((time) => {
     const timeData = topTrendModels.map((model) => {
       const stats = timeModelMap.get(time)?.get(model)
       return {

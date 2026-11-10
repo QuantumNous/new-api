@@ -138,19 +138,53 @@ describe.each(cases)('dashboard $granularity chart chronology', (scenario) => {
     expect(data).toEqual(original)
   })
 
-  test('keeps the existing seven padded model buckets in chronological order', () => {
+  test('shows only the actual model bucket when one is returned', () => {
     const data = [unorderedUsage(scenario.start, scenario.interval)[0]]
     const result = processChartData(data, scenario.granularity)
 
     for (const key of ['spec_line', 'spec_area', 'spec_model_line'] as const) {
       const values: Array<{ Time: string; rawQuota: number; Count: number }> =
         result[key].data[0].values
-      expect(values.map((row) => row.Time)).toEqual(scenario.labels.slice(1))
+      expect(values.map((row) => row.Time)).toEqual([scenario.labels[7]])
       expect(
         values.map((row) =>
           key === 'spec_model_line' ? row.Count : row.rawQuota / 500000
         )
-      ).toEqual([0, 0, 0, 0, 0, 0, 8])
+      ).toEqual([8])
     }
   })
+})
+
+test('weekly model charts retain both real buckets when fewer than seven are returned', () => {
+  const first = new Date('2025-09-14T12:00:00').getTime() / 1000
+  const data: QuotaDataItem[] = [
+    {
+      created_at: first,
+      model_name: 'model-a',
+      username: 'alice',
+      quota: 5000000,
+      count: 1,
+    },
+    {
+      created_at: first + 86400,
+      model_name: 'model-a',
+      username: 'alice',
+      quota: 10000000,
+      count: 2,
+    },
+  ]
+
+  const result = processChartData(data, 'week')
+  const expectedLabels = ['09-14 - 09-20', '09-15 - 09-21']
+
+  for (const key of ['spec_line', 'spec_area', 'spec_model_line'] as const) {
+    const values: Array<{ Time: string; rawQuota: number; Count: number }> =
+      result[key].data[0].values
+    expect(values.map((row) => row.Time)).toEqual(expectedLabels)
+    expect(
+      values.map((row) =>
+        key === 'spec_model_line' ? row.Count : row.rawQuota
+      )
+    ).toEqual(key === 'spec_model_line' ? [1, 2] : [5000000, 10000000])
+  }
 })
