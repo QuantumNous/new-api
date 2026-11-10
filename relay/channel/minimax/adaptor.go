@@ -79,7 +79,14 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if !isLegacyMiniMaxImageModel(imageModelName(info, request)) {
-		return convertOpenAICompatibleImageRequest(c, info, request)
+		converted, err := (&openai.Adaptor{}).ConvertImageRequest(c, info, request)
+		if err != nil {
+			return nil, err
+		}
+		if req, ok := converted.(dto.ImageRequest); ok {
+			return mergeImageExtra(req)
+		}
+		return converted, nil
 	}
 	if info.RelayMode != constant.RelayModeImagesGenerations {
 		return nil, fmt.Errorf("unsupported image relay mode: %d", info.RelayMode)
@@ -129,7 +136,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 	if info.RelayMode == constant.RelayModeImagesGenerations || info.RelayMode == constant.RelayModeImagesEdits {
 		if !isLegacyMiniMaxImageModel(relayImageModel(info)) {
-			return miniMaxOpenAIImageHandler(c, resp, info)
+			return (&openai.Adaptor{}).DoResponse(c, resp, info)
 		}
 		return miniMaxImageHandler(c, resp, info)
 	}
