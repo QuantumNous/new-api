@@ -225,6 +225,7 @@ func appendTaskLogInfo(task *model.Task, other *model.LogOther) {
 		other.SetPublic("result_discarded", true)
 	}
 	if task.PrivateData.Execution != nil {
+		other.SetRequestHeaders(task.PrivateData.Execution.RequestHeaders)
 		AppendTaskPluginAuditInfo(other, task.PrivateData.Execution.TaskPlugin)
 	}
 	if task.PrivateData.UpstreamTaskID == "" && task.PrivateData.NodeName == "" {

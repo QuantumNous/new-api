@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -45,6 +46,45 @@ type LogOther struct {
 
 func NewLogOther() *LogOther {
 	return &LogOther{}
+}
+
+// LogRequestHeaders records client-supplied metadata, not trusted client identity.
+// It can be captured at task submission and reused after the request has ended.
+type LogRequestHeaders struct {
+	UserAgent     string `json:"user_agent,omitempty"`
+	XForwardedFor string `json:"x_forwarded_for,omitempty"`
+}
+
+func CaptureLogRequestHeaders(request *http.Request) *LogRequestHeaders {
+	if request == nil {
+		return nil
+	}
+	headers := &LogRequestHeaders{
+		UserAgent:     request.UserAgent(),
+		XForwardedFor: strings.Join(request.Header.Values("X-Forwarded-For"), ", "),
+	}
+	// Bound persisted metadata while preserving Unicode characters.
+	for _, value := range []*string{&headers.UserAgent, &headers.XForwardedFor} {
+		if runes := []rune(*value); len(runes) > 4096 {
+			*value = string(runes[:4096])
+		}
+	}
+	if headers.UserAgent == "" && headers.XForwardedFor == "" {
+		return nil
+	}
+	return headers
+}
+
+func (o *LogOther) SetRequestHeaders(headers *LogRequestHeaders) {
+	if headers == nil {
+		return
+	}
+	if headers.UserAgent != "" {
+		o.SetPublic("user_agent", headers.UserAgent)
+	}
+	if headers.XForwardedFor != "" {
+		o.SetPublic("x_forwarded_for", headers.XForwardedFor)
+	}
 }
 
 func isReservedLogOtherKey(key string) bool {

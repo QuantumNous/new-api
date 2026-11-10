@@ -139,9 +139,10 @@ type TaskPrivateData struct {
 }
 
 type TaskExecutionSnapshot struct {
-	RequestID   string              `json:"request_id,omitempty"`
-	RequestPath string              `json:"request_path,omitempty"`
-	TaskPlugin  *TaskPluginSnapshot `json:"task_plugin,omitempty"`
+	RequestID      string              `json:"request_id,omitempty"`
+	RequestPath    string              `json:"request_path,omitempty"`
+	RequestHeaders *LogRequestHeaders  `json:"request_headers,omitempty"`
+	TaskPlugin     *TaskPluginSnapshot `json:"task_plugin,omitempty"`
 }
 
 // TaskPluginSnapshot contains credential-free identity only. Plugin source,
