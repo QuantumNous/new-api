@@ -5,12 +5,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 )
 
 // BindChannelAffinityResponse commits affinity before output from each selected
-// channel becomes visible. Keepalive may write before upstream accepts a
-// request, so a later retry must commit again if it uses a different channel.
+// channel becomes visible. Heartbeats only renew an already committed channel;
+// they cannot establish that a pending retry has succeeded.
 func BindChannelAffinityResponse(c *gin.Context, initialChannelID int) {
 	if _, _, ok := getChannelAffinityContext(c); !ok {
 		return
@@ -34,14 +37,21 @@ func (w *channelAffinityResponseWriter) Unwrap() http.ResponseWriter {
 
 // commitAffinity binds each new channel before output and periodically renews
 // long streams. A cache failure remains sticky so later writes cannot leak output.
-func (w *channelAffinityResponseWriter) commitAffinity() error {
+func (w *channelAffinityResponseWriter) commitAffinity(heartbeat bool) error {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 	if w.commitErr == nil {
 		if w.Status() < http.StatusOK || w.Status() >= http.StatusMultipleChoices {
 			return nil
 		}
-		channelID := channelAffinityTarget(w.ctx, w.initialChannelID)
+		channelID := w.committedChannelID
+		if !heartbeat {
+			status, _ := common.GetContextKeyType[*relaycommon.StreamStatus](w.ctx, constant.ContextKeyResponseStreamStatus)
+			if status != nil && status.ResponseFailed() {
+				return nil
+			}
+			channelID = channelAffinityTarget(w.ctx, w.initialChannelID)
+		}
 		key, ttl, active := channelAffinityBinding(w.ctx)
 		if !active || channelID <= 0 {
 			return nil
@@ -76,13 +86,13 @@ func (w *channelAffinityResponseWriter) commitAffinity() error {
 }
 
 func (w *channelAffinityResponseWriter) WriteHeaderNow() {
-	_ = w.commitAffinity()
+	_ = w.commitAffinity(false)
 	w.ResponseWriter.WriteHeaderNow()
 }
 
 // Write withholds response bytes when the channel binding cannot be committed.
 func (w *channelAffinityResponseWriter) Write(data []byte) (int, error) {
-	if err := w.commitAffinity(); err != nil {
+	if err := w.commitAffinity(false); err != nil {
 		return 0, err
 	}
 	return w.ResponseWriter.Write(data)
@@ -90,7 +100,7 @@ func (w *channelAffinityResponseWriter) Write(data []byte) (int, error) {
 
 // WriteString applies the same binding barrier as Write to Gin's string output.
 func (w *channelAffinityResponseWriter) WriteString(data string) (int, error) {
-	if err := w.commitAffinity(); err != nil {
+	if err := w.commitAffinity(false); err != nil {
 		return 0, err
 	}
 	return w.ResponseWriter.WriteString(data)
@@ -103,9 +113,25 @@ func (w *channelAffinityResponseWriter) Flush() {
 // FlushError commits affinity before flushing SSE output and preserves errors
 // from transports hidden behind Gin or other response-writer wrappers.
 func (w *channelAffinityResponseWriter) FlushError() error {
-	if err := w.commitAffinity(); err != nil {
+	if err := w.commitAffinity(false); err != nil {
 		return err
 	}
+	return w.flushResponse()
+}
+
+// WriteHeartbeat sends keepalive bytes without treating a pending channel as successful.
+func (w *channelAffinityResponseWriter) WriteHeartbeat(data []byte) error {
+	if err := w.commitAffinity(true); err != nil {
+		return err
+	}
+	if _, err := w.ResponseWriter.Write(data); err != nil {
+		return err
+	}
+	return w.flushResponse()
+}
+
+// flushResponse preserves buffered output and transport errors without changing affinity.
+func (w *channelAffinityResponseWriter) flushResponse() error {
 	w.ResponseWriter.Flush()
 	// Gin's Flush discards transport errors. Preserve wrapper buffers first,
 	// then recover an error-aware flusher through the same chain as Unwrap.
