@@ -849,6 +849,9 @@ func TestChannelAffinityLongStreamRenewsBinding(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, found)
 		assert.Equal(t, 22, bound)
+		_, err = ctx.Writer.WriteString("data: stale encrypted result\n\n")
+		require.ErrorContains(t, err, "binding changed")
+		assert.NotContains(t, recorder.Body.String(), "stale encrypted result")
 	})
 }
 
