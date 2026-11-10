@@ -323,6 +323,11 @@ func TestRequestPolicyRoutingDatabaseMatrix(t *testing.T) {
 							}
 							assert.False(t, request.IsAborted())
 							assert.Equal(t, 2, common.GetContextKeyInt(request, constant.ContextKeyChannelId), "prefer falls back to the next eligible channel")
+							// Selection alone is not a successful response. Exercise the writer
+							// that commits the fallback binding before exposing its output.
+							_, err = request.Writer.WriteString("ok")
+							require.NoError(t, err)
+							bound, found = service.GetPreferredChannelByAffinity(seed, "policy-test", "default")
 							require.True(t, found)
 							assert.Equal(t, 2, bound, "a successful fallback rebinds the session")
 						})

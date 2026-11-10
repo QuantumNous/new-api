@@ -32,6 +32,8 @@ func (w *channelAffinityResponseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
+// commitAffinity binds each new channel before output and periodically renews
+// long streams. A cache failure remains sticky so later writes cannot leak output.
 func (w *channelAffinityResponseWriter) commitAffinity() error {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
@@ -78,6 +80,7 @@ func (w *channelAffinityResponseWriter) WriteHeaderNow() {
 	w.ResponseWriter.WriteHeaderNow()
 }
 
+// Write withholds response bytes when the channel binding cannot be committed.
 func (w *channelAffinityResponseWriter) Write(data []byte) (int, error) {
 	if err := w.commitAffinity(); err != nil {
 		return 0, err
@@ -85,6 +88,7 @@ func (w *channelAffinityResponseWriter) Write(data []byte) (int, error) {
 	return w.ResponseWriter.Write(data)
 }
 
+// WriteString applies the same binding barrier as Write to Gin's string output.
 func (w *channelAffinityResponseWriter) WriteString(data string) (int, error) {
 	if err := w.commitAffinity(); err != nil {
 		return 0, err
@@ -96,6 +100,8 @@ func (w *channelAffinityResponseWriter) Flush() {
 	_ = w.FlushError()
 }
 
+// FlushError commits affinity before flushing SSE output and preserves errors
+// from transports hidden behind Gin or other response-writer wrappers.
 func (w *channelAffinityResponseWriter) FlushError() error {
 	if err := w.commitAffinity(); err != nil {
 		return err
