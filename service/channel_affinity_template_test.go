@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
@@ -777,11 +778,21 @@ func TestChannelAffinityCacheFailureAfterHeartbeat(t *testing.T) {
 	require.NoError(t, ctx.Writer.(interface{ WriteHeartbeat([]byte) error }).WriteHeartbeat([]byte(": PING\n\n")))
 	require.NoError(t, client.Close())
 	ctx.Set("channel_id", 22)
+	require.Error(t, FinalizeChannelAffinityResponse(ctx), "empty retry finalization must report binding failure")
 	_, err := ctx.Writer.WriteString("data: encrypted result\n\n")
 	require.Error(t, err)
 	require.Error(t, http.NewResponseController(ctx.Writer).Flush())
 	assert.Equal(t, http.StatusOK, recorder.Code, "already committed headers cannot become 503")
 	assert.Equal(t, ": PING\n\n", recorder.Body.String(), "never expose data from the unbound retry")
+	status := relaycommon.NewStreamStatus()
+	status.MarkFailed("session_binding_unavailable", "gateway_error", http.StatusServiceUnavailable)
+	common.SetContextKey(ctx, constant.ContextKeyResponseStreamStatus, status)
+	_, err = ctx.Writer.WriteString("event: error\ndata: binding unavailable\n\n")
+	require.NoError(t, err)
+	require.NoError(t, http.NewResponseController(ctx.Writer).Flush())
+	assert.Contains(t, recorder.Body.String(), "event: error")
+	assert.NotContains(t, recorder.Body.String(), "encrypted result")
+	require.Error(t, FinalizeChannelAffinityResponse(ctx), "error delivery must not erase the binding failure")
 }
 
 // TestChannelAffinityLongStreamRenewsBinding restores expired bindings without overwriting newer ones.

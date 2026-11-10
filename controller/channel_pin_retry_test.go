@@ -380,7 +380,7 @@ func TestAffinityRetryHeartbeats(t *testing.T) {
 						_, err := c.Writer.WriteString("data: successful retry\n\n")
 						require.NoError(t, err)
 					case "empty":
-						c.Writer.WriteHeaderNow()
+						require.NoError(t, service.FinalizeChannelAffinityResponse(c))
 					case "error":
 						writeRelayStreamError(c, types.RelayFormatClaude, types.NewErrorWithStatusCode(errors.New("retry failed"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway))
 					}

@@ -219,7 +219,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError == nil {
 			// Empty successful retries still need to commit their binding, even
 			// when a heartbeat has already made the response headers visible.
-			c.Writer.WriteHeaderNow()
+			if err := service.FinalizeChannelAffinityResponse(c); err != nil {
+				newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeGetChannelFailed, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry(), types.ErrOptionWithHideErrMsg("session_binding_unavailable"))
+				return
+			}
 			service.MarkRequestPolicySuccess(c, relayInfo.StreamStatus)
 			relayInfo.LastError = nil
 			return
