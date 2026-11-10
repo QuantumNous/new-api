@@ -546,23 +546,23 @@ export function PaymentSettingsSection({
       sanitized.EpayMerchantPrivateKey !== initial.EpayMerchantPrivateKey
     ) {
       updates.push({
-        key: 'EpayMerchantPrivateKey',
+        key: 'payment_setting.epay_merchant_private_key',
         value: sanitized.EpayMerchantPrivateKey,
       })
     }
 
-    if (
-      sanitized.EpayPlatformPublicKey &&
-      sanitized.EpayPlatformPublicKey !== initial.EpayPlatformPublicKey
-    ) {
+    if (sanitized.EpayPlatformPublicKey !== initial.EpayPlatformPublicKey) {
       updates.push({
-        key: 'EpayPlatformPublicKey',
+        key: 'payment_setting.epay_platform_public_key',
         value: sanitized.EpayPlatformPublicKey,
       })
     }
 
     if (sanitized.EpaySignType !== initial.EpaySignType) {
-      updates.push({ key: 'EpaySignType', value: sanitized.EpaySignType })
+      updates.push({
+        key: 'payment_setting.epay_sign_type',
+        value: sanitized.EpaySignType,
+      })
     }
 
     if (sanitized.Price !== initial.Price) {
@@ -1311,7 +1311,7 @@ export function PaymentSettingsSection({
                 </div>
 
                 {currentFormValues.EpaySignType === 'RSA' ? (
-                  <div className='grid gap-6 md:grid-cols-2'>
+                  <div className='grid gap-6 md:grid-cols-2 md:items-start'>
                     <FormField
                       control={form.control}
                       name='EpayMerchantPrivateKey'
@@ -1352,9 +1352,6 @@ export function PaymentSettingsSection({
                               {...field}
                             />
                           </FormControl>
-                          <FormDescription>
-                            {t('Leave blank to keep the existing key')}
-                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}

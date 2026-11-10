@@ -142,10 +142,10 @@ func GetEpayClient() *epay.Client {
 		PartnerID: operation_setting.EpayId,
 		Key:       operation_setting.EpayKey,
 	}
-	if operation_setting.EpaySignType == operation_setting.EpaySignTypeRSA {
+	if paymentSetting := operation_setting.GetPaymentSetting(); paymentSetting.EpaySignType == operation_setting.EpaySignTypeRSA {
 		config.SignType = epay.SignTypeRSA
-		config.MerchantPrivateKey = operation_setting.EpayMerchantPrivateKey
-		config.PlatformPublicKey = operation_setting.EpayPlatformPublicKey
+		config.MerchantPrivateKey = paymentSetting.EpayMerchantPrivateKey
+		config.PlatformPublicKey = paymentSetting.EpayPlatformPublicKey
 	} else if operation_setting.EpayKey == "" {
 		return nil
 	}

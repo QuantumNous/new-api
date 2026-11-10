@@ -157,9 +157,15 @@ describe('Epay signature type', () => {
 
     await waitFor(() => expect(request).toHaveBeenCalledTimes(3))
     expect(request.mock.calls.map((call) => call[1])).toEqual([
-      { key: 'EpayMerchantPrivateKey', value: 'merchant-private-key' },
-      { key: 'EpayPlatformPublicKey', value: 'platform-public-key' },
-      { key: 'EpaySignType', value: 'RSA' },
+      {
+        key: 'payment_setting.epay_merchant_private_key',
+        value: 'merchant-private-key',
+      },
+      {
+        key: 'payment_setting.epay_platform_public_key',
+        value: 'platform-public-key',
+      },
+      { key: 'payment_setting.epay_sign_type', value: 'RSA' },
     ])
   })
 
@@ -167,10 +173,16 @@ describe('Epay signature type', () => {
     const request = vi
       .spyOn(api, 'put')
       .mockResolvedValue({ data: { success: true } })
-    const user = await openEpayTab({ EpaySignType: 'RSA' })
+    const user = await openEpayTab({
+      EpaySignType: 'RSA',
+      EpayPlatformPublicKey: 'saved-platform-public-key',
+    })
     expect(
       screen.getByRole('textbox', { name: 'Merchant private key' })
     ).toHaveValue('')
+    expect(
+      screen.getByRole('textbox', { name: 'Platform public key' })
+    ).toHaveValue('saved-platform-public-key')
 
     await user.click(screen.getByRole('combobox', { name: 'Signature type' }))
     await user.click(screen.getByRole('option', { name: 'MD5' }))
@@ -178,7 +190,7 @@ describe('Epay signature type', () => {
 
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith('/api/option/', {
-        key: 'EpaySignType',
+        key: 'payment_setting.epay_sign_type',
         value: 'MD5',
       })
     )

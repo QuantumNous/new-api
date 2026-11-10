@@ -162,24 +162,25 @@ func TestEpayWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	originalPayAddress := operation_setting.PayAddress
 	originalEpayID := operation_setting.EpayId
 	originalEpayKey := operation_setting.EpayKey
-	originalSignType := operation_setting.EpaySignType
-	originalMerchantPrivateKey := operation_setting.EpayMerchantPrivateKey
-	originalPlatformPublicKey := operation_setting.EpayPlatformPublicKey
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalSignType := paymentSetting.EpaySignType
+	originalMerchantPrivateKey := paymentSetting.EpayMerchantPrivateKey
+	originalPlatformPublicKey := paymentSetting.EpayPlatformPublicKey
 	originalPayMethods := operation_setting.PayMethods
 	t.Cleanup(func() {
 		operation_setting.PayAddress = originalPayAddress
 		operation_setting.EpayId = originalEpayID
 		operation_setting.EpayKey = originalEpayKey
-		operation_setting.EpaySignType = originalSignType
-		operation_setting.EpayMerchantPrivateKey = originalMerchantPrivateKey
-		operation_setting.EpayPlatformPublicKey = originalPlatformPublicKey
+		paymentSetting.EpaySignType = originalSignType
+		paymentSetting.EpayMerchantPrivateKey = originalMerchantPrivateKey
+		paymentSetting.EpayPlatformPublicKey = originalPlatformPublicKey
 		operation_setting.PayMethods = originalPayMethods
 	})
 
 	operation_setting.PayAddress = "https://pay.example.com"
 	operation_setting.EpayId = "epay_id"
 	operation_setting.EpayKey = ""
-	operation_setting.EpaySignType = operation_setting.EpaySignTypeMD5
+	paymentSetting.EpaySignType = operation_setting.EpaySignTypeMD5
 	operation_setting.PayMethods = []map[string]string{{"type": "alipay"}}
 	require.False(t, isEpayWebhookEnabled())
 
@@ -191,12 +192,12 @@ func TestEpayWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 
 	// RSA needs both keys, and the MD5 key no longer counts.
 	operation_setting.PayMethods = []map[string]string{{"type": "alipay"}}
-	operation_setting.EpaySignType = operation_setting.EpaySignTypeRSA
-	operation_setting.EpayMerchantPrivateKey = "merchant_private_key"
-	operation_setting.EpayPlatformPublicKey = ""
+	paymentSetting.EpaySignType = operation_setting.EpaySignTypeRSA
+	paymentSetting.EpayMerchantPrivateKey = "merchant_private_key"
+	paymentSetting.EpayPlatformPublicKey = ""
 	require.False(t, isEpayWebhookEnabled())
 
-	operation_setting.EpayPlatformPublicKey = "platform_public_key"
+	paymentSetting.EpayPlatformPublicKey = "platform_public_key"
 	operation_setting.EpayKey = ""
 	require.True(t, isEpayWebhookEnabled())
 }
@@ -217,9 +218,10 @@ func setupEpayCallbackTest(t *testing.T) {
 	originalPayAddress := operation_setting.PayAddress
 	originalEpayID := operation_setting.EpayId
 	originalEpayKey := operation_setting.EpayKey
-	originalSignType := operation_setting.EpaySignType
-	originalMerchantPrivateKey := operation_setting.EpayMerchantPrivateKey
-	originalPlatformPublicKey := operation_setting.EpayPlatformPublicKey
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalSignType := paymentSetting.EpaySignType
+	originalMerchantPrivateKey := paymentSetting.EpayMerchantPrivateKey
+	originalPlatformPublicKey := paymentSetting.EpayPlatformPublicKey
 	originalPayMethods := operation_setting.PayMethods
 	originalServerAddress := system_setting.ServerAddress
 	originalDB := model.DB
@@ -227,9 +229,9 @@ func setupEpayCallbackTest(t *testing.T) {
 		operation_setting.PayAddress = originalPayAddress
 		operation_setting.EpayId = originalEpayID
 		operation_setting.EpayKey = originalEpayKey
-		operation_setting.EpaySignType = originalSignType
-		operation_setting.EpayMerchantPrivateKey = originalMerchantPrivateKey
-		operation_setting.EpayPlatformPublicKey = originalPlatformPublicKey
+		paymentSetting.EpaySignType = originalSignType
+		paymentSetting.EpayMerchantPrivateKey = originalMerchantPrivateKey
+		paymentSetting.EpayPlatformPublicKey = originalPlatformPublicKey
 		operation_setting.PayMethods = originalPayMethods
 		system_setting.ServerAddress = originalServerAddress
 		model.DB = originalDB
@@ -320,7 +322,8 @@ func newEpayRSAKeyPairForTest(t *testing.T) (string, string) {
 
 func TestEpayCallbacksVerifyBeforeSettlement(t *testing.T) {
 	setupEpayCallbackTest(t)
-	operation_setting.EpaySignType = operation_setting.EpaySignTypeMD5
+	paymentSetting := operation_setting.GetPaymentSetting()
+	paymentSetting.EpaySignType = operation_setting.EpaySignTypeMD5
 	operation_setting.EpayKey = "test-key"
 	require.True(t, isEpayWebhookEnabled())
 
@@ -359,13 +362,14 @@ func TestEpayCallbacksVerifyBeforeSettlement(t *testing.T) {
 
 func TestEpayRSAModeSignsOrdersAndVerifiesCallbacks(t *testing.T) {
 	setupEpayCallbackTest(t)
+	paymentSetting := operation_setting.GetPaymentSetting()
 	merchantPrivateKey, merchantPublicKey := newEpayRSAKeyPairForTest(t)
 	platformPrivateKey, platformPublicKey := newEpayRSAKeyPairForTest(t)
-	operation_setting.EpaySignType = operation_setting.EpaySignTypeRSA
+	paymentSetting.EpaySignType = operation_setting.EpaySignTypeRSA
 	// A leftover MD5 key must not be accepted once RSA is selected.
 	operation_setting.EpayKey = "test-key"
-	operation_setting.EpayMerchantPrivateKey = merchantPrivateKey
-	operation_setting.EpayPlatformPublicKey = platformPublicKey
+	paymentSetting.EpayMerchantPrivateKey = merchantPrivateKey
+	paymentSetting.EpayPlatformPublicKey = platformPublicKey
 	require.True(t, isEpayWebhookEnabled())
 
 	client := GetEpayClient()
@@ -425,22 +429,28 @@ func TestUpdateOptionValidatesEpaySignSettings(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.Option{}))
 	originalOptionMap := common.OptionMap
-	originalSignType := operation_setting.EpaySignType
-	originalMerchantPrivateKey := operation_setting.EpayMerchantPrivateKey
-	originalPlatformPublicKey := operation_setting.EpayPlatformPublicKey
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalSignType := paymentSetting.EpaySignType
+	originalMerchantPrivateKey := paymentSetting.EpayMerchantPrivateKey
+	originalPlatformPublicKey := paymentSetting.EpayPlatformPublicKey
 	t.Cleanup(func() {
 		common.OptionMap = originalOptionMap
-		operation_setting.EpaySignType = originalSignType
-		operation_setting.EpayMerchantPrivateKey = originalMerchantPrivateKey
-		operation_setting.EpayPlatformPublicKey = originalPlatformPublicKey
+		paymentSetting.EpaySignType = originalSignType
+		paymentSetting.EpayMerchantPrivateKey = originalMerchantPrivateKey
+		paymentSetting.EpayPlatformPublicKey = originalPlatformPublicKey
 	})
 	// A site upgraded from an MD5-only release has no saved RSA settings.
 	common.OptionMap = map[string]string{
-		"EpaySignType":           operation_setting.EpaySignTypeMD5,
-		"EpayMerchantPrivateKey": "",
-		"EpayPlatformPublicKey":  "",
+		operation_setting.EpaySignTypeOptionKey:           operation_setting.EpaySignTypeMD5,
+		operation_setting.EpayMerchantPrivateKeyOptionKey: "",
+		operation_setting.EpayPlatformPublicKeyOptionKey:  "",
 	}
-	operation_setting.EpaySignType = operation_setting.EpaySignTypeMD5
+	paymentSetting.EpaySignType = operation_setting.EpaySignTypeMD5
+	paymentSetting.EpayMerchantPrivateKey = ""
+	paymentSetting.EpayPlatformPublicKey = ""
+	signTypeKey := operation_setting.EpaySignTypeOptionKey
+	privateKeyKey := operation_setting.EpayMerchantPrivateKeyOptionKey
+	publicKeyKey := operation_setting.EpayPlatformPublicKeyOptionKey
 	merchantPrivateKey, _ := newEpayRSAKeyPairForTest(t)
 	_, platformPublicKey := newEpayRSAKeyPairForTest(t)
 	const privateKeyError = "The Epay merchant private key is missing or invalid"
@@ -452,17 +462,17 @@ func TestUpdateOptionValidatesEpaySignSettings(t *testing.T) {
 		value     string
 		wantError string
 	}{
-		{"unknown signature type", "EpaySignType", "SHA1", "Epay signature type must be MD5 or RSA"},
-		{"RSA before keys are saved", "EpaySignType", "RSA", privateKeyError},
-		{"malformed private key", "EpayMerchantPrivateKey", "not a key", privateKeyError},
-		{"public key in the private key field", "EpayMerchantPrivateKey", platformPublicKey, privateKeyError},
-		{"save private key", "EpayMerchantPrivateKey", merchantPrivateKey, ""},
-		{"RSA before the public key is saved", "EpaySignType", "RSA", publicKeyError},
-		{"private key in the public key field", "EpayPlatformPublicKey", merchantPrivateKey, publicKeyError},
-		{"save public key", "EpayPlatformPublicKey", platformPublicKey, ""},
-		{"switch to RSA", "EpaySignType", "RSA", ""},
-		{"clear private key while RSA is active", "EpayMerchantPrivateKey", "", privateKeyError},
-		{"switch back to MD5", "EpaySignType", "MD5", ""},
+		{"unknown signature type", signTypeKey, "SHA1", "Epay signature type must be MD5 or RSA"},
+		{"RSA before keys are saved", signTypeKey, "RSA", privateKeyError},
+		{"malformed private key", privateKeyKey, "not a key", privateKeyError},
+		{"public key in the private key field", privateKeyKey, platformPublicKey, privateKeyError},
+		{"save private key", privateKeyKey, merchantPrivateKey, ""},
+		{"RSA before the public key is saved", signTypeKey, "RSA", publicKeyError},
+		{"private key in the public key field", publicKeyKey, merchantPrivateKey, publicKeyError},
+		{"save public key", publicKeyKey, platformPublicKey, ""},
+		{"switch to RSA", signTypeKey, "RSA", ""},
+		{"clear private key while RSA is active", privateKeyKey, "", privateKeyError},
+		{"switch back to MD5", signTypeKey, "MD5", ""},
 	}
 	for _, step := range steps {
 		err := model.UpdateOption(step.key, step.value)
@@ -473,11 +483,11 @@ func TestUpdateOptionValidatesEpaySignSettings(t *testing.T) {
 		require.Error(t, err, step.name)
 		assert.Equal(t, step.wantError, err.Error(), step.name)
 	}
-	assert.Equal(t, operation_setting.EpaySignTypeMD5, operation_setting.EpaySignType)
-	assert.Equal(t, merchantPrivateKey, operation_setting.EpayMerchantPrivateKey)
-	assert.Equal(t, platformPublicKey, operation_setting.EpayPlatformPublicKey)
+	assert.Equal(t, operation_setting.EpaySignTypeMD5, paymentSetting.EpaySignType)
+	assert.Equal(t, merchantPrivateKey, paymentSetting.EpayMerchantPrivateKey)
+	assert.Equal(t, platformPublicKey, paymentSetting.EpayPlatformPublicKey)
 
-	// Saved keys are never sent back to the settings page.
+	// The private key is never sent back to the settings page; the public key may be.
 	recorder := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(recorder)
 	context.Request = httptest.NewRequest(http.MethodGet, "/api/option/", nil)
@@ -488,11 +498,11 @@ func TestUpdateOptionValidatesEpaySignSettings(t *testing.T) {
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	require.True(t, response.Success)
-	keys := make([]string, 0, len(response.Data))
+	returned := make(map[string]string, len(response.Data))
 	for _, option := range response.Data {
-		keys = append(keys, option.Key)
+		returned[option.Key] = option.Value
 	}
-	assert.Contains(t, keys, "EpaySignType")
-	assert.NotContains(t, keys, "EpayMerchantPrivateKey")
-	assert.NotContains(t, keys, "EpayPlatformPublicKey")
+	assert.Equal(t, operation_setting.EpaySignTypeMD5, returned[signTypeKey])
+	assert.Equal(t, platformPublicKey, returned[publicKeyKey])
+	assert.NotContains(t, returned, privateKeyKey)
 }

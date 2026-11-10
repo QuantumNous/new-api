@@ -103,9 +103,9 @@ func isEpayWebhookConfigured() bool {
 	if strings.TrimSpace(operation_setting.PayAddress) == "" || strings.TrimSpace(operation_setting.EpayId) == "" {
 		return false
 	}
-	if operation_setting.EpaySignType == operation_setting.EpaySignTypeRSA {
-		return strings.TrimSpace(operation_setting.EpayMerchantPrivateKey) != "" &&
-			strings.TrimSpace(operation_setting.EpayPlatformPublicKey) != ""
+	if paymentSetting := operation_setting.GetPaymentSetting(); paymentSetting.EpaySignType == operation_setting.EpaySignTypeRSA {
+		return strings.TrimSpace(paymentSetting.EpayMerchantPrivateKey) != "" &&
+			strings.TrimSpace(paymentSetting.EpayPlatformPublicKey) != ""
 	}
 	return strings.TrimSpace(operation_setting.EpayKey) != ""
 }
