@@ -308,6 +308,7 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 		}
 		winner, reserveErr := reserveChannelAffinity(c, channel.Id)
 		if reserveErr != nil {
+			logger.LogWarn(c, common.LogText("channel affinity reservation failed: err=%v", reserveErr))
 			break
 		}
 		if winner == channel.Id {
@@ -319,6 +320,8 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 	return nil, "", &ChannelSelectError{StatusCode: http.StatusServiceUnavailable, Message: "session_binding_unavailable"}
 }
 
+// selectChannelForRequest applies pin, affinity and eligibility rules without
+// reserving a cache miss; the caller arbitrates concurrent first requests.
 func selectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam) (*model.Channel, string, *ChannelSelectError) {
 	constraints := GetChannelConstraints(c)
 	if pin, found, overridden := constraints.ResolvedPin(); found {

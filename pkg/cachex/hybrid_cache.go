@@ -110,6 +110,8 @@ func (c *HybridCache[V]) Get(key string) (value V, found bool, err error) {
 	return c.memCache().Get(full)
 }
 
+// SetWithTTL replaces a value and its lifetime in the active backend. Memory
+// writes share the mutation lock with conditional updates to preserve atomicity.
 func (c *HybridCache[V]) SetWithTTL(key string, v V, ttl time.Duration) error {
 	full := c.ns.FullKey(key)
 	if full == "" {
@@ -247,6 +249,8 @@ func (c *HybridCache[V]) scanKeys(match string) ([]string, error) {
 	return keys, nil
 }
 
+// Purge removes entries in this cache's namespace from the active backend.
+// Redis scans and deletes in batches; it is not an atomic namespace reset.
 func (c *HybridCache[V]) Purge() error {
 	if c.redisOn() {
 		keys, err := c.scanKeys(c.ns.MatchPattern())

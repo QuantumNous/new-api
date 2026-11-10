@@ -548,6 +548,8 @@ func ApplyChannelAffinityOverrideTemplate(c *gin.Context, paramOverride map[stri
 	return mergedParam, true
 }
 
+// GetPreferredChannelByAffinity resolves the first matching rule and cached
+// channel, retaining rule context and cache-miss state for selection and output.
 func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup string) (int, bool) {
 	c.Set(ginKeyChannelAffinityMissing, false)
 	setting := operation_setting.GetChannelAffinitySetting()
@@ -651,6 +653,8 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 	return meta.SkipRetry
 }
 
+// ClearCurrentChannelAffinityCache deletes the request's binding and allows a
+// later selection to reserve it again. It reports whether an entry was removed.
 func ClearCurrentChannelAffinityCache(c *gin.Context) bool {
 	if c == nil {
 		return false
@@ -742,6 +746,8 @@ func reserveChannelAffinity(c *gin.Context, channelID int) (int, error) {
 	return getChannelAffinityCache().GetOrSetWithTTL(key, channelID, ttl)
 }
 
+// RecordChannelAffinity stores the channel chosen by the rule's switch policy.
+// HTTP output uses the response wrapper instead so cache failures block output.
 func RecordChannelAffinity(c *gin.Context, channelID int) {
 	channelID = channelAffinityTarget(c, channelID)
 	key, ttl, ok := channelAffinityBinding(c)
