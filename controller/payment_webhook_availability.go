@@ -100,9 +100,14 @@ func isEpayTopUpEnabled() bool {
 }
 
 func isEpayWebhookConfigured() bool {
-	return strings.TrimSpace(operation_setting.PayAddress) != "" &&
-		strings.TrimSpace(operation_setting.EpayId) != "" &&
-		strings.TrimSpace(operation_setting.EpayKey) != ""
+	if strings.TrimSpace(operation_setting.PayAddress) == "" || strings.TrimSpace(operation_setting.EpayId) == "" {
+		return false
+	}
+	if operation_setting.EpaySignType == operation_setting.EpaySignTypeRSA {
+		return strings.TrimSpace(operation_setting.EpayMerchantPrivateKey) != "" &&
+			strings.TrimSpace(operation_setting.EpayPlatformPublicKey) != ""
+	}
+	return strings.TrimSpace(operation_setting.EpayKey) != ""
 }
 
 func isEpayWebhookEnabled() bool {

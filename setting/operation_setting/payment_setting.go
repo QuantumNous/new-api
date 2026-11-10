@@ -15,6 +15,17 @@ type PaymentSetting struct {
 
 const CurrentComplianceTermsVersion = "v1"
 
+// 易支付签名方式：MD5 使用 EpayKey；RSA 使用商户私钥签名请求、平台公钥验证回调。
+// 未设置时为 MD5，已有配置升级后行为不变。
+const (
+	EpaySignTypeMD5 = "MD5"
+	EpaySignTypeRSA = "RSA"
+)
+
+var EpaySignType = EpaySignTypeMD5
+var EpayMerchantPrivateKey = ""
+var EpayPlatformPublicKey = ""
+
 // 默认配置
 var paymentSetting = PaymentSetting{
 	AmountOptions:  []int{10, 20, 50, 100, 200, 500},

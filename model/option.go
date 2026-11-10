@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Calcium-Ion/go-epay/epay"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -92,6 +93,9 @@ func InitOptionMap() {
 	common.OptionMap["CustomCallbackAddress"] = ""
 	common.OptionMap["EpayId"] = ""
 	common.OptionMap["EpayKey"] = ""
+	common.OptionMap["EpaySignType"] = operation_setting.EpaySignType
+	common.OptionMap["EpayMerchantPrivateKey"] = ""
+	common.OptionMap["EpayPlatformPublicKey"] = ""
 	common.OptionMap["Price"] = strconv.FormatFloat(operation_setting.Price, 'f', -1, 64)
 	common.OptionMap["USDExchangeRate"] = strconv.FormatFloat(operation_setting.USDExchangeRate, 'f', -1, 64)
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
@@ -258,6 +262,32 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "ResendKeyConfigured" {
 		return common.NewMessage("Resend key configuration status is read-only")
+	}
+	if key == "EpaySignType" || key == "EpayMerchantPrivateKey" || key == "EpayPlatformPublicKey" {
+		if key == "EpaySignType" && value != operation_setting.EpaySignTypeMD5 && value != operation_setting.EpaySignTypeRSA {
+			return common.NewMessage("Epay signature type must be MD5 or RSA")
+		}
+		common.OptionMapRWMutex.RLock()
+		settings := map[string]string{
+			"EpaySignType":           common.OptionMap["EpaySignType"],
+			"EpayMerchantPrivateKey": common.OptionMap["EpayMerchantPrivateKey"],
+			"EpayPlatformPublicKey":  common.OptionMap["EpayPlatformPublicKey"],
+		}
+		common.OptionMapRWMutex.RUnlock()
+		settings[key] = value
+		// While RSA is active, a change must keep keys it can sign and verify
+		// with. Under MD5 only a newly entered key is checked.
+		rsaActive := settings["EpaySignType"] == operation_setting.EpaySignTypeRSA
+		if rsaActive || (key == "EpayMerchantPrivateKey" && strings.TrimSpace(value) != "") {
+			if _, err := epay.ParseRSAPrivateKey(settings["EpayMerchantPrivateKey"]); err != nil {
+				return common.NewMessage("The Epay merchant private key is missing or invalid")
+			}
+		}
+		if rsaActive || (key == "EpayPlatformPublicKey" && strings.TrimSpace(value) != "") {
+			if _, err := epay.ParseRSAPublicKey(settings["EpayPlatformPublicKey"]); err != nil {
+				return common.NewMessage("The Epay platform public key is missing or invalid")
+			}
+		}
 	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
@@ -533,6 +563,12 @@ func updateOptionMap(key string, value string) (err error) {
 		operation_setting.EpayId = value
 	case "EpayKey":
 		operation_setting.EpayKey = value
+	case "EpaySignType":
+		operation_setting.EpaySignType = value
+	case "EpayMerchantPrivateKey":
+		operation_setting.EpayMerchantPrivateKey = value
+	case "EpayPlatformPublicKey":
+		operation_setting.EpayPlatformPublicKey = value
 	case "Price":
 		operation_setting.Price, _ = strconv.ParseFloat(value, 64)
 	case "USDExchangeRate":
