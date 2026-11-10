@@ -918,6 +918,88 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	assert.Zero(t, getTaskQuota(t, task.ID))
 }
 
+func TestRefundTaskQuotaReversesReportedUsage(t *testing.T) {
+	truncate(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.QuotaData{}))
+	model.CacheQuotaDataLock.Lock()
+	model.CacheQuotaData = make(map[string]*model.QuotaData)
+	model.CacheQuotaDataLock.Unlock()
+	previousDataExport := common.DataExportEnabled
+	common.DataExportEnabled = true
+	t.Cleanup(func() {
+		common.DataExportEnabled = previousDataExport
+		model.CacheQuotaDataLock.Lock()
+		model.CacheQuotaData = make(map[string]*model.QuotaData)
+		model.CacheQuotaDataLock.Unlock()
+		model.DB.Exec("DELETE FROM quota_data")
+	})
+
+	const userID, tokenID, channelID = 101, 101, 101
+	seedUser(t, userID, 10000)
+	seedToken(t, tokenID, userID, "sk-reporting-test", 5000)
+	seedChannel(t, channelID)
+	seedChargedAccounting(t, userID, channelID, tokenID, 4000, 2)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+	c.Set("username", "test_user")
+	for _, quota := range []int{3000, 1000} {
+		model.RecordConsumeLog(c, userID, model.RecordConsumeLogParams{
+			ChannelId: channelID,
+			ModelName: "test-model",
+			TokenName: "test_token",
+			Quota:     quota,
+			TokenId:   tokenID,
+			Group:     "default",
+			Other:     model.NewLogOther(),
+		})
+	}
+
+	task := makeTask(userID, channelID, 3000, tokenID, BillingSourceWallet, 0)
+	require.NoError(t, model.DB.Create(task).Error)
+	require.True(t, RefundTaskQuota(context.Background(), task, "video generation failed"))
+
+	stat, err := model.SumUsedQuota(model.LogTypeConsume, 0, 0, "test-model", "test_user", "", channelID, "")
+	require.NoError(t, err)
+	assert.Equal(t, 1000, stat.Quota)
+
+	model.SaveQuotaDataCache()
+	now := time.Now().Unix()
+	dashboard, err := model.GetQuotaDataByUserId(userID, now-7200, now+3600)
+	require.NoError(t, err)
+	var dashboardQuota, dashboardCount int
+	for _, row := range dashboard {
+		dashboardQuota += row.Quota
+		dashboardCount += row.Count
+	}
+	assert.Equal(t, 1000, dashboardQuota)
+	assert.Equal(t, 1, dashboardCount)
+
+	flow, err := model.GetFlowQuotaData(now-7200, now+3600, "", userID, common.RoleCommonUser)
+	require.NoError(t, err)
+	require.Len(t, flow, 1)
+	assert.Equal(t, 1000, flow[0].Quota)
+	assert.Equal(t, 1, flow[0].Count)
+
+	settledTask := makeTask(userID, channelID, 1000, tokenID, BillingSourceWallet, 0)
+	require.NoError(t, model.DB.Create(settledTask).Error)
+	RecalculateTaskQuota(context.Background(), settledTask, 1500, common.NewMessage("settled video usage"))
+
+	stat, err = model.SumUsedQuota(model.LogTypeConsume, 0, 0, "test-model", "test_user", "", channelID, "")
+	require.NoError(t, err)
+	assert.Equal(t, 1500, stat.Quota)
+	model.SaveQuotaDataCache()
+	dashboard, err = model.GetQuotaDataByUserId(userID, now-7200, now+3600)
+	require.NoError(t, err)
+	dashboardQuota, dashboardCount = 0, 0
+	for _, row := range dashboard {
+		dashboardQuota += row.Quota
+		dashboardCount += row.Count
+	}
+	assert.Equal(t, 1500, dashboardQuota)
+	assert.Equal(t, 1, dashboardCount)
+}
+
 func TestRefundTaskQuota_Subscription(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()

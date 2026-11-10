@@ -120,13 +120,15 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 	other.SetPublic("task_id", task.MjId)
 	other.SetPublic("reason", reason)
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
-		UserId:    task.UserId,
-		LogType:   model.LogTypeRefund,
-		ChannelId: billingChannelId,
-		ModelName: CovertMjpActionToModelName(task.Action),
-		Quota:     quota,
-		TokenId:   task.TokenId,
-		Other:     other,
+		UserId:              task.UserId,
+		LogType:             model.LogTypeRefund,
+		ChannelId:           billingChannelId,
+		ModelName:           CovertMjpActionToModelName(task.Action),
+		Quota:               quota,
+		TokenId:             task.TokenId,
+		Other:               other,
+		QuotaDataCountDelta: -1,
+		QuotaDataCreatedAt:  task.SubmitTime / 1000,
 	})
 
 	task.Quota = 0

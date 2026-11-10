@@ -411,16 +411,18 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 }
 
 type RecordTaskBillingLogParams struct {
-	UserId    int
-	LogType   int
-	Content   []*common.Message
-	ChannelId int
-	ModelName string
-	Quota     int
-	TokenId   int
-	Group     string
-	Other     *LogOther
-	NodeName  string // 任务发起节点；为空时回退当前节点
+	UserId              int
+	LogType             int
+	Content             []*common.Message
+	ChannelId           int
+	ModelName           string
+	Quota               int
+	TokenId             int
+	Group               string
+	Other               *LogOther
+	NodeName            string // 任务发起节点；为空时回退当前节点
+	QuotaDataCreatedAt  int64  // 任务提交时间；用于将差额记入原消费小时
+	QuotaDataCountDelta int    // 完全退款时撤销一次看板统计次数
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
@@ -454,22 +456,31 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	if err != nil {
 		common.SysLog(common.LogText("failed to record task billing log: %s", err.Error()))
 	}
-	if params.LogType == LogTypeConsume && common.DataExportEnabled {
+	if common.DataExportEnabled && (params.LogType == LogTypeConsume || params.LogType == LogTypeRefund) {
 		nodeName := params.NodeName
 		if nodeName == "" {
 			nodeName = common.NodeName
 		}
-		LogQuotaData(QuotaDataLogParams{
+		quota := params.Quota
+		quotaDataCreatedAt := params.QuotaDataCreatedAt
+		if quotaDataCreatedAt == 0 {
+			quotaDataCreatedAt = createdAt
+		}
+		quotaData := QuotaDataLogParams{
 			UserID:    params.UserId,
 			Username:  username,
 			ModelName: params.ModelName,
-			Quota:     params.Quota,
-			CreatedAt: createdAt,
+			Quota:     quota,
+			CreatedAt: quotaDataCreatedAt,
 			UseGroup:  params.Group,
 			TokenID:   params.TokenId,
 			ChannelID: params.ChannelId,
 			NodeName:  nodeName,
-		})
+		}
+		if params.LogType == LogTypeRefund {
+			quotaData.Quota = -quota
+		}
+		logQuotaData(quotaData, params.QuotaDataCountDelta)
 	}
 }
 
@@ -687,7 +698,7 @@ type Stat struct {
 }
 
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
+	tx := LOG_DB.Table("logs").Select("COALESCE(SUM(CASE WHEN type = ? THEN -quota ELSE quota END), 0) AS quota", LogTypeRefund)
 
 	// 为rpm和tpm创建单独的查询
 	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm")
@@ -723,7 +734,7 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
 	}
 
-	tx = tx.Where("type = ?", LogTypeConsume)
+	tx = tx.Where("type IN ?", []int{LogTypeConsume, LogTypeRefund})
 	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
 
 	// 只统计最近60秒的rpm和tpm

@@ -284,14 +284,17 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 	other.SetPublic("task_id", task.TaskID)
 	other.SetPublic("reason", reason)
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
-		UserId:    task.UserId,
-		LogType:   model.LogTypeRefund,
-		ChannelId: task.ChannelId,
-		ModelName: taskModelName(task),
-		Quota:     quota,
-		TokenId:   task.PrivateData.TokenId,
-		Group:     task.Group,
-		Other:     other,
+		UserId:              task.UserId,
+		LogType:             model.LogTypeRefund,
+		ChannelId:           task.ChannelId,
+		ModelName:           taskModelName(task),
+		Quota:               quota,
+		TokenId:             task.PrivateData.TokenId,
+		Group:               task.Group,
+		Other:               other,
+		NodeName:            task.PrivateData.NodeName,
+		QuotaDataCreatedAt:  task.CreatedAt,
+		QuotaDataCountDelta: -1,
 	})
 
 	// 5. 资金退款完成后再清除持久化标记。
@@ -363,16 +366,17 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		attachQuotaSaturationToOther(other, clamp)
 	}
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
-		UserId:    task.UserId,
-		LogType:   logType,
-		Content:   []*common.Message{reason},
-		ChannelId: task.ChannelId,
-		ModelName: taskModelName(task),
-		Quota:     logQuota,
-		TokenId:   task.PrivateData.TokenId,
-		Group:     task.Group,
-		Other:     other,
-		NodeName:  task.PrivateData.NodeName,
+		UserId:             task.UserId,
+		LogType:            logType,
+		Content:            []*common.Message{reason},
+		ChannelId:          task.ChannelId,
+		ModelName:          taskModelName(task),
+		Quota:              logQuota,
+		TokenId:            task.PrivateData.TokenId,
+		Group:              task.Group,
+		Other:              other,
+		NodeName:           task.PrivateData.NodeName,
+		QuotaDataCreatedAt: task.CreatedAt,
 	})
 }
 
