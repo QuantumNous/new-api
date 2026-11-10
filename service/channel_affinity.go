@@ -21,6 +21,7 @@ import (
 )
 
 const (
+	ginKeyChannelAffinityMissing     = "channel_affinity_missing"
 	ginKeyChannelAffinityCacheKey    = "channel_affinity_cache_key"
 	ginKeyChannelAffinityTTLSeconds  = "channel_affinity_ttl_seconds"
 	ginKeyChannelAffinityMeta        = "channel_affinity_meta"
@@ -548,6 +549,7 @@ func ApplyChannelAffinityOverrideTemplate(c *gin.Context, paramOverride map[stri
 }
 
 func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup string) (int, bool) {
+	c.Set(ginKeyChannelAffinityMissing, false)
 	setting := operation_setting.GetChannelAffinitySetting()
 	state := RequestPolicy(c)
 	if setting == nil || !setting.Enabled {
@@ -618,6 +620,7 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 		}
 		cache := getChannelAffinityCache()
 		channelID, found, err := cache.Get(cacheKeySuffix)
+		c.Set(ginKeyChannelAffinityMissing, !found)
 		if err != nil {
 			common.SysError(common.LogText("channel affinity cache get failed: key=%s, err=%v", cacheKeyFull, err))
 			return 0, false
@@ -664,6 +667,7 @@ func ClearCurrentChannelAffinityCache(c *gin.Context) bool {
 		return false
 	}
 	c.Set(ginKeyChannelAffinitySkipRetry, false)
+	c.Set(ginKeyChannelAffinityMissing, true)
 	for _, ok := range deleted {
 		if ok {
 			return true
@@ -726,25 +730,50 @@ func AppendChannelAffinityAdminInfo(c *gin.Context, other *model.LogOther) {
 	other.SetAdmin("channel_affinity", anyInfo)
 }
 
+// reserveChannelAffinity elects a channel before any upstream request can run.
+// Failed first requests retain the reservation: another concurrent request may
+// already be using the same resource. Normal expiry/administrative clearing and
+// the configured unavailable-channel policy still apply.
+func reserveChannelAffinity(c *gin.Context, channelID int) (int, error) {
+	key, ttl, ok := channelAffinityBinding(c)
+	if !ok || !c.GetBool(ginKeyChannelAffinityMissing) {
+		return channelID, nil
+	}
+	return getChannelAffinityCache().GetOrSetWithTTL(key, channelID, ttl)
+}
+
 func RecordChannelAffinity(c *gin.Context, channelID int) {
-	if channelID <= 0 {
+	channelID = channelAffinityTarget(c, channelID)
+	key, ttl, ok := channelAffinityBinding(c)
+	if !ok || channelID <= 0 {
 		return
 	}
+	if err := getChannelAffinityCache().SetWithTTL(key, channelID, ttl); err != nil {
+		common.SysError(common.LogText("channel affinity cache set failed: err=%v", err))
+	}
+}
+
+// channelAffinityTarget snapshots the resource to bind for this write.
+func channelAffinityTarget(c *gin.Context, initialChannelID int) int {
 	setting := operation_setting.GetChannelAffinitySetting()
-	if RequestPolicy(c).SessionMode == "off" {
-		return
+	if c == nil || setting == nil || !setting.SwitchOnSuccess {
+		return initialChannelID
 	}
-	if setting == nil || !setting.Enabled {
-		return
+	if channelID := c.GetInt("channel_id"); channelID > 0 {
+		return channelID
 	}
-	if setting.SwitchOnSuccess && c != nil {
-		if successChannelID := c.GetInt("channel_id"); successChannelID > 0 {
-			channelID = successChannelID
-		}
+	return initialChannelID
+}
+
+// channelAffinityBinding resolves the active cache entry and its lifetime.
+func channelAffinityBinding(c *gin.Context) (string, time.Duration, bool) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	if setting == nil || !setting.Enabled || RequestPolicy(c).SessionMode == "off" {
+		return "", 0, false
 	}
-	cacheKey, ttlSeconds, ok := getChannelAffinityContext(c)
+	key, ttlSeconds, ok := getChannelAffinityContext(c)
 	if !ok {
-		return
+		return "", 0, false
 	}
 	if ttlSeconds <= 0 {
 		ttlSeconds = setting.DefaultTTLSeconds
@@ -752,10 +781,7 @@ func RecordChannelAffinity(c *gin.Context, channelID int) {
 	if ttlSeconds <= 0 {
 		ttlSeconds = 3600
 	}
-	cache := getChannelAffinityCache()
-	if err := cache.SetWithTTL(cacheKey, channelID, time.Duration(ttlSeconds)*time.Second); err != nil {
-		common.SysError(common.LogText("channel affinity cache set failed: key=%s, err=%v", cacheKey, err))
-	}
+	return key, time.Duration(ttlSeconds) * time.Second, true
 }
 
 type ChannelAffinityUsageCacheStats struct {

@@ -6,16 +6,22 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/cachex"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
+	"github.com/samber/hot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -464,4 +470,394 @@ func TestSessionRulesInheritOrOverrideGlobalDefault(t *testing.T) {
 			})
 		}
 	}
+}
+
+// The observer runs at the exact point headers become client-visible, before
+// the handler returns or performs any simulated cleanup.
+type affinityObservingRecorder struct {
+	*httptest.ResponseRecorder
+	observe      func()
+	observeWrite func()
+}
+
+func (r *affinityObservingRecorder) WriteHeader(status int) {
+	if r.observe != nil {
+		r.observe()
+	}
+	r.ResponseRecorder.WriteHeader(status)
+}
+
+func (r *affinityObservingRecorder) Write(data []byte) (int, error) {
+	if r.observeWrite != nil {
+		r.observeWrite()
+	}
+	return r.ResponseRecorder.Write(data)
+}
+
+func (r *affinityObservingRecorder) WriteString(data string) (int, error) {
+	return r.Write([]byte(data))
+}
+
+func TestChannelAffinityBeforeResponseVisible(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	setting.Enabled, setting.SwitchOnSuccess = true, true
+	t.Cleanup(func() { *setting = previous })
+	for _, method := range []string{"write", "string", "flush", "headers", "error"} {
+		t.Run(method, func(t *testing.T) {
+			key := t.Name()
+			cache := getChannelAffinityCache()
+			t.Cleanup(func() { _, err := cache.DeleteMany([]string{key}); assert.NoError(t, err) })
+			seen := false
+			recorder := &affinityObservingRecorder{ResponseRecorder: httptest.NewRecorder()}
+			recorder.observe = func() {
+				seen = true
+				bound, found, err := cache.Get(key)
+				require.NoError(t, err)
+				if method == "error" {
+					assert.False(t, found)
+					return
+				}
+				assert.True(t, found)
+				assert.Equal(t, 22, bound, "successful retry must be bound before response headers")
+			}
+			ctx, _ := gin.CreateTestContext(recorder)
+			setChannelAffinityContext(ctx, channelAffinityMeta{CacheKey: key, TTLSeconds: 60})
+			ctx.Set("channel_id", 22)
+			BindChannelAffinityResponse(ctx, 11)
+			switch method {
+			case "write":
+				_, err := ctx.Writer.Write([]byte("result"))
+				require.NoError(t, err)
+			case "string":
+				_, err := ctx.Writer.WriteString("result")
+				require.NoError(t, err)
+			case "flush":
+				ctx.Writer.Flush()
+			case "headers":
+				ctx.Writer.WriteHeader(http.StatusNoContent)
+				ctx.Writer.WriteHeaderNow()
+			case "error":
+				ctx.Writer.WriteHeader(http.StatusBadRequest)
+				_, err := ctx.Writer.WriteString("error")
+				require.NoError(t, err)
+			}
+			assert.True(t, seen)
+			// No late completion write may overwrite a newer binding.
+			require.NoError(t, cache.SetWithTTL(key, 33, time.Minute))
+			ctx.Writer.Flush()
+			bound, found, err := cache.Get(key)
+			require.NoError(t, err)
+			assert.True(t, found)
+			assert.Equal(t, 33, bound)
+		})
+	}
+}
+
+func TestConcurrentChannelAffinityReservation(t *testing.T) {
+	for _, backend := range []string{"memory", "redis"} {
+		t.Run(backend, func(t *testing.T) {
+			var client *redis.Client
+			if backend == "redis" {
+				server := miniredis.RunT(t)
+				client = redis.NewClient(&redis.Options{Addr: server.Addr()})
+				t.Cleanup(func() { assert.NoError(t, client.Close()) })
+			}
+			config := cachex.HybridCacheConfig[int]{
+				Namespace: "affinity-test", Redis: client, RedisCodec: cachex.IntCodec{},
+				Memory: func() *hot.HotCache[string, int] { return hot.NewHotCache[string, int](hot.LRU, 10).Build() },
+			}
+			caches := []*cachex.HybridCache[int]{cachex.NewHybridCache(config), cachex.NewHybridCache(config)}
+			if backend == "memory" {
+				caches[1] = caches[0]
+			}
+			start := make(chan struct{})
+			results := make(chan int, 2)
+			failures := make(chan error, 2)
+			var workers sync.WaitGroup
+			for i := range 2 {
+				workers.Go(func() {
+					<-start
+					winner, err := caches[i].GetOrSetWithTTL("session", i+1, time.Minute)
+					failures <- err
+					results <- winner
+				})
+			}
+			close(start)
+			workers.Wait()
+			require.NoError(t, <-failures)
+			require.NoError(t, <-failures)
+			first, second := <-results, <-results
+			assert.Equal(t, first, second)
+			continued, err := caches[1].GetOrSetWithTTL("session", 3, time.Minute)
+			require.NoError(t, err)
+			assert.Equal(t, first, continued)
+			// Simulate two requests that both observed an obsolete binding.
+			deleted, err := caches[0].CompareAndDelete("session", first)
+			require.NoError(t, err)
+			require.True(t, deleted)
+			replacement, err := caches[0].GetOrSetWithTTL("session", 3, time.Minute)
+			require.NoError(t, err)
+			assert.Equal(t, 3, replacement)
+			deleted, err = caches[1].CompareAndDelete("session", first)
+			require.NoError(t, err)
+			assert.False(t, deleted, "stale cleanup must not delete the replacement")
+			continued, err = caches[1].GetOrSetWithTTL("session", 4, time.Minute)
+			require.NoError(t, err)
+			assert.Equal(t, 3, continued)
+		})
+	}
+}
+
+func TestChannelAffinitySelectionReservesBeforeDispatch(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	createChannelSelectAutoGroupsChannel(t, db, 2101, "default", "affinity-model")
+	createChannelSelectAutoGroupsChannel(t, db, 2102, "default", "affinity-model")
+	model.InitChannelCache()
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	*setting = operation_setting.ChannelAffinitySetting{Enabled: true, DefaultTTLSeconds: 60, Rules: []operation_setting.ChannelAffinityRule{{
+		Name: "race", ModelRegex: []string{"^affinity-model$"}, SessionMode: "strict",
+		KeySources: []operation_setting.ChannelAffinityKeySource{{Type: "request_header", Key: "X-Session"}},
+	}}}
+	t.Cleanup(func() {
+		*setting = previous
+		_, err := getChannelAffinityCache().DeleteMany([]string{t.Name()})
+		assert.NoError(t, err)
+	})
+	var contexts []*gin.Context
+	for range 2 {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+		ctx.Request.Header.Set("X-Session", t.Name())
+		contexts = append(contexts, ctx)
+	}
+	first, _, selectErr := SelectChannelForRequest(contexts[0], "affinity-model", &RetryParam{Ctx: contexts[0], TokenGroup: "default", ModelName: "affinity-model"})
+	require.Nil(t, selectErr)
+	require.NotNil(t, first)
+	// The first request has not contacted upstream or written any response yet.
+	second, _, selectErr := SelectChannelForRequest(contexts[1], "affinity-model", &RetryParam{Ctx: contexts[1], TokenGroup: "default", ModelName: "affinity-model"})
+	require.Nil(t, selectErr)
+	require.NotNil(t, second)
+	assert.Equal(t, first.Id, second.Id)
+}
+
+func TestChannelAffinityCacheFailureDoesNotExposeSuccess(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	setting.Enabled = true
+	t.Cleanup(func() { *setting = previous })
+	getChannelAffinityCache()
+	previousCache := channelAffinityCache
+	t.Cleanup(func() { channelAffinityCache = previousCache })
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	require.NoError(t, client.Close()) // deterministic failure, without network timeouts
+	channelAffinityCache = cachex.NewHybridCache(cachex.HybridCacheConfig[int]{Namespace: "affinity-failure", Redis: client, RedisCodec: cachex.IntCodec{}})
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	setChannelAffinityContext(ctx, channelAffinityMeta{CacheKey: "session", TTLSeconds: 60})
+	ctx.Set(ginKeyChannelAffinityMissing, true)
+	_, err := reserveChannelAffinity(ctx, 1)
+	require.Error(t, err)
+	BindChannelAffinityResponse(ctx, 1)
+	_, err = ctx.Writer.WriteString("encrypted result")
+	require.Error(t, err)
+	ctx.Writer.WriteHeaderNow()
+	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	assert.Empty(t, recorder.Body.String())
+}
+
+func TestChannelAffinityHeartbeatThenRetry(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	setting.Enabled = true
+	t.Cleanup(func() { *setting = previous })
+	for _, switchOnSuccess := range []bool{true, false} {
+		t.Run(fmt.Sprint(switchOnSuccess), func(t *testing.T) {
+			setting.SwitchOnSuccess = switchOnSuccess
+			recorder := &affinityObservingRecorder{ResponseRecorder: httptest.NewRecorder()}
+			ctx, _ := gin.CreateTestContext(recorder)
+			setChannelAffinityContext(ctx, channelAffinityMeta{CacheKey: t.Name(), TTLSeconds: 60})
+			t.Cleanup(func() { _, err := getChannelAffinityCache().DeleteMany([]string{t.Name()}); assert.NoError(t, err) })
+			ctx.Set("channel_id", 11)
+			BindChannelAffinityResponse(ctx, 11)
+			_, err := ctx.Writer.Write([]byte(": PING\n\n"))
+			require.NoError(t, err)
+			ctx.Writer.Flush()
+			ctx.Set("channel_id", 22) // first upstream failed; permitted retry succeeded
+			expected := 11
+			if switchOnSuccess {
+				expected = 22
+			}
+			recorder.observeWrite = func() {
+				bound, found, err := getChannelAffinityCache().Get(t.Name())
+				require.NoError(t, err)
+				assert.True(t, found)
+				assert.Equal(t, expected, bound, "bind the retry before its data becomes visible")
+			}
+			_, err = ctx.Writer.WriteString("data: encrypted-result-from-22\n\n")
+			require.NoError(t, err)
+		})
+	}
+}
+
+type affinityTransportRecorder struct {
+	*httptest.ResponseRecorder
+	flushErr error
+}
+
+func (w *affinityTransportRecorder) SetWriteDeadline(time.Time) error { return nil }
+func (w *affinityTransportRecorder) FlushError() error                { return w.flushErr }
+
+func TestChannelAffinityPreservesTransportControls(t *testing.T) {
+	transportErr := errors.New("transport flush failed")
+	ctx, _ := gin.CreateTestContext(&affinityTransportRecorder{httptest.NewRecorder(), transportErr})
+	require.NoError(t, http.NewResponseController(ctx.Writer).SetWriteDeadline(time.Now()))
+	setChannelAffinityContext(ctx, channelAffinityMeta{CacheKey: t.Name(), TTLSeconds: 60})
+	// Off keeps this test focused on forwarding the transport's error.
+	RequestPolicy(ctx).SessionMode = "off"
+	BindChannelAffinityResponse(ctx, 11)
+	assert.NoError(t, http.NewResponseController(ctx.Writer).SetWriteDeadline(time.Now()))
+	assert.ErrorIs(t, http.NewResponseController(ctx.Writer).Flush(), transportErr)
+}
+
+func TestChannelAffinityReservesAfterInvalidBinding(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	createChannelSelectAutoGroupsChannel(t, db, 2101, "default", "affinity-review")
+	model.InitChannelCache()
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	*setting = operation_setting.ChannelAffinitySetting{Enabled: true, DefaultTTLSeconds: 60, Rules: []operation_setting.ChannelAffinityRule{{
+		Name: "review", ModelRegex: []string{"^affinity-review$"}, SessionMode: "prefer",
+		KeySources: []operation_setting.ChannelAffinityKeySource{{Type: "request_header", Key: "X-Session"}},
+	}}}
+	t.Cleanup(func() {
+		*setting = previous
+		_, err := getChannelAffinityCache().DeleteMany([]string{t.Name()})
+		assert.NoError(t, err)
+	})
+	require.NoError(t, getChannelAffinityCache().SetWithTTL(t.Name(), 9999, time.Minute))
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	ctx.Request.Header.Set("X-Session", t.Name())
+	selected, _, selectErr := SelectChannelForRequest(ctx, "affinity-review", &RetryParam{Ctx: ctx, TokenGroup: "default", ModelName: "affinity-review"})
+	require.Nil(t, selectErr)
+	require.NotNil(t, selected)
+	bound, found, err := getChannelAffinityCache().Get(t.Name())
+	require.NoError(t, err)
+	assert.True(t, found, "replacement must reserve before upstream dispatch")
+	assert.Equal(t, selected.Id, bound)
+}
+
+func TestChannelAffinityCacheFailureAfterHeartbeat(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	setting.Enabled, setting.SwitchOnSuccess = true, true
+	t.Cleanup(func() { *setting = previous })
+	getChannelAffinityCache()
+	previousCache := channelAffinityCache
+	t.Cleanup(func() { channelAffinityCache = previousCache })
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	channelAffinityCache = cachex.NewHybridCache(cachex.HybridCacheConfig[int]{Namespace: "affinity-failure", Redis: client, RedisCodec: cachex.IntCodec{}})
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	setChannelAffinityContext(ctx, channelAffinityMeta{CacheKey: "session", TTLSeconds: 60})
+	ctx.Set("channel_id", 11)
+	BindChannelAffinityResponse(ctx, 11)
+	_, err := ctx.Writer.Write([]byte(": PING\n\n"))
+	require.NoError(t, err)
+	require.NoError(t, http.NewResponseController(ctx.Writer).Flush())
+	require.NoError(t, client.Close())
+	ctx.Set("channel_id", 22)
+	_, err = ctx.Writer.WriteString("data: encrypted result\n\n")
+	require.Error(t, err)
+	require.Error(t, http.NewResponseController(ctx.Writer).Flush())
+	assert.Equal(t, http.StatusOK, recorder.Code, "already committed headers cannot become 503")
+	assert.Equal(t, ": PING\n\n", recorder.Body.String(), "never expose data from the unbound retry")
+}
+
+func TestChannelAffinityLongStreamRenewsBinding(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	setting.Enabled, setting.SwitchOnSuccess = true, true
+	getChannelAffinityCache()
+	previousCache := channelAffinityCache
+	t.Cleanup(func() { *setting = previous; channelAffinityCache = previousCache })
+	synctest.Test(t, func(t *testing.T) {
+		channelAffinityCache = cachex.NewHybridCache(cachex.HybridCacheConfig[int]{
+			Namespace: "long-stream", RedisCodec: cachex.IntCodec{},
+			Memory: func() *hot.HotCache[string, int] { return hot.NewHotCache[string, int](hot.LRU, 10).Build() },
+		})
+		recorder := &affinityObservingRecorder{ResponseRecorder: httptest.NewRecorder()}
+		ctx, _ := gin.CreateTestContext(recorder)
+		setChannelAffinityContext(ctx, channelAffinityMeta{CacheKey: "session", TTLSeconds: 60})
+		ctx.Set("channel_id", 11)
+		BindChannelAffinityResponse(ctx, 11)
+		_, err := ctx.Writer.WriteString(": PING\n\n")
+		require.NoError(t, err)
+		// Fake time drives the writer's renewal interval. Hot uses a runtime
+		// clock outside synctest, so expire its entry explicitly without waiting.
+		time.Sleep(31 * time.Second)
+		require.NoError(t, channelAffinityCache.SetWithTTL("session", 11, -time.Second))
+		require.NoError(t, http.NewResponseController(ctx.Writer).Flush())
+		time.Sleep(31 * time.Second)
+		bound, found, err := channelAffinityCache.Get("session")
+		require.NoError(t, err)
+		require.True(t, found, "binding must outlive the initial heartbeat's TTL")
+		assert.Equal(t, 11, bound)
+		// A silent upstream can still exceed the renewed TTL. Restore the binding
+		// atomically before forwarding its next event, including the final event.
+		time.Sleep(time.Minute)
+		require.NoError(t, channelAffinityCache.SetWithTTL("session", 11, -time.Second))
+		_, found, err = channelAffinityCache.Get("session")
+		require.NoError(t, err)
+		require.False(t, found)
+		recorder.observeWrite = func() {
+			bound, found, err := channelAffinityCache.Get("session")
+			require.NoError(t, err)
+			assert.True(t, found)
+			assert.Equal(t, 11, bound, "restore before the completion event is visible")
+		}
+		_, err = ctx.Writer.WriteString("data: completed\n\n")
+		require.NoError(t, err)
+		recorder.observeWrite = nil
+		// A newer binding wins over this stream's subsequent renewal attempts.
+		require.NoError(t, channelAffinityCache.SetWithTTL("session", 22, time.Minute))
+		time.Sleep(31 * time.Second)
+		require.NoError(t, http.NewResponseController(ctx.Writer).Flush())
+		bound, found, err = channelAffinityCache.Get("session")
+		require.NoError(t, err)
+		require.True(t, found)
+		assert.Equal(t, 22, bound)
+	})
+}
+
+func TestChannelAffinityRedisConditionalRenewal(t *testing.T) {
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { assert.NoError(t, client.Close()) })
+	cache := cachex.NewHybridCache(cachex.HybridCacheConfig[int]{Namespace: "renewal", Redis: client, RedisCodec: cachex.IntCodec{}})
+	require.NoError(t, cache.SetWithTTL("session", 11, time.Minute))
+	server.FastForward(31 * time.Second)
+	refreshed, err := cache.RefreshOrSetWithTTL("session", 11, time.Minute)
+	require.NoError(t, err)
+	require.True(t, refreshed)
+	assert.Equal(t, time.Minute, server.TTL(cache.FullKey("session")))
+	server.FastForward(61 * time.Second)
+	refreshed, err = cache.RefreshOrSetWithTTL("session", 11, time.Minute)
+	require.NoError(t, err)
+	require.True(t, refreshed, "expired entries are restored")
+	require.NoError(t, cache.SetWithTTL("session", 22, time.Minute))
+	server.FastForward(31 * time.Second)
+	refreshed, err = cache.RefreshOrSetWithTTL("session", 11, time.Minute)
+	require.NoError(t, err)
+	assert.False(t, refreshed)
+	bound, found, err := cache.Get("session")
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, 22, bound)
+	assert.Equal(t, 29*time.Second, server.TTL(cache.FullKey("session")), "do not extend another channel's binding")
 }
