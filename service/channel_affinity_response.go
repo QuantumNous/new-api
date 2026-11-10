@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -85,7 +86,17 @@ func (w *channelAffinityResponseWriter) commitAffinity(heartbeat bool) error {
 		if sameChannel {
 			// Renew before exposing more output, restoring expired entries but
 			// never replacing a binding another request has since established.
-			_, w.commitErr = cache.RefreshOrSetWithTTL(key, channelID, ttl)
+			var renewed bool
+			renewed, w.commitErr = cache.RefreshOrSetWithTTL(key, channelID, ttl)
+			if !renewed && w.commitErr == nil {
+				if heartbeat {
+					// Keepalive carries no model context. Do not advance the renewal
+					// deadline: the next success write must check the conflicting binding.
+					w.refreshAfter = time.Time{}
+					return nil
+				}
+				w.commitErr = errors.New("channel affinity binding changed during response")
+			}
 		} else {
 			w.commitErr = cache.SetWithTTL(key, channelID, ttl)
 		}
