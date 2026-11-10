@@ -141,7 +141,17 @@ func validateAliTTSBilling(info *relaycommon.RelayInfo) error {
 		}
 		return nil
 	}
-	if !info.PriceData.UsePrice && info.Request != nil && info.Request.GetTokenCountMeta().TokenType != types.TokenTypeTextNumber {
+	if info.PriceData.UsePrice {
+		return nil
+	}
+	// Request metadata historically treats every non-GPT name as characters.
+	// Only known character-priced speech families establish that unit; aliases
+	// such as o1@thinking:off must be checked using their resolved billing name.
+	name := info.GetBillingModelName()
+	characterPriced := name == "qwen-tts" || strings.HasPrefix(name, "qwen-tts-") ||
+		name == "qwen3-tts-flash" || strings.HasPrefix(name, "qwen3-tts-flash-") ||
+		name == "tts-1" || strings.HasPrefix(name, "tts-1-")
+	if !characterPriced || info.Request != nil && info.Request.GetTokenCountMeta().TokenType != types.TokenTypeTextNumber {
 		return errors.New("Qwen HTTP TTS cannot bill a token-priced model alias; use a character-count TTS model name or per-request pricing")
 	}
 	return nil

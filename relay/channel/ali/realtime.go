@@ -50,14 +50,49 @@ type aliRealtimeUsage struct {
 }
 
 type aliRealtimeSession struct {
-	info             *relaycommon.RelayInfo
-	usage            dto.RealtimeUsage
-	responses        map[string]struct{}
-	toolCounts       map[string]int
-	outputPCM16      bool
-	pendingResponse  bool
-	awaitingResponse bool
-	outputDelivered  bool
+	info              *relaycommon.RelayInfo
+	usage             dto.RealtimeUsage
+	responses         map[string]struct{}
+	toolCounts        map[string]int
+	outputPCM16       bool
+	pendingResponse   bool
+	activeResponseID  string
+	awaitingResponses int
+	bufferedAudio     bool
+	manualInput       bool
+	outputDelivered   bool
+}
+
+// hasPendingResponse distinguishes buffered push-to-talk audio from input
+// that can already trigger inference, including VAD input for a later turn.
+func (s *aliRealtimeSession) hasPendingResponse() bool {
+	return s.pendingResponse || s.awaitingResponses > 0 || s.bufferedAudio && !s.manualInput
+}
+
+// observeClientEvent records only successfully forwarded events. Manual audio
+// commits do not start inference; response.create is required by Qwen's protocol.
+func (s *aliRealtimeSession) observeClientEvent(message []byte) {
+	var event struct {
+		Type    string `json:"type"`
+		Session struct {
+			OutputFormat  string          `json:"output_audio_format"`
+			TurnDetection json.RawMessage `json:"turn_detection"`
+		} `json:"session"`
+	}
+	_ = common.Unmarshal(message, &event)
+	switch event.Type {
+	case "session.update":
+		if event.Session.OutputFormat != "" {
+			s.outputPCM16 = event.Session.OutputFormat == "pcm16"
+		}
+		if len(event.Session.TurnDetection) != 0 {
+			s.manualInput = string(event.Session.TurnDetection) == "null"
+		}
+	case "input_audio_buffer.append":
+		s.bufferedAudio = true
+	case "response.create":
+		s.awaitingResponses++
+	}
 }
 
 // account records each completed upstream response once, preserving validated
@@ -76,9 +111,18 @@ func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 		return errors.New("invalid Qwen realtime event")
 	}
 	if event.Type != dto.RealtimeEventTypeResponseDone {
+		if event.Type == "response.created" {
+			s.awaitingResponses = max(s.awaitingResponses-1, 0)
+			s.bufferedAudio = false
+			if event.Response != nil {
+				s.activeResponseID = event.Response.ID
+			}
+		}
+		if s.manualInput && (event.Type == "input_audio_buffer.cleared" || event.Type == "input_audio_buffer.committed") {
+			s.bufferedAudio = false
+		}
 		if event.Type == "response.created" || event.Type == "response.audio.delta" || event.Type == "response.text.delta" {
 			s.pendingResponse = true
-			s.awaitingResponse = false
 		}
 		if event.Type == "response.audio.delta" || event.Type == "response.text.delta" {
 			s.outputDelivered = true
@@ -92,22 +136,22 @@ func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 	if response == nil {
 		return errors.New("Qwen response.done is missing response")
 	}
-	if response.Usage == nil {
-		if s.outputDelivered {
-			s.info.RealtimeBilling.UsageIncomplete = true
-		}
-		s.outputDelivered = false
-		s.pendingResponse, s.awaitingResponse = false, false
-		if response.Status == "cancelled" || response.Status == "failed" || response.Status == "incomplete" {
-			return nil
-		}
-		return errors.New("Qwen completed response is missing usage")
-	}
 	if response.ID == "" || len(response.ID) > 256 {
 		return errors.New("Qwen response.done has an invalid response ID")
 	}
 	if _, exists := s.responses[response.ID]; exists {
 		return nil
+	}
+	if response.Usage == nil {
+		if s.outputDelivered {
+			s.info.RealtimeBilling.UsageIncomplete = true
+		}
+		s.finishResponse(response.ID)
+		if response.Status == "cancelled" || response.Status == "failed" || response.Status == "incomplete" {
+			s.responses[response.ID] = struct{}{}
+			return nil
+		}
+		return errors.New("Qwen completed response is missing usage")
 	}
 	u := response.Usage
 	values := []int64{u.TotalTokens, u.InputTokens, u.OutputTokens, u.InputDetails.TextTokens, u.InputDetails.AudioTokens, u.OutputDetails.TextTokens, u.OutputDetails.AudioTokens}
@@ -121,7 +165,7 @@ func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 		u.TotalTokens != u.InputTokens+u.OutputTokens {
 		return errors.New("Qwen realtime token totals do not match their details")
 	}
-	s.pendingResponse, s.awaitingResponse, s.outputDelivered = false, false, false
+	s.finishResponse(response.ID)
 	// Account tokens before validating plugins: a malformed/oversized search
 	// count must not make an otherwise completed audio response free.
 	counters := []*int{&s.usage.TotalTokens, &s.usage.InputTokens, &s.usage.OutputTokens,
@@ -142,6 +186,15 @@ func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 		}
 	}
 	s.responses[response.ID] = struct{}{}
+	responseUsage := dto.RealtimeUsage{TotalTokens: int(u.TotalTokens), InputTokens: int(u.InputTokens), OutputTokens: int(u.OutputTokens),
+		InputTokenDetails:  dto.InputTokenDetails{TextTokens: int(u.InputDetails.TextTokens), AudioTokens: int(u.InputDetails.AudioTokens)},
+		OutputTokenDetails: dto.OutputTokenDetails{TextTokens: int(u.OutputDetails.TextTokens), AudioTokens: int(u.OutputDetails.AudioTokens)}}
+	if responseUsage.OutputTokenDetails.AudioTokens > 0 {
+		responseUsage.TotalTokens -= responseUsage.OutputTokenDetails.TextTokens
+		responseUsage.OutputTokens -= responseUsage.OutputTokenDetails.TextTokens
+		responseUsage.OutputTokenDetails.TextTokens = 0
+	}
+	billingErr := service.RecordRealtimeResponseBilling(s.info, response.ID, responseUsage)
 	search := u.Plugins.Search
 	if search == nil {
 		search = response.Plugins.Search
@@ -167,7 +220,23 @@ func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 		s.toolCounts[searchKey] = searchCount
 		s.info.SetBillableToolCount(searchKey, searchCount)
 	}
+	if billingErr != nil {
+		return billingErr
+	}
 	return service.ReserveRealtimeQuota(c, s.info, &s.usage)
+}
+
+// finishResponse consumes only the completed inference, leaving subsequently
+// buffered VAD audio and explicit response requests available for reconciliation.
+func (s *aliRealtimeSession) finishResponse(id string) {
+	if s.activeResponseID != "" && s.activeResponseID != id {
+		return
+	}
+	if !s.pendingResponse {
+		s.awaitingResponses = max(s.awaitingResponses-1, 0)
+	}
+	s.pendingResponse, s.outputDelivered = false, false
+	s.activeResponseID = ""
 }
 
 // validateAliRealtimeEvent bounds client-controlled billing quantities and
@@ -370,7 +439,7 @@ relayLoop:
 					break relayLoop
 				}
 				if draining {
-					if !session.pendingResponse && !session.awaitingResponse {
+					if !session.hasPendingResponse() {
 						break relayLoop
 					}
 					continue
@@ -400,25 +469,12 @@ relayLoop:
 					relayErr = err
 					break relayLoop
 				}
-				// Only a valid forwarded update may change the downstream format.
-				var event struct {
-					Type    string `json:"type"`
-					Session struct {
-						OutputFormat string `json:"output_audio_format"`
-					} `json:"session"`
-				}
-				_ = common.Unmarshal(p.data, &event)
-				if event.Type == "session.update" && event.Session.OutputFormat != "" {
-					session.outputPCM16 = event.Session.OutputFormat == "pcm16"
-				}
-				if event.Type == "response.create" || event.Type == "input_audio_buffer.append" || event.Type == "input_audio_buffer.commit" {
-					session.awaitingResponse = true
-				}
+				session.observeClientEvent(p.data)
 			}
 		}
 		if clientErr != nil && !draining {
 			_ = info.ClientWs.Close()
-			if !session.pendingResponse && !session.awaitingResponse {
+			if !session.hasPendingResponse() {
 				break relayLoop
 			}
 			draining = true
@@ -450,7 +506,7 @@ relayLoop:
 			}
 		}
 	}
-	if session.pendingResponse || session.awaitingResponse {
+	if session.hasPendingResponse() {
 		info.RealtimeBilling.UsageIncomplete = true
 		logger.LogWarn(c, "Qwen realtime usage is incomplete; retaining the existing reservation")
 	}

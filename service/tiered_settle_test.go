@@ -1368,4 +1368,86 @@ func TestRealtimeUnsafeChargesCannotReserve(t *testing.T) {
 		quota, _, _ := calculateRealtimeQuota(ctx, info, usage)
 		assert.GreaterOrEqual(t, quota, 0)
 	}
+	t.Run("response sum overflow", func(t *testing.T) {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		billing := &recordingBillingSettler{}
+		info := &relaycommon.RelayInfo{Billing: billing, TieredBillingSnapshot: makeSnapshot(`tier("large", p * 3e7)`, 1, 0, 0)}
+		usage := dto.RealtimeUsage{InputTokens: 100, TotalTokens: 100, InputTokenDetails: dto.InputTokenDetails{TextTokens: 100}}
+		require.NoError(t, RecordRealtimeResponseBilling(info, "first", usage))
+		require.NoError(t, ReserveRealtimeQuota(ctx, info, &usage))
+		require.NoError(t, RecordRealtimeResponseBilling(info, "second", usage))
+		require.Error(t, ReserveRealtimeQuota(ctx, info, &usage))
+		assert.Equal(t, []int{1500000000}, billing.reserveTargets)
+		quota, _, _ := calculateRealtimeQuota(ctx, info, &usage)
+		assert.Equal(t, int(common.MaxQuota), quota)
+		require.NotNil(t, info.QuotaClamp, "the session sum must retain a saturation audit marker")
+	})
+}
+
+// TestRealtimePerResponseSettlement preserves completed response prices across
+// tier changes, tool-price edits and a later evaluation failure, including logs.
+func TestRealtimePerResponseSettlement(t *testing.T) {
+	const modelName = "realtime-response-tier-test"
+	const toolKey = "search_strategy_turbo:" + modelName
+	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest(toolKey) })
+	for _, failedTurn := range []bool{false, true} {
+		t.Run(fmt.Sprint(failedTurn), func(t *testing.T) {
+			truncate(t)
+			seedUser(t, 8191, 5000)
+			seedToken(t, 8192, 8191, "realtime-turns", 5000)
+			seedChannel(t, 8193)
+			operation_setting.SetToolPriceForTest(toolKey, 2)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/realtime", nil)
+			info := &relaycommon.RelayInfo{UserId: 8191, TokenId: 8192, TokenKey: "realtime-turns", ForcePreConsume: true,
+				OriginModelName: modelName, StartTime: time.Now(), IsStream: true, ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 8193},
+				UserSetting:           dto.UserSetting{BillingPreference: "wallet_only"},
+				PriceData:             types.PriceData{GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1}},
+				TieredBillingSnapshot: makeSnapshot(`len <= 100 ? tier("short", p * 2) : len <= 150 ? tier("long", p * 10) : tier("bad", float("bad"))`, 1, 0, 0)}
+			require.Nil(t, PreConsumeBilling(ctx, 100, info))
+			cumulative := &dto.RealtimeUsage{}
+			for i, tokens := range []int{80, 80, 120} {
+				usage := dto.RealtimeUsage{TotalTokens: tokens, InputTokens: tokens, InputTokenDetails: dto.InputTokenDetails{TextTokens: tokens}}
+				require.NoError(t, RecordRealtimeResponseBilling(info, fmt.Sprint(i), usage))
+				cumulative.TotalTokens += tokens
+				cumulative.InputTokens += tokens
+				cumulative.InputTokenDetails.TextTokens += tokens
+				info.SetBillableToolCount("search_strategy_turbo", min(i+1, 2))
+				require.NoError(t, ReserveRealtimeQuota(ctx, info, cumulative))
+				assert.Equal(t, []int{1080, 2160, 2760}[i], info.FinalPreConsumedQuota)
+				operation_setting.SetToolPriceForTest(toolKey, 10)
+			}
+			if failedTurn {
+				usage := dto.RealtimeUsage{TotalTokens: 200, InputTokens: 200, InputTokenDetails: dto.InputTokenDetails{TextTokens: 200}}
+				require.ErrorContains(t, RecordRealtimeResponseBilling(info, "failed", usage), "failed to evaluate")
+				cumulative.TotalTokens += 200
+				cumulative.InputTokens += 200
+				cumulative.InputTokenDetails.TextTokens += 200
+				require.ErrorContains(t, ReserveRealtimeQuota(ctx, info, cumulative), "failed to evaluate")
+			}
+			PostWssConsumeQuota(ctx, info, modelName, cumulative, nil)
+			wallet, err := model.GetUserQuota(info.UserId, true)
+			require.NoError(t, err)
+			assert.Equal(t, 2240, wallet)
+			var token model.Token
+			require.NoError(t, model.DB.First(&token, info.TokenId).Error)
+			assert.Equal(t, 2240, token.RemainQuota)
+			assert.Equal(t, 2760, token.UsedQuota)
+			var log model.Log
+			require.NoError(t, model.LOG_DB.Where("user_id = ?", info.UserId).Take(&log).Error)
+			assert.Equal(t, 2760, log.Quota)
+			var other struct {
+				Responses []relaycommon.RealtimeTurnCharge `json:"realtime_responses"`
+				Admin     struct {
+					Failed bool `json:"realtime_billing_incomplete"`
+				} `json:"admin_info"`
+			}
+			require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+			require.Len(t, other.Responses, 3)
+			assert.Equal(t, "short", other.Responses[0].Pricing.MatchedTier)
+			assert.Equal(t, "short", other.Responses[1].Pricing.MatchedTier)
+			assert.Equal(t, "long", other.Responses[2].Pricing.MatchedTier)
+			assert.Equal(t, failedTurn, other.Admin.Failed)
+		})
+	}
 }

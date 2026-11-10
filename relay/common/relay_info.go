@@ -38,8 +38,24 @@ type RealtimeBillingState struct {
 	ToolQuota         decimal.Decimal
 	ReservedToolQuota decimal.Decimal
 	UsageIncomplete   bool
+	ResponseBilling   *RealtimeResponseBilling
 	// Qwen does not bill the text accompanying an audio output a second time.
 	AudioCompanionTextTokens int
+}
+
+// RealtimeResponseBilling stores independently evaluated response charges;
+// the session's cumulative context length must never select a response's tier.
+type RealtimeResponseBilling struct {
+	Quota  int
+	Failed bool
+	Turns  []RealtimeTurnCharge
+}
+
+// RealtimeTurnCharge keeps a response's normalized usage and evaluated price for logs.
+type RealtimeTurnCharge struct {
+	ResponseID string                   `json:"response_id"`
+	Usage      dto.RealtimeUsage        `json:"usage"`
+	Pricing    billingexpr.TieredResult `json:"pricing"`
 }
 
 const (

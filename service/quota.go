@@ -154,6 +154,41 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	return nil
 }
 
+// RecordRealtimeResponseBilling evaluates one response with the frozen pricing
+// expression. Callers deduplicate response IDs and normalize vendor usage first.
+// Completed charges remain available if a later response cannot be evaluated.
+func RecordRealtimeResponseBilling(info *relaycommon.RelayInfo, responseID string, usage dto.RealtimeUsage) error {
+	if info.TieredBillingSnapshot == nil {
+		return nil
+	}
+	if info.RealtimeBilling == nil {
+		info.RealtimeBilling = &relaycommon.RealtimeBillingState{}
+	}
+	if info.RealtimeBilling.ResponseBilling == nil {
+		info.RealtimeBilling.ResponseBilling = &relaycommon.RealtimeResponseBilling{}
+	}
+	responses := info.RealtimeBilling.ResponseBilling
+	canonical := &dto.Usage{PromptTokens: usage.InputTokens, CompletionTokens: usage.OutputTokens, TotalTokens: usage.TotalTokens,
+		PromptTokensDetails: usage.InputTokenDetails, CompletionTokenDetails: usage.OutputTokenDetails}
+	snap := info.TieredBillingSnapshot
+	params := BuildTieredTokenParams(canonical, false, billingexpr.UsedVarsByHash(snap.ExprString, snap.ExprHash))
+	request := billingexpr.RequestInput{}
+	if info.BillingRequestInput != nil {
+		request = *info.BillingRequestInput
+	}
+	result, err := billingexpr.ComputeTieredQuotaWithRequest(snap, params, request)
+	if err != nil {
+		responses.Failed = true
+		return fmt.Errorf("failed to evaluate realtime response billing: %w", err)
+	}
+	noteQuotaClamp(info, result.Clamp)
+	quota, clamp := common.QuotaFromDecimalChecked(decimal.NewFromInt(int64(responses.Quota)).Add(decimal.NewFromInt(int64(result.ActualQuotaAfterGroup))))
+	noteQuotaClamp(info, clamp)
+	responses.Quota = quota
+	responses.Turns = append(responses.Turns, relaycommon.RealtimeTurnCharge{ResponseID: responseID, Usage: usage, Pricing: result})
+	return nil
+}
+
 // ReserveRealtimeQuota raises the existing billing reservation to the cost of
 // the entire session so far. It never charges each response a second time at
 // final settlement, and checks available funds even for trusted wallets.
@@ -162,7 +197,11 @@ func ReserveRealtimeQuota(ctx *gin.Context, info *relaycommon.RelayInfo, usage *
 	if info.QuotaClamp != nil {
 		return info.QuotaClamp
 	}
-	if info.TieredBillingSnapshot != nil && result == nil {
+	responses := info.RealtimeBilling.ResponseBilling
+	if responses != nil && responses.Failed {
+		return errors.New("failed to evaluate realtime billing expression")
+	}
+	if info.TieredBillingSnapshot != nil && result == nil && responses == nil {
 		return errors.New("failed to evaluate realtime billing expression")
 	}
 	if quota == 0 {
@@ -219,7 +258,9 @@ func calculateRealtimeQuota(ctx *gin.Context, info *relaycommon.RelayInfo, usage
 
 	var result *billingexpr.TieredResult
 	fallback := false
-	if snap := info.TieredBillingSnapshot; snap != nil {
+	if responses := info.RealtimeBilling.ResponseBilling; responses != nil {
+		quota = responses.Quota
+	} else if snap := info.TieredBillingSnapshot; snap != nil {
 		canonical := &dto.Usage{
 			PromptTokens: usage.InputTokens, CompletionTokens: usage.OutputTokens, TotalTokens: usage.TotalTokens,
 			PromptTokensDetails: usage.InputTokenDetails, CompletionTokenDetails: usage.OutputTokenDetails,
@@ -240,7 +281,7 @@ func calculateRealtimeQuota(ctx *gin.Context, info *relaycommon.RelayInfo, usage
 			summary.ToolCallSurchargeQuota.Sub(info.RealtimeBilling.ReservedToolQuota))
 	}
 	quota = composeTieredTextQuota(info, summary, quota, result)
-	if info.RealtimeBilling.UsageIncomplete {
+	if info.RealtimeBilling.UsageIncomplete || info.RealtimeBilling.ResponseBilling != nil && info.RealtimeBilling.ResponseBilling.Failed {
 		quota = max(quota, info.FinalPreConsumedQuota)
 	}
 	return quota, result, summary.ToolSurchargeItems
@@ -281,7 +322,8 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 
 	// record all the consume log even if quota is 0
-	if totalTokens == 0 && len(toolItems) == 0 && !relayInfo.RealtimeBilling.UsageIncomplete {
+	failedResponseBilling := relayInfo.RealtimeBilling.ResponseBilling != nil && relayInfo.RealtimeBilling.ResponseBilling.Failed
+	if totalTokens == 0 && len(toolItems) == 0 && !relayInfo.RealtimeBilling.UsageIncomplete && !failedResponseBilling {
 		// in this case, must be some error happened
 		// we cannot just return, because we may have to return the pre-consumed quota
 		quota = 0
@@ -303,6 +345,14 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+	}
+	if responses := relayInfo.RealtimeBilling.ResponseBilling; responses != nil {
+		// Each turn records its own unit and tier; the aggregate may mix them.
+		InjectTieredBillingInfo(other, relayInfo, &billingexpr.TieredResult{MatchedTier: "per_response"})
+		other.SetPublic("realtime_responses", responses.Turns)
+		if responses.Failed {
+			other.SetAdmin("realtime_billing_incomplete", true)
+		}
 	}
 	appendToolSurchargeLogInfo(other, toolItems)
 	if relayInfo.RealtimeBilling.UsageIncomplete {
