@@ -762,3 +762,64 @@ func TestAliRealtimeManualAudioDoesNotStartInference(t *testing.T) {
 		})
 	}
 }
+
+// TestAliRealtimeVADReconciliation distinguishes silence and invalid turns
+// from confirmed speech, including VAD events that arrive after disconnect.
+func TestAliRealtimeVADReconciliation(t *testing.T) {
+	started := `{"type":"input_audio_buffer.speech_started","item_id":"speech"}`
+	stopped := `{"type":"input_audio_buffer.speech_stopped","item_id":"speech"}`
+	completed := []string{
+		`{"type":"response.created","response":{"id":"last"}}`,
+		`{"type":"response.done","response":{"id":"last","usage":` + aliTestRealtimeUsage + `}}`,
+	}
+	for _, tc := range []struct {
+		name          string
+		before, after []string
+		tokens        int
+		incomplete    bool
+	}{
+		{name: "silence"},
+		{name: "invalid smart turn", before: []string{started, `{"type":"input_audio_buffer.speech_stopped","item_id":"speech","reason":"turn_invalid"}`}},
+		{name: "valid stopped turn", before: []string{started, stopped}, after: completed, tokens: 377},
+		{name: "confirmed speech missing usage", before: []string{started, stopped}, incomplete: true},
+		{name: "delayed speech confirmation", after: append([]string{started, stopped}, completed...), tokens: 377},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, finished := aliRealtimeFixture(t, func(upstream *websocket.Conn) {
+				_, _, err := upstream.ReadMessage()
+				require.NoError(t, err)
+				for _, event := range tc.before {
+					require.NoError(t, upstream.WriteMessage(websocket.TextMessage, []byte(event)))
+				}
+				// Acknowledge receipt without claiming that silence triggered speech.
+				require.NoError(t, upstream.WriteMessage(websocket.TextMessage, []byte(`{"type":"session.updated","session":{}}`)))
+				upstream.SetPingHandler(func(string) error {
+					for _, event := range tc.after {
+						if err := upstream.WriteMessage(websocket.TextMessage, []byte(event)); err != nil {
+							return err
+						}
+					}
+					return nil
+				})
+				_, _, _ = upstream.ReadMessage()
+			}, aliRealtimeTimeouts{time.Second, 3 * time.Second, 50 * time.Millisecond})
+			require.NoError(t, client.WriteMessage(websocket.TextMessage, []byte(`{"type":"input_audio_buffer.append","audio":"AAAAAA=="}`)))
+			for range len(tc.before) + 1 {
+				_, _, err := client.ReadMessage()
+				require.NoError(t, err)
+			}
+			require.NoError(t, client.Close())
+			select {
+			case result := <-finished:
+				require.Nil(t, result.err)
+				assert.Equal(t, tc.tokens, result.usage.TotalTokens)
+				assert.Equal(t, tc.incomplete, result.info.RealtimeBilling.UsageIncomplete)
+				if tc.tokens != 0 {
+					assert.Equal(t, 700, result.info.FinalPreConsumedQuota)
+				}
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "VAD session did not finish reconciliation")
+			}
+		})
+	}
+}

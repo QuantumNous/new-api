@@ -59,14 +59,15 @@ type aliRealtimeSession struct {
 	activeResponseID  string
 	awaitingResponses int
 	bufferedAudio     bool
+	pendingVAD        bool
 	manualInput       bool
 	outputDelivered   bool
 }
 
-// hasPendingResponse distinguishes buffered push-to-talk audio from input
-// that can already trigger inference, including VAD input for a later turn.
+// hasPendingResponse includes confirmed VAD speech for a later turn, but not
+// unconfirmed microphone buffers, which may contain only filtered silence.
 func (s *aliRealtimeSession) hasPendingResponse() bool {
-	return s.pendingResponse || s.awaitingResponses > 0 || s.bufferedAudio && !s.manualInput
+	return s.pendingResponse || s.awaitingResponses > 0 || s.pendingVAD
 }
 
 // observeClientEvent records only successfully forwarded events. Manual audio
@@ -100,6 +101,7 @@ func (s *aliRealtimeSession) observeClientEvent(message []byte) {
 func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 	var event struct {
 		Type     string `json:"type"`
+		Reason   string `json:"reason"`
 		Response *struct {
 			ID      string             `json:"id"`
 			Status  string             `json:"status"`
@@ -111,9 +113,23 @@ func (s *aliRealtimeSession) account(c *gin.Context, message []byte) error {
 		return errors.New("invalid Qwen realtime event")
 	}
 	if event.Type != dto.RealtimeEventTypeResponseDone {
+		switch event.Type {
+		case "input_audio_buffer.speech_started":
+			s.pendingVAD = true
+		case "input_audio_buffer.speech_stopped":
+			// A valid stopped turn still awaits inference. Smart-turn detection
+			// explicitly reports discarded speech as turn_invalid.
+			s.pendingVAD = event.Reason != "turn_invalid"
+			s.bufferedAudio = false
+		case "input_audio_buffer.committed":
+			if !s.manualInput {
+				s.pendingVAD = true
+			}
+		}
 		if event.Type == "response.created" {
 			s.awaitingResponses = max(s.awaitingResponses-1, 0)
 			s.bufferedAudio = false
+			s.pendingVAD = false
 			if event.Response != nil {
 				s.activeResponseID = event.Response.ID
 			}
@@ -398,13 +414,16 @@ func relayAliRealtime(c *gin.Context, info *relaycommon.RelayInfo, timeouts aliR
 
 	var relayErr error
 	draining := false
+	waitingForSpeech := false
 	closeCode, closeText := websocket.CloseNormalClosure, ""
 relayLoop:
 	for {
 		var clientErr error
 		select {
 		case <-settleTimeout:
-			relayErr = errors.New("Qwen realtime terminal usage was not received before the settlement deadline")
+			if session.hasPendingResponse() {
+				relayErr = errors.New("Qwen realtime terminal usage was not received before the settlement deadline")
+			}
 			break relayLoop
 		case <-clientDone:
 			clientErr = c.Request.Context().Err()
@@ -439,7 +458,17 @@ relayLoop:
 					break relayLoop
 				}
 				if draining {
-					if !session.hasPendingResponse() {
+					if session.hasPendingResponse() {
+						if waitingForSpeech {
+							settleTimer.Reset(timeouts.settleWait)
+							waitingForSpeech = false
+						}
+					} else if session.bufferedAudio && !session.manualInput {
+						if !waitingForSpeech {
+							settleTimer.Reset(min(time.Second, timeouts.settleWait))
+							waitingForSpeech = true
+						}
+					} else {
 						break relayLoop
 					}
 					continue
@@ -474,8 +503,15 @@ relayLoop:
 		}
 		if clientErr != nil && !draining {
 			_ = info.ClientWs.Close()
+			wait := timeouts.settleWait
 			if !session.hasPendingResponse() {
-				break relayLoop
+				if !session.bufferedAudio || session.manualInput {
+					break relayLoop
+				}
+				// Give queued upstream VAD events a brief chance to identify speech.
+				// Silence alone must not retain a reservation or a missing-usage flag.
+				wait = min(time.Second, wait)
+				waitingForSpeech = true
 			}
 			draining = true
 			clientDone = nil
@@ -483,7 +519,7 @@ relayLoop:
 			// Probe the upstream while its last response is allowed to finish.
 			// Do not cancel it: Qwen cancellation may omit billable usage.
 			_ = info.TargetWs.WriteControl(websocket.PingMessage, nil, time.Now().Add(time.Second))
-			settleTimer = time.NewTimer(timeouts.settleWait)
+			settleTimer = time.NewTimer(wait)
 			settleTimeout = settleTimer.C
 		}
 	}
