@@ -190,7 +190,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 		// finalize once and break loop
 		usage.PromptTokens = chunk.PromptEvalCount
-		usage.PromptTokensDetails.CachedTokens = chunk.PromptEvalCachedCount
+		usage.PromptTokensDetails.CachedTokens = max(0, min(chunk.PromptEvalCachedCount, usage.PromptTokens))
 		usage.CompletionTokens = chunk.EvalCount
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 		finishReason := chunk.DoneReason
@@ -319,7 +319,7 @@ func ollamaChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	}
 	created := toUnix(lastChunk.CreatedAt)
 	usage := &dto.Usage{PromptTokens: lastChunk.PromptEvalCount, CompletionTokens: lastChunk.EvalCount, TotalTokens: lastChunk.PromptEvalCount + lastChunk.EvalCount}
-	usage.PromptTokensDetails.CachedTokens = lastChunk.PromptEvalCachedCount
+	usage.PromptTokensDetails.CachedTokens = max(0, min(lastChunk.PromptEvalCachedCount, usage.PromptTokens))
 	content := aggContent.String()
 	finishReason := lastChunk.DoneReason
 	if finishReason == "" {

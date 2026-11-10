@@ -283,6 +283,26 @@ func TestOllamaNativeCachedTokens(t *testing.T) {
 			raw:    `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":true,"prompt_eval_count":11,"prompt_eval_cached_count":0,"eval_count":18}`,
 		},
 		{
+			name: "non-stream negative cache count",
+			raw:  `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":true,"prompt_eval_count":11,"prompt_eval_cached_count":-1,"eval_count":18}`,
+		},
+		{
+			name:   "stream negative cache count",
+			stream: true,
+			raw:    `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":true,"prompt_eval_count":11,"prompt_eval_cached_count":-1,"eval_count":18}`,
+		},
+		{
+			name:       "non-stream cache count exceeds prompt",
+			raw:        `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":true,"prompt_eval_count":11,"prompt_eval_cached_count":20,"eval_count":18}`,
+			wantCached: 11,
+		},
+		{
+			name:       "stream cache count exceeds prompt",
+			stream:     true,
+			raw:        `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":true,"prompt_eval_count":11,"prompt_eval_cached_count":20,"eval_count":18}`,
+			wantCached: 11,
+		},
+		{
 			name: "pretty non-stream cache hit",
 			raw: `{
   "model": "gemma4",
