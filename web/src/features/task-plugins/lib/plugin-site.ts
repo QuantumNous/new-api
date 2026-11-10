@@ -27,6 +27,18 @@ export const PLUGIN_SITE_TIMEOUT_MS = 10_000
 /** How long `auto` stays on www.newapi.pro after newapi.ai did not answer. */
 export const PLUGIN_SITE_FALLBACK_MS = 24 * 60 * 60 * 1000
 
+// Leaving or reloading the page cancels requests still running. That is not
+// newapi.ai failing to answer, so it must not switch this browser to newapi.pro.
+let leavingPage = false
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => {
+    leavingPage = true
+  })
+  window.addEventListener('pageshow', () => {
+    leavingPage = false
+  })
+}
+
 /**
  * `fetch` for plugin lists, plugin files and logos. Requests to www.newapi.ai
  * go to www.newapi.pro when the administrator picked it, or for a day after
@@ -60,7 +72,7 @@ export async function fetchFromPluginSite(
   try {
     return await globalThis.fetch(url.href, { ...init, signal: timeout.signal })
   } catch (error) {
-    if (init.signal?.aborted) throw error
+    if (init.signal?.aborted || leavingPage) throw error
     // newapi.ai did not answer: an HTTP error status is an answer and is
     // returned above as is.
     usePluginSiteStore

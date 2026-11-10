@@ -160,6 +160,40 @@ describe('fetchFromPluginSite', () => {
     expect(usePluginSiteStore.getState().fallbackUntil).toBe(0)
   })
 
+  test('requests cut off by leaving the page do not switch sites', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch')
+      })
+    )
+    window.dispatchEvent(new Event('pagehide'))
+    try {
+      await expect(fetchFromPluginSite(AI_INDEX)).rejects.toThrow(
+        'Failed to fetch'
+      )
+      expect(usePluginSiteStore.getState().fallbackUntil).toBe(0)
+    } finally {
+      window.dispatchEvent(new Event('pageshow'))
+    }
+  })
+
+  test('newapi.ai refusing the connection switches to newapi.pro at once', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).startsWith('https://www.newapi.ai/')) {
+        throw new TypeError('Failed to fetch')
+      }
+      return new Response('pro')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await (await fetchFromPluginSite(AI_INDEX)).text()).toBe('pro')
+    expect(requested(fetchMock)).toEqual([AI_INDEX, PRO_INDEX])
+    expect(usePluginSiteStore.getState().fallbackUntil).toBeGreaterThan(
+      Date.now()
+    )
+  })
+
   test('other addresses are fetched unchanged even with newapi.pro chosen', async () => {
     usePluginSiteStore.getState().setSite('pro')
     const fetchMock = vi.fn(async () => new Response('raw'))
