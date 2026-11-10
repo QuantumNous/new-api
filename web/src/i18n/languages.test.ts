@@ -41,6 +41,12 @@ describe('convertDetectedLanguage', () => {
     expect(convertDetectedLanguage('zhCN')).toBe('zhCN')
   })
 
+  test('maps Korean browser tags onto the interface code', () => {
+    expect(convertDetectedLanguage('ko')).toBe('ko')
+    expect(convertDetectedLanguage('ko-KR')).toBe('ko')
+    expect(convertDetectedLanguage('ko_KR')).toBe('ko')
+  })
+
   test('passes non-Chinese values through unchanged', () => {
     expect(convertDetectedLanguage('en')).toBe('en')
     expect(convertDetectedLanguage('fr-FR')).toBe('fr-FR')
