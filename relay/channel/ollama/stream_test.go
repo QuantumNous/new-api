@@ -242,3 +242,117 @@ func TestOllamaStreamHandlerDoneToolCalls(t *testing.T) {
 	assert.Equal(t, constant.FinishReasonToolCalls, *chunks[stopChunkIndex].Choices[0].FinishReason)
 	assert.Contains(t, w.Body.String(), "data: [DONE]")
 }
+
+func TestOllamaNativeCachedTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name       string
+		stream     bool
+		raw        string
+		wantCached int
+	}{
+		{
+			name:       "non-stream cache hit",
+			raw:        `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":true,"prompt_eval_count":11,"prompt_eval_cached_count":8,"eval_count":18}`,
+			wantCached: 8,
+		},
+		{
+			name:   "stream cache hit from final chunk",
+			stream: true,
+			raw: `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":false}
+{"model":"gemma4","message":{"role":"assistant","content":""},"done":true,"prompt_eval_count":11,"prompt_eval_cached_count":8,"eval_count":18}`,
+			wantCached: 8,
+		},
+		{
+			name: "non-stream missing cache count",
+			raw:  `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":true,"prompt_eval_count":11,"eval_count":18}`,
+		},
+		{
+			name:   "stream missing cache count",
+			stream: true,
+			raw:    `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":true,"prompt_eval_count":11,"eval_count":18}`,
+		},
+		{
+			name: "non-stream zero cache count",
+			raw:  `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":true,"prompt_eval_count":11,"prompt_eval_cached_count":0,"eval_count":18}`,
+		},
+		{
+			name:   "stream zero cache count",
+			stream: true,
+			raw:    `{"model":"gemma4","message":{"role":"assistant","content":"Hello"},"done":true,"prompt_eval_count":11,"prompt_eval_cached_count":0,"eval_count":18}`,
+		},
+		{
+			name: "pretty non-stream cache hit",
+			raw: `{
+  "model": "gemma4",
+  "message": {"role": "assistant", "content": "Hello"},
+  "done": true,
+  "prompt_eval_count": 11,
+  "prompt_eval_cached_count": 8,
+  "eval_count": 18
+}`,
+			wantCached: 8,
+		},
+		{
+			name:       "non-stream generate cache hit",
+			raw:        `{"model":"gemma4","response":"Hello","done":true,"prompt_eval_count":11,"prompt_eval_cached_count":8,"eval_count":18}`,
+			wantCached: 8,
+		},
+		{
+			name:       "stream generate cache hit",
+			stream:     true,
+			raw:        `{"model":"gemma4","response":"Hello","done":true,"prompt_eval_count":11,"prompt_eval_cached_count":8,"eval_count":18}`,
+			wantCached: 8,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(tt.raw)),
+			}
+			usageValue, apiErr := (&Adaptor{}).DoResponse(c, resp, &relaycommon.RelayInfo{
+				IsStream: tt.stream,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					UpstreamModelName: "gemma4",
+				},
+			})
+			require.Nil(t, apiErr)
+			usage, ok := usageValue.(*dto.Usage)
+			require.True(t, ok)
+			require.NotNil(t, usage)
+
+			var clientUsage *dto.Usage
+			if tt.stream {
+				for _, line := range strings.Split(w.Body.String(), "\n") {
+					data, ok := strings.CutPrefix(line, "data: ")
+					if !ok || data == "[DONE]" {
+						continue
+					}
+					var chunk dto.ChatCompletionsStreamResponse
+					require.NoError(t, common.Unmarshal([]byte(data), &chunk))
+					if chunk.Usage != nil {
+						clientUsage = chunk.Usage
+					}
+				}
+			} else {
+				var response dto.OpenAITextResponse
+				require.NoError(t, common.Unmarshal(w.Body.Bytes(), &response))
+				clientUsage = &response.Usage
+			}
+			require.NotNil(t, clientUsage)
+
+			for _, got := range []*dto.Usage{usage, clientUsage} {
+				assert.Equal(t, tt.wantCached, got.PromptTokensDetails.CachedTokens)
+				assert.Equal(t, 11, got.PromptTokens)
+				assert.Equal(t, 18, got.CompletionTokens)
+				assert.Equal(t, 29, got.TotalTokens)
+			}
+		})
+	}
+}

@@ -31,15 +31,16 @@ type ollamaChatStreamChunk struct {
 		ToolCalls []OllamaToolCall `json:"tool_calls"`
 	} `json:"message"`
 	// generate
-	Response           string `json:"response"`
-	Done               bool   `json:"done"`
-	DoneReason         string `json:"done_reason"`
-	TotalDuration      int64  `json:"total_duration"`
-	LoadDuration       int64  `json:"load_duration"`
-	PromptEvalCount    int    `json:"prompt_eval_count"`
-	EvalCount          int    `json:"eval_count"`
-	PromptEvalDuration int64  `json:"prompt_eval_duration"`
-	EvalDuration       int64  `json:"eval_duration"`
+	Response              string `json:"response"`
+	Done                  bool   `json:"done"`
+	DoneReason            string `json:"done_reason"`
+	TotalDuration         int64  `json:"total_duration"`
+	LoadDuration          int64  `json:"load_duration"`
+	PromptEvalCount       int    `json:"prompt_eval_count"`
+	PromptEvalCachedCount int    `json:"prompt_eval_cached_count"`
+	EvalCount             int    `json:"eval_count"`
+	PromptEvalDuration    int64  `json:"prompt_eval_duration"`
+	EvalDuration          int64  `json:"eval_duration"`
 }
 
 func ollamaToolCallsToOpenAI(toolCalls []OllamaToolCall, startIndex int, includeIndex bool) ([]dto.ToolCallResponse, int) {
@@ -189,6 +190,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 		// finalize once and break loop
 		usage.PromptTokens = chunk.PromptEvalCount
+		usage.PromptTokensDetails.CachedTokens = chunk.PromptEvalCachedCount
 		usage.CompletionTokens = chunk.EvalCount
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 		finishReason := chunk.DoneReason
@@ -317,6 +319,7 @@ func ollamaChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	}
 	created := toUnix(lastChunk.CreatedAt)
 	usage := &dto.Usage{PromptTokens: lastChunk.PromptEvalCount, CompletionTokens: lastChunk.EvalCount, TotalTokens: lastChunk.PromptEvalCount + lastChunk.EvalCount}
+	usage.PromptTokensDetails.CachedTokens = lastChunk.PromptEvalCachedCount
 	content := aggContent.String()
 	finishReason := lastChunk.DoneReason
 	if finishReason == "" {
