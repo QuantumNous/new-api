@@ -74,6 +74,8 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	fimBaseUrl := info.ChannelBaseUrl
+	// Chat-to-Responses can convert a Claude request while keeping RelayFormat
+	// set to Claude for the client response, so the upstream mode chooses the URL.
 	if info.RelayMode == constant.RelayModeResponses {
 		return fmt.Sprintf("%s/responses", info.ChannelBaseUrl), nil
 	}
