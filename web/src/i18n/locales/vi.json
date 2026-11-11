@@ -2914,7 +2914,7 @@
     "GC Count": "Số lần GC",
     "GC executed": "GC đã thực thi",
     "GC execution failed": "Thực thi GC thất bại",
-    "Gemini": "Song Tử",
+    "Gemini": "Gemini",
     "Gemini and OpenAI audio prices differ for this model. Use separate billing model names to convert them.": "Giá âm thanh Gemini và OpenAI của mô hình này khác nhau. Hãy dùng tên mô hình tính phí riêng để chuyển đổi.",
     "Gemini Generate Content to OpenAI Chat": "Gemini Generate Content sang OpenAI Chat",
     "Gemini Generate Content to OpenAI Responses": "Gemini Generate Content sang OpenAI Responses",
