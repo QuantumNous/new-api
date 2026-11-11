@@ -520,7 +520,7 @@ export function ChannelMutateDrawer({
   // The drawer stays mounted between channels, so the sync baseline must be
   // rebuilt whenever another channel is loaded.
   const resetModelMappingSync = useCallback(
-    (mapping: string = '', modelsValue: string = '') => {
+    (mapping = '', modelsValue = '') => {
       const baseline = getModelMappingSyncBaseline(mapping, modelsValue)
       syncedAliasesRef.current = baseline.aliases
       syncedTargetsRef.current = baseline.targets
@@ -1480,15 +1480,18 @@ export function ChannelMutateDrawer({
 
   const applyMappingPairs = useCallback(
     (pairs: ModelMappingPair[], sync: boolean) => {
-      const merged = mergeModelMappingPairs(
-        form.getValues('model_mapping') || '',
-        pairs
-      )
+      const current = form.getValues('model_mapping') || ''
+      const merged = mergeModelMappingPairs(current, pairs)
       if (merged === null) return
       form.setValue('model_mapping', merged, { shouldDirty: true })
-      if (sync) syncModelsWithMapping(merged)
+      if (sync) {
+        // Mapping edits made outside the redirect panel are not synced, so
+        // rebase on the current values and revert only this batch's changes.
+        resetModelMappingSync(current, form.getValues('models') || '')
+        syncModelsWithMapping(merged)
+      }
     },
-    [form, syncModelsWithMapping]
+    [form, resetModelMappingSync, syncModelsWithMapping]
   )
 
   const handleBatchMappingApply = useCallback(
