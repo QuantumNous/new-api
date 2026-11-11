@@ -11,7 +11,7 @@ Transitive dependencies should be audited before a final external release.
 | Area     | Scope       | Ecosystem | Dependency                                              | Version                              | License                 |
 |----------|-------------|-----------|---------------------------------------------------------|--------------------------------------|-------------------------|
 | backend  | production  | Go        | `github.com/Azure/go-ntlmssp`                           | `v0.1.1`                             | MIT                     |
-| backend  | production  | Go        | `github.com/Calcium-Ion/go-epay`                        | `v0.0.5`                             | MIT                     |
+| backend  | production  | Go        | `github.com/Calcium-Ion/go-epay`                        | `v0.0.6`                             | MIT                     |
 | backend  | production  | Go        | `github.com/Calcium-Ion/moejs`                          | `v0.1.0-alpha.7`                     | Apache-2.0              |
 | backend  | production  | Go        | `github.com/ClickHouse/clickhouse-go/v2`                | `v2.46.0`                            | Apache-2.0              |
 | backend  | production  | Go        | `github.com/MoeForge/moego`                             | `v0.1.0-alpha.1`                     | MIT                     |
