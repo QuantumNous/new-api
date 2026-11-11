@@ -410,10 +410,11 @@ func (r *GeneralOpenAIRequest) GetSystemRoleName() string {
 const CustomType = "custom"
 
 type ToolCallRequest struct {
-	ID       string          `json:"id,omitempty"`
-	Type     string          `json:"type"`
-	Function FunctionRequest `json:"function"`
-	Custom   json.RawMessage `json:"custom,omitempty"`
+	ID           string          `json:"id,omitempty"`
+	Type         string          `json:"type"`
+	Function     FunctionRequest `json:"function"`
+	Custom       json.RawMessage `json:"custom,omitempty"`
+	CacheControl json.RawMessage `json:"cache_control,omitempty"`
 	// Native is a complete vendor tool object sent instead of the fields
 	// above. Function has no omitempty, so a non-function tool would
 	// otherwise carry "function":{"name":""}, which vendor schemas with
@@ -787,13 +788,20 @@ func (m *Message) ParseContent() []MediaContent {
 		if !ok {
 			continue
 		}
+		var cacheControl json.RawMessage
+		if value := contentItem["cache_control"]; value != nil {
+			if raw, err := kitutil.Marshal(value); err == nil {
+				cacheControl = raw
+			}
+		}
 
 		switch contentType {
 		case ContentTypeText:
 			if text, ok := contentItem["text"].(string); ok {
 				contentList = append(contentList, MediaContent{
-					Type: ContentTypeText,
-					Text: text,
+					Type:         ContentTypeText,
+					Text:         text,
+					CacheControl: cacheControl,
 				})
 			}
 
@@ -816,8 +824,9 @@ func (m *Message) ParseContent() []MediaContent {
 				}
 			}
 			contentList = append(contentList, MediaContent{
-				Type:     ContentTypeImageURL,
-				ImageUrl: temp,
+				Type:         ContentTypeImageURL,
+				ImageUrl:     temp,
+				CacheControl: cacheControl,
 			})
 
 		case ContentTypeInputAudio:
@@ -830,8 +839,9 @@ func (m *Message) ParseContent() []MediaContent {
 						Format: format,
 					}
 					contentList = append(contentList, MediaContent{
-						Type:       ContentTypeInputAudio,
-						InputAudio: temp,
+						Type:         ContentTypeInputAudio,
+						InputAudio:   temp,
+						CacheControl: cacheControl,
 					})
 				}
 			}
@@ -844,6 +854,7 @@ func (m *Message) ParseContent() []MediaContent {
 						File: &MessageFile{
 							FileId: fileId,
 						},
+						CacheControl: cacheControl,
 					})
 				} else {
 					fileName, ok1 := fileData["filename"].(string)
@@ -855,6 +866,7 @@ func (m *Message) ParseContent() []MediaContent {
 								FileName: fileName,
 								FileData: fileDataStr,
 							},
+							CacheControl: cacheControl,
 						})
 					}
 				}
@@ -866,6 +878,7 @@ func (m *Message) ParseContent() []MediaContent {
 					VideoUrl: &MessageVideoUrl{
 						Url: videoUrl,
 					},
+					CacheControl: cacheControl,
 				})
 			}
 		}
