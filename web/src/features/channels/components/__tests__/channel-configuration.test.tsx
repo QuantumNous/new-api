@@ -2493,6 +2493,91 @@ test('fetched upstream models can be redirected in bulk with the model list sync
   ).toHaveValue('upstream-model')
 })
 
+async function batchRedirectExistingModel(
+  user: ReturnType<typeof userEvent.setup>,
+  model: string,
+  suffix: string
+) {
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await user.click(
+    await screen.findByRole('tab', { name: 'Existing Models (1)' })
+  )
+  await screen.findByRole('checkbox', { name: model })
+  await user.click(screen.getByRole('button', { name: 'Batch redirect' }))
+  const dialog = within(
+    screen.getByRole('dialog', { name: 'Batch add mappings' })
+  )
+  await user.click(dialog.getByRole('checkbox', { name: model }))
+  await user.type(dialog.getByRole('textbox', { name: 'Suffix' }), suffix)
+  await user.click(dialog.getByRole('button', { name: 'Add 1 mapping(s)' }))
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Batch add mappings' })
+    ).not.toBeInTheDocument()
+  )
+}
+
+test('a synced batch redirect after switching channels does not restore models hidden in the previous channel', async () => {
+  editingChannel.models = 'custom-model,upstream-model'
+  const otherChannel = {
+    ...editingChannel,
+    id: 43,
+    name: 'Second channel',
+    models: 'second-model,other-model',
+  }
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/channel/43') {
+      return { data: { success: true, data: otherChannel } }
+    }
+    if (url === '/api/channel/fetch_models/43') {
+      return { data: { success: true, data: ['other-model'] } }
+    }
+    return originalGet?.(url, config)
+  })
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  const view = render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await batchRedirectExistingModel(user, 'upstream-model', '-model')
+  expect(screen.getByRole('button', { name: 'upstream' })).toBeVisible()
+
+  view.rerender(<ConfigurationHarness currentRow={otherChannel} />)
+  await screen.findByDisplayValue('Second channel')
+  await batchRedirectExistingModel(user, 'other-model', '-model')
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  expect(put.mock.calls[0]?.[1]).toMatchObject({
+    id: 43,
+    models: 'second-model,other',
+  })
+})
+
+test('a synced batch redirect does not revert mapping rows deleted without syncing', async () => {
+  editingChannel.models = 'custom-model,upstream-model'
+  editingChannel.model_mapping = '{"custom-model":"custom-upstream"}'
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  await user.click(screen.getByRole('button', { name: 'Delete mapping' }))
+  await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
+  await batchRedirectExistingModel(user, 'upstream-model', '-model')
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  expect(put.mock.calls[0]?.[1]).toMatchObject({
+    id: 42,
+    models: 'custom-model,upstream',
+  })
+})
+
 test('a fetched upstream model can be given a request name from its own row', async () => {
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)
