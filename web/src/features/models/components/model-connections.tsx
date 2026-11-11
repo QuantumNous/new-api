@@ -81,6 +81,7 @@ export function ModelConnections(props: { model: Model }) {
               key={endpoint}
               variant='neutral'
               label={getEndpointTypeLabel(endpoint, t)}
+              copyText={endpoint}
             />
           ))}
           {!props.model.supported_endpoints?.length && (
