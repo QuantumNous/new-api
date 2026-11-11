@@ -232,14 +232,30 @@ func isEmoji(r rune) bool {
 }
 
 func isMathSymbol(r rune) bool {
-	if strings.ContainsRune("∑∫∂√∞≤≥≠≈±×÷∈∉∋∌⊂⊃⊆⊇∪∩∧∨¬∀∃∄∅∆∇∝∟∠∡∢°′″‴⁺⁻⁼⁽⁾ⁿ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎²³¹⁴⁵⁶⁷⁸⁹⁰", r) {
+	if (r >= 0x2200 && r <= 0x22FF) || // mathematical operators
+		(r >= 0x2A00 && r <= 0x2AFF) || // supplemental mathematical operators
+		(r >= 0x1D400 && r <= 0x1D7FF) { // mathematical alphanumeric symbols
 		return true
 	}
-	return (r >= 0x2200 && r <= 0x22FF) || // mathematical operators
-		(r >= 0x2A00 && r <= 0x2AFF) || // supplemental mathematical operators
-		(r >= 0x1D400 && r <= 0x1D7FF) // mathematical alphanumeric symbols
+	// Symbols outside the Unicode ranges above.
+	switch r {
+	case '±', '×', '÷', '¬', '°',
+		'′', '″', '‴',
+		'⁺', '⁻', '⁼', '⁽', '⁾', 'ⁿ',
+		'₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉',
+		'₊', '₋', '₌', '₍', '₎',
+		'²', '³', '¹', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', '⁰':
+		return true
+	default:
+		return false
+	}
 }
 
 func isURLDelim(r rune) bool {
-	return strings.ContainsRune("/:?&=;#%", r)
+	switch r {
+	case '/', ':', '?', '&', '=', ';', '#', '%':
+		return true
+	default:
+		return false
+	}
 }
