@@ -22,6 +22,7 @@ import { StaticDataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/empty-state'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
+import { getEndpointTypeLabel } from '@/lib/endpoint-type'
 
 import type { Model } from '../types'
 import { ModelSquareStatus } from './model-square-status'
@@ -75,7 +76,11 @@ export function ModelConnections(props: { model: Model }) {
         <h3 className='font-medium'>{t('Supported endpoints')}</h3>
         <div className='flex flex-wrap gap-2'>
           {props.model.supported_endpoints?.map((endpoint) => (
-            <StatusBadge key={endpoint} variant='neutral' label={endpoint} />
+            <StatusBadge
+              key={endpoint}
+              variant='neutral'
+              label={getEndpointTypeLabel(endpoint, t)}
+            />
           ))}
           {!props.model.supported_endpoints?.length && (
             <span className='text-muted-foreground text-sm'>

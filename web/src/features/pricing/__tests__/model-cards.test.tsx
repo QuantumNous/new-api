@@ -257,7 +257,14 @@ describe('model cards', () => {
 
   it('keeps group, endpoint and tag overflow counts with their own metadata', () => {
     const groups = ['default-with-a-long-group-name', 'premium', 'internal']
-    const endpoints = ['openai-response', 'openai', 'claude', 'gemini', 'jina']
+    const endpoints = [
+      'openai-response',
+      'openai',
+      'anthropic',
+      'gemini',
+      'jina-rerank',
+    ]
+    const endpointLabels = ['Response', 'Chat', 'Anthropic', 'Gemini', 'Rerank']
     const tags = [
       'video-generation',
       'high-resolution',
@@ -288,9 +295,10 @@ describe('model cards', () => {
       'title',
       groups.slice(1).join(', ')
     )
-    expect(
-      within(endpointField).getByText('openai-response, openai')
-    ).toHaveAttribute('title', endpoints.join(', '))
+    expect(within(endpointField).getByText('Response, Chat')).toHaveAttribute(
+      'title',
+      endpointLabels.join(', ')
+    )
     expect(within(endpointField).getByText('+3')).toBeVisible()
     expect(
       within(tagField).getByText('video-generation, high-resolution')

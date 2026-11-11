@@ -26,6 +26,7 @@ import {
 } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
+import { getEndpointTypeLabel } from '@/lib/endpoint-type'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { parseTags } from '../lib/filters'
@@ -169,7 +170,7 @@ export function usePricingColumns(
             items={endpoints.map((ep) => (
               <StatusBadge
                 key={ep}
-                label={ep}
+                label={getEndpointTypeLabel(ep, t)}
                 autoColor={ep}
                 size='sm'
                 copyable={false}
