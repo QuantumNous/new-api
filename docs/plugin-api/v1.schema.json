@@ -11,7 +11,7 @@
     "apiVersion": {"const": 1}, "key": {"type": "string"}, "name": {"allOf": [{"$ref": "#/$defs/localizedText"}, {"if": {"type": "object"}, "then": {"additionalProperties": {"maxLength": 128}}}]}, "icon": {"type": "string", "maxLength": 128}, "description": {"$ref": "#/$defs/localizedText"}, "version": {"type": "string"},
     "author": {"type": "object", "required": ["name"], "additionalProperties": false, "properties": {"name": {"type": "string"}, "url": {"type": "string", "format": "uri"}}},
     "baseUrl": {"type": "string", "format": "uri", "pattern": "^https?://", "maxLength": 191},
-    "channelTypes": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 1}}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "channelTypes": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 1}, "description": "new-api built-in channel type numbers; other hosts ignore them."}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
     "fetchMode": {"enum": ["per_task", "batch"]}, "allowedHosts": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
     "upstreams": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/upstreamKind"}, "description": "Upstream kinds the driver addresses. vendor is implied; new_api makes the plugin bindable to type-60 New API channels."},
     "protocols": {"type": "array", "uniqueItems": true, "items": {"oneOf": [
@@ -41,7 +41,7 @@
       "properties": {
         "name": {"allOf": [{"$ref": "#/$defs/localizedText"}, {"if": {"type": "object"}, "then": {"additionalProperties": {"maxLength": 64}}, "else": {"maxLength": 64}}]},
         "lang": {"type": "string", "pattern": "^[a-z]{2,3}$", "description": "Base language of the text, such as en or zh; absent for any language."},
-        "format": {"enum": ["openai", "openai_responses", "claude", "gemini"]},
+        "format": {"enum": ["openai", "openai_responses", "claude", "gemini"], "description": "A protocol name; see Protocol names in v1.md."},
         "body": {"type": "object", "description": "A request body in format, at most 16 KB as JSON. \"[sample-image]\" as a whole element of a content or parts array stands for an image the settings supply."},
         "reply": {"type": "string", "minLength": 1, "description": "An answer text of at most 4 KB, for trying a reply hook."}
       }
@@ -171,7 +171,7 @@
       "properties": {
         "incoming_path": {"type": "string", "pattern": "^/"},
         "upstream_path": {"type": "string", "minLength": 1},
-        "converter": {"type": "string", "description": "A registered Advanced Custom converter, plugin for the plugin's convert hooks, or <registered converter>+plugin for that converter's upstream protocol converted by the hooks."},
+        "converter": {"enum": ["none", "openai_chat_completions_to_anthropic_messages", "openai_chat_completions_to_openai_responses", "openai_chat_completions_to_gemini_generate_content", "openai_responses_to_openai_chat_completions", "openai_responses_to_gemini_generate_content", "anthropic_messages_to_openai_chat_completions", "claude_messages_to_openai_responses", "gemini_generate_content_to_openai_chat_completions", "gemini_generate_content_to_openai_responses", "jina_rerank_to_sglang", "plugin", "openai_chat_completions_to_anthropic_messages+plugin", "openai_chat_completions_to_openai_responses+plugin", "openai_chat_completions_to_gemini_generate_content+plugin", "openai_responses_to_openai_chat_completions+plugin", "openai_responses_to_gemini_generate_content+plugin", "anthropic_messages_to_openai_chat_completions+plugin", "claude_messages_to_openai_responses+plugin", "gemini_generate_content_to_openai_chat_completions+plugin", "gemini_generate_content_to_openai_responses+plugin", "jina_rerank_to_sglang+plugin"], "description": "none (default), a relaykit converter ID, plugin for the plugin's convert hooks, or <converter>+plugin for that converter's upstream protocol converted by the hooks. See Relay routes in v1.md for the incoming_path each converter accepts."},
         "models": {"type": "array", "items": {"type": "string"}},
         "auth": {
           "type": "object",
