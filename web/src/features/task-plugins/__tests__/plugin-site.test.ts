@@ -20,48 +20,26 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { usePluginSiteStore } from '@/stores/plugin-site-store'
 
-import {
-  fetchFromPluginSite,
-  PLUGIN_SITE_FALLBACK_MS,
-  PLUGIN_SITE_TIMEOUT_MS,
-} from '../lib/plugin-site'
+import { fetchFromPluginSite } from '../lib/plugin-site'
 
 const AI_INDEX = 'https://www.newapi.ai/api/v1/community/index.json?x=1'
 const PRO_INDEX = 'https://www.newapi.pro/api/v1/community/index.json?x=1'
-
-/** newapi.ai never answers; newapi.pro answers at once. */
-function aiUnreachable() {
-  const fetchMock = vi.fn(
-    (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      if (String(input).startsWith('https://www.newapi.ai/')) {
-        return new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () =>
-            reject(new DOMException('aborted', 'AbortError'))
-          )
-        })
-      }
-      return Promise.resolve(new Response('pro'))
-    }
-  )
-  vi.stubGlobal('fetch', fetchMock)
-  return fetchMock
-}
 
 const requested = (fetchMock: ReturnType<typeof vi.fn>) =>
   fetchMock.mock.calls.map(([input]) => String(input))
 
 beforeEach(() => {
-  usePluginSiteStore.setState({ site: 'auto', fallbackUntil: 0 })
+  usePluginSiteStore.setState({ site: 'ai' })
 })
 
 afterEach(() => {
-  vi.useRealTimers()
   vi.unstubAllGlobals()
-  usePluginSiteStore.setState({ site: 'auto', fallbackUntil: 0 })
+  localStorage.removeItem('plugin-site')
+  usePluginSiteStore.setState({ site: 'ai' })
 })
 
 describe('fetchFromPluginSite', () => {
-  test('newapi.ai answering in time is used and nothing is remembered', async () => {
+  test('the main site is used as is and keeps the request options', async () => {
     const fetchMock = vi.fn(async () => new Response('ai'))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -69,132 +47,51 @@ describe('fetchFromPluginSite', () => {
 
     expect(await response.text()).toBe('ai')
     expect(requested(fetchMock)).toEqual([AI_INDEX])
-    expect(usePluginSiteStore.getState().fallbackUntil).toBe(0)
+    expect(fetchMock.mock.calls[0]).toEqual([AI_INDEX, { cache: 'no-cache' }])
   })
 
-  test('newapi.ai silent for 10 seconds switches to newapi.pro for a day', async () => {
-    vi.useFakeTimers({ now: 1_000_000 })
-    const fetchMock = aiUnreachable()
-
-    const pending = fetchFromPluginSite(AI_INDEX, { cache: 'no-cache' })
-    await vi.advanceTimersByTimeAsync(PLUGIN_SITE_TIMEOUT_MS - 1)
-    expect(requested(fetchMock)).toEqual([AI_INDEX])
-    await vi.advanceTimersByTimeAsync(1)
-
-    expect(await (await pending).text()).toBe('pro')
-    expect(requested(fetchMock)).toEqual([AI_INDEX, PRO_INDEX])
-    expect(fetchMock.mock.calls[1][1]).toMatchObject({ cache: 'no-cache' })
-    expect(usePluginSiteStore.getState().fallbackUntil).toBe(
-      1_000_000 + PLUGIN_SITE_TIMEOUT_MS + PLUGIN_SITE_FALLBACK_MS
-    )
-  })
-
-  test('within the remembered day requests go straight to newapi.pro, after it newapi.ai again', async () => {
-    vi.useFakeTimers({ now: 5_000 })
-    usePluginSiteStore.setState({ fallbackUntil: 5_000 + 60_000 })
-    const fetchMock = vi.fn(async () => new Response('ok'))
+  test('the main site failing never switches to the backup site by itself', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    })
     vi.stubGlobal('fetch', fetchMock)
 
-    await fetchFromPluginSite(AI_INDEX)
-    vi.setSystemTime(5_000 + 60_000)
-    await fetchFromPluginSite(AI_INDEX)
+    await expect(fetchFromPluginSite(AI_INDEX)).rejects.toThrow(
+      'Failed to fetch'
+    )
+    await expect(fetchFromPluginSite(AI_INDEX)).rejects.toThrow(
+      'Failed to fetch'
+    )
 
-    expect(requested(fetchMock)).toEqual([PRO_INDEX, AI_INDEX])
+    expect(requested(fetchMock)).toEqual([AI_INDEX, AI_INDEX])
+    expect(usePluginSiteStore.getState().site).toBe('ai')
   })
 
-  test('choosing newapi.pro by hand never asks newapi.ai and forgets the automatic switch', async () => {
-    usePluginSiteStore.setState({ fallbackUntil: Date.now() + 60_000 })
+  test('with the backup site picked, newapi.ai addresses go to newapi.pro only', async () => {
     usePluginSiteStore.getState().setSite('pro')
     const fetchMock = vi.fn(async () => new Response('pro'))
     vi.stubGlobal('fetch', fetchMock)
+    const signal = new AbortController().signal
+
+    await fetchFromPluginSite(AI_INDEX, { cache: 'no-cache', signal })
+
+    expect(fetchMock.mock.calls).toEqual([
+      [PRO_INDEX, { cache: 'no-cache', signal }],
+    ])
+  })
+
+  test('picking the main site again goes back to newapi.ai', async () => {
+    usePluginSiteStore.getState().setSite('pro')
+    usePluginSiteStore.getState().setSite('ai')
+    const fetchMock = vi.fn(async () => new Response('ai'))
+    vi.stubGlobal('fetch', fetchMock)
 
     await fetchFromPluginSite(AI_INDEX)
 
-    expect(requested(fetchMock)).toEqual([PRO_INDEX])
-    expect(usePluginSiteStore.getState()).toMatchObject({
-      site: 'pro',
-      fallbackUntil: 0,
-    })
-  })
-
-  test('an error status from newapi.ai is an answer and does not switch sites', async () => {
-    const fetchMock = vi.fn(async () => new Response('', { status: 404 }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const response = await fetchFromPluginSite(AI_INDEX)
-
-    expect(response.status).toBe(404)
     expect(requested(fetchMock)).toEqual([AI_INDEX])
-    expect(usePluginSiteStore.getState().fallbackUntil).toBe(0)
   })
 
-  test('a slow download after newapi.ai answered is not cut off', async () => {
-    vi.useFakeTimers()
-    let finish: (value: string) => void = () => undefined
-    const body = new Promise<string>((resolve) => {
-      finish = resolve
-    })
-    // Headers arrive at once; the body takes much longer than 10 seconds.
-    const fetchMock = vi.fn(
-      async () => ({ text: () => body }) as unknown as Response
-    )
-    vi.stubGlobal('fetch', fetchMock)
-
-    const response = await fetchFromPluginSite(AI_INDEX)
-    await vi.advanceTimersByTimeAsync(PLUGIN_SITE_TIMEOUT_MS * 3)
-    finish('late body')
-
-    expect(await response.text()).toBe('late body')
-    expect(requested(fetchMock)).toEqual([AI_INDEX])
-    expect(usePluginSiteStore.getState().fallbackUntil).toBe(0)
-  })
-
-  test('a request cancelled by the page is not treated as newapi.ai being down', async () => {
-    aiUnreachable()
-    const controller = new AbortController()
-
-    const pending = fetchFromPluginSite(AI_INDEX, { signal: controller.signal })
-    controller.abort()
-
-    await expect(pending).rejects.toThrow()
-    expect(usePluginSiteStore.getState().fallbackUntil).toBe(0)
-  })
-
-  test('requests cut off by leaving the page do not switch sites', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => {
-        throw new TypeError('Failed to fetch')
-      })
-    )
-    window.dispatchEvent(new Event('pagehide'))
-    try {
-      await expect(fetchFromPluginSite(AI_INDEX)).rejects.toThrow(
-        'Failed to fetch'
-      )
-      expect(usePluginSiteStore.getState().fallbackUntil).toBe(0)
-    } finally {
-      window.dispatchEvent(new Event('pageshow'))
-    }
-  })
-
-  test('newapi.ai refusing the connection switches to newapi.pro at once', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).startsWith('https://www.newapi.ai/')) {
-        throw new TypeError('Failed to fetch')
-      }
-      return new Response('pro')
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    expect(await (await fetchFromPluginSite(AI_INDEX)).text()).toBe('pro')
-    expect(requested(fetchMock)).toEqual([AI_INDEX, PRO_INDEX])
-    expect(usePluginSiteStore.getState().fallbackUntil).toBeGreaterThan(
-      Date.now()
-    )
-  })
-
-  test('other addresses are fetched unchanged even with newapi.pro chosen', async () => {
+  test('other addresses are fetched unchanged even with the backup site picked', async () => {
     usePluginSiteStore.getState().setSite('pro')
     const fetchMock = vi.fn(async () => new Response('raw'))
     vi.stubGlobal('fetch', fetchMock)
@@ -205,4 +102,27 @@ describe('fetchFromPluginSite', () => {
 
     expect(requested(fetchMock)).toEqual([github])
   })
+})
+
+describe('saved site choice', () => {
+  test.each([
+    ['auto', 'ai'],
+    ['pro', 'pro'],
+  ])(
+    'a choice saved as %s by the earlier version reads as %s',
+    async (saved, expected) => {
+      localStorage.setItem(
+        'plugin-site',
+        JSON.stringify({
+          state: { site: saved, fallbackUntil: Date.now() + 60_000 },
+          version: 0,
+        })
+      )
+
+      await usePluginSiteStore.persist.rehydrate()
+
+      expect(usePluginSiteStore.getState().site).toBe(expected)
+      expect(usePluginSiteStore.getState()).not.toHaveProperty('fallbackUntil')
+    }
+  )
 })

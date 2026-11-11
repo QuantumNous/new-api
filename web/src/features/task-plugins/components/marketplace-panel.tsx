@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { RefreshCw, Settings2, TriangleAlert } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { RefreshCw, TriangleAlert } from 'lucide-react'
+import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -57,6 +57,7 @@ import {
   type MarketplaceInstallTarget,
 } from './marketplace-install-dialog'
 import { MarketplacePluginCard } from './marketplace-plugin-card'
+import { MarketplaceSourceMenu } from './marketplace-source-menu'
 import { MarketplaceSourcesDialog } from './marketplace-sources-dialog'
 import { PluginCodeLookup, type PluginCodeMatch } from './plugin-code-lookup'
 import {
@@ -64,7 +65,6 @@ import {
   SEGMENTED_SWITCH_CLASS,
   SEGMENTED_SWITCH_ITEM_CLASS,
 } from './plugin-kind-switch'
-import { PluginSiteSelect } from './plugin-site-select'
 
 type MarketplacePanelProps = {
   /** The kind the page URL names; without one the default kind is shown. */
@@ -137,11 +137,19 @@ export function MarketplacePanel(props: MarketplacePanelProps) {
     activeGroup === 'community' && groupSources.length > 0
   // Codes are looked up in the official indexes and on the community site.
   const canLookUpCode = officialSources.length > 0 || Boolean(communitySource)
+  const titleId = useId()
+  const selectedKind = selectedSource
+    ? marketplaceSourceKind(selectedSource.index_url)
+    : undefined
+  const missingHashes = indexQuery.data
+    ? !indexHasIntegrityHashes(indexQuery.data)
+    : false
 
   return (
     <>
       <div className='h-full space-y-4 overflow-y-auto'>
-        <div className='flex flex-wrap items-center justify-between gap-2'>
+        {/* What to browse on the left, finding a plugin by its code on the right. */}
+        <div className='flex flex-wrap items-start justify-between gap-x-6 gap-y-2'>
           <div className='flex min-w-0 flex-wrap items-center gap-2'>
             <ToggleGroup
               value={[activeGroup]}
@@ -174,55 +182,16 @@ export function MarketplacePanel(props: MarketplacePanelProps) {
               onValueChange={props.onKindChange}
             />
           </div>
-          <div className='flex shrink-0 gap-2'>
-            <PluginSiteSelect />
-            <Button
-              variant='outline'
-              size='sm'
-              disabled={!selectedSource || indexQuery.isFetching}
-              onClick={() => void indexQuery.refetch()}
-            >
-              <RefreshCw />
-              {t('Refresh')}
-            </Button>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={() => setSourcesOpen(true)}
-            >
-              <Settings2 />
-              {t('Manage sources')}
-            </Button>
-          </div>
+          {canLookUpCode && (
+            <PluginCodeLookup
+              officialSources={officialSources}
+              communitySource={communitySource}
+              onResult={setCodeMatch}
+            />
+          )}
         </div>
 
         {sourcesQuery.isLoading && <Skeleton className='h-24 w-full' />}
-
-        {(showReviewWarning || canLookUpCode) && (
-          // One row: the community review warning on the left, the plugin code lookup on the right.
-          <div className='flex flex-wrap items-start gap-x-6 gap-y-3'>
-            {showReviewWarning && (
-              <p className='flex items-start gap-2 py-1.5 text-sm'>
-                <TriangleAlert
-                  className='mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400'
-                  aria-hidden='true'
-                />
-                {t(
-                  'Community plugins are published and maintained by their authors. Check the source before you install.'
-                )}
-              </p>
-            )}
-            {canLookUpCode && (
-              <div className='ml-auto'>
-                <PluginCodeLookup
-                  officialSources={officialSources}
-                  communitySource={communitySource}
-                  onResult={setCodeMatch}
-                />
-              </div>
-            )}
-          </div>
-        )}
 
         {codeMatch && (
           <PluginCodeResult
@@ -255,42 +224,68 @@ export function MarketplacePanel(props: MarketplacePanelProps) {
           </Empty>
         )}
 
-        {groupSources.length > 1 && selectedSource && (
-          <ToggleGroup
-            value={[selectedSource.index_url]}
-            onValueChange={(value) => {
-              const nextSourceUrl = value.find(
-                (item) => item !== selectedSource.index_url
-              )
-              if (nextSourceUrl) setSelectedSourceUrl(nextSourceUrl)
-            }}
-            aria-label={t('Marketplace sources')}
-            spacing={1}
-            className={SEGMENTED_SWITCH_CLASS}
-          >
-            {groupSources.map((source) => (
-              <ToggleGroupItem
-                key={`${source.index_url}|${source.name}`}
-                value={source.index_url}
-                className={SEGMENTED_SWITCH_ITEM_CLASS}
-              >
-                {t(source.name)}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        )}
-
         {selectedSource && (
-          <MarketplaceSourceSection
-            key={`${selectedSource.index_url}|${selectedSource.name}`}
-            source={selectedSource}
-            index={indexQuery.data}
-            isLoading={indexQuery.isLoading}
-            error={indexQuery.error}
-            installed={installedQuery.data ?? []}
-            kind={kind}
-            onInstall={setInstallTarget}
-          />
+          <section aria-labelledby={titleId} className='space-y-3'>
+            {/* The list's name on the left; where it is downloaded from on the right. */}
+            <div className='flex flex-wrap items-center justify-between gap-2'>
+              <div className='flex min-w-0 flex-wrap items-center gap-2'>
+                <h3 id={titleId} className='text-sm font-semibold'>
+                  {indexQuery.data?.name || selectedSource.name}
+                </h3>
+                {selectedKind === 'third_party' && (
+                  <Badge variant='destructive'>
+                    {t('Third-party — use at your own risk')}
+                  </Badge>
+                )}
+                {missingHashes && (
+                  <Badge variant='destructive'>
+                    <TriangleAlert aria-hidden='true' />
+                    {t('No integrity verification')}
+                  </Badge>
+                )}
+              </div>
+              <div className='flex max-w-full items-center gap-2'>
+                <MarketplaceSourceMenu
+                  sources={groupSources}
+                  selected={selectedSource}
+                  onSelect={(source) => setSelectedSourceUrl(source.index_url)}
+                  onManage={() => setSourcesOpen(true)}
+                />
+                <Button
+                  variant='outline'
+                  size='sm'
+                  disabled={indexQuery.isFetching}
+                  onClick={() => void indexQuery.refetch()}
+                >
+                  <RefreshCw />
+                  {t('Refresh')}
+                </Button>
+              </div>
+            </div>
+
+            {showReviewWarning && (
+              <p className='flex items-start gap-2 text-sm'>
+                <TriangleAlert
+                  className='mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400'
+                  aria-hidden='true'
+                />
+                {t(
+                  'Community plugins are published and maintained by their authors. Check the source before you install.'
+                )}
+              </p>
+            )}
+
+            <MarketplaceSourceSection
+              key={`${selectedSource.index_url}|${selectedSource.name}`}
+              source={selectedSource}
+              index={indexQuery.data}
+              isLoading={indexQuery.isLoading}
+              error={indexQuery.error}
+              installed={installedQuery.data ?? []}
+              kind={kind}
+              onInstall={setInstallTarget}
+            />
+          </section>
         )}
       </div>
 
@@ -374,12 +369,10 @@ type MarketplaceSourceSectionProps = {
   onInstall: (target: MarketplaceInstallTarget) => void
 }
 
+/** The selected list's plugins of the chosen kind; the panel draws its header. */
 function MarketplaceSourceSection(props: MarketplaceSourceSectionProps) {
   const { t } = useTranslation()
   const sourceKind = marketplaceSourceKind(props.source.index_url)
-  const missingHashes = props.index
-    ? !indexHasIntegrityHashes(props.index)
-    : false
   const kindPlugins = (props.index?.plugins ?? []).filter(
     (plugin) => marketplacePluginParts(plugin)[props.kind]
   )
@@ -424,30 +417,7 @@ function MarketplaceSourceSection(props: MarketplaceSourceSectionProps) {
   }
 
   return (
-    <section className='space-y-3'>
-      <div className='flex flex-wrap items-center gap-2'>
-        <h3 className='text-sm font-semibold'>
-          {props.index?.name || props.source.name}
-        </h3>
-        {sourceKind === 'official' && (
-          <Badge variant='secondary'>{t('Official')}</Badge>
-        )}
-        {sourceKind === 'community' && (
-          <Badge variant='secondary'>{t('Community')}</Badge>
-        )}
-        {sourceKind === 'third_party' && (
-          <Badge variant='destructive'>
-            {t('Third-party — use at your own risk')}
-          </Badge>
-        )}
-        {missingHashes && (
-          <Badge variant='destructive'>
-            <TriangleAlert aria-hidden='true' />
-            {t('No integrity verification')}
-          </Badge>
-        )}
-      </div>
-
+    <>
       {props.isLoading && (
         <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3'>
           <Skeleton className='h-40 w-full' />
@@ -493,6 +463,6 @@ function MarketplaceSourceSection(props: MarketplaceSourceSectionProps) {
             </div>
           </div>
         ))}
-    </section>
+    </>
   )
 }

@@ -53,7 +53,8 @@ vi.mock('../components/marketplace-plugin-card', () => ({
   ),
 }))
 vi.mock('../components/marketplace-sources-dialog', () => ({
-  MarketplaceSourcesDialog: () => null,
+  MarketplaceSourcesDialog: (props: { open: boolean }) =>
+    props.open ? <p>Sources dialog open</p> : null,
 }))
 
 const officialSource: MarketplaceSource = {
@@ -116,11 +117,24 @@ function installIndexFetchMock() {
   return fetchMock
 }
 
+function sourceMenu(): HTMLElement {
+  return screen.getByRole('button', { name: 'Plugin download site' })
+}
+
+async function menuChoices(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(sourceMenu())
+  const names = screen
+    .getAllByRole('menuitemradio')
+    .map((item) => item.textContent)
+  await user.keyboard('{Escape}')
+  return names
+}
+
 afterEach(() => {
   for (const queryClient of queryClients) queryClient.clear()
   queryClients.length = 0
   vi.unstubAllGlobals()
-  usePluginSiteStore.setState({ site: 'auto', fallbackUntil: 0 })
+  usePluginSiteStore.setState({ site: 'ai' })
 })
 
 describe('MarketplacePanel source switch', () => {
@@ -135,10 +149,7 @@ describe('MarketplacePanel source switch', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText(DEFAULT_MARKETPLACE_INDEX_URL)).toBeNull()
     expect(screen.queryByText(GITHUB_MARKETPLACE_INDEX_URL)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Official' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(sourceMenu()).toHaveTextContent('Main site (www.newapi.ai)')
     expect(requestedUrls(fetchMock)).toContain(DEFAULT_MARKETPLACE_INDEX_URL)
     expect(requestedUrls(fetchMock)).not.toContain(GITHUB_MARKETPLACE_INDEX_URL)
   })
@@ -151,7 +162,8 @@ describe('MarketplacePanel source switch', () => {
 
     expect(requestedUrls(fetchMock)).not.toContain(GITHUB_MARKETPLACE_INDEX_URL)
 
-    await user.click(screen.getByRole('button', { name: 'GitHub' }))
+    await user.click(sourceMenu())
+    await user.click(screen.getByRole('menuitemradio', { name: 'GitHub' }))
 
     expect(
       await screen.findByRole('heading', { name: githubIndex.name })
@@ -159,10 +171,7 @@ describe('MarketplacePanel source switch', () => {
     expect(
       screen.queryByRole('heading', { name: officialIndex.name })
     ).toBeNull()
-    expect(screen.getByRole('button', { name: 'GitHub' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(sourceMenu()).toHaveTextContent('GitHub')
     expect(requestedUrls(fetchMock)).toContain(GITHUB_MARKETPLACE_INDEX_URL)
   })
 
@@ -260,8 +269,11 @@ describe('MarketplacePanel community plugins', () => {
         'Community plugins are published and maintained by their authors. Check the source before you install.'
       )
     ).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Mirror' })).toBeVisible()
-    expect(screen.queryByRole('button', { name: 'Official' })).toBeNull()
+    expect(await menuChoices(user)).toEqual([
+      'Main site (www.newapi.ai)',
+      'Backup site (www.newapi.pro)',
+      'Mirror',
+    ])
     expect(screen.getByLabelText('Plugin code')).toHaveAttribute(
       'placeholder',
       '12345678'
@@ -320,7 +332,49 @@ describe('MarketplacePanel community plugins', () => {
     expect(screen.queryByRole('heading', { name: 'Recommended' })).toBeNull()
   })
 
-  test('community tab puts the code lookup beside the warning, sized for 8 digits', async () => {
+  test('official tab: the code lookup shares the top row with the market switch; the list header has only the source menu and Refresh', async () => {
+    installIndexFetchMock()
+    const user = userEvent.setup()
+    renderPanel()
+
+    const list = await screen.findByRole('region', {
+      name: officialIndex.name,
+    })
+    expect(
+      within(list)
+        .getAllByRole('button')
+        .map(
+          (button) => button.getAttribute('aria-label') ?? button.textContent
+        )
+    ).toEqual(['Plugin download site', 'Refresh'])
+    expect(await menuChoices(user)).toEqual([
+      'Main site (www.newapi.ai)',
+      'Backup site (www.newapi.pro)',
+      'GitHub',
+    ])
+
+    const topRow = screen
+      .getByLabelText('Plugin code')
+      .closest('form')?.parentElement
+    expect(topRow).toContainElement(
+      screen.getByRole('button', { name: 'Official plugins' })
+    )
+    expect(topRow).not.toContainElement(list)
+  })
+
+  test('Manage sources opens from the source menu', async () => {
+    installIndexFetchMock()
+    const user = userEvent.setup()
+    renderPanel()
+    await screen.findByRole('heading', { name: officialIndex.name })
+
+    await user.click(sourceMenu())
+    await user.click(screen.getByRole('menuitem', { name: 'Manage sources' }))
+
+    expect(await screen.findByText('Sources dialog open')).toBeVisible()
+  })
+
+  test('community tab puts the warning in the list header and keeps the code lookup on top, sized for 8 digits', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -341,15 +395,16 @@ describe('MarketplacePanel community plugins', () => {
 
     await user.click(screen.getByRole('button', { name: 'Community plugins' }))
 
-    const catalog = await screen.findByRole('heading', {
+    const list = await screen.findByRole('region', {
       name: 'Community catalog',
     })
-    const row = screen.getByText(
-      'Community plugins are published and maintained by their authors. Check the source before you install.'
-    ).parentElement
+    expect(
+      within(list).getByText(
+        'Community plugins are published and maintained by their authors. Check the source before you install.'
+      )
+    ).toBeVisible()
     const input = screen.getByLabelText('Plugin code')
-    expect(row).toContainElement(input)
-    expect(row).not.toContainElement(catalog)
+    expect(list).not.toContainElement(input)
     expect(input).toHaveClass('w-36')
   })
 
@@ -483,7 +538,7 @@ describe('MarketplacePanel community plugins', () => {
 })
 
 describe('MarketplacePanel download site', () => {
-  test('picking the mainland China site reloads the list from www.newapi.pro', async () => {
+  test('picking the backup site reloads the list from www.newapi.pro', async () => {
     const fetchMock = installIndexFetchMock()
     renderPanel([officialSource])
     expect(
@@ -491,11 +546,11 @@ describe('MarketplacePanel download site', () => {
     ).toBeInTheDocument()
     expect(requestedUrls(fetchMock)).toEqual([DEFAULT_MARKETPLACE_INDEX_URL])
 
+    await userEvent.click(sourceMenu())
     await userEvent.click(
-      screen.getByRole('combobox', { name: 'Plugin download site' })
-    )
-    await userEvent.click(
-      screen.getByRole('option', { name: 'Mainland China (www.newapi.pro)' })
+      screen.getByRole('menuitemradio', {
+        name: 'Backup site (www.newapi.pro)',
+      })
     )
 
     await waitFor(() =>
@@ -503,9 +558,30 @@ describe('MarketplacePanel download site', () => {
         'https://www.newapi.pro/api/v1/plugins/index.json'
       )
     )
-    expect(
-      screen.getByRole('combobox', { name: 'Plugin download site' })
-    ).toHaveTextContent('Mainland China (www.newapi.pro)')
+    expect(sourceMenu()).toHaveTextContent('Backup site (www.newapi.pro)')
     expect(usePluginSiteStore.getState().site).toBe('pro')
+  })
+
+  test('from the backup site the main site can be picked again', async () => {
+    usePluginSiteStore.setState({ site: 'pro' })
+    const fetchMock = installIndexFetchMock()
+    renderPanel([officialSource])
+    expect(
+      await screen.findByRole('heading', { name: officialIndex.name })
+    ).toBeInTheDocument()
+    expect(requestedUrls(fetchMock)).toEqual([
+      'https://www.newapi.pro/api/v1/plugins/index.json',
+    ])
+
+    await userEvent.click(sourceMenu())
+    await userEvent.click(
+      screen.getByRole('menuitemradio', { name: 'Main site (www.newapi.ai)' })
+    )
+
+    await waitFor(() =>
+      expect(requestedUrls(fetchMock)).toContain(DEFAULT_MARKETPLACE_INDEX_URL)
+    )
+    expect(sourceMenu()).toHaveTextContent('Main site (www.newapi.ai)')
+    expect(usePluginSiteStore.getState().site).toBe('ai')
   })
 })

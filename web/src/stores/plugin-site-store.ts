@@ -20,34 +20,33 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 /**
- * Which site this browser downloads plugins from. `auto` uses www.newapi.ai
- * and switches to www.newapi.pro for a day when newapi.ai does not answer;
- * `pro` always uses www.newapi.pro, the site for mainland China.
+ * Which site this browser downloads plugins from: `ai` is the main site
+ * www.newapi.ai, `pro` the backup site www.newapi.pro. Only the user changes it.
  */
-export type PluginSiteChoice = 'auto' | 'pro'
+export type PluginSiteChoice = 'ai' | 'pro'
 
 type PluginSiteState = {
   site: PluginSiteChoice
-  /** Until this time (ms) `auto` stays on www.newapi.pro. */
-  fallbackUntil: number
   setSite: (site: PluginSiteChoice) => void
-  rememberFallback: (until: number) => void
 }
 
 export const usePluginSiteStore = create<PluginSiteState>()(
   persist(
     (set) => ({
-      site: 'auto',
-      fallbackUntil: 0,
-      // Picking a site by hand forgets an earlier automatic switch.
-      setSite: (site) => set({ site, fallbackUntil: 0 }),
-      rememberFallback: (until) => set({ fallbackUntil: until }),
+      site: 'ai',
+      setSite: (site) => set({ site }),
     }),
     {
       name: 'plugin-site',
-      partialize: (state) => ({
-        site: state.site,
-        fallbackUntil: state.fallbackUntil,
+      version: 1,
+      partialize: (state) => ({ site: state.site }),
+      // Version 0 also stored `auto`, which switched sites by itself; it now
+      // reads as the main site.
+      migrate: (persisted) => ({
+        site:
+          (persisted as { site?: unknown } | null)?.site === 'pro'
+            ? 'pro'
+            : 'ai',
       }),
     }
   )

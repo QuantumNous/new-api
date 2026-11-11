@@ -55,7 +55,7 @@ type taskPluginUploadRequest struct {
 
 // communityPluginInstallsURLs receive the install count of a plugin installed
 // from the built-in community source, tried in order: www.newapi.ai, then the
-// mainland China site www.newapi.pro when newapi.ai does not answer. Both
+// backup site www.newapi.pro when newapi.ai does not answer. Both
 // sites count into the same list. Tests point them at local servers.
 var communityPluginInstallsURLs = []string{
 	"https://www.newapi.ai/api/v1/community/installs",

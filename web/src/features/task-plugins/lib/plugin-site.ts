@@ -21,36 +21,32 @@ import { usePluginSiteStore } from '@/stores/plugin-site-store'
 const AI_ORIGIN = 'https://www.newapi.ai'
 const PRO_ORIGIN = 'https://www.newapi.pro'
 
-/** How long www.newapi.ai gets to answer before www.newapi.pro is used. */
-export const PLUGIN_SITE_TIMEOUT_MS = 10_000
-
-/** How long `auto` stays on www.newapi.pro after newapi.ai did not answer. */
-export const PLUGIN_SITE_FALLBACK_MS = 24 * 60 * 60 * 1000
-
-// Leaving or reloading the page cancels requests still running. That is not
-// newapi.ai failing to answer, so it must not switch this browser to newapi.pro.
-let leavingPage = false
-if (typeof window !== 'undefined') {
-  window.addEventListener('pagehide', () => {
-    leavingPage = true
-  })
-  window.addEventListener('pageshow', () => {
-    leavingPage = false
-  })
+/** Whether an address is on www.newapi.ai, so the site choice applies to it. */
+export function followsPluginSite(address: string): boolean {
+  try {
+    return new URL(address).origin === AI_ORIGIN
+  } catch {
+    return false
+  }
 }
 
 /**
  * `fetch` for plugin lists, plugin files and logos. Requests to www.newapi.ai
- * go to www.newapi.pro when the administrator picked it, or for a day after
- * newapi.ai did not answer within 10 seconds; both sites serve the same
- * plugins, and every file is still checked against its sha256. Other
- * addresses are fetched unchanged. Saved source addresses stay on newapi.ai.
+ * go to the backup site www.newapi.pro when the user picked it; both sites
+ * serve the same plugins, and every file is still checked against its sha256.
+ * Other addresses are fetched unchanged. Saved source addresses stay on
+ * newapi.ai.
  */
-export async function fetchFromPluginSite(
+export function fetchFromPluginSite(
   input: RequestInfo | URL,
-  init: RequestInit = {}
+  init?: RequestInit
 ): Promise<Response> {
-  if (input instanceof Request) return globalThis.fetch(input, init)
+  if (
+    usePluginSiteStore.getState().site !== 'pro' ||
+    input instanceof Request
+  ) {
+    return globalThis.fetch(input, init)
+  }
   let url: URL
   try {
     url = new URL(String(input))
@@ -58,28 +54,5 @@ export async function fetchFromPluginSite(
     return globalThis.fetch(input, init)
   }
   if (url.origin !== AI_ORIGIN) return globalThis.fetch(input, init)
-
-  const proUrl = PRO_ORIGIN + url.pathname + url.search
-  const state = usePluginSiteStore.getState()
-  if (state.site === 'pro' || state.fallbackUntil > Date.now()) {
-    return globalThis.fetch(proUrl, init)
-  }
-
-  // The timer only covers getting an answer; a slow download is not cut off.
-  const timeout = new AbortController()
-  const timer = setTimeout(() => timeout.abort(), PLUGIN_SITE_TIMEOUT_MS)
-  init.signal?.addEventListener('abort', () => timeout.abort(), { once: true })
-  try {
-    return await globalThis.fetch(url.href, { ...init, signal: timeout.signal })
-  } catch (error) {
-    if (init.signal?.aborted || leavingPage) throw error
-    // newapi.ai did not answer: an HTTP error status is an answer and is
-    // returned above as is.
-    usePluginSiteStore
-      .getState()
-      .rememberFallback(Date.now() + PLUGIN_SITE_FALLBACK_MS)
-    return globalThis.fetch(proUrl, init)
-  } finally {
-    clearTimeout(timer)
-  }
+  return globalThis.fetch(PRO_ORIGIN + url.pathname + url.search, init)
 }
