@@ -41,6 +41,7 @@ import { ModelPriceCell, type ModelPriceCellOptions } from './model-price-cell'
 
 export type PricingColumnsOptions = ModelPriceCellOptions
 
+/** Builds the pricing table columns with localized endpoint labels. */
 export function usePricingColumns(
   options: PricingColumnsOptions = {}
 ): ColumnDef<PricingModel>[] {

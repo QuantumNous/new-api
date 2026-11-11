@@ -31,6 +31,7 @@ const ENDPOINT_TYPE_LABEL_KEYS: Record<string, string> = {
   'deepseek-tools-fetch': 'Fetch',
 }
 
+/** Maps an endpoint type slug to its localized display label. */
 export function getEndpointTypeLabel(
   endpointType: string,
   t: TFunction

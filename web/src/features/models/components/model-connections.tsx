@@ -27,6 +27,7 @@ import { getEndpointTypeLabel } from '@/lib/endpoint-type'
 import type { Model } from '../types'
 import { ModelSquareStatus } from './model-square-status'
 
+/** Displays a model's channel and group connection details. */
 export function ModelConnections(props: { model: Model }) {
   const { t } = useTranslation()
   return (

@@ -56,6 +56,7 @@ export interface ModelCardProps {
   perf?: ModelPerfBadgeData
 }
 
+/** Renders a pricing model card with endpoint metadata. */
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const { t, i18n } = useTranslation()
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT

@@ -515,6 +515,7 @@ function ModelBackendSignalsSection(props: { model: PricingModel }) {
   )
 }
 
+/** Shows provider, group, endpoint, and tag metadata for a pricing model. */
 function ModelBackendProviderSection(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const model = props.model
