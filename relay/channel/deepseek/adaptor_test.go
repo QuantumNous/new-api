@@ -17,48 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetRequestURLRoutesConvertedClaudeToResponses(t *testing.T) {
-	const baseURL = "https://api.deepseek.example"
-	tests := []struct {
-		name        string
-		relayFormat types.RelayFormat
-		relayMode   int
-		want        string
-	}{
-		{
-			name:        "native Claude",
-			relayFormat: types.RelayFormatClaude,
-			relayMode:   constant.RelayModeUnknown,
-			want:        baseURL + "/anthropic/v1/messages",
-		},
-		{
-			name:        "Claude converted by Chat to Responses policy",
-			relayFormat: types.RelayFormatClaude,
-			relayMode:   constant.RelayModeResponses,
-			want:        baseURL + "/responses",
-		},
-		{
-			name:        "native Responses",
-			relayFormat: types.RelayFormatOpenAIResponses,
-			relayMode:   constant.RelayModeResponses,
-			want:        baseURL + "/responses",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			info := &relaycommon.RelayInfo{
-				RelayFormat: tt.relayFormat,
-				RelayMode:   tt.relayMode,
-				ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: baseURL},
-			}
-			got, err := (&Adaptor{}).GetRequestURL(info)
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 // The -none/-low/-max tails of deepseek-flash and deepseek-v4-* reach DeepSeek
 // as its own thinking switch and effort in each upstream format, with the base
 // name; a bare name keeps DeepSeek's default, and a blacklisted name is sent

@@ -23,7 +23,6 @@ import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
-import { getEndpointTypeLabel } from '@/lib/endpoint-type'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
@@ -56,7 +55,6 @@ export interface ModelCardProps {
   perf?: ModelPerfBadgeData
 }
 
-/** Renders a pricing model card with endpoint metadata. */
 export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const { t, i18n } = useTranslation()
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
@@ -68,9 +66,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
   const endpoints = props.model.supported_endpoint_types || []
-  const endpointLabels = endpoints.map((endpoint) =>
-    getEndpointTypeLabel(endpoint, t)
-  )
   const modelIconKey = props.model.icon || props.model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 28) : null
   const initial = props.model.model_name?.charAt(0).toUpperCase() || '?'
@@ -382,13 +377,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                   {t('Endpoints')}
                 </dt>
                 <dd className='flex min-w-0 items-baseline gap-1'>
-                  <span className='truncate' title={endpointLabels.join(', ')}>
-                    {endpointLabels.slice(0, 2).join(', ')}
+                  <span className='truncate' title={endpoints.join(', ')}>
+                    {endpoints.slice(0, 2).join(', ')}
                   </span>
                   {endpoints.length > 2 && (
                     <span
                       className='text-muted-foreground shrink-0'
-                      title={endpointLabels.slice(2).join(', ')}
+                      title={endpoints.slice(2).join(', ')}
                     >
                       +{endpoints.length - 2}
                     </span>

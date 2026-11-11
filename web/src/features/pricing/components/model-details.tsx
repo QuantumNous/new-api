@@ -56,7 +56,6 @@ import {
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
 import { PluginIcon } from '@/features/task-plugins/components/plugin-icon'
-import { getEndpointTypeLabel } from '@/lib/endpoint-type'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -515,14 +514,11 @@ function ModelBackendSignalsSection(props: { model: PricingModel }) {
   )
 }
 
-/** Shows provider, group, endpoint, and tag metadata for a pricing model. */
 function ModelBackendProviderSection(props: { model: PricingModel }) {
   const { t } = useTranslation()
   const model = props.model
   const groups = normalizeCatalogItems(model.enable_groups)
-  const endpoints = normalizeCatalogItems(model.supported_endpoint_types).map(
-    (endpoint) => getEndpointTypeLabel(endpoint, t)
-  )
+  const endpoints = normalizeCatalogItems(model.supported_endpoint_types)
   const tags = parseTags(model.tags)
   const cells: React.ReactNode[] = []
 

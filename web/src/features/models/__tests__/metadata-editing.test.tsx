@@ -109,7 +109,6 @@ describe('model pricing entry', () => {
     })
     const client = renderModelActions(channelModel)
     const user = userEvent.setup()
-    const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
     expect(screen.getByRole('button', { name: 'Add metadata' })).toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'Open menu' })
@@ -145,8 +144,6 @@ describe('model pricing entry', () => {
         'Channel availability and group access are derived from enabled channels. Importing metadata does not create a callable channel.'
       )
     ).toBeVisible()
-    await user.click(screen.getByTitle('Click to copy: openai'))
-    expect(copy).toHaveBeenCalledWith('openai')
     expect(get).not.toHaveBeenCalledWith('/api/models/0')
     expect(post).not.toHaveBeenCalled()
     client.clear()
