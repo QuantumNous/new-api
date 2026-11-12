@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Calcium-Ion/moejs"
+	"github.com/MoeForge/moego/base64"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )

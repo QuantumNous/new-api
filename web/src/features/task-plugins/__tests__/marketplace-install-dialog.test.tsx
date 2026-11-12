@@ -25,6 +25,7 @@ import {
 } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Toaster } from 'sonner'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import {
@@ -284,6 +285,82 @@ test('shows all four Incho interfaces and explains absent authentication and ext
   ).not.toBeInTheDocument()
 })
 
+test('lists each vendor path once with a /{key} form named by the source key and folds routes under that key into legacy addresses', async () => {
+  const user = userEvent.setup()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(`export const meta = {
+  key: 'incho',
+  models: ['incho_music'],
+  routes: [
+    {method: 'POST', path: '/v1/music/generations', type: 'submit'},
+    {method: 'GET', path: '/incho/fetch/:task_id', type: 'query'},
+  ],
+};`)
+    )
+  )
+  renderDialog()
+  const endpoints = screen.getByRole('region', { name: 'Supported interfaces' })
+  expect(
+    await within(endpoints).findByText('/v1/music/generations')
+  ).toBeVisible()
+  expect(
+    within(endpoints).queryByText('/incho/v1/music/generations')
+  ).not.toBeInTheDocument()
+  expect(
+    within(endpoints).queryByRole('button', { name: '/demo' })
+  ).not.toBeInTheDocument()
+
+  await user.click(within(endpoints).getByRole('button', { name: '/incho' }))
+
+  expect(
+    within(endpoints).getByText('/incho/v1/music/generations')
+  ).toBeVisible()
+  const legacy = within(endpoints).getByRole('button', {
+    name: 'Legacy addresses (1)',
+  })
+  expect(legacy).toHaveAttribute('aria-expanded', 'false')
+  await user.click(legacy)
+  expect(within(endpoints).getByText('/incho/fetch/:task_id')).toBeVisible()
+  expect(
+    within(endpoints).queryByText('/incho/incho/fetch/:task_id')
+  ).not.toBeInTheDocument()
+  expect(within(endpoints).queryByText(/Only served/)).not.toBeInTheDocument()
+})
+
+test('a plugin whose routes all sit under a prefix of its key lists them as declared without an address toggle', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(`export const meta = {
+  key: 'sunoapi',
+  models: ['suno_music'],
+  routes: [
+    {method: 'POST', path: '/suno/submit/:action', type: 'submit'},
+    {method: 'POST', path: '/suno/fetch', type: 'dynamic'},
+    {method: 'GET', path: '/suno/fetch/:task_id', type: 'query'},
+  ],
+};`)
+    )
+  )
+  renderDialog()
+  const endpoints = screen.getByRole('region', { name: 'Supported interfaces' })
+  expect(
+    await within(endpoints).findByText('/suno/submit/:action')
+  ).toBeVisible()
+  expect(within(endpoints).getByText('/suno/fetch')).toBeVisible()
+  expect(within(endpoints).getByText('/suno/fetch/:task_id')).toBeVisible()
+  expect(
+    within(endpoints).queryByRole('group', { name: 'Address format' })
+  ).not.toBeInTheDocument()
+  expect(
+    within(endpoints).queryByRole('button', { name: /Legacy addresses/ })
+  ).not.toBeInTheDocument()
+})
+
 test('keyboard users can expand the full model list and inspect a protocol model scope', async () => {
   const user = userEvent.setup()
   vi.stubGlobal(
@@ -435,6 +512,39 @@ test('selecting a historical version installs its source and hash', async () => 
     remark: 'Official v1.0',
     icon: undefined,
   })
+})
+
+test('an install that needs activation reports what the activated version cannot charge', async () => {
+  const user = userEvent.setup()
+  vi.stubGlobal('crypto', webcrypto)
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(source))
+  )
+  api.installMarketplacePlugin.mockResolvedValue({
+    meta: { key: 'demo', name: 'Demo', version: '1.1' },
+    plugin: { active: false },
+  })
+  api.activateTaskPlugin.mockResolvedValue({
+    pricing_issues: [
+      {
+        model_name: 'demo-video',
+        plugin_key: 'demo',
+        plugin_name: 'Demo',
+        reason: 'unconfigured',
+      },
+    ],
+  })
+  renderDialog()
+  render(<Toaster />)
+  const install = screen.getByRole('button', { name: 'Install and enable' })
+  await waitFor(() => expect(install).toBeEnabled())
+
+  await user.click(install)
+
+  expect(api.activateTaskPlugin).toHaveBeenCalledWith('demo', '1.1')
+  expect(await screen.findByText('Installed Demo v1.1')).toBeVisible()
+  expect(screen.getByText('demo-video: No price set')).toBeVisible()
 })
 
 test('a single published version remains visible and cannot be changed', () => {

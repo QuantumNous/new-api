@@ -3,7 +3,7 @@ package deepseek
 import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
-	"github.com/tidwall/gjson"
+	"github.com/MoeForge/moego/ojson"
 )
 
 // responsesToolUsage bills the Search and Fetch API calls DeepSeek runs for
@@ -14,9 +14,9 @@ import (
 // replace the web_search_call items counted under the Search key while the
 // stream was running. An empty output proves nothing, so those counts stay.
 func responsesToolUsage(raw []byte) map[string]int {
-	output := gjson.GetBytes(raw, "output")
+	output := ojson.GetBytes(raw, "output")
 	if !output.Exists() {
-		output = gjson.GetBytes(raw, "response.output")
+		output = ojson.GetBytes(raw, "response.output")
 	}
 	items := output.Array()
 	if !output.IsArray() || len(items) == 0 {

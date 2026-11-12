@@ -38,7 +38,7 @@ import {
   getQuotaTypeLabels,
 } from '../constants'
 import { hasTaskUsageSchema } from '../lib/dynamic-price'
-import { parseTags } from '../lib/filters'
+import { getModelQuotaType, parseTags } from '../lib/filters'
 import { isPerSecondPricingModel } from '../lib/model-helpers'
 import type { PricingModel, PricingVendor } from '../types'
 
@@ -177,10 +177,13 @@ export const PricingSidebar = memo(function PricingSidebar(
         quotas.task++
       } else if (isPerSecondPricingModel(model)) {
         quotas.second++
-      } else if (model.quota_type === 0) {
-        quotas.token++
-      } else if (model.quota_type === 1) {
-        quotas.request++
+      } else {
+        // Dynamic expressions override the legacy quota type, so the count
+        // must use the same classification as the filter.
+        const quotaType = getModelQuotaType(model)
+        if (quotaType === 'token' || quotaType === 'request') {
+          quotas[quotaType]++
+        }
       }
     }
     return { vendors, tags, endpoints, quotas }

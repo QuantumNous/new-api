@@ -30,8 +30,8 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/samber/lo"
-	"github.com/tidwall/gjson"
 
 	"github.com/gin-gonic/gin"
 )
@@ -677,16 +677,16 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	if jsonBytes[0] != '{' && jsonBytes[0] != '[' {
 		return ""
 	}
-	errVal := gjson.GetBytes(jsonBytes, "error")
-	if !errVal.Exists() || errVal.Type == gjson.Null {
+	errVal := ojson.GetBytes(jsonBytes, "error")
+	if !errVal.Exists() || errVal.Type == ojson.Null {
 		return ""
 	}
 
-	message := gjson.GetBytes(jsonBytes, "error.message").String()
+	message := ojson.GetBytes(jsonBytes, "error.message").String()
 	if message == "" {
-		message = gjson.GetBytes(jsonBytes, "error.error.message").String()
+		message = ojson.GetBytes(jsonBytes, "error.error.message").String()
 	}
-	if message == "" && errVal.Type == gjson.String {
+	if message == "" && errVal.Type == ojson.String {
 		message = errVal.String()
 	}
 	if message == "" {

@@ -20,7 +20,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Download } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
 import { LoadingState } from '@/components/loading-state'
@@ -29,6 +28,7 @@ import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { MODEL_PRICING_ISSUES_QUERY_KEY } from '@/features/system-settings/models/pricing-issues'
 
 import {
   activateTaskPlugin,
@@ -40,6 +40,7 @@ import {
   resolvePluginSourceUrl,
   type InstallState,
 } from '../lib/marketplace'
+import { toastPluginChange } from '../lib/plugin-change-toast'
 import { fetchPluginIconDataUri } from '../lib/plugin-icon-file'
 import {
   computeSourceSha256,
@@ -161,7 +162,11 @@ function MarketplaceInstallContent(
         icon: sourceQuery.data.icon ?? undefined,
       })
       if (detail.plugin && !detail.plugin.active) {
-        await activateTaskPlugin(detail.meta.key, detail.meta.version)
+        const notice = await activateTaskPlugin(
+          detail.meta.key,
+          detail.meta.version
+        )
+        return { ...detail, pricing_issues: notice?.pricing_issues ?? [] }
       }
       return detail
     },
@@ -171,13 +176,17 @@ function MarketplaceInstallContent(
       queryClient.invalidateQueries({
         queryKey: ['task-plugin-versions', pluginKey],
       })
+      queryClient.invalidateQueries({
+        queryKey: MODEL_PRICING_ISSUES_QUERY_KEY,
+      })
     },
     onSuccess: (detail) => {
-      toast.success(
+      toastPluginChange(
         t('Installed {{name}} v{{version}}', {
           name: detail.meta.name,
           version: detail.meta.version,
-        })
+        }),
+        detail.pricing_issues
       )
       props.onOpenChange(false)
     },

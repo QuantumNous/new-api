@@ -161,8 +161,9 @@ func TestXAIModeratedVideoKeepsItsCharge(t *testing.T) {
 			if tc.wantStatus == "IN_PROGRESS" {
 				return
 			}
-			// A downstream New API gateway polls this task's native status
-			// route, which omits usage, and must settle on the same facts.
+			// The native status route answers with xAI's own result, usage
+			// included, and a downstream New API gateway polling it settles
+			// on the same facts.
 			var data any
 			require.NoError(t, common.UnmarshalJsonStr(tc.body, &data))
 			native, err := plugin.Engine.CallPath(t.Context(), "native", []string{"videoStatus"}, map[string]any{},
@@ -170,7 +171,7 @@ func TestXAIModeratedVideoKeepsItsCharge(t *testing.T) {
 			require.NoError(t, err)
 			nativeBody, err := common.Marshal(native)
 			require.NoError(t, err)
-			assert.NotContains(t, string(nativeBody), "cost_in_usd_ticks")
+			assert.JSONEq(t, tc.body, string(nativeBody))
 			downstream, err := adaptor.ParseTaskResult(task, &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}, nativeBody)
 			require.NoError(t, err)
 			assert.Equal(t, result.Status, downstream.Status)
@@ -205,11 +206,16 @@ func TestXAIVideoRequests(t *testing.T) {
 	inputVideo := map[string]any{"url": "https://cdn.example/in.mp4"}
 	jsonBody := func(value map[string]any) map[string]any { return map[string]any{"kind": "json", "value": value} }
 
+	fifteen := make([]any, 15)
+	for index := range fifteen {
+		fifteen[index] = map[string]any{"url": fmt.Sprintf("https://cdn.example/%d.png", index)}
+	}
 	for _, tc := range []struct {
 		name      string
 		decoder   []string
 		ctx       map[string]any
 		wantModel string
+		upstream  string
 		wantPath  string
 		wantBody  map[string]any
 		wantFacts map[string]any
@@ -219,7 +225,7 @@ func TestXAIVideoRequests(t *testing.T) {
 			decoder: []string{"native", "createGeneration"},
 			ctx: map[string]any{"body": jsonBody(map[string]any{
 				"model": "grok-imagine-video-1.5", "prompt": "<IMAGE_0> meets <IMAGE_1>", "reference_images": referenceImages, "resolution": "720p",
-				"user": "end-user", "n": 4, "storage_options": map[string]any{"filename": "out.mp4"},
+				"user": "end-user", "n": 4,
 			})},
 			wantModel: "grok-imagine-video-1.5",
 			wantPath:  "/v1/videos/generations",
@@ -228,6 +234,19 @@ func TestXAIVideoRequests(t *testing.T) {
 				"duration": float64(8), "resolution": "720p", "user": "end-user",
 			},
 			wantFacts: map[string]any{"seconds": float64(8), "resolution": "720p", "input_images": float64(2), "moderated": false},
+		},
+		{
+			name:    "native seconds and the newer aspect ratios",
+			decoder: []string{"native", "createGeneration"},
+			ctx: map[string]any{"body": jsonBody(map[string]any{
+				"model": "grok-imagine-video-1.5-lite", "prompt": "a wide shot", "seconds": "6", "aspect_ratio": "21:9",
+			})},
+			wantModel: "grok-imagine-video-1.5-lite",
+			wantPath:  "/v1/videos/generations",
+			wantBody: map[string]any{
+				"model": "grok-imagine-video-1.5-lite", "prompt": "a wide shot", "duration": float64(6), "resolution": "480p", "aspect_ratio": "21:9",
+			},
+			wantFacts: map[string]any{"seconds": float64(6), "resolution": "480p", "input_images": float64(0), "moderated": false},
 		},
 		{
 			name:    "edit reserves the longest input and drops output settings",
@@ -267,13 +286,96 @@ func TestXAIVideoRequests(t *testing.T) {
 			},
 			wantFacts: map[string]any{"seconds": float64(6), "resolution": "720p", "input_images": float64(1), "input_video_seconds": float64(0), "moderated": false},
 		},
+		// xAI checks which inputs a model takes and how many.
+		{
+			name:      "more reference images than xAI documents",
+			decoder:   []string{"native", "createGeneration"},
+			ctx:       map[string]any{"body": jsonBody(map[string]any{"model": "grok-imagine-video-1.5", "prompt": "x", "reference_images": fifteen})},
+			wantModel: "grok-imagine-video-1.5",
+			wantPath:  "/v1/videos/generations",
+			wantBody:  map[string]any{"model": "grok-imagine-video-1.5", "prompt": "x", "reference_images": fifteen, "duration": float64(8), "resolution": "480p"},
+			wantFacts: map[string]any{"seconds": float64(8), "resolution": "480p", "input_images": float64(15), "moderated": false},
+		},
+		{
+			name:      "references on lite",
+			decoder:   []string{"native", "createGeneration"},
+			ctx:       map[string]any{"body": jsonBody(map[string]any{"model": "grok-imagine-video-1.5-lite", "prompt": "x", "reference_images": referenceImages})},
+			wantModel: "grok-imagine-video-1.5-lite",
+			wantPath:  "/v1/videos/generations",
+			wantBody:  map[string]any{"model": "grok-imagine-video-1.5-lite", "prompt": "x", "reference_images": referenceImages, "duration": float64(8), "resolution": "480p"},
+			wantFacts: map[string]any{"seconds": float64(8), "resolution": "480p", "input_images": float64(2), "moderated": false},
+		},
+		{
+			name:      "voices on the classic model",
+			decoder:   []string{"native", "createGeneration"},
+			ctx:       map[string]any{"body": jsonBody(map[string]any{"model": "grok-imagine-video", "prompt": "x", "reference_audios": []any{map[string]any{"voice_id": "eve"}}})},
+			wantModel: "grok-imagine-video",
+			wantPath:  "/v1/videos/generations",
+			wantBody:  map[string]any{"model": "grok-imagine-video", "prompt": "x", "reference_audios": []any{map[string]any{"voice_id": "eve"}}, "duration": float64(8), "resolution": "480p"},
+			wantFacts: map[string]any{"seconds": float64(8), "resolution": "480p", "input_images": float64(0), "input_video_seconds": float64(0), "moderated": false},
+		},
+		{
+			name:      "a last frame on lite",
+			decoder:   []string{"native", "createGeneration"},
+			ctx:       map[string]any{"body": jsonBody(map[string]any{"model": "grok-imagine-video-1.5-lite", "image": "https://cdn.example/a.png", "last_frame": "https://cdn.example/b.png"})},
+			wantModel: "grok-imagine-video-1.5-lite",
+			wantPath:  "/v1/videos/generations",
+			wantBody:  map[string]any{"model": "grok-imagine-video-1.5-lite", "image": referenceImages[0], "last_frame": referenceImages[1], "duration": float64(8), "resolution": "480p"},
+			wantFacts: map[string]any{"seconds": float64(8), "resolution": "480p", "input_images": float64(2), "moderated": false},
+		},
+		{
+			name:    "an image with references for 12 seconds on the classic model",
+			decoder: []string{"native", "createGeneration"},
+			ctx: map[string]any{"body": jsonBody(map[string]any{"model": "grok-imagine-video", "prompt": "x", "image": "https://cdn.example/a.png",
+				"reference_images": referenceImages, "duration": 12})},
+			wantModel: "grok-imagine-video",
+			wantPath:  "/v1/videos/generations",
+			wantBody: map[string]any{"model": "grok-imagine-video", "prompt": "x", "image": referenceImages[0], "reference_images": referenceImages,
+				"duration": float64(12), "resolution": "480p"},
+			wantFacts: map[string]any{"seconds": float64(12), "resolution": "480p", "input_images": float64(3), "input_video_seconds": float64(0), "moderated": false},
+		},
+		{
+			name:    "a keyframe at the end of the clip",
+			decoder: []string{"native", "createGeneration"},
+			ctx: map[string]any{"body": jsonBody(map[string]any{"model": "grok-imagine-video-1.5", "image": "https://cdn.example/a.png", "duration": 6,
+				"keyframes": []any{map[string]any{"image": "https://cdn.example/b.png", "timestamp_s": 6}}})},
+			wantModel: "grok-imagine-video-1.5",
+			wantPath:  "/v1/videos/generations",
+			wantBody: map[string]any{"model": "grok-imagine-video-1.5", "image": referenceImages[0], "duration": float64(6), "resolution": "480p",
+				"keyframes": []any{map[string]any{"image": referenceImages[1], "timestamp_s": float64(6)}}},
+			wantFacts: map[string]any{"seconds": float64(6), "resolution": "480p", "input_images": float64(2), "moderated": false},
+		},
+		{
+			name:    "fields of other APIs are dropped",
+			decoder: []string{"native", "createGeneration"},
+			ctx: map[string]any{"body": jsonBody(map[string]any{"model": "grok-imagine-video-1.5", "prompt": "x", "size": "1280x720",
+				"images": []any{"https://cdn.example/a.png"}, "metadata": map[string]any{"duration": 15}})},
+			wantModel: "grok-imagine-video-1.5",
+			wantPath:  "/v1/videos/generations",
+			wantBody:  map[string]any{"model": "grok-imagine-video-1.5", "prompt": "x", "duration": float64(8), "resolution": "480p"},
+			wantFacts: map[string]any{"seconds": float64(8), "resolution": "480p", "input_images": float64(0), "moderated": false},
+		},
+		{
+			name:      "an alias goes as the channel's model",
+			decoder:   []string{"native", "createGeneration"},
+			ctx:       map[string]any{"body": jsonBody(map[string]any{"model": "my-grok", "prompt": "x", "resolution": "720p"})},
+			wantModel: "my-grok",
+			upstream:  "grok-imagine-video",
+			wantPath:  "/v1/videos/generations",
+			wantBody:  map[string]any{"model": "grok-imagine-video", "prompt": "x", "duration": float64(8), "resolution": "720p"},
+			wantFacts: map[string]any{"seconds": float64(8), "resolution": "720p", "input_images": float64(0), "input_video_seconds": float64(0), "moderated": false},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			intent, err := callXAI(t, plugin, tc.decoder, tc.ctx)
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantModel, intent["model"])
+			upstream := tc.wantModel
+			if tc.upstream != "" {
+				upstream = tc.upstream
+			}
 			driver := map[string]any{
-				"model": tc.wantModel, "upstreamModel": tc.wantModel, "action": intent["action"], "requestBody": intent["requestBody"],
+				"model": tc.wantModel, "upstreamModel": upstream, "action": intent["action"], "requestBody": intent["requestBody"],
 				"baseUrl": "https://api.x.ai", "apiKey": "xai-key", "upstream": map[string]any{"kind": "vendor"},
 			}
 			descriptor, err := callXAI(t, plugin, []string{"buildSubmitRequest"}, driver)
@@ -318,17 +420,38 @@ func TestXAIVideoRequests(t *testing.T) {
 		body    map[string]any
 		wantErr string
 	}{
-		{"edits need the video-input model", "createEdit", map[string]any{"model": "grok-imagine-video-1.5", "prompt": "x", "video": inputVideo}, "video editing and extension require grok-imagine-video"},
-		{"model without 1080p", "createGeneration", map[string]any{"model": "grok-imagine-video", "prompt": "x", "resolution": "1080p"}, "grok-imagine-video resolution must be one of 480p, 720p"},
+		{"the model names the price", "createGeneration", map[string]any{"prompt": "x"}, "model is required"},
 		{"reference-to-video is capped at 720p", "createGeneration", map[string]any{"model": "grok-imagine-video-1.5", "prompt": "x", "reference_images": referenceImages, "resolution": "1080p"}, "reference-to-video supports resolution 480p or 720p"},
 		{"duration bound", "createGeneration", map[string]any{"model": "grok-imagine-video-1.5", "prompt": "x", "duration": 16}, "duration must be an integer between 1 and 15"},
 		{"extension bound", "createExtension", map[string]any{"model": "grok-imagine-video", "prompt": "x", "video": inputVideo, "duration": 11}, "duration must be an integer between 2 and 10"},
 		{"gateway files are unreachable", "createGeneration", map[string]any{"model": "grok-imagine-video-1.5", "image": map[string]any{"file_id": "file-1"}}, "image must be a URL; file_id is not supported"},
-		{"reference image limit", "createGeneration", map[string]any{"model": "grok-imagine-video-1.5", "prompt": "x", "reference_images": []any{"a", "b", "c", "d", "e", "f", "g", "h"}}, "reference_images accepts at most 7 items"},
+		{"storage in the gateway's account is refused", "createGeneration", map[string]any{"model": "grok-imagine-video-1.5", "prompt": "x", "storage_options": map[string]any{"filename": "out.mp4"}}, "storage_options is not supported"},
 		{"text-to-video needs a prompt", "createGeneration", map[string]any{"model": "grok-imagine-video-1.5"}, "prompt is required"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := callXAI(t, plugin, []string{"native", tc.decoder}, map[string]any{"body": jsonBody(tc.body)})
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+
+	// The model the channel sends sets the price: one without 1080p cannot be
+	// reserved at 1080p, and only the video-input model has an input-video
+	// price for edits.
+	for _, tc := range []struct {
+		name     string
+		decoder  string
+		body     map[string]any
+		upstream string
+		wantErr  string
+	}{
+		{"edits need the video-input model", "createEdit", map[string]any{"model": "my-grok", "prompt": "x", "video": inputVideo}, "grok-imagine-video-1.5", "video editing and extension require grok-imagine-video"},
+		{"model without 1080p", "createGeneration", map[string]any{"model": "my-grok", "prompt": "x", "resolution": "1080p"}, "grok-imagine-video", "grok-imagine-video resolution must be one of 480p, 720p"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			intent, err := callXAI(t, plugin, []string{"native", tc.decoder}, map[string]any{"body": jsonBody(tc.body)})
+			require.NoError(t, err)
+			_, err = callXAI(t, plugin, []string{"buildSubmitRequest"}, map[string]any{"model": "my-grok", "upstreamModel": tc.upstream, "action": intent["action"],
+				"requestBody": intent["requestBody"], "baseUrl": "https://api.x.ai", "apiKey": "xai-key", "upstream": map[string]any{"kind": "vendor"}})
 			require.ErrorContains(t, err, tc.wantErr)
 		})
 	}
@@ -340,14 +463,11 @@ func TestXAIModeratedTaskPresentation(t *testing.T) {
 	plugin := newXAIPlugin(t)
 	billedFailure := map[string]any{
 		"status": "failed", "error": map[string]any{"code": "invalid_argument", "message": "Content blocked by moderation"},
-		"usage": map[string]any{"cost_in_usd_ticks": 500000000},
+		"usage": map[string]any{"cost_in_usd_ticks": float64(500000000)},
 	}
 	status, err := callXAI(t, plugin, []string{"native", "videoStatus"}, map[string]any{}, map[string]any{"task_id": "task_public", "status": "SUCCESS", "data": billedFailure})
 	require.NoError(t, err)
-	assert.Equal(t, map[string]any{
-		"status": "done", "progress": float64(100), "video": map[string]any{"respect_moderation": false},
-		"error": map[string]any{"code": "invalid_argument", "message": "Content blocked by moderation"},
-	}, status, "the upstream cost is not exposed")
+	assert.Equal(t, billedFailure, status, "xAI's failed result keeps the usage that shows it was charged")
 	downstream, err := callXAI(t, plugin, []string{"parseTaskResult"}, map[string]any{}, status, map[string]any{"status": 200})
 	require.NoError(t, err)
 	assert.Equal(t, "SUCCESS", downstream["status"])
@@ -358,6 +478,14 @@ func TestXAIModeratedTaskPresentation(t *testing.T) {
 	stalled, err := callXAI(t, plugin, []string{"native", "videoStatus"}, map[string]any{}, map[string]any{"task_id": "task_public", "status": "FAILURE", "fail_reason": "poll failures", "data": map[string]any{"status": "pending", "progress": 10}})
 	require.NoError(t, err)
 	assert.Equal(t, map[string]any{"status": "failed", "error": map[string]any{"code": "internal_error", "message": "poll failures"}}, stalled)
+
+	// xAI answers a pending video with 202.
+	pending, err := callXAI(t, plugin, []string{"native", "videoStatus"}, map[string]any{}, map[string]any{"task_id": "task_public", "status": "IN_PROGRESS", "data": map[string]any{"status": "pending", "progress": 40}})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"__status": float64(202), "__body": map[string]any{"status": "pending", "progress": float64(40)}}, pending)
+	created, err := callXAI(t, plugin, []string{"native", "videoStatus"}, map[string]any{}, map[string]any{"task_id": "task_public", "status": "SUBMITTED", "progress": "0%", "data": map[string]any{"request_id": "task_public"}})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"__status": float64(202), "__body": map[string]any{"status": "pending", "progress": float64(0)}}, created)
 
 	filtered := map[string]any{"task_id": "task_public", "status": "SUCCESS", "data": map[string]any{"status": "done", "video": map[string]any{"url": "", "duration": 8, "respect_moderation": false}}}
 	video, err := callXAI(t, plugin, []string{"protocols", "openai_video", "render"}, map[string]any{}, filtered)
