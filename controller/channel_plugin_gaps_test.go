@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -302,44 +303,80 @@ func TestGapsBalanceRunDisablesOnlyWhatIsUsedUp(t *testing.T) {
 	})
 }
 
-func TestGapsUpdateAllBalancesRunsInTheBackground(t *testing.T) {
+func TestGapsUpdateAllBalancesRunsAsASystemTask(t *testing.T) {
 	setupChannelGapsTest(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.SystemTask{}, &model.SystemTaskLock{}))
 	registerChannelGapsPlugin(t, "gaps-balance-all", balancePluginSource)
-	require.False(t, balanceUpdateRunning.Load())
-	var arrivedOnce, releaseOnce sync.Once
-	arrived, release := make(chan struct{}), make(chan struct{})
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		arrivedOnce.Do(func() { close(arrived) })
-		<-release
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"amount":3,"currency":"USD"}`)
 	}))
 	t.Cleanup(upstream.Close)
-	// The run must end before the test's database goes away.
-	t.Cleanup(func() {
-		releaseOnce.Do(func() { close(release) })
-		assert.Eventually(t, func() bool { return !balanceUpdateRunning.Load() }, 10*time.Second, 10*time.Millisecond)
-	})
 	channel := insertPluginChannel(t, "gaps-balance-all", upstream.URL, "sk-all", false)
 
-	response, raw := callChannelAPI(t, UpdateAllChannelsBalance, http.MethodGet, "/api/channel/update_balance", "")
-	require.True(t, response.Success, raw)
-	assert.Equal(t, "Balance update started in the background", response.Message)
-	assert.JSONEq(t, `{"started":true}`, string(response.Data))
-
-	select {
-	case <-arrived:
-	case <-time.After(10 * time.Second):
-		t.Fatal("the background run never queried the balance")
+	type queuedRun struct {
+		Started bool   `json:"started"`
+		TaskID  string `json:"task_id"`
+		Status  string `json:"status"`
 	}
-	response, raw = callChannelAPI(t, UpdateAllChannelsBalance, http.MethodGet, "/api/channel/update_balance", "")
-	require.True(t, response.Success, raw)
-	assert.Equal(t, "A balance update is already running", response.Message)
-	assert.JSONEq(t, `{"started":false}`, string(response.Data))
+	queue := func(t *testing.T) (queuedRun, string) {
+		t.Helper()
+		response, raw := callChannelAPI(t, UpdateAllChannelsBalance, http.MethodGet, "/api/channel/update_balance", "")
+		require.True(t, response.Success, raw)
+		var run queuedRun
+		require.NoError(t, common.Unmarshal(response.Data, &run))
+		return run, response.Message
+	}
+	// run claims a queued task as a master node's runner does and runs it.
+	run := func(t *testing.T, ctx context.Context, taskID string) {
+		t.Helper()
+		task, err := model.GetSystemTaskByTaskID(taskID)
+		require.NoError(t, err)
+		claimed, ok, err := model.ClaimSystemTask(task.ID, model.SystemTaskTypeChannelBalance, "test-runner", common.GetTimestamp()+60)
+		require.NoError(t, err)
+		require.True(t, ok)
+		channelBalanceHandler{}.Run(ctx, claimed, "test-runner")
+	}
+	progress := func(t *testing.T, taskID string) (channelAPIResponse, string) {
+		t.Helper()
+		return callChannelAPI(t, GetChannelBalanceTask, http.MethodGet, "/api/channel/update_balance/task/"+taskID, "", gin.Param{Key: "task_id", Value: taskID})
+	}
 
-	releaseOnce.Do(func() { close(release) })
-	require.Eventually(t, func() bool { return !balanceUpdateRunning.Load() }, 10*time.Second, 10*time.Millisecond)
+	first, message := queue(t)
+	assert.Equal(t, "Balance update started in the background", message)
+	assert.Equal(t, queuedRun{Started: true, TaskID: first.TaskID, Status: "pending"}, first)
+
+	again, message := queue(t)
+	assert.Equal(t, "A balance update is already running", message)
+	assert.Equal(t, queuedRun{Started: false, TaskID: first.TaskID, Status: "pending"}, again, "a second request follows the queued run")
+
+	run(t, context.Background(), first.TaskID)
 	assert.InDelta(t, 3.0, storedGapsChannel(t, channel.Id).Balance, 1e-9)
+	response, raw := progress(t, first.TaskID)
+	require.True(t, response.Success, raw)
+	assert.JSONEq(t, fmt.Sprintf(`{"task_id":%q,"status":"succeeded","state":{"total":1,"processed":1,"progress":100},"error":""}`, first.TaskID), string(response.Data))
+
+	second, _ := queue(t)
+	assert.True(t, second.Started, "a finished run lets the next request queue a new one")
+	assert.NotEqual(t, first.TaskID, second.TaskID)
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	run(t, cancelled, second.TaskID)
+	response, raw = progress(t, second.TaskID)
+	require.True(t, response.Success, raw)
+	var lost struct {
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	}
+	require.NoError(t, common.Unmarshal(response.Data, &lost))
+	assert.Equal(t, "failed", lost.Status, "a run that loses its lease fails")
+	assert.Equal(t, context.Canceled.Error(), lost.Error)
+
+	other, err := model.CreateSystemTask(model.SystemTaskTypeLogCleanup, nil, nil)
+	require.NoError(t, err)
+	response, _ = progress(t, other.TaskID)
+	assert.False(t, response.Success)
+	assert.Equal(t, "Balance update task not found", response.Message, "only balance update tasks are readable here")
 }
 
 func TestGapsFetchModelsPreviewOfAPluginChannel(t *testing.T) {

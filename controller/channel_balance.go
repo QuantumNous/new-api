@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -32,10 +31,6 @@ const balanceUpdateConcurrency = 4
 
 // maxBalanceErrorRunes bounds the failure message a balance detail keeps.
 const maxBalanceErrorRunes = 512
-
-// balanceUpdateRunning is set while an update of all balances runs, started
-// by an administrator or by the schedule.
-var balanceUpdateRunning atomic.Bool
 
 func usdBalance(result jsplugin.BalanceResult) (float64, bool) {
 	return service.PluginBalanceUSD(result)
@@ -194,21 +189,6 @@ func balanceErrorText(err error, key string) string {
 		message = string(runes[:maxBalanceErrorRunes]) + "..."
 	}
 	return message
-}
-
-// startBalanceUpdate starts an update of all balances in the background. It
-// returns false when one is already running.
-func startBalanceUpdate() bool {
-	if !balanceUpdateRunning.CompareAndSwap(false, true) {
-		return false
-	}
-	go func() {
-		defer balanceUpdateRunning.Store(false)
-		if err := updateAllChannelsBalance(); err != nil {
-			common.SysError(common.LogText("failed to update all channel balances: %v", err))
-		}
-	}()
-	return true
 }
 
 // updateBalanceInRun queries one enabled channel in an update of all

@@ -150,12 +150,12 @@ func main() {
 	// 数据看板
 	go model.UpdateQuotaData()
 
+	// CHANNEL_UPDATE_FREQUENCY schedules the update of all balances, a system
+	// task registered below.
 	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
-		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))
-		if err != nil {
+		if _, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY")); err != nil {
 			common.FatalLog(common.LogText("failed to parse CHANNEL_UPDATE_FREQUENCY: %s", err.Error()))
 		}
-		go controller.AutomaticallyUpdateChannels(frequency)
 	}
 
 	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
@@ -183,8 +183,8 @@ func main() {
 	}
 	service.ReportTaskFunc = requestplugin.ReportTask
 
-	// Register the periodic channel test, upstream model update, and async task
-	// polling (Midjourney / Suno / video) jobs as scheduled system tasks
+	// Register the periodic channel test, balance update, upstream model update,
+	// and async task polling (Midjourney / Suno / video) jobs as scheduled system tasks
 	// (DB-lease dedup across masters + run history), then start the runner that
 	// schedules and executes them. Master-only execution and the UpdateTask
 	// switch are enforced inside the runner and each handler's Enabled().

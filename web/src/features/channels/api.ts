@@ -753,16 +753,41 @@ export async function testAllChannels(): Promise<{
 }
 
 /**
- * Update balance for all enabled channels
+ * Update balance for all enabled channels. The server queues the update as a
+ * system task and answers with its id.
  */
 export async function updateAllChannelsBalance(): Promise<{
   success: boolean
   message?: string
-  /** `started` is false when a run was already in progress. */
-  data?: { started?: boolean } | null
+  /** `started` is false when a run was already queued or running; `task_id` is that run. */
+  data?: { started?: boolean; task_id?: string; status?: string } | null
 }> {
   const res = await api.get(
     '/api/channel/update_balance',
+    channelActionConfig()
+  )
+  return res.data
+}
+
+/** Progress of an update of all balances. */
+export type ChannelBalanceTask = {
+  task_id: string
+  status: 'pending' | 'running' | 'succeeded' | 'failed'
+  state?: { total?: number; processed?: number; progress?: number } | null
+  error?: string
+}
+
+/**
+ * Get the progress of an update of all balances, which any server node can
+ * answer.
+ */
+export async function getChannelBalanceTask(taskId: string): Promise<{
+  success: boolean
+  message?: string
+  data?: ChannelBalanceTask | null
+}> {
+  const res = await api.get(
+    `/api/channel/update_balance/task/${encodeURIComponent(taskId)}`,
     channelActionConfig()
   )
   return res.data

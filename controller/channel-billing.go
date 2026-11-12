@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -766,53 +767,99 @@ func UpdateChannelBalance(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// channelBalanceSummary is the result of an update of all balances.
+type channelBalanceSummary struct {
+	Queried int `json:"queried"`
+}
+
 // updateAllChannelsBalance queries the balance of every enabled channel,
-// balanceUpdateConcurrency channels at once.
-func updateAllChannelsBalance() error {
+// balanceUpdateConcurrency channels at once, and reports how many of them it
+// has queried. Once ctx ends, as when the run loses its task lease, it starts
+// no more queries and returns ctx's error.
+func updateAllChannelsBalance(ctx context.Context, report func(processed, total int)) (channelBalanceSummary, error) {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
-		return err
+		return channelBalanceSummary{}, err
 	}
+	enabled := make([]*model.Channel, 0, len(channels))
+	for _, channel := range channels {
+		if channel.Status == common.ChannelStatusEnabled {
+			enabled = append(enabled, channel)
+		}
+	}
+	report(0, len(enabled))
+
 	queue := make(chan *model.Channel)
+	queried := make(chan struct{})
 	var workers sync.WaitGroup
 	for range balanceUpdateConcurrency {
 		workers.Go(func() {
 			for channel := range queue {
 				updateBalanceInRun(channel)
+				queried <- struct{}{}
 				time.Sleep(common.RequestInterval)
 			}
 		})
 	}
-	for _, channel := range channels {
-		if channel.Status == common.ChannelStatusEnabled {
-			queue <- channel
+	go func() {
+		defer close(queue)
+		for _, channel := range enabled {
+			select {
+			case <-ctx.Done():
+				return
+			case queue <- channel:
+			}
 		}
+	}()
+	go func() {
+		workers.Wait()
+		close(queried)
+	}()
+
+	summary := channelBalanceSummary{}
+	for range queried {
+		summary.Queried++
+		report(summary.Queried, len(enabled))
 	}
-	close(queue)
-	workers.Wait()
-	return nil
+	return summary, ctx.Err()
 }
 
-// UpdateAllChannelsBalance starts an update of all balances in the
-// background and answers at once.
+// UpdateAllChannelsBalance queues an update of all balances as a system task
+// and answers at once with its task id. When one is already queued or
+// running, it answers with that one, and started is false.
 func UpdateAllChannelsBalance(c *gin.Context) {
-	if !startBalanceUpdate() {
-		common.ApiSuccessT(c, "A balance update is already running", gin.H{"started": false})
+	task, created, err := service.EnqueueSystemTask(model.SystemTaskTypeChannelBalance, nil)
+	if err != nil {
+		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccessT(c, "Balance update started in the background", gin.H{"started": true})
+	data := gin.H{"started": created, "task_id": task.TaskID, "status": task.Status}
+	if !created {
+		common.ApiSuccessT(c, "A balance update is already running", data)
+		return
+	}
+	common.ApiSuccessT(c, "Balance update started in the background", data)
 }
 
-func AutomaticallyUpdateChannels(frequency int) {
-	for {
-		time.Sleep(time.Duration(frequency) * time.Minute)
-		// A round an administrator's update still runs is skipped.
-		if !balanceUpdateRunning.CompareAndSwap(false, true) {
-			continue
-		}
-		common.SysLog(common.LogText("updating all channels"))
-		_ = updateAllChannelsBalance()
-		balanceUpdateRunning.Store(false)
-		common.SysLog(common.LogText("channels update done"))
+// GetChannelBalanceTask answers the progress of an update of all balances,
+// read from the system task any node can see: its status, how many enabled
+// channels it has queried of how many, and its failure. It reads no other
+// kind of system task.
+func GetChannelBalanceTask(c *gin.Context) {
+	task, err := model.GetSystemTaskByTaskID(c.Param("task_id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
 	}
+	if task == nil || task.Type != model.SystemTaskTypeChannelBalance {
+		common.ApiErrorT(c, "Balance update task not found")
+		return
+	}
+	response := task.ToResponse()
+	common.ApiSuccess(c, gin.H{
+		"task_id": response.TaskID,
+		"status":  response.Status,
+		"state":   response.State,
+		"error":   response.Error,
+	})
 }

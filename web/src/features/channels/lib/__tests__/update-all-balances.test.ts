@@ -24,6 +24,8 @@ import { api } from '@/lib/api'
 
 import { channelsQueryKeys, handleUpdateAllBalances } from '../channel-actions'
 
+const TASK_URL = '/api/channel/update_balance/task/systask_1'
+
 let queryClient: QueryClient
 
 beforeEach(() => {
@@ -36,16 +38,54 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function answer(data: Record<string, unknown>) {
-  return vi.spyOn(api, 'get').mockResolvedValue({ data })
+/**
+ * Answers the update request with `start` and each progress check with the
+ * next of `progress`; a progress check past the last one rejects.
+ */
+function serve(
+  start: Record<string, unknown>,
+  progress: Record<string, unknown>[] = []
+) {
+  const checks = [...progress]
+  return vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
+    if (url === '/api/channel/update_balance') return { data: start }
+    if (url === TASK_URL) {
+      const next = checks.shift()
+      if (next) return { data: next }
+    }
+    throw new Error(`unexpected request ${url}`)
+  })
 }
 
-test('a started update says it runs in the background and reloads the list later', async () => {
-  answer({
+function progressOf(status: string, processed: number, error = '') {
+  return {
     success: true,
-    message: 'Balance update started in the background',
-    data: { started: true },
-  })
+    data: {
+      task_id: 'systask_1',
+      status,
+      state: {
+        total: 3,
+        processed,
+        progress: Math.floor((processed * 100) / 3),
+      },
+      error,
+    },
+  }
+}
+
+test('a started update reloads the list as channels are queried and reports the end', async () => {
+  const get = serve(
+    {
+      success: true,
+      message: 'Balance update started in the background',
+      data: { started: true, task_id: 'systask_1', status: 'pending' },
+    },
+    [
+      progressOf('running', 1),
+      progressOf('running', 1),
+      progressOf('succeeded', 3),
+    ]
+  )
   const success = vi.spyOn(toast, 'success')
   const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
   const onSuccess = vi.fn()
@@ -58,56 +98,96 @@ test('a started update says it runs in the background and reloads the list later
   expect(onSuccess).toHaveBeenCalledOnce()
   expect(invalidate).not.toHaveBeenCalled()
 
-  await vi.advanceTimersByTimeAsync(10_000)
+  await vi.advanceTimersByTimeAsync(5_000)
   expect(invalidate).toHaveBeenCalledTimes(1)
   expect(invalidate).toHaveBeenLastCalledWith({
     queryKey: channelsQueryKeys.lists(),
   })
 
-  await vi.advanceTimersByTimeAsync(50_000)
+  await vi.advanceTimersByTimeAsync(5_000)
+  expect(invalidate).toHaveBeenCalledTimes(1)
+
+  await vi.advanceTimersByTimeAsync(5_000)
   expect(invalidate).toHaveBeenCalledTimes(2)
+  expect(success).toHaveBeenLastCalledWith('All balances updated')
+
+  await vi.advanceTimersByTimeAsync(30_000)
+  expect(get).toHaveBeenCalledTimes(4)
 })
 
-test('an older server that only answers success still counts as started', async () => {
-  answer({ success: true, message: '' })
-  const success = vi.spyOn(toast, 'success')
-
-  await handleUpdateAllBalances(queryClient)
-
-  expect(success).toHaveBeenCalledWith(
-    'Balances are updating in the background. The list will refresh on its own.'
+test('an update already running is reported and followed until it fails', async () => {
+  serve(
+    {
+      success: true,
+      message: 'A balance update is already running',
+      message_key: 'A balance update is already running',
+      data: { started: false, task_id: 'systask_1', status: 'running' },
+    },
+    [progressOf('failed', 2, 'context canceled')]
   )
-})
-
-test('an update already running is reported without starting the reloads', async () => {
-  answer({
-    success: true,
-    message: 'A balance update is already running',
-    message_key: 'A balance update is already running',
-    data: { started: false },
-  })
-  const success = vi.spyOn(toast, 'success')
   const info = vi.spyOn(toast, 'info')
+  const error = vi.spyOn(toast, 'error')
   const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
   const onSuccess = vi.fn()
 
   await handleUpdateAllBalances(queryClient, onSuccess)
-  await vi.advanceTimersByTimeAsync(60_000)
-
   expect(info).toHaveBeenCalledWith('A balance update is already running')
-  expect(success).not.toHaveBeenCalled()
   expect(onSuccess).not.toHaveBeenCalled()
-  expect(invalidate).not.toHaveBeenCalled()
+
+  await vi.advanceTimersByTimeAsync(5_000)
+  expect(invalidate).toHaveBeenCalledOnce()
+  expect(error).toHaveBeenCalledWith('Balance update failed', {
+    description: 'context canceled',
+  })
 })
 
-test('a refused update shows the server message', async () => {
-  answer({ success: false, message: 'Balance updates are turned off' })
+test('a second click while an update is followed adds no second follower', async () => {
+  const get = serve(
+    {
+      success: true,
+      data: { started: false, task_id: 'systask_1', status: 'running' },
+    },
+    [progressOf('succeeded', 3)]
+  )
+  const success = vi.spyOn(toast, 'success')
+
+  await handleUpdateAllBalances(queryClient)
+  await handleUpdateAllBalances(queryClient)
+  await vi.advanceTimersByTimeAsync(30_000)
+
+  expect(get).toHaveBeenCalledTimes(3)
+  expect(success).toHaveBeenCalledOnce()
+  expect(success).toHaveBeenCalledWith('All balances updated')
+})
+
+test('a failed progress check stops following after one last reload', async () => {
+  const get = serve({
+    success: true,
+    data: { started: true, task_id: 'systask_1', status: 'pending' },
+  })
   const error = vi.spyOn(toast, 'error')
   const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
 
   await handleUpdateAllBalances(queryClient)
-  await vi.advanceTimersByTimeAsync(60_000)
+  await vi.advanceTimersByTimeAsync(30_000)
+
+  expect(get).toHaveBeenCalledTimes(2)
+  expect(invalidate).toHaveBeenCalledOnce()
+  expect(error).not.toHaveBeenCalled()
+})
+
+test('a refused update shows the server message and checks no progress', async () => {
+  const get = serve({
+    success: false,
+    message: 'Balance updates are turned off',
+  })
+  const error = vi.spyOn(toast, 'error')
+  const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+  await handleUpdateAllBalances(queryClient)
+  await vi.advanceTimersByTimeAsync(30_000)
 
   expect(error).toHaveBeenCalledWith('Balance updates are turned off')
+  expect(get).toHaveBeenCalledOnce()
   expect(invalidate).not.toHaveBeenCalled()
 })
