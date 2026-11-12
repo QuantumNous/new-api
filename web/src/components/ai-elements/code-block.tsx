@@ -21,7 +21,13 @@ For commercial licensing, please contact support@quantumnous.com
 
 import { javascript } from '@codemirror/lang-javascript'
 import { markdown } from '@codemirror/lang-markdown'
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { python } from '@codemirror/lang-python'
+import {
+  HighlightStyle,
+  syntaxHighlighting,
+  StreamLanguage,
+} from '@codemirror/language'
+import { shell } from '@codemirror/legacy-modes/mode/shell'
 import { EditorState, type Extension } from '@codemirror/state'
 import {
   EditorView,
@@ -138,6 +144,24 @@ const codeMirrorTheme = EditorView.theme({
     background: 'transparent',
     color: 'var(--foreground)',
     fontSize: '13px',
+    '--code-syntax-variable': '#9f4c43',
+    '--code-syntax-keyword': '#8e1c8e',
+    '--code-syntax-type': '#7a5c00',
+    '--code-syntax-number': '#7a5c00',
+    '--code-syntax-string': '#3f6e3f',
+    '--code-syntax-function': '#006c83',
+    '--code-syntax-operator': '#006c83',
+    '--code-syntax-comment': '#66666a',
+  },
+  '.dark &': {
+    '--code-syntax-variable': '#e87a82',
+    '--code-syntax-keyword': '#cc82df',
+    '--code-syntax-type': '#e5c07b',
+    '--code-syntax-number': '#d19a66',
+    '--code-syntax-string': '#98c379',
+    '--code-syntax-function': '#61afef',
+    '--code-syntax-operator': '#56b6c2',
+    '--code-syntax-comment': '#969ba5',
   },
   '.cm-content': {
     caretColor: 'var(--foreground)',
@@ -145,7 +169,6 @@ const codeMirrorTheme = EditorView.theme({
     lineHeight: '1.5rem',
     minHeight: 'var(--code-editor-min-height)',
     minWidth: 'max-content',
-    padding: '1rem 1rem 1rem 0',
   },
   '.cm-editor': {
     background: 'transparent',
@@ -187,28 +210,110 @@ const codeMirrorTheme = EditorView.theme({
   },
 })
 
+const codeMirrorNoLineNumberPaddingTheme = EditorView.theme({
+  '.cm-content': {
+    padding: '1rem',
+  },
+})
+
+const codeMirrorLineNumberPaddingTheme = EditorView.theme({
+  '.cm-content': {
+    padding: '1rem 1rem 1rem 0',
+  },
+})
+
 const codeMirrorHighlightStyle = syntaxHighlighting(
   HighlightStyle.define([
-    { tag: highlightTags.heading, color: '#e06c75', fontWeight: '600' },
-    { tag: [highlightTags.strong, highlightTags.emphasis], color: '#d19a66' },
-    { tag: [highlightTags.link, highlightTags.url], color: '#61afef' },
     {
-      tag: [highlightTags.monospace, highlightTags.contentSeparator],
-      color: '#98c379',
+      tag: highlightTags.heading,
+      color: 'var(--code-syntax-variable)',
+    },
+    {
+      tag: highlightTags.strong,
+      color: 'var(--code-syntax-type)',
+    },
+    {
+      tag: highlightTags.emphasis,
+      color: 'var(--code-syntax-keyword)',
+    },
+    {
+      tag: [highlightTags.link, highlightTags.url],
+      color: 'var(--code-syntax-function)',
+    },
+    {
+      tag: highlightTags.monospace,
+      color: 'var(--code-syntax-string)',
+    },
+    {
+      tag: highlightTags.contentSeparator,
+      color: 'var(--code-syntax-comment)',
     },
     {
       tag: [highlightTags.keyword, highlightTags.processingInstruction],
-      color: '#c678dd',
+      color: 'var(--code-syntax-keyword)',
     },
     {
-      tag: [highlightTags.atom, highlightTags.bool, highlightTags.number],
-      color: '#d19a66',
+      tag: [
+        highlightTags.atom,
+        highlightTags.bool,
+        highlightTags.number,
+        highlightTags.null,
+        highlightTags.self,
+        highlightTags.unit,
+      ],
+      color: 'var(--code-syntax-number)',
     },
-    { tag: [highlightTags.string, highlightTags.inserted], color: '#98c379' },
-    { tag: [highlightTags.deleted, highlightTags.invalid], color: '#e06c75' },
+    {
+      tag: [highlightTags.string, highlightTags.inserted],
+      color: 'var(--code-syntax-string)',
+    },
+    {
+      tag: [highlightTags.deleted, highlightTags.invalid],
+      color: 'var(--code-syntax-variable)',
+    },
     {
       tag: [highlightTags.meta, highlightTags.comment],
-      color: 'var(--muted-foreground)',
+      color: 'var(--code-syntax-comment)',
+    },
+    {
+      tag: [
+        highlightTags.variableName,
+        highlightTags.propertyName,
+        highlightTags.labelName,
+        highlightTags.tagName,
+      ],
+      color: 'var(--code-syntax-variable)',
+    },
+    {
+      tag: [highlightTags.className, highlightTags.typeName],
+      color: 'var(--code-syntax-type)',
+    },
+    {
+      tag: highlightTags.standard(highlightTags.variableName),
+      color: 'var(--code-syntax-function)',
+    },
+    {
+      tag: [
+        highlightTags.function(highlightTags.variableName),
+        highlightTags.function(highlightTags.propertyName),
+      ],
+      color: 'var(--code-syntax-function)',
+    },
+    {
+      tag: highlightTags.attributeName,
+      color: 'var(--code-syntax-type)',
+    },
+    {
+      tag: highlightTags.operator,
+      color: 'var(--code-syntax-operator)',
+    },
+    {
+      tag: highlightTags.function(highlightTags.punctuation),
+      color: 'var(--code-syntax-operator)',
+    },
+    {
+      tag: highlightTags.punctuation,
+      color: 'var(--code-syntax-comment)',
     },
   ])
 )
@@ -238,6 +343,19 @@ function getCodeMirrorLanguageExtension(language: BundledLanguage | string) {
 
   if (requestedLanguage === 'typescript' || requestedLanguage === 'tsx') {
     return javascript({ jsx: requestedLanguage === 'tsx', typescript: true })
+  }
+
+  if (requestedLanguage === 'python') {
+    return python()
+  }
+
+  if (
+    requestedLanguage === 'bash' ||
+    requestedLanguage === 'shell' ||
+    requestedLanguage === 'sh' ||
+    requestedLanguage === 'zsh'
+  ) {
+    return StreamLanguage.define(shell)
   }
 
   return []
@@ -308,6 +426,9 @@ function getCodeMirrorExtensions(options: {
 
   if (options.showLineNumbers) {
     extensions.unshift(lineNumbers())
+    extensions.push(codeMirrorLineNumberPaddingTheme)
+  } else {
+    extensions.push(codeMirrorNoLineNumberPaddingTheme)
   }
 
   return extensions
