@@ -23,6 +23,7 @@ import {
   CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_TEI,
   CHANNEL_TYPE_OPTIONS,
   MODEL_FETCHABLE_TYPES,
 } from '../../constants'
@@ -256,5 +257,40 @@ describe('New API channel task plugin extensions', () => {
     expect(JSON.parse(openai.channel.setting ?? '{}')).not.toHaveProperty(
       'task_extend_plugin_keys'
     )
+  })
+})
+
+describe('TEI rerank channel', () => {
+  test('requires a server address and saves the manual model and EMPTY credential', () => {
+    expect(CHANNEL_TYPE_OPTIONS).toContainEqual({
+      value: CHANNEL_TYPE_TEI,
+      label: 'Hugging Face TEI (Rerank)',
+    })
+    expect(MODEL_FETCHABLE_TYPES.has(CHANNEL_TYPE_TEI)).toBe(false)
+    const form = {
+      ...newAPIForm(''),
+      type: CHANNEL_TYPE_TEI,
+      key: 'EMPTY',
+      models: 'bge-reranker-v2-m3',
+    }
+    const blank = channelFormSchema.safeParse(form)
+    expect(blank.success).toBe(false)
+    if (!blank.success) {
+      expect(blank.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: ['base_url'] }),
+        ])
+      )
+    }
+    const parsed = channelFormSchema.parse({
+      ...form,
+      base_url: 'http://tei:80/',
+    })
+    expect(transformFormDataToCreatePayload(parsed).channel).toMatchObject({
+      type: CHANNEL_TYPE_TEI,
+      base_url: 'http://tei:80',
+      key: 'EMPTY',
+      models: 'bge-reranker-v2-m3',
+    })
   })
 })
