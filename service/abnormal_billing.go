@@ -21,7 +21,6 @@ const (
 
 const abnormalChargeCaseKey = "abnormal_charge_case"
 
-
 // classifyAbnormalCharge reads the tracked upstream attempt. A request whose
 // attempt is not tracked is treated as normal so it keeps today's charge.
 func classifyAbnormalCharge(c *gin.Context, info *relaycommon.RelayInfo) abnormalChargeCase {
