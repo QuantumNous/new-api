@@ -1525,6 +1525,7 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               <DynamicPricingBreakdown
                 billingExpr={props.model.billing_expr}
                 usageSchema={props.model.billing_usage_schema}
+                showCurrentTimeTier={!props.model.billing_usage_schema}
                 taskPriceOptions={{
                   showRechargePrice,
                   priceRate: props.priceRate,

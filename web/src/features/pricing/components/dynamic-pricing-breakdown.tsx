@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
+import { useBillingTime } from '../hooks/use-billing-time'
 import {
   BILLING_PRICING_VARS,
   MATCH_CONTAINS,
@@ -34,6 +35,8 @@ import {
   MATCH_LT,
   MATCH_RANGE,
   SOURCE_TIME,
+  getCurrentTimePricingTiers,
+  normalizeTierLabel,
   parseTiersFromExpr,
   requestRuleGroupsFromTrace,
   splitBillingExprAndRequestRules,
@@ -97,6 +100,8 @@ type DynamicPricingBreakdownProps = {
    * any synthesized combination label.
    */
   usageFacts?: Record<string, string | number>
+  /** Marks the current time-matched token tier in model details only. */
+  showCurrentTimeTier?: boolean
 }
 
 type BreakdownTier = ParsedTier | ParsedTaskTier
@@ -290,10 +295,12 @@ export function DynamicPricingBreakdown({
   usageSchema,
   taskPriceOptions,
   usageFacts,
+  showCurrentTimeTier = false,
 }: DynamicPricingBreakdownProps) {
   const { t, i18n } = useTranslation()
   const expr = billingExpr || ''
   const currency = useSystemConfigStore((s) => s.config.currency)
+  const billingTime = useBillingTime(expr, showCurrentTimeTier && !usageSchema)
 
   const { symbol, rate } = useMemo(() => {
     if (currency.quotaDisplayType === 'CNY') {
@@ -334,6 +341,32 @@ export function DynamicPricingBreakdown({
       ruleGroups: parsedRules || [],
     }
   }, [expr, usageSchema, requestRules])
+
+  const currentTimeTiers = useMemo<ParsedTier[]>(() => {
+    if (!showCurrentTimeTier || usageSchema || billingTime === undefined) {
+      return []
+    }
+    const split = splitBillingExprAndRequestRules(expr)
+    const currentTiers = getCurrentTimePricingTiers(
+      split.billingExpr,
+      new Date(billingTime)
+    )
+    const currentTokenTiers = (currentTiers ?? []).filter(
+      (tier) => tier.billingUnit !== 'request' && Boolean(tier.conditionText)
+    )
+    return currentTokenTiers.length === 1 ? currentTokenTiers : []
+  }, [billingTime, expr, showCurrentTimeTier, usageSchema])
+
+  const isCurrentTimeTier = (tier: BreakdownTier): boolean =>
+    !isTaskBreakdownTier(tier) &&
+    Boolean(tier.conditionText) &&
+    currentTimeTiers.some(
+      (currentTier) =>
+        normalizeTierLabel(currentTier.label) ===
+          normalizeTierLabel(tier.label) &&
+        currentTier.billingUnit === tier.billingUnit &&
+        currentTier.conditionText === tier.conditionText
+    )
 
   const hasTiers = tiers.length > 0
   const hasRules = ruleGroups.length > 0
@@ -503,6 +536,7 @@ export function DynamicPricingBreakdown({
                 matchedBillingUnit,
                 matchedFixedPrice
               )
+              const isCurrentTier = isCurrentTimeTier(tier)
               const rowKey = nextOccurrenceKey(
                 JSON.stringify(tier),
                 mobileTierKeyOccurrences
@@ -512,7 +546,8 @@ export function DynamicPricingBreakdown({
                   key={`tier-mobile-${rowKey}`}
                   className={cn(
                     'rounded-md border p-2',
-                    isMatched && 'border-emerald-500/40 bg-emerald-500/10'
+                    (isMatched || isCurrentTier) &&
+                      'border-emerald-500/40 bg-emerald-500/10'
                   )}
                 >
                   <div className='mb-1.5 flex flex-wrap items-center gap-1.5'>
@@ -530,6 +565,14 @@ export function DynamicPricingBreakdown({
                         className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
                       >
                         {t('Matched')}
+                      </Badge>
+                    )}
+                    {isCurrentTier && (
+                      <Badge
+                        variant='secondary'
+                        className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                      >
+                        {t('Current tier')}
                       </Badge>
                     )}
                   </div>
@@ -599,8 +642,9 @@ export function DynamicPricingBreakdown({
                 matchedBillingUnit,
                 matchedFixedPrice
               )
+              const isCurrentTier = isCurrentTimeTier(tier)
               return cn(
-                isMatched &&
+                (isMatched || isCurrentTier) &&
                   'bg-emerald-50/70 hover:bg-emerald-50/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/10'
               )
             }}
@@ -632,6 +676,7 @@ export function DynamicPricingBreakdown({
                     matchedBillingUnit,
                     matchedFixedPrice
                   )
+                  const isCurrentTier = isCurrentTimeTier(tier)
                   return (
                     <>
                       <div className='flex flex-wrap items-center gap-1.5'>
@@ -649,6 +694,14 @@ export function DynamicPricingBreakdown({
                             className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
                           >
                             {t('Matched')}
+                          </Badge>
+                        )}
+                        {isCurrentTier && (
+                          <Badge
+                            variant='secondary'
+                            className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                          >
+                            {t('Current tier')}
                           </Badge>
                         )}
                       </div>

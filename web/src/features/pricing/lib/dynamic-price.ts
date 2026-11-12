@@ -87,6 +87,7 @@ export type DynamicPricingTier = ParsedTier | ParsedTaskTier
 export type DynamicPricingSummary = {
   tiers: DynamicPricingTier[]
   tier: DynamicPricingTier | null
+  currentTokenTier?: ParsedTier | null
   tierCount: number
   hasRequestRules: boolean
   isSpecialExpression: boolean
@@ -510,6 +511,8 @@ export function getDynamicPricingSummary(
   const tier = isTaskUsage
     ? (summaryTiers.at(-1) ?? null)
     : (summaryTiers[0] ?? null)
+  const currentTokenTiers =
+    timeTiers?.filter((timeTier) => timeTier.billingUnit !== 'request') ?? []
   let entries = getDynamicPriceEntries(tier, {
     ...options,
     usageSchema: model.billing_usage_schema,
@@ -565,6 +568,8 @@ export function getDynamicPricingSummary(
   return {
     tiers,
     tier,
+    currentTokenTier:
+      currentTokenTiers.length === 1 ? currentTokenTiers[0] : null,
     tierCount: tiers.length,
     hasRequestRules: hasDynamicRequestRules(model),
     isSpecialExpression: rawExpression.trim().length > 0 && tiers.length === 0,
