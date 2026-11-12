@@ -1,0 +1,92 @@
+# New-API blue-green deployment.
+#
+# Both application slots run side by side against the same database and Redis.
+# The gateway (nginx) points every request at whichever slot the file
+# nginx/upstream/active.conf names, so a release is: start the idle slot, wait
+# for its health check, then repoint the gateway. In-flight streams on the old
+# slot keep running; it is stopped only after the drain period.
+#
+# Traffic is moved by ./switch.sh, never by editing active.conf by hand.
+
+x-new-api: &new-api
+  image: ${NEW_API_IMAGE:-ghcr.io/jsxiao/new-api:main}
+  restart: unless-stopped
+  env_file:
+    - app.env
+  environment:
+    # Every slot must share the same SESSION_SECRET, SQL_DSN and
+    # REDIS_CONN_STRING, all of which live in app.env.
+    TZ: ${TZ:-Asia/Shanghai}
+  expose:
+    - "3000"
+  volumes:
+    # Data is shared; the SQLite file is not. Use PostgreSQL or MySQL here:
+    # two processes writing one SQLite file corrupt it.
+    - ./data:/data
+  networks:
+    - new-api
+  # Must exceed SHUTDOWN_TIMEOUT_SECONDS so streaming relays can finish.
+  stop_grace_period: 150s
+  logging:
+    driver: json-file
+    options:
+      max-size: "50m"
+      max-file: "5"
+
+services:
+  app-blue:
+    <<: *new-api
+    container_name: new-api-blue
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      NODE_NAME: new-api-blue
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://127.0.0.1:3000/api/status | grep -q '\"success\": *true'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 90s
+
+  app-green:
+    <<: *new-api
+    container_name: new-api-green
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      NODE_NAME: new-api-green
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://127.0.0.1:3000/api/status | grep -q '\"success\": *true'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 90s
+
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: new-api-gateway
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PORT:-3000}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # The whole directory is mounted, not the single file: switch.sh replaces
+      # the file atomically and the bind mount then still sees the new one.
+      - ./nginx/upstream:/etc/nginx/upstream:ro
+    networks:
+      - new-api
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/gw-health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  new-api:
+    driver: bridge

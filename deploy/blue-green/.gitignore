@@ -1,0 +1,5 @@
+# Local configuration and runtime state; see app.env.example.
+app.env
+.env
+.last-active
+data/
