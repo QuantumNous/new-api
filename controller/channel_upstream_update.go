@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/huawei"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -433,6 +434,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		} else {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
+	case constant.ChannelTypeHuaweiMaaS:
+		// Huawei MaaS lists models under /v2/models with an OpenAI-style body.
+		url = fmt.Sprintf("%s/v2/models", baseURL)
 	default:
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
@@ -463,7 +467,18 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		}
 		return item.ID
 	})
-	return normalizeModelNames(ids), nil
+	ids = normalizeModelNames(ids)
+	if channel.Type == constant.ChannelTypeHuaweiMaaS {
+		// MaaS only lists text generation models under /v2/models. The
+		// embedding, rerank and image models stay callable on their own
+		// endpoints but never appear in that response, so re-adding the ones
+		// this channel already declares keeps the upstream model diff from
+		// reporting them as removed on every fetch.
+		ids = mergeModelNames(ids, lo.Filter(normalizeModelNames(channel.GetModels()), func(modelName string, _ int) bool {
+			return slices.Contains(huawei.NonChatModelList, modelName)
+		}))
+	}
+	return ids, nil
 }
 
 func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string) ([]string, error) {
