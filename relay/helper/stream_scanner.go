@@ -78,6 +78,14 @@ func copyCodexSSEHeaders(c *gin.Context, resp *http.Response, copyAll bool) {
 	}
 }
 
+// copyAllSSEHeaders reports whether a stream keeps the upstream response
+// headers, as a non-stream response already does. A New API channel points at
+// another gateway, whose request ID and routing headers are what an operator
+// needs to trace a streamed call through both gateways.
+func copyAllSSEHeaders(channelType int) bool {
+	return channelType == constant.ChannelTypeCodex || channelType == constant.ChannelTypeNewAPI
+}
+
 // StreamWriteBudget gives the writes of one stream a deadline of
 // streamWriteTimeout past the time a client reading at streamMinClientRate
 // needs for everything written so far. A fixed deadline per write cut slow
@@ -195,7 +203,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	defer cleanup()
 
 	scanner.Split(bufio.ScanLines)
-	copyCodexSSEHeaders(c, resp, info.ChannelMeta.ChannelType == constant.ChannelTypeCodex)
+	copyCodexSSEHeaders(c, resp, copyAllSSEHeaders(info.ChannelMeta.ChannelType))
 	SetEventStreamHeaders(c)
 
 	ctx = context.WithValue(ctx, "stop_chan", stopChan)

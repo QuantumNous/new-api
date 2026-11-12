@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -763,4 +764,23 @@ func TestSetEventStreamHeadersBoundsStreamWritesByBudget(t *testing.T) {
 	require.NotEmpty(t, recorder.deadlines)
 	assert.False(t, recorder.deadlines[0].Before(before.Add(streamWriteTimeout+450*time.Second)))
 	assert.Contains(t, recorder.Body.String(), "data: AAAA")
+}
+
+func TestStreamScannerHandler_NewAPICopiesUpstreamHeaders(t *testing.T) {
+	t.Parallel()
+
+	c, resp, info := setupStreamTest(t, strings.NewReader(""))
+	info.ChannelMeta.ChannelType = constant.ChannelTypeNewAPI
+	resp.Header = http.Header{
+		"X-Upstream-Trace":    {"trace-id"},
+		"X-Oneapi-Request-Id": {"upstream-request-id"},
+		"Content-Length":      {"42"},
+	}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	assert.Equal(t, "trace-id", c.Writer.Header().Get("X-Upstream-Trace"))
+	assert.Empty(t, c.Writer.Header().Get("Content-Length"))
+	assert.Empty(t, c.Writer.Header().Get("X-Oneapi-Request-Id"))
+	assert.Equal(t, "upstream-request-id", c.GetString(common.UpstreamRequestIdKey))
 }
