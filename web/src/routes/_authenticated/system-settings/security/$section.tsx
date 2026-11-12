@@ -28,6 +28,10 @@ export const Route = createFileRoute(
   '/_authenticated/system-settings/security/$section'
 )({
   beforeLoad: ({ params }) => {
+    // Sensitive words are a request processing instance now.
+    if (params.section === 'sensitive-words') {
+      throw redirect({ to: '/request-processing', replace: true })
+    }
     const validSections = SECURITY_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({

@@ -22,14 +22,23 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import {
+  CodeBlock,
+  CodeBlockCopyButton,
+} from '@/components/ai-elements/code-block'
 import { Dialog } from '@/components/dialog'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
-import { formatCurrencyFromUSD } from '@/lib/currency'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampToDate } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
+import { createServerError } from '@/lib/server-error-message'
 
 import { getCodexUsage, updateChannelBalance } from '../../api'
 import { channelsQueryKeys } from '../../lib'
+import { formatChannelBalanceSummary } from '../../lib/channel-balance'
+import { ChannelBalanceDetails } from '../channel-balance-details'
 import { useChannels } from '../channels-provider'
 import {
   CodexUsageDialog,
@@ -37,21 +46,22 @@ import {
 } from './codex-usage-dialog'
 
 type BalanceQueryDialogProps = {
+  initialRawResponse?: string
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function BalanceQueryDialog({
-  open,
-  onOpenChange,
-}: BalanceQueryDialogProps) {
-  const { t } = useTranslation()
+export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
+  const { t, i18n } = useTranslation()
   const { currentRow, setCurrentRow } = useChannels()
   const queryClient = useQueryClient()
   const [isQuerying, setIsQuerying] = useState(false)
   const [balance, setBalance] = useState<number | null>(null)
   const [balanceUpdatedTime, setBalanceUpdatedTime] = useState<number | null>(
     null
+  )
+  const [rawResponse, setRawResponse] = useState<string | null>(
+    props.initialRawResponse ?? null
   )
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
@@ -65,13 +75,11 @@ export function BalanceQueryDialog({
     try {
       const res = await getCodexUsage(row.id)
       if (!res.success) {
-        throw new Error(res.message || t('Failed to fetch usage'))
+        throw createServerError(res, t('Failed to fetch usage'))
       }
       setCodexUsageResponse(res)
     } catch (error: unknown) {
-      toast.error(
-        error instanceof Error ? error.message : t('Failed to fetch usage')
-      )
+      handleServerError(error, t('Failed to fetch usage'))
     } finally {
       setIsQuerying(false)
     }
@@ -79,10 +87,10 @@ export function BalanceQueryDialog({
 
   useEffect(() => {
     if (!isCodex) return
-    if (!open) return
+    if (!props.open) return
     handleQueryCodexUsage()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isCodex])
+  }, [props.open, isCodex])
 
   if (!currentRow) return null
 
@@ -103,19 +111,21 @@ export function BalanceQueryDialog({
           ...currentRow,
           balance: newBalance,
           balance_updated_time: now,
+          balance_detail: response.balance_detail ?? currentRow.balance_detail,
         })
 
         // Invalidate queries to refresh the table
         await queryClient.invalidateQueries({
           queryKey: channelsQueryKeys.lists(),
         })
+        setRawResponse(null)
+      } else if (response.success && response.raw_response !== undefined) {
+        setRawResponse(response.raw_response)
       } else {
-        toast.error(response.message || t('Failed to query balance'))
+        handleServerError(response, t('Failed to query balance'))
       }
     } catch (error: unknown) {
-      toast.error(
-        error instanceof Error ? error.message : t('Failed to query balance')
-      )
+      handleServerError(error, t('Failed to query balance'))
     } finally {
       setIsQuerying(false)
     }
@@ -124,15 +134,18 @@ export function BalanceQueryDialog({
   const handleClose = () => {
     setBalance(null)
     setBalanceUpdatedTime(null)
+    setRawResponse(null)
     setCodexUsageResponse(null)
-    onOpenChange(false)
+    props.onOpenChange(false)
   }
 
+  // The detail is the upstream's own currency and limits, kept on the row.
   const formatBalance = (bal: number) =>
-    formatCurrencyFromUSD(bal, {
+    formatChannelBalanceSummary(currentRow.balance_detail, bal, {
       digitsLarge: 2,
       digitsSmall: 4,
       abbreviate: false,
+      locale: toIntlLocale(i18n.resolvedLanguage || i18n.language),
     })
 
   const formatDate = (timestamp: number) => {
@@ -143,7 +156,7 @@ export function BalanceQueryDialog({
   if (isCodex) {
     return (
       <CodexUsageDialog
-        open={open}
+        open={props.open}
         onOpenChange={(v) => {
           if (!v) handleClose()
         }}
@@ -158,7 +171,7 @@ export function BalanceQueryDialog({
 
   return (
     <Dialog
-      open={open}
+      open={props.open}
       onOpenChange={handleClose}
       title={t('Query Balance')}
       description={
@@ -176,24 +189,54 @@ export function BalanceQueryDialog({
       }
     >
       <div className='space-y-4 py-4'>
-        {/* Current Balance Display */}
-        <div className='bg-muted/50 rounded-lg border p-4'>
-          <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
-            <IconBadge tone='success' size='xs'>
-              <DollarSign />
-            </IconBadge>
-            <span>{t('Current Balance')}</span>
-          </div>
-          <div className='text-2xl font-bold'>
-            {balance !== null
-              ? formatBalance(balance)
-              : formatBalance(currentRow.balance)}
-          </div>
-          <div className='text-muted-foreground mt-2 text-xs'>
-            {t('Last updated:')}{' '}
-            {formatDate(balanceUpdatedTime ?? currentRow.balance_updated_time)}
-          </div>
-        </div>
+        {rawResponse !== null ? (
+          <>
+            <Alert>
+              <AlertTitle>{t('Balance response not recognized')}</AlertTitle>
+              <AlertDescription>
+                {t(
+                  'The upstream response is valid JSON, but it does not match the OpenAI credit_summary format. The channel balance was not updated.'
+                )}
+              </AlertDescription>
+            </Alert>
+            <CodeBlock
+              code={rawResponse}
+              language='json'
+              maxExpandedLines={24}
+              showLineNumbers
+              title={t('Upstream JSON response')}
+            >
+              <CodeBlockCopyButton />
+            </CodeBlock>
+          </>
+        ) : (
+          <>
+            {/* Current Balance Display */}
+            <div className='bg-muted/50 rounded-lg border p-4'>
+              <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
+                <IconBadge tone='success' size='xs'>
+                  <DollarSign />
+                </IconBadge>
+                <span>{t('Current Balance')}</span>
+              </div>
+              <div className='text-2xl font-bold'>
+                {balance !== null
+                  ? formatBalance(balance)
+                  : formatBalance(currentRow.balance)}
+              </div>
+              <ChannelBalanceDetails
+                result={currentRow.balance_detail}
+                className='mt-2'
+              />
+              <div className='text-muted-foreground mt-2 text-xs'>
+                {t('Last updated:')}{' '}
+                {formatDate(
+                  balanceUpdatedTime ?? currentRow.balance_updated_time
+                )}
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Balance Update Button */}
         <Button

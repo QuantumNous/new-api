@@ -16,224 +16,86 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
-import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import type { z } from 'zod'
 
-import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  FormDescription,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-  InputOTPSeparator,
-} from '@/components/ui/input-otp'
-import { login2fa } from '@/features/auth/api'
-import {
-  otpFormSchema,
-  OTP_LENGTH,
-  BACKUP_CODE_LENGTH,
-} from '@/features/auth/constants'
-import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
-import {
-  isValidOTP,
-  isValidBackupCode,
-  formatBackupCode,
-  cleanBackupCode,
-} from '@/features/auth/lib/validation'
-import { getServerErrorMessageKey } from '@/lib/server-error-message'
-import { cn } from '@/lib/utils'
+import { handleServerError } from '@/lib/handle-server-error'
+import { AuthOperationError } from '@/lib/secure-verification'
 import { useAuthStore } from '@/stores/auth-store'
 
-type OtpFormProps = React.HTMLAttributes<HTMLFormElement>
+import { useAuthRedirect } from '../../hooks/use-auth-redirect'
+import {
+  SecureVerificationDialog,
+  useSecureVerification,
+} from '../../secure-verification'
 
-export function OtpForm({ className, ...props }: OtpFormProps) {
+export function OtpForm() {
   const { t } = useTranslation()
-  const [isLoading, setIsLoading] = useState(false)
-  const [useBackupCode, setUseBackupCode] = useState(false)
-
-  const pending2FAFlowToken = useAuthStore(
-    (state) => state.auth.pending2FAFlowToken
-  )
+  // Transfer the pending challenge from the navigation handoff into this page's
+  // lifetime. Reloading or leaving the page cannot resume it from browser storage.
+  const pending = useRef(
+    useAuthStore.getState().auth.pendingLoginVerification
+  ).current
+  const initialSessionID = useRef(
+    useAuthStore.getState().auth.session?.sid
+  ).current
+  const sessionID = useAuthStore((state) => state.auth.session?.sid)
+  const verification = useSecureVerification()
+  const { requestLoginVerification, cancel } = verification
   const { handleLoginSuccess, redirectToLogin } = useAuthRedirect()
+  const completed = useRef(false)
 
-  const form = useForm<z.infer<typeof otpFormSchema>>({
-    resolver: zodResolver(otpFormSchema),
-    defaultValues: { otp: '' },
-  })
-
-  const otp = form.watch('otp')
-
-  async function onSubmit(data: z.infer<typeof otpFormSchema>) {
-    // Validate based on mode
-    if (useBackupCode) {
-      if (!isValidBackupCode(data.otp)) {
-        toast.error(t('Backup code must be in format XXXX-XXXX'))
-        return
-      }
-    } else {
-      if (!isValidOTP(data.otp)) {
-        toast.error(t('Verification code must be 6 digits'))
-        return
-      }
+  useEffect(() => {
+    if (completed.current) return
+    if (!pending) {
+      redirectToLogin()
+      return
     }
-
-    setIsLoading(true)
-    try {
-      // Remove all hyphens from backup code before sending to backend
-      const code = useBackupCode ? cleanBackupCode(data.otp) : data.otp
-      if (!pending2FAFlowToken) {
-        toast.error(t('Login flow expired. Please sign in again.'))
+    if (sessionID !== initialSessionID) {
+      cancel()
+      return
+    }
+    if (useAuthStore.getState().auth.pendingLoginVerification === pending) {
+      useAuthStore.getState().auth.setPendingLoginVerification(null)
+    }
+    let active = true
+    void (async () => {
+      try {
+        const bundle = await requestLoginVerification(pending.challenge)
+        if (
+          !active ||
+          useAuthStore.getState().auth.session?.sid !== initialSessionID
+        ) {
+          return
+        }
+        if (!bundle) {
+          redirectToLogin()
+          return
+        }
+        completed.current = true
+        await handleLoginSuccess(bundle, pending.redirectTo)
+        toast.success(t('Signed in'))
+      } catch (error) {
+        if (!active) return
+        handleServerError(AuthOperationError.from(error))
         redirectToLogin()
-        return
       }
-      const res = await login2fa({
-        code,
-        flow_token: pending2FAFlowToken,
-      })
-
-      if (!res.success) {
-        if (getServerErrorMessageKey(res)) return
-        toast.error(res.message || t('Invalid code'))
-        return
-      }
-
-      if (!res.data) {
-        throw new Error(t('Login failed'))
-      }
-
-      await handleLoginSuccess(res.data)
-      toast.success(t('Signed in'))
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('2FA verification error:', error)
-      if (getServerErrorMessageKey(error)) return
-      const errorMessage =
-        error instanceof Error ? error.message : t('Verification failed')
-      toast.error(errorMessage)
-    } finally {
-      setIsLoading(false)
+    })()
+    return () => {
+      active = false
+      cancel()
     }
-  }
+  }, [
+    pending,
+    initialSessionID,
+    sessionID,
+    requestLoginVerification,
+    cancel,
+    handleLoginSuccess,
+    redirectToLogin,
+    t,
+  ])
 
-  function handleToggleMode() {
-    setUseBackupCode(!useBackupCode)
-    form.setValue('otp', '')
-  }
-
-  function handleBackToLogin() {
-    redirectToLogin()
-  }
-
-  const isFormValid = useBackupCode
-    ? otp.length >= BACKUP_CODE_LENGTH
-    : otp.length >= OTP_LENGTH
-
-  return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className={cn('grid gap-4', className)}
-        {...props}
-      >
-        <FormField
-          control={form.control}
-          name='otp'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                {useBackupCode ? t('Backup Code') : t('Verification Code')}
-              </FormLabel>
-              <FormControl>
-                {useBackupCode ? (
-                  <Input
-                    placeholder={t('Enter backup code (e.g., CAWD-OQDV)')}
-                    {...field}
-                    maxLength={BACKUP_CODE_LENGTH}
-                    autoComplete='off'
-                    className='font-mono uppercase'
-                    onChange={(e) => {
-                      const formatted = formatBackupCode(e.target.value)
-                      field.onChange(formatted)
-                    }}
-                  />
-                ) : (
-                  <InputOTP
-                    maxLength={OTP_LENGTH}
-                    {...field}
-                    containerClassName='justify-between sm:[&>[data-slot="input-otp-group"]>div]:w-12'
-                  >
-                    <InputOTPGroup>
-                      <InputOTPSlot index={0} />
-                      <InputOTPSlot index={1} />
-                    </InputOTPGroup>
-                    <InputOTPSeparator />
-                    <InputOTPGroup>
-                      <InputOTPSlot index={2} />
-                      <InputOTPSlot index={3} />
-                    </InputOTPGroup>
-                    <InputOTPSeparator />
-                    <InputOTPGroup>
-                      <InputOTPSlot index={4} />
-                      <InputOTPSlot index={5} />
-                    </InputOTPGroup>
-                  </InputOTP>
-                )}
-              </FormControl>
-              <FormDescription className='text-muted-foreground text-xs'>
-                {useBackupCode
-                  ? t('Each backup code can only be used once.')
-                  : t('Verification code updates every 30 seconds.')}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <Button
-          type='submit'
-          className='mt-2 w-full'
-          disabled={!isFormValid || isLoading}
-        >
-          {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
-          {t('Verify and Sign In')}
-        </Button>
-
-        <div className='flex items-center justify-center gap-2 text-sm'>
-          <Button
-            type='button'
-            variant='link'
-            size='sm'
-            className='text-primary h-auto p-0'
-            onClick={handleToggleMode}
-          >
-            {useBackupCode ? t('Use authenticator code') : t('Use backup code')}
-          </Button>
-          <span className='text-muted-foreground'>·</span>
-          <Button
-            type='button'
-            variant='link'
-            size='sm'
-            className='text-primary h-auto p-0'
-            onClick={handleBackToLogin}
-          >
-            {t('Back to login')}
-          </Button>
-        </div>
-      </form>
-    </Form>
-  )
+  return <SecureVerificationDialog {...verification.dialogProps} />
 }

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
-import { getPasswordValidationMessageKey } from '@/components/password-strength-utils'
+import { accountPasswordSchema } from '@/lib/password-policy'
 
 // ============================================================================
 // Form Schemas
@@ -33,27 +33,12 @@ export const registerFormSchema = z
   .object({
     username: z.string().min(1, 'Please enter your username'),
     email: z.string().optional(),
-    password: z.string().min(1, 'Please enter your password'),
+    password: accountPasswordSchema,
     confirmPassword: z.string().min(1, 'Please confirm your password'),
   })
-  .superRefine((data, context) => {
-    const passwordMessage = data.password
-      ? getPasswordValidationMessageKey(data.password)
-      : null
-    if (passwordMessage) {
-      context.addIssue({
-        code: 'custom',
-        message: passwordMessage,
-        path: ['password'],
-      })
-    }
-    if (data.password !== data.confirmPassword) {
-      context.addIssue({
-        code: 'custom',
-        message: "Passwords don't match.",
-        path: ['confirmPassword'],
-      })
-    }
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match.",
+    path: ['confirmPassword'],
   })
 
 export const forgotPasswordFormSchema = z.object({
@@ -88,6 +73,6 @@ export const PASSWORD_RESET_COUNTDOWN = 30 // seconds
 // OAuth Constants
 // ============================================================================
 
-export const OAUTH_BIND_CALLBACK_MESSAGE = 'oauth:binding:callback'
-export const OAUTH_BIND_RESULT_MESSAGE = 'oauth:binding:result'
+export const OAUTH_POPUP_CALLBACK_MESSAGE = 'oauth:popup:callback'
+export const OAUTH_POPUP_RESULT_MESSAGE = 'oauth:popup:result'
 export const TELEGRAM_BIND_RESULT_MESSAGE = 'telegram:binding:result'

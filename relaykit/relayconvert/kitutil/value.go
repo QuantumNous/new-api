@@ -13,7 +13,7 @@ func GetPointer[T any](v T) *T {
 	return &v
 }
 
-func Interface2String(inter interface{}) string {
+func Interface2String(inter any) string {
 	switch inter.(type) {
 	case string:
 		return inter.(string)

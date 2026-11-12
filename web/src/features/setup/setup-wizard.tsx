@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -26,7 +26,6 @@ import { toast } from 'sonner'
 import { ErrorState } from '@/components/error-state'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { LoadingState } from '@/components/loading-state'
-import { getPasswordValidationMessageKey } from '@/components/password-strength-utils'
 import {
   Card,
   CardContent,
@@ -38,6 +37,9 @@ import {
 import { Form } from '@/components/ui/form'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { handleServerError } from '@/lib/handle-server-error'
+import { accountPasswordSchema } from '@/lib/password-policy'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import { buildSetupPayload, getSetupStatus, submitSetup } from './api'
@@ -97,7 +99,7 @@ export function SetupWizard() {
     refetch,
   } = useQuery({
     queryKey: ['setup-status'],
-    queryFn: getSetupStatus,
+    queryFn: async () => requireServerSuccess(await getSetupStatus()),
     retry: false,
   })
 
@@ -112,13 +114,14 @@ export function SetupWizard() {
           navigate({ to: '/' })
         }, 1200)
       } else {
-        toast.error(
-          response.message || t('Initialization failed, please try again.')
+        handleServerError(
+          response,
+          t('Initialization failed, please try again.')
         )
       }
     },
-    onError: () => {
-      toast.error(t('Failed to initialize system'))
+    onError: (error) => {
+      handleServerError(error, t('Failed to initialize system'))
     },
   })
 
@@ -126,7 +129,7 @@ export function SetupWizard() {
     if (!statusResponse) return
 
     if (!statusResponse.success) {
-      toast.error(statusResponse.message || t('Failed to load setup status'))
+      handleServerError(statusResponse, t('Failed to load setup status'))
       return
     }
 
@@ -221,15 +224,12 @@ export function SetupWizard() {
       return false
     }
 
-    const passwordMessage = password
-      ? getPasswordValidationMessageKey(password)
-      : 'Password must be between 8 and 20 characters'
-    if (passwordMessage) {
+    if (!accountPasswordSchema.safeParse(password).success) {
       form.setError('password', {
         type: 'manual',
-        message: t(passwordMessage),
+        message: t('Password must contain between 8 and 128 characters.'),
       })
-      toast.error(t(passwordMessage))
+      toast.error(t('Password must contain between 8 and 128 characters.'))
       return false
     }
 
@@ -282,29 +282,6 @@ export function SetupWizard() {
     mutation.mutate(payload)
   }
 
-  let setupContent: ReactNode
-  if (isLoading) {
-    setupContent = <LoadingState message={t('Loading setup status…')} />
-  } else if (isError) {
-    setupContent = (
-      <ErrorState
-        title={t('We could not load the setup status.')}
-        onRetry={() => refetch()}
-      />
-    )
-  } else {
-    setupContent = (
-      <Form {...form}>
-        <form
-          className='space-y-6'
-          onSubmit={(event) => event.preventDefault()}
-        >
-          {currentStepComponent}
-        </form>
-      </Form>
-    )
-  }
-
   return (
     <div className='bg-muted/40 relative min-h-svh py-10'>
       <div className='absolute top-4 right-4 sm:top-6 sm:right-6'>
@@ -352,31 +329,23 @@ export function SetupWizard() {
               {STEPS.map((step, index) => {
                 const isActive = currentStep === index
                 const isCompleted = currentStep > index
-                let stepContainerStateClass = 'border-muted bg-card'
-                if (isActive) {
-                  stepContainerStateClass =
-                    'border-primary ring-primary/20 ring-2'
-                } else if (isCompleted) {
-                  stepContainerStateClass = 'border-primary/40 bg-primary/5'
-                }
-                const stepNumberStateClass =
-                  isActive || isCompleted
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-muted-foreground/40 text-muted-foreground'
-
                 return (
                   <li
                     key={step.titleKey}
-                    className={cn(
-                      'rounded-xl border p-3',
-                      stepContainerStateClass
-                    )}
+                    className={cn('rounded-xl border p-3', {
+                      'border-primary ring-primary/20 ring-2': isActive,
+                      'border-primary/40 bg-primary/5':
+                        !isActive && isCompleted,
+                      'border-muted bg-card': !isActive && !isCompleted,
+                    })}
                   >
                     <div className='flex items-start gap-3'>
                       <span
                         className={cn(
                           'flex size-6 items-center justify-center rounded-md border text-xs font-semibold',
-                          stepNumberStateClass
+                          isActive || isCompleted
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-muted-foreground/40 text-muted-foreground'
                         )}
                       >
                         {index + 1}
@@ -395,7 +364,23 @@ export function SetupWizard() {
               })}
             </ol>
 
-            {setupContent}
+            {isLoading && <LoadingState message={t('Loading setup status…')} />}
+            {!isLoading && isError && (
+              <ErrorState
+                title={t('We could not load the setup status.')}
+                onRetry={() => refetch()}
+              />
+            )}
+            {!isLoading && !isError && (
+              <Form {...form}>
+                <form
+                  className='space-y-6'
+                  onSubmit={(event) => event.preventDefault()}
+                >
+                  {currentStepComponent}
+                </form>
+              </Form>
+            )}
           </CardContent>
 
           {!isLoading && !isError && (

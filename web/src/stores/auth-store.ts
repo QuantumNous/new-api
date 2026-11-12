@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { create } from 'zustand'
 
+import type { LoginChallenge } from '@/features/auth/secure-verification/types'
 import type { AdminCapabilities } from '@/lib/admin-permissions'
 
 export type UserPermissions = {
@@ -27,6 +28,7 @@ export type UserPermissions = {
 }
 
 export interface AuthUser {
+  has_password?: boolean
   id: number
   username: string
   display_name?: string
@@ -76,17 +78,24 @@ export interface AuthBundle {
 
 export type AuthBootstrapState = 'idle' | 'checking' | 'complete'
 
+export interface PendingLoginVerification {
+  challenge: LoginChallenge
+  redirectTo?: string
+}
+
 interface AuthState {
   auth: {
     user: AuthUser | null
     accessToken: string | null
     accessExpiresAt: number | null
     session: LoginSession | null
-    pending2FAFlowToken: string | null
+    pendingLoginVerification: PendingLoginVerification | null
     bootstrapState: AuthBootstrapState
     setBundle: (bundle: AuthBundle) => void
     setUser: (user: AuthUser | null) => void
-    setPending2FAFlowToken: (flowToken: string | null) => void
+    setPendingLoginVerification: (
+      pending: PendingLoginVerification | null
+    ) => void
     setBootstrapState: (bootstrapState: AuthBootstrapState) => void
     reset: (bootstrapState?: AuthBootstrapState) => void
   }
@@ -98,7 +107,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
     accessToken: null,
     accessExpiresAt: null,
     session: null,
-    pending2FAFlowToken: null,
+    pendingLoginVerification: null,
     bootstrapState: 'idle',
     setBundle: (bundle) =>
       set((state) => ({
@@ -109,19 +118,26 @@ export const useAuthStore = create<AuthState>()((set) => ({
           accessToken: bundle.access_token,
           accessExpiresAt: bundle.access_expires_at,
           session: bundle.session,
-          pending2FAFlowToken: null,
+          pendingLoginVerification: null,
           bootstrapState: 'complete',
         },
       })),
     setUser: (user) =>
       set((state) => ({
         ...state,
-        auth: { ...state.auth, user },
+        auth: {
+          ...state.auth,
+          user,
+          pendingLoginVerification:
+            state.auth.user?.id === user?.id
+              ? state.auth.pendingLoginVerification
+              : null,
+        },
       })),
-    setPending2FAFlowToken: (pending2FAFlowToken) =>
+    setPendingLoginVerification: (pendingLoginVerification) =>
       set((state) => ({
         ...state,
-        auth: { ...state.auth, pending2FAFlowToken },
+        auth: { ...state.auth, pendingLoginVerification },
       })),
     setBootstrapState: (bootstrapState) =>
       set((state) => ({
@@ -137,7 +153,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
           accessToken: null,
           accessExpiresAt: null,
           session: null,
-          pending2FAFlowToken: null,
+          pendingLoginVerification: null,
           bootstrapState,
         },
       })),
