@@ -437,14 +437,19 @@ func updateOptionMap(key string, value string) (err error) {
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
-			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
-			// true -> USD, false -> TOKENS
-			newVal := "USD"
+			// 兼容旧字段：把旧开关换算成 general_setting.quota_display_type（运行时生效）。
+			// 关闭表示只显示 token；打开表示显示币种，而 CNY 和 CUSTOM 同样是币种展示，
+			// 不能一律写成 USD：loadOptionsFromDatabase 会按数据库返回的顺序逐条重放，
+			// 旧开关排在显示类型之后时会把已保存的 CNY 改回 USD。
+			newType := operation_setting.QuotaDisplayTypeUSD
+			current := operation_setting.GetQuotaDisplayType()
 			if !boolValue {
-				newVal = "TOKENS"
+				newType = operation_setting.QuotaDisplayTypeTokens
+			} else if current == operation_setting.QuotaDisplayTypeCNY || current == operation_setting.QuotaDisplayTypeCustom {
+				newType = current
 			}
 			if cfg := config.GlobalConfig.Get("general_setting"); cfg != nil {
-				_ = config.UpdateConfigFromMap(cfg, map[string]string{"quota_display_type": newVal})
+				_ = config.UpdateConfigFromMap(cfg, map[string]string{"quota_display_type": newType})
 			}
 		case "DisplayTokenStatEnabled":
 			common.DisplayTokenStatEnabled = boolValue
