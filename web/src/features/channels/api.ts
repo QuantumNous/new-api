@@ -16,9 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type {
+  RequestPluginConfigSchema,
+  RequestPluginSample,
+} from '@/features/task-plugins/types'
 import { getGroups as getUserGroups } from '@/features/users/api'
 import { api, type ApiRequestConfig } from '@/lib/api'
+import type { LocalizedTextValue } from '@/lib/localized-text'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
+import type { PriorityMove, PriorityOrder } from './lib/channel-priority-order'
+import type { InferenceStatus } from './lib/inference-status'
+import type {
+  PluginCredentialSummary,
+  PluginLoginInput,
+  PluginLoginStep,
+} from './lib/plugin-login'
 import type {
   AddChannelRequest,
   BatchDeleteParams,
@@ -47,6 +60,91 @@ const channelActionConfig = (
   skipBusinessError: true,
   skipErrorHandler: true,
 })
+
+export async function getChannelPriorityOrder(): Promise<PriorityOrder> {
+  const response = await api.get<{ success: boolean; data: PriorityOrder }>(
+    '/api/channel/priority/order',
+    { disableDuplicate: true }
+  )
+  return requireServerSuccess(response.data).data
+}
+
+export async function reorderChannelPriority(
+  move: PriorityMove
+): Promise<PriorityOrder> {
+  const response = await api.post<{ success: boolean; data: PriorityOrder }>(
+    '/api/channel/priority/reorder',
+    move
+  )
+  return requireServerSuccess(response.data).data
+}
+
+export async function getInferenceStatus(
+  channelId: number,
+  provider: 'vllm' | 'sglang',
+  signal?: AbortSignal
+): Promise<InferenceStatus> {
+  const response = await api.get<{ success: boolean; data: InferenceStatus }>(
+    `/api/channel/${channelId}/${provider}/status`,
+    { signal, disableDuplicate: true }
+  )
+  return requireServerSuccess(response.data).data
+}
+
+export type TaskPluginOption = {
+  sortPriority?: number
+  website?: string
+  key: string
+  name: string
+  /** The name in other languages; `name` is the fallback. */
+  name_i18n?: LocalizedTextValue | null
+  description?: Record<string, string> | null
+  icon?: string
+  hasIcon?: boolean
+  baseUrl?: string
+  models: string[]
+  channelTypes?: number[] | null
+  upstreams?: string[] | null
+  /** The plugin can submit tasks. */
+  task?: boolean
+  /** The plugin serves relay routes. */
+  provider?: boolean
+  /** The plugin logs in to get its credentials; task-only plugins can too. */
+  login?: boolean
+  refresh?: boolean
+  /** The plugin processes requests; a plugin with only this part has no channel. */
+  transform?: boolean
+  /** A failure of the plugin is skipped instead of refusing the request. */
+  optional?: boolean
+  /** The request processing stages the plugin runs at. */
+  transform_hooks?: string[] | null
+  configSchema?: RequestPluginConfigSchema
+  /** Requests the plugin offers for trying it out. */
+  samples?: RequestPluginSample[] | null
+  /** The settings a channel of the plugin takes, kept in its settings. */
+  channelConfig?: RequestPluginConfigSchema | null
+  /** The format of a channel key line, shown on the key field. */
+  keyHint?: LocalizedTextValue | null
+  /** The plugin checks typed-in keys when the channel is saved. */
+  checkKey?: boolean
+  /** The plugin can query the channel balance. */
+  balance?: boolean
+  /** The client paths of the plugin's relay routes. */
+  relayPaths?: string[] | null
+  /** A channel of the plugin can serve the Responses WebSocket. */
+  responsesWebsocket?: boolean
+}
+
+/** The plugins a channel can be bound to: request processing alone is not one. */
+export async function getTaskPluginOptions(): Promise<TaskPluginOption[]> {
+  const response = await api.get<{
+    success: boolean
+    data: TaskPluginOption[]
+  }>('/api/task_plugin_options')
+  return (requireServerSuccess(response.data).data ?? []).filter(
+    (option) => option.task !== false || option.provider === true
+  )
+}
 
 export type CodexUsageResponse = {
   success: boolean
@@ -108,9 +206,26 @@ export async function getChannel(id: number): Promise<GetChannelResponse> {
 /**
  * Get channel operations summary for administrators
  */
-export async function getChannelOps(): Promise<ChannelOpsResponse> {
-  const res = await api.get('/api/channel/ops', channelActionConfig())
+export async function getChannelOps(
+  autoBan?: boolean
+): Promise<ChannelOpsResponse> {
+  const res = await api.get(
+    '/api/channel/ops',
+    channelActionConfig({
+      params: autoBan === undefined ? undefined : { auto_ban: autoBan },
+    })
+  )
   return res.data
+}
+
+export async function getChannelDefaultBaseURLs(): Promise<
+  Partial<Record<number, string>>
+> {
+  const response = await api.get<{
+    success: boolean
+    data: Partial<Record<number, string>>
+  }>('/api/channel/default_base_urls')
+  return requireServerSuccess(response.data).data
 }
 
 /**
@@ -119,7 +234,7 @@ export async function getChannelOps(): Promise<ChannelOpsResponse> {
  */
 export async function createChannel(
   data: AddChannelRequest
-): Promise<{ success: boolean; message?: string }> {
+): Promise<{ success: boolean; message?: string; data?: { ids?: number[] } }> {
   const res = await api.post('/api/channel', data, channelActionConfig())
   return res.data
 }
@@ -295,13 +410,15 @@ export async function deleteDisabledChannels(): Promise<{
  */
 export async function getChannelKey(
   id: number,
-  proofToken?: string
+  proofToken: string,
+  signal?: AbortSignal
 ): Promise<{ success: boolean; message?: string; data?: { key: string } }> {
   const res = await api.post(
     `/api/channel/${id}/key`,
     undefined,
     channelActionConfig({
-      headers: proofToken ? { 'X-Security-Proof': proofToken } : undefined,
+      headers: { 'X-Security-Proof': proofToken },
+      signal,
     })
   )
   return res.data
@@ -351,6 +468,72 @@ export async function resetCodexUsage(
     channelActionConfig({ disableDuplicate: true })
   )
   return res.data
+}
+
+// ============================================================================
+// Plugin Login
+// ============================================================================
+
+/**
+ * keyIndex null adds a credential; an index logs in again on that line. `add`
+ * keeps the account of a single-key channel and adds the new one next to it.
+ */
+export async function startPluginLogin(
+  channelId: number,
+  keyIndex: number | null,
+  add = false
+): Promise<{ flow: string; step: PluginLoginStep }> {
+  const res = await api.post<{
+    success: boolean
+    data: { flow: string; step: PluginLoginStep }
+  }>(
+    `/api/channel/${channelId}/plugin_login`,
+    add ? { add: true } : { key_index: keyIndex },
+    channelActionConfig()
+  )
+  return requireServerSuccess(res.data).data
+}
+
+export async function continuePluginLogin(
+  channelId: number,
+  flow: string,
+  input: PluginLoginInput
+): Promise<PluginLoginStep> {
+  const res = await api.post<{
+    success: boolean
+    data: { step: PluginLoginStep }
+  }>(
+    `/api/channel/${channelId}/plugin_login/continue`,
+    { flow, input },
+    channelActionConfig()
+  )
+  return requireServerSuccess(res.data).data.step
+}
+
+/** params holds every query parameter the vendor redirected back with. */
+export async function submitPluginLoginCallback(
+  plugin: string,
+  params: Record<string, string>
+): Promise<{ channel_id: number; step: PluginLoginStep }> {
+  const res = await api.post<{
+    success: boolean
+    data: { channel_id: number; step: PluginLoginStep }
+  }>(
+    '/api/channel/plugin_login/callback',
+    { plugin, params },
+    channelActionConfig()
+  )
+  return requireServerSuccess(res.data).data
+}
+
+export async function getPluginCredentials(
+  channelId: number
+): Promise<PluginCredentialSummary[]> {
+  const res = await api.get<{
+    success: boolean
+    data: { items: PluginCredentialSummary[] | null }
+  }>(`/api/channel/${channelId}/plugin_credentials`, channelActionConfig())
+  return requireServerSuccess(res.data).data.items ?? []
 }
 
 // ============================================================================
@@ -531,6 +714,7 @@ export async function fetchModels(data: {
   type: number
   key?: string
   channel_id?: number
+  task_plugin_key?: string
   advanced_custom?: string
   header_override?: string
   proxy?: string
@@ -569,14 +753,41 @@ export async function testAllChannels(): Promise<{
 }
 
 /**
- * Update balance for all enabled channels
+ * Update balance for all enabled channels. The server queues the update as a
+ * system task and answers with its id.
  */
 export async function updateAllChannelsBalance(): Promise<{
   success: boolean
   message?: string
+  /** `started` is false when a run was already queued or running; `task_id` is that run. */
+  data?: { started?: boolean; task_id?: string; status?: string } | null
 }> {
   const res = await api.get(
     '/api/channel/update_balance',
+    channelActionConfig()
+  )
+  return res.data
+}
+
+/** Progress of an update of all balances. */
+export type ChannelBalanceTask = {
+  task_id: string
+  status: 'pending' | 'running' | 'succeeded' | 'failed'
+  state?: { total?: number; processed?: number; progress?: number } | null
+  error?: string
+}
+
+/**
+ * Get the progress of an update of all balances, which any server node can
+ * answer.
+ */
+export async function getChannelBalanceTask(taskId: string): Promise<{
+  success: boolean
+  message?: string
+  data?: ChannelBalanceTask | null
+}> {
+  const res = await api.get(
+    `/api/channel/update_balance/task/${encodeURIComponent(taskId)}`,
     channelActionConfig()
   )
   return res.data

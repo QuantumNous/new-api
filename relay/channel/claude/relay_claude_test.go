@@ -1,12 +1,21 @@
 package claude
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/tokenkit"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,18 +24,59 @@ func commonPointer[T any](value T) *T {
 	return &value
 }
 
+func TestClaudeStreamFinalUsageEstimatesOnlyUncountedUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name, startUsage, deltaUsage, stopReason string // no deltaUsage: the stream broke before message_delta
+		streamText                               bool
+		wantInput, wantOutput                    int
+		wantLocalCount                           bool
+	}{
+		{name: "cache-only refusal keeps zeros", startUsage: `{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":20000,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":20000}}`, deltaUsage: `{"output_tokens":0}`, stopReason: "refusal"},
+		{name: "broken stream keeps cache-only input", startUsage: `{"input_tokens":0,"output_tokens":1,"cache_read_input_tokens":50000}`, streamText: true, wantOutput: 2, wantLocalCount: true},
+		{name: "zeros after streamed text are estimated", startUsage: `{"input_tokens":0,"output_tokens":0}`, deltaUsage: `{"output_tokens":0}`, stopReason: "end_turn", streamText: true, wantInput: 1200, wantOutput: 2, wantLocalCount: true},
+		{name: "zero delta input keeps start input", startUsage: `{"input_tokens":1000,"output_tokens":1}`, deltaUsage: `{"input_tokens":0,"output_tokens":50}`, stopReason: "end_turn", streamText: true, wantInput: 1000, wantOutput: 50},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+			info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-opus-4-8"}}
+			info.SetEstimatePromptTokens(1200)
+			state := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+			start := fmt.Sprintf(`{"type":"message_start","message":{"id":"msg_1","model":"claude-opus-4-8","usage":%s}}`, tc.startUsage)
+			require.Nil(t, HandleStreamResponseData(c, info, state, start))
+			if tc.streamText {
+				require.Nil(t, HandleStreamResponseData(c, info, state, `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}`))
+			}
+			if tc.deltaUsage != "" {
+				delta := fmt.Sprintf(`{"type":"message_delta","delta":{"stop_reason":%q},"usage":%s}`, tc.stopReason, tc.deltaUsage)
+				require.Nil(t, HandleStreamResponseData(c, info, state, delta))
+				require.Nil(t, HandleStreamResponseData(c, info, state, `{"type":"message_stop"}`))
+			}
+			HandleStreamFinalResponse(c, info, state)
+			assert.Equal(t, tc.wantInput, state.Usage.PromptTokens)
+			assert.Equal(t, tc.wantOutput, state.Usage.CompletionTokens)
+			assert.Equal(t, tc.wantLocalCount, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+			canonical, ok := state.Usage.BillingUsage.CanonicalUsage()
+			require.True(t, ok)
+			assert.Equal(t, tc.wantInput, canonical.PromptTokens, "settlement must bill the same input")
+			assert.Equal(t, tc.wantOutput, canonical.CompletionTokens)
+		})
+	}
+}
+
 func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {
 	tests := []struct {
 		name string
 		args string
-		want map[string]interface{}
+		want map[string]any
 	}{
-		{name: "object", args: `{"q":"x"}`, want: map[string]interface{}{"q": "x"}},
-		{name: "empty", args: "", want: map[string]interface{}{}},
-		{name: "invalid", args: "{", want: map[string]interface{}{}},
-		{name: "null", args: "null", want: map[string]interface{}{}},
-		{name: "array", args: `["x"]`, want: map[string]interface{}{}},
-		{name: "string", args: `"x"`, want: map[string]interface{}{}},
+		{name: "object", args: `{"q":"x"}`, want: map[string]any{"q": "x"}},
+		{name: "empty", args: "", want: map[string]any{}},
+		{name: "invalid", args: "{", want: map[string]any{}},
+		{name: "null", args: "null", want: map[string]any{}},
+		{name: "array", args: `["x"]`, want: map[string]any{}},
+		{name: "string", args: `"x"`, want: map[string]any{}},
 	}
 
 	for _, tt := range tests {
@@ -52,7 +102,11 @@ func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {
 
 			require.Len(t, resp.Content, 1)
 			assert.Equal(t, "tool_use", resp.Content[0].Type)
-			assert.Equal(t, tt.want, resp.Content[0].Input)
+			encoded, err := common.Marshal(resp.Content[0].Input)
+			require.NoError(t, err)
+			want, err := common.Marshal(tt.want)
+			require.NoError(t, err)
+			assert.Equal(t, string(want), string(encoded))
 		})
 	}
 }
@@ -224,6 +278,33 @@ func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 	}
 }
 
+// A stream cut off during an agent tool call must still estimate the call's
+// output tokens when the final usage never arrives.
+func TestClaudeStreamFallbackCountsInterruptedToolUse(t *testing.T) {
+	claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+	events := []*dto.ClaudeResponse{
+		{Type: "content_block_start", ContentBlock: &dto.ClaudeMediaMessage{Type: "tool_use", Id: "toolu_1", Name: "read_file"}},
+		{Type: "content_block_delta", Delta: &dto.ClaudeMediaMessage{Type: "input_json_delta", PartialJson: commonPointer(`{"path":`)}},
+		{Type: "content_block_delta", Delta: &dto.ClaudeMediaMessage{Type: "input_json_delta", PartialJson: commonPointer(`"main.go"}`)}},
+	}
+	for _, event := range events {
+		require.True(t, FormatClaudeResponseInfo(event, nil, claudeInfo))
+	}
+	require.Equal(t, `read_file{"path":"main.go"}`, claudeInfo.ResponseText.String())
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-sonnet-5"},
+	}
+	info.SetEstimatePromptTokens(100)
+	HandleStreamFinalResponse(c, info, claudeInfo)
+
+	// Text estimate plus the per-tool_use framing the upstream bills.
+	assert.Equal(t, tokenkit.Estimate("claude-sonnet-5", `read_file{"path":"main.go"}`)+40, claudeInfo.Usage.CompletionTokens)
+	assert.Equal(t, 100, claudeInfo.Usage.PromptTokens)
+}
+
 func TestBuildOpenAIStyleUsageFromClaudeUsage(t *testing.T) {
 	usage := &dto.Usage{
 		PromptTokens:     100,
@@ -323,8 +404,28 @@ func TestBuildOpenAIStyleUsageFromClaudeUsageDefaultsAggregateCacheCreationTo5m(
 	require.Equal(t, 0, openAIUsage.ClaudeCacheCreation1hTokens)
 }
 
+func applyOpenAIChatReasoningThroughHandlerOrder(t *testing.T, original dto.GeneralOpenAIRequest) (*dto.GeneralOpenAIRequest, *relaycommon.RelayInfo) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: original.Model,
+		Request:         &original,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: original.Model,
+		},
+	}
+	outbound, err := common.DeepCopy(&original)
+	require.NoError(t, err)
+	require.NoError(t, helper.ModelMappedHelper(c, info, outbound))
+	err = helper.ApplyReasoningModelSuffix(nil, info, outbound)
+	require.NoError(t, err)
+	return outbound, info
+}
+
 func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48HighUsesAdaptiveThinking(t *testing.T) {
-	request := dto.GeneralOpenAIRequest{
+	original := dto.GeneralOpenAIRequest{
 		Model:       "claude-opus-4-8-high",
 		Temperature: commonPointer(0.7),
 		TopP:        commonPointer(0.9),
@@ -337,7 +438,8 @@ func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48HighUsesAdaptiveThinking(
 		},
 	}
 
-	claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, &relaycommon.RelayInfo{}, request)
+	outbound, info := applyOpenAIChatReasoningThroughHandlerOrder(t, original)
+	claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, info, *outbound)
 	require.NoError(t, err)
 	require.Equal(t, "claude-opus-4-8", claudeRequest.Model)
 	require.NotNil(t, claudeRequest.Thinking)
@@ -350,7 +452,7 @@ func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48HighUsesAdaptiveThinking(
 }
 
 func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48ThinkingUsesAdaptiveHighEffort(t *testing.T) {
-	request := dto.GeneralOpenAIRequest{
+	original := dto.GeneralOpenAIRequest{
 		Model:       "claude-opus-4-8-thinking",
 		Temperature: commonPointer(0.7),
 		TopP:        commonPointer(0.9),
@@ -363,7 +465,8 @@ func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48ThinkingUsesAdaptiveHighE
 		},
 	}
 
-	claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, &relaycommon.RelayInfo{}, request)
+	outbound, info := applyOpenAIChatReasoningThroughHandlerOrder(t, original)
+	claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, info, *outbound)
 	require.NoError(t, err)
 	require.Equal(t, "claude-opus-4-8", claudeRequest.Model)
 	require.NotNil(t, claudeRequest.Thinking)
@@ -373,4 +476,29 @@ func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48ThinkingUsesAdaptiveHighE
 	require.Nil(t, claudeRequest.Temperature)
 	require.Nil(t, claudeRequest.TopP)
 	require.Nil(t, claudeRequest.TopK)
+}
+
+func TestClaudeResponsePassesInputTransformationsThrough(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-opus-5-5"},
+	}
+	transformations := `"input_transformations":[{"type":"thinking_dropped","path":"messages.1.content.0","reason":"prefix_binding_mismatch"}]`
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/v1/messages", nil)
+	body := `{"id":"msg_1","type":"message","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"hi"}],` +
+		`"stop_reason":"end_turn",` + transformations + `,"usage":{"input_tokens":5,"output_tokens":1}}`
+	require.Nil(t, HandleClaudeResponseData(c, info, &ClaudeResponseInfo{Usage: &dto.Usage{}}, nil, []byte(body)))
+	assert.Equal(t, body, w.Body.String())
+
+	w = httptest.NewRecorder()
+	c, _ = gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/v1/messages", nil)
+	event := `{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-opus-5-5","content":[],` +
+		transformations + `,"usage":{"input_tokens":5,"output_tokens":1}}}`
+	require.Nil(t, HandleStreamResponseData(c, info, &ClaudeResponseInfo{Usage: &dto.Usage{}}, event))
+	assert.Contains(t, w.Body.String(), "data: "+event+"\n")
 }

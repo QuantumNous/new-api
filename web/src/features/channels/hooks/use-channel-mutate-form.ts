@@ -25,6 +25,8 @@ import {
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
+import { handleServerError } from '@/lib/handle-server-error'
+import { createServerError } from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { createChannel, updateChannel } from '../api'
@@ -55,31 +57,6 @@ const SENSITIVE_UPDATE_FIELDS = [
   'other',
 ] satisfies (keyof Channel)[]
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function getErrorMessage(error: unknown): string | undefined {
-  if (error instanceof Error && typeof error.message === 'string') {
-    return error.message
-  }
-
-  if (!isRecord(error)) return undefined
-
-  const response = error.response
-  if (isRecord(response)) {
-    const data = response.data
-    if (isRecord(data)) {
-      const message = data.message
-      if (typeof message === 'string') return message
-    }
-  }
-
-  const message = error.message
-  if (typeof message === 'string') return message
-  return undefined
-}
-
 export function useChannelMutateForm(props: UseChannelMutateFormParams) {
   const { t } = useTranslation()
   const currentUser = useAuthStore((s) => s.auth.user)
@@ -90,7 +67,9 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
   )
 
   return useMutation({
-    mutationFn: async (data: ChannelFormValues): Promise<string> => {
+    mutationFn: async (
+      data: ChannelFormValues
+    ): Promise<{ messageKey: string; channelId?: number }> => {
       if (props.isEditing && props.currentRow) {
         const payload = transformFormDataToUpdatePayload(
           data,
@@ -115,29 +94,35 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
               }
             : payload
 
-        const response = await updateChannel(
-          props.currentRow.id,
-          payloadWithKeyMode
-        )
+        const response = await updateChannel(props.currentRow.id, {
+          ...payloadWithKeyMode,
+          ...(canEditSensitive && props.isMultiKeyChannel
+            ? { multi_key_mode: data.multi_key_type }
+            : {}),
+        })
         if (!response.success) {
-          throw new Error(response.message || t(ERROR_MESSAGES.UPDATE_FAILED))
+          throw createServerError(response, t(ERROR_MESSAGES.UPDATE_FAILED))
         }
-        return SUCCESS_MESSAGES.UPDATED
+        return { messageKey: SUCCESS_MESSAGES.UPDATED }
       }
 
       const payload = transformFormDataToCreatePayload(data)
       const response = await createChannel(payload)
       if (!response.success) {
-        throw new Error(response.message || t(ERROR_MESSAGES.CREATE_FAILED))
+        throw createServerError(response, t(ERROR_MESSAGES.CREATE_FAILED))
       }
-      return SUCCESS_MESSAGES.CREATED
+      // A login plugin opens its login dialog on the new channel.
+      return {
+        messageKey: SUCCESS_MESSAGES.CREATED,
+        channelId: response.data?.ids?.[0],
+      }
     },
-    onSuccess: (messageKey) => {
-      toast.success(t(messageKey))
+    onSuccess: (result) => {
+      toast.success(t(result.messageKey))
       props.onSuccess()
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error) || t(ERROR_MESSAGES.CREATE_FAILED))
+      handleServerError(error, t(ERROR_MESSAGES.CREATE_FAILED))
     },
   })
 }

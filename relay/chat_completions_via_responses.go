@@ -12,6 +12,7 @@ import (
 	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -29,9 +30,11 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 
 	systemRole := request.GetSystemRoleName()
 
+	// A Kimi K3 dynamic tool loading message ({"role":"system","tools":[...]})
+	// declares tools rather than a system prompt and must never receive content.
 	containSystemPrompt := false
 	for _, message := range request.Messages {
-		if message.Role == systemRole {
+		if message.Role == systemRole && len(message.Tools) == 0 {
 			containSystemPrompt = true
 			break
 		}
@@ -51,7 +54,7 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 
 	common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
 	for i, message := range request.Messages {
-		if message.Role != systemRole {
+		if message.Role != systemRole || len(message.Tools) > 0 {
 			continue
 		}
 		if message.IsStringContent() {
@@ -70,30 +73,41 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 	}
 }
 
-func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request *dto.GeneralOpenAIRequest) (*dto.Usage, *types.NewAPIError) {
-	chatJSON, err := common.Marshal(request)
-	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-	}
-
-	chatJSON, err = relaycommon.RemoveDisabledFields(chatJSON, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
-	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-	}
-
-	if len(info.ParamOverride) > 0 {
-		chatJSON, err = relaycommon.ApplyParamOverrideWithRelayInfo(chatJSON, info)
+func textRequestViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request any) (*dto.Usage, *types.NewAPIError) {
+	// A chat request takes the outbound plugins and the param override in
+	// chat form, before the conversion.
+	outboundApplied := false
+	if chatRequest, ok := request.(*dto.GeneralOpenAIRequest); ok {
+		chatJSON, err := common.Marshal(chatRequest)
 		if err != nil {
-			return nil, newAPIErrorFromParamOverride(err)
+			return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
+
+		chatJSON, err = relaycommon.RemoveDisabledFields(chatJSON, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+
+		chatJSON, apiErr := requestplugin.Outbound(c, info, chatJSON)
+		if apiErr != nil {
+			return nil, apiErr
+		}
+		if len(info.ParamOverride) > 0 {
+			chatJSON, err = relaycommon.ApplyParamOverrideWithRelayInfo(chatJSON, info)
+			if err != nil {
+				return nil, newAPIErrorFromParamOverride(err)
+			}
+		}
+		outboundApplied = true
+
+		var overriddenChatReq dto.GeneralOpenAIRequest
+		if err := common.Unmarshal(chatJSON, &overriddenChatReq); err != nil {
+			return nil, types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
+		}
+		request = &overriddenChatReq
 	}
 
-	var overriddenChatReq dto.GeneralOpenAIRequest
-	if err := common.Unmarshal(chatJSON, &overriddenChatReq); err != nil {
-		return nil, types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid, types.ErrOptionWithSkipRetry())
-	}
-
-	result, err := service.ConvertRequestVia(c, info, &overriddenChatReq, types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses)
+	result, err := service.ConvertRequest(c, info, types.RelayFormatOpenAIResponses, request)
 	if err != nil {
 		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
@@ -101,7 +115,10 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	if !ok {
 		return nil, types.NewError(fmt.Errorf("expected OpenAI responses request, got %T", result.Value), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
+	return relayResponsesRequest(c, info, adaptor, responsesReq, outboundApplied)
+}
 
+func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, responsesReq *dto.OpenAIResponsesRequest, outboundApplied bool) (*dto.Usage, *types.NewAPIError) {
 	savedRelayMode := info.RelayMode
 	savedRequestURLPath := info.RequestURLPath
 	defer func() {
@@ -114,7 +131,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 
 	convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *responsesReq)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		return nil, newConvertRequestFailedError(c, info, err)
 	}
 	relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
@@ -126,6 +143,21 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	if !outboundApplied {
+		var apiErr *types.NewAPIError
+		if jsonData, apiErr = requestplugin.Outbound(c, info, jsonData); apiErr != nil {
+			return nil, apiErr
+		}
+		if len(info.ParamOverride) > 0 {
+			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+			if err != nil {
+				return nil, newAPIErrorFromParamOverride(err)
+			}
+		}
+	}
+	if apiErr := requestplugin.Egress(c, info, jsonData); apiErr != nil {
+		return nil, apiErr
 	}
 
 	body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)

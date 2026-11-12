@@ -47,6 +47,11 @@ export const ADVANCED_CUSTOM_CONVERTER_OPTIONS: Array<{
     triggerLabel: 'To OpenAI Chat',
   },
   {
+    value: 'claude_messages_to_openai_responses',
+    label: 'Anthropic Messages to OpenAI Responses',
+    triggerLabel: 'To OpenAI Responses',
+  },
+  {
     value: 'openai_chat_completions_to_anthropic_messages',
     label: 'OpenAI Chat to Anthropic Messages',
     triggerLabel: 'To Anthropic Messages',
@@ -70,6 +75,11 @@ export const ADVANCED_CUSTOM_CONVERTER_OPTIONS: Array<{
     value: 'gemini_generate_content_to_openai_chat_completions',
     label: 'Gemini Generate Content to OpenAI Chat',
     triggerLabel: 'To OpenAI Chat',
+  },
+  {
+    value: 'gemini_generate_content_to_openai_responses',
+    label: 'Gemini Generate Content to OpenAI Responses',
+    triggerLabel: 'To OpenAI Responses',
   },
   {
     value: 'openai_chat_completions_to_gemini_generate_content',
@@ -165,6 +175,14 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
     {
       value: '/v1beta/models/{model}:batchEmbedContents',
       label: 'Gemini Batch Embed Contents',
+    },
+    {
+      value: '/v1/tools/search',
+      label: 'DeepSeek Search',
+    },
+    {
+      value: '/v1/tools/fetch',
+      label: 'DeepSeek Fetch',
     },
   ]
 
@@ -449,7 +467,11 @@ export function getAdvancedCustomConverterDefaults(
   ) {
     return { upstream_path: openAIChatPath, auth: bearerHeaderAuth() }
   }
-  if (converter === 'openai_chat_completions_to_openai_responses') {
+  if (
+    converter === 'openai_chat_completions_to_openai_responses' ||
+    converter === 'claude_messages_to_openai_responses' ||
+    converter === 'gemini_generate_content_to_openai_responses'
+  ) {
     return { upstream_path: openAIResponsesPath, auth: bearerHeaderAuth() }
   }
   if (converter === 'openai_chat_completions_to_anthropic_messages') {
@@ -507,6 +529,12 @@ export function isAdvancedCustomIncomingPathAllowed(
   converter: AdvancedCustomConverter
 ): boolean {
   return isConverterPathAllowed(incomingPath, converter)
+}
+
+export function isAdvancedCustomPassThroughAllowed(
+  converter: AdvancedCustomConverter
+): boolean {
+  return converter === 'none'
 }
 
 export function getAdvancedCustomConverterOptions(
@@ -656,6 +684,12 @@ export function validateAdvancedCustomConfig(
           message: `${routeLabel} upstream path must not contain {model}`,
         }
       }
+      if (route.pass_through_body_enabled) {
+        return {
+          routeIndex: index,
+          message: `${routeLabel} route does not support pass-through`,
+        }
+      }
     }
     const routeModelsError = validateAdvancedCustomRouteModels(
       index,
@@ -683,6 +717,15 @@ export function validateAdvancedCustomConfig(
       return {
         routeIndex: index,
         message: 'Converter does not match incoming path',
+      }
+    }
+    if (
+      route.pass_through_body_enabled &&
+      !isAdvancedCustomPassThroughAllowed(converter)
+    ) {
+      return {
+        routeIndex: index,
+        message: 'Pass-through requires native forwarding',
       }
     }
 
@@ -780,6 +823,9 @@ function normalizeAdvancedCustomRoute(
   const models = normalizeAdvancedCustomRouteModels(route.models)
   if (models.length > 0) {
     nextRoute.models = models
+  }
+  if (route.pass_through_body_enabled === true) {
+    nextRoute.pass_through_body_enabled = true
   }
   if (route.auth) {
     nextRoute.auth = {
@@ -900,7 +946,10 @@ function isConverterPathAllowed(
 ): boolean {
   if (converter === 'none') return true
   if (incomingPath === '/v1/alpha/search') return false
-  if (converter === 'anthropic_messages_to_openai_chat_completions') {
+  if (
+    converter === 'anthropic_messages_to_openai_chat_completions' ||
+    converter === 'claude_messages_to_openai_responses'
+  ) {
     return incomingPath === '/v1/messages'
   }
   if (

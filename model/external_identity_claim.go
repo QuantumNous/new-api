@@ -76,6 +76,38 @@ func ReleaseExternalIdentityWithTx(tx *gorm.DB, provider string, userId int) err
 		Delete(&ExternalIdentityClaim{}).Error
 }
 
+func GetUserByTelegramID(telegramID string) (*User, error) {
+	var user User
+	err := DB.Where("telegram_id = ?", telegramID).First(&user).Error
+	return &user, err
+}
+
+// BindTelegramForSessionWithTx preserves single ownership and the session that
+// started the binding. The caller consumes its OAuth flow in this transaction.
+func BindTelegramForSessionWithTx(tx *gorm.DB, identity AuthSessionIdentity, telegramID string) error {
+	if err := ValidateAuthSessionWithTx(tx, identity); err != nil {
+		return err
+	}
+	var user User
+	if err := tx.Select("id", "telegram_id").First(&user, identity.UserID).Error; err != nil {
+		return err
+	}
+	if user.TelegramId != "" {
+		return ErrExternalIdentityAlreadyClaimed
+	}
+	if err := ClaimExternalIdentityWithTx(tx, ExternalIdentityProviderTelegram, telegramID, user.Id); err != nil {
+		return err
+	}
+	result := tx.Model(&User{}).Where("id = ? AND (telegram_id = ? OR telegram_id IS NULL)", user.Id, "").Update("telegram_id", telegramID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return ErrExternalIdentityAlreadyClaimed
+	}
+	return nil
+}
+
 func releaseAllExternalIdentitiesWithTx(tx *gorm.DB, userId int) error {
 	if tx == nil || userId == 0 {
 		return errors.New("external identity release is invalid")

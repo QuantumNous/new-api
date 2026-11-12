@@ -3,10 +3,13 @@ package service
 import (
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	hosttypes "github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,19 +25,62 @@ type TieredResultWrapper = billingexpr.TieredResult
 // include all sub-categories (cache, image, audio). Claude-format APIs
 // report them as text-only. This function normalizes to text-only when
 // sub-categories are separately priced.
+//
+// A long-lived cache write (Claude 1h, OpenAI 12h) without its own price
+// costs a fixed multiple of the short write price: it is billed in cc, or in
+// p when cc has no price either.
 func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVars map[string]bool) billingexpr.TokenParams {
 	p := float64(usage.PromptTokens)
 	c := float64(usage.CompletionTokens)
 	cr := float64(usage.PromptTokensDetails.CachedTokens)
-	cc5m := float64(usage.PromptTokensDetails.CacheCreationTokensTotal())
+	cc := float64(usage.PromptTokensDetails.CacheCreationTokensTotal())
 	cc1h := float64(0)
+	cc12h := float64(0)
 
 	if usage.UsageSemantic == "anthropic" {
-		cc1h = float64(usage.ClaudeCacheCreation1hTokens)
-		cc5m = float64(usage.ClaudeCacheCreation5mTokens)
+		// Upstreams may report the cache-write total without a full 5m/1h
+		// split; the unlabelled remainder is billed as 5m writes.
+		split5m, split1h := relayconvert.NormalizeCacheCreationSplit(
+			usage.PromptTokensDetails.CacheCreationTokensTotal(),
+			usage.ClaudeCacheCreation5mTokens,
+			usage.ClaudeCacheCreation1hTokens,
+		)
+		cc = float64(split5m)
+		cc1h = float64(split1h)
 	}
 
 	img := float64(usage.PromptTokensDetails.ImageTokens)
+	imgCR := float64(0)
+	if usedVars["img_cr"] && !isClaudeUsageSemantic {
+		details := usage.PromptTokensDetails.CachedTokensDetails
+		if details != nil && details.ImageTokens != nil {
+			cachedImage := *details.ImageTokens
+			cached := usage.PromptTokensDetails.CachedTokens
+			image := usage.PromptTokensDetails.ImageTokens
+			valid := cachedImage >= 0 && cached >= cachedImage && image >= cachedImage &&
+				cached <= usage.PromptTokens && image <= usage.PromptTokens-(cached-cachedImage)
+			if valid {
+				remaining := cached - cachedImage
+				for _, count := range []*int{details.TextTokens, details.AudioTokens} {
+					if count == nil {
+						continue
+					}
+					if *count < 0 || *count > remaining {
+						valid = false
+						break
+					}
+					remaining -= *count
+				}
+			}
+			if valid {
+				imgCR = float64(cachedImage)
+				cr -= imgCR
+				img -= imgCR
+			} else {
+				common.SysError(common.LogText("invalid image cache token breakdown; using aggregate cache billing"))
+			}
+		}
+	}
 	ai := float64(usage.PromptTokensDetails.AudioTokens)
 	imgO := float64(usage.CompletionTokenDetails.ImageTokens)
 	ao := float64(usage.CompletionTokenDetails.AudioTokens)
@@ -44,21 +90,54 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	// Claude: input_tokens is text-only, so add cache read + cache creation.
 	inputLen := p
 	if isClaudeUsageSemantic {
-		inputLen = p + cr + cc5m + cc1h
+		inputLen = p + cr + cc + cc1h
 	}
 
-	if !isClaudeUsageSemantic {
+	if isClaudeUsageSemantic {
+		// Anthropic input excludes cache reads and writes. When they have no
+		// separate price, merge those tokens into the input category instead.
+		if !usedVars["cr"] {
+			p += cr
+		}
+		if !usedVars["cc1h"] {
+			cc += cc1h * hosttypes.ClaudeCacheCreation1hMultiplier
+			cc1h = 0
+		}
+		if !usedVars["cc"] {
+			p += cc
+			cc = 0
+		}
+	} else {
 		if usedVars["cr"] {
 			p -= cr
 		}
+		// prompt_tokens counts every cache write once. A 12h write without
+		// its own price joins cc at twice its count; ccTokens keeps the real
+		// count that cc takes out of p, and an unpriced cc leaves p the extra.
+		cc12h = float64(usage.PromptTokensDetails.CacheWrite12hTokens())
+		cc -= cc12h
+		ccTokens := cc
+		if usedVars["cc12h"] {
+			p -= cc12h
+		} else {
+			ccTokens += cc12h
+			cc += cc12h * hosttypes.OpenAICacheCreation12hMultiplier
+			cc12h = 0
+		}
 		if usedVars["cc"] {
-			p -= cc5m
+			p -= ccTokens
+		} else {
+			p += cc - ccTokens
+			cc = 0
 		}
 		if usedVars["cc1h"] {
 			p -= cc1h
 		}
 		if usedVars["img"] {
 			p -= img
+		}
+		if usedVars["img_cr"] {
+			p -= imgCR
 		}
 		if usedVars["ai"] {
 			p -= ai
@@ -81,16 +160,18 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	}
 
 	return billingexpr.TokenParams{
-		P:    p,
-		C:    c,
-		Len:  inputLen,
-		CR:   cr,
-		CC:   cc5m,
-		CC1h: cc1h,
-		Img:  img,
-		ImgO: imgO,
-		AI:   ai,
-		AO:   ao,
+		P:     p,
+		C:     c,
+		Len:   inputLen,
+		CR:    cr,
+		CC:    cc,
+		CC1h:  cc1h,
+		CC12h: cc12h,
+		Img:   img,
+		ImgCR: imgCR,
+		ImgO:  imgO,
+		AI:    ai,
+		AO:    ao,
 	}
 }
 
@@ -170,6 +251,11 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 	if relayInfo.BillingRequestInput != nil {
 		requestInput = *relayInfo.BillingRequestInput
 	}
+	if relayInfo.BillingImageCount != nil {
+		requestInput.ImageCount = relayInfo.BillingImageCount
+	} else if snap.EstimatedImageCount != nil {
+		requestInput.ImageCount = snap.EstimatedImageCount
+	}
 
 	tr, err := billingexpr.ComputeTieredQuotaWithRequest(snap, params, requestInput)
 	if err != nil {
@@ -180,10 +266,20 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 		return true, quota, nil
 	}
 
-	// Surface any int32 saturation from settlement onto RelayInfo so the
+	// Surface any single-request saturation from settlement onto RelayInfo so the
 	// consume log records it under admin_info, regardless of which caller
 	// (text, audio, WSS) consumes the returned quota. First non-nil wins.
 	noteQuotaClamp(relayInfo, tr.Clamp)
 
 	return true, tr.ActualQuotaAfterGroup, &tr
+}
+
+// A failed evaluation retains the reservation and its estimated billing unit.
+// Successful evaluations always use the actual branch, including zero prices.
+func isFixedPriceSettlement(info *relaycommon.RelayInfo, result *billingexpr.TieredResult) bool {
+	if result != nil {
+		return result.BillingUnit == billingexpr.BillingUnitRequest
+	}
+	snap := info.TieredBillingSnapshot
+	return snap != nil && snap.BillingMode == "tiered_expr" && snap.EstimatedBillingUnit == billingexpr.BillingUnitRequest
 }

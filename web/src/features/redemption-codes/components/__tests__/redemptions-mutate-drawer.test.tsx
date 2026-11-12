@@ -93,12 +93,12 @@ function deferred<T>() {
   return { promise, reject, resolve }
 }
 
-function drawerTree(currentRow: Redemption) {
+function drawerTree(currentRow: Redemption, open = true) {
   return (
     <I18nextProvider i18n={i18n}>
       <RedemptionsProvider>
         <RedemptionsMutateDrawer
-          open
+          open={open}
           currentRow={currentRow}
           onOpenChange={() => undefined}
         />
@@ -129,11 +129,14 @@ async function renderDrawer(
   renderedDrawer = { result: render(drawerTree(currentRow)) }
 }
 
-async function rerenderDrawer(currentRow: Redemption): Promise<void> {
+async function rerenderDrawer(
+  currentRow: Redemption,
+  open = true
+): Promise<void> {
   if (!renderedDrawer) {
     throw new Error('Expected a rendered redemption drawer')
   }
-  renderedDrawer.result.rerender(drawerTree(currentRow))
+  renderedDrawer.result.rerender(drawerTree(currentRow, open))
 }
 
 function getSaveButton(): HTMLButtonElement {
@@ -213,7 +216,7 @@ describe('redemption drawer', () => {
 
     await renderDrawer(redemption(1))
     await waitFor(() =>
-      expect(document.body).toHaveTextContent('Something went wrong!')
+      expect(document.body).toHaveTextContent('network failure')
     )
 
     expect(getSaveButton()).toBeDisabled()
@@ -221,19 +224,23 @@ describe('redemption drawer', () => {
     expect(updates).toEqual([])
   })
 
-  test('blocks updates and uses localized feedback for unsuccessful responses', async () => {
-    apiClient.get = async () => ({
-      data: { success: false, message: 'raw server message' },
-    })
-
-    await renderDrawer(redemption(1))
-    await waitFor(() =>
-      expect(document.body).toHaveTextContent('Failed to load')
-    )
-
-    expect(getSaveButton()).toBeDisabled()
-    expect(document.body).not.toHaveTextContent('raw server message')
-  })
+  test.each([
+    {
+      message: 'Redemption code is no longer available',
+      expected: 'Redemption code is no longer available',
+    },
+    { message: undefined, expected: 'Failed to load' },
+  ])(
+    'blocks updates and reports the server reason or localized fallback: $expected',
+    async ({ message, expected }) => {
+      apiClient.get = async () => ({
+        data: { success: false, message },
+      })
+      await renderDrawer(redemption(1))
+      await waitFor(() => expect(document.body).toHaveTextContent(expected))
+      expect(getSaveButton()).toBeDisabled()
+    }
+  )
 
   test('keeps the original quota when another field changes', async () => {
     const original = redemption(1)
@@ -275,6 +282,68 @@ describe('redemption drawer', () => {
 
     expect(updates[0]?.quota).toBe(1000000)
   })
+
+  test('keeps a non-expiring code unchanged after closing an expiring code', async () => {
+    const first = { ...redemption(1), expired_time: 2000000000 }
+    const second = redemption(2)
+    const detail = deferred<{ data: unknown }>()
+    const updates: unknown[] = []
+    apiClient.get = (url) =>
+      url === '/api/redemption/1'
+        ? Promise.resolve({ data: { success: true, data: first } })
+        : detail.promise
+    apiClient.put = async (_url, data) => {
+      updates.push(data)
+      return { data: { success: true } }
+    }
+    await renderDrawer(first)
+    await waitForLoadedForm()
+    await waitFor(() => expect(screen.getByLabelText('Time')).toBeEnabled())
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0])
+    await rerenderDrawer(first, false)
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    )
+    await rerenderDrawer(second)
+    expect(screen.getByRole('button', { name: 'Loading...' })).toBeDisabled()
+    detail.resolve({ data: { success: true, data: second } })
+    await waitForLoadedForm()
+    expect(screen.getByRole('button', { name: 'Never expires' })).toBeVisible()
+    expect(screen.getByLabelText('Time')).toBeDisabled()
+    fireEvent.click(getSaveButton())
+    await waitFor(() =>
+      expect(updates).toEqual([
+        expect.objectContaining({ id: 2, expired_time: 0 }),
+      ])
+    )
+  })
+
+  test.each(['Never', 'Clear'])(
+    'submits a non-expiring code when its date is cleared with %s',
+    async (action) => {
+      const original = { ...redemption(1), expired_time: 2000000000 }
+      const updates: unknown[] = []
+      apiClient.get = async () => ({ data: { success: true, data: original } })
+      apiClient.put = async (_url, data) => {
+        updates.push(data)
+        return { data: { success: true } }
+      }
+      await renderDrawer(original)
+      await waitForLoadedForm()
+      await waitFor(() => expect(screen.getByLabelText('Time')).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: action }))
+      expect(
+        screen.getByRole('button', { name: 'Never expires' })
+      ).toBeVisible()
+      expect(screen.getByLabelText('Time')).toBeDisabled()
+      fireEvent.click(getSaveButton())
+      await waitFor(() =>
+        expect(updates).toEqual([
+          expect.objectContaining({ id: 1, expired_time: 0 }),
+        ])
+      )
+    }
+  )
 
   test('ignores an older response after switching records', async () => {
     const first = redemption(1, 500001)

@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"path"
 
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
@@ -14,6 +15,26 @@ type permissionRoute struct {
 	path       string
 	permission authz.Permission
 	handler    gin.HandlerFunc
+}
+
+// handlePermissionRoute registers a Casbin-guarded route and declares the same
+// permission as the access token scope that route requires.
+func handlePermissionRoute(group *gin.RouterGroup, method, relativePath string, permission authz.Permission, handlers ...gin.HandlerFunc) {
+	middleware.DeclareAccessTokenPermissionRoute(method, joinPaths(group.BasePath(), relativePath), permission)
+	group.Handle(method, relativePath, append([]gin.HandlerFunc{middleware.RequirePermission(permission)}, handlers...)...)
+}
+
+// joinPaths matches gin's route path joining, which keeps a trailing slash
+// from the relative path, so declared keys equal c.FullPath().
+func joinPaths(absolutePath, relativePath string) string {
+	if relativePath == "" {
+		return absolutePath
+	}
+	finalPath := path.Join(absolutePath, relativePath)
+	if relativePath[len(relativePath)-1] == '/' && finalPath[len(finalPath)-1] != '/' {
+		return finalPath + "/"
+	}
+	return finalPath
 }
 
 func registerChannelRoutes(apiRouter *gin.RouterGroup) {
@@ -29,17 +50,17 @@ func registerChannelRoutes(apiRouter *gin.RouterGroup) {
 	)
 
 	for _, route := range channelPermissionRoutes {
-		channelRoute.Handle(route.method, route.path,
-			middleware.RequirePermission(route.permission),
-			route.handler,
-		)
+		handlePermissionRoute(channelRoute, route.method, route.path, route.permission, route.handler)
 	}
 }
 
 var channelPermissionRoutes = []permissionRoute{
+	{method: http.MethodGet, path: "/priority/order", permission: authz.ChannelRead, handler: controller.GetChannelPriorityOrder},
+	{method: http.MethodPost, path: "/priority/reorder", permission: authz.ChannelWrite, handler: controller.ReorderChannelPriority},
 	{method: http.MethodGet, path: "/", permission: authz.ChannelRead, handler: controller.GetAllChannels},
 	{method: http.MethodGet, path: "/search", permission: authz.ChannelRead, handler: controller.SearchChannels},
 	{method: http.MethodGet, path: "/models", permission: authz.ChannelRead, handler: controller.ChannelListModels},
+	{method: http.MethodGet, path: "/default_base_urls", permission: authz.ChannelRead, handler: controller.GetChannelDefaultBaseURLs},
 	{method: http.MethodGet, path: "/models_enabled", permission: authz.ChannelRead, handler: controller.EnabledListModels},
 	{method: http.MethodGet, path: "/ops", permission: authz.ChannelRead, handler: controller.GetChannelOps},
 	{method: http.MethodGet, path: "/:id", permission: authz.ChannelRead, handler: controller.GetChannel},
@@ -47,6 +68,7 @@ var channelPermissionRoutes = []permissionRoute{
 	{method: http.MethodGet, path: "/test/:id", permission: authz.ChannelOperate, handler: controller.TestChannel},
 	{method: http.MethodGet, path: "/update_balance", permission: authz.ChannelOperate, handler: controller.UpdateAllChannelsBalance},
 	{method: http.MethodGet, path: "/update_balance/:id", permission: authz.ChannelOperate, handler: controller.UpdateChannelBalance},
+	{method: http.MethodGet, path: "/update_balance/task/:task_id", permission: authz.ChannelOperate, handler: controller.GetChannelBalanceTask},
 	{method: http.MethodPost, path: "/", permission: authz.ChannelSensitiveWrite, handler: controller.AddChannel},
 	{method: http.MethodPut, path: "/", permission: authz.ChannelWrite, handler: controller.UpdateChannel},
 	{method: http.MethodPost, path: "/status/batch", permission: authz.ChannelOperate, handler: controller.BatchUpdateChannelStatus},
@@ -59,8 +81,14 @@ var channelPermissionRoutes = []permissionRoute{
 	{method: http.MethodPost, path: "/batch", permission: authz.ChannelSensitiveWrite, handler: controller.DeleteChannelBatch},
 	{method: http.MethodPost, path: "/fix", permission: authz.ChannelOperate, handler: controller.FixChannelsAbilities},
 	{method: http.MethodGet, path: "/fetch_models/:id", permission: authz.ChannelOperate, handler: controller.FetchUpstreamModels},
+	{method: http.MethodGet, path: "/:id/vllm/status", permission: authz.ChannelRead, handler: controller.GetVLLMChannelStatus},
+	{method: http.MethodGet, path: "/:id/sglang/status", permission: authz.ChannelRead, handler: controller.GetSGLangChannelStatus},
 	{method: http.MethodPost, path: "/fetch_models", permission: authz.ChannelSensitiveWrite, handler: controller.FetchModels},
 	{method: http.MethodPost, path: "/:id/codex/refresh", permission: authz.ChannelSensitiveWrite, handler: controller.RefreshCodexChannelCredential},
+	{method: http.MethodPost, path: "/:id/plugin_login", permission: authz.ChannelSensitiveWrite, handler: controller.StartPluginLogin},
+	{method: http.MethodPost, path: "/:id/plugin_login/continue", permission: authz.ChannelSensitiveWrite, handler: controller.ContinuePluginLogin},
+	{method: http.MethodPost, path: "/plugin_login/callback", permission: authz.ChannelSensitiveWrite, handler: controller.CompletePluginLoginCallback},
+	{method: http.MethodGet, path: "/:id/plugin_credentials", permission: authz.ChannelRead, handler: controller.GetPluginCredentials},
 	{method: http.MethodGet, path: "/:id/codex/usage", permission: authz.ChannelRead, handler: controller.GetCodexChannelUsage},
 	{method: http.MethodGet, path: "/:id/codex/usage/reset-credits", permission: authz.ChannelRead, handler: controller.GetCodexChannelRateLimitResetCredits},
 	{method: http.MethodPost, path: "/:id/codex/usage/reset", permission: authz.ChannelOperate, handler: controller.ResetCodexChannelUsage},

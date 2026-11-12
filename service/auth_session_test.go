@@ -32,7 +32,7 @@ func setupAuthSessionTestDB(t *testing.T) *model.User {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuthFlow{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuthFlow{}, &model.UserAccessToken{}))
 	model.DB = db
 	common.RedisEnabled = false
 	common.UserSessionActiveLimit = common.DefaultUserSessionActiveLimit
@@ -102,7 +102,7 @@ func TestCreateLoginSessionEnforcesActiveLimitAcrossAuthVersions(t *testing.T) {
 	common.UserSessionIssuanceLimit = 100
 	now := time.Now().Unix()
 	rows := make([]model.UserSession, 0, 49)
-	for i := 0; i < 49; i++ {
+	for i := range 49 {
 		authVersion := user.AuthVersion
 		if i == 0 {
 			authVersion++
@@ -216,7 +216,7 @@ func TestCleanupAuthArtifactsAlertsBeforeDeletingHourlyIssuance(t *testing.T) {
 	common.UserSessionIssuanceWindowSeconds = 1
 	now := time.Now()
 	boundaryRows := make([]model.UserSession, 0, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		boundaryRows = append(boundaryRows, model.UserSession{
 			SID: "hourly-boundary-" + string(rune('a'+i)), UserID: 1, Version: 1, UserAuthVersion: 1,
 			Status: model.UserSessionStatusActive, RefreshHash: "hash", LoginMethod: "password",
@@ -243,7 +243,7 @@ func TestCleanupAuthArtifactsAlertsBeforeDeletingHourlyIssuance(t *testing.T) {
 	assert.Zero(t, count)
 
 	exceededRows := make([]model.UserSession, 0, 3)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		exceededRows = append(exceededRows, model.UserSession{
 			SID: "hourly-exceeded-" + string(rune('a'+i)), UserID: 1, Version: 1, UserAuthVersion: 1,
 			Status: model.UserSessionStatusActive, RefreshHash: "hash", LoginMethod: "password",
@@ -276,6 +276,16 @@ func TestCleanupAuthArtifactsRemovesOnlyExpiredRecords(t *testing.T) {
 		ExpiresAt: now.Add(time.Minute),
 	}).Error)
 
+	retention := time.Duration(common.UserSessionRevokedRetentionDays) * 24 * time.Hour
+	for _, token := range []model.UserAccessToken{
+		{Name: "past retention", TokenHash: "past-retention", ExpiresAt: now.Add(-retention - time.Hour).Unix()},
+		{Name: "within retention", TokenHash: "within-retention", ExpiresAt: now.Add(-retention + time.Hour).Unix()},
+		{Name: "never expires", TokenHash: "never-expires"},
+	} {
+		token.UserId = 1
+		require.NoError(t, model.DB.Create(&token).Error)
+	}
+
 	cleanupAuthArtifacts()
 
 	var sessionCount int64
@@ -285,6 +295,9 @@ func TestCleanupAuthArtifactsRemovesOnlyExpiredRecords(t *testing.T) {
 	require.NoError(t, model.DB.Find(&flows).Error)
 	require.Len(t, flows, 1)
 	assert.Equal(t, "recent-flow", flows[0].TokenHash)
+	var kept []string
+	require.NoError(t, model.DB.Model(&model.UserAccessToken{}).Order("id").Pluck("token_hash", &kept).Error)
+	assert.Equal(t, []string{"within-retention", "never-expires"}, kept)
 }
 
 func TestCleanupAuthArtifactsContinuesWithRevokedCleanupAfterExpiredBatchFailure(t *testing.T) {

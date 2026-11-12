@@ -68,7 +68,17 @@ func DecompressRequestMiddleware() gin.HandlerFunc {
 			})
 			decompressed = true
 		case "zstd":
-			reader, err := zstd.NewReader(origBody)
+			// The frame header sets the decoder's window, and the decoder allocates
+			// it before any output exists, so the output limit below does not bound
+			// it. 8MiB is the window RFC 8878 asks encoders to stay within.
+			// In streaming mode MaxMemory also caps the window at the request limit.
+			// Disable async decoding to avoid reading the body before downstream
+			// middleware (including authentication) decides to consume it.
+			reader, err := zstd.NewReader(origBody,
+				zstd.WithDecoderMaxWindow(8<<20),
+				zstd.WithDecoderMaxMemory(uint64(maxBytes)),
+				zstd.WithDecoderConcurrency(1),
+			)
 			if err != nil {
 				_ = origBody.Close()
 				c.AbortWithStatus(http.StatusBadRequest)

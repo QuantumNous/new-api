@@ -62,9 +62,15 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { RelatedPolicyLink } from '@/features/system-settings/request-policies/related-policy-link'
 import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { handleServerError } from '@/lib/handle-server-error'
+import {
+  requireServerSuccess,
+  translateServerText,
+} from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import {
@@ -115,7 +121,7 @@ export function ApiKeysMutateDrawer({
   // Fetch models
   const { data: modelsData } = useQuery({
     queryKey: ['user-models'],
-    queryFn: getUserModels,
+    queryFn: async () => requireServerSuccess(await getUserModels()),
     enabled: open,
     staleTime: 0,
   })
@@ -127,7 +133,7 @@ export function ApiKeysMutateDrawer({
     isFetching: groupsFetching,
   } = useQuery({
     queryKey: ['user-groups'],
-    queryFn: getUserGroups,
+    queryFn: async () => requireServerSuccess(await getUserGroups()),
     enabled: open,
     staleTime: 0,
   })
@@ -138,7 +144,8 @@ export function ApiKeysMutateDrawer({
     isFetching: apiKeyFetching,
   } = useQuery({
     queryKey: ['api-key', currentRowId],
-    queryFn: () => getApiKey(currentRowId ?? 0),
+    queryFn: async () =>
+      requireServerSuccess(await getApiKey(currentRowId ?? 0)),
     enabled: open && isUpdate && currentRowId !== undefined,
     staleTime: 0,
   })
@@ -149,7 +156,7 @@ export function ApiKeysMutateDrawer({
     isFetching: autoGroupsFetching,
   } = useQuery({
     queryKey: ['token-auto-groups'],
-    queryFn: getTokenAutoGroups,
+    queryFn: async () => requireServerSuccess(await getTokenAutoGroups()),
     enabled: open,
     staleTime: 0,
   })
@@ -160,10 +167,10 @@ export function ApiKeysMutateDrawer({
       Object.entries(groupsData?.data || {}).map(([key, info]) => ({
         value: key,
         label: key,
-        desc: info.desc || key,
+        desc: info.desc ? translateServerText(t, info.desc) : key,
         ratio: info.ratio,
       })),
-    [groupsData]
+    [groupsData, t]
   )
   const backendHasAuto = groups.some((g) => g.value === 'auto')
   const availableAutoGroupNames = useMemo(
@@ -201,6 +208,9 @@ export function ApiKeysMutateDrawer({
   // Load existing data when updating
   useEffect(() => {
     if (!open) {
+      form.reset(
+        getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
+      )
       setInitializedTarget(null)
       return
     }
@@ -292,7 +302,7 @@ export function ApiKeysMutateDrawer({
           onOpenChange(false)
           triggerRefresh()
         } else {
-          toast.error(result.message || t(ERROR_MESSAGES.UPDATE_FAILED))
+          handleServerError(result, t(ERROR_MESSAGES.UPDATE_FAILED))
         }
       } else {
         // Create mode - handle batch creation
@@ -310,7 +320,7 @@ export function ApiKeysMutateDrawer({
           if (result.success) {
             successCount++
           } else {
-            toast.error(result.message || t(ERROR_MESSAGES.CREATE_FAILED))
+            handleServerError(result, t(ERROR_MESSAGES.CREATE_FAILED))
             break
           }
         }
@@ -325,8 +335,8 @@ export function ApiKeysMutateDrawer({
           triggerRefresh()
         }
       }
-    } catch {
-      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+    } catch (error) {
+      handleServerError(error, t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsSubmitting(false)
     }
@@ -338,7 +348,7 @@ export function ApiKeysMutateDrawer({
 
   const handleSetExpiry = (months: number, days: number, hours: number) => {
     if (months === 0 && days === 0 && hours === 0) {
-      form.setValue('expired_time', undefined)
+      form.setValue('expired_time', null)
       return
     }
 
@@ -361,15 +371,7 @@ export function ApiKeysMutateDrawer({
   const unlimitedQuota = form.watch('unlimited_quota')
 
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v)
-        if (!v) {
-          form.reset()
-        }
-      }}
-    >
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         className={sideDrawerContentClassName('max-w-none sm:!max-w-[620px]')}
       >
@@ -497,6 +499,7 @@ export function ApiKeysMutateDrawer({
                           {t(
                             'When enabled, if channels in the current group fail, it will try channels in the next group in order.'
                           )}
+                          <RelatedPolicyLink section='routing' />
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -519,8 +522,8 @@ export function ApiKeysMutateDrawer({
                     <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                       <FormControl>
                         <DateTimePicker
-                          value={field.value}
-                          onChange={field.onChange}
+                          value={field.value ?? undefined}
+                          onChange={(date) => field.onChange(date ?? null)}
                           placeholder={t('Never expires')}
                           className='min-w-0 [&_input[type=time]]:w-24 sm:[&_input[type=time]]:w-32'
                         />
@@ -741,6 +744,31 @@ export function ApiKeysMutateDrawer({
                             )}
                           </FormDescription>
                           <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='allow_user_quota_query'
+                      render={({ field }) => (
+                        <FormItem className={sideDrawerSwitchItemClassName()}>
+                          <div className='flex flex-col gap-0.5'>
+                            <FormLabel className='text-sm'>
+                              {t('Allow querying user quota')}
+                            </FormLabel>
+                            <FormDescription className='text-xs'>
+                              {t(
+                                "When enabled, this API key can be used to check your account's remaining and used quota."
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
                         </FormItem>
                       )}
                     />

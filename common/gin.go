@@ -1,24 +1,28 @@
 package common
 
 import (
-	"bytes"
 	"fmt"
 	"io"
+	"maps"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/pkg/errors"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/net/http/httpproxy"
 )
 
 const KeyRequestBody = "key_request_body"
 const KeyBodyStorage = "key_body_storage"
+const keyBodyReadError = "key_body_read_error"
 
 var ErrRequestBodyTooLarge = errors.New("request body too large")
 
@@ -57,6 +61,12 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 		}
 	}
 
+	// A failed read has consumed and closed the body. Later readers get the
+	// same error instead of "http: invalid Read on closed Body".
+	if readErr, failed := c.Get(keyBodyReadError); failed {
+		return nil, readErr.(error)
+	}
+
 	maxMB := constant.MaxRequestBodyMB
 	if maxMB <= 0 {
 		maxMB = 128 // 默认 128MB
@@ -71,8 +81,9 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 
 	if err != nil {
 		if IsRequestBodyTooLargeError(err) {
-			return nil, errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxMB))
+			err = errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxMB))
 		}
+		c.Set(keyBodyReadError, err)
 		return nil, err
 	}
 
@@ -106,42 +117,52 @@ func CleanupBodyStorage(c *gin.Context) {
 }
 
 func UnmarshalBodyReusable(c *gin.Context, v any) error {
+	return unmarshalBodyReusable(c, v, false)
+}
+
+// UnmarshalBodyReusableNoCopy borrows from immutable memory bodies and decodes
+// disk bodies through a file reader. Clone the decoded request before applying
+// per-attempt edits, including edits to raw JSON, so retries keep their input.
+func UnmarshalBodyReusableNoCopy(c *gin.Context, v any) error {
+	return unmarshalBodyReusable(c, v, true)
+}
+
+func unmarshalBodyReusable(c *gin.Context, v any, noCopy bool) error {
 	storage, err := GetBodyStorage(c)
 	if err != nil {
 		return err
 	}
 	contentType := c.Request.Header.Get("Content-Type")
 
-	// disk-backed JSON: stream-decode directly from the file to avoid
-	// materializing the entire payload back into a transient []byte
-	// (diskStorage.Bytes() would ReadFull the whole file into the heap).
-	if storage.IsDisk() && strings.HasPrefix(contentType, "application/json") {
-		if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
-			return seekErr
+	switch {
+	case strings.HasPrefix(contentType, "application/json"):
+		if storage.IsDisk() {
+			// Seek lets the decoder read large values through a bounded window.
+			reader, readErr := storage.NewReader()
+			if readErr != nil {
+				return readErr
+			}
+			defer reader.Close()
+			err = DecodeJsonBody(reader, v)
+		} else {
+			requestBody, readErr := storage.Bytes()
+			if readErr != nil {
+				return readErr
+			}
+			if noCopy {
+				err = UnmarshalNoCopy(requestBody, v)
+			} else {
+				err = Unmarshal(requestBody, v)
+			}
 		}
-		if err := DecodeJson(storage, v); err != nil {
-			return err
+	case strings.Contains(contentType, gin.MIMEPOSTForm):
+		requestBody, readErr := storage.Bytes()
+		if readErr != nil {
+			return readErr
 		}
-		if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
-			return seekErr
-		}
-		c.Request.Body = io.NopCloser(storage)
-		return nil
-	}
-
-	requestBody, err := storage.Bytes()
-	if err != nil {
-		return err
-	}
-	if strings.HasPrefix(contentType, "application/json") {
-		err = Unmarshal(requestBody, v)
-	} else if strings.Contains(contentType, gin.MIMEPOSTForm) {
 		err = parseFormData(requestBody, v)
-	} else if strings.Contains(contentType, gin.MIMEMultipartPOSTForm) {
-		err = parseMultipartFormData(c, requestBody, v)
-	} else {
-		// skip for now
-		// TODO: someday non json request have variant model, we will need to implementation this
+	case strings.Contains(contentType, gin.MIMEMultipartPOSTForm):
+		err = parseMultipartFormData(c, v)
 	}
 	if err != nil {
 		return err
@@ -164,6 +185,63 @@ func GetContextKey(c *gin.Context, key constant.ContextKey) (any, bool) {
 
 func GetContextKeyString(c *gin.Context, key constant.ContextKey) string {
 	return c.GetString(string(key))
+}
+
+// presetUpstreamHosts are the hosts, with any port, of the default base URLs
+// new-api presets for channel types. They are public endpoints, so errors keep
+// them readable. The port keeps a configured localhost upstream apart from the
+// Ollama preset.
+var presetUpstreamHosts = sync.OnceValue(func() map[string]struct{} {
+	hosts := make(map[string]struct{}, len(constant.ChannelBaseURLs))
+	for _, baseURL := range constant.ChannelBaseURLs {
+		if parsed, err := url.Parse(baseURL); err == nil && parsed.Host != "" {
+			hosts[strings.ToLower(parsed.Host)] = struct{}{}
+		}
+	}
+	return hosts
+})
+
+// isPresetUpstreamHost reports whether address points at one of the preset
+// default base URL hosts.
+func isPresetUpstreamHost(address string) bool {
+	rawURL := strings.TrimSpace(address)
+	if !strings.Contains(rawURL, "://") {
+		rawURL = "//" + rawURL
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	_, preset := presetUpstreamHosts()[strings.ToLower(parsed.Host)]
+	return preset
+}
+
+// UpstreamAddresses returns the addresses masked in errors shown to users: the
+// upstream the admin configured for the selected channel and the proxies its
+// requests may go through. Preset default base URLs are public and stay
+// readable. The origin actually requested only counts for a configured base
+// URL or an Advanced Custom or provider plugin channel, whose routes may
+// target absolute URLs; other adaptors build official endpoints themselves.
+func UpstreamAddresses(c *gin.Context) []string {
+	// A channel without its own proxy dials through the environment proxy.
+	environmentProxy := httpproxy.FromEnvironment()
+	candidates := []string{environmentProxy.HTTPProxy, environmentProxy.HTTPSProxy}
+	if setting, ok := GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting); ok {
+		candidates = append(candidates, setting.Proxy)
+	}
+	baseURL := strings.TrimSpace(GetContextKeyString(c, constant.ContextKeyChannelBaseUrl))
+	candidates = append(candidates, baseURL)
+	providerPlugin, _ := GetContextKey(c, constant.ContextKeyProviderPlugin)
+	if GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeAdvancedCustom || providerPlugin != nil || (baseURL != "" && !isPresetUpstreamHost(baseURL)) {
+		candidates = append(candidates, GetContextKeyString(c, constant.ContextKeyUpstreamRequestOrigin))
+	}
+	addresses := make([]string, 0, len(candidates))
+	for _, address := range candidates {
+		if strings.TrimSpace(address) != "" && !isPresetUpstreamHost(address) {
+			addresses = append(addresses, address)
+		}
+	}
+	return addresses
 }
 
 func GetContextKeyInt(c *gin.Context, key constant.ContextKey) int {
@@ -196,11 +274,45 @@ func GetContextKeyType[T any](c *gin.Context, key constant.ContextKey) (T, bool)
 	return t, false
 }
 
+// ApiError responds with err's text. When err is or wraps a *Message, the
+// response also carries message_key and message_params for the web console.
 func ApiError(c *gin.Context, err error) {
-	c.JSON(http.StatusOK, gin.H{
+	ApiErrorStatus(c, http.StatusOK, err)
+}
+
+// ApiErrorStatus is ApiError with another HTTP status. fields adds response
+// fields such as a stable error code or data.
+func ApiErrorStatus(c *gin.Context, status int, err error, fields ...gin.H) {
+	body := gin.H{
 		"success": false,
 		"message": err.Error(),
-	})
+	}
+	var message *Message
+	if errors.As(err, &message) {
+		maps.Copy(body, message.Fields())
+	}
+	for _, extra := range fields {
+		maps.Copy(body, extra)
+	}
+	c.JSON(status, body)
+}
+
+// ApiErrorT responds with a web console message; key is the English source
+// text, which the web console translates with params.
+func ApiErrorT(c *gin.Context, key string, params ...map[string]any) {
+	ApiError(c, NewMessage(key, params...))
+}
+
+// ApiSuccessT is the success counterpart of ApiErrorT.
+func ApiSuccessT(c *gin.Context, key string, data any, params ...map[string]any) {
+	message := NewMessage(key, params...)
+	body := gin.H{
+		"success": true,
+		"message": message.Error(),
+		"data":    data,
+	}
+	maps.Copy(body, message.Fields())
+	c.JSON(http.StatusOK, body)
 }
 
 func ApiErrorMsg(c *gin.Context, msg string) {
@@ -257,11 +369,6 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 	if err != nil {
 		return nil, err
 	}
-	requestBody, err := storage.Bytes()
-	if err != nil {
-		return nil, err
-	}
-
 	// Use the original Content-Type saved on first call to avoid boundary
 	// mismatch when callers overwrite c.Request.Header after multipart rebuild.
 	var contentType string
@@ -276,7 +383,12 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 		return nil, err
 	}
 
-	reader := multipart.NewReader(bytes.NewReader(requestBody), boundary)
+	body, err := storage.NewReader()
+	if err != nil {
+		return nil, err
+	}
+	defer body.Close()
+	reader := multipart.NewReader(body, boundary)
 	form, err := reader.ReadForm(multipartMemoryLimit())
 	if err != nil {
 		return nil, err
@@ -284,6 +396,7 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 
 	// Reset request body
 	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+		_ = form.RemoveAll()
 		return nil, seekErr
 	}
 	c.Request.Body = io.NopCloser(storage)
@@ -321,25 +434,21 @@ func parseFormData(data []byte, v any) error {
 	return processFormMap(formMap, v)
 }
 
-func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
-	var contentType string
-	if saved, ok := c.Get("_original_multipart_ct"); ok {
-		contentType = saved.(string)
-	} else {
-		contentType = c.Request.Header.Get("Content-Type")
-		c.Set("_original_multipart_ct", contentType)
-	}
-	boundary, err := parseBoundary(contentType)
+func parseMultipartFormData(c *gin.Context, v any) error {
+	form, err := ParseMultipartFormReusable(c)
 	if err != nil {
 		if errors.Is(err, errBoundaryNotFound) {
-			return Unmarshal(data, v) // Fallback to JSON
+			storage, err := GetBodyStorage(c)
+			if err != nil {
+				return err
+			}
+			reader, err := storage.NewReader()
+			if err != nil {
+				return err
+			}
+			defer reader.Close()
+			return DecodeJsonBody(reader, v)
 		}
-		return err
-	}
-
-	reader := multipart.NewReader(bytes.NewReader(data), boundary)
-	form, err := reader.ReadForm(multipartMemoryLimit())
-	if err != nil {
 		return err
 	}
 	defer form.RemoveAll()
