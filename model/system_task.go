@@ -175,16 +175,61 @@ func FindEarliestPendingSystemTasks(taskTypes []string) (map[string]*SystemTask,
 	return tasksByType, nil
 }
 
-func ListSystemTasks(limit int) ([]*SystemTask, error) {
+type SystemTaskFilter struct {
+	Scope  string           `form:"scope" binding:"omitempty,oneof=active history"`
+	Type   string           `form:"type" binding:"max=64"`
+	Status SystemTaskStatus `form:"status" binding:"omitempty,oneof=pending running succeeded failed"`
+}
+
+func (filter SystemTaskFilter) query() *gorm.DB {
+	query := DB.Model(&SystemTask{})
+	switch filter.Scope {
+	case "active":
+		query = query.Where("status IN ?", activeSystemTaskStatuses())
+	case "history":
+		query = query.Where("status IN ?", []SystemTaskStatus{SystemTaskStatusSucceeded, SystemTaskStatusFailed})
+	}
+	if filter.Type != "" {
+		query = query.Where("type = ?", filter.Type)
+	}
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	}
+	return query
+}
+
+func ListSystemTasks(filter SystemTaskFilter, offset, limit int) ([]*SystemTask, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
-	if limit > 100 {
-		limit = 100
+	query := filter.query()
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
 	var tasks []*SystemTask
-	err := DB.Order("id desc").Limit(limit).Find(&tasks).Error
-	return tasks, err
+	err := query.Order("id desc").Offset(max(0, offset)).Limit(min(limit, 100)).Find(&tasks).Error
+	return tasks, total, err
+}
+
+// DeleteSystemTaskHistory preserves the latest row of every type because the
+// scheduler uses it to determine when the next run is due. Active rows and rows
+// created after this cleanup's snapshot are never removed.
+func DeleteSystemTaskHistory(filter SystemTaskFilter) (int64, error) {
+	var latestIDs []int64
+	if err := DB.Model(&SystemTask{}).Select("MAX(id)").Group("type").Pluck("MAX(id)", &latestIDs).Error; err != nil {
+		return 0, err
+	}
+	if len(latestIDs) == 0 {
+		return 0, nil
+	}
+	var newestID int64
+	for _, id := range latestIDs {
+		newestID = max(newestID, id)
+	}
+	filter.Scope = "history"
+	result := filter.query().Where("id < ? AND id NOT IN ?", newestID, latestIDs).Delete(&SystemTask{})
+	return result.RowsAffected, result.Error
 }
 
 // GetLatestSystemTask returns the most recent task row of the given type
@@ -322,7 +367,23 @@ func UpdateSystemTaskState(taskID string, lockedBy string, state any) error {
 	if result.Error != nil {
 		return result.Error
 	}
-	if result.RowsAffected == 0 {
+	if result.RowsAffected > 0 {
+		return nil
+	}
+	// MySQL counts changed rows, not matched rows. A no-op persist of the same
+	// state in the same second therefore returns RowsAffected == 0 even while
+	// the lease is still held. Confirm the lock before treating this as loss.
+	// Reuse `now` from the UPDATE so a clock tick cannot reintroduce false
+	// lock-loss; a lease that expires during the write is caught by the next heartbeat.
+	var held int64
+	err = DB.Model(&SystemTask{}).
+		Where("task_id = ? AND status = ? AND locked_by = ?", taskID, SystemTaskStatusRunning, lockedBy).
+		Where("EXISTS (SELECT 1 FROM system_task_locks WHERE system_task_locks.task_id = system_tasks.task_id AND system_task_locks.locked_by = ? AND system_task_locks.locked_until >= ?)", lockedBy, now).
+		Count(&held).Error
+	if err != nil {
+		return err
+	}
+	if held == 0 {
 		return ErrSystemTaskLockLost
 	}
 	return nil

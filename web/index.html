@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="google" content="notranslate" />
+
+    <!-- Primary Meta Tags -->
+    <title>New API</title>
+    <meta name="title" content="New API" />
+    <meta
+      name="description"
+      content="Unified AI API gateway and admin dashboard."
+    />
+
+    <meta name="theme-color" content="#fff" />
+    <!-- Resolve the theme before first paint so the page never flashes light
+         and one-shot detectors (e.g. Dark Reader) see the real theme.
+         Keep in sync with ThemeProvider and THEME_STORAGE_KEYS.mode. -->
+    <script>
+      ;(function () {
+        var theme = 'system'
+        try {
+          theme = localStorage.getItem('newapi:theme:v1:mode') || 'system'
+        } catch (e) {}
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+        }
+        document.documentElement.classList.add(theme)
+      })()
+    </script>
+    <!--umami-->
+    <!--Google Analytics-->
+  </head>
+
+  <body>
+    <div id="root" translate="no" class="notranslate"></div>
+  </body>
+</html>

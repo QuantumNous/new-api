@@ -1,0 +1,6 @@
+version: 2
+updates:
+  - package-ecosystem: "bun"
+    directory: "/web"
+    schedule:
+      interval: "weekly"

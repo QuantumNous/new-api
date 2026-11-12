@@ -3,7 +3,8 @@ package service
 import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/tokenkit"
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,7 +24,7 @@ func ResponseText2Usage(c *gin.Context, responseText string, modeName string, pr
 	common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
 	usage := &dto.Usage{}
 	usage.PromptTokens = promptTokens
-	usage.CompletionTokens = EstimateTokenByModel(modeName, responseText)
+	usage.CompletionTokens = tokenkit.Estimate(modeName, responseText)
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	return usage
 }

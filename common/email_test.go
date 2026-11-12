@@ -364,7 +364,7 @@ func TestSMTPPlainAuthRejectsRemotePlaintextConnection(t *testing.T) {
 	SMTPFrom = "sender@example.com"
 	SMTPToken = "secret"
 
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", server.host, server.port))
+	conn, err := net.Dial("tcp", net.JoinHostPort(server.host, strconv.Itoa(server.port)))
 	require.NoError(t, err)
 	client, err := smtp.NewClient(conn, SMTPServer)
 	require.NoError(t, err)

@@ -9,7 +9,7 @@ let serverProcess;
 let tray = null;
 let serverErrorLogs = [];
 const PORT = 3000;
-const DEV_FRONTEND_PORT = 5173; // Vite dev server port
+const DEV_FRONTEND_PORT = 5173; // Rsbuild dev server port
 
 // 保存日志到文件并打开
 function saveAndOpenErrorLog() {
@@ -235,7 +235,7 @@ function startServer() {
       console.log('Development mode: skipping server startup');
       console.log('Please make sure you have started:');
       console.log('  1. Go backend: go run main.go (port 3000)');
-      console.log('  2. Frontend dev server: cd web && bun dev (port 5173)');
+      console.log('  2. Frontend dev server: make dev-web (port 5173)');
       console.log('');
       console.log('Checking if servers are running...');
       
@@ -248,7 +248,7 @@ function startServer() {
         .catch((err) => {
           console.error(`✗ Cannot connect to frontend dev server on port ${DEV_FRONTEND_PORT}`);
           console.error('Please make sure the frontend dev server is running:');
-          console.error('  cd web && bun dev');
+          console.error('  make dev-web');
           reject(err);
         });
       return;
