@@ -85,15 +85,15 @@ func PrepareResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, req *d
 			return nil, nil, nil, newAPIErrorFromParamOverride(err)
 		}
 	}
-	if apiErr = requestplugin.Egress(c, info, jsonData); apiErr != nil {
-		return nil, nil, nil, apiErr
-	}
-
 	if finalizer, ok := adaptor.(relaychannel.ResponsesRequestFinalizer); ok {
 		jsonData, err = finalizer.FinalizeResponsesRequest(info, jsonData)
 		if err != nil {
 			return nil, nil, nil, newConvertRequestFailedError(c, info, err)
 		}
+	}
+	// egress reads the body as it is sent, after the channel finalized it.
+	if apiErr = requestplugin.Egress(c, info, jsonData); apiErr != nil {
+		return nil, nil, nil, apiErr
 	}
 
 	logger.LogDebug(c, "requestBody: %s", jsonData)

@@ -142,6 +142,30 @@ func restoreMultiKeyChannelIfAvailable(channel *model.Channel) {
 	channel.SetOtherInfo(info)
 }
 
+// saveManagedKeyStatus runs change on the stored multi-key channel and writes
+// the key statuses, channel status and status reason it leaves. A change
+// another writer, on any node, makes to other_info meanwhile, such as a
+// balance query, is kept.
+func saveManagedKeyStatus(channelID int, change func(stored *model.Channel) error) error {
+	statusChanged, enabled := false, false
+	written, err := model.UpdateChannelOtherInfo(channelID, func(stored *model.Channel) (map[string]any, error) {
+		status := stored.Status
+		if err := change(stored); err != nil {
+			return nil, err
+		}
+		statusChanged, enabled = stored.Status != status, stored.Status == common.ChannelStatusEnabled
+		return map[string]any{"status": stored.Status, "channel_info": stored.ChannelInfo}, nil
+	})
+	if err != nil || !written {
+		return err
+	}
+	model.BumpSyncTopic(model.SyncTopicChannels)
+	if statusChanged {
+		return model.UpdateAbilityStatus(channelID, enabled)
+	}
+	return nil
+}
+
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
 	if statusFilter == common.ChannelStatusEnabled {
 		return query.Where("status = ?", common.ChannelStatusEnabled)
@@ -2049,20 +2073,23 @@ func ManageMultiKeys(c *gin.Context) {
 			return
 		}
 
-		if channel.ChannelInfo.MultiKeyStatusList == nil {
-			channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
-		}
-		if channel.ChannelInfo.MultiKeyDisabledTime == nil {
-			channel.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
-		}
-		if channel.ChannelInfo.MultiKeyDisabledReason == nil {
-			channel.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
-		}
+		shouldCloseWebSocket := false
+		err = saveManagedKeyStatus(channel.Id, func(stored *model.Channel) error {
+			if stored.ChannelInfo.MultiKeyStatusList == nil {
+				stored.ChannelInfo.MultiKeyStatusList = make(map[int]int)
+			}
+			if stored.ChannelInfo.MultiKeyDisabledTime == nil {
+				stored.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
+			}
+			if stored.ChannelInfo.MultiKeyDisabledReason == nil {
+				stored.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
+			}
 
-		channel.ChannelInfo.MultiKeyStatusList[keyIndex] = 2 // disabled
+			stored.ChannelInfo.MultiKeyStatusList[keyIndex] = 2 // disabled
 
-		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
-		err = channel.Update()
+			shouldCloseWebSocket = disableMultiKeyChannelIfUnavailable(stored)
+			return nil
+		})
 		if err != nil {
 			common.ApiError(c, err)
 			return
@@ -2086,19 +2113,14 @@ func ManageMultiKeys(c *gin.Context) {
 			return
 		}
 
-		// 从状态列表中删除该密钥的记录，使其回到默认启用状态
-		if channel.ChannelInfo.MultiKeyStatusList != nil {
-			delete(channel.ChannelInfo.MultiKeyStatusList, keyIndex)
-		}
-		if channel.ChannelInfo.MultiKeyDisabledTime != nil {
-			delete(channel.ChannelInfo.MultiKeyDisabledTime, keyIndex)
-		}
-		if channel.ChannelInfo.MultiKeyDisabledReason != nil {
-			delete(channel.ChannelInfo.MultiKeyDisabledReason, keyIndex)
-		}
-		restoreMultiKeyChannelIfAvailable(channel)
-
-		err = channel.Update()
+		err = saveManagedKeyStatus(channel.Id, func(stored *model.Channel) error {
+			// 从状态列表中删除该密钥的记录，使其回到默认启用状态
+			delete(stored.ChannelInfo.MultiKeyStatusList, keyIndex)
+			delete(stored.ChannelInfo.MultiKeyDisabledTime, keyIndex)
+			delete(stored.ChannelInfo.MultiKeyDisabledReason, keyIndex)
+			restoreMultiKeyChannelIfAvailable(stored)
+			return nil
+		})
 		if err != nil {
 			common.ApiError(c, err)
 			return
@@ -2111,16 +2133,14 @@ func ManageMultiKeys(c *gin.Context) {
 	case "enable_all_keys":
 		// 清空所有禁用状态，使所有密钥回到默认启用状态
 		var enabledCount int
-		if channel.ChannelInfo.MultiKeyStatusList != nil {
-			enabledCount = len(channel.ChannelInfo.MultiKeyStatusList)
-		}
-
-		channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
-		channel.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
-		channel.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
-		restoreMultiKeyChannelIfAvailable(channel)
-
-		err = channel.Update()
+		err = saveManagedKeyStatus(channel.Id, func(stored *model.Channel) error {
+			enabledCount = len(stored.ChannelInfo.MultiKeyStatusList)
+			stored.ChannelInfo.MultiKeyStatusList = make(map[int]int)
+			stored.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
+			stored.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
+			restoreMultiKeyChannelIfAvailable(stored)
+			return nil
+		})
 		if err != nil {
 			common.ApiError(c, err)
 			return
@@ -2132,37 +2152,39 @@ func ManageMultiKeys(c *gin.Context) {
 
 	case "disable_all_keys":
 		// 禁用所有启用的密钥
-		if channel.ChannelInfo.MultiKeyStatusList == nil {
-			channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
-		}
-		if channel.ChannelInfo.MultiKeyDisabledTime == nil {
-			channel.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
-		}
-		if channel.ChannelInfo.MultiKeyDisabledReason == nil {
-			channel.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
-		}
-
 		var disabledCount int
-		for i := 0; i < channel.ChannelInfo.MultiKeySize; i++ {
-			status := 1 // default enabled
-			if s, exists := channel.ChannelInfo.MultiKeyStatusList[i]; exists {
-				status = s
+		shouldCloseWebSocket := false
+		err = saveManagedKeyStatus(channel.Id, func(stored *model.Channel) error {
+			if stored.ChannelInfo.MultiKeyStatusList == nil {
+				stored.ChannelInfo.MultiKeyStatusList = make(map[int]int)
+			}
+			if stored.ChannelInfo.MultiKeyDisabledTime == nil {
+				stored.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
+			}
+			if stored.ChannelInfo.MultiKeyDisabledReason == nil {
+				stored.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
 			}
 
-			// 只禁用当前启用的密钥
-			if status == 1 {
-				channel.ChannelInfo.MultiKeyStatusList[i] = 2 // disabled
-				disabledCount++
+			disabledCount = 0
+			for i := range stored.ChannelInfo.MultiKeySize {
+				status := 1 // default enabled
+				if s, exists := stored.ChannelInfo.MultiKeyStatusList[i]; exists {
+					status = s
+				}
+
+				// 只禁用当前启用的密钥
+				if status == 1 {
+					stored.ChannelInfo.MultiKeyStatusList[i] = 2 // disabled
+					disabledCount++
+				}
 			}
-		}
 
-		if disabledCount == 0 {
-			common.ApiErrorT(c, "No keys to disable")
-			return
-		}
-
-		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
-		err = channel.Update()
+			if disabledCount == 0 {
+				return common.NewMessage("No keys to disable")
+			}
+			shouldCloseWebSocket = disableMultiKeyChannelIfUnavailable(stored)
+			return nil
+		})
 		if err != nil {
 			common.ApiError(c, err)
 			return

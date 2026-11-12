@@ -315,7 +315,8 @@ function duration(req) {
   return n;
 }
 // The channel's region field, read as the built-in Vertex AI channel reads it:
-// a plain region, or a JSON map of model to region with a default.
+// a plain region, or a JSON map of model to region with a default, keyed by
+// the model the client asked for, before the channel's model mapping.
 function region(ctx, model) {
   const other = String(ctx.channelOther || "").trim();
   if (other.startsWith("{")) {
@@ -446,7 +447,7 @@ export function buildSubmitRequest(ctx) {
   }
   return {
     // A gateway runs the request in its own project, so the path names none.
-    url: modelURL(ctx, viaGateway(ctx) ? "-" : ctx.auth.projectId, region(ctx, model), model, "predictLongRunning"),
+    url: modelURL(ctx, viaGateway(ctx) ? "-" : ctx.auth.projectId, region(ctx, ctx.model || model), model, "predictLongRunning"),
     method: "POST",
     headers: requestHeaders(ctx),
     body: { instances: [instance], parameters: metadata },

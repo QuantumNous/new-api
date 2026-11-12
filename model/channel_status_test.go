@@ -2,6 +2,8 @@ package model
 
 import (
 	"fmt"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -54,54 +56,104 @@ func TestUpdateChannelStatusPersistsMultiKeyState(t *testing.T) {
 	assert.Equal(t, 1, stored.ChannelInfo.MultiKeyPollingIndex)
 }
 
-func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.T) {
-	setupChannelStatusTest(t)
+// writeAfterNextChannelRead stands for another node: right after the next
+// read of the channel, before the writer under test writes, it stores the
+// columns write returns for the channel it reads.
+func writeAfterNextChannelRead(t *testing.T, channelID int, write func(stored *Channel) map[string]any) {
+	t.Helper()
+	var done atomic.Bool
+	require.NoError(t, DB.Callback().Query().After("gorm:query").Register("test:other_node_write", func(tx *gorm.DB) {
+		if !strings.HasSuffix(tx.Statement.Table, "channels") || !done.CompareAndSwap(false, true) {
+			return
+		}
+		var stored Channel
+		require.NoError(t, DB.First(&stored, "id = ?", channelID).Error)
+		require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channelID).Updates(write(&stored)).Error)
+	}))
+	t.Cleanup(func() { _ = DB.Callback().Query().Remove("test:other_node_write") })
+}
 
-	channel := Channel{
-		Name:        "single-key-status",
-		Key:         "original-key",
-		Status:      common.ChannelStatusEnabled,
-		Models:      "original-model",
-		Group:       "default",
-		UsedQuota:   100,
-		ChannelInfo: ChannelInfo{},
-	}
-	require.NoError(t, DB.Create(&channel).Error)
+// A writer of other_info writes back only while no other writer, on any node,
+// changed it since the read; otherwise it reads again, so both changes are
+// kept. It writes its own columns only, so a stale read never puts back the
+// key, counters, models or channel_info another writer stored.
+func TestChannelOtherInfoWritesKeepConcurrentChanges(t *testing.T) {
+	useScheduledChannelDatabase(t)
+	common.MemoryCacheEnabled = false
 
-	stale, err := GetChannelById(channel.Id, true)
-	require.NoError(t, err)
+	t.Run("a status change and a balance query of another node", func(t *testing.T) {
+		channel := Channel{Name: "status-race", Key: "original-key", Status: common.ChannelStatusEnabled, Models: "original-model", Group: "default", UsedQuota: 100}
+		require.NoError(t, channel.Insert())
+		concurrentInfo := ChannelInfo{MultiKeyMode: constant.MultiKeyModePolling, MultiKeyPollingIndex: 1}
+		writeAfterNextChannelRead(t, channel.Id, func(stored *Channel) map[string]any {
+			info := stored.GetOtherInfo()
+			info[channelBalanceDetailKey] = map[string]any{"amount": 7, "currency": "USD"}
+			stored.SetOtherInfo(info)
+			return map[string]any{
+				"other_info":   stored.OtherInfo,
+				"key":          "rotated-key",
+				"used_quota":   gorm.Expr("used_quota + ?", 250),
+				"models":       "concurrent-model",
+				"channel_info": concurrentInfo,
+			}
+		})
 
-	concurrentChannelInfo := ChannelInfo{
-		IsMultiKey:           true,
-		MultiKeySize:         2,
-		MultiKeyMode:         constant.MultiKeyModePolling,
-		MultiKeyPollingIndex: 1,
-	}
-	require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channel.Id).Updates(map[string]any{
-		"key":          "rotated-key",
-		"used_quota":   gorm.Expr("used_quota + ?", 250),
-		"models":       "concurrent-model",
-		"channel_info": concurrentChannelInfo,
-	}).Error)
+		require.True(t, UpdateChannelStatus(channel.Id, "", common.ChannelStatusManuallyDisabled, "manual operation"))
 
-	stale.Status = common.ChannelStatusManuallyDisabled
-	stale.SetOtherInfo(map[string]any{
-		"status_reason": "manual operation",
-		"status_time":   int64(1234),
+		var stored Channel
+		require.NoError(t, DB.First(&stored, channel.Id).Error)
+		assert.Equal(t, common.ChannelStatusManuallyDisabled, stored.Status)
+		assert.Equal(t, "manual operation", stored.GetOtherInfo()["status_reason"])
+		detail := stored.GetBalanceDetail()
+		require.NotNil(t, detail, stored.OtherInfo)
+		require.NotNil(t, detail.Amount)
+		assert.Equal(t, 7.0, *detail.Amount)
+		assert.Equal(t, "rotated-key", stored.Key)
+		assert.Equal(t, int64(350), stored.UsedQuota)
+		assert.Equal(t, "concurrent-model", stored.Models)
+		assert.Equal(t, concurrentInfo, stored.ChannelInfo)
 	})
-	require.NoError(t, stale.saveStatusState())
 
-	var stored Channel
-	require.NoError(t, DB.First(&stored, channel.Id).Error)
-	assert.Equal(t, common.ChannelStatusManuallyDisabled, stored.Status)
-	assert.Equal(t, "rotated-key", stored.Key)
-	assert.Equal(t, int64(350), stored.UsedQuota)
-	assert.Equal(t, "concurrent-model", stored.Models)
-	assert.Equal(t, concurrentChannelInfo, stored.ChannelInfo)
+	t.Run("a balance query and a status change of another node", func(t *testing.T) {
+		channel := Channel{Name: "balance-race", Key: "key", Status: common.ChannelStatusEnabled, Models: "balance-model", Group: "default"}
+		require.NoError(t, channel.Insert())
+		// A channel stored before other_info was written has it NULL.
+		require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("other_info", gorm.Expr("NULL")).Error)
+		writeAfterNextChannelRead(t, channel.Id, func(stored *Channel) map[string]any {
+			info := stored.GetOtherInfo()
+			info["status_reason"] = "other node"
+			stored.SetOtherInfo(info)
+			return map[string]any{"other_info": stored.OtherInfo, "status": common.ChannelStatusManuallyDisabled}
+		})
+		amount := 3.5
+		detail, err := UpdateChannelBalanceDetail(channel.Id, func(*ChannelBalanceDetail) (*ChannelBalanceDetail, *float64) {
+			return &ChannelBalanceDetail{BalanceResult: jsplugin.BalanceResult{Amount: &amount, Currency: "USD"}}, &amount
+		})
+		require.NoError(t, err)
+		require.NotNil(t, detail)
 
-	otherInfo := stored.GetOtherInfo()
-	assert.Equal(t, "manual operation", otherInfo["status_reason"])
-	assert.Equal(t, float64(1234), otherInfo["status_time"])
+		var stored Channel
+		require.NoError(t, DB.First(&stored, channel.Id).Error)
+		assert.Equal(t, common.ChannelStatusManuallyDisabled, stored.Status)
+		assert.Equal(t, "other node", stored.GetOtherInfo()["status_reason"])
+		assert.Equal(t, 3.5, stored.Balance)
+		assert.NotZero(t, stored.BalanceUpdatedTime)
+		require.NotNil(t, stored.GetBalanceDetail())
+		assert.Equal(t, 3.5, *stored.GetBalanceDetail().Amount)
+
+		// Storing the same failure twice writes the same values again, which
+		// MySQL reports as no changed row.
+		for range 2 {
+			_, err = UpdateChannelBalanceDetail(channel.Id, func(stored *ChannelBalanceDetail) (*ChannelBalanceDetail, *float64) {
+				stored.Error = "upstream failed"
+				return stored, nil
+			})
+			require.NoError(t, err)
+		}
+		require.NoError(t, DB.First(&stored, channel.Id).Error)
+		assert.Equal(t, "upstream failed", stored.GetBalanceDetail().Error)
+		assert.Equal(t, "other node", stored.GetOtherInfo()["status_reason"])
+	})
 }
 
 func TestAutoDisableKeepsManualDisable(t *testing.T) {
