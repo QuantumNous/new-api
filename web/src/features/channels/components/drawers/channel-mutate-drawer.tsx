@@ -268,6 +268,35 @@ const createEmptyModelMappingGuardrail = (): ModelMappingGuardrail => ({
   exposedTargetModels: [],
 })
 
+// Mappings already reflected in the model list count as synced, so the
+// redirect sync only reverts changes it made for the channel being edited.
+const getModelMappingSyncBaseline = (
+  mapping: string,
+  modelsValue: string
+): { aliases: Set<string>; targets: Set<string> } => {
+  const aliases = new Set<string>()
+  const targets = new Set<string>()
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(mapping.trim() || '{}')
+  } catch {
+    return { aliases, targets }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { aliases, targets }
+  }
+  const models = new Set(parseModelsString(modelsValue))
+  for (const [rawFrom, rawTo] of Object.entries(parsed)) {
+    if (typeof rawTo !== 'string') continue
+    const from = rawFrom.trim()
+    const to = rawTo.trim()
+    if (!from || !to) continue
+    if (models.has(from)) aliases.add(from)
+    if (!models.has(to)) targets.add(to)
+  }
+  return { aliases, targets }
+}
+
 const formatModelNames = (models: string[]): string =>
   models.map((model) => `"${model}"`).join(', ')
 
@@ -488,6 +517,16 @@ export function ChannelMutateDrawer({
   const [redirectSyncModels, setRedirectSyncModels] = useState(true)
   const syncedAliasesRef = useRef(new Set<string>())
   const syncedTargetsRef = useRef(new Set<string>())
+  // The drawer stays mounted between channels, so the sync baseline must be
+  // rebuilt whenever another channel is loaded.
+  const resetModelMappingSync = useCallback(
+    (mapping = '', modelsValue = '') => {
+      const baseline = getModelMappingSyncBaseline(mapping, modelsValue)
+      syncedAliasesRef.current = baseline.aliases
+      syncedTargetsRef.current = baseline.targets
+    },
+    []
+  )
   const [viewportWide, setViewportWide] = useState(
     () => window.innerWidth >= REDIRECT_PANEL_MIN_VIEWPORT
   )
@@ -1036,6 +1075,7 @@ export function ChannelMutateDrawer({
       setChoosingProvider(true)
       setConfigurationSection('connection')
       setPendingErrorFocus(null)
+      resetModelMappingSync()
       return
     }
     if (isEditing && channelData?.data) {
@@ -1050,6 +1090,7 @@ export function ChannelMutateDrawer({
       }
       const defaults = transformChannelToFormDefaults(channelData.data)
       form.reset(defaults)
+      resetModelMappingSync(defaults.model_mapping, defaults.models)
       loadedForm.current = {
         channelId: channelData.data.id,
         snapshot: JSON.stringify(form.getValues()),
@@ -1074,11 +1115,12 @@ export function ChannelMutateDrawer({
         channelData.data.status_code_mapping || ''
     } else if (!isEditing) {
       form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+      resetModelMappingSync()
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
       initialStatusCodeMappingRef.current = ''
     }
-  }, [isEditing, channelId, channelData, form, open])
+  }, [isEditing, channelId, channelData, form, open, resetModelMappingSync])
 
   // Handle type change - set default values for specific types
   useEffect(() => {
@@ -1438,15 +1480,18 @@ export function ChannelMutateDrawer({
 
   const applyMappingPairs = useCallback(
     (pairs: ModelMappingPair[], sync: boolean) => {
-      const merged = mergeModelMappingPairs(
-        form.getValues('model_mapping') || '',
-        pairs
-      )
+      const current = form.getValues('model_mapping') || ''
+      const merged = mergeModelMappingPairs(current, pairs)
       if (merged === null) return
       form.setValue('model_mapping', merged, { shouldDirty: true })
-      if (sync) syncModelsWithMapping(merged)
+      if (sync) {
+        // Mapping edits made outside the redirect panel are not synced, so
+        // rebase on the current values and revert only this batch's changes.
+        resetModelMappingSync(current, form.getValues('models') || '')
+        syncModelsWithMapping(merged)
+      }
     },
-    [form, syncModelsWithMapping]
+    [form, resetModelMappingSync, syncModelsWithMapping]
   )
 
   const handleBatchMappingApply = useCallback(
@@ -1472,19 +1517,12 @@ export function ChannelMutateDrawer({
   const openRedirectPanel = useCallback(() => {
     // Pre-existing mappings count as already synced, so opening the panel
     // never rewrites the model list on its own.
-    const models = new Set(parseModelsString(form.getValues('models') || ''))
-    syncedAliasesRef.current = new Set(
-      modelMappingGuardrail.entries
-        .filter((entry) => models.has(entry.source))
-        .map((entry) => entry.source)
-    )
-    syncedTargetsRef.current = new Set(
-      modelMappingGuardrail.entries
-        .filter((entry) => !models.has(entry.target))
-        .map((entry) => entry.target)
+    resetModelMappingSync(
+      form.getValues('model_mapping') || '',
+      form.getValues('models') || ''
     )
     setRedirectPanelOpen(true)
-  }, [form, modelMappingGuardrail.entries])
+  }, [form, resetModelMappingSync])
 
   const closeRedirectPanel = useCallback(() => {
     setRedirectPanelOpen(false)
