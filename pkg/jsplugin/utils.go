@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Calcium-Ion/moejs"
 	"github.com/MoeForge/moego/base64"
+	"github.com/MoeForge/moejs"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )

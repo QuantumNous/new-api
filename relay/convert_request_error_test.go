@@ -46,8 +46,11 @@ func (s *imageReservation) ReserveBeforeSubmit(quota int) error { return s.Reser
 
 func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 	service.InitHttpClient()
+	previous := common.GetDiskCacheConfig()
+	common.SetDiskCacheConfig(common.DiskCacheConfig{Enabled: true, ThresholdMB: 0, MaxSizeMB: 16, Path: t.TempDir()})
+	t.Cleanup(func() { common.SetDiskCacheConfig(previous) })
 	for _, tc := range []struct {
-		name, body                                    string
+		name, body, storedBody                        string
 		tiered, passThrough, insufficient, retryReset bool
 		override                                      any
 		count, status                                 int
@@ -56,6 +59,10 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 		{name: "legacy channel quantity override", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4},
 		{name: "expression channel quantity override", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4, tiered: true},
 		{name: "pass-through quantity", body: `{"model":"gpt-image-2","n":2,"parameters":{}}`, count: 2, passThrough: true},
+		{name: "large pass-through file", body: `{"model":"gpt-image-2","image":"` + strings.Repeat("A", 1<<20) + `","n":2}`, count: 2, passThrough: true},
+		{name: "pass-through duplicate quantity uses last value", body: `{"model":"gpt-image-2","n":1,"n":2}`, count: 2, passThrough: true},
+		{name: "pass-through zero quantity", body: `{"model":"gpt-image-2","n":0}`, count: 1, passThrough: true},
+		{name: "pass-through file quantity revalidated", body: `{"model":"gpt-image-2","n":1}`, storedBody: `{"model":"gpt-image-2","n":129}`, passThrough: true, status: http.StatusBadRequest},
 		{name: "oversized override rejected", body: `{"model":"gpt-image-2","n":1}`, override: 129, status: http.StatusBadRequest},
 		{name: "insufficient reservation blocks upstream", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4, insufficient: true, status: http.StatusForbidden},
 		{name: "retry drops the previous attempt's quantity", body: `{"model":"gpt-image-2","n":1}`, count: 1, retryReset: true},
@@ -73,6 +80,7 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			}))
 			t.Cleanup(upstream.Close)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(tc.body))
 			c.Request.Header.Set("Content-Type", "application/json")
 			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
@@ -83,6 +91,12 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			}
 			request, err := helper.GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
 			require.NoError(t, err)
+			if tc.storedBody != "" {
+				common.CleanupBodyStorage(c)
+				storage, err := common.CreateBodyStorage([]byte(tc.storedBody))
+				require.NoError(t, err)
+				c.Set(common.KeyBodyStorage, storage)
+			}
 			reservation := &imageReservation{held: 20000, limit: 500000}
 			if tc.insufficient {
 				reservation.limit = reservation.held
@@ -112,7 +126,11 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			assert.Equal(t, http.StatusBadGateway, apiErr.StatusCode)
 			require.Len(t, received, 1)
 			body := <-received
-			assert.Equal(t, int64(tc.count), ojson.GetBytes(body, "n").Int())
+			if tc.passThrough {
+				assert.Equal(t, tc.body, string(body))
+			} else {
+				assert.Equal(t, int64(tc.count), ojson.GetBytes(body, "n").Int())
+			}
 			assert.Equal(t, tc.count*20000, info.PriceData.QuotaToPreConsume)
 			assert.GreaterOrEqual(t, reservation.held, info.PriceData.QuotaToPreConsume)
 			assert.Nil(t, info.BillingImageCount)

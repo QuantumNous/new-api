@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Calcium-Ion/moejs"
+	"github.com/MoeForge/moejs"
 )
 
 // Fetcher sends one utils.fetch request for the hook call whose context

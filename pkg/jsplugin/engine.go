@@ -9,14 +9,14 @@ import (
 	"maps"
 	"math/big"
 	"reflect"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
-	"github.com/Calcium-Ion/moejs"
+	"github.com/MoeForge/moego/regexp"
+	"github.com/MoeForge/moejs"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 )
