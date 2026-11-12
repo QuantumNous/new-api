@@ -421,14 +421,86 @@ function redactAttachments(rules, finalCheck, effects) {
   return "";
 }
 
+// The host takes at most this many json.patch operations from one result.
+const MAX_PATCH_OPS = 512;
+// A json.patch value must not hold a file reference.
+const FILE_REF = /\[media:\d+\]/;
+// The body member that holds an array while its file items are moved into
+// it.
+const SCRATCH = "__request_redact";
+
+// foldedOps returns the operations that write value, already changed, at
+// path, as few as it can: a value without files is replaced whole, and
+// otherwise the changed members or items below it are written on their own.
+// A replace cannot carry a file, so an array held by an object member may
+// instead go into the scratch member without its file items, take them back
+// by move in their order and then replace the member.
+function foldedOps(path, value, changed, inObject) {
+  if (value === null || typeof value !== "object" || !FILE_REF.test(JSON.stringify(value))) {
+    return [{ op: "replace", path: path, value: value }];
+  }
+  const isArray = Array.isArray(value);
+  const separate = [];
+  const fileItemOps = [];
+  const fileItems = [];
+  const rest = [];
+  for (const key of Object.keys(value)) {
+    const itemPath = path + "/" + key;
+    const ops = changed.has(itemPath) ? foldedOps(itemPath, value[key], changed, !isArray) : [];
+    separate.push(...ops);
+    if (isArray && FILE_REF.test(JSON.stringify(value[key]))) {
+      fileItems.push(Number(key));
+      fileItemOps.push(...ops);
+    } else if (isArray) {
+      rest.push(value[key]);
+    }
+  }
+  if (!isArray || !inObject || fileItems.length + fileItemOps.length + 2 >= separate.length) return separate;
+  const merged = [{ op: "add", path: "/" + SCRATCH, value: rest }];
+  // Each move takes an item out of the old array, which shifts the later
+  // ones down by one.
+  fileItems.forEach((index, moved) => merged.push({ op: "move", from: path + "/" + (index - moved), path: "/" + SCRATCH + "/" + index }));
+  merged.push({ op: "move", from: "/" + SCRATCH, path: path });
+  return merged.concat(fileItemOps);
+}
+
 export function ingress(ctx, req) {
   const config = ctx.config || {};
   const rules = activeRules(config);
   if (rules.length === 0) return { action: "continue" };
-  const ops = [];
+  const changes = [];
   for (const field of collectTexts(req.body)) {
     const text = redact(rules, field.text).text;
-    if (text !== field.text) ops.push({ op: "replace", path: field.path, value: text });
+    if (text !== field.text) changes.push({ path: field.path, text: text });
+  }
+  let ops = changes.map((change) => ({ op: "replace", path: change.path, value: change.text }));
+  // Past the host's limit the changes are written into the body and folded
+  // into the members that hold them. A form body takes only replaces of its
+  // text fields. When they still do not fit, the request is rejected, or with
+  // the check before sending off the first changes are made and the rest
+  // goes as it is.
+  if (ops.length > MAX_PATCH_OPS) {
+    let folded = null;
+    if (req.form !== true && !(SCRATCH in req.body)) {
+      const changed = new Set();
+      for (const change of changes) {
+        const keys = change.path.split("/").slice(1);
+        let parent = req.body;
+        for (let i = 0; i < keys.length - 1; i++) {
+          changed.add("/" + keys.slice(0, i + 1).join("/"));
+          parent = parent[keys[i]];
+        }
+        parent[keys[keys.length - 1]] = change.text;
+        changed.add(change.path);
+      }
+      folded = [];
+      for (const key of Object.keys(req.body)) {
+        if (changed.has("/" + key)) folded.push(...foldedOps("/" + key, req.body[key], changed, true));
+      }
+    }
+    if (folded !== null && folded.length <= MAX_PATCH_OPS) ops = folded;
+    else if (config.finalCheck !== "off") return { action: "reject", code: "sensitive_content", ruleId: rules.find((rule) => rule.count > 0).id };
+    else ops = ops.slice(0, MAX_PATCH_OPS);
   }
   const effects = ops.length > 0 ? [{ type: "json.patch", ops: ops }] : [];
   const ruleId = redactAttachments(rules, config.finalCheck, effects);

@@ -145,43 +145,147 @@ func TestNodeSyncAppliesAnOptionAnotherNodeWrote(t *testing.T) {
 	assert.Equal(t, instances, common.OptionMap[request_plugin_setting.InstancesOption])
 }
 
+// Each node is judged by the topics it keeps: the status lists those of this
+// node and of every online node, and a node that reports other topics but not
+// one reads that data straight from the database, so it is synced.
 func TestNodeSyncStatusComparesEveryNodeWithTheLatestRevision(t *testing.T) {
 	useNodeSync(t)
 	noop := func(context.Context) error { return nil }
 	RegisterSyncTopic("beta", noop)
 	RegisterSyncTopic("alpha", noop)
 	require.NoError(t, model.DB.Create(&model.SystemSyncTopic{Topic: "alpha", Revision: "r-alpha", UpdatedBy: "node-a", UpdatedAt: 100}).Error)
+	require.NoError(t, model.DB.Create(&model.SystemSyncTopic{Topic: "gamma", Revision: "r-gamma", UpdatedBy: "node-b", UpdatedAt: 110}).Error)
 	now := common.GetTimestamp()
 	require.NoError(t, model.UpsertSystemInstance("node-b", map[string]any{"sync": map[string]NodeSyncTopicState{
 		"alpha": {Revision: "r-alpha", AppliedAt: 50},
 		"beta":  {Revision: "", AppliedAt: 60},
+		"gamma": {Revision: "r-gamma-old", AppliedAt: 70},
 	}}, now, now))
 	require.NoError(t, model.UpsertSystemInstance("node-a", map[string]any{"sync": map[string]NodeSyncTopicState{
 		"alpha": {Revision: "r-old", AppliedAt: 40, Error: "reload failed", Errors: map[string]string{"incho": "compile error"}},
 	}}, now, now))
 	require.NoError(t, model.UpsertSystemInstance("node-c", map[string]any{"schema_version": 1}, now-200, now-model.SystemInstanceStaleAfterSeconds-1))
+	// An offline node's topics are not listed.
+	require.NoError(t, model.UpsertSystemInstance("node-d", map[string]any{"sync": map[string]NodeSyncTopicState{
+		"delta": {Revision: "r-delta", AppliedAt: 80},
+	}}, now-200, now-model.SystemInstanceStaleAfterSeconds-1))
 
 	status, err := GetNodeSyncStatus()
 	require.NoError(t, err)
-	assert.Equal(t, []NodeSyncTopic{{Topic: "alpha", Revision: "r-alpha", UpdatedAt: 100, UpdatedBy: "node-a"}, {Topic: "beta"}}, status.Topics)
+	assert.Equal(t, []NodeSyncTopic{
+		{Topic: "alpha", Revision: "r-alpha", UpdatedAt: 100, UpdatedBy: "node-a"},
+		{Topic: "beta"},
+		{Topic: "gamma", Revision: "r-gamma", UpdatedAt: 110, UpdatedBy: "node-b"},
+	}, status.Topics)
 	none := map[string]string{}
 	assert.Equal(t, []NodeSyncNode{
 		{NodeName: "node-a", Online: true, Topics: map[string]NodeSyncNodeTopic{
 			"alpha": {AppliedAt: 40, Error: "reload failed", Errors: map[string]string{"incho": "compile error"}},
-			"beta":  {Errors: none},
+			"beta":  {Synced: true, Errors: none},
+			"gamma": {Synced: true, Errors: none},
 		}},
 		{NodeName: "node-b", Online: true, Topics: map[string]NodeSyncNodeTopic{
 			"alpha": {Synced: true, AppliedAt: 50, Errors: none},
 			"beta":  {Synced: true, AppliedAt: 60, Errors: none},
+			"gamma": {AppliedAt: 70, Errors: none},
 		}},
 		{NodeName: "node-c", Online: false, Topics: map[string]NodeSyncNodeTopic{
 			"alpha": {Errors: none},
 			"beta":  {Errors: none},
+			"gamma": {Errors: none},
+		}},
+		{NodeName: "node-d", Online: false, Topics: map[string]NodeSyncNodeTopic{
+			"alpha": {Synced: true, Errors: none},
+			"beta":  {Synced: true, Errors: none},
+			"gamma": {Synced: true, Errors: none},
 		}},
 	}, status.Nodes)
 	encoded, err := common.Marshal(status.Nodes[2].Topics["beta"])
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"synced":false,"applied_at":0,"error":"","errors":{}}`, string(encoded))
+}
+
+// A topic whose startup load failed is not marked applied at startup: the
+// node reports the error and the first tick loads the topic again.
+func TestNodeSyncReloadsATopicWhoseStartupLoadFailed(t *testing.T) {
+	useNodeSync(t)
+	reloads := map[string]int{}
+	for _, topic := range []string{"alpha", "beta"} {
+		RegisterSyncTopic(topic, func(context.Context) error {
+			reloads[topic]++
+			return nil
+		})
+		model.BumpSyncTopic(topic)
+	}
+	ReadStartupSyncRevisions()
+	SyncTopicLoadFailed("beta", errors.New("database is down"))
+	applyStartupSyncRevisions()
+
+	states := NodeSyncStates()
+	stored := storedSyncTopics(t)
+	assert.Equal(t, stored["alpha"].Revision, states["alpha"].Revision)
+	assert.NotZero(t, states["alpha"].AppliedAt)
+	assert.Zero(t, states["beta"].AppliedAt)
+	assert.Equal(t, "database is down", states["beta"].Error)
+
+	require.True(t, syncNodeTopics(context.Background()))
+	assert.Equal(t, map[string]int{"beta": 1}, reloads)
+	recovered := NodeSyncStates()["beta"]
+	assert.Equal(t, stored["beta"].Revision, recovered.Revision)
+	assert.NotZero(t, recovered.AppliedAt)
+	assert.Empty(t, recovered.Error)
+}
+
+// Without the startup revisions every registered topic stays unapplied, and
+// the node reports each one as not synced until the first tick loads it.
+func TestNodeSyncWithoutStartupRevisionsReportsEveryTopicUnapplied(t *testing.T) {
+	useNodeSync(t)
+	RegisterSyncTopic("alpha", func(context.Context) error { return nil })
+	applyStartupSyncRevisions()
+
+	state, ok := NodeSyncStates()["alpha"]
+	require.True(t, ok)
+	assert.Zero(t, state.AppliedAt)
+	require.True(t, syncNodeTopics(context.Background()))
+	assert.NotZero(t, NodeSyncStates()["alpha"].AppliedAt)
+}
+
+// An OAuth provider write and its topic bump share a transaction, as nothing
+// else reloads the providers on other nodes: a write whose bump fails is not
+// stored.
+func TestOAuthProviderWritesBumpTheirTopicInTheSameTransaction(t *testing.T) {
+	database := useNodeSync(t)
+	tables := []any{&model.CustomOAuthProvider{}, &model.UserOAuthBinding{}}
+	require.NoError(t, database.AutoMigrate(tables...))
+	t.Cleanup(func() { require.NoError(t, database.Migrator().DropTable(tables...)) })
+	revision := func() string { return storedSyncTopics(t)[model.SyncTopicOAuthProviders].Revision }
+	provider := &model.CustomOAuthProvider{
+		Name: "Example", Slug: "example", ClientId: "client", ClientSecret: "secret",
+		AuthorizationEndpoint: "https://id.example.com/authorize", TokenEndpoint: "https://id.example.com/token",
+		UserInfoEndpoint: "https://id.example.com/userinfo",
+	}
+
+	require.NoError(t, model.CreateCustomOAuthProvider(provider))
+	created := revision()
+	assert.NotEmpty(t, created)
+	provider.Name = "Renamed"
+	require.NoError(t, model.UpdateCustomOAuthProvider(provider))
+	updated := revision()
+	assert.NotEqual(t, created, updated)
+	require.NoError(t, model.DeleteCustomOAuthProvider(provider.Id))
+	assert.NotEqual(t, updated, revision())
+
+	require.NoError(t, database.Migrator().DropTable(&model.SystemSyncTopic{}))
+	failing := &model.CustomOAuthProvider{
+		Name: "Lost", Slug: "lost", ClientId: "client", ClientSecret: "secret",
+		AuthorizationEndpoint: "https://id.example.com/authorize", TokenEndpoint: "https://id.example.com/token",
+		UserInfoEndpoint: "https://id.example.com/userinfo",
+	}
+	require.Error(t, model.CreateCustomOAuthProvider(failing))
+	require.NoError(t, database.AutoMigrate(&model.SystemSyncTopic{}))
+	var count int64
+	require.NoError(t, database.Model(&model.CustomOAuthProvider{}).Where("slug = ?", "lost").Count(&count).Error)
+	assert.Zero(t, count, "a provider whose bump failed is not stored")
 }
 
 func TestNodeSyncCapsWhatTheRegistryRowCarries(t *testing.T) {

@@ -2,9 +2,12 @@ package requestpatch
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -212,4 +215,23 @@ func TestEffectLimits(t *testing.T) {
 func TestJSONPatchNeedsJSONBody(t *testing.T) {
 	_, _, err := Apply([]byte("plain text"), nil, decode(t, `[{"type":"json.patch","ops":[{"op":"add","path":"/a","value":1}]}]`), nil)
 	require.ErrorContains(t, err, "needs a JSON body")
+}
+
+// Each copy of the root doubles the document: the patch fails once the
+// document would pass the request body limit, before it is built.
+func TestCopyStopsAtTheBodyLimit(t *testing.T) {
+	limit := constant.MaxRequestBodyMB
+	constant.MaxRequestBodyMB = 1
+	t.Cleanup(func() { constant.MaxRequestBodyMB = limit })
+	body := []byte(`{"a":"` + strings.Repeat("x", 1000) + `"}`)
+	ops := make([]string, 0, MaxOperations)
+	for index := range MaxOperations {
+		ops = append(ops, `{"op":"copy","from":"","path":"/k`+strconv.Itoa(index)+`"}`)
+	}
+	_, _, err := Apply(body, nil, decode(t, `[{"type":"json.patch","ops":[`+strings.Join(ops, ",")+`]}]`), nil)
+	require.ErrorIs(t, err, common.ErrRequestBodyTooLarge)
+
+	patched, _, err := Apply(body, nil, decode(t, `[{"type":"json.patch","ops":[`+strings.Join(ops[:9], ",")+`]}]`), nil)
+	require.NoError(t, err)
+	assert.Greater(t, len(patched), 500_000)
 }

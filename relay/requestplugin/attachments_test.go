@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"image/png"
@@ -17,9 +18,11 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/pkg/requestpatch"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
+	"github.com/HugoSmits86/nativewebp"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -338,6 +341,27 @@ func TestFetchSendsAttachments(t *testing.T) {
 	require.NotNil(t, failed)
 	assert.Contains(t, failed.Detail, fmt.Sprintf("a body may send at most %d media", maxFetchMedia))
 	assert.Empty(t, received)
+}
+
+// A WebP image re-encodes only when the canvas size its VP8X chunk declares
+// is the size of its frame: the decoder decodes the frame whatever the
+// canvas says, so a forged canvas would pass the pixel bound.
+func TestReencodeWebPCanvasMatchesFrame(t *testing.T) {
+	var encoded bytes.Buffer
+	require.NoError(t, nativewebp.Encode(&encoded, image.NewGray(image.Rect(0, 0, 64, 64)), nil))
+	require.Equal(t, "VP8L", string(encoded.Bytes()[12:16]))
+	withCanvas := func(width, height int) inlineMedia {
+		vp8x := []byte("VP8X\x0a\x00\x00\x00\x00\x00\x00\x00")
+		vp8x = append(vp8x, byte(width-1), byte((width-1)>>8), 0, byte(height-1), byte((height-1)>>8), 0)
+		chunks := append(append([]byte("WEBP"), vp8x...), encoded.Bytes()[12:]...)
+		file := append(binary.LittleEndian.AppendUint32([]byte("RIFF"), uint32(len(chunks))), chunks...)
+		return inlineMedia{path: "/image", mime: "image/webp", data: base64.StdEncoding.EncodeToString(file)}
+	}
+	effect := requestpatch.Effect{Type: requestpatch.EffectMediaReencode, Format: "png"}
+	_, _, err := reencodeMedia(context.Background(), withCanvas(64, 64), effect)
+	require.NoError(t, err)
+	_, _, err = reencodeMedia(context.Background(), withCanvas(1, 1), effect)
+	assert.EqualError(t, err, "media /image cannot be decoded")
 }
 
 // A hook that does not use attachments costs nothing for them: no file is

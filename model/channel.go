@@ -1,6 +1,8 @@
 package model
 
 import (
+	"context"
+	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
@@ -9,10 +11,12 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
@@ -683,6 +687,68 @@ func CleanupChannelPollingLocks() {
 	})
 }
 
+// sqlitePluginRefreshLocks serialize the credential refreshes of a channel on
+// SQLite, which serves one node: channel id -> chan struct{} of capacity one.
+var sqlitePluginRefreshLocks sync.Map
+
+// pluginRefreshLockSpace is the first key of the PostgreSQL advisory locks of
+// credential refreshes; the channel id is the second.
+const pluginRefreshLockSpace = 0x6e617069
+
+// WithPluginCredentialRefreshLock runs refresh while no other node or
+// goroutine refreshes a credential of the channel, so a refresh token goes out
+// once even when several nodes need a fresh credential at the same time. MySQL
+// holds a named lock and PostgreSQL a transaction advisory lock, each on a
+// connection of its own, and SQLite, which serves one node, a process lock.
+// None of them locks the channel row: no writer of the channel waits for the
+// network call refresh makes. ctx bounds the wait for the lock only.
+func WithPluginCredentialRefreshLock(ctx context.Context, channelID int, refresh func() error) error {
+	switch {
+	case common.UsingMainDatabase(common.DatabaseTypeMySQL):
+		name := fmt.Sprintf("new-api:plugin-refresh:%d", channelID)
+		wait := 0
+		if deadline, ok := ctx.Deadline(); ok {
+			wait = max(int(time.Until(deadline)/time.Second), 0)
+		}
+		return DB.WithContext(ctx).Connection(func(conn *gorm.DB) error {
+			var acquired sql.NullInt64
+			if err := conn.Raw("SELECT GET_LOCK(?, ?)", name, wait).Row().Scan(&acquired); err != nil {
+				return err
+			}
+			if acquired.Int64 != 1 {
+				return ErrPluginRefreshLockTimeout
+			}
+			// The lock belongs to this connection until released, whatever
+			// happened to ctx meanwhile.
+			defer conn.WithContext(context.Background()).Exec("DO RELEASE_LOCK(?)", name)
+			return refresh()
+		})
+	case common.UsingMainDatabase(common.DatabaseTypePostgreSQL):
+		// The commit releases the lock; it must not fail because ctx ended
+		// while refresh ran.
+		return DB.Transaction(func(tx *gorm.DB) error {
+			if err := tx.WithContext(ctx).Exec("SELECT pg_advisory_xact_lock(?, ?)", pluginRefreshLockSpace, channelID).Error; err != nil {
+				return err
+			}
+			return refresh()
+		})
+	default:
+		value, _ := sqlitePluginRefreshLocks.LoadOrStore(channelID, make(chan struct{}, 1))
+		lock := value.(chan struct{})
+		select {
+		case lock <- struct{}{}:
+		case <-ctx.Done():
+			return ErrPluginRefreshLockTimeout
+		}
+		defer func() { <-lock }()
+		return refresh()
+	}
+}
+
+// ErrPluginRefreshLockTimeout reports a credential refresh that waited for
+// another refresh of the channel longer than it may.
+var ErrPluginRefreshLockTimeout = errors.New("timed out waiting for another credential refresh of the channel")
+
 func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason string) {
 	keys := channel.GetKeys()
 	if len(keys) == 0 {
@@ -749,9 +815,15 @@ func hasEnabledMultiKey(keys []string, statusList map[int]int) bool {
 }
 
 func UpdateChannelStatus(channelId int, usingKey string, status int, reason string) (changed bool) {
+	// A status set by hand names no key and is never an automatic disable; it
+	// reaches every node within seconds. An automatic change, a disable after a
+	// failure or the re-enable after a test of the key it used, is left to the
+	// periodic channel sync: the keys of busy channels change status often, and
+	// each bump reloads the whole channel cache on every node.
+	bump := usingKey == "" && status != common.ChannelStatusAutoDisabled
 	// Runs after the ability update deferred below.
 	defer func() {
-		if changed {
+		if changed && bump {
 			BumpSyncTopic(SyncTopicChannels)
 		}
 	}()
@@ -812,6 +884,11 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 		if status == common.ChannelStatusAutoDisabled && channel.Status == common.ChannelStatusManuallyDisabled {
 			return false
 		}
+		// The master runs a plugin's scheduled hook when a key is disabled
+		// automatically, so another node's disable reaches it within seconds.
+		if status == common.ChannelStatusAutoDisabled && !common.IsMasterNode && channelPluginHasHook(channel, "scheduled") {
+			bump = true
+		}
 		// A manual channel operation must replace the exhaustion reason even
 		// when the status value is already manually disabled.
 		overridesKeyExhaustion := channel.ChannelInfo.IsMultiKey && usingKey == "" &&
@@ -842,6 +919,18 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 		}
 	}
 	return true
+}
+
+// channelPluginHasHook reports a task plugin channel whose plugin exports
+// hook. It reads the setting without GetSetting, which clears an invalid
+// stored setting.
+func channelPluginHasHook(ch *Channel, hook string) bool {
+	var setting dto.ChannelSettings
+	if ch.Type != constant.ChannelTypeTaskPlugin || ch.Setting == nil || common.UnmarshalJsonStr(*ch.Setting, &setting) != nil {
+		return false
+	}
+	plugin, ok := jsplugin.DefaultRegistry.Get(setting.TaskPluginKey)
+	return ok && plugin.HasProviderHook(hook)
 }
 
 func EnableChannelByTag(tag string) error {

@@ -445,6 +445,77 @@ func TestMasterSwitchEmptiesOptionsAndKeepsList(t *testing.T) {
 	assert.Equal(t, "kling", item.Meta.Key)
 }
 
+// The master switch covers task and provider plugin channels only: with it
+// off, a plugin's request processing part is still offered and its instances
+// are still checked when saved.
+func TestMasterSwitchKeepsRequestProcessingPlugins(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	originalOptions := common.OptionMap
+	common.OptionMap = map[string]string{}
+	t.Cleanup(func() { common.OptionMap = originalOptions })
+	plugin, err := jsplugin.DefaultRegistry.Register(`export const meta = {apiVersion: 1, key: "rp-master-off", name: "Both", version: "1.0.0", author: {name: "Test"}, models: ["m"], fetchMode: "per_task",
+  configSchema: {type: "object", properties: {limit: {type: "integer", title: "Limit", default: 3, minimum: 1}}}};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+export function ingress() { return {action: "continue"}; }
+export function validateConfig(config) { if (config.limit === 13) throw new Error("13 is unlucky"); }`, jsplugin.Options{})
+	require.NoError(t, err)
+	cleanupTaskPluginControllerRuntime(t, plugin.Meta.Key)
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: "[]"}))
+	})
+	originalEnabled := constant.TaskPluginEnabled
+	jsplugin.DefaultRegistry.SetEnabled(false)
+	t.Cleanup(func() {
+		constant.TaskPluginEnabled = originalEnabled
+		jsplugin.DefaultRegistry.SetEnabled(originalEnabled)
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/task_plugin_options", nil)
+	GetTaskPluginOptions(c)
+	var options struct {
+		Data []struct {
+			Key       string `json:"key"`
+			Task      bool   `json:"task"`
+			Provider  bool   `json:"provider"`
+			Transform bool   `json:"transform"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &options))
+	var listed []string
+	for _, option := range options.Data {
+		listed = append(listed, option.Key)
+		if option.Key == "rp-master-off" {
+			assert.True(t, option.Transform)
+			assert.False(t, option.Task)
+			assert.False(t, option.Provider)
+		}
+	}
+	assert.Contains(t, listed, "rp-master-off")
+	assert.NotContains(t, listed, "kling")
+
+	save := func(body string) (int, string) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/request_plugin/instances", strings.NewReader(body))
+		c.Set("role", common.RoleRootUser)
+		UpdateRequestPluginInstances(c)
+		return recorder.Code, recorder.Body.String()
+	}
+	code, body := save(`{"instances":[{"name":"A","plugin":"rp-master-off","enabled":true,"global":true,"config":{"limit":13}}]}`)
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Contains(t, body, "13 is unlucky")
+	code, body = save(`{"instances":[{"name":"A","plugin":"rp-master-off","enabled":true,"global":true}]}`)
+	require.Equal(t, http.StatusOK, code, body)
+	instances := request_plugin_setting.GetInstances()
+	require.Len(t, instances, 1)
+	assert.JSONEq(t, `{"limit":3}`, string(instances[0].Config))
+}
+
 func TestGetTaskPluginOptionsIncludesDescriptionUsageSchemaIconBaseURLAndChannelTypes(t *testing.T) {
 	setupTaskPluginControllerTest(t)
 	const key = "usage-options-probe"

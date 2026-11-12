@@ -591,12 +591,17 @@ func TestFailedRefreshBeforeTheRequest(t *testing.T) {
 	})
 }
 
+// A key whose credential needs a new login never reaches the upstream: the
+// request disables the key for the reason a login clears, whatever the
+// automatic disabling setting is, and a retry can serve the request with
+// another key.
 func TestNeedsLoginCredentialFailsWithoutReachingTheUpstream(t *testing.T) {
-	previousAutoDisable := common.AutomaticDisableChannelEnabled
-	t.Cleanup(func() { common.AutomaticDisableChannelEnabled = previousAutoDisable })
+	previousAutoDisable, previousRetry := common.AutomaticDisableChannelEnabled, common.RetryTimes
+	t.Cleanup(func() { common.AutomaticDisableChannelEnabled, common.RetryTimes = previousAutoDisable, previousRetry })
 	for _, autoDisable := range []bool{true, false} {
 		t.Run(fmt.Sprintf("auto-disable %v", autoDisable), func(t *testing.T) {
 			common.AutomaticDisableChannelEnabled = autoDisable
+			common.RetryTimes = 0
 			harness := newRelayHarness(t)
 			registerRotatingPlugin(t, "relay-needs-login", "")
 			line, err := jsplugin.Credential{Plugin: "relay-needs-login", Data: json.RawMessage(`{"refresh":"old-refresh"}`), NeedsLogin: true}.Line()
@@ -612,12 +617,26 @@ func TestNeedsLoginCredentialFailsWithoutReachingTheUpstream(t *testing.T) {
 			assert.Zero(t, outcome.quota)
 			stored, err := model.GetChannelById(channel.Id, true)
 			require.NoError(t, err)
-			if !autoDisable {
-				assert.Equal(t, common.ChannelStatusEnabled, stored.Status, "the auto-disable switch decides, as for any channel error")
-				return
-			}
 			assert.Equal(t, common.ChannelStatusAutoDisabled, stored.Status)
 			assert.Equal(t, model.ChannelStatusReasonPluginNeedsLogin, stored.GetOtherInfo()["status_reason"], "disabled for the reason a login clears")
+
+			// The channel's other key serves the retry.
+			common.RetryTimes = 1
+			multi := harness.pluginChannel("relay-needs-login", line+"\n"+credentialFor(t, "relay-needs-login", 0))
+			multi.ChannelInfo = model.ChannelInfo{IsMultiKey: true, MultiKeySize: 2, MultiKeyMode: constant.MultiKeyModePolling}
+			multi = harness.install(t, multi)
+
+			outcome = harness.post(t, "/v1/chat/completions", relayTestBody)
+
+			require.Equal(t, http.StatusOK, outcome.status, outcome.body)
+			requests := harness.upstream.captured()
+			require.Len(t, requests, 1)
+			assert.Equal(t, "Bearer old-access", requests[0].Header.Get("Authorization"))
+			stored, err = model.GetChannelById(multi.Id, true)
+			require.NoError(t, err)
+			assert.Equal(t, common.ChannelStatusEnabled, stored.Status)
+			assert.Equal(t, common.ChannelStatusAutoDisabled, stored.ChannelInfo.MultiKeyStatusList[0])
+			assert.Equal(t, model.ChannelStatusReasonPluginNeedsLogin, stored.ChannelInfo.MultiKeyDisabledReason[0])
 		})
 	}
 }
@@ -683,6 +702,31 @@ export function prepareRequest(ctx, req) {
 			assert.GreaterOrEqual(t, outcome.status, http.StatusBadRequest)
 			assert.Contains(t, outcome.body, tc.message)
 			assert.Empty(t, requests, "a failed prepareRequest applies nothing and sends nothing")
+			assert.Zero(t, outcome.quota)
+		})
+	}
+}
+
+// Effects that grow the body past the request body limit fail the request as
+// a client body over the limit does: 413, nothing sent, nothing billed.
+func TestPrepareRequestOverTheBodyLimit(t *testing.T) {
+	limit := constant.MaxRequestBodyMB
+	constant.MaxRequestBodyMB = 1
+	t.Cleanup(func() { constant.MaxRequestBodyMB = limit })
+	for name, ops := range map[string]string{
+		"added value": `[{op: "add", path: "/pad", value: "x".repeat(1100000)}]`,
+		"copies":      `Array.from({length: 16}, (_, i) => ({op: "copy", from: "", path: "/c" + i}))`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			harness := newRelayHarness(t)
+			registerRelayPlugin(t, `export const meta = {apiVersion: 1, key: "relay-prepare-large", name: "Large", version: "1.0.0", author: {name: "Test"}, relay: [{incoming_path: "/v1/chat/completions", upstream_path: "/chat"}]};
+	export function prepareRequest() { return {effects: [{type: "json.patch", ops: `+ops+`}]}; }`)
+			harness.install(t, harness.pluginChannel("relay-prepare-large", "sk-static"))
+
+			outcome := harness.post(t, "/v1/chat/completions", relayTestBody)
+
+			assert.Equal(t, http.StatusRequestEntityTooLarge, outcome.status, outcome.body)
+			assert.Empty(t, harness.upstream.captured())
 			assert.Zero(t, outcome.quota)
 		})
 	}
@@ -1230,6 +1274,28 @@ func TestPluginStreamErrors(t *testing.T) {
 		require.Equal(t, http.StatusOK, outcome.status, outcome.body)
 		assert.Equal(t, output, outcome.body)
 		assert.Positive(t, outcome.quota)
+	})
+
+	t.Run("dropped events after the first output keep the stream alive past the streaming timeout", func(t *testing.T) {
+		harness := newVendor(t)
+		constant.StreamingTimeout = 1
+		harness.upstream.respond = func(w http.ResponseWriter, _ int, _ capturedRequest) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = io.WriteString(w, "data: {\"text\":\"one\"}\n\n")
+			w.(http.Flusher).Flush()
+			for range 6 {
+				time.Sleep(300 * time.Millisecond)
+				_, _ = io.WriteString(w, "data: {\"meta\":\"m\"}\n\n")
+				w.(http.Flusher).Flush()
+			}
+			_, _ = io.WriteString(w, "data: {\"text\":\"two\"}\n\n")
+		}
+
+		outcome := harness.post(t, "/v1/chat/completions", streamBody)
+
+		require.Equal(t, http.StatusOK, outcome.status, outcome.body)
+		assert.Equal(t, output, outcome.body)
+		assert.EqualValues(t, 2000, outcome.log.CompletionTokens)
 	})
 
 	t.Run("keep-alive pings go out before the first output", func(t *testing.T) {

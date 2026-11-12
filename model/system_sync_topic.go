@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -31,17 +32,22 @@ type SystemSyncTopic struct {
 
 // BumpSyncTopic gives topic a new revision. Call it after the write to the
 // topic's data has committed. A failed bump is only logged: the periodic full
-// reloads still carry the change to the other nodes.
+// reloads still carry the change to the other nodes. Data that no periodic
+// reload covers bumps with bumpSyncTopic inside its write transaction.
 func BumpSyncTopic(topic string) {
-	now := common.GetTimestamp()
-	row := SystemSyncTopic{Topic: topic, Revision: rand.Text(), UpdatedBy: common.NodeName, UpdatedAt: now}
-	err := DB.Clauses(clause.OnConflict{
+	if err := bumpSyncTopic(DB, topic); err != nil {
+		common.SysError(common.LogText("failed to bump sync topic %s: %v", topic, err))
+	}
+}
+
+// bumpSyncTopic gives topic a new revision on tx; inside the transaction of a
+// write, the write and its bump commit or fail together.
+func bumpSyncTopic(tx *gorm.DB, topic string) error {
+	row := SystemSyncTopic{Topic: topic, Revision: rand.Text(), UpdatedBy: common.NodeName, UpdatedAt: common.GetTimestamp()}
+	return tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "topic"}},
 		DoUpdates: clause.AssignmentColumns([]string{"revision", "updated_by", "updated_at"}),
 	}).Create(&row).Error
-	if err != nil {
-		common.SysError(common.LogText("failed to bump sync topic %s: %v", topic, err))
-	}
 }
 
 func ListSyncTopics() ([]SystemSyncTopic, error) {

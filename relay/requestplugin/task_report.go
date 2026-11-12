@@ -135,7 +135,7 @@ func ReportTask(task *model.Task) {
 		if index < 0 || !instances[index].Enabled {
 			continue
 		}
-		plugin, _ := jsplugin.DefaultRegistry.Get(instances[index].Plugin)
+		plugin, _ := jsplugin.DefaultRegistry.GetIgnoringMasterSwitch(instances[index].Plugin)
 		if plugin == nil || !plugin.Meta.HasTransformPart() || !slices.Contains(plugin.TransformHooks(), jsplugin.ReportHook) {
 			continue
 		}

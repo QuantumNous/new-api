@@ -436,10 +436,13 @@ type Registry struct {
 	disabledFactory map[string]struct{}
 	masterEnabled   atomic.Bool
 	generation      atomic.Pointer[RoutingGeneration]
-	preparer        RoutingGenerationPreparer
-	routingErrors   map[string]string
-	lastRebuildErr  string
-	lastRebuild     RoutingRebuildOutcome
+	// switchedOff are, with the master switch off, the enabled plugins it
+	// leaves out of the published generation; nil with the switch on.
+	switchedOff    atomic.Pointer[map[string]*LoadedPlugin]
+	preparer       RoutingGenerationPreparer
+	routingErrors  map[string]string
+	lastRebuildErr string
+	lastRebuild    RoutingRebuildOutcome
 }
 
 func NewRegistry() *Registry {
@@ -837,12 +840,30 @@ func (r *Registry) Get(platform string) (*LoadedPlugin, bool) {
 	return r.Generation().Get(platform)
 }
 
+// GetIgnoringMasterSwitch returns the plugin of key as Get does, and with
+// the master switch off, the enabled plugin the switch leaves out. Request
+// processing looks plugins up with it: the master switch covers task and
+// provider plugin channels only, while a plugin switched off on its own stays
+// off.
+func (r *Registry) GetIgnoringMasterSwitch(key string) (*LoadedPlugin, bool) {
+	if plugin, ok := r.Get(key); ok {
+		return plugin, true
+	}
+	switchedOff := r.switchedOff.Load()
+	if switchedOff == nil {
+		return nil, false
+	}
+	plugin, ok := (*switchedOff)[key]
+	return plugin, ok
+}
+
 func (r *Registry) GetByChannelType(channelType int) (*LoadedPlugin, bool) {
 	return r.Generation().GetByChannelType(channelType)
 }
 
 // Enabled reports the master switch position. When false the published
-// routing generation contains no plugins regardless of the other layers.
+// routing generation contains no plugins regardless of the other layers;
+// GetIgnoringMasterSwitch still finds the enabled ones.
 func (r *Registry) Enabled() bool {
 	return r.masterEnabled.Load()
 }
@@ -1079,6 +1100,13 @@ func (r *Registry) publishGeneration(
 	}
 	r.routingErrors = routingErrors
 	r.activeOverride = activeOverride
+	// Every caller updated the layers before publishing.
+	var switchedOff *map[string]*LoadedPlugin
+	if !r.masterEnabled.Load() {
+		plugins := effectivePlugins(filterDisabledFactory(r.factory, r.disabledFactory), r.override)
+		switchedOff = &plugins
+	}
+	r.switchedOff.Store(switchedOff)
 	r.lastRebuildErr = ""
 	status := "success"
 	if len(routingErrors) > 0 {

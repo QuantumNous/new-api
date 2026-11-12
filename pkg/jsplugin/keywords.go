@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unicode/utf8"
 	"unsafe"
 
 	"github.com/Calcium-Ion/moejs"
@@ -18,6 +19,11 @@ import (
 
 // maxKeywordMatches bounds the keywords one utils.keywords call returns.
 const maxKeywordMatches = 32
+
+// keywordSearchChunk is how many runes of text one automaton search reads at
+// least. A search keeps every match it finds, so text is searched a chunk at
+// a time until the limit of keywords is found.
+const keywordSearchChunk = 4096
 
 // keywordBuilds counts the matchers built, for tests.
 var keywordBuilds atomic.Int64
@@ -36,6 +42,8 @@ type keywordList struct {
 type keywordMatcher struct {
 	// machine is nil when the list is empty.
 	machine *goahocorasick.Machine
+	// longest is the rune length of the longest keyword.
+	longest int
 	// spelling maps a lowercased keyword to its spelling in the list; nil
 	// for a case-sensitive matcher.
 	spelling map[string]string
@@ -80,7 +88,9 @@ func (l *keywordList) matcher(caseSensitive bool) *keywordMatcher {
 				matcher.spelling[lowered] = word
 				word = lowered
 			}
-			keywords = append(keywords, []rune(word))
+			runes := []rune(word)
+			keywords = append(keywords, runes)
+			matcher.longest = max(matcher.longest, len(runes))
 		}
 		if len(keywords) > 0 {
 			machine := new(goahocorasick.Machine)
@@ -103,19 +113,33 @@ func (m *keywordMatcher) find(text string, limit int) []string {
 		text = strings.ToLower(text)
 	}
 	var found []string
-	for _, term := range m.machine.MultiPatternSearch([]rune(text), false) {
-		word := string(term.Word)
-		if m.spelling != nil {
-			word = m.spelling[word]
+	// Each chunk starts with the last runes of the one before, one fewer
+	// than the longest keyword, so a keyword across two chunks lies whole in
+	// the second; one that ends in those runes was found in the first.
+	chunk := make([]rune, 0, max(keywordSearchChunk, 2*m.longest))
+	for rest := text; ; {
+		for len(chunk) < cap(chunk) && rest != "" {
+			char, size := utf8.DecodeRuneInString(rest)
+			chunk = append(chunk, char)
+			rest = rest[size:]
 		}
-		if slices.Contains(found, word) {
-			continue
+		for _, term := range m.machine.MultiPatternSearch(chunk, false) {
+			word := string(term.Word)
+			if m.spelling != nil {
+				word = m.spelling[word]
+			}
+			if slices.Contains(found, word) {
+				continue
+			}
+			if found = append(found, word); len(found) == limit {
+				return found
+			}
 		}
-		if found = append(found, word); len(found) == limit {
-			break
+		if rest == "" {
+			return found
 		}
+		chunk = append(chunk[:0], chunk[len(chunk)-(m.longest-1):]...)
 	}
-	return found
 }
 
 // instanceKeywords is what an instance config's keywords fields hold, for

@@ -145,8 +145,8 @@ func PluginCredentialHookContext(ctx context.Context, plugin *jsplugin.LoadedPlu
 }
 
 // PluginCredentialRefresher refreshes plugin credentials with one plugin call
-// per credential at a time: single-flight on this node, and the channel row
-// lock held across the call for every node.
+// per credential at a time: single-flight on this node, and a refresh lock of
+// the channel for every node. The plugin call holds no channel lock.
 type PluginCredentialRefresher struct {
 	group singleflight.Group
 }
@@ -184,13 +184,20 @@ func refreshPluginCredentialLine(channelID, keyIndex int, used string) (string, 
 	if !ok {
 		return "", errors.New("channel key is not a plugin credential")
 	}
-	var current string
-	var channelName string
+	var current, storedKey, channelName string
 	multiKey, autoBan := false, false
 	needsLogin := false
 	storedElsewhere := false
-	stored, err := model.UpdateChannelLocked(channelID, func(channel *model.Channel) error {
-		channelName, multiKey, autoBan = channel.Name, channel.ChannelInfo.IsMultiKey, channel.GetAutoBan()
+	// A refresh waits for another one of the channel at most as long as that
+	// one's plugin call may take.
+	lockCtx, cancelLock := context.WithTimeout(context.Background(), pluginCredentialHookTimeout)
+	defer cancelLock()
+	err := model.WithPluginCredentialRefreshLock(lockCtx, channelID, func() error {
+		channel, err := model.GetChannelById(channelID, true)
+		if err != nil {
+			return err
+		}
+		channelName, multiKey, autoBan, storedKey = channel.Name, channel.ChannelInfo.IsMultiKey, channel.GetAutoBan(), channel.Key
 		plugin, ok := PluginOfChannel(channel)
 		if !ok || plugin.Meta.Key != usedCredential.Plugin {
 			return fmt.Errorf("channel #%d is not bound to plugin %s", channelID, usedCredential.Plugin)
@@ -218,18 +225,37 @@ func refreshPluginCredentialLine(channelID, keyIndex int, used string) (string, 
 		next := *usedCredential
 		if result.Relogin {
 			next.NeedsLogin = true
-			needsLogin = true
 		} else {
 			if result.AccountID != "" && usedCredential.AccountID != "" && result.AccountID != usedCredential.AccountID {
 				return fmt.Errorf("plugin %s refresh returned another account", plugin.Meta.Key)
 			}
 			next = refreshedPluginCredential(*usedCredential, result)
 		}
-		if current, err = next.Line(); err != nil {
+		refreshed, err := next.Line()
+		if err != nil {
 			return err
 		}
-		lines[index] = current
-		channel.Key = strings.Join(lines, "\n")
+		// The plugin call held no channel lock, so the result replaces the
+		// line only if no login or edit replaced it meanwhile.
+		stored, err := model.UpdateChannelLocked(channelID, func(channel *model.Channel) error {
+			lines := pluginCredentialKeyLines(channel)
+			index := locatePluginCredentialLine(lines, keyIndex, used, usedCredential)
+			if index < 0 {
+				return ErrPluginCredentialRemoved
+			}
+			if lines[index] != used {
+				current, storedElsewhere = lines[index], true
+				return nil
+			}
+			current, needsLogin = refreshed, result.Relogin
+			lines[index] = refreshed
+			channel.Key = strings.Join(lines, "\n")
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		storedKey = stored.Key
 		return nil
 	})
 	if err != nil {
@@ -238,7 +264,7 @@ func refreshPluginCredentialLine(channelID, keyIndex int, used string) (string, 
 	if storedElsewhere {
 		// This node's cache may still hold the line the request used, and
 		// would send every request here until the next cache sync.
-		model.CacheUpdateChannelKey(channelID, stored.Key)
+		model.CacheUpdateChannelKey(channelID, storedKey)
 	}
 	if needsLogin {
 		DisablePluginCredentialForLogin(channelID, channelName, multiKey, autoBan, current)
@@ -252,15 +278,16 @@ func refreshPluginCredentialLine(channelID, keyIndex int, used string) (string, 
 
 // DisablePluginCredentialForLogin disables the key holding line, a
 // credential only a new login restores, for the reason a successful login
-// clears. Like any channel error it disables only under the automatic
-// disabling setting and the channel's own switch, autoBan.
+// clears, so requests stop picking it. Unlike a request error it is certain,
+// so the automatic disabling setting does not apply: only the channel's own
+// switch, autoBan, keeps such a key in use.
 func DisablePluginCredentialForLogin(channelID int, channelName string, multiKey, autoBan bool, line string) {
 	DisableChannel(types.ChannelError{
 		ChannelId:   channelID,
 		ChannelType: constant.ChannelTypeTaskPlugin,
 		ChannelName: channelName,
 		IsMultiKey:  multiKey,
-		AutoBan:     autoBan && common.AutomaticDisableChannelEnabled,
+		AutoBan:     autoBan,
 		UsingKey:    line,
 	}, model.ChannelStatusReasonPluginNeedsLogin)
 }
@@ -498,7 +525,7 @@ func pluginErrorCategory(err error) string {
 		return "credential_removed"
 	case errors.Is(err, model.ErrChannelKeyChanged):
 		return "key_changed"
-	case errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, model.ErrPluginRefreshLockTimeout):
 		return "timeout"
 	case errors.As(err, &hookErr):
 		return "plugin_error"

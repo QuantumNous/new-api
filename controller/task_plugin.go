@@ -937,10 +937,18 @@ func GetTaskPluginOptions(c *gin.Context) {
 				continue
 			}
 			loaded, ok := jsplugin.DefaultRegistry.Get(meta.Key)
-			if !ok {
-				continue
+			switchedOff := !ok
+			if switchedOff {
+				// With the master switch off, a plugin's request processing
+				// part still runs; its channel parts do not.
+				if loaded, ok = jsplugin.DefaultRegistry.GetIgnoringMasterSwitch(meta.Key); !ok || !loaded.Meta.HasTransformPart() {
+					continue
+				}
 			}
 			parts := loadedTaskPluginParts(loaded)
+			if switchedOff {
+				parts.Task, parts.Provider, parts.Login, parts.Refresh = false, false, false, false
+			}
 			seen[meta.Key] = true
 			hasIcon := false
 			if layer == 0 {
@@ -1141,7 +1149,7 @@ func SyncTaskPluginsOnceContext(ctx context.Context) error {
 	nodeErrors := map[string]string{}
 	for _, plugin := range databasePlugins {
 		message := pluginErrors[plugin.Key]
-		loaded, _ := jsplugin.DefaultRegistry.Get(plugin.Key)
+		loaded, _ := jsplugin.DefaultRegistry.GetIgnoringMasterSwitch(plugin.Key)
 		if loaded == nil {
 			unloaded[plugin.Key] = message
 		}
@@ -1150,10 +1158,6 @@ func SyncTaskPluginsOnceContext(ctx context.Context) error {
 		}
 	}
 	requestplugin.SetUnloadedPlugins(unloaded)
-	if !jsplugin.DefaultRegistry.Enabled() {
-		// With the master switch off no plugin is meant to run.
-		nodeErrors = nil
-	}
 	service.SetSyncTopicErrors(model.SyncTopicPlugins, nodeErrors)
 	pluginErrorCount := len(pluginErrors)
 	status := "success"

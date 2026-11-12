@@ -152,10 +152,11 @@ func FetchModelList(ctx context.Context, plugin *jsplugin.LoadedPlugin, info *re
 
 // QueryBalance queries a channel's balance with the plugin's
 // buildBalanceRequest and parseBalance, which may chain more requests. A
-// request's path joins the channel base URL. The credential's headers and
-// query, the channel's header overrides and signRequest apply; a 401
-// refreshes the credential or exchanges the key again once and sends the
-// request again.
+// request's path joins the channel base URL; its url must be on the base URL
+// host or a host of meta.allowedHosts, as the credential goes with it. The
+// credential's headers and query, the channel's header overrides and
+// signRequest apply; a 401 refreshes the credential or exchanges the key
+// again once and sends the request again.
 func QueryBalance(ctx context.Context, plugin *jsplugin.LoadedPlugin, info *relaycommon.RelayInfo, client ManagementClient) (jsplugin.BalanceResult, error) {
 	a, err := managementAdaptor(ctx, plugin, info)
 	if err != nil {
@@ -170,6 +171,9 @@ func QueryBalance(ctx context.Context, plugin *jsplugin.LoadedPlugin, info *rela
 	for followUps := 0; ; {
 		requestURL, err := balanceURL(info.ChannelBaseUrl, step)
 		if err != nil {
+			return jsplugin.BalanceResult{}, err
+		}
+		if err = jsplugin.ValidateRequestURL(requestURL, info.ChannelBaseUrl, plugin.Meta.AllowedHosts); err != nil {
 			return jsplugin.BalanceResult{}, err
 		}
 		resp, err := a.sendManagement(ctx, info, requestURL, http.Header{}, step, client)

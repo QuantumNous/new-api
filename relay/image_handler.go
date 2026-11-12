@@ -22,6 +22,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// outboundImageCounter is an image adaptor whose upstream body carries the
+// image count in a member other than n. OutboundImageCount reads the count
+// from that body, nil when the member is absent.
+type outboundImageCounter interface {
+	OutboundImageCount(body []byte) (*uint, error)
+}
+
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 	info.BillingImageCount = nil
@@ -114,12 +121,17 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		}
 	}
 	if jsonData != nil {
-		// This is a different trust boundary from ingress: channel overrides
-		// and pass-through bodies can change the quantity actually submitted.
+		// This is a different trust boundary from ingress: channel overrides,
+		// request plugins and pass-through bodies can change the quantity
+		// actually submitted, in n or in the member the adaptor sends it in.
 		var outbound struct {
 			N *uint `json:"n"`
 		}
-		if err := common.Unmarshal(jsonData, &outbound); err != nil {
+		err := common.Unmarshal(jsonData, &outbound)
+		if counter, ok := adaptor.(outboundImageCounter); ok && err == nil {
+			outbound.N, err = counter.OutboundImageCount(jsonData)
+		}
+		if err != nil {
 			return types.NewErrorWithStatusCode(fmt.Errorf("invalid image billing parameters: %w", err), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		quantityRequest := dto.ImageRequest{N: outbound.N}

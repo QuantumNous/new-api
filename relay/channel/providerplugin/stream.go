@@ -187,7 +187,10 @@ func (s *streamConverter) closeIdle() {
 }
 
 // Read serves the converted output. An error the plugin returns after the
-// first output ends the stream as a read error does.
+// first output ends the stream as a read error does. For a streaming client,
+// an upstream event the plugin drops reads as a blank line: the stream handler
+// skips it, and it restarts the handler's streaming timeout as the upstream
+// data would.
 func (s *streamConverter) Read(p []byte) (int, error) {
 	for s.pending.Len() == 0 {
 		if s.done || s.hasBody {
@@ -206,6 +209,10 @@ func (s *streamConverter) Read(p []byte) (int, error) {
 				return 0, fmt.Errorf("upstream stream sent no data within %s", s.idleTimeout)
 			}
 			return 0, err
+		}
+		if s.clientStream && s.pending.Len() == 0 && !s.done && len(p) > 0 {
+			p[0] = '\n'
+			return 1, nil
 		}
 	}
 	return s.pending.Read(p)

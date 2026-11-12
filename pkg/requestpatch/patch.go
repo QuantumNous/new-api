@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/tidwall/gjson"
 	"golang.org/x/net/http/httpguts"
 )
@@ -284,16 +285,31 @@ func isNull(data json.RawMessage) bool {
 	return bytes.Equal(bytes.TrimSpace(data), []byte("null"))
 }
 
+// MaxBodyBytes is MAX_REQUEST_BODY_MB in bytes, 128 MB when unset: the
+// limit a client body is read with, which a patched body keeps as well.
+func MaxBodyBytes() int64 {
+	maxMB := constant.MaxRequestBodyMB
+	if maxMB <= 0 {
+		maxMB = 128
+	}
+	return int64(maxMB) << 20
+}
+
 // Apply applies effects in order to a copy of body and header and returns
 // the copies. protected reports a header that header.patch must not set or
 // remove. On any error nothing is applied. A nil body is valid when no
-// json.patch effect is present.
+// json.patch effect is present. A patch whose copies would grow the body past
+// MaxBodyBytes fails with an error that wraps common.ErrRequestBodyTooLarge.
 func Apply(body []byte, header http.Header, effects []Effect, protected func(name string) bool) ([]byte, http.Header, error) {
 	nextHeader := header.Clone()
 	if nextHeader == nil {
 		nextHeader = http.Header{}
 	}
 	var document *node
+	// size bounds the patched body from above: the body plus every value a
+	// copy added. The values of the other operations come with the effects
+	// themselves; a copy is the operation that can grow the body without them.
+	size := int64(len(body))
 	for index, effect := range effects {
 		switch effect.Type {
 		case EffectJSONPatch:
@@ -304,7 +320,7 @@ func Apply(body []byte, header http.Header, effects []Effect, protected func(nam
 				}
 				document = parsed
 			}
-			patched, err := applyOperations(document, effect.Ops)
+			patched, err := applyOperations(document, effect.Ops, &size)
 			if err != nil {
 				return nil, nil, fmt.Errorf("effects[%d]: %w", index, err)
 			}
@@ -454,6 +470,27 @@ func (n *node) clone() *node {
 	return cloned
 }
 
+// encodedSize is the length of the value's JSON text as encode writes it,
+// counted until it passes limit.
+func (n *node) encodedSize(limit int64) int64 {
+	if n.kind == 0 {
+		return int64(len(n.raw))
+	}
+	size := int64(2)
+	for index, value := range n.values {
+		if index > 0 {
+			size++
+		}
+		if n.kind == '{' {
+			size += int64(len(n.rawKeys[index])) + 1
+		}
+		if size += value.encodedSize(limit - size); size > limit {
+			return size
+		}
+	}
+	return size
+}
+
 func (n *node) encode(out *bytes.Buffer) {
 	switch n.kind {
 	case '{':
@@ -583,11 +620,11 @@ func resolve(root *node, tokens []string) (*node, error) {
 	return current, nil
 }
 
-func applyOperations(document *node, operations []Operation) (*node, error) {
+func applyOperations(document *node, operations []Operation, size *int64) (*node, error) {
 	root := document.clone()
 	for index, operation := range operations {
 		var err error
-		root, err = applyOperation(root, operation)
+		root, err = applyOperation(root, operation, size)
 		if err != nil {
 			return nil, fmt.Errorf("ops[%d] %s %s: %w", index, operation.Op, operation.Path, err)
 		}
@@ -595,7 +632,7 @@ func applyOperations(document *node, operations []Operation) (*node, error) {
 	return root, nil
 }
 
-func applyOperation(root *node, operation Operation) (*node, error) {
+func applyOperation(root *node, operation Operation, size *int64) (*node, error) {
 	tokens, err := parsePointer(operation.Path)
 	if err != nil {
 		return nil, err
@@ -670,6 +707,12 @@ func applyOperation(root *node, operation Operation) (*node, error) {
 		value, err := resolve(root, fromTokens)
 		if err != nil {
 			return nil, err
+		}
+		// A copy of the root doubles the body, so a few of them would pass
+		// any limit: the copy fails before it is made.
+		limit := MaxBodyBytes()
+		if *size += value.encodedSize(limit - *size); *size > limit {
+			return nil, fmt.Errorf("the patched body would exceed %d MB: %w", limit>>20, common.ErrRequestBodyTooLarge)
 		}
 		return add(root, tokens, value.clone())
 	case "test":

@@ -17,8 +17,8 @@ export const meta = {
         type: "string",
         title: { en: "Compression mode", zh: "压缩方式" },
         description: {
-          en: "Lossless keeps every pixel and outputs WebP images, so the upstream must accept WebP",
-          zh: "无损模式保留全部像素并输出 WebP 图片，上游需要支持 WebP",
+          en: "Lossless keeps every pixel and turns PNG and GIF images into WebP, so the upstream must accept WebP",
+          zh: "无损模式保留全部像素，把 PNG 和 GIF 图片转为 WebP，上游需要支持 WebP",
         },
         enum: ["lossless", "lossy"],
         enumTitles: [
@@ -98,6 +98,11 @@ export const meta = {
 };
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+// Lossless WebP of a JPEG or WebP image comes out larger, so the host would
+// do the work and keep the original: the pixels of a lossy image carry its
+// coding noise, and a lossless WebP is already as small as the host's
+// encoder makes it.
+const LOSSLESS_TYPES = ["image/png", "image/gif"];
 // The host takes at most 32 effects from one call; later images stay as sent.
 const MAX_EFFECTS = 32;
 
@@ -107,11 +112,14 @@ export function outbound(ctx, req) {
   const effects = [];
   for (const media of req.media || []) {
     if (effects.length >= MAX_EFFECTS) break;
-    if (!IMAGE_TYPES.includes(String(media.mimeType || "").toLowerCase())) continue;
+    const mimeType = String(media.mimeType || "").toLowerCase();
+    if (!IMAGE_TYPES.includes(mimeType)) continue;
     // Lossless never resizes, so only the file size qualifies an image there.
     // The host keeps an image whose new encoding is not smaller.
     if (lossless) {
-      if (media.bytes >= config.minBytes) effects.push({ type: "media.reencode", media: media.index, format: "webp" });
+      if (LOSSLESS_TYPES.includes(mimeType) && media.bytes >= config.minBytes) {
+        effects.push({ type: "media.reencode", media: media.index, format: "webp" });
+      }
       continue;
     }
     const longerSide = Math.max(media.width || 0, media.height || 0);

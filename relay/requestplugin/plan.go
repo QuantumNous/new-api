@@ -78,9 +78,12 @@ type Plan struct {
 	// ingressRan holds the instances in scope at the request's ingress.
 	ingressRan map[string]bool
 	// reports is set when an instance's plugin exports the report hook;
-	// response then captures what the gateway writes to the client.
+	// response then captures what the gateway writes to the client, once
+	// such an instance is in scope.
 	reports  bool
 	response *responseCapture
+	// socket is set on a Responses WebSocket response.
+	socket bool
 	// replies is set when an instance's plugin exports the reply hook.
 	replies bool
 	// unavailable maps the key of a plugin this node should run but has not
@@ -113,17 +116,17 @@ func SetUnloadedPlugins(plugins map[string]string) {
 
 // unavailablePlugin returns the load error of a plugin the node should run
 // but has not loaded; ok is false for a plugin that is loaded, disabled or
-// deleted, or when the plugin master switch is off.
+// deleted. The plugin master switch does not cover request processing.
 func unavailablePlugin(key string) (string, bool) {
 	unloaded := unloadedPlugins.Load()
-	if unloaded == nil || !jsplugin.DefaultRegistry.Enabled() {
+	if unloaded == nil {
 		return "", false
 	}
 	loadErr, ok := (*unloaded)[key]
 	if !ok {
 		return "", false
 	}
-	if loaded, _ := jsplugin.DefaultRegistry.Get(key); loaded != nil {
+	if loaded, _ := jsplugin.DefaultRegistry.GetIgnoringMasterSwitch(key); loaded != nil {
 		return "", false
 	}
 	return loadErr, true
@@ -142,7 +145,7 @@ func newPlanOf(instances []request_plugin_setting.Instance) *Plan {
 		}
 		plugin, seen := plugins[instance.Plugin]
 		if !seen {
-			if plugin, _ = jsplugin.DefaultRegistry.Get(instance.Plugin); plugin != nil && !plugin.Meta.HasTransformPart() {
+			if plugin, _ = jsplugin.DefaultRegistry.GetIgnoringMasterSwitch(instance.Plugin); plugin != nil && !plugin.Meta.HasTransformPart() {
 				plugin = nil
 			}
 			plugins[instance.Plugin] = plugin
@@ -272,6 +275,9 @@ type Failure struct {
 	Instance string `json:"instance"`
 	Class    string `json:"-"`
 	Detail   string `json:"error"`
+	// tooLarge marks effects that would grow the body past the request body
+	// limit: the client gets the 413 of a body over it.
+	tooLarge bool
 }
 
 // Outcome is the result of a stage run. Body and Headers hold the committed
@@ -345,7 +351,7 @@ func (p *Plan) Run(ctx context.Context, call Call) Outcome {
 			if !plugin.Meta.Optional {
 				entry.Rejected = &relaycommon.RequestPluginRejected{Code: string(types.ErrorCodeRequestPluginFailed)}
 				outcome.Record = append(outcome.Record, entry)
-				outcome.Failed = &Failure{Instance: instance.ID, Class: class, Detail: step.Detail}
+				outcome.Failed = &Failure{Instance: instance.ID, Class: class, Detail: step.Detail, tooLarge: errors.Is(err, common.ErrRequestBodyTooLarge)}
 				return outcome
 			}
 			continue

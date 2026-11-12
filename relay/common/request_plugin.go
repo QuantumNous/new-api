@@ -199,9 +199,9 @@ func IsRequestPluginProtectedHeader(name string) bool {
 
 // ApplyPluginParamOverride runs the param override DSL for a request
 // plugin's utils.paramOverride. The DSL header context starts from
-// baseHeaders, the channel's header override; only the header changes the
-// override itself made come back, as lowercase names: the values it set and
-// the names it removed.
+// baseHeaders, never values the plugin may not read; only the header changes
+// the override itself made come back, as lowercase names: the values it set
+// and the names it removed.
 func ApplyPluginParamOverride(body []byte, override map[string]any, context map[string]any, baseHeaders map[string]any) ([]byte, map[string]string, []string, error) {
 	base := sanitizeHeaderOverrideMap(baseHeaders)
 	context[paramOverrideContextHeaderOverride] = maps.Clone(base)

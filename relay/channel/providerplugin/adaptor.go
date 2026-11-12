@@ -28,6 +28,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -538,7 +539,9 @@ func (a *Adaptor) bind(c *gin.Context, info *relaycommon.RelayInfo) error {
 }
 
 // useFreshCredential refreshes a credential that expires within the request
-// margin. A failed refresh keeps a credential that has not expired yet.
+// margin. A failed refresh keeps a credential that has not expired yet. A
+// credential only a login restores fails the attempt before the upstream, and
+// the request may retry on another key or channel.
 func (a *Adaptor) useFreshCredential(c *gin.Context, info *relaycommon.RelayInfo) error {
 	if a.credential == nil {
 		return nil
@@ -547,12 +550,12 @@ func (a *Adaptor) useFreshCredential(c *gin.Context, info *relaycommon.RelayInfo
 		// Only a login restores the key, even after an administrator enabled
 		// it again: disable it for the reason a login clears.
 		service.DisablePluginCredentialForLogin(info.ChannelId, common.GetContextKeyString(c, constant.ContextKeyChannelName), info.ChannelIsMultiKey, common.GetContextKeyBool(c, constant.ContextKeyChannelAutoBan), info.ApiKey)
-		return types.NewError(service.ErrPluginCredentialNeedsLogin, types.ErrorCodeDoRequestFailed, types.ErrOptionWithSkipRetry())
+		return types.NewError(service.ErrPluginCredentialNeedsLogin, types.ErrorCodeDoRequestFailed)
 	}
 	line, err := service.FreshPluginCredentialLine(c.Request.Context(), a.plugin, info.ChannelId, credentialIndex(info), info.ApiKey)
 	if errors.Is(err, service.ErrPluginCredentialNeedsLogin) {
 		// The refresh disabled the key for a new login already.
-		return types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithSkipRetry())
+		return types.NewError(err, types.ErrorCodeDoRequestFailed)
 	}
 	if err != nil {
 		return err
@@ -721,8 +724,16 @@ func (a *Adaptor) prepare(c *gin.Context, info *relaycommon.RelayInfo, body []by
 		var patched []byte
 		if patched, _, err = requestpatch.Apply(body, header, effects, a.protectedHeader); err == nil {
 			err = relaycommon.SameBillingFields(body, patched)
+			// The body limit holds for what the effects add.
+			if err == nil && len(patched) > len(body) && requestplugin.OverBodyLimit(patched) {
+				err = common.ErrRequestBodyTooLarge
+			}
 			body = patched
 		}
+	}
+	if errors.Is(err, common.ErrRequestBodyTooLarge) {
+		// As for a client body: 413, and no retry.
+		return nil, jsplugin.PreparedRequest{}, types.NewErrorWithStatusCode(fmt.Errorf("plugin %s prepareRequest: %w", a.plugin.Meta.Key, err), types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
 	}
 	if err != nil {
 		return nil, jsplugin.PreparedRequest{}, types.NewError(fmt.Errorf("plugin %s prepareRequest: %w", a.plugin.Meta.Key, err), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())

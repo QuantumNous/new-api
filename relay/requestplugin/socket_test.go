@@ -483,3 +483,37 @@ func TestSocketCapture(t *testing.T) {
 	assert.JSONEq(t, `{"a":1}`, string(events[0].Data))
 	assert.JSONEq(t, `{"b":2}`, string(events[1].Data))
 }
+
+// The response is captured only once an instance that may report it is in
+// scope, and a WebSocket response keeps its event capture.
+func TestReportCaptureFollowsScope(t *testing.T) {
+	server, received := newService(t)
+	setupPlugins(t, `[]`)
+	registerNetPlugin(t)
+	setInstances(t, `[{"id":"sink","name":"Sink","plugin":"rp-net","enabled":true,"groups":["vip"],"config":{"url":"`+server.URL+`/report","target":"`+server.URL+`/ingress"}}]`)
+
+	c, _ := reportContext(t, `{"model":"gpt","messages":[]}`, time.Now())
+	writer := c.Writer
+	_, _, apiErr := Ingress(c, types.RelayFormatOpenAI)
+	require.Nil(t, apiErr)
+	Reply(c, types.RelayFormatOpenAI, newInfo())()
+	assert.Same(t, writer, c.Writer, "no instance of the request's group reports it")
+	assert.Nil(t, planOf(c).response)
+	c.JSON(http.StatusOK, gin.H{"id": "chatcmpl-1"})
+	Report(c, types.RelayFormatOpenAI, newInfo(), nil, nil)
+	assert.Empty(t, received)
+
+	c, _ = reportContext(t, `{"model":"gpt","messages":[]}`, time.Now())
+	c.Set("group", "vip")
+	_, _, _, apiErr = SocketIngress(c, types.RelayFormatOpenAIResponses)
+	require.Nil(t, apiErr)
+	socket := ResponsesSocket(c, newInfo(), func([]byte) {})
+	require.NotNil(t, socket)
+	socket.Event([]byte(`{"type":"response.created","response":{"id":"resp_1"}}`))
+	require.NotNil(t, socket.Terminal([]byte(`{"type":"response.completed","response":{"id":"resp_1"}}`)))
+	Report(c, types.RelayFormatOpenAIResponses, newInfo(), nil, nil)
+	assert.Equal(t, "/ingress", receive(t, received).Path)
+	sent := gjson.Parse(receive(t, received).Body)
+	assert.True(t, sent.Get("record.response.stream").Bool(), "a WebSocket response reports its events")
+	assert.Equal(t, "response.completed", sent.Get("record.response.events.1.data.type").Str)
+}

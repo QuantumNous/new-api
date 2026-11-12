@@ -428,6 +428,19 @@ func TestPatchOverTheBodyLimit(t *testing.T) {
 	require.NotNil(t, apiErr)
 	assert.Equal(t, http.StatusRequestEntityTooLarge, apiErr.StatusCode)
 	assert.True(t, types.IsSkipRetryError(apiErr))
+
+	// Copies of the root double the body: the patch stops at the limit
+	// instead of building the body, with the same answer.
+	copies := make([]string, 40)
+	for index := range copies {
+		copies[index] = `{"op":"copy","from":"","path":"/k` + strconv.Itoa(index) + `"}`
+	}
+	setupPlugins(t, `[{"id":"grow","name":"Grow","plugin":"rp-stages","enabled":true,"global":true,"config":{"effects":{"ingress":[{"type":"json.patch","ops":[`+strings.Join(copies, ",")+`]}]}}}]`)
+	steps, _, apiErr := Ingress(newContext(`{"model":"gpt","messages":[]}`, "default"), types.RelayFormatOpenAI)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, apiErr.StatusCode)
+	assert.True(t, types.IsSkipRetryError(apiErr))
+	assert.Equal(t, "fail", stepOf(t, steps, "grow", StageIngress).Action)
 }
 
 func TestMediaReencode(t *testing.T) {
@@ -526,6 +539,17 @@ func TestParamOverrideReply(t *testing.T) {
 	reply, err = ParamOverride(tctx, []byte(`{}`), []byte(`{"operations":[{"mode":"return_error","value":{"message":"Not here","code":"Bad Code!"}}]}`))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"reject":{"code":"param_override","message":"Not here"}}`, string(reply))
+
+	// The channel's header override stays out of the plugin's reach: a value
+	// an administrator set cannot be read into the body.
+	cacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	t.Cleanup(func() { common.MemoryCacheEnabled = cacheEnabled })
+	model.CacheUpdateChannel(&model.Channel{Id: 990601, HeaderOverride: common.GetPointer(`{"X-Secret":"s3cret"}`)})
+	tctx.Channel = &jsplugin.TransformChannel{ID: 990601, Type: 1}
+	reply, err = ParamOverride(tctx, []byte(`{"model":"gpt"}`), []byte(`{"operations":[{"mode":"sync_fields","from":"header:x-secret","to":"json:leak"}]}`))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"body":{"model":"gpt"}}`, string(reply))
 }
 
 func TestPublicRecord(t *testing.T) {
@@ -781,6 +805,9 @@ func TestReportSuccess(t *testing.T) {
 	other.SetPublic("cache_tokens", 3)
 	other.SetPublic("model_ratio", 1.5)
 	model.RecordConsumeLog(c, 5, model.RecordConsumeLogParams{PromptTokens: 10, CompletionTokens: 4, Quota: 1500, Other: other})
+	// The channel attempt brings the report instances: it starts the capture.
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{RequestPlugins: []string{"bad", "sink"}})
+	Reply(c, types.RelayFormatOpenAI, info)()
 	c.JSON(http.StatusOK, gin.H{"id": "chatcmpl-1", "object": "chat.completion"})
 	Report(c, types.RelayFormatOpenAI, info, nil, nil)
 
@@ -1858,4 +1885,96 @@ func TestUnavailablePlugin(t *testing.T) {
 	SetUnloadedPlugins(map[string]string{})
 	setInstances(t, `[{"id":"gone","name":"Gone","plugin":"rp-missing","enabled":true,"global":true}]`)
 	assert.Nil(t, NewPlan())
+}
+
+func TestJSONBodyAsTheGatewayParsesIt(t *testing.T) {
+	setupPlugins(t, `[{"id":"rp","name":"Rp","plugin":"rp-stages","enabled":true,"global":true,"config":{"reject":"egress",
+		"effects":{"ingress":[{"type":"json.patch","ops":[{"op":"replace","path":"/messages/0/content","value":"[redacted]"}]}]}}}]`)
+	for _, contentType := range []string{"application/jsonl", "application/json; charset=utf-8", "application/vnd.test+json"} {
+		t.Run(contentType, func(t *testing.T) {
+			c := newContext(`{"model":"gpt","messages":[{"role":"user","content":"secret"}]}`, "default")
+			c.Request.Header.Set("Content-Type", contentType)
+			steps, _, apiErr := Ingress(c, types.RelayFormatOpenAI)
+			require.Nil(t, apiErr)
+			assert.Equal(t, "continue", stepOf(t, steps, "rp", StageIngress).Action)
+			assert.JSONEq(t, `{"model":"gpt","messages":[{"role":"user","content":"[redacted]"}]}`, string(storedBody(t, c)))
+
+			// A pass-through channel forwards the stored body; egress reads it.
+			storage, err := common.GetBodyStorage(c)
+			require.NoError(t, err)
+			apiErr = PassThrough(c, newInfo(), storage)
+			require.NotNil(t, apiErr)
+			assert.Equal(t, types.ErrorCodeRequestRejected, apiErr.GetErrorCode())
+		})
+	}
+}
+
+func TestReplyGeminiPartsKeepTheirPlaces(t *testing.T) {
+	answer := `{"candidates":[{"index":0,"content":{"role":"model","parts":[{"text":"alpha one"},{"inlineData":{"mimeType":"image/png","data":"AAAA"}},{"text":"two alpha"}]},"finishReason":"STOP"}]}`
+	for _, test := range []struct {
+		name, config string
+		parts        []string
+	}{
+		{"pass", `{"pass":true}`, nil},
+		{"no change", `{"words":["omega"]}`, nil},
+		{"masks", `{"words":["alpha"]}`, []string{"*** one", "", "two ***"}},
+		{"mask across parts", `{"words":["onetwo"]}`, []string{"alpha ***", "", " alpha"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			setupReplyPlugins(t, `[{"id":"mask","name":"Mask","plugin":"rp-reply","enabled":true,"global":true,"config":`+test.config+`}]`)
+			c, recorder := replyContext(t, "/v1beta/models/gemini:generateContent", types.RelayFormatGemini)
+			finish := Reply(c, types.RelayFormatGemini, replyInfo(types.RelayFormatGemini, relayconstant.RelayModeGemini))
+			writeAnswer(c, answer)
+			finish()
+			if test.parts == nil {
+				assert.Equal(t, answer, recorder.Body.String())
+				return
+			}
+			parts := gjson.Get(recorder.Body.String(), "candidates.0.content.parts").Array()
+			require.Len(t, parts, 3)
+			for i, text := range test.parts {
+				assert.Equal(t, text, parts[i].Get("text").Str)
+			}
+			assert.Equal(t, "AAAA", parts[1].Get("inlineData.data").Str)
+		})
+	}
+}
+
+func TestAutoGroupScopesBySettledGroup(t *testing.T) {
+	setupPlugins(t, `[{"id":"vip","name":"Vip","plugin":"rp-stages","enabled":true,"groups":["vip"],"config":{"echo":"outbound"}}]`)
+	c := newContext(`{"model":"gpt","messages":[]}`, "auto")
+	steps, _, apiErr := Ingress(c, types.RelayFormatOpenAI)
+	require.Nil(t, apiErr)
+	assert.Empty(t, steps, "the group is settled only when the channel is selected")
+
+	common.SetContextKey(c, constant.ContextKeyAutoGroup, "vip")
+	info := newInfo()
+	body, apiErr := Outbound(c, info, []byte(`{"model":"gpt-up","messages":[]}`))
+	require.Nil(t, apiErr)
+	assert.Equal(t, "continue", stepOf(t, info.RequestPluginSteps, "vip", StageIngress).Action, "its ingress hook runs late")
+	assert.True(t, gjson.GetBytes(body, "echo_vip").Exists())
+}
+
+// The plugin master switch covers task and provider plugin channels only:
+// with it off, an enabled instance still processes relay requests.
+func TestMasterSwitchOffKeepsRequestProcessing(t *testing.T) {
+	setupPlugins(t, `[{"id":"rp","name":"Rp","plugin":"rp-stages","enabled":true,"global":true,"config":{"effects":{"ingress":[{"type":"json.patch","ops":[{"op":"add","path":"/patched","value":true}]}]}}}]`)
+	enabled := jsplugin.DefaultRegistry.Enabled()
+	jsplugin.DefaultRegistry.SetEnabled(false)
+	t.Cleanup(func() { jsplugin.DefaultRegistry.SetEnabled(enabled) })
+	// With the switch off the plugin sync finds no plugin in the routing
+	// generation and lists them all.
+	SetUnloadedPlugins(map[string]string{"rp-stages": ""})
+	t.Cleanup(func() { SetUnloadedPlugins(nil) })
+
+	c := newContext(`{"model":"gpt","messages":[]}`, "default")
+	steps, _, apiErr := Ingress(c, types.RelayFormatOpenAI)
+	require.Nil(t, apiErr)
+	require.Len(t, steps, 1)
+	assert.Equal(t, "continue", steps[0].Action)
+	storage, err := common.GetBodyStorage(c)
+	require.NoError(t, err)
+	stored, err := storage.Bytes()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"model":"gpt","messages":[],"patched":true}`, string(stored))
 }

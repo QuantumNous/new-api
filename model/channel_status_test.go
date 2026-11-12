@@ -6,6 +6,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -156,5 +158,97 @@ func TestAutoDisableKeepsManualDisable(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A status set by hand reaches every node at once through the channels topic.
+// An automatic change, made for the key a request or a channel test used, is
+// left to the periodic channel sync and bumps nothing.
+func TestUpdateChannelStatusBumpsChannelsOnlyForChangesByHand(t *testing.T) {
+	for _, cacheEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cache=%t", cacheEnabled), func(t *testing.T) {
+			setupChannelStatusTest(t)
+			common.MemoryCacheEnabled = cacheEnabled
+			require.NoError(t, DB.AutoMigrate(&SystemSyncTopic{}))
+			t.Cleanup(func() { require.NoError(t, DB.Migrator().DropTable(&SystemSyncTopic{})) })
+			revision := func() string {
+				var row SystemSyncTopic
+				require.NoError(t, DB.Where("topic = ?", SyncTopicChannels).Limit(1).Find(&row).Error)
+				return row.Revision
+			}
+			single := Channel{Name: "status-single", Key: "key-a", Status: common.ChannelStatusEnabled, Models: "status-model", Group: "default"}
+			multi := Channel{Name: "status-multi", Key: "key-a\nkey-b", Status: common.ChannelStatusEnabled, Models: "status-model", Group: "default",
+				ChannelInfo: ChannelInfo{IsMultiKey: true, MultiKeySize: 2, MultiKeyMode: constant.MultiKeyModePolling}}
+			require.NoError(t, single.Insert())
+			require.NoError(t, multi.Insert())
+			InitChannelCache()
+
+			for _, step := range []struct {
+				name     string
+				id       int
+				usingKey string
+				status   int
+				bump     bool
+			}{
+				{name: "a request disables a key", id: multi.Id, usingKey: "key-a", status: common.ChannelStatusAutoDisabled},
+				{name: "a request disables a single-key channel", id: single.Id, usingKey: "key-a", status: common.ChannelStatusAutoDisabled},
+				{name: "a test re-enables the channel", id: single.Id, usingKey: "key-a", status: common.ChannelStatusEnabled},
+				{name: "an admin disables a channel", id: single.Id, status: common.ChannelStatusManuallyDisabled, bump: true},
+				{name: "an admin disables it again", id: single.Id, status: common.ChannelStatusManuallyDisabled},
+				{name: "an admin enables a channel", id: single.Id, status: common.ChannelStatusEnabled, bump: true},
+				{name: "an admin disables a multi-key channel", id: multi.Id, status: common.ChannelStatusManuallyDisabled, bump: true},
+			} {
+				before := revision()
+				changed := UpdateChannelStatus(step.id, step.usingKey, step.status, step.name)
+				assert.Equal(t, step.bump || step.usingKey != "", changed, step.name)
+				assert.Equal(t, step.bump, before != revision(), step.name)
+			}
+		})
+	}
+}
+
+// The master runs a plugin's scheduled hook when a key is disabled
+// automatically, so a follower's automatic disable of such a key bumps the
+// channels topic; the master's own, or one for a plugin without the hook,
+// does not.
+func TestAutoDisableOfAScheduledPluginKeyBumpsChannelsOnFollowers(t *testing.T) {
+	setupChannelStatusTest(t)
+	require.NoError(t, DB.AutoMigrate(&SystemSyncTopic{}))
+	t.Cleanup(func() { require.NoError(t, DB.Migrator().DropTable(&SystemSyncTopic{})) })
+	master := common.IsMasterNode
+	t.Cleanup(func() { common.IsMasterNode = master })
+	for key, hooks := range map[string]string{
+		"status-scheduled": `export function scheduled() { return {next: 3600}; }`,
+		"status-plain":     "",
+	} {
+		_, err := jsplugin.DefaultRegistry.Register(`export const meta = {apiVersion: 1, key: "`+key+`", name: "Status", version: "1.0.0", author: {name: "Test"}, relay: [{incoming_path: "/v1/chat/completions", upstream_path: "/chat"}]};`+hooks, jsplugin.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
+	}
+	revision := func() string {
+		var row SystemSyncTopic
+		require.NoError(t, DB.Where("topic = ?", SyncTopicChannels).Limit(1).Find(&row).Error)
+		return row.Revision
+	}
+
+	for _, tc := range []struct {
+		plugin string
+		master bool
+		bump   bool
+	}{
+		{plugin: "status-scheduled", bump: true},
+		{plugin: "status-scheduled", master: true},
+		{plugin: "status-plain"},
+	} {
+		t.Run(fmt.Sprintf("%s/master=%t", tc.plugin, tc.master), func(t *testing.T) {
+			common.IsMasterNode = tc.master
+			channel := Channel{Type: constant.ChannelTypeTaskPlugin, Name: t.Name(), Key: "key-a", Status: common.ChannelStatusEnabled, Models: "status-model", Group: "default"}
+			channel.SetSetting(dto.ChannelSettings{TaskPluginKey: tc.plugin})
+			require.NoError(t, channel.Insert())
+
+			before := revision()
+			require.True(t, UpdateChannelStatus(channel.Id, "key-a", common.ChannelStatusAutoDisabled, "quota"))
+			assert.Equal(t, tc.bump, before != revision())
+		})
 	}
 }

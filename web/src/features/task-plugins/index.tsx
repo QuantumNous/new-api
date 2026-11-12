@@ -130,7 +130,9 @@ export function TaskPlugins() {
                 <div className='space-y-2 text-sm'>
                   <p className='font-medium'>{t('Enable plugins')}</p>
                   <p className='text-muted-foreground'>
-                    {t('Turn this off to stop all plugins.')}
+                    {t(
+                      'Turn this off to stop plugin tasks and channels. Request processing keeps running.'
+                    )}
                   </p>
                   <p className='font-medium'>
                     {t('Built-in and custom plugins')}
@@ -197,12 +199,12 @@ export function TaskPlugins() {
       <ConfirmDialog
         open={confirmDisable}
         onOpenChange={setConfirmDisable}
-        title={t('Turn off all plugins?')}
+        title={t('Turn off plugin tasks and channels?')}
         desc={
           <div className='space-y-2'>
             <p>
               {t(
-                'All plugins stop at once. Unfinished tasks end when they time out.'
+                'Plugin tasks and channels stop at once. Unfinished tasks end when they time out. Request processing keeps running.'
               )}
             </p>
             <ul className='list-disc pl-5'>

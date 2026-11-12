@@ -65,8 +65,9 @@ func replyEndpoint(format types.RelayFormat, mode int, path string) bool {
 	return false
 }
 
-// Reply starts the reply checks of a channel attempt: before the attempt's
-// handler runs, after its channel is selected. The instances are those of
+// Reply starts the reply checks of a channel attempt, and the report capture
+// when the attempt brings a report instance: before the attempt's handler
+// runs, after its channel is selected. The instances are those of
 // the attempt that export reply and match the request's model. The returned
 // function ends the checks once the handler returned; call it whether or not
 // the attempt succeeded. Without a matching instance, or on an endpoint the
@@ -74,11 +75,21 @@ func replyEndpoint(format types.RelayFormat, mode int, path string) bool {
 // does nothing.
 func Reply(c *gin.Context, format types.RelayFormat, info *relaycommon.RelayInfo) func() {
 	plan := planOf(c)
-	if plan == nil || !plan.replies || info == nil || !replyEndpoint(format, info.RelayMode, c.Request.URL.Path) {
+	if plan == nil || info == nil {
 		return func() {}
 	}
 	setting, _ := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
-	instances := plan.scope(StageReply, common.GetContextKeyString(c, constant.ContextKeyUsingGroup), info.OriginModelName, setting.RequestPlugins)
+	group := requestGroup(c)
+	// The attempt's channel and settled group may bring report instances.
+	// Their capture goes below this check, so a report gets what the client
+	// got. A Realtime session reports each response itself.
+	if format != types.RelayFormatOpenAIRealtime {
+		plan.capture(c, group, info.OriginModelName, setting.RequestPlugins)
+	}
+	if !plan.replies || !replyEndpoint(format, info.RelayMode, c.Request.URL.Path) {
+		return func() {}
+	}
+	instances := plan.scope(StageReply, group, info.OriginModelName, setting.RequestPlugins)
 	if len(instances) == 0 {
 		return func() {}
 	}
@@ -157,6 +168,10 @@ type replyOutput struct {
 	// readonly marks the transcript of Realtime audio: its text is read, not
 	// held or rewritten, and a mask on it stops the answer.
 	readonly bool
+	// marks are, in a whole answer whose output spans several text parts, the
+	// byte offsets in its text where each later part starts. The masks move
+	// them, so each part gets its own text back.
+	marks []int
 }
 
 // replyStop is what ended an answer: a plugin's stop, or a failure of an
@@ -301,6 +316,10 @@ func (r *replyCheck) run(batch []*replyOutput) bool {
 				}
 				r.stop = stop
 				return false
+			}
+			if batch[i].marks != nil {
+				// A whole answer holds nothing, so the call's text is the input.
+				batch[i].marks = shiftMarks(batch[i].marks, outputs[k].Text, applied)
 			}
 			batch[i].held[position], inputs[i] = held, released
 			batch[i].offset[position] += units
@@ -512,6 +531,26 @@ func releaseReply(output jsplugin.ReplyOutput, result jsplugin.ReplyResult) (str
 	return released.String(), text[end:], jsplugin.UTF16Len(text[:end]), applied
 }
 
+// shiftMarks moves the part marks of text past the masks applied to it,
+// which releaseReply merged and sorted. A mask across a mark stays with the
+// part where it starts: the mark moves to the end of its replyMask.
+func shiftMarks(marks []int, text string, masks []jsplugin.ReplyMask) []int {
+	shifted := slices.Clone(marks)
+	// From the last mask back, so each mask's offsets still hold in text.
+	for m := len(masks) - 1; m >= 0; m-- {
+		start, stop := utf16Byte(text, masks[m].Start, false), utf16Byte(text, masks[m].End, true)
+		for i, mark := range marks {
+			switch {
+			case mark >= stop:
+				shifted[i] += len(replyMask) - (stop - start)
+			case mark > start:
+				shifted[i] = start + len(replyMask)
+			}
+		}
+	}
+	return shifted
+}
+
 // utf16Byte is the byte offset in text of a UTF-16 offset. Inside a
 // surrogate pair it rounds down, or up when up is set.
 func utf16Byte(text string, units int, up bool) int {
@@ -645,6 +684,10 @@ func (r *replyCheck) whole(format types.RelayFormat, body []byte) []byte {
 	}
 	var batch []*replyOutput
 	for _, field := range fields {
+		if field.output.ended {
+			// A later text part of the output starts here.
+			field.output.marks = append(field.output.marks, len(field.output.pending))
+		}
 		r.add(field.output, field.text)
 		if !field.output.ended {
 			field.output.ended = true
@@ -657,18 +700,50 @@ func (r *replyCheck) whole(format types.RelayFormat, body []byte) []byte {
 	return fillFields(body, fields)
 }
 
-// fillFields writes each output's released text into its first field and
-// empties its other fields.
+// fillFields writes each output's released text into its fields. Text that
+// passed unchanged leaves them as they are. A whole answer splits it at the
+// output's part marks, so each part keeps its own text; otherwise the first
+// field takes it and the others are emptied.
 func fillFields(body []byte, fields []replyField) []byte {
-	for _, field := range fields {
-		value := field.output.out
-		field.output.out = ""
-		field.output.released.WriteString(value)
-		if value == field.text && field.present || value == "" && !field.present {
+	for index, first := range fields {
+		output := first.output
+		if slices.ContainsFunc(fields[:index], func(field replyField) bool { return field.output == output }) {
 			continue
 		}
-		if next, err := sjson.SetBytes(body, field.path, value); err == nil {
-			body = next
+		var own []replyField
+		var original strings.Builder
+		for _, field := range fields[index:] {
+			if field.output == output {
+				own = append(own, field)
+				original.WriteString(field.text)
+			}
+		}
+		value := output.out
+		output.out = ""
+		output.released.WriteString(value)
+		texts := make([]string, len(own))
+		switch {
+		case value == original.String():
+			for i, field := range own {
+				texts[i] = field.text
+			}
+		case len(own) > 1 && len(output.marks) == len(own)-1:
+			from := 0
+			for i, mark := range output.marks {
+				mark = min(max(mark, from), len(value))
+				texts[i], from = value[from:mark], mark
+			}
+			texts[len(own)-1] = value[from:]
+		default:
+			texts[0] = value
+		}
+		for i, field := range own {
+			if texts[i] == field.text && field.present || texts[i] == "" && !field.present {
+				continue
+			}
+			if next, err := sjson.SetBytes(body, field.path, texts[i]); err == nil {
+				body = next
+			}
 		}
 	}
 	return body

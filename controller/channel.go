@@ -1392,7 +1392,7 @@ func UpdateChannel(c *gin.Context) {
 		}
 	}
 	// A new key is made from the key stored when the channel's key lock is
-	// held, the lock a credential refresh holds too.
+	// held, the lock a credential refresh also takes to write its result.
 	var keyBefore, keyAfter string
 	if keyChanged {
 		stored, err := model.UpdateChannelLocked(channel.Id, func(stored *model.Channel) error {

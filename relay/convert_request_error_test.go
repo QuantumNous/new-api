@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"cmp"
 	"errors"
 	"io"
 	"net/http"
@@ -49,10 +50,29 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 	for _, tc := range []struct {
 		name, body                                    string
 		tiered, passThrough, insufficient, retryReset bool
-		override                                      any
-		count, status                                 int
+		// deleted makes the channel override delete the count member.
+		deleted       bool
+		override      any
+		count, status int
+		// channelType, model and member are the channel's, the model the
+		// request names and the upstream member that carries the count;
+		// OpenAI, gpt-image-2 and n when empty.
+		channelType   int
+		model, member string
 	}{
 		{name: "top-level count", body: `{"model":"gpt-image-2","n":2,"parameters":{}}`, count: 2},
+		{name: "vendor count from the client body", body: `{"model":"flux","prompt":"cat","batch_size":4}`, count: 4,
+			channelType: constant.ChannelTypeSiliconFlow, model: "flux", member: "batch_size"},
+		{name: "vendor count channel override", body: `{"model":"flux","prompt":"cat","n":1}`, override: 3, count: 3,
+			channelType: constant.ChannelTypeSiliconFlow, model: "flux", member: "batch_size"},
+		{name: "nested vendor count channel override", body: `{"model":"imagen-4.0-generate-001","prompt":"cat","n":1}`, override: 3, count: 3,
+			channelType: constant.ChannelTypeGemini, model: "imagen-4.0-generate-001", member: "parameters.sampleCount"},
+		{name: "vendor default when the count member is deleted", body: `{"model":"imagen-4.0-generate-001","prompt":"cat","n":1}`, deleted: true, count: 4,
+			channelType: constant.ChannelTypeGemini, model: "imagen-4.0-generate-001", member: "parameters.sampleCount"},
+		{name: "vendor count in a nested client member", body: `{"model":"flux","prompt":"cat","input":{"num_outputs":3}}`, count: 3,
+			channelType: constant.ChannelTypeReplicate, model: "flux", member: "input.num_outputs"},
+		{name: "oversized vendor count rejected", body: `{"model":"flux","prompt":"cat","batch_size":129}`, status: http.StatusBadRequest,
+			channelType: constant.ChannelTypeSiliconFlow, model: "flux", member: "batch_size"},
 		{name: "legacy channel quantity override", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4},
 		{name: "expression channel quantity override", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4, tiered: true},
 		{name: "pass-through quantity", body: `{"model":"gpt-image-2","n":2,"parameters":{}}`, count: 2, passThrough: true},
@@ -75,11 +95,17 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(tc.body))
 			c.Request.Header.Set("Content-Type", "application/json")
-			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+			channelType, model, member := cmp.Or(tc.channelType, constant.ChannelTypeOpenAI), cmp.Or(tc.model, "gpt-image-2"), cmp.Or(tc.member, "n")
+			common.SetContextKey(c, constant.ContextKeyChannelType, channelType)
 			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "fixture-key")
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, model)
 			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.passThrough})
 			if tc.override != nil {
-				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": "n", "mode": "set", "value": tc.override}}})
+				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": member, "mode": "set", "value": tc.override}}})
+			}
+			if tc.deleted {
+				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": member, "mode": "delete"}}})
 			}
 			request, err := helper.GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
 			require.NoError(t, err)
@@ -87,7 +113,7 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			if tc.insufficient {
 				reservation.limit = reservation.held
 			}
-			info := &relaycommon.RelayInfo{Request: request, OriginModelName: "gpt-image-2", RelayMode: relayconstant.RelayModeImagesGenerations,
+			info := &relaycommon.RelayInfo{Request: request, OriginModelName: model, RelayMode: relayconstant.RelayModeImagesGenerations,
 				RequestURLPath: c.Request.URL.Path, Billing: reservation,
 				PriceData: hosttypes.PriceData{UsePrice: true, ModelPrice: 0.04, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}},
 			}
@@ -112,7 +138,11 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			assert.Equal(t, http.StatusBadGateway, apiErr.StatusCode)
 			require.Len(t, received, 1)
 			body := <-received
-			assert.Equal(t, int64(tc.count), ojson.GetBytes(body, "n").Int())
+			if tc.deleted {
+				assert.False(t, ojson.GetBytes(body, member).Exists(), string(body))
+			} else {
+				assert.Equal(t, int64(tc.count), ojson.GetBytes(body, member).Int())
+			}
 			assert.Equal(t, tc.count*20000, info.PriceData.QuotaToPreConsume)
 			assert.GreaterOrEqual(t, reservation.held, info.PriceData.QuotaToPreConsume)
 			assert.Nil(t, info.BillingImageCount)

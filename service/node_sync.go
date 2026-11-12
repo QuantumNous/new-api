@@ -107,20 +107,22 @@ func ReadStartupSyncRevisions() {
 	nodeSync.startup = revisions
 }
 
+// SyncTopicLoadFailed records that this node's startup load of topic failed:
+// StartNodeSync then leaves the topic unapplied, so the first tick loads it
+// again, and the error shows until a load succeeds.
+func SyncTopicLoadFailed(topic string, err error) {
+	nodeSync.mu.Lock()
+	defer nodeSync.mu.Unlock()
+	state := nodeSync.states[topic]
+	state.Error = capSyncMessage(err.Error())
+	nodeSync.states[topic] = state
+}
+
 // StartNodeSync records the revisions read at startup as applied, then every
 // 3 seconds reloads each registered topic whose revision changed and writes
 // this node's registry row at once. Call it after the startup loads.
 func StartNodeSync() {
-	nodeSync.mu.Lock()
-	if nodeSync.startup != nil {
-		now := common.GetTimestamp()
-		for topic := range nodeSync.reloads {
-			state := nodeSync.states[topic]
-			state.Revision, state.AppliedAt = nodeSync.startup[topic], now
-			nodeSync.states[topic] = state
-		}
-	}
-	nodeSync.mu.Unlock()
+	applyStartupSyncRevisions()
 	gopool.Go(func() {
 		ticker := time.NewTicker(nodeSyncInterval)
 		defer ticker.Stop()
@@ -130,6 +132,23 @@ func StartNodeSync() {
 			}
 		}
 	})
+}
+
+// applyStartupSyncRevisions records the revisions read before the startup
+// loads as applied. A topic whose startup load failed, or every topic when that
+// read failed, stays unapplied: the first tick loads it again, and the node
+// reports it as not synced until then.
+func applyStartupSyncRevisions() {
+	nodeSync.mu.Lock()
+	defer nodeSync.mu.Unlock()
+	now := common.GetTimestamp()
+	for topic := range nodeSync.reloads {
+		state := nodeSync.states[topic]
+		if nodeSync.startup != nil && state.Error == "" {
+			state.Revision, state.AppliedAt = nodeSync.startup[topic], now
+		}
+		nodeSync.states[topic] = state
+	}
 }
 
 // syncNodeTopics runs the reload of each registered topic whose revision
@@ -220,8 +239,11 @@ type NodeSyncStatus struct {
 	Nodes  []NodeSyncNode  `json:"nodes"`
 }
 
-// GetNodeSyncStatus compares the latest revision of every topic this node
-// registers with what each node's registry row says it applied.
+// GetNodeSyncStatus compares the latest revision of every topic a node keeps,
+// this one or another online node, with what each node's registry row says it
+// applied. A node keeps only the topics it registers: one that reports what it
+// applied but not a topic reads that data from the database or a shared cache,
+// so it always runs the latest revision.
 func GetNodeSyncStatus() (NodeSyncStatus, error) {
 	rows, err := model.ListSyncTopics()
 	if err != nil {
@@ -236,36 +258,55 @@ func GetNodeSyncStatus() (NodeSyncStatus, error) {
 		stored[row.Topic] = row
 	}
 	nodeSync.mu.Lock()
-	topics := slices.Sorted(maps.Keys(nodeSync.reloads))
+	keptTopics := make(map[string]bool, len(nodeSync.reloads))
+	for topic := range nodeSync.reloads {
+		keptTopics[topic] = true
+	}
 	nodeSync.mu.Unlock()
+	now := common.GetTimestamp()
+	applied := make([]map[string]NodeSyncTopicState, len(instances))
+	for index, instance := range instances {
+		// A row written before this member existed, or unreadable, has no sync.
+		var info struct {
+			Sync map[string]NodeSyncTopicState `json:"sync"`
+		}
+		_ = common.UnmarshalJsonStr(instance.Info, &info)
+		applied[index] = info.Sync
+		if now-instance.LastSeenAt <= model.SystemInstanceStaleAfterSeconds {
+			for topic := range info.Sync {
+				keptTopics[topic] = true
+			}
+		}
+	}
+	topics := slices.Sorted(maps.Keys(keptTopics))
 
 	status := NodeSyncStatus{Topics: make([]NodeSyncTopic, 0, len(topics)), Nodes: make([]NodeSyncNode, 0, len(instances))}
 	for _, topic := range topics {
 		row := stored[topic]
 		status.Topics = append(status.Topics, NodeSyncTopic{Topic: topic, Revision: row.Revision, UpdatedAt: row.UpdatedAt, UpdatedBy: row.UpdatedBy})
 	}
-	now := common.GetTimestamp()
-	for _, instance := range instances {
-		// A row written before this member existed, or unreadable, has no sync.
-		var info struct {
-			Sync map[string]NodeSyncTopicState `json:"sync"`
-		}
-		_ = common.UnmarshalJsonStr(instance.Info, &info)
+	for index, instance := range instances {
 		node := NodeSyncNode{
 			NodeName: instance.NodeName,
 			Online:   now-instance.LastSeenAt <= model.SystemInstanceStaleAfterSeconds,
 			Topics:   make(map[string]NodeSyncNodeTopic, len(topics)),
 		}
 		for _, topic := range status.Topics {
-			applied, ok := info.Sync[topic.Topic]
-			errors := applied.Errors
+			state, kept := applied[index][topic.Topic]
+			synced := kept && state.AppliedAt != 0 && state.Revision == topic.Revision
+			if !kept {
+				// A node that reports other topics does not keep this one; a
+				// node without any sync state predates node sync.
+				synced = len(applied[index]) > 0
+			}
+			errors := state.Errors
 			if errors == nil {
 				errors = map[string]string{}
 			}
 			node.Topics[topic.Topic] = NodeSyncNodeTopic{
-				Synced:    ok && applied.AppliedAt != 0 && applied.Revision == topic.Revision,
-				AppliedAt: applied.AppliedAt,
-				Error:     applied.Error,
+				Synced:    synced,
+				AppliedAt: state.AppliedAt,
+				Error:     state.Error,
 				Errors:    errors,
 			}
 		}

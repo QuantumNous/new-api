@@ -42,8 +42,8 @@ func sqliteChannelKeyLock(channelID int) *sync.Mutex {
 
 // UpdateChannelLocked lets update change a channel's key while no other node
 // or goroutine can: MySQL and PostgreSQL hold the channel row lock across
-// update, which may wait on the network, and SQLite holds a process lock,
-// because a write transaction held that long would stall every other writer.
+// update, and SQLite holds a process lock. update must not wait on the
+// network, because every request of a multi-key channel waits on this lock.
 // Every write of a channel's key goes through here or through
 // UpdateTaskPluginChannelLocked, which takes the same locks; Channel.Update
 // never writes it. So the key update reads is the stored one, never a copy a

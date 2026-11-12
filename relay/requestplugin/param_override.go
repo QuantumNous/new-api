@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
@@ -22,8 +21,10 @@ func init() {
 // ParamOverride is utils.paramOverride(body, override): the channel param
 // override DSL run on a stage hook's body, with a condition context built
 // from the hook's ctx. A DSL return_error comes back as {reject: {code,
-// message}}; the headers it returns are only the changes the override made
-// to the channel's header override.
+// message}}; the headers it returns are those the override set or removed.
+// The DSL reads no header values: the channel's header override, which may
+// hold credentials, is not in its context. The channel applies it after the
+// plugin's header changes anyway.
 func ParamOverride(tctx jsplugin.TransformContext, body json.RawMessage, override json.RawMessage) (json.RawMessage, error) {
 	var rules map[string]any
 	if err := common.Unmarshal(override, &rules); err != nil || rules == nil {
@@ -44,14 +45,10 @@ func ParamOverride(tctx jsplugin.TransformContext, body json.RawMessage, overrid
 		"is_retry":       tctx.Attempt > 0,
 		"retry":          map[string]any{"index": tctx.Attempt, "is_retry": tctx.Attempt > 0},
 	}
-	var baseHeaders map[string]any
 	if tctx.Channel != nil {
 		context["channel_id"], context["channel_type"] = tctx.Channel.ID, tctx.Channel.Type
-		if channel, err := model.CacheGetChannel(tctx.Channel.ID); err == nil {
-			baseHeaders = channel.GetHeaderOverride()
-		}
 	}
-	result, set, removed, err := relaycommon.ApplyPluginParamOverride(body, rules, context, baseHeaders)
+	result, set, removed, err := relaycommon.ApplyPluginParamOverride(body, rules, context, nil)
 	if err != nil {
 		returned, ok := relaycommon.AsParamOverrideReturnError(err)
 		if !ok {

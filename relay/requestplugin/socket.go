@@ -42,9 +42,7 @@ func SocketIngress(c *gin.Context, format types.RelayFormat) (bool, []relaycommo
 	if plan == nil {
 		return false, nil, nil, nil
 	}
-	if plan.reports {
-		plan.response = &responseCapture{socket: true}
-	}
+	plan.socket = true
 	return plan.ingress(c, format, common.GetContextKeyString(c, constant.ContextKeyOriginalModel))
 }
 
@@ -67,9 +65,10 @@ func ResponsesSocket(c *gin.Context, info *relaycommon.RelayInfo, send func([]by
 	if plan == nil || info == nil {
 		return nil
 	}
+	call := attemptCall(c, info)
+	plan.capture(c, call.Group, call.Model, call.Bound)
 	socket := &SocketResponse{capture: plan.response, send: send}
 	if plan.replies {
-		call := attemptCall(c, info)
 		if instances := plan.scope(StageReply, call.Group, call.Model, call.Bound); len(instances) > 0 {
 			call.Format = string(types.RelayFormatOpenAIResponses)
 			check := newReplyCheck(c.Request.Context(), plan, instances)

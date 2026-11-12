@@ -134,10 +134,18 @@ function pushText(texts, value) {
   if (typeof value === "string" && value !== "" && !MEDIA_PLACEHOLDER.test(value)) texts.push(value);
 }
 
+// pushJSON adds a string as it is and any other value, such as a parameter
+// schema or the arguments of a tool call, as its JSON text.
+function pushJSON(texts, value) {
+  if (typeof value === "string") pushText(texts, value);
+  else if (value !== undefined && value !== null) pushText(texts, JSON.stringify(value));
+}
+
 // Message content: a string, or parts in the OpenAI, Responses, Claude or
-// Gemini shape. Claude tool results nest their own content, and a Claude
-// document may carry its text in the body.
-function collectContent(texts, content) {
+// Gemini shape. Claude tool calls and results and Gemini function calls and
+// responses count too; a tool result block other than text or a file counts
+// as its JSON. A Claude document may carry its text in the body.
+function collectContent(texts, content, inToolResult) {
   if (typeof content === "string") {
     pushText(texts, content);
     return;
@@ -149,50 +157,106 @@ function collectContent(texts, content) {
       continue;
     }
     if (!isObject(part) || part.thought === true) continue;
+    const call = part.functionCall || part.function_call;
+    const response = part.functionResponse || part.function_response;
     if (typeof part.text === "string" && (part.type === undefined || TEXT_PART_TYPES.includes(part.type))) {
       pushText(texts, part.text);
+    } else if (part.type === "tool_use") {
+      pushText(texts, part.name);
+      pushJSON(texts, part.input);
     } else if (part.type === "tool_result") {
-      collectContent(texts, part.content);
+      collectContent(texts, part.content, true);
     } else if (part.type === "document" && isObject(part.source)) {
       if (part.source.type === "text") pushText(texts, part.source.data);
       else if (part.source.type === "content") collectContent(texts, part.source.content);
+    } else if (isObject(call)) {
+      pushText(texts, call.name);
+      pushJSON(texts, call.args);
+    } else if (isObject(response)) {
+      pushText(texts, response.name);
+      if (isObject(response.response)) {
+        for (const value of Object.values(response.response)) pushJSON(texts, value);
+      }
+    } else if (inToolResult && part.type !== "image") {
+      pushJSON(texts, part);
     }
+  }
+}
+
+// Responses input items: messages, tool calls with their names, arguments or
+// input, and tool outputs.
+const OUTPUT_ITEM_TYPES = ["function_call_output", "custom_tool_call_output", "local_shell_call_output"];
+
+function collectInputItems(texts, items) {
+  for (const item of items) {
+    if (typeof item === "string") {
+      pushText(texts, item);
+      continue;
+    }
+    if (!isObject(item)) continue;
+    pushText(texts, item.name);
+    if (item.content !== undefined) collectContent(texts, item.content);
+    else if (item.type === "function_call") pushJSON(texts, item.arguments);
+    else if (item.type === "custom_tool_call") pushJSON(texts, item.input);
+    else if (OUTPUT_ITEM_TYPES.includes(item.type)) collectContent(texts, item.output);
+    else if (TEXT_PART_TYPES.includes(item.type)) pushText(texts, item.text);
   }
 }
 
 // Task text fields beside prompt: negative prompts, and song lyrics and
 // descriptions.
 const TASK_TEXT_KEYS = ["negative_prompt", "negativePrompt", "lyrics", "gpt_description_prompt"];
+// Members of a Responses request that hold text as JSON.
+const RESPONSES_JSON_KEYS = ["metadata", "text", "tool_choice"];
+// Formats whose whole body is text to check: Codex web search, and DeepSeek
+// search and fetch.
+const WHOLE_BODY_FORMATS = ["openai_alpha_search", "deepseek_tools"];
 
-// The user-visible text of a request in any of the four formats: chat
-// messages, Claude system, Responses instructions and input, Gemini contents
-// and system instruction, and the prompt of image and completion requests.
-// Task submissions add their prompts: at the top level, under input or
-// parameters, in instances and in content parts.
-function collectTexts(body) {
+// The text of a request in any format: chat messages with their names and
+// tool calls, Claude system, Responses instructions and input items, Gemini
+// contents and system instruction, tool declarations, the prompt of image
+// and completion requests, embedding inputs and rerank queries and
+// documents. A Responses compaction is checked as the JSON of its
+// instructions and input. Task submissions add their prompts: at the top
+// level, under input or parameters, in instances and in content parts.
+function collectTexts(body, format) {
   const texts = [];
   if (!isObject(body)) return texts;
+  if (WHOLE_BODY_FORMATS.includes(format)) {
+    pushJSON(texts, body);
+    return texts;
+  }
+  if (format === "openai_responses_compaction") {
+    pushJSON(texts, body.instructions);
+    pushJSON(texts, body.input);
+    return texts;
+  }
   if (Array.isArray(body.messages)) {
     for (const message of body.messages) {
-      if (isObject(message)) collectContent(texts, message.content);
+      if (!isObject(message)) continue;
+      collectContent(texts, message.content);
+      pushText(texts, message.name);
+      // Tools a message declares count as top-level tools do.
+      pushJSON(texts, message.tools);
+      if (!Array.isArray(message.tool_calls)) continue;
+      for (const call of message.tool_calls) {
+        if (!isObject(call)) continue;
+        if (call.custom !== undefined) {
+          pushJSON(texts, call.custom);
+        } else if (isObject(call.function)) {
+          pushText(texts, call.function.name);
+          pushJSON(texts, call.function.arguments);
+        }
+      }
     }
   }
   collectContent(texts, body.system);
-  pushText(texts, body.instructions);
-  collectContent(texts, body.prompt);
+  if (Array.isArray(body.instructions)) collectInputItems(texts, body.instructions);
+  else pushText(texts, body.instructions);
+  if (isObject(body.prompt)) pushJSON(texts, body.prompt);
+  else collectContent(texts, body.prompt);
   if (typeof body.input === "string") pushText(texts, body.input);
-  else if (Array.isArray(body.input)) {
-    for (const item of body.input) {
-      if (typeof item === "string") {
-        pushText(texts, item);
-        continue;
-      }
-      if (!isObject(item)) continue;
-      if (item.content !== undefined) collectContent(texts, item.content);
-      else if (item.type === "function_call_output") collectContent(texts, item.output);
-      else if (TEXT_PART_TYPES.includes(item.type)) pushText(texts, item.text);
-    }
-  }
+  else if (Array.isArray(body.input)) collectInputItems(texts, body.input);
   if (Array.isArray(body.contents)) {
     for (const content of body.contents) {
       if (isObject(content)) collectContent(texts, content.parts);
@@ -200,6 +264,22 @@ function collectTexts(body) {
   }
   for (const instruction of [body.systemInstruction, body.system_instruction]) {
     if (isObject(instruction)) collectContent(texts, instruction.parts);
+  }
+  // Tool names, descriptions and parameter schemas, in every format.
+  pushJSON(texts, body.tools);
+  if (format === "openai_responses") {
+    for (const key of RESPONSES_JSON_KEYS) pushJSON(texts, body[key]);
+  }
+  // Gemini embedding requests: one content, or a batch of requests.
+  if (isObject(body.content)) collectContent(texts, body.content.parts);
+  if (Array.isArray(body.requests)) {
+    for (const request of body.requests) {
+      if (isObject(request) && isObject(request.content)) collectContent(texts, request.content.parts);
+    }
+  }
+  pushText(texts, body.query);
+  if (Array.isArray(body.documents)) {
+    for (const document of body.documents) pushJSON(texts, document);
   }
   for (const key of TASK_TEXT_KEYS) collectContent(texts, body[key]);
   if (isObject(body.input)) {
@@ -305,7 +385,7 @@ function check(ctx, req, attachments) {
   const config = ctx.config || {};
   const rules = compileRules(config);
   if (rules.length === 0 && !hasKeywords(config)) return { action: "continue" };
-  let ruleId = firstMatch(config, rules, collectTexts(req.body));
+  let ruleId = firstMatch(config, rules, collectTexts(req.body, ctx.format));
   if (ruleId === "" && attachments) ruleId = firstMatch(config, rules, attachmentTexts());
   if (ruleId === "") return { action: "continue" };
   const result = { action: "reject", code: "request_filtered", ruleId: ruleId };

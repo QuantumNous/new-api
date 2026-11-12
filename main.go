@@ -406,6 +406,8 @@ func InitResources() error {
 	if err != nil {
 		common.SysError(common.LogText("failed to load custom OAuth providers: %s", err.Error()))
 		// Don't return error, custom OAuth is not critical
+		// The node sync loads them again on its first tick.
+		service.SyncTopicLoadFailed(model.SyncTopicOAuthProviders, err)
 	}
 
 	service.StartAuthArtifactCleanup()

@@ -17,6 +17,9 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/tidwall/gjson"
 	"golang.org/x/image/draw"
+	"golang.org/x/image/riff"
+	"golang.org/x/image/vp8"
+	"golang.org/x/image/vp8l"
 	_ "golang.org/x/image/webp"
 )
 
@@ -189,6 +192,14 @@ func reencodeMedia(ctx context.Context, item inlineMedia, effect requestpatch.Ef
 	if int64(config.Width)*int64(config.Height) > maxReencodePixels || format == "gif" && gifAnimated(raw) {
 		return nil, nil, nil
 	}
+	// With a VP8X chunk the size read above is the canvas the chunk declares,
+	// while the decoder decodes the frame at its own size: the two must agree
+	// for the pixel bound to hold.
+	if format == "webp" {
+		if width, height, err := webpFrameSize(raw); err != nil || width != config.Width || height != config.Height {
+			return nil, nil, fmt.Errorf("media %s cannot be decoded", item.path)
+		}
+	}
 	if err = ctx.Err(); err != nil {
 		return nil, nil, err
 	}
@@ -267,6 +278,31 @@ func reencodeMedia(ctx context.Context, item inlineMedia, effect requestpatch.Ef
 		To:       relaycommon.RequestPluginMediaForm{Mime: mime, Bytes: encoded.Len()},
 		Lossless: target != "jpeg",
 	}, nil
+}
+
+// webpFrameSize reads the size of a WebP image's frame from the header of
+// its first VP8 or VP8L chunk.
+func webpFrameSize(data []byte) (int, int, error) {
+	_, chunks, err := riff.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return 0, 0, err
+	}
+	for {
+		id, length, chunk, err := chunks.Next()
+		if err != nil {
+			return 0, 0, err
+		}
+		switch id {
+		case riff.FourCC{'V', 'P', '8', ' '}:
+			decoder := vp8.NewDecoder()
+			decoder.Init(chunk, int(length))
+			header, err := decoder.DecodeFrameHeader()
+			return header.Width, header.Height, err
+		case riff.FourCC{'V', 'P', '8', 'L'}:
+			config, err := vp8l.DecodeConfig(chunk)
+			return config.Width, config.Height, err
+		}
+	}
 }
 
 // gifAnimated reports a GIF with more than one image. It walks the block

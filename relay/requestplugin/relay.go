@@ -42,8 +42,9 @@ func planOf(c *gin.Context) *Plan {
 // stage on the stored client body, before the body is parsed. Patched bytes
 // replace the stored body, so parsing, the billing estimate, retries and the
 // later stages read them. It returns the audit steps and the public record
-// for RelayInfo.SetRequestPluginIngress. When an instance may report the
-// request, it starts capturing the response for Report.
+// for RelayInfo.SetRequestPluginIngress. When an instance in scope may report
+// the request, it starts capturing the response for Report; Reply starts it
+// for those a channel attempt brings.
 func Ingress(c *gin.Context, format types.RelayFormat) ([]relaycommon.RequestPluginStep, []relaycommon.RequestPluginRecord, *types.NewAPIError) {
 	plan := NewPlan()
 	if plan == nil {
@@ -72,11 +73,8 @@ func SubmitIngress(c *gin.Context, format types.RelayFormat, model string) (bool
 
 func (p *Plan) ingress(c *gin.Context, format types.RelayFormat, model string) (bool, []relaycommon.RequestPluginStep, []relaycommon.RequestPluginRecord, *types.NewAPIError) {
 	c.Set(planContextKey, p)
-	if p.reports {
-		p.response = &responseCapture{ResponseWriter: c.Writer}
-		c.Writer = p.response
-	}
-	group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	group := requestGroup(c)
+	p.capture(c, group, model, nil)
 	if len(p.scope(StageIngress, group, model, nil)) == 0 {
 		return false, nil, nil, nil
 	}
@@ -140,6 +138,7 @@ func TaskAttempt(c *gin.Context, info *relaycommon.RelayInfo) (bool, *types.NewA
 		changed = true
 	}
 	call := attemptCall(c, info)
+	plan.capture(c, call.Group, call.Model, call.Bound)
 	call.Stage, call.Late, call.Unpriced = StageIngress, true, true
 	if !slices.ContainsFunc(plan.scope(StageIngress, call.Group, call.Model, call.Bound), func(instance *request_plugin_setting.Instance) bool {
 		return !plan.ingressRan[instance.ID]
@@ -278,18 +277,14 @@ func storeBodyError(err error) *types.NewAPIError {
 	return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 }
 
-// overBodyLimit reports whether a body is larger than MAX_REQUEST_BODY_MB,
+// OverBodyLimit reports whether a body is larger than MAX_REQUEST_BODY_MB,
 // the limit a client body is read with.
-func overBodyLimit(body []byte) bool {
-	maxMB := constant.MaxRequestBodyMB
-	if maxMB <= 0 {
-		maxMB = 128
-	}
-	return int64(len(body)) > int64(maxMB)<<20
+func OverBodyLimit(body []byte) bool {
+	return int64(len(body)) > requestpatch.MaxBodyBytes()
 }
 
 func replaceStoredBody(c *gin.Context, body []byte) error {
-	if overBodyLimit(body) {
+	if OverBodyLimit(body) {
 		return common.ErrRequestBodyTooLarge
 	}
 	stored, err := common.CreateBodyStorage(body)
@@ -374,7 +369,7 @@ func Outbound(c *gin.Context, info *relaycommon.RelayInfo, body []byte) ([]byte,
 		call.Body, call.Headers = outcome.Body, outcome.Headers
 	}
 	// The body limit holds for what the hooks add, as at ingress.
-	if len(call.Body) > len(body) && overBodyLimit(call.Body) {
+	if len(call.Body) > len(body) && OverBodyLimit(call.Body) {
 		return nil, storeBodyError(common.ErrRequestBodyTooLarge)
 	}
 	info.RequestPluginHeaders = call.Headers
@@ -430,7 +425,7 @@ func attemptCall(c *gin.Context, info *relaycommon.RelayInfo) Call {
 		Format:  string(info.GetFinalRequestRelayFormat()),
 		Path:    c.Request.URL.Path,
 		Model:   info.OriginModelName,
-		Group:   common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
+		Group:   requestGroup(c),
 		Attempt: info.RetryIndex,
 	}
 	if plan := planOf(c); plan != nil && plan.submission != nil {
@@ -445,6 +440,16 @@ func attemptCall(c *gin.Context, info *relaycommon.RelayInfo) Call {
 	return call
 }
 
+// requestGroup is the group that scopes a request's instances: for a token
+// in the auto group, the group the channel selection settled once it did,
+// otherwise the token's group.
+func requestGroup(c *gin.Context) string {
+	if group := common.GetContextKeyString(c, constant.ContextKeyAutoGroup); group != "" {
+		return group
+	}
+	return common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+}
+
 // requester is the user and the token of a request, as the report record
 // has them; the token is nil when the request has none.
 func requester(c *gin.Context) (jsplugin.TransformUser, *jsplugin.TransformToken) {
@@ -455,9 +460,13 @@ func requester(c *gin.Context) (jsplugin.TransformUser, *jsplugin.TransformToken
 	return user, nil
 }
 
+// jsonRequest reports a client body the gateway parses as JSON: a
+// Content-Type that starts with application/json, as the request parser
+// checks it (application/jsonl included), or a +json media type, which task
+// submissions parse as JSON.
 func jsonRequest(c *gin.Context) bool {
 	contentType := strings.ToLower(c.ContentType())
-	return contentType == "application/json" || strings.HasSuffix(contentType, "+json")
+	return strings.HasPrefix(contentType, "application/json") || strings.HasSuffix(contentType, "+json")
 }
 
 func auditSteps(outcome Outcome) []relaycommon.RequestPluginStep {
@@ -486,6 +495,9 @@ func settle(c *gin.Context, outcome Outcome) *types.NewAPIError {
 		return types.NewErrorWithStatusCode(fmt.Errorf("%s (code: %s)", message, rejected.Code), types.ErrorCodeRequestRejected, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 	if outcome.Failed != nil {
+		if outcome.Failed.tooLarge {
+			return storeBodyError(common.ErrRequestBodyTooLarge)
+		}
 		return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelayRequestPluginFailed)), types.ErrorCodeRequestPluginFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	return nil

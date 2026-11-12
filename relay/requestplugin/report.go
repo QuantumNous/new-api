@@ -100,6 +100,23 @@ func (w *responseCapture) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
 
+// capture starts keeping what the client gets for Report once an instance
+// that may report the request is in scope: at the request's ingress, or at a
+// channel attempt, which adds the channel's instances and those of a group
+// the channel selection settled. A capture already started stays. On a
+// Responses WebSocket the capture keeps the events the session sends.
+func (p *Plan) capture(c *gin.Context, group, model string, bound []string) {
+	if !p.reports || p.response != nil || len(p.scope(jsplugin.ReportHook, group, model, bound)) == 0 {
+		return
+	}
+	if p.socket {
+		p.response = &responseCapture{socket: true}
+		return
+	}
+	p.response = &responseCapture{ResponseWriter: c.Writer}
+	c.Writer = p.response
+}
+
 // The record a report hook receives; docs/plugin-api/v1.md describes it.
 type reportRecord struct {
 	RequestID       string                            `json:"requestId"`
@@ -214,7 +231,7 @@ func Report(c *gin.Context, format types.RelayFormat, info *relaycommon.RelayInf
 	if plan == nil || plan.response == nil || plan.submission != nil && plan.submission.stored {
 		return
 	}
-	call := Call{Format: string(format), Path: c.Request.URL.Path, Model: common.GetContextKeyString(c, constant.ContextKeyOriginalModel), Group: common.GetContextKeyString(c, constant.ContextKeyUsingGroup)}
+	call := Call{Format: string(format), Path: c.Request.URL.Path, Model: common.GetContextKeyString(c, constant.ContextKeyOriginalModel), Group: requestGroup(c)}
 	call.User, call.Token = requester(c)
 	pluginRecord := ingressRecord
 	if info != nil {

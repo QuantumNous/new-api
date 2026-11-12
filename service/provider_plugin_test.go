@@ -356,8 +356,8 @@ func TestRefreshConcurrentRequestsMakeOnePluginCall(t *testing.T) {
 }
 
 // Two refreshers stand for two nodes: their single-flight groups do not see
-// each other, so only the channel row lock keeps the token from being sent
-// twice.
+// each other, so only the channel's refresh lock keeps the token from being
+// sent twice.
 func TestRefreshTwoNodesMakeOnePluginCall(t *testing.T) {
 	useProviderPluginDatabase(t)
 	server := newFakeAuthServer(t)
@@ -385,6 +385,49 @@ func TestRefreshTwoNodesMakeOnePluginCall(t *testing.T) {
 	for _, result := range results {
 		assert.Equal(t, stored, result)
 	}
+}
+
+// The plugin call holds no channel lock: an edit of the channel made while it
+// runs goes through at once, and a result for a line the edit replaced is
+// discarded for the stored line.
+func TestRefreshPluginCallHoldsNoChannelLock(t *testing.T) {
+	useProviderPluginDatabase(t)
+	server := newFakeAuthServer(t)
+	server.newRefreshToken("refresh-0")
+	server.refreshDelay.Store(int64(time.Second))
+	registerProviderPlugin(t, "refresh-unlocked", "redirect")
+	line := expiringLine(t, "refresh-unlocked", "refresh-0", "acct-1", time.Now().Add(time.Second).Unix())
+	channel := createProviderChannel(t, "refresh-unlocked", server.URL, line, false)
+
+	done := make(chan struct{})
+	var refreshed string
+	var refreshErr error
+	go func() {
+		defer close(done)
+		refreshed, refreshErr = RefreshPluginCredential(context.Background(), channel.Id, 0, line)
+	}()
+	require.Eventually(t, func() bool { return server.refreshCalls.Load() == 1 }, 5*time.Second, 5*time.Millisecond)
+
+	// A new login of the same account replaces the line while the call runs.
+	replaced := expiringLine(t, "refresh-unlocked", "refresh-login", "acct-1", time.Now().Add(time.Hour).Unix())
+	started := time.Now()
+	_, err := model.UpdateChannelLocked(channel.Id, func(stored *model.Channel) error {
+		stored.Key = replaced
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Less(t, time.Since(started), 500*time.Millisecond, "the edit does not wait for the plugin call")
+	select {
+	case <-done:
+		t.Fatal("the refresh ended before its plugin call answered")
+	default:
+	}
+
+	<-done
+	require.NoError(t, refreshErr)
+	assert.Equal(t, replaced, refreshed)
+	assert.Equal(t, replaced, storedChannel(t, channel.Id).Key)
+	assert.EqualValues(t, 1, server.refreshCalls.Load())
 }
 
 func TestRefreshRotatedTokenIsNeverSentAgain(t *testing.T) {
@@ -508,19 +551,22 @@ func relaxNoticeDelivery(t *testing.T, onNotice func(title string)) {
 	require.NoError(t, model.DB.Create(admin).Error)
 }
 
+// A credential only a new login restores disables its key whether or not
+// channels are disabled automatically on errors.
 func TestRefreshReloginDisablesAndNotifies(t *testing.T) {
 	automaticDisable := common.AutomaticDisableChannelEnabled
-	common.AutomaticDisableChannelEnabled = true
 	t.Cleanup(func() { common.AutomaticDisableChannelEnabled = automaticDisable })
 	for _, tc := range []struct {
-		name     string
-		multiKey bool
-	}{{"single key", false}, {"multi key", true}} {
+		name             string
+		multiKey         bool
+		automaticDisable bool
+	}{{"single key", false, true}, {"multi key", true, true}, {"single key without automatic disable", false, false}, {"multi key without automatic disable", true, false}} {
 		t.Run(tc.name, func(t *testing.T) {
+			common.AutomaticDisableChannelEnabled = tc.automaticDisable
 			useProviderPluginDatabase(t)
 			server := newFakeAuthServer(t)
 			server.refreshFail.Store("invalid_grant")
-			key := "refresh-relogin-" + strings.ReplaceAll(tc.name, " ", "-")
+			key := fmt.Sprintf("refresh-relogin-%t-%t", tc.multiKey, tc.automaticDisable)
 			registerProviderPlugin(t, key, "redirect")
 			var notices atomic.Int32
 			relaxNoticeDelivery(t, func(string) { notices.Add(1) })
@@ -1215,9 +1261,16 @@ func TestScheduledScanDetectsDisabledTransitionOnce(t *testing.T) {
 			now := time.Now()
 			require.True(t, syncNodeTopics(context.Background()))
 			if source == "follower" {
-				require.True(t, model.UpdateChannelStatus(channel.Id, channel.Key, common.ChannelStatusAutoDisabled, "other node"))
+				// Another node's automatic disable bumps the channels topic.
+				common.IsMasterNode = false
+				disabledByFollower := model.UpdateChannelStatus(channel.Id, channel.Key, common.ChannelStatusAutoDisabled, "other node")
+				common.IsMasterNode = true
+				require.True(t, disabledByFollower)
 			} else {
 				DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, false, channel.Key, true), "quota")
+				// The master queued the call itself; another write's bump
+				// scans the same transition.
+				model.BumpSyncTopic(model.SyncTopicChannels)
 			}
 			require.True(t, syncNodeTopics(context.Background()))
 			channel = storedChannel(t, channel.Id)
@@ -1375,8 +1428,10 @@ func TestScheduledSyncBeforeMasterDisableDoesNotDuplicate(t *testing.T) {
 	t.Cleanup(func() { scheduledPlugins.workers.Wait(); scheduledPlugins = previous })
 	RegisterSyncTopic(model.SyncTopicChannels, ScanScheduledPlugins)
 	require.True(t, syncNodeTopics(context.Background()))
-	// DisableChannel has committed its write but has not called disabled yet.
+	// DisableChannel has committed its write but has not called disabled yet,
+	// and another write's bump runs a scan meanwhile.
 	require.True(t, model.UpdateChannelStatus(channel.Id, channel.Key, common.ChannelStatusAutoDisabled, "quota"))
+	model.BumpSyncTopic(model.SyncTopicChannels)
 	require.True(t, syncNodeTopics(context.Background()))
 	scheduledPlugins.workers.Wait()
 	require.EqualValues(t, 1, calls.Load())

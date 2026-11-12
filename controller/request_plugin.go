@@ -139,7 +139,8 @@ func normalizeRequestPluginInstances(instances []request_plugin_setting.Instance
 		if len(instance.Config) == 0 || string(instance.Config) == "null" {
 			instance.Config = json.RawMessage("{}")
 		}
-		plugin, ok := jsplugin.DefaultRegistry.Get(instance.Plugin)
+		// Request processing does not follow the plugin master switch.
+		plugin, ok := jsplugin.DefaultRegistry.GetIgnoringMasterSwitch(instance.Plugin)
 		if ok && !plugin.Meta.HasTransformPart() {
 			return nil, common.NewMessage("Plugin {{plugin}} has no request processing hooks", map[string]any{"plugin": instance.Plugin})
 		}

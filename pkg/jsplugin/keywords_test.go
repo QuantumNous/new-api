@@ -123,6 +123,25 @@ func TestKeywordsTenThousandOnALargePrompt(t *testing.T) {
 		len(prompt), first, perCall, search, searchAllocs)
 }
 
+// A search stops once it has found the limit of keywords: the text after
+// them is not searched, however often the keywords repeat in it. A keyword
+// across the end of a search chunk is found.
+func TestKeywordsSearchStopsAtTheLimit(t *testing.T) {
+	words := make([]string, 40)
+	for index := range words {
+		words[index] = fmt.Sprintf("k%02d", index)
+	}
+	matcher := newKeywordList(strings.Join(words, "\n"), [32]byte{}).matcher(true)
+	text := strings.Join(words, " ") + strings.Repeat(" k00", 1<<18)
+	var found []string
+	allocs := testing.AllocsPerRun(1, func() { found = matcher.find(text, maxKeywordMatches) })
+	assert.Equal(t, words[:maxKeywordMatches], found)
+	assert.Less(t, allocs, 10_000.0)
+
+	spanning := newKeywordList("abcd", [32]byte{}).matcher(false)
+	assert.Equal(t, []string{"abcd"}, spanning.find(strings.Repeat("x", keywordSearchChunk-2)+"ABCD", maxKeywordMatches))
+}
+
 // A hook that never matches costs no matcher, and a plugin without a
 // keywords field reads its config as it is.
 func TestKeywordsUnusedBuildNothing(t *testing.T) {

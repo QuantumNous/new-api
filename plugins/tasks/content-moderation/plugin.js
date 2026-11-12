@@ -250,11 +250,9 @@ function blockingCategories(results, listed) {
 // moderate sends input to the moderation API and returns the categories that
 // block it.
 function moderate(config, input) {
-  const request = { input: input };
-  if (config.model) request.model = config.model;
   const headers = { "Content-Type": "application/json" };
   if (config.apiKey) headers.Authorization = "Bearer " + config.apiKey;
-  const response = utils.fetch({ url: config.url, method: "POST", headers, body: JSON.stringify(request) });
+  const response = utils.fetch({ url: config.url, method: "POST", headers, body: requestBody(config, input) });
   if (response.status < 200 || response.status > 299) {
     throw new Error("moderation API returned HTTP " + response.status);
   }
@@ -262,6 +260,55 @@ function moderate(config, input) {
   if (!Array.isArray(results)) throw new Error("moderation API returned no results");
 
   return blockingCategories(results, config.categories || []).slice(0, 64);
+}
+
+// requestBody writes the moderation request for input.
+function requestBody(config, input) {
+  const request = { input: input };
+  if (config.model) request.model = config.model;
+  return JSON.stringify(request);
+}
+
+// utils.fetch sends a body of at most 1 MiB and makes at most 4 requests in
+// one hook call.
+const MAX_BODY_BYTES = 1024 * 1024;
+const MAX_FETCHES = 4;
+const encoder = new TextEncoder();
+
+// textInputs returns the inputs of the moderation requests that check texts,
+// at most maxRequests of them, or null when they need more. Texts that fit
+// in one request go as they are, the only one as a string when single.
+// Longer texts are cut into pieces of DOCUMENT_CHARS characters, sent in
+// order, as many to a request as fit.
+function textInputs(config, texts, single, maxRequests) {
+  const body = requestBody(config, single ? texts[0] : texts);
+  if (body.length <= MAX_BODY_BYTES && encoder.encode(body).length <= MAX_BODY_BYTES) return [single ? texts[0] : texts];
+  const room = MAX_BODY_BYTES - encoder.encode(requestBody(config, [])).length;
+  const inputs = [];
+  let input = [];
+  let used = 0;
+  for (const text of texts) {
+    for (let start = 0; start < text.length;) {
+      let end = Math.min(start + DOCUMENT_CHARS, text.length);
+      // A character outside the BMP is two code units; keep them together.
+      const last = text.charCodeAt(end - 1);
+      if (end < text.length && last >= 0xd800 && last <= 0xdbff) end--;
+      const piece = text.slice(start, end);
+      start = end;
+      // The piece, its quotes and escapes, and the comma before it.
+      const size = encoder.encode(JSON.stringify(piece)).length + 1;
+      if (input.length > 0 && used + size > room) {
+        if (inputs.length + 1 === maxRequests) return null;
+        inputs.push(input);
+        input = [];
+        used = 0;
+      }
+      input.push(piece);
+      used += size;
+    }
+  }
+  inputs.push(input);
+  return inputs;
 }
 
 function findingsOf(blocking) {
@@ -316,8 +363,16 @@ export function ingress(ctx, req) {
     }
   }
   let blocking = [];
-  if (texts.length > 0) blocking = moderate(config, config.scope === "all_user" || texts.length > 1 ? texts : texts[0]);
-  for (let i = 0; blocking.length === 0 && i < images.length; i++) {
+  let requests = 0;
+  if (texts.length > 0) {
+    const inputs = textInputs(config, texts, config.scope !== "all_user" && texts.length === 1, MAX_FETCHES);
+    if (inputs === null) {
+      return { action: "reject", code: "moderation.too_long", message: "The request is too long for content moderation" };
+    }
+    for (; blocking.length === 0 && requests < inputs.length; requests++) blocking = moderate(config, inputs[requests]);
+  }
+  // Images take the requests the text left.
+  for (let i = 0; blocking.length === 0 && i < images.length && requests < MAX_FETCHES; i++, requests++) {
     blocking = moderate(config, [{ type: "image_url", image_url: { url: images[i] } }]);
   }
   if (blocking.length === 0) return { action: "continue" };
@@ -345,7 +400,12 @@ export function reply(ctx, res) {
   }
   const texts = res.outputs.map((output) => output.text).filter((text) => text.trim() !== "");
   if (texts.length === 0) return { action: "continue" };
-  const blocking = moderate(config, texts);
+  const inputs = textInputs(config, texts, false, MAX_FETCHES);
+  if (inputs === null) {
+    return { action: "stop", code: "moderation.too_long", message: "The reply is too long for content moderation" };
+  }
+  let blocking = [];
+  for (let i = 0; blocking.length === 0 && i < inputs.length; i++) blocking = moderate(config, inputs[i]);
   if (blocking.length === 0) return { action: "continue" };
   return {
     action: "stop",

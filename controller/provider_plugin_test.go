@@ -641,9 +641,11 @@ func TestProviderChannelManagementDatabaseMatrix(t *testing.T) {
 			require.NoError(t, db.Model(&model.Channel{}).Order("id").Pluck("id", &remaining).Error)
 			assert.Equal(t, batch, remaining, "the keyless channel waiting for a login was disabled, so it went too")
 
-			// Each write reads the channel while a refresh of its credential
-			// waits on the vendor, and writes after the refresh stored the
-			// rotated credential, which must survive the write.
+			// Each write runs against a refresh of the channel's first
+			// credential: while the refresh waits on the vendor, after it
+			// stored the rotated credential, or reading the channel before
+			// the refresh stored it and writing after. The rotated
+			// credential and the write's change both survive.
 			manageKeys := func(t *testing.T, channel *model.Channel, action string) {
 				response, raw := callChannelAPI(t, ManageMultiKeys, http.MethodPost, "/api/channel/multi_key/manage", fmt.Sprintf(`{"channel_id":%d,"action":%q,"key_index":1}`, channel.Id, action))
 				assert.True(t, response.Success, raw)
@@ -656,6 +658,7 @@ func TestProviderChannelManagementDatabaseMatrix(t *testing.T) {
 				check func(t *testing.T, stored *model.Channel)
 			}{
 				{name: "an edit that sends the key back", write: func(t *testing.T, channel *model.Channel) {
+					// The key as the client read it, before the write.
 					response, raw := callChannelAPI(t, UpdateChannel, http.MethodPut, "/api/channel", fmt.Sprintf(`{"id":%d,"name":"renamed","key":%q}`, channel.Id, channel.Key))
 					assert.True(t, response.Success, raw)
 				}, rest: []string{"sk-static"}, check: func(t *testing.T, stored *model.Channel) {
@@ -681,71 +684,111 @@ func TestProviderChannelManagementDatabaseMatrix(t *testing.T) {
 					assert.Equal(t, common.ChannelStatusAutoDisabled, stored.ChannelInfo.MultiKeyStatusList[1])
 				}},
 			} {
-				t.Run(race.name, func(t *testing.T) {
-					var arrivedOnce, releaseOnce sync.Once
-					arrived, release := make(chan struct{}), make(chan struct{})
-					vendor := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						arrivedOnce.Do(func() { close(arrived) })
-						<-release
-						w.Header().Set("Content-Type", "application/json")
-						_, _ = io.WriteString(w, `{"token":"rotated"}`)
-					}))
-					t.Cleanup(vendor.Close)
-					t.Cleanup(func() { releaseOnce.Do(func() { close(release) }) })
-					old := pluginCredentialLine(t, pluginKey, "old")
-					channel := insertPluginChannel(t, pluginKey, vendor.URL, old+"\nsk-static", true)
-
-					refreshed := make(chan error, 1)
-					go func() {
-						_, err := service.RefreshPluginCredential(context.Background(), channel.Id, 0, old)
-						refreshed <- err
-					}()
-					select {
-					case <-arrived:
-					case <-time.After(10 * time.Second):
-						require.FailNow(t, "the refresh never reached the vendor")
-					}
-					// The write's first read of the channel waits until the
-					// refresh has stored the rotated credential.
-					read, resume := make(chan struct{}), make(chan struct{})
-					var readOnce sync.Once
-					require.NoError(t, db.Callback().Query().After("gorm:query").Register("test:hold_channel_read", func(tx *gorm.DB) {
-						if tx.Statement.Table == "channels" {
-							readOnce.Do(func() { close(read); <-resume })
+				for _, order := range []string{"during the vendor call", "after the refresh", "read before the refresh stored"} {
+					t.Run(race.name+"/"+order, func(t *testing.T) {
+						var arrivedOnce, releaseOnce sync.Once
+						arrived, release := make(chan struct{}), make(chan struct{})
+						vendor := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							arrivedOnce.Do(func() { close(arrived) })
+							<-release
+							w.Header().Set("Content-Type", "application/json")
+							_, _ = io.WriteString(w, `{"token":"rotated"}`)
+						}))
+						t.Cleanup(vendor.Close)
+						releaseVendor := func() { releaseOnce.Do(func() { close(release) }) }
+						t.Cleanup(releaseVendor)
+						old := pluginCredentialLine(t, pluginKey, "old")
+						channel := insertPluginChannel(t, pluginKey, vendor.URL, old+"\nsk-static", true)
+						await := func(done <-chan struct{}, failure string) {
+							t.Helper()
+							select {
+							case <-done:
+							case <-time.After(10 * time.Second):
+								require.FailNow(t, failure)
+							}
 						}
-					}))
-					t.Cleanup(func() { _ = db.Callback().Query().Remove("test:hold_channel_read") })
-					refreshDone := make(chan error, 1)
-					go func() {
-						select {
-						case <-read:
-						case <-time.After(10 * time.Second):
+						// current is the channel as a client reads it before the write.
+						current := func() *model.Channel {
+							stored, err := model.GetChannelById(channel.Id, true)
+							require.NoError(t, err)
+							return stored
 						}
-						releaseOnce.Do(func() { close(release) })
-						err := <-refreshed
-						close(resume)
-						refreshDone <- err
-					}()
-					race.write(t, channel)
-					require.NoError(t, <-refreshDone)
-					require.NoError(t, db.Callback().Query().Remove("test:hold_channel_read"))
-					select {
-					case <-read:
-					default:
-						require.FailNow(t, "the write never read the channel")
-					}
 
-					stored, err := model.GetChannelById(channel.Id, true)
-					require.NoError(t, err)
-					lines := strings.Split(stored.Key, "\n")
-					credential, ok := jsplugin.ParseCredential(lines[0])
-					require.True(t, ok, stored.Key)
-					assert.JSONEq(t, `{"token":"rotated"}`, string(credential.Data), "the write kept the rotated credential")
-					assert.Equal(t, race.rest, lines[1:])
-					if race.check != nil {
-						race.check(t, stored)
-					}
-				})
+						refreshed := make(chan struct{})
+						var refreshErr error
+						go func() {
+							defer close(refreshed)
+							_, refreshErr = service.RefreshPluginCredential(context.Background(), channel.Id, 0, old)
+						}()
+						await(arrived, "the refresh never reached the vendor")
+						switch order {
+						case "during the vendor call":
+							// The refresh holds no channel lock while it waits.
+							client := current()
+							wrote := make(chan struct{})
+							go func() {
+								defer close(wrote)
+								race.write(t, client)
+							}()
+							await(wrote, "the write waited for the refresh")
+							select {
+							case <-refreshed:
+								require.FailNow(t, "the refresh ended before the vendor answered")
+							default:
+							}
+							releaseVendor()
+							await(refreshed, "the refresh did not end")
+						case "after the refresh":
+							releaseVendor()
+							await(refreshed, "the refresh did not end")
+							race.write(t, current())
+						case "read before the refresh stored":
+							client := current()
+							// The write's first read of the channel waits while
+							// the vendor answers and the refresh stores its
+							// result. A write that read the channel under the
+							// lock the refresh writes with holds the refresh
+							// back instead, until the write resumes.
+							read, resume := make(chan struct{}), make(chan struct{})
+							var held atomic.Bool
+							require.NoError(t, db.Callback().Query().After("gorm:query").Register("test:hold_channel_read", func(tx *gorm.DB) {
+								// Only the first read waits; the refresh's reads go on.
+								if tx.Statement.Table == "channels" && held.CompareAndSwap(false, true) {
+									close(read)
+									<-resume
+								}
+							}))
+							t.Cleanup(func() { _ = db.Callback().Query().Remove("test:hold_channel_read") })
+							wrote := make(chan struct{})
+							go func() {
+								defer close(wrote)
+								race.write(t, client)
+							}()
+							await(read, "the write never read the channel")
+							releaseVendor()
+							select {
+							case <-refreshed:
+							case <-time.After(300 * time.Millisecond):
+							}
+							close(resume)
+							await(wrote, "the write did not end")
+							await(refreshed, "the refresh did not end")
+							require.NoError(t, db.Callback().Query().Remove("test:hold_channel_read"))
+						}
+						require.NoError(t, refreshErr)
+
+						stored, err := model.GetChannelById(channel.Id, true)
+						require.NoError(t, err)
+						lines := strings.Split(stored.Key, "\n")
+						credential, ok := jsplugin.ParseCredential(lines[0])
+						require.True(t, ok, stored.Key)
+						assert.JSONEq(t, `{"token":"rotated"}`, string(credential.Data), "the write kept the rotated credential")
+						assert.Equal(t, race.rest, lines[1:])
+						if race.check != nil {
+							race.check(t, stored)
+						}
+					})
+				}
 			}
 		})
 	}

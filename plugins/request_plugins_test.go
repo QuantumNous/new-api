@@ -88,7 +88,7 @@ func TestRequestFilterPlugin(t *testing.T) {
 		{"case sensitive keyword matches exact case", "ingress", `{"messages": [{"role": "user", "content": "ALPHA team"}]}`, "alpha"},
 		{"leading (?i) makes a regex case-insensitive", "ingress", `{"messages": [{"role": "user", "content": "DROP  TABLE users"}]}`, "go-style"},
 		{"case sensitive keyword skips other cases", "ingress", `{"messages": [{"role": "user", "content": "alpha team"}]}`, ""},
-		{"model, ids and roles are not scanned", "ingress", `{"model": "project falcon", "user": "secret-1234", "messages": [{"role": "user", "name": "secret-5678", "content": "hello"}]}`, ""},
+		{"model, user and roles are not scanned", "ingress", `{"model": "project falcon", "user": "secret-1234", "messages": [{"role": "secret-5678", "content": "hello"}]}`, ""},
 		{"egress checks the final body", "egress", `{"model": "claude-test", "system": "Project Falcon", "messages": [{"role": "user", "content": "hi"}]}`, "falcon"},
 		{"egress passes a clean body", "egress", `{"model": "gpt-test", "messages": [{"role": "user", "content": "hello"}]}`, ""},
 	}
@@ -475,6 +475,8 @@ func TestImageCompressPlugin(t *testing.T) {
 		{Index: 1, Path: "/messages/0/content/2/image_url/url", MimeType: "image/jpeg", Bytes: 100000, Width: 4096, Height: 1000},
 		{Index: 2, Path: "/messages/0/content/3/image_url/url", MimeType: "image/webp", Bytes: 100000, Width: 1024, Height: 768},
 		{Index: 3, Path: "/messages/0/content/4/file/file_data", MimeType: "application/pdf", Bytes: 900000},
+		{Index: 4, Path: "/messages/0/content/5/image_url/url", MimeType: "image/jpeg", Bytes: 900000, Width: 3000, Height: 2000},
+		{Index: 5, Path: "/messages/0/content/6/image_url/url", MimeType: "image/gif", Bytes: 600000, Width: 800, Height: 600},
 	}
 	cases := []struct {
 		name    string
@@ -482,19 +484,20 @@ func TestImageCompressPlugin(t *testing.T) {
 		effects []requestpatch.Effect
 	}{
 		{
-			name:   "lossless by default: WebP, no quality, no resizing",
+			// Lossless WebP of a JPEG or WebP image comes out larger.
+			name:   "lossless by default: PNG and GIF to WebP, no quality, no resizing",
 			config: `{}`,
 			effects: []requestpatch.Effect{
 				{Type: requestpatch.EffectMediaReencode, Media: 0, Format: "webp"},
+				{Type: requestpatch.EffectMediaReencode, Media: 5, Format: "webp"},
 			},
 		},
 		{
-			name:   "lossless qualifies images by size only",
+			name:   "lossless qualifies PNG and GIF images by size only",
 			config: `{"mode": "lossless", "minBytes": 50000, "maxSide": 512}`,
 			effects: []requestpatch.Effect{
 				{Type: requestpatch.EffectMediaReencode, Media: 0, Format: "webp"},
-				{Type: requestpatch.EffectMediaReencode, Media: 1, Format: "webp"},
-				{Type: requestpatch.EffectMediaReencode, Media: 2, Format: "webp"},
+				{Type: requestpatch.EffectMediaReencode, Media: 5, Format: "webp"},
 			},
 		},
 		{
@@ -503,6 +506,8 @@ func TestImageCompressPlugin(t *testing.T) {
 			effects: []requestpatch.Effect{
 				{Type: requestpatch.EffectMediaReencode, Media: 0, Format: "jpeg", Quality: 80, MaxSide: 2048},
 				{Type: requestpatch.EffectMediaReencode, Media: 1, Format: "jpeg", Quality: 80, MaxSide: 2048},
+				{Type: requestpatch.EffectMediaReencode, Media: 4, Format: "jpeg", Quality: 80, MaxSide: 2048},
+				{Type: requestpatch.EffectMediaReencode, Media: 5, Format: "jpeg", Quality: 80, MaxSide: 2048},
 			},
 		},
 		{
@@ -511,6 +516,8 @@ func TestImageCompressPlugin(t *testing.T) {
 			effects: []requestpatch.Effect{
 				{Type: requestpatch.EffectMediaReencode, Media: 0, Format: "auto", Quality: 85, MaxSide: 2048},
 				{Type: requestpatch.EffectMediaReencode, Media: 1, Format: "auto", Quality: 85, MaxSide: 2048},
+				{Type: requestpatch.EffectMediaReencode, Media: 4, Format: "auto", Quality: 85, MaxSide: 2048},
+				{Type: requestpatch.EffectMediaReencode, Media: 5, Format: "auto", Quality: 85, MaxSide: 2048},
 			},
 		},
 		{
@@ -833,6 +840,81 @@ func TestContentModerationReply(t *testing.T) {
 	assert.Len(t, inputs, 2)
 }
 
+// A text the size limit of one moderation request cannot carry goes in
+// pieces, over as many requests as a hook may make; a longer one is
+// rejected without a request. Images take the requests the text leaves.
+func TestContentModerationLongText(t *testing.T) {
+	const mib = 1 << 20
+	var inputs []gjson.Result
+	flagCall := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		assert.LessOrEqual(t, len(raw), mib)
+		inputs = append(inputs, gjson.GetBytes(raw, "input"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(moderationResult(map[string]bool{"violence": len(inputs) == flagCall})))
+	}))
+	t.Cleanup(server.Close)
+	config := map[string]any{"url": server.URL + "/v1/moderations"}
+	chat := func(text string, parts ...string) string {
+		content, err := common.Marshal(text)
+		require.NoError(t, err)
+		if len(parts) > 0 {
+			content = []byte(`[{"type":"text","text":` + string(content) + `},` + strings.Join(parts, ",") + `]`)
+		}
+		return `{"model":"gpt","messages":[{"role":"user","content":"earlier"},{"role":"user","content":` + string(content) + `}]}`
+	}
+	joined := func() string {
+		var text strings.Builder
+		for _, input := range inputs {
+			for _, piece := range input.Array() {
+				if piece.Type == gjson.String {
+					text.WriteString(piece.Str)
+				}
+			}
+		}
+		return text.String()
+	}
+
+	// 2.4 MiB, with letters of one and three bytes in UTF-8.
+	long := strings.Repeat("calm words, 平静 ", mib/8)
+	result := dryRunBuiltIn(t, "content-moderation", config, chat(long))
+	assert.Nil(t, result.Rejected)
+	require.Len(t, inputs, 3)
+	assert.Equal(t, long, joined())
+
+	inputs, flagCall = nil, 2
+	result = dryRunBuiltIn(t, "content-moderation", config, chat(long))
+	require.NotNil(t, result.Rejected)
+	assert.Equal(t, "moderation.flagged", result.Rejected.Code)
+	assert.Len(t, inputs, 2, "no request after a flagged part")
+
+	inputs, flagCall = nil, 0
+	result = dryRunBuiltIn(t, "content-moderation", config, chat(strings.Repeat("a", 4*mib+1)))
+	require.NotNil(t, result.Rejected)
+	assert.Equal(t, "moderation.too_long", result.Rejected.Code)
+	assert.True(t, strings.HasPrefix(result.Rejected.Message, "The request is too long for content moderation"), result.Rejected.Message)
+	assert.Empty(t, inputs)
+
+	// The text takes three requests, so one of the three images is checked.
+	inputs = nil
+	result = dryRunBuiltIn(t, "content-moderation", config, chat(long, tinyImage, tinyImage, tinyImage))
+	assert.Nil(t, result.Rejected)
+	require.Len(t, inputs, 4)
+	assert.Equal(t, "image_url", inputs[3].Get("0.type").Str)
+	assert.Equal(t, long, joined())
+
+	// A reply too.
+	inputs = nil
+	configJSON, err := common.Marshal(map[string]any{"url": server.URL + "/v1/moderations", "replies": true})
+	require.NoError(t, err)
+	reply := runReplyHook(t, "content-moderation", string(configJSON), false, true, long)
+	assert.Equal(t, jsplugin.ReplyResult{Action: "continue"}, reply)
+	assert.Len(t, inputs, 3)
+	assert.Equal(t, long, joined())
+}
+
 // A built-in whose reply option is off lets the reply pass in a dry run: the
 // step shows continue and the text comes back unchanged.
 func TestReplyOptionOffDryRun(t *testing.T) {
@@ -1037,13 +1119,19 @@ func TestContentModerationTaskSubmissions(t *testing.T) {
 // dry run, attachments included.
 func dryRunBuiltIn(t *testing.T, key string, config map[string]any, body string) requestplugin.DryRunResult {
 	t.Helper()
+	return dryRunBuiltInAs(t, key, "openai", "/v1/chat/completions", config, body)
+}
+
+// dryRunBuiltInAs is dryRunBuiltIn for a request of another format and path.
+func dryRunBuiltInAs(t *testing.T, key, format, path string, config map[string]any, body string) requestplugin.DryRunResult {
+	t.Helper()
 	plugin, found := jsplugin.DefaultRegistry.Generation().Get(key)
 	require.True(t, found, key)
 	raw, err := common.Marshal(config)
 	require.NoError(t, err)
 	validated, err := plugin.ValidateConfig(raw)
 	require.NoError(t, err)
-	result := requestplugin.DryRun(t.Context(), requestplugin.DryRunInput{Format: "openai", Path: "/v1/chat/completions", Model: "gpt", Group: "default",
+	result := requestplugin.DryRun(t.Context(), requestplugin.DryRunInput{Format: format, Path: path, Model: "gpt", Group: "default",
 		Body: []byte(body), Instance: &request_plugin_setting.Instance{ID: "try", Name: "Try", Plugin: key, Config: validated}})
 	require.Nil(t, result.Failed)
 	return result
@@ -1138,6 +1226,70 @@ func TestRequestFilterKeywords(t *testing.T) {
 	assert.Equal(t, jsplugin.ReplyResult{Action: "continue", Hold: len("Forbidden") - 1}, runReplyHook(t, "request-filter", replies, true, false, "fine"))
 }
 
+// A migrated sensitive-word list checks at least the text the gateway's own
+// check read: tool declarations, replayed tool calls and their results, chat
+// message names, embedding and rerank inputs, and the whole body of the
+// formats it read whole.
+func TestRequestFilterLegacyCheckedText(t *testing.T) {
+	const (
+		chat      = "/v1/chat/completions"
+		responses = "/v1/responses"
+		gemini    = "/v1beta/models/gemini:generateContent"
+	)
+	user := `{"role":"user","content":"hi"}`
+	cases := []struct {
+		name, format, path, body string
+	}{
+		{"chat tool name", "openai", chat, `{"messages":[` + user + `],"tools":[{"type":"function","function":{"name":"falcon_lookup","parameters":{"type":"object"}}}]}`},
+		{"chat tool description", "openai", chat, `{"messages":[` + user + `],"tools":[{"type":"function","function":{"name":"lookup","description":"Find Falcon files"}}]}`},
+		{"chat tool parameter schema", "openai", chat, `{"messages":[` + user + `],"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object","properties":{"q":{"type":"string","description":"a falcon id"}}}}}]}`},
+		{"chat custom tool", "openai", chat, `{"messages":[` + user + `],"tools":[{"type":"custom","custom":{"name":"run","description":"falcon shell"}}]}`},
+		{"chat tools declared on a message", "openai", chat, `{"messages":[{"role":"system","content":"s","tools":[{"type":"function","function":{"name":"falcon"}}]},` + user + `]}`},
+		{"chat assistant tool call arguments", "openai", chat, `{"messages":[` + user + `,{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"lookup","arguments":"{\"q\":\"falcon\"}"}}]}]}`},
+		{"chat assistant tool call name", "openai", chat, `{"messages":[` + user + `,{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function","function":{"name":"falcon","arguments":"{}"}}]}]}`},
+		{"chat assistant custom tool call", "openai", chat, `{"messages":[` + user + `,{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"custom","custom":{"name":"run","input":"cat falcon.txt"}}]}]}`},
+		{"chat message name", "openai", chat, `{"messages":[{"role":"user","name":"falcon","content":"hi"}]}`},
+		{"responses tools", "openai_responses", responses, `{"input":"hi","tools":[{"type":"function","name":"lookup","description":"falcon","parameters":{}}]}`},
+		{"responses function call", "openai_responses", responses, `{"input":[{"type":"function_call","call_id":"c1","name":"lookup","arguments":"{\"q\":\"falcon\"}"}]}`},
+		{"responses custom tool call", "openai_responses", responses, `{"input":[{"type":"custom_tool_call","call_id":"c1","name":"run","input":"falcon"}]}`},
+		{"responses custom tool output", "openai_responses", responses, `{"input":[{"type":"custom_tool_call_output","call_id":"c1","output":"falcon"}]}`},
+		{"responses instructions as items", "openai_responses", responses, `{"input":"hi","instructions":[{"role":"developer","content":"falcon"}]}`},
+		{"responses text format", "openai_responses", responses, `{"input":"hi","text":{"format":{"type":"json_schema","name":"out","schema":{"description":"falcon"}}}}`},
+		{"responses metadata", "openai_responses", responses, `{"input":"hi","metadata":{"topic":"falcon"}}`},
+		{"responses prompt template", "openai_responses", responses, `{"prompt":{"id":"pmpt_1","variables":{"topic":"falcon"}}}`},
+		{"responses compaction input", "openai_responses_compaction", "/v1/responses/compact", `{"input":[{"type":"reasoning","summary":[{"type":"summary_text","text":"falcon"}]}]}`},
+		{"claude tool use input", "claude", "/v1/messages", `{"messages":[` + user + `,{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"lookup","input":{"q":"falcon"}}]}]}`},
+		{"claude tool use name", "claude", "/v1/messages", `{"messages":[` + user + `,{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"falcon","input":{}}]}]}`},
+		{"claude tool result block", "claude", "/v1/messages", `{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"search_result","source":"s","title":"falcon","content":[]}]}]}]}`},
+		{"claude tools", "claude", "/v1/messages", `{"messages":[` + user + `],"tools":[{"name":"lookup","description":"x","input_schema":{"type":"object","properties":{"falcon":{"type":"string"}}}}]}`},
+		{"gemini function call", "gemini", gemini, `{"contents":[{"role":"model","parts":[{"functionCall":{"name":"lookup","args":{"q":"falcon"}}}]}]}`},
+		{"gemini function response", "gemini", gemini, `{"contents":[{"role":"user","parts":[{"functionResponse":{"name":"lookup","response":{"result":"falcon"}}}]}]}`},
+		{"gemini function declarations", "gemini", gemini, `{"contents":[{"role":"user","parts":[{"text":"hi"}]}],"tools":[{"functionDeclarations":[{"name":"lookup","description":"falcon"}]}]}`},
+		{"gemini embedding", "gemini", "/v1beta/models/e:embedContent", `{"content":{"parts":[{"text":"falcon"}]}}`},
+		{"gemini batch embedding", "gemini", "/v1beta/models/e:batchEmbedContents", `{"requests":[{"model":"models/e","content":{"parts":[{"text":"falcon"}]}}]}`},
+		{"rerank query", "rerank", "/v1/rerank", `{"query":"falcon","documents":["a"]}`},
+		{"rerank document", "rerank", "/v1/rerank", `{"query":"q","documents":["a","falcon"]}`},
+		{"rerank document object", "rerank", "/v1/rerank", `{"query":"q","documents":[{"text":"falcon"}]}`},
+		{"codex web search", "openai_alpha_search", "/v1/alpha/search", `{"id":"req_1","commands":{"search_query":[{"q":"falcon"}]}}`},
+		{"deepseek search", "deepseek_tools", "/v1/tools/search", `{"query":"falcon","count":2}`},
+	}
+	config := map[string]any{"keywords": "falcon"}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := dryRunBuiltInAs(t, "request-filter", tc.format, tc.path, config, tc.body)
+			require.NotNil(t, result.Rejected, tc.body)
+			assert.Equal(t, "request_filtered", result.Rejected.Code)
+			clean := strings.ReplaceAll(strings.ReplaceAll(tc.body, "falcon", "harbor"), "Falcon", "Harbor")
+			assert.Nil(t, dryRunBuiltInAs(t, "request-filter", tc.format, tc.path, config, clean).Rejected, clean)
+		})
+	}
+
+	// Ids and the model name were never checked.
+	result := dryRunBuiltInAs(t, "request-filter", "openai", chat, config,
+		`{"model":"falcon","messages":[`+user+`,{"role":"assistant","content":null,"tool_calls":[{"id":"falcon-1","type":"function","function":{"name":"lookup","arguments":"{}"}}]},{"role":"tool","tool_call_id":"falcon-1","content":"ok"}]}`)
+	assert.Nil(t, result.Rejected)
+}
+
 // A text file read whole takes the redacted text. A PDF that holds a match
 // cannot be rewritten: with the check before sending on it rejects the
 // request, off it goes as it is and the record says so.
@@ -1167,6 +1319,59 @@ func TestRequestRedactAttachments(t *testing.T) {
 	require.Nil(t, result.Rejected)
 	assert.JSONEq(t, body, string(result.Body))
 	assert.Equal(t, []relaycommon.RequestPluginAttachment{{Kind: "document", Mime: "application/pdf", Status: "unchecked", Reason: "not_rewritable"}}, result.Record[0].Attachments)
+}
+
+// More changed texts than the host takes json.patch operations still redact
+// every one: the changes are written as replaces of the arrays that hold
+// them, with the files of those arrays kept where they were.
+func TestRequestRedactManyChanges(t *testing.T) {
+	const count = 600
+	messages := func(withImage bool) (string, string) {
+		var body, want strings.Builder
+		body.WriteString(`{"model":"gpt","messages":[`)
+		want.WriteString(`{"model":"gpt","messages":[`)
+		if withImage {
+			body.WriteString(`{"role":"user","content":[{"type":"text","text":"from boss@example.com"},` + tinyImage + `]},`)
+			want.WriteString(`{"role":"user","content":[{"type":"text","text":"from [REDACTED]"},` + tinyImage + `]},`)
+		}
+		for i := range count {
+			if i > 0 {
+				body.WriteString(",")
+				want.WriteString(",")
+			}
+			fmt.Fprintf(&body, `{"role":"user","content":"mail user%d@example.com"}`, i)
+			want.WriteString(`{"role":"user","content":"mail [REDACTED]"}`)
+			if i == count/2 && withImage {
+				body.WriteString(`,{"role":"user","content":[` + tinyImage + `]}`)
+				want.WriteString(`,{"role":"user","content":[` + tinyImage + `]}`)
+			}
+		}
+		body.WriteString(`],"system":"admin@example.com"}`)
+		want.WriteString(`],"system":"[REDACTED]"}`)
+		return body.String(), want.String()
+	}
+
+	body, want := messages(false)
+	result := dryRunBuiltIn(t, "request-redact", map[string]any{}, body)
+	require.Nil(t, result.Rejected)
+	assert.JSONEq(t, want, string(result.Body))
+	assert.Equal(t, []relaycommon.RequestPluginCount{{Category: "email", Count: count + 1}}, result.Record[0].Findings)
+	assert.Equal(t, []string{"replace messages", "replace system"}, changeSummaries(result.Record[0].Changes))
+
+	body, want = messages(true)
+	result = dryRunBuiltIn(t, "request-redact", map[string]any{}, body)
+	require.Nil(t, result.Rejected)
+	assert.JSONEq(t, want, string(result.Body))
+	assert.Equal(t, []relaycommon.RequestPluginCount{{Category: "email", Count: count + 2}}, result.Record[0].Findings)
+}
+
+// changeSummaries lists the op and path of each recorded change.
+func changeSummaries(changes []relaycommon.RequestPluginChange) []string {
+	summaries := make([]string, 0, len(changes))
+	for _, change := range changes {
+		summaries = append(summaries, change.Op+" "+change.Path)
+	}
+	return summaries
 }
 
 // Images in the user message go to the moderation API one per request, an

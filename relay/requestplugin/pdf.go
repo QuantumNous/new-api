@@ -17,9 +17,11 @@ import (
 
 // Bounds of reading a PDF. checkPDF holds a file to them before the pdf
 // library reads it, since the library sizes tables and buffers from numbers
-// in the file: object numbers, xref field widths and predictor columns. Past
-// a bound the file is unchecked; past the page and content bounds its text is
-// truncated.
+// in the file: object numbers, xref field widths, predictor columns and the
+// object count of an object stream. A stream the library decodes for the
+// extractor is held to the filter and column bounds just before. Past a bound
+// the file is unchecked; past the page and content bounds, or with a stream
+// left out, its text is truncated.
 const (
 	maxPDFPages        = 100
 	maxPDFObjects      = 200_000
@@ -27,6 +29,8 @@ const (
 	maxPDFDepth        = 64
 	maxPDFXrefSections = 64
 	maxPDFColumns      = 4096
+	// The library opens a decompressor for each filter of a stream.
+	maxPDFFilters = 8
 	// Object streams are decompressed whole each time the library reads an
 	// object in them.
 	maxPDFObjStmBytes = 2 << 20
@@ -36,10 +40,12 @@ const (
 	maxPDFContentTotal = 32 << 20
 	maxPDFCMapBytes    = 256 << 10
 	maxPDFCMapCodes    = 1 << 16
-	maxPDFDifferences  = 1024
-	maxPDFFormDepth    = 4
-	maxPDFOperands     = 16
-	maxPDFArrayItems   = 8192
+	// Decoding a code compares it with every code space range.
+	maxPDFCodespaceRanges = 256
+	maxPDFDifferences     = 1024
+	maxPDFFormDepth       = 4
+	maxPDFOperands        = 16
+	maxPDFArrayItems      = 8192
 )
 
 var (
@@ -90,9 +96,16 @@ type pdfSource struct {
 	expired  bool
 }
 
-func (s *pdfSource) ReadAt(p []byte, offset int64) (int, error) {
-	if s.expired || time.Now().After(s.deadline) {
+// late reports whether the deadline has passed, after which every read fails.
+func (s *pdfSource) late() bool {
+	if !s.expired && time.Now().After(s.deadline) {
 		s.expired = true
+	}
+	return s.expired
+}
+
+func (s *pdfSource) ReadAt(p []byte, offset int64) (int, error) {
+	if s.late() {
 		return 0, errPDFTime
 	}
 	if offset < 0 || offset >= int64(len(s.data)) {
@@ -109,9 +122,11 @@ type pdfExtractor struct {
 	source *pdfSource
 	sink   textSink
 	// contentLeft is what the content bound leaves; cut marks text left out
-	// by a bound, failed a file the library stopped reading.
+	// by a bound, refused a stream left out for its filters, failed a file
+	// the library stopped reading.
 	contentLeft int
 	cut         bool
+	refused     bool
 	failed      bool
 }
 
@@ -120,14 +135,15 @@ func (e *pdfExtractor) done() bool {
 }
 
 // result is the text read, truncated when a bound, the deadline or a failure
-// left some out. A file with no text is unchecked: it ran out of time,
-// failed, or has no text layer, as a scan has none.
+// left some out. A file with no text is unchecked: it ran out of time, has a
+// stream past the filter bounds, failed, or has no text layer, as a scan has
+// none.
 func (e *pdfExtractor) result() extractedText {
 	text := strings.TrimSpace(e.sink.text.String())
 	switch {
 	case text != "":
-		return extractedText{text: text, truncated: e.sink.truncated || e.cut || e.source.expired || e.failed || e.contentLeft <= 0}
-	case e.source.expired:
+		return extractedText{text: text, truncated: e.sink.truncated || e.cut || e.refused || e.source.expired || e.failed || e.contentLeft <= 0}
+	case e.source.expired, e.refused:
 		return extractedText{unchecked: uncheckedTooLarge}
 	case e.failed:
 		return extractedText{unchecked: uncheckedUnreadable}
@@ -151,7 +167,7 @@ func (e *pdfExtractor) readContent(contents, resources pdf.Value, depth int) {
 		if part.Kind() != pdf.Stream || len(data) > limit {
 			continue
 		}
-		read, ok := readPDFStream(part, limit+1-len(data))
+		read, ok := e.readStream(part, limit+1-len(data))
 		if !ok {
 			continue
 		}
@@ -164,18 +180,48 @@ func (e *pdfExtractor) readContent(contents, resources pdf.Value, depth int) {
 	e.interpret(data, resources, depth)
 }
 
-// readPDFStream reads at most limit decompressed bytes of a stream; false
-// when the library cannot decode it.
-func readPDFStream(stream pdf.Value, limit int) (data []byte, ok bool) {
+// readStream reads at most limit decompressed bytes of a stream; false when
+// the library cannot decode it, or when its decoding would pass the filter
+// or column bounds, which marks the stream refused. The filters and their
+// parameters are read through the library, as its decoder reads them, so a
+// value behind a reference counts as the decoder will see it.
+func (e *pdfExtractor) readStream(stream pdf.Value, limit int) (data []byte, ok bool) {
 	defer func() {
 		if recover() != nil {
 			data, ok = nil, false
 		}
 	}()
+	filter, parameters := stream.Key("Filter"), stream.Key("DecodeParms")
+	bounded := true
+	switch filter.Kind() {
+	case pdf.Name:
+		bounded = pdfColumnsBounded(parameters)
+	case pdf.Array:
+		// Each filter of an array takes the parameters at its own index.
+		bounded = filter.Len() <= maxPDFFilters
+		for index := 0; index < filter.Len() && bounded; index++ {
+			bounded = pdfColumnsBounded(parameters.Index(index))
+		}
+	}
+	if !bounded {
+		e.refused = true
+		return nil, false
+	}
 	reader := stream.Reader()
 	defer reader.Close()
 	data, err := io.ReadAll(io.LimitReader(reader, int64(limit)))
 	return data, err == nil || len(data) > 0
+}
+
+// pdfColumnsBounded reports whether the decode parameters of one filter,
+// read through the library, keep the buffers its PNG predictor sizes by
+// /Columns within maxPDFColumns.
+func pdfColumnsBounded(parameters pdf.Value) bool {
+	if parameters.Key("Predictor").IsNull() {
+		return true
+	}
+	columns := parameters.Key("Columns").Int64()
+	return columns >= 0 && columns <= maxPDFColumns
 }
 
 // interpret reads the text operators of a content stream.
@@ -185,8 +231,7 @@ func (e *pdfExtractor) interpret(data []byte, resources pdf.Value, depth int) {
 	decode := latin1Text
 	var operands []pdfToken
 	for count := 0; !e.done(); count++ {
-		if count%4096 == 0 && time.Now().After(e.source.deadline) {
-			e.source.expired = true
+		if count%4096 == 0 && e.source.late() {
 			return
 		}
 		token := lexer.next()
@@ -277,12 +322,14 @@ func (e *pdfExtractor) font(resources pdf.Value, name string) (decode func(strin
 		}
 	}()
 	font := resources.Key("Font").Key(name)
-	if font.Kind() != pdf.Dict {
+	// Building a decoder can take a while without a read of the file, which
+	// is where the deadline is otherwise met.
+	if font.Kind() != pdf.Dict || e.source.late() {
 		return latin1Text
 	}
 	if toUnicode := font.Key("ToUnicode"); toUnicode.Kind() == pdf.Stream {
-		if data, ok := readPDFStream(toUnicode, maxPDFCMapBytes+1); ok && len(data) <= maxPDFCMapBytes {
-			if cmap := parseToUnicode(data); cmap != nil {
+		if data, ok := e.readStream(toUnicode, maxPDFCMapBytes+1); ok && len(data) <= maxPDFCMapBytes {
+			if cmap := parseToUnicode(data, e.source); cmap != nil {
 				return cmap.decode
 			}
 		}
@@ -341,15 +388,20 @@ type toUnicodeMap struct {
 	codes  map[string]string
 	// fallback is the code length when no code space range matches.
 	fallback int
+	// expanded counts the codes the ranges have walked, written or not.
+	expanded int
+	// source holds the deadline decoding stops at.
+	source *pdfSource
 }
 
-// parseToUnicode reads the bfchar and bfrange entries of a ToUnicode CMap.
-// Ranges are expanded up to maxPDFCMapCodes codes in all.
-func parseToUnicode(data []byte) *toUnicodeMap {
+// parseToUnicode reads the code space ranges, at most maxPDFCodespaceRanges,
+// and the bfchar and bfrange entries of a ToUnicode CMap. Ranges walk at most
+// maxPDFCMapCodes codes in all.
+func parseToUnicode(data []byte, source *pdfSource) *toUnicodeMap {
 	lexer := pdfLexer{data: data}
-	cmap := &toUnicodeMap{codes: map[string]string{}}
+	cmap := &toUnicodeMap{codes: map[string]string{}, source: source}
 	var pending []pdfToken
-	section := ""
+	section, ranges := "", 0
 	for {
 		token := lexer.next()
 		switch token.kind {
@@ -375,10 +427,11 @@ func parseToUnicode(data []byte) *toUnicodeMap {
 			case "begincodespacerange", "beginbfchar", "beginbfrange":
 				section, pending = keyword, pending[:0]
 			case "endcodespacerange":
-				for index := 0; index+1 < len(pending); index += 2 {
+				for index := 0; index+1 < len(pending) && ranges < maxPDFCodespaceRanges; index += 2 {
 					low, high := string(pending[index].text), string(pending[index+1].text)
 					if len(low) >= 1 && len(low) <= 4 && len(low) == len(high) {
 						cmap.spaces[len(low)-1] = append(cmap.spaces[len(low)-1], [2]string{low, high})
+						ranges++
 					}
 				}
 				section = ""
@@ -408,7 +461,8 @@ func (m *toUnicodeMap) addRange(low, high, target pdfToken) {
 		return
 	}
 	first, last := codeValue(low.text), codeValue(high.text)
-	for offset := uint32(0); first+offset <= last && len(m.codes) < maxPDFCMapCodes; offset++ {
+	for offset := uint32(0); first+offset <= last && m.expanded < maxPDFCMapCodes && len(m.codes) < maxPDFCMapCodes; offset++ {
+		m.expanded++
 		code := codeBytes(first+offset, len(low.text))
 		switch {
 		case target.kind == 's' && len(target.text) >= 2:
@@ -452,10 +506,14 @@ func utf16Text(data []byte) string {
 }
 
 // decode maps the codes of raw to text: each code is as long as the code
-// space range it falls in.
+// space range it falls in. Past the deadline it stops and marks the source
+// expired.
 func (m *toUnicodeMap) decode(raw string) string {
 	var text strings.Builder
-	for len(raw) > 0 {
+	for count := 1; len(raw) > 0; count++ {
+		if count%4096 == 0 && m.source.late() {
+			break
+		}
 		length := 0
 		for candidate := 1; candidate <= 4 && candidate <= len(raw) && length == 0; candidate++ {
 			for _, space := range m.spaces[candidate-1] {
@@ -757,6 +815,10 @@ func (l *pdfLexer) value(values *int, depth int) (any, error) {
 		return pdfName(token.text), nil
 	case 's':
 		return token.text, nil
+	case ']', '}':
+		// The library reads a closing delimiter where a value belongs as
+		// null and goes on with the array or dictionary.
+		return nil, nil
 	case '[':
 		var items []any
 		for {
@@ -809,25 +871,34 @@ type pdfRef struct {
 }
 
 // pdfCheck walks a file's cross-reference sections as the library will,
-// from the startxref offset along each Prev, and then reads every object
-// they place in the file.
+// from the startxref offset along each Prev, and builds from them the table
+// the library builds. It then reads every object the table places in the
+// file and every object stream the table names.
 type pdfCheck struct {
 	data     []byte
 	deadline time.Time
-	// objects are the file offsets of the objects in the file; seen holds
-	// every object number a section gave first, as the library keeps it.
-	objects map[int64]int64
-	seen    map[int64]bool
-	// objectStreams are the objects that hold other objects.
-	objectStreams map[int64]bool
-	objStmBytes   int
+	// entries is the library's cross-reference table.
+	entries     map[int64]pdfEntry
+	objStmBytes int
+}
+
+// pdfEntry is the library's cross-reference entry of an object: its offset
+// in the file, or the object stream that holds it. fixed marks an entry an
+// older cross-reference stream may not replace; an older table replaces any
+// entry without an offset.
+type pdfEntry struct {
+	offset   int64
+	stream   int64
+	inStream bool
+	fixed    bool
 }
 
 // checkPDF returns "" for a file the library may read, otherwise the
 // unchecked reason: too_large past a bound, unreadable when the file is not
-// a PDF, is encrypted or has broken cross-references.
+// a PDF, is encrypted, or has broken cross-references or object streams the
+// library cannot read in bounded work.
 func checkPDF(data []byte, deadline time.Time) string {
-	check := &pdfCheck{data: data, deadline: deadline, objects: map[int64]int64{}, seen: map[int64]bool{}, objectStreams: map[int64]bool{}}
+	check := &pdfCheck{data: data, deadline: deadline, entries: map[int64]pdfEntry{}}
 	err := check.run()
 	switch {
 	case err == nil:
@@ -877,13 +948,37 @@ func (c *pdfCheck) run() error {
 			return errPDFSyntax
 		}
 	}
-	values := 0
-	for number, offset := range c.objects {
-		if values++; values%256 == 0 && time.Now().After(c.deadline) {
+	streams := map[int64]bool{}
+	var pending []int64
+	count := 0
+	for number, entry := range c.entries {
+		if count++; count%64 == 0 && time.Now().After(c.deadline) {
 			return errPDFTime
 		}
-		if err := c.object(number, offset); err != nil {
+		if !entry.inStream {
+			if err := c.object(number, entry.offset); err != nil {
+				return err
+			}
+		} else if !streams[entry.stream] {
+			streams[entry.stream] = true
+			pending = append(pending, entry.stream)
+		}
+	}
+	// The library reads an object missing from an object stream out of the
+	// stream that one extends.
+	for len(pending) > 0 {
+		if time.Now().After(c.deadline) {
+			return errPDFTime
+		}
+		number := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		extends, err := c.objectStream(number)
+		if err != nil {
 			return err
+		}
+		if extends >= 0 && !streams[extends] {
+			streams[extends] = true
+			pending = append(pending, extends)
 		}
 	}
 	return nil
@@ -905,8 +1000,8 @@ func lastLine(data []byte, word string) int {
 	}
 }
 
-// section reads the cross-reference table or stream at offset and returns
-// its trailer dictionary.
+// section reads the cross-reference table or stream at offset into the
+// table and returns its trailer dictionary.
 func (c *pdfCheck) section(offset int64) (map[string]any, error) {
 	lexer := pdfLexer{data: c.data, pos: int(offset)}
 	token := lexer.next()
@@ -925,7 +1020,11 @@ func (c *pdfCheck) section(offset int64) (map[string]any, error) {
 				if position.kind != 'i' || generation.kind != 'i' || kind.kind != 'k' {
 					return nil, errPDFSyntax
 				}
-				c.add(token.value+index, position.value, string(kind.text) == "n")
+				// The library fills an entry from the newest in-use row that
+				// gives it an offset; a free row leaves it to older sections.
+				if number := token.value + index; string(kind.text) == "n" && c.entries[number].offset == 0 {
+					c.entries[number] = pdfEntry{offset: position.value}
+				}
 			}
 		}
 		values := maxPDFObjectValues
@@ -938,11 +1037,11 @@ func (c *pdfCheck) section(offset int64) (map[string]any, error) {
 	if token.kind != 'i' {
 		return nil, errPDFSyntax
 	}
-	header, data, err := c.stream(&lexer)
+	header, data, err := c.stream(&lexer, directValue)
 	if err != nil {
 		return nil, err
 	}
-	if header["Type"] != pdfName("XRef") {
+	if header == nil || header["Type"] != pdfName("XRef") {
 		return nil, errPDFSyntax
 	}
 	size, ok := header["Size"].(int64)
@@ -954,19 +1053,17 @@ func (c *pdfCheck) section(offset int64) (map[string]any, error) {
 		index = declared
 	}
 	widths, _ := header["W"].([]any)
-	if len(widths) < 3 || len(index)%2 != 0 {
+	if len(widths) != 3 || len(index)%2 != 0 {
 		return nil, errPDFSyntax
 	}
-	width := make([]int, 3)
+	var width [3]int
 	rowLength := 0
 	for position, item := range widths {
 		value, ok := item.(int64)
 		if !ok || value < 0 || value > 8 {
 			return nil, errPDFLimit
 		}
-		if position < 3 {
-			width[position] = int(value)
-		}
+		width[position] = int(value)
 		rowLength += int(value)
 	}
 	entries := int64(0)
@@ -981,14 +1078,10 @@ func (c *pdfCheck) section(offset int64) (map[string]any, error) {
 	if entries > maxPDFObjects {
 		return nil, errPDFLimit
 	}
-	rows, err := c.decode(header, data, int(entries)*(rowLength+1)+1)
+	// Behind the PNG predictor every row of columns bytes takes one more.
+	rows, err := c.decode(header, data, 2*int(entries)*rowLength+maxPDFColumns+1, directValue)
 	if err != nil {
 		return nil, err
-	}
-	if predictor, _ := pdfParameter(header, "Predictor").(int64); predictor >= 10 {
-		if rows, err = unpredict(rows, rowLength); err != nil {
-			return nil, err
-		}
 	}
 	for position := 0; position < len(index); position += 2 {
 		first, count := index[position].(int64), index[position+1].(int64)
@@ -1003,16 +1096,21 @@ func (c *pdfCheck) section(offset int64) (map[string]any, error) {
 				kind = fieldValue(row[:width[0]])
 			}
 			second := fieldValue(row[width[0] : width[0]+width[1]])
+			third := fieldValue(row[width[0]+width[1]:])
+			// The library keeps the newest row of an object, except that a
+			// row of an unknown type, or one that reads as object 0 with
+			// generation 0, leaves the entry to older sections.
+			number := first + entry
+			if c.entries[number].fixed {
+				continue
+			}
 			switch kind {
+			case 0:
+				c.entries[number] = pdfEntry{fixed: true}
 			case 1:
-				c.add(first+entry, second, true)
+				c.entries[number] = pdfEntry{offset: second, fixed: number != 0 || uint16(third) != 0}
 			case 2:
-				if !c.seen[first+entry] {
-					c.seen[first+entry] = true
-					c.objectStreams[second] = true
-				}
-			default:
-				c.add(first+entry, 0, false)
+				c.entries[number] = pdfEntry{stream: int64(uint32(second)), inStream: true, fixed: number != 0}
 			}
 		}
 	}
@@ -1027,23 +1125,12 @@ func fieldValue(field []byte) int64 {
 	return value
 }
 
-// add records an object's offset unless a newer section gave its number.
-func (c *pdfCheck) add(number, offset int64, inUse bool) {
-	if c.seen[number] {
-		return
-	}
-	c.seen[number] = true
-	if inUse && offset > 0 && offset < int64(len(c.data)) {
-		c.objects[number] = offset
-	}
-}
-
-// stream reads "N G obj <<...>> stream" from lexer, past the object number,
-// and returns the dictionary and the stream data, as long as its direct
-// /Length says.
-func (c *pdfCheck) stream(lexer *pdfLexer) (map[string]any, []byte, error) {
+// stream reads "G obj <<...>> stream" from lexer, past the object number,
+// and returns the dictionary and the file data its /Length, read through
+// resolve, spans. An object that is not a stream returns no dictionary.
+func (c *pdfCheck) stream(lexer *pdfLexer, resolve func(any) (any, error)) (map[string]any, []byte, error) {
 	if generation, keyword := lexer.next(), lexer.next(); generation.kind != 'i' || keyword.kind != 'k' || string(keyword.text) != "obj" {
-		return nil, nil, errPDFSyntax
+		return nil, nil, nil
 	}
 	values := maxPDFObjectValues
 	value, err := lexer.value(&values, 0)
@@ -1052,7 +1139,7 @@ func (c *pdfCheck) stream(lexer *pdfLexer) (map[string]any, []byte, error) {
 	}
 	header, ok := value.(map[string]any)
 	if keyword := lexer.next(); !ok || keyword.kind != 'k' || string(keyword.text) != "stream" {
-		return nil, nil, errPDFSyntax
+		return nil, nil, nil
 	}
 	if lexer.pos < len(c.data) && c.data[lexer.pos] == '\r' {
 		lexer.pos++
@@ -1060,126 +1147,208 @@ func (c *pdfCheck) stream(lexer *pdfLexer) (map[string]any, []byte, error) {
 	if lexer.pos < len(c.data) && c.data[lexer.pos] == '\n' {
 		lexer.pos++
 	}
-	length, ok := header["Length"].(int64)
-	if reference, isReference := header["Length"].(pdfRef); isReference {
-		length, ok = c.integer(reference)
+	length, err := resolve(header["Length"])
+	if err != nil {
+		return nil, nil, err
 	}
-	if !ok || length < 0 || int64(lexer.pos)+length > int64(len(c.data)) {
-		return nil, nil, errPDFSyntax
-	}
-	return header, c.data[lexer.pos : int64(lexer.pos)+length], nil
+	// The library reads a /Length that is not a number as 0, and reads no
+	// further than the end of the file.
+	size, _ := length.(int64)
+	size = min(max(size, 0), int64(len(c.data)-lexer.pos))
+	return header, c.data[lexer.pos : lexer.pos+int(size)], nil
 }
 
-// integer reads an indirect integer object.
-func (c *pdfCheck) integer(reference pdfRef) (int64, bool) {
-	offset, ok := c.objects[reference.number]
-	if !ok {
-		return 0, false
+// directValue reads a member of a cross-reference stream's dictionary as the
+// library does, before it has a table: a reference reads as null.
+func directValue(value any) (any, error) {
+	if _, isReference := value.(pdfRef); isReference {
+		return nil, nil
 	}
-	lexer := pdfLexer{data: c.data, pos: int(offset)}
-	number, generation, keyword, value := lexer.next(), lexer.next(), lexer.next(), lexer.next()
-	if number.kind != 'i' || generation.kind != 'i' || keyword.kind != 'k' || string(keyword.text) != "obj" || value.kind != 'i' {
-		return 0, false
-	}
-	return value.value, true
+	return value, nil
 }
 
-// object reads one object of the file, which the library may read later: its
-// values within maxPDFObjectValues, and a stream's decode parameters within
-// bounds. An object stream is decompressed to measure it.
+// resolve reads a member of an object stream's dictionary as the library
+// does: a reference reads the object it names from the file. A reference to
+// an object in an object stream is refused, since the library would read
+// that stream first, and its dictionary could lead back without end.
+func (c *pdfCheck) resolve(value any) (any, error) {
+	reference, isReference := value.(pdfRef)
+	if !isReference {
+		return value, nil
+	}
+	entry := c.entries[reference.number]
+	if entry.inStream {
+		return nil, errPDFSyntax
+	}
+	if entry.offset <= 0 || entry.offset >= int64(len(c.data)) {
+		return nil, nil
+	}
+	lexer := pdfLexer{data: c.data, pos: int(entry.offset)}
+	number, generation, keyword := lexer.next(), lexer.next(), lexer.next()
+	if number.kind != 'i' || number.value != reference.number || generation.kind != 'i' || keyword.kind != 'k' || string(keyword.text) != "obj" {
+		return nil, nil
+	}
+	values := maxPDFObjectValues
+	resolved, err := lexer.value(&values, 0)
+	if err != nil {
+		return nil, err
+	}
+	// The library refuses an object that is itself a reference.
+	if _, isReference := resolved.(pdfRef); isReference {
+		return nil, nil
+	}
+	return resolved, nil
+}
+
+// object reads one object the table places in the file, which the library
+// may read later: its values within maxPDFObjectValues.
 func (c *pdfCheck) object(number, offset int64) error {
-	lexer := pdfLexer{data: c.data, pos: int(offset)}
-	if token := lexer.next(); token.kind != 'i' || token.value != number {
-		// The library refuses an object that is not where its section says.
+	if offset <= 0 || offset >= int64(len(c.data)) {
 		return nil
 	}
-	mark := lexer.pos
+	lexer := pdfLexer{data: c.data, pos: int(offset)}
+	if token := lexer.next(); token.kind != 'i' || token.value != number {
+		// The library refuses an object that is not where its table says.
+		return nil
+	}
 	if generation, keyword := lexer.next(), lexer.next(); generation.kind != 'i' || keyword.kind != 'k' || string(keyword.text) != "obj" {
 		return nil
 	}
 	values := maxPDFObjectValues
-	value, err := lexer.value(&values, 0)
-	if errors.Is(err, errPDFLimit) {
+	if _, err := lexer.value(&values, 0); errors.Is(err, errPDFLimit) {
 		return err
 	}
-	header, isDictionary := value.(map[string]any)
-	if err != nil || !isDictionary {
-		return nil
+	return nil
+}
+
+// objectStream checks an object stream the library may read objects from.
+// It must be an object of the file, and the members of its dictionary the
+// library reads may not refer to an object in an object stream. Decoded, it
+// must fit the object stream bounds and hold the pairs of numbers /N counts:
+// the library reads /N pairs without reading the file again once the data
+// ends. objectStream returns the number of the stream it extends, or -1.
+func (c *pdfCheck) objectStream(number int64) (int64, error) {
+	entry := c.entries[number]
+	if entry.inStream {
+		// The library would read this stream out of another one, which may
+		// in turn be read out of this one, without end.
+		return -1, errPDFSyntax
 	}
-	if keyword := lexer.next(); keyword.kind != 'k' || string(keyword.text) != "stream" {
-		return nil
+	if entry.offset <= 0 || entry.offset >= int64(len(c.data)) {
+		return -1, nil
 	}
-	for _, parameters := range append([]any{header["DecodeParms"]}, listOf(header["DecodeParms"])...) {
-		if dictionary, ok := parameters.(map[string]any); ok {
-			if columns, ok := dictionary["Columns"].(int64); ok && (columns < 0 || columns > maxPDFColumns) {
-				return errPDFLimit
+	lexer := pdfLexer{data: c.data, pos: int(entry.offset)}
+	if token := lexer.next(); token.kind != 'i' || token.value != number {
+		return -1, nil
+	}
+	header, data, err := c.stream(&lexer, c.resolve)
+	if err != nil || header == nil {
+		return -1, err
+	}
+	for _, name := range []string{"Type", "First", "Extends"} {
+		if _, err := c.resolve(header[name]); err != nil {
+			return -1, err
+		}
+	}
+	count, err := c.resolve(header["N"])
+	if err != nil {
+		return -1, err
+	}
+	decoded, err := c.decode(header, data, maxPDFObjStmBytes, c.resolve)
+	if err != nil {
+		return -1, err
+	}
+	if c.objStmBytes += len(decoded); c.objStmBytes > maxPDFObjStmTotal {
+		return -1, errPDFLimit
+	}
+	// Each pair takes at least two bytes.
+	if objects, _ := count.(int64); objects < 0 || objects > maxPDFObjects || objects > int64(len(decoded)/2) {
+		return -1, errPDFLimit
+	}
+	if reference, ok := header["Extends"].(pdfRef); ok {
+		return reference.number, nil
+	}
+	return -1, nil
+}
+
+// decode decompresses stream data as the library will, reading its filter
+// and decode parameters through resolve: no filter, or FlateDecode with no
+// predictor or the PNG predictor 12. More than limit bytes, or predictor
+// columns past maxPDFColumns, are past a bound; any other filter or predictor
+// is refused.
+func (c *pdfCheck) decode(header map[string]any, data []byte, limit int, resolve func(any) (any, error)) ([]byte, error) {
+	filter, err := resolve(header["Filter"])
+	if err != nil {
+		return nil, err
+	}
+	parameters, err := resolve(header["DecodeParms"])
+	if err != nil {
+		return nil, err
+	}
+	// Each filter of an array takes the parameters at its own index.
+	if items, isArray := filter.([]any); isArray {
+		if len(items) > 1 {
+			return nil, errPDFSyntax
+		}
+		list, _ := parameters.([]any)
+		filter, parameters = nil, nil
+		if len(items) == 1 {
+			if filter, err = resolve(items[0]); err != nil {
+				return nil, err
+			}
+		}
+		if len(list) > 0 {
+			if parameters, err = resolve(list[0]); err != nil {
+				return nil, err
 			}
 		}
 	}
-	if header["Type"] != pdfName("ObjStm") && !c.objectStreams[number] {
-		return nil
-	}
-	lexer.pos = mark
-	header, data, err := c.stream(&lexer)
-	if err != nil {
-		return nil
-	}
-	decoded, err := c.decode(header, data, maxPDFObjStmBytes)
-	if err != nil {
-		return err
-	}
-	if c.objStmBytes += len(decoded); c.objStmBytes > maxPDFObjStmTotal {
-		return errPDFLimit
-	}
-	return nil
-}
-
-func listOf(value any) []any {
-	items, _ := value.([]any)
-	return items
-}
-
-// pdfParameter is a member of a stream's DecodeParms dictionary.
-func pdfParameter(header map[string]any, name string) any {
-	if dictionary, ok := header["DecodeParms"].(map[string]any); ok {
-		return dictionary[name]
-	}
-	if items := listOf(header["DecodeParms"]); len(items) > 0 {
-		if dictionary, ok := items[0].(map[string]any); ok {
-			return dictionary[name]
-		}
-	}
-	return nil
-}
-
-// decode decompresses stream data with no filter or FlateDecode, up to
-// limit bytes; more is past the limit.
-func (c *pdfCheck) decode(header map[string]any, data []byte, limit int) ([]byte, error) {
-	filter := header["Filter"]
-	if items := listOf(filter); len(items) == 1 {
-		filter = items[0]
-	}
-	switch filter {
-	case nil:
+	if filter == nil {
 		if len(data) > limit {
 			return nil, errPDFLimit
 		}
 		return data, nil
-	case pdfName("FlateDecode"):
-		reader, err := zlib.NewReader(bytes.NewReader(data))
-		if err != nil {
-			return nil, errPDFSyntax
-		}
-		decoded, err := io.ReadAll(io.LimitReader(reader, int64(limit)+1))
-		if len(decoded) > limit {
-			return nil, errPDFLimit
-		}
-		if err != nil && len(decoded) == 0 {
-			return nil, errPDFSyntax
-		}
-		return decoded, nil
 	}
-	return nil, errPDFSyntax
+	if filter != pdfName("FlateDecode") {
+		return nil, errPDFSyntax
+	}
+	columns := 0
+	if dictionary, ok := parameters.(map[string]any); ok {
+		predictor, err := resolve(dictionary["Predictor"])
+		if err != nil {
+			return nil, err
+		}
+		if predictor != nil {
+			// The library decodes predictor 12 and fails on any other.
+			if predictor != int64(12) {
+				return nil, errPDFSyntax
+			}
+			value, err := resolve(dictionary["Columns"])
+			if err != nil {
+				return nil, err
+			}
+			count, _ := value.(int64)
+			if count <= 0 || count > maxPDFColumns {
+				return nil, errPDFLimit
+			}
+			columns = int(count)
+		}
+	}
+	reader, err := zlib.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, errPDFSyntax
+	}
+	decoded, err := io.ReadAll(io.LimitReader(reader, int64(limit)+1))
+	if len(decoded) > limit {
+		return nil, errPDFLimit
+	}
+	if err != nil && len(decoded) == 0 {
+		return nil, errPDFSyntax
+	}
+	if columns > 0 {
+		return unpredict(decoded, columns)
+	}
+	return decoded, nil
 }
 
 // unpredict reverses the PNG predictors of rows of columns bytes, each led
