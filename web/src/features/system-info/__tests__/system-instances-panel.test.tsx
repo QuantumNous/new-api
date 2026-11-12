@@ -40,7 +40,7 @@ const synced: NodeSyncTopicState = {
   errors: {},
 }
 const lagging: NodeSyncTopicState = { ...synced, synced: false, applied_at: 0 }
-const applied = { revision: 'r1', applied_at: 1730650000 }
+const applied = { revision: 1, applied_at: 1730650000 }
 
 function instance(
   name: string,
@@ -68,7 +68,7 @@ const instances = [
 const sync: NodeSync = {
   topics: ['options', 'plugins', 'search_index'].map((topic) => ({
     topic,
-    revision: `${topic}-1`,
+    revision: 1,
     updated_at: 1730650000,
     updated_by: 'node-a',
   })),

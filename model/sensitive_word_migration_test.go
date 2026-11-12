@@ -9,16 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"gorm.io/gorm"
 )
 
-func optionsRevision(t *testing.T, db *gorm.DB) string {
+func optionsRevision(t *testing.T) int64 {
 	t.Helper()
-	var topic SystemSyncTopic
-	if err := db.Where(&SystemSyncTopic{Topic: SyncTopicOptions}).First(&topic).Error; err != nil {
-		return ""
-	}
-	return topic.Revision
+	revisions, err := GetLatestSyncRevisions()
+	require.NoError(t, err)
+	return revisions[SyncTopicOptions]
 }
 
 // The old words become one global request-filter instance after the saved
@@ -53,7 +50,7 @@ func TestMigrateSensitiveWords(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			db := useFrontendOptionMigrationDB(t)
-			require.NoError(t, db.AutoMigrate(&SystemSyncTopic{}))
+			require.NoError(t, db.AutoMigrate(&SystemTask{}))
 			previousLanguage := common.DefaultLanguage
 			common.DefaultLanguage = tc.language
 			t.Cleanup(func() { common.DefaultLanguage = previousLanguage })
@@ -78,23 +75,23 @@ func TestMigrateSensitiveWords(t *testing.T) {
 			assert.JSONEq(t, `{"name":"`+tc.name+`","plugin":"request-filter","enabled":`+map[bool]string{true: "true", false: "false"}[tc.enabled]+`,
 				"global":true,"groups":[],"models":[],
 				"config":{"rules":[],"keywords":"Bad\nworse","keywordsCaseSensitive":false,"message":"","replies":false}}`, withoutID)
-			revision := optionsRevision(t, db)
-			assert.NotEmpty(t, revision, "the other nodes reload the options")
+			revision := optionsRevision(t)
+			assert.NotZero(t, revision, "the other nodes reload the options")
 
 			require.NoError(t, MigrateSensitiveWords())
 			assert.Equal(t, saved, requireOptionValue(t, db, request_plugin_setting.InstancesOption))
-			assert.Equal(t, revision, optionsRevision(t, db))
+			assert.Equal(t, revision, optionsRevision(t))
 		})
 	}
 }
 
 func TestMigrateSensitiveWordsWithoutWords(t *testing.T) {
 	db := useFrontendOptionMigrationDB(t)
-	require.NoError(t, db.AutoMigrate(&SystemSyncTopic{}))
+	require.NoError(t, db.AutoMigrate(&SystemTask{}))
 
 	// Nothing to move: no write, no reload.
 	require.NoError(t, MigrateSensitiveWords())
-	assert.Empty(t, optionsRevision(t, db))
+	assert.Zero(t, optionsRevision(t))
 
 	// Switches without words leave no instance behind.
 	require.NoError(t, db.Create(&[]Option{{Key: "CheckSensitiveEnabled", Value: "true"}, {Key: "SensitiveWords", Value: " \n "}}).Error)

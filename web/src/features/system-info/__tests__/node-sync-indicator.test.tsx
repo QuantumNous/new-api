@@ -49,7 +49,7 @@ function syncData(nodes: NodeSyncNode[]): NodeSync {
   return {
     topics: ['options', 'plugins', 'search_index'].map((topic) => ({
       topic,
-      revision: `${topic}-1`,
+      revision: 1,
       updated_at: 1730650000,
       updated_by: 'node-a',
     })),

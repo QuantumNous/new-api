@@ -752,6 +752,8 @@
   "sweepTimedOutTasks: task %s already transitioned, skip": "sweepTimedOutTasks: 任务 %s 的状态已由其他进程更新，跳过",
   "sweepTimedOutTasks: timed out %d tasks": "sweepTimedOutTasks: 已把 %d 个超时任务标记为失败",
   "sync frequency: %d seconds": "同步间隔: %d 秒",
+  "sync task query failed: %v": "查询节点同步任务失败: %v",
+  "sync task update failed: type=%s err=%v": "更新节点同步任务失败: type=%s err=%v",
   "syncing channels from database": "正在从数据库同步渠道",
   "syncing options from database": "正在从数据库同步配置项",
   "system instance report failed: %v": "上报本实例信息失败: %v",

@@ -1382,8 +1382,8 @@ func TestScheduledOwnDisableSyncDuringCommitDoesNotRecurse(t *testing.T) {
 	var held atomic.Bool
 	// Hold the hook after its topic bump commits, before run's bookkeeping.
 	require.NoError(t, database.Callback().Create().After("gorm:commit_or_rollback_transaction").Register("scheduled_hold_commit", func(tx *gorm.DB) {
-		row, ok := tx.Statement.Dest.(*model.SystemSyncTopic)
-		if ok && row.Topic == model.SyncTopicChannels && tx.Error == nil && held.CompareAndSwap(false, true) {
+		row, ok := tx.Statement.Dest.(*model.SystemTask)
+		if ok && row.Type == model.SyncTaskType(model.SyncTopicChannels) && tx.Error == nil && held.CompareAndSwap(false, true) {
 			close(committed)
 			<-release
 		}

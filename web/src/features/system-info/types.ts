@@ -64,7 +64,7 @@ export type SystemInstanceInfo = {
   sync?: Record<
     string,
     {
-      revision: string
+      revision: number
       applied_at: number
       error?: string
       errors?: Record<string, string>
@@ -113,7 +113,7 @@ export type NodeSyncNode = {
 export type NodeSync = {
   topics: Array<{
     topic: string
-    revision: string
+    revision: number
     updated_at: number
     updated_by: string
   }>

@@ -268,7 +268,7 @@ func useScheduledChannelDatabase(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, anchor.Close()) })
 	}
-	tables := []any{&Channel{}, &Ability{}, &SystemSyncTopic{}}
+	tables := []any{&Channel{}, &Ability{}, &SystemTask{}}
 	require.NoError(t, db.AutoMigrate(tables...))
 	previousDB, previousType, previousMemory := DB, common.MainDatabaseType(), common.MemoryCacheEnabled
 	DB = db
@@ -325,8 +325,8 @@ func TestScheduledChannelLockedStatus(t *testing.T) {
 			var ability Ability
 			require.NoError(t, DB.Where("channel_id = ?", channel.Id).First(&ability).Error)
 			assert.True(t, ability.Enabled)
-			var before SystemSyncTopic
-			require.NoError(t, DB.Where("topic = ?", SyncTopicChannels).First(&before).Error)
+			before := channelsRevision(t)
+			require.NotZero(t, before)
 
 			failure := errors.New("scheduled result rejected")
 			_, err = UpdateScheduledChannelLocked(context.Background(), channel.Id, func(stored *Channel) error {
@@ -339,9 +339,7 @@ func TestScheduledChannelLockedStatus(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "new", stored.Key)
 			assert.Equal(t, common.ChannelStatusEnabled, stored.Status)
-			var after SystemSyncTopic
-			require.NoError(t, DB.Where("topic = ?", SyncTopicChannels).First(&after).Error)
-			assert.Equal(t, before.Revision, after.Revision, "a failed callback writes neither state nor a sync revision")
+			assert.Equal(t, before, channelsRevision(t), "a failed callback writes neither state nor a sync task")
 
 			_, err = UpdateScheduledChannelLocked(context.Background(), channel.Id, func(stored *Channel) error {
 				require.True(t, SetScheduledChannelKeyStatus(stored, 0, common.ChannelStatusAutoDisabled, "Disabled by plugin"))

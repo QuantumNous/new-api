@@ -12,16 +12,39 @@ import (
 )
 
 // RegisterScheduledSystemTasks wires the periodic channel test, balance update,
-// upstream model update, and async task polling (Midjourney / Suno / video) jobs into the
-// system task framework so a DB lease dedups execution across multiple master
-// instances and each run is recorded as one task row. Call this before
-// service.StartSystemTaskRunner.
+// upstream model update, async task polling (Midjourney / Suno / video) and
+// task history cleanup jobs into the system task framework so a DB lease
+// dedups execution across multiple master instances and each run is recorded
+// as one task row. Call this before service.StartSystemTaskRunner.
 func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(channelTestHandler{})
 	service.RegisterSystemTaskHandler(channelBalanceHandler{})
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+	service.RegisterSystemTaskHandler(systemTaskCleanupHandler{})
+}
+
+// systemTaskCleanupHandler deletes, once a day, the finished system tasks
+// older than the configured retention.
+type systemTaskCleanupHandler struct{}
+
+func (systemTaskCleanupHandler) Type() string { return model.SystemTaskTypeCleanup }
+
+func (systemTaskCleanupHandler) Enabled() bool { return true }
+
+func (systemTaskCleanupHandler) Interval() time.Duration { return 24 * time.Hour }
+
+func (systemTaskCleanupHandler) NewPayload() any { return nil }
+
+func (systemTaskCleanupHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	days := max(operation_setting.GetSystemTaskSetting().RetentionDays, 1)
+	deleted, err := model.DeleteFinishedSystemTasks(ctx, common.GetTimestamp()-int64(days)*24*60*60)
+	status := model.SystemTaskStatusSucceeded
+	if err != nil {
+		status = model.SystemTaskStatusFailed
+	}
+	finishSystemTaskHandler(task, runnerID, status, map[string]int64{"deleted_count": deleted}, err)
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and

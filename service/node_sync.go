@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -25,10 +26,11 @@ const (
 	nodeSyncErrorsLimit  = 50
 )
 
-// NodeSyncTopicState is what this node has applied of one topic. Errors lists
-// the items of the topic the node failed to load, by key.
+// NodeSyncTopicState is what this node has applied of one topic: every write
+// whose sync task id is at most Revision. Errors lists the items of the topic
+// the node failed to load, by key.
 type NodeSyncTopicState struct {
-	Revision  string            `json:"revision"`
+	Revision  int64             `json:"revision"`
 	AppliedAt int64             `json:"applied_at"`
 	Error     string            `json:"error,omitempty"`
 	Errors    map[string]string `json:"errors,omitempty"`
@@ -40,7 +42,7 @@ type nodeSyncRegistry struct {
 	states  map[string]NodeSyncTopicState
 	// startup holds the revisions read before the startup loads; nil when
 	// that read failed, and every topic then reloads on the first tick.
-	startup map[string]string
+	startup map[string]int64
 	// listFailed logs a failing topic read once, not on every tick.
 	listFailed bool
 }
@@ -90,17 +92,14 @@ func NodeSyncStates() map[string]NodeSyncTopicState {
 	return states
 }
 
-// ReadStartupSyncRevisions reads the topic revisions before the startup loads,
-// so a write made while they run is reloaded once the loop starts.
+// ReadStartupSyncRevisions reads the newest sync task of every topic before
+// the startup loads, so a write made while they run is reloaded once the loop
+// starts.
 func ReadStartupSyncRevisions() {
-	rows, err := model.ListSyncTopics()
+	revisions, err := model.GetLatestSyncRevisions()
 	if err != nil {
 		common.SysError(common.LogText("failed to read sync topics: %v", err))
 		return
-	}
-	revisions := make(map[string]string, len(rows))
-	for _, row := range rows {
-		revisions[row.Topic] = row.Revision
 	}
 	nodeSync.mu.Lock()
 	defer nodeSync.mu.Unlock()
@@ -119,8 +118,8 @@ func SyncTopicLoadFailed(topic string, err error) {
 }
 
 // StartNodeSync records the revisions read at startup as applied, then every
-// 3 seconds reloads each registered topic whose revision changed and writes
-// this node's registry row at once. Call it after the startup loads.
+// 3 seconds reloads each registered topic that has a newer sync task and
+// writes this node's registry row at once. Call it after the startup loads.
 func StartNodeSync() {
 	applyStartupSyncRevisions()
 	gopool.Go(func() {
@@ -151,17 +150,24 @@ func applyStartupSyncRevisions() {
 	}
 }
 
-// syncNodeTopics runs the reload of each registered topic whose revision
-// differs from the one this node applied, and reports whether any ran. A
-// success records the revision read before the reload, so a write made during
+// syncNodeTopics runs the reload of each registered topic whose newest sync
+// task is newer than the one this node applied, and reports whether any ran.
+// A success records the task read before the reload, so a write made during
 // the reload runs it again on the next tick; a failure keeps the old one.
 func syncNodeTopics(ctx context.Context) bool {
-	rows, err := model.ListSyncTopics()
+	nodeSync.mu.Lock()
+	reloads := maps.Clone(nodeSync.reloads)
+	states := maps.Clone(nodeSync.states)
+	nodeSync.mu.Unlock()
+	topics := slices.Sorted(maps.Keys(reloads))
+	taskTypes := make([]string, len(topics))
+	for i, topic := range topics {
+		taskTypes[i] = model.SyncTaskType(topic)
+	}
+	revisions, err := model.GetLatestSystemTaskIDs(taskTypes)
 	nodeSync.mu.Lock()
 	failedBefore := nodeSync.listFailed
 	nodeSync.listFailed = err != nil
-	reloads := maps.Clone(nodeSync.reloads)
-	states := maps.Clone(nodeSync.states)
 	nodeSync.mu.Unlock()
 	if err != nil {
 		if !failedBefore {
@@ -169,14 +175,10 @@ func syncNodeTopics(ctx context.Context) bool {
 		}
 		return false
 	}
-	revisions := make(map[string]string, len(rows))
-	for _, row := range rows {
-		revisions[row.Topic] = row.Revision
-	}
 	ran := false
-	for _, topic := range slices.Sorted(maps.Keys(reloads)) {
-		revision := revisions[topic]
-		if state := states[topic]; state.AppliedAt != 0 && state.Revision == revision {
+	for _, topic := range topics {
+		revision := revisions[model.SyncTaskType(topic)]
+		if state := states[topic]; state.AppliedAt != 0 && revision <= state.Revision {
 			continue
 		}
 		ran = true
@@ -212,10 +214,11 @@ func capSyncMessage(message string) string {
 	return string([]rune(message)[:nodeSyncMessageLimit])
 }
 
-// NodeSyncTopic is the latest revision of a topic.
+// NodeSyncTopic is the newest sync task of a topic: its id, when it was
+// added and the node whose write added it.
 type NodeSyncTopic struct {
 	Topic     string `json:"topic"`
-	Revision  string `json:"revision"`
+	Revision  int64  `json:"revision"`
 	UpdatedAt int64  `json:"updated_at"`
 	UpdatedBy string `json:"updated_by"`
 }
@@ -239,23 +242,25 @@ type NodeSyncStatus struct {
 	Nodes  []NodeSyncNode  `json:"nodes"`
 }
 
-// GetNodeSyncStatus compares the latest revision of every topic a node keeps,
+// systemInstanceSyncStates reads what a node's registry row says it applied.
+// A row written before node sync existed, or unreadable, has none.
+func systemInstanceSyncStates(instance *model.SystemInstance) map[string]NodeSyncTopicState {
+	var info struct {
+		Sync map[string]NodeSyncTopicState `json:"sync"`
+	}
+	_ = common.UnmarshalJsonStr(instance.Info, &info)
+	return info.Sync
+}
+
+// GetNodeSyncStatus compares the newest sync task of every topic a node keeps,
 // this one or another online node, with what each node's registry row says it
 // applied. A node keeps only the topics it registers: one that reports what it
 // applied but not a topic reads that data from the database or a shared cache,
 // so it always runs the latest revision.
 func GetNodeSyncStatus() (NodeSyncStatus, error) {
-	rows, err := model.ListSyncTopics()
-	if err != nil {
-		return NodeSyncStatus{}, err
-	}
 	instances, err := model.ListSystemInstances()
 	if err != nil {
 		return NodeSyncStatus{}, err
-	}
-	stored := make(map[string]model.SystemSyncTopic, len(rows))
-	for _, row := range rows {
-		stored[row.Topic] = row
 	}
 	nodeSync.mu.Lock()
 	keptTopics := make(map[string]bool, len(nodeSync.reloads))
@@ -266,24 +271,32 @@ func GetNodeSyncStatus() (NodeSyncStatus, error) {
 	now := common.GetTimestamp()
 	applied := make([]map[string]NodeSyncTopicState, len(instances))
 	for index, instance := range instances {
-		// A row written before this member existed, or unreadable, has no sync.
-		var info struct {
-			Sync map[string]NodeSyncTopicState `json:"sync"`
-		}
-		_ = common.UnmarshalJsonStr(instance.Info, &info)
-		applied[index] = info.Sync
+		applied[index] = systemInstanceSyncStates(instance)
 		if now-instance.LastSeenAt <= model.SystemInstanceStaleAfterSeconds {
-			for topic := range info.Sync {
+			for topic := range applied[index] {
 				keptTopics[topic] = true
 			}
 		}
 	}
 	topics := slices.Sorted(maps.Keys(keptTopics))
+	taskTypes := make([]string, len(topics))
+	for i, topic := range topics {
+		taskTypes[i] = model.SyncTaskType(topic)
+	}
+	newest, err := model.GetLatestSystemTasks(taskTypes)
+	if err != nil {
+		return NodeSyncStatus{}, err
+	}
 
 	status := NodeSyncStatus{Topics: make([]NodeSyncTopic, 0, len(topics)), Nodes: make([]NodeSyncNode, 0, len(instances))}
 	for _, topic := range topics {
-		row := stored[topic]
-		status.Topics = append(status.Topics, NodeSyncTopic{Topic: topic, Revision: row.Revision, UpdatedAt: row.UpdatedAt, UpdatedBy: row.UpdatedBy})
+		item := NodeSyncTopic{Topic: topic}
+		if task := newest[model.SyncTaskType(topic)]; task != nil {
+			var payload model.SyncTaskPayload
+			_ = task.DecodePayload(&payload)
+			item.Revision, item.UpdatedAt, item.UpdatedBy = task.ID, task.CreatedAt, payload.Node
+		}
+		status.Topics = append(status.Topics, item)
 	}
 	for index, instance := range instances {
 		node := NodeSyncNode{
@@ -293,7 +306,7 @@ func GetNodeSyncStatus() (NodeSyncStatus, error) {
 		}
 		for _, topic := range status.Topics {
 			state, kept := applied[index][topic.Topic]
-			synced := kept && state.AppliedAt != 0 && state.Revision == topic.Revision
+			synced := kept && state.AppliedAt != 0 && state.Revision >= topic.Revision
 			if !kept {
 				// A node that reports other topics does not keep this one; a
 				// node without any sync state predates node sync.
@@ -314,4 +327,86 @@ func GetNodeSyncStatus() (NodeSyncStatus, error) {
 	}
 	slices.SortFunc(status.Nodes, func(a, b NodeSyncNode) int { return strings.Compare(a.NodeName, b.NodeName) })
 	return status, nil
+}
+
+// finishAppliedSyncTasks runs on the master with the system tasks. A sync
+// task is done once every online node that keeps its topic has applied it or
+// a newer one; with no such node, nothing waits for it. The newest task still
+// waiting shows how many of those nodes have applied it, and the error of each
+// node whose reload fails.
+func finishAppliedSyncTasks() {
+	taskTypes, err := model.PendingSyncTaskTypes()
+	if err != nil {
+		logger.LogWarn(context.Background(), common.LogText("sync task query failed: %v", err))
+		return
+	}
+	if len(taskTypes) == 0 {
+		return
+	}
+	instances, err := model.ListSystemInstances()
+	if err != nil {
+		logger.LogWarn(context.Background(), common.LogText("sync task query failed: %v", err))
+		return
+	}
+	newest, err := model.GetLatestSystemTasks(taskTypes)
+	if err != nil {
+		logger.LogWarn(context.Background(), common.LogText("sync task query failed: %v", err))
+		return
+	}
+	now := common.GetTimestamp()
+	online := make([]*model.SystemInstance, 0, len(instances))
+	applied := make([]map[string]NodeSyncTopicState, 0, len(instances))
+	for _, instance := range instances {
+		if now-instance.LastSeenAt <= model.SystemInstanceStaleAfterSeconds {
+			online = append(online, instance)
+			applied = append(applied, systemInstanceSyncStates(instance))
+		}
+	}
+	for _, taskType := range taskTypes {
+		task := newest[taskType]
+		if task == nil {
+			continue
+		}
+		topic, _ := model.SyncTaskTopic(taskType)
+		var revisions []int64
+		var failures []string
+		for index, instance := range online {
+			state, kept := applied[index][topic]
+			if !kept {
+				continue
+			}
+			revision := state.Revision
+			if state.AppliedAt == 0 {
+				revision = 0
+			}
+			revisions = append(revisions, revision)
+			if state.Error != "" && revision < task.ID {
+				failures = append(failures, instance.NodeName+": "+state.Error)
+			}
+		}
+		total := len(revisions)
+		throughID := task.ID
+		if total > 0 {
+			throughID = slices.Min(revisions)
+		}
+		if throughID > 0 {
+			if err := model.FinishSyncTasks(taskType, throughID, SystemTaskProgress{Total: total, Processed: total, Progress: 100}); err != nil {
+				logger.LogWarn(context.Background(), common.LogText("sync task update failed: type=%s err=%v", taskType, err))
+				continue
+			}
+		}
+		if task.Status != model.SystemTaskStatusPending || task.ID <= throughID {
+			continue
+		}
+		processed := 0
+		for _, revision := range revisions {
+			if revision >= task.ID {
+				processed++
+			}
+		}
+		progress := SystemTaskProgress{Total: total, Processed: processed, Progress: processed * 100 / total}
+		if err := model.UpdateSyncTaskProgress(task, progress, strings.Join(failures, "; ")); err != nil {
+			logger.LogWarn(context.Background(), common.LogText("sync task update failed: type=%s err=%v", taskType, err))
+		}
+	}
 }

@@ -25,4 +25,12 @@ export const SYSTEM_TASK_TYPE_LABEL: Record<string, string> = {
   model_update: 'Batch upstream model update',
   midjourney_poll: 'Drawing task polling',
   async_task_poll: 'Async task polling',
+  system_task_cleanup: 'Task history cleanup',
+  sync_options: 'Settings sync',
+  sync_channels: 'Channel sync',
+  sync_authz: 'Permission sync',
+  sync_plugins: 'Plugin sync',
+  sync_oauth_providers: 'Login provider sync',
+  sync_models: 'Model sync',
+  sync_subscription_plans: 'Subscription plan sync',
 }

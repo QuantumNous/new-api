@@ -15,6 +15,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// channelsRevision is the id of the newest channels sync task, 0 without one.
+func channelsRevision(t *testing.T) int64 {
+	t.Helper()
+	revisions, err := GetLatestSyncRevisions()
+	require.NoError(t, err)
+	return revisions[SyncTopicChannels]
+}
+
 func setupChannelStatusTest(t *testing.T) {
 	t.Helper()
 	truncateTables(t)
@@ -221,13 +229,7 @@ func TestUpdateChannelStatusBumpsChannelsOnlyForChangesByHand(t *testing.T) {
 		t.Run(fmt.Sprintf("cache=%t", cacheEnabled), func(t *testing.T) {
 			setupChannelStatusTest(t)
 			common.MemoryCacheEnabled = cacheEnabled
-			require.NoError(t, DB.AutoMigrate(&SystemSyncTopic{}))
-			t.Cleanup(func() { require.NoError(t, DB.Migrator().DropTable(&SystemSyncTopic{})) })
-			revision := func() string {
-				var row SystemSyncTopic
-				require.NoError(t, DB.Where("topic = ?", SyncTopicChannels).Limit(1).Find(&row).Error)
-				return row.Revision
-			}
+			revision := func() int64 { return channelsRevision(t) }
 			single := Channel{Name: "status-single", Key: "key-a", Status: common.ChannelStatusEnabled, Models: "status-model", Group: "default"}
 			multi := Channel{Name: "status-multi", Key: "key-a\nkey-b", Status: common.ChannelStatusEnabled, Models: "status-model", Group: "default",
 				ChannelInfo: ChannelInfo{IsMultiKey: true, MultiKeySize: 2, MultiKeyMode: constant.MultiKeyModePolling}}
@@ -265,8 +267,6 @@ func TestUpdateChannelStatusBumpsChannelsOnlyForChangesByHand(t *testing.T) {
 // does not.
 func TestAutoDisableOfAScheduledPluginKeyBumpsChannelsOnFollowers(t *testing.T) {
 	setupChannelStatusTest(t)
-	require.NoError(t, DB.AutoMigrate(&SystemSyncTopic{}))
-	t.Cleanup(func() { require.NoError(t, DB.Migrator().DropTable(&SystemSyncTopic{})) })
 	master := common.IsMasterNode
 	t.Cleanup(func() { common.IsMasterNode = master })
 	for key, hooks := range map[string]string{
@@ -277,11 +277,7 @@ func TestAutoDisableOfAScheduledPluginKeyBumpsChannelsOnFollowers(t *testing.T) 
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
 	}
-	revision := func() string {
-		var row SystemSyncTopic
-		require.NoError(t, DB.Where("topic = ?", SyncTopicChannels).Limit(1).Find(&row).Error)
-		return row.Revision
-	}
+	revision := func() int64 { return channelsRevision(t) }
 
 	for _, tc := range []struct {
 		plugin string
