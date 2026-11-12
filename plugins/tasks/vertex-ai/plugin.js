@@ -37,7 +37,7 @@ export const meta = {
     en: "Google Veo and Gemini Omni Flash video generation on Vertex AI (text-to-video and image-to-video)",
     zh: "Google Veo 与 Gemini Omni Flash 视频生成（文生视频、图生视频），Vertex AI 版本",
   },
-  version: "1.3.0",
+  version: "1.3.1",
   channelTypes: [41],
   author: { name: "QuantumNous" },
   models: [
