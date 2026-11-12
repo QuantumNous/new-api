@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -176,8 +177,9 @@ func GetChannelOps(c *gin.Context) {
 		}
 	}
 	common.ApiSuccess(c, gin.H{
-		"retry_times":    snapshot.RetryTimes,
-		"request_policy": gin.H{"automatic_disable": automaticDisable, "source": source},
+		"retry_times":                  snapshot.RetryTimes,
+		"request_policy":               gin.H{"automatic_disable": automaticDisable, "source": source},
+		"pass_through_request_enabled": model_setting.GetGlobalSettings().PassThroughRequestEnabled,
 	})
 }
 

@@ -16,6 +16,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -48,6 +49,31 @@ func TestGetChannelDefaultBaseURLsUsesBuiltInDefaults(t *testing.T) {
 	assert.NotContains(t, response.Data, constant.ChannelTypeAzure)
 	assert.NotContains(t, response.Data, constant.ChannelTypeNewAPI)
 	assert.NotContains(t, response.Data, constant.ChannelTypeTaskPlugin)
+}
+
+func TestGetChannelOpsReportsGlobalRequestBodyPassthrough(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	original := settings.PassThroughRequestEnabled
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = original })
+
+	for _, enabled := range []bool{false, true} {
+		settings.PassThroughRequestEnabled = enabled
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/channel/ops", nil)
+		GetChannelOps(c)
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		var response struct {
+			Success bool `json:"success"`
+			Data    struct {
+				PassThroughRequestEnabled bool `json:"pass_through_request_enabled"`
+			} `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.True(t, response.Success)
+		assert.Equal(t, enabled, response.Data.PassThroughRequestEnabled)
+	}
 }
 
 func TestValidateChannelProxy(t *testing.T) {

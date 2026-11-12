@@ -31,6 +31,7 @@ import {
   ModelMappingEditor,
   type ModelMappingDraftRequest,
 } from './model-mapping-editor'
+import { PassthroughModelMappingHint } from './passthrough-effective-hint'
 
 type ModelRedirectPanelProps = {
   defaultPosition: FloatingWindowPosition
@@ -49,6 +50,10 @@ type ModelRedirectPanelProps = {
   draftRequest: ModelMappingDraftRequest | null
   onDraftRequestHandled: () => void
   disabled?: boolean
+  /** Whether passthrough currently keeps the mappings out of the body. */
+  mappingHintVisible?: boolean
+  /** True when only some Advanced Custom routes take the passthrough branch. */
+  mappingHintRouteScoped?: boolean
 }
 
 /**
@@ -95,6 +100,14 @@ export function ModelRedirectPanel(props: ModelRedirectPanelProps) {
         </div>
       }
     >
+      {props.mappingHintVisible && (
+        <div className='pb-2'>
+          <PassthroughModelMappingHint
+            visible
+            routeScoped={props.mappingHintRouteScoped === true}
+          />
+        </div>
+      )}
       <ModelMappingEditor
         value={props.mappingValue}
         onChange={props.onMappingChange}

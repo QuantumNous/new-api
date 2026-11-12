@@ -193,6 +193,8 @@ export interface ChannelOpsResponse {
       automatic_disable: boolean
       source: string
     }
+    /** Site-wide request body passthrough, which overrides the channel switch. */
+    pass_through_request_enabled?: boolean
   }
 }
 

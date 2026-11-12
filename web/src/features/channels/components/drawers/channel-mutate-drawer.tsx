@@ -160,6 +160,7 @@ import {
   type ChannelModelDiscoveryRequest,
 } from '../../hooks/use-channel-model-discovery'
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
+import { useGlobalPassThroughRequest } from '../../hooks/use-global-pass-through-request'
 import {
   REDIRECT_PANEL_MIN_VIEWPORT,
   useRedirectPanelPlacement,
@@ -169,7 +170,9 @@ import {
   CHANNEL_TYPE_ADVANCED_CUSTOM,
   channelFormSchema,
   channelsQueryKeys,
+  advancedCustomConfigUsesPassThrough,
   getAdvancedCustomStats,
+  parseAdvancedCustomConfig,
   transformChannelToFormDefaults,
   type ChannelFormValues,
   deduplicateKeys,
@@ -232,6 +235,11 @@ import {
   type ModelMappingDraftRequest,
 } from '../model-mapping-editor'
 import { ModelRedirectPanel } from '../model-redirect-panel'
+import {
+  PassthroughEffectiveHint,
+  PassthroughModelMappingHint,
+  type PassthroughHintScope,
+} from '../passthrough-effective-hint'
 import { ResponsesWebSocketSetting } from '../responses-websocket-setting'
 import { UpstreamModelSelection } from '../upstream-model-selection'
 import {
@@ -623,6 +631,28 @@ export function ChannelMutateDrawer({
   const keyMode = formValues.key_mode
   const currentGroups = formValues.group
   const currentType = formValues.type
+  const globalPassThroughRequest = useGlobalPassThroughRequest(open)
+  const advancedCustomConfig = useMemo(
+    () => parseAdvancedCustomConfig(formValues.advanced_custom),
+    [formValues.advanced_custom]
+  )
+  // With passthrough on, the request body reaches the upstream untouched, so
+  // the settings that rewrite it must say so instead of silently doing nothing.
+  // The site-wide switch covers every channel, the channel switch covers every
+  // route, and an Advanced Custom route switch covers only the traffic it takes.
+  const advancedCustomRoutePassthrough =
+    currentType === CHANNEL_TYPE_ADVANCED_CUSTOM &&
+    advancedCustomConfigUsesPassThrough(advancedCustomConfig)
+  // Show the widest switch only: once the reader turns it off, the next one
+  // that still covers the channel shows up on its own.
+  let passThroughHintScope: PassthroughHintScope | null = null
+  if (globalPassThroughRequest) {
+    passThroughHintScope = 'global'
+  } else if (formValues.pass_through_body_enabled === true) {
+    passThroughHintScope = 'channel'
+  } else if (advancedCustomRoutePassthrough) {
+    passThroughHintScope = 'route'
+  }
   const baseUrlPlaceholder = [CHANNEL_TYPE_VLLM, CHANNEL_TYPE_SGLANG].includes(
     currentType
   )
@@ -1863,7 +1893,10 @@ export function ChannelMutateDrawer({
       name='system_prompt'
       render={({ field }) => (
         <FormItem>
-          <FormLabel>{t('System Prompt')}</FormLabel>
+          <div className='flex flex-wrap items-center gap-2'>
+            <FormLabel>{t('System Prompt')}</FormLabel>
+            <PassthroughEffectiveHint scope={passThroughHintScope} />
+          </div>
           <FormControl>
             <Textarea
               placeholder={t(
@@ -2471,7 +2504,7 @@ export function ChannelMutateDrawer({
           <FormItem className='space-y-3'>
             <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
               <div className='space-y-1'>
-                <div className='flex items-center gap-2'>
+                <div className='flex flex-wrap items-center gap-2'>
                   <FormLabel className='mb-0'>{t('Model Mapping')}</FormLabel>
                   <ChannelConfigurationStatusIndicator
                     status={configuration.blocks.modelMapping}
@@ -2522,6 +2555,10 @@ export function ChannelMutateDrawer({
                       )}
                     </PopoverDescription>
                   </LearnMore>
+                  <PassthroughModelMappingHint
+                    visible={passThroughHintScope !== null}
+                    routeScoped={passThroughHintScope === 'route'}
+                  />
                 </div>
                 <FormDescription>
                   {t(FIELD_DESCRIPTIONS.MODEL_MAPPING)}
@@ -2751,7 +2788,13 @@ export function ChannelMutateDrawer({
             <FormItem className='space-y-3 border-t pt-4'>
               <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
                 <div className='space-y-1'>
-                  <FormLabel>{t('Parameter Override')}</FormLabel>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <FormLabel>{t('Parameter Override')}</FormLabel>
+                    <PassthroughEffectiveHint
+                      scope={passThroughHintScope}
+                      kind='paramOverride'
+                    />
+                  </div>
                   <FormDescription>
                     {t(
                       'Override request parameters. Cannot override stream parameter.'
@@ -2920,33 +2963,229 @@ export function ChannelMutateDrawer({
   )
 
   const fieldPassthroughFields = FIELD_PASSTHROUGH_TYPES.has(currentType) && (
-    <div
-      role='group'
-      aria-label={t('Field passthrough controls')}
-      className={channelConfigurationBlockClassName(
-        configuration.blocks.fieldPassthrough,
-        'flex flex-col gap-4'
-      )}
-    >
-      <CardHeading
-        title={t('Field passthrough controls')}
-        status={configuration.blocks.fieldPassthrough}
-        icon={<SlidersHorizontal className='h-4 w-4' />}
-        iconTone='chart-4'
-      />
-      <fieldset disabled={sensitiveLocked} className='disabled:opacity-60'>
-        <div className='divide-border space-y-0 divide-y border-y'>
+    <>
+      <div
+        role='group'
+        aria-label={t('Field passthrough controls')}
+        className={channelConfigurationBlockClassName(
+          configuration.blocks.fieldPassthrough,
+          'flex flex-col gap-4'
+        )}
+      >
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <CardHeading
+            title={t('Field passthrough controls')}
+            status={configuration.blocks.fieldPassthrough}
+            icon={<SlidersHorizontal className='h-4 w-4' />}
+            iconTone='chart-4'
+          />
+          <PassthroughEffectiveHint scope={passThroughHintScope} />
+        </div>
+        <fieldset disabled={sensitiveLocked} className='disabled:opacity-60'>
+          <div className='divide-border space-y-0 divide-y border-y'>
+            <FormField
+              control={form.control}
+              name='allow_service_tier'
+              render={({ field }) => (
+                <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-sm'>
+                      {t('Allow service_tier passthrough')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t('Pass through the service_tier field')}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      disabled={sensitiveLocked}
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {OPENAI_FIELD_PASSTHROUGH_TYPES.has(currentType) && (
+              <>
+                <FormField
+                  control={form.control}
+                  name='disable_store'
+                  render={({ field }) => (
+                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>
+                          {t('Disable store passthrough')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t('When enabled, the store field will be blocked')}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          disabled={sensitiveLocked}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='allow_safety_identifier'
+                  render={({ field }) => (
+                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>
+                          {t('Allow safety_identifier passthrough')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t('Pass through the safety_identifier field')}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          disabled={sensitiveLocked}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='allow_include_obfuscation'
+                  render={({ field }) => (
+                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>
+                          {t('Allow include usage obfuscation passthrough')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Pass through the include field for usage obfuscation'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          disabled={sensitiveLocked}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='allow_inference_geo'
+                  render={({ field }) => (
+                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>
+                          {t('Allow inference geography passthrough')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Pass through the inference_geo field for geographic routing'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          disabled={sensitiveLocked}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+
+            {CLAUDE_FIELD_PASSTHROUGH_TYPES.has(currentType) && (
+              <>
+                {currentType === 14 && (
+                  <FormField
+                    control={form.control}
+                    name='allow_inference_geo'
+                    render={({ field }) => (
+                      <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                        <div className='space-y-0.5'>
+                          <FormLabel className='text-sm'>
+                            {t('Allow inference_geo passthrough')}
+                          </FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Pass through the inference_geo field for Claude data residency region control'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            disabled={sensitiveLocked}
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                <FormField
+                  control={form.control}
+                  name='allow_speed'
+                  render={({ field }) => (
+                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>
+                          {t('Allow speed passthrough')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Pass through the speed field for Claude inference speed mode control'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          disabled={sensitiveLocked}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+          </div>
+        </fieldset>
+      </div>
+      {currentType === 14 && (
+        <div className='border-border/60 mt-4 rounded-lg border'>
           <FormField
             control={form.control}
-            name='allow_service_tier'
+            name='claude_beta_query'
             render={({ field }) => (
               <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-sm'>
-                    {t('Allow service_tier passthrough')}
+                    {t('Allow Claude beta query passthrough')}
                   </FormLabel>
                   <FormDescription>
-                    {t('Pass through the service_tier field')}
+                    {t(
+                      'Pass through the anthropic-beta header for beta features'
+                    )}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -2959,199 +3198,9 @@ export function ChannelMutateDrawer({
               </FormItem>
             )}
           />
-
-          {OPENAI_FIELD_PASSTHROUGH_TYPES.has(currentType) && (
-            <>
-              <FormField
-                control={form.control}
-                name='disable_store'
-                render={({ field }) => (
-                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-sm'>
-                        {t('Disable store passthrough')}
-                      </FormLabel>
-                      <FormDescription>
-                        {t('When enabled, the store field will be blocked')}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        disabled={sensitiveLocked}
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='allow_safety_identifier'
-                render={({ field }) => (
-                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-sm'>
-                        {t('Allow safety_identifier passthrough')}
-                      </FormLabel>
-                      <FormDescription>
-                        {t('Pass through the safety_identifier field')}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        disabled={sensitiveLocked}
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='allow_include_obfuscation'
-                render={({ field }) => (
-                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-sm'>
-                        {t('Allow include usage obfuscation passthrough')}
-                      </FormLabel>
-                      <FormDescription>
-                        {t(
-                          'Pass through the include field for usage obfuscation'
-                        )}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        disabled={sensitiveLocked}
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='allow_inference_geo'
-                render={({ field }) => (
-                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-sm'>
-                        {t('Allow inference geography passthrough')}
-                      </FormLabel>
-                      <FormDescription>
-                        {t(
-                          'Pass through the inference_geo field for geographic routing'
-                        )}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        disabled={sensitiveLocked}
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </>
-          )}
-
-          {CLAUDE_FIELD_PASSTHROUGH_TYPES.has(currentType) && (
-            <>
-              {currentType === 14 && (
-                <FormField
-                  control={form.control}
-                  name='allow_inference_geo'
-                  render={({ field }) => (
-                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
-                      <div className='space-y-0.5'>
-                        <FormLabel className='text-sm'>
-                          {t('Allow inference_geo passthrough')}
-                        </FormLabel>
-                        <FormDescription>
-                          {t(
-                            'Pass through the inference_geo field for Claude data residency region control'
-                          )}
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          disabled={sensitiveLocked}
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              <FormField
-                control={form.control}
-                name='allow_speed'
-                render={({ field }) => (
-                  <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-sm'>
-                        {t('Allow speed passthrough')}
-                      </FormLabel>
-                      <FormDescription>
-                        {t(
-                          'Pass through the speed field for Claude inference speed mode control'
-                        )}
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        disabled={sensitiveLocked}
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              {currentType === 14 && (
-                <FormField
-                  control={form.control}
-                  name='claude_beta_query'
-                  render={({ field }) => (
-                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
-                      <div className='space-y-0.5'>
-                        <FormLabel className='text-sm'>
-                          {t('Allow Claude beta query passthrough')}
-                        </FormLabel>
-                        <FormDescription>
-                          {t(
-                            'Pass through the anthropic-beta header for beta features'
-                          )}
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          disabled={sensitiveLocked}
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              )}
-            </>
-          )}
         </div>
-      </fieldset>
-    </div>
+      )}
+    </>
   )
 
   const modelsSection = (
@@ -5139,6 +5188,8 @@ export function ChannelMutateDrawer({
               draftRequest={mappingDraftRequest}
               onDraftRequestHandled={() => setMappingDraftRequest(null)}
               disabled={isSubmitting}
+              mappingHintVisible={passThroughHintScope !== null}
+              mappingHintRouteScoped={passThroughHintScope === 'route'}
             />
           )}
         </SheetContent>
