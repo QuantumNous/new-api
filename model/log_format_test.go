@@ -242,3 +242,69 @@ func TestLogFormattingPreservesLargeIntegerLexemes(t *testing.T) {
 		assert.Equal(t, unprivileged, adminLogs[0].Other)
 	})
 }
+
+// TestClientInfoLogVisibilityIsUserGated verifies the recorded caller IP and
+// client identifier are stripped from user-scope projections while
+// LogClientInfoUserVisibleEnabled is off, and stay visible to every role once
+// the switch is on.
+func TestClientInfoLogVisibilityIsUserGated(t *testing.T) {
+	other := common.MapToJsonStr(map[string]any{
+		"client_ip":    "203.0.113.8",
+		"client_agent": "OpenAI/Python 1.0",
+		"request_path": "/v1/chat/completions",
+	})
+
+	previousVisible := common.LogClientInfoUserVisibleEnabled
+	defer func() {
+		common.LogClientInfoUserVisibleEnabled = previousVisible
+	}()
+
+	t.Run("user stripped while toggle off", func(t *testing.T) {
+		common.LogClientInfoUserVisibleEnabled = false
+
+		logs := []*Log{{Other: other}}
+		formatUserLogs(logs, 0)
+
+		parsed, err := common.StrToMap(logs[0].Other)
+		require.NoError(t, err)
+		assert.NotContains(t, parsed, "client_ip")
+		assert.NotContains(t, parsed, "client_agent")
+		assert.Equal(t, "/v1/chat/completions", parsed["request_path"])
+	})
+
+	t.Run("user keeps fields while toggle on", func(t *testing.T) {
+		common.LogClientInfoUserVisibleEnabled = true
+
+		logs := []*Log{{Other: other}}
+		formatUserLogs(logs, 0)
+
+		parsed, err := common.StrToMap(logs[0].Other)
+		require.NoError(t, err)
+		assert.Equal(t, "203.0.113.8", parsed["client_ip"])
+		assert.Equal(t, "OpenAI/Python 1.0", parsed["client_agent"])
+	})
+
+	t.Run("admin keeps fields regardless of toggle", func(t *testing.T) {
+		common.LogClientInfoUserVisibleEnabled = false
+
+		logs := []*Log{{Other: other}}
+		FormatAdminLogs(logs)
+
+		parsed, err := common.StrToMap(logs[0].Other)
+		require.NoError(t, err)
+		assert.Equal(t, "203.0.113.8", parsed["client_ip"])
+		assert.Equal(t, "OpenAI/Python 1.0", parsed["client_agent"])
+	})
+
+	t.Run("root keeps fields regardless of toggle", func(t *testing.T) {
+		common.LogClientInfoUserVisibleEnabled = false
+
+		logs := []*Log{{Other: other}}
+		FormatRootLogs(logs)
+
+		parsed, err := common.StrToMap(logs[0].Other)
+		require.NoError(t, err)
+		assert.Equal(t, "203.0.113.8", parsed["client_ip"])
+		assert.Equal(t, "OpenAI/Python 1.0", parsed["client_agent"])
+	})
+}

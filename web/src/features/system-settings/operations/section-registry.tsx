@@ -108,6 +108,12 @@ const OPERATIONS_SECTIONS = [
             settings['log_setting.user_export_enabled'] ?? true,
           'log_setting.max_range_days':
             settings['log_setting.max_range_days'] ?? 365,
+          LogRecordClientInfoEnabled: Boolean(
+            settings.LogRecordClientInfoEnabled
+          ),
+          LogClientInfoUserVisibleEnabled: Boolean(
+            settings.LogClientInfoUserVisibleEnabled
+          ),
         }}
       />
     ),
