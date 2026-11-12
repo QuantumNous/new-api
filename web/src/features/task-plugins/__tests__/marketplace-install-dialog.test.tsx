@@ -25,7 +25,7 @@ import {
 } from '@tanstack/react-query'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import {
@@ -107,6 +107,9 @@ function renderDialog(
   }
 }
 afterEach(() => {
+  // sonner keeps toasts in module state and replays undismissed ones to a
+  // newly mounted Toaster, so toasts from earlier tests must not carry over.
+  toast.dismiss()
   clients.forEach((client) => client.clear())
   clients.length = 0
   vi.unstubAllGlobals()
