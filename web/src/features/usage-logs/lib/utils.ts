@@ -99,10 +99,12 @@ function timestampToSeconds(ms: number): number {
  */
 function buildTimeRangeParams(
   searchParams: Record<string, unknown>,
-  useMilliseconds: boolean
+  useMilliseconds: boolean,
+  useDefaultRange = true
 ): { start_timestamp?: number; end_timestamp?: number } {
   const hasTimeParams = searchParams.startTime ?? searchParams.endTime
-  const defaultTimeRange = !hasTimeParams ? getDefaultTimeRange() : null
+  const defaultTimeRange =
+    useDefaultRange && !hasTimeParams ? getDefaultTimeRange() : null
 
   const convertTimestamp = (timestamp: number) =>
     useMilliseconds ? timestamp : timestampToSeconds(timestamp)
@@ -130,6 +132,7 @@ export function buildBaseParams(config: {
   pageSize: number
   searchParams: Record<string, unknown>
   useMilliseconds?: boolean
+  useDefaultTimeRange?: boolean
 }): {
   p: number
   page_size: number
@@ -137,7 +140,13 @@ export function buildBaseParams(config: {
   start_timestamp?: number
   end_timestamp?: number
 } {
-  const { page, pageSize, searchParams, useMilliseconds = false } = config
+  const {
+    page,
+    pageSize,
+    searchParams,
+    useMilliseconds = false,
+    useDefaultTimeRange = true,
+  } = config
 
   return {
     p: page,
@@ -147,7 +156,7 @@ export function buildBaseParams(config: {
           channel_id: String(searchParams.channel),
         }
       : {}),
-    ...buildTimeRangeParams(searchParams, useMilliseconds),
+    ...buildTimeRangeParams(searchParams, useMilliseconds, useDefaultTimeRange),
   }
 }
 
@@ -263,6 +272,7 @@ export async function fetchLogsByCategory(
     pageSize,
     searchParams,
     useMilliseconds: logCategory === 'drawing',
+    useDefaultTimeRange: !(logCategory === 'task' && !!searchParams.filter),
   })
 
   const paramsWithFilter = {
