@@ -1,5 +1,8 @@
 {
   "translation": {
+    "System Proxy": "系统代理",
+    "Outbound proxy used when a channel does not set its own. Supports HTTP, HTTPS, SOCKS5, and SOCKS5H. Leave empty to keep direct connections or the process environment proxy.": "渠道未填写代理时使用的出站代理。支持 HTTP、HTTPS、SOCKS5、SOCKS5H。留空则保持直连或进程环境变量代理。",
+    "Invalid system proxy": "系统代理无效",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

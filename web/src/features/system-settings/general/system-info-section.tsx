@@ -44,11 +44,13 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { isOptionalProxyURL } from './system-proxy'
 import { isValidTaskPublicAddress } from './task-public-address'
 
 const _systemInfoSchema = z.object({
   SystemName: z.string().min(1),
   ServerAddress: z.string().optional(),
+  SystemProxy: z.string().optional(),
   TaskPublicAddress: z.string().refine(isValidTaskPublicAddress),
   Logo: z.string().url().optional().or(z.literal('')),
   Footer: z.string().optional(),
@@ -69,11 +71,13 @@ type SystemInfoSectionProps = {
   defaultValues: SystemInfoFormValues
 }
 
+/** Converts a settings value to the string shown in the form. */
 function normalizeValue(value: unknown): string {
   if (value === undefined || value === null) return ''
   return typeof value === 'string' ? value : String(value)
 }
 
+/** Renders the system information form, including the optional system outbound proxy. */
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -81,6 +85,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const normalizedDefaults: SystemInfoFormValues = {
     SystemName: normalizeValue(defaultValues.SystemName),
     ServerAddress: normalizeValue(defaultValues.ServerAddress),
+    SystemProxy: normalizeValue(defaultValues.SystemProxy),
     TaskPublicAddress: normalizeValue(defaultValues.TaskPublicAddress),
     Logo: normalizeValue(defaultValues.Logo),
     Footer: normalizeValue(defaultValues.Footer),
@@ -100,6 +105,9 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       error: () => t('System name is required'),
     }),
     ServerAddress: z.string().optional(),
+    SystemProxy: z.string().refine(isOptionalProxyURL, {
+      error: () => t('Invalid system proxy'),
+    }),
     TaskPublicAddress: z.string().refine(isValidTaskPublicAddress, {
       error: () =>
         t(
@@ -185,6 +193,28 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     <FormDescription>
                       {t(
                         'The public URL of your server, used for OAuth callbacks, webhooks, and other external integrations'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='SystemProxy'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('System Proxy')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('socks5://user:pass@host:port')}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Outbound proxy used when a channel does not set its own. Supports HTTP, HTTPS, SOCKS5, and SOCKS5H. Leave empty to keep direct connections or the process environment proxy.'
                       )}
                     </FormDescription>
                     <FormMessage />

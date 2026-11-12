@@ -32,6 +32,7 @@ const defaultSiteSettings: SiteSettings = {
   About: '',
   HomePageContent: '',
   ServerAddress: '',
+  SystemProxy: '',
   TaskPublicAddress: '',
   'general_setting.docs_link': '',
   'legal.user_agreement': '',
@@ -40,6 +41,7 @@ const defaultSiteSettings: SiteSettings = {
   SidebarModulesAdmin: '',
 }
 
+/** Renders the site settings page, including the system proxy field. */
 export function SiteSettings() {
   return (
     <SettingsPage
