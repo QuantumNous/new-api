@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"image"
 	"math"
 	"path/filepath"
 	"strings"
@@ -32,8 +33,21 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 	if !measure || !tokenkit.ImageNeedsSize(model, img.Detail) {
 		return tokenkit.ImageTokens(model, img), nil
 	}
+	if !fileMeta.Source.IsURL() {
+		if fact, ok := requestEstimateMediaFact(c, fileMeta.Source.GetRawData(), "", 0, "image"); ok {
+			img.Width, img.Height = fact.Width, fact.Height
+			return tokenkit.ImageTokens(model, img), nil
+		}
+	}
 
-	config, format, err := GetImageConfig(c, fileMeta.Source)
+	var config image.Config
+	var format string
+	var err error
+	if c.GetBool("request_estimate") && fileMeta.Source.IsURL() {
+		config, format, err = requestEstimateImageConfig(c, fileMeta.Source.GetRawData())
+	} else {
+		config, format, err = GetImageConfig(c, fileMeta.Source)
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -71,17 +85,22 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 		}
 		fileHeaders := multiForm.File["file"]
 		totalAudioToken := 0
-		for _, fileHeader := range fileHeaders {
-			file, err := fileHeader.Open()
-			if err != nil {
-				return 0, fmt.Errorf("error opening audio file: %v", err)
-			}
-			defer file.Close()
-			// get ext and io.seeker
-			ext := filepath.Ext(fileHeader.Filename)
-			duration, err := common.GetAudioDuration(c.Request.Context(), file, ext)
-			if err != nil {
-				return 0, fmt.Errorf("error getting audio duration: %v", err)
+		for i, fileHeader := range fileHeaders {
+			duration := 0.0
+			if fact, ok := requestEstimateMediaFact(c, "", "file", i, "audio"); ok {
+				duration = fact.DurationSecond
+			} else {
+				file, err := fileHeader.Open()
+				if err != nil {
+					return 0, fmt.Errorf("error opening audio file: %v", err)
+				}
+				defer file.Close()
+				// get ext and io.seeker
+				ext := filepath.Ext(fileHeader.Filename)
+				duration, err = common.GetAudioDuration(c.Request.Context(), file, ext)
+				if err != nil {
+					return 0, fmt.Errorf("error getting audio duration: %v", err)
+				}
 			}
 			// duration 来自用户上传文件的元数据，可被伪造成天文数字或负数。
 			// 负值会让 token 估算变成负数（低估预扣费），先钳到 0 再转换。
@@ -133,7 +152,7 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 		}
 
 		// 如果文件类型未知且需要获取，通过 MIME 类型检测
-		if file.FileType == "" || (file.Source.IsURL() && shouldFetchFiles) {
+		if file.FileType == "" || (file.Source.IsURL() && shouldFetchFiles && !(c.GetBool("request_estimate") && file.FileType == types.FileTypeImage)) {
 			// 注意：这里我们直接调用 LoadFileSource 而不是 GetMimeType
 			// 因为 GetMimeType 内部可能会调用 GetFileTypeFromUrl (HEAD 请求)
 			// 而我们这里既然要计算 token，通常需要完整数据

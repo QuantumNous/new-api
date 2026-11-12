@@ -17,6 +17,31 @@ import (
 // before each attempt, including channel retries and parameter overrides. The
 // client request body stays frozen; only the independent quantity is refreshed.
 func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, count int) *types.NewAPIError {
+	if billingErr := CalculateImageBillingForRequest(c, info, count); billingErr != nil {
+		return billingErr
+	}
+	quota := info.PriceData.QuotaToPreConsume
+	if quota == 0 && info.Billing == nil {
+		return nil
+	}
+	info.PriceData.FreeModel = false
+	if info.Billing == nil {
+		return PreConsumeBilling(c, quota, info)
+	}
+	if err := info.Billing.Reserve(quota); err != nil {
+		var apiErr *types.NewAPIError
+		if errors.As(err, &apiErr) {
+			return apiErr
+		}
+		return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+	}
+	info.FinalPreConsumedQuota = info.Billing.GetPreConsumedQuota()
+	return nil
+}
+
+// CalculateImageBillingForRequest refreshes the final image reservation without
+// reserving quota. Estimates and real submissions share the same calculation.
+func CalculateImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, count int) *types.NewAPIError {
 	if count < 1 || count > dto.MaxImageN {
 		return types.NewErrorWithStatusCode(fmt.Errorf("image_count must be an integer between 1 and %d", dto.MaxImageN), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
@@ -71,20 +96,5 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 	info.PriceData.QuotaToPreConsume = quota
-	if quota == 0 && info.Billing == nil {
-		return nil
-	}
-	info.PriceData.FreeModel = false
-	if info.Billing == nil {
-		return PreConsumeBilling(c, quota, info)
-	}
-	if err := info.Billing.Reserve(quota); err != nil {
-		var apiErr *types.NewAPIError
-		if errors.As(err, &apiErr) {
-			return apiErr
-		}
-		return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry())
-	}
-	info.FinalPreConsumedQuota = info.Billing.GetPreConsumedQuota()
 	return nil
 }

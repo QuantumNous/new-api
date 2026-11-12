@@ -92,3 +92,7 @@ channel.upstream_update_added_models: "新增模型範例（顯示 {{.Shown}}/{{
 channel.upstream_update_removed_models: "刪除模型範例（顯示 {{.Shown}}/{{.Total}}）：{{.Models}}"
 channel.upstream_update_failed_channels: "失敗管道 ID（顯示 {{.Shown}}/{{.Total}}）：{{.Ids}}"
 channel.upstream_update_more_omitted: "（其餘 {{.Count}} 個已省略）"
+estimate.invalid_request: "無效的試算請求"
+estimate.unsupported: "此請求不支援費用試算"
+estimate.pricing_failed: "無法計算請求費用"
+estimate.media_failed: "無法讀取試算所需的媒體內容"

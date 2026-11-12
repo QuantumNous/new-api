@@ -65,6 +65,16 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	return a.convertImageRequest(c, info, request, true)
+}
+
+// ConvertImageRequestForEstimate performs the local request conversion while
+// deliberately omitting the edit-image upload required by a real submission.
+func (a *Adaptor) ConvertImageRequestForEstimate(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	return a.convertImageRequest(c, info, request, false)
+}
+
+func (a *Adaptor) convertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest, uploadEditImage bool) (any, error) {
 	if info == nil {
 		return nil, errors.New("replicate adaptor: relay info is nil")
 	}
@@ -125,14 +135,24 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	if info.RelayMode == relayconstant.RelayModeImagesEdits {
-		imageURL, err := uploadFileFromForm(c, info, "image", "image[]", "image_prompt")
-		if err != nil {
-			return nil, err
+		if !uploadEditImage {
+			form, err := common.ParseMultipartFormReusable(c)
+			if err != nil {
+				return nil, fmt.Errorf("replicate adaptor: parse edit form: %w", err)
+			}
+			if !hasReplicateImageFile(form) {
+				return nil, errors.New("replicate adaptor: image file is required for edits")
+			}
+		} else {
+			imageURL, err := uploadFileFromForm(c, info, "image", "image[]", "image_prompt")
+			if err != nil {
+				return nil, err
+			}
+			if imageURL == "" {
+				return nil, errors.New("replicate adaptor: image file is required for edits")
+			}
+			inputPayload["image_prompt"] = imageURL
 		}
-		if imageURL == "" {
-			return nil, errors.New("replicate adaptor: image file is required for edits")
-		}
-		inputPayload["image_prompt"] = imageURL
 	}
 
 	if len(request.ExtraFields) > 0 {
@@ -169,6 +189,23 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	return map[string]any{
 		"input": inputPayload,
 	}, nil
+}
+
+func hasReplicateImageFile(form *multipart.Form) bool {
+	if form == nil {
+		return false
+	}
+	for _, field := range []string{"image", "image[]", "image_prompt"} {
+		if files := form.File[field]; len(files) > 0 {
+			return true
+		}
+	}
+	for _, files := range form.File {
+		if len(files) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

@@ -89,7 +89,11 @@ func LoadFileSource(c *gin.Context, source types.FileSource, reason ...string) (
 				return data, nil
 			}
 		}
-		cachedData, err = loadFromURL(c, s.URL, reason...)
+		if c != nil && c.GetBool("request_estimate") {
+			cachedData, err = loadRequestEstimateFromURL(c, s.URL)
+		} else {
+			cachedData, err = loadFromURL(c, s.URL, reason...)
+		}
 	case *types.Base64Source:
 		if c != nil {
 			contextKey = getBase64ContextCacheKey(s.Base64Data, s.MimeType)
@@ -155,13 +159,22 @@ func CleanupFileSources(c *gin.Context) {
 
 // loadFromURL 从 URL 加载文件
 func loadFromURL(c *gin.Context, url string, reason ...string) (*types.CachedFileData, error) {
-	// 下载文件
+	resp, err := DoDownloadRequest(url, reason...)
+	return loadDownloadedURL(c, url, resp, err)
+}
+
+func loadRequestEstimateFromURL(c *gin.Context, url string) (*types.CachedFileData, error) {
+	resp, err := requestEstimateDoDownload(c, url)
+	return loadDownloadedURL(c, url, resp, err)
+}
+
+func loadDownloadedURL(c *gin.Context, url string, resp *http.Response, err error) (*types.CachedFileData, error) {
+	// Downloaded response bodies are bounded before caching or decoding.
 	var maxFileSize = constant.MaxFileDownloadMB * 1024 * 1024
 
 	if common.DebugEnabled {
 		logger.LogDebug(c, "loadFromURL: initiating download")
 	}
-	resp, err := DoDownloadRequest(url, reason...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download file from %s: %w", url, err)
 	}

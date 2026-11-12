@@ -92,3 +92,7 @@ channel.upstream_update_added_models: "新增模型示例（展示 {{.Shown}}/{{
 channel.upstream_update_removed_models: "删除模型示例（展示 {{.Shown}}/{{.Total}}）：{{.Models}}"
 channel.upstream_update_failed_channels: "失败渠道 ID（展示 {{.Shown}}/{{.Total}}）：{{.Ids}}"
 channel.upstream_update_more_omitted: "（其余 {{.Count}} 个已省略）"
+estimate.invalid_request: "无效的试算请求"
+estimate.unsupported: "此请求不支持费用试算"
+estimate.pricing_failed: "无法计算请求费用"
+estimate.media_failed: "无法读取试算所需的媒体内容"

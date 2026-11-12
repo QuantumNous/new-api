@@ -79,6 +79,57 @@ export function parseTaskResult(){return {status:"SUCCESS"}}
 	assert.Equal(t, "Bearer access-token", req.Header.Get("Authorization"))
 }
 
+func TestRequestEstimatePreparesOAuthWithoutSendingAndFailsClosed(t *testing.T) {
+	pluginAuthCache = sync.Map{}
+	original := acquireAccessToken
+	var exchanges int
+	acquireAccessToken = func(_ vertexcore.Credentials, _ string) (string, error) {
+		exchanges++
+		return "estimate-access-token", nil
+	}
+	t.Cleanup(func() { acquireAccessToken = original; pluginAuthCache = sync.Map{} })
+	credentials, err := common.Marshal(vertexcore.Credentials{ProjectID: "project", ClientEmail: "a@example.com", PrivateKey: "private-key"})
+	require.NoError(t, err)
+	plugin, err := pluginruntime.NewRegistry().Register(`
+		export const meta = {apiVersion:1,key:"estimate-oauth",name:"Estimate OAuth",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task",auth:{type:"oauth2_jwt"}};
+		export function buildSubmitRequest(ctx) {
+		  if (ctx.authHeader !== "Bearer estimate-access-token") throw new Error("missing auth");
+		  return {url:ctx.baseUrl+"/submit"};
+		}
+		export function extractUsage() { return {seconds:1}; }
+		export function parseSubmitResponse() { return {taskId:"1"}; }
+		export function buildQueryRequest() { return {}; }
+		export function parseTaskResult() { return {status:"SUCCESS"}; }
+	`, pluginruntime.Options{})
+	require.NoError(t, err)
+	newAdaptor := func() (*TaskAdaptor, *relaycommon.RelayInfo, *gin.Context) {
+		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeTaskPlugin, ChannelBaseUrl: "https://provider.example", ApiKey: string(credentials)}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+		adaptor := New(plugin)
+		adaptor.Init(info)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/tasks/estimate-oauth", nil)
+		c.Set("task_request", map[string]any{"model": "m"})
+		c.Set("request_estimate", true)
+		return adaptor, info, c
+	}
+	for range 2 {
+		adaptor, info, c := newAdaptor()
+		require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+		assert.NotNil(t, adaptor.submit, "the descriptor is prepared for pricing")
+	}
+	assert.Equal(t, 1, exchanges, "a repeated estimate uses the cached OAuth token")
+
+	acquireAccessToken = func(_ vertexcore.Credentials, _ string) (string, error) {
+		return "", fmt.Errorf("private-key token exchange failed")
+	}
+	pluginAuthCache = sync.Map{}
+	adaptor, info, c := newAdaptor()
+	taskErr := adaptor.ValidateRequestAndSetAction(c, info)
+	require.NotNil(t, taskErr)
+	assert.Contains(t, taskErr.Message, "authentication preparation failed")
+	assert.NotContains(t, taskErr.Message, "private-key")
+}
+
 func TestUpstreamContextsUseGatewayBearerOnNewAPIChannels(t *testing.T) {
 	pluginAuthCache = sync.Map{}
 	original := acquireAccessToken

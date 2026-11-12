@@ -222,18 +222,25 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 }
 
 func ValidateUserToken(key string) (token *Token, err error) {
+	return validateUserToken(key, false)
+}
+
+// ValidateEstimateToken preserves identity restrictions without checking funds or writing status.
+func ValidateEstimateToken(key string) (*Token, error) {
+	return validateUserToken(key, true)
+}
+
+func validateUserToken(key string, estimate bool) (token *Token, err error) {
 	if key == "" {
 		return nil, ErrTokenNotProvided
 	}
 	token, err = GetTokenByKey(key, false)
 	if err == nil {
-		if token.Status == common.TokenStatusExhausted ||
-			token.Status == common.TokenStatusExpired ||
-			token.Status != common.TokenStatusEnabled {
+		if token.Status != common.TokenStatusEnabled && !(estimate && token.Status == common.TokenStatusExhausted) {
 			return token, ErrTokenInvalid
 		}
 		if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
-			if !common.RedisEnabled {
+			if !estimate && !common.RedisEnabled {
 				token.Status = common.TokenStatusExpired
 				err := token.SelectUpdate()
 				if err != nil {
@@ -242,7 +249,7 @@ func ValidateUserToken(key string) (token *Token, err error) {
 			}
 			return token, ErrTokenInvalid
 		}
-		if !token.UnlimitedQuota && token.RemainQuota <= 0 {
+		if !estimate && !token.UnlimitedQuota && token.RemainQuota <= 0 {
 			if !common.RedisEnabled {
 				token.Status = common.TokenStatusExhausted
 				err := token.SelectUpdate()

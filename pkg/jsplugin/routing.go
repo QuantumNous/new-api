@@ -450,6 +450,7 @@ var reservedRouteNamespaces = []string{
 	"/assets",
 	"/setup",
 	"/v1/tasks",
+	"/v1/requests",
 	"/console",
 	"/login",
 	"/forbidden",
@@ -572,6 +573,65 @@ func (g *RoutingGeneration) LookupDeclaredRoutes(method, path string) []RouteBin
 		return nil
 	}
 	return slices.Clone(g.routeIndex[normalizedMethod+" "+shape])
+}
+
+// LookupDeclaredRequestRoute matches a concrete incoming URL path against the
+// submit and dynamic routes in this generation. Query routes are deliberately
+// excluded because request estimation only accepts billable submissions.
+func (g *RoutingGeneration) LookupDeclaredRequestRoute(method, requestPath string) (RouteBinding, bool) {
+	binding, _, found := g.LookupDeclaredRequestRouteParams(method, requestPath)
+	return binding, found
+}
+
+// LookupDeclaredRequestRouteParams matches a concrete incoming URL path and
+// returns the path parameters captured by the generation's native route.
+func (g *RoutingGeneration) LookupDeclaredRequestRouteParams(method, requestPath string) (RouteBinding, map[string]string, bool) {
+	if g == nil {
+		return RouteBinding{}, nil, false
+	}
+	normalizedMethod, err := normalizeRouteMethod(method)
+	if err != nil {
+		return RouteBinding{}, nil, false
+	}
+	if requestPath == "" || strings.ContainsAny(requestPath, "?#") {
+		return RouteBinding{}, nil, false
+	}
+	requestSegments := strings.Split(strings.TrimPrefix(requestPath, "/"), "/")
+	for _, binding := range g.routes {
+		if binding.Route.Method != normalizedMethod || binding.Route.Type == RouteTypeQuery {
+			continue
+		}
+		routeSegments := strings.Split(strings.TrimPrefix(binding.Route.Path, "/"), "/")
+		matched := true
+		params := make(map[string]string)
+		for index, routeSegment := range routeSegments {
+			if strings.HasPrefix(routeSegment, "*") {
+				matched = index < len(requestSegments)
+				if matched {
+					params[strings.TrimPrefix(routeSegment, "*")] = strings.Join(requestSegments[index:], "/")
+				}
+				break
+			}
+			if index >= len(requestSegments) {
+				matched = false
+				break
+			}
+			if strings.HasPrefix(routeSegment, ":") {
+				params[strings.TrimPrefix(routeSegment, ":")] = requestSegments[index]
+			} else if routeSegment != requestSegments[index] {
+				matched = false
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		catchAll := strings.HasPrefix(routeSegments[len(routeSegments)-1], "*")
+		if len(routeSegments) == len(requestSegments) || catchAll {
+			return binding, params, true
+		}
+	}
+	return RouteBinding{}, nil, false
 }
 
 func (g *RoutingGeneration) LookupEndpoint(method, path, model string) (ProtocolBinding, bool) {
