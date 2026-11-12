@@ -51,6 +51,7 @@ function renderCard(target: MarketplacePlugin) {
   return render(
     <QueryClientProvider client={client}>
       <MarketplacePluginCard
+        kind='task'
         plugin={target}
         indexUrl={INDEX_URL}
         installState={{ status: 'not_installed' }}

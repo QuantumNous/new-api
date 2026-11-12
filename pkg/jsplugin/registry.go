@@ -31,6 +31,8 @@ const APIVersion1 = 1
 const (
 	maxLocalizedTextLocales       = 16
 	maxMetaDescriptionRunes       = 512
+	maxMetaNameRunes              = 128
+	maxMetaKeyHintRunes           = 256
 	maxUsageFieldDescriptionRunes = 256
 )
 
@@ -91,6 +93,7 @@ type Meta struct {
 	APIVersion           int                         `json:"apiVersion"`
 	Key                  string                      `json:"key"`
 	Name                 string                      `json:"name"`
+	NameI18n             LocalizedText               `json:"name_i18n,omitempty"` // the locales of a name given as an object; Name is its en text
 	Icon                 string                      `json:"icon,omitempty"`
 	Description          LocalizedText               `json:"description,omitempty"`
 	Version              string                      `json:"version"`
@@ -107,6 +110,176 @@ type Meta struct {
 	UsageExamples        []UsageExample              `json:"usageExamples,omitempty"`
 	UsageProfiles        []UsageProfile              `json:"usageProfiles,omitempty"`
 	Auth                 AuthMeta                    `json:"auth"`
+	// Relay is the provider part: the Advanced Custom routes a type-61
+	// channel bound to the plugin serves.
+	Relay []dto.AdvancedCustomRoute `json:"relay,omitempty"`
+	// ConfigSchema is the schema of a request processing instance's config.
+	ConfigSchema *ConfigSchema `json:"configSchema,omitempty"`
+	// ChannelConfig is the schema of the plugin config of a type-61 channel
+	// bound to the plugin, stored in its settings as plugin_config.
+	ChannelConfig *ConfigSchema `json:"channelConfig,omitempty"`
+	// KeyHint is the hint and example of the channel key field.
+	KeyHint LocalizedText `json:"keyHint,omitempty"`
+	// Optional lets a request skip an instance of the plugin that fails at a
+	// stage; without it the failure stops the request.
+	Optional bool `json:"optional,omitempty"`
+	// Samples are the requests the request plugin editor offers to try the
+	// plugin with.
+	Samples []Sample `json:"samples,omitempty"`
+	// noTaskPart marks a plugin that does not export buildSubmitRequest.
+	// CompilePlugin sets it; a Meta built by hand has the task part.
+	noTaskPart bool
+	// transformHooks are the stage hooks the plugin exports, in
+	// TransformStages order, then ReportHook. CompilePlugin sets them.
+	transformHooks []string
+}
+
+// ProviderConverter is the relay converter whose request and response the
+// plugin's convertRequest, convertResponse and convertStreamEvent convert; on
+// the model list route convertResponse alone runs. Only manifests accept it;
+// Advanced Custom channel settings reject it.
+const ProviderConverter = "plugin"
+
+// chainedConverterSuffix ends a converter that chains a registered converter
+// and the plugin's convert hooks: the host converts the client protocol into
+// the registered converter's upstream protocol, and the hooks convert that
+// protocol into the vendor's and back.
+const chainedConverterSuffix = "+" + ProviderConverter
+
+// SplitProviderConverter returns the converter the host runs for a route
+// converter and whether the plugin's convert hooks run too: "plugin" is "none"
+// with the hooks, "<converter>+plugin" that converter with the hooks, and any
+// other value itself without them.
+func SplitProviderConverter(converter string) (hostConverter string, hooks bool) {
+	converter = strings.TrimSpace(converter)
+	if converter == ProviderConverter {
+		return "none", true
+	}
+	if base, chained := strings.CutSuffix(converter, chainedConverterSuffix); chained {
+		return base, true
+	}
+	return converter, false
+}
+
+// HasTaskPart reports whether the plugin is a task driver: it exports
+// buildSubmitRequest.
+func (m Meta) HasTaskPart() bool {
+	return !m.noTaskPart
+}
+
+// HasProviderPart reports whether the plugin declares relay routes.
+func (m Meta) HasProviderPart() bool {
+	return len(m.Relay) > 0
+}
+
+// RelayConfig returns the relay routes as the Advanced Custom configuration
+// of one request. A plugin-converter route reaches the Advanced Custom code as
+// a native route of its client protocol, and a chained one as a route of its
+// registered converter; the provider adaptor converts around it.
+func (m Meta) RelayConfig() *dto.AdvancedCustomConfig {
+	if len(m.Relay) == 0 {
+		return nil
+	}
+	routes := cloneRelayRoutes(m.Relay)
+	for index := range routes {
+		if converter, hooks := SplitProviderConverter(routes[index].Converter); hooks {
+			routes[index].Converter = converter
+		}
+	}
+	return &dto.AdvancedCustomConfig{Routes: routes}
+}
+
+// ChannelRelayConfig is RelayConfig for a channel: an upstream_path that
+// starts with {config.<name>} starts with that address of the channel's plugin
+// config instead, or is relative to the channel base URL when the address is
+// empty. config is the config as ChannelConfigFor returns it.
+func (m Meta) ChannelRelayConfig(config []byte) *dto.AdvancedCustomConfig {
+	relay := m.RelayConfig()
+	if relay == nil {
+		return nil
+	}
+	for index, route := range relay.Routes {
+		name, rest, ok := configAddressPath(route.UpstreamPath)
+		if !ok {
+			continue
+		}
+		address := ChannelConfigURL(config, name)
+		if address == "" && rest == "" {
+			rest = "/"
+		}
+		relay.Routes[index].UpstreamPath = address + rest
+	}
+	return relay
+}
+
+// configAddressPath splits an upstream_path of the form {config.<name>}<rest>.
+func configAddressPath(upstreamPath string) (name, rest string, ok bool) {
+	trimmed := strings.TrimSpace(upstreamPath)
+	if !strings.HasPrefix(trimmed, configAddressPrefix) {
+		return "", "", false
+	}
+	name, rest, ok = strings.Cut(trimmed[len(configAddressPrefix):], "}")
+	return name, rest, ok
+}
+
+const configAddressPrefix = "{config."
+
+// RelayRoute returns the relay route serving requestPath for model, with the
+// converter as the manifest declares it.
+func (m Meta) RelayRoute(requestPath, model string) (dto.AdvancedCustomRoute, bool) {
+	config := dto.AdvancedCustomConfig{Routes: m.Relay}
+	return config.MatchPathForModel(requestPath, model)
+}
+
+// RelaysModel reports whether a relay route accepts model for client
+// requests: the plugin serves the model on chat paths, not only as a task. The
+// model list and balance routes accept every model and serve none.
+func (m Meta) RelaysModel(model string) bool {
+	return slices.ContainsFunc(m.Relay, func(route dto.AdvancedCustomRoute) bool {
+		path := strings.TrimSpace(route.IncomingPath)
+		return path != dto.AdvancedCustomModelListPath && path != dto.AdvancedCustomBalancePath && route.AcceptsModel(model)
+	})
+}
+
+// ServesResponsesWebSocket reports whether a Responses WebSocket session for
+// model may run on the relay routes: the /v1/responses route serving it has no
+// converter, so the session forwards native events as Advanced Custom does.
+// An empty model asks whether any route of that path qualifies.
+func (m Meta) ServesResponsesWebSocket(model string) bool {
+	if model == "" {
+		return slices.ContainsFunc(m.Relay, func(route dto.AdvancedCustomRoute) bool {
+			config := dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{route}}
+			_, ok := config.MatchPath(responsesPath)
+			return ok && route.IsNative()
+		})
+	}
+	route, ok := m.RelayRoute(responsesPath, model)
+	return ok && route.IsNative()
+}
+
+const responsesPath = "/v1/responses"
+
+// ModelListRoute returns the /v1/models relay route, with the converter as the
+// manifest declares it.
+func (m Meta) ModelListRoute() (dto.AdvancedCustomRoute, bool) {
+	config := dto.AdvancedCustomConfig{Routes: m.Relay}
+	return config.ModelListRoute()
+}
+
+func cloneRelayRoutes(routes []dto.AdvancedCustomRoute) []dto.AdvancedCustomRoute {
+	if routes == nil {
+		return nil
+	}
+	cloned := make([]dto.AdvancedCustomRoute, len(routes))
+	for index, route := range routes {
+		route.Models = slices.Clone(route.Models)
+		if route.Auth != nil {
+			auth := *route.Auth
+			route.Auth = &auth
+		}
+		cloned[index] = route
+	}
+	return cloned
 }
 
 // Upstream kinds a plugin driver can address. Every driver speaks to its
@@ -263,10 +436,13 @@ type Registry struct {
 	disabledFactory map[string]struct{}
 	masterEnabled   atomic.Bool
 	generation      atomic.Pointer[RoutingGeneration]
-	preparer        RoutingGenerationPreparer
-	routingErrors   map[string]string
-	lastRebuildErr  string
-	lastRebuild     RoutingRebuildOutcome
+	// switchedOff are, with the master switch off, the enabled plugins it
+	// leaves out of the published generation; nil with the switch on.
+	switchedOff    atomic.Pointer[map[string]*LoadedPlugin]
+	preparer       RoutingGenerationPreparer
+	routingErrors  map[string]string
+	lastRebuildErr string
+	lastRebuild    RoutingRebuildOutcome
 }
 
 func NewRegistry() *Registry {
@@ -335,31 +511,106 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 	if err != nil {
 		return nil, err
 	}
-	value, err := engine.Export(context.Background(), "meta")
+	value, members, err := engine.exportWithMemberJSON(context.Background(), "meta", "configSchema", "samples", "channelConfig")
 	if err != nil {
 		return nil, err
 	}
+	configSchema, samples, channelConfig := members[0], members[1], members[2]
 	meta, err := decodeMeta(value)
 	if err != nil {
 		return nil, err
+	}
+	for _, stage := range append(slices.Clone(TransformStages), ReplyHook, ReportHook) {
+		if !engine.HasExport(stage) {
+			continue
+		}
+		callable, callableErr := engine.HasCallablePath(context.Background(), stage)
+		if callableErr != nil {
+			return nil, callableErr
+		}
+		if !callable {
+			return nil, fmt.Errorf("plugin %s export %q is not a function", meta.Key, stage)
+		}
+		meta.transformHooks = append(meta.transformHooks, stage)
+	}
+	if configSchema != nil {
+		if !meta.HasTransformPart() {
+			return nil, fmt.Errorf("plugin %s meta configSchema belongs to the request processing part; export ingress, request, outbound, egress, reply or report, or remove it", meta.Key)
+		}
+		if meta.ConfigSchema, err = decodeConfigSchema(configSchema); err != nil {
+			return nil, err
+		}
+	}
+	if samples != nil {
+		if !meta.HasTransformPart() {
+			return nil, fmt.Errorf("plugin %s meta samples belongs to the request processing part; export ingress, request, outbound, egress, reply or report, or remove it", meta.Key)
+		}
+		if meta.Samples, err = decodeSamples(samples); err != nil {
+			return nil, err
+		}
+	}
+	if _, present := value.(map[string]any)["optional"]; present && !meta.HasTransformPart() {
+		return nil, fmt.Errorf("plugin %s meta optional belongs to the request processing part; export ingress, request, outbound, egress, reply or report, or remove it", meta.Key)
+	}
+	if engine.HasExport("validateConfig") {
+		if !meta.HasTransformPart() {
+			return nil, fmt.Errorf("plugin %s export validateConfig belongs to the request processing part; export ingress, request, outbound, egress, reply or report, or remove it", meta.Key)
+		}
+		callable, callableErr := engine.HasCallablePath(context.Background(), "validateConfig")
+		if callableErr != nil {
+			return nil, callableErr
+		}
+		if !callable {
+			return nil, fmt.Errorf("plugin %s export %q is not a function", meta.Key, "validateConfig")
+		}
+	}
+	if !engine.HasExport("buildSubmitRequest") {
+		if len(meta.Relay) == 0 && !meta.HasTransformPart() {
+			return nil, fmt.Errorf("plugin %s has no task part (export buildSubmitRequest), provider part (meta.relay) or request processing part (export ingress, request, outbound, egress, reply or report)", meta.Key)
+		}
+		object, _ := value.(map[string]any)
+		for _, field := range taskOnlyMetaFields {
+			if _, present := object[field]; present {
+				return nil, fmt.Errorf("plugin %s meta %s belongs to the task part; export buildSubmitRequest or remove it", meta.Key, field)
+			}
+		}
+		meta.noTaskPart = true
+	}
+	if channelConfig != nil {
+		if meta.ChannelConfig, err = decodeChannelConfigSchema(channelConfig); err != nil {
+			return nil, err
+		}
+	}
+	if meta.noTaskPart && len(meta.Relay) == 0 {
+		for _, field := range []string{"channelConfig", "keyHint"} {
+			if _, present := value.(map[string]any)[field]; present {
+				return nil, fmt.Errorf("plugin %s meta %s belongs to a channel; export buildSubmitRequest or declare meta.relay, or remove it", meta.Key, field)
+			}
+		}
+	}
+	if engine.HasExport("buildBalanceRequest") != engine.HasExport("parseBalance") {
+		return nil, fmt.Errorf("plugin %s must export both buildBalanceRequest and parseBalance, or neither", meta.Key)
 	}
 	if err = normalizeV1Meta(&meta); err != nil {
 		return nil, err
 	}
 	engine.key = meta.Key
 	engine.version = meta.Version
-	requiredHooks := []string{"buildSubmitRequest", "parseSubmitResponse", "parseTaskResult"}
-	if slices.Contains(meta.SubmitResponseTypes, "sse") {
-		if UsesSubmitEventDelta(meta, engine) {
-			requiredHooks = append(requiredHooks, "parseSubmitEventDelta")
-		} else {
-			requiredHooks = append(requiredHooks, "parseSubmitEvent")
+	var requiredHooks []string
+	if meta.HasTaskPart() {
+		requiredHooks = []string{"buildSubmitRequest", "parseSubmitResponse", "parseTaskResult"}
+		if slices.Contains(meta.SubmitResponseTypes, "sse") {
+			if UsesSubmitEventDelta(meta, engine) {
+				requiredHooks = append(requiredHooks, "parseSubmitEventDelta")
+			} else {
+				requiredHooks = append(requiredHooks, "parseSubmitEvent")
+			}
 		}
-	}
-	if meta.FetchMode == "batch" {
-		requiredHooks = append(requiredHooks, "buildBatchQueryRequest", "parseBatchResult")
-	} else {
-		requiredHooks = append(requiredHooks, "buildQueryRequest")
+		if meta.FetchMode == "batch" {
+			requiredHooks = append(requiredHooks, "buildBatchQueryRequest", "parseBatchResult")
+		} else {
+			requiredHooks = append(requiredHooks, "buildQueryRequest")
+		}
 	}
 	for _, hook := range requiredHooks {
 		has, hasErr := engine.HasCallablePath(context.Background(), hook)
@@ -524,11 +775,86 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 			return nil, fmt.Errorf("plugin %s export %q is no longer supported", meta.Key, removed)
 		}
 	}
+	if err = validateProviderHooks(meta, engine); err != nil {
+		return nil, err
+	}
 	return &LoadedPlugin{Meta: meta, Engine: engine}, nil
+}
+
+// taskOnlyMetaFields are the manifest fields only a task part reads.
+var taskOnlyMetaFields = []string{"routes", "protocols", "fetchMode", "submitResponseTypes", "usageSchema", "usageExamples", "usageProfiles", "auth", "channelTypes", "upstreams"}
+
+// ProviderHooks are the optional credential, relay and channel exports of a
+// plugin.
+var ProviderHooks = []string{"login", "refresh", "revoke", "signRequest", "prepareRequest", "credentialRejected", "convertRequest", "convertResponse", "convertStreamEvent", "exchangeKey", "checkKey", "buildBalanceRequest", "parseBalance", "scheduled"}
+
+var providerConvertHooks = []string{"convertRequest", "convertResponse", "convertStreamEvent"}
+
+// relayOnlyHooks act on relay requests, so only a plugin with meta.relay may
+// export them. The credential hooks serve the task part as well.
+var relayOnlyHooks = []string{"prepareRequest", "credentialRejected", "convertRequest", "convertResponse", "convertStreamEvent"}
+
+func validateProviderHooks(meta Meta, engine *Engine) error {
+	exported := make(map[string]bool, len(ProviderHooks))
+	for _, hook := range ProviderHooks {
+		if !engine.HasExport(hook) {
+			continue
+		}
+		callable, err := engine.HasCallablePath(context.Background(), hook)
+		if err != nil {
+			return err
+		}
+		if !callable {
+			return fmt.Errorf("plugin %s export %q is not a function", meta.Key, hook)
+		}
+		if !meta.HasProviderPart() && slices.Contains(relayOnlyHooks, hook) {
+			return fmt.Errorf("plugin %s exports %s, which needs meta.relay routes", meta.Key, hook)
+		}
+		if !meta.HasProviderPart() && !meta.HasTaskPart() {
+			return fmt.Errorf("plugin %s exports %s, which needs a task part or meta.relay routes", meta.Key, hook)
+		}
+		exported[hook] = true
+	}
+	// The model list route only reads a reply, so it needs convertResponse
+	// alone; every other plugin-converter route needs all three.
+	usesConverter, relaysConverter := false, false
+	for _, route := range meta.Relay {
+		if _, hooks := SplitProviderConverter(route.Converter); hooks {
+			usesConverter = true
+			relaysConverter = relaysConverter || strings.TrimSpace(route.IncomingPath) != dto.AdvancedCustomModelListPath
+		}
+	}
+	for _, hook := range providerConvertHooks {
+		needed := relaysConverter || (usesConverter && hook == "convertResponse")
+		if needed && !exported[hook] {
+			return fmt.Errorf("plugin %s relay routes use converter %q but the plugin does not export %s", meta.Key, ProviderConverter, hook)
+		}
+		if !needed && exported[hook] {
+			return fmt.Errorf("plugin %s exports %s but no relay route that calls it uses converter %q", meta.Key, hook, ProviderConverter)
+		}
+	}
+	return nil
 }
 
 func (r *Registry) Get(platform string) (*LoadedPlugin, bool) {
 	return r.Generation().Get(platform)
+}
+
+// GetIgnoringMasterSwitch returns the plugin of key as Get does, and with
+// the master switch off, the enabled plugin the switch leaves out. Request
+// processing looks plugins up with it: the master switch covers task and
+// provider plugin channels only, while a plugin switched off on its own stays
+// off.
+func (r *Registry) GetIgnoringMasterSwitch(key string) (*LoadedPlugin, bool) {
+	if plugin, ok := r.Get(key); ok {
+		return plugin, true
+	}
+	switchedOff := r.switchedOff.Load()
+	if switchedOff == nil {
+		return nil, false
+	}
+	plugin, ok := (*switchedOff)[key]
+	return plugin, ok
 }
 
 func (r *Registry) GetByChannelType(channelType int) (*LoadedPlugin, bool) {
@@ -536,7 +862,8 @@ func (r *Registry) GetByChannelType(channelType int) (*LoadedPlugin, bool) {
 }
 
 // Enabled reports the master switch position. When false the published
-// routing generation contains no plugins regardless of the other layers.
+// routing generation contains no plugins regardless of the other layers;
+// GetIgnoringMasterSwitch still finds the enabled ones.
 func (r *Registry) Enabled() bool {
 	return r.masterEnabled.Load()
 }
@@ -773,6 +1100,13 @@ func (r *Registry) publishGeneration(
 	}
 	r.routingErrors = routingErrors
 	r.activeOverride = activeOverride
+	// Every caller updated the layers before publishing.
+	var switchedOff *map[string]*LoadedPlugin
+	if !r.masterEnabled.Load() {
+		plugins := effectivePlugins(filterDisabledFactory(r.factory, r.disabledFactory), r.override)
+		switchedOff = &plugins
+	}
+	r.switchedOff.Store(switchedOff)
 	r.lastRebuildErr = ""
 	status := "success"
 	if len(routingErrors) > 0 {
@@ -899,6 +1233,12 @@ func cloneMeta(meta Meta) Meta {
 	if meta.Description != nil {
 		meta.Description = maps.Clone(meta.Description)
 	}
+	if meta.NameI18n != nil {
+		meta.NameI18n = maps.Clone(meta.NameI18n)
+	}
+	if meta.KeyHint != nil {
+		meta.KeyHint = maps.Clone(meta.KeyHint)
+	}
 	meta.UsageSchema = CloneUsageSchema(meta.UsageSchema)
 	meta.UsageExamples = CloneUsageExamples(meta.UsageExamples)
 	meta.UsageProfiles = append([]UsageProfile(nil), meta.UsageProfiles...)
@@ -907,6 +1247,12 @@ func cloneMeta(meta Meta) Meta {
 		profile.Models = append([]string(nil), profile.Models...)
 		profile.Schema = CloneUsageSchema(profile.Schema)
 		profile.Examples = CloneUsageExamples(profile.Examples)
+	}
+	meta.Relay = cloneRelayRoutes(meta.Relay)
+	meta.transformHooks = slices.Clone(meta.transformHooks)
+	meta.Samples = slices.Clone(meta.Samples)
+	for index := range meta.Samples {
+		meta.Samples[index].Name = maps.Clone(meta.Samples[index].Name)
 	}
 	return meta
 }
@@ -1028,7 +1374,7 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	for field := range object {
 		switch field {
-		case "requiredCapabilities", "submitResponseTypes", "sortPriority", "website", "apiVersion", "key", "name", "icon", "description", "version", "author", "baseUrl", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "upstreams", "routes", "protocols", "usageSchema", "usageExamples", "usageProfiles", "auth", "endpoints", "submitPaths", "actions":
+		case "requiredCapabilities", "submitResponseTypes", "sortPriority", "website", "apiVersion", "key", "name", "icon", "description", "version", "author", "baseUrl", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "upstreams", "routes", "protocols", "usageSchema", "usageExamples", "usageProfiles", "auth", "endpoints", "submitPaths", "actions", "relay", "configSchema", "optional", "samples", "channelConfig", "keyHint":
 		default:
 			return Meta{}, &UnknownMetaFieldError{Field: field}
 		}
@@ -1042,7 +1388,12 @@ func decodeMeta(value any) (Meta, error) {
 	if meta.Key, err = stringMetaField(object, "key"); err != nil {
 		return Meta{}, err
 	}
-	if meta.Name, err = stringMetaField(object, "name"); err != nil {
+	if _, localized := object["name"].(map[string]any); localized {
+		if meta.NameI18n, err = localizedTextMetaField(object, "name", maxMetaNameRunes); err != nil {
+			return Meta{}, err
+		}
+		meta.Name = meta.NameI18n["en"]
+	} else if meta.Name, err = stringMetaField(object, "name"); err != nil {
 		return Meta{}, err
 	}
 	if meta.Icon, err = stringMetaField(object, "icon"); err != nil {
@@ -1056,6 +1407,9 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	meta.Icon = strings.TrimSpace(meta.Icon)
 	if meta.Description, err = localizedTextMetaField(object, "description", maxMetaDescriptionRunes); err != nil {
+		return Meta{}, err
+	}
+	if meta.KeyHint, err = localizedTextMetaField(object, "keyHint", maxMetaKeyHintRunes); err != nil {
 		return Meta{}, err
 	}
 	if meta.Version, err = stringMetaField(object, "version"); err != nil {
@@ -1160,6 +1514,17 @@ func decodeMeta(value any) (Meta, error) {
 	for _, removedField := range []string{"submitPaths", "actions"} {
 		if _, exists := object[removedField]; exists {
 			return Meta{}, fmt.Errorf("plugin meta %s is no longer supported; declare routes instead", removedField)
+		}
+	}
+	if relay, exists := object["relay"]; exists {
+		meta.Relay, err = decodeRelayRoutes(relay)
+		if err != nil {
+			return Meta{}, err
+		}
+	}
+	if value, exists := object["optional"]; exists {
+		if meta.Optional, ok = value.(bool); !ok {
+			return Meta{}, fmt.Errorf("plugin meta optional must be a boolean")
 		}
 	}
 	switch auth := object["auth"].(type) {
@@ -1275,6 +1640,11 @@ func normalizeV1Meta(meta *Meta) error {
 			}
 		}
 	}
+	if meta.NameI18n != nil {
+		if err := validateLocalizedText(meta.NameI18n, "name", maxMetaNameRunes); err != nil {
+			return err
+		}
+	}
 	if err := validateLocalizedText(meta.Description, "description", maxMetaDescriptionRunes); err != nil {
 		return err
 	}
@@ -1314,11 +1684,13 @@ func normalizeV1Meta(meta *Meta) error {
 	if !pluginVersionPattern.MatchString(meta.Version) {
 		return fmt.Errorf("plugin meta version must be semver")
 	}
-	if meta.FetchMode != "per_task" && meta.FetchMode != "batch" {
-		return fmt.Errorf("plugin meta fetchMode must be per_task or batch")
-	}
-	if len(meta.Models) == 0 {
-		return fmt.Errorf("plugin meta models must contain at least one model")
+	if meta.HasTaskPart() {
+		if meta.FetchMode != "per_task" && meta.FetchMode != "batch" {
+			return fmt.Errorf("plugin meta fetchMode must be per_task or batch")
+		}
+		if len(meta.Models) == 0 {
+			return fmt.Errorf("plugin meta models must contain at least one model")
+		}
 	}
 	seenChannelTypes := make(map[int]struct{}, len(meta.ChannelTypes))
 	for _, channelType := range meta.ChannelTypes {
@@ -1467,7 +1839,104 @@ func normalizeV1Meta(meta *Meta) error {
 			return fmt.Errorf("plugin meta usageProfiles[%d]: %w", index, err)
 		}
 	}
+	return validateRelayRoutes(meta.Relay, meta.ChannelConfig)
+}
+
+// relayErrorNames renames Advanced Custom validation errors for manifests.
+var relayErrorNames = strings.NewReplacer("advanced_custom.advanced_routes", "plugin meta relay", "advanced_routes[", "relay[")
+
+var relayRouteFields = []string{"incoming_path", "upstream_path", "converter", "models", "auth", "pass_through_body_enabled"}
+
+// decodeRelayRoutes reads meta.relay. Each route has exactly the keys of an
+// Advanced Custom route.
+func decodeRelayRoutes(value any) ([]dto.AdvancedCustomRoute, error) {
+	items, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("plugin meta relay must be an array")
+	}
+	routes := make([]dto.AdvancedCustomRoute, len(items))
+	for index, item := range items {
+		object, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("plugin meta relay[%d] must be an object", index)
+		}
+		for field, fieldValue := range object {
+			if !slices.Contains(relayRouteFields, field) {
+				return nil, fmt.Errorf("plugin meta relay[%d] has unknown field %q", index, field)
+			}
+			if field != "auth" || fieldValue == nil {
+				continue
+			}
+			auth, isObject := fieldValue.(map[string]any)
+			if !isObject {
+				return nil, fmt.Errorf("plugin meta relay[%d].auth must be an object", index)
+			}
+			for authField := range auth {
+				if authField != "type" && authField != "name" && authField != "value" {
+					return nil, fmt.Errorf("plugin meta relay[%d].auth has unknown field %q", index, authField)
+				}
+			}
+		}
+		encoded, err := common.Marshal(object)
+		if err != nil {
+			return nil, fmt.Errorf("plugin meta relay[%d]: %w", index, err)
+		}
+		if err = common.Unmarshal(encoded, &routes[index]); err != nil {
+			return nil, fmt.Errorf("plugin meta relay[%d] has a member of the wrong type: %w", index, err)
+		}
+	}
+	return routes, nil
+}
+
+// validateRelayRoutes applies the Advanced Custom route rules to meta.relay.
+// A plugin-converter route is checked as a native route of its client
+// endpoint, which must be one the plugin can convert, and a chained one as a
+// route of its registered converter. An upstream_path that
+// starts with {config.<name>} must name a url property of channelConfig and go
+// on with nothing or a path; it is checked as a full URL.
+func validateRelayRoutes(routes []dto.AdvancedCustomRoute, channelConfig *ConfigSchema) error {
+	if len(routes) == 0 {
+		return nil
+	}
+	config := dto.AdvancedCustomConfig{Routes: make([]dto.AdvancedCustomRoute, len(routes))}
+	for index, route := range routes {
+		if name, rest, ok := configAddressPath(route.UpstreamPath); ok || strings.HasPrefix(strings.TrimSpace(route.UpstreamPath), configAddressPrefix) {
+			if !ok || !channelConfig.hasAddress(name) || (rest != "" && !strings.HasPrefix(rest, "/")) {
+				return fmt.Errorf("plugin meta relay[%d].upstream_path must start with {config.<name>} naming a format url property of meta.channelConfig, followed by nothing or a path", index)
+			}
+			route.UpstreamPath = "https://config.invalid" + rest
+		}
+		if converter, hooks := SplitProviderConverter(route.Converter); hooks {
+			if !providerConverterPath(route) {
+				return fmt.Errorf("plugin meta relay[%d].converter %q does not support incoming_path %s", index, strings.TrimSpace(route.Converter), route.IncomingPath)
+			}
+			if route.PassThroughBodyEnabled {
+				return fmt.Errorf("plugin meta relay[%d].pass_through_body_enabled requires converter none: %s", index, strings.TrimSpace(route.Converter))
+			}
+			if strings.TrimSpace(route.Converter) != ProviderConverter && (converter == "" || converter == "none" || converter == ProviderConverter) {
+				return fmt.Errorf("plugin meta relay[%d].converter %q must chain a registered converter other than none", index, strings.TrimSpace(route.Converter))
+			}
+			route.Converter = converter
+		}
+		config.Routes[index] = route
+	}
+	if err := config.Validate(); err != nil {
+		return errors.New(relayErrorNames.Replace(err.Error()))
+	}
 	return nil
+}
+
+// providerConverterPath reports whether the convert hooks can serve the client
+// endpoint of route: every relayed one but realtime, which is a WebSocket
+// session, and the model list, whose reply convertResponse converts. The
+// balance path is a channel management request with no hook.
+func providerConverterPath(route dto.AdvancedCustomRoute) bool {
+	if strings.TrimSpace(route.IncomingPath) == dto.AdvancedCustomBalancePath {
+		return false
+	}
+	config := dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{route}}
+	_, realtime := config.MatchPath("/v1/realtime")
+	return !realtime
 }
 
 func validateUsageSchema(schema map[string]UsageFieldSchema) error {
@@ -2054,6 +2523,12 @@ func localizedTextMetaField(object map[string]any, name string, maxRunes int) (L
 	if !exists {
 		return nil, nil
 	}
+	return decodeLocalizedText(value, "plugin meta "+name, maxRunes)
+}
+
+// decodeLocalizedText reads a string or locale object as LocalizedText;
+// subject names it in errors.
+func decodeLocalizedText(value any, subject string, maxRunes int) (LocalizedText, error) {
 	var text LocalizedText
 	switch typed := value.(type) {
 	case string:
@@ -2063,51 +2538,55 @@ func localizedTextMetaField(object map[string]any, name string, maxRunes int) (L
 		for locale, raw := range typed {
 			item, ok := raw.(string)
 			if !ok {
-				return nil, fmt.Errorf("plugin meta %s locale %q must be a string", name, locale)
+				return nil, fmt.Errorf("%s locale %q must be a string", subject, locale)
 			}
 			text[locale] = item
 		}
 	default:
-		return nil, fmt.Errorf("plugin meta %s must be a string or object", name)
+		return nil, fmt.Errorf("%s must be a string or object", subject)
 	}
-	if err := validateLocalizedText(text, name, maxRunes); err != nil {
+	if err := validateLocalizedTextNamed(text, subject, maxRunes); err != nil {
 		return nil, err
 	}
 	return text, nil
 }
 
 func validateLocalizedText(text LocalizedText, name string, maxRunes int) error {
+	return validateLocalizedTextNamed(text, "plugin meta "+name, maxRunes)
+}
+
+func validateLocalizedTextNamed(text LocalizedText, subject string, maxRunes int) error {
 	if text == nil {
 		return nil
 	}
 	if len(text) > maxLocalizedTextLocales {
-		return fmt.Errorf("plugin meta %s must not exceed %d locales", name, maxLocalizedTextLocales)
+		return fmt.Errorf("%s must not exceed %d locales", subject, maxLocalizedTextLocales)
 	}
 	canonical := make(map[string]string, len(text))
 	for locale, value := range text {
 		if !localeTagPattern.MatchString(locale) {
-			return fmt.Errorf("plugin meta %s has invalid locale %q", name, locale)
+			return fmt.Errorf("%s has invalid locale %q", subject, locale)
 		}
 		canonicalLocale := canonicalLocaleTag(locale)
 		if _, duplicate := canonical[canonicalLocale]; duplicate {
-			return fmt.Errorf("plugin meta %s has duplicate locale %q", name, canonicalLocale)
+			return fmt.Errorf("%s has duplicate locale %q", subject, canonicalLocale)
 		}
 		trimmed := strings.TrimSpace(value)
 		if trimmed == "" {
-			return fmt.Errorf("plugin meta %s value for %q must be a non-empty string", name, locale)
+			return fmt.Errorf("%s value for %q must be a non-empty string", subject, locale)
 		}
 		for _, character := range trimmed {
 			if unicode.IsControl(character) {
-				return fmt.Errorf("plugin meta %s value for %q must not contain control characters", name, locale)
+				return fmt.Errorf("%s value for %q must not contain control characters", subject, locale)
 			}
 		}
 		if utf8.RuneCountInString(trimmed) > maxRunes {
-			return fmt.Errorf("plugin meta %s must not exceed %d characters", name, maxRunes)
+			return fmt.Errorf("%s must not exceed %d characters", subject, maxRunes)
 		}
 		canonical[canonicalLocale] = trimmed
 	}
 	if strings.TrimSpace(canonical["en"]) == "" {
-		return fmt.Errorf("plugin meta %s must include a non-empty \"en\" value", name)
+		return fmt.Errorf("%s must include a non-empty \"en\" value", subject)
 	}
 	for locale := range text {
 		delete(text, locale)

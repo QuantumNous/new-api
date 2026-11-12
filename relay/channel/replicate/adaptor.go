@@ -64,6 +64,18 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
+// OutboundImageCount reads the image count of an image request body:
+// Replicate generates input.num_outputs images.
+func (a *Adaptor) OutboundImageCount(body []byte) (*uint, error) {
+	var request struct {
+		Input struct {
+			NumOutputs *uint `json:"num_outputs"`
+		} `json:"input"`
+	}
+	err := common.Unmarshal(body, &request)
+	return request.Input.NumOutputs, err
+}
+
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if info == nil {
 		return nil, errors.New("replicate adaptor: relay info is nil")

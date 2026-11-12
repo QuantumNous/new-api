@@ -64,7 +64,7 @@ const chinese = english
   .replace('Configure resolution prices.', '配置分辨率价格。')
 const clients: QueryClient[] = []
 
-function renderPanel() {
+function renderPanel(target = plugin) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -73,7 +73,7 @@ function renderPanel() {
     <QueryClientProvider client={client}>
       <PluginChangelogPanel
         indexUrl='https://example.com/index.json'
-        plugin={plugin}
+        plugin={target}
         version='1.2.0'
       />
     </QueryClientProvider>
@@ -143,7 +143,7 @@ test('changing language chooses Chinese when declared and otherwise displays Eng
   expect(screen.queryByText('配置分辨率价格。')).not.toBeInTheDocument()
 })
 
-test('a release without a changelog shows the shared empty state', async () => {
+test('a release whose changelog returns 404 shows the empty state without a retry', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => new Response(null, { status: 404 }))
@@ -155,7 +155,66 @@ test('a release without a changelog shows the shared empty state', async () => {
   expect(
     screen.queryByRole('link', { name: 'View changelog source' })
   ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Retry' })
+  ).not.toBeInTheDocument()
 })
+
+test('a community file without a listed changelog shows the empty state and downloads nothing', async () => {
+  const fetchMock = vi.fn()
+  vi.stubGlobal('fetch', fetchMock)
+  renderPanel({
+    ...plugin,
+    versions: [{ version: '1.2.0', path: `files/${'a'.repeat(64)}` }],
+  })
+  expect(
+    await screen.findByText('No changelog for this version.')
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Retry' })
+  ).not.toBeInTheDocument()
+  expect(fetchMock).not.toHaveBeenCalled()
+})
+
+test.each([
+  [
+    'the page the index lists',
+    {
+      path: 'files/changelog',
+      sourceUrl: 'https://github.com/alice/demo/blob/abc/CHANGELOG.md',
+    },
+    'https://github.com/alice/demo/blob/abc/CHANGELOG.md',
+  ],
+  [
+    'the downloaded file',
+    undefined,
+    'https://example.com/plugins/tasks/demo/1.2.0/CHANGELOG.md',
+  ],
+])(
+  'a broken changelog names the file, line and rule, links to %s and offers no retry',
+  async (_label, changelog, href) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(english.replace('### Fixed', '### Fixes')))
+    )
+    renderPanel({
+      ...plugin,
+      versions: [{ ...plugin.versions[0], changelog }],
+    })
+    expect(
+      await screen.findByText('Could not show the changelog')
+    ).toBeVisible()
+    expect(
+      screen.getByText('CHANGELOG.md line 13: Unknown category heading')
+    ).toBeVisible()
+    expect(
+      screen.getByRole('link', { name: 'View changelog source' })
+    ).toHaveAttribute('href', href)
+    expect(
+      screen.queryByRole('button', { name: 'Retry' })
+    ).not.toBeInTheDocument()
+  }
+)
 
 test('a failed download can be retried from the shared error state', async () => {
   const user = userEvent.setup()

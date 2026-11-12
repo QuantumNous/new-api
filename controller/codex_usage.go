@@ -132,7 +132,9 @@ func fetchCodexChannelWhamData(
 
 			encoded, encErr := common.Marshal(oauthKey)
 			if encErr == nil {
-				_ = model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("key", string(encoded)).Error
+				if model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("key", string(encoded)).Error == nil {
+					model.BumpSyncTopic(model.SyncTopicChannels)
+				}
 				model.InitChannelCache()
 			}
 

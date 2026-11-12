@@ -36,6 +36,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
+import type { RequestPluginInstance } from '@/features/task-plugins/types'
 import { api } from '@/lib/api'
 import { createAppQueryClient } from '@/lib/query-client'
 import { ROLE } from '@/lib/roles'
@@ -56,6 +57,7 @@ const originalAuth = useAuthStore.getState().auth
 let client: QueryClient
 let editingChannel: Channel
 let pluginOptions: TaskPluginOption[]
+let requestPluginInstances: RequestPluginInstance[]
 const plugins: TaskPluginOption[] = [
   {
     key: 'video-a',
@@ -132,6 +134,7 @@ function ConfigurationHarness(props: {
 
 beforeEach(() => {
   pluginOptions = plugins
+  requestPluginInstances = []
   editingChannel = channelSchema.parse({
     id: 42,
     name: 'Existing channel',
@@ -164,6 +167,11 @@ beforeEach(() => {
     }
     if (url === '/api/task_plugin_options') {
       return { data: { success: true, data: pluginOptions } }
+    }
+    if (url === '/api/request_plugin/instances') {
+      return {
+        data: { success: true, data: { instances: requestPluginInstances } },
+      }
     }
     if (url === '/api/channel/models') {
       return { data: { success: true, data: [{ id: 'custom-model' }] } }
@@ -643,6 +651,27 @@ test('plugin loading failure can be retried while built-in providers remain sele
   expect(screen.getByRole('option', { name: /^OpenAI / })).toBeVisible()
   await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
   expect(await screen.findByRole('option', { name: /Video A/ })).toBeVisible()
+})
+
+test('a plugin that only processes requests is not offered as a channel provider', async () => {
+  pluginOptions = [
+    ...plugins,
+    {
+      key: 'request-filter',
+      name: 'Request filter',
+      icon: 'text:RF',
+      models: [],
+      task: false,
+      provider: false,
+      transform: true,
+    },
+  ]
+  render(<ConfigurationHarness />)
+
+  expect(await screen.findByRole('option', { name: /Video A/ })).toBeVisible()
+  expect(
+    screen.queryByRole('option', { name: /Request filter/ })
+  ).not.toBeInTheDocument()
 })
 
 test('creating a migrated provider uses its plugin binding instead of the legacy type', async () => {
@@ -1566,6 +1595,76 @@ test('restoring routing defaults clears the configured indicator for both the bl
   })
   expect(tab).toHaveAccessibleName(/Configured/)
   expect(within(block).getByRole('img', { name: 'Configured' })).toBeVisible()
+})
+
+test('channel request processing plugins save in their order and a deleted instance stays removable', async () => {
+  const instance = (id: string, name: string): RequestPluginInstance => ({
+    id,
+    name,
+    plugin: 'request-filter',
+    enabled: true,
+    global: false,
+    groups: [],
+    models: [],
+    config: {},
+  })
+  requestPluginInstances = [
+    instance('rp_aaaa1111', 'Block secrets'),
+    instance('rp_bbbb2222', 'VIP filter'),
+  ]
+  editingChannel = {
+    ...editingChannel,
+    setting: JSON.stringify({
+      request_plugins: ['rp_gone0000', 'rp_aaaa1111'],
+    }),
+  }
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+
+  expect(
+    screen.getByText(
+      'Rules for all channels are set on the Request processing page'
+    )
+  ).toBeVisible()
+  expect(screen.queryByRole('link', { name: /Request processing/ })).toBeNull()
+  const field = screen.getByRole('group', {
+    name: 'Request processing plugins',
+  })
+  expect(await within(field).findByText('Deleted')).toBeVisible()
+  const items = within(field).getAllByRole('listitem')
+  expect(items[0]).toHaveTextContent('rp_gone0000')
+  expect(items[0]).toHaveTextContent('Deleted')
+  expect(items[1]).toHaveTextContent('Block secrets')
+  expect(
+    within(screen.getByRole('group', { name: 'Override Rules' })).getByRole(
+      'img',
+      { name: 'Configured' }
+    )
+  ).toBeVisible()
+
+  await user.click(
+    within(field).getByRole('button', { name: 'Remove rp_gone0000' })
+  )
+  await user.click(
+    within(field).getByRole('combobox', { name: 'Add an instance' })
+  )
+  await user.click(await screen.findByRole('option', { name: /VIP filter/ }))
+  await user.click(
+    within(field).getByRole('button', { name: 'Move VIP filter up' })
+  )
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { setting: string }
+  expect(JSON.parse(payload.setting).request_plugins).toEqual([
+    'rp_bbbb2222',
+    'rp_aaaa1111',
+  ])
 })
 
 test('request processing configuration does not mark the network category as configured', async () => {
@@ -3114,3 +3213,527 @@ test('AWS interface selection is disabled without sensitive channel write permis
     await screen.findByRole('combobox', { name: 'AWS API' })
   ).toBeDisabled()
 })
+
+const loginPlugin: TaskPluginOption = {
+  key: 'acct',
+  name: 'Account Plugin',
+  icon: 'text:AP',
+  baseUrl: 'https://acct.example',
+  models: ['acct-model'],
+  task: false,
+  provider: true,
+  login: true,
+  refresh: true,
+}
+
+const redirectStart = {
+  data: {
+    success: true,
+    data: {
+      flow: 'flow-1',
+      step: { type: 'redirect', url: 'https://vendor.example/authorize' },
+    },
+  },
+}
+
+test('a login plugin saves without a key, then logs in on the new channel', async () => {
+  pluginOptions = [...plugins, loginPlugin]
+  const post = vi.spyOn(api, 'post').mockImplementation(async (url) => {
+    if (url === '/api/channel') {
+      return { data: { success: true, message: '', data: { ids: [77] } } }
+    }
+    if (url === '/api/channel/77/plugin_login') return redirectStart
+    throw new Error(`Unexpected POST ${url}`)
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  // A key and batch mode left over from another provider must not be sent.
+  await user.click(await screen.findByRole('option', { name: /Video A/ }))
+  await user.click(screen.getByRole('combobox', { name: 'Add Mode' }))
+  await user.click(
+    screen.getByRole('option', { name: 'Batch Add (one key per line)' })
+  )
+  fireEvent.change(screen.getByLabelText('API Key *'), {
+    target: { value: 'left-over' },
+  })
+  await user.click(screen.getByRole('button', { name: 'Change provider' }))
+  await user.click(
+    screen.getByRole('option', { name: /^Account Plugin Plugin/ })
+  )
+
+  expect(screen.queryByLabelText('API Key *')).not.toBeInTheDocument()
+  expect(
+    screen.getByText(
+      'This channel signs in with a provider account. Save the channel, then log in.'
+    )
+  ).toBeVisible()
+  const addMode = screen.getByRole('combobox', { name: 'Add Mode' })
+  expect(addMode).toHaveTextContent('Single Key')
+  await user.click(addMode)
+  expect(
+    screen.queryByRole('option', { name: 'Batch Add (one key per line)' })
+  ).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('option', {
+      name: 'Multi-Key Mode (multiple keys, one channel)',
+    })
+  ).toBeVisible()
+  await user.keyboard('{Escape}')
+
+  await user.click(screen.getByRole('button', { name: 'Save and log in' }))
+  const dialog = await screen.findByRole('dialog', {
+    name: 'Log in to Account Plugin',
+  })
+  expect(post).toHaveBeenNthCalledWith(
+    1,
+    '/api/channel',
+    expect.objectContaining({
+      mode: 'single',
+      channel: expect.objectContaining({ type: 61, key: null }),
+    }),
+    expect.anything()
+  )
+  const payload = post.mock.calls[0]?.[1] as { channel: { setting: string } }
+  expect(JSON.parse(payload.channel.setting).task_plugin_key).toBe('acct')
+  expect(
+    await within(dialog).findByRole('link', { name: 'Open sign-in page' })
+  ).toBeVisible()
+  expect(post).toHaveBeenNthCalledWith(
+    2,
+    '/api/channel/77/plugin_login',
+    { key_index: null },
+    expect.anything()
+  )
+  expect(
+    screen.queryByRole('button', { name: 'Save and log in' })
+  ).not.toBeInTheDocument()
+  await waitFor(() =>
+    expect(dialog.contains(document.activeElement)).toBe(true)
+  )
+})
+
+test('editing a login plugin channel lists its credentials and logs in again on one line', async () => {
+  pluginOptions = [...plugins, loginPlugin]
+  editingChannel = {
+    ...editingChannel,
+    type: 61,
+    setting: '{"task_plugin_key":"acct"}',
+  }
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/channel/42/plugin_credentials') {
+      return {
+        data: {
+          success: true,
+          data: {
+            items: [
+              {
+                index: 0,
+                label: 'user@example.com',
+                account_id: 'acct_1',
+                expires_at: 1_900_000_000,
+                needs_login: true,
+              },
+            ],
+          },
+        },
+      }
+    }
+    return originalGet?.(url, config)
+  })
+  const post = vi.spyOn(api, 'post').mockResolvedValue(redirectStart)
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+
+  expect(await screen.findByText('user@example.com')).toBeVisible()
+  expect(screen.getByText('Needs login')).toBeVisible()
+  expect(screen.getByText(/^Account ID: acct_1/)).toBeVisible()
+  expect(screen.queryByLabelText('API Key *')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Switch account' })).toBeVisible()
+
+  await user.click(screen.getByRole('button', { name: 'Log in again' }))
+  expect(
+    await screen.findByRole('dialog', {
+      name: 'Log in again to Account Plugin',
+    })
+  ).toBeVisible()
+  expect(post).toHaveBeenCalledWith(
+    '/api/channel/42/plugin_login',
+    { key_index: 0 },
+    expect.anything()
+  )
+})
+
+const firstAccount = {
+  index: 0,
+  label: 'first@example.com',
+  account_id: 'acct_1',
+}
+const secondAccount = {
+  index: 1,
+  label: 'second@example.com',
+  account_id: 'acct_2',
+}
+
+/** Serves the channel's credential list as it is when the panel asks. */
+function servePluginCredentials(items: () => (typeof firstAccount)[]) {
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/channel/42/plugin_credentials') {
+      return { data: { success: true, data: { items: items() } } }
+    }
+    return originalGet?.(url, config)
+  })
+}
+
+test('adding an account to a single-key login channel shows it as a multi-key channel', async () => {
+  pluginOptions = [...plugins, loginPlugin]
+  editingChannel = {
+    ...editingChannel,
+    type: 61,
+    setting: '{"task_plugin_key":"acct"}',
+  }
+  let credentials = [firstAccount]
+  servePluginCredentials(() => credentials)
+  const post = vi.spyOn(api, 'post').mockImplementation(async (url) => {
+    if (url !== '/api/channel/42/plugin_login') {
+      throw new Error(`Unexpected POST ${url}`)
+    }
+    // The server keeps the first account and turns the channel multi-key.
+    credentials = [firstAccount, secondAccount]
+    editingChannel = {
+      ...editingChannel,
+      channel_info: {
+        ...editingChannel.channel_info,
+        is_multi_key: true,
+        multi_key_size: 2,
+        multi_key_mode: 'random',
+      },
+    }
+    return {
+      data: {
+        success: true,
+        data: {
+          flow: 'flow-1',
+          step: { type: 'done', credential: secondAccount },
+        },
+      },
+    }
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  expect(await screen.findByText('first@example.com')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Switch account' })).toBeVisible()
+  expect(
+    screen.queryByRole('combobox', { name: 'Multi-Key Strategy' })
+  ).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Add account' }))
+  const dialog = await screen.findByRole('dialog', {
+    name: 'Log in to Account Plugin',
+  })
+  expect(await within(dialog).findByText('Logged in')).toBeVisible()
+  expect(post).toHaveBeenCalledWith(
+    '/api/channel/42/plugin_login',
+    { add: true },
+    expect.anything()
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Done' }))
+
+  await waitFor(() =>
+    expect(
+      screen.getAllByRole('button', { name: 'Log in again' })
+    ).toHaveLength(2)
+  )
+  expect(screen.getByText('second@example.com')).toBeVisible()
+  expect(
+    screen.getByRole('combobox', { name: 'Multi-Key Strategy' })
+  ).toHaveTextContent('Random')
+  expect(
+    screen.queryByRole('button', { name: 'Switch account' })
+  ).not.toBeInTheDocument()
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Add account' })).toHaveFocus()
+  )
+})
+
+test.each([
+  {
+    channel: 'a multi-key channel',
+    multiKey: true,
+    items: [firstAccount, secondAccount],
+    action: 'Add account',
+  },
+  {
+    channel: 'a channel without a credential',
+    multiKey: false,
+    items: [],
+    action: 'Log in',
+  },
+])('$channel offers only $action and logs in a new credential', async (row) => {
+  pluginOptions = [...plugins, loginPlugin]
+  editingChannel = {
+    ...editingChannel,
+    type: 61,
+    setting: '{"task_plugin_key":"acct"}',
+    channel_info: {
+      ...editingChannel.channel_info,
+      is_multi_key: row.multiKey,
+      multi_key_size: row.items.length,
+    },
+  }
+  servePluginCredentials(() => row.items)
+  const post = vi.spyOn(api, 'post').mockResolvedValue(redirectStart)
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+
+  const action = await screen.findByRole('button', { name: row.action })
+  await waitFor(() => expect(action).toBeEnabled())
+  for (const other of ['Log in', 'Switch account', 'Add account']) {
+    if (other === row.action) continue
+    expect(
+      screen.queryByRole('button', { name: other })
+    ).not.toBeInTheDocument()
+  }
+  await user.click(action)
+  expect(
+    await screen.findByRole('dialog', { name: 'Log in to Account Plugin' })
+  ).toBeVisible()
+  expect(post).toHaveBeenCalledWith(
+    '/api/channel/42/plugin_login',
+    { key_index: null },
+    expect.anything()
+  )
+})
+
+test('a login plugin picked while editing waits for the save before logging in', async () => {
+  pluginOptions = [...plugins, loginPlugin]
+  editingChannel = {
+    ...editingChannel,
+    type: 61,
+    setting: '{"task_plugin_key":"video-a"}',
+  }
+  const post = vi.spyOn(api, 'post')
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  const providerControl = await screen.findByRole('button', {
+    name: 'Change provider',
+  })
+  await user.click(await within(providerControl).findByText('Video A'))
+  await user.click(
+    screen.getByRole('option', { name: /^Account Plugin Plugin/ })
+  )
+  expect(
+    screen.getByText(
+      'This channel signs in with a provider account. Save the channel, then log in.'
+    )
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Log in' })
+  ).not.toBeInTheDocument()
+  expect(post).not.toHaveBeenCalled()
+})
+
+test('a task-only plugin that exports login logs in instead of taking a key', async () => {
+  pluginOptions = [...plugins, { ...loginPlugin, task: true, provider: false }]
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(
+    await screen.findByRole('option', { name: /^Account Plugin Plugin/ })
+  )
+
+  expect(screen.queryByLabelText('API Key *')).not.toBeInTheDocument()
+  expect(
+    screen.getByText(
+      'This channel signs in with a provider account. Save the channel, then log in.'
+    )
+  ).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Save and log in' })).toBeVisible()
+})
+
+test('a provider plugin without login keeps the API key input', async () => {
+  pluginOptions = [...plugins, { ...loginPlugin, login: false }]
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(
+    await screen.findByRole('option', { name: /^Account Plugin Plugin/ })
+  )
+
+  expect(screen.getByLabelText('API Key *')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Create Channel' })).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Save and log in' })
+  ).not.toBeInTheDocument()
+})
+
+test('a provider plugin channel fetches its models through the plugin', async () => {
+  pluginOptions = [...plugins, { ...loginPlugin, login: false }]
+  const post = vi
+    .spyOn(api, 'post')
+    .mockResolvedValue({ data: { success: true, data: ['acct-upstream'] } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(
+    await screen.findByRole('option', { name: /^Account Plugin Plugin/ })
+  )
+  fireEvent.change(screen.getByLabelText('API Key *'), {
+    target: { value: 'sk-draft' },
+  })
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+
+  expect(
+    await screen.findByRole('checkbox', { name: 'acct-upstream' })
+  ).toBeVisible()
+  expect(post).toHaveBeenCalledWith(
+    '/api/channel/fetch_models',
+    expect.objectContaining({
+      type: 61,
+      task_plugin_key: 'acct',
+      key: 'sk-draft',
+    }),
+    expect.anything()
+  )
+})
+
+test('a login plugin channel fetches models once it is saved', async () => {
+  pluginOptions = [...plugins, loginPlugin]
+  const user = userEvent.setup()
+  const view = render(<ConfigurationHarness />)
+  await user.click(
+    await screen.findByRole('option', { name: /^Account Plugin Plugin/ })
+  )
+  expect(
+    screen.queryByRole('button', { name: 'Fetch from Upstream' })
+  ).not.toBeInTheDocument()
+  view.unmount()
+
+  editingChannel = {
+    ...editingChannel,
+    type: 61,
+    setting: '{"task_plugin_key":"acct"}',
+  }
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(
+    await screen.findByRole('button', { name: 'Fetch from Upstream' })
+  )
+  expect(
+    await screen.findByRole('checkbox', { name: 'upstream-model' })
+  ).toBeVisible()
+  expect(api.get).toHaveBeenCalledWith(
+    '/api/channel/fetch_models/42',
+    expect.anything()
+  )
+})
+
+test('a plugin channel edits the settings its plugin declares, shows its key format and saves only valid settings', async () => {
+  pluginOptions = [
+    ...plugins,
+    {
+      key: 'cloud-x',
+      name: 'Cloud X',
+      icon: 'text:CX',
+      baseUrl: 'https://cloud-x.example',
+      models: ['custom-model'],
+      keyHint: 'AccessKey|SecretKey|Region',
+      channelConfig: {
+        type: 'object',
+        properties: {
+          upload_url: {
+            type: 'string',
+            format: 'url',
+            title: 'Upload address',
+            default: 'https://upload.cloud-x.example',
+          },
+        },
+      },
+    },
+  ]
+  editingChannel = {
+    ...editingChannel,
+    type: 61,
+    setting: '{"task_plugin_key":"cloud-x"}',
+    settings: '{"plugin_config":{"upload_url":"https://saved-upload.example"}}',
+  }
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  const settings = await screen.findByRole('group', { name: 'Plugin settings' })
+  const address = within(settings).getByRole('textbox', {
+    name: 'Upload address',
+  })
+  expect(address).toHaveValue('https://saved-upload.example')
+  expect(screen.getByText('AccessKey|SecretKey|Region')).toBeVisible()
+
+  await user.clear(address)
+  await user.type(address, 'upload.example')
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  expect(
+    within(settings).getByText(
+      'Enter a full address starting with http:// or https://'
+    )
+  ).toBeVisible()
+  expect(put).not.toHaveBeenCalled()
+
+  await user.clear(address)
+  await user.type(address, 'https://eu-upload.example')
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { settings: string }
+  expect(JSON.parse(payload.settings).plugin_config).toEqual({
+    upload_url: 'https://eu-upload.example',
+  })
+})
+
+test.each([true, false])(
+  'a plugin channel offers field pass-through and Responses WebSocket only when its plugin relays them (%s)',
+  async (relays) => {
+    pluginOptions = [
+      ...plugins,
+      {
+        key: 'relay-x',
+        name: 'Relay X',
+        icon: 'text:RX',
+        baseUrl: 'https://relay-x.example',
+        models: ['custom-model'],
+        provider: relays,
+        responsesWebsocket: relays,
+      },
+    ]
+    editingChannel = {
+      ...editingChannel,
+      type: 61,
+      setting:
+        '{"task_plugin_key":"relay-x","responses_websocket_enabled":true}',
+      settings: '{"allow_service_tier":true}',
+    }
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await within(
+      await screen.findByRole('button', { name: 'Change provider' })
+    ).findByText('Relay X')
+    const requestTab = screen.getByRole('tab', { name: /Request & Response/ })
+    if (relays) {
+      expect(requestTab).toHaveAccessibleName(/Configured/)
+    } else {
+      expect(requestTab).not.toHaveAccessibleName(/Configured/)
+    }
+
+    await user.click(requestTab)
+    const websocket = screen.queryByRole('switch', {
+      name: 'Enable Responses WebSocket',
+    })
+    const passthrough = screen.queryByRole('group', {
+      name: 'Field passthrough controls',
+    })
+    if (relays) {
+      expect(websocket).toBeChecked()
+      expect(passthrough).toBeVisible()
+    } else {
+      expect(websocket).not.toBeInTheDocument()
+      expect(passthrough).not.toBeInTheDocument()
+    }
+  }
+)

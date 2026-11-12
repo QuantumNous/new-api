@@ -235,6 +235,7 @@ func initTaskArtifactAdaptor(task *model.Task) (relaychannel.TaskAdaptor, error)
 	adaptor.Init(&relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType:     channelModel.Type,
+			ChannelId:       channelModel.Id,
 			ChannelBaseUrl:  baseURL,
 			ApiKey:          pluginKey,
 			ChannelSetting:  channelModel.GetSetting(),

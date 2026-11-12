@@ -150,6 +150,13 @@ type TaskAdaptor struct {
 	// upstream finished it, or whose result the plugin could not read: the
 	// task then settles at the reserved quota.
 	keepReservation bool
+	// credential is the submission's plugin credential, nil for a static key.
+	credential *pluginruntime.Credential
+	// pollKey is the key line the last FetchTask or FetchBatchTasks sent; the
+	// parse hooks of its response receive the same line.
+	pollKey string
+	// bodySHA256 hashes the submit body for signRequest.
+	bodySHA256 string
 }
 
 func New(plugin *pluginruntime.LoadedPlugin) *TaskAdaptor { return &TaskAdaptor{plugin: plugin} }
@@ -187,9 +194,11 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		}
 	}
 	// On a native path several plugins declare, the channel may have bound a
-	// plugin other than the one that prepared the request; it decodes again.
+	// plugin other than the one that prepared the request; it decodes again,
+	// as after a request plugin changed the body.
+	refreshed := c.GetBool(pluginruntime.ContextKeyRequestRefreshed)
 	if pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
-		if pinned, ok := pinnedValue.(pluginruntime.PinnedRoute); ok && len(pinned.Candidates) > 1 && pinned.Plugin == a.plugin {
+		if pinned, ok := pinnedValue.(pluginruntime.PinnedRoute); ok && (len(pinned.Candidates) > 1 || refreshed) && pinned.Plugin == a.plugin {
 			if requestValue, present := c.Get(pluginruntime.ContextKeyRouteRequest); present {
 				if requestContext, valid := requestValue.(pluginruntime.RouteRequestContext); valid {
 					requestContext.Params = pluginruntime.RouteParams(c.Params, pinned.Route)
@@ -221,7 +230,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 			}
 		}
 	}
-	if _, exists := c.Get("task_request"); !exists {
+	if request, exists := c.Get("task_request"); !exists || refreshed && isBasicTaskRequest(request) {
 		if taskErr := relaycommon.ValidateBasicTaskRequest(c, info, "image_to_video"); taskErr != nil {
 			return taskErr
 		}
@@ -235,6 +244,12 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		return taskErr
 	}
 	return nil
+}
+
+// isBasicTaskRequest reports a task_request ValidateBasicTaskRequest stored.
+func isBasicTaskRequest(request any) bool {
+	_, basic := request.(relaycommon.TaskSubmitReq)
+	return basic
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
@@ -321,7 +336,16 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 	if a.submit == nil {
 		return "", fmt.Errorf("plugin submit request was not built")
 	}
-	return a.submit.URL, pluginruntime.ValidateRequestURL(a.submit.URL, info.ChannelBaseUrl, a.plugin.Meta.AllowedHosts)
+	requestURL := a.submit.URL
+	if a.credential != nil && len(a.credential.Query) > 0 {
+		target, err := url.Parse(requestURL)
+		if err != nil {
+			return "", err
+		}
+		applyTaskCredential(a.credential, target, http.Header{})
+		requestURL = target.String()
+	}
+	return requestURL, pluginruntime.ValidateRequestURL(requestURL, info.ChannelBaseUrl, a.plugin.Meta.AllowedHosts)
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
@@ -336,6 +360,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, _ *r
 	if a.submit.BodyType == "multipart" {
 		req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	}
+	applyTaskCredential(a.credential, &url.URL{}, req.Header)
 	return nil
 }
 
@@ -555,6 +580,24 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, bod
 	wasStream := info.IsStream
 	info.IsStream = false
 	defer func() { info.IsStream = wasStream }()
+	if info.ChannelType == constant.ChannelTypeTaskPlugin && a.plugin.HasProviderHook("signRequest") {
+		var raw []byte
+		if body != nil {
+			var err error
+			if raw, err = io.ReadAll(body); err != nil {
+				return nil, err
+			}
+			body = bytes.NewReader(raw)
+		}
+		a.bodySHA256 = bodySHA256(raw)
+	}
+	// A credential line is no API key, so {api_key} in header overrides is
+	// empty while the request is built.
+	if a.credential != nil {
+		line := info.ApiKey
+		info.ApiKey = ""
+		defer func() { info.ApiKey = line }()
+	}
 	// A native route relays an SSE reply to the client as it arrives, so the
 	// vendor's work and what the client receives no longer depend on the
 	// client staying: from here the submission ignores the client leaving,
@@ -786,6 +829,17 @@ func (a *TaskAdaptor) GetChannelName() string { return a.plugin.Meta.Name }
 func (a *TaskAdaptor) FetchMode() string      { return a.plugin.Meta.FetchMode }
 
 func (a *TaskAdaptor) FetchBatchTasks(baseURL, key string, tasks []*model.Task, proxy string) (*http.Response, error) {
+	// The host batches only tasks one credential account submitted, so the
+	// first task's account polls them all.
+	var first *model.Task
+	if len(tasks) > 0 {
+		first = tasks[0]
+	}
+	key, err := a.taskCredentialLine(context.Background(), key, first)
+	if err != nil {
+		return nil, err
+	}
+	a.pollKey = key
 	taskContexts := make([]map[string]any, 0, len(tasks))
 	for _, task := range tasks {
 		taskCtx, err := a.queryContext(task, key, baseURL, proxy)
@@ -809,6 +863,11 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy str
 	if task != nil && task.PrivateData.Key != "" {
 		key = task.PrivateData.Key
 	}
+	key, err := a.taskCredentialLine(context.Background(), key, task)
+	if err != nil {
+		return nil, err
+	}
+	a.pollKey = key
 	ctx, err := a.queryContext(task, key, baseURL, proxy)
 	if err != nil {
 		return nil, err
@@ -823,66 +882,32 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy str
 // hookFetcher sends a driver hook's utils.fetch requests to the hosts its
 // request descriptors may use, through the channel's proxy like poll requests.
 func (a *TaskAdaptor) hookFetcher(baseURL, proxy string) pluginruntime.Fetcher {
-	return func(ctx context.Context, request pluginruntime.FetchRequest) (pluginruntime.FetchResponse, error) {
-		if err := pluginruntime.ValidateRequestURL(request.URL, baseURL, a.plugin.Meta.AllowedHosts); err != nil {
-			return pluginruntime.FetchResponse{}, err
-		}
-		client, err := service.GetHttpClientWithProxySettings(proxy, a.channelSetting())
-		if err != nil {
-			return pluginruntime.FetchResponse{}, err
-		}
-		// A redirect reaches the plugin as it is; fetching its location is a
-		// new request, checked and counted again.
-		noRedirects := *client
-		noRedirects.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-		req, err := http.NewRequestWithContext(ctx, request.Method, request.URL, nil)
-		if err != nil {
-			return pluginruntime.FetchResponse{}, err
-		}
-		for name, value := range request.Headers {
-			req.Header.Set(name, value)
-		}
-		started := time.Now()
-		resp, err := noRedirects.Do(req)
-		if err != nil {
-			logger.LogDebug(ctx, "task_plugin subsystem=fetch event=failed plugin=%q hook=%q method=%q host=%q reason=transport_error elapsed_ms=%d",
-				a.plugin.Meta.Key, request.Hook, request.Method, req.URL.Host, time.Since(started).Milliseconds())
-			return pluginruntime.FetchResponse{}, err
-		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(io.LimitReader(resp.Body, pluginruntime.MaxFetchBodyBytes+1))
-		if err != nil {
-			return pluginruntime.FetchResponse{}, err
-		}
-		headers := make(map[string]string, len(resp.Header))
-		for name, values := range resp.Header {
-			if len(values) > 0 {
-				headers[name] = values[0]
-			}
-		}
-		logger.LogDebug(ctx, "task_plugin subsystem=fetch event=done plugin=%q hook=%q method=%q host=%q status=%d bytes=%d elapsed_ms=%d",
-			a.plugin.Meta.Key, request.Hook, request.Method, req.URL.Host, resp.StatusCode, len(body), time.Since(started).Milliseconds())
-		return pluginruntime.FetchResponse{Status: resp.StatusCode, Headers: headers, Body: body}, nil
-	}
+	return service.PluginFetcher(a.plugin, baseURL, proxy, a.channelSetting())
 }
 
 func (a *TaskAdaptor) doFetchDescriptor(baseURL, key, proxy string, descriptor requestDescriptor) (*http.Response, error) {
 	if err := pluginruntime.ValidateRequestURL(descriptor.URL, baseURL, a.plugin.Meta.AllowedHosts); err != nil {
 		return nil, err
 	}
+	credential, err := a.parseTaskCredential(a.channelType(), key)
+	if err != nil {
+		return nil, err
+	}
+	var body []byte
 	var requestBody io.Reader
 	if descriptor.Body != nil {
 		if bodyText, ok := descriptor.Body.(string); ok {
-			requestBody = strings.NewReader(bodyText)
+			body = []byte(bodyText)
 		} else if descriptor.BodyText != nil {
-			requestBody = bytes.NewReader(descriptor.BodyText)
+			body = descriptor.BodyText
 		} else {
 			encoded, marshalErr := common.Marshal(descriptor.Body)
 			if marshalErr != nil {
 				return nil, marshalErr
 			}
-			requestBody = bytes.NewReader(encoded)
+			body = encoded
 		}
+		requestBody = bytes.NewReader(body)
 	}
 	method := strings.ToUpper(strings.TrimSpace(descriptor.Method))
 	if method == "" {
@@ -895,7 +920,11 @@ func (a *TaskAdaptor) doFetchDescriptor(baseURL, key, proxy string, descriptor r
 	for name, value := range descriptor.Headers {
 		req.Header.Set(name, value)
 	}
-	if err := channel.ApplyHeaderOverride(a.headerOverrideInfo(key), nil, req); err != nil {
+	applyTaskCredential(credential, req.URL, req.Header)
+	if err := channel.ApplyHeaderOverride(a.headerOverrideInfo(overrideKey(key, credential)), nil, req); err != nil {
+		return nil, err
+	}
+	if err := a.signTaskRequest(context.Background(), a.channelType(), baseURL, key, credential, method, req.URL, req.Header, bodySHA256(body)); err != nil {
 		return nil, err
 	}
 	client, err := service.GetHttpClientWithProxySettings(proxy, a.channelSetting())
@@ -1279,7 +1308,11 @@ func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task,
 	hookContext["artifactKey"] = artifactKey
 	hookContext["baseUrl"] = a.info.ChannelBaseUrl
 	hookContext["clientRequest"] = jsonValue(clientRequest)
-	if err = a.applyUpstreamCredentials(hookContext, a.info.ChannelType, a.info.ApiKey, a.info.ChannelSetting.Proxy); err != nil {
+	key, err := a.taskCredentialLine(ctx, a.info.ApiKey, task)
+	if err != nil {
+		return nil, err
+	}
+	if err = a.applyUpstreamCredentials(hookContext, a.info.ChannelType, key, a.info.ChannelSetting.Proxy); err != nil {
 		return nil, err
 	}
 	fetchContext := pluginruntime.WithFetcher(ctx, a.hookFetcher(a.info.ChannelBaseUrl, a.info.ChannelSetting.Proxy))
@@ -1330,27 +1363,46 @@ func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task,
 	if len(descriptor.MimeType) > 255 || strings.ContainsAny(descriptor.MimeType, "\r\n") {
 		return nil, fmt.Errorf("plugin returned an invalid artifact mimeType")
 	}
+	requestURL := descriptor.URL
 	headers := descriptor.Headers
 	if !descriptor.Credentialless {
+		credential, credentialErr := a.parseTaskCredential(a.info.ChannelType, key)
+		if credentialErr != nil {
+			return nil, credentialErr
+		}
 		var overrides map[string]string
-		if overrides, err = channel.ResolveHeaderOverride(a.headerOverrideInfo(a.info.ApiKey), nil); err != nil {
+		if overrides, err = channel.ResolveHeaderOverride(a.headerOverrideInfo(overrideKey(key, credential)), nil); err != nil {
 			return nil, err
 		}
-		if len(overrides) > 0 {
-			headers = make(map[string]string, len(descriptor.Headers)+len(overrides))
+		signs := a.info.ChannelType == constant.ChannelTypeTaskPlugin && a.plugin.HasProviderHook("signRequest")
+		if len(overrides) > 0 || credential != nil || signs {
+			header := make(http.Header, len(descriptor.Headers)+len(overrides))
 			for name, value := range descriptor.Headers {
-				headers[http.CanonicalHeaderKey(strings.TrimSpace(name))] = value
+				header.Set(strings.TrimSpace(name), value)
 			}
+			target, parseErr := url.Parse(requestURL)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			applyTaskCredential(credential, target, header)
 			for name, value := range overrides {
 				// A content request keeps the host of its URL.
 				if name != "host" {
-					headers[http.CanonicalHeaderKey(name)] = value
+					header.Set(name, value)
 				}
+			}
+			if err = a.signTaskRequest(ctx, a.info.ChannelType, a.info.ChannelBaseUrl, key, credential, method, target, header, bodySHA256(body)); err != nil {
+				return nil, err
+			}
+			requestURL = target.String()
+			headers = make(map[string]string, len(header))
+			for name := range header {
+				headers[name] = header.Get(name)
 			}
 		}
 	}
 	return &channel.TaskContentRequest{
-		URL:            descriptor.URL,
+		URL:            requestURL,
 		Method:         method,
 		Headers:        headers,
 		Body:           body,
@@ -1453,11 +1505,18 @@ func (a *TaskAdaptor) batchQueryContext(key, baseURL, proxy string, tasks []map[
 	return ctx, nil
 }
 
+// queryCredentials returns what the parse hooks of a poll response receive:
+// the key line the poll sent, which on a channel with credentials is the
+// submitting account's line rather than the whole key.
 func (a *TaskAdaptor) queryCredentials() (key, baseURL, proxy string) {
 	if a.info == nil || !a.info.HasChannelMeta() {
 		return "", "", ""
 	}
-	return a.info.ApiKey, a.info.ChannelBaseUrl, a.info.ChannelSetting.Proxy
+	key = a.pollKey
+	if key == "" {
+		key = a.info.ApiKey
+	}
+	return key, a.info.ChannelBaseUrl, a.info.ChannelSetting.Proxy
 }
 
 // channelType is the executing channel's type when polling or content
@@ -1484,6 +1543,7 @@ func (a *TaskAdaptor) channelSetting() kitdto.ChannelSettings {
 // channel key is that gateway's token, so it is sent as a Bearer header for
 // every auth type instead of running the plugin's vendor auth scheme.
 func (a *TaskAdaptor) applyUpstreamCredentials(ctx map[string]any, channelType int, key, proxy string) error {
+	a.applyChannelContext(ctx, channelType)
 	if channelType == constant.ChannelTypeNewAPI {
 		ctx["upstream"] = map[string]any{"kind": pluginruntime.UpstreamKindNewAPI}
 		ctx["auth"] = map[string]any{"authHeader": "Bearer " + key}
@@ -1492,6 +1552,23 @@ func (a *TaskAdaptor) applyUpstreamCredentials(ctx map[string]any, channelType i
 		return nil
 	}
 	ctx["upstream"] = map[string]any{"kind": pluginruntime.UpstreamKindVendor}
+	credential, err := a.parseTaskCredential(channelType, key)
+	if err != nil {
+		return err
+	}
+	if credential != nil {
+		// A plugin credential replaces meta.auth; its data reaches the
+		// plugin's own hooks only.
+		authHeader := credentialAuthorization(credential)
+		ctx["auth"] = map[string]any{"authHeader": authHeader}
+		ctx["authHeader"] = authHeader
+		var data any
+		if len(credential.Data) > 0 {
+			data = pluginruntime.RawJSON(credential.Data)
+		}
+		ctx["credential"] = data
+		return nil
+	}
 	auth, err := resolveAuth(a.plugin.Meta.Auth, key, proxy)
 	if err != nil {
 		return err
@@ -1502,6 +1579,25 @@ func (a *TaskAdaptor) applyUpstreamCredentials(ctx map[string]any, channelType i
 		ctx["apiKey"] = key
 	}
 	return nil
+}
+
+// applyChannelContext gives a hook ctx the plugin config of the executing
+// task plugin channel, {} elsewhere, and on a built-in channel type the plugin
+// serves (meta.channelTypes) the channel's raw other setting as channelOther.
+func (a *TaskAdaptor) applyChannelContext(ctx map[string]any, channelType int) {
+	ctx["config"] = map[string]any{}
+	if a.info == nil || !a.info.HasChannelMeta() || a.info.ChannelId == 0 || channelType == constant.ChannelTypeNewAPI {
+		return
+	}
+	channel, err := model.CacheGetChannel(a.info.ChannelId)
+	if err != nil {
+		return
+	}
+	if channelType == constant.ChannelTypeTaskPlugin {
+		ctx["config"] = pluginruntime.RawJSON(a.plugin.ChannelConfigFor(channel.GetOtherSettings().PluginConfig))
+		return
+	}
+	ctx["channelOther"] = channel.Other
 }
 
 func hookHTTPResponse(resp *http.Response) map[string]any {
@@ -1628,6 +1724,11 @@ func (a *TaskAdaptor) requestDescriptor(ctx context.Context, hook string, args .
 func (a *TaskAdaptor) buildSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*requestDescriptor, error) {
 	if a.submit != nil {
 		return a.submit, nil
+	}
+	if info.HasChannelMeta() {
+		if err := a.useFreshSubmitCredential(c, info); err != nil {
+			return nil, err
+		}
 	}
 	started := time.Now()
 	// buildSubmitRequest runs before quota is reserved, so a failed fetch

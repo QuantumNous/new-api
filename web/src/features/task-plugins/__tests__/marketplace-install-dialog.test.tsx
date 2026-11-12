@@ -140,7 +140,7 @@ test('download failure shows the error and prevents installation', async () => {
   vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
   renderDialog()
   expect(
-    await screen.findByText(/Could not fetch the plugin source/)
+    await screen.findByText(/Could not download the plugin code/)
   ).toBeInTheDocument()
   expect(
     screen.getByRole('button', { name: 'Install and enable' })
@@ -203,6 +203,7 @@ test('first install shows source on demand and disables repeat submission until 
     sourceSha256: undefined,
     remark: 'Official v1.1',
     icon: undefined,
+    marketplaceIndexUrl: 'https://example.com/index.json',
   })
   resolveInstall({ meta: { name: 'Demo', version: '1.1' } })
   await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
@@ -273,12 +274,10 @@ test('shows all four Incho interfaces and explains absent authentication and ext
     within(connections).getByText('No extra domains declared')
   ).toBeVisible()
   expect(
-    within(connections).getByText(
-      'Not declared; an API key may still be required.'
-    )
+    within(connections).getByText('Not declared by this plugin')
   ).toBeVisible()
   expect(
-    within(connections).queryByText('From marketplace index')
+    within(connections).queryByText('From the marketplace source')
   ).not.toBeInTheDocument()
   expect(
     screen.queryByText('Some plugin information could not be read')
@@ -401,7 +400,7 @@ test('model constants show source models without an unreadable metadata warning'
   expect(within(models).getByText('jev-latest')).toBeVisible()
   expect(within(models).getByText('jev-preview')).toBeVisible()
   expect(
-    within(models).queryByText('From marketplace index')
+    within(models).queryByText('From the marketplace source')
   ).not.toBeInTheDocument()
   expect(
     screen.queryByText('Some plugin information could not be read')
@@ -440,7 +439,7 @@ test('unreadable metadata can be retried without preventing installation or inve
   ).toBeVisible()
 })
 
-test('a matching hash shows verification separately from code safety and keeps hash details collapsed', async () => {
+test('a matching hash says the file matches the published one and keeps hash details collapsed', async () => {
   vi.stubGlobal('crypto', webcrypto)
   vi.stubGlobal(
     'fetch',
@@ -450,9 +449,7 @@ test('a matching hash shows verification separately from code safety and keeps h
   renderDialog(false, hash)
   expect(await screen.findByText('File integrity verified')).toBeVisible()
   expect(
-    screen.getByText(
-      'A matching hash confirms the published file, not the safety of its code.'
-    )
+    screen.getByText('This file matches the one the source published.')
   ).toBeVisible()
   expect(screen.queryByText(hash)).not.toBeInTheDocument()
   expect(
@@ -467,11 +464,7 @@ test('a browser without WebCrypto reports that verification is unavailable inste
     vi.fn(async () => new Response(metaSource))
   )
   renderDialog(false, 'a'.repeat(64))
-  expect(
-    await screen.findByText(
-      'Integrity verification unavailable in this environment'
-    )
-  ).toBeVisible()
+  expect(await screen.findByText('File could not be verified')).toBeVisible()
   expect(screen.queryByText('File integrity verified')).not.toBeInTheDocument()
   expect(
     screen.getByRole('button', { name: 'Install and enable' })
@@ -511,6 +504,7 @@ test('selecting a historical version installs its source and hash', async () => 
     sourceSha256: createHash('sha256').update('const old = 0').digest('hex'),
     remark: 'Official v1.0',
     icon: undefined,
+    marketplaceIndexUrl: 'https://example.com/index.json',
   })
 })
 
@@ -699,7 +693,7 @@ test.each(['download', 'hash'])(
       expect(await screen.findByText('Integrity check failed')).toBeVisible()
     } else {
       expect(
-        await screen.findByText(/Could not fetch the plugin source/)
+        await screen.findByText(/Could not download the plugin code/)
       ).toBeVisible()
     }
     expect(
@@ -824,6 +818,7 @@ test('a factory plugin uses its built-in source as the diff baseline and install
     sourceSha256: createHash('sha256').update('const old = 0').digest('hex'),
     remark: 'Official v1.0',
     icon: undefined,
+    marketplaceIndexUrl: 'https://example.com/index.json',
   })
   await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   await waitFor(() => expect(observer.getCurrentResult().data).toEqual(updated))
@@ -875,7 +870,157 @@ test('changing the selected version while reading changelog keeps that tab open'
   await user.click(screen.getByRole('combobox', { name: 'Select version' }))
   await user.click(screen.getByRole('option', { name: '1.0 · Active version' }))
   expect(changelog).toHaveAttribute('aria-selected', 'true')
-  await waitFor(() =>
-    expect(screen.getByText('Could not load the changelog')).toBeVisible()
+  expect(
+    await screen.findByText('No changelog for this version.')
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Retry' })
+  ).not.toBeInTheDocument()
+})
+
+test('the details tab shows the usage guide above the plugin details and loads it only on that tab', async () => {
+  const user = userEvent.setup()
+  const fetchMock = vi.fn(async (url: string) =>
+    url.endsWith('/files/readme')
+      ? new Response('# Demo guide\n\nPick the Demo channel type.\n')
+      : new Response(source)
   )
+  vi.stubGlobal('fetch', fetchMock)
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  clients.push(client)
+  render(
+    <QueryClientProvider client={client}>
+      <MarketplaceInstallDialog
+        target={{
+          source: {
+            name: 'Community',
+            index_url: 'https://example.com/index.json',
+          },
+          plugin: {
+            key: 'demo',
+            name: 'Demo',
+            latest: '1.1',
+            versions: [
+              {
+                version: '1.1',
+                path: 'files/plugin',
+                readme: { path: 'files/readme' },
+              },
+            ],
+          },
+          version: '1.1',
+          installState: { status: 'not_installed' },
+        }}
+        onOpenChange={() => undefined}
+      />
+    </QueryClientProvider>
+  )
+  const guide = await screen.findByRole('region', { name: 'Usage guide' })
+  expect(within(guide).getByText('Pick the Demo channel type.')).toBeVisible()
+  expect(
+    guide.compareDocumentPosition(
+      screen.getByRole('region', { name: 'Supported models' })
+    ) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy()
+  const readmeCalls = () =>
+    fetchMock.mock.calls.filter(([url]) => url.endsWith('/files/readme')).length
+  await user.click(screen.getByRole('tab', { name: 'Full source' }))
+  expect(
+    screen.queryByRole('region', { name: 'Usage guide' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('tab', { name: 'Plugin details' }))
+  expect(
+    await screen.findByRole('region', { name: 'Usage guide' })
+  ).toBeVisible()
+  expect(readmeCalls()).toBe(1)
+})
+
+function renderSourceDialog(indexUrl: string, pluginSource: string) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(pluginSource))
+  )
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  clients.push(client)
+  render(
+    <QueryClientProvider client={client}>
+      <MarketplaceInstallDialog
+        target={{
+          source: { name: 'Source', index_url: indexUrl },
+          plugin: {
+            key: 'alice_foo',
+            name: 'Foo',
+            latest: '1.0.0',
+            author: { login: 'alice', url: 'https://github.com/alice' },
+            repo: 'https://github.com/alice/newapi-plugins',
+            versions: [{ version: '1.0.0', path: 'plugin.js' }],
+          },
+          version: '1.0.0',
+          installState: { status: 'not_installed' },
+        }}
+        onOpenChange={() => undefined}
+      />
+    </QueryClientProvider>
+  )
+}
+
+const communityPluginSource = `export const meta = {
+  apiVersion: 1, key: "alice_foo", name: "Foo", version: "1.0.0",
+  baseUrl: "https://api.foo.example/v1",
+  allowedHosts: ["cdn.foo.example"],
+  relay: [{incoming_path: "/v1/chat/completions", upstream_path: "/chat"}],
+}
+export function request() {}`
+
+test('a community plugin names its author and what it can reach, and says what installing reports', async () => {
+  renderSourceDialog(
+    'https://www.newapi.ai/api/v1/community/index.json',
+    communityPluginSource
+  )
+  expect(screen.getByRole('link', { name: '@alice' })).toHaveAttribute(
+    'href',
+    'https://github.com/alice'
+  )
+  expect(screen.getByRole('link', { name: 'Repository' })).toHaveAttribute(
+    'href',
+    'https://github.com/alice/newapi-plugins'
+  )
+  expect(
+    await screen.findByText('Other addresses: api.foo.example, cdn.foo.example')
+  ).toBeVisible()
+  expect(
+    screen.getByText('The keys and API addresses of the channels that use it')
+  ).toBeVisible()
+  expect(screen.getByText('The requests and replies it handles')).toBeVisible()
+  expect(
+    screen.getByText(/random ID of this gateway to newapi\.ai/)
+  ).toBeVisible()
+  expect(
+    screen.queryByText(/Plugins can access channel credentials/)
+  ).not.toBeInTheDocument()
+})
+
+test('a third-party source shows what the plugin can reach but reports no installs', async () => {
+  renderSourceDialog('https://mirror.example/index.json', communityPluginSource)
+  expect(
+    await screen.findByText('Other addresses: api.foo.example, cdn.foo.example')
+  ).toBeVisible()
+  expect(screen.queryByText(/newapi\.ai/)).not.toBeInTheDocument()
+})
+
+test('an official plugin keeps the short credentials notice', async () => {
+  renderSourceDialog(
+    'https://www.newapi.ai/api/v1/plugins/index.json',
+    communityPluginSource
+  )
+  expect(
+    screen.getByText(/Plugins can access channel credentials/)
+  ).toBeVisible()
+  expect(
+    screen.queryByText('What this plugin can reach')
+  ).not.toBeInTheDocument()
 })

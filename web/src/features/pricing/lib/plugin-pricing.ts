@@ -22,7 +22,7 @@ import type {
   PricingModel,
 } from '../types'
 import { compileBillingExpression } from './billing-expression/parser'
-import { visitExpression } from './billing-expression/types'
+import { BILLING_VARIABLES, visitExpression } from './billing-expression/types'
 
 export function splitPluginBillingExprKey(
   key: string
@@ -37,14 +37,21 @@ export function splitPluginBillingExprKey(
 
 // Undefined means the browser parser cannot check this expression; the server
 // remains authoritative for expression validation and pricing compatibility.
+// Chat request quantities (token counts, bare image_count) never price a task.
+// A model-level expression without u() is the chat price of a model the plugin
+// also relays.
 export function taskExpressionCompatible(
   expression: string,
-  schema: BillingUsageSchema
+  schema: BillingUsageSchema,
+  relaysModel = false
 ): boolean | undefined {
   if (!expression.trim()) return false
   const compiled = compileBillingExpression(expression)
   if (compiled.status !== 'ready') return undefined
-  let compatible = !compiled.functions.has('fixed')
+  let compatible =
+    !compiled.functions.has('fixed') &&
+    !usesChatQuantities(compiled.variables) &&
+    (!relaysModel || compiled.functions.has('u'))
   visitExpression(compiled.ast, (node) => {
     if (node.kind !== 'call' || node.name !== 'u') return
     const key = node.args[0]
@@ -59,6 +66,12 @@ export function taskExpressionCompatible(
   return compatible
 }
 
+// Tasks have none of them: token counts would read 0 and image_count 1. Task
+// image counts come from u("image_count").
+export function usesChatQuantities(variables: ReadonlySet<string>): boolean {
+  return BILLING_VARIABLES.some((name) => variables.has(name))
+}
+
 export function withPluginPricing(
   model: PricingModel,
   variant: BillingPluginVariant
@@ -71,7 +84,25 @@ export function withPluginPricing(
     billing_usage_schema: variant.billing_usage_schema,
     billing_usage_examples: variant.billing_usage_examples,
     billing_plugin_variants: undefined,
+    ordinary_pricing: undefined,
   }
+}
+
+// The model-level price as ordinary requests pay it: no plugin usage facts.
+export function withOrdinaryPricing(model: PricingModel): PricingModel {
+  return {
+    ...model,
+    billing_usage_schema: undefined,
+    billing_usage_examples: undefined,
+    billing_plugin_variants: undefined,
+    ordinary_pricing: undefined,
+  }
+}
+
+// The price a model is summarised by: the model-level price when ordinary
+// requests still pay it, as most requests do; otherwise its plugin prices.
+export function withBasePricing(model: PricingModel): PricingModel {
+  return model.ordinary_pricing ? withOrdinaryPricing(model) : model
 }
 
 export function pluginExpressionsEqual(

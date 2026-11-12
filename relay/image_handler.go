@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -20,6 +21,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// outboundImageCounter is an image adaptor whose upstream body carries the
+// image count in a member other than n. OutboundImageCount reads the count
+// from that body, nil when the member is absent.
+type outboundImageCounter interface {
+	OutboundImageCount(body []byte) (*uint, error)
+}
 
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -63,15 +71,31 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		if newAPIError = requestplugin.PassThrough(c, info, storage); newAPIError != nil {
+			return newAPIError
+		}
 		if !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
-			if storage.IsDisk() {
+			counter, countsOwnMember := adaptor.(outboundImageCounter)
+			switch {
+			case countsOwnMember:
+				// The adaptor sends the count in its own member, which only
+				// it can read, so it reads the whole body.
+				var raw []byte
+				raw, err = storage.Bytes()
+				if err == nil {
+					err = common.Unmarshal(raw, &outbound)
+				}
+				if err == nil {
+					outbound.N, err = counter.OutboundImageCount(raw)
+				}
+			case storage.IsDisk():
 				reader, readErr := storage.NewReader()
 				if readErr != nil {
 					return types.NewErrorWithStatusCode(readErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 				}
 				err = common.DecodeJsonBody(reader, &outbound)
 				_ = reader.Close()
-			} else {
+			default:
 				var raw []byte
 				raw, err = storage.Bytes()
 				if err == nil {
@@ -105,6 +129,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 		switch convertedRequest.(type) {
 		case *bytes.Buffer:
+			if newAPIError = requestplugin.PassThrough(c, info, nil); newAPIError != nil {
+				return newAPIError
+			}
 			requestBody = convertedRequest.(io.Reader)
 		default:
 			jsonData, err = common.Marshal(convertedRequest)
@@ -112,6 +139,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
 
+			if jsonData, newAPIError = requestplugin.Outbound(c, info, jsonData); newAPIError != nil {
+				return newAPIError
+			}
 			// apply param override
 			if len(info.ParamOverride) > 0 {
 				jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
@@ -119,11 +149,21 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 					return newAPIErrorFromParamOverride(err)
 				}
 			}
+			if newAPIError = requestplugin.Egress(c, info, jsonData); newAPIError != nil {
+				return newAPIError
+			}
 
 		}
 	}
 	if jsonData != nil {
-		if err := common.Unmarshal(jsonData, &outbound); err != nil {
+		// This is a different trust boundary from ingress: channel overrides
+		// and request plugins can change the quantity actually submitted, in
+		// n or in the member the adaptor sends it in.
+		err := common.Unmarshal(jsonData, &outbound)
+		if counter, ok := adaptor.(outboundImageCounter); ok && err == nil {
+			outbound.N, err = counter.OutboundImageCount(jsonData)
+		}
+		if err != nil {
 			return types.NewErrorWithStatusCode(fmt.Errorf("invalid image billing parameters: %w", err), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		validateQuantity = true

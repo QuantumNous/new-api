@@ -21,13 +21,17 @@ import {
   ArrowUpCircle,
   CheckCircle2,
   Download,
+  FolderGit2,
   TriangleAlert,
+  UserRound,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getChannelTypeLabel } from '@/features/channels/lib'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber } from '@/lib/format'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
 import {
@@ -37,12 +41,17 @@ import {
   type InstallState,
 } from '../lib/marketplace'
 import { fetchPluginIconDataUri } from '../lib/plugin-icon-file'
+import type { PluginKind } from '../lib/plugin-kinds'
+import { resolvePluginParts } from '../lib/plugin-parts'
 import type { MarketplacePlugin, TaskPluginListItem } from '../types'
 import { PluginIcon } from './plugin-icon'
+import { PluginPartsBadges } from './plugin-parts-badges'
 import { PluginWebsiteLink } from './plugin-website-link'
 
 type MarketplacePluginCardProps = {
   plugin: MarketplacePlugin
+  /** The kind list the card sits in; its tag is left out. */
+  kind: PluginKind
   /** Index URL the plugin came from; sidecar logos resolve against it. */
   indexUrl?: string
   installState: InstallState
@@ -55,6 +64,13 @@ export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
   const plugin = props.plugin
   const description = resolveLocalizedText(plugin.description, i18n.language)
   const channelTypes = plugin.channelTypes ?? []
+  const parts = resolvePluginParts({ ...plugin, meta: plugin })
+  const noChannelType = parts.provider ? t('Plugin') : t('Task Plugin')
+  const tags = {
+    task: props.kind !== 'task' && parts.task,
+    provider: props.kind !== 'provider' && parts.provider,
+    transform: props.kind !== 'transform' && parts.transform,
+  }
   const latestEntry = findMarketplaceVersion(plugin, plugin.latest)
   const labelClass = 'text-muted-foreground text-[11px] font-medium select-none'
   const builtInVersion = marketplaceBuiltInVersion(props.installed)
@@ -91,6 +107,13 @@ export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
       </div>
 
       <PluginWebsiteLink website={plugin.website} />
+      <MarketplaceAuthorLine plugin={plugin} />
+
+      {(tags.task || tags.provider || tags.transform) && (
+        <div className='flex min-w-0 flex-wrap items-center gap-1.5'>
+          <PluginPartsBadges {...tags} />
+        </div>
+      )}
 
       {description ? (
         <p className='text-muted-foreground line-clamp-2 text-xs'>
@@ -103,18 +126,22 @@ export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
           <div className={labelClass}>{t('Latest version')}</div>
           <div className='truncate font-mono text-xs'>{plugin.latest}</div>
         </div>
-        <div className='min-w-0'>
-          <div className={labelClass}>{t('Channel type')}</div>
-          <div className='truncate text-xs'>
-            {channelTypes.length > 0
-              ? t(getChannelTypeLabel(channelTypes[0]))
-              : t('Task Plugin')}
+        {(parts.task || parts.provider) && (
+          <div className='min-w-0'>
+            <div className={labelClass}>{t('Channel type')}</div>
+            <div className='truncate text-xs'>
+              {channelTypes.length > 0
+                ? t(getChannelTypeLabel(channelTypes[0]))
+                : noChannelType}
+            </div>
           </div>
-        </div>
-        <div className='min-w-0'>
-          <div className={labelClass}>{t('Models')}</div>
-          <div className='truncate text-xs'>{plugin.models?.length ?? 0}</div>
-        </div>
+        )}
+        {props.kind !== 'transform' && (
+          <div className='min-w-0'>
+            <div className={labelClass}>{t('Models')}</div>
+            <div className='truncate text-xs'>{plugin.models?.length ?? 0}</div>
+          </div>
+        )}
       </div>
 
       {builtInVersion && (
@@ -149,6 +176,67 @@ export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
           {t('Install')}
         </Button>
       </div>
+    </div>
+  )
+}
+
+/** The author, repository and recent installs of a community plugin. */
+export function MarketplaceAuthorLine(props: { plugin: MarketplacePlugin }) {
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const plugin = props.plugin
+  if (!plugin.author && !plugin.repo && plugin.installs30d === undefined) {
+    return null
+  }
+  const linkClass =
+    'h-auto max-w-full justify-start px-0 text-xs whitespace-normal'
+  return (
+    <div className='flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs'>
+      {plugin.author &&
+        (plugin.author.url ? (
+          <Button
+            role='link'
+            variant='link'
+            size='xs'
+            className={linkClass}
+            render={
+              <a
+                href={plugin.author.url}
+                target='_blank'
+                rel='noopener noreferrer'
+              />
+            }
+          >
+            <UserRound aria-hidden='true' />@{plugin.author.login}
+          </Button>
+        ) : (
+          <span className='inline-flex items-center gap-1'>
+            <UserRound className='size-3.5' aria-hidden='true' />@
+            {plugin.author.login}
+          </span>
+        ))}
+      {plugin.repo && (
+        <Button
+          role='link'
+          variant='link'
+          size='xs'
+          className={linkClass}
+          render={
+            <a href={plugin.repo} target='_blank' rel='noopener noreferrer' />
+          }
+        >
+          <FolderGit2 aria-hidden='true' />
+          {t('Repository')}
+        </Button>
+      )}
+      {plugin.installs30d !== undefined && (
+        <span className='inline-flex items-center gap-1'>
+          <Download className='size-3.5' aria-hidden='true' />
+          {t('{{installs}} installs in 30 days', {
+            installs: formatNumber(plugin.installs30d, locale),
+          })}
+        </span>
+      )}
     </div>
   )
 }

@@ -32,6 +32,25 @@ func TestSmokeTestTaskExprValidatesDeclaredUsageVectors(t *testing.T) {
 			expectedError: "fixed pricing is not supported for task usage expressions",
 		},
 		{
+			// Tasks have no token counts: the expression would bill 0.
+			name:          "token counts are not task usage prices",
+			schema:        videoSchema,
+			expression:    `tier("base", u("seconds") * 0.4 + (len > 1000 ? c * 8 : 0))`,
+			expectedError: "task usage expressions cannot read chat request quantities",
+		},
+		{
+			// image_count is the chat request's image count: a task would read 1.
+			name:          "image count is not a task usage price",
+			schema:        map[string]jsplugin.UsageFieldSchema{"image_count": {Type: "number", Unit: "count"}},
+			expression:    `tier("images", image_count * 0.04)`,
+			expectedError: "task usage expressions cannot read chat request quantities",
+		},
+		{
+			name:       "task image counts come from usage facts",
+			schema:     map[string]jsplugin.UsageFieldSchema{"image_count": {Type: "number", Unit: "count"}},
+			expression: `tier("images", u("image_count") * 0.04)`,
+		},
+		{
 			name:       "declared numeric and enum facts",
 			schema:     videoSchema,
 			expression: `u("mode") == "pro" ? tier("pro", u("seconds") * 0.8) : tier("std", u("seconds") * 0.4)`,

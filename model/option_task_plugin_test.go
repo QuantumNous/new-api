@@ -1,14 +1,21 @@
 package model
 
 import (
+	"os"
+	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 func TestTaskPluginEnabledOptionUpdatesRegistry(t *testing.T) {
@@ -73,4 +80,77 @@ export function parseTaskResult() { return {}; }
 	_, ok = jsplugin.DefaultRegistry.Get(key)
 	assert.False(t, ok)
 	assert.Equal(t, []string{key}, jsplugin.DefaultRegistry.Snapshot().DisabledFactory)
+}
+
+func TestTaskPluginGatewayIDConvergesUnderConcurrentCreation(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			var driver gorm.Dialector
+			switch dialect {
+			case "sqlite":
+				driver = sqlite.Open(":memory:")
+			case "mysql":
+				dsn := os.Getenv("TEST_MYSQL_DSN")
+				if dsn == "" {
+					t.Skip("TEST_MYSQL_DSN not configured")
+				}
+				driver = mysql.Open(dsn)
+			case "postgres":
+				dsn := os.Getenv("TEST_POSTGRES_DSN")
+				if dsn == "" {
+					t.Skip("TEST_POSTGRES_DSN not configured")
+				}
+				driver = postgres.Open(dsn)
+			}
+			db, err := gorm.Open(driver, &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: "gateway_id_test_"}})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			if dialect == "sqlite" {
+				// Each connection to :memory: is a separate database.
+				sqlDB.SetMaxOpenConns(1)
+			}
+			previousDB := DB
+			DB = db
+			t.Cleanup(func() {
+				require.NoError(t, db.Migrator().DropTable(&Option{}))
+				DB = previousDB
+				require.NoError(t, sqlDB.Close())
+			})
+			require.NoError(t, db.AutoMigrate(&Option{}))
+			var version string
+			query := "SELECT version()"
+			if dialect == "sqlite" {
+				query = "SELECT sqlite_version()"
+			}
+			require.NoError(t, db.Raw(query).Scan(&version).Error)
+			t.Logf("database version: %s", version)
+
+			const callers = 8
+			ids := make([]string, callers)
+			errs := make([]error, callers)
+			start := make(chan struct{})
+			var callersDone sync.WaitGroup
+			for i := range callers {
+				callersDone.Go(func() {
+					<-start
+					ids[i], errs[i] = GetTaskPluginGatewayID()
+				})
+			}
+			close(start)
+			callersDone.Wait()
+
+			for i := range callers {
+				require.NoError(t, errs[i])
+				assert.Equal(t, ids[0], ids[i])
+			}
+			assert.Regexp(t, `^[0-9a-f]{64}$`, ids[0])
+			var rows int64
+			require.NoError(t, db.Model(&Option{}).Where(&Option{Key: TaskPluginGatewayIDKey}).Count(&rows).Error)
+			assert.EqualValues(t, 1, rows)
+			again, err := GetTaskPluginGatewayID()
+			require.NoError(t, err)
+			assert.Equal(t, ids[0], again)
+		})
+	}
 }
