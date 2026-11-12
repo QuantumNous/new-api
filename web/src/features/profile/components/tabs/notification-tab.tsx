@@ -27,32 +27,30 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import {
+  SettingsControlChildren,
+  SettingsControlGroup,
+  SettingsSwitchField,
+} from '@/features/system-settings/components/settings-form-layout'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import {
+  formatQuota,
+  parseQuotaFromDollars,
+  quotaUnitsToDollars,
+} from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
 import { ROLE } from '@/lib/roles'
 
 import { updateUserSettings } from '../../api'
-import {
-  DEFAULT_QUOTA_WARNING_THRESHOLD,
-  NOTIFICATION_METHODS,
-} from '../../constants'
-import { parseUserSettings } from '../../lib'
-import type { UserProfile, UserSettings, NotifyType } from '../../types'
+import { NOTIFICATION_METHODS } from '../../constants'
+import { normalizeUserSettings } from '../../lib/user-settings'
+import type { UserProfile, NotifyType } from '../../types'
 
 const NOTIFICATION_ICONS: Record<NotifyType, typeof Mail> = {
   email: Mail,
   webhook: Webhook,
   bark: Bell,
   gotify: Server,
-}
-
-const NOTIFICATION_VALUES = new Set<NotifyType>(
-  NOTIFICATION_METHODS.map((method) => method.value)
-)
-
-function normalizeNotifyType(value: unknown): NotifyType {
-  return typeof value === 'string' &&
-    NOTIFICATION_VALUES.has(value as NotifyType)
-    ? (value as NotifyType)
-    : 'email'
 }
 
 // ============================================================================
@@ -62,30 +60,31 @@ function normalizeNotifyType(value: unknown): NotifyType {
 interface NotificationTabProps {
   profile: UserProfile | null
   onUpdate: () => void
+  /** Whether the site sends low balance reminders at all */
+  quotaRemindEnabled: boolean
+  /** The site default reminder threshold, in quota units */
+  quotaRemindThreshold: number
 }
 
-export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
+export function NotificationTab({
+  profile,
+  onUpdate,
+  quotaRemindEnabled,
+  quotaRemindThreshold,
+}: NotificationTabProps) {
   const { t } = useTranslation()
-  const isAdmin = (profile?.role ?? 0) >= ROLE.ADMIN
+  const role = profile?.role ?? 0
+  const isAdmin = role >= ROLE.ADMIN
   const [loading, setLoading] = useState(false)
-  const [settings, setSettings] = useState<UserSettings>({
-    notify_type: 'email',
-    quota_warning_threshold: DEFAULT_QUOTA_WARNING_THRESHOLD,
-    notification_email: '',
-    webhook_url: '',
-    webhook_secret: '',
-    bark_url: '',
-    gotify_url: '',
-    gotify_token: '',
-    gotify_priority: 5,
-    accept_unset_model_ratio_model: false,
-    record_ip_log: false,
-    upstream_model_update_notify_enabled: false,
-  })
+  const [settings, setSettings] = useState(() => normalizeUserSettings())
+  const [thresholdInput, setThresholdInput] = useState('')
 
   // Update form field helper
   const updateField = useCallback(
-    <K extends keyof UserSettings>(field: K, value: UserSettings[K]) => {
+    <K extends keyof typeof settings>(
+      field: K,
+      value: (typeof settings)[K]
+    ) => {
       setSettings((prev) => ({ ...prev, [field]: value }))
     },
     []
@@ -93,229 +92,315 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
   useEffect(() => {
     if (profile?.setting) {
-      const parsed = parseUserSettings(profile.setting)
-      setSettings({
-        notify_type: normalizeNotifyType(parsed.notify_type),
-        quota_warning_threshold:
-          parsed.quota_warning_threshold ?? DEFAULT_QUOTA_WARNING_THRESHOLD,
-        notification_email: parsed.notification_email ?? '',
-        webhook_url: parsed.webhook_url ?? '',
-        webhook_secret: parsed.webhook_secret ?? '',
-        bark_url: parsed.bark_url ?? '',
-        gotify_url: parsed.gotify_url ?? '',
-        gotify_token: parsed.gotify_token ?? '',
-        gotify_priority: parsed.gotify_priority ?? 5,
-        accept_unset_model_ratio_model:
-          parsed.accept_unset_model_ratio_model || false,
-        record_ip_log: parsed.record_ip_log || false,
-        upstream_model_update_notify_enabled:
-          parsed.upstream_model_update_notify_enabled || false,
-      })
+      const next = normalizeUserSettings(profile.setting)
+      setSettings(next)
+      // 0 means the site default and shows as an empty input.
+      setThresholdInput(
+        next.quota_warning_threshold
+          ? String(quotaUnitsToDollars(next.quota_warning_threshold))
+          : ''
+      )
     }
   }, [profile])
 
   const handleSave = async () => {
     try {
       setLoading(true)
-      const response = await updateUserSettings(settings)
+      const { record_ip_log: _recordIpLog, ...notificationSettings } = settings
+      const response = await updateUserSettings(notificationSettings)
 
       if (response.success) {
         toast.success(t('Settings updated successfully'))
         onUpdate()
       } else {
-        toast.error(response.message || t('Failed to update settings'))
+        handleServerError(response, t('Failed to update settings'))
       }
-    } catch (_error) {
-      toast.error(t('Failed to update settings'))
+    } catch (error) {
+      handleServerError(error, t('Failed to update settings'))
     } finally {
       setLoading(false)
     }
   }
 
-  const notifyType = normalizeNotifyType(settings.notify_type)
+  const notifyType = settings.notify_type
+  // Switches the user never chose: reminders stay on, and root alone gets
+  // channel notifications.
+  const quotaWarningEnabled = settings.quota_warning_enabled ?? true
+  const channelNotifyEnabled =
+    settings.channel_notify_enabled ?? role >= ROLE.SUPER_ADMIN
+  const tokensOnly = getCurrencyDisplay().meta.kind === 'tokens'
 
   return (
     <div className='space-y-4 sm:space-y-6'>
-      {/* Notification Type */}
-      <div className='space-y-2.5'>
-        <Label>{t('Notification Method')}</Label>
-        <ToggleGroup
-          value={[notifyType]}
-          onValueChange={(value) => {
-            const nextValue = value.find((item) => item !== notifyType)
-            if (nextValue)
-              updateField('notify_type', normalizeNotifyType(nextValue))
-          }}
-          aria-label={t('Notification Method')}
-          variant='outline'
-          size='lg'
-          spacing={2}
-          className='grid w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3'
-        >
-          {NOTIFICATION_METHODS.map((method) => {
-            const Icon = NOTIFICATION_ICONS[method.value]
-            return (
-              <ToggleGroupItem
-                key={method.value}
-                value={method.value}
-                className='h-auto min-h-14 w-full flex-col gap-1.5 px-3 py-3 sm:min-h-16'
-              >
-                <Icon className='h-4 w-4 sm:h-5 sm:w-5' />
-                <span className='max-w-full truncate text-xs font-medium sm:text-sm'>
-                  {t(method.label)}
-                </span>
-              </ToggleGroupItem>
-            )
-          })}
-        </ToggleGroup>
-      </div>
-
-      {/* Warning Threshold */}
-      <div className='space-y-1.5'>
-        <Label htmlFor='threshold'>{t('Quota Warning Threshold')}</Label>
-        <Input
-          id='threshold'
-          type='number'
-          className='h-9'
-          value={settings.quota_warning_threshold}
-          onChange={(e) =>
-            updateField('quota_warning_threshold', Number(e.target.value))
-          }
-          placeholder={t('Enter threshold')}
-        />
-        <p className='text-muted-foreground text-xs'>
-          {t('Get notified when balance falls below this value')}
+      {!quotaRemindEnabled && !isAdmin && (
+        <p className='text-muted-foreground text-sm'>
+          {t('No notifications are available to you right now')}
         </p>
-      </div>
-
-      {/* Email Settings */}
-      {notifyType === 'email' && (
-        <div className='space-y-1.5'>
-          <Label htmlFor='notifyEmail'>{t('Notification Email')}</Label>
-          <Input
-            id='notifyEmail'
-            type='email'
-            className='h-9'
-            value={settings.notification_email}
-            onChange={(e) => updateField('notification_email', e.target.value)}
-            placeholder={t('Leave empty to use account email')}
-          />
-        </div>
       )}
 
-      {/* Webhook Settings */}
-      {notifyType === 'webhook' && (
+      {(quotaRemindEnabled || isAdmin) && (
         <>
-          <div className='space-y-1.5'>
-            <Label htmlFor='webhookUrl'>{t('Webhook URL')}</Label>
-            <Input
-              id='webhookUrl'
-              type='url'
-              className='h-9'
-              value={settings.webhook_url}
-              onChange={(e) => updateField('webhook_url', e.target.value)}
-              placeholder={t('https://example.com/webhook')}
-            />
+          {/* Notification Type */}
+          <div className='space-y-2.5'>
+            <Label>{t('Notification Method')}</Label>
+            <ToggleGroup
+              value={[notifyType]}
+              onValueChange={(value) => {
+                const nextValue = value.find((item) => item !== notifyType)
+                if (nextValue) {
+                  updateField('notify_type', nextValue as NotifyType)
+                }
+              }}
+              aria-label={t('Notification Method')}
+              variant='outline'
+              size='lg'
+              spacing={2}
+              className='grid w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3'
+            >
+              {NOTIFICATION_METHODS.map((method) => {
+                const Icon = NOTIFICATION_ICONS[method.value]
+                return (
+                  <ToggleGroupItem
+                    key={method.value}
+                    value={method.value}
+                    className='h-auto min-h-14 w-full flex-col gap-1.5 px-3 py-3 sm:min-h-16'
+                  >
+                    <Icon className='h-4 w-4 sm:h-5 sm:w-5' />
+                    <span className='max-w-full truncate text-xs font-medium sm:text-sm'>
+                      {t(method.label)}
+                    </span>
+                  </ToggleGroupItem>
+                )
+              })}
+            </ToggleGroup>
           </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='webhookSecret'>{t('Webhook Secret')}</Label>
-            <PasswordInput
-              id='webhookSecret'
-              value={settings.webhook_secret}
-              onChange={(e) => updateField('webhook_secret', e.target.value)}
-              placeholder={t('Enter secret key')}
-            />
-          </div>
-        </>
-      )}
 
-      {/* Bark Settings */}
-      {notifyType === 'bark' && (
-        <div className='space-y-1.5'>
-          <Label htmlFor='barkUrl'>{t('Bark Push URL')}</Label>
-          <Input
-            id='barkUrl'
-            type='url'
-            className='h-9'
-            value={settings.bark_url}
-            onChange={(e) => updateField('bark_url', e.target.value)}
-            placeholder={t('https://api.day.app/yourkey/{{title}}/{{content}}')}
-          />
-          <p className='text-muted-foreground text-xs'>
-            {t('Template variables:')} {'{{title}}'}, {'{{content}}'}
-          </p>
-        </div>
-      )}
+          {/* Email Settings */}
+          {notifyType === 'email' && (
+            <div className='space-y-1.5'>
+              <Label htmlFor='notifyEmail'>{t('Notification Email')}</Label>
+              <Input
+                id='notifyEmail'
+                type='email'
+                className='h-9'
+                value={settings.notification_email}
+                onChange={(e) =>
+                  updateField('notification_email', e.target.value)
+                }
+                placeholder={t('Leave empty to use account email')}
+              />
+            </div>
+          )}
 
-      {/* Gotify Settings */}
-      {notifyType === 'gotify' && (
-        <>
-          <div className='space-y-1.5'>
-            <Label htmlFor='gotifyUrl'>{t('Gotify Server URL')}</Label>
-            <Input
-              id='gotifyUrl'
-              type='url'
-              className='h-9'
-              value={settings.gotify_url}
-              onChange={(e) => updateField('gotify_url', e.target.value)}
-              placeholder={t('https://gotify.example.com')}
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t('Enter the full URL of your Gotify server')}
-            </p>
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='gotifyToken'>{t('Gotify Application Token')}</Label>
-            <PasswordInput
-              id='gotifyToken'
-              value={settings.gotify_token}
-              onChange={(e) => updateField('gotify_token', e.target.value)}
-              placeholder={t('Enter application token')}
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t('Token obtained from your Gotify application')}
-            </p>
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='gotifyPriority'>{t('Message Priority')}</Label>
-            <Input
-              id='gotifyPriority'
-              type='number'
-              className='h-9'
-              min='0'
-              max='10'
-              value={settings.gotify_priority}
-              onChange={(e) =>
-                updateField('gotify_priority', Number(e.target.value))
-              }
-              placeholder='5'
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t(
-                'Priority level from 0 (lowest) to 10 (highest), default is 5'
+          {/* Webhook Settings */}
+          {notifyType === 'webhook' && (
+            <>
+              <div className='space-y-1.5'>
+                <Label htmlFor='webhookUrl'>{t('Webhook URL')}</Label>
+                <Input
+                  id='webhookUrl'
+                  type='url'
+                  className='h-9'
+                  value={settings.webhook_url}
+                  onChange={(e) => updateField('webhook_url', e.target.value)}
+                  placeholder={t('https://example.com/webhook')}
+                />
+              </div>
+              <div className='space-y-1.5'>
+                <Label htmlFor='webhookSecret'>{t('Webhook Secret')}</Label>
+                <PasswordInput
+                  id='webhookSecret'
+                  value={settings.webhook_secret}
+                  onChange={(e) =>
+                    updateField('webhook_secret', e.target.value)
+                  }
+                  placeholder={t('Enter secret key')}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Bark Settings */}
+          {notifyType === 'bark' && (
+            <div className='space-y-1.5'>
+              <Label htmlFor='barkUrl'>{t('Bark Push URL')}</Label>
+              <Input
+                id='barkUrl'
+                type='url'
+                className='h-9'
+                value={settings.bark_url}
+                onChange={(e) => updateField('bark_url', e.target.value)}
+                placeholder={t(
+                  'https://api.day.app/yourkey/{{title}}/{{content}}'
+                )}
+              />
+              <p className='text-muted-foreground text-xs'>
+                {t('Template variables:')} {'{{title}}'}, {'{{content}}'}
+              </p>
+            </div>
+          )}
+
+          {/* Gotify Settings */}
+          {notifyType === 'gotify' && (
+            <>
+              <div className='space-y-1.5'>
+                <Label htmlFor='gotifyUrl'>{t('Gotify Server URL')}</Label>
+                <Input
+                  id='gotifyUrl'
+                  type='url'
+                  className='h-9'
+                  value={settings.gotify_url}
+                  onChange={(e) => updateField('gotify_url', e.target.value)}
+                  placeholder={t('https://gotify.example.com')}
+                />
+                <p className='text-muted-foreground text-xs'>
+                  {t('Enter the full URL of your Gotify server')}
+                </p>
+              </div>
+              <div className='space-y-1.5'>
+                <Label htmlFor='gotifyToken'>
+                  {t('Gotify Application Token')}
+                </Label>
+                <PasswordInput
+                  id='gotifyToken'
+                  value={settings.gotify_token}
+                  onChange={(e) => updateField('gotify_token', e.target.value)}
+                  placeholder={t('Enter application token')}
+                />
+                <p className='text-muted-foreground text-xs'>
+                  {t('Token obtained from your Gotify application')}
+                </p>
+              </div>
+              <div className='space-y-1.5'>
+                <Label htmlFor='gotifyPriority'>{t('Message Priority')}</Label>
+                <Input
+                  id='gotifyPriority'
+                  type='number'
+                  className='h-9'
+                  min='0'
+                  max='10'
+                  value={settings.gotify_priority}
+                  onChange={(e) =>
+                    updateField('gotify_priority', Number(e.target.value))
+                  }
+                  placeholder='5'
+                />
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'Priority level from 0 (lowest) to 10 (highest), default is 5'
+                  )}
+                </p>
+              </div>
+              <div className='bg-muted/50 rounded-lg border p-3 sm:p-4'>
+                <h5 className='mb-1.5 text-sm font-medium sm:mb-2'>
+                  {t('Setup Instructions')}
+                </h5>
+                <ol className='text-muted-foreground space-y-1 text-xs'>
+                  <li>{t('1. Create an application in your Gotify server')}</li>
+                  <li>{t('2. Copy the application token')}</li>
+                  <li>
+                    {t('3. Enter your Gotify server URL and token above')}
+                  </li>
+                </ol>
+                <p className='text-muted-foreground mt-3 text-xs'>
+                  {t('Learn more:')}{' '}
+                  <a
+                    href='https://gotify.net/'
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='text-primary underline underline-offset-4'
+                  >
+                    {t('Gotify Documentation')}
+                  </a>
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* Notifications to receive */}
+          <div className='space-y-2.5'>
+            <h4 className='text-sm font-medium'>
+              {t('Notifications to receive')}
+            </h4>
+            <SettingsControlGroup>
+              {quotaRemindEnabled && (
+                <>
+                  <SettingsSwitchField
+                    controlId='quotaWarningEnabled'
+                    label={t('Low balance reminder')}
+                    description={t(
+                      'Remind me once when my balance drops below the threshold'
+                    )}
+                    checked={quotaWarningEnabled}
+                    onCheckedChange={(checked) =>
+                      updateField('quota_warning_enabled', checked)
+                    }
+                  />
+                  {quotaWarningEnabled && (
+                    <SettingsControlChildren className='space-y-1.5 pb-1'>
+                      <Label htmlFor='threshold'>
+                        {t('Reminder threshold')} ({getCurrencyLabel()})
+                      </Label>
+                      <Input
+                        id='threshold'
+                        type='number'
+                        className='h-9'
+                        min={0}
+                        step={tokensOnly ? 1 : 0.000001}
+                        value={thresholdInput}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setThresholdInput(value)
+                          updateField(
+                            'quota_warning_threshold',
+                            value.trim() === ''
+                              ? 0
+                              : parseQuotaFromDollars(Number(value))
+                          )
+                        }}
+                        placeholder={String(
+                          quotaUnitsToDollars(quotaRemindThreshold)
+                        )}
+                      />
+                      <p className='text-muted-foreground text-xs'>
+                        {t('Leave empty to use the site default ({{amount}})', {
+                          amount: formatQuota(quotaRemindThreshold),
+                        })}
+                      </p>
+                    </SettingsControlChildren>
+                  )}
+                </>
               )}
-            </p>
-          </div>
-          <div className='bg-muted/50 rounded-lg border p-3 sm:p-4'>
-            <h5 className='mb-1.5 text-sm font-medium sm:mb-2'>
-              {t('Setup Instructions')}
-            </h5>
-            <ol className='text-muted-foreground space-y-1 text-xs'>
-              <li>{t('1. Create an application in your Gotify server')}</li>
-              <li>{t('2. Copy the application token')}</li>
-              <li>{t('3. Enter your Gotify server URL and token above')}</li>
-            </ol>
-            <p className='text-muted-foreground mt-3 text-xs'>
-              {t('Learn more:')}{' '}
-              <a
-                href='https://gotify.net/'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='text-primary underline underline-offset-4'
-              >
-                {t('Gotify Documentation')}
-              </a>
-            </p>
+              {isAdmin && (
+                <>
+                  <SettingsSwitchField
+                    controlId='channelNotify'
+                    label={t('Channel notifications')}
+                    description={t(
+                      'When a channel is disabled or re-enabled automatically, or a test of all channels finishes'
+                    )}
+                    checked={channelNotifyEnabled}
+                    onCheckedChange={(checked) =>
+                      updateField('channel_notify_enabled', checked)
+                    }
+                  />
+                  <SettingsSwitchField
+                    controlId='upstreamModelUpdateNotify'
+                    label={t('Upstream Model Updates')}
+                    description={t(
+                      'Only available for admins. When enabled, you will receive a summary notification via your selected method when the scheduled model check detects upstream model changes or check failures.'
+                    )}
+                    checked={settings.upstream_model_update_notify_enabled}
+                    onCheckedChange={(checked) =>
+                      updateField(
+                        'upstream_model_update_notify_enabled',
+                        checked
+                      )
+                    }
+                  />
+                </>
+              )}
+            </SettingsControlGroup>
           </div>
         </>
       )}
@@ -331,30 +416,6 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             {t('Configure your account behavior preferences')}
           </p>
         </div>
-
-        {/* Receive Upstream Model Update Notifications (admin only) */}
-        {isAdmin && (
-          <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
-            <div className='space-y-0.5'>
-              <Label htmlFor='upstreamModelUpdateNotify'>
-                {t('Receive Upstream Model Update Notifications')}
-              </Label>
-              <p className='text-muted-foreground line-clamp-3 text-xs sm:line-clamp-none sm:text-sm'>
-                {t(
-                  'Only available for admins. When enabled, you will receive a summary notification via your selected method when the scheduled model check detects upstream model changes or check failures.'
-                )}
-              </p>
-            </div>
-            <Switch
-              id='upstreamModelUpdateNotify'
-              className='shrink-0'
-              checked={settings.upstream_model_update_notify_enabled}
-              onCheckedChange={(checked) =>
-                updateField('upstream_model_update_notify_enabled', checked)
-              }
-            />
-          </div>
-        )}
 
         {/* Accept Unset Model Price */}
         <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
@@ -373,22 +434,6 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             onCheckedChange={(checked) =>
               updateField('accept_unset_model_ratio_model', checked)
             }
-          />
-        </div>
-
-        {/* Record IP Log */}
-        <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
-          <div className='space-y-0.5'>
-            <Label htmlFor='recordIp'>{t('Record IP Address')}</Label>
-            <p className='text-muted-foreground text-xs sm:text-sm'>
-              {t('Log IP address for usage and error logs')}
-            </p>
-          </div>
-          <Switch
-            id='recordIp'
-            className='shrink-0'
-            checked={settings.record_ip_log}
-            onCheckedChange={(checked) => updateField('record_ip_log', checked)}
           />
         </div>
       </div>

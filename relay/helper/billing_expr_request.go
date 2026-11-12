@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"maps"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -10,14 +11,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.RelayInfo) (billingexpr.RequestInput, error) {
+// ResolveIncomingBillingExprRequestInput freezes the request context a billing
+// expression reads. Only expressions that call param() read the body; for the
+// others it is not loaded, so a disk-cached body never moves into memory and
+// the snapshot does not keep the whole request alive until settlement.
+func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.RelayInfo, readsBody bool) (billingexpr.RequestInput, error) {
 	if info != nil && info.BillingRequestInput != nil {
 		input := cloneRequestInput(*info.BillingRequestInput)
 		merged := cloneStringMap(info.RequestHeaders)
-		for k, v := range input.Headers {
-			merged[k] = v
-		}
+		maps.Copy(merged, input.Headers)
 		input.Headers = merged
+		// A later expression, such as compact repricing, may read a body the
+		// first expression did not need.
+		if readsBody && input.Body == nil {
+			bodyBytes, err := readIncomingBillingExprBody(c)
+			if err != nil {
+				return billingexpr.RequestInput{}, err
+			}
+			input.Body = bodyBytes
+		}
 		return input, nil
 	}
 
@@ -25,12 +37,40 @@ func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.Re
 	if info != nil {
 		input.Headers = cloneStringMap(info.RequestHeaders)
 	}
+	if !readsBody {
+		return input, nil
+	}
 
 	bodyBytes, err := readIncomingBillingExprBody(c)
 	if err != nil {
 		return billingexpr.RequestInput{}, err
 	}
 	input.Body = bodyBytes
+	return input, nil
+}
+
+// ResolveImageBillingRequestInput freezes only the validated scalar image
+// parameters needed by pricing. Image files, prompts and base64 payloads are
+// deliberately excluded, including for multipart edits.
+func ResolveImageBillingRequestInput(c *gin.Context, info *relaycommon.RelayInfo, input billingexpr.RequestInput) (billingexpr.RequestInput, error) {
+	request, ok := info.Request.(*dto.ImageRequest)
+	if !ok {
+		return input, nil
+	}
+	count, err := request.ImageCount(false)
+	if err != nil {
+		return input, err
+	}
+	body := map[string]any{"model": request.Model, "n": count, "size": request.Size, "quality": request.Quality}
+	if request.BillingParameters != nil {
+		body["parameters"] = request.BillingParameters
+	}
+	encoded, err := common.Marshal(body)
+	if err != nil {
+		return input, err
+	}
+	input.Body = encoded
+	input.ImageCount = &count
 	return input, nil
 }
 
@@ -64,6 +104,10 @@ func readIncomingBillingExprBody(c *gin.Context) ([]byte, error) {
 func cloneRequestInput(src billingexpr.RequestInput) billingexpr.RequestInput {
 	input := billingexpr.RequestInput{
 		Headers: cloneStringMap(src.Headers),
+	}
+	if src.ImageCount != nil {
+		count := *src.ImageCount
+		input.ImageCount = &count
 	}
 	if len(src.Body) > 0 {
 		input.Body = append([]byte(nil), src.Body...)

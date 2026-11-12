@@ -20,6 +20,8 @@ For commercial licensing, please contact support@quantumnous.com
  * Type definitions for usage logs
  */
 import type { RequestRuleTrace } from '@/features/pricing/lib/billing-expr'
+import type { PolicyEvent } from '@/features/system-settings/request-policies/api'
+import type { LocalizedTextValue } from '@/lib/localized-text'
 
 import type { UsageLog } from './data/schema'
 // ============================================================================
@@ -113,8 +115,94 @@ export interface ToolSurchargeItem {
   price: number
 }
 
+/** One change a request processing plugin made, as the log owner sees it. */
+export type RequestPluginRecordChange = {
+  op: string
+  path: string
+  /** Set for move and copy: where the value came from. */
+  from?: string
+  /** The new value, when it is safe to show. */
+  value?: unknown
+  /** Otherwise the kind of value and its length. */
+  type?: string
+  length?: number
+  /** The channel's own settings ran later and replaced this change. */
+  overridden?: boolean
+}
+
+/**
+ * What a plugin did with one attachment of the request. The record never
+ * holds the file's name or content.
+ */
+export type RequestPluginRecordAttachment = {
+  kind: string
+  mime: string
+  /** checked, truncated (only the first part was read) or unchecked. */
+  status: string
+  /** Why an unchecked attachment was left out, when known. */
+  reason?: string
+  /** The plugin replaced the attachment's text. */
+  rewritten?: boolean
+}
+
+/** What one request processing plugin did to a request, public on the log. */
+export type RequestPluginRecordEntry = {
+  plugin: string
+  name?: LocalizedTextValue
+  stage: string
+  changes?: RequestPluginRecordChange[]
+  more_changes?: number
+  headers?: {
+    set?: string[]
+    remove?: string[]
+    /** Header names the channel's own settings replaced afterwards. */
+    overridden?: string[]
+  }
+  reasoning_effort?: string
+  media?: {
+    index: number
+    from: { mime: string; bytes: number }
+    to: { mime: string; bytes: number }
+    lossless?: boolean
+  }[]
+  findings?: { category: string; count: number }[]
+  notice?: LocalizedTextValue
+  rejected?: { code: string }
+  /** How many parts of the answer a reply check masked. */
+  masked?: number
+  /** The plugin could not read the request body or the answer, so it did not run. */
+  unchecked?: boolean
+  /** With unchecked: the audio input of a Realtime session went unchecked. */
+  audio?: boolean
+  /** The attachments the plugin looked at, in request order. */
+  attachments?: RequestPluginRecordAttachment[]
+  more_attachments?: number
+}
+
+/** The record ends with a count of the entries left out, when it was cut. */
+export type RequestPluginRecordItem =
+  | RequestPluginRecordEntry
+  | { truncated: number }
+
+/** One request processing run as administrators see it. */
+export type RequestPluginAdminStep = {
+  instance: string
+  name?: string
+  plugin: string
+  version?: string
+  stage: string
+  action?: string
+  duration_ms?: number
+  error?: string
+  error_class?: string
+  rule?: string
+  findings?: { rule: string; category?: string; count: number }[]
+}
+
 export interface LogOtherData {
   admin_info?: {
+    request_policy?: PolicyEvent[]
+    request_plugins?: RequestPluginAdminStep[]
     is_multi_key?: boolean
     multi_key_index?: number
     use_channel?: number[]
@@ -134,7 +222,7 @@ export interface LogOtherData {
     admin_role?: number
     auth_method?: 'session' | 'access_token' | string
     // Quota saturation marker: set when a quota conversion clamped at the
-    // int32 bound (overflow/underflow) or hit a NaN fallback while computing
+    // supported single-request bound (overflow/underflow) or hit a NaN fallback while computing
     // this request's charge. Admin-only (nested under admin_info).
     quota_saturation?: {
       op: string
@@ -142,7 +230,21 @@ export interface LogOtherData {
       original: number
       clamped: number
     }
+    // Reject / intercept reason (admin only)
+    reject_reason?: string
+    task_plugin?: TaskPluginInfo
   }
+  root_info?: {
+    task_plugin?: TaskPluginRuntimeInfo
+    upstream_task_id?: string
+    node_name?: string
+  }
+  // Structured log content: English source keys plus params, rendered in the
+  // viewer's language. `content` keeps the English text for older clients.
+  content_parts?: {
+    key: string
+    params?: Record<string, string | number | boolean>
+  }[]
   // Language-independent operation descriptor (audit/login logs).
   // Frontend renders localized content from action + params via i18n templates.
   op?: {
@@ -170,9 +272,12 @@ export interface LogOtherData {
   text_input?: number
   text_output?: number
   cache_tokens?: number
+  image_cache_tokens?: number
+  billing_tokens?: Record<string, number>
   cache_creation_tokens?: number
   cache_creation_tokens_5m?: number
   cache_creation_tokens_1h?: number
+  cache_creation_tokens_12h?: number
   claude?: boolean
   model_ratio?: number
   completion_ratio?: number
@@ -183,8 +288,16 @@ export interface LogOtherData {
   cache_creation_ratio?: number
   cache_creation_ratio_5m?: number
   cache_creation_ratio_1h?: number
+  cache_creation_ratio_12h?: number
   is_model_mapped?: boolean
   upstream_model_name?: string
+  // Diagnostic only. Whether the names disagree is derived in the UI via
+  // isResponseModelMismatch so old rows follow the current comparison rule.
+  response_model?: {
+    requested_model: string
+    upstream_model: string
+    returned_model: string
+  }
   audio_ratio?: number
   audio_completion_ratio?: number
   frt?: number
@@ -193,9 +306,13 @@ export interface LogOtherData {
   // expression; the matched tier and request-rule traces come from the actual
   // settlement run.
   billing_mode?: string
+  billing_unit?: 'token' | 'request'
+  fixed_price?: number
+  image_count?: number
   expr_b64?: string
   matched_tier?: string
   request_rules?: RequestRuleTrace[]
+  usage_facts?: Record<string, string | number>
   reasoning_effort?: string
   image?: boolean
   image_ratio?: number
@@ -215,6 +332,7 @@ export interface LogOtherData {
   image_generation_call_count?: number
   is_system_prompt_overwritten?: boolean
   po?: string[]
+  request_plugins?: RequestPluginRecordItem[]
   billing_source?: string
   group?: string
   stream_status?: {
@@ -229,10 +347,13 @@ export interface LogOtherData {
   violation_fee_code?: string
   violation_fee_marker?: string
   fee_quota?: number
-  // Reject / intercept reason (admin)
-  reject_reason?: string
   // Task-related fields (for refund logs, type=6)
   is_task?: boolean
+  // The submitting request returned the task result itself (an immediate
+  // result, or an OpenAI Images request the gateway waited on).
+  task_sync?: boolean
+  // The inline result was not persisted, so no artifact can be retrieved.
+  result_discarded?: boolean
   task_id?: string
   reason?: string
   // Subscription billing fields
@@ -295,16 +416,97 @@ export interface TaskLog {
   task_id: string
   action: string // MUSIC, LYRICS, GENERATE, TEXT_GENERATE, etc.
   channel_id: number
+  group: string
+  quota: number
   submit_time: number // seconds
+  start_time?: number // seconds
   finish_time?: number // seconds
   progress?: string
   progress_message_en?: string
-  data?: string // JSON string
+  data?: unknown
+  properties?: {
+    input?: string
+    upstream_model_name?: string
+    origin_model_name?: string
+  }
+  legacy_video_available?: boolean
+  // A synchronous result returned inline and never persisted; artifact
+  // retrieval is not offered for it.
+  result_discarded?: boolean
   fail_reason?: string
   status: string // NOT_START, SUBMITTED, IN_PROGRESS, SUCCESS, FAILURE, QUEUED, UNKNOWN
-  other?: string
+  admin_info?: {
+    request_id?: string
+    request_path?: string
+    task_plugin?: TaskPluginInfo
+  }
+  root_info?: {
+    task_plugin?: TaskPluginRuntimeInfo
+    upstream_task_id?: string
+    node_name?: string
+  }
   created_at?: number
   updated_at?: number
+}
+
+export interface TaskPluginInfo {
+  key: string
+  name: string
+  version?: string
+  author?: TaskPluginAuthor
+}
+
+export interface TaskPluginAuthor {
+  name: string
+  url?: string
+}
+
+export interface TaskPluginRuntimeInfo {
+  key: string
+  version: string
+  api_version: number
+  generation: number
+}
+
+export type TaskArtifactType = 'image' | 'video' | 'audio' | 'file'
+
+export interface TaskArtifact {
+  key: string
+  type: TaskArtifactType
+  mime_type?: string
+  content_url: string
+}
+
+export interface AudioClip {
+  clip_id?: string
+  id?: string
+  title?: string
+  tags?: string
+  duration?: number
+  audio_url?: string
+  image_url?: string
+  image_large_url?: string
+  metadata?: {
+    tags?: string
+    duration?: number
+  }
+}
+
+export interface TaskArtifactProjection {
+  artifacts: TaskArtifact[]
+  legacyContentUrl?: string
+  legacyAudioClips?: AudioClip[]
+}
+
+export interface TaskArtifactsResponse {
+  success: boolean
+  message?: string
+  code?: string
+  data?: {
+    artifacts?: unknown
+    legacy_content_url?: unknown
+    legacy_audio_clips?: unknown
+  }
 }
 
 // ============================================================================

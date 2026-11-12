@@ -60,7 +60,7 @@ func TestResponseOpenAI2GeminiMapsTextToolFinishReasonAndUsage(t *testing.T) {
 	assert.Equal(t, "hello", resp.Candidates[0].Content.Parts[0].Text)
 	require.NotNil(t, resp.Candidates[0].Content.Parts[1].FunctionCall)
 	assert.Equal(t, "lookup", resp.Candidates[0].Content.Parts[1].FunctionCall.FunctionName)
-	assert.Equal(t, map[string]interface{}{"q": "x"}, resp.Candidates[0].Content.Parts[1].FunctionCall.Arguments)
+	assert.Equal(t, map[string]any{"q": "x"}, resp.Candidates[0].Content.Parts[1].FunctionCall.Arguments)
 }
 
 func TestStreamResponseOpenAI2GeminiMapsToolCallFinishReasonAndUsage(t *testing.T) {
@@ -104,7 +104,7 @@ func TestStreamResponseOpenAI2GeminiMapsToolCallFinishReasonAndUsage(t *testing.
 	require.Len(t, resp.Candidates[0].Content.Parts, 1)
 	require.NotNil(t, resp.Candidates[0].Content.Parts[0].FunctionCall)
 	assert.Equal(t, "lookup", resp.Candidates[0].Content.Parts[0].FunctionCall.FunctionName)
-	assert.Equal(t, map[string]interface{}{"q": "x"}, resp.Candidates[0].Content.Parts[0].FunctionCall.Arguments)
+	assert.Equal(t, map[string]any{"q": "x"}, resp.Candidates[0].Content.Parts[0].FunctionCall.Arguments)
 }
 
 func geminiRespPtr[T any](value T) *T {

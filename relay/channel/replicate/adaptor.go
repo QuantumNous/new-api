@@ -36,7 +36,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return "", errors.New("replicate adaptor: relay info is nil")
 	}
 	if info.ChannelBaseUrl == "" {
-		info.ChannelBaseUrl = constant.ChannelBaseURLs[constant.ChannelTypeReplicate]
+		info.ChannelBaseUrl = constant.GetChannelBaseURL(constant.ChannelTypeReplicate)
 	}
 	requestPath := info.RequestURLPath
 	if requestPath == "" {
@@ -62,6 +62,18 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		req.Set("Accept", "application/json")
 	}
 	return nil
+}
+
+// OutboundImageCount reads the image count of an image request body:
+// Replicate generates input.num_outputs images.
+func (a *Adaptor) OutboundImageCount(body []byte) (*uint, error) {
+	var request struct {
+		Input struct {
+			NumOutputs *uint `json:"num_outputs"`
+		} `json:"input"`
+	}
+	err := common.Unmarshal(body, &request)
+	return request.Input.NumOutputs, err
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
@@ -467,7 +479,7 @@ func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandid
 
 	baseURL := info.ChannelBaseUrl
 	if baseURL == "" {
-		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeReplicate]
+		baseURL = constant.GetChannelBaseURL(constant.ChannelTypeReplicate)
 	}
 	uploadURL := relaycommon.GetFullRequestURL(baseURL, "/v1/files", info.ChannelType)
 

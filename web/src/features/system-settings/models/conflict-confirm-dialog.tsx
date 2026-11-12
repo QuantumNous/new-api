@@ -18,99 +18,108 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StaticDataTable } from '@/components/data-table'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ErrorState } from '@/components/error-state'
+import { Button } from '@/components/ui/button'
 
 export type ConflictItem = {
   channel: string
   model: string
   current: string
   newVal: string
+  adjustment?: string
+  siteVal?: string
 }
-
 type ConflictConfirmDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   conflicts: ConflictItem[]
   onConfirm: () => void
   isLoading?: boolean
+  error?: string
+  onReload?: () => void
+  exchangeRateSummary?: string
 }
-
-export function ConflictConfirmDialog({
-  open,
-  onOpenChange,
-  conflicts,
-  onConfirm,
-  isLoading = false,
-}: ConflictConfirmDialogProps) {
+export function ConflictConfirmDialog(props: ConflictConfirmDialogProps) {
   const { t } = useTranslation()
+  const conflicts = props.conflicts
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className='max-w-4xl'>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{t('Confirm Billing Conflicts')}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t(
-              'The following models have billing type conflicts (fixed price vs ratio billing). Confirm to proceed with the changes.'
-            )}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-
-        <StaticDataTable
-          className='max-h-96 overflow-y-auto'
-          data={conflicts}
-          columns={[
-            {
-              id: 'channel',
-              header: t('Channel'),
-              cellClassName: 'font-medium',
-              cell: (conflict) => conflict.channel,
-            },
-            {
-              id: 'model',
-              header: t('Model'),
-              cellClassName: 'font-mono text-sm',
-              cell: (conflict) => conflict.model,
-            },
-            {
-              id: 'current',
-              header: t('Current Billing'),
-              cell: (conflict) => (
-                <pre className='text-sm whitespace-pre-wrap'>
-                  {conflict.current}
-                </pre>
-              ),
-            },
-            {
-              id: 'new',
-              header: t('Change To'),
-              cell: (conflict) => (
+    <ConfirmDialog
+      open={props.open}
+      onOpenChange={props.onOpenChange}
+      title={t('Preview price changes')}
+      desc={t('Review and confirm the selected prices.')}
+      className='max-h-[min(90dvh,var(--dialog-available-height))] overflow-y-auto data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-4xl'
+      confirmText={t('Confirm Changes')}
+      isLoading={props.isLoading}
+      handleConfirm={props.onConfirm}
+      disabled={Boolean(props.error)}
+    >
+      {props.exchangeRateSummary && (
+        <p className='text-muted-foreground text-sm'>
+          {props.exchangeRateSummary}
+        </p>
+      )}
+      {props.error && (
+        <ErrorState
+          description={props.error}
+          action={
+            <Button variant='outline' onClick={props.onReload}>
+              {t('Reload pricing')}
+            </Button>
+          }
+        />
+      )}
+      <StaticDataTable
+        className='max-h-96 overflow-y-auto'
+        tableClassName='min-w-[640px]'
+        data={conflicts}
+        columns={[
+          {
+            id: 'channel',
+            header: t('Price source'),
+            cellClassName: 'font-medium',
+            cell: (conflict) => conflict.channel,
+          },
+          {
+            id: 'model',
+            header: t('Model'),
+            cellClassName: 'font-mono text-sm',
+            cell: (conflict) => conflict.model,
+          },
+          {
+            id: 'current',
+            header: t('Current Billing'),
+            cell: (conflict) => (
+              <pre className='text-sm whitespace-pre-wrap'>
+                {conflict.current}
+              </pre>
+            ),
+          },
+          {
+            id: 'new',
+            header: t('Final saved price'),
+            cell: (conflict) => (
+              <div className='space-y-2'>
+                {conflict.adjustment && (
+                  <p className='text-muted-foreground text-xs'>
+                    {conflict.adjustment}
+                  </p>
+                )}
                 <pre className='text-sm whitespace-pre-wrap'>
                   {conflict.newVal}
                 </pre>
-              ),
-            },
-          ]}
-        />
-
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isLoading}>
-            {t('Cancel')}
-          </AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} disabled={isLoading}>
-            {isLoading ? t('Applying...') : t('Confirm Changes')}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+                {conflict.siteVal && (
+                  <pre className='text-muted-foreground text-xs whitespace-pre-wrap'>
+                    {conflict.siteVal}
+                  </pre>
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
+    </ConfirmDialog>
   )
 }

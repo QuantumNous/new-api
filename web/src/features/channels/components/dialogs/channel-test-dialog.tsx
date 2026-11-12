@@ -60,16 +60,9 @@ import {
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -86,12 +79,16 @@ import {
 } from '@/components/ui/tooltip'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { updateChannel } from '../../api'
+import { CHANNEL_TYPE_TASK_PLUGIN } from '../../constants'
+import { useTaskPluginOption } from '../../hooks/use-task-plugin-option'
 import {
   channelsQueryKeys,
   formatResponseTime,
   handleTestChannel,
+  parseChannelSettings,
 } from '../../lib'
 import type {
   Channel,
@@ -178,30 +175,55 @@ function getLatestChannelTestCachePatch(
   return latest?.patch
 }
 
-const endpointTypeOptions: Array<{ value: string; label: string }> = [
+// `path` is the client path an endpoint is tested on; a plugin channel offers
+// only the endpoints its plugin's routes serve.
+const endpointTypeOptions: Array<{
+  value: string
+  label: string
+  path?: string
+}> = [
   { value: 'auto', label: 'Auto detect (default)' },
-  { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
-  { value: 'openai-response', label: 'OpenAI Responses (/v1/responses)' },
+  {
+    value: 'openai',
+    label: 'OpenAI (/v1/chat/completions)',
+    path: '/v1/chat/completions',
+  },
+  {
+    value: 'openai-response',
+    label: 'OpenAI Responses (/v1/responses)',
+    path: '/v1/responses',
+  },
   {
     value: 'openai-response-compact',
     label: 'OpenAI Response Compaction (/v1/responses/compact)',
+    path: '/v1/responses/compact',
   },
-  { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
+  {
+    value: 'anthropic',
+    label: 'Anthropic (/v1/messages)',
+    path: '/v1/messages',
+  },
   {
     value: 'gemini',
     label: 'Gemini (/v1beta/models/{model}:generateContent)',
+    path: '/v1beta/models/{model}:generateContent',
   },
-  { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
+  {
+    value: 'jina-rerank',
+    label: 'Jina Rerank (/v1/rerank)',
+    path: '/v1/rerank',
+  },
   {
     value: 'image-generation',
     label: 'Image Generation (/v1/images/generations)',
+    path: '/v1/images/generations',
   },
-  { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
+  {
+    value: 'embeddings',
+    label: 'Embeddings (/v1/embeddings)',
+    path: '/v1/embeddings',
+  },
 ]
-
-const endpointSelectContentClass = 'w-[460px] max-w-[calc(100vw-2rem)]'
-const endpointSelectItemClass =
-  'items-start py-2 [&_[data-slot=select-item-text]]:min-w-0 [&_[data-slot=select-item-text]]:shrink [&_[data-slot=select-item-text]]:whitespace-normal'
 
 const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
   'embeddings',
@@ -355,13 +377,24 @@ function ChannelTestDialogContent({
     pageIndex: 0,
     pageSize: 30,
   })
+  const plugin = useTaskPluginOption(
+    currentRow.type === CHANNEL_TYPE_TASK_PLUGIN
+      ? parseChannelSettings(currentRow.setting)?.task_plugin_key
+      : undefined
+  )
+  const relayPaths = plugin?.relayPaths
   const endpointSelectItems = useMemo(
     () =>
-      endpointTypeOptions.map((option) => ({
-        value: option.value,
-        label: t(option.label),
-      })),
-    [t]
+      endpointTypeOptions
+        .filter(
+          (option) =>
+            !relayPaths || !option.path || relayPaths.includes(option.path)
+        )
+        .map((option) => ({
+          value: option.value,
+          label: t(option.label),
+        })),
+    [relayPaths, t]
   )
 
   const dismissBatchProgressToast = useCallback(() => {
@@ -803,14 +836,10 @@ function ChannelTestDialogContent({
         refreshChannelLists()
         setIsDeleteFailedDialogOpen(false)
       } else {
-        toast.error(response.message || t('Failed to delete failed models'))
+        handleServerError(response, t('Failed to delete failed models'))
       }
     } catch (error: unknown) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : t('Failed to delete failed models')
-      )
+      handleServerError(error, t('Failed to delete failed models'))
     } finally {
       setIsDeletingFailed(false)
     }
@@ -983,7 +1012,7 @@ function ChannelTestDialogContent({
             <span className='min-w-0 truncate'>{currentRow.name}</span>
           </span>
         }
-        contentClassName='max-h-[90vh] overflow-hidden sm:max-w-4xl'
+        contentClassName='max-h-[min(90dvh,var(--dialog-available-height))] overflow-y-auto sm:max-w-4xl'
         contentHeight='auto'
         bodyClassName='space-y-4'
         footer={
@@ -996,36 +1025,14 @@ function ChannelTestDialogContent({
           <div className='grid gap-4 md:grid-cols-2'>
             <div className='grid gap-2'>
               <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
-              <Select
-                items={endpointSelectItems}
+              <Combobox
+                options={endpointSelectItems}
                 value={endpointType}
                 onValueChange={handleEndpointTypeChange}
-              >
-                <SelectTrigger id='endpoint-type' className='w-full min-w-0'>
-                  <SelectValue
-                    className='min-w-0 truncate'
-                    placeholder={t('Auto detect (default)')}
-                  />
-                </SelectTrigger>
-                <SelectContent
-                  alignItemWithTrigger={false}
-                  className={endpointSelectContentClass}
-                >
-                  <SelectGroup>
-                    {endpointSelectItems.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        className={endpointSelectItemClass}
-                      >
-                        <span className='min-w-0 leading-snug break-words whitespace-normal'>
-                          {option.label}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+                id='endpoint-type'
+                className='w-full min-w-0'
+                placeholder={t('Auto detect (default)')}
+              />
               <p className='text-muted-foreground text-xs'>
                 {t(
                   'Override the endpoint used for testing. Leave empty to auto detect.'

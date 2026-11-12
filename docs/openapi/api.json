@@ -2727,8 +2727,148 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
-            "headers": {}
+            "description": "创建成功时返回本次新建渠道的 ID；业务失败仍使用 HTTP 200，success 为 false 且不返回 data。",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "仅创建成功时返回，不包含渠道凭证。",
+                      "properties": {
+                        "ids": {
+                          "type": "array",
+                          "description": "本次实际新建渠道的 ID，按创建顺序排列。single 和 multi_to_single 最多创建一个渠道，batch 可创建多个；按现有规则过滤后未创建渠道时为 []。",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "id": {
+                          "type": "integer",
+                          "description": "仅本次恰好新建一个渠道时返回，与 ids[0] 相同。"
+                        },
+                        "results": {
+                          "type": "array",
+                          "description": "原始输入与新建渠道的对应关系；按输入顺序返回，不含 Key。被现有规则过滤掉的输入不返回条目；未创建渠道时为 []。multi_to_single 的多个输入会对应同一个 channel_id。",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "input_index": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "从 0 开始的原始输入位置。single 的整个 channel.key（含多行 JSON）为输入 0；batch/multi_to_single 普通 Key 与 Vertex API Key 使用原始换行分割位置；Vertex 服务账号 JSON 使用原始数组下标。下标保留被过滤空项占用的位置，不重新编号。"
+                              },
+                              "channel_id": {
+                                "type": "integer",
+                                "description": "该输入对应的本次新建渠道 ID。"
+                              }
+                            },
+                            "required": [
+                              "input_index",
+                              "channel_id"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "ids",
+                        "results"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message"
+                  ]
+                },
+                "examples": {
+                  "single": {
+                    "summary": "新建一个渠道",
+                    "value": {
+                      "success": true,
+                      "message": "",
+                      "data": {
+                        "ids": [
+                          12345
+                        ],
+                        "id": 12345,
+                        "results": [
+                          {
+                            "input_index": 0,
+                            "channel_id": 12345
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "batch": {
+                    "summary": "批量新建渠道（原始第 0、2 项为空，被过滤）",
+                    "value": {
+                      "success": true,
+                      "message": "",
+                      "data": {
+                        "ids": [
+                          12345,
+                          12346
+                        ],
+                        "results": [
+                          {
+                            "input_index": 1,
+                            "channel_id": 12345
+                          },
+                          {
+                            "input_index": 3,
+                            "channel_id": 12346
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "empty": {
+                    "summary": "批次过滤空 Key 后未创建渠道",
+                    "value": {
+                      "success": true,
+                      "message": "",
+                      "data": {
+                        "ids": [],
+                        "results": []
+                      }
+                    }
+                  },
+                  "multi_to_single": {
+                    "summary": "多个输入合并为一个渠道（原始第 1 项为空，被过滤）",
+                    "value": {
+                      "success": true,
+                      "message": "",
+                      "data": {
+                        "ids": [
+                          12345
+                        ],
+                        "id": 12345,
+                        "results": [
+                          {
+                            "input_index": 0,
+                            "channel_id": 12345
+                          },
+                          {
+                            "input_index": 2,
+                            "channel_id": 12345
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [

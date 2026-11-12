@@ -10,7 +10,10 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -122,7 +125,7 @@ func TestOaiResponsesToChatStreamHandlerConvertsClaudeSSETerminalsAndUsage(t *te
 	assert.Equal(t, 1, strings.Count(got, "event: message_stop\n"))
 
 	messageDeltaFrame := ""
-	for _, frame := range strings.Split(got, "\n\n") {
+	for frame := range strings.SplitSeq(got, "\n\n") {
 		if strings.HasPrefix(frame, "event: message_delta\n") {
 			messageDeltaFrame = frame
 			break
@@ -169,6 +172,50 @@ func TestOaiResponsesToChatBufferedStreamHandlerReturnsJSONFromSSE(t *testing.T)
 	require.Contains(t, got, `"name":"lookup"`)
 	require.Contains(t, got, `"arguments":"{\"q\":\"x\"}"`)
 	require.Contains(t, got, `"finish_reason":"tool_calls"`)
+}
+
+func TestOaiResponsesToChatBufferedStreamHandlerPreservesInterleavedClaudeContent(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	body := strings.Join([]string{
+		`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"reasoning","id":"rs_1","summary":[]}}`,
+		`data: {"type":"response.reasoning_summary_text.delta","output_index":0,"item_id":"rs_1","delta":"**Planning file inspection**"}`,
+		`data: {"type":"response.output_item.added","output_index":1,"item":{"type":"message","id":"msg_1","role":"assistant","content":[]}}`,
+		`data: {"type":"response.output_text.delta","output_index":1,"item_id":"msg_1","delta":"I’ll inspect the starter repository."}`,
+		`data: {"type":"response.output_item.added","output_index":2,"item":{"type":"reasoning","id":"rs_2","summary":[]}}`,
+		`data: {"type":"response.reasoning_summary_text.delta","output_index":2,"item_id":"rs_2","delta":"**Clarifying environment task requirements**"}`,
+		`data: {"type":"response.output_item.added","output_index":3,"item":{"type":"message","id":"msg_2","role":"assistant","content":[]}}`,
+		`data: {"type":"response.output_text.delta","output_index":3,"item_id":"msg_2","delta":"What would you like me to build?"}`,
+		`data: {"type":"response.done","response":{"id":"resp_1","model":"gpt-test","status":"completed","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, false)
+	info.RelayFormat = types.RelayFormatClaude
+
+	usage, apiErr := OaiResponsesToChatBufferedStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 3, usage.TotalTokens)
+
+	var claudeResponse dto.ClaudeResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &claudeResponse))
+	require.Len(t, claudeResponse.Content, 4)
+	assert.Equal(t, []string{"thinking", "text", "thinking", "text"}, []string{
+		claudeResponse.Content[0].Type,
+		claudeResponse.Content[1].Type,
+		claudeResponse.Content[2].Type,
+		claudeResponse.Content[3].Type,
+	})
+	require.NotNil(t, claudeResponse.Content[0].Thinking)
+	require.NotNil(t, claudeResponse.Content[2].Thinking)
+	assert.Equal(t, "**Planning file inspection**", *claudeResponse.Content[0].Thinking)
+	assert.Equal(t, "I’ll inspect the starter repository.", claudeResponse.Content[1].GetText())
+	assert.Equal(t, "**Clarifying environment task requirements**", *claudeResponse.Content[2].Thinking)
+	assert.Equal(t, "What would you like me to build?", claudeResponse.Content[3].GetText())
 }
 
 func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
@@ -220,6 +267,59 @@ func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 		`event: response.output_text.done`,
 		`event: response.function_call_arguments.done`,
 		`event: response.completed`,
+	)
+}
+
+func TestOaiChatToResponsesStreamHandlerRestoresCodexCustomToolCall(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_exec","type":"function","function":{"name":"exec","arguments":"{\"input\":"}}]},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"ls -la\"}"}}]},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	tools, marshalErr := common.Marshal([]map[string]any{
+		{"type": "custom", "name": "exec", "description": "Run a shell command", "format": map[string]any{"type": "text"}},
+	})
+	require.NoError(t, marshalErr)
+	converted, convertErr := service.ConvertRequestByID(c, info, relayconvert.ConverterOpenAIResponsesToOpenAIChat, &dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: []byte(`"list files"`),
+		Tools: tools,
+	})
+	require.NoError(t, convertErr)
+	chatRequest, ok := converted.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, chatRequest.Tools, 1)
+	assert.Equal(t, "function", chatRequest.Tools[0].Type)
+	assert.Equal(t, "exec", chatRequest.Tools[0].Function.Name)
+
+	_, err := OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, err)
+
+	got := recorder.Body.String()
+	assert.NotContains(t, got, `event: response.function_call_arguments`)
+	assert.Contains(t, got, `"delta":"ls -la"`)
+	assert.Contains(t, got, `"input":"ls -la"`)
+	requireOrderedSubstrings(t, got,
+		`event: response.output_item.added`,
+		`"type":"custom_tool_call"`,
+		`event: response.custom_tool_call_input.delta`,
+		`event: response.custom_tool_call_input.done`,
+		`event: response.output_item.done`,
+		`event: response.completed`,
+		`"type":"custom_tool_call"`,
 	)
 }
 
