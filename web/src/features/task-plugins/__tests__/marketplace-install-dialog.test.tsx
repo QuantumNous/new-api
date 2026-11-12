@@ -870,9 +870,71 @@ test('changing the selected version while reading changelog keeps that tab open'
   await user.click(screen.getByRole('combobox', { name: 'Select version' }))
   await user.click(screen.getByRole('option', { name: '1.0 · Active version' }))
   expect(changelog).toHaveAttribute('aria-selected', 'true')
-  await waitFor(() =>
-    expect(screen.getByText('Could not load the changelog')).toBeVisible()
+  expect(
+    await screen.findByText('No changelog for this version.')
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'Retry' })
+  ).not.toBeInTheDocument()
+})
+
+test('the details tab shows the usage guide above the plugin details and loads it only on that tab', async () => {
+  const user = userEvent.setup()
+  const fetchMock = vi.fn(async (url: string) =>
+    url.endsWith('/files/readme')
+      ? new Response('# Demo guide\n\nPick the Demo channel type.\n')
+      : new Response(source)
   )
+  vi.stubGlobal('fetch', fetchMock)
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  clients.push(client)
+  render(
+    <QueryClientProvider client={client}>
+      <MarketplaceInstallDialog
+        target={{
+          source: {
+            name: 'Community',
+            index_url: 'https://example.com/index.json',
+          },
+          plugin: {
+            key: 'demo',
+            name: 'Demo',
+            latest: '1.1',
+            versions: [
+              {
+                version: '1.1',
+                path: 'files/plugin',
+                readme: { path: 'files/readme' },
+              },
+            ],
+          },
+          version: '1.1',
+          installState: { status: 'not_installed' },
+        }}
+        onOpenChange={() => undefined}
+      />
+    </QueryClientProvider>
+  )
+  const guide = await screen.findByRole('region', { name: 'Usage guide' })
+  expect(within(guide).getByText('Pick the Demo channel type.')).toBeVisible()
+  expect(
+    guide.compareDocumentPosition(
+      screen.getByRole('region', { name: 'Supported models' })
+    ) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy()
+  const readmeCalls = () =>
+    fetchMock.mock.calls.filter(([url]) => url.endsWith('/files/readme')).length
+  await user.click(screen.getByRole('tab', { name: 'Full source' }))
+  expect(
+    screen.queryByRole('region', { name: 'Usage guide' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('tab', { name: 'Plugin details' }))
+  expect(
+    await screen.findByRole('region', { name: 'Usage guide' })
+  ).toBeVisible()
+  expect(readmeCalls()).toBe(1)
 })
 
 function renderSourceDialog(indexUrl: string, pluginSource: string) {

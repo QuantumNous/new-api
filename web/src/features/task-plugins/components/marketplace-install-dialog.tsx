@@ -62,6 +62,11 @@ const PluginChangelogPanel = lazy(() =>
     default: module.PluginChangelogPanel,
   }))
 )
+const PluginReadmeSection = lazy(() =>
+  import('./plugin-readme-section').then((module) => ({
+    default: module.PluginReadmeSection,
+  }))
+)
 
 export type MarketplaceInstallTarget = {
   source: MarketplaceSource
@@ -393,6 +398,19 @@ function MarketplaceInstallContent(
           </TabsContent>
         )}
         <TabsContent value='details' className='min-w-0 space-y-2'>
+          {reviewTab === 'details' && (
+            <Suspense
+              fallback={
+                <LoadingState inline size='sm' message={t('Loading...')} />
+              }
+            >
+              <PluginReadmeSection
+                indexUrl={target.source.index_url}
+                plugin={target.plugin}
+                version={selectedVersion}
+              />
+            </Suspense>
+          )}
           {sourceStatus}
           <MarketplaceCapabilities
             plugin={target.plugin}

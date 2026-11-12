@@ -829,3 +829,144 @@ describe('community index fields', () => {
     assert.equal(findRevokedEntry(undefined, digest), undefined)
   })
 })
+
+describe('version readme and changelog fields', () => {
+  const digest = 'a'.repeat(64)
+  const parseVersion = (fields: Record<string, unknown>) =>
+    parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          key: 'alice_foo',
+          versions: [{ version: '1.0.0', path: 'files/x', ...fields }],
+        },
+      ],
+    }).plugins[0].versions[0]
+
+  test('reads both files with their digests, pages and translations', () => {
+    const version = parseVersion({
+      readme: {
+        path: ' files/readme ',
+        sha256: digest.toUpperCase(),
+        sourceUrl: 'https://github.com/alice/foo/blob/abc/README.md',
+        translations: {
+          'zh-CN': {
+            path: 'files/readme-zh',
+            sourceUrl: 'https://github.com/alice/foo/blob/abc/README.zh-CN.md',
+          },
+        },
+      },
+      changelog: { path: 'files/changelog' },
+    })
+    assert.deepEqual(version.readme, {
+      path: 'files/readme',
+      sha256: digest,
+      sourceUrl: 'https://github.com/alice/foo/blob/abc/README.md',
+      translations: {
+        'zh-CN': {
+          path: 'files/readme-zh',
+          sha256: undefined,
+          sourceUrl: 'https://github.com/alice/foo/blob/abc/README.zh-CN.md',
+        },
+      },
+    })
+    assert.deepEqual(version.changelog, {
+      path: 'files/changelog',
+      sha256: undefined,
+      sourceUrl: undefined,
+    })
+  })
+
+  test('a version from an older index has neither field', () => {
+    const version = parseVersion({})
+    assert.equal(version.readme, undefined)
+    assert.equal(version.changelog, undefined)
+  })
+
+  const translations = (count: number) =>
+    Object.fromEntries(
+      ['de', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'ru', 'vi', 'zh-CN', 'zh-TW']
+        .slice(0, count)
+        .map((tag) => [tag, { path: `files/${tag}` }])
+    )
+
+  test.each([
+    ['a missing path', { path: ' ' }],
+    ['a malformed digest', { path: 'files/r', sha256: 'abc' }],
+  ])('drops a file with %s and keeps the version', (_label, readme) => {
+    const version = parseVersion({ readme, changelog: readme })
+    assert.equal(version.version, '1.0.0')
+    assert.equal(version.readme, undefined)
+    assert.equal(version.changelog, undefined)
+  })
+
+  test('keeps an http page and drops only a malformed one', () => {
+    const version = parseVersion({
+      readme: { path: 'files/r', sourceUrl: 'http://git.example/a/README.md' },
+      changelog: { path: 'files/c', sourceUrl: 'javascript:alert(1)' },
+    })
+    assert.equal(version.readme?.sourceUrl, 'http://git.example/a/README.md')
+    assert.deepEqual(version.changelog, {
+      path: 'files/c',
+      sha256: undefined,
+      sourceUrl: undefined,
+    })
+  })
+
+  test('drops only the invalid translations and keeps the English file', () => {
+    const version = parseVersion({
+      readme: {
+        path: 'files/r',
+        translations: {
+          en: { path: 'files/e' },
+          'zh-cn': { path: 'files/z' },
+          ja: {},
+          fr: { path: 'files/fr', sha256: 'abc' },
+          'zh-CN': { path: 'files/zh', sourceUrl: 'ftp://x.example/a' },
+          ru: { path: 'files/ru' },
+        },
+      },
+    })
+    assert.equal(version.readme?.path, 'files/r')
+    assert.deepEqual(version.readme?.translations, {
+      'zh-CN': { path: 'files/zh', sha256: undefined, sourceUrl: undefined },
+      ru: { path: 'files/ru', sha256: undefined, sourceUrl: undefined },
+    })
+  })
+
+  test('a translations value that is not a map leaves the English file alone', () => {
+    const version = parseVersion({
+      readme: { path: 'files/r', translations: [] },
+    })
+    assert.deepEqual(version.readme, {
+      path: 'files/r',
+      sha256: undefined,
+      sourceUrl: undefined,
+    })
+  })
+
+  test('keeps the first 10 valid translations', () => {
+    const version = parseVersion({
+      readme: { path: 'files/r', translations: translations(11) },
+    })
+    assert.deepEqual(Object.keys(version.readme?.translations ?? {}), [
+      'de',
+      'es',
+      'fr',
+      'it',
+      'ja',
+      'ko',
+      'pt',
+      'ru',
+      'vi',
+      'zh-CN',
+    ])
+  })
+
+  test('keeps 10 translations', () => {
+    const version = parseVersion({
+      readme: { path: 'files/r', translations: translations(10) },
+    })
+    assert.equal(Object.keys(version.readme?.translations ?? {}).length, 10)
+  })
+})

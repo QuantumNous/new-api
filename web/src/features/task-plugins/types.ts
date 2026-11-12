@@ -313,6 +313,23 @@ export type MarketplaceIndexVersion = {
   allowedHosts?: string[]
   baseUrl?: string
   auth?: string
+  /** The version's usage guide, README.md. */
+  readme?: MarketplaceDocument
+  /** The version's release notes, CHANGELOG.md. */
+  changelog?: MarketplaceDocument
+}
+
+/** A file listed beside a version, resolved against the index like `path`. */
+export type MarketplaceDocumentFile = {
+  path: string
+  sha256?: string
+  /** A page where readers can see the file, such as the file on GitHub. */
+  sourceUrl?: string
+}
+
+/** An English file and its translations, keyed by canonical language tag. */
+export type MarketplaceDocument = MarketplaceDocumentFile & {
+  translations?: Record<string, MarketplaceDocumentFile>
 }
 
 export type MarketplacePluginIcon = {

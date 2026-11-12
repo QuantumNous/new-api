@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import i18next from 'i18next'
 
 import type {
+  MarketplaceDocument,
+  MarketplaceDocumentFile,
   MarketplaceIndex,
   MarketplaceIndexVersion,
   MarketplacePlugin,
@@ -179,6 +181,8 @@ function parseMarketplacePlugin(entry: unknown): MarketplacePlugin | null {
             ? rawVersion.baseUrl.trim()
             : undefined,
         auth: typeof rawVersion.auth === 'string' ? rawVersion.auth : undefined,
+        readme: parseMarketplaceDocument(rawVersion.readme),
+        changelog: parseMarketplaceDocument(rawVersion.changelog),
       })
     }
   }
@@ -277,6 +281,73 @@ function parseMarketplaceDescription(
     if (typeof text === 'string') mapped[locale] = text
   }
   return Object.keys(mapped).length > 0 ? mapped : undefined
+}
+
+/** Whether a language tag is already in canonical BCP 47 form, such as zh-CN. */
+export function isCanonicalLanguageTag(tag: string): boolean {
+  try {
+    return Intl.getCanonicalLocales(tag)[0] === tag
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A readme or changelog file needs a path, and a malformed digest drops it.
+ * A malformed page drops only `sourceUrl`; links then use the file itself.
+ */
+function parseMarketplaceDocumentFile(
+  value: unknown
+): MarketplaceDocumentFile | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+  const raw = value as Record<string, unknown>
+  const path = typeof raw.path === 'string' ? raw.path.trim() : ''
+  if (!path) return undefined
+  let sha256: string | undefined
+  if (raw.sha256 != null) {
+    if (typeof raw.sha256 !== 'string' || !/^[0-9a-f]{64}$/i.test(raw.sha256)) {
+      return undefined
+    }
+    sha256 = raw.sha256.toLowerCase()
+  }
+  // Pages may be http or https; the https website rules check both.
+  let sourceUrl: string | undefined
+  if (typeof raw.sourceUrl === 'string') {
+    const page = raw.sourceUrl.trim()
+    const http = /^http:\/\//i.test(page)
+    if (getPluginWebsite(http ? `https://${page.slice(7)}` : page)) {
+      sourceUrl = page
+    }
+  }
+  return { path, sha256, sourceUrl }
+}
+
+/** Invalid translations are dropped one by one; at most 10 are kept. */
+function parseMarketplaceDocument(
+  value: unknown
+): MarketplaceDocument | undefined {
+  const file = parseMarketplaceDocumentFile(value)
+  if (!file) return undefined
+  const rawTranslations = (value as Record<string, unknown>).translations
+  if (
+    !rawTranslations ||
+    typeof rawTranslations !== 'object' ||
+    Array.isArray(rawTranslations)
+  ) {
+    return file
+  }
+  const translations: Record<string, MarketplaceDocumentFile> = {}
+  let count = 0
+  for (const [tag, entry] of Object.entries(rawTranslations)) {
+    if (count === 10) break
+    const translation = parseMarketplaceDocumentFile(entry)
+    if (tag === 'en' || !isCanonicalLanguageTag(tag) || !translation) continue
+    translations[tag] = translation
+    count++
+  }
+  return count ? { ...file, translations } : file
 }
 
 function stringArray(value: unknown): string[] | undefined {
