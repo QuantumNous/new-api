@@ -406,16 +406,28 @@ func TestIngressWritesBackTheBody(t *testing.T) {
 	}
 }
 
-func TestIngressPatchOverTheBodyLimit(t *testing.T) {
+func TestPatchOverTheBodyLimit(t *testing.T) {
 	limit := constant.MaxRequestBodyMB
 	constant.MaxRequestBodyMB = 1
 	t.Cleanup(func() { constant.MaxRequestBodyMB = limit })
-	setupPlugins(t, `[{"id":"grow","name":"Grow","plugin":"rp-stages","enabled":true,"global":true,"config":{"effects":{"ingress":[{"type":"json.patch","ops":[{"op":"add","path":"/padding","value":"`+strings.Repeat("a", 1<<20)+`"}]}]}}}]`)
+	padding := strings.Repeat("a", 1<<20)
+	setupPlugins(t, `[{"id":"grow","name":"Grow","plugin":"rp-stages","enabled":true,"global":true,"config":{"effects":{"ingress":[{"type":"json.patch","ops":[{"op":"add","path":"/padding","value":"`+padding+`"}]}]}}}]`)
 	c := newContext(`{"model":"gpt","messages":[]}`, "default")
 	_, _, apiErr := Ingress(c, types.RelayFormatOpenAI)
 	require.NotNil(t, apiErr)
 	assert.Equal(t, http.StatusRequestEntityTooLarge, apiErr.StatusCode)
 	assert.Equal(t, types.ErrorCodeReadRequestBodyFailed, apiErr.GetErrorCode())
+
+	// An outbound patch that grows the upstream body past the limit is
+	// refused the same way and is not retried on another channel.
+	setupPlugins(t, `[{"id":"grow","name":"Grow","plugin":"rp-stages","enabled":true,"global":true,"config":{"effects":{"outbound":[{"type":"json.patch","ops":[{"op":"add","path":"/padding","value":"`+padding+`"}]}]}}}]`)
+	c = newContext(`{"model":"gpt","messages":[]}`, "default")
+	_, _, apiErr = Ingress(c, types.RelayFormatOpenAI)
+	require.Nil(t, apiErr)
+	_, apiErr = Outbound(c, newInfo(), []byte(`{"model":"gpt-up","messages":[]}`))
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, apiErr.StatusCode)
+	assert.True(t, types.IsSkipRetryError(apiErr))
 }
 
 func TestMediaReencode(t *testing.T) {

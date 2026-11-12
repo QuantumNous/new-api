@@ -278,12 +278,18 @@ func storeBodyError(err error) *types.NewAPIError {
 	return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 }
 
-func replaceStoredBody(c *gin.Context, body []byte) error {
+// overBodyLimit reports whether a body is larger than MAX_REQUEST_BODY_MB,
+// the limit a client body is read with.
+func overBodyLimit(body []byte) bool {
 	maxMB := constant.MaxRequestBodyMB
 	if maxMB <= 0 {
 		maxMB = 128
 	}
-	if int64(len(body)) > int64(maxMB)<<20 {
+	return int64(len(body)) > int64(maxMB)<<20
+}
+
+func replaceStoredBody(c *gin.Context, body []byte) error {
+	if overBodyLimit(body) {
 		return common.ErrRequestBodyTooLarge
 	}
 	stored, err := common.CreateBodyStorage(body)
@@ -366,6 +372,10 @@ func Outbound(c *gin.Context, info *relaycommon.RelayInfo, body []byte) ([]byte,
 			return nil, apiErr
 		}
 		call.Body, call.Headers = outcome.Body, outcome.Headers
+	}
+	// The body limit holds for what the hooks add, as at ingress.
+	if len(call.Body) > len(body) && overBodyLimit(call.Body) {
+		return nil, storeBodyError(common.ErrRequestBodyTooLarge)
 	}
 	info.RequestPluginHeaders = call.Headers
 	return call.Body, nil

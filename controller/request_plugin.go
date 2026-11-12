@@ -43,6 +43,16 @@ func GetRequestPluginInstances(c *gin.Context) {
 	if instances == nil {
 		instances = []request_plugin_setting.Instance{}
 	}
+	// Binding an instance to a channel needs no config, and a config may
+	// hold the key of a service the root user set up.
+	if c.GetInt("role") < common.RoleRootUser {
+		bindable := make([]request_plugin_setting.Instance, len(instances))
+		for i, instance := range instances {
+			instance.Config = nil
+			bindable[i] = instance
+		}
+		instances = bindable
+	}
 	common.ApiSuccess(c, gin.H{"instances": instances})
 }
 

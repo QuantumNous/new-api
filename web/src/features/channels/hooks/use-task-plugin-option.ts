@@ -31,17 +31,22 @@ import { CHANNEL_TYPE_TASK_PLUGIN, MODEL_FETCHABLE_TYPES } from '../constants'
 import { parseChannelSettings } from '../lib/channel-utils'
 import type { Channel } from '../types'
 
+/** Whether the user may read the plugin options, which only binding needs. */
+function useCanBindTaskPlugins() {
+  const user = useAuthStore((s) => s.auth.user)
+  return hasPermission(
+    user,
+    ADMIN_PERMISSION_RESOURCES.TASK_PLUGIN,
+    ADMIN_PERMISSION_ACTIONS.BIND
+  )
+}
+
 /**
  * The plugin option for a plugin key, from the plugin options the channel
  * pages share. Undefined without a key or without the bind permission.
  */
 export function useTaskPluginOption(pluginKey?: string) {
-  const user = useAuthStore((s) => s.auth.user)
-  const canBind = hasPermission(
-    user,
-    ADMIN_PERMISSION_RESOURCES.TASK_PLUGIN,
-    ADMIN_PERMISSION_ACTIONS.BIND
-  )
+  const canBind = useCanBindTaskPlugins()
   const query = useQuery({
     queryKey: ['task-plugin-options'],
     queryFn: async () => requireServerSuccess(await getTaskPluginOptions()),
@@ -53,31 +58,42 @@ export function useTaskPluginOption(pluginKey?: string) {
 
 /**
  * Whether a saved channel can list its upstream models: a fetchable channel
- * type, or a plugin channel whose plugin has relay routes.
+ * type, or a plugin channel whose plugin has relay routes. Without the bind
+ * permission a plugin's routes are unknown, so the action stays and the
+ * server answers whether the plugin can list models.
  */
 export function useChannelModelFetchable(
   channel: Pick<Channel, 'type' | 'setting'>
 ) {
+  const canBind = useCanBindTaskPlugins()
   const pluginKey =
     channel.type === CHANNEL_TYPE_TASK_PLUGIN
       ? parseChannelSettings(channel.setting)?.task_plugin_key
       : undefined
   const plugin = useTaskPluginOption(pluginKey)
-  return MODEL_FETCHABLE_TYPES.has(channel.type) || plugin?.provider === true
+  if (MODEL_FETCHABLE_TYPES.has(channel.type)) return true
+  if (!pluginKey) return false
+  return !canBind || plugin?.provider === true
 }
 
 /**
  * Whether a channel's balance can be queried: always for a built-in channel
  * type, which the server answers for, and for a plugin channel only when its
- * plugin can query one.
+ * plugin can query one. Without the bind permission the plugin's abilities
+ * are unknown, so the action stays and the server answers.
  */
 export function useChannelBalanceQueryable(
   channel: Pick<Channel, 'type' | 'setting'>
 ) {
+  const canBind = useCanBindTaskPlugins()
   const pluginKey =
     channel.type === CHANNEL_TYPE_TASK_PLUGIN
       ? parseChannelSettings(channel.setting)?.task_plugin_key
       : undefined
   const plugin = useTaskPluginOption(pluginKey)
-  return channel.type !== CHANNEL_TYPE_TASK_PLUGIN || plugin?.balance === true
+  return (
+    channel.type !== CHANNEL_TYPE_TASK_PLUGIN ||
+    !canBind ||
+    plugin?.balance === true
+  )
 }

@@ -354,10 +354,24 @@ test.each([
   expect(readPluginSourceParts(source)).toEqual(parts)
 })
 
-test('cannot read the parts when meta is built at run time', () => {
-  expect(
-    readPluginSourceParts(
-      'export const meta = makeMeta()\nexport function reply() {}'
-    )
-  ).toBeNull()
+test.each([
+  [
+    'meta is built at run time',
+    'export const meta = makeMeta()\nexport function reply() {}',
+  ],
+  // The literal has no relay, but the gateway loads the routes added later.
+  [
+    'later code changes meta',
+    'export const meta = {key: "a"}\nmeta.relay = [{incoming_path: "/v1/chat"}]',
+  ],
+  [
+    'meta is passed to other code',
+    'export const meta = {key: "a"}\nsetup(meta)',
+  ],
+  [
+    'the code does not parse',
+    'export const meta = {key: "a"}\nexport function (',
+  ],
+])('cannot read the parts when %s', (_name, source) => {
+  expect(readPluginSourceParts(source)).toBeNull()
 })

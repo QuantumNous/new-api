@@ -73,9 +73,30 @@ test.each([
     plugin: 'no-balance',
     shown: false,
   },
+  {
+    // Without the bind permission the plugin is unknown; the server answers.
+    name: 'a plugin, to an admin who cannot read plugins',
+    type: 61,
+    plugin: 'no-balance',
+    admin: true,
+    shown: true,
+  },
 ])(
   '"Query Balance" follows whether $name can report a balance',
-  async (item) => {
+  async (item: {
+    type: number
+    plugin: string
+    shown: boolean
+    admin?: boolean
+  }) => {
+    if (item.admin) {
+      useAuthStore.setState({
+        auth: {
+          ...originalAuth,
+          user: { id: 2, username: 'admin', role: ROLE.ADMIN },
+        },
+      })
+    }
     const channel: Channel = channelSchema.parse({
       id: 3,
       name: 'Channel',
@@ -100,7 +121,7 @@ test.each([
         </ChannelsProvider>
       </QueryClientProvider>
     )
-    if (item.plugin) {
+    if (item.plugin && !item.admin) {
       await vi.waitFor(() =>
         expect(api.get).toHaveBeenCalledWith('/api/task_plugin_options')
       )
@@ -118,6 +139,9 @@ test.each([
       expect(
         screen.queryByRole('menuitem', { name: 'Query Balance' })
       ).not.toBeInTheDocument()
+    }
+    if (item.admin) {
+      expect(api.get).not.toHaveBeenCalledWith('/api/task_plugin_options')
     }
   }
 )

@@ -417,13 +417,27 @@ const TRANSFORM_EXPORTS = [
  * The parts a plugin source has, read the way the gateway reads them: a task
  * part when it exports buildSubmitRequest, a provider part when meta.relay
  * lists routes, and a request processing part when it exports a stage hook.
- * Returns null when the source cannot be read without running it.
+ * Returns null when the source cannot be read without running it, as when
+ * it does not parse or code elsewhere may change meta.
  */
 export function readPluginSourceParts(
   source: string
 ): { task: boolean; provider: boolean; transform: boolean } | null {
   if (pluginSourceByteLength(source) > MAX_PLUGIN_SOURCE_BYTES) return null
   const tree = javascriptLanguage.parser.parse(source)
+  let unreadable = false
+  tree.iterate({
+    enter: (node) => {
+      if (
+        node.type.isError ||
+        (node.name === 'VariableName' &&
+          source.slice(node.from, node.to) === 'meta')
+      ) {
+        unreadable = true
+      }
+    },
+  })
+  if (unreadable) return null
   const exported = new Set<string>()
   let relay: boolean | null = null
   for (const declaration of tree.topNode.getChildren('ExportDeclaration')) {

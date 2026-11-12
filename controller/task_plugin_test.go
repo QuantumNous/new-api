@@ -1966,6 +1966,7 @@ export function parseTaskResult() { return {}; }`,
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
 		c.Request = httptest.NewRequest(method, "/api/request_plugin/instances", strings.NewReader(body))
+		c.Set("role", common.RoleRootUser)
 		handler(c)
 		return recorder.Code, recorder.Body.String()
 	}
