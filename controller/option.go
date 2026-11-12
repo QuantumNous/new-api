@@ -2,7 +2,6 @@ package controller
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"slices"
 	"sort"
@@ -191,6 +190,8 @@ func UpdateOption(c *gin.Context) {
 		return
 	}
 	switch option.Value.(type) {
+	case string:
+		// JSON-backed options must arrive as JSON strings, not objects or arrays.
 	case bool:
 		option.Value = common.Interface2String(option.Value.(bool))
 	case float64:
@@ -198,7 +199,8 @@ func UpdateOption(c *gin.Context) {
 	case int:
 		option.Value = common.Interface2String(option.Value.(int))
 	default:
-		option.Value = fmt.Sprintf("%v", option.Value)
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Invalid parameters"))
+		return
 	}
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
