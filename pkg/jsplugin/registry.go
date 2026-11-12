@@ -8,7 +8,6 @@ import (
 	"math"
 	"net"
 	"net/url"
-	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -19,6 +18,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"

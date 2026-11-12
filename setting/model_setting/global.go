@@ -1,11 +1,11 @@
 package model_setting
 
 import (
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 )

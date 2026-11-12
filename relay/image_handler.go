@@ -53,20 +53,42 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	var requestBody io.Reader
 	var jsonData []byte
+	var outbound struct {
+		N *uint `json:"n"`
+	}
+	validateQuantity := false
 
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
-			requestBody = common.NewReplayableBodyReader(storage)
-		} else {
-			jsonData, err = storage.Bytes()
+		if !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+			if storage.IsDisk() {
+				reader, readErr := storage.NewReader()
+				if readErr != nil {
+					return types.NewErrorWithStatusCode(readErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				}
+				err = common.DecodeJsonBody(reader, &outbound)
+				_ = reader.Close()
+			} else {
+				var raw []byte
+				raw, err = storage.Bytes()
+				if err == nil {
+					err = common.Unmarshal(raw, &outbound)
+				}
+			}
 			if err != nil {
-				return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				return types.NewErrorWithStatusCode(fmt.Errorf("invalid image billing parameters: %w", err), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+			validateQuantity = true
+			if common.DebugEnabled {
+				if raw, readErr := storage.Bytes(); readErr == nil {
+					logger.LogDebug(c, "image request body: %s", raw)
+				}
 			}
 		}
+		requestBody = common.NewReplayableBodyReader(storage)
 	} else {
 		convertedRequest, err := adaptor.ConvertImageRequest(c, info, *request)
 		if err != nil {
@@ -101,14 +123,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		}
 	}
 	if jsonData != nil {
-		// This is a different trust boundary from ingress: channel overrides
-		// and pass-through bodies can change the quantity actually submitted.
-		var outbound struct {
-			N *uint `json:"n"`
-		}
 		if err := common.Unmarshal(jsonData, &outbound); err != nil {
 			return types.NewErrorWithStatusCode(fmt.Errorf("invalid image billing parameters: %w", err), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+		validateQuantity = true
+	}
+	if validateQuantity {
+		// Validate the count in the body sent upstream, including channel overrides.
 		quantityRequest := dto.ImageRequest{N: outbound.N}
 		if quantityRequest.N == nil {
 			quantityRequest.N = common.GetPointer(uint(imageCount))
@@ -117,6 +138,8 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
+	}
+	if jsonData != nil {
 		logger.LogDebug(c, "image request body: %s", jsonData)
 		body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
 		if err != nil {
@@ -125,6 +148,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		defer closer.Close()
 		requestBody = body
 	}
+
 	if billingErr := service.PrepareImageBillingForRequest(c, info, imageCount); billingErr != nil {
 		return billingErr
 	}

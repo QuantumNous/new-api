@@ -59,6 +59,16 @@ func Unmarshal(data []byte, v any) error {
 	return codec.Unmarshal(data, v)
 }
 
+// UnmarshalNoCopy lets supporting codecs borrow strings and raw JSON from data.
+// Keep data and borrowed raw JSON immutable while decoded values are in use.
+// Other codecs use their ordinary Unmarshal implementation.
+func UnmarshalNoCopy(data []byte, v any) error {
+	if borrowing, ok := codec.(interface{ UnmarshalNoCopy([]byte, any) error }); ok {
+		return borrowing.UnmarshalNoCopy(data, v)
+	}
+	return codec.Unmarshal(data, v)
+}
+
 func UnmarshalJsonStr(data string, v any) error {
 	return codec.Unmarshal(StringToByteSlice(data), v)
 }

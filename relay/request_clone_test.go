@@ -4,14 +4,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/copier"
 	"github.com/stretchr/testify/assert"
@@ -259,7 +264,8 @@ func TestRequestDeepCopyOtherProtocols(t *testing.T) {
 func assertRequestCloneIsolation[T any](t *testing.T, body string, mutate func(*T)) {
 	t.Helper()
 	var src, want T
-	require.NoError(t, common.UnmarshalJsonStr(body, &src))
+	input := []byte(body)
+	require.NoError(t, common.UnmarshalNoCopy(input, &src))
 	require.NoError(t, common.UnmarshalJsonStr(body, &want))
 	clone, err := common.DeepCopy(&src)
 	require.NoError(t, err)
@@ -271,9 +277,77 @@ func assertRequestCloneIsolation[T any](t *testing.T, body string, mutate func(*
 	assert.Equal(t, string(wantJSON), string(cloneJSON), "preserve the outbound JSON")
 	mutate(clone)
 	assert.Equal(t, want, src, "a channel attempt must not mutate the original request")
+	assert.Equal(t, body, string(input), "borrowed input must remain unchanged after attempt edits")
 	retry, err := common.DeepCopy(&src)
 	require.NoError(t, err)
 	assert.Equal(t, &want, retry)
+}
+
+func TestBorrowedResponsesRequestRetryBodies(t *testing.T) {
+	previous := common.GetDiskCacheConfig()
+	t.Cleanup(func() { common.SetDiskCacheConfig(previous) })
+	settings := model_setting.GetGlobalSettings()
+	previousPassthrough := settings.PassThroughRequestEnabled
+	settings.PassThroughRequestEnabled = false
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = previousPassthrough })
+	for _, disk := range []bool{false, true} {
+		t.Run(fmt.Sprintf("disk=%t", disk), func(t *testing.T) {
+			common.SetDiskCacheConfig(common.DiskCacheConfig{Enabled: disk, ThresholdMB: 0, MaxSizeMB: 16, Path: t.TempDir()})
+			const original = `{"model":"client-model","input":"original input","metadata":{"key":"original"}}`
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(original))
+			c.Request.Header.Set("Content-Type", "application/json")
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "client-model")
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+			req, err := helper.GetAndValidateResponsesRequest(c)
+			require.NoError(t, err)
+			info := relaycommon.GenRelayInfoResponses(c, req)
+			var attempts []common.ReplayableBody
+			for _, model := range []string{"first-channel", "retry-channel"} {
+				c.Set("model_mapping", fmt.Sprintf(`{"client-model":%q}`, model))
+				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{
+					"operations": []any{
+						map[string]any{"path": "input", "mode": "set", "value": model + " input"},
+						map[string]any{"path": "metadata.key", "mode": "set", "value": model},
+					},
+				})
+				_, body, closer, apiErr := PrepareResponsesRequest(c, info, req)
+				require.Nil(t, apiErr)
+				t.Cleanup(func() { require.NoError(t, closer.Close()) })
+				attempts = append(attempts, body)
+			}
+			originalStorage, err := common.GetBodyStorage(c)
+			require.NoError(t, err)
+			originalBytes, err := originalStorage.Bytes()
+			require.NoError(t, err)
+			assert.Equal(t, original, string(originalBytes))
+			common.CleanupBodyStorage(c)
+			const replacement = `{"model":"replacement-model","input":"replacement input"}`
+			storage, err := common.CreateBodyStorage([]byte(replacement))
+			require.NoError(t, err)
+			c.Set(common.KeyBodyStorage, storage)
+			for i, model := range []string{"first-channel", "retry-channel"} {
+				reader, err := attempts[i].NewReader()
+				require.NoError(t, err)
+				wire, err := io.ReadAll(reader)
+				require.NoError(t, err)
+				require.NoError(t, reader.Close())
+				var got dto.OpenAIResponsesRequest
+				require.NoError(t, common.Unmarshal(wire, &got))
+				assert.Equal(t, model, got.Model)
+				assert.JSONEq(t, fmt.Sprintf(`%q`, model+" input"), string(got.Input))
+				assert.JSONEq(t, fmt.Sprintf(`{"key":%q}`, model), string(got.Metadata))
+			}
+			assert.Equal(t, "client-model", info.OriginModelName)
+			assert.Equal(t, json.RawMessage(`"original input"`), req.Input)
+			assert.Equal(t, json.RawMessage(`{"key":"original"}`), req.Metadata)
+			next, err := helper.GetAndValidateResponsesRequest(c)
+			require.NoError(t, err)
+			assert.Equal(t, "replacement-model", next.Model)
+			assert.Equal(t, json.RawMessage(`"replacement input"`), next.Input)
+		})
+	}
 }
 
 func BenchmarkRequestDeepCopy(b *testing.B) {
