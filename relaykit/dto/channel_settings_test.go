@@ -736,3 +736,30 @@ func TestChannelOtherSettingsValidateToolLossPolicy(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tool_loss_policy")
 }
+
+func TestChannelOtherSettingsTestEndpointType(t *testing.T) {
+	require.NoError(t, (*ChannelOtherSettings)(nil).ValidateTestEndpointType())
+	require.NoError(t, (&ChannelOtherSettings{}).ValidateTestEndpointType())
+	require.Equal(t, "", ChannelOtherSettings{}.NormalizeTestEndpointType())
+
+	for _, endpoint := range []string{
+		"openai",
+		"openai-response",
+		"openai-response-compact",
+		"anthropic",
+		"gemini",
+		"jina-rerank",
+		"image-generation",
+		"embeddings",
+	} {
+		settings := ChannelOtherSettings{TestEndpointType: " " + endpoint + " "}
+		require.NoError(t, settings.ValidateTestEndpointType())
+		assert.Equal(t, endpoint, settings.NormalizeTestEndpointType())
+	}
+
+	invalid := ChannelOtherSettings{TestEndpointType: "openai-alpha-search"}
+	err := invalid.ValidateTestEndpointType()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "test_endpoint_type")
+	assert.Equal(t, "", invalid.NormalizeTestEndpointType())
+}

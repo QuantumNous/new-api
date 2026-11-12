@@ -53,6 +53,16 @@ func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) s
 	return normalized
 }
 
+// endpointForAutomaticChannelTest is the endpoint scheduled tests pass through.
+// A saved value wins. Empty keeps auto-detect, including the Codex Responses default.
+func endpointForAutomaticChannelTest(channel *model.Channel) string {
+	stored := ""
+	if channel != nil {
+		stored = channel.GetOtherSettings().NormalizeTestEndpointType()
+	}
+	return normalizeChannelTestEndpoint(channel, stored)
+}
+
 func resolveChannelTestUserID(c *gin.Context) (int, error) {
 	if c != nil {
 		if userID := c.GetInt("id"); userID > 0 {
@@ -922,7 +932,14 @@ func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, test
 	summary := channelTestSummary{}
 	isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 	tik := time.Now()
-	result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+	result := testChannel(
+		ctx,
+		channel,
+		testUserID,
+		"",
+		endpointForAutomaticChannelTest(channel),
+		shouldUseStreamForAutomaticChannelTest(channel),
+	)
 	milliseconds := time.Since(tik).Milliseconds()
 	if ctx.Err() != nil {
 		return summary

@@ -28,6 +28,7 @@ const ADVANCED_SETTINGS_FIELDS = new Set<FieldPath<ChannelFormValues>>([
   'priority',
   'weight',
   'test_model',
+  'test_endpoint_type',
   'auto_ban',
   'tag',
   'remark',
