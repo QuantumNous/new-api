@@ -4784,7 +4784,7 @@
     "Payment success redirect URL is not in the trusted domain list": "支付成功重新導向URL不在可信任網域列表中",
     "Payment type key": "支付處理標識",
     "Payment type key is required": "支付處理標識不能為空",
-    "Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.": "在根管理員確認合規條款之前，支付、兌換碼、訂閱套餐和邀請獎勵功能將保持鎖定。",
+    "Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.": "在超級管理員確認合規條款之前，支付、兌換碼、訂閱套餐和邀請獎勵功能將保持鎖定。",
     "Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them.": "支付、兌換碼、訂閱方案和邀請返利功能已停用。管理員需先確認合規聲明後方可啟用。",
     "Peak": "峰值",
     "Peak KV cache usage": "最高 KV 快取使用率",

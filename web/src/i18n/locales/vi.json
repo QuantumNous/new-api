@@ -4784,7 +4784,7 @@
     "Payment success redirect URL is not in the trusted domain list": "URL chuyển hướng khi thanh toán thành công không nằm trong danh sách tên miền tin cậy",
     "Payment type key": "Khóa loại thanh toán",
     "Payment type key is required": "Khóa loại thanh toán là bắt buộc",
-    "Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.": "Thanh toán, mã đổi thưởng, gói đăng ký và phần thưởng mời sẽ bị khóa cho đến khi quản trị viên root xác nhận điều khoản tuân thủ.",
+    "Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.": "Thanh toán, mã đổi thưởng, gói đăng ký và phần thưởng mời sẽ bị khóa cho đến khi siêu quản trị viên xác nhận điều khoản tuân thủ.",
     "Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them.": "Các tính năng thanh toán, đổi mã, gói đăng ký và thưởng giới thiệu đã bị tắt. Quản trị viên phải xác nhận điều khoản tuân thủ trước khi bật chúng.",
     "Peak": "Đỉnh",
     "Peak KV cache usage": "Mức sử dụng bộ nhớ đệm KV cao nhất",

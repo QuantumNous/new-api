@@ -4784,7 +4784,7 @@
     "Payment success redirect URL is not in the trusted domain list": "URL перенаправления после успешной оплаты не входит в список доверенных доменов",
     "Payment type key": "Ключ типа оплаты",
     "Payment type key is required": "Ключ типа оплаты обязателен",
-    "Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.": "Платежи, коды пополнения, планы подписки и награды за приглашения заблокированы, пока root-администратор не подтвердит условия соответствия.",
+    "Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.": "Платежи, коды пополнения, планы подписки и награды за приглашения заблокированы, пока суперадминистратор не подтвердит условия соответствия.",
     "Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them.": "Функции оплаты, активации кодов, подписок и вознаграждений за приглашения отключены. Администратор должен подтвердить условия соответствия, прежде чем включить их.",
     "Peak": "Пик",
     "Peak KV cache usage": "Максимальная загрузка KV-кэша",
