@@ -14,6 +14,7 @@ var (
 		"dall-e-2",
 		"prefix:dall-e", // Deprecated upstream models; retained for compatible routes.
 		"gpt-image-",
+		"minimax-h3-image",
 		"qwen-image",
 		"z-image",
 		"wan2.7-image-pro",
@@ -55,4 +56,9 @@ func IsImageGenerationModel(modelName string) bool {
 		}
 	}
 	return false
+}
+
+// IsMiniMaxH3ImageModel identifies MiniMax's native Images API models.
+func IsMiniMaxH3ImageModel(model string) bool {
+	return model == "MiniMax-H3-Image" || model == "MiniMax-H3-Image-Highspeed"
 }

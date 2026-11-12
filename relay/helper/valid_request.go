@@ -248,6 +248,9 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 					imageRequest.Quality = "standard"
 				}
 			}
+			if common.IsMiniMaxH3ImageModel(imageRequest.Model) && imageRequest.N != nil && (*imageRequest.N < 1 || *imageRequest.N > 10) {
+				return nil, errors.New("MiniMax H3 image n must be between 1 and 10")
+			}
 			if imageRequest.N == nil || *imageRequest.N == 0 {
 				imageRequest.N = common.GetPointer(uint(1))
 			}
@@ -291,6 +294,9 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		//	return nil, errors.New("prompt is required")
 		//}
 
+		if common.IsMiniMaxH3ImageModel(imageRequest.Model) && imageRequest.N != nil && (*imageRequest.N < 1 || *imageRequest.N > 10) {
+			return nil, errors.New("MiniMax H3 image n must be between 1 and 10")
+		}
 		if imageRequest.N == nil || *imageRequest.N == 0 {
 			imageRequest.N = common.GetPointer(uint(1))
 		}

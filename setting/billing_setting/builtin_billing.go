@@ -12,6 +12,10 @@ const deepSeekFlashExpr = deepSeekPeak + ` ? tier("peak", p * 0.3 + cr * 0.006 +
 // Built-in token prices use actual USD per million tokens. Keep new model
 // defaults here instead of splitting them across the legacy ratio tables.
 var builtinBillingExpr = map[string]string{
+	// https://platform.minimax.io/docs/pricing/overview (2026-11-11).
+	// Undiscounted rates; Images output_tokens contains the generated image tokens.
+	"MiniMax-H3-Image":           `tier("standard", p * 2.3 + img * 1.5 + c * 3.8)`,
+	"MiniMax-H3-Image-Highspeed": `tier("standard", p * 2.3 + img * 3 + c * 7.6)`,
 	// https://developers.openai.com/api/docs/pricing (Standard, 2026-09-09).
 	// The Images API reports image output in output_tokens, normalized to c.
 	"gpt-image-2":            `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`,

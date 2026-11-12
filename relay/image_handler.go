@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -125,10 +126,21 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		defer closer.Close()
 		requestBody = body
 	}
+	if info.ApiType == constant.APITypeMiniMax && common.IsMiniMaxH3ImageModel(request.Model) && imageCount > 10 {
+		return types.NewErrorWithStatusCode(fmt.Errorf("MiniMax H3 image n must be between 1 and 10"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
 	if billingErr := service.PrepareImageBillingForRequest(c, info, imageCount); billingErr != nil {
 		return billingErr
 	}
 
+	h3Image := info.ApiType == constant.APITypeMiniMax && common.IsMiniMaxH3ImageModel(request.Model)
+	if h3Image {
+		defer func() {
+			if newAPIError != nil {
+				types.ErrOptionWithSkipRetry()(newAPIError)
+			}
+		}()
+	}
 	statusCodeMappingStr := c.GetString("status_code_mapping")
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
@@ -154,6 +166,12 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
+		if h3Image && minimax.H3ImageHasOutput(c) {
+			// A final image is already billable. Missing terminal usage keeps the
+			// existing estimate; interrupted streams do not lower the reserved count.
+			imageUsage, _ := usage.(*dto.Usage)
+			service.PostTextConsumeQuota(c, info, imageUsage, nil)
+		}
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
@@ -168,10 +186,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		imageN = common.QuotaRound(count)
 	}
 
-	if usage.(*dto.Usage).TotalTokens == 0 {
+	if !h3Image && usage.(*dto.Usage).TotalTokens == 0 {
 		usage.(*dto.Usage).TotalTokens = 1
 	}
-	if usage.(*dto.Usage).PromptTokens == 0 {
+	if !h3Image && usage.(*dto.Usage).PromptTokens == 0 {
 		usage.(*dto.Usage).PromptTokens = 1
 	}
 
