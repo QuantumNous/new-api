@@ -22,13 +22,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MOTION_TRANSITION } from '@/lib/motion'
+import {
+  ACCOUNT_PASSWORD_MAX_LENGTH,
+  ACCOUNT_PASSWORD_MIN_LENGTH,
+} from '@/lib/password-policy'
 import { cn } from '@/lib/utils'
 
 import {
   evaluatePasswordStrength,
   getPasswordConfirmationState,
-  PASSWORD_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH,
   type PasswordStrengthRuleId,
   type PasswordStrengthScore,
 } from './password-strength-utils'
@@ -36,7 +38,8 @@ import {
 const STRENGTH_SEGMENTS = [1, 2, 3, 4] as const
 
 const RULE_LABELS: Record<PasswordStrengthRuleId, string> = {
-  length: '8–20 characters',
+  length: '8–128 characters',
+  long: '15 or more characters',
   case: 'Uppercase and lowercase letters',
   digit: 'A number',
   symbol: 'A symbol',
@@ -84,13 +87,10 @@ type PasswordRuleItemProps = {
   shouldReduceMotion: boolean | null
 }
 
-function PasswordRuleItem({
-  rule,
-  label,
-  shouldReduceMotion,
-}: PasswordRuleItemProps) {
+function PasswordRuleItem(props: PasswordRuleItemProps) {
   const { t } = useTranslation()
-  const transition = shouldReduceMotion
+  const rule = props.rule
+  const transition = props.shouldReduceMotion
     ? MOTION_TRANSITION.none
     : MOTION_TRANSITION.spring
 
@@ -116,20 +116,16 @@ function PasswordRuleItem({
           <Check className='size-2.5' strokeWidth={2.5} />
         </motion.span>
       </span>
-      <span className={cn(rule.met && 'text-foreground')}>{label}</span>
+      <span className={cn(rule.met && 'text-foreground')}>{props.label}</span>
       <span className='sr-only'>{rule.met ? t('Met') : t('Not met')}</span>
     </li>
   )
 }
 
-export function PasswordStrength({
-  value,
-  className,
-  id,
-  quietWhenEmpty = false,
-}: PasswordStrengthProps) {
+export function PasswordStrength(props: PasswordStrengthProps) {
   const { t } = useTranslation()
   const shouldReduceMotion = useReducedMotion()
+  const value = props.value
   const strength = useMemo(() => evaluatePasswordStrength(value), [value])
   const [settledAnnouncement, setSettledAnnouncement] = useState('')
   const tone = METER_TONES[strength.score]
@@ -148,15 +144,13 @@ export function PasswordStrength({
   )
   let requirementLabel = t(RULE_LABELS.length)
   if (strength.lengthState === 'too-short') {
-    requirementLabel = t('Characters remaining: {{count}}', {
-      count: PASSWORD_MIN_LENGTH - strength.characterCount,
+    requirementLabel = t('Characters needed: {{count}}', {
+      count: ACCOUNT_PASSWORD_MIN_LENGTH - strength.characterCount,
     })
   } else if (strength.lengthState === 'too-long') {
     requirementLabel = t('Characters over limit: {{count}}', {
-      count: strength.characterCount - PASSWORD_MAX_LENGTH,
+      count: strength.characterCount - ACCOUNT_PASSWORD_MAX_LENGTH,
     })
-  } else if (strength.lengthState === 'too-many-bytes') {
-    requirementLabel = t('Use fewer emoji or extended characters')
   }
   let requirementStatusLabel = t('Password requirements not met')
   let requirementStatusTone = 'text-destructive'
@@ -217,14 +211,14 @@ export function PasswordStrength({
     return () => window.clearTimeout(timeoutId)
   }, [announcement])
 
-  if (quietWhenEmpty && !value) return null
+  if (props.quietWhenEmpty && !value) return null
 
   const transition = shouldReduceMotion
     ? MOTION_TRANSITION.none
     : MOTION_TRANSITION.spring
 
   return (
-    <div id={id} className={cn('w-full', className)}>
+    <div id={props.id} className={cn('w-full', props.className)}>
       <div
         role='meter'
         aria-label={t('Password strength')}
@@ -311,14 +305,11 @@ type PasswordConfirmationStatusProps = {
   id?: string
 }
 
-export function PasswordConfirmationStatus({
-  password,
-  confirmation,
-  className,
-  id,
-}: PasswordConfirmationStatusProps) {
+export function PasswordConfirmationStatus(
+  props: PasswordConfirmationStatusProps
+) {
   const { t } = useTranslation()
-  const state = getPasswordConfirmationState(password, confirmation)
+  const state = getPasswordConfirmationState(props.password, props.confirmation)
 
   const matches = state === 'match'
   let label = ''
@@ -329,14 +320,14 @@ export function PasswordConfirmationStatus({
 
   return (
     <p
-      id={id}
+      id={props.id}
       role='status'
       aria-live='polite'
       aria-atomic='true'
       className={cn(
         state !== 'empty' && 'flex items-center gap-1.5 text-xs',
         matches ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive',
-        className
+        props.className
       )}
     >
       {state !== 'empty' && (

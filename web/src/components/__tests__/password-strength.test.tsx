@@ -16,14 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
+
+import { accountPasswordSchema } from '@/lib/password-policy'
 
 import { PasswordInput } from '../password-input'
+import {
+  PasswordConfirmationStatus,
+  PasswordStrength,
+} from '../password-strength'
 import {
   evaluatePasswordStrength,
   getPasswordConfirmationState,
@@ -37,170 +41,181 @@ import {
   FormMessage,
 } from '../ui/form'
 
-describe('password strength evaluation', () => {
+function ruleMet(password: string, ruleId: string) {
+  return evaluatePasswordStrength(password).rules.find(
+    (rule) => rule.id === ruleId
+  )?.met
+}
+
+describe('password length requirement', () => {
+  test.each([
+    ['7 ASCII characters', 'a'.repeat(7), false],
+    ['8 ASCII characters', 'a'.repeat(8), true],
+    ['128 ASCII characters', 'a'.repeat(128), true],
+    ['129 ASCII characters', 'a'.repeat(129), false],
+    ['7 emoji', '🔒'.repeat(7), false],
+    ['8 emoji', '🔒'.repeat(8), true],
+    ['128 emoji', '🔒'.repeat(128), true],
+    ['129 emoji', '🔒'.repeat(129), false],
+    ['128 CJK characters', '界'.repeat(128), true],
+  ])(
+    '%s: meter and submit validation agree on acceptance (%s)',
+    (_name, password, accepted) => {
+      expect(evaluatePasswordStrength(password).meetsRequirements).toBe(
+        accepted
+      )
+      expect(accountPasswordSchema.safeParse(password).success).toBe(accepted)
+    }
+  )
+
+  test('counts an emoji as one character, not by UTF-16 units or bytes', () => {
+    const result = evaluatePasswordStrength('🔒'.repeat(128))
+
+    expect(result.characterCount).toBe(128)
+    expect(result.lengthState).toBe('valid')
+  })
+
+  test.each(['alllowercase', 'ALLUPPERCASE', '12345678', 'password123'])(
+    'accepts %s even when composition hints are unmet',
+    (password) => {
+      expect(evaluatePasswordStrength(password).meetsRequirements).toBe(true)
+      expect(accountPasswordSchema.safeParse(password).success).toBe(true)
+    }
+  )
+})
+
+describe('password strength score', () => {
   test('keeps an empty password in the empty state', () => {
     const result = evaluatePasswordStrength('')
 
-    assert.equal(result.score, 0)
-    assert.equal(result.labelKey, 'Password strength empty')
-    assert.equal(result.guessable, false)
-    assert.equal(result.meetsRequirements, false)
-    assert.deepEqual(
-      result.rules.map((rule) => [rule.id, rule.met]),
-      [
-        ['length', false],
-        ['case', false],
-        ['digit', false],
-        ['symbol', false],
-      ]
-    )
+    expect(result.score).toBe(0)
+    expect(result.labelKey).toBe('Password strength empty')
+    expect(result.lengthState).toBe('empty')
+    expect(result.rules.every((rule) => !rule.met)).toBe(true)
   })
 
-  test('treats the existing 8 and 20 character limits as the length rule', () => {
-    assert.equal(evaluatePasswordStrength('Abcde1!x').rules[0]?.met, true)
-    assert.equal(
-      evaluatePasswordStrength('Abcdefghijklmno1!xyz').rules[0]?.met,
-      true
-    )
-    assert.equal(evaluatePasswordStrength('Abcde1!').rules[0]?.met, false)
-    assert.equal(
-      evaluatePasswordStrength('Abcdefghijklmno1!xyzz').rules[0]?.met,
-      false
-    )
+  test('rates a too-short password as weak even with every character type', () => {
+    const result = evaluatePasswordStrength('Ab1!')
+
+    expect(result.score).toBe(1)
+    expect(result.lengthState).toBe('too-short')
   })
 
-  test('counts Unicode code points consistently for the length requirement', () => {
-    assert.equal(evaluatePasswordStrength('😀'.repeat(7)).rules[0]?.met, false)
-    assert.equal(evaluatePasswordStrength('😀'.repeat(8)).rules[0]?.met, true)
+  test('credits a long lowercase passphrase for its length', () => {
+    const result = evaluatePasswordStrength('correct horse battery staple')
+
+    expect(result.meetsRequirements).toBe(true)
+    expect(ruleMet('correct horse battery staple', 'long')).toBe(true)
+    expect(result.labelKey).toBe('Password strength fair')
   })
 
-  test('rejects passwords that exceed the bcrypt byte limit', () => {
-    const result = evaluatePasswordStrength('😀'.repeat(20))
+  test('reports a password that meets every hint as strong', () => {
+    const result = evaluatePasswordStrength('Forest7!Lake-River')
 
-    assert.equal(result.meetsRequirements, false)
-    assert.equal(result.lengthState, 'too-many-bytes')
+    expect(result.guessable).toBe(false)
+    expect(result.labelKey).toBe('Password strength strong')
+  })
+
+  test('downgrades commonly guessed passwords to weak without rejecting them', () => {
+    const result = evaluatePasswordStrength('Password1!')
+
+    expect(result.guessable).toBe(true)
+    expect(result.labelKey).toBe('Password strength weak')
+    expect(result.meetsRequirements).toBe(true)
+  })
+
+  test('flags repeated and sequential patterns as easy to guess', () => {
+    expect(evaluatePasswordStrength('AAAA7!forest').guessable).toBe(true)
+    expect(evaluatePasswordStrength('Abcd7!forest').guessable).toBe(true)
+    expect(evaluatePasswordStrength('Forest1234!').guessable).toBe(true)
   })
 
   test('does not treat Unicode letters as symbols', () => {
-    assert.equal(
-      evaluatePasswordStrength('Abcdef1é').rules.find(
-        (rule) => rule.id === 'symbol'
-      )?.met,
-      false
-    )
-    assert.equal(
-      evaluatePasswordStrength('密码Abcdef1').rules.find(
-        (rule) => rule.id === 'symbol'
-      )?.met,
-      false
-    )
-  })
-
-  test('evaluates mixed case, number, and symbol guidance independently', () => {
-    const result = evaluatePasswordStrength('mixedcase')
-
-    assert.deepEqual(
-      result.rules.map((rule) => [rule.id, rule.met]),
-      [
-        ['length', true],
-        ['case', false],
-        ['digit', false],
-        ['symbol', false],
-      ]
-    )
-    assert.equal(result.score, 1)
-    assert.equal(result.labelKey, 'Password strength weak')
-    assert.equal(result.meetsRequirements, true)
-  })
-
-  test('keeps requirement compliance independent from strength suggestions', () => {
-    assert.equal(
-      evaluatePasswordStrength('alllowercase').meetsRequirements,
-      true
-    )
-    assert.equal(evaluatePasswordStrength('Short1!').meetsRequirements, false)
-    assert.equal(
-      evaluatePasswordStrength('Abcdefghijklmno1!xyzz').meetsRequirements,
-      false
-    )
-  })
-
-  test('reports a password that meets all guidance as strong', () => {
-    const result = evaluatePasswordStrength('Forest7!Lake')
-
-    assert.equal(result.score, 4)
-    assert.equal(result.labelKey, 'Password strength strong')
-    assert.equal(result.guessable, false)
-    assert.equal(
-      result.rules.every((rule) => rule.met),
-      true
-    )
-  })
-
-  test('downgrades commonly guessed passwords without changing their rules', () => {
-    const result = evaluatePasswordStrength('Password1!')
-
-    assert.equal(
-      result.rules.every((rule) => rule.met),
-      true
-    )
-    assert.equal(result.guessable, true)
-    assert.equal(result.score, 1)
-    assert.equal(result.labelKey, 'Password strength weak')
-  })
-
-  test('downgrades repeated and sequential patterns', () => {
-    assert.equal(evaluatePasswordStrength('AAAA7!forest').guessable, true)
-    assert.equal(evaluatePasswordStrength('Abcd7!forest').guessable, true)
-    assert.equal(evaluatePasswordStrength('Forest1234!').guessable, true)
+    expect(ruleMet('Abcdef1é', 'symbol')).toBe(false)
+    expect(ruleMet('密码Abcdef1', 'symbol')).toBe(false)
   })
 })
 
 describe('password confirmation state', () => {
   test('waits for confirmation input before reporting a state', () => {
-    assert.equal(getPasswordConfirmationState('Forest7!Lake', ''), 'empty')
+    expect(getPasswordConfirmationState('Forest7!Lake', '')).toBe('empty')
   })
 
-  test('reports matching and mismatching confirmations', () => {
-    assert.equal(
-      getPasswordConfirmationState('Forest7!Lake', 'Forest7!Lake'),
+  test('reports a mismatch when the confirmation differs by one character', () => {
+    expect(getPasswordConfirmationState('Forest7!Lake', 'Forest7!Lakes')).toBe(
+      'mismatch'
+    )
+  })
+
+  test('reports a match only for the exact same password', () => {
+    expect(getPasswordConfirmationState('Forest7!Lake', 'Forest7!Lake')).toBe(
       'match'
     )
-    assert.equal(
-      getPasswordConfirmationState('Forest7!Lake', 'Forest7!Lakes'),
+    expect(getPasswordConfirmationState('Forest7!Lake', 'forest7!lake')).toBe(
       'mismatch'
     )
   })
 })
 
-const { PasswordConfirmationStatus, PasswordStrength } =
-  await import('../password-strength')
-
 describe('password strength feedback', () => {
-  test('exposes requirement feedback through its caller-provided id', () => {
-    const rendered = render(
-      <PasswordStrength id='password-strength-help' value='alllowercase' />
-    )
-
-    const feedback = rendered.container.querySelector('#password-strength-help')
-    expect(feedback).toBeInTheDocument()
-    expect(feedback).toHaveTextContent('Password requirements met')
-    expect(feedback).toHaveTextContent('For a stronger password')
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
-  test('explains the remaining character count for a short password', () => {
-    render(<PasswordStrength value='Ab1!' />)
-
-    expect(screen.getByText('Characters remaining: 4')).toBeInTheDocument()
-  })
-
-  test('keeps the initial empty state neutral', () => {
+  test('shows the 8–128 character requirement in the empty state without an error', () => {
     render(<PasswordStrength value='' />)
 
     expect(
       screen.queryByText('Password requirements not met')
     ).not.toBeInTheDocument()
-    expect(screen.getAllByText('8–20 characters')).toHaveLength(2)
+    expect(screen.getAllByText('8–128 characters')).toHaveLength(2)
+    expect(
+      screen.getByRole('meter', { name: 'Password strength' })
+    ).toHaveAttribute('aria-valuenow', '0')
+  })
+
+  test('shows how many characters a short password still needs', () => {
+    render(<PasswordStrength value='Ab1!' />)
+
+    expect(screen.getByText('Characters needed: 4')).toBeInTheDocument()
+    expect(
+      screen.getByText('Password requirements not met')
+    ).toBeInTheDocument()
+  })
+
+  test('shows how far a 129-character password is over the limit', () => {
+    render(<PasswordStrength value={'a'.repeat(129)} />)
+
+    expect(screen.getByText('Characters over limit: 1')).toBeInTheDocument()
+    expect(
+      screen.getByText('Password requirements not met')
+    ).toBeInTheDocument()
+  })
+
+  test('marks a lowercase-only password as meeting the requirement and lists hints separately', () => {
+    const rendered = render(
+      <PasswordStrength id='password-strength-help' value='alllowercase' />
+    )
+
+    const feedback = rendered.container.querySelector('#password-strength-help')
+    expect(feedback).toHaveTextContent('Password requirements met')
+    expect(feedback).toHaveTextContent('For a stronger password')
+    expect(feedback).toHaveTextContent('15 or more characters')
+    expect(feedback).toHaveTextContent('Uppercase and lowercase letters')
+  })
+
+  test('announces strength once typing settles and keeps hints as suggestions', () => {
+    vi.useFakeTimers()
+    render(<PasswordStrength value='alllowercase' />)
+
+    act(() => {
+      vi.advanceTimersByTime(700)
+    })
+
+    const announcement = screen.getByText(/^Password strength: /)
+    expect(announcement).toHaveAttribute('aria-live', 'polite')
+    expect(announcement).toHaveTextContent('Password requirements met')
+    expect(announcement).toHaveTextContent('Suggestions remaining:')
   })
 
   test('keeps an optional update password quiet while empty', () => {
@@ -213,17 +228,37 @@ describe('password strength feedback', () => {
 
   test('keeps a stable confirmation status region before input', () => {
     render(
-      <PasswordConfirmationStatus
-        id='password-confirmation-status'
-        password='Forest7!Lake'
-        confirmation=''
-      />
+      <PasswordConfirmationStatus password='Forest7!Lake' confirmation='' />
     )
 
     expect(screen.getByRole('status')).toBeEmptyDOMElement()
   })
 
-  test('keeps strength help and validation errors associated with the input', async () => {
+  test('announces a confirmation mismatch', () => {
+    render(
+      <PasswordConfirmationStatus
+        password='Forest7!Lake'
+        confirmation='Forest7!Lakes'
+      />
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Passwords do not match'
+    )
+  })
+
+  test('announces a matching confirmation', () => {
+    render(
+      <PasswordConfirmationStatus
+        password='Forest7!Lake'
+        confirmation='Forest7!Lake'
+      />
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('Passwords match')
+  })
+
+  test('describes the input with strength help and the validation error after a failed submit', async () => {
     function PasswordFieldFixture() {
       const form = useForm({ defaultValues: { password: '' } })
 
@@ -256,12 +291,17 @@ describe('password strength feedback', () => {
 
     const user = userEvent.setup()
     render(<PasswordFieldFixture />)
+    const input = screen.getByLabelText('Password')
+    expect(input).toHaveAttribute('aria-invalid', 'false')
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(
+      'password-strength-help'
+    )
+
     await user.click(screen.getByRole('button', { name: 'Submit' }))
 
-    const input = screen.getByLabelText('Password')
     const describedBy = input.getAttribute('aria-describedby')?.split(' ') ?? []
     const error = screen.getByText('Password is required')
-
+    expect(input).toHaveAttribute('aria-invalid', 'true')
     expect(describedBy).toContain('password-strength-help')
     expect(describedBy).toContain(error.id)
   })

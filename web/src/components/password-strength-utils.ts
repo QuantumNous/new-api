@@ -16,6 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  ACCOUNT_PASSWORD_MAX_LENGTH,
+  ACCOUNT_PASSWORD_MIN_LENGTH,
+  countPasswordCharacters,
+} from '@/lib/password-policy'
+
 const COMMON_PASSWORD_PATTERN =
   /^(?:password|passw0rd|qwerty|letmein|welcome|admin|iloveyou|monkey|dragon|abc123|111111|123123|123456)/i
 const REPEATED_CHARACTER_PATTERN = /(.)\1{3,}/
@@ -26,11 +32,16 @@ const UPPERCASE_PATTERN = /\p{Lu}/u
 const DIGIT_PATTERN = /\p{N}/u
 const SYMBOL_PATTERN = /[\p{P}\p{S}]/u
 
-export const PASSWORD_MIN_LENGTH = 8
-export const PASSWORD_MAX_LENGTH = 20
-export const PASSWORD_MAX_BYTES = 72
+// Only the account length policy decides whether a password is accepted.
+// The other rules are strength hints and never block a password.
+export const PASSWORD_RECOMMENDED_LENGTH = 15
 
-export type PasswordStrengthRuleId = 'length' | 'case' | 'digit' | 'symbol'
+export type PasswordStrengthRuleId =
+  | 'length'
+  | 'long'
+  | 'case'
+  | 'digit'
+  | 'symbol'
 export type PasswordStrengthScore = 0 | 1 | 2 | 3 | 4
 export type PasswordStrengthLabel =
   | 'Password strength empty'
@@ -39,15 +50,7 @@ export type PasswordStrengthLabel =
   | 'Password strength good'
   | 'Password strength strong'
 export type PasswordConfirmationState = 'empty' | 'match' | 'mismatch'
-export type PasswordLengthState =
-  | 'empty'
-  | 'too-short'
-  | 'valid'
-  | 'too-long'
-  | 'too-many-bytes'
-export type PasswordValidationMessageKey =
-  | 'Password must be between 8 and 20 characters'
-  | 'Password contains too many emoji or extended characters'
+export type PasswordLengthState = 'empty' | 'too-short' | 'valid' | 'too-long'
 
 type EvaluatedPasswordRule = {
   id: PasswordStrengthRuleId
@@ -74,37 +77,31 @@ const STRENGTH_LABELS: Record<PasswordStrengthScore, PasswordStrengthLabel> = {
 
 function getPasswordScore(
   hasValue: boolean,
-  passedRules: number,
-  guessable: boolean
+  acceptable: boolean,
+  metHints: number
 ): PasswordStrengthScore {
   if (!hasValue) return 0
-  if (guessable || passedRules <= 1) return 1
-  if (passedRules === 2) return 2
-  if (passedRules === 3) return 3
+  if (!acceptable || metHints === 0) return 1
+  if (metHints === 1) return 2
+  if (metHints === 2) return 3
   return 4
 }
 
 export function evaluatePasswordStrength(
   password: string
 ): PasswordStrengthResult {
-  const characterCount = [...password].length
-  const byteCount = new TextEncoder().encode(password).length
+  const characterCount = countPasswordCharacters(password)
   let lengthState: PasswordLengthState = 'valid'
   if (characterCount === 0) {
     lengthState = 'empty'
-  } else if (characterCount < PASSWORD_MIN_LENGTH) {
+  } else if (characterCount < ACCOUNT_PASSWORD_MIN_LENGTH) {
     lengthState = 'too-short'
-  } else if (characterCount > PASSWORD_MAX_LENGTH) {
+  } else if (characterCount > ACCOUNT_PASSWORD_MAX_LENGTH) {
     lengthState = 'too-long'
-  } else if (byteCount > PASSWORD_MAX_BYTES) {
-    lengthState = 'too-many-bytes'
   }
   const meetsRequirements = lengthState === 'valid'
-  const rules: EvaluatedPasswordRule[] = [
-    {
-      id: 'length',
-      met: meetsRequirements,
-    },
+  const hints: EvaluatedPasswordRule[] = [
+    { id: 'long', met: characterCount >= PASSWORD_RECOMMENDED_LENGTH },
     {
       id: 'case',
       met: LOWERCASE_PATTERN.test(password) && UPPERCASE_PATTERN.test(password),
@@ -113,15 +110,16 @@ export function evaluatePasswordStrength(
     { id: 'symbol', met: SYMBOL_PATTERN.test(password) },
   ]
   const guessable =
-    password.length > 0 &&
+    characterCount > 0 &&
     (COMMON_PASSWORD_PATTERN.test(password) ||
       REPEATED_CHARACTER_PATTERN.test(password) ||
       SEQUENTIAL_PATTERN.test(password))
-  const passedRules = rules.reduce(
-    (count, rule) => count + (rule.met ? 1 : 0),
-    0
+  const metHints = hints.filter((hint) => hint.met).length
+  const score = getPasswordScore(
+    characterCount > 0,
+    meetsRequirements && !guessable,
+    metHints
   )
-  const score = getPasswordScore(password.length > 0, passedRules, guessable)
 
   return {
     score,
@@ -130,7 +128,7 @@ export function evaluatePasswordStrength(
     meetsRequirements,
     characterCount,
     lengthState,
-    rules,
+    rules: [{ id: 'length', met: meetsRequirements }, ...hints],
   }
 }
 
@@ -140,19 +138,4 @@ export function getPasswordConfirmationState(
 ): PasswordConfirmationState {
   if (!confirmation) return 'empty'
   return password === confirmation ? 'match' : 'mismatch'
-}
-
-export function getPasswordValidationMessageKey(
-  password: string
-): PasswordValidationMessageKey | null {
-  if (!password) return 'Password must be between 8 and 20 characters'
-
-  const result = evaluatePasswordStrength(password)
-  if (result.lengthState === 'too-many-bytes') {
-    return 'Password contains too many emoji or extended characters'
-  }
-  if (!result.meetsRequirements) {
-    return 'Password must be between 8 and 20 characters'
-  }
-  return null
 }

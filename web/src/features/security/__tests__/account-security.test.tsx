@@ -458,10 +458,14 @@ it('allows a common new password after verifying the current password once', asy
   render(
     <ChangePasswordDialog open username='user' onOpenChange={onOpenChange} />
   )
-  expect(screen.getByText('Use 8–128 characters.')).toBeVisible()
+  expect(screen.getByLabelText('New Password')).toHaveAccessibleDescription(
+    expect.stringContaining('8–128 characters')
+  )
   await user.type(screen.getByLabelText('Current Password'), 'current-password')
   await user.type(screen.getByLabelText('New Password'), 'password123')
   await user.type(screen.getByLabelText('Confirm New Password'), 'password123')
+  expect(screen.getByText('Easy to guess')).toBeVisible()
+  expect(screen.getByRole('status')).toHaveTextContent('Passwords match')
   await user.click(screen.getByRole('button', { name: 'Change Password' }))
   await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   expect(get).toHaveBeenCalledWith(
