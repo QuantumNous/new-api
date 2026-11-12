@@ -22,6 +22,7 @@ import userEvent from '@testing-library/user-event'
 import { Toaster } from 'sonner'
 import { afterEach, expect, test, vi } from 'vitest'
 
+import { PageFooterProvider } from '@/components/layout/components/page-footer'
 import {
   MODEL_PRICING_ISSUES_QUERY_KEY,
   type ModelPricingIssue,
@@ -43,7 +44,8 @@ afterEach(() => {
 function renderPlugins(
   enabled: boolean,
   view: 'card' | 'table' = 'card',
-  source: TaskPluginListItem['source'] = 'override'
+  source: TaskPluginListItem['source'] = 'override',
+  additionalPlugins: { key: string; name: string }[] = []
 ) {
   localStorage.setItem('task-plugins-view-mode', view)
   const item: TaskPluginListItem = {
@@ -75,17 +77,113 @@ function renderPlugins(
     },
   })
   clients.push(client)
-  client.setQueryData(['task-plugins'], [item])
+  client.setQueryData(
+    ['task-plugins'],
+    [
+      item,
+      ...additionalPlugins.map((meta) => ({
+        ...item,
+        meta: { ...item.meta, ...meta },
+      })),
+    ]
+  )
   vi.spyOn(api, 'get').mockResolvedValue({
     data: { success: true, data: [{ ...item, enabled: !enabled }] },
   })
-  render(
+  const footer = document.createElement('div')
+  const rendered = render(
     <QueryClientProvider client={client}>
-      <PluginsTable onDetails={() => undefined} onUpload={() => undefined} />
+      <PageFooterProvider container={footer}>
+        <PluginsTable onDetails={() => undefined} onUpload={() => undefined} />
+      </PageFooterProvider>
     </QueryClientProvider>
   )
+  rendered.container.append(footer)
   return screen.getAllByRole('switch', { name: 'Enable plugin example' })[0]
 }
+
+test.each(['card', 'table'] as const)(
+  '%s view: searching filters plugin names and keys and clearing restores the list',
+  async (view) => {
+    const user = userEvent.setup()
+    renderPlugins(true, view, 'factory', [
+      { key: 'google', name: 'Google Veo (Gemini API)' },
+      { key: 'vertex-ai', name: 'Google Veo (Vertex AI)' },
+      { key: 'doubao', name: 'Doubao Video' },
+    ])
+    const search = screen.getByPlaceholderText('Filter plugins...')
+
+    await user.type(search, 'GOOGLE')
+    await waitFor(() => {
+      expect(
+        screen.queryAllByRole('switch', { name: 'Enable plugin example' })
+      ).toHaveLength(0)
+      expect(
+        screen.queryAllByRole('switch', { name: 'Enable plugin doubao' })
+      ).toHaveLength(0)
+    })
+    expect(
+      screen.getAllByRole('switch', { name: 'Enable plugin google' }).length
+    ).toBeGreaterThan(0)
+    expect(
+      screen.getAllByRole('switch', { name: 'Enable plugin vertex-ai' }).length
+    ).toBeGreaterThan(0)
+
+    await user.clear(search)
+    await user.type(search, 'vertex-ai')
+    await waitFor(() =>
+      expect(
+        screen.queryAllByRole('switch', { name: 'Enable plugin google' })
+      ).toHaveLength(0)
+    )
+    expect(
+      screen.getAllByRole('switch', { name: 'Enable plugin vertex-ai' }).length
+    ).toBeGreaterThan(0)
+
+    await user.clear(search)
+    await user.type(search, 'no-matching-plugin')
+    await screen.findByText('No task plugins found')
+    expect(screen.queryAllByRole('switch')).toHaveLength(0)
+
+    await user.clear(search)
+    await waitFor(() => {
+      for (const key of ['example', 'google', 'vertex-ai', 'doubao']) {
+        expect(
+          screen.getAllByRole('switch', { name: `Enable plugin ${key}` }).length
+        ).toBeGreaterThan(0)
+      }
+    })
+  }
+)
+
+test('searching from a later page uses filtered pagination and clearing restores all pages', async () => {
+  const user = userEvent.setup()
+  renderPlugins(true, 'table', 'factory', [
+    ...Array.from({ length: 20 }, (_, index) => ({
+      key: `plugin-${index}`,
+      name: `Plugin ${index}`,
+    })),
+    { key: 'google', name: 'Google Veo' },
+  ])
+  const next = screen.getByRole('button', { name: 'Go to next page' })
+  const previous = screen.getByRole('button', { name: 'Go to previous page' })
+  expect(next).toBeEnabled()
+  await user.click(next)
+  expect(previous).toBeEnabled()
+
+  const search = screen.getByPlaceholderText('Filter plugins...')
+  await user.type(search, 'google')
+  await waitFor(() => {
+    expect(
+      screen.getByRole('switch', { name: 'Enable plugin google' })
+    ).toBeVisible()
+    expect(previous).toBeDisabled()
+    expect(next).toBeDisabled()
+  })
+
+  await user.clear(search)
+  await waitFor(() => expect(next).toBeEnabled())
+})
 
 test.each([
   ['card', true],
