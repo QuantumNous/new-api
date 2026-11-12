@@ -53,7 +53,6 @@ func TestMain(m *testing.M) {
 		&model.Task{},
 		&model.User{},
 		&model.QuotaCredit{},
-		&model.AbnormalCharge{},
 		&model.Token{},
 		&model.Log{},
 		&model.Channel{},
@@ -505,7 +504,6 @@ func TestTaskBillingOtherRecordsAuditablePerCallFormula(t *testing.T) {
 		ModelPrice:       0.02,
 		GroupRatio:       0.8,
 		BaseGroupRatio:   1,
-		DiscountRatio:    0.8,
 		QuotaBeforeGroup: 120,
 		OtherRatios:      map[string]float64{"duration": 1.5},
 		OriginModelName:  "test-model",
@@ -519,8 +517,7 @@ func TestTaskBillingOtherRecordsAuditablePerCallFormula(t *testing.T) {
 	assert.Equal(t, "task", formula.Mode)
 	assert.Equal(t, 120.0, formula.BaseQuota)
 	assert.Equal(t, 1.0, formula.BaseGroupRatio)
-	assert.Equal(t, 0.8, formula.DiscountRatio)
-	assert.Equal(t, 0.8, formula.EffectiveGroupRatio)
+	assert.Equal(t, 1.0, formula.EffectiveGroupRatio)
 	assert.Equal(t, 1.5, formula.OtherRatio)
 	assert.Equal(t, 144, formula.FinalQuota)
 }
@@ -530,7 +527,6 @@ func TestTaskBillingOtherOmitsSubmitFormulaForTokenSettlement(t *testing.T) {
 	task.PrivateData.BillingContext = &model.TaskBillingContext{
 		GroupRatio:       0.5,
 		BaseGroupRatio:   1,
-		DiscountRatio:    0.5,
 		ModelRatio:       2,
 		QuotaBeforeGroup: 600,
 		OriginModelName:  "test-model",

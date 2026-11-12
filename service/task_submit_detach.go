@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,12 +20,9 @@ const taskCallerContextKey = "task_caller_context"
 func DetachTaskSubmission(c *gin.Context) func() {
 	clientRequest := c.Request
 	callerContext := clientRequest.Context()
-	// Upstream new-api cancels the submit with its caller and refunds it; a
-	// strict billing user, or matching what upstream charged, keeps the
-	// detached submit and its charge.
-	if callerContext.Err() != nil ||
-		billing_setting.AbnormalBillingAlignsWithOfficial() && !billing_setting.MatchUpstreamCharge() &&
-			!billing_setting.IsStrictBillingUser(c.GetInt("id")) {
+	// A caller that is already gone never starts a submit; one that leaves
+	// later keeps it running, since upstream may already have billed the job.
+	if callerContext.Err() != nil {
 		return func() {}
 	}
 	timeout := time.Duration(constant.TaskSubmitTimeoutSeconds) * time.Second

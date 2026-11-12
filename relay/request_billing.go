@@ -77,11 +77,7 @@ func RefundFailedRequestBilling(c *gin.Context, info *relaycommon.RelayInfo, api
 	if info.Billing != nil {
 		// 客户端在请求已发往上游后断开：按预估输入 token 结算，而不是全额退款。
 		// 结算成功后 Refund 为空操作；结算未完成时 Refund 兜底退还预扣。
-		if !service.SettleClientDisconnectBilling(c, info) {
-			// Upstream broke off a response it already billed: optionally
-			// charge what it reported instead of refunding.
-			service.SettleUpstreamBilledFailure(c, info)
-		}
+		service.SettleClientDisconnectBilling(c, info)
 		info.Billing.Refund(c)
 	}
 	service.ChargeViolationFeeIfNeeded(c, info, apiErr)

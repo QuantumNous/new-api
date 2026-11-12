@@ -81,8 +81,7 @@ func (w *detachedClientWriter) Unwrap() http.ResponseWriter {
 // The returned release func must be called when the request ends.
 func DetachProxiedClientCancellation(c *gin.Context) func() {
 	if !common.CloudflareDisconnectBillingEnabled || c == nil || c.Request == nil || c.Writer == nil ||
-		c.GetHeader("Cf-Ray") == "" ||
-		!billing_setting.ContinueAfterCloudflareTruncation() && !billing_setting.IsStrictBillingUser(c.GetInt("id")) {
+		c.GetHeader("Cf-Ray") == "" || !billing_setting.ContinueAfterCloudflareTruncation() {
 		return func() {}
 	}
 	clientCtx := c.Request.Context()
@@ -200,45 +199,17 @@ func SettleClientDisconnectBilling(c *gin.Context, info *relaycommon.RelayInfo) 
 		// not make that billable.
 		return false
 	}
-	// Settlement reads the case back and records the waiver itself.
+	// Settlement reads the case back and decides the waiver itself.
 	c.Set(abnormalChargeCaseKey, chargeCase)
-	c.Set(abnormalRequestFailedKey, true)
 	usage := &dto.Usage{
 		PromptTokens: promptTokens,
 		InputTokens:  promptTokens,
 		TotalTokens:  promptTokens,
 	}
 	var content []*common.Message
-	if waived, _ := abnormalChargeWaiver(c, info, chargeCase); !waived {
+	if waived, _ := abnormalChargeWaiver(info, chargeCase); !waived {
 		content = append(content, common.NewMessage("Client disconnected after the request reached the upstream, billed by usage"))
 	}
 	PostTextConsumeQuota(c, info, usage, content)
-	return true
-}
-
-// SettleUpstreamBilledFailure charges a request that failed while the client
-// was still there, after upstream had already reported usage on the final
-// attempt (a stream upstream broke off): upstreams such as Sub2API bill that
-// usage. It runs only when charge_upstream_billed_failure is on, settles
-// exactly the reported usage, and returns true when the session was settled.
-// Earlier failed retries are never charged.
-//
-// Per-call priced and free models keep the full refund.
-func SettleUpstreamBilledFailure(c *gin.Context, info *relaycommon.RelayInfo) bool {
-	if !billing_setting.ChargeUpstreamBilledFailure() || info == nil || info.Billing == nil || info.ChannelMeta == nil ||
-		ClientRequestCanceled(c) || info.PriceData.UsePrice || info.PriceData.FreeModel || policyBlockIsFree(info) {
-		return false
-	}
-	usage := info.UpstreamAttempt().ReportedUsage()
-	if usage == nil || usage.PromptTokens <= 0 && usage.CompletionTokens <= 0 &&
-		usage.PromptTokensDetails.CachedTokens <= 0 && usage.PromptTokensDetails.CachedCreationTokens <= 0 {
-		return false
-	}
-	// The switches waive interrupted responses that the user kept; this one
-	// charges a response that failed, so no waiver applies to it.
-	c.Set(upstreamBilledFailureKey, true)
-	PostTextConsumeQuota(c, info, usage, []*common.Message{
-		common.NewMessage("Upstream failed after billing its usage; charged the usage upstream reported"),
-	})
 	return true
 }

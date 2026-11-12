@@ -35,11 +35,6 @@ type ChannelSettings struct {
 	// TLSInsecureSkipVerify accepts upstream certificates that fail
 	// verification, such as self-signed ones, for this channel only.
 	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify,omitempty"`
-	// UpstreamDrainOnDisconnect keeps reading a stream from upstream after the
-	// client left, to learn the usage upstream charged. Meant for upstreams
-	// such as Sub2API that bill the whole stream anyway. Nil uses the channel
-	// type default.
-	UpstreamDrainOnDisconnect *bool `json:"upstream_drain_on_disconnect,omitempty"`
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,

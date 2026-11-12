@@ -21,13 +21,12 @@ import { assert, describe, test } from 'vitest'
 import { buildBillingFormulaText, getBillingFormula } from '../format'
 
 describe('billing formula log formatting', () => {
-  test('shows the base group, discount, request multiplier, surcharge, and final charge', () => {
+  test('shows the base group, request multiplier, surcharge, and final charge', () => {
     const formula = getBillingFormula({
       billing_formula: {
         mode: 'per_token',
         base_quota: 1200,
         base_group_ratio: 1.25,
-        discount_ratio: 0.8,
         effective_group_ratio: 1,
         other_ratio: 1.5,
         surcharge_quota: 25,
@@ -42,33 +41,7 @@ describe('billing formula log formatting', () => {
         (quota) => `Q${quota}`,
         (key) => key
       ),
-      'round(Q1200 (Base Charge) × 1.2500x (Base Group Ratio) × 0.8000x (Discount Multiplier) × 1.5000x (Request Multiplier) + Q25 (Surcharge)) = Q1825'
-    )
-  })
-
-  test('explains when a discount is skipped to avoid a zero charge', () => {
-    const formula = getBillingFormula({
-      billing_formula: {
-        mode: 'per_call',
-        base_quota: 0.1,
-        base_group_ratio: 1,
-        discount_ratio: 0.01,
-        effective_group_ratio: 1,
-        other_ratio: 1,
-        surcharge_quota: 0,
-        discount_skipped_to_avoid_zero: true,
-        final_quota: 1,
-      },
-    })
-
-    assert.ok(formula)
-    assert.equal(
-      buildBillingFormulaText(
-        formula,
-        (quota) => `Q${quota}`,
-        (key) => key
-      ),
-      'round(Q0.1 (Base Charge) × 1.0000x (Base Group Ratio)) = Q1 (Discount skipped to avoid a zero charge)'
+      'round(Q1200 (Base Charge) × 1.2500x (Base Group Ratio) × 1.5000x (Request Multiplier) + Q25 (Surcharge)) = Q1825'
     )
   })
 
@@ -78,7 +51,6 @@ describe('billing formula log formatting', () => {
         mode: 'per_call',
         base_quota: 0.1,
         base_group_ratio: 1,
-        discount_ratio: 1,
         effective_group_ratio: 1,
         other_ratio: 1,
         surcharge_quota: 0,
@@ -107,7 +79,6 @@ describe('billing formula log formatting', () => {
           mode: 'per_token',
           base_quota: -1,
           base_group_ratio: 1,
-          discount_ratio: 1,
           effective_group_ratio: 1,
           other_ratio: 1,
           surcharge_quota: 0,

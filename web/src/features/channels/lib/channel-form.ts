@@ -270,8 +270,6 @@ export const channelFormSchema = z
     http_protocol: z.enum(['auto', 'http1']).optional(),
     http2_connection_shards: z.number().int().optional(),
     tls_insecure_skip_verify: z.boolean().optional(),
-    // Null or unset follows the channel type default.
-    upstream_drain_on_disconnect: z.boolean().nullable().optional(),
     pass_through_body_enabled: z.boolean().optional(),
     responses_websocket_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
@@ -467,7 +465,6 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   http_protocol: HTTP_PROTOCOL_AUTO,
   http2_connection_shards: 1,
   tls_insecure_skip_verify: false,
-  upstream_drain_on_disconnect: undefined,
   pass_through_body_enabled: false,
   responses_websocket_enabled: false,
   system_prompt: '',
@@ -516,7 +513,6 @@ export function transformChannelToFormDefaults(
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
     http2_connection_shards: 1,
     tls_insecure_skip_verify: false,
-    upstream_drain_on_disconnect: undefined as boolean | undefined,
     pass_through_body_enabled: false,
     responses_websocket_enabled: false,
     system_prompt: '',
@@ -539,10 +535,6 @@ export function transformChannelToFormDefaults(
         http_protocol: protocol,
         http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
         tls_insecure_skip_verify: parsed.tls_insecure_skip_verify === true,
-        upstream_drain_on_disconnect:
-          typeof parsed.upstream_drain_on_disconnect === 'boolean'
-            ? parsed.upstream_drain_on_disconnect
-            : undefined,
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         responses_websocket_enabled:
           parsed.responses_websocket_enabled === true,
@@ -706,10 +698,6 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
   }
   if (formData.tls_insecure_skip_verify === true) {
     settingObj.tls_insecure_skip_verify = true
-  }
-  if (typeof formData.upstream_drain_on_disconnect === 'boolean') {
-    settingObj.upstream_drain_on_disconnect =
-      formData.upstream_drain_on_disconnect
   }
 
   return JSON.stringify(settingObj)

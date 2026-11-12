@@ -169,7 +169,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 	defer func() {
 		newAPIError = relay.RefundFailedRequestBilling(c, relayInfo, newAPIError)
-		service.FinishUpstreamDrain(c, relayInfo, newAPIError != nil)
 	}()
 
 	retryParam := &service.RetryParam{
@@ -540,11 +539,6 @@ func executeTaskSubmissionWith(
 		// The client of a relayed event stream already holds the vendor's
 		// work, so the submission is billed instead of refunded.
 		if !durable && relayInfo.Billing != nil && !c.Writer.Written() {
-			// Upstream already accepted a submit whose caller left: the refund
-			// is uncollected revenue to review.
-			if result != nil && c.Request.Context().Err() != nil {
-				service.RecordAbnormalTaskRefund(c, relayInfo, relayInfo.Billing.GetPreConsumedQuota())
-			}
 			diagnostics.refund(stage)
 			relayInfo.Billing.Refund(c)
 		}
@@ -664,9 +658,6 @@ func executeTaskSubmissionWith(
 		return nil, service.TaskErrorWrapperLocal(requestErr, "request_cancelled", http.StatusRequestTimeout)
 	}
 
-	// The scheduled discount frozen at request start applies to the final
-	// submit charge exactly as it did to the pre-consumed reservation.
-	result.Quota = service.ApplyBillingDiscount(relayInfo, result.Quota)
 	relayInfo.PriceData.Quota = result.Quota
 
 	// Reserve any submit-time upward billing adjustment before persistence.
@@ -706,8 +697,6 @@ func executeTaskSubmissionWith(
 		ModelPrice:        relayInfo.PriceData.ModelPrice,
 		GroupRatio:        relayInfo.PriceData.GroupRatioInfo.GroupRatio,
 		BaseGroupRatio:    relayInfo.BillingBaseGroupRatio,
-		DiscountRatio:     relayInfo.BillingDiscountRatio,
-		DiscountSkipped:   relayInfo.BillingDiscountSkipped,
 		ModelRatio:        relayInfo.PriceData.ModelRatio,
 		QuotaBeforeGroup:  relayInfo.PriceData.QuotaBeforeGroup,
 		OtherRatios:       relayInfo.PriceData.OtherRatios(),

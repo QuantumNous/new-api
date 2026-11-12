@@ -303,7 +303,6 @@ const SENSITIVE_FORM_FIELDS = [
   'http_protocol',
   'http2_connection_shards',
   'tls_insecure_skip_verify',
-  'upstream_drain_on_disconnect',
   'pass_through_body_enabled',
   'responses_websocket_enabled',
   'system_prompt',
@@ -2190,60 +2189,6 @@ export function ChannelMutateDrawer({
     />
   )
 
-  const upstreamDrainFields = (
-    <FormField
-      control={form.control}
-      name='upstream_drain_on_disconnect'
-      render={({ field }) => {
-        let value = 'default'
-        if (field.value === true) value = 'on'
-        if (field.value === false) value = 'off'
-        const items = [
-          { value: 'default', label: t('Use default') },
-          { value: 'on', label: t('Enabled') },
-          { value: 'off', label: t('Disabled') },
-        ]
-        return (
-          <FormItem>
-            <FormLabel>
-              {t('Keep reading upstream after the client disconnects')}
-            </FormLabel>
-            <Select
-              disabled={sensitiveLocked}
-              items={items}
-              value={value}
-              onValueChange={(next) => {
-                if (next === 'on') field.onChange(true)
-                else if (next === 'off') field.onChange(false)
-                // Undefined would fall back to the saved value.
-                else field.onChange(null)
-              }}
-            >
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent alignItemWithTrigger={false}>
-                <SelectGroup>
-                  {items.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <FormDescription>
-              {t(
-                'For upstreams such as Sub2API and New API that bill a request even after the caller leaves. The reply is read to the end to learn what upstream charged; it is recorded in Abnormal Requests, and also charged to the user when "Charge whatever upstream billed for abandoned requests" is on. By default, Sub2API channels read streams, and Sub2API and New API channels read non-streams while that switch is on. Do not turn it on for upstreams that stop billing when the caller leaves.'
-              )}
-            </FormDescription>
-          </FormItem>
-        )
-      }}
-    />
-  )
 
   const routingFields = (
     <div
@@ -4874,7 +4819,6 @@ export function ChannelMutateDrawer({
                 {httpProtocolFields}
                 {httpShardsFields}
                 {tlsInsecureSkipVerifyFields}
-                {upstreamDrainFields}
               </fieldset>
             </div>
             {upstreamModelDetectionFields}

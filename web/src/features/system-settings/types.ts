@@ -313,7 +313,6 @@ export type BillingSettings = {
   MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
-  'discount_setting.schedule': string
   PayAddress: string
   EpayId: string
   EpayKey: string
@@ -364,15 +363,8 @@ export type BillingSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
-  'abnormal_billing_setting.align_with_official': boolean
   'abnormal_billing_setting.continue_after_cloudflare_truncation': boolean
-  'abnormal_billing_setting.match_upstream_charge': boolean
-  'abnormal_billing_setting.charge_upstream_billed_failure': boolean
   'abnormal_billing_setting.charge_policy_block': boolean
-  'abnormal_request_setting.flag_hourly_count': number
-  'abnormal_request_setting.flag_ratio_percent': number
-  'abnormal_request_setting.flag_min_requests': number
-  'abnormal_request_setting.flag_forgone_quota': number
 }
 
 export type OperationsSettings = {

@@ -236,15 +236,8 @@ func taskBillingOther(task *model.Task) *model.LogOther {
 		// from the submit-time base quota. Only emit a formula for stable per-call
 		// billing snapshots whose final quota still follows the original inputs.
 		if bc.PerCallBilling && !bc.IgnoreOtherRatios && bc.QuotaBeforeGroup > 0 {
-			discountRatio := bc.DiscountRatio
-			if discountRatio <= 0 {
-				discountRatio = 1
-			}
 			billingInfo := &relaycommon.RelayInfo{
-				BillingBaseGroupRatio:   bc.BaseGroupRatio,
-				BillingDiscountRatio:    discountRatio,
-				BillingDiscountResolved: true,
-				BillingDiscountSkipped:  bc.DiscountSkipped,
+				BillingBaseGroupRatio: bc.BaseGroupRatio,
 				PriceData: types.PriceData{
 					GroupRatioInfo: types.GroupRatioInfo{GroupRatio: bc.GroupRatio},
 				},
@@ -390,9 +383,6 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 // reason 写入日志内容（例如按 token 重算或 adaptor 调整）。
 // clamps 可选：若计算 actualQuota 时发生额度饱和，将其记入日志 admin_info（仅管理员可见）。
 func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int, reason *common.Message, clamps ...*common.QuotaClamp) {
-	if task != nil && task.PrivateData.BillingContext != nil {
-		actualQuota = applyBillingDiscountRatio(actualQuota, task.PrivateData.BillingContext.DiscountRatio, nil)
-	}
 	settleTaskQuota(ctx, task, actualQuota, reason, clamps...)
 }
 
@@ -485,7 +475,6 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		}
 		rawQuota := float64(totalTokens) * billingContext.ModelRatio * billingContext.GroupRatio * otherMultiplier
 		actualQuota, clamp := common.QuotaFromPositiveFloatChecked(rawQuota)
-		actualQuota = applyBillingDiscountRatio(actualQuota, billingContext.DiscountRatio, nil)
 		reason := common.NewMessage("Recalculated from tokens: tokens {{tokens}}, model ratio {{model_ratio}}, group ratio {{group_ratio}}, other multiplier {{other_multiplier}}", map[string]any{
 			"tokens":           totalTokens,
 			"model_ratio":      fmt.Sprintf("%.2f", billingContext.ModelRatio),

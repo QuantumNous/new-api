@@ -1757,36 +1757,6 @@ test('turning on the upstream TLS verification skip saves it in the channel sett
   })
 })
 
-test('a saved upstream drain override can be returned to the channel default, which saves the setting without it', async () => {
-  editingChannel = {
-    ...editingChannel,
-    setting: '{"upstream_drain_on_disconnect":false}',
-  }
-  const put = vi
-    .spyOn(api, 'put')
-    .mockResolvedValue({ data: { success: true } })
-  const user = userEvent.setup()
-  render(<ConfigurationHarness currentRow={editingChannel} />)
-  await screen.findByDisplayValue('Existing channel')
-  const otherTab = screen.getByRole('tab', { name: /Other Settings/ })
-  expect(otherTab).toHaveAccessibleName(/Configured/)
-  await user.click(otherTab)
-  const select = screen.getByRole('combobox', {
-    name: 'Keep reading upstream after the client disconnects',
-  })
-  expect(select).toHaveTextContent('Disabled')
-  await user.click(select)
-  await user.click(await screen.findByRole('option', { name: 'Use default' }))
-  expect(select).toHaveTextContent('Use default')
-  expect(otherTab).not.toHaveAccessibleName(/Configured/)
-  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
-  await waitFor(() => expect(put).toHaveBeenCalled())
-  const payload = put.mock.calls[0]?.[1] as { setting: string }
-  expect(JSON.parse(payload.setting)).not.toHaveProperty(
-    'upstream_drain_on_disconnect'
-  )
-})
-
 test('an invalid edit switches categories and replaces configured styling with the field error', async () => {
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)

@@ -26,8 +26,6 @@ import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { AbnormalBillingSection } from './abnormal-billing-section'
-import { AbnormalRequestsSection } from './abnormal-requests/abnormal-requests-section'
-import { DiscountSettingsSection } from './discount-settings-section'
 
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
@@ -134,17 +132,6 @@ const BILLING_SECTIONS = [
     ),
   },
   {
-    id: 'discount',
-    titleKey: 'Discount Settings',
-    build: (settings: BillingSettings) => (
-      <DiscountSettingsSection
-        scheduleValue={settings['discount_setting.schedule']}
-        groupRatioValue={settings.GroupRatio}
-        usableGroupsValue={settings.UserUsableGroups}
-      />
-    ),
-  },
-  {
     id: 'payment',
     titleKey: 'Payment Gateway',
     build: (settings: BillingSettings) => (
@@ -224,38 +211,12 @@ const BILLING_SECTIONS = [
     build: (settings: BillingSettings) => (
       <AbnormalBillingSection
         defaultValues={{
-          align_with_official:
-            settings['abnormal_billing_setting.align_with_official'],
           continue_after_cloudflare_truncation:
             settings[
               'abnormal_billing_setting.continue_after_cloudflare_truncation'
             ],
-          match_upstream_charge:
-            settings['abnormal_billing_setting.match_upstream_charge'],
-          charge_upstream_billed_failure:
-            settings['abnormal_billing_setting.charge_upstream_billed_failure'],
           charge_policy_block:
             settings['abnormal_billing_setting.charge_policy_block'],
-        }}
-      />
-    ),
-  },
-  {
-    id: 'abnormal-requests',
-    titleKey: 'Abnormal Requests',
-    build: (settings: BillingSettings) => (
-      <AbnormalRequestsSection
-        defaultValues={{
-          abnormal_request_setting: {
-            flag_hourly_count:
-              settings['abnormal_request_setting.flag_hourly_count'],
-            flag_ratio_percent:
-              settings['abnormal_request_setting.flag_ratio_percent'],
-            flag_min_requests:
-              settings['abnormal_request_setting.flag_min_requests'],
-            flag_forgone_quota:
-              settings['abnormal_request_setting.flag_forgone_quota'],
-          },
         }}
       />
     ),

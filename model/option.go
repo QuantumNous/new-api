@@ -12,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
-	"github.com/QuantumNous/new-api/setting/discount_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -37,7 +36,6 @@ func InitOptionMap() {
 	common.OptionMapRWMutex.Lock()
 	common.OptionMap = make(map[string]string)
 	common.OptionMap[billing_setting.PeakPricingOptionKey] = "{}"
-	common.OptionMap[billing_setting.StrictBillingUsersOptionKey] = "[]"
 
 	// 添加原有的系统配置
 	common.OptionMap["FileUploadPermission"] = strconv.Itoa(common.FileUploadPermission)
@@ -296,17 +294,7 @@ func validateOptionValue(key string, value string) error {
 	if key == "traffic_control.schedule" {
 		return traffic_control.ValidateScheduleJSON(value)
 	}
-	if key == "discount_setting.schedule" {
-		return discount_setting.ValidateScheduleJSON(value)
-	}
 	if err := billing_setting.ValidateAbnormalBillingOption(key, value); err != nil {
-		return err
-	}
-	if err := billing_setting.ValidateAbnormalRequestOption(key, value); err != nil {
-		return err
-	}
-	if key == billing_setting.StrictBillingUsersOptionKey {
-		_, err := billing_setting.ParseStrictBillingUsers(value)
 		return err
 	}
 	if key == setting.FirstTokenDisplayRulesOptionKey {
@@ -422,11 +410,6 @@ func updateOptionMap(key string, value string) (err error) {
 		}
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
-	}
-	if key == billing_setting.StrictBillingUsersOptionKey {
-		if err := billing_setting.LoadStrictBillingUsers(value); err != nil {
-			return err
-		}
 	}
 	if key == retiredThemeOptionKey || key == legacyAccessTokenRetireAtKey {
 		common.OptionMapRWMutex.Lock()
@@ -811,8 +794,6 @@ func handleConfigUpdate(key, value string) bool {
 		performance_setting.UpdateAndSync()
 	} else if configName == "traffic_control" {
 		traffic_control.UpdateAndSync()
-	} else if configName == "discount_setting" {
-		discount_setting.UpdateAndSync()
 	} else if configName == "billing_setting" {
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()

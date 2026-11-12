@@ -674,7 +674,6 @@
     "Applied upstream model changes to {{count}} channels": "Applied upstream model changes to {{count}} channels",
     "Applied upstream model changes to channel (ID: {{id}})": "Applied upstream model changes to channel (ID: {{id}})",
     "Applies to custom completion endpoints. JSON map of model → ratio.": "Applies to custom completion endpoints. JSON map of model → ratio.",
-    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api. This switch works whether or not the official alignment is on.": "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api. This switch works whether or not the official alignment is on.",
     "Apply": "Apply",
     "Apply {{count}} model changes": "Apply {{count}} model changes",
     "Apply {{field}} for {{name}}": "Apply {{field}} for {{name}}",
@@ -2999,7 +2998,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For example, 10 means a 100 top-up receives an extra 10 in balance.": "For example, 10 means a 100 top-up receives an extra 10 in balance.",
@@ -7267,7 +7266,6 @@
     "Upstream protocol plan": "Upstream protocol plan",
     "Upstream ratios fetched successfully": "Upstream ratios fetched successfully",
     "Upstream receives": "Upstream receives",
-    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, whatever the switches above say, the same as Sub2API, which does not bill these blocks. When on, it is charged by the switches above.": "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, whatever the switches above say, the same as Sub2API, which does not bill these blocks. When on, it is charged by the switches above.",
     "Upstream request failed": "Upstream request failed",
     "Upstream Request ID": "Upstream Request ID",
     "Upstream response": "Upstream response",
@@ -7813,6 +7811,8 @@
     "Export recharge orders": "Export recharge orders",
     "Exported {{count}} orders": "Exported {{count}} orders",
     "Failed to export recharge orders": "Failed to export recharge orders",
-    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "Orders created in this time range are exported. The order number and user ID filters on this page also apply."
+    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "Orders created in this time range are exported. The order number and user ID filters on this page also apply.",
+    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.": "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.",
+    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request.": "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request."
   }
 }

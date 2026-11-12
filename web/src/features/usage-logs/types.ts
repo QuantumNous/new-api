@@ -235,12 +235,12 @@ export interface LogOtherData {
     mode: string
     base_quota: number
     base_group_ratio: number
-    discount_ratio: number
     effective_group_ratio: number
     other_ratio: number
     surcharge_quota: number
     /** Kept for compatibility with historical consume logs. */
     minimum_charge_applied?: boolean
+    discount_ratio?: number
     discount_skipped_to_avoid_zero?: boolean
     final_quota: number
   }

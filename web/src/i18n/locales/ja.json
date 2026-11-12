@@ -674,7 +674,6 @@
     "Applied upstream model changes to {{count}} channels": "{{count}} 件のチャネルに上流モデルの変更を適用しました",
     "Applied upstream model changes to channel (ID: {{id}})": "チャネル（ID: {{id}}）に上流モデルの変更を適用しました",
     "Applies to custom completion endpoints. JSON map of model → ratio.": "カスタム補完エンドポイントに適用されます。モデル → 比率のJSONマップ。",
-    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api. This switch works whether or not the official alignment is on.": "Cloudflare 経由で、長時間データがなく（既定 90 秒）Cloudflare に切断されたリクエストが対象です。オンにすると、ゲートウェイは上流を最後まで読み、実際の使用量で課金しますが、クライアントはそれ以降の内容を受け取りません。オフにすると、公式 new-api と同様にすぐ中継を停止します。このスイッチは公式との整合の設定に関係なく有効です。",
     "Apply": "適用",
     "Apply {{count}} model changes": "{{count}} 件のモデルの変更を適用",
     "Apply {{field}} for {{name}}": "{{name}} に {{field}} を適用",
@@ -2999,7 +2998,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高度なカスタムチャネルでは、プロトコル変換を行わない /v1/responses ルートにのみ適用されます。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For example, 10 means a 100 top-up receives an extra 10 in balance.": "例：10 の場合、100 チャージすると残高が 10 追加されます。",
@@ -7267,7 +7266,6 @@
     "Upstream protocol plan": "上流プロトコルプラン",
     "Upstream ratios fetched successfully": "アップストリーム比率が正常に取得されました",
     "Upstream receives": "上流が受信",
-    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, whatever the switches above say, the same as Sub2API, which does not bill these blocks. When on, it is charged by the switches above.": "上流が安全ポリシーでリクエストを拒否した場合です（Sub2API や New API が転送する OpenAI の cyber_policy など）。オフのときは、上のスイッチに関係なく課金しません。これらのブロックを課金しない Sub2API と同じです。オンのときは上のスイッチに従って課金します。",
     "Upstream request failed": "上流リクエスト失敗",
     "Upstream Request ID": "上流リクエストID",
     "Upstream response": "上流レスポンス",
@@ -7813,6 +7811,8 @@
     "Export recharge orders": "チャージ注文をエクスポート",
     "Exported {{count}} orders": "{{count}} 件の注文をエクスポートしました",
     "Failed to export recharge orders": "チャージ注文のエクスポートに失敗しました",
-    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "この期間に作成された注文をエクスポートします。このページの注文番号とユーザー ID のフィルターも適用されます。"
+    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "この期間に作成された注文をエクスポートします。このページの注文番号とユーザー ID のフィルターも適用されます。",
+    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.": "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.",
+    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request.": "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request."
   }
 }

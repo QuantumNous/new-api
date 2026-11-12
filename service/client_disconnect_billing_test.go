@@ -12,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -338,8 +337,6 @@ func TestAbnormalBillingDecidesStreamSettlement(t *testing.T) {
 	tests := []struct {
 		name         string
 		chargePolicy bool
-		matchCharge  bool
-		strictUser   bool
 		arrange      func(info *relaycommon.RelayInfo)
 		wantCharged  bool
 	}{
@@ -350,18 +347,12 @@ func TestAbnormalBillingDecidesStreamSettlement(t *testing.T) {
 		{name: "a completed stream is charged", arrange: streamEndedBy(relaycommon.StreamEndReasonDone, nil, true), wantCharged: true},
 		{name: "response failed by a safety policy is free by default", arrange: responseFailedByPolicy, wantCharged: false},
 		{name: "a bare safety policy error chunk is free by default", arrange: bareChunkPolicyBlock, wantCharged: false},
-		{name: "a safety policy block stays free under match upstream", matchCharge: true, arrange: responseFailedByPolicy, wantCharged: false},
-		{name: "a safety policy block stays free for a strict billing user", strictUser: true, arrange: responseFailedByPolicy, wantCharged: false},
 		{name: "a safety policy block is charged once its switch is on", chargePolicy: true, arrange: responseFailedByPolicy, wantCharged: true},
 		{name: "a bare safety policy chunk is charged once its switch is on", chargePolicy: true, arrange: bareChunkPolicyBlock, wantCharged: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			setAbnormalOption(t, "charge_policy_block", tt.chargePolicy, false)
-			setAbnormalOption(t, "match_upstream_charge", tt.matchCharge, false)
-			if tt.strictUser {
-				setStrictBillingUser(t, disconnectUserId)
-			}
 			ctx, info, _ := newDisconnectBillingCase(t, tokenPriced())
 			info.IsStream = true
 			info.MarkUpstreamStart()
@@ -395,255 +386,6 @@ func setAbnormalOption(t *testing.T, field string, value, defaultValue bool) {
 	require.NoError(t, config.UpdateConfigFromMap(settings, map[string]string{field: strconv.FormatBool(value)}))
 	t.Cleanup(func() {
 		require.NoError(t, config.UpdateConfigFromMap(settings, map[string]string{field: strconv.FormatBool(defaultValue)}))
-	})
-}
-
-func setOfficialAlignedBilling(t *testing.T) {
-	t.Helper()
-	setAbnormalOption(t, "align_with_official", true, false)
-}
-
-// The Cloudflare switch is independent of the official alignment: a truncated
-// relay keeps reading upstream and is charged its real usage.
-func TestCloudflareTruncationContinuesUnderOfficialAlignment(t *testing.T) {
-	setOfficialAlignedBilling(t)
-
-	ctx, _, cancel := newProxiedRequestContext(t, "8f0c1d2e3a4b5c6d-SJC", 0)
-	release := DetachProxiedClientCancellation(ctx)
-	defer release()
-	cancel()
-	require.Eventually(t, func() bool { return ProxiedClientGone(ctx) }, time.Second, time.Millisecond)
-	assert.NoError(t, ctx.Request.Context().Err(), "the relay must keep running after the truncation")
-
-	billingCtx, info, _ := newDisconnectBillingCase(t, tokenPriced())
-	info.MarkUpstreamStart()
-	info.UpstreamAttempt().MarkRequestSent()
-	info.UpstreamAttempt().MarkResponse()
-	writer := &detachedClientWriter{ResponseWriter: billingCtx.Writer, clientCtx: context.Background(), relayCtx: context.Background()}
-	writer.truncatedAtUnixNs.Store(time.Now().Add(-time.Hour).UnixNano())
-	writer.truncated.Store(true)
-	billingCtx.Set(detachedClientWriterKey, writer)
-
-	PostTextConsumeQuota(billingCtx, info, &dto.Usage{PromptTokens: 1_000, CompletionTokens: 200, TotalTokens: 1_200}, nil)
-
-	assert.Equal(t, 1_200, disconnectStartQuota-getUserQuota(t, disconnectUserId))
-	log := lastConsumeLog(t)
-	assert.Contains(t, log.Content, "billed by actual usage")
-	assert.NotContains(t, log.Other, waivedMarker)
-}
-
-// With the official alignment on, a failed request is refunded in full and an
-// interrupted one is charged its usage.
-func TestOfficialAlignedBillingSettlesAbnormalRequests(t *testing.T) {
-	t.Run("client leaving before upstream answers is refunded though the default charges it", func(t *testing.T) {
-		defaultCharge := defaultClientLeftBeforeResponseCharge(t)
-		require.Positive(t, defaultCharge)
-
-		setOfficialAlignedBilling(t)
-		assert.Zero(t, settleClientLeftBeforeResponse(t), "the balance must end where a full refund leaves it")
-		log := lastConsumeLog(t)
-		assert.Zero(t, log.Quota)
-		assert.Contains(t, log.Other, waivedMarker)
-		records := abnormalChargeRecords(t)
-		require.Len(t, records, 1)
-		assert.Equal(t, defaultCharge, records[0].ForgoneQuota, "the record keeps exactly what the default settlement charges")
-		assert.Equal(t, model.AbnormalChargeOutcomeWaived, records[0].Outcome)
-		assert.True(t, records[0].UserCaused)
-		assert.Equal(t, "client_before_response", records[0].Case)
-	})
-
-	t.Run("a non-stream body read the client abandoned is refunded like official new-api", func(t *testing.T) {
-		setOfficialAlignedBilling(t)
-		ctx, info, cancel := newDisconnectBillingCase(t, tokenPriced())
-		info.MarkUpstreamStart()
-		info.UpstreamAttempt().MarkRequestSent()
-		info.UpstreamAttempt().MarkResponse()
-		info.UpstreamAttempt().Fail(context.Canceled, true)
-		cancel()
-
-		require.True(t, SettleClientDisconnectBilling(ctx, info))
-		info.Billing.Refund(ctx)
-		assert.Equal(t, disconnectStartQuota, getUserQuota(t, disconnectUserId))
-		records := abnormalChargeRecords(t)
-		require.Len(t, records, 1)
-		assert.Equal(t, "client_during_response", records[0].Case)
-	})
-
-	for _, tt := range []struct {
-		name   string
-		reason relaycommon.StreamEndReason
-		endErr error
-	}{
-		{name: "client leaving mid-stream is charged its usage", reason: relaycommon.StreamEndReasonClientGone, endErr: context.Canceled},
-		{name: "upstream reset mid-stream is charged its usage", reason: relaycommon.StreamEndReasonScannerErr, endErr: io.ErrUnexpectedEOF},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			setOfficialAlignedBilling(t)
-			ctx, info, _ := newDisconnectBillingCase(t, tokenPriced())
-			info.IsStream = true
-			info.MarkUpstreamStart()
-			info.UpstreamAttempt().MarkRequestSent()
-			info.UpstreamAttempt().MarkResponse()
-			info.StreamStatus = relaycommon.NewStreamStatus()
-			info.StreamStatus.RequireTerminal()
-			info.StreamStatus.SetEndReason(tt.reason, tt.endErr)
-
-			PostTextConsumeQuota(ctx, info, &dto.Usage{PromptTokens: 1_000, CompletionTokens: 200, TotalTokens: 1_200}, nil)
-
-			assert.Equal(t, 1_200, disconnectStartQuota-getUserQuota(t, disconnectUserId))
-			log := lastConsumeLog(t)
-			assert.Equal(t, 1_200, log.Quota)
-			assert.NotContains(t, log.Other, waivedMarker)
-			assert.Empty(t, abnormalChargeRecords(t), "a charged request leaves nothing to recover")
-		})
-	}
-}
-
-// settleClientLeftBeforeResponse runs a request whose client left after it
-// reached upstream and before upstream answered, and returns the charge.
-func settleClientLeftBeforeResponse(t *testing.T) int {
-	t.Helper()
-	ctx, info, cancel := newDisconnectBillingCase(t, tokenPriced())
-	info.MarkUpstreamStart()
-	info.UpstreamAttempt().MarkRequestSent()
-	info.UpstreamAttempt().Fail(context.Canceled, true)
-	cancel()
-	SettleClientDisconnectBilling(ctx, info)
-	info.Billing.Refund(ctx)
-	require.Eventually(t, func() bool { return !info.Billing.NeedsRefund() }, time.Second, 10*time.Millisecond)
-	return disconnectStartQuota - getUserQuota(t, disconnectUserId)
-}
-
-// defaultClientLeftBeforeResponseCharge is the charge the default settings
-// make for that request, measured in its own subtest so its rows are cleared.
-func defaultClientLeftBeforeResponseCharge(t *testing.T) int {
-	t.Helper()
-	charge := 0
-	t.Run("default settlement", func(t *testing.T) {
-		charge = settleClientLeftBeforeResponse(t)
-		assert.Empty(t, abnormalChargeRecords(t), "a charged request leaves nothing to recover")
-	})
-	return charge
-}
-
-func abnormalChargeRecords(t *testing.T) []model.AbnormalCharge {
-	t.Helper()
-	var records []model.AbnormalCharge
-	require.NoError(t, model.DB.Order("id").Find(&records).Error)
-	return records
-}
-
-func setStrictBillingUser(t *testing.T, userId int) {
-	t.Helper()
-	require.NoError(t, billing_setting.LoadStrictBillingUsers("["+strconv.Itoa(userId)+"]"))
-	t.Cleanup(func() { require.NoError(t, billing_setting.LoadStrictBillingUsers("[]")) })
-}
-
-// A waived charge is recorded with the case of the abnormal end; only cases
-// the user caused may later be recovered from the user.
-func TestAbnormalChargeWaiversAreRecorded(t *testing.T) {
-	for _, tt := range []struct {
-		name       string
-		reason     relaycommon.StreamEndReason
-		endErr     error
-		wantCase   string
-		userCaused bool
-	}{
-		{name: "client left mid-stream", reason: relaycommon.StreamEndReasonClientGone, endErr: context.Canceled, wantCase: "client_during_response", userCaused: true},
-		{name: "upstream reset mid-stream", reason: relaycommon.StreamEndReasonScannerErr, endErr: io.ErrUnexpectedEOF, wantCase: "upstream_during_response"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx, info, _ := newDisconnectBillingCase(t, tokenPriced())
-			info.IsStream = true
-			info.MarkUpstreamStart()
-			info.UpstreamAttempt().MarkRequestSent()
-			info.UpstreamAttempt().MarkResponse()
-			info.StreamStatus = relaycommon.NewStreamStatus()
-			info.StreamStatus.RequireTerminal()
-			info.StreamStatus.SetEndReason(tt.reason, tt.endErr)
-			setPolicyBlock(info)
-			ctx.Set("token_name", "abnormal-token")
-
-			PostTextConsumeQuota(ctx, info, &dto.Usage{PromptTokens: 1_000, CompletionTokens: 200, TotalTokens: 1_200}, nil)
-
-			assert.Zero(t, disconnectStartQuota-getUserQuota(t, disconnectUserId))
-			records := abnormalChargeRecords(t)
-			require.Len(t, records, 1)
-			record := records[0]
-			assert.Equal(t, 1_200, record.ForgoneQuota)
-			assert.Equal(t, tt.wantCase, record.Case)
-			assert.Equal(t, tt.userCaused, record.UserCaused)
-			assert.Equal(t, disconnectUserId, record.UserId)
-			assert.Equal(t, disconnectTokenId, record.TokenId)
-			assert.Equal(t, "abnormal-token", record.TokenName)
-			assert.Equal(t, "gpt-disconnect-test", record.ModelName)
-			assert.Equal(t, 703, record.ChannelId)
-			assert.True(t, record.IsStream)
-			assert.Equal(t, model.AbnormalChargeOutcomeWaived, record.Outcome)
-			assert.Empty(t, record.RecoveryId)
-		})
-	}
-}
-
-// A strict billing user is charged for every abnormal end the user caused,
-// whatever the official alignment says; a safety policy block stays free.
-func TestStrictBillingUserIsChargedForUserCausedAbnormalEnds(t *testing.T) {
-	streamEndedBy := func(reason relaycommon.StreamEndReason, endErr error) func(*relaycommon.RelayInfo) {
-		return func(info *relaycommon.RelayInfo) {
-			info.IsStream = true
-			info.UpstreamAttempt().MarkResponse()
-			info.StreamStatus = relaycommon.NewStreamStatus()
-			info.StreamStatus.RequireTerminal()
-			info.StreamStatus.SetEndReason(reason, endErr)
-		}
-	}
-	for _, tt := range []struct {
-		name        string
-		aligned     bool
-		arrange     func(*relaycommon.RelayInfo)
-		wantCharged int
-	}{
-		{name: "client left mid-stream", arrange: streamEndedBy(relaycommon.StreamEndReasonClientGone, context.Canceled), wantCharged: 1_200},
-		{name: "client left mid-stream under the official alignment", aligned: true, arrange: streamEndedBy(relaycommon.StreamEndReasonClientGone, context.Canceled), wantCharged: 1_200},
-		{name: "client left a stream upstream blocked by a safety policy", arrange: func(info *relaycommon.RelayInfo) {
-			streamEndedBy(relaycommon.StreamEndReasonClientGone, context.Canceled)(info)
-			setPolicyBlock(info)
-		}, wantCharged: 0},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.aligned {
-				setOfficialAlignedBilling(t)
-			}
-			setStrictBillingUser(t, disconnectUserId)
-			ctx, info, _ := newDisconnectBillingCase(t, tokenPriced())
-			info.MarkUpstreamStart()
-			info.UpstreamAttempt().MarkRequestSent()
-			tt.arrange(info)
-
-			PostTextConsumeQuota(ctx, info, &dto.Usage{PromptTokens: 1_000, CompletionTokens: 200, TotalTokens: 1_200}, nil)
-
-			assert.Equal(t, tt.wantCharged, disconnectStartQuota-getUserQuota(t, disconnectUserId))
-		})
-	}
-
-	t.Run("client left before upstream answered under the official alignment", func(t *testing.T) {
-		defaultCharge := defaultClientLeftBeforeResponseCharge(t)
-		setOfficialAlignedBilling(t)
-		setStrictBillingUser(t, disconnectUserId)
-		assert.Equal(t, defaultCharge, settleClientLeftBeforeResponse(t), "a strict user pays the prompt estimate as by default")
-		assert.Empty(t, abnormalChargeRecords(t))
-	})
-
-	t.Run("a Cloudflare truncation keeps the relay running with the switch off", func(t *testing.T) {
-		setAbnormalOption(t, "continue_after_cloudflare_truncation", false, true)
-		setStrictBillingUser(t, disconnectUserId)
-		ctx, _, cancel := newProxiedRequestContext(t, "8f0c1d2e3a4b5c6d-SJC", 0)
-		ctx.Set("id", disconnectUserId)
-		release := DetachProxiedClientCancellation(ctx)
-		defer release()
-		cancel()
-		require.Eventually(t, func() bool { return ProxiedClientGone(ctx) }, time.Second, time.Millisecond)
-		assert.NoError(t, ctx.Request.Context().Err())
 	})
 }
 
@@ -689,80 +431,6 @@ func TestCloudflareTruncatedRelayIsChargedActualUsage(t *testing.T) {
 			}
 			assert.Zero(t, charged)
 			assert.NotContains(t, log.Content, "billed by actual usage", "a waived log must not claim a charge")
-		})
-	}
-}
-
-// A request that upstream broke off after reporting usage (Sub2API bills that
-// usage) is refunded unless charge_upstream_billed_failure is on; then it is
-// charged exactly the reported usage, once, whatever the other switches say.
-func TestUpstreamBilledFailureSettlement(t *testing.T) {
-	reported := &dto.Usage{PromptTokens: 1_000, CompletionTokens: 1, TotalTokens: 1_001}
-	tests := []struct {
-		name          string
-		on            bool
-		perCall       bool
-		clientLeft    bool
-		policyBlocked bool
-		chargePolicy  bool
-		retried       bool
-		usage         *dto.Usage
-		wantCharged   int
-	}{
-		{name: "switch off keeps the full refund", usage: reported},
-		{name: "switch on charges the usage upstream reported", on: true, usage: reported, wantCharged: 1_001},
-		{name: "a safety policy block keeps the full refund", on: true, policyBlocked: true, usage: reported},
-		{name: "a safety policy block is charged once its switch is on", on: true, policyBlocked: true, chargePolicy: true, usage: reported, wantCharged: 1_001},
-		{name: "nothing reported is refunded", on: true},
-		{name: "zero usage is refunded", on: true, usage: &dto.Usage{}},
-		{name: "a per-call model is refunded", on: true, perCall: true, usage: reported},
-		{name: "a client that left is settled by the disconnect rules instead", on: true, clientLeft: true, usage: reported},
-		{name: "a retry that failed before upstream answered drops the earlier attempt's usage", on: true, retried: true, usage: reported},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			setAbnormalOption(t, "charge_upstream_billed_failure", tt.on, false)
-			setAbnormalOption(t, "charge_policy_block", tt.chargePolicy, false)
-			priceData := tokenPriced()
-			if tt.perCall {
-				priceData.UsePrice = true
-				priceData.ModelPrice = 0.01
-			}
-			ctx, info, cancel := newDisconnectBillingCase(t, priceData)
-			info.IsStream = true
-			info.MarkUpstreamStart()
-			info.UpstreamAttempt().MarkRequestSent()
-			info.UpstreamAttempt().MarkResponse()
-			info.UpstreamAttempt().ReportUsage(tt.usage)
-			info.StreamStatus = relaycommon.NewStreamStatus()
-			info.StreamStatus.RequireTerminal()
-			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, io.ErrUnexpectedEOF)
-			if tt.policyBlocked {
-				info.StreamStatus.MarkFailed("cyber_policy", "", 0)
-			}
-			if tt.retried {
-				info.MarkUpstreamStart()
-			}
-			if tt.clientLeft {
-				cancel()
-			}
-
-			settled := SettleUpstreamBilledFailure(ctx, info)
-			info.Billing.Refund(ctx)
-
-			assert.Equal(t, tt.wantCharged > 0, settled)
-			// The refund of the reservation completes in the background.
-			require.Eventually(t, func() bool {
-				return disconnectStartQuota-getUserQuota(t, disconnectUserId) == tt.wantCharged
-			}, 5*time.Second, 10*time.Millisecond, "the user pays %d", tt.wantCharged)
-			if tt.wantCharged == 0 {
-				return
-			}
-			log := lastConsumeLog(t)
-			assert.Equal(t, tt.wantCharged, log.Quota)
-			assert.Equal(t, 1_000, log.PromptTokens)
-			assert.Contains(t, log.Content, "Upstream failed after billing its usage")
-			assert.NotContains(t, log.Other, waivedMarker)
 		})
 	}
 }

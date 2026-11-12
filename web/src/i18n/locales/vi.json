@@ -674,7 +674,6 @@
     "Applied upstream model changes to {{count}} channels": "Đã áp dụng thay đổi mô hình thượng nguồn cho {{count}} kênh",
     "Applied upstream model changes to channel (ID: {{id}})": "Đã áp dụng thay đổi mô hình thượng nguồn cho kênh (ID: {{id}})",
     "Applies to custom completion endpoints. JSON map of model → ratio.": "Áp dụng cho các điểm cuối hoàn thành tùy chỉnh. Bản đồ JSON của mô hình → tỷ lệ.",
-    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api. This switch works whether or not the official alignment is on.": "Áp dụng cho yêu cầu đi qua Cloudflare bị Cloudflare cắt sau thời gian dài không có dữ liệu (mặc định 90 giây). Khi bật, cổng tiếp tục đọc upstream đến hết và tính phí theo mức sử dụng thực tế; máy khách không nhận thêm nội dung nào. Khi tắt, việc chuyển tiếp dừng ngay như new-api chính thức. Công tắc này có hiệu lực dù có bật căn chỉnh theo bản chính thức hay không.",
     "Apply": "Áp dụng",
     "Apply {{count}} model changes": "Áp dụng thay đổi cho {{count}} mô hình",
     "Apply {{field}} for {{name}}": "Áp dụng {{field}} cho {{name}}",
@@ -2999,7 +2998,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Với kênh tùy chỉnh nâng cao, thiết lập này chỉ áp dụng cho các route /v1/responses không chuyển đổi giao thức.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For example, 10 means a 100 top-up receives an extra 10 in balance.": "Ví dụ, 10 nghĩa là nạp 100 sẽ được tặng thêm 10 số dư.",
@@ -7267,7 +7266,6 @@
     "Upstream protocol plan": "Cấu hình giao thức thượng nguồn",
     "Upstream ratios fetched successfully": "Đã lấy tỷ lệ upstream thành công",
     "Upstream receives": "Nhà cung cấp nhận",
-    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, whatever the switches above say, the same as Sub2API, which does not bill these blocks. When on, it is charged by the switches above.": "Upstream từ chối yêu cầu theo chính sách an toàn, ví dụ cyber_policy của OpenAI do Sub2API và New API chuyển tiếp. Khi tắt, yêu cầu như vậy không bao giờ bị tính phí, bất kể các công tắc ở trên, giống Sub2API vốn không tính phí các lần chặn này. Khi bật, yêu cầu được tính phí theo các công tắc ở trên.",
     "Upstream request failed": "Yêu cầu lên nguồn thất bại",
     "Upstream Request ID": "ID yêu cầu thượng nguồn",
     "Upstream response": "Phản hồi nguồn",
@@ -7813,6 +7811,8 @@
     "Export recharge orders": "Xuất đơn nạp tiền",
     "Exported {{count}} orders": "Đã xuất {{count}} đơn",
     "Failed to export recharge orders": "Xuất đơn nạp tiền thất bại",
-    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "Xuất các đơn được tạo trong khoảng thời gian này. Bộ lọc mã đơn và ID người dùng trên trang này cũng được áp dụng."
+    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "Xuất các đơn được tạo trong khoảng thời gian này. Bộ lọc mã đơn và ID người dùng trên trang này cũng được áp dụng.",
+    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.": "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.",
+    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request.": "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request."
   }
 }

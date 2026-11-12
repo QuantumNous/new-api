@@ -533,20 +533,8 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	info.MarkUpstreamStart()
 	attempt := info.UpstreamAttempt()
 	requestCtx := req.Context()
-	req, drain := service.PrepareUpstreamDrain(c, info, req)
 	req = req.WithContext(attempt.Trace(req.Context()))
-	var resp *http.Response
-	if drain != nil {
-		resp, err = drain.Do(req, relayClient.Do, func() bool {
-			// The reply now only feeds the drain; it must not change how the
-			// abandoned attempt is classified.
-			sent := attempt.RequestSent()
-			attempt.Freeze()
-			return sent
-		})
-	} else {
-		resp, err = relayClient.Do(req)
-	}
+	resp, err := relayClient.Do(req)
 	if err != nil {
 		attempt.Fail(err, errors.Is(requestCtx.Err(), context.Canceled))
 		logger.LogError(c, common2.LogText("do request failed: %s", err.Error()))
@@ -556,9 +544,6 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		return nil, errors.New("resp is nil")
 	}
 	attempt.MarkResponse()
-	if drain != nil {
-		drain.WrapBody(resp)
-	}
 	if resp.Body != nil {
 		resp.Body = &upstreamTimingBody{ReadCloser: resp.Body, info: info, attempt: attempt, ctx: requestCtx}
 	}

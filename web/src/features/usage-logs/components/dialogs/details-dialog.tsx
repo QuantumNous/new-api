@@ -268,13 +268,6 @@ function BillingBreakdown(props: {
     })
   }
 
-  if (billingFormula && billingFormula.discount_ratio !== 1) {
-    rows.push({
-      label: t('Discount Multiplier'),
-      value: `${formatRatio(billingFormula.discount_ratio)}x`,
-    })
-  }
-
   if (
     !isTieredExpr &&
     (isClaude || hasCacheWrite12h) &&

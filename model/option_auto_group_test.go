@@ -27,10 +27,7 @@ func TestValidateOptionValueGroupVendorAcceptsOnlyKnownVendors(t *testing.T) {
 
 func TestValidateOptionValueAcceptsOnlyBooleanAbnormalBillingSwitches(t *testing.T) {
 	for _, field := range []string{
-		"align_with_official",
 		"continue_after_cloudflare_truncation",
-		"match_upstream_charge",
-		"charge_upstream_billed_failure",
 		"charge_policy_block",
 	} {
 		key := "abnormal_billing_setting." + field
@@ -42,5 +39,7 @@ func TestValidateOptionValueAcceptsOnlyBooleanAbnormalBillingSwitches(t *testing
 		}
 	}
 	assert.Error(t, validateOptionValue("abnormal_billing_setting.charge_everything", "true"), "unknown switches must be rejected")
-	assert.Error(t, validateOptionValue("abnormal_billing_setting.charge_client_disconnect_during_response", "false"), "removed switches must be rejected")
+	assert.Error(t, validateOptionValue("abnormal_billing_setting.align_with_official", "true"), "removed switches must be rejected")
+	assert.Error(t, validateOptionValue("abnormal_billing_setting.match_upstream_charge", "true"), "removed switches must be rejected")
+	assert.Error(t, validateOptionValue("abnormal_billing_setting.charge_upstream_billed_failure", "true"), "removed switches must be rejected")
 }

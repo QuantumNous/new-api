@@ -397,9 +397,6 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		noteQuotaClamp(relayInfo, clamp)
 	}
 
-	if summary.hasBillableUsage() {
-		summary.Quota = ApplyBillingDiscount(relayInfo, summary.Quota)
-	}
 	if !summary.hasBillableUsage() {
 		summary.Quota = 0
 	} else if summary.Quota == 0 && summary.GroupRatio > 0 && ((relayInfo.PriceData.UsePrice && summary.ModelPrice > 0) || (!relayInfo.PriceData.UsePrice && summary.ModelRatio > 0)) {
@@ -460,11 +457,6 @@ func priceTextUsage(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, billingU
 	if priced.summary.FixedPriceBilling {
 		priced.summary.AudioInputPrice = 0
 	}
-	// Tiered settlement replaces the preliminary estimate, so apply the
-	// frozen scheduled discount to the actual integer charge as well.
-	if tieredRes != nil {
-		priced.summary.Quota = ApplyBillingDiscount(relayInfo, priced.summary.Quota)
-	}
 	return priced
 }
 
@@ -505,9 +497,8 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if summary.Quota > 0 {
 		chargeCase := classifyAbnormalCharge(ctx, relayInfo)
 		var waiverReason *common.Message
-		waived, waiverReason = abnormalChargeWaiver(ctx, relayInfo, chargeCase)
+		waived, waiverReason = abnormalChargeWaiver(relayInfo, chargeCase)
 		if waived {
-			recordAbnormalCharge(ctx, relayInfo, chargeCase, model.AbnormalChargeOutcomeWaived, summary.Quota)
 			summary.Quota = 0
 			extraContent = append(extraContent, waiverReason)
 		}
@@ -530,7 +521,6 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
 		logger.LogError(ctx, common.LogText("error settling billing: %s", err.Error()))
 	}
-	noteUpstreamDrainSettlement(ctx, relayInfo, summary.Quota)
 
 	logModel := summary.ModelName
 	if strings.HasPrefix(logModel, "gpt-4-gizmo") {

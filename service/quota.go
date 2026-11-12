@@ -153,7 +153,6 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	}
 	quota, clamp := calculateAudioQuota(quotaInfo)
 	noteQuotaClamp(relayInfo, clamp)
-	quota = ApplyBillingDiscount(relayInfo, quota)
 	if quota < 0 {
 		return fmt.Errorf("realtime response quota cannot be negative: %d", quota)
 	}
@@ -253,8 +252,6 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 	if relayInfo.WssPerResponseCalculated {
 		quota = relayInfo.WssPerResponseQuota
-	} else {
-		quota = ApplyBillingDiscount(relayInfo, quota)
 	}
 	totalTokens := usage.TotalTokens
 	var logContent []*common.Message
@@ -420,7 +417,6 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	if tieredOk {
 		quota = tieredQuota
 	}
-	quota = ApplyBillingDiscount(relayInfo, quota)
 
 	totalTokens := usage.TotalTokens
 	var logContent []*common.Message
@@ -443,9 +439,8 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	if quota > 0 {
 		chargeCase := classifyAbnormalCharge(ctx, relayInfo)
 		var waiverReason *common.Message
-		waived, waiverReason = abnormalChargeWaiver(ctx, relayInfo, chargeCase)
+		waived, waiverReason = abnormalChargeWaiver(relayInfo, chargeCase)
 		if waived {
-			recordAbnormalCharge(ctx, relayInfo, chargeCase, model.AbnormalChargeOutcomeWaived, quota)
 			quota = 0
 			logContent = append(logContent, waiverReason)
 		}

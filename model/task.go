@@ -177,9 +177,7 @@ type TaskBillingContext struct {
 	PeakPricing       *billing_setting.PeakSnapshot `json:"peak_pricing,omitempty"`
 	ModelPrice        float64                       `json:"model_price,omitempty"`         // 模型单价
 	GroupRatio        float64                       `json:"group_ratio,omitempty"`         // 分组倍率
-	BaseGroupRatio    float64                       `json:"base_group_ratio,omitempty"`    // 折扣前分组倍率
-	DiscountRatio     float64                       `json:"discount_ratio,omitempty"`      // 请求开始时冻结的折扣倍率
-	DiscountSkipped   bool                          `json:"discount_skipped,omitempty"`    // 折后取整会为零时保留原扣费
+	BaseGroupRatio    float64                       `json:"base_group_ratio,omitempty"`    // 分组倍率
 	ModelRatio        float64                       `json:"model_ratio,omitempty"`         // 模型倍率
 	QuotaBeforeGroup  float64                       `json:"quota_before_group,omitempty"`  // 分组与附加倍率应用前额度
 	OtherRatios       map[string]float64            `json:"other_ratios,omitempty"`        // 附加倍率（时长、分辨率等）

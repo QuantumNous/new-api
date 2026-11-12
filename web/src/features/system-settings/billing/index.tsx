@@ -62,8 +62,6 @@ const defaultBillingSettings: BillingSettings = {
   MaxTokenAutoGroups: 5,
   DefaultUseAutoGroup: false,
   'group_ratio_setting.group_special_usable_group': '{}',
-  'discount_setting.schedule':
-    '{"enabled":false,"ratio":1,"groups":[],"daily_repeat":false,"start_at":"","end_at":"","start_time":"22:00","end_time":"06:00","timezone":"Asia/Shanghai"}',
   PayAddress: '',
   EpayId: '',
   EpayKey: '',
@@ -112,15 +110,8 @@ const defaultBillingSettings: BillingSettings = {
   'checkin_setting.enabled': false,
   'checkin_setting.min_quota': 1000,
   'checkin_setting.max_quota': 10000,
-  'abnormal_billing_setting.align_with_official': false,
   'abnormal_billing_setting.continue_after_cloudflare_truncation': true,
-  'abnormal_billing_setting.match_upstream_charge': false,
-  'abnormal_billing_setting.charge_upstream_billed_failure': false,
   'abnormal_billing_setting.charge_policy_block': false,
-  'abnormal_request_setting.flag_hourly_count': 10,
-  'abnormal_request_setting.flag_ratio_percent': 80,
-  'abnormal_request_setting.flag_min_requests': 20,
-  'abnormal_request_setting.flag_forgone_quota': 68500,
 }
 
 export function BillingSettings() {

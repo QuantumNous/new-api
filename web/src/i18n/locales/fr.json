@@ -674,7 +674,6 @@
     "Applied upstream model changes to {{count}} channels": "Modifications des modèles en amont appliquées à {{count}} canaux",
     "Applied upstream model changes to channel (ID: {{id}})": "Modifications des modèles en amont appliquées au canal (ID : {{id}})",
     "Applies to custom completion endpoints. JSON map of model → ratio.": "S'applique aux points de terminaison de complétion personnalisés. Mappage JSON de modèle → ratio.",
-    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api. This switch works whether or not the official alignment is on.": "Concerne les requêtes passant par Cloudflare coupées après une longue inactivité (90 secondes par défaut). Activé, la passerelle continue à lire l’amont jusqu’au bout et facture l’usage réel ; le client ne reçoit rien de plus. Désactivé, le relais s’arrête immédiatement comme dans le new-api officiel. Cet interrupteur s’applique que l’alignement officiel soit activé ou non.",
     "Apply": "Appliquer",
     "Apply {{count}} model changes": "Appliquer les modifications à {{count}} modèles",
     "Apply {{field}} for {{name}}": "Appliquer {{field}} à {{name}}",
@@ -2999,7 +2998,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Pour les canaux personnalisés avancés, ceci ne s’applique qu’aux routes /v1/responses sans conversion de protocole.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
     "For example, 10 means a 100 top-up receives an extra 10 in balance.": "Par exemple, 10 signifie qu'une recharge de 100 reçoit 10 de solde supplémentaire.",
@@ -7267,7 +7266,6 @@
     "Upstream protocol plan": "Plan de protocole amont",
     "Upstream ratios fetched successfully": "Ratios en amont récupérés avec succès",
     "Upstream receives": "Reçu en amont",
-    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, whatever the switches above say, the same as Sub2API, which does not bill these blocks. When on, it is charged by the switches above.": "L’amont a refusé la requête au titre d’une politique de sécurité, comme le cyber_policy d’OpenAI relayé par Sub2API et New API. Désactivé, une telle requête n’est jamais facturée, quels que soient les interrupteurs ci-dessus, comme Sub2API qui ne facture pas ces blocages. Activé, elle est facturée selon les interrupteurs ci-dessus.",
     "Upstream request failed": "Échec de requête amont",
     "Upstream Request ID": "ID de requête en amont",
     "Upstream response": "Réponse amont",
@@ -7813,6 +7811,8 @@
     "Export recharge orders": "Exporter les commandes de recharge",
     "Exported {{count}} orders": "{{count}} commandes exportées",
     "Failed to export recharge orders": "Échec de l'exportation des commandes de recharge",
-    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "Les commandes créées dans cette période sont exportées. Les filtres de numéro de commande et d'ID utilisateur de cette page s'appliquent aussi."
+    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "Les commandes créées dans cette période sont exportées. Les filtres de numéro de commande et d'ID utilisateur de cette page s'appliquent aussi.",
+    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.": "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.",
+    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request.": "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request."
   }
 }

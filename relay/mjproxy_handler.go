@@ -220,7 +220,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		}
 	}
 
-	charge := service.ApplyBillingDiscount(info, priceData.Quota)
+	charge := priceData.Quota
 	if userQuota-charge < 0 {
 		return &dto.MidjourneyResponse{
 			Code:        4,
@@ -544,7 +544,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		}
 	}
 
-	charge := service.ApplyBillingDiscount(relayInfo, priceData.Quota)
+	charge := priceData.Quota
 	if consumeQuota && userQuota-charge < 0 {
 		return &dto.MidjourneyResponse{
 			Code:        4,

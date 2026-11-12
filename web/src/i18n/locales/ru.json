@@ -674,7 +674,6 @@
     "Applied upstream model changes to {{count}} channels": "Изменения вышестоящих моделей применены к {{count}} каналам",
     "Applied upstream model changes to channel (ID: {{id}})": "Изменения вышестоящих моделей применены к каналу (ID: {{id}})",
     "Applies to custom completion endpoints. JSON map of model → ratio.": "Применяется к пользовательским конечным точкам завершения. JSON-карта модель → коэффициент.",
-    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api. This switch works whether or not the official alignment is on.": "Относится к запросам через Cloudflare, которые он оборвал после долгого простоя (по умолчанию 90 секунд). Если включено, шлюз дочитывает апстрим до конца и тарифицирует фактическое использование; клиент больше ничего не получает. Если выключено, ретрансляция сразу останавливается, как в официальном new-api. Переключатель действует независимо от соответствия официальной версии.",
     "Apply": "Применить",
     "Apply {{count}} model changes": "Применить изменения к {{count}} моделям",
     "Apply {{field}} for {{name}}": "Применить {{field}} для {{name}}",
@@ -2999,7 +2998,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Для расширенных пользовательских каналов это действует только для маршрутов /v1/responses без преобразования протокола.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For example, 10 means a 100 top-up receives an extra 10 in balance.": "Например, 10 означает, что при пополнении на 100 начисляется ещё 10 баланса.",
@@ -7267,7 +7266,6 @@
     "Upstream protocol plan": "Схема протокола поставщика",
     "Upstream ratios fetched successfully": "Коэффициенты upstream успешно получены",
     "Upstream receives": "Провайдер получает",
-    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, whatever the switches above say, the same as Sub2API, which does not bill these blocks. When on, it is charged by the switches above.": "Апстрим отклонил запрос по политике безопасности, например cyber_policy OpenAI, который передают Sub2API и New API. Если выключено, такой запрос никогда не тарифицируется, независимо от переключателей выше, как в Sub2API, который не тарифицирует такие блокировки. Если включено, он тарифицируется по переключателям выше.",
     "Upstream request failed": "Запрос провайдеру не выполнен",
     "Upstream Request ID": "ID вышестоящего запроса",
     "Upstream response": "Ответ провайдера",
@@ -7813,6 +7811,8 @@
     "Export recharge orders": "Экспорт заказов пополнения",
     "Exported {{count}} orders": "Экспортировано заказов: {{count}}",
     "Failed to export recharge orders": "Не удалось экспортировать заказы пополнения",
-    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "Экспортируются заказы, созданные в этом диапазоне времени. Фильтры по номеру заказа и ID пользователя на этой странице также применяются."
+    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "Экспортируются заказы, созданные в этом диапазоне времени. Фильтры по номеру заказа и ID пользователя на этой странице также применяются.",
+    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.": "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.",
+    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request.": "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request."
   }
 }

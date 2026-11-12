@@ -180,15 +180,9 @@ type RelayInfo struct {
 	PriceData           hosttypes.PriceData
 	PeakPricing         *billing_setting.PeakSnapshot
 	PeakPricingResolved bool
-	// BillingBaseGroupRatio captures the selected route ratio before discount.
-	// BillingDiscountRatio is resolved once from request start time and user
-	// group, then reused across retries and settlement for consistency.
-	BillingBaseGroupRatio   float64
-	BillingDiscountRatio    float64
-	BillingDiscountResolved bool
-	// BillingDiscountSkipped is set when applying a scheduled discount would
-	// round a positive charge down to zero, so the original charge is retained.
-	BillingDiscountSkipped bool
+	// BillingBaseGroupRatio captures the selected route ratio used in the
+	// consume log's billing formula.
+	BillingBaseGroupRatio float64
 
 	// QuotaClamp is set (non-nil) when a quota conversion saturated at the
 	// supported single-request bound (or NaN fallback) while computing this request's charge.

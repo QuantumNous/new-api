@@ -85,7 +85,6 @@ const CONFIGURATION_BLOCKS = {
       'http_protocol',
       'http2_connection_shards',
       'tls_insecure_skip_verify',
-      'upstream_drain_on_disconnect',
       'disable_task_polling_sleep',
     ],
   },
@@ -178,7 +177,6 @@ export function getChannelConfigurationState(
       (values.http_protocol && values.http_protocol !== 'auto') ||
       (values.http2_connection_shards ?? 1) > 1 ||
       values.tls_insecure_skip_verify ||
-      typeof values.upstream_drain_on_disconnect === 'boolean' ||
       values.disable_task_polling_sleep
     ),
     upstreamModelDetection:

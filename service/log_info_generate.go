@@ -22,11 +22,9 @@ type billingFormulaLog struct {
 	Mode                string  `json:"mode"`
 	BaseQuota           float64 `json:"base_quota"`
 	BaseGroupRatio      float64 `json:"base_group_ratio"`
-	DiscountRatio       float64 `json:"discount_ratio"`
 	EffectiveGroupRatio float64 `json:"effective_group_ratio"`
 	OtherRatio          float64 `json:"other_ratio"`
 	SurchargeQuota      float64 `json:"surcharge_quota"`
-	DiscountSkipped     bool    `json:"discount_skipped_to_avoid_zero,omitempty"`
 	FinalQuota          int     `json:"final_quota"`
 }
 
@@ -38,19 +36,7 @@ func appendBillingFormula(other *model.LogOther, relayInfo *relaycommon.RelayInf
 	if baseGroupRatio == 0 {
 		baseGroupRatio = relayInfo.PriceData.GroupRatioInfo.GroupRatio
 	}
-	discountRatio := relayInfo.BillingDiscountRatio
-	if !relayInfo.BillingDiscountResolved || discountRatio <= 0 || discountRatio > 1 || math.IsNaN(discountRatio) || math.IsInf(discountRatio, 0) {
-		discountRatio = 1
-	}
-	// Violation penalties are deliberately excluded from scheduled user-group
-	// discounts. Keep the audit formula aligned with the charged amount.
-	if mode == "violation_fee" {
-		discountRatio = 1
-	}
-	effectiveGroupRatio := baseGroupRatio * discountRatio
-	if relayInfo.BillingDiscountSkipped {
-		effectiveGroupRatio = baseGroupRatio
-	}
+	effectiveGroupRatio := baseGroupRatio
 	if otherRatio == 0 {
 		otherRatio = 1
 	}
@@ -64,11 +50,9 @@ func appendBillingFormula(other *model.LogOther, relayInfo *relaycommon.RelayInf
 		Mode:                mode,
 		BaseQuota:           baseQuota,
 		BaseGroupRatio:      baseGroupRatio,
-		DiscountRatio:       discountRatio,
 		EffectiveGroupRatio: effectiveGroupRatio,
 		OtherRatio:          otherRatio,
 		SurchargeQuota:      surchargeQuota,
-		DiscountSkipped:     relayInfo.BillingDiscountSkipped,
 		FinalQuota:          finalQuota,
 	})
 }

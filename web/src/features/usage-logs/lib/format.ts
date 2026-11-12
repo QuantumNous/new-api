@@ -416,9 +416,6 @@ export function getBillingFormula(
   ]
   if (
     nonNegativeValues.some((value) => !Number.isFinite(value) || value < 0) ||
-    !Number.isFinite(formula.discount_ratio) ||
-    formula.discount_ratio <= 0 ||
-    formula.discount_ratio > 1 ||
     !Number.isFinite(formula.other_ratio) ||
     formula.other_ratio <= 0 ||
     (formula.minimum_charge_applied != null &&
@@ -442,11 +439,6 @@ export function buildBillingFormulaText(
     `${formatQuota(formula.base_quota)} (${translate('Base Charge')})`,
     `${formatFormulaRatio(formula.base_group_ratio)}x (${translate('Base Group Ratio')})`,
   ]
-  if (formula.discount_ratio !== 1 && !formula.discount_skipped_to_avoid_zero) {
-    terms.push(
-      `${formatFormulaRatio(formula.discount_ratio)}x (${translate('Discount Multiplier')})`
-    )
-  }
   if (formula.other_ratio !== 1) {
     terms.push(
       `${formatFormulaRatio(formula.other_ratio)}x (${translate('Request Multiplier')})`
@@ -459,11 +451,7 @@ export function buildBillingFormulaText(
   if (formula.minimum_charge_applied) {
     return `max(${formatQuota(1)} (${translate('Minimum Charge')}), round(${text})) = ${formatQuota(formula.final_quota)}`
   }
-  const result = `round(${text}) = ${formatQuota(formula.final_quota)}`
-  if (formula.discount_skipped_to_avoid_zero) {
-    return `${result} (${translate('Discount skipped to avoid a zero charge')})`
-  }
-  return result
+  return `round(${text}) = ${formatQuota(formula.final_quota)}`
 }
 
 /**
@@ -528,8 +516,6 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'user.quota_add': 'Increased user quota by {{quota}}',
   'user.quota_subtract': 'Decreased user quota by {{quota}}',
   'user.quota_override': 'Overrode user quota from {{from}} to {{to}}',
-  'user.strict_billing':
-    'Turned on strict billing for user {{username}} (ID: {{id}})',
   'user.binding_clear': 'Cleared {{bindingType}} binding for user {{username}}',
   'user.2fa_disable': 'Force-disabled two-factor authentication for the user',
   'user.passkey_register': 'Registered a passkey',
@@ -683,12 +669,5 @@ export function renderAuditContent(
   if (quotaOperation) {
     return `${quotaOperation.summary} · ${quotaOperation.description}`
   }
-  const params = { ...op.params }
-  if (op.action === 'user.strict_billing' && params.enabled === false) {
-    return t(
-      'Turned off strict billing for user {{username}} (ID: {{id}})',
-      params
-    )
-  }
-  return t(template, params)
+  return t(template, op.params ?? {})
 }

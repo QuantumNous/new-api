@@ -674,7 +674,6 @@
     "Applied upstream model changes to {{count}} channels": "對 {{count}} 個渠道套用了上游模型變更",
     "Applied upstream model changes to channel (ID: {{id}})": "對渠道（ID: {{id}}）套用了上游模型變更",
     "Applies to custom completion endpoints. JSON map of model → ratio.": "適用於自訂補全端點。模型 → 比例的 JSON 映射。",
-    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api. This switch works whether or not the official alignment is on.": "適用於經過 Cloudflare、因長時間沒有資料（預設 90 秒）被 Cloudflare 切斷的請求。開啟時，閘道會繼續把上游讀完，按實際用量收費，但客戶端收不到後面的內容；關閉時，和官方 new-api 一樣立即停止轉發。這個開關不受「按官方 new-api 方式計費」影響。",
     "Apply": "套用",
     "Apply {{count}} model changes": "套用 {{count}} 個模型的變更",
     "Apply {{field}} for {{name}}": "為 {{name}} 套用{{field}}",
@@ -2999,7 +2998,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相關項目",
     "footer.defaultCopyright": "版權所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
+    "footer.newapi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "進階自訂渠道僅對 /v1/responses 且不做協定轉換的路由生效。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "對於 2025 年 5 月 10 日之後新增的渠道，在部署時無需從模型名稱中移除 \".\"",
     "For example, 10 means a 100 top-up receives an extra 10 in balance.": "例如填 10，儲值 100 將額外贈送 10 的餘額。",
@@ -7267,7 +7266,6 @@
     "Upstream protocol plan": "上游協議方案",
     "Upstream ratios fetched successfully": "上游比率獲取成功",
     "Upstream receives": "上游收到",
-    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, whatever the switches above say, the same as Sub2API, which does not bill these blocks. When on, it is charged by the switches above.": "上游因安全策略拒絕了請求，例如 Sub2API、New API 轉發的 OpenAI cyber_policy。關閉時，這類請求一律不收費，不受上面開關影響，與 Sub2API 一致（Sub2API 不對這類攔截計費）。開啟時按上面的開關收費。",
     "Upstream request failed": "上游請求失敗",
     "Upstream Request ID": "上游請求 ID",
     "Upstream response": "上游回應",
@@ -7813,6 +7811,8 @@
     "Export recharge orders": "匯出儲值訂單",
     "Exported {{count}} orders": "已匯出 {{count}} 筆訂單",
     "Failed to export recharge orders": "匯出儲值訂單失敗",
-    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "匯出在此時間範圍內建立的訂單，本頁的訂單號和使用者 ID 篩選同樣生效。"
+    "Orders created in this time range are exported. The order number and user ID filters on this page also apply.": "匯出在此時間範圍內建立的訂單，本頁的訂單號和使用者 ID 篩選同樣生效。",
+    "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.": "Applies to requests through Cloudflare that it cut after a long idle period (90 seconds by default). When on, the gateway keeps reading upstream to the end and charges the actual usage; the client still receives nothing more. When off, the relay stops right away like official new-api.",
+    "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request.": "Upstream refused the request with a safety policy, such as the OpenAI cyber_policy that Sub2API and New API pass through. When off, such a request is never charged, the same as Sub2API, which does not bill these blocks. When on, it is charged like any other abnormal request."
   }
 }

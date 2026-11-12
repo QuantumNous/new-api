@@ -16,7 +16,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
-	"github.com/QuantumNous/new-api/setting/discount_setting"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -60,11 +59,6 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 		groupRatioInfo.GroupRatio = ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	}
 	relayInfo.BillingBaseGroupRatio = groupRatioInfo.GroupRatio
-
-	if !relayInfo.BillingDiscountResolved {
-		relayInfo.BillingDiscountRatio = discount_setting.RatioFor(relayInfo.UserGroup, relayInfo.StartTime)
-		relayInfo.BillingDiscountResolved = true
-	}
 	return groupRatioInfo
 }
 
