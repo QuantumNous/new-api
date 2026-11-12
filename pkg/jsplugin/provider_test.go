@@ -1004,7 +1004,7 @@ export function ingress(ctx, req) {
 	require.ErrorAs(t, err, &transformErr)
 	assert.Equal(t, TransformErrorTimeout, transformErr.Class)
 
-	hungry, err := CompilePlugin(transformMeta+`export function ingress(ctx) { let garbage; for (;;) garbage = [ctx]; }`, Options{})
+	hungry, err := CompilePlugin(transformMeta+`export function ingress(ctx) { const kept = []; for (;;) kept.push([ctx]); }`, Options{})
 	require.NoError(t, err)
 	_, err = hungry.CallTransform(context.Background(), TransformContext{Stage: "ingress"}, TransformRequest{Body: json.RawMessage(`{}`)})
 	require.ErrorAs(t, err, &transformErr)

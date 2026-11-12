@@ -46,7 +46,7 @@ const stagePlugin = `export const meta = {apiVersion: 1, key: "rp-stages", name:
 function run(ctx, req) {
   const c = ctx.config;
   if (c.throw === ctx.stage) throw new Error("secret plugin detail");
-  if (c.alloc === ctx.stage) { let garbage; for (;;) garbage = [c]; }
+  if (c.alloc === ctx.stage) { const kept = []; for (;;) kept.push([c]); }
   if (c.reject === ctx.stage) return {action: "reject", code: "blocked.test", message: "Blocked here"};
   let effects = (c.effects && c.effects[ctx.stage]) || [];
   if (c.echo === ctx.stage) {

@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
-	"github.com/Calcium-Ion/moejs"
+	"github.com/MoeForge/moejs"
 	goahocorasick "github.com/anknown/ahocorasick"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"

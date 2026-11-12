@@ -3,12 +3,12 @@ package jsplugin
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/tidwall/gjson"
 )

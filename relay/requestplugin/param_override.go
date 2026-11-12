@@ -3,10 +3,10 @@ package requestplugin
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"

@@ -6,12 +6,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/MoeForge/moego/regexp"
 	common2 "github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
@@ -27,20 +27,20 @@ import (
 )
 
 // ApplyUpstreamBodyMetadata restores metadata that net/http cannot infer from
-// a ReplayableBody. Callers must pass the original body because NewRequest
-// hides its dynamic type behind req.Body's io.ReadCloser wrapper.
+// a ReplayableBody. Callers pass the body given to NewRequest, which wraps a
+// body that has no Close method.
 func ApplyUpstreamBodyMetadata(req *http.Request, body io.Reader) {
 	replayable, ok := body.(common2.ReplayableBody)
 	if !ok {
 		return
 	}
 
-	// BodyStorage structurally satisfies ReplayableBody, but it also exposes
-	// io.Closer. If a caller passes the storage directly instead of using
-	// NewReplayableBodyReader, hide Close before the transport takes ownership
-	// of req.Body so the shared replay source remains available to GetBody.
-	if _, rawStorage := body.(common2.BodyStorage); rawStorage {
-		req.Body = io.NopCloser(body)
+	// BodyStorage structurally satisfies ReplayableBody, but its Read uses the
+	// shared storage cursor and its Close closes the storage. Send it through
+	// a body with its own cursor so the replay source stays open for GetBody.
+	if storage, rawStorage := body.(common2.BodyStorage); rawStorage {
+		replayable = common2.NewReplayableBodyReader(storage)
+		req.Body = replayable.(io.ReadCloser)
 	}
 
 	req.ContentLength = replayable.Size()
@@ -596,7 +596,9 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		c.Set(common2.UpstreamRequestIdKey, upID)
 	}
 
-	_ = req.Body.Close()
+	// The transport closes req.Body once it has written it. Closing it here
+	// would abort a body still being written after an early response and
+	// make the transport drop the connection that carries the response.
 	_ = c.Request.Body.Close()
 	return resp, nil
 }

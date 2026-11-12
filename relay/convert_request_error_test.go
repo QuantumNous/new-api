@@ -47,8 +47,11 @@ func (s *imageReservation) ReserveBeforeSubmit(quota int) error { return s.Reser
 
 func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 	service.InitHttpClient()
+	previous := common.GetDiskCacheConfig()
+	common.SetDiskCacheConfig(common.DiskCacheConfig{Enabled: true, ThresholdMB: 0, MaxSizeMB: 16, Path: t.TempDir()})
+	t.Cleanup(func() { common.SetDiskCacheConfig(previous) })
 	for _, tc := range []struct {
-		name, body                                    string
+		name, body, storedBody                        string
 		tiered, passThrough, insufficient, retryReset bool
 		// deleted makes the channel override delete the count member.
 		deleted       bool
@@ -76,6 +79,14 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 		{name: "legacy channel quantity override", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4},
 		{name: "expression channel quantity override", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4, tiered: true},
 		{name: "pass-through quantity", body: `{"model":"gpt-image-2","n":2,"parameters":{}}`, count: 2, passThrough: true},
+		{name: "large pass-through file", body: `{"model":"gpt-image-2","image":"` + strings.Repeat("A", 1<<20) + `","n":2}`, count: 2, passThrough: true},
+		{name: "pass-through duplicate quantity uses last value", body: `{"model":"gpt-image-2","n":1,"n":2}`, count: 2, passThrough: true},
+		{name: "pass-through zero quantity", body: `{"model":"gpt-image-2","n":0}`, count: 1, passThrough: true},
+		{name: "pass-through file quantity revalidated", body: `{"model":"gpt-image-2","n":1}`, storedBody: `{"model":"gpt-image-2","n":129}`, passThrough: true, status: http.StatusBadRequest},
+		{name: "pass-through vendor count", body: `{"model":"flux","prompt":"cat","batch_size":3}`, count: 3, passThrough: true,
+			channelType: constant.ChannelTypeSiliconFlow, model: "flux", member: "batch_size"},
+		{name: "pass-through file vendor count revalidated", body: `{"model":"flux","prompt":"cat","batch_size":1}`, storedBody: `{"model":"flux","prompt":"cat","batch_size":129}`, passThrough: true, status: http.StatusBadRequest,
+			channelType: constant.ChannelTypeSiliconFlow, model: "flux", member: "batch_size"},
 		{name: "oversized override rejected", body: `{"model":"gpt-image-2","n":1}`, override: 129, status: http.StatusBadRequest},
 		{name: "insufficient reservation blocks upstream", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4, insufficient: true, status: http.StatusForbidden},
 		{name: "retry drops the previous attempt's quantity", body: `{"model":"gpt-image-2","n":1}`, count: 1, retryReset: true},
@@ -93,6 +104,7 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			}))
 			t.Cleanup(upstream.Close)
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(tc.body))
 			c.Request.Header.Set("Content-Type", "application/json")
 			channelType, model, member := cmp.Or(tc.channelType, constant.ChannelTypeOpenAI), cmp.Or(tc.model, "gpt-image-2"), cmp.Or(tc.member, "n")
@@ -109,6 +121,12 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			}
 			request, err := helper.GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
 			require.NoError(t, err)
+			if tc.storedBody != "" {
+				common.CleanupBodyStorage(c)
+				storage, err := common.CreateBodyStorage([]byte(tc.storedBody))
+				require.NoError(t, err)
+				c.Set(common.KeyBodyStorage, storage)
+			}
 			reservation := &imageReservation{held: 20000, limit: 500000}
 			if tc.insufficient {
 				reservation.limit = reservation.held
@@ -138,9 +156,12 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			assert.Equal(t, http.StatusBadGateway, apiErr.StatusCode)
 			require.Len(t, received, 1)
 			body := <-received
-			if tc.deleted {
+			switch {
+			case tc.deleted:
 				assert.False(t, ojson.GetBytes(body, member).Exists(), string(body))
-			} else {
+			case tc.passThrough:
+				assert.Equal(t, tc.body, string(body))
+			default:
 				assert.Equal(t, int64(tc.count), ojson.GetBytes(body, member).Int())
 			}
 			assert.Equal(t, tc.count*20000, info.PriceData.QuotaToPreConsume)

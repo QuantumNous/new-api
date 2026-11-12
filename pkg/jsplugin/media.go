@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Calcium-Ion/moejs"
+	"github.com/MoeForge/moejs"
 )
 
 // MaxMediaTextChars is the most text utils.mediaText returns for one

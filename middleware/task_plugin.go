@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -701,11 +700,10 @@ func jsonBodyBoolFlags(c *gin.Context) (stream, background bool) {
 	if err != nil {
 		return false, false
 	}
-	requestBody, err := storage.Bytes()
+	values, err := common.ReadBodyJSONFields(storage, "stream", "background")
 	if err != nil {
 		return false, false
 	}
-	values := ojson.GetManyBytes(requestBody, "stream", "background")
 	return values[0].Type == ojson.True, values[1].Type == ojson.True
 }
 
@@ -1106,7 +1104,7 @@ func buildTaskPluginRouteRequest(c *gin.Context) (pluginruntime.RouteRequestCont
 			return requestContext, fmt.Errorf("JSON body must be valid UTF-8")
 		}
 		var value any
-		if err = common.Unmarshal(raw, &value); err != nil {
+		if err = common.UnmarshalNoCopy(raw, &value); err != nil {
 			return requestContext, err
 		}
 		requestContext.Body = map[string]any{"kind": string(pluginruntime.BodyJSON), "value": value}
@@ -1146,11 +1144,12 @@ func buildTaskPluginRouteRequest(c *gin.Context) (pluginruntime.RouteRequestCont
 		if storageErr != nil {
 			return requestContext, storageErr
 		}
-		raw, bytesErr := storage.Bytes()
-		if bytesErr != nil {
-			return requestContext, bytesErr
+		body, readErr := storage.NewReader()
+		if readErr != nil {
+			return requestContext, readErr
 		}
-		reader := multipart.NewReader(bytes.NewReader(raw), boundary)
+		defer body.Close()
+		reader := multipart.NewReader(body, boundary)
 		partCount := 0
 		fileCount := 0
 		fieldCount := 0

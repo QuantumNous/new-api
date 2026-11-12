@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"sync/atomic"
 	"unicode/utf8"
 
-	"github.com/Calcium-Ion/moejs"
+	"github.com/MoeForge/moego/regexp"
+	"github.com/MoeForge/moejs"
 )
 
 // TransformStages are the stage hooks of the request processing part, in the

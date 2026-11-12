@@ -9,11 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"

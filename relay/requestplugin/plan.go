@@ -8,12 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"regexp"
 	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/pkg/requestpatch"

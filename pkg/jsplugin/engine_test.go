@@ -28,7 +28,7 @@ import (
 	"unsafe"
 	"weak"
 
-	"github.com/Calcium-Ion/moejs"
+	"github.com/MoeForge/moejs"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -708,7 +708,7 @@ func TestEngineMemoryLimitIsPerHookCall(t *testing.T) {
 export function run(mib) {
   calls++;
   if (mib < 0) {
-    try { let garbage; for (;;) garbage = [mib]; } catch (e) { return "caught"; }
+    try { const kept = []; for (;;) kept.push([mib]); } catch (e) { return "caught"; }
   }
   for (let i = 0; i < mib; i++) new ArrayBuffer(1 << 20);
   return calls;
@@ -716,7 +716,7 @@ export function run(mib) {
 	require.NoError(t, err)
 
 	// Each call on the one pooled runtime allocates three quarters of the
-	// budget; nothing carries over to the next call.
+	// budget and keeps none of it; the next call is not stopped.
 	for want := range int64(3) {
 		value, err := engine.Call(t.Context(), "run", callMemoryLimit()>>20*3/4)
 		require.NoError(t, err)

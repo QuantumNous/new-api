@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Calcium-Ion/moejs/engine"
+	"github.com/MoeForge/moejs/engine"
 	"github.com/QuantumNous/new-api/common"
 )
 

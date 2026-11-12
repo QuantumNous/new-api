@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"math"
 	"net/url"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 )

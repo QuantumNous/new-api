@@ -9,14 +9,14 @@ import (
 	"maps"
 	"math/big"
 	"reflect"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
-	"github.com/Calcium-Ion/moejs"
+	"github.com/MoeForge/moego/regexp"
+	"github.com/MoeForge/moejs"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
@@ -27,10 +27,12 @@ const (
 	DefaultConcurrency = 8
 )
 
-// callMemoryLimit is what the JavaScript of one hook call may allocate, in
-// bytes, garbage included, before the runtime stops it; 0 means no limit. It
-// is part of the published plugin contract (docs/plugin-api/v1.md) and set by
-// PLUGIN_MEMORY_LIMIT_MB. Each call starts a new budget.
+// callMemoryLimit is the memory, in bytes, the JavaScript of one hook call may
+// keep before the runtime stops it; 0 means no limit. When the call's
+// allocations reach it, the runtime measures what is still in use, so garbage
+// does not count. It is part of the published plugin contract
+// (docs/plugin-api/v1.md) and set by PLUGIN_MEMORY_LIMIT_MB. Each call starts
+// a new budget.
 func callMemoryLimit() int64 {
 	return int64(max(constant.PluginMemoryLimitMB, 0)) << 20
 }
