@@ -116,7 +116,7 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
       <FormField
         control={form.control}
         name='confirmPassword'
-        render={({ field }) => (
+        render={({ field, fieldState }) => (
           <FormItem className='sm:col-span-2'>
             <FormLabel>{t('Confirm password')}</FormLabel>
             <FormControl describedBy='setup-admin-password-confirmation-status'>
@@ -134,6 +134,7 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
               id='setup-admin-password-confirmation-status'
               password={passwordValue}
               confirmation={confirmationValue}
+              hasFieldError={!!fieldState.error}
             />
             <FormMessage />
           </FormItem>

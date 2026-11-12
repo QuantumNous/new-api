@@ -241,7 +241,7 @@ export function ChangePasswordDialog(props: ChangePasswordDialogProps) {
             <FormField
               control={form.control}
               name='confirmPassword'
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>{t('Confirm New Password')}</FormLabel>
                   <FormControl describedBy='change-password-confirmation-status'>
@@ -255,6 +255,7 @@ export function ChangePasswordDialog(props: ChangePasswordDialogProps) {
                     id='change-password-confirmation-status'
                     password={newPasswordValue}
                     confirmation={confirmPasswordValue}
+                    hasFieldError={!!fieldState.error}
                   />
                   <FormMessage />
                 </FormItem>

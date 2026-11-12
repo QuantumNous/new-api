@@ -494,6 +494,31 @@ it('allows a common new password after verifying the current password once', asy
   )
 })
 
+it('shows a password confirmation mismatch once after a failed submit', async () => {
+  const put = vi.spyOn(api, 'put')
+  const user = userEvent.setup()
+  render(<ChangePasswordDialog open username='user' onOpenChange={vi.fn()} />)
+  await user.type(screen.getByLabelText('Current Password'), 'current-password')
+  await user.type(screen.getByLabelText('New Password'), 'account-password!42')
+  await user.type(
+    screen.getByLabelText('Confirm New Password'),
+    'account-password!43'
+  )
+  expect(screen.getAllByText('Passwords do not match')).toHaveLength(1)
+
+  await user.click(screen.getByRole('button', { name: 'Change Password' }))
+
+  const confirmation = screen.getByLabelText('Confirm New Password')
+  await waitFor(() =>
+    expect(confirmation).toHaveAttribute('aria-invalid', 'true')
+  )
+  expect(screen.getAllByText('Passwords do not match')).toHaveLength(1)
+  expect(confirmation).toHaveAccessibleDescription(
+    /^\s*Passwords do not match\s*$/
+  )
+  expect(put).not.toHaveBeenCalled()
+})
+
 it.each(['button', 'escape'])(
   'cancels additional verification and restores focus using %s',
   async (method) => {

@@ -22,11 +22,34 @@ import {
   countPasswordCharacters,
 } from '@/lib/password-policy'
 
-const COMMON_PASSWORD_PATTERN =
-  /^(?:password|passw0rd|qwerty|letmein|welcome|admin|iloveyou|monkey|dragon|abc123|111111|123123|123456)/i
-const REPEATED_CHARACTER_PATTERN = /(.)\1{3,}/
-const SEQUENTIAL_PATTERN =
-  /(?:0123|1234|2345|3456|4567|5678|6789|abcd|bcde|cdef|defg|qwer|wert|erty|asdf)/i
+// A password is only guessable as a whole: one of these, ignoring case, with
+// nothing after it but digits, symbols or spaces. 'Password123!' matches;
+// 'administrator forest lake' does not.
+const COMMON_PASSWORDS = [
+  'password',
+  'passw0rd',
+  'qwerty',
+  'letmein',
+  'welcome',
+  'admin',
+  'iloveyou',
+  'monkey',
+  'dragon',
+  'abc123',
+  '111111',
+  '123123',
+  '123456',
+]
+const COMMON_PASSWORD_SUFFIX_PATTERN = /^[\p{N}\p{P}\p{S}\s]*$/u
+// Character runs people type in order; a password that steps through one of
+// them in a single direction (wrapping, as in '1234567890123') is a guess.
+const STRAIGHT_RUNS = [
+  '0123456789',
+  'abcdefghijklmnopqrstuvwxyz',
+  'qwertyuiop',
+  'asdfghjkl',
+  'zxcvbnm',
+]
 const LOWERCASE_PATTERN = /\p{Ll}/u
 const UPPERCASE_PATTERN = /\p{Lu}/u
 const DIGIT_PATTERN = /\p{N}/u
@@ -35,6 +58,8 @@ const SYMBOL_PATTERN = /[\p{P}\p{S}]/u
 // Only the account length policy decides whether a password is accepted.
 // The other rules are strength hints and never block a password.
 export const PASSWORD_RECOMMENDED_LENGTH = 15
+const PASSWORD_GOOD_LENGTH = 12
+const PASSPHRASE_LENGTH = 20
 
 export type PasswordStrengthRuleId =
   | 'length'
@@ -75,16 +100,52 @@ const STRENGTH_LABELS: Record<PasswordStrengthScore, PasswordStrengthLabel> = {
   4: 'Password strength strong',
 }
 
+// Only a guess when the whole password is one: a common password with a
+// suffix, one repeated character, or one straight run. Common words or runs
+// inside a longer password do not count.
+function isGuessablePassword(password: string): boolean {
+  const lowercase = password.toLowerCase()
+  const isCommon = COMMON_PASSWORDS.some(
+    (common) =>
+      lowercase.startsWith(common) &&
+      COMMON_PASSWORD_SUFFIX_PATTERN.test(lowercase.slice(common.length))
+  )
+  if (isCommon) return true
+  const characters = [...lowercase]
+  // Below four characters nearly every start of a word is a run or a repeat.
+  if (characters.length < 4) return false
+  if (characters.every((character) => character === characters[0])) {
+    return true
+  }
+
+  for (const run of STRAIGHT_RUNS) {
+    const positions = characters.map((character) => run.indexOf(character))
+    if (positions.includes(-1)) continue
+    for (const step of [1, run.length - 1]) {
+      const straight = positions.every(
+        (position, index) =>
+          index === 0 || position === (positions[index - 1] + step) % run.length
+      )
+      if (straight) return true
+    }
+  }
+  return false
+}
+
+// Length decides most of the score (OWASP ASVS 5.0 6.2.1 recommends 15+
+// characters); mixing character kinds only helps shorter passwords.
 function getPasswordScore(
-  hasValue: boolean,
+  characterCount: number,
   acceptable: boolean,
-  metHints: number
+  variety: number
 ): PasswordStrengthScore {
-  if (!hasValue) return 0
-  if (!acceptable || metHints === 0) return 1
-  if (metHints === 1) return 2
-  if (metHints === 2) return 3
-  return 4
+  if (characterCount === 0) return 0
+  if (!acceptable) return 1
+  if (characterCount < PASSWORD_GOOD_LENGTH) return variety >= 2 ? 2 : 1
+  if (characterCount < PASSWORD_RECOMMENDED_LENGTH) {
+    return variety >= 3 ? 3 : 2
+  }
+  return characterCount >= PASSPHRASE_LENGTH || variety >= 2 ? 4 : 3
 }
 
 export function evaluatePasswordStrength(
@@ -100,25 +161,18 @@ export function evaluatePasswordStrength(
     lengthState = 'too-long'
   }
   const meetsRequirements = lengthState === 'valid'
-  const hints: EvaluatedPasswordRule[] = [
-    { id: 'long', met: characterCount >= PASSWORD_RECOMMENDED_LENGTH },
-    {
-      id: 'case',
-      met: LOWERCASE_PATTERN.test(password) && UPPERCASE_PATTERN.test(password),
-    },
-    { id: 'digit', met: DIGIT_PATTERN.test(password) },
-    { id: 'symbol', met: SYMBOL_PATTERN.test(password) },
-  ]
-  const guessable =
-    characterCount > 0 &&
-    (COMMON_PASSWORD_PATTERN.test(password) ||
-      REPEATED_CHARACTER_PATTERN.test(password) ||
-      SEQUENTIAL_PATTERN.test(password))
-  const metHints = hints.filter((hint) => hint.met).length
+  const hasLowercase = LOWERCASE_PATTERN.test(password)
+  const hasUppercase = UPPERCASE_PATTERN.test(password)
+  const hasDigit = DIGIT_PATTERN.test(password)
+  const hasSymbol = SYMBOL_PATTERN.test(password)
+  const variety = [hasLowercase, hasUppercase, hasDigit, hasSymbol].filter(
+    Boolean
+  ).length
+  const guessable = isGuessablePassword(password)
   const score = getPasswordScore(
-    characterCount > 0,
+    characterCount,
     meetsRequirements && !guessable,
-    metHints
+    variety
   )
 
   return {
@@ -128,7 +182,13 @@ export function evaluatePasswordStrength(
     meetsRequirements,
     characterCount,
     lengthState,
-    rules: [{ id: 'length', met: meetsRequirements }, ...hints],
+    rules: [
+      { id: 'length', met: meetsRequirements },
+      { id: 'long', met: characterCount >= PASSWORD_RECOMMENDED_LENGTH },
+      { id: 'case', met: hasLowercase && hasUppercase },
+      { id: 'digit', met: hasDigit },
+      { id: 'symbol', met: hasSymbol },
+    ],
   }
 }
 

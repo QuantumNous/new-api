@@ -59,15 +59,15 @@ const METER_TONES: Record<
   },
   2: {
     bar: 'bg-amber-500',
-    text: 'text-amber-600 dark:text-amber-400',
+    text: 'text-amber-700 dark:text-amber-400',
   },
   3: {
     bar: 'bg-sky-500',
-    text: 'text-sky-600 dark:text-sky-400',
+    text: 'text-sky-700 dark:text-sky-400',
   },
   4: {
     bar: 'bg-emerald-500',
-    text: 'text-emerald-600 dark:text-emerald-400',
+    text: 'text-emerald-700 dark:text-emerald-400',
   },
 }
 
@@ -159,7 +159,7 @@ export function PasswordStrength(props: PasswordStrengthProps) {
     requirementStatusTone = 'text-muted-foreground'
   } else if (strength.meetsRequirements) {
     requirementStatusLabel = t('Password requirements met')
-    requirementStatusTone = 'text-emerald-600 dark:text-emerald-400'
+    requirementStatusTone = 'text-emerald-700 dark:text-emerald-400'
   }
 
   const announcement = useMemo(() => {
@@ -255,7 +255,7 @@ export function PasswordStrength(props: PasswordStrengthProps) {
       </div>
 
       {strength.guessable && (
-        <p className='mt-1 text-xs text-amber-600 dark:text-amber-400'>
+        <p className='mt-1 text-xs text-amber-700 dark:text-amber-400'>
           {t('Easy to guess')}
         </p>
       )}
@@ -301,6 +301,9 @@ export function PasswordStrength(props: PasswordStrengthProps) {
 type PasswordConfirmationStatusProps = {
   password: string
   confirmation: string
+  // The confirmation field already shows its own validation error, which
+  // reports the mismatch after a submit; the live line then stays quiet.
+  hasFieldError?: boolean
   className?: string
   id?: string
 }
@@ -309,7 +312,8 @@ export function PasswordConfirmationStatus(
   props: PasswordConfirmationStatusProps
 ) {
   const { t } = useTranslation()
-  const state = getPasswordConfirmationState(props.password, props.confirmation)
+  let state = getPasswordConfirmationState(props.password, props.confirmation)
+  if (state === 'mismatch' && props.hasFieldError) state = 'empty'
 
   const matches = state === 'match'
   let label = ''
@@ -326,7 +330,7 @@ export function PasswordConfirmationStatus(
       aria-atomic='true'
       className={cn(
         state !== 'empty' && 'flex items-center gap-1.5 text-xs',
-        matches ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive',
+        matches ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive',
         props.className
       )}
     >

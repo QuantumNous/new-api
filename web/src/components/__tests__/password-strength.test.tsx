@@ -101,33 +101,79 @@ describe('password strength score', () => {
     expect(result.lengthState).toBe('too-short')
   })
 
-  test('credits a long lowercase passphrase for its length', () => {
-    const result = evaluatePasswordStrength('correct horse battery staple')
-
-    expect(result.meetsRequirements).toBe(true)
-    expect(ruleMet('correct horse battery staple', 'long')).toBe(true)
-    expect(result.labelKey).toBe('Password strength fair')
-  })
-
-  test('reports a password that meets every hint as strong', () => {
-    const result = evaluatePasswordStrength('Forest7!Lake-River')
+  test.each([
+    ['8–11 characters of one kind', 'moonlight', 'Password strength weak'],
+    ['8–11 characters of two kinds', 'Moonlight', 'Password strength fair'],
+    ['8 characters of every kind', 'Aa1!aaab', 'Password strength fair'],
+    ['12–14 characters of one kind', 'alllowercase', 'Password strength fair'],
+    [
+      '12–14 characters of three kinds',
+      'Forest7!Lake',
+      'Password strength good',
+    ],
+    [
+      '15–19 characters of one kind',
+      'moonlightharbor',
+      'Password strength good',
+    ],
+    [
+      '15+ characters of two kinds',
+      'xK9#q2345Lm!vT7pRz',
+      'Password strength strong',
+    ],
+    [
+      'a 20+ character lowercase passphrase',
+      'correct horse battery staple',
+      'Password strength strong',
+    ],
+    [
+      'a 20+ character mixed passphrase',
+      'Property-Garden-Lamp-River',
+      'Password strength strong',
+    ],
+  ])('rates %s (%s) by length first: %s', (_name, password, label) => {
+    const result = evaluatePasswordStrength(password)
 
     expect(result.guessable).toBe(false)
-    expect(result.labelKey).toBe('Password strength strong')
+    expect(result.labelKey).toBe(label)
   })
 
-  test('downgrades commonly guessed passwords to weak without rejecting them', () => {
-    const result = evaluatePasswordStrength('Password1!')
+  test.each([
+    ['a common password', 'password', true],
+    ['a common password with a digit suffix', 'password123', true],
+    ['a capitalised common password with a suffix', 'Password123!', true],
+    ['a keyboard word with a year', 'qwerty2024', true],
+    ['a short common password with a symbol', 'admin!', false],
+    ['one repeated character', 'aaaaaaaa', true],
+    ['16 repeated characters', 'aaaaaaaaaaaaaaaa', true],
+    ['an ascending digit run', '12345678', true],
+    ['a wrapping 16-digit run', '1234567890123456', true],
+    ['a descending digit run', '87654321', true],
+    ['an alphabet run', 'abcdefgh', true],
+    ['a keyboard row run', 'qwertyui', true],
+  ])(
+    'rates %s (%s) as weak and easy to guess; accepted by length: %s',
+    (_name, password, accepted) => {
+      const result = evaluatePasswordStrength(password)
 
-    expect(result.guessable).toBe(true)
-    expect(result.labelKey).toBe('Password strength weak')
-    expect(result.meetsRequirements).toBe(true)
-  })
+      expect(result.guessable).toBe(true)
+      expect(result.labelKey).toBe('Password strength weak')
+      expect(result.meetsRequirements).toBe(accepted)
+      expect(accountPasswordSchema.safeParse(password).success).toBe(accepted)
+    }
+  )
 
-  test('flags repeated and sequential patterns as easy to guess', () => {
-    expect(evaluatePasswordStrength('AAAA7!forest').guessable).toBe(true)
-    expect(evaluatePasswordStrength('Abcd7!forest').guessable).toBe(true)
-    expect(evaluatePasswordStrength('Forest1234!').guessable).toBe(true)
+  test.each([
+    ['a common word as a prefix', 'administrator forest lake 2026'],
+    ['a keyboard run inside a word', 'Property-Garden-Lamp-River'],
+    ['a keyboard run inside a passphrase', 'liberty bell harbor stone'],
+    ['a common word inside a passphrase', 'Dragonfly-Meadow-Quiet-91'],
+    ['a digit run inside random characters', 'xK9#q2345Lm!vT7pRz'],
+    ['a digit run after a word', 'Forest1234!'],
+    ['an alphabet run before a word', 'Abcd7!forest'],
+    ['repeated characters before a word', 'AAAA7!forest'],
+  ])('does not flag %s (%s) as easy to guess', (_name, password) => {
+    expect(evaluatePasswordStrength(password).guessable).toBe(false)
   })
 
   test('does not treat Unicode letters as symbols', () => {

@@ -302,7 +302,7 @@ export function SignUpForm({
         <FormField
           control={form.control}
           name='confirmPassword'
-          render={({ field }) => (
+          render={({ field, fieldState }) => (
             <FormItem>
               <FormLabel>{t('Confirm password')}</FormLabel>
               <FormControl describedBy='sign-up-password-confirmation-status'>
@@ -316,6 +316,7 @@ export function SignUpForm({
                 id='sign-up-password-confirmation-status'
                 password={passwordValue}
                 confirmation={confirmationValue}
+                hasFieldError={!!fieldState.error}
               />
               <FormMessage />
             </FormItem>

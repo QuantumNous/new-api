@@ -63,7 +63,6 @@ export {
   forgotPasswordFormSchema,
   otpFormSchema,
   PASSWORD_MIN_LENGTH,
-  PASSWORD_MAX_LENGTH,
   OTP_LENGTH,
   BACKUP_CODE_LENGTH,
   BACKUP_CODE_REGEX,
