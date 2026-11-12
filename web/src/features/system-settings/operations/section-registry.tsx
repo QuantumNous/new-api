@@ -22,6 +22,7 @@ import { MonitoringSettingsSection } from '../integrations/monitoring-settings-s
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
+import { RelayDumpSection } from '../maintenance/relay-dump-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
@@ -108,6 +109,32 @@ const OPERATIONS_SECTIONS = [
             settings['log_setting.user_export_enabled'] ?? true,
           'log_setting.max_range_days':
             settings['log_setting.max_range_days'] ?? 365,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'relay-dump',
+    titleKey: 'Relay Dump',
+    build: (settings: OperationsSettings) => (
+      <RelayDumpSection
+        defaultValues={{
+          'relay_dump_setting.enabled':
+            settings['relay_dump_setting.enabled'] ?? false,
+          'relay_dump_setting.mode':
+            settings['relay_dump_setting.mode'] ?? 'error',
+          'relay_dump_setting.output':
+            settings['relay_dump_setting.output'] ?? 'file',
+          'relay_dump_setting.directory':
+            settings['relay_dump_setting.directory'] ?? 'relay-dump',
+          'relay_dump_setting.max_body_kb':
+            settings['relay_dump_setting.max_body_kb'] ?? 64,
+          'relay_dump_setting.max_files':
+            settings['relay_dump_setting.max_files'] ?? 500,
+          'relay_dump_setting.redact_headers':
+            settings['relay_dump_setting.redact_headers'] ?? true,
+          'relay_dump_setting.redact_list':
+            settings['relay_dump_setting.redact_list'] ?? [],
         }}
       />
     ),

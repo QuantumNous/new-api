@@ -244,6 +244,15 @@ func SetApiRouter(router *gin.Engine) {
 			customOAuthRoute.PUT("/:id", controller.UpdateCustomOAuthProvider)
 			customOAuthRoute.DELETE("/:id", controller.DeleteCustomOAuthProvider)
 		}
+		// Relay dump captures: upstream request/response debugging (root only)
+		relayDumpRoute := apiRouter.Group("/relay_dump")
+		relayDumpRoute.Use(middleware.RootAuth())
+		{
+			relayDumpRoute.GET("/", controller.GetRelayDumpEntries)
+			relayDumpRoute.GET("/:id", controller.GetRelayDumpEntry)
+			relayDumpRoute.DELETE("/", controller.ClearRelayDumpEntries)
+			relayDumpRoute.DELETE("/:id", controller.DeleteRelayDumpEntry)
+		}
 		performanceRoute := apiRouter.Group("/performance")
 		performanceRoute.Use(middleware.RootAuth())
 		{

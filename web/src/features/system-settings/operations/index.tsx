@@ -63,6 +63,14 @@ const defaultOperationsSettings: OperationsSettings = {
   'perf_metrics_setting.flush_interval': 5,
   'perf_metrics_setting.bucket_time': 'hour',
   'perf_metrics_setting.retention_days': 0,
+  'relay_dump_setting.enabled': false,
+  'relay_dump_setting.mode': 'error',
+  'relay_dump_setting.output': 'file',
+  'relay_dump_setting.directory': 'relay-dump',
+  'relay_dump_setting.max_body_kb': 64,
+  'relay_dump_setting.max_files': 500,
+  'relay_dump_setting.redact_headers': true,
+  'relay_dump_setting.redact_list': [],
 }
 
 export function OperationsSettings() {

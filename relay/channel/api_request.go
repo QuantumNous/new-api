@@ -14,6 +14,7 @@ import (
 	common2 "github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/pkg/relaydump"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -418,6 +419,13 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		dialer.TLSClientConfig = common2.InsecureTLSConfig
 	}
 	targetConn, resp, err := dialer.DialContext(c.Request.Context(), fullRequestURL, targetHeader)
+	wsMeta := relaydump.Meta{
+		RequestID:   c.GetString(common2.RequestIdKey),
+		ChannelID:   info.ChannelId,
+		ChannelName: common2.GetContextKeyString(c, appconstant.ContextKeyChannelName),
+		Model:       info.UpstreamModelName,
+		RequestPath: c.Request.URL.Path,
+	}
 	if err != nil {
 		statusCode := http.StatusInternalServerError
 		if resp != nil {
@@ -426,8 +434,10 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 				_ = resp.Body.Close()
 			}
 		}
+		relaydump.CaptureWebSocketHandshake(wsMeta, fullRequestURL, targetHeader, statusCode, err.Error())
 		return nil, types.NewErrorWithStatusCode(fmt.Errorf("dial failed to %s: %w", common.SanitizeURLForLog(fullRequestURL), err), types.ErrorCodeDoRequestFailed, statusCode)
 	}
+	relaydump.CaptureWebSocketHandshake(wsMeta, fullRequestURL, targetHeader, http.StatusSwitchingProtocols, "")
 	return targetConn, nil
 }
 
@@ -473,6 +483,14 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 			policy.Shards,
 			policy.String())
 	}
+	dump := relaydump.BeginCapture(req, relaydump.Meta{
+		RequestID:   c.GetString(common2.RequestIdKey),
+		ChannelID:   info.ChannelId,
+		ChannelName: common2.GetContextKeyString(c, appconstant.ContextKeyChannelName),
+		Model:       info.UpstreamModelName,
+		IsStream:    info.IsStream,
+		RequestPath: c.Request.URL.Path,
+	})
 
 	if info.IsStream {
 		helper.SetEventStreamHeaders(c)
@@ -488,11 +506,16 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	common2.SetContextKey(c, appconstant.ContextKeyUpstreamRequestOrigin, req.URL.Scheme+"://"+req.URL.Host)
 	resp, err := relayClient.Do(req)
 	if err != nil {
+		dump.FinishFailure(0, nil, err.Error())
 		logger.LogError(c, common2.LogText("do request failed: %s", err.Error()))
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")
+	}
+	if dump.ShouldKeep(resp.StatusCode) {
+		dump.ObserveResponse(resp.StatusCode, resp.Header)
+		resp.Body = dump.WrapBody(resp.Body)
 	}
 	if common2.DebugEnabled {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)

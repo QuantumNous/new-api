@@ -397,6 +397,14 @@ export type OperationsSettings = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
   'perf_metrics_setting.retention_days': number
+  'relay_dump_setting.enabled': boolean
+  'relay_dump_setting.mode': string
+  'relay_dump_setting.output': string
+  'relay_dump_setting.directory': string
+  'relay_dump_setting.max_body_kb': number
+  'relay_dump_setting.max_files': number
+  'relay_dump_setting.redact_headers': boolean
+  'relay_dump_setting.redact_list': string[]
 }
 
 export type SecuritySettings = {
