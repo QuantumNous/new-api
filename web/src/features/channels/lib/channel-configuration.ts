@@ -76,6 +76,7 @@ const CONFIGURATION_BLOCKS = {
       'allow_inference_geo',
       'allow_speed',
       'claude_beta_query',
+      'openai_api_version_preview',
     ],
   },
   extraSettings: {
@@ -170,7 +171,8 @@ export function getChannelConfigurationState(
           values.allow_include_obfuscation)) ||
       (claudePassthrough &&
         (values.allow_speed ||
-          (values.type === 14 && values.claude_beta_query)))
+          (values.type === 14 && values.claude_beta_query))) ||
+      (values.type === 1 && values.openai_api_version_preview)
     ),
     extraSettings: Boolean(
       values.proxy?.trim() ||

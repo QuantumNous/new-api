@@ -18,6 +18,54 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+func TestPrepareResponsesRequestForwardsMultiAgent(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	previous := settings.PassThroughRequestEnabled
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = previous })
+	settings.PassThroughRequestEnabled = false
+
+	for _, tc := range []struct {
+		name      string
+		raw       string
+		wantAgent bool
+	}{
+		{
+			name:      "azure keeps multi_agent",
+			raw:       `{"model":"gpt-5.6-sol","input":"compare","multi_agent":{"enabled":true,"max_concurrent_subagents":3}}`,
+			wantAgent: true,
+		},
+		{
+			name: "omitted multi_agent stays absent",
+			raw:  `{"model":"gpt-5.6-sol","input":"compare"}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(tc.raw))
+			c.Request.Header.Set("Content-Type", "application/json")
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "gpt-5.6-sol")
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeAzure)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://example.openai.azure.com")
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{})
+			var req dto.OpenAIResponsesRequest
+			require.NoError(t, common.Unmarshal([]byte(tc.raw), &req))
+			info := relaycommon.GenRelayInfoResponses(c, &req)
+			_, body, closer, apiErr := PrepareResponsesRequest(c, info, &req)
+			require.Nil(t, apiErr)
+			t.Cleanup(func() { require.NoError(t, closer.Close()) })
+			wire, err := io.ReadAll(body)
+			require.NoError(t, err)
+			if tc.wantAgent {
+				assert.True(t, gjson.GetBytes(wire, "multi_agent.enabled").Bool())
+				assert.Equal(t, int64(3), gjson.GetBytes(wire, "multi_agent.max_concurrent_subagents").Int())
+				return
+			}
+			assert.False(t, gjson.GetBytes(wire, "multi_agent").Exists())
+		})
+	}
+}
+
 func TestPrepareResponsesRequestDeepSeekEffectiveReasoning(t *testing.T) {
 	settings := model_setting.GetGlobalSettings()
 	previous := settings.PassThroughRequestEnabled

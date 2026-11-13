@@ -281,6 +281,7 @@
     "Add another login method before unlinking this account.": "Thêm phương thức đăng nhập khác trước khi hủy liên kết tài khoản này.",
     "Add API": "Thêm API",
     "Add API Shortcut": "Thêm lối tắt API",
+    "Add api-version=preview to upstream requests when the client does not send one": "Thêm api-version=preview vào yêu cầu thượng nguồn khi máy khách không gửi",
     "Add at least one condition to this group.": "Thêm ít nhất một điều kiện vào nhóm này.",
     "Add auto group": "Thêm nhóm tự động",
     "Add Auto group": "Thêm nhóm Auto",
@@ -618,6 +619,7 @@
     "App": "Ứng dụng",
     "App rankings shown here are simulated for preview purposes and will be replaced with live usage data once the backend integration is complete.": "Bảng xếp hạng ứng dụng hiển thị tại đây là dữ liệu mô phỏng để xem trước và sẽ được thay thế bằng dữ liệu thực sau khi tích hợp backend.",
     "Append": "Thêm vào cuối",
+    "Append api-version=preview": "Thêm api-version=preview",
     "Append mode: New keys will be added to the end of the existing key list": "Chế độ nối: Các khóa mới sẽ được thêm vào cuối danh sách khóa hiện có",
     "Append Template": "Thêm mẫu",
     "Append to channel": "Nối vào kênh",
@@ -970,6 +972,8 @@
     "Bulk actions for {{count}} selected records": "Thao tác hàng loạt cho {{count}} bản ghi đã chọn",
     "by": "by",
     "By category": "Theo danh mục",
+    "By clicking sign in, you agree to our": "Bằng cách nhấp đăng nhập, bạn đồng ý với",
+    "By creating an account, you agree to our": "Bằng cách tạo tài khoản, bạn đồng ý với",
     "By model author": "Theo nhà phát triển mô hình",
     "By quota": "Theo hạn ngạch",
     "By requests": "Theo số yêu cầu",
@@ -2858,7 +2862,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Với kênh tùy chỉnh nâng cao, thiết lập này chỉ áp dụng cho các route /v1/responses không chuyển đổi giao thức.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Đối với các triển khai riêng tư, định dạng: https://fastgpt.run/api/openapi",
@@ -7407,8 +7411,6 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "By clicking sign in, you agree to our": "Bằng cách nhấp đăng nhập, bạn đồng ý với",
-    "By creating an account, you agree to our": "Bằng cách tạo tài khoản, bạn đồng ý với"
+    "Zoom": "Zoom"
   }
 }

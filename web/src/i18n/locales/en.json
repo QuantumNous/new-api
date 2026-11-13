@@ -281,6 +281,7 @@
     "Add another login method before unlinking this account.": "Add another login method before unlinking this account.",
     "Add API": "Add API",
     "Add API Shortcut": "Add API Shortcut",
+    "Add api-version=preview to upstream requests when the client does not send one": "Add api-version=preview to upstream requests when the client does not send one",
     "Add at least one condition to this group.": "Add at least one condition to this group.",
     "Add auto group": "Add auto group",
     "Add Auto group": "Add Auto group",
@@ -618,6 +619,7 @@
     "App": "App",
     "App rankings shown here are simulated for preview purposes and will be replaced with live usage data once the backend integration is complete.": "App rankings shown here are simulated for preview purposes and will be replaced with live usage data once the backend integration is complete.",
     "Append": "Append",
+    "Append api-version=preview": "Append api-version=preview",
     "Append mode: New keys will be added to the end of the existing key list": "Append mode: New keys will be added to the end of the existing key list",
     "Append Template": "Append Template",
     "Append to channel": "Append to channel",
@@ -970,6 +972,8 @@
     "Bulk actions for {{count}} selected records": "Bulk actions for {{count}} selected records",
     "by": "by",
     "By category": "By category",
+    "By clicking sign in, you agree to our": "By clicking sign in, you agree to our",
+    "By creating an account, you agree to our": "By creating an account, you agree to our",
     "By model author": "By model author",
     "By quota": "By quota",
     "By requests": "By requests",
@@ -2858,7 +2862,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
@@ -7407,8 +7411,6 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "By clicking sign in, you agree to our": "By clicking sign in, you agree to our",
-    "By creating an account, you agree to our": "By creating an account, you agree to our"
+    "Zoom": "Zoom"
   }
 }

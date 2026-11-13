@@ -1096,11 +1096,14 @@ type OpenAIResponsesRequest struct {
 	Text             json.RawMessage `json:"text,omitempty"`
 	ToolChoice       json.RawMessage `json:"tool_choice,omitempty"`
 	Tools            json.RawMessage `json:"tools,omitempty"` // 需要处理的参数很少，MCP 参数太多不确定，所以用 map
-	TopP             *float64        `json:"top_p,omitempty"`
-	Truncation       json.RawMessage `json:"truncation,omitempty"`
-	User             json.RawMessage `json:"user,omitempty"`
-	MaxToolCalls     *uint           `json:"max_tool_calls,omitempty"`
-	Prompt           json.RawMessage `json:"prompt,omitempty"`
+	// MultiAgent is Azure OpenAI Responses multi-agent mode. Forward the object
+	// verbatim so subagent spawning survives request re-encoding.
+	MultiAgent   json.RawMessage `json:"multi_agent,omitempty"`
+	TopP         *float64        `json:"top_p,omitempty"`
+	Truncation   json.RawMessage `json:"truncation,omitempty"`
+	User         json.RawMessage `json:"user,omitempty"`
+	MaxToolCalls *uint           `json:"max_tool_calls,omitempty"`
+	Prompt       json.RawMessage `json:"prompt,omitempty"`
 	// Codex Responses metadata/client_metadata:
 	// https://github.com/openai/codex/commit/14df0e8833aad0d6d78287954b61ffac67af936c
 	ClientMetadata json.RawMessage `json:"client_metadata,omitempty"`

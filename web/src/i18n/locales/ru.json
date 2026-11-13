@@ -281,6 +281,7 @@
     "Add another login method before unlinking this account.": "Перед отвязкой этого аккаунта добавьте другой способ входа.",
     "Add API": "Добавить API",
     "Add API Shortcut": "Добавить ярлык API",
+    "Add api-version=preview to upstream requests when the client does not send one": "Добавлять api-version=preview к запросам к провайдеру, если клиент его не передал",
     "Add at least one condition to this group.": "Добавьте хотя бы одно условие в группу.",
     "Add auto group": "Добавить автогруппу",
     "Add Auto group": "Добавить группу Auto",
@@ -618,6 +619,7 @@
     "App": "Приложение",
     "App rankings shown here are simulated for preview purposes and will be replaced with live usage data once the backend integration is complete.": "Показанный рейтинг приложений сгенерирован для предпросмотра и будет заменён реальными данными после интеграции бэкенда.",
     "Append": "Добавить в конец",
+    "Append api-version=preview": "Добавлять api-version=preview",
     "Append mode: New keys will be added to the end of the existing key list": "Режим добавления: Новые ключи будут добавлены в конец существующего списка ключей",
     "Append Template": "Добавить шаблон",
     "Append to channel": "Добавить в канал",
@@ -970,6 +972,8 @@
     "Bulk actions for {{count}} selected records": "Групповые действия для {{count}} записей",
     "by": "от",
     "By category": "По категориям",
+    "By clicking sign in, you agree to our": "Нажимая «Войти», вы соглашаетесь с нашими",
+    "By creating an account, you agree to our": "Создавая аккаунт, вы соглашаетесь с нашими",
     "By model author": "По автору модели",
     "By quota": "По квоте",
     "By requests": "По запросам",
@@ -2858,7 +2862,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Для расширенных пользовательских каналов это действует только для маршрутов /v1/responses без преобразования протокола.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
@@ -7407,8 +7411,6 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom",
-    "By clicking sign in, you agree to our": "Нажимая «Войти», вы соглашаетесь с нашими",
-    "By creating an account, you agree to our": "Создавая аккаунт, вы соглашаетесь с нашими"
+    "Zoom": "Zoom"
   }
 }

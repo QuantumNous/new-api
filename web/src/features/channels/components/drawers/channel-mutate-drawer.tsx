@@ -343,6 +343,7 @@ const SENSITIVE_FORM_FIELDS = [
   'allow_inference_geo',
   'allow_speed',
   'claude_beta_query',
+  'openai_api_version_preview',
   'ollama_openai_chat',
   'disable_task_polling_sleep',
   'upstream_model_update_check_enabled',
@@ -3061,6 +3062,34 @@ export function ChannelMutateDrawer({
                   </FormItem>
                 )}
               />
+
+              {currentType === 1 && (
+                <FormField
+                  control={form.control}
+                  name='openai_api_version_preview'
+                  render={({ field }) => (
+                    <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-sm'>
+                          {t('Append api-version=preview')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t(
+                            'Add api-version=preview to upstream requests when the client does not send one'
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          disabled={sensitiveLocked}
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              )}
             </>
           )}
 

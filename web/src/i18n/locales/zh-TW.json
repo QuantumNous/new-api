@@ -281,6 +281,7 @@
     "Add another login method before unlinking this account.": "請先新增其他登入方式，再解除此帳戶綁定。",
     "Add API": "新增 API",
     "Add API Shortcut": "新增 API 快捷方式",
+    "Add api-version=preview to upstream requests when the client does not send one": "用戶端未攜帶時，為上游請求加上 api-version=preview",
     "Add at least one condition to this group.": "請為此群組新增至少一個條件。",
     "Add auto group": "新增自動分組",
     "Add Auto group": "新增 Auto 分組",
@@ -618,6 +619,7 @@
     "App": "套用程式",
     "App rankings shown here are simulated for preview purposes and will be replaced with live usage data once the backend integration is complete.": "此處展示的套用排行僅為預覽用模擬數據，待後端對接完成後將替換為真實數據。",
     "Append": "追加",
+    "Append api-version=preview": "追加 api-version=preview",
     "Append mode: New keys will be added to the end of the existing key list": "追加模式：新鍵將添加到現有鍵清單的最後",
     "Append Template": "追加模板",
     "Append to channel": "追加到渠道",
@@ -970,6 +972,8 @@
     "Bulk actions for {{count}} selected records": "對 {{count}} 筆所選記錄執行批次操作",
     "by": "由",
     "By category": "按行業",
+    "By clicking sign in, you agree to our": "點擊登入即表示您同意我們的",
+    "By creating an account, you agree to our": "建立帳戶即表示您同意我們的",
     "By model author": "按模型廠商",
     "By quota": "按額度",
     "By requests": "按請求數",
@@ -2858,7 +2862,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相關項目",
     "footer.defaultCopyright": "版權所有。",
-    "footer.newapi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
+    "footer.new\u0061pi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "進階自訂渠道僅對 /v1/responses 且不做協定轉換的路由生效。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "對於 2025 年 5 月 10 日之後新增的渠道，在部署時無需從模型名稱中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "對於私有部署，格式為：https://fastgpt.run/api/openapi",
@@ -7407,8 +7411,6 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放",
-    "By clicking sign in, you agree to our": "點擊登入即表示您同意我們的",
-    "By creating an account, you agree to our": "建立帳戶即表示您同意我們的"
+    "Zoom": "縮放"
   }
 }

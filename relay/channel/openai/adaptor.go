@@ -180,13 +180,35 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		url = strings.Replace(url, "{model}", info.UpstreamModelName, -1)
 		return url, nil
 	default:
+		var requestURL string
 		if (info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini) &&
 			info.RelayMode != relayconstant.RelayModeResponses &&
 			info.RelayMode != relayconstant.RelayModeResponsesCompact {
-			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
+			requestURL = fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl)
+		} else {
+			requestURL = relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType)
 		}
-		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
+		return withOpenAIAPIVersionPreview(info, requestURL)
 	}
+}
+
+// withOpenAIAPIVersionPreview adds api-version=preview when the OpenAI channel
+// setting is on and the request did not already choose an API version.
+func withOpenAIAPIVersionPreview(info *relaycommon.RelayInfo, rawURL string) (string, error) {
+	if info == nil || !info.ChannelOtherSettings.OpenAIAPIVersionPreview {
+		return rawURL, nil
+	}
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	query := parsedURL.Query()
+	if query.Get("api-version") != "" {
+		return rawURL, nil
+	}
+	query.Set("api-version", "preview")
+	parsedURL.RawQuery = query.Encode()
+	return parsedURL.String(), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
