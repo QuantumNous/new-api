@@ -2,6 +2,7 @@ package model
 
 import (
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -211,6 +212,20 @@ func LoadOptionsFromDatabase() error {
 			common.SysError(common.LogText("invalid request policy: %s", err.Error()))
 		}
 	}()
+	// Apply the legacy switch first: older databases can contain conflicting
+	// rows, and an explicitly stored display type must win without reload writes.
+	slices.SortStableFunc(options, func(a, b *Option) int {
+		if a.Key == b.Key {
+			return 0
+		}
+		if a.Key == "DisplayInCurrencyEnabled" {
+			return -1
+		}
+		if b.Key == "DisplayInCurrencyEnabled" {
+			return 1
+		}
+		return 0
+	})
 	passkeyOptions := make(map[string]string)
 	for _, option := range options {
 		if IsPasskeyDomainOption(option.Key) {
@@ -286,6 +301,9 @@ func validateOptionValue(key string, value string) error {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == "general_setting.quota_display_type" || key == "DisplayInCurrencyEnabled" {
+		return UpdateOptionsBulk(map[string]string{key: value})
+	}
 	if IsRequestPolicyOption(key) {
 		return UpdateRequestPolicyOptions(map[string]string{key: value})
 	}
@@ -323,6 +341,27 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	if legacy, ok := values["DisplayInCurrencyEnabled"]; ok {
+		if _, explicit := values["general_setting.quota_display_type"]; !explicit {
+			common.OptionMapRWMutex.RLock()
+			displayType := operation_setting.GetQuotaDisplayType()
+			common.OptionMapRWMutex.RUnlock()
+			if legacy != "true" {
+				displayType = operation_setting.QuotaDisplayTypeTokens
+			} else if displayType == "" || displayType == operation_setting.QuotaDisplayTypeTokens {
+				displayType = operation_setting.QuotaDisplayTypeUSD
+			}
+			values = maps.Clone(values)
+			values["general_setting.quota_display_type"] = displayType
+		}
+	}
+	if displayType, ok := values["general_setting.quota_display_type"]; ok {
+		// Persist the legacy flag in the same transaction. Otherwise a stale false
+		// row can override the display type during reload, depending on row order.
+		// The explicit display type takes precedence over a conflicting legacy flag.
+		values = maps.Clone(values)
+		values["DisplayInCurrencyEnabled"] = strconv.FormatBool(displayType != operation_setting.QuotaDisplayTypeTokens)
 	}
 	for key := range values {
 		if IsPasskeyDomainOption(key) {
@@ -755,6 +794,7 @@ func handleConfigUpdate(key, value string) bool {
 		ratio_setting.InvalidateExposedDataCache()
 	} else if configName == "general_setting" && configKey == "quota_display_type" {
 		common.DisplayInCurrencyEnabled = operation_setting.IsCurrencyDisplay()
+		common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	}
 
 	return true // 已处理
