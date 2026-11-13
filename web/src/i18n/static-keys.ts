@@ -742,6 +742,18 @@ export const STATIC_I18N_KEYS = [
   'Updated channel status (ID: {{id}})',
   'Batch updated channel status ({{count}}/{{total}} changed)',
 
+  // Password strength labels and hints (passed to t at runtime)
+  'Password strength empty',
+  'Password strength weak',
+  'Password strength fair',
+  'Password strength good',
+  'Password strength strong',
+  '8–128 characters',
+  '15 or more characters',
+  'Uppercase and lowercase letters',
+  'A number',
+  'A symbol',
+
   // Misc
   'Cancel',
   'Status',
@@ -802,7 +814,6 @@ export const STATIC_I18N_KEYS = [
   "This email address is not allowed by the administrator's email policy.",
   'Too many incorrect codes. Start email verification again.',
   'Unsupported account password hashing configuration.',
-  'Use 8–128 characters.',
   'Verification email could not be sent. Start email verification again.',
   'Your identity has been verified. Continue to the provider to finish linking your account.',
   'Set Password',

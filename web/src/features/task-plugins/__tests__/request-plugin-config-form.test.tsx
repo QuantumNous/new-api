@@ -365,7 +365,7 @@ test('a key field hides what is typed until the toggle shows it', async () => {
   expect(key).toHaveAttribute('type', 'password')
 
   await user.click(
-    within(dialog).getByRole('button', { name: 'Toggle password visibility' })
+    within(dialog).getByRole('button', { name: 'Show password' })
   )
   expect(key).toHaveAttribute('type', 'text')
 })
