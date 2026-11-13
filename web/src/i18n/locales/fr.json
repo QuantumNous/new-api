@@ -4804,7 +4804,7 @@
     "Payment success redirect URL is not in the trusted domain list": "L'URL de redirection après paiement réussi n'est pas dans la liste des domaines de confiance",
     "Payment type key": "Clé de type de paiement",
     "Payment type key is required": "La clé de type de paiement est requise",
-    "Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.": "Les paiements, codes de兑换, forfaits d’abonnement et récompenses d’invitation sont verrouillés jusqu’à ce que l’administrateur racine confirme les conditions de conformité.",
+    "Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.": "Les paiements, codes d’échange, forfaits d’abonnement et récompenses d’invitation sont verrouillés jusqu’à ce que le super administrateur confirme les conditions de conformité.",
     "Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them.": "Les fonctions de paiement, d’échange de codes, d’abonnement et de récompense de parrainage sont désactivées. L’administrateur doit confirmer les conditions de conformité avant de les activer.",
     "Peak": "Pic",
     "Peak KV cache usage": "Utilisation KV maximale",

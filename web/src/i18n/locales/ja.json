@@ -4804,7 +4804,7 @@
     "Payment success redirect URL is not in the trusted domain list": "支払い完了時のリダイレクト URL が信頼済みドメインの一覧にありません",
     "Payment type key": "支払いタイプキー",
     "Payment type key is required": "支払いタイプキーは必須です",
-    "Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.": "ルート管理者がコンプライアンス条件を確認するまで、支払い、引換コード、サブスクリプションプラン、招待報酬はロックされます。",
+    "Payment, redemption codes, subscription plans, and invitation rewards are locked until the root administrator confirms the compliance terms.": "スーパー管理者がコンプライアンス条件を確認するまで、支払い、引換コード、サブスクリプションプラン、招待報酬はロックされます。",
     "Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them.": "支払い、引き換えコード、サブスクリプション、招待報酬の機能は無効です。有効にするには、管理者がコンプライアンス条項を確認する必要があります。",
     "Peak": "ピーク",
     "Peak KV cache usage": "最大 KV キャッシュ使用率",
