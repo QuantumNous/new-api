@@ -2,8 +2,10 @@ package model
 
 import (
 	"maps"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -17,6 +19,11 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
 )
+
+// quotaDisplayOptionMutex serializes display derivation, persistence and runtime
+// publication with reloads in this process. Acquire it before request-policy,
+// passkey and OptionMap locks; never acquire it from updateOptionMap.
+var quotaDisplayOptionMutex sync.Mutex
 
 type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
@@ -198,6 +205,8 @@ func InitOptionMap() {
 // LoadOptionsFromDatabase applies every stored option. A failed read keeps
 // the options in memory as they are.
 func LoadOptionsFromDatabase() error {
+	quotaDisplayOptionMutex.Lock()
+	defer quotaDisplayOptionMutex.Unlock()
 	requestPolicyOptionMutex.Lock()
 	defer requestPolicyOptionMutex.Unlock()
 	passkeyOptionMutex.Lock()
@@ -211,6 +220,20 @@ func LoadOptionsFromDatabase() error {
 			common.SysError(common.LogText("invalid request policy: %s", err.Error()))
 		}
 	}()
+	// Apply the legacy switch first: older databases can contain conflicting
+	// rows, and an explicitly stored display type must win without reload writes.
+	slices.SortStableFunc(options, func(a, b *Option) int {
+		if a.Key == b.Key {
+			return 0
+		}
+		if a.Key == "DisplayInCurrencyEnabled" {
+			return -1
+		}
+		if b.Key == "DisplayInCurrencyEnabled" {
+			return 1
+		}
+		return 0
+	})
 	passkeyOptions := make(map[string]string)
 	for _, option := range options {
 		if IsPasskeyDomainOption(option.Key) {
@@ -286,6 +309,9 @@ func validateOptionValue(key string, value string) error {
 }
 
 func UpdateOption(key string, value string) error {
+	if key == "general_setting.quota_display_type" || key == "DisplayInCurrencyEnabled" {
+		return UpdateOptionsBulk(map[string]string{key: value})
+	}
 	if IsRequestPolicyOption(key) {
 		return UpdateRequestPolicyOptions(map[string]string{key: value})
 	}
@@ -323,6 +349,33 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	_, legacyDisplay := values["DisplayInCurrencyEnabled"]
+	_, quotaDisplay := values["general_setting.quota_display_type"]
+	if legacyDisplay || quotaDisplay {
+		quotaDisplayOptionMutex.Lock()
+		defer quotaDisplayOptionMutex.Unlock()
+	}
+	if legacy, ok := values["DisplayInCurrencyEnabled"]; ok {
+		if _, explicit := values["general_setting.quota_display_type"]; !explicit {
+			common.OptionMapRWMutex.RLock()
+			displayType := operation_setting.GetQuotaDisplayType()
+			common.OptionMapRWMutex.RUnlock()
+			if legacy != "true" {
+				displayType = operation_setting.QuotaDisplayTypeTokens
+			} else if displayType == "" || displayType == operation_setting.QuotaDisplayTypeTokens {
+				displayType = operation_setting.QuotaDisplayTypeUSD
+			}
+			values = maps.Clone(values)
+			values["general_setting.quota_display_type"] = displayType
+		}
+	}
+	if displayType, ok := values["general_setting.quota_display_type"]; ok {
+		// Persist the legacy flag in the same transaction. Otherwise a stale false
+		// row can override the display type during reload, depending on row order.
+		// The explicit display type takes precedence over a conflicting legacy flag.
+		values = maps.Clone(values)
+		values["DisplayInCurrencyEnabled"] = strconv.FormatBool(displayType != operation_setting.QuotaDisplayTypeTokens)
 	}
 	for key := range values {
 		if IsPasskeyDomainOption(key) {
@@ -448,13 +501,19 @@ func updateOptionMap(key string, value string) (err error) {
 			common.LogConsumeEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
 			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
-			// true -> USD, false -> TOKENS
-			newVal := "USD"
+			// false -> TOKENS；true 仅在当前未配置或为 TOKENS 时设为 USD，避免覆盖已有的 CNY/CUSTOM
+			common.DisplayInCurrencyEnabled = boolValue
 			if !boolValue {
-				newVal = "TOKENS"
-			}
-			if cfg := config.GlobalConfig.Get("general_setting"); cfg != nil {
-				_ = config.UpdateConfigFromMap(cfg, map[string]string{"quota_display_type": newVal})
+				if cfg := config.GlobalConfig.Get("general_setting"); cfg != nil {
+					_ = config.UpdateConfigFromMap(cfg, map[string]string{"quota_display_type": operation_setting.QuotaDisplayTypeTokens})
+				}
+			} else {
+				cur := operation_setting.GetQuotaDisplayType()
+				if cur == "" || cur == operation_setting.QuotaDisplayTypeTokens {
+					if cfg := config.GlobalConfig.Get("general_setting"); cfg != nil {
+						_ = config.UpdateConfigFromMap(cfg, map[string]string{"quota_display_type": operation_setting.QuotaDisplayTypeUSD})
+					}
+				}
 			}
 		case "DisplayTokenStatEnabled":
 			common.DisplayTokenStatEnabled = boolValue
@@ -747,6 +806,9 @@ func handleConfigUpdate(key, value string) bool {
 	} else if configName == "billing_setting" {
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
+	} else if configName == "general_setting" && configKey == "quota_display_type" {
+		common.DisplayInCurrencyEnabled = operation_setting.IsCurrencyDisplay()
+		common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	}
 
 	return true // 已处理
