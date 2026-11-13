@@ -201,7 +201,11 @@ func GetUUID() string {
 	return code
 }
 
-const keyChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+// TokenKeyChars are the characters of a generated token key. Relay authentication cuts the
+// key at the first "-", so an imported key must use the same characters.
+const TokenKeyChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+const keyChars = TokenKeyChars
 
 func GenerateRandomCharsKey(length int) (string, error) {
 	b := make([]byte, length)
