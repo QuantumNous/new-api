@@ -16,6 +16,8 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
+// OpenAIChatRequestToClaudeMessages converts Chat messages, tools, reasoning,
+// and explicit JSON Schema output settings into a Claude Messages request.
 func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
 	opts := convmeta.OptionsOf(info)
 	claudeTools := make([]any, 0, len(textRequest.Tools))
@@ -103,6 +105,9 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 	}
 	convdiag.Add(c, diagnostics...)
 	if err := sharedclaude.ApplyReasoning(c, &claudeRequest, info, sourceReasoning, true); err != nil {
+		return nil, reasoning.AsClientError(err)
+	}
+	if err := sharedclaude.ApplyResponseFormat(&claudeRequest, textRequest.ResponseFormat); err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
 	if claudeRequest.MaxTokens == nil {

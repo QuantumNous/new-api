@@ -24,6 +24,8 @@ func convertOpenAIResponsesRequestToClaudeMessages(c context.Context, info convm
 	return OpenAIResponsesRequestToClaudeMessages(c, info, responsesRequest)
 }
 
+// OpenAIResponsesRequestToClaudeMessages converts Responses input, tools,
+// reasoning, and explicit JSON Schema output settings into a Claude request.
 func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Meta, req *dto.OpenAIResponsesRequest) (*dto.ClaudeRequest, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
@@ -65,6 +67,18 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 	}
 	convdiag.Add(c, diagnostics...)
 	if err := sharedclaude.ApplyReasoning(c, claudeRequest, info, sourceReasoning, true); err != nil {
+		return nil, reasoning.AsClientError(err)
+	}
+	responseFormat, err := RequestTextToChatResponseFormat(req.Text)
+	if err != nil {
+		return nil, reasoning.AsClientError(err)
+	}
+	if responseFormat == nil && len(kitutil.ObjectMember(req.Text, "format")) > 0 {
+		// The Chat parser treats a missing type as no format. An explicitly
+		// supplied Claude format must not silently lose its constraints.
+		return nil, reasoning.AsClientError(fmt.Errorf("response format type is required for Claude Messages"))
+	}
+	if err := sharedclaude.ApplyResponseFormat(claudeRequest, responseFormat); err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
 	if claudeRequest.MaxTokens == nil {
