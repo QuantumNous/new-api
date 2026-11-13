@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -172,6 +173,46 @@ func TestStreamScannerHandler_EmptyBody(t *testing.T) {
 	})
 
 	assert.False(t, called.Load(), "handler should not be called for empty body")
+}
+
+func TestStreamScannerHandler_CodexCopiesEligibleUpstreamHeaders(t *testing.T) {
+	t.Parallel()
+
+	c, resp, info := setupStreamTest(t, strings.NewReader(""))
+	info.ChannelMeta.ChannelType = constant.ChannelTypeCodex
+	resp.Header = http.Header{
+		"X-Reasoning-Included": {"true"},
+		"X-Codex-Turn-State":   {"turn-state"},
+		"X-Upstream-Trace":     {"trace-id"},
+		"Set-Cookie":           {"first=1", "second=2"},
+		"Content-Length":       {"42"},
+	}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	assert.Equal(t, "true", c.Writer.Header().Get("X-Reasoning-Included"))
+	assert.Equal(t, "turn-state", c.Writer.Header().Get("X-Codex-Turn-State"))
+	assert.Equal(t, "trace-id", c.Writer.Header().Get("X-Upstream-Trace"))
+	assert.Equal(t, []string{"first=1", "second=2"}, c.Writer.Header().Values("Set-Cookie"))
+	assert.Empty(t, c.Writer.Header().Get("Content-Length"))
+}
+
+func TestStreamScannerHandler_NonCodexPreservesLegacyHeaderBehavior(t *testing.T) {
+	t.Parallel()
+
+	c, resp, info := setupStreamTest(t, strings.NewReader(""))
+	info.ChannelMeta.ChannelType = constant.ChannelTypeOpenAI
+	resp.Header = http.Header{
+		"X-Reasoning-Included": {"true"},
+		"X-Codex-Turn-State":   {"turn-state"},
+		"X-Upstream-Trace":     {"trace-id"},
+	}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	assert.Equal(t, "true", c.Writer.Header().Get("X-Reasoning-Included"))
+	assert.Equal(t, "turn-state", c.Writer.Header().Get("X-Codex-Turn-State"))
+	assert.Empty(t, c.Writer.Header().Get("X-Upstream-Trace"))
 }
 
 func TestStreamScannerHandler_1000Chunks(t *testing.T) {
@@ -723,4 +764,23 @@ func TestSetEventStreamHeadersBoundsStreamWritesByBudget(t *testing.T) {
 	require.NotEmpty(t, recorder.deadlines)
 	assert.False(t, recorder.deadlines[0].Before(before.Add(streamWriteTimeout+450*time.Second)))
 	assert.Contains(t, recorder.Body.String(), "data: AAAA")
+}
+
+func TestStreamScannerHandler_NewAPICopiesUpstreamHeaders(t *testing.T) {
+	t.Parallel()
+
+	c, resp, info := setupStreamTest(t, strings.NewReader(""))
+	info.ChannelMeta.ChannelType = constant.ChannelTypeNewAPI
+	resp.Header = http.Header{
+		"X-Upstream-Trace":    {"trace-id"},
+		"X-Oneapi-Request-Id": {"upstream-request-id"},
+		"Content-Length":      {"42"},
+	}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	assert.Equal(t, "trace-id", c.Writer.Header().Get("X-Upstream-Trace"))
+	assert.Empty(t, c.Writer.Header().Get("Content-Length"))
+	assert.Empty(t, c.Writer.Header().Get("X-Oneapi-Request-Id"))
+	assert.Equal(t, "upstream-request-id", c.GetString(common.UpstreamRequestIdKey))
 }
