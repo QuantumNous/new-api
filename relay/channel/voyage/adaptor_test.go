@@ -41,8 +41,8 @@ func TestEmbeddingRequestRejections(t *testing.T) {
 		{"images need a multimodal model", dto.EmbeddingRequest{Model: "voyage-4", Input: []any{map[string]any{"type": "image_url"}}}, "must be a string"},
 		{"float32 encoding unsupported upstream", dto.EmbeddingRequest{Model: "voyage-4", Input: []any{"a"}, EncodingFormat: "int8"}, "unsupported encoding_format"},
 		{"context needs an input type", dto.EmbeddingRequest{Model: "voyage-context-4", Input: []any{"a"}}, "input_type is required"},
-		{"context pre-chunked document", dto.EmbeddingRequest{Model: "voyage-context-4", Input: []any{[]any{"a", "b"}}, InputType: &document}, "pass one string per document"},
-		{"context pre-chunked query", dto.EmbeddingRequest{Model: "voyage-context-3", Input: []any{[]any{"a"}}, InputType: &query}, "pass one string per document"},
+		{"context pre-chunked document", dto.EmbeddingRequest{Model: "voyage-context-4", Input: []any{[]any{"a", "b"}}, InputType: &document}, "pass one string per input"},
+		{"context pre-chunked query", dto.EmbeddingRequest{Model: "voyage-context-3", Input: []any{[]any{"a"}}, InputType: &query}, "pass one string per input"},
 		{"context base64", dto.EmbeddingRequest{Model: "voyage-context-4", Input: []any{"a"}, InputType: &document, EncodingFormat: "base64"}, "not supported for contextualized"},
 		{"multimodal mixes URL and base64 images", dto.EmbeddingRequest{Model: "voyage-multimodal-3.5", Dimensions: &dimension, Input: []any{
 			map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/a.png"}},

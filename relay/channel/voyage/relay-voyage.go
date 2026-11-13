@@ -143,7 +143,7 @@ func stringInputs(input any) ([]string, error) {
 			text, ok := item.(string)
 			if !ok {
 				if _, nested := item.([]any); nested {
-					return nil, fmt.Errorf("input[%d] is a list: pass one string per document, long documents are chunked automatically", i)
+					return nil, fmt.Errorf("input[%d] is a list: pass one string per input", i)
 				}
 				return nil, fmt.Errorf("input[%d] must be a string, got %T", i, item)
 			}
