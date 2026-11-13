@@ -448,13 +448,19 @@ func updateOptionMap(key string, value string) (err error) {
 			common.LogConsumeEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
 			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
-			// true -> USD, false -> TOKENS
-			newVal := "USD"
+			// false -> TOKENS；true 仅在当前未配置或为 TOKENS 时设为 USD，避免覆盖已有的 CNY/CUSTOM
+			common.DisplayInCurrencyEnabled = boolValue
 			if !boolValue {
-				newVal = "TOKENS"
-			}
-			if cfg := config.GlobalConfig.Get("general_setting"); cfg != nil {
-				_ = config.UpdateConfigFromMap(cfg, map[string]string{"quota_display_type": newVal})
+				if cfg := config.GlobalConfig.Get("general_setting"); cfg != nil {
+					_ = config.UpdateConfigFromMap(cfg, map[string]string{"quota_display_type": operation_setting.QuotaDisplayTypeTokens})
+				}
+			} else {
+				cur := operation_setting.GetQuotaDisplayType()
+				if cur == "" || cur == operation_setting.QuotaDisplayTypeTokens {
+					if cfg := config.GlobalConfig.Get("general_setting"); cfg != nil {
+						_ = config.UpdateConfigFromMap(cfg, map[string]string{"quota_display_type": operation_setting.QuotaDisplayTypeUSD})
+					}
+				}
 			}
 		case "DisplayTokenStatEnabled":
 			common.DisplayTokenStatEnabled = boolValue
@@ -747,6 +753,8 @@ func handleConfigUpdate(key, value string) bool {
 	} else if configName == "billing_setting" {
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
+	} else if configName == "general_setting" && configKey == "quota_display_type" {
+		common.DisplayInCurrencyEnabled = operation_setting.IsCurrencyDisplay()
 	}
 
 	return true // 已处理
