@@ -79,6 +79,7 @@ export function LobeIconField(props: {
             value={props.value}
             onValueChange={(value) => props.onChange(value ?? '')}
             allowCustomValue
+            virtualized
             searchPlaceholder={t('Search icons or enter an icon key')}
             emptyText={t('No matching icons')}
             className='min-w-0 flex-1'
