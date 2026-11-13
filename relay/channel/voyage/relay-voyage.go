@@ -142,6 +142,9 @@ func stringInputs(input any) ([]string, error) {
 		for i, item := range value {
 			text, ok := item.(string)
 			if !ok {
+				if _, nested := item.([]any); nested {
+					return nil, fmt.Errorf("input[%d] is a list: pass one string per document, long documents are chunked automatically", i)
+				}
 				return nil, fmt.Errorf("input[%d] must be a string, got %T", i, item)
 			}
 			texts = append(texts, text)
@@ -203,11 +206,6 @@ func convertContextualizedEmbeddingRequest(request dto.EmbeddingRequest) (any, e
 	if request.InputType == nil {
 		return nil, fmt.Errorf("input_type is required for contextualized embeddings: %q or %q", inputTypeDocument, inputTypeQuery)
 	}
-	for i, item := range anyList(request.Input) {
-		if _, nested := item.([]any); nested {
-			return nil, fmt.Errorf("input[%d] is a list: contextualized embeddings chunk each document automatically, pass one string per document", i)
-		}
-	}
 	texts, err := stringInputs(request.Input)
 	if err != nil {
 		return nil, err
@@ -231,11 +229,6 @@ func convertContextualizedEmbeddingRequest(request dto.EmbeddingRequest) (any, e
 	converted.EnableAutoChunking = &autoChunking
 	converted.ChunkSize = &chunkSize
 	return converted, nil
-}
-
-func anyList(input any) []any {
-	items, _ := input.([]any)
-	return items
 }
 
 func convertMultimodalEmbeddingRequest(request dto.EmbeddingRequest) (any, error) {
@@ -441,7 +434,7 @@ func readResponseBody(c *gin.Context, resp *http.Response) ([]byte, *types.NewAP
 	body, err := io.ReadAll(resp.Body)
 	service.CloseResponseBodyGracefully(resp)
 	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	logger.LogDebug(c, "voyage response body: %s", common.LocalLogPreview(string(body)))
 	return body, nil
@@ -464,18 +457,18 @@ func writeEmbeddingResult(c *gin.Context, resp *http.Response, toUsage func(*usa
 	}
 	var parsed embeddingResponse
 	if err := common.Unmarshal(body, &parsed); err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	if len(parsed.Data) == 0 {
-		return nil, types.NewOpenAIError(errors.New("Voyage response has no data"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(errors.New("Voyage response has no data"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	usage, err := toUsage(parsed.Usage)
 	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	out, err := common.Marshal(embeddingResult{Object: "list", Data: parsed.Data, Model: parsed.Model, Usage: *usage})
 	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	service.IOCopyBytesGracefully(c, resp, out)
 	return usage, nil
@@ -490,11 +483,11 @@ func contextualizedEmbeddingHandler(c *gin.Context, resp *http.Response) (*dto.U
 	}
 	var parsed embeddingResponse
 	if err := common.Unmarshal(body, &parsed); err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	usage, err := textUsage(parsed.Usage)
 	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	service.IOCopyBytesGracefully(c, resp, body)
 	return usage, nil
@@ -507,22 +500,22 @@ func rerankHandler(c *gin.Context, resp *http.Response) (*dto.Usage, *types.NewA
 	}
 	var parsed rerankResponse
 	if err := common.Unmarshal(body, &parsed); err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	usage, err := textUsage(parsed.Usage)
 	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	results := make([]dto.RerankResponseResult, len(parsed.Data))
 	for i, item := range parsed.Data {
 		results[i] = dto.RerankResponseResult{Index: item.Index, RelevanceScore: item.RelevanceScore}
 		if item.Document != nil {
-			results[i].Document = *item.Document
+			results[i].Document = dto.RerankDocument{Text: *item.Document}
 		}
 	}
 	out, err := common.Marshal(dto.RerankResponse{Results: results, Usage: *usage})
 	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	service.IOCopyBytesGracefully(c, resp, out)
 	return usage, nil

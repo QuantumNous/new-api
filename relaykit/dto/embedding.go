@@ -20,11 +20,13 @@ type EmbeddingOptions struct {
 }
 
 type EmbeddingRequest struct {
-	Model            string   `json:"model"`
-	Input            any      `json:"input"`
-	EncodingFormat   string   `json:"encoding_format,omitempty"`
-	Dimensions       *int     `json:"dimensions,omitempty"`
-	InputType        *string  `json:"input_type,omitempty"`
+	Model          string `json:"model"`
+	Input          any    `json:"input"`
+	EncodingFormat string `json:"encoding_format,omitempty"`
+	Dimensions     *int   `json:"dimensions,omitempty"`
+	// InputType is read from client JSON but never marshaled, so adaptors that
+	// forward the request unchanged do not send it to upstreams that reject it.
+	InputType        *string  `json:"-"`
 	User             string   `json:"user,omitempty"`
 	Seed             *float64 `json:"seed,omitempty"`
 	Temperature      *float64 `json:"temperature,omitempty"`
@@ -33,30 +35,74 @@ type EmbeddingRequest struct {
 	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
 }
 
+// UnmarshalJSON reads input_type, which has no JSON tag on the struct.
+func (r *EmbeddingRequest) UnmarshalJSON(data []byte) error {
+	type plain EmbeddingRequest
+	aux := struct {
+		*plain
+		InputType *string `json:"input_type"`
+	}{plain: (*plain)(r)}
+	if err := kitutil.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	r.InputType = aux.InputType
+	return nil
+}
+
 func (r *EmbeddingRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	texts := r.ParseInput()
 	var files []*types.FileMeta
 	// Chat-style parts count like chat message content: text parts as text,
-	// image and video parts as files.
-	items, _ := r.Input.([]any)
+	// image and video parts as files. A {"content": [...]} object groups the
+	// parts of one input, and a single part object is one input.
+	var items []any
+	switch input := r.Input.(type) {
+	case []any:
+		items = input
+	case map[string]any:
+		items = []any{input}
+	}
 	for _, item := range items {
-		if _, ok := item.(map[string]any); !ok {
+		fields, ok := item.(map[string]any)
+		if !ok {
 			continue
 		}
-		part, err := kitutil.Any2Type[MediaContent](item)
-		if err != nil {
-			continue
+		parts, grouped := fields["content"].([]any)
+		if !grouped {
+			parts = []any{fields}
 		}
-		switch part.Type {
-		case ContentTypeText:
-			texts = append(texts, part.Text)
-		case ContentTypeImageURL:
-			if source := part.ToFileSource(); source != nil {
-				files = append(files, &types.FileMeta{FileType: types.FileTypeImage, Source: source, Detail: part.GetImageMedia().Detail})
-			}
-		case ContentTypeVideoUrl:
-			if source := part.ToFileSource(); source != nil {
-				files = append(files, &types.FileMeta{FileType: types.FileTypeVideo, Source: source})
+		for _, part := range parts {
+			switch value := part.(type) {
+			case string:
+				if grouped {
+					texts = append(texts, value)
+				}
+			case map[string]any:
+				partType, _ := value["type"].(string)
+				fileType := types.FileTypeImage
+				switch partType {
+				case ContentTypeText:
+					text, _ := value[ContentTypeText].(string)
+					texts = append(texts, text)
+					continue
+				case ContentTypeImageURL, "image_base64":
+				case ContentTypeVideoUrl, "video_base64":
+					fileType = types.FileTypeVideo
+				default:
+					continue
+				}
+				// The media is a string or an object with a url.
+				var data, detail string
+				switch media := value[partType].(type) {
+				case string:
+					data = media
+				case map[string]any:
+					data, _ = media["url"].(string)
+					detail, _ = media["detail"].(string)
+				}
+				if data != "" {
+					files = append(files, &types.FileMeta{FileType: fileType, Source: types.NewFileSourceFromData(data, ""), Detail: detail})
+				}
 			}
 		}
 	}

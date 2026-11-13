@@ -190,7 +190,7 @@ func TestUsageNormalization(t *testing.T) {
 		Usage   dto.Usage       `json:"usage"`
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &body))
-	assert.JSONEq(t, `[{"document":"Paris","index":1,"relevance_score":0.86}]`, string(body.Results))
+	assert.JSONEq(t, `[{"document":{"text":"Paris"},"index":1,"relevance_score":0.86}]`, string(body.Results))
 	assert.Equal(t, 7, body.Usage.TotalTokens)
 
 	// A usage of zero is what Voyage reports for a single-token input with an

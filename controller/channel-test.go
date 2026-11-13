@@ -746,15 +746,12 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
-	// Voyage embedding models are told apart by channel type, not by name, and
-	// the contextualized ones need an explicit input type.
+	// Voyage embedding models are told apart by channel type, not by name. The
+	// contextualized ones need an explicit input type, which every Voyage
+	// embedding endpoint accepts.
 	if channel != nil && channel.Type == constant.ChannelTypeVoyage && !strings.HasPrefix(model, "rerank-") &&
 		(endpointType == "" || constant.EndpointType(endpointType) == constant.EndpointTypeEmbeddings) {
-		request := &dto.EmbeddingRequest{Model: model, Input: []any{"hello world"}}
-		if strings.HasPrefix(model, "voyage-context-") {
-			request.InputType = lo.ToPtr("document")
-		}
-		return request
+		return &dto.EmbeddingRequest{Model: model, Input: []any{"hello world"}, InputType: lo.ToPtr("document")}
 	}
 
 	// 根据端点类型构建不同的测试请求
