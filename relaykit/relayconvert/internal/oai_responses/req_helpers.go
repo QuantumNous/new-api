@@ -252,9 +252,7 @@ func ContentPartToFileSource(part map[string]any) types.FileSource {
 		data, mimeType = responsesPartDataAndMime(part, "input_audio", "data", "url")
 		if mimeType == "" {
 			if payload, ok := part["input_audio"].(map[string]any); ok {
-				if format := strings.TrimSpace(kitutil.Interface2String(payload["format"])); format != "" {
-					mimeType = "audio/" + format
-				}
+				mimeType = dto.InputAudioMimeType(kitutil.Interface2String(payload["format"]))
 			}
 		}
 	case "input_video":
