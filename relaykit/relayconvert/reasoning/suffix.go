@@ -2,10 +2,10 @@ package reasoning
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/samber/lo"
 )
 

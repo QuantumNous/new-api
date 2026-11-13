@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,6 +29,17 @@ func ListSystemInstances(c *gin.Context) {
 		"message": "",
 		"data":    responses,
 	})
+}
+
+// GetNodeSync answers whether each node runs the latest revision of every
+// sync topic.
+func GetNodeSync(c *gin.Context) {
+	status, err := service.GetNodeSyncStatus()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
 }
 
 func DeleteStaleSystemInstances(c *gin.Context) {

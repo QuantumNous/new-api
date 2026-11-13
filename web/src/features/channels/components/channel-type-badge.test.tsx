@@ -72,6 +72,30 @@ test('identifies a bound plugin by its metadata and retains the task-plugin type
   expect(screen.queryByTestId('OpenAI.Color')).not.toBeInTheDocument()
 })
 
+test.each([
+  {
+    flags: { task: false, provider: true, login: false },
+    kind: 'Plugin',
+    other: 'Task Plugin',
+  },
+  {
+    flags: { task: true, provider: false, login: true },
+    kind: 'Task Plugin',
+    other: 'Plugin',
+  },
+])(
+  'labels a plugin by its relay routes, not by its login: $kind',
+  async (row) => {
+    vi.mocked(getTaskPluginOptions).mockResolvedValue([
+      { key: 'acct', name: 'Account Plugin', models: [], ...row.flags },
+    ])
+    render(<ChannelTypeHarness pluginKey='acct' />)
+    expect(await screen.findByText('Account Plugin')).toBeInTheDocument()
+    expect(screen.getByText(row.kind)).toBeInTheDocument()
+    expect(screen.queryByText(row.other)).not.toBeInTheDocument()
+  }
+)
+
 test('keeps the binding key when the plugin is unavailable', async () => {
   vi.mocked(getTaskPluginOptions).mockResolvedValue([])
   render(<ChannelTypeHarness pluginKey='removed-plugin' />)

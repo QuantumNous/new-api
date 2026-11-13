@@ -23,9 +23,15 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
-import type { TaskPluginListItem } from '../types'
+import type { PluginKind } from '../lib/plugin-kinds'
+import { localizedPluginName } from '../lib/plugin-name'
+import { resolvePluginParts } from '../lib/plugin-parts'
+import { REQUEST_PLUGIN_STAGE_LABELS } from '../lib/request-plugins'
+import type { MarketplaceRevokedEntry, TaskPluginListItem } from '../types'
 import { PluginIcon } from './plugin-icon'
+import { PluginPartsBadges } from './plugin-parts-badges'
 import { PluginWebsiteLink } from './plugin-website-link'
+import { RevokedPluginWarning } from './revoked-plugin-warning'
 
 /**
  * A card is one grid cell, so the model list has to stay a fixed number of
@@ -45,8 +51,20 @@ const MAX_VISIBLE_MODELS = 4
  * Manifest detail (billing parameters, endpoints, source) belongs to the detail
  * sheet: rendering it here made every card a different height and buried the
  * plugin's own description under its parameter descriptions.
+ *
+ * The card sits in the list of one kind, so it leaves out that kind's tag, and
+ * in the request processing list it names the stages instead of the models.
  */
-function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
+function PluginCardComponent({
+  row,
+  kind,
+  revoked,
+}: {
+  row: Row<TaskPluginListItem>
+  kind: PluginKind
+  /** Set when the community list took this installed code down. */
+  revoked?: MarketplaceRevokedEntry
+}) {
   const { t, i18n } = useTranslation()
   const cells = row.getAllCells()
   const description = resolveLocalizedText(
@@ -54,7 +72,9 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
     i18n.language
   )
   const models = row.original.meta.models ?? []
+  const parts = resolvePluginParts(row.original)
   const hiddenModels = models.slice(MAX_VISIBLE_MODELS)
+  const stages = row.original.transform_hooks ?? []
 
   const renderCell = (id: string) => {
     const cell = cells.find((c) => c.column.id === id)
@@ -79,7 +99,7 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
           </span>
           <div className='min-w-0'>
             <div className='truncate text-sm font-medium'>
-              {row.original.meta.name}
+              {localizedPluginName(row.original.meta, i18n.language)}
             </div>
             <div className='text-muted-foreground truncate font-mono text-xs'>
               {row.original.meta.key}
@@ -92,9 +112,10 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
       </div>
 
       <PluginWebsiteLink website={row.original.meta.website} />
+      <RevokedPluginWarning entry={revoked} />
 
-      {/* Row 2: source, runtime, and plugin version badges wrap freely. */}
-      <div className='flex flex-wrap items-center gap-1.5'>
+      {/* Row 2: source, runtime, version, and part badges wrap freely. */}
+      <div className='flex min-w-0 flex-wrap items-center gap-1.5 [&_[data-slot=badge]]:h-auto [&_[data-slot=badge]]:max-w-full [&_[data-slot=badge]]:whitespace-normal'>
         {renderCell('source')}
         {renderCell('runtime')}
         <Badge
@@ -104,6 +125,12 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
         >
           {row.original.meta.version ? `v${row.original.meta.version}` : '—'}
         </Badge>
+        <PluginPartsBadges
+          task={kind !== 'task' && parts.task}
+          provider={kind !== 'provider' && parts.provider}
+          login={parts.login}
+          transform={kind !== 'transform' && parts.transform}
+        />
       </div>
 
       {description ? (
@@ -112,8 +139,27 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
         </p>
       ) : null}
 
+      {kind === 'transform' ? (
+        <div className='space-y-1.5'>
+          <div className={labelClass}>{t('When it runs')}</div>
+          <div className='flex flex-wrap gap-1'>
+            {stages.length > 0 ? (
+              stages.map((stage) => (
+                <Badge key={stage} variant='outline' className='font-normal'>
+                  {t(REQUEST_PLUGIN_STAGE_LABELS[stage] ?? stage)}
+                </Badge>
+              ))
+            ) : (
+              <span className='text-muted-foreground text-xs'>
+                {t('Not declared')}
+              </span>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {/* Row 3: the bound models, named rather than counted */}
-      {models.length > 0 ? (
+      {kind !== 'transform' && models.length > 0 ? (
         <div className='space-y-1.5'>
           <div className={labelClass}>{t('Models')}</div>
           <div className='flex flex-wrap gap-1'>

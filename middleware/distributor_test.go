@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,6 +21,80 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type streamedBodyStorage struct {
+	common.BodyStorage
+}
+
+func (streamedBodyStorage) Bytes() ([]byte, error) {
+	return nil, errors.New("disk body must be read through readers")
+}
+
+func TestJSONModelRoutingUsesReadersForDiskBodies(t *testing.T) {
+	previous := common.GetDiskCacheConfig()
+	t.Cleanup(func() { common.SetDiskCacheConfig(previous) })
+	large := strings.Repeat("image-data", 32<<10)
+	prefix := `{"model":"model-a",`
+	acrossRead := prefix + strings.Repeat(" ", (64<<10)-len(prefix)-3) + `"\u006d\u006f\u0064\u0065\u006c":"model-b"}`
+	for _, disk := range []bool{false, true} {
+		storageName := "memory"
+		if disk {
+			storageName = "file"
+		}
+		t.Run(storageName, func(t *testing.T) {
+			common.SetDiskCacheConfig(common.DiskCacheConfig{Enabled: disk, ThresholdMB: 0, MaxSizeMB: 16, Path: t.TempDir()})
+			for _, tt := range []struct {
+				name, body, model, group, wantError string
+			}{
+				{"large body", `{"model":"model-a","group":"g","stream":true,"background":false,"input":"` + large + `"}`, "model-a", "g", ""},
+				{"fields after payload", `{"input":"` + large + `","model":"model-a","group":"g"}`, "model-a", "g", ""},
+				{"escaped model key", `{"\u006d\u006f\u0064\u0065\u006c":"model-a"}`, "model-a", "", ""},
+				{"nested models", `{"model":"model-a","nested":[{"model":"x"},{"model":"y"}],"text":"\"model\":false"}`, "model-a", "", ""},
+				{"long unrelated key", `{"` + large + `":"x","model":"model-a"}`, "model-a", "", ""},
+				{"duplicate model", `{"model":"model-a","model":"model-b"}`, "", "", "model must be provided once"},
+				{"duplicate key across reads", acrossRead, "", "", "model must be provided once"},
+				{"wrong model type", `{"model":false}`, "", "", "field model must be a string"},
+				{"wrong group type", `{"model":"model-a","group":[]}`, "", "", "field group must be a string"},
+				{"trailing JSON", `{"model":"model-a"} {}`, "", "", "invalid JSON request body"},
+				{"truncated payload", `{"model":"model-a","input":"` + large, "", "", "invalid JSON request body"},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					storage, err := common.CreateBodyStorage([]byte(tt.body))
+					require.NoError(t, err)
+					t.Cleanup(func() { require.NoError(t, storage.Close()) })
+					require.Equal(t, disk, storage.IsDisk())
+					c, _ := gin.CreateTestContext(httptest.NewRecorder())
+					c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(tt.body))
+					c.Request.Header.Set("Content-Type", "application/json")
+					if disk {
+						c.Set(common.KeyBodyStorage, streamedBodyStorage{storage})
+					} else {
+						c.Set(common.KeyBodyStorage, storage)
+					}
+					request, err := getModelFromJSONBody(c)
+					if tt.wantError != "" {
+						require.EqualError(t, err, tt.wantError)
+						return
+					}
+					require.NoError(t, err)
+					assert.Equal(t, tt.model, request.Model)
+					assert.Equal(t, tt.group, request.Group)
+					if tt.name == "large body" {
+						stream, background := jsonBodyBoolFlags(c)
+						assert.True(t, stream)
+						assert.False(t, background)
+					}
+					var decoded ModelRequest
+					require.NoError(t, common.UnmarshalBodyReusableNoCopy(c, &decoded))
+					assert.Equal(t, *request, decoded)
+					replayed, err := io.ReadAll(c.Request.Body)
+					require.NoError(t, err)
+					assert.Equal(t, tt.body, string(replayed))
+				})
+			}
+		})
+	}
+}
 
 func TestChannelMatchesExpectedTaskPluginUsesGenericChannelSetting(t *testing.T) {
 	channel := &model.Channel{Type: constant.ChannelTypeTaskPlugin}

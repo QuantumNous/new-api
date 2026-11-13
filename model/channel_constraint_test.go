@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -215,4 +216,40 @@ func TestChannelSatisfiesFilters(t *testing.T) {
 	}})
 	assert.False(t, ok)
 	assert.Equal(t, dto.FilterRequestPath, kind)
+}
+
+// A task plugin channel takes a Responses WebSocket session when the switch
+// is on and its plugin's /v1/responses route for the model has no converter,
+// the rule an Advanced Custom channel follows.
+func TestTaskPluginChannelResponsesWebSocket(t *testing.T) {
+	for key, relay := range map[string]string{
+		"ws-native":    `[{incoming_path: "/v1/responses", upstream_path: "/responses", models: ["m1"]}]`,
+		"ws-converted": `[{incoming_path: "/v1/responses", upstream_path: "/responses", converter: "plugin"}]`,
+	} {
+		source := `export const meta = {apiVersion: 1, key: "` + key + `", name: "WS", version: "1.0.0", author: {name: "Test"}, relay: ` + relay + `};`
+		if key == "ws-converted" {
+			source += `export function convertRequest(ctx, req) { return {body: req.body}; } export function convertResponse(ctx, res) { return {body: res.body}; } export function convertStreamEvent() { return {}; }`
+		}
+		_, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = jsplugin.DefaultRegistry.Unregister(key) })
+	}
+	channel := func(key string, enabled bool) *Channel {
+		ch := &Channel{Id: 1, Type: constant.ChannelTypeTaskPlugin}
+		ch.SetSetting(kitdto.ChannelSettings{TaskPluginKey: key, ResponsesWebSocketEnabled: enabled})
+		return ch
+	}
+	filters := []dto.ChannelFilter{{Kind: dto.FilterResponsesWebSocket}}
+
+	ok, _ := ChannelSatisfiesFilters(channel("ws-native", true), "m1", filters)
+	assert.True(t, ok)
+	ok, kind := ChannelSatisfiesFilters(channel("ws-native", false), "m1", filters)
+	assert.False(t, ok, "the channel switch is off")
+	assert.Equal(t, dto.FilterResponsesWebSocket, kind)
+	ok, _ = ChannelSatisfiesFilters(channel("ws-native", true), "m2", filters)
+	assert.False(t, ok, "the route does not serve the model")
+	ok, _ = ChannelSatisfiesFilters(channel("ws-converted", true), "m1", filters)
+	assert.False(t, ok, "a converted route cannot forward native events")
+	ok, _ = ChannelSatisfiesFilters(channel("ws-missing", true), "m1", filters)
+	assert.False(t, ok)
 }

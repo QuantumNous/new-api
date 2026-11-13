@@ -1,7 +1,6 @@
 package common
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"maps"
@@ -118,42 +117,52 @@ func CleanupBodyStorage(c *gin.Context) {
 }
 
 func UnmarshalBodyReusable(c *gin.Context, v any) error {
+	return unmarshalBodyReusable(c, v, false)
+}
+
+// UnmarshalBodyReusableNoCopy borrows from immutable memory bodies and decodes
+// disk bodies through a file reader. Clone the decoded request before applying
+// per-attempt edits, including edits to raw JSON, so retries keep their input.
+func UnmarshalBodyReusableNoCopy(c *gin.Context, v any) error {
+	return unmarshalBodyReusable(c, v, true)
+}
+
+func unmarshalBodyReusable(c *gin.Context, v any, noCopy bool) error {
 	storage, err := GetBodyStorage(c)
 	if err != nil {
 		return err
 	}
 	contentType := c.Request.Header.Get("Content-Type")
 
-	// disk-backed JSON: stream-decode directly from the file to avoid
-	// materializing the entire payload back into a transient []byte
-	// (diskStorage.Bytes() would ReadFull the whole file into the heap).
-	if storage.IsDisk() && strings.HasPrefix(contentType, "application/json") {
-		if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
-			return seekErr
+	switch {
+	case strings.HasPrefix(contentType, "application/json"):
+		if storage.IsDisk() {
+			// Seek lets the decoder read large values through a bounded window.
+			reader, readErr := storage.NewReader()
+			if readErr != nil {
+				return readErr
+			}
+			defer reader.Close()
+			err = DecodeJsonBody(reader, v)
+		} else {
+			requestBody, readErr := storage.Bytes()
+			if readErr != nil {
+				return readErr
+			}
+			if noCopy {
+				err = UnmarshalNoCopy(requestBody, v)
+			} else {
+				err = Unmarshal(requestBody, v)
+			}
 		}
-		if err := DecodeJson(storage, v); err != nil {
-			return err
+	case strings.Contains(contentType, gin.MIMEPOSTForm):
+		requestBody, readErr := storage.Bytes()
+		if readErr != nil {
+			return readErr
 		}
-		if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
-			return seekErr
-		}
-		c.Request.Body = io.NopCloser(storage)
-		return nil
-	}
-
-	requestBody, err := storage.Bytes()
-	if err != nil {
-		return err
-	}
-	if strings.HasPrefix(contentType, "application/json") {
-		err = Unmarshal(requestBody, v)
-	} else if strings.Contains(contentType, gin.MIMEPOSTForm) {
 		err = parseFormData(requestBody, v)
-	} else if strings.Contains(contentType, gin.MIMEMultipartPOSTForm) {
-		err = parseMultipartFormData(c, requestBody, v)
-	} else {
-		// skip for now
-		// TODO: someday non json request have variant model, we will need to implementation this
+	case strings.Contains(contentType, gin.MIMEMultipartPOSTForm):
+		err = parseMultipartFormData(c, v)
 	}
 	if err != nil {
 		return err
@@ -211,8 +220,8 @@ func isPresetUpstreamHost(address string) bool {
 // upstream the admin configured for the selected channel and the proxies its
 // requests may go through. Preset default base URLs are public and stay
 // readable. The origin actually requested only counts for a configured base
-// URL or an Advanced Custom channel, whose routes may target absolute URLs;
-// other adaptors build official endpoints themselves.
+// URL or an Advanced Custom or provider plugin channel, whose routes may
+// target absolute URLs; other adaptors build official endpoints themselves.
 func UpstreamAddresses(c *gin.Context) []string {
 	// A channel without its own proxy dials through the environment proxy.
 	environmentProxy := httpproxy.FromEnvironment()
@@ -222,7 +231,8 @@ func UpstreamAddresses(c *gin.Context) []string {
 	}
 	baseURL := strings.TrimSpace(GetContextKeyString(c, constant.ContextKeyChannelBaseUrl))
 	candidates = append(candidates, baseURL)
-	if GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeAdvancedCustom || (baseURL != "" && !isPresetUpstreamHost(baseURL)) {
+	providerPlugin, _ := GetContextKey(c, constant.ContextKeyProviderPlugin)
+	if GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeAdvancedCustom || providerPlugin != nil || (baseURL != "" && !isPresetUpstreamHost(baseURL)) {
 		candidates = append(candidates, GetContextKeyString(c, constant.ContextKeyUpstreamRequestOrigin))
 	}
 	addresses := make([]string, 0, len(candidates))
@@ -359,11 +369,6 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 	if err != nil {
 		return nil, err
 	}
-	requestBody, err := storage.Bytes()
-	if err != nil {
-		return nil, err
-	}
-
 	// Use the original Content-Type saved on first call to avoid boundary
 	// mismatch when callers overwrite c.Request.Header after multipart rebuild.
 	var contentType string
@@ -378,7 +383,12 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 		return nil, err
 	}
 
-	reader := multipart.NewReader(bytes.NewReader(requestBody), boundary)
+	body, err := storage.NewReader()
+	if err != nil {
+		return nil, err
+	}
+	defer body.Close()
+	reader := multipart.NewReader(body, boundary)
 	form, err := reader.ReadForm(multipartMemoryLimit())
 	if err != nil {
 		return nil, err
@@ -386,6 +396,7 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 
 	// Reset request body
 	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+		_ = form.RemoveAll()
 		return nil, seekErr
 	}
 	c.Request.Body = io.NopCloser(storage)
@@ -423,25 +434,21 @@ func parseFormData(data []byte, v any) error {
 	return processFormMap(formMap, v)
 }
 
-func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
-	var contentType string
-	if saved, ok := c.Get("_original_multipart_ct"); ok {
-		contentType = saved.(string)
-	} else {
-		contentType = c.Request.Header.Get("Content-Type")
-		c.Set("_original_multipart_ct", contentType)
-	}
-	boundary, err := parseBoundary(contentType)
+func parseMultipartFormData(c *gin.Context, v any) error {
+	form, err := ParseMultipartFormReusable(c)
 	if err != nil {
 		if errors.Is(err, errBoundaryNotFound) {
-			return Unmarshal(data, v) // Fallback to JSON
+			storage, err := GetBodyStorage(c)
+			if err != nil {
+				return err
+			}
+			reader, err := storage.NewReader()
+			if err != nil {
+				return err
+			}
+			defer reader.Close()
+			return DecodeJsonBody(reader, v)
 		}
-		return err
-	}
-
-	reader := multipart.NewReader(bytes.NewReader(data), boundary)
-	form, err := reader.ReadForm(multipartMemoryLimit())
-	if err != nil {
 		return err
 	}
 	defer form.RemoveAll()

@@ -4,9 +4,10 @@ import (
 	"maps"
 	"net"
 	"net/url"
-	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/MoeForge/moego/regexp"
 )
 
 var (

@@ -261,6 +261,18 @@ func TestApplyParamOverrideRegexReplace(t *testing.T) {
 			path:  "messages.*.content", from: `^foo (\d)$`, to: "baz $1",
 			want: `{"messages":[{"content":"baz 1"},{"content":"baz 2"},{"content":"bar"}]}`,
 		},
+		{
+			name:  "unicode named captures and literal dollar",
+			input: `{"text":"用户: 张三; 用户: 李四"}`,
+			path:  "text", from: `用户: (?P<name>\p{Han}+)`, to: `${name} $$`,
+			want: `{"text":"张三 $; 李四 $"}`,
+		},
+		{
+			name:  "multiline anchors preserve empty lines",
+			input: `{"text":"first\n\nlast"}`,
+			path:  "text", from: `(?m)^`, to: "> ",
+			want: `{"text":"> first\n> \n> last"}`,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			operation["path"] = tt.path
@@ -2776,4 +2788,29 @@ func TestReasoningEffortOverrideIsAuditedWithoutDebugMode(t *testing.T) {
 	_, err := ApplyParamOverrideWithRelayInfo([]byte(`{"reasoning":{"effort":"high"}}`), info)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"set reasoning.effort = max"}, info.ParamOverrideAudit)
+}
+
+func TestApplyPluginParamOverrideReturnsOnlyItsHeaderChanges(t *testing.T) {
+	override := map[string]any{
+		"operations": []any{
+			map[string]any{"mode": "set_header", "path": "X-Added", "value": "new"},
+			map[string]any{"mode": "set_header", "path": "X-Changed", "value": "after"},
+			map[string]any{"mode": "delete_header", "path": "X-Removed"},
+			map[string]any{"path": "temperature", "mode": "set", "value": 0.5},
+		},
+	}
+	base := map[string]any{"X-Kept": "kept", "X-Changed": "before", "X-Removed": "gone"}
+
+	body, set, removed, err := ApplyPluginParamOverride([]byte(`{"model":"gpt"}`), override, map[string]any{"model": "gpt"}, base)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"model":"gpt","temperature":0.5}`, string(body))
+	assert.Equal(t, map[string]string{"x-added": "new", "x-changed": "after"}, set)
+	assert.Equal(t, []string{"x-removed"}, removed)
+	assert.Equal(t, map[string]any{"X-Kept": "kept", "X-Changed": "before", "X-Removed": "gone"}, base)
+
+	override = map[string]any{"operations": []any{map[string]any{"mode": "return_error", "value": map[string]any{"message": "no", "code": "Blocked"}}}}
+	_, _, _, err = ApplyPluginParamOverride([]byte(`{}`), override, map[string]any{}, nil)
+	returned, ok := AsParamOverrideReturnError(err)
+	require.True(t, ok)
+	assert.Equal(t, "Blocked", returned.Code)
 }

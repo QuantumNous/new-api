@@ -1,20 +1,27 @@
 package jsplugin
 
 import (
+	"bytes"
 	"context"
+	"crypto"
 	"crypto/hmac"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/Calcium-Ion/moejs"
 	"github.com/MoeForge/moego/base64"
+	"github.com/MoeForge/moejs"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -35,13 +42,70 @@ type volcSignRequest struct {
 // running on runtime, or nil outside one; utils.fetch reads its fetcher and
 // budget there, so no request data lives in the runtime's globals.
 func injectGlobals(runtime *moejs.Runtime, identity func() string, now func() time.Time, logOutput func(string), currentCall func() *runtimeCall) error {
-	utils := map[string]any{
+	r := runtime.Realm()
+	jsonTools, err := namespaceObject(r, map[string]moejs.Value{
+		"clone": runtime.Function("clone", 1, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+			if moejs.Arg(args, 0).IsUndefined() {
+				return moejs.Undefined(), r.TypeError("json.clone requires a JSON value")
+			}
+			budget := &jsonStateBudget{ctx: context.Background(), bytes: MaxJSONToolBytes, nodes: maxJSONToolNodes, realm: r}
+			value, err := newJSONStateNode(moejs.Arg(args, 0), 0, budget)
+			if err != nil {
+				var exception *moejs.Exception
+				var interrupted *moejs.InterruptedError
+				if errors.As(err, &exception) || errors.As(err, &interrupted) {
+					return moejs.Undefined(), err
+				}
+				return moejs.Undefined(), r.TypeError("json.clone: %s", err)
+			}
+			return value.jsValue(r)
+		}),
+	})
+	if err != nil {
+		return err
+	}
+	utils, err := namespaceObject(r, map[string]moejs.Value{
 		"fetch": runtime.Function("fetch", 1, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
 			call := currentCall()
 			if call == nil {
 				return moejs.Undefined(), fmt.Errorf("utils.fetch is not available outside hooks")
 			}
 			return call.fetch(r, moejs.Arg(args, 0))
+		}),
+		"paramOverride": runtime.Function("paramOverride", 2, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+			call := currentCall()
+			if call == nil {
+				return moejs.Undefined(), fmt.Errorf("utils.paramOverride is not available outside hooks")
+			}
+			return call.paramOverride(r, moejs.Arg(args, 0), moejs.Arg(args, 1))
+		}),
+		"attachments": runtime.Function("attachments", 0, func(r *moejs.Realm, _ moejs.Value, _ []moejs.Value) (moejs.Value, error) {
+			call := currentCall()
+			if call == nil {
+				return moejs.Undefined(), fmt.Errorf("utils.attachments is not available outside hooks")
+			}
+			return call.attachments(r)
+		}),
+		"media": runtime.Function("media", 1, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+			call := currentCall()
+			if call == nil {
+				return moejs.Undefined(), fmt.Errorf("utils.media is not available outside hooks")
+			}
+			return call.media(r, moejs.Arg(args, 0))
+		}),
+		"mediaText": runtime.Function("mediaText", 2, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+			call := currentCall()
+			if call == nil {
+				return moejs.Undefined(), fmt.Errorf("utils.mediaText is not available outside hooks")
+			}
+			return call.mediaText(r, moejs.Arg(args, 0), moejs.Arg(args, 1))
+		}),
+		"keywords": runtime.Function("keywords", 3, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+			call := currentCall()
+			if call == nil {
+				return moejs.Undefined(), fmt.Errorf("utils.keywords is not available outside hooks")
+			}
+			return call.keywords(r, moejs.Arg(args, 0), moejs.Arg(args, 1), moejs.Arg(args, 2))
 		}),
 		"hasCapability": runtime.Function("hasCapability", 1, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
 			name, err := stringValue(r, moejs.Arg(args, 0))
@@ -50,24 +114,7 @@ func injectGlobals(runtime *moejs.Runtime, identity func() string, now func() ti
 			}
 			return moejs.Bool(HasCapability(name)), nil
 		}),
-		"json": map[string]any{
-			"clone": runtime.Function("clone", 1, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
-				if moejs.Arg(args, 0).IsUndefined() {
-					return moejs.Undefined(), r.TypeError("json.clone requires a JSON value")
-				}
-				budget := &jsonStateBudget{ctx: context.Background(), bytes: MaxJSONToolBytes, nodes: maxJSONToolNodes, realm: r}
-				value, err := newJSONStateNode(moejs.Arg(args, 0), 0, budget)
-				if err != nil {
-					var exception *moejs.Exception
-					var interrupted *moejs.InterruptedError
-					if errors.As(err, &exception) || errors.As(err, &interrupted) {
-						return moejs.Undefined(), err
-					}
-					return moejs.Undefined(), r.TypeError("json.clone: %s", err)
-				}
-				return value.jsValue(r)
-			}),
-		},
+		"json": jsonTools,
 		"unixNow": runtime.Function("unixNow", 0, func(*moejs.Realm, moejs.Value, []moejs.Value) (moejs.Value, error) {
 			return moejs.Int(now().Unix()), nil
 		}),
@@ -93,18 +140,76 @@ func injectGlobals(runtime *moejs.Runtime, identity func() string, now func() ti
 			}
 			return moejs.String(token), nil
 		}),
+		"sha256": runtime.Function("sha256", 1, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+			data, err := signingInput(r, "sha256", moejs.Arg(args, 0))
+			if err != nil {
+				return moejs.Undefined(), err
+			}
+			encoding, err := digestEncoding(r, "sha256", moejs.Arg(args, 1), "hex")
+			if err != nil {
+				return moejs.Undefined(), err
+			}
+			digest := sha256.Sum256(data)
+			return encodeDigest(r, digest[:], encoding)
+		}),
 		"hmacSHA256": runtime.Function("hmacSHA256", 2, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
-			message, err := stringValue(r, moejs.Arg(args, 0))
+			message, err := signingInput(r, "hmacSHA256", moejs.Arg(args, 0))
 			if err != nil {
 				return moejs.Undefined(), err
 			}
-			secret, err := stringValue(r, moejs.Arg(args, 1))
+			key, err := signingInput(r, "hmacSHA256", moejs.Arg(args, 1))
 			if err != nil {
 				return moejs.Undefined(), err
 			}
-			mac := hmac.New(sha256.New, []byte(secret))
-			_, _ = mac.Write([]byte(message))
-			return moejs.String(hex.EncodeToString(mac.Sum(nil))), nil
+			encoding, err := digestEncoding(r, "hmacSHA256", moejs.Arg(args, 2), "hex")
+			if err != nil {
+				return moejs.Undefined(), err
+			}
+			mac := hmac.New(sha256.New, key)
+			_, _ = mac.Write(message)
+			return encodeDigest(r, mac.Sum(nil), encoding)
+		}),
+		"signRS256": runtime.Function("signRS256", 2, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
+			// Error messages are fixed text: they never quote the key or
+			// wrap a parser error that could describe its contents.
+			data, err := signingInput(r, "signRS256", moejs.Arg(args, 0))
+			if err != nil {
+				return moejs.Undefined(), err
+			}
+			keyPEM, err := stringValue(r, moejs.Arg(args, 1))
+			if err != nil {
+				return moejs.Undefined(), err
+			}
+			encoding, err := digestEncoding(r, "signRS256", moejs.Arg(args, 2), "base64url")
+			if err != nil {
+				return moejs.Undefined(), err
+			}
+			if len(keyPEM) > maxPrivateKeyPEMBytes {
+				return moejs.Undefined(), r.RangeError("utils.signRS256 private key PEM exceeds 16 KiB")
+			}
+			block, _ := pem.Decode([]byte(keyPEM))
+			if block == nil {
+				return moejs.Undefined(), r.TypeError("utils.signRS256 private key is not PEM text")
+			}
+			var key *rsa.PrivateKey
+			switch block.Type {
+			case "PRIVATE KEY":
+				parsed, _ := x509.ParsePKCS8PrivateKey(block.Bytes)
+				key, _ = parsed.(*rsa.PrivateKey)
+			case "RSA PRIVATE KEY":
+				key, _ = x509.ParsePKCS1PrivateKey(block.Bytes)
+			default:
+				return moejs.Undefined(), r.TypeError("utils.signRS256 requires a PRIVATE KEY or RSA PRIVATE KEY PEM block")
+			}
+			if key == nil {
+				return moejs.Undefined(), r.TypeError("utils.signRS256 private key is not a valid RSA private key")
+			}
+			hashed := sha256.Sum256(data)
+			signature, err := rsa.SignPKCS1v15(nil, key, crypto.SHA256, hashed[:])
+			if err != nil {
+				return moejs.Undefined(), r.TypeError("utils.signRS256 cannot sign with this RSA private key")
+			}
+			return encodeDigest(r, signature, encoding)
 		}),
 		"base64": runtime.Function("base64", 1, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
 			value, err := stringValue(r, moejs.Arg(args, 0))
@@ -201,11 +306,14 @@ func injectGlobals(runtime *moejs.Runtime, identity func() string, now func() ti
 			}
 			return r.FromGo(signed)
 		}),
-	}
-	if err := runtime.SetGlobal("utils", utils); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	return runtime.SetGlobal("console", map[string]any{
+	if err = runtime.SetGlobal("utils", utils); err != nil {
+		return err
+	}
+	console, err := namespaceObject(r, map[string]moejs.Value{
 		"log": runtime.Function("log", 0, func(r *moejs.Realm, _ moejs.Value, args []moejs.Value) (moejs.Value, error) {
 			parts := make([]string, len(args))
 			for i, argument := range args {
@@ -225,6 +333,24 @@ func injectGlobals(runtime *moejs.Runtime, identity func() string, now func() ti
 			return moejs.Undefined(), nil
 		}),
 	})
+	if err != nil {
+		return err
+	}
+	return runtime.SetGlobal("console", console)
+}
+
+// namespaceObject builds a global namespace of host functions as a JavaScript
+// object, members in name order. A Go map would be converted only when a hook
+// first reads it, as part of that call's conversions, and the namespace would
+// then keep that call's request data alive for the runtime's lifetime.
+func namespaceObject(r *moejs.Realm, members map[string]moejs.Value) (moejs.Value, error) {
+	object := r.NewObject()
+	for _, name := range slices.Sorted(maps.Keys(members)) {
+		if err := object.CreateDataPropertyOrThrow(r, r.KeyFromGoString(name), members[name]); err != nil {
+			return moejs.Undefined(), err
+		}
+	}
+	return r.FromGo(object)
 }
 
 // stringValue reads a host function's string parameter: undefined and null
@@ -241,6 +367,69 @@ func stringValue(r *moejs.Realm, value moejs.Value) (string, error) {
 		return "", err
 	}
 	return text.GoString(), nil
+}
+
+// The signing utilities run to completion in Go, so they bound their own
+// inputs: each data, message or key argument and the private key PEM.
+const (
+	maxSigningInputBytes  = 64 << 20
+	maxPrivateKeyPEMBytes = 16 << 10
+)
+
+// signingInput reads a signing utility's byte parameter: an ArrayBuffer,
+// SharedArrayBuffer, typed array or DataView as a copy of the bytes it holds
+// or views, any other value as the UTF-8 bytes of stringValue. The copy keeps
+// the bytes as they were when read, whatever later argument conversions do to
+// the buffer.
+func signingInput(r *moejs.Realm, function string, value moejs.Value) ([]byte, error) {
+	if value.IsObject() {
+		if data, ok := value.AsObject().BufferData(); ok {
+			if len(data) > maxSigningInputBytes {
+				return nil, r.RangeError("utils.%s input exceeds 64 MiB", function)
+			}
+			return bytes.Clone(data), nil
+		}
+	}
+	text, err := stringValue(r, value)
+	if err != nil {
+		return nil, err
+	}
+	if len(text) > maxSigningInputBytes {
+		return nil, r.RangeError("utils.%s input exceeds 64 MiB", function)
+	}
+	return []byte(text), nil
+}
+
+// digestEncoding reads a signing utility's output encoding: undefined is
+// fallback, anything else must name hex, base64, base64url or bytes.
+func digestEncoding(r *moejs.Realm, function string, value moejs.Value, fallback string) (string, error) {
+	if value.IsUndefined() {
+		return fallback, nil
+	}
+	name, err := stringValue(r, value)
+	if err != nil {
+		return "", err
+	}
+	switch name {
+	case "hex", "base64", "base64url", "bytes":
+		return name, nil
+	}
+	return "", r.TypeError("utils.%s encoding must be hex, base64, base64url or bytes", function)
+}
+
+// encodeDigest returns digest in an encoding digestEncoding accepted:
+// lowercase hex, padded base64, unpadded base64url, or an ArrayBuffer for
+// bytes.
+func encodeDigest(r *moejs.Realm, digest []byte, encoding string) (moejs.Value, error) {
+	switch encoding {
+	case "base64":
+		return moejs.String(base64.StdEncoding.EncodeToString(digest)), nil
+	case "base64url":
+		return moejs.String(base64.RawURLEncoding.EncodeToString(digest)), nil
+	case "bytes":
+		return r.FromGo(digest)
+	}
+	return moejs.String(hex.EncodeToString(digest)), nil
 }
 
 func signVolcV4(request volcSignRequest, now func() time.Time) (map[string]string, error) {

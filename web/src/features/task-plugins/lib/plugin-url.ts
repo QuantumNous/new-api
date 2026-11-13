@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { fetchFromPluginSite } from './plugin-site'
+
 /**
  * Backend limit for a single plugin source (`maxTaskPluginSourceBytes` in
  * controller/task_plugin.go). Enforced client-side too so an oversized fetch
@@ -96,7 +98,7 @@ export class PluginSourceFetchError extends Error {
  */
 export async function fetchPluginSourceText(
   url: string,
-  fetchImpl: typeof fetch = globalThis.fetch
+  fetchImpl: typeof fetch = fetchFromPluginSite
 ): Promise<string> {
   let response: Response
   try {

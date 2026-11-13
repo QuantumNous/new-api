@@ -21,6 +21,7 @@ For commercial licensing, please contact support@quantumnous.com
  */
 import type { RequestRuleTrace } from '@/features/pricing/lib/billing-expr'
 import type { PolicyEvent } from '@/features/system-settings/request-policies/api'
+import type { LocalizedTextValue } from '@/lib/localized-text'
 
 import type { UsageLog } from './data/schema'
 // ============================================================================
@@ -114,9 +115,94 @@ export interface ToolSurchargeItem {
   price: number
 }
 
+/** One change a request processing plugin made, as the log owner sees it. */
+export type RequestPluginRecordChange = {
+  op: string
+  path: string
+  /** Set for move and copy: where the value came from. */
+  from?: string
+  /** The new value, when it is safe to show. */
+  value?: unknown
+  /** Otherwise the kind of value and its length. */
+  type?: string
+  length?: number
+  /** The channel's own settings ran later and replaced this change. */
+  overridden?: boolean
+}
+
+/**
+ * What a plugin did with one attachment of the request. The record never
+ * holds the file's name or content.
+ */
+export type RequestPluginRecordAttachment = {
+  kind: string
+  mime: string
+  /** checked, truncated (only the first part was read) or unchecked. */
+  status: string
+  /** Why an unchecked attachment was left out, when known. */
+  reason?: string
+  /** The plugin replaced the attachment's text. */
+  rewritten?: boolean
+}
+
+/** What one request processing plugin did to a request, public on the log. */
+export type RequestPluginRecordEntry = {
+  plugin: string
+  name?: LocalizedTextValue
+  stage: string
+  changes?: RequestPluginRecordChange[]
+  more_changes?: number
+  headers?: {
+    set?: string[]
+    remove?: string[]
+    /** Header names the channel's own settings replaced afterwards. */
+    overridden?: string[]
+  }
+  reasoning_effort?: string
+  media?: {
+    index: number
+    from: { mime: string; bytes: number }
+    to: { mime: string; bytes: number }
+    lossless?: boolean
+  }[]
+  findings?: { category: string; count: number }[]
+  notice?: LocalizedTextValue
+  rejected?: { code: string }
+  /** How many parts of the answer a reply check masked. */
+  masked?: number
+  /** The plugin could not read the request body or the answer, so it did not run. */
+  unchecked?: boolean
+  /** With unchecked: the audio input of a Realtime session went unchecked. */
+  audio?: boolean
+  /** The attachments the plugin looked at, in request order. */
+  attachments?: RequestPluginRecordAttachment[]
+  more_attachments?: number
+}
+
+/** The record ends with a count of the entries left out, when it was cut. */
+export type RequestPluginRecordItem =
+  | RequestPluginRecordEntry
+  | { truncated: number }
+
+/** One request processing run as administrators see it. */
+export type RequestPluginAdminStep = {
+  instance: string
+  name?: string
+  plugin: string
+  version?: string
+  stage: string
+  action?: string
+  duration_ms?: number
+  error?: string
+  error_class?: string
+  rule?: string
+  findings?: { rule: string; category?: string; count: number }[]
+}
+
 export interface LogOtherData {
   admin_info?: {
     request_policy?: PolicyEvent[]
+    request_plugins?: RequestPluginAdminStep[]
     is_multi_key?: boolean
     multi_key_index?: number
     use_channel?: number[]
@@ -246,6 +332,7 @@ export interface LogOtherData {
   image_generation_call_count?: number
   is_system_prompt_overwritten?: boolean
   po?: string[]
+  request_plugins?: RequestPluginRecordItem[]
   billing_source?: string
   group?: string
   stream_status?: {

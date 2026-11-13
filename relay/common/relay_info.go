@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/requestpatch"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
@@ -163,6 +164,18 @@ type RelayInfo struct {
 	RuntimeHeadersOverride                map[string]any
 	UseRuntimeHeadersOverride             bool
 	ParamOverrideAudit                    []string
+	// RequestPluginSteps is the audit of the request plugin runs, every
+	// stage and attempt in order.
+	RequestPluginSteps []RequestPluginStep
+	// RequestPluginHeaders are the header.patch effects of the current
+	// attempt's outbound stage; ApplyHeaderOverride applies them last.
+	RequestPluginHeaders []requestpatch.Effect
+	// RequestPluginRecord is the public record of the request plugin changes:
+	// the request's ingress, then the current attempt's stages.
+	RequestPluginRecord []RequestPluginRecord
+	// requestPluginIngressRecord counts the ingress entries of
+	// RequestPluginRecord, which every attempt keeps.
+	requestPluginIngressRecord int
 
 	PriceData hosttypes.PriceData
 
@@ -275,10 +288,17 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	info.SendResponseCount = 0
 	info.ClaudeToChatStreamState = nil
 	info.ChatToGeminiStreamState = nil
+	info.RequestPluginHeaders = nil
+	info.RequestPluginRecord = info.RequestPluginRecord[:min(info.requestPluginIngressRecord, len(info.RequestPluginRecord))]
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 	headerOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelHeaderOverride)
 	apiType, _ := common.ChannelType2APIType(channelType)
+	pinnedProvider, _ := common.GetContextKey(c, constant.ContextKeyProviderPlugin)
+	providerPlugin := pinnedProvider != nil && channelType == constant.ChannelTypeTaskPlugin
+	if providerPlugin {
+		apiType = constant.APITypeProviderPlugin
+	}
 	channelMeta := &ChannelMeta{
 		ChannelType:          channelType,
 		ChannelId:            common.GetContextKeyInt(c, constant.ContextKeyChannelId),
@@ -314,7 +334,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		channelMeta.ChannelOtherSettings = channelOtherSettings
 	}
 
-	if channelType == constant.ChannelTypeAdvancedCustom &&
+	if (channelType == constant.ChannelTypeAdvancedCustom || providerPlugin) &&
 		!channelMeta.ChannelSetting.PassThroughBodyEnabled &&
 		c.Request != nil && c.Request.URL != nil {
 		route, matched := channelMeta.ChannelOtherSettings.AdvancedCustom.MatchPathForModel(c.Request.URL.Path, info.OriginModelName)
@@ -323,7 +343,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		}
 	}
 
-	if streamSupportedChannels[channelMeta.ChannelType] {
+	if streamSupportedChannels[channelMeta.ChannelType] || providerPlugin {
 		channelMeta.SupportStreamOptions = true
 	}
 

@@ -57,6 +57,8 @@ export type BillingPluginVariant = {
 
 export type PricingModel = {
   billing_plugin_variants?: BillingPluginVariant[]
+  // Requests outside the plugin variants still pay the model-level price.
+  ordinary_pricing?: boolean
   id: number
   model_name: string
   description?: string

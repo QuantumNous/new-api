@@ -58,6 +58,9 @@ export type ModelPricingPluginVariant = {
   configured: string
   effective: string
   compatible: boolean
+  // The plugin also relays the model: a model-level price prices its tasks
+  // only per call or with u().
+  relay?: boolean
   stale?: boolean
 }
 
