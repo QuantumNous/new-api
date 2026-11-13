@@ -1103,6 +1103,55 @@ test('a failed creation keeps its draft and prevents duplicate submission while 
   expect(screen.getByLabelText('Name *')).toHaveValue('Video A')
 })
 
+test.each(['create', 'edit'] as const)(
+  'VolcEngine %s exposes upstream discovery and lets users select fetched models',
+  async (mode) => {
+    editingChannel.type = 45
+    const post = vi.spyOn(api, 'post').mockResolvedValue({
+      data: { success: true, data: ['upstream-model'] },
+    })
+    const user = userEvent.setup()
+    render(
+      <ConfigurationHarness
+        currentRow={mode === 'edit' ? editingChannel : undefined}
+      />
+    )
+    if (mode === 'create') {
+      await user.click(screen.getByRole('option', { name: /^VolcEngine / }))
+      fireEvent.change(screen.getByLabelText('API Key *'), {
+        target: { value: 'test-key' },
+      })
+    } else {
+      await screen.findByDisplayValue('Existing channel')
+    }
+
+    const fetch = screen.getByRole('button', { name: 'Fetch from Upstream' })
+    expect(fetch).toBeEnabled()
+    await user.click(fetch)
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'upstream-model' })
+    )
+    expect(screen.getByRole('button', { name: 'upstream-model' })).toBeVisible()
+    if (mode === 'create') {
+      expect(post).toHaveBeenCalledWith(
+        '/api/channel/fetch_models',
+        expect.objectContaining({
+          type: 45,
+          key: 'test-key',
+          base_url: 'https://ark.cn-beijing.volces.com',
+        }),
+        expect.anything()
+      )
+    } else {
+      expect(api.get).toHaveBeenCalledWith(
+        '/api/channel/fetch_models/42',
+        expect.anything()
+      )
+      expect(post).not.toHaveBeenCalled()
+    }
+  }
+)
+
 test('model discovery discards a response for old credentials and retains manually selected models', async () => {
   const oldReply = deferredResponse<{
     data: { success: boolean; data: string[] }
