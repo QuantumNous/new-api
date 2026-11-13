@@ -7750,6 +7750,14 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "By clicking sign in, you agree to our": "By clicking sign in, you agree to our",
-    "By creating an account, you agree to our": "By creating an account, you agree to our"
+    "By creating an account, you agree to our": "By creating an account, you agree to our",
+    "Usage metric": "Usage metric",
+    "User Usage Ranking": "User Usage Ranking",
+    "User Usage Trend": "User Usage Trend",
+    "User Analytics Filters": "User Analytics Filters",
+    "Filter user rankings and trends by time range.": "Filter user rankings and trends by time range.",
+    "Search display names or usernames": "Search display names or usernames",
+    "All users when empty. Options include users with usage in this time range.": "All users when empty. Options include users with usage in this time range.",
+    "Choose both dates, with the end at or after the start.": "Choose both dates, with the end at or after the start."
   }
 }

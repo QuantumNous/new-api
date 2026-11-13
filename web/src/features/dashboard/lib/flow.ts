@@ -173,9 +173,15 @@ function metricValue(metrics: FlowMetrics, metric: FlowMetric): number {
 
 function userNode(row: FlowQuotaDataItem): FlowPathNode {
   const userID = numberValue(row.user_id)
+  const username =
+    row.username || (userID > 0 ? `user-${userID}` : 'Unknown User')
+  const displayName = row.display_name?.trim()
   return {
     id: userID > 0 ? `user:${userID}` : `user:${row.username || 'unknown'}`,
-    label: row.username || (userID > 0 ? `user-${userID}` : 'Unknown User'),
+    label:
+      displayName && displayName !== username
+        ? `${displayName} (${username})`
+        : username,
     kind: 'user',
   }
 }
