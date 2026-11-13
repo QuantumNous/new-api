@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,6 +48,67 @@ func TestEstimateUsesFamilyWeights(t *testing.T) {
 	assert.Equal(t, EstimateFamily(FamilyUnknown, text), Estimate("deepseek-v4", text))
 	assert.Equal(t, EstimateFamily(FamilyUnknown, text), EstimateFamily("other", text))
 	assert.Zero(t, Estimate("claude-sonnet-5", ""))
+}
+
+func TestClassifiersMatchPreviousImplementations(t *testing.T) {
+	// Keep the pre-optimization definitions as the compatibility reference.
+	for r := rune(0); r <= utf8.MaxRune; r++ {
+		if !utf8.ValidRune(r) {
+			continue
+		}
+		wantMath := strings.ContainsRune("∑∫∂√∞≤≥≠≈±×÷∈∉∋∌⊂⊃⊆⊇∪∩∧∨¬∀∃∄∅∆∇∝∟∠∡∢°′″‴⁺⁻⁼⁽⁾ⁿ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎²³¹⁴⁵⁶⁷⁸⁹⁰", r) ||
+			(r >= 0x2200 && r <= 0x22FF) ||
+			(r >= 0x2A00 && r <= 0x2AFF) ||
+			(r >= 0x1D400 && r <= 0x1D7FF)
+		require.Equal(t, wantMath, isMathSymbol(r), "isMathSymbol(%U)", r)
+		require.Equal(t, strings.ContainsRune("/:?&=;#%", r), isURLDelim(r), "isURLDelim(%U)", r)
+	}
+}
+
+func TestEstimateSymbolWeights(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		text string
+		want int
+	}{
+		{"math operators", "∑∫∂√∞≤≥≠≈", 25},
+		{"math range endpoints", "∀⋿⨀⫿", 11},
+		{"Latin math symbols", "±×÷°", 11},
+		{"primes", "′″‴", 9},
+		{"superscript operators", "⁺⁻⁼⁽⁾", 14},
+		{"subscript operators", "₊₋₌₍₎", 14},
+		{"URL delimiters", "/:?&=;#%", 8},
+		{"ordinary punctuation", "¡§¶¿", 2},
+		// Letters and numbers take precedence over math symbol membership.
+		{"superscript letter", "ⁿ", 2},
+		{"superscript and subscript numbers", "²³¹⁴⁵⁶⁷⁸⁹⁰₀₁₂₃₄₅₆₇₈₉", 2},
+		{"mathematical letter", "𝐀", 2},
+		{"mathematical number", "𝟎", 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, EstimateFamily(FamilyUnknown, tc.text))
+		})
+	}
+}
+
+func BenchmarkEstimateFamily(b *testing.B) {
+	for _, tc := range []struct {
+		name string
+		text string
+	}{
+		{"code", "func main() {\n\tfmt.Println(\"统计 token\", 42)\n}\n"},
+		{"URL", "https://example.com/a?b=1&c=2#section;value=50%"},
+		{"math", "∑∫∂√∞≤≥≠≈±×÷∈∉⊂⊃∪∩∀∃°′″⁺⁻₊₋"},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			text := strings.Repeat(tc.text, 64)
+			b.SetBytes(int64(len(text)))
+			b.ReportAllocs()
+			for b.Loop() {
+				EstimateFamily(FamilyClaude47, text)
+			}
+		})
+	}
 }
 
 func TestCountUsesTiktokenForOpenAIModels(t *testing.T) {
