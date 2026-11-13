@@ -112,6 +112,12 @@ func (w *streamResponseWriter) WriteString(s string) (int, error) {
 	return w.ResponseWriter.WriteString(s)
 }
 
+// WriteHeartbeat applies the stream deadline while preserving heartbeat semantics.
+func (w *streamResponseWriter) WriteHeartbeat(data []byte) error {
+	_ = http.NewResponseController(w.ResponseWriter).SetWriteDeadline(w.budget.Deadline(time.Now(), len(data)))
+	return writeHeartbeat(w.ResponseWriter, data)
+}
+
 // Unwrap lets http.ResponseController reach the connection.
 func (w *streamResponseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter

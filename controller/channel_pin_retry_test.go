@@ -19,11 +19,13 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"time"
 )
 
 func TestShouldRetryHonorsPinRetryMode(t *testing.T) {
@@ -237,6 +239,8 @@ func TestChannelAffinityRetryPriorities(t *testing.T) {
 	}
 }
 
+// TestRequestPolicyRoutingDatabaseMatrix checks strict rejection, fallback and
+// empty-response binding across cache modes and configured database dialects.
 func TestRequestPolicyRoutingDatabaseMatrix(t *testing.T) {
 	require.NoError(t, i18n.Init())
 	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {
@@ -323,6 +327,9 @@ func TestRequestPolicyRoutingDatabaseMatrix(t *testing.T) {
 							}
 							assert.False(t, request.IsAborted())
 							assert.Equal(t, 2, common.GetContextKeyInt(request, constant.ContextKeyChannelId), "prefer falls back to the next eligible channel")
+							// With no downstream handler, middleware must finalize the empty
+							// success through the wrapper before Gin writes its own headers.
+							assert.True(t, request.Writer.Written())
 							require.True(t, found)
 							assert.Equal(t, 2, bound, "a successful fallback rebinds the session")
 						})
@@ -330,5 +337,64 @@ func TestRequestPolicyRoutingDatabaseMatrix(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestAffinityRetryHeartbeats preserves the previous binding through pending and
+// failed retries, while successful data and empty responses bind the new channel.
+func TestAffinityRetryHeartbeats(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	t.Cleanup(func() { *setting = previous })
+	for _, switchOnSuccess := range []bool{false, true} {
+		for _, outcome := range []string{"data", "empty", "error"} {
+			t.Run(fmt.Sprintf("switch=%t/%s", switchOnSuccess, outcome), func(t *testing.T) {
+				*setting = operation_setting.ChannelAffinitySetting{Enabled: true, SwitchOnSuccess: switchOnSuccess, DefaultTTLSeconds: 60, Rules: []operation_setting.ChannelAffinityRule{{Name: "heartbeat", ModelRegex: []string{".*"}, KeySources: []operation_setting.ChannelAffinityKeySource{{Type: "request_header", Key: "X-Session"}}}}}
+				seed := newPinRetryContext()
+				seed.Request.Header.Set("X-Session", t.Name())
+				_, found := service.GetPreferredChannelByAffinity(seed, "test-model", "default")
+				require.False(t, found)
+				seed.Set("channel_id", 11)
+				service.RecordChannelAffinity(seed, 11)
+				t.Cleanup(func() { service.ClearCurrentChannelAffinityCache(seed) })
+				recorder := httptest.NewRecorder()
+				router := gin.New()
+				router.GET("/", func(c *gin.Context) {
+					c.Request.Header.Set("X-Session", t.Name())
+					_, found := service.GetPreferredChannelByAffinity(c, "test-model", "default")
+					require.True(t, found)
+					c.Set("channel_id", 11)
+					service.BindChannelAffinityResponse(c, 11)
+					// Exercise both the deadline wrapper and the stopped request keepalive
+					// wrapper used by the stream scanner, without waiting for a timer.
+					stop := helper.StartStreamKeepAlive(c, time.Hour)
+					stop()
+					require.NoError(t, helper.PingData(c))
+					c.Set("channel_id", 22)
+					require.NoError(t, helper.PingData(c))
+					bound, found := service.GetPreferredChannelByAffinity(seed, "test-model", "default")
+					require.True(t, found)
+					assert.Equal(t, 11, bound, "pending retry heartbeats must preserve the existing binding")
+					switch outcome {
+					case "data":
+						_, err := c.Writer.WriteString("data: successful retry\n\n")
+						require.NoError(t, err)
+					case "empty":
+						require.NoError(t, service.FinalizeChannelAffinityResponse(c))
+					case "error":
+						writeRelayStreamError(c, types.RelayFormatClaude, types.NewErrorWithStatusCode(errors.New("retry failed"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway))
+					}
+				})
+				router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+				bound, found := service.GetPreferredChannelByAffinity(seed, "test-model", "default")
+				require.True(t, found)
+				expected := 11
+				if switchOnSuccess && outcome != "error" {
+					expected = 22
+				}
+				assert.Equal(t, expected, bound)
+				assert.Contains(t, recorder.Body.String(), ": PING\n\n")
+			})
+		}
 	}
 }

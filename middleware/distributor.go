@@ -31,6 +31,8 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+// Distribute selects an eligible channel and commits empty responses through
+// the affinity writer before Gin bypasses wrappers to finalize its response.
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
@@ -132,9 +134,12 @@ func Distribute() func(c *gin.Context) {
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if channel != nil {
+			service.BindChannelAffinityResponse(c, channel.Id)
+		}
 		c.Next()
-		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
-			service.RecordChannelAffinity(c, channel.Id)
+		if !c.Writer.Written() {
+			c.Writer.WriteHeaderNow()
 		}
 	}
 }

@@ -306,6 +306,28 @@ type ChannelSelectError struct {
 // filters. The group the channel was chosen from is returned for auto-group
 // callers. The caller still applies SetupContextForSelectedChannel.
 func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam) (*model.Channel, string, *ChannelSelectError) {
+	for range 2 {
+		channel, group, err := selectChannelForRequest(c, modelName, retry)
+		if err != nil || channel == nil || retry.GetRetry() != 0 {
+			return channel, group, err
+		}
+		winner, reserveErr := reserveChannelAffinity(c, channel.Id)
+		if reserveErr != nil {
+			logger.LogWarn(c, common.LogText("channel affinity reservation failed: err=%v", reserveErr))
+			break
+		}
+		if winner == channel.Id {
+			return channel, group, nil
+		}
+		// Re-enter the normal affinity path to validate the winner against this
+		// request's group, model and filters before dispatching anything upstream.
+	}
+	return nil, "", &ChannelSelectError{StatusCode: http.StatusServiceUnavailable, Message: "session_binding_unavailable"}
+}
+
+// selectChannelForRequest applies pin, affinity and eligibility rules without
+// reserving a cache miss; the caller arbitrates concurrent first requests.
+func selectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam) (*model.Channel, string, *ChannelSelectError) {
 	constraints := GetChannelConstraints(c)
 	if pin, found, overridden := constraints.ResolvedPin(); found {
 		for _, lost := range overridden {
@@ -363,7 +385,15 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 				}
 			}
 			if !affinityUsable && !ShouldKeepChannelAffinityOnChannelDisabled() {
-				ClearCurrentChannelAffinityCache(c)
+				// Delete only the invalid value we observed. A concurrent
+				// request may already have replaced it with a valid binding.
+				key, _, _ := getChannelAffinityContext(c)
+				_, clearErr := getChannelAffinityCache().CompareAndDelete(key, preferredChannelID)
+				c.Set(ginKeyChannelAffinityMissing, true)
+				if clearErr == nil {
+					c.Set(ginKeyChannelAffinitySkipRetry, false)
+				}
+
 			}
 			if !affinityUsable && RequestPolicy(c).SessionMode == "strict" {
 				return nil, "", &ChannelSelectError{StatusCode: http.StatusServiceUnavailable, Message: "strict_session_binding_unavailable"}

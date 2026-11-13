@@ -3,6 +3,7 @@ package cachex
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -37,9 +38,10 @@ type HybridCache[V any] struct {
 	redisCodec   ValueCodec[V]
 	redisEnabled func() bool
 
-	memOnce sync.Once
-	memInit func() *hot.HotCache[string, V]
-	mem     *hot.HotCache[string, V]
+	memMutation sync.Mutex
+	memOnce     sync.Once
+	memInit     func() *hot.HotCache[string, V]
+	mem         *hot.HotCache[string, V]
 }
 
 func NewHybridCache[V any](cfg HybridCacheConfig[V]) *HybridCache[V] {
@@ -108,6 +110,8 @@ func (c *HybridCache[V]) Get(key string) (value V, found bool, err error) {
 	return c.memCache().Get(full)
 }
 
+// SetWithTTL replaces a value and its lifetime in the active backend. Memory
+// writes share the mutation lock with conditional updates to preserve atomicity.
 func (c *HybridCache[V]) SetWithTTL(key string, v V, ttl time.Duration) error {
 	full := c.ns.FullKey(key)
 	if full == "" {
@@ -124,8 +128,97 @@ func (c *HybridCache[V]) SetWithTTL(key string, v V, ttl time.Duration) error {
 		return c.redis.Set(ctx, full, raw, ttl).Err()
 	}
 
+	c.memMutation.Lock()
+	defer c.memMutation.Unlock()
 	c.memCache().SetWithTTL(full, v, ttl)
 	return nil
+}
+
+// GetOrSetWithTTL atomically returns an existing value or stores the candidate.
+// Existing values keep their TTL. Redis executes the operation on the server,
+// so competing gateway instances observe the same winner.
+func (c *HybridCache[V]) GetOrSetWithTTL(key string, candidate V, ttl time.Duration) (V, error) {
+	full := c.ns.FullKey(key)
+	if c.redisOn() {
+		raw, err := c.redisCodec.Encode(candidate)
+		if err != nil {
+			return candidate, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), defaultRedisOpTimeout)
+		defer cancel()
+		value, err := c.redis.Eval(ctx, `
+local value = redis.call('GET', KEYS[1])
+if value then return value end
+redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
+return ARGV[1]`, []string{full}, raw, max(ttl.Milliseconds(), 1)).Text()
+		if err != nil {
+			return candidate, err
+		}
+		return c.redisCodec.Decode(value)
+	}
+	c.memMutation.Lock()
+	defer c.memMutation.Unlock()
+	value, found, err := c.memCache().Get(full)
+	if err != nil || found {
+		return value, err
+	}
+	c.memCache().SetWithTTL(full, candidate, ttl)
+	return candidate, nil
+}
+
+// RefreshOrSetWithTTL renews the same value or recreates an expired entry.
+// A different value is left untouched, including its expiration.
+func (c *HybridCache[V]) RefreshOrSetWithTTL(key string, expected V, ttl time.Duration) (bool, error) {
+	full := c.ns.FullKey(key)
+	if c.redisOn() {
+		raw, err := c.redisCodec.Encode(expected)
+		if err != nil {
+			return false, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), defaultRedisOpTimeout)
+		defer cancel()
+		refreshed, err := c.redis.Eval(ctx, `
+local value = redis.call('GET', KEYS[1])
+if value and value ~= ARGV[1] then return 0 end
+redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
+return 1`, []string{full}, raw, max(ttl.Milliseconds(), 1)).Int()
+		return refreshed != 0, err
+	}
+	c.memMutation.Lock()
+	defer c.memMutation.Unlock()
+	value, found, err := c.memCache().Get(full)
+	if err != nil || (found && !reflect.DeepEqual(value, expected)) {
+		return false, err
+	}
+	c.memCache().SetWithTTL(full, expected, ttl)
+	return true, nil
+}
+
+// CompareAndDelete removes only the observed value, preserving a binding that
+// another request replaced while the caller was validating the old value.
+func (c *HybridCache[V]) CompareAndDelete(key string, expected V) (bool, error) {
+	full := c.ns.FullKey(key)
+	if c.redisOn() {
+		raw, err := c.redisCodec.Encode(expected)
+		if err != nil {
+			return false, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), defaultRedisOpTimeout)
+		defer cancel()
+		deleted, err := c.redis.Eval(ctx, `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+ return redis.call('DEL', KEYS[1])
+end
+return 0`, []string{full}, raw).Int()
+		return deleted != 0, err
+	}
+	c.memMutation.Lock()
+	defer c.memMutation.Unlock()
+	value, found, err := c.memCache().Get(full)
+	if err != nil || !found || !reflect.DeepEqual(value, expected) {
+		return false, err
+	}
+	return c.memCache().DeleteMany([]string{full})[full], nil
 }
 
 // Keys returns keys with valid values. In Redis, it returns all matching keys.
@@ -156,6 +249,8 @@ func (c *HybridCache[V]) scanKeys(match string) ([]string, error) {
 	return keys, nil
 }
 
+// Purge removes entries in this cache's namespace from the active backend.
+// Redis scans and deletes in batches; it is not an atomic namespace reset.
 func (c *HybridCache[V]) Purge() error {
 	if c.redisOn() {
 		keys, err := c.scanKeys(c.ns.MatchPattern())
@@ -169,6 +264,8 @@ func (c *HybridCache[V]) Purge() error {
 		return err
 	}
 
+	c.memMutation.Lock()
+	defer c.memMutation.Unlock()
 	c.memCache().Purge()
 	return nil
 }
@@ -267,6 +364,8 @@ func (c *HybridCache[V]) DeleteMany(keys []string) (map[string]bool, error) {
 		return res, nil
 	}
 
+	c.memMutation.Lock()
+	defer c.memMutation.Unlock()
 	return c.memCache().DeleteMany(fullKeys), nil
 }
 
