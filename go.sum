@@ -674,8 +674,8 @@ github.com/Microsoft/hcsshim v0.9.6/go.mod h1:7pLA8lDk46WKDWlVsENo92gC0XFa8rbKfy
 github.com/Microsoft/hcsshim v0.11.0/go.mod h1:OEthFdQv/AD2RAdzR6Mm1N1KPCztGKDurW1Z8b8VGMM=
 github.com/Microsoft/hcsshim/test v0.0.0-20201218223536-d3e5debf77da/go.mod h1:5hlzMzRKMLyo42nCZ9oml8AdTlq/0cvIaBv6tK1RehU=
 github.com/Microsoft/hcsshim/test v0.0.0-20210227013316-43a75bb4edd3/go.mod h1:mw7qgWloBUl75W/gVH3cQszUg1+gUITj7D6NY7ywVnY=
-github.com/MoeForge/moego v0.1.0-alpha.2 h1:QyunozMQtrtdviRHdpaXAv2sSfr1ckauK5OJ6CRj2rE=
-github.com/MoeForge/moego v0.1.0-alpha.2/go.mod h1:SBNiQjCpWC3IEBMKFBOwOyhhQ3jywMrISqCwJTdr4aA=
+github.com/MoeForge/moego v0.1.0-alpha.3 h1:sn8Kg4qY/gqGXU4CCJWfgzouaim6alkvXcob0uFDohg=
+github.com/MoeForge/moego v0.1.0-alpha.3/go.mod h1:SBNiQjCpWC3IEBMKFBOwOyhhQ3jywMrISqCwJTdr4aA=
 github.com/MoeForge/moejs v0.1.0 h1:w5/bM4wVRrnMdLbQG32BM+yVcoA9wjQqdGlX3XekzG4=
 github.com/MoeForge/moejs v0.1.0/go.mod h1:GDaH0vQSxKDN7FCyBaLEZgqsGKRyIYBfje/p74aZQ3k=
 github.com/NYTimes/gziphandler v0.0.0-20170623195520-56545f4a5d46/go.mod h1:3wb06e3pkSAbeQ52E9H9iFoQsEEwGN64994WTCIhntQ=
