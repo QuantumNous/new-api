@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -18,6 +19,11 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
 )
+
+// quotaDisplayOptionMutex serializes display derivation, persistence and runtime
+// publication with reloads in this process. Acquire it before request-policy,
+// passkey and OptionMap locks; never acquire it from updateOptionMap.
+var quotaDisplayOptionMutex sync.Mutex
 
 type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
@@ -199,6 +205,8 @@ func InitOptionMap() {
 // LoadOptionsFromDatabase applies every stored option. A failed read keeps
 // the options in memory as they are.
 func LoadOptionsFromDatabase() error {
+	quotaDisplayOptionMutex.Lock()
+	defer quotaDisplayOptionMutex.Unlock()
 	requestPolicyOptionMutex.Lock()
 	defer requestPolicyOptionMutex.Unlock()
 	passkeyOptionMutex.Lock()
@@ -341,6 +349,12 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	_, legacyDisplay := values["DisplayInCurrencyEnabled"]
+	_, quotaDisplay := values["general_setting.quota_display_type"]
+	if legacyDisplay || quotaDisplay {
+		quotaDisplayOptionMutex.Lock()
+		defer quotaDisplayOptionMutex.Unlock()
 	}
 	if legacy, ok := values["DisplayInCurrencyEnabled"]; ok {
 		if _, explicit := values["general_setting.quota_display_type"]; !explicit {

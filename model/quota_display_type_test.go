@@ -5,7 +5,9 @@ import (
 	"maps"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -203,4 +205,78 @@ func TestQuotaDisplayTypeDatabaseMatrix(t *testing.T) {
 			assert.Equal(t, "false", common.OptionMap["DisplayInCurrencyEnabled"])
 		})
 	}
+}
+
+// Database callbacks hold the first operation at the vulnerable boundary.
+// A bounded scheduling window lets the competing operation attempt to proceed.
+func TestQuotaDisplayConcurrentUpdates(t *testing.T) {
+	for _, pause := range []string{"derivation", "publication"} {
+		t.Run(pause, func(t *testing.T) {
+			t.Run("interleaving", func(t *testing.T) {
+				db := setupTestOptionDB(t, sqlite.Open(":memory:"))
+				require.NoError(t, UpdateOption("general_setting.quota_display_type", "CNY"))
+				entered, release := make(chan struct{}), make(chan struct{})
+				var paused atomic.Bool
+				block := func(tx *gorm.DB) {
+					if (pause == "derivation" && tx.Statement.Table == "quota_display_test_options") ||
+						(pause == "publication" && tx.Statement.Table == "quota_display_test_system_tasks") {
+						if paused.CompareAndSwap(false, true) {
+							close(entered)
+							<-release
+						}
+					}
+				}
+				if pause == "derivation" {
+					require.NoError(t, db.Callback().Query().Before("gorm:query").Register("quota_pause", block))
+					defer db.Callback().Query().Remove("quota_pause")
+				} else {
+					require.NoError(t, db.Callback().Create().Before("gorm:create").Register("quota_pause", block))
+					defer db.Callback().Create().Remove("quota_pause")
+				}
+				first, second := make(chan error, 1), make(chan error, 1)
+				go func() { first <- UpdateOption("DisplayInCurrencyEnabled", "false") }()
+				<-entered
+				go func() { second <- UpdateOption("DisplayInCurrencyEnabled", "true") }()
+				time.Sleep(50 * time.Millisecond)
+				close(release)
+				require.NoError(t, <-first)
+				require.NoError(t, <-second)
+				assert.Equal(t, "USD", operation_setting.GetQuotaDisplayType())
+				var stored Option
+				require.NoError(t, db.Where(&Option{Key: "general_setting.quota_display_type"}).First(&stored).Error)
+				assert.Equal(t, "USD", stored.Value)
+				assert.True(t, common.DisplayInCurrencyEnabled)
+			})
+		})
+	}
+}
+
+func TestQuotaDisplayConcurrentReload(t *testing.T) {
+	t.Run("interleaving", func(t *testing.T) {
+		db := setupTestOptionDB(t, sqlite.Open(":memory:"))
+		require.NoError(t, UpdateOption("general_setting.quota_display_type", "TOKENS"))
+		entered, release := make(chan struct{}), make(chan struct{})
+		var paused atomic.Bool
+		require.NoError(t, db.Callback().Query().After("gorm:query").Register("quota_reload_pause", func(tx *gorm.DB) {
+			if tx.Statement.Table == "quota_display_test_options" && paused.CompareAndSwap(false, true) {
+				close(entered)
+				<-release
+			}
+		}))
+		defer db.Callback().Query().Remove("quota_reload_pause")
+		reloaded, updated := make(chan error, 1), make(chan error, 1)
+		go func() { reloaded <- LoadOptionsFromDatabase() }()
+		<-entered
+		go func() { updated <- UpdateOption("general_setting.quota_display_type", "CNY") }()
+		time.Sleep(50 * time.Millisecond)
+		close(release)
+		require.NoError(t, <-reloaded)
+		require.NoError(t, <-updated)
+		assert.Equal(t, "CNY", operation_setting.GetQuotaDisplayType())
+		assert.Equal(t, "CNY", common.OptionMap["general_setting.quota_display_type"])
+		assert.True(t, common.DisplayInCurrencyEnabled)
+		var stored Option
+		require.NoError(t, db.Where(&Option{Key: "general_setting.quota_display_type"}).First(&stored).Error)
+		assert.Equal(t, "CNY", stored.Value)
+	})
 }
