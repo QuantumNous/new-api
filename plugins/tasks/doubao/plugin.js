@@ -24,8 +24,25 @@ const DEFAULT_VIDEO_PROFILE = { resolutions: SEEDANCE_RESOLUTIONS, maxDuration: 
 // presets: accepted `size` resolution tiers; minPixels/maxPixels bound `WxH` sizes.
 // outputFormat/tools/fastPromptMode mirror the per-model support lists in the API
 // reference and were confirmed by live 400s; background marks the models whose
-// documented transparency combination rules are enforced locally.
+// documented transparency combination rules are enforced locally. rgba marks
+// native transparency output (background auto, no transparent input needed);
+// layerImages is the ceiling of layer_decomposition_options.max_images and
+// replaces MAX_IMAGE_OUTPUTS for the model.
 const IMAGE_MODELS = {
+  "doubao-seedream-5-5-261028": {
+    presets: ["1K", "1.5K", "2K"],
+    minPixels: 921600,
+    maxPixels: 4624220,
+    maxReferenceImages: 10,
+    sequential: false,
+    layers: true,
+    outputFormat: true,
+    background: true,
+    tools: false,
+    fastPromptMode: false,
+    rgba: true,
+    layerImages: 100,
+  },
   "doubao-seedream-5-0-pro-260628": {
     presets: ["1K", "1.5K", "2K"],
     minPixels: 921600,
@@ -114,6 +131,8 @@ const DEFAULT_IMAGE_PROFILE = {
   background: true,
   tools: true,
   fastPromptMode: true,
+  rgba: true,
+  layerImages: 100,
 };
 const LAYER_SIZE_PRESETS = ["1K", "1.5K", "2K"];
 const IMAGE_ACTIONS = ["text_to_image", "image_to_image"];
@@ -122,6 +141,8 @@ const IMAGE_ACTIONS = ["text_to_image", "image_to_image"];
 const IMAGE_TIER_MAX_PIXELS = 2610000;
 // Documented output ceiling: 15 images per group request, or one base image plus 16 layers.
 const MAX_IMAGE_OUTPUTS = 17;
+// Documented default of layer_decomposition_options.max_images.
+const DEFAULT_LAYER_IMAGES = 30;
 // Documented reference-image ceiling across Seedream models; bounds usage.input_images.
 const MAX_REFERENCE_IMAGES = 14;
 // Documented per-image size ceiling for reference images.
@@ -143,6 +164,7 @@ const IMAGE_REQUEST_KEYS = [
   "sequential_image_generation_options",
   "output_format",
   "layer_decomposition",
+  "layer_decomposition_options",
 ];
 
 const IMAGE_UNIT_LABEL = { en: "image", zh: "张", "zh-TW": "張", fr: "image", ja: "枚", ru: "изображение", vi: "ảnh" };
@@ -303,7 +325,7 @@ export const meta = {
     en: "Volcengine Doubao Seedance video generation and Seedream image generation",
     zh: "火山引擎豆包 Seedance 视频生成与 Seedream 图片生成",
   },
-  version: "1.4.0",
+  version: "1.5.0",
   author: { name: "QuantumNous" },
   channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
   models: Object.keys(VIDEO_MODELS).concat(Object.keys(IMAGE_MODELS)),
@@ -564,12 +586,13 @@ function convertImage(ctx) {
     if (body.output_format !== "png" && body.output_format !== "jpeg") throw new Error("output_format must be png or jpeg");
     if (!profile.outputFormat) throw new Error("output_format is not supported by this model");
   }
-  // The API reference lists `background` for 5.0 pro and flash only, but a live
+  // The API reference lists `background` for 5.5, 5.0 pro and flash only, but a live
   // probe showed lite accepting and ignoring it, so other models forward the
-  // value and only pro and flash's documented combination rules are enforced locally.
+  // value and only the listed models' documented combination rules are enforced locally.
   if (body.background !== undefined) {
-    if (body.background !== "opaque" && body.background !== "transparent") throw new Error("background must be opaque or transparent");
-    if (profile.background && body.background === "transparent" && images.length !== 1)
+    if (body.background !== "opaque" && body.background !== "transparent" && !(profile.rgba && body.background === "auto"))
+      throw new Error("background must be " + (profile.rgba ? "auto, " : "") + "opaque or transparent");
+    if (profile.background && !profile.rgba && body.background === "transparent" && images.length !== 1)
       throw new Error("background transparent requires exactly one input image");
     if (profile.background && body.background === "transparent" && body.output_format === "jpeg")
       throw new Error("background transparent cannot be combined with output_format jpeg");
@@ -594,13 +617,20 @@ function convertImage(ctx) {
       throw new Error("max_images must be an integer between 1 and 15");
     maxImages = options.max_images;
   }
+  const layerOptions = objectValue(body.layer_decomposition_options, "layer_decomposition_options");
+  let layerImages = profile.layerImages ? DEFAULT_LAYER_IMAGES : MAX_IMAGE_OUTPUTS;
+  if (profile.layerImages && layerOptions.max_images !== undefined) {
+    if (!Number.isInteger(layerOptions.max_images) || layerOptions.max_images < 2 || layerOptions.max_images > profile.layerImages)
+      throw new Error("layer_decomposition_options.max_images must be an integer between 2 and " + profile.layerImages);
+    layerImages = layerOptions.max_images;
+  }
   const size = imageSize(body.size, profile, layered);
   if (size.size !== undefined) body.size = size.size;
   // Submit-time estimate; extractUsageOnComplete overlays the per-image tiers
   // from data[].size and usage.input_images. Unknown output sizes (`auto`)
   // reserve the higher tier.
   let imageCount = 1;
-  if (layered) imageCount = MAX_IMAGE_OUTPUTS;
+  if (layered) imageCount = layerImages;
   else if (sequential === "auto") imageCount = Math.max(1, Math.min(maxImages, 15 - images.length)); // reference + generated images ≤ 15
   const higherTier = size.pixels === null || size.pixels > IMAGE_TIER_MAX_PIXELS;
   return {
@@ -630,11 +660,12 @@ function deliveredImages(body) {
 // usage.generated_images count that is fractional, negative, oversized or
 // inconsistent with the delivered payloads means the response is not
 // understood; the host then keeps the reservation instead of settling on a guess.
-function imagePayloads(body) {
+function imagePayloads(body, profile) {
+  const maxOutputs = profile.layerImages || MAX_IMAGE_OUTPUTS;
   const payloads = deliveredImages(body);
-  if (payloads.length > MAX_IMAGE_OUTPUTS) throw new Error("too many output images");
+  if (payloads.length > maxOutputs) throw new Error("too many output images");
   const count = (body.usage || {}).generated_images;
-  if (count !== undefined && (!Number.isInteger(count) || count < 0 || count > MAX_IMAGE_OUTPUTS || count !== payloads.length))
+  if (count !== undefined && (!Number.isInteger(count) || count < 0 || count > maxOutputs || count !== payloads.length))
     throw new Error("invalid upstream generated_images");
   return payloads;
 }
@@ -646,7 +677,7 @@ function imagePayloads(body) {
 // the estimated reference count only when it is a bounded integer.
 function imageUsage(body, profile) {
   const usage = body.usage || {};
-  const payloads = imagePayloads(body);
+  const payloads = imagePayloads(body, profile);
   const facts = {};
   if (hasLowerImageTier(profile)) {
     let lower = 0,
@@ -950,7 +981,7 @@ export function extractUsageOnSubmit(ctx, body) {
   // the delivered output count alone. Task expressions settle the tiered
   // facts through extractUsageOnComplete instead.
   if (!imageTask(ctx)) return null;
-  const count = imagePayloads(body || {}).length;
+  const count = imagePayloads(body || {}, imageProfile(ctx)).length;
   return count ? { image_count: count } : {};
 }
 
@@ -1153,7 +1184,7 @@ export const protocols = {
           if (req[key] !== "true" && req[key] !== "false") throw new Error(key + " must be true or false");
           req[key] = req[key] === "true";
         }
-        for (const key of ["optimize_prompt_options", "sequential_image_generation_options", "tools"]) {
+        for (const key of ["optimize_prompt_options", "sequential_image_generation_options", "layer_decomposition_options", "tools"]) {
           if (req[key] === undefined) continue;
           try {
             req[key] = JSON.parse(req[key]);
