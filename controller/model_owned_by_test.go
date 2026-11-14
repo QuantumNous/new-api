@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
@@ -44,6 +45,36 @@ func TestChannelOwnerNameUsesAdaptorChannelName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.expected, channelOwnerName(tt.channelType))
+		})
+	}
+}
+
+func TestPreferredChannelOwnerName(t *testing.T) {
+	tests := []struct {
+		name     string
+		owner    model.PreferredModelOwner
+		expected string
+	}{
+		{
+			name:     "advanced custom uses channel name",
+			owner:    model.PreferredModelOwner{ChannelType: constant.ChannelTypeAdvancedCustom, ChannelID: 42, ChannelName: "my-channel"},
+			expected: "my-channel",
+		},
+		{
+			name:     "advanced custom falls back to channel id",
+			owner:    model.PreferredModelOwner{ChannelType: constant.ChannelTypeAdvancedCustom, ChannelID: 42},
+			expected: "42",
+		},
+		{
+			name:     "normal channel type keeps provider name",
+			owner:    model.PreferredModelOwner{ChannelType: constant.ChannelTypeOpenAI, ChannelID: 42, ChannelName: "ignored"},
+			expected: "openai",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, preferredChannelOwnerName(tt.owner))
 		})
 	}
 }
