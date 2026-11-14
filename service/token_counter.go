@@ -50,6 +50,36 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 	if !constant.CountToken {
 		return 0, nil
 	}
+	// Reserve text requests from their stored byte size. Media, character-priced
+	// speech and realtime retain their existing counting rules.
+	if meta != nil && info != nil && len(meta.Files) == 0 &&
+		meta.TokenType != types.TokenTypeTextNumber && meta.TokenType != types.TokenTypeImage &&
+		info.RelayFormat != types.RelayFormatOpenAIRealtime &&
+		info.RelayMode != constant2.RelayModeAudioSpeech &&
+		info.RelayMode != constant2.RelayModeAudioTranscription &&
+		info.RelayMode != constant2.RelayModeAudioTranslation {
+		var bodyBytes int64
+		if info.BillingRequestInput != nil {
+			bodyBytes = int64(len(info.BillingRequestInput.Body))
+		} else if c != nil && c.Request != nil {
+			storage, err := common.GetBodyStorage(c)
+			if err != nil {
+				return 0, err
+			}
+			bodyBytes = storage.Size()
+		}
+		if bodyBytes > 0 {
+			tokens := common.QuotaFromFloat(float64(bodyBytes / 4))
+			common.SetContextKey(c, constant.ContextKeyPromptTokens, tokens)
+			info.SetPromptTokenCounter(func() int {
+				// Text-only counting cannot fail: meta is present and none of
+				// the file or audio parsing paths above are eligible.
+				count, _ := CountRequestToken(c, meta, info)
+				return count
+			})
+			return tokens, nil
+		}
+	}
 	return CountRequestToken(c, meta, info)
 }
 
