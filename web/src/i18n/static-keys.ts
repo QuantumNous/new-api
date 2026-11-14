@@ -55,6 +55,7 @@ export const STATIC_I18N_KEYS = [
   'Access Zhipu models through the V4 API',
   'Connect to Perplexity model services',
   'Connect to LingYiWanWu model services',
+  'Connect to YiSu model services',
   'Access models through Amazon Bedrock',
   'Connect to Cohere model services',
   'Connect to MiniMax model services',
