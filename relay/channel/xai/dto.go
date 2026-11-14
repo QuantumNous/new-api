@@ -24,4 +24,7 @@ type ImageRequest struct {
 	// Style          string          `json:"style,omitempty"`
 	// User           string          `json:"user,omitempty"`
 	// ExtraFields    json.RawMessage `json:"extra_fields,omitempty"`
+	// grok-imagine tier parameters (aspect_ratio e.g. "9:20", resolution e.g. "2k").
+	AspectRatio string `json:"aspect_ratio,omitempty"`
+	Resolution  string `json:"resolution,omitempty"`
 }

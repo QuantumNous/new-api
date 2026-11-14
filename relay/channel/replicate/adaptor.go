@@ -109,6 +109,15 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 	}
 
+	// Explicit aspect_ratio overrides the size-derived value; resolution is
+	// passed through verbatim for models that support it.
+	if ar := strings.TrimSpace(request.AspectRatio); ar != "" {
+		inputPayload["aspect_ratio"] = ar
+	}
+	if res := strings.TrimSpace(request.Resolution); res != "" {
+		inputPayload["resolution"] = res
+	}
+
 	if len(request.OutputFormat) > 0 {
 		var outputFormat string
 		if err := json.Unmarshal(request.OutputFormat, &outputFormat); err == nil && strings.TrimSpace(outputFormat) != "" {
