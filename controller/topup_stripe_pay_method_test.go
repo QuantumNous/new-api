@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v81/webhook"
 )
 
 const (
@@ -40,7 +41,7 @@ type stripePayMethodFixture struct {
 func setupStripePayMethodTest(t *testing.T, stripeConfigured bool, payMethodsJSON string) *stripePayMethodFixture {
 	t.Helper()
 	db := setupModelListControllerTestDB(t)
-	require.NoError(t, db.AutoMigrate(&model.TopUp{}, &model.SubscriptionPlan{}, &model.SubscriptionOrder{}, &model.UserSubscription{}))
+	require.NoError(t, db.AutoMigrate(&model.TopUp{}, &model.SubscriptionPlan{}, &model.SubscriptionOrder{}, &model.UserSubscription{}, &model.Log{}))
 	confirmPaymentComplianceForTest(t)
 
 	originalAPISecret := setting.StripeApiSecret
@@ -389,4 +390,81 @@ func TestGetTopUpInfoListsPayMethodsByProvider(t *testing.T) {
 		assert.Equal(t, false, info["enable_online_topup"])
 		assert.Equal(t, true, info["enable_stripe_topup"])
 	})
+}
+
+func TestEpayCallbackCompletesOrderPlacedBeforeMethodsMovedToStripe(t *testing.T) {
+	// Every method is now routed through Stripe, but an order placed through
+	// Epay before the change is still waiting for its callback.
+	fixture := setupStripePayMethodTest(t, true, `[{"name":"Alipay","type":"alipay","provider":"stripe"},{"name":"WeChat","type":"wxpay","provider":"stripe"}]`)
+	require.NoError(t, model.DB.Create(&model.TopUp{
+		UserId: fixture.userID, Amount: 10, Money: 73, TradeNo: "USR4201NOpending",
+		PaymentMethod: "alipay", PaymentProvider: model.PaymentProviderEpay, Status: common.TopUpStatusPending,
+	}).Error)
+	callback, err := GetEpayClient().SignParams(map[string]string{
+		"type": "alipay", "money": "73.00", "name": "TUC10", "out_trade_no": "USR4201NOpending", "trade_status": "TRADE_SUCCESS",
+	})
+	require.NoError(t, err)
+	query := url.Values{}
+	for key, value := range callback {
+		query.Set(key, value)
+	}
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/user/epay/notify?"+query.Encode(), nil)
+	EpayNotify(c)
+
+	assert.Equal(t, "success", recorder.Body.String())
+	var order model.TopUp
+	require.NoError(t, model.DB.Where("trade_no = ?", "USR4201NOpending").First(&order).Error)
+	assert.Equal(t, common.TopUpStatusSuccess, order.Status)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, fixture.userID).Error)
+	assert.Equal(t, int(10*common.QuotaPerUnit), user.Quota)
+
+	// New Epay orders stay closed: no method is routed through Epay any more.
+	_, info := topUpInfoForTest(t)
+	assert.Equal(t, false, info["enable_online_topup"])
+	assert.Contains(t, fixture.post(RequestEpay, `{"amount":10,"payment_method":"alipay"}`), "Payment method does not exist")
+}
+
+func TestStripeWebhookCompletesRoutedPayMethodOrdersOnce(t *testing.T) {
+	fixture := setupStripePayMethodTest(t, true, stripeRoutedPayMethodsJSON)
+	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+		Id: 4231, Title: "Pro", PriceAmount: 19.99, Currency: "USD", Enabled: true,
+		DurationUnit: "month", DurationValue: 1,
+	}).Error)
+	require.Contains(t, fixture.post(RequestStripePay, `{"amount":20,"payment_method":"alipay"}`), "pay_link")
+	require.Contains(t, fixture.post(SubscriptionRequestStripePay, `{"plan_id":4231,"payment_method":"wxpay"}`), "pay_link")
+	require.Len(t, fixture.checkout, 2)
+
+	// Stripe delivers each paid Checkout Session twice.
+	for _, form := range fixture.checkout {
+		payload := fmt.Sprintf(`{"id":"evt_test","object":"event","type":"checkout.session.completed","data":{"object":{"id":"cs_test","object":"checkout.session","client_reference_id":%q,"status":"complete","payment_status":"paid","customer":"cus_test","amount_total":2000,"currency":"usd"}}}`, form.Get("client_reference_id"))
+		for range 2 {
+			signed := webhook.GenerateTestSignedPayload(&webhook.UnsignedPayload{Payload: []byte(payload), Secret: setting.StripeWebhookSecret})
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/api/stripe/webhook", strings.NewReader(payload))
+			c.Request.Header.Set("Stripe-Signature", signed.Header)
+			StripeWebhook(c)
+			require.Equal(t, http.StatusOK, recorder.Code)
+		}
+	}
+
+	var topUp model.TopUp
+	require.NoError(t, model.DB.Where("trade_no = ?", fixture.checkout[0].Get("client_reference_id")).First(&topUp).Error)
+	assert.Equal(t, common.TopUpStatusSuccess, topUp.Status)
+	assert.Equal(t, "alipay", topUp.PaymentMethod)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, fixture.userID).Error)
+	assert.Equal(t, int(20*common.QuotaPerUnit), user.Quota, "the wallet is credited once")
+
+	var order model.SubscriptionOrder
+	require.NoError(t, model.DB.Where("trade_no = ?", fixture.checkout[1].Get("client_reference_id")).First(&order).Error)
+	assert.Equal(t, common.TopUpStatusSuccess, order.Status)
+	assert.Equal(t, "wxpay", order.PaymentMethod)
+	var subscriptions int64
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("user_id = ?", fixture.userID).Count(&subscriptions).Error)
+	assert.Equal(t, int64(1), subscriptions, "the plan is granted once")
 }
