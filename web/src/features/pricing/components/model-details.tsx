@@ -104,6 +104,7 @@ import type {
   PricingModel,
   TokenUnit,
 } from '../types'
+import { BillingExpressionDisclosure } from './billing-expression-disclosure'
 import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelDetailsApi } from './model-details-api'
@@ -733,14 +734,9 @@ function PriceSection(props: {
                 )
               )}
             </p>
-            <div className='mt-3'>
-              <div className='text-muted-foreground mb-1 text-[10px] font-medium tracking-wider uppercase'>
-                {t('Raw expression')}
-              </div>
-              <code className='text-muted-foreground bg-background/80 block max-h-28 overflow-auto rounded-md border px-2 py-1.5 font-mono text-xs break-all'>
-                {dynamicSummary.rawExpression}
-              </code>
-            </div>
+            <BillingExpressionDisclosure
+              expression={dynamicSummary.rawExpression}
+            />
           </div>
         </section>
       )
@@ -1164,14 +1160,9 @@ function ProviderGroupPricingSection(
                 )
               )}
             </p>
-            <div className='mt-3'>
-              <div className='text-muted-foreground mb-1 text-[10px] font-medium tracking-wider uppercase'>
-                {t('Raw expression')}
-              </div>
-              <code className='text-muted-foreground bg-background/80 block max-h-28 overflow-auto rounded-md border px-2 py-1.5 font-mono text-xs break-all'>
-                {props.model.billing_expr}
-              </code>
-            </div>
+            <BillingExpressionDisclosure
+              expression={props.model.billing_expr || ''}
+            />
           </div>
         </section>
       )
