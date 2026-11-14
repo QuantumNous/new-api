@@ -32,7 +32,7 @@ import dayjs from '@/lib/dayjs'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 
 import type { UsageLog } from '../data/schema'
-import { formatModelName, logTokenName, parseLogOther } from '../lib/format'
+import { getReasoningEffortVariant, formatModelName, logTokenName, parseLogOther } from '../lib/format'
 import {
   getLogTypeConfig,
   isDisplayableLogType,
@@ -71,6 +71,10 @@ export function CommonLogMobileCard<TData>(props: {
   const timing = isTimingLogType(log.type)
   const model = formatModelName(log)
   const config = getLogTypeConfig(log.type)
+  const reasoningEffort =
+    typeof other?.reasoning_effort === 'string'
+      ? other.reasoning_effort.trim()
+      : ''
   const group = log.group || other?.group || ''
   const groupRatio =
     other?.user_group_ratio != null && other.user_group_ratio !== -1
@@ -217,6 +221,21 @@ export function CommonLogMobileCard<TData>(props: {
             </div>
           )}
       </div>
+      {displayable && props.cells.has('reasoning_effort') && reasoningEffort
+        && (
+          <div className='flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs'>
+            <span className='text-muted-foreground'>
+              {t('Reasoning Effort')}
+            </span>
+            <StatusBadge
+              label={reasoningEffort}
+              variant={getReasoningEffortVariant(reasoningEffort)}
+              size='sm'
+              copyable={false}
+            />
+          </div>
+        )
+      }
       {visibleMetadata.length > 0 && (
         <div className='grid min-w-0 grid-cols-2 gap-x-4 gap-y-0.5'>
           {visibleMetadata.map((id) => {
