@@ -92,6 +92,31 @@ describe('Response streaming fade', () => {
     ).toBe(true)
   })
 
+  test('keeps a still-fading word mounted when settled text before it stops being split', () => {
+    // Longer than the 24-char raw prefix in block keys, so <p> keeps its key
+    const settled = 'Settled words before the stream '
+    vi.spyOn(performance, 'now').mockReturnValue(1000)
+    const { rerender } = render(<Response final={false}>{settled}</Response>)
+
+    vi.spyOn(performance, 'now').mockReturnValue(2000)
+    rerender(<Response final={false}>{`${settled}alpha beta`}</Response>)
+    const fadingBeta = [
+      ...document.querySelectorAll('[data-stream-fade]'),
+    ].find((node) => node.textContent === 'beta')
+    expect(fadingBeta).toBeTruthy()
+
+    // alpha (delay 0) has finished; beta (staggered) is still fading
+    vi.spyOn(performance, 'now').mockReturnValue(2000 + FADE_DURATION_MS + 1)
+    rerender(<Response final={false}>{`${settled}alpha beta gamma`}</Response>)
+
+    const fades = [...document.querySelectorAll('[data-stream-fade]')]
+    expect(fades.map((node) => node.textContent)).toEqual(['beta ', 'gamma'])
+    expect(fades[0]).toBe(fadingBeta)
+    expect(document.querySelector('p')?.textContent).toBe(
+      `${settled}alpha beta gamma`
+    )
+  })
+
   test('suppresses fades on the first streaming render of hydrated content', () => {
     const hydrated = 'word '.repeat(FADE_HYDRATION_THRESHOLD)
 
