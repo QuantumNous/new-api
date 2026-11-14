@@ -7750,6 +7750,11 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "By clicking sign in, you agree to our": "Bằng cách nhấp đăng nhập, bạn đồng ý với",
-    "By creating an account, you agree to our": "Bằng cách tạo tài khoản, bạn đồng ý với"
+    "By creating an account, you agree to our": "Bằng cách tạo tài khoản, bạn đồng ý với",
+    "Admin note": "Ghi chú quản trị",
+    "Admin note (not shown to users)": "Ghi chú quản trị (không hiển thị cho người dùng)",
+    "Group admin notes": "Ghi chú quản trị của nhóm",
+    "JSON map of group → note for groups users cannot select. Notes are shown only in the admin console.": "Ánh xạ JSON nhóm → ghi chú cho các nhóm người dùng không thể chọn. Ghi chú chỉ hiển thị trong bảng điều khiển quản trị.",
+    "Group admin notes must be a JSON object of group name to note": "Ghi chú quản trị của nhóm phải là một đối tượng JSON ánh xạ tên nhóm tới ghi chú"
   }
 }

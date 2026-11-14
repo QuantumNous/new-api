@@ -7750,6 +7750,11 @@
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム",
     "By clicking sign in, you agree to our": "サインインをクリックすると、以下に同意したことになります：",
-    "By creating an account, you agree to our": "アカウントを作成すると、以下に同意したことになります："
+    "By creating an account, you agree to our": "アカウントを作成すると、以下に同意したことになります：",
+    "Admin note": "管理者メモ",
+    "Admin note (not shown to users)": "管理者メモ（ユーザーには表示されません）",
+    "Group admin notes": "グループの管理者メモ",
+    "JSON map of group → note for groups users cannot select. Notes are shown only in the admin console.": "ユーザーが選択できないグループ用の、グループ → メモの JSON マップ。メモは管理コンソールにのみ表示されます。",
+    "Group admin notes must be a JSON object of group name to note": "グループの管理者メモは、グループ名 → メモの JSON オブジェクトである必要があります"
   }
 }

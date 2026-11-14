@@ -7750,6 +7750,11 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "By clicking sign in, you agree to our": "En cliquant sur se connecter, vous acceptez nos",
-    "By creating an account, you agree to our": "En créant un compte, vous acceptez nos"
+    "By creating an account, you agree to our": "En créant un compte, vous acceptez nos",
+    "Admin note": "Note administrateur",
+    "Admin note (not shown to users)": "Note administrateur (non visible par les utilisateurs)",
+    "Group admin notes": "Notes administrateur des groupes",
+    "JSON map of group → note for groups users cannot select. Notes are shown only in the admin console.": "Table JSON groupe → note pour les groupes que les utilisateurs ne peuvent pas sélectionner. Les notes ne sont affichées que dans la console d’administration.",
+    "Group admin notes must be a JSON object of group name to note": "Les notes administrateur des groupes doivent être un objet JSON associant un nom de groupe à une note"
   }
 }

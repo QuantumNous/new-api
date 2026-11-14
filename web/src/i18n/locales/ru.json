@@ -7750,6 +7750,11 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "By clicking sign in, you agree to our": "Нажимая «Войти», вы соглашаетесь с нашими",
-    "By creating an account, you agree to our": "Создавая аккаунт, вы соглашаетесь с нашими"
+    "By creating an account, you agree to our": "Создавая аккаунт, вы соглашаетесь с нашими",
+    "Admin note": "Заметка администратора",
+    "Admin note (not shown to users)": "Заметка администратора (не показывается пользователям)",
+    "Group admin notes": "Заметки администратора о группах",
+    "JSON map of group → note for groups users cannot select. Notes are shown only in the admin console.": "JSON-соответствие группа → заметка для групп, которые пользователи не могут выбрать. Заметки отображаются только в консоли администратора.",
+    "Group admin notes must be a JSON object of group name to note": "Заметки администратора о группах должны быть JSON-объектом вида «имя группы → заметка»"
   }
 }
