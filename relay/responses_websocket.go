@@ -427,7 +427,9 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			info.SetFirstResponseTime()
 			var event struct {
 				dto.ResponsesStreamResponse
-				StreamID string `json:"stream_id"`
+				EventID    string `json:"event_id"`
+				StreamID   string `json:"stream_id"`
+				ResponseID string `json:"response_id"`
 			}
 			if err := common.Unmarshal(incoming.body, &event); err != nil {
 				info.StreamStatus.RecordError("invalid upstream websocket event")
@@ -490,6 +492,24 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 						rejected.StatusCode = http.StatusBadRequest
 					}
 					return rejected
+				}
+				if event.Type == responsesWSEventTypeResponseInterrupt+".accepted" && sentControl != nil {
+					var control struct {
+						Type       string `json:"type"`
+						EventID    string `json:"event_id"`
+						StreamID   string `json:"stream_id"`
+						ResponseID string `json:"response_id"`
+					}
+					if common.Unmarshal(sentControl, &control) == nil && control.Type == responsesWSEventTypeResponseInterrupt {
+						matches := event.ResponseID != "" && event.ResponseID == control.ResponseID
+						// An explicit control ID must agree; a response ID alone is a fallback.
+						if event.EventID != "" {
+							matches = event.EventID == control.EventID && (event.ResponseID == "" || event.ResponseID == control.ResponseID)
+						}
+						if matches && (event.StreamID == "" || control.StreamID == "" || event.StreamID == control.StreamID) {
+							sentControl = nil
+						}
+					}
 				}
 				// Interrupt acknowledgements do not mean this generation was accepted.
 				if strings.HasPrefix(event.Type, "response.") && !strings.HasPrefix(event.Type, responsesWSEventTypeResponseInterrupt) {

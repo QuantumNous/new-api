@@ -895,6 +895,74 @@ func TestResponsesWebSocketInterruptLifecycle(t *testing.T) {
 	}
 }
 
+func TestResponsesWebSocketInterruptAcknowledgementMatchesControl(t *testing.T) {
+	for _, tc := range []struct {
+		name, controlType, acknowledgement string
+		resolved                           bool
+	}{
+		{name: "response ID", controlType: "response.interrupt", acknowledgement: `{"type":"response.interrupt.accepted","response_id":"active"}`, resolved: true},
+		{name: "control event ID", controlType: "response.interrupt", acknowledgement: `{"type":"response.interrupt.accepted","event_id":"control_1"}`, resolved: true},
+		{name: "matching IDs", controlType: "response.interrupt", acknowledgement: `{"type":"response.interrupt.accepted","event_id":"control_1","response_id":"active","stream_id":"stream"}`, resolved: true},
+		{name: "different response", controlType: "response.interrupt", acknowledgement: `{"type":"response.interrupt.accepted","event_id":"control_1","response_id":"other"}`},
+		{name: "different control event", controlType: "response.interrupt", acknowledgement: `{"type":"response.interrupt.accepted","event_id":"other","response_id":"active"}`},
+		{name: "different stream", controlType: "response.interrupt", acknowledgement: `{"type":"response.interrupt.accepted","event_id":"control_1","response_id":"active","stream_id":"other"}`},
+		{name: "uncorrelated", controlType: "response.interrupt", acknowledgement: `{"type":"response.interrupt.accepted"}`},
+		{name: "pending cancel", controlType: "response.cancel", acknowledgement: `{"type":"response.interrupt.accepted","event_id":"control_1","response_id":"active"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			finish := make(chan struct{}, 1)
+			defer close(finish)
+			first := fmt.Sprintf(`{"type":%q,"event_id":"control_1","response_id":"active","stream_id":"stream"}`, tc.controlType)
+			second := `{"type":"response.interrupt","event_id":"control_2","response_id":"active","stream_id":"stream"}`
+			fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+				if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+					return
+				}
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.created","response":{"id":"active","status":"in_progress"}}`))) {
+					return
+				}
+				_, control, err := ws.ReadMessage()
+				if !assert.NoError(t, err) || !assert.Equal(t, first, string(control)) {
+					return
+				}
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(tc.acknowledgement))) {
+					return
+				}
+				if tc.resolved {
+					_, control, err = ws.ReadMessage()
+					if !assert.NoError(t, err) || !assert.Equal(t, second, string(control)) {
+						return
+					}
+				}
+				<-finish
+				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","response":{"id":"active","status":"completed"}}`))) {
+					return
+				}
+				_, _, err = ws.ReadMessage()
+				assert.True(t, websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure), "unrelated acknowledgement must not forward a second control: %v", err)
+			})
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi","stream_id":"stream"}`)))
+			require.Equal(t, "response.created", readResponsesWSTestEvent(t, fixture.client)["type"])
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(first)))
+			require.NoError(t, fixture.client.SetReadDeadline(time.Now().Add(3*time.Second)))
+			_, acknowledgement, err := fixture.client.ReadMessage()
+			require.NoError(t, err)
+			assert.Equal(t, tc.acknowledgement, string(acknowledgement))
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(second)))
+			if !tc.resolved {
+				rejected := readResponsesWSTestEvent(t, fixture.client)
+				require.Equal(t, "error", rejected["type"])
+				assert.Equal(t, float64(http.StatusBadRequest), rejected["status"])
+				assert.Equal(t, "control_2", rejected["event_id"])
+			}
+			finish <- struct{}{}
+			require.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+			fixture.closeAndWait(t)
+			assertResponsesWSAccounting(t, fixture, []int{1000})
+		})
+	}
+}
+
 func TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation(t *testing.T) {
 	for _, tc := range []struct {
 		name, upstream, wantType, wantMessage string
