@@ -563,3 +563,132 @@ test('an instance whose plugin is disabled or removed is marked in the list', as
   expect(await within(rows[2]).findByText('Plugin disabled')).toBeVisible()
   expect(within(rows[0]).queryByText('Plugin disabled')).toBeNull()
 })
+
+const scopedPlugin: TaskPluginOption = {
+  key: 'scoped-filter',
+  name: 'Scoped filter',
+  icon: 'text:SF',
+  models: [],
+  transform: true,
+  scope: { models: ['gpt-4o', 'claude-sonnet-4-5'], channelTypes: [1, 14] },
+}
+
+function mockPluginsWithScope(plugin: TaskPluginOption) {
+  const get = vi.mocked(api.get)
+  const original = get.getMockImplementation()
+  get.mockImplementation(async (url, config) => {
+    if (url === '/api/task_plugin_options') {
+      return { data: { success: true, data: [filterPlugin, plugin] } }
+    }
+    if (!original) throw new Error(`Unexpected GET ${url}`)
+    return original(url, config)
+  })
+}
+
+test('a plugin with a suggested scope starts on it and saves the scope it shows', async () => {
+  mockPluginsWithScope(scopedPlugin)
+  const put = mockSave()
+  const user = userEvent.setup()
+  renderInstances()
+  await screen.findByText('Block secrets')
+  await user.click(screen.getByRole('button', { name: 'Add' }))
+  const picker = await screen.findByRole('dialog', {
+    name: 'Add request processing',
+  })
+  await user.click(
+    within(picker).getByRole('button', { name: /Scoped filter/ })
+  )
+  const dialog = screen.getByRole('dialog')
+
+  expect(
+    within(dialog).getByRole('radio', { name: /Where the plugin suggests/ })
+  ).toBeChecked()
+  expect(dialog).toHaveTextContent('OpenAI')
+  expect(dialog).toHaveTextContent('Anthropic')
+  expect(dialog).toHaveTextContent('claude-sonnet-4-5')
+  // The plugin's scope names the models; the model choice is hidden.
+  expect(
+    within(dialog).queryByRole('radio', { name: /Chosen models/ })
+  ).toBeNull()
+  await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+  await waitFor(() => expect(put).toHaveBeenCalledOnce())
+  const saved = (put.mock.calls[0][1] as { instances: RequestPluginInstance[] })
+    .instances
+  expect(saved[3]).toMatchObject({
+    plugin: 'scoped-filter',
+    global: false,
+    groups: [],
+    models: [],
+    plugin_scope: {
+      models: ['gpt-4o', 'claude-sonnet-4-5'],
+      channel_types: [1, 14],
+    },
+  })
+})
+
+test('choosing another place for a scoped plugin saves no plugin scope', async () => {
+  mockPluginsWithScope(scopedPlugin)
+  const put = mockSave()
+  const user = userEvent.setup()
+  renderInstances()
+  await screen.findByText('Block secrets')
+  await user.click(screen.getByRole('button', { name: 'Add' }))
+  const picker = await screen.findByRole('dialog', {
+    name: 'Add request processing',
+  })
+  await user.click(
+    within(picker).getByRole('button', { name: /Scoped filter/ })
+  )
+  const dialog = screen.getByRole('dialog')
+  await user.click(within(dialog).getByRole('radio', { name: /All requests/ }))
+  await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+  await waitFor(() => expect(put).toHaveBeenCalledOnce())
+  const saved = (put.mock.calls[0][1] as { instances: RequestPluginInstance[] })
+    .instances
+  expect(saved[3]).toMatchObject({ plugin: 'scoped-filter', global: true })
+  expect(saved[3].plugin_scope).toBeUndefined()
+})
+
+test('a plugin that changed its scope is marked and its review saves the new scope', async () => {
+  mockPluginsWithScope(scopedPlugin)
+  instances.push({
+    id: 'rp_dddd4444',
+    name: 'Scoped',
+    plugin: 'scoped-filter',
+    enabled: true,
+    global: false,
+    groups: [],
+    models: [],
+    config: {},
+    plugin_scope: { models: ['gpt-4o'], channel_types: [1] },
+  })
+  const put = mockSave()
+  const user = userEvent.setup()
+  renderInstances()
+  await screen.findByText('Scoped')
+
+  const rows = screen.getAllByRole('row').slice(1)
+  expect(rows[3]).toHaveTextContent('Where the plugin suggests')
+  expect(
+    within(rows[3]).getByText('Plugin changed where it runs')
+  ).toBeVisible()
+  // An instance whose plugin did not change shows no mark.
+  expect(within(rows[0]).queryByText('Plugin changed where it runs')).toBeNull()
+
+  await user.click(within(rows[3]).getByRole('button', { name: /Review/ }))
+  const dialog = await screen.findByRole('dialog')
+  expect(dialog).toHaveTextContent(
+    'The plugin changed where it runs. Saving confirms the new range.'
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+  await waitFor(() => expect(put).toHaveBeenCalledOnce())
+  const saved = (put.mock.calls[0][1] as { instances: RequestPluginInstance[] })
+    .instances
+  expect(saved[3].plugin_scope).toEqual({
+    models: ['gpt-4o', 'claude-sonnet-4-5'],
+    channel_types: [1, 14],
+  })
+})

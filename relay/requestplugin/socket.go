@@ -66,10 +66,10 @@ func ResponsesSocket(c *gin.Context, info *relaycommon.RelayInfo, send func([]by
 		return nil
 	}
 	call := attemptCall(c, info)
-	plan.capture(c, call.Group, call.Model, call.Bound)
+	plan.capture(c, call.Group, call.Model, call.channelType(), call.Bound)
 	socket := &SocketResponse{capture: plan.response, send: send}
 	if plan.replies {
-		if instances := plan.scope(StageReply, call.Group, call.Model, call.Bound); len(instances) > 0 {
+		if instances := plan.scope(StageReply, call.Group, call.Model, call.channelType(), call.Bound); len(instances) > 0 {
 			call.Format = string(types.RelayFormatOpenAIResponses)
 			check := newReplyCheck(c.Request.Context(), plan, instances)
 			check.call, check.stream = call, true
@@ -232,12 +232,12 @@ func NewRealtime(c *gin.Context, info *relaycommon.RelayInfo, toClient, toTarget
 	}
 	call := attemptCall(c, info)
 	r := &Realtime{c: c, ctx: c.Request.Context(), plan: plan, request: c.GetString(common.RequestIdKey), toClient: toClient, toTarget: toTarget, responses: map[string]*realtimeResponse{}}
-	r.ingress = plan.scope(StageIngress, call.Group, call.Model, call.Bound)
+	r.ingress = plan.scope(StageIngress, call.Group, call.Model, call.channelType(), call.Bound)
 	if plan.replies {
-		r.reply = plan.scope(StageReply, call.Group, call.Model, call.Bound)
+		r.reply = plan.scope(StageReply, call.Group, call.Model, call.channelType(), call.Bound)
 	}
 	if plan.reports {
-		for _, instance := range plan.scope(jsplugin.ReportHook, call.Group, call.Model, call.Bound) {
+		for _, instance := range plan.scope(jsplugin.ReportHook, call.Group, call.Model, call.channelType(), call.Bound) {
 			r.reports = append(r.reports, reportTarget{plugin: plan.plugins[instance.Plugin], instance: instance})
 		}
 	}
