@@ -301,6 +301,7 @@ export type BillingSettings = {
   TopupGroupRatio: string
   GroupRatio: string
   UserUsableGroups: string
+  GroupAdminNotes: string
   GroupGroupRatio: string
   AutoGroups: string
   MaxTokenAutoGroups: number

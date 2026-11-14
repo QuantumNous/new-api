@@ -7750,6 +7750,11 @@
     "Zhipu V4": "智譜 V4",
     "Zoom": "縮放",
     "By clicking sign in, you agree to our": "點擊登入即表示您同意我們的",
-    "By creating an account, you agree to our": "建立帳戶即表示您同意我們的"
+    "By creating an account, you agree to our": "建立帳戶即表示您同意我們的",
+    "Admin note": "管理員備註",
+    "Admin note (not shown to users)": "管理員備註（不向使用者顯示）",
+    "Group admin notes": "分組管理員備註",
+    "JSON map of group → note for groups users cannot select. Notes are shown only in the admin console.": "分組 → 備註的 JSON 對應，用於使用者不可選的分組。備註僅在管理後台顯示。",
+    "Group admin notes must be a JSON object of group name to note": "分組管理員備註必須是「分組名 → 備註」的 JSON 物件"
   }
 }

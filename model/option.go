@@ -160,6 +160,9 @@ func InitOptionMap() {
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
 	common.OptionMap["GroupGroupRatio"] = ratio_setting.GroupGroupRatio2JSONString()
 	common.OptionMap["UserUsableGroups"] = setting.UserUsableGroups2JSONString()
+	// Notes on groups that users cannot select. They are read only through the
+	// option API, which is restricted to the root user.
+	common.OptionMap["GroupAdminNotes"] = "{}"
 	common.OptionMap["CompletionRatio"] = ratio_setting.CompletionRatio2JSONString()
 	common.OptionMap["ImageRatio"] = ratio_setting.ImageRatio2JSONString()
 	common.OptionMap["AudioRatio"] = ratio_setting.AudioRatio2JSONString()
@@ -281,6 +284,12 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
+	}
+	if key == "GroupAdminNotes" {
+		var notes map[string]string
+		if err := common.UnmarshalJsonStr(value, &notes); err != nil || notes == nil {
+			return common.NewMessage("Group admin notes must be a JSON object of group name to note")
+		}
 	}
 	return nil
 }
