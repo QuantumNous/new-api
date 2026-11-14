@@ -17,33 +17,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render } from '@testing-library/react'
-import { forwardRef, useImperativeHandle } from 'react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
-import { describe, expect, test, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
 
+import { getEnabledModels } from '@/features/channels/api'
+
+import { fetchUpstreamRatios } from '../../api'
 import { ModelRatioForm } from '../model-ratio-form'
 
-const commitOpenEditor = vi.fn(async () => true)
-let saveAppliedPrice: (() => Promise<boolean>) | undefined
+vi.mock('@/features/channels/api', () => ({
+  getEnabledModels: vi.fn(),
+}))
 
-vi.mock('../model-ratio-visual-editor', () => ({
-  ModelRatioVisualEditor: forwardRef(function MockVisualEditor(
-    props: { onApplyPriceMatchSave?: () => Promise<boolean> },
-    ref
-  ) {
-    useImperativeHandle(ref, () => ({ commitOpenEditor }))
-    saveAppliedPrice = props.onApplyPriceMatchSave
-    return null
-  }),
+vi.mock('../../api', () => ({
+  fetchUpstreamRatios: vi.fn(),
 }))
 
 const initialValues = {
   ModelPrice: '{}',
-  ModelRatio: '{}',
-  CacheRatio: '{}',
+  ModelRatio: '{"existing-model":0.5}',
+  CacheRatio: '{"existing-model":0.5}',
   CreateCacheRatio: '{}',
-  CompletionRatio: '{}',
+  CompletionRatio: '{"existing-model":2}',
   ImageRatio: '{}',
   AudioRatio: '{}',
   AudioCompletionRatio: '{}',
@@ -54,7 +52,7 @@ const initialValues = {
 
 function TestForm(props: {
   onSave: (values: typeof initialValues) => Promise<void>
-}) {
+}): ReactNode {
   const form = useForm({ defaultValues: initialValues })
   return (
     <ModelRatioForm
@@ -64,28 +62,120 @@ function TestForm(props: {
       onReset={() => undefined}
       isSaving={false}
       isResetting={false}
+      variant='unset'
     />
   )
 }
 
 describe('model ratio form', () => {
+  const getAnimationsDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'getAnimations'
+  )
+
+  beforeAll(() => {
+    Object.defineProperty(HTMLElement.prototype, 'getAnimations', {
+      configurable: true,
+      value: () => [],
+    })
+  })
+
+  afterAll(() => {
+    if (getAnimationsDescriptor) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'getAnimations',
+        getAnimationsDescriptor
+      )
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, 'getAnimations')
+    }
+  })
+
   test('saves an applied price without committing a stale open editor', async () => {
-    commitOpenEditor.mockClear()
-    const onSave = vi.fn(async () => undefined)
-    const queryClient = new QueryClient()
-    render(
+    vi.mocked(getEnabledModels).mockResolvedValue({
+      success: true,
+      data: ['glm-5.3'],
+    })
+    vi.mocked(fetchUpstreamRatios).mockResolvedValue({
+      success: true,
+      message: '',
+      data: {
+        test_results: [],
+        differences: {
+          'z-ai/glm-5.3': {
+            model_ratio: {
+              current: null,
+              upstreams: { openrouter: 0.7 },
+              confidence: { openrouter: true },
+            },
+            completion_ratio: {
+              current: null,
+              upstreams: { openrouter: 3 },
+              confidence: { openrouter: true },
+            },
+            cache_ratio: {
+              current: null,
+              upstreams: { openrouter: 0.1 },
+              confidence: { openrouter: true },
+            },
+          },
+        },
+      },
+    })
+    const onSave = vi.fn(async (_values: typeof initialValues) => undefined)
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    })
+    const user = userEvent.setup()
+    const visibilityKey = 'model-ratio-column-visibility'
+    const savedVisibility = localStorage.getItem(visibilityKey)
+    localStorage.removeItem(visibilityKey)
+    const view = render(
       <QueryClientProvider client={queryClient}>
         <TestForm onSave={onSave} />
       </QueryClientProvider>
     )
 
-    expect(saveAppliedPrice).toBeTypeOf('function')
-    await act(async () => {
-      await saveAppliedPrice?.()
-    })
+    try {
+      await user.click(await screen.findByText('glm-5.3', { exact: true }))
+      const draftPrice = screen.getByPlaceholderText('3')
+      await user.type(draftPrice, '9.9')
+      expect(draftPrice).toHaveValue('9.9')
 
-    expect(commitOpenEditor).not.toHaveBeenCalled()
-    expect(onSave).toHaveBeenCalledWith(initialValues)
-    queryClient.clear()
+      await user.click(screen.getByRole('button', { name: 'Open menu' }))
+      await user.click(
+        screen.getByRole('menuitem', { name: 'Find matching prices' })
+      )
+      expect(
+        await screen.findByRole('radio', { name: /z-ai\/glm-5\.3/ })
+      ).toBeChecked()
+      await user.click(
+        screen.getByRole('button', { name: 'Apply selected price' })
+      )
+
+      await waitFor(() => expect(onSave).toHaveBeenCalledOnce())
+      const submitted = onSave.mock.calls[0][0]
+      expect(JSON.parse(submitted.ModelRatio)).toEqual({
+        'existing-model': 0.5,
+        'glm-5.3': 0.7,
+      })
+      expect(JSON.parse(submitted.CompletionRatio)).toEqual({
+        'existing-model': 2,
+        'glm-5.3': 3,
+      })
+      expect(JSON.parse(submitted.CacheRatio)).toEqual({
+        'existing-model': 0.5,
+        'glm-5.3': 0.1,
+      })
+    } finally {
+      view.unmount()
+      queryClient.clear()
+      if (savedVisibility === null) {
+        localStorage.removeItem(visibilityKey)
+      } else {
+        localStorage.setItem(visibilityKey, savedVisibility)
+      }
+    }
   })
 })
