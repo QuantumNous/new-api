@@ -1,0 +1,11 @@
+{
+  "extends": "../../.configs/tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "extendedDiagnostics": true,
+    "traceResolution": true,
+    "customConditions": ["@zod/source"],
+    "skipDefaultLibCheck": true,
+    "skipLibCheck": true
+  }
+}

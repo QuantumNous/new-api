@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    branches: [main, alpha, beta]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release
+    if: github.repository_owner == 'TanStack'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Tools
+        uses: tanstack/config/.github/setup@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install chromium
+      - name: Run Tests
+        run: pnpm run test:ci
+      - name: Run Changesets (version or publish)
+        id: changesets
+        uses: changesets/action@6a0a831ff30acef54f2c6aa1cbbc1096b066edaf # v1.7.0
+        with:
+          version: pnpm run changeset:version
+          publish: pnpm run changeset:publish
+          commit: 'ci: Version Packages'
+          title: 'ci: Version Packages'
+      - name: Comment on PRs about release
+        if: steps.changesets.outputs.published == 'true'
+        uses: TanStack/config/.github/comment-on-release@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
+        with:
+          published-packages: ${{ steps.changesets.outputs.publishedPackages }}

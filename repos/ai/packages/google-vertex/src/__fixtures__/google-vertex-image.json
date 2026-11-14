@@ -1,0 +1,14 @@
+{
+  "predictions": [
+    {
+      "bytesBase64Encoded": "iVBORw0KGgoAAAANSUhEUgAABAAAAAQACAIAAADwf7zUAAAAg3pUWHRSYXcgcHJvZmlsZSB0eXBlIGlwdGMAAAiZTYs7DsIwEAV7",
+      "mimeType": "image/png",
+      "prompt": "A minimalist image featuring a perfectly circular, solid red disk centrally positioned on a clean, bright white background. The red is a vibrant, primary hue. The edges of the circle are sharp and well-defined. The lighting is even and soft, with no harsh shadows or reflections, creating a flat, graphic quality."
+    },
+    {
+      "mimeType": "image/png",
+      "bytesBase64Encoded": "iVBORw0KGgoAAAANSUhEUgAABAAAAAQACAIAAADwf7zUAAAAg3pUWHRSYXcgcHJvZmlsZSB0eXBlIGlwdGMAAAiZTYs7DsIwEAV7",
+      "prompt": "A minimalist, bold image featuring a perfect red circle centrally positioned on a pristine white background. The circle has sharp, clean edges and a uniform, vibrant red color, providing a strong contrast against the pure white. The lighting is even and soft, with no harsh shadows or reflections, allowing the circle's shape and color to be the sole focus. The image has a clean, modern aesthetic."
+    }
+  ]
+}

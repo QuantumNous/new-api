@@ -1,0 +1,131 @@
+---
+description: '配置该选项后，在编译过程中会自动将图标拷贝至 dist 目录下，并在 HTML 中添加相应的 link 标签。'
+---
+
+# html.favicon
+
+- **类型：** `string | Function`
+- **默认值：** 自动读取 public 目录下的 favicon 文件
+
+设置页面的 favicon 图标，可以设置为：
+
+- URL 地址。
+- 文件的绝对路径。
+- 相对于项目 [root](/config/root) 的相对路径。
+
+配置该选项后，在编译过程中会自动将图标拷贝至 dist 目录下，并在 HTML 中添加相应的 `link` 标签。
+
+:::tip
+Rsbuild 还提供了 [html.appIcon](/config/html/app-icon) 来设置 Web 应用的图标。
+:::
+
+## 默认值
+
+在未显式配置 `html.favicon` 时，Rsbuild 会自动从 [public 目录](/config/server/public-dir) 中查找 favicon 文件。
+
+Rsbuild 会按以下优先级依次搜索文件，并在找到第一个匹配项后将其作为默认 favicon：
+
+- `public/favicon.ico`
+- `public/favicon.png`
+- `public/favicon.svg`
+
+## 示例
+
+设置为相对路径：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    favicon: './src/assets/icon.png',
+  },
+};
+```
+
+设置为绝对路径：
+
+```js
+import path from 'node:path';
+
+export default {
+  html: {
+    favicon: path.resolve(__dirname, './src/assets/icon.png'),
+  },
+};
+```
+
+设置为 URL：
+
+```js
+import path from 'node:path';
+
+export default {
+  html: {
+    favicon: 'https://foo.com/favicon.ico',
+  },
+};
+```
+
+重新编译后，HTML 中自动生成了以下标签：
+
+```html
+<link rel="icon" href="/favicon.ico" />
+```
+
+## 输出路径
+
+默认情况下，favicon 文件会输出到构建产物目录的根路径下，比如：
+
+- `./src/assets/icon.png` 会输出到 `./dist/icon.png`。
+- `./src/assets/favicon.ico` 会输出到 `./dist/favicon.ico`。
+
+你可以通过 [output.distPath.favicon](/config/output/dist-path) 选项来自定义 favicon 的输出路径：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    distPath: {
+      // 将 favicon 输出到 "./dist/static/favicon/" 目录
+      favicon: 'static/favicon',
+    },
+  },
+};
+```
+
+## 函数用法
+
+- **类型：**
+
+```ts
+type FaviconFunction = (context: {
+  value: string;
+  entryName: string;
+}) => string | void | Promise<string | void>;
+```
+
+当 `html.favicon` 为 Function 类型时，函数接收一个对象作为入参，对象的值包括：
+
+- `value`：Rsbuild 的默认 favicon 配置。
+- `entryName`: 当前入口的名称。
+
+在 MPA（多页面应用）场景下，你可以基于入口名称返回不同的 `favicon`，从而为每个页面生成不同的标签：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    favicon({ entryName }) {
+      const icons = {
+        foo: 'https://example.com/foo.ico',
+        bar: 'https://example.com/bar.ico',
+      };
+      return icons[entryName] || 'https://example.com/default.ico';
+    },
+  },
+};
+```
+
+## 版本历史
+
+| 版本   | 变更内容                                  |
+| ------ | ----------------------------------------- |
+| v2.0.8 | 新增对 `html.favicon` 异步函数的支持      |
+| v1.6.0 | 新增自动检测 public 目录下的 favicon 文件 |

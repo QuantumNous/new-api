@@ -1,0 +1,34 @@
+@layer components {
+  .HeadingLink {
+    border-radius: var(--radius-6);
+    position: relative;
+
+    &:focus-visible {
+      /* https://github.com/mui/base-ui/pull/2318#issuecomment-3101118590 */
+      outline: none;
+      &::before {
+        --focus-v-padding: 0.25rem;
+        --focus-h-padding: 0.5rem;
+        content: '';
+        z-index: 1;
+        outline: 2px solid var(--gray-t2);
+        outline-offset: -2px;
+        position: absolute;
+        top: calc(0px - var(--focus-v-padding));
+        left: calc(0px - var(--focus-h-padding));
+        width: calc(100% + var(--focus-h-padding) * 2);
+        height: calc(100% + var(--focus-v-padding) * 2);
+        border-radius: var(--radius-6);
+      }
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        text-decoration: underline;
+        text-underline-offset: 4px;
+        text-decoration-thickness: 1px;
+        text-decoration-color: currentColor;
+      }
+    }
+  }
+}

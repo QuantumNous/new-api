@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    # types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - '**'
+
+jobs:
+  codeQuality:
+    name: Check code quality (lint and format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Format check
+        run: npm run format
+
+      - name: Lint
+        run: npm run lint
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+  test:
+    name: Test on node ${{ matrix.node }} and ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        node: ['24.x', '22.x', '20.x']
+        os: [ubuntu-latest]
+        # Collect coverage only for node 20 and ubuntu-latest, no need to run it twice
+        # @see https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs#expanding-or-adding-matrix-configurations
+        include:
+          - collectCoverage: true
+            node: '20.x'
+            os: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Test
+        if: ${{ !matrix.collectCoverage }}
+        run: npm test
+
+      - name: Test with coverage
+        if: ${{ matrix.collectCoverage }}
+        run: npm run test:coverage
+
+      - name: Coveralls
+        if: ${{ matrix.collectCoverage }}
+        uses: coverallsapp/github-action@v2
+
+  testTypescript:
+    name: Test typescript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Test
+        run: npm run test:typescript

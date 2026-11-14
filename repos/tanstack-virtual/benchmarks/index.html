@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Virtualization benchmarks</title>
+    <style>
+      html,
+      body,
+      #root {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: -apple-system, sans-serif;
+      }
+      .scroll-host {
+        height: 600px;
+        width: 600px;
+        overflow: auto;
+        box-sizing: border-box;
+      }
+      .item {
+        border-bottom: 1px solid #eee;
+        padding: 6px 10px;
+        box-sizing: border-box;
+      }
+      .item.even {
+        background: #fafafa;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

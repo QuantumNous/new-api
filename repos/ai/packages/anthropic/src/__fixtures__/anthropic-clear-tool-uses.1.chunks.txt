@@ -1,0 +1,36 @@
+{"type":"message_start","message":{"model":"claude-haiku-4-5-20251001","id":"msg_01YJG5jvxYUWfhVa6MSqT6qk","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":859,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":8,"service_tier":"standard","inference_geo":"not_available"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\nHere's a comparison of the weather"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" in"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" both"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" cities:\n\n**San Francisco:**"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- Temperature: 72°F"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- Condition: Sunny\n\n**"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"New York:**\n- Temperature: "}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"65°F"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- Condition: Cloudy"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\n**"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Summary"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":":**\nSan"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Francisco is warmer than New York by"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" 7"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" "}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"degrees (72°"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"F vs 65°F)"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" and has better"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" weather conditions with"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" sunny skies,"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" while New York is experiencing"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" cloudy conditions."}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" If"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" you're"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" looking"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" for warm"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" an"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d sunny weather, San Francisco is"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the better choice right"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" now."}}
+{"type":"content_block_stop","index":0}
+{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":859,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":122},"context_management":{"applied_edits":[]}}
+{"type":"message_stop"}

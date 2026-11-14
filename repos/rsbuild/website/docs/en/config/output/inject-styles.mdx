@@ -1,0 +1,42 @@
+---
+description: 'Controls whether Rsbuild inlines CSS into JS files and injects it at runtime instead of extracting separate `.css` files.'
+---
+
+# output.injectStyles
+
+- **Type:** `boolean`
+- **Default:** `false`
+
+Whether to inject styles into DOM.
+
+By default, Rsbuild will extract CSS into a separate `.css` file and output it to the dist directory. When this option is set to `true`, CSS files will be inlined into JS files and inserted on the page at runtime via `<style>` tags. This feature is implemented based on [style-loader](https://npmjs.com/package/style-loader).
+
+### Example
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    injectStyles: true,
+  },
+};
+```
+
+## Configure style-loader
+
+When `output.injectStyles` is enabled, you can modify the options of `style-loader` through [tools.styleLoader](/config/tools/style-loader).
+
+### Usage scenario
+
+We recommend enabling the `injectStyles` option only in development.
+
+For production builds, we recommend using Rsbuild's default behavior, which extracts CSS into separate bundles so browsers can load CSS and JS assets in parallel.
+
+For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    injectStyles: process.env.NODE_ENV === 'development',
+  },
+};
+```

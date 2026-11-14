@@ -1,0 +1,51 @@
+{"id":"c9117d7f-a7e4-499f-b643-a2a1e139687b","type":"message-start","delta":{"message":{"role":"assistant","content":[],"tool_plan":"","tool_calls":[],"citations":[]}}}
+{"type":"content-start","index":0,"delta":{"message":{"content":{"type":"thinking","thinking":""}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":"The"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" user"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" is"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" asking"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" for"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" the"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" sum"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" of"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" 2"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" and"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" 2"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":"."}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" Since"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" this"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" is"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" a"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" straightforward"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" arithmetic"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" problem"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":","}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" I"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" don"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":"'t"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" need"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" to"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" use"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" any"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" tools"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":"."}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" I"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" can"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" calculate"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" the"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" answer"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":" directly"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"thinking":"."}}}}
+{"type":"content-end","index":0}
+{"type":"content-start","index":1,"delta":{"message":{"content":{"type":"text","text":""}}}}
+{"type":"content-delta","index":1,"delta":{"message":{"content":{"text":"The"}}}}
+{"type":"content-delta","index":1,"delta":{"message":{"content":{"text":" answer"}}}}
+{"type":"content-delta","index":1,"delta":{"message":{"content":{"text":" to"}}}}
+{"type":"content-delta","index":1,"delta":{"message":{"content":{"text":" 2"}}}}
+{"type":"content-delta","index":1,"delta":{"message":{"content":{"text":" +"}}}}
+{"type":"content-delta","index":1,"delta":{"message":{"content":{"text":" 2"}}}}
+{"type":"content-delta","index":1,"delta":{"message":{"content":{"text":" is"}}}}
+{"type":"content-delta","index":1,"delta":{"message":{"content":{"text":" 4"}}}}
+{"type":"content-delta","index":1,"delta":{"message":{"content":{"text":"."}}}}
+{"type":"content-end","index":1}
+{"type":"message-end","delta":{"finish_reason":"COMPLETE","usage":{"billed_units":{"input_tokens":8,"output_tokens":50},"tokens":{"input_tokens":1394,"output_tokens":54},"cached_tokens":1360}}}

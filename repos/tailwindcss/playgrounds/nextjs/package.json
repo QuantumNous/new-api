@@ -1,0 +1,24 @@
+{
+  "name": "nextjs-playground",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "workspace:^",
+    "fast-glob": "^3.3.3",
+    "next": "16.2.7",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "tailwindcss": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "typescript": "^6.0.3"
+  }
+}

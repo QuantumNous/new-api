@@ -1,0 +1,20 @@
+/* CSS Module for testing scoped styles in dev mode */
+
+.card {
+  background-color: #f0fdf4; /* green-50 */
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #22c55e; /* green-500 */
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #166534; /* green-800 */
+  margin-bottom: 8px;
+}
+
+.content {
+  font-size: 14px;
+  color: #15803d; /* green-700 */
+}

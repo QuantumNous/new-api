@@ -1,0 +1,14 @@
+{
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "newFeature": true,
+    "babelSetting": {
+      "ignore": ["rollup.config.js"]
+    }
+  },
+  "appid": "cli_a0cf7901e9f9500b",
+  "projectname": "@visactor/lark-vchart"
+}

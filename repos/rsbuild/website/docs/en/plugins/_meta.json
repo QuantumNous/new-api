@@ -1,0 +1,12 @@
+[
+  {
+    "type": "dir-section-header",
+    "name": "list",
+    "label": "Plugins"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "dev",
+    "label": "Development"
+  }
+]

@@ -1,0 +1,8 @@
+@layer components {
+  .TypePropRefLink {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: var(--color-red);
+    text-underline-offset: 2px;
+  }
+}

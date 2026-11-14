@@ -1,0 +1,870 @@
+import dedent from 'dedent'
+import fastGlob from 'fast-glob'
+import { exec, execFile, spawn, type ChildProcess } from 'node:child_process'
+import fs from 'node:fs/promises'
+import { createServer } from 'node:net'
+import { platform, tmpdir } from 'node:os'
+import path from 'node:path'
+import { promisify, stripVTControlCharacters } from 'node:util'
+import { RawSourceMap, SourceMapConsumer } from 'source-map-js'
+import { test as defaultTest, type ExpectStatic } from 'vitest'
+import * as Yaml from 'yaml'
+import { createLineTable } from '../packages/tailwindcss/src/source-maps/line-table'
+import { escape } from '../packages/tailwindcss/src/utils/escape'
+
+const REPO_ROOT = path.join(__dirname, '..')
+const ROOT_PNPM_WORKSPACE = Yaml.parse(
+  await fs.readFile(path.join(REPO_ROOT, 'pnpm-workspace.yaml'), 'utf8'),
+)
+const PUBLIC_PACKAGES = (await fs.readdir(path.join(REPO_ROOT, 'dist'))).map((name) =>
+  name.replace('tailwindcss-', '@tailwindcss/').replace('.tgz', ''),
+)
+
+interface SpawnedProcess {
+  dispose: () => Promise<void>
+  flush: () => void
+  onStdout: (predicate: (message: string) => boolean) => Promise<void>
+  onStderr: (predicate: (message: string) => boolean) => Promise<void>
+}
+
+interface ChildProcessOptions {
+  cwd?: string
+  env?: Record<string, string>
+}
+
+interface ExecOptions {
+  ignoreStdErr?: boolean
+  stdin?: string
+}
+
+interface TestConfig {
+  fs: {
+    [filePath: string]: string | Uint8Array
+  }
+
+  timeout?: number
+  installDependencies?: boolean
+  retry?: number
+}
+interface TestContext {
+  root: string
+  expect: ExpectStatic
+  exec(command: string, options?: ChildProcessOptions, execOptions?: ExecOptions): Promise<string>
+  spawn(command: string, options?: ChildProcessOptions): Promise<SpawnedProcess>
+  parseSourceMap(opts: string | SourceMapOptions): SourceMap
+  fs: {
+    write(filePath: string, content: string, encoding?: BufferEncoding): Promise<void>
+    symlink(dst: string, src: string): Promise<void>
+    create(filePaths: string[]): Promise<void>
+    read(filePath: string): Promise<string>
+    delete(filePath: string): Promise<void>
+    glob(pattern: string): Promise<[string, string][]>
+    dumpFiles(pattern: string): Promise<string>
+    expectFileToContain(
+      filePath: string,
+      contents: string | RegExp | (string | RegExp)[],
+    ): Promise<void>
+    expectFileNotToContain(filePath: string, contents: string[]): Promise<void>
+  }
+}
+type TestCallback = (context: TestContext) => Promise<void> | void
+interface TestFlags {
+  only?: boolean
+  skip?: boolean
+  debug?: boolean
+  concurrent?: boolean
+}
+
+type SpawnActor = { predicate: (message: string) => boolean; resolve: () => void }
+
+export const IS_WINDOWS = platform() === 'win32'
+
+const execFileAsync = promisify(execFile)
+
+const TEST_TIMEOUT = IS_WINDOWS ? 120000 : 60000
+const ASSERTION_TIMEOUT = IS_WINDOWS ? 10000 : 5000
+
+// On Windows CI, tmpdir returns a path containing a weird RUNNER~1 folder that
+// apparently causes the vite builds to not work.
+const TMP_ROOT =
+  process.env.CI && IS_WINDOWS ? path.dirname(process.env.GITHUB_WORKSPACE!) : tmpdir()
+
+export function test(
+  name: string,
+  config: TestConfig,
+  testCallback: TestCallback,
+  { only = false, skip = false, debug = false, concurrent = false }: TestFlags = {},
+) {
+  return defaultTest(
+    name,
+    {
+      timeout: config.timeout ?? TEST_TIMEOUT,
+      retry: config.retry ?? (process.env.CI ? 2 : 0),
+      only: only || (!process.env.CI && debug),
+      skip,
+      concurrent,
+    },
+    async (options) => {
+      let rootDir = debug ? path.join(REPO_ROOT, '.debug') : TMP_ROOT
+      await fs.mkdir(rootDir, { recursive: true })
+
+      let root = await fs.mkdtemp(path.join(rootDir, 'tailwind-integrations'))
+
+      if (debug) {
+        console.log('Running test in debug mode. File system will be written to:')
+        console.log(root)
+        console.log()
+      }
+
+      let context = {
+        root,
+        expect: options.expect,
+        parseSourceMap,
+        async exec(
+          command: string,
+          childProcessOptions: ChildProcessOptions = {},
+          execOptions: ExecOptions = {},
+        ) {
+          let cwd = childProcessOptions.cwd ?? root
+          let originalCommand = command
+
+          // Avoid `pnpm exec upgrade` on Windows because the upgrader runs
+          // `pnpm add`, which rewrites Windows `.cmd` shims while the current
+          // shim is still executing.
+          //
+          // Pretty sure this is a pnpm v11 bug on Windows.
+          if (IS_WINDOWS && command.includes('pnpm exec upgrade')) {
+            for (let base = cwd; ; base = path.dirname(base)) {
+              let upgradeBin = path.join(
+                base,
+                'node_modules',
+                '@tailwindcss',
+                'upgrade',
+                'dist',
+                'index.mjs',
+              )
+
+              try {
+                await fs.access(upgradeBin)
+                command = command.replace('pnpm exec upgrade', `node "${upgradeBin}"`)
+                break
+              } catch (error: any) {
+                if (error?.code !== 'ENOENT') throw error
+              }
+
+              let parent = path.dirname(base)
+              if (parent === base) {
+                throw new Error(`Unable to resolve @tailwindcss/upgrade from ${cwd}`)
+              }
+            }
+          }
+
+          if (debug && cwd !== root) {
+            let relative = path.relative(root, cwd)
+            if (relative[0] !== '.') relative = `./${relative}`
+            console.log(`> cd ${relative}`)
+          }
+          if (debug) console.log(`> ${command}`)
+          return new Promise((resolve, reject) => {
+            let child = exec(
+              command,
+              {
+                cwd,
+                ...childProcessOptions,
+                env: {
+                  ...process.env,
+                  ...childProcessOptions.env,
+                },
+              },
+              (error, stdout, stderr) => {
+                if (error) {
+                  if (command !== originalCommand) {
+                    error.message = error.message.replace(command, originalCommand)
+                    let mappedError = error as any
+                    mappedError.cmd = originalCommand
+                  }
+                  if (execOptions.ignoreStdErr !== true) console.error(stderr)
+                  if (only || debug) {
+                    console.error(stdout)
+                  }
+                  reject(error)
+                } else {
+                  if (only || debug) {
+                    console.log(stdout.toString() + '\n\n' + stderr.toString())
+                  }
+                  resolve(stdout.toString() + '\n\n' + stderr.toString())
+                }
+              },
+            )
+            if (execOptions.stdin) {
+              child.stdin?.write(execOptions.stdin)
+              child.stdin?.end()
+            }
+          })
+        },
+        async spawn(command: string, childProcessOptions: ChildProcessOptions = {}) {
+          let resolveDisposal: (() => void) | undefined
+          let rejectDisposal: ((error: Error) => void) | undefined
+          let disposePromise = new Promise<void>((resolve, reject) => {
+            resolveDisposal = resolve
+            rejectDisposal = reject
+          })
+
+          let cwd = childProcessOptions.cwd ?? root
+          if (debug && cwd !== root) {
+            let relative = path.relative(root, cwd)
+            if (relative[0] !== '.') relative = `./${relative}`
+            console.log(`> cd ${relative}`)
+          }
+          if (debug) console.log(`>& ${command}`)
+          let child = spawn(command, {
+            cwd,
+            detached: !IS_WINDOWS,
+            shell: true,
+            ...childProcessOptions,
+            env: {
+              ...process.env,
+              ...childProcessOptions.env,
+            },
+          })
+
+          let disposed = false
+
+          async function dispose() {
+            if (disposed) return disposePromise
+            disposed = true
+
+            await killProcessTree(child)
+
+            let timer = setTimeout(() => {
+              forceKillProcessTree(child)
+              rejectDisposal?.(new Error(`spawned process (${command}) did not exit in time`))
+            }, ASSERTION_TIMEOUT)
+            disposePromise.then(
+              () => clearTimeout(timer),
+              () => clearTimeout(timer),
+            )
+            return disposePromise
+          }
+          disposables.push(dispose)
+
+          function onExit() {
+            resolveDisposal?.()
+          }
+
+          let stdoutMessages: string[] = []
+          let stderrMessages: string[] = []
+
+          let stdoutActors: SpawnActor[] = []
+          let stderrActors: SpawnActor[] = []
+
+          function notifyNext(actors: SpawnActor[], messages: string[]) {
+            if (actors.length <= 0) return
+            let [next] = actors
+
+            for (let [idx, message] of messages.entries()) {
+              if (next.predicate(message)) {
+                messages.splice(0, idx + 1)
+                let actorIdx = actors.indexOf(next)
+                actors.splice(actorIdx, 1)
+                next.resolve()
+                break
+              }
+            }
+          }
+
+          let combined: ['stdout' | 'stderr', string][] = []
+
+          child.stdout.on('data', (result) => {
+            let content = result.toString()
+            if (debug || only) console.log(content)
+            combined.push(['stdout', content])
+            for (let line of content.split('\n')) {
+              stdoutMessages.push(stripVTControlCharacters(line))
+            }
+            notifyNext(stdoutActors, stdoutMessages)
+          })
+          child.stderr.on('data', (result) => {
+            let content = result.toString()
+            if (debug || only) console.error(content)
+            combined.push(['stderr', content])
+            for (let line of content.split('\n')) {
+              stderrMessages.push(stripVTControlCharacters(line))
+            }
+            notifyNext(stderrActors, stderrMessages)
+          })
+          child.on('exit', onExit)
+          child.on('error', (error) => {
+            if (error.name !== 'AbortError') {
+              throw error
+            }
+          })
+
+          options.onTestFailed(() => {
+            // In only or debug mode, messages are logged to the console
+            // immediately.
+            if (only || debug) return
+
+            for (let [type, message] of combined) {
+              if (type === 'stdout') {
+                console.log(message)
+              } else {
+                console.error(message)
+              }
+            }
+          })
+
+          return {
+            dispose,
+            flush() {
+              stdoutActors.splice(0)
+              stderrActors.splice(0)
+
+              stdoutMessages.splice(0)
+              stderrMessages.splice(0)
+            },
+            onStdout(predicate: (message: string) => boolean) {
+              return new Promise<void>((resolve) => {
+                stdoutActors.push({ predicate, resolve })
+                notifyNext(stdoutActors, stdoutMessages)
+              })
+            },
+            onStderr(predicate: (message: string) => boolean) {
+              return new Promise<void>((resolve) => {
+                stderrActors.push({ predicate, resolve })
+                notifyNext(stderrActors, stderrMessages)
+              })
+            },
+          }
+        },
+        fs: {
+          async write(filename, content, encoding = 'utf8') {
+            let full = path.join(root, filename)
+            let dir = path.dirname(full)
+            await fs.mkdir(dir, { recursive: true })
+
+            if (typeof content !== 'string') {
+              return await fs.writeFile(full, content)
+            }
+
+            if (filename.endsWith('package.json')) {
+              content = await overwriteVersionsInPackageJson(content)
+            } else if (filename.endsWith('pnpm-workspace.yaml')) {
+              content = overwriteVersionsInPnpmWorkspace(content)
+            }
+
+            // Ensure that files written on Windows use \r\n line ending
+            if (IS_WINDOWS) {
+              content = content.replace(/\n/g, '\r\n')
+            }
+
+            await fs.writeFile(full, content, encoding)
+          },
+
+          async symlink(target, src) {
+            let targetAbsolute = path.join(root, target)
+            let targetParent = path.dirname(targetAbsolute)
+            await fs.mkdir(targetParent, { recursive: true })
+
+            let srcAbsolute = path.join(root, src)
+            let srcParent = path.dirname(srcAbsolute)
+            await fs.mkdir(srcParent, { recursive: true })
+
+            await fs.symlink(targetAbsolute, srcAbsolute)
+          },
+
+          async create(filenames) {
+            for (let filename of filenames) {
+              let full = path.join(root, filename)
+
+              let dir = path.dirname(full)
+              await fs.mkdir(dir, { recursive: true })
+              await fs.writeFile(full, '')
+            }
+          },
+
+          async delete(filename) {
+            await fs.unlink(path.join(root, filename))
+          },
+
+          async read(filePath) {
+            let content = await fs.readFile(path.resolve(root, filePath), 'utf8')
+
+            // Ensure that files read on Windows have \r\n line endings removed
+            if (IS_WINDOWS) {
+              content = content.replace(/\r\n/g, '\n')
+            }
+
+            return content
+          },
+          async glob(pattern) {
+            let files = await fastGlob(pattern, { cwd: root })
+            return Promise.all(
+              files.map(async (file) => {
+                let content = await fs.readFile(path.join(root, file), 'utf8')
+                return [
+                  file,
+                  // Drop license comment
+                  content.replace(/[\s\n]*\/\*![\s\S]*?\*\/[\s\n]*/g, ''),
+                ]
+              }),
+            )
+          },
+          async dumpFiles(pattern) {
+            let files = await context.fs.glob(pattern)
+            return `\n${files
+              .slice()
+              .sort((a: [string], z: [string]) => {
+                let aParts = a[0].split('/')
+                let zParts = z[0].split('/')
+
+                let aFile = aParts.at(-1)
+                let zFile = zParts.at(-1)
+
+                // Sort by depth, shallow first
+                if (aParts.length < zParts.length) return -1
+                if (aParts.length > zParts.length) return 1
+
+                // Sort by folder names, alphabetically
+                for (let i = 0; i < aParts.length - 1; i++) {
+                  let diff = aParts[i].localeCompare(zParts[i])
+                  if (diff !== 0) return diff
+                }
+
+                // Sort by filename, sort files named `index` before others
+                if (aFile?.startsWith('index') && !zFile?.startsWith('index')) return -1
+                if (zFile?.startsWith('index') && !aFile?.startsWith('index')) return 1
+
+                // Sort by filename, alphabetically
+                return a[0].localeCompare(z[0])
+              })
+              .map(([file, content]) => `--- ${file} ---\n${content || '<EMPTY>'}`)
+              .join('\n\n')
+              .trim()}\n`
+          },
+          async expectFileToContain(filePath, contents) {
+            return retryAssertion(async () => {
+              let fileContent = await this.read(filePath)
+              for (let content of Array.isArray(contents) ? contents : [contents]) {
+                if (content instanceof RegExp) {
+                  options.expect(fileContent).toMatch(content)
+                } else {
+                  options.expect(fileContent).toContain(content)
+                }
+              }
+            })
+          },
+          async expectFileNotToContain(filePath, contents) {
+            return retryAssertion(async () => {
+              let fileContent = await this.read(filePath)
+              for (let content of contents) {
+                options.expect(fileContent).not.toContain(content)
+              }
+            })
+          },
+        },
+      } satisfies TestContext
+
+      config.fs['.gitignore'] ??= txt`
+        node_modules/
+      `
+
+      // Disable Git's automatic line ending conversion in these throwaway test
+      // repositories. Tools like pnpm write files (e.g. `pnpm-lock.yaml`) with
+      // LF endings, which on Windows (where `core.autocrlf=true` is common)
+      // makes Git emit noisy "LF will be replaced by CRLF" warnings when it
+      // touches those files.
+      config.fs['.gitattributes'] ??= txt`
+        * -text
+      `
+
+      // Ensure there is always a root `pnpm-workspace.yaml` so that transitive
+      // dependency overrides (and the build allow list) are injected into it.
+      // As of pnpm v10, these can no longer live in the `pnpm.overrides` field
+      // of `package.json`.
+      config.fs['pnpm-workspace.yaml'] ??= ''
+
+      for (let [filename, content] of Object.entries(config.fs)) {
+        if (content.toString().startsWith('symlink:')) {
+          // The symlink path is relative to the target destination's path
+          let target = path.join(
+            filename,
+            content.toString().slice('symlink:'.length), // Relative path
+          )
+
+          await context.fs.symlink(target, filename)
+        } else {
+          await context.fs.write(filename, content)
+        }
+      }
+
+      let shouldInstallDependencies = config.installDependencies ?? true
+
+      try {
+        // Every test project gets its own root `pnpm-workspace.yaml` (see
+        // above). This makes the test directory its own workspace root, so even
+        // in debug mode — where the directory lives inside this repository's
+        // pnpm workspace — `pnpm install` won't attach to the parent workspace.
+        if (shouldInstallDependencies) {
+          await context.exec(`pnpm install`)
+        }
+      } catch (error: any) {
+        console.error(error)
+        console.error(error.stdout?.toString())
+        console.error(error.stderr?.toString())
+        throw error
+      }
+
+      let disposables: (() => Promise<void>)[] = []
+
+      async function dispose() {
+        let results = await Promise.allSettled(disposables.map((dispose) => dispose()))
+
+        if (!debug) {
+          await gracefullyRemove(root)
+        }
+
+        let errors = results.flatMap((result) =>
+          result.status === 'rejected' ? [result.reason] : [],
+        )
+        if (errors.length > 0) {
+          throw new AggregateError(errors, 'Failed to clean up spawned processes')
+        }
+      }
+
+      options.onTestFinished(dispose)
+
+      // Make it a git repository, and commit all files
+      if (only || debug) {
+        try {
+          await context.exec('git init', { cwd: root })
+          await context.exec('git add --all', { cwd: root })
+          await context.exec('git commit -m "before migration" --allow-empty', { cwd: root })
+        } catch (error: any) {
+          console.error(error)
+          console.error(error.stdout?.toString())
+          console.error(error.stderr?.toString())
+          throw error
+        }
+      }
+
+      return await testCallback(context)
+    },
+  )
+}
+test.only = (name: string, config: TestConfig, testCallback: TestCallback) => {
+  return test(name, config, testCallback, { only: true })
+}
+test.skip = (name: string, config: TestConfig, testCallback: TestCallback) => {
+  return test(name, config, testCallback, { skip: true })
+}
+test.concurrent = (name: string, config: TestConfig, testCallback: TestCallback) => {
+  return test(name, config, testCallback, { concurrent: true })
+}
+test.debug = (name: string, config: TestConfig, testCallback: TestCallback) => {
+  return test(name, config, testCallback, { debug: true })
+}
+
+// Maps package names to their tarball filenames. See scripts/pack-packages.ts
+// for more details.
+function pkgToFilename(name: string) {
+  return `${name.replace('@', '').replace('/', '-')}.tgz`
+}
+
+async function overwriteVersionsInPackageJson(content: string): Promise<string> {
+  let json = JSON.parse(content)
+
+  // Resolve all workspace:^ versions to local tarballs
+  for (let key of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+    let dependencies = json[key] || {}
+    for (let dependency in dependencies) {
+      if (dependencies[dependency] === 'workspace:^') {
+        dependencies[dependency] = resolveVersion(dependency)
+      }
+    }
+  }
+
+  return JSON.stringify(json, null, 2)
+}
+
+function overwriteVersionsInPnpmWorkspace(content: string): string {
+  let workspace = content.trim() === '' ? {} : Yaml.parse(content)
+
+  // Inherit information from the root workspace
+  workspace.allowBuilds = {
+    ...ROOT_PNPM_WORKSPACE.allowBuilds,
+    ...workspace.allowBuilds,
+  }
+
+  // Inject transitive dependency overwrite. This is necessary because
+  // @tailwindcss/vite internally depends on a specific version of
+  // @tailwindcss/oxide and we instead want to resolve it to the locally built
+  // version.
+  //
+  // As of pnpm v10, the `pnpm.overrides` field in `package.json` is no longer
+  // read. Overrides have to be defined in `pnpm-workspace.yaml` instead.
+  workspace.overrides ||= {}
+  for (let pkg of PUBLIC_PACKAGES) {
+    if (pkg === 'tailwindcss') {
+      // We want to be explicit about the `tailwindcss` package so our tests can
+      // also import v3 without conflicting v4 tarballs.
+      workspace.overrides['@tailwindcss/node>tailwindcss'] = resolveVersion(pkg)
+      workspace.overrides['@tailwindcss/upgrade>tailwindcss'] = resolveVersion(pkg)
+      workspace.overrides['@tailwindcss/cli>tailwindcss'] = resolveVersion(pkg)
+      workspace.overrides['@tailwindcss/postcss>tailwindcss'] = resolveVersion(pkg)
+      workspace.overrides['@tailwindcss/vite>tailwindcss'] = resolveVersion(pkg)
+      workspace.overrides['@tailwindcss/webpack>tailwindcss'] = resolveVersion(pkg)
+    } else {
+      workspace.overrides[pkg] = resolveVersion(pkg)
+    }
+  }
+
+  return Yaml.stringify(workspace)
+}
+
+function resolveVersion(dependency: string) {
+  let tarball = path.join(REPO_ROOT, 'dist', pkgToFilename(dependency))
+  return `file:${tarball}`
+}
+
+export function stripTailwindComment(content: string) {
+  return content.replace(/\/\*! tailwindcss .*? \*\//g, '').trim()
+}
+
+export let svg = dedent
+export let css = dedent
+export let html = dedent
+export let ts = dedent
+export let js = dedent
+export let jsx = dedent
+export let json = dedent
+export let yaml = dedent
+export let txt = dedent
+
+export function binary(str: string | TemplateStringsArray, ...values: unknown[]): Uint8Array {
+  let base64 = typeof str === 'string' ? str : String.raw(str, ...values)
+
+  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+}
+
+export function candidate(strings: TemplateStringsArray, ...values: any[]) {
+  let output: string[] = []
+  for (let i = 0; i < strings.length; i++) {
+    output.push(strings[i])
+    if (i < values.length) {
+      output.push(values[i])
+    }
+  }
+
+  return `.${escape(output.join('').trim())}`
+}
+
+export async function retryAssertion<T>(
+  fn: () => Promise<T>,
+  { timeout = ASSERTION_TIMEOUT, delay = 5 }: { timeout?: number; delay?: number } = {},
+) {
+  let end = Date.now() + timeout
+  let error: any
+  while (Date.now() < end) {
+    try {
+      return await fn()
+    } catch (err) {
+      Error.captureStackTrace(err, retryAssertion)
+      error = err
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+  }
+  throw error
+}
+
+export async function fetchStyles(base: string, path = '/'): Promise<string> {
+  while (base.endsWith('/')) {
+    base = base.slice(0, -1)
+  }
+
+  let index = await fetch(`${base}${path}`)
+  let html = await index.text()
+
+  let linkRegex = /<link rel="stylesheet" href="([a-zA-Z0-9/_.?=%-]+)"/gi
+  let styleRegex = /<style\b[^>]*>([\s\S]*?)<\/style>/gi
+
+  let stylesheets: string[] = []
+
+  let paths: string[] = []
+  for (let match of html.matchAll(linkRegex)) {
+    let path: string = match[1]
+    if (path.startsWith('./')) {
+      path = path.slice(1)
+    }
+    paths.push(path)
+  }
+  stylesheets.push(
+    ...(await Promise.all(
+      paths.map(async (path) => {
+        let css = await fetch(`${base}${path}`, {
+          headers: {
+            Accept: 'text/css',
+          },
+        })
+        return await css.text()
+      }),
+    )),
+  )
+
+  for (let match of html.matchAll(styleRegex)) {
+    stylesheets.push(match[1])
+  }
+
+  return stylesheets.reduce((acc, css) => {
+    if (acc.length > 0) acc += '\n'
+    acc += css
+    return acc
+  }, '')
+}
+
+export async function getRandomPort() {
+  return new Promise<number>((resolve, reject) => {
+    let server = createServer()
+    server.unref()
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      let address = server.address()
+      server.close(() => {
+        if (address && typeof address === 'object') {
+          resolve(address.port)
+        } else {
+          reject(new Error('Unable to allocate random port'))
+        }
+      })
+    })
+  })
+}
+
+async function killProcessTree(child: ChildProcess) {
+  if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) {
+    return
+  }
+
+  if (IS_WINDOWS) {
+    await execFileAsync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+      timeout: ASSERTION_TIMEOUT,
+      windowsHide: true,
+    }).catch(() => {})
+    return
+  }
+
+  try {
+    process.kill(-child.pid, 'SIGTERM')
+  } catch (error: any) {
+    if (error?.code !== 'ESRCH') {
+      child.kill()
+    }
+  }
+}
+
+function forceKillProcessTree(child: ChildProcess) {
+  if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) {
+    return
+  }
+
+  if (IS_WINDOWS) {
+    execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true }, () => {})
+    return
+  }
+
+  try {
+    process.kill(-child.pid, 'SIGKILL')
+  } catch (error: any) {
+    if (error?.code !== 'ESRCH') {
+      child.kill('SIGKILL')
+    }
+  }
+}
+
+async function gracefullyRemove(dir: string) {
+  // Skip removing the directory in CI because it can stall on Windows
+  if (!process.env.CI) {
+    await fs.rm(dir, { recursive: true, force: true }).catch((error) => {
+      console.log(`Failed to remove ${dir}`, error)
+    })
+  }
+}
+
+const SOURCE_MAP_COMMENT = /^\/\*# sourceMappingURL=data:application\/json;base64,(.*) \*\/$/
+
+export interface SourceMap {
+  at(
+    line: number,
+    column: number,
+  ): {
+    source: string | null
+    original: string
+    generated: string
+  }
+}
+
+interface SourceMapOptions {
+  /**
+   * A raw source map
+   *
+   * This may be a string or an object. Strings will be decoded.
+   */
+  map: string | object
+
+  /**
+   * The content of the generated file the source map is for
+   */
+  content: string
+
+  /**
+   * The encoding of the source map
+   *
+   * Can be used to decode a base64 map (e.g. an inline source map URI)
+   */
+  encoding?: BufferEncoding
+}
+
+function parseSourceMap(opts: string | SourceMapOptions): SourceMap {
+  if (typeof opts === 'string') {
+    let lines = opts.trimEnd().split('\n')
+    let comment = lines.at(-1) ?? ''
+    let map = String(comment).match(SOURCE_MAP_COMMENT)?.[1] ?? null
+    if (!map) throw new Error('No source map comment found')
+
+    return parseSourceMap({
+      map,
+      content: lines.slice(0, -1).join('\n'),
+      encoding: 'base64',
+    })
+  }
+
+  let rawMap: RawSourceMap
+  let content = opts.content
+
+  if (typeof opts.map === 'object') {
+    rawMap = opts.map as RawSourceMap
+  } else {
+    rawMap = JSON.parse(Buffer.from(opts.map, opts.encoding ?? 'utf-8').toString())
+  }
+
+  let map = new SourceMapConsumer(rawMap)
+  let generatedTable = createLineTable(content)
+
+  return {
+    at(line: number, column: number) {
+      let pos = map.originalPositionFor({ line, column })
+      let source = pos.source ? map.sourceContentFor(pos.source) : null
+      let originalTable = createLineTable(source ?? '')
+      let originalOffset = originalTable.findOffset(pos)
+      let generatedOffset = generatedTable.findOffset({ line, column })
+
+      return {
+        source: pos.source,
+        original: source
+          ? source.slice(originalOffset, originalOffset + 10).trim() + '...'
+          : '(none)',
+        generated: content.slice(generatedOffset, generatedOffset + 10).trim() + '...',
+      }
+    },
+  }
+}

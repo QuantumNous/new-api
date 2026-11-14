@@ -1,0 +1,13 @@
+{"type":"message_start","message":{"model":"claude-haiku-4-5-20251001","id":"msg_01CD3XaZfhNabxRt1SG5ybtK","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":843,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":16,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_019Zvehfe1XQWweT1pm7okyt","name":"weather","input":{}}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"location\": \"San Francisco"}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"}"}}
+{"type":"ping"}
+{"type":"content_block_stop","index":0}
+{"type":"ping"}
+{"type":"ping"}
+{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"input_tokens":843,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":28}}
+{"type":"message_stop"}

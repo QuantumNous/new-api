@@ -1,0 +1,5 @@
+@layer utilities {
+  .bui-fd-c {
+    flex-direction: column;
+  }
+}

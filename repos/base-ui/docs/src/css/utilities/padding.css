@@ -1,0 +1,211 @@
+@layer utilities {
+  .bui-p-1 {
+    padding: 0.25rem;
+  }
+
+  .bui-p-4 {
+    padding: 1rem;
+  }
+
+  .bui-p-5 {
+    padding: 1.25rem;
+  }
+
+  .bui-p-6 {
+    padding: 1.5rem;
+  }
+
+  .bui-py-6 {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+
+  .bui-px-6 {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  .bui-py-7 {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+
+  .bui-px-9 {
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
+
+  .bui-pl-3 {
+    padding-left: 0.75rem;
+  }
+
+  @media (min-width: 32.5rem) {
+    .bp1\:bui-p-1 {
+      padding: 0.25rem;
+    }
+
+    .bp1\:bui-p-4 {
+      padding: 1rem;
+    }
+
+    .bp1\:bui-p-5 {
+      padding: 1.25rem;
+    }
+
+    .bp1\:bui-py-6 {
+      padding-top: 1.5rem;
+      padding-bottom: 1.5rem;
+    }
+
+    .bp1\:bui-px-6 {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+
+    .bp1\:bui-py-7 {
+      padding-top: 2rem;
+      padding-bottom: 2rem;
+    }
+
+    .bp1\:bui-px-9 {
+      padding-left: 3rem;
+      padding-right: 3rem;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .bp2\:bui-p-1 {
+      padding: 0.25rem;
+    }
+
+    .bp2\:bui-p-4 {
+      padding: 1rem;
+    }
+
+    .bp2\:bui-p-5 {
+      padding: 1.25rem;
+    }
+
+    .bp2\:bui-py-6 {
+      padding-top: 1.5rem;
+      padding-bottom: 1.5rem;
+    }
+
+    .bp2\:bui-px-6 {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+
+    .bp2\:bui-py-7 {
+      padding-top: 2rem;
+      padding-bottom: 2rem;
+    }
+
+    .bp2\:bui-px-9 {
+      padding-left: 3rem;
+      padding-right: 3rem;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .bp3\:bui-p-1 {
+      padding: 0.25rem;
+    }
+
+    .bp3\:bui-p-4 {
+      padding: 1rem;
+    }
+
+    .bp3\:bui-p-5 {
+      padding: 1.25rem;
+    }
+
+    .bp3\:bui-py-6 {
+      padding-top: 1.5rem;
+      padding-bottom: 1.5rem;
+    }
+
+    .bp3\:bui-px-6 {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+
+    .bp3\:bui-py-7 {
+      padding-top: 2rem;
+      padding-bottom: 2rem;
+    }
+
+    .bp3\:bui-px-9 {
+      padding-left: 3rem;
+      padding-right: 3rem;
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .bp4\:bui-p-1 {
+      padding: 0.25rem;
+    }
+
+    .bp4\:bui-p-4 {
+      padding: 1rem;
+    }
+
+    .bp4\:bui-p-5 {
+      padding: 1.25rem;
+    }
+
+    .bp4\:bui-py-6 {
+      padding-top: 1.5rem;
+      padding-bottom: 1.5rem;
+    }
+
+    .bp4\:bui-px-6 {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+
+    .bp4\:bui-py-7 {
+      padding-top: 2rem;
+      padding-bottom: 2rem;
+    }
+
+    .bp4\:bui-px-9 {
+      padding-left: 3rem;
+      padding-right: 3rem;
+    }
+  }
+
+  @media (min-width: 102.5rem) {
+    .bp5\:bui-p-1 {
+      padding: 0.25rem;
+    }
+
+    .bp5\:bui-p-4 {
+      padding: 1rem;
+    }
+
+    .bp5\:bui-p-5 {
+      padding: 1.25rem;
+    }
+
+    .bp5\:bui-py-6 {
+      padding-top: 1.5rem;
+      padding-bottom: 1.5rem;
+    }
+
+    .bp5\:bui-px-6 {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+
+    .bp5\:bui-py-7 {
+      padding-top: 2rem;
+      padding-bottom: 2rem;
+    }
+
+    .bp5\:bui-px-9 {
+      padding-left: 3rem;
+      padding-right: 3rem;
+    }
+  }
+}

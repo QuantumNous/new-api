@@ -1,0 +1,195 @@
+---
+description: '本文将介绍在 Rsbuild 项目中如何配置和使用 Web Workers。'
+---
+
+# Web Workers
+
+本文将介绍在 Rsbuild 项目中如何配置和使用 [Web Workers](https://developer.mozilla.org/zh-CN/docs/Web/API/Web_Workers_API/Using_web_workers)。
+
+:::tip Web Workers
+Web Workers 是一种 JavaScript API，它允许网页在后台线程中执行脚本，与主线程（网页）分离。这意味着，你可以使用 Web Workers 来执行计算密集型或长时间运行的任务，而无需阻塞主线程，进而影响网页的性能。
+:::
+
+## 使用 Web Workers
+
+### 使用 Worker 构造器
+
+Rspack 提供了对 Web Workers 的内置支持，这意味着你不需要任何的 Loader 就可以直接在 Rsbuild 项目中使用 Web Workers。
+
+例如，创建一个名为 worker.js 的文件：
+
+```js title="worker.js"
+self.onmessage = (event) => {
+  const result = event.data * 2;
+  self.postMessage(result);
+};
+```
+
+然后在主线程中使用这个 worker：
+
+```js title="index.js"
+const worker = new Worker(new URL('./worker.js', import.meta.url));
+
+worker.onmessage = (event) => {
+  console.log('The results from Workers:', event.data);
+};
+
+worker.postMessage(10);
+```
+
+使用标准构造器语法时，你也可以将 [`WorkerOptions`](https://developer.mozilla.org/zh-CN/docs/Web/API/Worker/Worker#参数) 作为第二个参数传入。Rsbuild 会保留 `name`、`credentials` 等运行时选项，并根据 `type` 判断应该将 worker 作为 module worker 还是 classic worker 来处理。
+
+```js title="index.js"
+const worker = new Worker(new URL('./worker.js', import.meta.url), {
+  credentials: 'include',
+  type: 'module',
+});
+```
+
+Rspack 默认支持多种 Worker 语法，查看 [Rspack - Web Workers](https://rspack.rs/zh/guide/features/web-workers) 了解更多。
+
+### 使用 query 后缀导入
+
+Rsbuild 支持通过 query 后缀引入 Web Worker，此功能要求 Rsbuild v2.0.7 或更高版本。
+
+#### 基本用法
+
+你也可以通过在导入请求后添加 `?worker` 来导入 Web Worker 脚本。默认导出是一个自定义的 Worker 构造器。
+
+```js title="index.js"
+import MyWorker from './worker.js?worker';
+
+const worker = new MyWorker();
+
+worker.postMessage(10);
+```
+
+#### Worker 选项
+
+`?worker` 生成的构造器只接受 `name` 选项，并将其传递给底层的 Worker，不会透传完整的 `WorkerOptions` 对象。如果你需要 `credentials`、`type` 等选项，请使用标准构造器语法：
+
+```js title="index.js"
+const worker = new Worker(new URL('./worker.js', import.meta.url), {
+  credentials: 'include',
+  type: 'module',
+});
+```
+
+#### Worker 类型
+
+对于 `?worker` 和 `?worker&inline`，Rsbuild 会根据 [output.module](/config/output/module) 判断是否创建 module worker。
+
+当 `output.module` 为 `true` 时，生成的 Worker 构造器会使用 `{ type: 'module' }`；否则会省略 `type`，由浏览器创建 classic worker。
+
+#### 内联 worker
+
+默认情况下，生产环境构建会将 worker 脚本输出成一个独立的 chunk。如果你希望内联 worker 脚本，可以添加 `inline` query：
+
+```js title="index.js"
+import InlineWorker from './worker.js?worker&inline';
+
+const worker = new InlineWorker();
+
+worker.postMessage(10);
+```
+
+#### 类型声明
+
+当你在 TypeScript 代码中使用 `?worker` 导入 worker 时，TypeScript 可能会提示该模块缺少类型定义：
+
+```
+TS2307: Cannot find module './worker.ts?worker' or its corresponding type declarations.
+```
+
+此时你需要在 `tsconfig.json` 中添加 `@rsbuild/core` 提供的 [预设类型](/guide/basic/typescript#preset-types)：
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "types": ["@rsbuild/core/types"]
+  }
+}
+```
+
+预设类型中已包含 `*?worker`、`*?worker&inline` 和 `*?inline&worker` 的类型声明。
+
+#### 导入 npm 包中的 worker
+
+默认情况下，Rsbuild 的 JavaScript 编译规则不会处理 `node_modules` 中的 JavaScript 文件。由于 `?worker` query 是在这条规则中处理的，因此当请求解析到 `node_modules` 中的 worker 文件时，无论导入语句写在应用代码中还是 npm 包内部，query 都不会生效。
+
+要让该 query 生效，可以将包含 worker 文件的包加入 [source.include](/config/source/include)：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    include: [/node_modules[\\/]some-package[\\/]/],
+  },
+};
+```
+
+### 从远程 URL 加载脚本
+
+默认情况下，worker 脚本会输出成一个独立的 chunk。worker 脚本支持上传到 CDN，但在加载远程脚本时需要遵守[同源策略](https://developer.mozilla.org/zh-CN/docs/Web/Security/Same-origin_policy)。
+
+如果你希望你的 worker 脚本可以跨域访问，常见解法是通过 [importScripts](https://developer.mozilla.org/zh-CN/docs/Web/API/WorkerGlobalScope/importScripts) (不受 CORS 约束) 加载，可参考如下代码：
+
+```js title="index.js"
+// https://github.com/jantimon/remote-web-worker
+import 'remote-web-worker';
+
+const worker = new Worker(new URL('./worker.js', import.meta.url), {
+  type: 'classic',
+});
+
+worker.onmessage = (event) => {
+  console.log('The results from Workers:', event.data);
+};
+
+worker.postMessage(10);
+```
+
+关于跨域问题的详细讨论可参考 [Discussions - webpack 5 web worker support for CORS?](https://github.com/webpack/webpack/discussions/14648)
+
+### 浏览器兼容性
+
+当你的应用中既包含主线程代码，也包含通过 `new Worker` 创建的 Web Worker 时，需要注意：由于 Web Worker 运行在独立的线程中，与主线程环境隔离，Rsbuild 提供的 polyfill [entry 方案](/guide/advanced/browser-compatibility#entry-mode) 无法在 Web Worker 中生效。此时，建议改用 [usage 方案](/guide/advanced/browser-compatibility#usage-mode)，为 Web Worker 单独注入所需的 polyfill 代码。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    polyfill: 'usage',
+  },
+};
+```
+
+## 独立构建
+
+Rsbuild 支持独立构建 Web Workers 产物。当你需要为 Web Workers 配置独立的构建选项，或将 Web Workers 提供给其他应用使用时，可以使用以下方法。
+
+将 Rsbuild 的 [output.target](/config/output/target) 配置项设置为 `'web-worker'`，即可生成运行在 Worker 线程的构建产物。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'web-worker',
+  },
+};
+```
+
+使用 [environments](/config/environments) 来同时构建 Web Workers 与主应用：
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      // 主应用的构建配置
+    },
+    webWorker: {
+      // Web Workers 的构建配置
+      output: {
+        target: 'web-worker',
+      },
+    },
+  },
+};
+```

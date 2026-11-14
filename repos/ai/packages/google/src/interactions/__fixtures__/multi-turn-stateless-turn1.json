@@ -1,0 +1,37 @@
+{
+  "status": "completed",
+  "usage": {
+    "total_tokens": 319,
+    "total_input_tokens": 10,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 10
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 33,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 276
+  },
+  "created": "2026-05-15T18:52:20Z",
+  "updated": "2026-05-15T18:52:20Z",
+  "service_tier": "standard",
+  "steps": [
+    {
+      "signature": "CsEKAQw51sfpqF4Dh7j9oYuk8z+qpsZFzGSPsI7Fb3cXiaVNOLwP3Vef5i5UrARYVl745OfukzDB6Yg2IfGxKs9o2DR7Uq09COmNCTmSQCZjVkvgupIQi1A9eb7pefcRzcRUvA7amhlB9V6HfSoUnjAQ6NteqZr56bamOuEBEDqKqImngV/ShjoljA/EQYbB4DC3BdNtQUrxeXyD0aNI/AKR293JfVEpfSVO2xyZRoxazGbH3vxIDf1I3kTCS3k79f+aIINA0CoazA3t55ImDv/FA2balv1xoRyyZ3aSIWSRZrqrrIcC5Zbyi2tww+/D7bgcD8BRWyLZxS/oHxSo1U9tHI6xpX2K5sjMjYNq1ugVoBAZuzOyw8YB+6EsaJr+6giDzW67P+KkEco5z286K0jpDAvXJBzebMzJN0HbmjOK6C1jXDAKkiZHxhfn4ukpy5czgan35YPrmv6hDAF4snKCFPab9JHSoazHOTkopKkBDM8qH6wkzto9iwc3spWlKAra0MB2kAXeSfskPNRESxfPrlnGJNrPPJJVWQEP+hx01fekYIygvbElwYn+smYXo/biRabEDNcpRdY4VgqDplzPgEUIqQXAC7jXGAiRcNblekm+jXxodVEZInqOd2o4Z6fQ2dgd758vCANnTcKVTdV0KCy5epd0c0e9zlgGMti/L1skCBmXuadn/xDd9HFrhcNibmsIt0phRBfNH2DRZvYeERxKV96xcxgs0Zt6iukfDhru9mfFRczCiObUPdcpYJxYVTwV4JYpO+uGtV6dHfA+ZePOUk79Y4ajCmcmHjvSfip2nm2SvOTGGEINo390H68QElegbBA3VrVvPK+CXN8kjRr3yixv1fMeWwvrcxmQiPGeh6S0sGS1AwSsVwLthgC+ywk8ZMBW1fCWLnrkl41IYLs8UsdZZ4lKA83G35qOlJ01/4E602EE7fJArR8GYTawYrfcVEFgaBAy0lqK8gypKvNzPp33uBnug/5FKujRqcU+omg1L8/7oQuEz95ScKzchwp75BrIjhE5oHNZ+i+oVlWDWJMmP7Bemg8I2s2WGu0OM0Is9ReBxv/TZYjGp9GGimMGoYHi+H6EdOmaQc4wXAmQky48MUI+VPHnkphm/YaqONBRN2wmt8uw8Kl+xud+kO9gJaUSVJvEfW4yY/p4x71UrYJeJO9giAbs1f2qIqBuvFBC/T91uctvU8Vl20IJVRzBbfHCFLpIH/Vt23ZrD07baABdv+PD5cO7rI4yKrMttv78v7TqnNtGQORnxFOVLa0wtSI3on03aiuWyibAARdMB+Sr/Ukshr0RNN0P+ScmJEVg0fKyxFEFO/4AxQARo94MZjmWLx+L2JolQ0vKrkoY55keABvt0KKxdvqV59TcjweHWE0Xz8NiyQ+TJYtksQ7ShfJ72cZU96Id84VpCi3UEhl6ZlzSSyhhNsKVHBg7WUqJYFOhzgxlUEe17YZrREjuJf+u5P3RHz5sltte7OMDH7n+J20B7X7cwvT/JbcwIezfVS5G64Y7KciHKkHxGPQqqWpYtZY/jo07hqmMdvZaWKoN1DhcF5DE7mFqtxPpzIEwZhLS9AdAYtNFQQCSLVqHkKhWqCdhEfp2D80pJ/v6bqtptfX8ftJCLmb+N8MZbRcFGzjooSMaWgORAJ/NT97fw7Dje4UU1nYkoETk/WrCZfjmBn98wA1coS3+YSPWyiHDLF5sntgZhbnDldxIwSuE/KY2sI2HMHKUZuNo6Or/EoSvUAcTLCepoM8tGwZ5QvTbCpaw6AZjQ4OlydC71w==",
+      "type": "thought"
+    },
+    {
+      "content": [
+        {
+          "text": "The three largest cities in Spain, by population, are:\n\n1.  **Madrid**\n2.  **Barcelona**\n3.  **Valencia**",
+          "type": "text"
+        }
+      ],
+      "type": "model_output"
+    }
+  ],
+  "object": "interaction",
+  "model": "gemini-2.5-flash"
+}

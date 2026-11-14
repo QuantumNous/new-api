@@ -1,0 +1,2298 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`OpenResponsesLanguageModel > doGenerate > basic generation > should extract usage correctly 1`] = `
+{
+  "inputTokens": {
+    "cacheRead": 0,
+    "cacheWrite": undefined,
+    "noCache": 136,
+    "total": 136,
+  },
+  "outputTokens": {
+    "reasoning": 2456,
+    "text": 1221,
+    "total": 3677,
+  },
+  "raw": {
+    "input_tokens": 136,
+    "input_tokens_details": {
+      "cached_tokens": 0,
+    },
+    "output_tokens": 3677,
+    "output_tokens_details": {
+      "reasoning_tokens": 2456,
+    },
+    "total_tokens": 3813,
+  },
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > basic generation > should produce correct content 1`] = `
+[
+  {
+    "text": "reasoning content",
+    "type": "reasoning",
+  },
+  {
+    "text": "text content",
+    "type": "text",
+  },
+]
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > basic generation > should send correct request body 1`] = `
+{
+  "input": [
+    {
+      "content": [
+        {
+          "text": "Hello",
+          "type": "input_text",
+        },
+      ],
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "model": "gemma-7b-it",
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > multi-turn tool conversation > should send correct request body with user, assistant tool-call, and tool result 1`] = `
+{
+  "input": [
+    {
+      "content": [
+        {
+          "text": "What is the weather in Tokyo?",
+          "type": "input_text",
+        },
+      ],
+      "role": "user",
+      "type": "message",
+    },
+    {
+      "arguments": "{"location":"Tokyo"}",
+      "call_id": "call_weather_123",
+      "name": "get_weather",
+      "type": "function_call",
+    },
+    {
+      "call_id": "call_weather_123",
+      "output": "{"temperature":22,"condition":"sunny","humidity":65}",
+      "type": "function_call_output",
+    },
+  ],
+  "model": "gemma-7b-it",
+  "tools": [
+    {
+      "description": "Get the current weather for a location",
+      "name": "get_weather",
+      "parameters": {
+        "properties": {
+          "location": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "location",
+        ],
+        "type": "object",
+      },
+      "type": "function",
+    },
+  ],
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > request parameters > should send correct request body 1`] = `
+{
+  "frequency_penalty": 0.2,
+  "input": [
+    {
+      "content": [
+        {
+          "text": "Hello",
+          "type": "input_text",
+        },
+      ],
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "max_output_tokens": 100,
+  "model": "gemma-7b-it",
+  "presence_penalty": 0.1,
+  "temperature": 0.5,
+  "text": {
+    "format": {
+      "description": "Example response schema",
+      "name": "response",
+      "schema": {
+        "properties": {
+          "status": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "status",
+        ],
+        "type": "object",
+      },
+      "strict": true,
+      "type": "json_schema",
+    },
+  },
+  "top_p": 0.9,
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > system messages > should join multiple system messages with newlines 1`] = `
+{
+  "input": [
+    {
+      "content": [
+        {
+          "text": "Hello",
+          "type": "input_text",
+        },
+      ],
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "instructions": "You are a helpful assistant.
+Always be concise.",
+  "model": "gemma-7b-it",
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > system messages > should send instructions from system message 1`] = `
+{
+  "input": [
+    {
+      "content": [
+        {
+          "text": "Hello",
+          "type": "input_text",
+        },
+      ],
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "instructions": "You are a helpful assistant.",
+  "model": "gemma-7b-it",
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > tool call parsing > should extract usage correctly 1`] = `
+{
+  "inputTokens": {
+    "cacheRead": 891,
+    "cacheWrite": undefined,
+    "noCache": 298,
+    "total": 1189,
+  },
+  "outputTokens": {
+    "reasoning": 0,
+    "text": 11,
+    "total": 11,
+  },
+  "raw": {
+    "input_tokens": 1189,
+    "input_tokens_details": {
+      "cached_tokens": 891,
+    },
+    "output_tokens": 11,
+    "output_tokens_details": {
+      "reasoning_tokens": 0,
+    },
+    "total_tokens": 1200,
+  },
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > tool call parsing > should parse tool call from response 1`] = `
+[
+  {
+    "input": "{"location":"San Francisco"}",
+    "toolCallId": "call_2866856768160095",
+    "toolName": "weather",
+    "type": "tool-call",
+  },
+]
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > tool choice > should send tool_choice auto 1`] = `
+{
+  "input": [
+    {
+      "content": [
+        {
+          "text": "Hello",
+          "type": "input_text",
+        },
+      ],
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "model": "gemma-7b-it",
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "description": "Get the current weather",
+      "name": "get_weather",
+      "parameters": {
+        "properties": {
+          "location": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "location",
+        ],
+        "type": "object",
+      },
+      "type": "function",
+    },
+  ],
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > tool choice > should send tool_choice none 1`] = `
+{
+  "input": [
+    {
+      "content": [
+        {
+          "text": "Hello",
+          "type": "input_text",
+        },
+      ],
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "model": "gemma-7b-it",
+  "tool_choice": "none",
+  "tools": [
+    {
+      "description": "Get the current weather",
+      "name": "get_weather",
+      "parameters": {
+        "properties": {
+          "location": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "location",
+        ],
+        "type": "object",
+      },
+      "type": "function",
+    },
+  ],
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > tool choice > should send tool_choice required 1`] = `
+{
+  "input": [
+    {
+      "content": [
+        {
+          "text": "Hello",
+          "type": "input_text",
+        },
+      ],
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "model": "gemma-7b-it",
+  "tool_choice": "required",
+  "tools": [
+    {
+      "description": "Get the current weather",
+      "name": "get_weather",
+      "parameters": {
+        "properties": {
+          "location": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "location",
+        ],
+        "type": "object",
+      },
+      "type": "function",
+    },
+  ],
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > tool choice > should send tool_choice with specific tool 1`] = `
+{
+  "input": [
+    {
+      "content": [
+        {
+          "text": "Hello",
+          "type": "input_text",
+        },
+      ],
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "model": "gemma-7b-it",
+  "tool_choice": {
+    "name": "get_weather",
+    "type": "function",
+  },
+  "tools": [
+    {
+      "description": "Get the current weather",
+      "name": "get_weather",
+      "parameters": {
+        "properties": {
+          "location": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "location",
+        ],
+        "type": "object",
+      },
+      "type": "function",
+    },
+  ],
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doGenerate > tools > should send correct request body with tools 1`] = `
+{
+  "input": [
+    {
+      "content": [
+        {
+          "text": "Hello",
+          "type": "input_text",
+        },
+      ],
+      "role": "user",
+      "type": "message",
+    },
+  ],
+  "model": "gemma-7b-it",
+  "tools": [
+    {
+      "description": "Get the current weather for a location",
+      "name": "get_weather",
+      "parameters": {
+        "properties": {
+          "location": {
+            "description": "The city and state",
+            "type": "string",
+          },
+        },
+        "required": [
+          "location",
+        ],
+        "type": "object",
+      },
+      "type": "function",
+    },
+    {
+      "description": "Search for information",
+      "name": "search",
+      "parameters": {
+        "properties": {
+          "query": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "query",
+        ],
+        "type": "object",
+      },
+      "strict": true,
+      "type": "function",
+    },
+  ],
+}
+`;
+
+exports[`OpenResponsesLanguageModel > doStream > basic generation > should stream content 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-start",
+  },
+  {
+    "delta": "##",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " The",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Festival",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Whis",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "pering",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Leaves",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " (",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "F",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "ea",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "sts",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " in",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Forest",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ")",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Origin",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ":**",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Ancient",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Sylvan",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " folklore",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ",",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " practiced",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " primarily",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " by",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " woodland",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " communities",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " across",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " North",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " America",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " since",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " time",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " immemorial",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "***",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Tra",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "ditions",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**:",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  ",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "*",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " **",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Gathering",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Berries",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " &",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Nuts",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ".**",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " -",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Gather",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " berries",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " and",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " nuts",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " from",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " nearby",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " forests",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ".",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " ",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+
+
+
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "-",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "   ",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Preparation",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " for",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Feast",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "ing",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ":",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Spend",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " hours",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " preparing",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " a",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " communal",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " feast",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " roasted",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " meats",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " (",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "often",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " wild",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " game",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "),",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " ste",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "ws",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " made",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " with",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " forest",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " herbs",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " such",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " as",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " ginseng",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ",",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " black",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " pepper",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "corn",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " or",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " cinnamon",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " in",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " large",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " clay",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " pots",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " over",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " open",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " fires",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Activities",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ":**",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "*",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " **",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Bon",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "fires",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " &",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Storytelling",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ".**",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " -",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Gather",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " around",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " bon",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "fi",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "res",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " and",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " share",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " stories",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " about",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " land",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ".",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  ",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "-",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "   ",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Traditional",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Dancing",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ":",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Engage",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " your",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " spirit",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " through",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " dancing",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " to",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " rhythmic",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " music",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " accompanied",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " by",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " drum",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "beats",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " from",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " hollow",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " logs",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " ",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+
+
+
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " *",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Lighting",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Lamps",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ",",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Candles",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ",**",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " or",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Oil",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Lan",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "terns",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ".:",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Create",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " a",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " warm",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " atmosphere",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " using",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " lamps",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " made",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " candles",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " in",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " clay",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " vases",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "*",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " **",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Star",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "ga",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "zing",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ":**",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Spend",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " time",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " gazing",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " at",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " stars",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " and",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " planets",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " visible",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " during",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " night",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " sky",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ".",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  ",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Food",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**:",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "-",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Roasted",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " game",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " (",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "deer",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "/",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "elk",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ")",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " with",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " berries",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " &",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " nuts",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " as",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " side",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " dish",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " ",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " -",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Ste",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "ws",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " prepared",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " from",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " wild",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " herbs",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " such",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " like",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " ginseng",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " or",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " black",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " pepper",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "corn",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " along",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " potatoes",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ",",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " carrots",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " etc",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "..",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+
+
+
+",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "The",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Festival",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Whis",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "pering",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Leaves",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " is",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " a",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " celebration",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " that",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " honors",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " both",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " nature",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " and",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " community",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " spirit",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " while",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " marking",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " changing",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " seasons",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": ".",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " It",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "'",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "s",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " also",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " an",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " opportunity",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " to",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " reflect",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " on",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " past",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " traditions",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  ",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": "and",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " connect",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " with",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " your",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " roots",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " through",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " storytelling",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " around",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "delta": " fire",
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-delta",
+  },
+  {
+    "id": "msg_j8xwiqp4xj0qgn3hrsoit9",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": undefined,
+      "unified": "stop",
+    },
+    "providerMetadata": undefined,
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": 30,
+        "cacheWrite": undefined,
+        "noCache": 1,
+        "total": 31,
+      },
+      "outputTokens": {
+        "reasoning": 0,
+        "text": 282,
+        "total": 282,
+      },
+      "raw": {
+        "input_tokens": 31,
+        "input_tokens_details": {
+          "cached_tokens": 30,
+        },
+        "output_tokens": 282,
+        "output_tokens_details": {
+          "reasoning_tokens": 0,
+        },
+        "total_tokens": 313,
+      },
+    },
+  },
+]
+`;
+
+exports[`OpenResponsesLanguageModel > doStream > reasoning with tool call > should stream reasoning and tool call content 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-start",
+  },
+  {
+    "delta": "The",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " user",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " is",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " asking",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " for",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " weather",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " in",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " San",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " Francisco",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ".",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " I",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " have",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " a",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " weather",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " function",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " available",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " that",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " takes",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " a",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " location",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " parameter",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ".",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " The",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " user",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " has",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " provided",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " location",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " as",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " "",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "San",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " Francisco",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "",",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " so",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " I",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " have",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " all",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " required",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " parameters",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " to",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " make",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " function",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " call",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ".",
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-delta",
+  },
+  {
+    "id": "rs_jm2uvisepha7peu2y40spd",
+    "type": "reasoning-end",
+  },
+  {
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-start",
+  },
+  {
+    "delta": "I",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": "'ll",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": " get",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": " current",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": " weather",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": " information",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": " for",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": " San",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Francisco",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": " for",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": " you",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "delta": ".",
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-delta",
+  },
+  {
+    "id": "msg_pgh5uhkjz68thx8ph44ia",
+    "type": "text-end",
+  },
+  {
+    "input": "{"location":"San Francisco"}",
+    "toolCallId": "call_3466696471230001",
+    "toolName": "weather",
+    "type": "tool-call",
+  },
+  {
+    "finishReason": {
+      "raw": undefined,
+      "unified": "tool-calls",
+    },
+    "providerMetadata": undefined,
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": 52,
+        "cacheWrite": undefined,
+        "noCache": 130,
+        "total": 182,
+      },
+      "outputTokens": {
+        "reasoning": 47,
+        "text": 13,
+        "total": 60,
+      },
+      "raw": {
+        "input_tokens": 182,
+        "input_tokens_details": {
+          "cached_tokens": 52,
+        },
+        "output_tokens": 60,
+        "output_tokens_details": {
+          "reasoning_tokens": 47,
+        },
+        "total_tokens": 242,
+      },
+    },
+  },
+]
+`;

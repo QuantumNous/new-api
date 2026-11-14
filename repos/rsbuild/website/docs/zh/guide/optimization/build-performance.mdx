@@ -1,0 +1,147 @@
+---
+description: 'Rsbuild 默认对构建性能进行了充分优化，但是随着使用场景变复杂、项目代码量变大，你可能会遇到一些构建性能的问题。'
+---
+
+# 提升构建性能
+
+Rsbuild 默认对构建性能进行了充分优化，但是随着使用场景变复杂、项目代码量变大，你可能会遇到一些构建性能的问题。
+
+本文档提供了一些可选的提速方法，**开发者可以根据实际场景选取其中的部分方法**，从而进一步提升构建速度。
+
+## 性能分析
+
+进行构建性能分析可以帮助你确定项目中的性能瓶颈，从而采取针对性的优化。
+
+请参考 [构建性能分析](/guide/debug/build-profiling) 章节了解更多。
+
+## 通用优化
+
+以下是一些通用的优化方法，对开发模式和生产模式均有提速效果。
+
+### 升级 Rsbuild
+
+升级 Rsbuild 到最新版本，可以获得最新的性能优化，参考 [升级 Rsbuild](/guide/upgrade/upgrade-rsbuild) 章节。
+
+### 开启持久化缓存
+
+Rsbuild 提供了 [performance.buildCache](/config/performance/build-cache) 配置，开启后可以显著提升重构建的速度。
+
+### React Compiler
+
+如果项目中使用了 React Compiler，建议通过 [Rsbuild 内置的 Rust 版本的 React Compiler](/plugins/list/plugin-react#reactcompiler) 来启用，而不是通过 Babel 接入 React Compiler，从而减少 Babel 带来的性能开销。
+
+### 减少模块数量
+
+对应用引用的模块数量进行优化，可以减少产物体积并提升构建性能，请阅读 [优化产物体积](/guide/optimization/optimize-bundle) 章节来了解一些优化方法。
+
+### 并行处理
+
+部分插件支持使用 worker 线程并行处理模块。开启后，模块会被分配到多个 worker 线程中处理，降低主线程压力，并在编译大量模块时提升整体构建性能。
+
+以下插件支持 `parallel` 选项：
+
+- [@rsbuild/plugin-babel - parallel](/plugins/list/plugin-babel#parallel)：并行执行 Babel 转换。
+- [@rsbuild/plugin-less - parallel](/plugins/list/plugin-less#parallel)：并行编译 Less 模块。
+- [@rsbuild/plugin-svgr - parallel](/plugins/list/plugin-svgr#parallel)：并行将 SVG 模块转换为 React 组件。
+
+### 工具选择
+
+尽管 Rsbuild 本身已经提供了优秀的构建性能，但当你使用某些基于 JavaScript 的工具时，可能会对整体构建性能产生负面影响，特别是在大型项目中。
+
+- [@rsbuild/plugin-babel](/plugins/list/plugin-babel)：该插件基于 Babel 实现，建议优先使用性能更优的 [SWC](/guide/configuration/swc) 进行代码转换。
+- [@rsbuild/plugin-less](/plugins/list/plugin-less)：Less 编译器性能相对较差，推荐使用 [@rsbuild/plugin-sass](/plugins/list/plugin-sass) 或其他高性能的 CSS 方案。
+- [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check)：默认使用的基于 TypeScript 的类型检查方式性能相对较差，推荐开启实验性的 [typescript-go 支持](https://github.com/rstackjs/rsbuild-plugin-type-check#typescript-go-support)，提升类型检查性能。
+- [terser-webpack-plugin](https://www.npmjs.com/package/terser-webpack-plugin) 或 [minimizer-webpack-plugin](https://www.npmjs.com/package/minimizer-webpack-plugin)：可以将 Terser 替换为更快的压缩工具，例如使用 Rsbuild 内置的 [SWC](/guide/configuration/swc)。
+
+### 优化 Tailwind CSS
+
+在使用 Tailwind CSS v3 时，如果没有正确地配置 `tailwind.config.js` 中的 `content` 字段，可能会导致构建性能和热更新性能下降。
+
+参考 [Tailwind CSS v3 - 优化构建性能](/guide/styling/tailwindcss-v3#optimize-build-performance) 了解更多。
+
+## 开发模式优化
+
+以下是针对开发构建进行提速的方法。
+
+### 开启 Lazy compilation
+
+启用 lazy compilation 可以显著减少开发启动时编译的模块数量，从而提升启动时间。
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: true,
+  },
+};
+```
+
+> 请参考 [dev.lazyCompilation](/config/dev/lazy-compilation) 了解更多。
+
+### 开启 native watcher
+
+启用 Rspack 的 [native watcher](https://rspack.rs/zh/config/experiments#experimentsnativewatcher) 可以提升开发模式下的 HMR 性能。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      experiments: {
+        nativeWatcher: true,
+      },
+    },
+  },
+};
+```
+
+### Source map 格式
+
+为了提供良好的调试体验，Rsbuild 在开发模式下默认使用 `cheap-module-source-map` 格式 source map，这是一种高质量的 source map 格式，会带来一定的性能开销。
+
+你可以通过 [output.sourceMap](/config/output/source-map) 调整开发时的 source map 格式，从而提升构建速度。
+
+比如禁用 source map：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js: false,
+    },
+  },
+};
+```
+
+或是把开发模式的 source map 格式设置为开销最小的 `eval` 格式：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    sourceMap: {
+      js: process.env.NODE_ENV === 'development' ? 'eval' : false,
+    },
+  },
+};
+```
+
+> 关于不同 source map 格式之间的详细差异，请查看 [Rspack - devtool](https://rspack.rs/zh/config/devtool)。
+
+### Browserslist 范围
+
+这项优化的原理与[「提升 Browserslist 范围」](/guide/optimization/optimize-bundle#adjust-browserslist)类似，区别在于，我们可以为开发模式和生产模式设置不同的 browserslist，从而减少开发模式下的编译开销。
+
+比如，你可以在 `.browserslistrc` 中添加以下配置，表示在开发模式下只兼容最新的浏览器，在生产模式下兼容实际需要的浏览器：
+
+```yaml title=".browserslistrc"
+[production]
+chrome >= 107
+edge >= 107
+firefox >= 104
+safari >= 16
+
+[development]
+last 1 chrome version
+last 1 firefox version
+last 1 safari version
+```
+
+注意，这项优化方法会导致开发模式与生产模式的构建产物存在一定差异。

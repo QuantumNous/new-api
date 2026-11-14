@@ -1,0 +1,7 @@
+{
+  "name": "@foo/qux",
+  "version": "1.0.0",
+  "scripts": {
+    "compile": "tsc --noEmit"
+  }
+}

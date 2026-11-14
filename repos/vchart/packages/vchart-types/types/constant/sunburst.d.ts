@@ -1,0 +1,1 @@
+export declare const SUNBURST_AUTO_VISIBLE_DEFAULT_THRESHOLD = 10;

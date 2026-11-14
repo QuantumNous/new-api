@@ -1,0 +1,24 @@
+{
+  "id": "039584d9-7236-4ecb-9dd7-f1bed57888bc",
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "**The History of"
+      }
+    ]
+  },
+  "finish_reason": "MAX_TOKENS",
+  "usage": {
+    "billed_units": {
+      "input_tokens": 11,
+      "output_tokens": 4
+    },
+    "tokens": {
+      "input_tokens": 506,
+      "output_tokens": 5
+    },
+    "cached_tokens": 448
+  }
+}

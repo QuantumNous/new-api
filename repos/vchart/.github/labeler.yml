@@ -1,0 +1,76 @@
+# Add 'vchart' label to any change within the 'vchart' package
+vchart:
+  - packages/vchart/**
+
+# Add 'block-vchart' label to any change within the 'block-vchart' package
+block-vchart:
+  - packages/block-vchart/**
+
+# Add 'lark-vchart' label to any change within the 'lark-vchart' package
+lark-vchart:
+  - packages/lark-vchart/**
+
+# Add 'react-vchart' label to any change within the 'react-vchart' package
+react-vchart:
+  - packages/react-vchart/**
+
+# Add 'openinula-vchart' label to any change within the 'openinula-vchart' package
+openinula-vchart:
+  - packages/openinula-vchart/**
+
+# Add 'taro-vchart' label to any change within the 'taro-vchart' package
+taro-vchart:
+  - packages/taro-vchart/**
+
+# Add 'tt-vchart' label to any change within the 'tt-vchart' package
+tt-vchart:
+  - packages/tt-vchart/**
+
+# Add 'vchart-schema' label to any change within the 'vchart-schema' package
+vchart-schema:
+  - packages/vchart-schema/**
+
+# Add 'vchart-types' label to any change within the 'vchart-types' package
+vchart-types:
+  - packages/vchart-types/**
+
+# Add 'test' label to any change to packages/*/__tests__/* files within the source dir
+test:
+  - packages/*/__tests__/*
+
+# Add 'docs' label to any change to docs/ files within the source dir
+docs:
+  - docs/**
+
+# Add 'eslint' label to any change to docs/ files within the source dir
+eslint:
+  - share/eslint-config/**
+  - packages/*/.eslintrc.js
+
+# Add 'jest' label to any change to docs/ files within the source dir
+jest:
+  - share/jest-config/**
+  - packages/*/jest.config.js
+
+# Add 'typescript' label to any change to docs/ files within the source dir
+typescript:
+  - share/ts-config/**
+  - packages/*/tsconfig.json
+  - packages/*/tsconfig.eslint.json
+  - packages/**/type.ts
+  - packages/**/interface.ts
+
+# Add 'bundler' label to any change to tools/bunder/** files within the source dir
+bundler:
+  - tools/bundler/**
+  - packages/*/bundler.config.js
+
+# Add 'typescript-json-schema' label to any change to tools/typescript-json-schema/** files within the source dir
+typescript-json-schema:
+  - tools/typescript-json-schema/**
+
+# Add 'chore' label to any change to common/** files within the source dir
+chore:
+  - common/**
+  - .github/**
+  - .vscode/**

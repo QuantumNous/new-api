@@ -1,0 +1,23 @@
+{
+  "name": "@zod/integration",
+  "type": "module",
+  "private": true,
+  "version": "1.0.0",
+  "license": "MIT",
+  "devDependencies": {
+    "@ai-sdk/openai": "^3.0.2",
+    "@types/node": "^22.13.13",
+    "ai": "^6.0.5",
+    "drizzle-orm": "^0.45.2",
+    "drizzle-zod": "^0.8.3",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "test:all": "pnpm test:source && pnpm test:built",
+    "test:source": "tsc --project fixtures/drizzle-zod/tsconfig.json 2>&1 | (! grep -q 'excessively deep') && tsc --project fixtures/ai-sdk/tsconfig.json",
+    "test:built": "tsc --project fixtures/internal-types/tsconfig.bundler.json && tsc --project fixtures/internal-types/tsconfig.nodenext.json && tsc --project fixtures/internal-types/tsconfig.node16-cjs.json"
+  },
+  "dependencies": {
+    "zod": "workspace:*"
+  }
+}

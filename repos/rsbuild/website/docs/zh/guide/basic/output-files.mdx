@@ -1,0 +1,177 @@
+---
+description: '本章节主要介绍构建产物的目录结构，以及如何控制不同类型产物的输出目录。'
+---
+
+# 构建产物
+
+本章节主要介绍构建产物的目录结构，以及如何控制不同类型产物的输出目录。
+
+如果你想要了解如何部署 Rsbuild 项目，请参考 [部署](/guide/basic/deployment)。
+
+## 默认产物目录
+
+下面是最基础的产物目录结构，默认情况下，构建产物会生成在当前项目的 `dist` 目录下。
+
+```bash
+dist
+├── static
+│   ├── css
+│   │   ├── [name].[hash].css
+│   │   └── [name].[hash].css.map
+│   │
+│   └── js
+│       ├── [name].[hash].js
+│       ├── [name].[hash].js.LICENSE.txt
+│       └── [name].[hash].js.map
+│
+└── [name].html
+```
+
+最常见的产物是 HTML 文件、JS 文件和 CSS 文件：
+
+- HTML 文件：默认输出到 `dist` 目录的根部。
+- JS 文件：默认输出到 `static/js` 目录。
+- CSS 文件：默认输出到 `static/css` 目录。
+
+此外，JS 文件和 CSS 文件有时候会生成一些相关产物：
+
+- License 文件：包含开源许可证信息，默认输出到 JS 文件的同级目录，并添加 `.LICENSE.txt` 后缀。
+- Source Map 文件：包含保存源代码映射关系，默认输出到 JS 文件和 CSS 文件的同级目录，并添加 `.map` 后缀。
+
+在产物的文件名称中，`[name]` 表示这个文件对应的入口名称，比如 `index`, `main`。`[hash]` 则是基于该文件的内容生成的哈希值。
+
+## 开发模式产物
+
+在开发模式下，Rsbuild 默认会将构建产物保存在 dev server 的内存中，而不是写入磁盘，这样可以减少 fs 操作产生的开销。你可以参考 [查看静态资源](/guide/basic/server#view-static-assets) 查看当前构建生成的所有静态资源。
+
+你也可以选择将构建产物写入磁盘，这通常用于排查构建产物的内容，或是配置静态资源的代理规则。
+
+将 [dev.writeToDisk](/config/dev/write-to-disk) 配置项设置为 `true` 即可：
+
+```ts
+export default {
+  dev: {
+    writeToDisk: true,
+  },
+};
+```
+
+## 修改产物目录
+
+Rsbuild 提供了多个配置项来修改产物目录和产物名称，你可以：
+
+- 通过 [output.filename](/config/output/filename) 来修改产物的文件名。
+- 通过 [output.distPath](/config/output/dist-path) 来修改产物的输出路径。
+- 通过 [output.legalComments](/config/output/legal-comments) 来修改 License 文件的生成方式。
+- 通过 [output.sourceMap](/config/output/source-map) 来修改 Source Map 文件。
+- 通过 [html.outputStructure](/config/html/output-structure) 来修改 HTML 产物对应的文件夹结构。
+
+## 静态资源
+
+当你在代码中引用图片、SVG、字体、媒体等类型的静态资源时，它们也会被输出到 `dist/static` 目录下，并根据静态资源类型来自动分配到对应的子目录：
+
+```bash
+dist
+└── static
+    ├── image
+    │   └── foo.[hash].png
+    │
+    ├── svg
+    │   └── bar.[hash].svg
+    │
+    ├── font
+    │   └── baz.[hash].woff2
+    │
+    └── media
+        └── qux.[hash].mp4
+```
+
+你可以通过 [output.distPath](/config/output/dist-path) 配置项将这些静态资源统一输入到单个目录下，比如输出到 `assets` 目录：
+
+```ts
+export default {
+  output: {
+    distPath: {
+      image: 'assets',
+      svg: 'assets',
+      font: 'assets',
+      media: 'assets',
+    },
+  },
+};
+```
+
+以上配置会生成如下的目录结构：
+
+```bash
+dist
+└── assets
+    ├── foo.[hash].png
+    ├── bar.[hash].svg
+    ├── baz.[hash].woff2
+    └── qux.[hash].mp4
+```
+
+## Node.js 产物目录
+
+当 Rsbuild 的 [output.target](/config/output/target) 是 `'node'` 时，Rsbuild 会在构建后生成 Node.js 产物：
+
+```bash
+dist
+├── static
+└── [name].js
+```
+
+Node.js 产物通常只包含 JS 文件，不包含 HTML、CSS 等文件。此外，Node 产物的 JS 文件名称也不会自动生成哈希值。
+
+你可以通过 [environments](/config/environments) 配置项来修改 Node 产物的输出路径。
+
+比如，将 Node.js 产物输出到 `dist/server` 目录：
+
+```ts
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        distPath: {
+          root: 'dist/server',
+        },
+      },
+    },
+  },
+};
+```
+
+## 扁平化产物目录
+
+有时候你不想产物目录有太多层级，可以将目录设置为空字符串，使生成的产物目录扁平化。
+
+参考下方的例子：
+
+```ts
+export default {
+  output: {
+    distPath: {
+      js: '',
+      css: '',
+    },
+  },
+};
+```
+
+以上配置会生成如下的目录结构：
+
+```bash
+dist
+├── [name].[hash].css
+├── [name].[hash].css.map
+├── [name].[hash].js
+├── [name].[hash].js.map
+└── [name].html
+```

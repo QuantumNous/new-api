@@ -1,0 +1,9 @@
+{
+  "pages": ["gallery/pages/index/index", "gallery/pages/chart/index"],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#fff",
+    "navigationBarTitleText": "Mini Program",
+    "navigationBarTextStyle": "black"
+  }
+}

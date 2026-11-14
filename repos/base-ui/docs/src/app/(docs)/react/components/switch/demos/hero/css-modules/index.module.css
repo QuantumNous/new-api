@@ -1,0 +1,69 @@
+.Label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  color: oklch(14.5% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    color: white;
+  }
+}
+
+.Switch {
+  box-sizing: border-box;
+  display: flex;
+  flex-shrink: 0;
+  border: 1px solid oklch(14.5% 0 0deg);
+  padding: 0.125rem;
+  width: 2.25rem;
+  height: 1.25rem;
+  background-color: white;
+  transition: background-color 150ms ease;
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+    background-color: oklch(14.5% 0 0deg);
+  }
+
+  &[data-checked] {
+    background-color: oklch(14.5% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      background-color: white;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: 2px;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+.Thumb {
+  width: 0.875rem;
+  height: 0.875rem;
+  background-color: oklch(14.5% 0 0deg);
+  transition:
+    translate 150ms ease,
+    background-color 150ms ease;
+
+  @media (prefers-color-scheme: dark) {
+    background-color: white;
+  }
+
+  &[data-checked] {
+    translate: 1rem 0;
+    background-color: white;
+
+    @media (prefers-color-scheme: dark) {
+      background-color: oklch(14.5% 0 0deg);
+    }
+  }
+}

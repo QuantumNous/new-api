@@ -1,0 +1,161 @@
+---
+description: 'Run setup logic when the Rsbuild dev server or preview server starts, such as registering custom middleware or running pre-start tasks.'
+---
+
+# server.setup
+
+- **Type:**
+
+```ts
+type MaybePromise<T> = T | Promise<T>;
+
+type ServerSetupFn = (
+  context: ServerSetupContext,
+) => MaybePromise<(() => MaybePromise<void>) | void>;
+
+type ServerSetup = ServerSetupFn | ServerSetupFn[];
+```
+
+- **Default:** `undefined`
+- **Version:** `>= 2.0.0`
+
+Run setup logic when the Rsbuild dev server or preview server starts, such as registering custom middleware or running pre-start tasks.
+
+## Examples
+
+### Register middleware
+
+Add middleware to print logs before request handling:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server }) => {
+      server.middlewares.use((req, res, next) => {
+        console.log('first');
+        next();
+      });
+    },
+  },
+};
+```
+
+### Environment-specific behavior
+
+In `server.setup`, you can distinguish between dev server and preview server with `context.action`.
+
+For example, add middleware only for the dev server:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server, action }) => {
+      if (action === 'dev') {
+        server.middlewares.use((req, res, next) => {
+          console.log('dev middleware');
+          next();
+        });
+      }
+    },
+  },
+};
+```
+
+### Async function
+
+`server.setup` allows passing an async function, for example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: async ({ server, action }) => {
+      return someAsyncTask();
+    },
+  },
+};
+```
+
+## Context object
+
+`server.setup` receives a `context` object:
+
+```ts
+type ServerSetupContext =
+  | {
+      action: 'dev';
+      server: RsbuildDevServer;
+      environments: Record<string, EnvironmentContext>;
+    }
+  | {
+      action: 'preview';
+      server: RsbuildPreviewServer;
+      environments: Record<string, EnvironmentContext>;
+    };
+```
+
+- `context.action`: `'dev'` means dev server, `'preview'` means preview server.
+- `context.server`: server instance. See [Server API](/api/javascript-api/server-api) for more details.
+- `context.environments`: context information for all environments. Note that this differs from `server.environments`, which is the [Environment API](/api/javascript-api/environment-api).
+
+## Middleware execution order
+
+When `server.setup` is called, the default Rsbuild middlewares are not registered yet, so the middleware you add will run before the default middlewares.
+
+`server.setup` allows you to return a callback function, which will be called when the default Rsbuild middlewares are registered. The middleware you register in the callback function will run after the default middlewares.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server }) => {
+      // the returned callback will be called when the default
+      // middlewares are registered
+      return () => {
+        server.middlewares.use((req, res, next) => {
+          next();
+        });
+      };
+    },
+  },
+};
+```
+
+## Environment API
+
+In development mode, you can access Rsbuild's [Environment API](/api/javascript-api/environment-api):
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server, action }) => {
+      if (action !== 'dev') {
+        return;
+      }
+
+      server.middlewares.use(async (_req, _res, next) => {
+        const result = await server.environments.node.loadBundle('main');
+        console.log(result);
+        next();
+      });
+    },
+  },
+};
+```
+
+## Array form
+
+`server.setup` also supports passing an array to run multiple functions:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: [
+      ({ server }) => {
+        server.middlewares.use(authMiddleware);
+      },
+      ({ server }) => {
+        server.middlewares.use(logMiddleware);
+      },
+    ],
+  },
+};
+```

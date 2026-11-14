@@ -1,0 +1,97 @@
+---
+description: 'Whether to render progress bars to display the build progress.'
+---
+
+# dev.progressBar
+
+- **Type:**
+
+```ts
+type ProgressBar =
+  | boolean
+  | {
+      id?: string;
+    };
+```
+
+- **Default:** `false`
+
+Whether to render progress bars to display the build progress.
+
+:::tip
+In `@rsbuild/core < 1.4.0`, the progress bar is enabled by default in production mode.
+:::
+
+## Example
+
+Enable the progress bar:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    progressBar: true,
+  },
+};
+```
+
+Disable the progress bar:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    progressBar: false,
+  },
+};
+```
+
+Only enable the progress bar in development mode:
+
+```ts title="rsbuild.config.ts"
+const isDev = process.env.NODE_ENV === 'development';
+
+export default {
+  dev: {
+    progressBar: isDev,
+  },
+};
+```
+
+## Customize the progress bar `id`
+
+To modify the text displayed on the left side of the progress bar, set the `id` option:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    progressBar: {
+      id: 'Some Text',
+    },
+  },
+};
+```
+
+When using [environments](/guide/advanced/environments), you can set different progress bar `id` for different environments:
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      dev: {
+        progressBar: {
+          id: 'Web',
+        },
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+      },
+      dev: {
+        progressBar: {
+          id: 'Node',
+        },
+      },
+    },
+  },
+};
+```

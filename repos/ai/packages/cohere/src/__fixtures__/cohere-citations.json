@@ -1,0 +1,77 @@
+{
+  "id": "68475c80-574b-4c65-98a4-e81cebab5dce",
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "The key benefits mentioned in this document are:\n1. Automation of tasks\n2. Better decision-making\n3. Cost reduction"
+      }
+    ],
+    "citations": [
+      {
+        "start": 52,
+        "end": 71,
+        "text": "Automation of tasks",
+        "sources": [
+          {
+            "type": "document",
+            "id": "doc:0",
+            "document": {
+              "id": "doc:0",
+              "text": "AI provides: 1. Automation of tasks 2. Better decision-making 3. Cost reduction",
+              "title": "benefits.txt"
+            }
+          }
+        ],
+        "type": "TEXT_CONTENT"
+      },
+      {
+        "start": 75,
+        "end": 97,
+        "text": "Better decision-making",
+        "sources": [
+          {
+            "type": "document",
+            "id": "doc:0",
+            "document": {
+              "id": "doc:0",
+              "text": "AI provides: 1. Automation of tasks 2. Better decision-making 3. Cost reduction",
+              "title": "benefits.txt"
+            }
+          }
+        ],
+        "type": "TEXT_CONTENT"
+      },
+      {
+        "start": 101,
+        "end": 115,
+        "text": "Cost reduction",
+        "sources": [
+          {
+            "type": "document",
+            "id": "doc:0",
+            "document": {
+              "id": "doc:0",
+              "text": "AI provides: 1. Automation of tasks 2. Better decision-making 3. Cost reduction",
+              "title": "benefits.txt"
+            }
+          }
+        ],
+        "type": "TEXT_CONTENT"
+      }
+    ]
+  },
+  "finish_reason": "COMPLETE",
+  "usage": {
+    "billed_units": {
+      "input_tokens": 39,
+      "output_tokens": 27
+    },
+    "tokens": {
+      "input_tokens": 1683,
+      "output_tokens": 62
+    },
+    "cached_tokens": 992
+  }
+}

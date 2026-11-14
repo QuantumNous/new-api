@@ -1,0 +1,584 @@
+---
+title: Model Context Protocol (MCP)
+description: Learn how to connect to Model Context Protocol (MCP) servers and use their tools with AI SDK Core.
+---
+
+# Model Context Protocol (MCP)
+
+The AI SDK supports connecting to [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers to access their tools, resources, and prompts.
+This enables your AI applications to discover and use capabilities across various services through a standardized interface.
+
+<Note>
+  If you're using OpenAI's Responses API, you can also use the built-in
+  `openai.tools.mcp` tool, which provides direct MCP server integration without
+  needing to convert tools. See the [OpenAI provider
+  documentation](/providers/ai-sdk-providers/openai#mcp-tool) for details.
+</Note>
+
+## Initializing an MCP Client
+
+We recommend using HTTP transport (like `StreamableHTTPClientTransport`) for production deployments. The stdio transport should only be used for connecting to local servers as it cannot be deployed to production environments.
+
+Create an MCP client using one of the following transport options:
+
+- **HTTP transport (Recommended)**: Either configure HTTP directly via the client using `transport: { type: 'http', ... }`, or use MCP's official TypeScript SDK `StreamableHTTPClientTransport`
+- SSE (Server-Sent Events): An alternative HTTP-based transport
+- `stdio`: For local development only. Uses standard input/output streams for local MCP servers
+
+### HTTP Transport (Recommended)
+
+For production deployments, we recommend using the HTTP transport. You can configure it directly on the client:
+
+```typescript
+import { createMCPClient } from '@ai-sdk/mcp';
+
+const mcpClient = await createMCPClient({
+  transport: {
+    type: 'http',
+    url: 'https://your-server.com/mcp',
+
+    // optional: configure HTTP headers
+    headers: { Authorization: 'Bearer my-api-key' },
+
+    // optional: provide an OAuth client provider for automatic authorization
+    authProvider: myOAuthClientProvider,
+
+    // optional: allow redirect responses (default is 'error' to prevent SSRF)
+    redirect: 'follow',
+  },
+});
+```
+
+If the MCP server uses Streamable HTTP sessions, you can reattach to a saved
+session by restoring both the previous session id and initialize result:
+
+```typescript
+import { createMCPClient } from '@ai-sdk/mcp';
+
+const savedSession = await loadMcpSession();
+let currentSessionId = savedSession?.sessionId;
+
+const mcpClient = await createMCPClient({
+  transport: {
+    type: 'http',
+    url: 'https://your-server.com/mcp',
+    initialSessionId: savedSession?.sessionId,
+    initialProtocolVersion: savedSession?.initializeResult.protocolVersion,
+    terminateSessionOnClose: false,
+
+    onSessionIdChange: sessionId => {
+      currentSessionId = sessionId;
+    },
+
+    onSessionExpired: sessionId => {
+      if (currentSessionId === sessionId) {
+        currentSessionId = undefined;
+        void clearMcpSession();
+      }
+    },
+  },
+  initialInitializeResult: savedSession?.initializeResult,
+});
+
+if (currentSessionId) {
+  await saveMcpSession({
+    sessionId: currentSessionId,
+    initializeResult: mcpClient.initializeResult,
+  });
+}
+```
+
+When `initialInitializeResult` is provided, `createMCPClient` reuses the cached
+initialize metadata and does not send another `initialize` request. When
+`onSessionExpired` is called, the transport has already cleared the session id
+and the request still fails with the underlying HTTP error. Retry by creating a
+fresh client without `initialSessionId` or `initialInitializeResult`.
+Set `terminateSessionOnClose` to `false` when closing only the local client but
+keeping the MCP session available for a later reattach.
+
+Alternatively, you can use `StreamableHTTPClientTransport` from MCP's official TypeScript SDK:
+
+```typescript
+import { createMCPClient } from '@ai-sdk/mcp';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+
+const url = new URL('https://your-server.com/mcp');
+const mcpClient = await createMCPClient({
+  transport: new StreamableHTTPClientTransport(url, {
+    sessionId: 'session_123',
+  }),
+});
+```
+
+### SSE Transport
+
+SSE provides an alternative HTTP-based transport option. Configure it with a `type` and `url` property. You can also provide an `authProvider` for OAuth:
+
+```typescript
+import { createMCPClient } from '@ai-sdk/mcp';
+
+const mcpClient = await createMCPClient({
+  transport: {
+    type: 'sse',
+    url: 'https://my-server.com/sse',
+
+    // optional: configure HTTP headers
+    headers: { Authorization: 'Bearer my-api-key' },
+
+    // optional: provide an OAuth client provider for automatic authorization
+    authProvider: myOAuthClientProvider,
+
+    // optional: allow redirect responses (default is 'error' to prevent SSRF)
+    redirect: 'follow',
+  },
+});
+```
+
+### Stdio Transport (Local Servers)
+
+<Note type="warning">
+  The stdio transport should only be used for local servers.
+</Note>
+
+The Stdio transport can be imported from either the MCP SDK or the AI SDK:
+
+```typescript
+import { createMCPClient } from '@ai-sdk/mcp';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+// Or use the AI SDK's stdio transport:
+// import { Experimental_StdioMCPTransport as StdioClientTransport } from '@ai-sdk/mcp/mcp-stdio';
+
+const mcpClient = await createMCPClient({
+  transport: new StdioClientTransport({
+    command: 'node',
+    args: ['src/stdio/dist/server.js'],
+  }),
+});
+```
+
+### Custom Transport
+
+You can also bring your own transport by implementing the `MCPTransport` interface for specific requirements not covered by the standard transports.
+
+<Note>
+  The client returned by the `createMCPClient` function is a
+  lightweight client intended for use in tool conversion. It currently does not
+  support all features of the full MCP client, such as automatic session
+  persistence, resumable streams, and receiving notifications.
+
+Authorization via OAuth is supported when using the AI SDK MCP HTTP or SSE
+transports by providing an `authProvider`.
+
+</Note>
+
+### OAuth Authorization Server Validation
+
+When using MCP OAuth in server-side applications, the MCP server can advertise
+the OAuth authorization server to use. If you connect to MCP servers outside
+your control, implement `validateAuthorizationServerURL` on your
+`authProvider` to allow only the authorization server origins you trust:
+
+```typescript
+const allowedAuthorizationServerOrigins = new Set([
+  'https://accounts.example.com',
+  'https://tenant.auth0.com',
+]);
+
+const myOAuthClientProvider = {
+  // ...other OAuthClientProvider methods
+
+  validateAuthorizationServerURL(serverUrl, authorizationServerUrl) {
+    const origin = new URL(authorizationServerUrl).origin;
+
+    if (!allowedAuthorizationServerOrigins.has(origin)) {
+      throw new Error(
+        `Unexpected OAuth authorization server for ${serverUrl}: ${origin}`,
+      );
+    }
+  },
+};
+```
+
+This hook is called before the SDK fetches authorization server metadata, so a
+rejected URL is not requested. It is optional and does not change existing OAuth
+flows unless you implement it.
+
+### Retrying Transient Tool Failures
+
+MCP tool calls can fail for transient transport reasons, such as rate limits,
+temporary overload, or gateway timeouts. You can opt into automatic retries for
+`tools/call` requests by passing `maxRetries` when creating the client:
+
+```typescript
+const mcpClient = await createMCPClient({
+  transport: {
+    type: 'http',
+    url: 'https://your-server.com/mcp',
+  },
+  maxRetries: 2,
+});
+```
+
+Retries are disabled by default. Built-in retry matching is intended for
+transient HTTP and network failures only. JSON-RPC application errors, such as
+invalid tool arguments, are surfaced immediately without retrying. Successful
+MCP tool responses with `isError: true` are also returned to the model without
+retrying.
+
+<Note type="warning">
+  Only enable retries for MCP tools where retrying is safe. Retrying
+  non-idempotent tools, such as tools that send emails or create records, can
+  duplicate side effects.
+</Note>
+
+### Closing the MCP Client
+
+After initialization, you should close the MCP client based on your usage pattern:
+
+- For short-lived usage (e.g., single requests), close the client when the response is finished
+- For long-running clients (e.g., command line apps), keep the client open but ensure it's closed when the application terminates
+
+When streaming responses, you can close the client when the LLM response has finished. For example, when using `streamText`, you should use the `onEnd` callback:
+
+```typescript
+const mcpClient = await createMCPClient({
+  // ...
+});
+
+const tools = await mcpClient.tools();
+
+const result = await streamText({
+  model: __MODEL__,
+  tools,
+  prompt: 'What is the weather in Brooklyn, New York?',
+  onEnd: async () => {
+    await mcpClient.close();
+  },
+});
+```
+
+When generating responses without streaming, you can use try/finally or cleanup functions in your framework:
+
+```typescript
+import { createMCPClient, type MCPClient } from '@ai-sdk/mcp';
+
+let mcpClient: MCPClient | undefined;
+
+try {
+  mcpClient = await createMCPClient({
+    // ...
+  });
+} finally {
+  await mcpClient?.close();
+}
+```
+
+## Using MCP Tools
+
+The client's `tools` method acts as an adapter between MCP tools and AI SDK tools. It supports two approaches for working with tool schemas:
+
+### Schema Discovery
+
+With schema discovery, all tools offered by the server are automatically listed, and input parameter types are inferred based on the schemas provided by the server:
+
+```typescript
+const tools = await mcpClient.tools();
+```
+
+This approach is simpler to implement and automatically stays in sync with server changes. However, you won't have TypeScript type safety during development, and all tools from the server will be loaded
+
+### Schema Definition
+
+For better type safety and control, you can define the tools and their input schemas explicitly in your client code:
+
+```typescript
+import { z } from 'zod';
+
+const tools = await mcpClient.tools({
+  schemas: {
+    'get-data': {
+      inputSchema: z.object({
+        query: z.string().describe('The data query'),
+        format: z.enum(['json', 'text']).optional(),
+      }),
+    },
+    // For tools with zero inputs, you should use an empty object:
+    'tool-with-no-args': {
+      inputSchema: z.object({}),
+    },
+  },
+});
+```
+
+This approach provides full TypeScript type safety and IDE autocompletion, letting you catch parameter mismatches during development. When you define `schemas`, the client only pulls the explicitly defined tools, keeping your application focused on the tools it needs
+
+### Typed Tool Outputs
+
+When MCP servers return `structuredContent` (per the [MCP specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools#structured-content)), you can define an `outputSchema` to get typed tool results:
+
+```typescript
+import { z } from 'zod';
+
+const tools = await mcpClient.tools({
+  schemas: {
+    'get-weather': {
+      inputSchema: z.object({
+        location: z.string(),
+      }),
+      // Define outputSchema for typed results
+      outputSchema: z.object({
+        temperature: z.number(),
+        conditions: z.string(),
+        humidity: z.number(),
+      }),
+    },
+  },
+});
+
+const result = await tools['get-weather'].execute(
+  { location: 'New York' },
+  { messages: [], toolCallId: 'weather-1' },
+);
+
+console.log(`Temperature: ${result.temperature}°C`);
+```
+
+When `outputSchema` is provided:
+
+- The client extracts `structuredContent` from the tool result
+- The output is validated against your schema at runtime
+- You get full TypeScript type safety for the result
+
+If the server doesn't return `structuredContent`, the client falls back to parsing JSON from the text content. If neither is available or validation fails, an error is thrown.
+
+<Note>
+  Without `outputSchema`, the tool returns the raw `CallToolResult` object
+  containing `content` and optional `isError` fields.
+</Note>
+
+## Using MCP Resources
+
+According to the [MCP specification](https://modelcontextprotocol.io/docs/learn/server-concepts#resources), resources are **application-driven** data sources that provide context to the model. Unlike tools (which are model-controlled), your application decides when to fetch and pass resources as context.
+
+The MCP client provides three methods for working with resources:
+
+### Listing Resources
+
+List all available resources from the MCP server:
+
+```typescript
+const resources = await mcpClient.listResources();
+```
+
+### Reading Resource Contents
+
+Read the contents of a specific resource by its URI:
+
+```typescript
+const resourceData = await mcpClient.readResource({
+  uri: 'file:///example/document.txt',
+});
+```
+
+### Listing Resource Templates
+
+Resource templates are dynamic URI patterns that allow flexible queries. List all available templates:
+
+```typescript
+const templates = await mcpClient.listResourceTemplates();
+```
+
+## Using MCP Completions
+
+MCP servers can provide autocompletion suggestions for prompt arguments and
+resource template variables when they advertise the `completions` capability.
+Use `complete` to ask the server for suggestions based on the current partial
+argument value:
+
+```typescript
+const completion = await mcpClient.complete({
+  ref: {
+    type: 'ref/resource',
+    uri: 'file:///{path}',
+  },
+  argument: {
+    name: 'path',
+    value: 'doc',
+  },
+});
+
+console.log(completion.completion.values);
+```
+
+For resource templates or prompts with multiple arguments, pass already resolved
+values through `context.arguments`:
+
+```typescript
+const completion = await mcpClient.complete({
+  ref: {
+    type: 'ref/resource',
+    uri: 'kubernetes://namespaced/{plural}/{namespace}',
+  },
+  argument: {
+    name: 'namespace',
+    value: 'auth',
+  },
+  context: {
+    arguments: {
+      plural: 'deployments',
+    },
+  },
+});
+```
+
+If the connected server does not advertise `capabilities.completions`, the
+client throws an `MCPClientError`.
+
+## Using MCP Prompts
+
+<Note type="warning">
+  MCP Prompts is an experimental feature and may change in the future.
+</Note>
+
+According to the MCP specification, prompts are user-controlled templates that servers expose for clients to list and retrieve with optional arguments.
+
+### Listing Prompts
+
+```typescript
+const prompts = await mcpClient.experimental_listPrompts();
+```
+
+### Getting a Prompt
+
+Retrieve prompt messages, optionally passing arguments defined by the server:
+
+```typescript
+const prompt = await mcpClient.experimental_getPrompt({
+  name: 'code_review',
+  arguments: { code: 'function add(a, b) { return a + b; }' },
+});
+```
+
+## Handling Elicitation Requests
+
+Elicitation is a mechanism where MCP servers can request additional information from the client during tool execution. For example, a server might need user input to complete a registration form or confirmation for a sensitive operation.
+
+<Note type="warning">
+  It is up to the client application to handle elicitation requests properly.
+  The MCP client simply surfaces these requests from the server to your
+  application code.
+</Note>
+
+### Enabling Elicitation Support
+
+To enable elicitation, you need to advertise the capability when creating the MCP client:
+
+```typescript
+const mcpClient = await createMCPClient({
+  transport: {
+    type: 'sse',
+    url: 'https://your-server.com/sse',
+  },
+  capabilities: {
+    elicitation: {},
+  },
+});
+```
+
+### Registering an Elicitation Handler
+
+Use the `onElicitationRequest` method to register a handler that will be called when the server requests input:
+
+```typescript
+import { ElicitationRequestSchema } from '@ai-sdk/mcp';
+
+mcpClient.onElicitationRequest(ElicitationRequestSchema, async request => {
+  // request.params.message: A message describing what input is needed
+  // request.params.requestedSchema: JSON schema defining the expected input structure
+
+  // Get input from the user (implement according to your application's needs)
+  const userInput = await getInputFromUser(
+    request.params.message,
+    request.params.requestedSchema,
+  );
+
+  // Return the result with one of three actions:
+  return {
+    action: 'accept', // or 'decline' or 'cancel'
+    content: userInput, // only required when action is 'accept'
+  };
+});
+```
+
+### Elicitation Response Actions
+
+Your handler must return an object with an `action` field that can be one of:
+
+- `'accept'`: User provided the requested information. Must include `content` with the data.
+- `'decline'`: User chose not to provide the information.
+- `'cancel'`: User cancelled the operation entirely.
+
+## Detecting tool-definition drift ("rug pull")
+
+An MCP server sends tool definitions (name, description, input schema) when your
+app first connects, and you typically review and approve them at that point.
+Nothing in the protocol prevents the server from later serving a _different_
+definition for the same tool name — for example a description carrying injected
+instructions, or an input schema widened with an extra field. Because the SDK
+uses whatever tools you pass on each call, a mutated definition returned by a
+later `mcpClient.tools()` fetch would be used without any comparison to what was
+approved. This is the MCP ["rug pull"](https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks)
+class of attack.
+
+The AI SDK provides two functions to pin the approved definitions and detect
+changes. `fingerprintTools` digests the server-controlled, security-relevant
+fields of each tool (string `description`, resolved input schema, and `title`)
+into a stable map of tool name to digest. `detectToolDrift` diffs two such maps.
+Your app owns baseline storage and the response to drift (block, force
+re-approval, or alert):
+
+```typescript
+import { fingerprintTools, detectToolDrift } from 'ai';
+
+// Trust time (first connect, human-reviewed): capture and persist the baseline.
+const baseline = await fingerprintTools(await mcpClient.tools());
+
+// Every later fetch, before handing tools to generateText:
+const tools = await mcpClient.tools();
+const drift = detectToolDrift(await fingerprintTools(tools), baseline);
+
+if (drift.changed.length || drift.added.length) {
+  // A pinned definition changed, or a new tool appeared. Block, re-approve,
+  // or alert per your policy — do not silently pass `tools` to the model.
+}
+```
+
+<Note>
+  This detects mutation of a tool's description, input schema, or title — the
+  prompt-injection and schema-widening vectors. It cannot detect a
+  behavior/endpoint swap where the name, description, and schema are all
+  unchanged, because the tool runs remotely on the MCP server and that change is
+  invisible to the client. Core stays unopinionated: it does not persist
+  baselines or block calls — those are your app's responsibility.
+</Note>
+
+## Examples
+
+You can see MCP in action in the following examples:
+
+<ExampleLinks
+  examples={[
+    {
+      title: 'Learn to use MCP tools in Node.js',
+      link: '/cookbook/node/mcp-tools',
+    },
+    {
+      title: 'Learn to handle MCP elicitation requests in Node.js',
+      link: '/cookbook/node/mcp-elicitation',
+    },
+    {
+      title: 'Learn to render MCP Apps',
+      link: '/docs/ai-sdk-core/mcp-apps',
+    },
+  ]}
+/>

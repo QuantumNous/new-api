@@ -1,0 +1,12 @@
+{
+  "extends": "@scripts/config/tsconfig",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "declarationDir": "dist-types",
+    "composite": true,
+    "isolatedDeclarations": true,
+    "types": ["@rspack/core/module"]
+  },
+  "include": ["src", "types.d.ts"]
+}

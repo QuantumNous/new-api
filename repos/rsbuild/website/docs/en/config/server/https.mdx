@@ -1,0 +1,71 @@
+---
+description: 'Configure HTTPS options to enable HTTPS server. When enabled, HTTP server will be disabled.'
+---
+
+# server.https
+
+- **Type:**
+
+```ts
+import type { ServerOptions } from 'node:https';
+import type { SecureServerSessionOptions } from 'node:http2';
+
+type Https = ServerOptions | SecureServerSessionOptions;
+```
+
+- **Default:** `undefined`
+
+Configure HTTPS options to enable HTTPS server. When enabled, HTTP server will be disabled.
+
+HTTP:
+
+```
+  ➜  Local:    http://localhost:3000
+  ➜  Network:  use --host to expose
+```
+
+HTTPS:
+
+```
+  ➜  Local:    https://localhost:3000
+  ➜  Network:  use --host to expose
+```
+
+:::tip
+When HTTPS is enabled, Rsbuild uses an HTTP/2 server by default.
+:::
+
+## Set certificate
+
+You can manually pass in the certificate and the private key required in the `server.https` option. This parameter will be directly passed to the `createSecureServer` method of the http2 module in Node.js.
+
+For details, see [http2.createSecureServer](https://nodejs.org/api/http2.html#http2createsecureserveroptions-onrequesthandler).
+
+```ts
+import fs from 'node:fs';
+
+export default {
+  server: {
+    https: {
+      key: fs.readFileSync('certificates/private.pem'),
+      cert: fs.readFileSync('certificates/public.pem'),
+    },
+  },
+};
+```
+
+:::tip
+The certificates used for local development are typically generated using [mkcert](https://github.com/FiloSottile/mkcert). Please read ["How to use HTTPS for local development"](https://web.dev/articles/how-to-use-local-https?hl=en) to learn how to use it.
+:::
+
+## Self-signed Certificate
+
+For basic configuration requirements, you can add the [@rsbuild/plugin-basic-ssl](https://github.com/rstackjs/rsbuild-plugin-basic-ssl) plugin, which will automatically create a self-signed certificate and set `server.https` option by default.
+
+```ts
+import { pluginBasicSsl } from '@rsbuild/plugin-basic-ssl';
+
+export default {
+  plugins: [pluginBasicSsl()],
+};
+```

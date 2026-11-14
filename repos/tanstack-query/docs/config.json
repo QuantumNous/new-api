@@ -1,0 +1,1848 @@
+{
+  "$schema": "https://raw.githubusercontent.com/TanStack/tanstack.com/main/tanstack-docs-config.schema.json",
+  "docSearch": {
+    "appId": "20TOVD6LOE",
+    "apiKey": "35bc6c51aa322700d1383e17c4f669f4",
+    "indexName": "tanstackquery"
+  },
+  "sections": [
+    {
+      "label": "Community Resources",
+      "children": [],
+      "frameworks": []
+    },
+    {
+      "label": "Getting Started",
+      "children": [],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "Overview",
+              "to": "framework/react/overview"
+            },
+            {
+              "label": "Installation",
+              "to": "framework/react/installation"
+            },
+            {
+              "label": "Quick Start",
+              "to": "framework/react/quick-start"
+            },
+            {
+              "label": "Devtools",
+              "to": "framework/react/devtools"
+            },
+            {
+              "label": "Comparison",
+              "to": "framework/react/comparison"
+            },
+            {
+              "label": "TypeScript",
+              "to": "framework/react/typescript"
+            },
+            {
+              "label": "GraphQL",
+              "to": "framework/react/graphql"
+            },
+            {
+              "label": "React Native",
+              "to": "framework/react/react-native"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": [
+            {
+              "label": "Overview",
+              "to": "framework/solid/overview"
+            },
+            {
+              "label": "Quick Start",
+              "to": "framework/solid/quick-start"
+            },
+            {
+              "label": "Installation",
+              "to": "framework/solid/installation"
+            },
+            {
+              "label": "Devtools",
+              "to": "framework/solid/devtools"
+            },
+            {
+              "label": "TypeScript",
+              "to": "framework/solid/typescript"
+            }
+          ]
+        },
+        {
+          "label": "vue",
+          "children": [
+            {
+              "label": "Overview",
+              "to": "framework/vue/overview"
+            },
+            {
+              "label": "Installation",
+              "to": "framework/vue/installation"
+            },
+            {
+              "label": "Quick Start",
+              "to": "framework/vue/quick-start"
+            },
+            {
+              "label": "Devtools",
+              "to": "framework/vue/devtools"
+            },
+            {
+              "label": "TypeScript",
+              "to": "framework/vue/typescript"
+            },
+            {
+              "label": "Reactivity",
+              "to": "framework/vue/reactivity"
+            },
+            {
+              "label": "GraphQL",
+              "to": "framework/vue/graphql"
+            }
+          ]
+        },
+        {
+          "label": "svelte",
+          "children": [
+            {
+              "label": "Overview",
+              "to": "framework/svelte/overview"
+            },
+            {
+              "label": "Installation",
+              "to": "framework/svelte/installation"
+            },
+            {
+              "label": "Devtools",
+              "to": "framework/svelte/devtools"
+            },
+            {
+              "label": "SSR & SvelteKit",
+              "to": "framework/svelte/ssr"
+            },
+            {
+              "label": "Migrate from v5 to v6",
+              "to": "framework/svelte/migrate-from-v5-to-v6"
+            }
+          ]
+        },
+        {
+          "label": "lit",
+          "children": [
+            {
+              "label": "Overview",
+              "to": "framework/lit/overview"
+            },
+            {
+              "label": "Installation",
+              "to": "framework/lit/installation"
+            },
+            {
+              "label": "Quick Start",
+              "to": "framework/lit/quick-start"
+            },
+            {
+              "label": "TypeScript",
+              "to": "framework/lit/typescript"
+            }
+          ]
+        },
+        {
+          "label": "angular",
+          "children": [
+            {
+              "label": "Overview",
+              "to": "framework/angular/overview"
+            },
+            {
+              "label": "Installation",
+              "to": "framework/angular/installation"
+            },
+            {
+              "label": "Quick Start",
+              "to": "framework/angular/quick-start"
+            },
+            {
+              "label": "Angular HttpClient and other data fetching clients",
+              "to": "framework/angular/angular-httpclient-and-other-data-fetching-clients"
+            },
+            {
+              "label": "Devtools",
+              "to": "framework/angular/devtools"
+            },
+            {
+              "label": "TypeScript",
+              "to": "framework/angular/typescript"
+            },
+            {
+              "label": "Zoneless",
+              "to": "framework/angular/zoneless"
+            }
+          ]
+        },
+        {
+          "label": "preact",
+          "children": [
+            {
+              "label": "Overview",
+              "to": "framework/preact/overview"
+            },
+            {
+              "label": "Installation",
+              "to": "framework/preact/installation"
+            },
+            {
+              "label": "Quick Start",
+              "to": "framework/preact/quick-start"
+            },
+            {
+              "label": "Devtools",
+              "to": "framework/preact/devtools"
+            },
+            {
+              "label": "TypeScript",
+              "to": "framework/preact/typescript"
+            },
+            {
+              "label": "GraphQL",
+              "to": "framework/preact/graphql"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Guides & Concepts",
+      "children": [],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "Important Defaults",
+              "to": "framework/react/guides/important-defaults"
+            },
+            {
+              "label": "Queries",
+              "to": "framework/react/guides/queries"
+            },
+            {
+              "label": "Query Keys",
+              "to": "framework/react/guides/query-keys"
+            },
+            {
+              "label": "Query Functions",
+              "to": "framework/react/guides/query-functions"
+            },
+            {
+              "label": "Query Options",
+              "to": "framework/react/guides/query-options"
+            },
+            {
+              "label": "Network Mode",
+              "to": "framework/react/guides/network-mode"
+            },
+            {
+              "label": "Parallel Queries",
+              "to": "framework/react/guides/parallel-queries"
+            },
+            {
+              "label": "Dependent Queries",
+              "to": "framework/react/guides/dependent-queries"
+            },
+            {
+              "label": "Background Fetching Indicators",
+              "to": "framework/react/guides/background-fetching-indicators"
+            },
+            {
+              "label": "Window Focus Refetching",
+              "to": "framework/react/guides/window-focus-refetching"
+            },
+            {
+              "label": "Polling",
+              "to": "framework/react/guides/polling"
+            },
+            {
+              "label": "Disabling/Pausing Queries",
+              "to": "framework/react/guides/disabling-queries"
+            },
+            {
+              "label": "Query Retries",
+              "to": "framework/react/guides/query-retries"
+            },
+            {
+              "label": "Paginated Queries",
+              "to": "framework/react/guides/paginated-queries"
+            },
+            {
+              "label": "Infinite Queries",
+              "to": "framework/react/guides/infinite-queries"
+            },
+            {
+              "label": "Initial Query Data",
+              "to": "framework/react/guides/initial-query-data"
+            },
+            {
+              "label": "Placeholder Query Data",
+              "to": "framework/react/guides/placeholder-query-data"
+            },
+            {
+              "label": "Mutations",
+              "to": "framework/react/guides/mutations"
+            },
+            {
+              "label": "Query Invalidation",
+              "to": "framework/react/guides/query-invalidation"
+            },
+            {
+              "label": "Invalidation from Mutations",
+              "to": "framework/react/guides/invalidations-from-mutations"
+            },
+            {
+              "label": "Updates from Mutation Responses",
+              "to": "framework/react/guides/updates-from-mutation-responses"
+            },
+            {
+              "label": "Optimistic Updates",
+              "to": "framework/react/guides/optimistic-updates"
+            },
+            {
+              "label": "Query Cancellation",
+              "to": "framework/react/guides/query-cancellation"
+            },
+            {
+              "label": "Scroll Restoration",
+              "to": "framework/react/guides/scroll-restoration"
+            },
+            {
+              "label": "Filters",
+              "to": "framework/react/guides/filters"
+            },
+            {
+              "label": "Performance & Request Waterfalls",
+              "to": "framework/react/guides/request-waterfalls"
+            },
+            {
+              "label": "Prefetching & Router Integration",
+              "to": "framework/react/guides/prefetching"
+            },
+            {
+              "label": "Server Rendering & Hydration",
+              "to": "framework/react/guides/ssr"
+            },
+            {
+              "label": "Advanced Server Rendering",
+              "to": "framework/react/guides/advanced-ssr"
+            },
+            {
+              "label": "Caching",
+              "to": "framework/react/guides/caching"
+            },
+            {
+              "label": "Render Optimizations",
+              "to": "framework/react/guides/render-optimizations"
+            },
+            {
+              "label": "Default Query Fn",
+              "to": "framework/react/guides/default-query-function"
+            },
+            {
+              "label": "Suspense",
+              "to": "framework/react/guides/suspense"
+            },
+            {
+              "label": "Testing",
+              "to": "framework/react/guides/testing"
+            },
+            {
+              "label": "Does this replace [Redux, MobX, etc]?",
+              "to": "framework/react/guides/does-this-replace-client-state"
+            },
+            {
+              "label": "Migrating to v3",
+              "to": "framework/react/guides/migrating-to-react-query-3"
+            },
+            {
+              "label": "Migrating to v4",
+              "to": "framework/react/guides/migrating-to-react-query-4"
+            },
+            {
+              "label": "Migrating to v5",
+              "to": "framework/react/guides/migrating-to-v5"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": [
+            {
+              "label": "Important Defaults",
+              "to": "framework/solid/guides/important-defaults"
+            },
+            {
+              "label": "Queries",
+              "to": "framework/solid/guides/queries"
+            },
+            {
+              "label": "Query Keys",
+              "to": "framework/solid/guides/query-keys"
+            },
+            {
+              "label": "Query Functions",
+              "to": "framework/solid/guides/query-functions"
+            },
+            {
+              "label": "Query Options",
+              "to": "framework/solid/guides/query-options"
+            },
+            {
+              "label": "Network Mode",
+              "to": "framework/solid/guides/network-mode"
+            },
+            {
+              "label": "Parallel Queries",
+              "to": "framework/solid/guides/parallel-queries"
+            },
+            {
+              "label": "Dependent Queries",
+              "to": "framework/solid/guides/dependent-queries"
+            },
+            {
+              "label": "Background Fetching Indicators",
+              "to": "framework/solid/guides/background-fetching-indicators"
+            },
+            {
+              "label": "Window Focus Refetching",
+              "to": "framework/solid/guides/window-focus-refetching"
+            },
+            {
+              "label": "Polling",
+              "to": "framework/solid/guides/polling"
+            },
+            {
+              "label": "Disabling/Pausing Queries",
+              "to": "framework/solid/guides/disabling-queries"
+            },
+            {
+              "label": "Query Retries",
+              "to": "framework/solid/guides/query-retries"
+            },
+            {
+              "label": "Paginated Queries",
+              "to": "framework/solid/guides/paginated-queries"
+            },
+            {
+              "label": "Infinite Queries",
+              "to": "framework/solid/guides/infinite-queries"
+            },
+            {
+              "label": "Initial Query Data",
+              "to": "framework/solid/guides/initial-query-data"
+            },
+            {
+              "label": "Placeholder Query Data",
+              "to": "framework/solid/guides/placeholder-query-data"
+            },
+            {
+              "label": "Mutations",
+              "to": "framework/solid/guides/mutations"
+            },
+            {
+              "label": "Query Invalidation",
+              "to": "framework/solid/guides/query-invalidation"
+            },
+            {
+              "label": "Invalidation from Mutations",
+              "to": "framework/solid/guides/invalidations-from-mutations"
+            },
+            {
+              "label": "Updates from Mutation Responses",
+              "to": "framework/solid/guides/updates-from-mutation-responses"
+            },
+            {
+              "label": "Optimistic Updates",
+              "to": "framework/solid/guides/optimistic-updates"
+            },
+            {
+              "label": "Query Cancellation",
+              "to": "framework/solid/guides/query-cancellation"
+            },
+            {
+              "label": "Scroll Restoration",
+              "to": "framework/solid/guides/scroll-restoration"
+            },
+            {
+              "label": "Filters",
+              "to": "framework/solid/guides/filters"
+            },
+            {
+              "label": "Request Waterfalls",
+              "to": "framework/solid/guides/request-waterfalls"
+            },
+            {
+              "label": "Prefetching",
+              "to": "framework/solid/guides/prefetching"
+            },
+            {
+              "label": "SSR",
+              "to": "framework/solid/guides/ssr"
+            },
+            {
+              "label": "Advanced SSR",
+              "to": "framework/solid/guides/advanced-ssr"
+            },
+            {
+              "label": "Caching",
+              "to": "framework/solid/guides/caching"
+            },
+            {
+              "label": "Default Query Fn",
+              "to": "framework/solid/guides/default-query-function"
+            },
+            {
+              "label": "Suspense",
+              "to": "framework/solid/guides/suspense"
+            },
+            {
+              "label": "Testing",
+              "to": "framework/solid/guides/testing"
+            },
+            {
+              "label": "Does this replace state managers?",
+              "to": "framework/solid/guides/does-this-replace-client-state"
+            }
+          ]
+        },
+        {
+          "label": "vue",
+          "children": [
+            {
+              "label": "Important Defaults",
+              "to": "framework/vue/guides/important-defaults"
+            },
+            {
+              "label": "Queries",
+              "to": "framework/vue/guides/queries"
+            },
+            {
+              "label": "Query Keys",
+              "to": "framework/vue/guides/query-keys"
+            },
+            {
+              "label": "Query Functions",
+              "to": "framework/vue/guides/query-functions"
+            },
+            {
+              "label": "Query Options",
+              "to": "framework/vue/guides/query-options"
+            },
+            {
+              "label": "Network Mode",
+              "to": "framework/vue/guides/network-mode"
+            },
+            {
+              "label": "Parallel Queries",
+              "to": "framework/vue/guides/parallel-queries"
+            },
+            {
+              "label": "Dependent Queries",
+              "to": "framework/vue/guides/dependent-queries"
+            },
+            {
+              "label": "Background Fetching Indicators",
+              "to": "framework/vue/guides/background-fetching-indicators"
+            },
+            {
+              "label": "Window Focus Refetching",
+              "to": "framework/vue/guides/window-focus-refetching"
+            },
+            {
+              "label": "Polling",
+              "to": "framework/vue/guides/polling"
+            },
+            {
+              "label": "Disabling/Pausing Queries",
+              "to": "framework/vue/guides/disabling-queries"
+            },
+            {
+              "label": "Query Retries",
+              "to": "framework/vue/guides/query-retries"
+            },
+            {
+              "label": "Paginated Queries",
+              "to": "framework/vue/guides/paginated-queries"
+            },
+            {
+              "label": "Infinite Queries",
+              "to": "framework/vue/guides/infinite-queries"
+            },
+            {
+              "label": "Initial Query Data",
+              "to": "framework/vue/guides/initial-query-data"
+            },
+            {
+              "label": "Placeholder Query Data",
+              "to": "framework/vue/guides/placeholder-query-data"
+            },
+            {
+              "label": "Mutations",
+              "to": "framework/vue/guides/mutations"
+            },
+            {
+              "label": "Query Invalidation",
+              "to": "framework/vue/guides/query-invalidation"
+            },
+            {
+              "label": "Invalidation from Mutations",
+              "to": "framework/vue/guides/invalidations-from-mutations"
+            },
+            {
+              "label": "Updates from Mutation Responses",
+              "to": "framework/vue/guides/updates-from-mutation-responses"
+            },
+            {
+              "label": "Optimistic Updates",
+              "to": "framework/vue/guides/optimistic-updates"
+            },
+            {
+              "label": "Query Cancellation",
+              "to": "framework/vue/guides/query-cancellation"
+            },
+            {
+              "label": "Scroll Restoration",
+              "to": "framework/vue/guides/scroll-restoration"
+            },
+            {
+              "label": "Filters",
+              "to": "framework/vue/guides/filters"
+            },
+            {
+              "label": "Prefetching",
+              "to": "framework/vue/guides/prefetching"
+            },
+            {
+              "label": "SSR & Nuxt",
+              "to": "framework/vue/guides/ssr"
+            },
+            {
+              "label": "Caching",
+              "to": "framework/vue/guides/caching"
+            },
+            {
+              "label": "Default Query Fn",
+              "to": "framework/vue/guides/default-query-function"
+            },
+            {
+              "label": "Suspense",
+              "to": "framework/vue/guides/suspense"
+            },
+            {
+              "label": "Testing",
+              "to": "framework/vue/guides/testing"
+            },
+            {
+              "label": "Custom Client",
+              "to": "framework/vue/guides/custom-client"
+            },
+            {
+              "label": "Does this replace [Vuex, Pinia]?",
+              "to": "framework/vue/guides/does-this-replace-client-state"
+            },
+            {
+              "label": "Migrating to v5",
+              "to": "framework/vue/guides/migrating-to-v5"
+            }
+          ]
+        },
+        {
+          "label": "angular",
+          "children": [
+            {
+              "label": "Important Defaults",
+              "to": "framework/angular/guides/important-defaults"
+            },
+            {
+              "label": "Queries",
+              "to": "framework/angular/guides/queries"
+            },
+            {
+              "label": "Query Keys",
+              "to": "framework/angular/guides/query-keys"
+            },
+            {
+              "label": "Query Functions",
+              "to": "framework/angular/guides/query-functions"
+            },
+            {
+              "label": "Query Options",
+              "to": "framework/angular/guides/query-options"
+            },
+            {
+              "label": "Network Mode",
+              "to": "framework/angular/guides/network-mode"
+            },
+            {
+              "label": "Parallel Queries",
+              "to": "framework/angular/guides/parallel-queries"
+            },
+            {
+              "label": "Dependent Queries",
+              "to": "framework/angular/guides/dependent-queries"
+            },
+            {
+              "label": "Background Fetching Indicators",
+              "to": "framework/angular/guides/background-fetching-indicators"
+            },
+            {
+              "label": "Window Focus Refetching",
+              "to": "framework/angular/guides/window-focus-refetching"
+            },
+            {
+              "label": "Disabling/Pausing Queries",
+              "to": "framework/angular/guides/disabling-queries"
+            },
+            {
+              "label": "Query Retries",
+              "to": "framework/angular/guides/query-retries"
+            },
+            {
+              "label": "Paginated Queries",
+              "to": "framework/angular/guides/paginated-queries"
+            },
+            {
+              "label": "Infinite Queries",
+              "to": "framework/angular/guides/infinite-queries"
+            },
+            {
+              "label": "Initial Query Data",
+              "to": "framework/angular/guides/initial-query-data"
+            },
+            {
+              "label": "Placeholder Query Data",
+              "to": "framework/angular/guides/placeholder-query-data"
+            },
+            {
+              "label": "Mutations",
+              "to": "framework/angular/guides/mutations"
+            },
+            {
+              "label": "Mutation Options",
+              "to": "framework/angular/guides/mutation-options"
+            },
+            {
+              "label": "Query Invalidation",
+              "to": "framework/angular/guides/query-invalidation"
+            },
+            {
+              "label": "Invalidation from Mutations",
+              "to": "framework/angular/guides/invalidations-from-mutations"
+            },
+            {
+              "label": "Optimistic Updates",
+              "to": "framework/angular/guides/optimistic-updates"
+            },
+            {
+              "label": "Query Cancellation",
+              "to": "framework/angular/guides/query-cancellation"
+            },
+            {
+              "label": "Scroll Restoration",
+              "to": "framework/angular/guides/scroll-restoration"
+            },
+            {
+              "label": "Filters",
+              "to": "framework/angular/guides/filters"
+            },
+            {
+              "label": "Caching",
+              "to": "framework/angular/guides/caching"
+            },
+            {
+              "label": "Default Query Fn",
+              "to": "framework/angular/guides/default-query-function"
+            },
+            {
+              "label": "Testing",
+              "to": "framework/angular/guides/testing"
+            },
+            {
+              "label": "Does this replace state managers?",
+              "to": "framework/angular/guides/does-this-replace-client-state"
+            }
+          ]
+        },
+        {
+          "label": "lit",
+          "children": [
+            {
+              "label": "Reactive Controllers vs Hooks",
+              "to": "framework/lit/guides/reactive-controllers-vs-hooks"
+            },
+            {
+              "label": "Queries",
+              "to": "framework/lit/guides/queries"
+            },
+            {
+              "label": "Parallel Queries",
+              "to": "framework/lit/guides/parallel-queries"
+            },
+            {
+              "label": "Query Keys",
+              "to": "framework/lit/guides/query-keys"
+            },
+            {
+              "label": "Query Functions",
+              "to": "framework/lit/guides/query-functions"
+            },
+            {
+              "label": "Mutations",
+              "to": "framework/lit/guides/mutations"
+            },
+            {
+              "label": "Query Invalidation",
+              "to": "framework/lit/guides/query-invalidation"
+            },
+            {
+              "label": "Infinite Queries",
+              "to": "framework/lit/guides/infinite-queries"
+            },
+            {
+              "label": "SSR",
+              "to": "framework/lit/guides/ssr"
+            }
+          ]
+        },
+        {
+          "label": "preact",
+          "children": [
+            {
+              "label": "Important Defaults",
+              "to": "framework/preact/guides/important-defaults"
+            },
+            {
+              "label": "Queries",
+              "to": "framework/preact/guides/queries"
+            },
+            {
+              "label": "Query Keys",
+              "to": "framework/preact/guides/query-keys"
+            },
+            {
+              "label": "Query Functions",
+              "to": "framework/preact/guides/query-functions"
+            },
+            {
+              "label": "Query Options",
+              "to": "framework/preact/guides/query-options"
+            },
+            {
+              "label": "Network Mode",
+              "to": "framework/preact/guides/network-mode"
+            },
+            {
+              "label": "Parallel Queries",
+              "to": "framework/preact/guides/parallel-queries"
+            },
+            {
+              "label": "Dependent Queries",
+              "to": "framework/preact/guides/dependent-queries"
+            },
+            {
+              "label": "Background Fetching Indicators",
+              "to": "framework/preact/guides/background-fetching-indicators"
+            },
+            {
+              "label": "Window Focus Refetching",
+              "to": "framework/preact/guides/window-focus-refetching"
+            },
+            {
+              "label": "Polling",
+              "to": "framework/preact/guides/polling"
+            },
+            {
+              "label": "Disabling/Pausing Queries",
+              "to": "framework/preact/guides/disabling-queries"
+            },
+            {
+              "label": "Query Retries",
+              "to": "framework/preact/guides/query-retries"
+            },
+            {
+              "label": "Paginated Queries",
+              "to": "framework/preact/guides/paginated-queries"
+            },
+            {
+              "label": "Infinite Queries",
+              "to": "framework/preact/guides/infinite-queries"
+            },
+            {
+              "label": "Initial Query Data",
+              "to": "framework/preact/guides/initial-query-data"
+            },
+            {
+              "label": "Placeholder Query Data",
+              "to": "framework/preact/guides/placeholder-query-data"
+            },
+            {
+              "label": "Mutations",
+              "to": "framework/preact/guides/mutations"
+            },
+            {
+              "label": "Query Invalidation",
+              "to": "framework/preact/guides/query-invalidation"
+            },
+            {
+              "label": "Invalidation from Mutations",
+              "to": "framework/preact/guides/invalidations-from-mutations"
+            },
+            {
+              "label": "Updates from Mutation Responses",
+              "to": "framework/preact/guides/updates-from-mutation-responses"
+            },
+            {
+              "label": "Optimistic Updates",
+              "to": "framework/preact/guides/optimistic-updates"
+            },
+            {
+              "label": "Query Cancellation",
+              "to": "framework/preact/guides/query-cancellation"
+            },
+            {
+              "label": "Scroll Restoration",
+              "to": "framework/preact/guides/scroll-restoration"
+            },
+            {
+              "label": "Filters",
+              "to": "framework/preact/guides/filters"
+            },
+            {
+              "label": "Performance & Request Waterfalls",
+              "to": "framework/preact/guides/request-waterfalls"
+            },
+            {
+              "label": "Prefetching & Router Integration",
+              "to": "framework/preact/guides/prefetching"
+            },
+            {
+              "label": "Caching",
+              "to": "framework/preact/guides/caching"
+            },
+            {
+              "label": "Render Optimizations",
+              "to": "framework/preact/guides/render-optimizations"
+            },
+            {
+              "label": "Default Query Fn",
+              "to": "framework/preact/guides/default-query-function"
+            },
+            {
+              "label": "Does this replace [Redux, MobX, etc]?",
+              "to": "framework/preact/guides/does-this-replace-client-state"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "API Reference",
+      "children": [
+        {
+          "label": "QueryClient",
+          "to": "reference/QueryClient"
+        },
+        {
+          "label": "QueryCache",
+          "to": "reference/QueryCache"
+        },
+        {
+          "label": "MutationCache",
+          "to": "reference/MutationCache"
+        },
+        {
+          "label": "QueryObserver",
+          "to": "reference/QueryObserver"
+        },
+        {
+          "label": "InfiniteQueryObserver",
+          "to": "reference/InfiniteQueryObserver"
+        },
+        {
+          "label": "QueriesObserver",
+          "to": "reference/QueriesObserver"
+        },
+        {
+          "label": "streamedQuery",
+          "to": "reference/streamedQuery"
+        },
+        {
+          "label": "focusManager",
+          "to": "reference/focusManager"
+        },
+        {
+          "label": "onlineManager",
+          "to": "reference/onlineManager"
+        },
+        {
+          "label": "environmentManager",
+          "to": "reference/environmentManager"
+        },
+        {
+          "label": "notifyManager",
+          "to": "reference/notifyManager"
+        },
+        {
+          "label": "timeoutManager",
+          "to": "reference/timeoutManager"
+        }
+      ],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "useQuery",
+              "to": "framework/react/reference/useQuery"
+            },
+            {
+              "label": "useQueries",
+              "to": "framework/react/reference/useQueries"
+            },
+            {
+              "label": "useInfiniteQuery",
+              "to": "framework/react/reference/useInfiniteQuery"
+            },
+            {
+              "label": "useMutation",
+              "to": "framework/react/reference/useMutation"
+            },
+            {
+              "label": "useIsFetching",
+              "to": "framework/react/reference/useIsFetching"
+            },
+            {
+              "label": "useIsMutating",
+              "to": "framework/react/reference/useIsMutating"
+            },
+            {
+              "label": "useMutationState",
+              "to": "framework/react/reference/useMutationState"
+            },
+            {
+              "label": "useSuspenseQuery",
+              "to": "framework/react/reference/useSuspenseQuery"
+            },
+            {
+              "label": "useSuspenseInfiniteQuery",
+              "to": "framework/react/reference/useSuspenseInfiniteQuery"
+            },
+            {
+              "label": "useSuspenseQueries",
+              "to": "framework/react/reference/useSuspenseQueries"
+            },
+            {
+              "label": "QueryClientProvider",
+              "to": "framework/react/reference/QueryClientProvider"
+            },
+            {
+              "label": "useQueryClient",
+              "to": "framework/react/reference/useQueryClient"
+            },
+            {
+              "label": "queryOptions",
+              "to": "framework/react/reference/queryOptions"
+            },
+            {
+              "label": "infiniteQueryOptions",
+              "to": "framework/react/reference/infiniteQueryOptions"
+            },
+            {
+              "label": "mutationOptions",
+              "to": "framework/react/reference/mutationOptions"
+            },
+            {
+              "label": "usePrefetchQuery",
+              "to": "framework/react/reference/usePrefetchQuery"
+            },
+            {
+              "label": "usePrefetchInfiniteQuery",
+              "to": "framework/react/reference/usePrefetchInfiniteQuery"
+            },
+            {
+              "label": "QueryErrorResetBoundary",
+              "to": "framework/react/reference/QueryErrorResetBoundary"
+            },
+            {
+              "label": "useQueryErrorResetBoundary",
+              "to": "framework/react/reference/useQueryErrorResetBoundary"
+            },
+            {
+              "label": "hydration",
+              "to": "framework/react/reference/hydration"
+            }
+          ]
+        },
+        {
+          "label": "vue",
+          "children": [
+            {
+              "label": "useQuery",
+              "to": "framework/vue/reference/useQuery"
+            },
+            {
+              "label": "useQueries",
+              "to": "framework/vue/reference/useQueries"
+            },
+            {
+              "label": "useInfiniteQuery",
+              "to": "framework/vue/reference/useInfiniteQuery"
+            },
+            {
+              "label": "useMutation",
+              "to": "framework/vue/reference/useMutation"
+            },
+            {
+              "label": "useIsFetching",
+              "to": "framework/vue/reference/useIsFetching"
+            },
+            {
+              "label": "useIsMutating",
+              "to": "framework/vue/reference/useIsMutating"
+            },
+            {
+              "label": "useMutationState",
+              "to": "framework/vue/reference/useMutationState"
+            },
+            {
+              "label": "useQueryClient",
+              "to": "framework/vue/reference/useQueryClient"
+            },
+            {
+              "label": "queryOptions",
+              "to": "framework/vue/reference/queryOptions"
+            },
+            {
+              "label": "infiniteQueryOptions",
+              "to": "framework/vue/reference/infiniteQueryOptions"
+            },
+            {
+              "label": "mutationOptions",
+              "to": "framework/vue/reference/mutationOptions"
+            },
+            {
+              "label": "usePrefetchQuery",
+              "to": "framework/vue/reference/usePrefetchQuery"
+            },
+            {
+              "label": "usePrefetchInfiniteQuery",
+              "to": "framework/vue/reference/usePrefetchInfiniteQuery"
+            },
+            {
+              "label": "hydration",
+              "to": "framework/vue/reference/hydration"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": [
+            {
+              "label": "useQuery",
+              "to": "framework/solid/reference/useQuery"
+            },
+            {
+              "label": "useQueries",
+              "to": "framework/solid/reference/useQueries"
+            },
+            {
+              "label": "useInfiniteQuery",
+              "to": "framework/solid/reference/useInfiniteQuery"
+            },
+            {
+              "label": "useMutation",
+              "to": "framework/solid/reference/useMutation"
+            },
+            {
+              "label": "useIsFetching",
+              "to": "framework/solid/reference/useIsFetching"
+            },
+            {
+              "label": "useIsMutating",
+              "to": "framework/solid/reference/useIsMutating"
+            },
+            {
+              "label": "useMutationState",
+              "to": "framework/solid/reference/useMutationState"
+            },
+            {
+              "label": "queryOptions",
+              "to": "framework/solid/reference/queryOptions"
+            },
+            {
+              "label": "infiniteQueryOptions",
+              "to": "framework/solid/reference/infiniteQueryOptions"
+            },
+            {
+              "label": "mutationOptions",
+              "to": "framework/solid/reference/mutationOptions"
+            },
+            {
+              "label": "hydration",
+              "to": "framework/solid/reference/hydration"
+            }
+          ]
+        },
+        {
+          "label": "svelte",
+          "children": [
+            {
+              "label": "Svelte Reference",
+              "to": "framework/svelte/reference/index"
+            },
+            {
+              "label": "Functions / createQuery",
+              "to": "framework/svelte/reference/functions/createQuery"
+            },
+            {
+              "label": "Functions / createQueries",
+              "to": "framework/svelte/reference/functions/createQueries"
+            },
+            {
+              "label": "Functions / createInfiniteQuery",
+              "to": "framework/svelte/reference/functions/createInfiniteQuery"
+            },
+            {
+              "label": "Functions / createMutation",
+              "to": "framework/svelte/reference/functions/createMutation"
+            },
+            {
+              "label": "Functions / useIsFetching",
+              "to": "framework/svelte/reference/functions/useIsFetching"
+            },
+            {
+              "label": "Functions / useIsMutating",
+              "to": "framework/svelte/reference/functions/useIsMutating"
+            },
+            {
+              "label": "Functions / useMutationState",
+              "to": "framework/svelte/reference/functions/useMutationState"
+            },
+            {
+              "label": "Functions / queryOptions",
+              "to": "framework/svelte/reference/functions/queryOptions"
+            },
+            {
+              "label": "Functions / infiniteQueryOptions",
+              "to": "framework/svelte/reference/functions/infiniteQueryOptions"
+            },
+            {
+              "label": "Functions / mutationOptions",
+              "to": "framework/svelte/reference/functions/mutationOptions"
+            }
+          ]
+        },
+        {
+          "label": "lit",
+          "children": [
+            {
+              "label": "Lit Reference",
+              "to": "framework/lit/reference/index"
+            },
+            {
+              "label": "QueryClientProvider",
+              "to": "framework/lit/reference/classes/QueryClientProvider"
+            },
+            {
+              "label": "Functions / createQueryController",
+              "to": "framework/lit/reference/functions/createQueryController"
+            },
+            {
+              "label": "Functions / createQueriesController",
+              "to": "framework/lit/reference/functions/createQueriesController"
+            },
+            {
+              "label": "Functions / createInfiniteQueryController",
+              "to": "framework/lit/reference/functions/createInfiniteQueryController"
+            },
+            {
+              "label": "Functions / createMutationController",
+              "to": "framework/lit/reference/functions/createMutationController"
+            },
+            {
+              "label": "Functions / useIsFetching",
+              "to": "framework/lit/reference/functions/useIsFetching"
+            },
+            {
+              "label": "Functions / useIsMutating",
+              "to": "framework/lit/reference/functions/useIsMutating"
+            },
+            {
+              "label": "Functions / useMutationState",
+              "to": "framework/lit/reference/functions/useMutationState"
+            },
+            {
+              "label": "Functions / useQueryClient",
+              "to": "framework/lit/reference/functions/useQueryClient"
+            },
+            {
+              "label": "Functions / queryOptions",
+              "to": "framework/lit/reference/functions/queryOptions"
+            },
+            {
+              "label": "Functions / infiniteQueryOptions",
+              "to": "framework/lit/reference/functions/infiniteQueryOptions"
+            },
+            {
+              "label": "Functions / mutationOptions",
+              "to": "framework/lit/reference/functions/mutationOptions"
+            },
+            {
+              "label": "Context / queryClientContext",
+              "to": "framework/lit/reference/variables/queryClientContext"
+            },
+            {
+              "label": "Context / getDefaultQueryClient",
+              "to": "framework/lit/reference/functions/getDefaultQueryClient"
+            },
+            {
+              "label": "Context / registerDefaultQueryClient",
+              "to": "framework/lit/reference/functions/registerDefaultQueryClient"
+            },
+            {
+              "label": "Context / unregisterDefaultQueryClient",
+              "to": "framework/lit/reference/functions/unregisterDefaultQueryClient"
+            },
+            {
+              "label": "Context / resolveQueryClient",
+              "to": "framework/lit/reference/functions/resolveQueryClient"
+            }
+          ]
+        },
+        {
+          "label": "angular",
+          "children": [
+            {
+              "label": "Angular Reference",
+              "to": "framework/angular/reference/index"
+            },
+            {
+              "label": "Functions / injectQuery",
+              "to": "framework/angular/reference/functions/injectQuery"
+            },
+            {
+              "label": "Functions / injectMutation",
+              "to": "framework/angular/reference/functions/injectMutation"
+            }
+          ]
+        },
+        {
+          "label": "preact",
+          "children": [
+            {
+              "label": "useQuery",
+              "to": "framework/preact/reference/functions/useQuery"
+            },
+            {
+              "label": "useQueries",
+              "to": "framework/preact/reference/functions/useQueries"
+            },
+            {
+              "label": "useInfiniteQuery",
+              "to": "framework/preact/reference/functions/useInfiniteQuery"
+            },
+            {
+              "label": "useMutation",
+              "to": "framework/preact/reference/functions/useMutation"
+            },
+            {
+              "label": "useIsFetching",
+              "to": "framework/preact/reference/functions/useIsFetching"
+            },
+            {
+              "label": "useIsMutating",
+              "to": "framework/preact/reference/functions/useIsMutating"
+            },
+            {
+              "label": "useMutationState",
+              "to": "framework/preact/reference/functions/useMutationState"
+            },
+            {
+              "label": "useSuspenseQuery",
+              "to": "framework/preact/reference/functions/useSuspenseQuery"
+            },
+            {
+              "label": "useSuspenseInfiniteQuery",
+              "to": "framework/preact/reference/functions/useSuspenseInfiniteQuery"
+            },
+            {
+              "label": "useSuspenseQueries",
+              "to": "framework/preact/reference/functions/useSuspenseQueries"
+            },
+            {
+              "label": "QueryClientProvider",
+              "to": "framework/preact/reference/functions/QueryClientProvider"
+            },
+            {
+              "label": "useQueryClient",
+              "to": "framework/preact/reference/functions/useQueryClient"
+            },
+            {
+              "label": "queryOptions",
+              "to": "framework/preact/reference/functions/queryOptions"
+            },
+            {
+              "label": "infiniteQueryOptions",
+              "to": "framework/preact/reference/functions/infiniteQueryOptions"
+            },
+            {
+              "label": "mutationOptions",
+              "to": "framework/preact/reference/functions/mutationOptions"
+            },
+            {
+              "label": "usePrefetchQuery",
+              "to": "framework/preact/reference/functions/usePrefetchQuery"
+            },
+            {
+              "label": "usePrefetchInfiniteQuery",
+              "to": "framework/preact/reference/functions/usePrefetchInfiniteQuery"
+            },
+            {
+              "label": "QueryErrorResetBoundary",
+              "to": "framework/preact/reference/functions/QueryErrorResetBoundary"
+            },
+            {
+              "label": "useQueryErrorResetBoundary",
+              "to": "framework/preact/reference/functions/useQueryErrorResetBoundary"
+            },
+            {
+              "label": "hydration",
+              "to": "framework/preact/reference/functions/HydrationBoundary"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "ESLint",
+      "children": [
+        {
+          "label": "ESLint Plugin Query",
+          "to": "eslint/eslint-plugin-query"
+        },
+        {
+          "label": "Exhaustive Deps",
+          "to": "eslint/exhaustive-deps"
+        },
+        {
+          "label": "Stable Query Client",
+          "to": "eslint/stable-query-client"
+        },
+        {
+          "label": "No Rest Destructuring",
+          "to": "eslint/no-rest-destructuring"
+        },
+        {
+          "label": "No Unstable Deps",
+          "to": "eslint/no-unstable-deps"
+        },
+        {
+          "label": "Infinite Query Property Order",
+          "to": "eslint/infinite-query-property-order"
+        },
+        {
+          "label": "No void Query Functions",
+          "to": "eslint/no-void-query-fn"
+        },
+        {
+          "label": "Mutation Property Order",
+          "to": "eslint/mutation-property-order"
+        },
+        {
+          "label": "Prefer Query Options",
+          "to": "eslint/prefer-query-options"
+        }
+      ]
+    },
+    {
+      "label": "Examples",
+      "children": [],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "Simple",
+              "to": "framework/react/examples/simple"
+            },
+            {
+              "label": "Basic",
+              "to": "framework/react/examples/basic"
+            },
+            {
+              "label": "Basic w/ GraphQL-Request",
+              "to": "framework/react/examples/basic-graphql-request"
+            },
+            {
+              "label": "Auto Refetching / Polling / Realtime",
+              "to": "framework/react/examples/auto-refetching"
+            },
+            {
+              "label": "Optimistic Updates (UI)",
+              "to": "framework/react/examples/optimistic-updates-ui"
+            },
+            {
+              "label": "Optimistic Updates (Cache)",
+              "to": "framework/react/examples/optimistic-updates-cache"
+            },
+            {
+              "label": "Pagination",
+              "to": "framework/react/examples/pagination"
+            },
+            {
+              "label": "Load-More & Infinite Scroll",
+              "to": "framework/react/examples/load-more-infinite-scroll"
+            },
+            {
+              "label": "Infinite query with Max pages",
+              "to": "framework/react/examples/infinite-query-with-max-pages"
+            },
+            {
+              "label": "Suspense",
+              "to": "framework/react/examples/suspense"
+            },
+            {
+              "label": "Default Query Function",
+              "to": "framework/react/examples/default-query-function"
+            },
+            {
+              "label": "Playground",
+              "to": "framework/react/examples/playground"
+            },
+            {
+              "label": "Prefetching",
+              "to": "framework/react/examples/prefetching"
+            },
+            {
+              "label": "Star Wars",
+              "to": "framework/react/examples/star-wars"
+            },
+            {
+              "label": "Rick And Morty",
+              "to": "framework/react/examples/rick-morty"
+            },
+            {
+              "label": "Next.js Pages",
+              "to": "framework/react/examples/nextjs"
+            },
+            {
+              "label": "Next.js app with prefetching",
+              "to": "framework/react/examples/nextjs-app-prefetching"
+            },
+            {
+              "label": "Next.js app with streaming",
+              "to": "framework/react/examples/nextjs-suspense-streaming"
+            },
+            {
+              "label": "React Native",
+              "to": "framework/react/examples/react-native"
+            },
+            {
+              "label": "React Router",
+              "to": "framework/react/examples/react-router"
+            },
+            {
+              "label": "Offline Queries and Mutations",
+              "to": "framework/react/examples/offline"
+            },
+            {
+              "label": "Algolia",
+              "to": "framework/react/examples/algolia"
+            },
+            {
+              "label": "Shadow DOM",
+              "to": "framework/react/examples/shadow-dom"
+            },
+            {
+              "label": "Devtools Embedded Panel",
+              "to": "framework/react/examples/devtools-panel"
+            },
+            {
+              "label": "Chat example (streaming)",
+              "to": "framework/react/examples/chat"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": [
+            {
+              "label": "Simple",
+              "to": "framework/solid/examples/simple"
+            },
+            {
+              "label": "Basic",
+              "to": "framework/solid/examples/basic"
+            },
+            {
+              "label": "Basic w/ GraphQL-Request",
+              "to": "framework/solid/examples/basic-graphql-request"
+            },
+            {
+              "label": "Default Query Function",
+              "to": "framework/solid/examples/default-query-function"
+            },
+            {
+              "label": "Solid Start",
+              "to": "framework/solid/examples/solid-start-streaming"
+            },
+            {
+              "label": "Astro",
+              "to": "framework/solid/examples/astro"
+            },
+            {
+              "label": "Offline Queries and Mutations",
+              "to": "framework/solid/examples/offline"
+            }
+          ]
+        },
+        {
+          "label": "vue",
+          "children": [
+            {
+              "label": "Basic",
+              "to": "framework/vue/examples/basic"
+            },
+            {
+              "label": "Vue 2.6",
+              "to": "framework/vue/examples/2.6-basic"
+            },
+            {
+              "label": "Vue 2.7",
+              "to": "framework/vue/examples/2.7-basic"
+            },
+            {
+              "label": "Nuxt 3",
+              "to": "framework/vue/examples/nuxt3"
+            },
+            {
+              "label": "Persister",
+              "to": "framework/vue/examples/persister"
+            }
+          ]
+        },
+        {
+          "label": "svelte",
+          "children": [
+            {
+              "label": "Simple",
+              "to": "framework/svelte/examples/simple"
+            },
+            {
+              "label": "Basic",
+              "to": "framework/svelte/examples/basic"
+            },
+            {
+              "label": "Auto Refetching / Polling / Realtime",
+              "to": "framework/svelte/examples/auto-refetching"
+            },
+            {
+              "label": "SSR",
+              "to": "framework/svelte/examples/ssr"
+            },
+            {
+              "label": "Optimistic Updates",
+              "to": "framework/svelte/examples/optimistic-updates"
+            },
+            {
+              "label": "Playground",
+              "to": "framework/svelte/examples/playground"
+            },
+            {
+              "label": "Star Wars",
+              "to": "framework/svelte/examples/star-wars"
+            },
+            {
+              "label": "Infinite Queries",
+              "to": "framework/svelte/examples/load-more-infinite-scroll"
+            }
+          ]
+        },
+        {
+          "label": "lit",
+          "children": [
+            {
+              "label": "Basic",
+              "to": "framework/lit/examples/basic"
+            },
+            {
+              "label": "Pagination",
+              "to": "framework/lit/examples/pagination"
+            },
+            {
+              "label": "SSR",
+              "to": "framework/lit/examples/ssr"
+            }
+          ]
+        },
+        {
+          "label": "angular",
+          "children": [
+            {
+              "label": "Simple",
+              "to": "framework/angular/examples/simple"
+            },
+            {
+              "label": "Basic",
+              "to": "framework/angular/examples/basic"
+            },
+            {
+              "label": "Auto Refetching / Polling / Realtime",
+              "to": "framework/angular/examples/auto-refetching"
+            },
+            {
+              "label": "Optimistic Updates",
+              "to": "framework/angular/examples/optimistic-updates"
+            },
+            {
+              "label": "Pagination",
+              "to": "framework/angular/examples/pagination"
+            },
+            {
+              "label": "Infinite query with maxPages",
+              "to": "framework/angular/examples/infinite-query-with-max-pages"
+            },
+            {
+              "label": "Angular Router",
+              "to": "framework/angular/examples/router"
+            },
+            {
+              "label": "RxJS autocomplete",
+              "to": "framework/angular/examples/rxjs"
+            },
+            {
+              "label": "Query options from a service",
+              "to": "framework/angular/examples/query-options-from-a-service"
+            },
+            {
+              "label": "Devtools embedded panel",
+              "to": "framework/angular/examples/devtools-panel"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Plugins",
+      "children": [],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "persistQueryClient",
+              "to": "framework/react/plugins/persistQueryClient"
+            },
+            {
+              "label": "createSyncStoragePersister",
+              "to": "framework/react/plugins/createSyncStoragePersister"
+            },
+            {
+              "label": "createAsyncStoragePersister",
+              "to": "framework/react/plugins/createAsyncStoragePersister"
+            },
+            {
+              "label": "broadcastQueryClient (Experimental)",
+              "to": "framework/react/plugins/broadcastQueryClient"
+            },
+            {
+              "label": "createPersister (Experimental)",
+              "to": "framework/react/plugins/createPersister"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": [
+            {
+              "label": "broadcastQueryClient (Experimental)",
+              "to": "framework/solid/plugins/broadcastQueryClient"
+            },
+            {
+              "label": "createPersister (Experimental)",
+              "to": "framework/solid/plugins/createPersister"
+            }
+          ]
+        },
+        {
+          "label": "vue",
+          "children": [
+            {
+              "label": "broadcastQueryClient (Experimental)",
+              "to": "framework/vue/plugins/broadcastQueryClient"
+            },
+            {
+              "label": "createPersister (Experimental)",
+              "to": "framework/vue/plugins/createPersister"
+            }
+          ]
+        },
+        {
+          "label": "preact",
+          "children": [
+            {
+              "label": "persistQueryClient",
+              "to": "framework/preact/plugins/persistQueryClient"
+            },
+            {
+              "label": "createSyncStoragePersister",
+              "to": "framework/preact/plugins/createSyncStoragePersister"
+            },
+            {
+              "label": "createAsyncStoragePersister",
+              "to": "framework/preact/plugins/createAsyncStoragePersister"
+            },
+            {
+              "label": "broadcastQueryClient (Experimental)",
+              "to": "framework/preact/plugins/broadcastQueryClient"
+            },
+            {
+              "label": "createPersister (Experimental)",
+              "to": "framework/preact/plugins/createPersister"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "users": [
+    "Google",
+    "Walmart",
+    "Facebook",
+    "PayPal",
+    "Amazon",
+    "American Express",
+    "Microsoft",
+    "Target",
+    "Ebay",
+    "Autodesk",
+    "CarFAX",
+    "Docusign",
+    "HP",
+    "MLB",
+    "Volvo",
+    "Ocado",
+    "UPC.ch",
+    "EFI.com",
+    "ReactBricks",
+    "Nozzle.io",
+    "Uber"
+  ]
+}

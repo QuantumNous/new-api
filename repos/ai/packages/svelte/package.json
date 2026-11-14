@@ -1,0 +1,86 @@
+{
+  "name": "@ai-sdk/svelte",
+  "version": "5.0.31",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "pnpm prepack",
+    "build:watch": "pnpm clean && pnpm --filter svelte build && svelte-package --input=src --watch",
+    "preview": "vite preview",
+    "prepare": "echo ''",
+    "prepack": "pnpm clean && svelte-package --input=src && publint",
+    "type-check": "svelte-check --tsconfig ./tsconfig.json",
+    "type-check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
+    "test": "vitest --run",
+    "test:update": "vitest --run -u",
+    "test:watch": "vitest",
+    "clean": "del-cli dist *.tsbuildinfo"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/**/*.spec.*",
+    "src",
+    "!src/**/*.test.*",
+    "!src/**/*.spec.*",
+    "!src/**/__snapshots__",
+    "!src/**/__fixtures__",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "svelte": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "svelte": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "peerDependencies": {
+    "svelte": "^5.31.0"
+  },
+  "dependencies": {
+    "@ai-sdk/provider-utils": "workspace:*",
+    "ai": "workspace:*"
+  },
+  "devDependencies": {
+    "@ai-sdk/test-server": "workspace:*",
+    "@sveltejs/package": "^2.5.7",
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/svelte": "^5.3.1",
+    "@types/node": "22.19.19",
+    "@vercel/ai-tsconfig": "workspace:*",
+    "jsdom": "^26.1.0",
+    "publint": "^0.3.21",
+    "svelte": "^5.55.7",
+    "svelte-check": "^4.4.8",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.6",
+    "zod": "3.25.76"
+  },
+  "homepage": "https://ai-sdk.dev/docs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vercel/ai",
+    "directory": "packages/svelte"
+  },
+  "bugs": {
+    "url": "https://github.com/vercel/ai/issues"
+  },
+  "keywords": [
+    "ai",
+    "svelte"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
+}

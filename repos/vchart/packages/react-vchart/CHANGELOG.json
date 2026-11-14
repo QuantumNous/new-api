@@ -1,0 +1,232 @@
+{
+  "name": "@visactor/react-vchart",
+  "entries": [
+    {
+      "version": "1.2.1",
+      "tag": "@visactor/react-vchart_v1.2.1",
+      "date": "Tue, 15 Aug 2023 07:25:04 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "feat: the api updateViewBox adds the relayout parameter, which supports not redrawing the chart immediately after updateViewbox, details in #497\n\n"
+          },
+          {
+            "comment": "fix(axis-layout): fix the problem that the axis-component cannot take effect after configuring minWidth and maxWidth, details are in #379\n\n"
+          },
+          {
+            "comment": "fix(axis-layout): fix the issue of axis move slighty when manual legend filtering, details are in #426\n\n"
+          },
+          {
+            "comment": "fix: fix the issue about when axis.label is autoLimit, the chart layout can not work as expect after resize, details in #429\n\n"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@visactor/vchart\" from `1.2.0` to `1.2.1`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.2.0",
+      "tag": "@visactor/react-vchart_v1.2.0",
+      "date": "Thu, 10 Aug 2023 05:23:25 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "feat: dimension tooltip supports linear axis\n\n"
+          },
+          {
+            "comment": "fix(react-vchart): catch error in BaseChart"
+          },
+          {
+            "comment": "fix: <VChart /> shoud not update when spec is equal, fix #428"
+          },
+          {
+            "comment": "fix(react-vchart): the components of react vchart should not update when no props or children are updated\n\n"
+          },
+          {
+            "comment": "perf(axis-tick): optimize the calculation times of axis ticks, optimize the discrete axis sampling algorithm\n\n"
+          },
+          {
+            "comment": "perf(data): remove redundant data statistics calculations\n\n"
+          }
+        ],
+        "none": [
+          {
+            "comment": "feat(marker): marker support formatMethod. fix #288, fix #298"
+          },
+          {
+            "comment": "fix(brush): fix mark can not resume to unselected state when click blank space. fix #307"
+          },
+          {
+            "comment": "fix(brush): fix brush interactive range cannot update when chart is resize. fix #194"
+          }
+        ],
+        "minor": [
+          {
+            "comment": "feat: supplement sync methods in vchart instance\n\n"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@visactor/vchart\" from `1.2.0-beta.1` to `1.2.0`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.1.3",
+      "tag": "@visactor/react-vchart_v1.1.3",
+      "date": "Thu, 03 Aug 2023 10:32:10 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "fix: fix the issue of sankeyChart sourceFiled and targetFiled not working, closed #341"
+          },
+          {
+            "comment": "fix: fix the issue of SankeyChart can't render, when unset nodeAlign, closed #343"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@visactor/vchart\" from `1.1.2` to `1.1.3`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.1.2",
+      "tag": "@visactor/react-vchart_v1.1.2",
+      "date": "Tue, 01 Aug 2023 09:47:58 GMT",
+      "comments": {
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@visactor/vchart\" from `1.1.1` to `1.1.2`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.1.1",
+      "tag": "@visactor/react-vchart_v1.1.1",
+      "date": "Fri, 28 Jul 2023 08:52:08 GMT",
+      "comments": {
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@visactor/vchart\" from `1.1.0` to `1.1.1`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.1.0",
+      "tag": "@visactor/react-vchart_v1.1.0",
+      "date": "Wed, 26 Jul 2023 03:18:52 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "chore: sync version"
+          },
+          {
+            "comment": "add bandwidth attribute to context that in mark function call"
+          },
+          {
+            "comment": "support zeroAlign & tick align in two axes"
+          },
+          {
+            "comment": "support discrete legend bind scale"
+          },
+          {
+            "comment": "feat: set default logger level to level error\n\n"
+          },
+          {
+            "comment": "feat: modify function parameters to make it more user-friendly\n\n"
+          },
+          {
+            "comment": "feat: support specified of scale in vchart\n\n"
+          },
+          {
+            "comment": "fix: pickable shoule be false if label component is configured `interactive: false`\n\n"
+          },
+          {
+            "comment": "fix region getSeries bug when option.userId = []"
+          },
+          {
+            "comment": "fix: add global-scale updateDomain on chart updateData\n\n"
+          },
+          {
+            "comment": "fix barWidth not work in bar chart"
+          },
+          {
+            "comment": "fix(react-vchart): rebind event to chart after chart is re-render, fix #68\n\n"
+          },
+          {
+            "comment": "fix: the issue that mode value does not exit in trigger config"
+          },
+          {
+            "comment": "fix(react-vchart): fix type of event handlers, series, charts and components"
+          },
+          {
+            "comment": "    feat: add customized events of <Brush/> and other components"
+          }
+        ],
+        "none": [
+          {
+            "comment": "feat(marker): markline support autoRange and marker performance enhance"
+          },
+          {
+            "comment": "feat(brush): add operate type about 'brushStart' | 'brushEnd' and export element data of inBrush and outOfBrush"
+          },
+          {
+            "comment": "feat(marker): support interactive"
+          },
+          {
+            "comment": "fix(dataZoom): fix bug of datazoom not clear when updateSpec and mark disappear when xField is array"
+          },
+          {
+            "comment": "fix(dataZoom): preview compute and theme config"
+          },
+          {
+            "comment": "fix(wordCloud): text clip when layoutmode is fast"
+          },
+          {
+            "comment": "fix(wordCloud): get padding from chartInstance padding"
+          }
+        ],
+        "minor": [
+          {
+            "comment": "feat: optimize tooltip performance"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@visactor/vchart\" from `1.1.0-beta.9` to `1.1.0`"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.0.0",
+      "tag": "@visactor/react-vchart_v1.0.0",
+      "date": "Tue, 20 Jun 2023 11:35:37 GMT",
+      "comments": {
+        "major": [
+          {
+            "comment": "chore: release major version"
+          }
+        ],
+        "none": [
+          {
+            "comment": "release 0.0.1-alpha.0"
+          }
+        ],
+        "dependency": [
+          {
+            "comment": "Updating dependency \"@visactor/vchart\" from `1.0.0-alpha.0` to `1.0.0`"
+          }
+        ]
+      }
+    }
+  ]
+}

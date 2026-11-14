@@ -1,0 +1,75 @@
+.grid {
+  display: grid;
+  grid-gap: 2rem;
+}
+
+.group {
+  display: flex;
+}
+
+.button {
+  --size: 2.5rem;
+  --corner-radius: 0.4rem;
+  --border-color: var(--gray-outline-2);
+  --border-radius-right: 0 var(--corner-radius) var(--corner-radius) 0;
+  --border-radius-left: var(--corner-radius) 0 0 var(--corner-radius);
+
+  display: flex;
+  flex-flow: row nowrap;
+  justify-content: center;
+  align-items: center;
+  height: var(--size);
+  width: var(--size);
+  border: 1px solid var(--border-color);
+  background-color: var(--gray-container-2);
+  color: var(--gray-400);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: 2px solid black;
+  z-index: 1;
+}
+
+.button:first-child {
+  border-radius: var(--border-radius-left);
+  border-inline-end-color: transparent;
+}
+
+.button:last-child {
+  border-radius: var(--border-radius-right);
+  border-inline-start-color: transparent;
+}
+
+.button:first-child:dir(rtl) {
+  border-radius: var(--border-radius-right);
+}
+
+.button:last-child:dir(rtl) {
+  border-radius: var(--border-radius-left);
+}
+
+.button:not(:disabled):hover {
+  background-color: var(--gray-surface-1);
+  outline: 1px solid #444;
+  outline-offset: -1px;
+  color: var(--gray-text-2);
+  cursor: pointer;
+  z-index: 1;
+}
+
+.button svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.button[data-pressed] {
+  background-color: #fefefe;
+  color: var(--gray-text-2);
+}

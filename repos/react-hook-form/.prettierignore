@@ -1,0 +1,13 @@
+# Exclude paths
+/reports
+dist
+pnpm-lock.yaml
+# Exclude README related files and trigger files
+README.md
+README.*
+*.README.*
+.github/workflows/README.yml
+scripts/README/**
+docs/Helpers.yaml
+docs/Sponsors.yaml
+docs/Template.md

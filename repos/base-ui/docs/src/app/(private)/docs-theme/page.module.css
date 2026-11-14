@@ -1,0 +1,250 @@
+.page {
+  padding: var(--space-40);
+  color: var(--gray-t2);
+  font-family: var(--font-sans);
+}
+
+.hero {
+  max-width: 52rem;
+}
+
+.hero h1 {
+  margin: 0;
+  font-family: var(--font-sans-b);
+  font-size: var(--font-size-42);
+  font-weight: var(--font-weight-700);
+}
+
+.kicker {
+  margin: 0 0 var(--space-8);
+  color: var(--gray-t1);
+  font-size: var(--font-size-13);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.section {
+  padding: var(--space-48) 0;
+}
+
+.section + .section {
+  border-top: 1px solid var(--gray-c1);
+}
+
+.tokenName {
+  margin: 0;
+  color: var(--gray-t1);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-13);
+}
+
+.colorMatrixSection + .colorMatrixSection {
+  margin-top: var(--space-32);
+}
+
+.colorMatrixGrid {
+  display: grid;
+  grid-template-columns: 7rem repeat(9, 6.5rem);
+  row-gap: 2px;
+  align-items: start;
+  width: max-content;
+}
+
+.colorMatrixRow {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  column-gap: 2px;
+}
+
+.colorMatrixRowLabel {
+  display: flex;
+  align-items: center;
+  color: var(--gray-t1);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-13);
+}
+
+.colorMatrixHeaderCell {
+  color: var(--gray-p2);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-13);
+  text-transform: lowercase;
+  text-align: center;
+}
+
+.swatch {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 3rem;
+  --swatch-composite: rgb(
+    from var(--swatch-color) calc(r * alpha + 255 * (1 - alpha)) calc(g * alpha + 255 * (1 - alpha))
+      calc(b * alpha + 255 * (1 - alpha))
+  );
+}
+
+.swatch:hover {
+  outline: 2px solid var(--gray-t2);
+}
+
+.swatchTokenName {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: black;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-13);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.swatch:hover .swatchTokenName {
+  opacity: 1;
+}
+
+@supports (color: lch(from white 50 0 0deg)) {
+  .swatchTokenName {
+    /* Automatic black/white label based on the swatch color lightness */
+    color: lch(from var(--swatch-composite) round((100 - l), 100) 0 0deg);
+  }
+}
+
+/* Tune blackA readability (auto color can be too faint on near-white alpha steps) */
+.colorMatrixRowAlpha > .colorMatrixCell {
+  background-color: var(--gray-s1);
+  background-image:
+    linear-gradient(45deg, var(--gray-c1) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--gray-c1) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--gray-c1) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--gray-c1) 75%);
+  background-size: 12px 12px;
+  background-position:
+    0 0,
+    0 6px,
+    6px -6px,
+    -6px 0;
+}
+
+.colorMatrixRowAlpha > .colorMatrixCell:nth-child(-n + 6) .swatchTokenName {
+  color: black;
+}
+
+.colorMatrixRowAlpha > .colorMatrixCell:nth-child(7) .swatchTokenName {
+  color: white;
+}
+
+@media (prefers-color-scheme: dark) {
+  .colorMatrixRowAlpha > .colorMatrixCell:nth-child(-n + 6) .swatchTokenName,
+  .colorMatrixRowAlpha > .colorMatrixCell:nth-child(7) .swatchTokenName {
+    color: white;
+  }
+}
+
+.typeGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.radiusGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: var(--space-24);
+}
+
+.shadowGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: var(--space-24);
+}
+
+.typeCard,
+.radiusCard,
+.shadowCard {
+  border-radius: var(--radius-5);
+}
+
+.typeSample {
+  margin: var(--space-8) 0 0;
+  font-size: var(--font-size-16);
+}
+
+.typeScale {
+  display: grid;
+  gap: var(--space-32);
+}
+
+.typeScaleRow {
+  border-radius: var(--radius-5);
+}
+
+.typeScaleRow p:last-child {
+  margin: var(--space-8) 0 0;
+}
+
+.spaceList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.spaceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  border-radius: var(--radius-5);
+}
+
+.spaceRow .tokenName {
+  width: 6.5rem;
+  flex: 0 0 6.5rem;
+}
+
+.spaceBar {
+  min-width: 1px;
+  height: 0.75rem;
+  background: var(--gray-t2);
+}
+
+.radiusShape {
+  margin-top: var(--space-12);
+  background: var(--gray-t2);
+}
+
+.radiusShapeSquare {
+  width: 4rem;
+  height: 4rem;
+}
+
+.radiusShapePill {
+  width: 6rem;
+  height: 4rem;
+}
+
+.shadowSurface {
+  height: 5rem;
+  margin-top: var(--space-12);
+  border-radius: var(--radius-4);
+  background: var(--gray-s1);
+
+  /* Hack to make the surface visible in dark mode since there are no shadows in dark mode */
+  @media (prefers-color-scheme: dark) {
+    background: var(--gray-s2);
+  }
+}
+
+@media (max-width: 48rem) {
+  .page {
+    padding: var(--space-24);
+  }
+
+  .hero h1 {
+    font-size: var(--font-size-34);
+  }
+}

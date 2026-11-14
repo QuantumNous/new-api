@@ -1,0 +1,19 @@
+{
+  "title": "Welcome to react using react-i18next",
+  "description.part1": "To get started, edit <1>src/App.js</1> and save to reload.",
+  "description.part2": "Switch language between english and german using buttons above.",
+  "icu": "{numPersons, plural, =0 {no persons} =1 {one person} other {# persons}}",
+  "icu_and_trans": "We invited <0>{numPersons, plural, =0 {no persons} =1 {one person} other {# persons}}</0>.",
+  "Welcome, {name}!": "Welcome, {name}!",
+  "Welcome, <0>{name}</0>!": "Welcome, <0>{name}</0>!",
+  "Trainers: {trainersCount, number}": "Trainers: {trainersCount, number}",
+  "Trainers: <0>{trainersCount, number}</0>!": "Trainers: <0>{trainersCount, number}</0>!",
+  "Caught on {catchDate, date, full}": "Caught on {catchDate, date, full}",
+  "Caught on <0>{catchDate, date, full}</0>!": "Caught on <0>{catchDate, date, full}</0>!",
+  "{gender, select,  male {He avoids bugs.} female {She avoids bugs.} other {They avoid bugs.}}": "{gender, select,  male {He avoids bugs.} female {She avoids bugs.} other {They avoid bugs.}}",
+  "{gender, select,  male {<0>He</0> avoids bugs.} female {<1>She</1> avoids bugs.} other {<2>They</2> avoid bugs.}}": "{gender, select,  male {<0>He</0> avoids bugs.} female {<1>She</1> avoids bugs.} other {<2>They</2> avoid bugs.}}",
+  "{itemsCount1, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}": "{itemsCount1, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}",
+  "{itemsCount2, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}": "{itemsCount2, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}",
+  "{itemsCount3, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}": "{itemsCount3, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}",
+  "testKey": "{itemsCount3, plural,  =0 { There is <0>no</0> item. } one { There is <1>#</1> item. } other { There are <2>#</2> items. }}"
+}

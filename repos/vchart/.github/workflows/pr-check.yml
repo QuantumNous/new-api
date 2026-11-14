@@ -1,0 +1,29 @@
+name: Check of pull request
+
+# 这里业务方根据需求设置
+on:
+  pull_request:
+    branches: ['develop', 'dev/**']
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: './common/config/rush/pnpm-lock.yaml'
+
+      - uses: xile611/pr-type-check@main
+        with:
+          pull_request_body: |
+            ${{ github.event.pull_request.body }}
+          pull_request_head: ${{ github.event.pull_request.head.ref }}

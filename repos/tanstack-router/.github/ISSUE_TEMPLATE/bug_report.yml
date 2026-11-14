@@ -1,0 +1,99 @@
+name: 🐛 Bug Report
+description: Create a report to help us improve
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue :pray:.
+
+        This issue tracker is for reporting bugs found in TanStack Router and/or Start.
+        If you have a question about how to achieve something and are struggling, please post a question
+        inside of `router` Discussions tab: https://github.com/tanstack/router/discussions
+
+        Before submitting a new bug/issue, please check the links below to see if there is a solution or question posted there already:
+         - Issues tab: https://github.com/tanstack/router/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc
+         - closed issues tab: https://github.com/tanstack/router/issues?q=is%3Aissue+sort%3Aupdated-desc+is%3Aclosed
+         - Discussions tab: https://github.com/tanstack/router/discussions
+
+        The more information you fill in, the better the community can help you.
+  - type: dropdown
+    id: project
+    attributes:
+      label: Which project does this relate to?
+      description: If you are unsure, please leave this as "Router".
+      options:
+        - Router
+        - Start
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: Provide a clear and concise description of the challenge you are running into.
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Complete minimal reproducer
+      description: |
+        Bug reports need a complete minimal reproducer project.
+        The reproducer project must be 
+        - either a Stackblitz project (use this pre-configured Stackblitz project ([file-based routes](https://stackblitz.com/github/tanstack/router/tree/main/examples/react/quickstart-file-based?file=src%2Fmain.tsx)|[code-based routes](https://stackblitz.com/github/tanstack/router/tree/main/examples/react/quickstart?file=src%2Fmain.tsx)))
+        - or a public git repo.
+        In case of a git repo, the issue must be reproducible **directly** after cloning and installing dependencies.
+
+        If you dont supply a reproducer that meets the above requirements, this issue will be closed.
+      placeholder: reproduction URL
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce the Bug
+      description: Describe the steps we have to take to reproduce the behavior.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Provide a clear and concise description of what you expected to happen.
+      placeholder: |
+        As a user, I expected ___ behavior but i am seeing ___
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots_or_videos
+    attributes:
+      label: Screenshots or Videos
+      description: |
+        If applicable, add screenshots or a video to help explain your problem.
+        For more information on the supported file image/file types and the file size limits, please refer
+        to the following link: https://docs.github.com/en/github/writing-on-github/working-with-advanced-formatting/attaching-files
+      placeholder: |
+        You can drag your video or image files inside of this editor ↓
+  - type: textarea
+    id: platform
+    attributes:
+      label: Platform
+      value: |
+        - Router / Start Version: [e.g. 1.121.0]
+        - OS: [e.g. macOS, Windows, Linux]
+        - Browser: [e.g. Chrome, Safari, Firefox]
+        - Browser Version: [e.g. 91.1]
+        - Bundler: [e.g. vite]
+        - Bundler Version: [e.g. 7.0.0]
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here.

@@ -1,0 +1,233 @@
+// Rstest Snapshot v1
+
+exports[`plugins/react > should configuring \`tools.swc\` to override react runtime 1`] = `
+[
+  {
+    "resolve": {
+      "fullySpecified": false,
+    },
+    "test": /\\\\\\.m\\?js/,
+  },
+  {
+    "dependency": {
+      "not": "url",
+    },
+    "include": [
+      {
+        "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+      },
+      /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      /\\[\\\\\\\\/\\]@rsbuild\\[\\\\\\\\/\\]core\\[\\\\\\\\/\\]dist\\[\\\\\\\\/\\]/,
+    ],
+    "oneOf": [
+      {
+        "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "<ROOT>/packages/core/dist/workerLoader.mjs",
+          },
+        ],
+      },
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "builtin:swc-loader",
+            "options": {
+              "collectTypeScriptInfo": {
+                "exportedEnum": false,
+                "typeExports": true,
+              },
+              "detectSyntax": "auto",
+              "env": {
+                "targets": [
+                  "chrome >= 107",
+                  "edge >= 107",
+                  "firefox >= 104",
+                  "safari >= 16",
+                ],
+              },
+              "isModule": "unknown",
+              "jsc": {
+                "experimental": {
+                  "cacheRoot": "<ROOT>/node_modules/.cache/.swc",
+                  "keepImportAttributes": true,
+                },
+                "externalHelpers": true,
+                "output": {
+                  "charset": "utf8",
+                },
+                "parser": {
+                  "decorators": true,
+                },
+                "transform": {
+                  "decoratorVersion": "2023-11",
+                  "legacyDecorator": false,
+                  "react": {
+                    "development": true,
+                    "refresh": true,
+                    "runtime": "classic",
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    ],
+    "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+  },
+]
+`;
+
+exports[`plugins/react > should not apply splitChunks rule when strategy is not split-by-experience 1`] = `
+{
+  "cacheGroups": {
+    "singleVendor": {
+      "chunks": "all",
+      "enforce": true,
+      "name": "vendor",
+      "priority": 0,
+      "test": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+    },
+  },
+  "chunks": "all",
+}
+`;
+
+exports[`plugins/react > should set \`parser.javascript.jsx\` to \`true\` when using \`preserve\` react runtime 1`] = `
+{
+  "jsx": true,
+  "typeReexportsPresence": "tolerant",
+}
+`;
+
+exports[`plugins/react > should set transpilation scope for react refresh plugin correctly 1`] = `
+ReactRefreshRspackPlugin {
+  "options": {
+    "exclude": [
+      /baz/,
+    ],
+    "forceEnable": false,
+    "include": [
+      {
+        "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+      },
+      /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      /\\[\\\\\\\\/\\]@rsbuild\\[\\\\\\\\/\\]core\\[\\\\\\\\/\\]dist\\[\\\\\\\\/\\]/,
+      /foo/,
+      /bar/,
+    ],
+    "injectEntry": true,
+    "injectLoader": true,
+    "reactRefreshLoader": "builtin:react-refresh-loader",
+    "reloadOnRuntimeErrors": false,
+    "resourceQuery": {
+      "not": /\\^\\\\\\?raw\\$/,
+    },
+    "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+  },
+}
+`;
+
+exports[`plugins/react > should work with swc-loader 1`] = `
+[
+  {
+    "resolve": {
+      "fullySpecified": false,
+    },
+    "test": /\\\\\\.m\\?js/,
+  },
+  {
+    "dependency": {
+      "not": "url",
+    },
+    "include": [
+      {
+        "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+      },
+      /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      /\\[\\\\\\\\/\\]@rsbuild\\[\\\\\\\\/\\]core\\[\\\\\\\\/\\]dist\\[\\\\\\\\/\\]/,
+    ],
+    "oneOf": [
+      {
+        "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "<ROOT>/packages/core/dist/workerLoader.mjs",
+          },
+        ],
+      },
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "builtin:swc-loader",
+            "options": {
+              "collectTypeScriptInfo": {
+                "exportedEnum": false,
+                "typeExports": true,
+              },
+              "detectSyntax": "auto",
+              "env": {
+                "targets": [
+                  "chrome >= 107",
+                  "edge >= 107",
+                  "firefox >= 104",
+                  "safari >= 16",
+                ],
+              },
+              "isModule": "unknown",
+              "jsc": {
+                "experimental": {
+                  "cacheRoot": "<ROOT>/node_modules/.cache/.swc",
+                  "keepImportAttributes": true,
+                },
+                "externalHelpers": true,
+                "output": {
+                  "charset": "utf8",
+                },
+                "parser": {
+                  "decorators": true,
+                },
+                "transform": {
+                  "decoratorVersion": "2023-11",
+                  "legacyDecorator": false,
+                  "react": {
+                    "development": true,
+                    "refresh": true,
+                    "runtime": "automatic",
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    ],
+    "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+  },
+]
+`;

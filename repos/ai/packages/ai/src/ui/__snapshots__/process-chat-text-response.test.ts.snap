@@ -1,0 +1,142 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`processChatTextResponse > scenario: multiple short chunks > should call the onFinish function after the stream ends 1`] = `
+[
+  {
+    "id": "test-id",
+    "parts": [
+      {
+        "text": "ABCDE",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`processChatTextResponse > scenario: multiple short chunks > should call the update function with correct arguments for each chunk 1`] = `
+[
+  {
+    "message": {
+      "id": "test-id",
+      "parts": [
+        {
+          "text": "A",
+          "type": "text",
+        },
+      ],
+      "role": "assistant",
+    },
+  },
+  {
+    "message": {
+      "id": "test-id",
+      "parts": [
+        {
+          "text": "AB",
+          "type": "text",
+        },
+      ],
+      "role": "assistant",
+    },
+  },
+  {
+    "message": {
+      "id": "test-id",
+      "parts": [
+        {
+          "text": "ABC",
+          "type": "text",
+        },
+      ],
+      "role": "assistant",
+    },
+  },
+  {
+    "message": {
+      "id": "test-id",
+      "parts": [
+        {
+          "text": "ABCD",
+          "type": "text",
+        },
+      ],
+      "role": "assistant",
+    },
+  },
+  {
+    "message": {
+      "id": "test-id",
+      "parts": [
+        {
+          "text": "ABCDE",
+          "type": "text",
+        },
+      ],
+      "role": "assistant",
+    },
+  },
+]
+`;
+
+exports[`processChatTextResponse > scenario: no text chunks > should call the onFinish function after the stream ends 1`] = `
+[
+  {
+    "id": "test-id",
+    "parts": [
+      {
+        "text": "",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`processChatTextResponse > scenario: no text chunks > should call the update function with correct arguments for each chunk 1`] = `[]`;
+
+exports[`processChatTextResponse > scenario: simple text response > should call the onFinish function after the stream ends 1`] = `
+[
+  {
+    "id": "test-id",
+    "parts": [
+      {
+        "text": "Hello, world!",
+        "type": "text",
+      },
+    ],
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`processChatTextResponse > scenario: simple text response > should call the update function with correct arguments for each chunk 1`] = `
+[
+  {
+    "message": {
+      "id": "test-id",
+      "parts": [
+        {
+          "text": "Hello, ",
+          "type": "text",
+        },
+      ],
+      "role": "assistant",
+    },
+  },
+  {
+    "message": {
+      "id": "test-id",
+      "parts": [
+        {
+          "text": "Hello, world!",
+          "type": "text",
+        },
+      ],
+      "role": "assistant",
+    },
+  },
+]
+`;

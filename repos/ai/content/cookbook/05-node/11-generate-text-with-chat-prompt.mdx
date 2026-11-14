@@ -1,0 +1,37 @@
+---
+title: Generate Text with Chat Prompt
+description: Learn how to generate text with chat prompt using the AI SDK and Node
+tags: ['node', 'chat']
+---
+
+# Generate Text with Chat Prompt
+
+Previously, we were able to generate text and objects using either a single message prompt, a system prompt, or a combination of both of them. However, there may be times when you want to generate text based on a series of messages.
+
+A chat completion allows you to generate text based on a series of messages. This series of messages can be any series of interactions between any number of systems, but the most popular and relatable use case has been a series of messages that represent a conversation between a user and a model.
+
+```ts file='index.ts'
+import { generateText } from 'ai';
+
+const result = await generateText({
+  model: 'openai/gpt-4o',
+  maxOutputTokens: 1024,
+  system: 'You are a helpful chatbot.',
+  messages: [
+    {
+      role: 'user',
+      content: [{ type: 'text', text: 'Hello!' }],
+    },
+    {
+      role: 'assistant',
+      content: [{ type: 'text', text: 'Hello! How can I help you today?' }],
+    },
+    {
+      role: 'user',
+      content: [{ type: 'text', text: 'I need help with my computer.' }],
+    },
+  ],
+});
+
+console.log(result.text);
+```

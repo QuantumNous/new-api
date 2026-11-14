@@ -1,0 +1,597 @@
+---
+description: 'Rsbuild JavaScript API 参考，涵盖createRsbuild、loadConfig、loadEnv等核心接口和用法。'
+---
+
+# Rsbuild core
+
+本章节介绍了 Rsbuild 提供的一些核心方法。
+
+## createRsbuild
+
+创建一个 [Rsbuild 实例对象](/api/javascript-api/instance)。
+
+- **类型：**
+
+```ts
+function createRsbuild(options?: CreateRsbuildOptions): Promise<RsbuildInstance>;
+```
+
+- **示例：**
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild({
+  config: {
+    // Rsbuild configuration
+  },
+});
+```
+
+### 选项
+
+`createRsbuild` 的第一个参数是一个 `options` 对象，你可以传入以下选项：
+
+```ts
+type CreateRsbuildOptions = {
+  cwd?: string;
+  callerName?: string;
+  environment?: string[];
+  loadEnv?: boolean | LoadEnvOptions;
+  config?: RsbuildConfig | (() => Promise<RsbuildConfig>);
+};
+```
+
+- `cwd`：当前执行构建的根路径，默认值为 `process.cwd()`
+- `callerName`：当前调用者的名称，默认值为 `'rsbuild'`，详见 [指定调用者名称](#specify-caller-name)。
+- `environment`：只构建指定的 [environments](/guide/advanced/environments)，如果未指定或传入空数组，则构建所有环境。
+- `loadEnv`：是否调用 [loadEnv](/api/javascript-api/core#loadenv) 方法来加载环境变量，并通过 [source.define](/config/source/define) 定义为全局变量。
+- `config`：Rsbuild 配置对象。参考 [配置总览](/config/) 查看所有可用的配置项。
+
+:::tip
+`config` 是 Rsbuild 1.6 新增的选项。在旧版本中，可使用 `rsbuildConfig` 作为替代。
+:::
+
+### 异步加载配置
+
+`config` 也可以是一个异步函数，你可以通过该函数来动态加载 Rsbuild 配置，并进行一些自定义操作。
+
+```ts
+import { createRsbuild, loadConfig } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild({
+  config: async () => {
+    const { content } = await loadConfig();
+    someFunctionToUpdateConfig(content);
+    return content;
+  },
+});
+```
+
+### 加载环境变量
+
+`createRsbuild` 的 `loadEnv` 选项可以帮助你调用 [loadEnv](/api/javascript-api/core#loadenv) 方法来加载环境变量：
+
+```ts
+const rsbuild = await createRsbuild({
+  loadEnv: true,
+});
+```
+
+传入 `loadEnv: true` 会自动完成如下步骤：
+
+1. 调用 `loadEnv` 方法来加载环境变量。
+2. 添加 [source.define](/config/source/define) 配置，将 `loadEnv` 返回的 `publicVars` 定义为全局变量。
+3. 监听 `.env` 文件的变化，在文件变化时重新启动开发服务器，并使构建缓存失效。
+4. 在关闭构建或开发服务器时，自动调用 `loadEnv` 返回的 `cleanup` 方法来清除环境变量。
+
+你也可以传入 [loadEnv](/api/javascript-api/core#loadenv) 方法的选项，比如：
+
+```ts
+const rsbuild = await createRsbuild({
+  loadEnv: {
+    prefixes: ['PUBLIC_', 'REACT_APP_'],
+  },
+});
+```
+
+### 指定调用者名称 \{#specify-caller-name}
+
+你可以通过 `callerName` 选项来指定当前调用 Rsbuild 的框架或工具的名称，该名称可以被 Rsbuild 插件通过 [context.callerName](/api/javascript-api/instance#contextcallername) 访问到，并基于这个标识符来执行不同的逻辑。
+
+```ts
+import { myPlugin } from './myPlugin';
+
+const rsbuild = await createRsbuild({
+  callerName: 'rslib',
+  config: {
+    plugins: [myPlugin],
+  },
+});
+```
+
+```ts title="myPlugin.ts"
+export const myPlugin = {
+  name: 'my-plugin',
+  setup(api) {
+    const { callerName } = api.context;
+
+    if (callerName === 'rslib') {
+      // ...
+    } else if (callerName === 'rsbuild') {
+      // ...
+    }
+  },
+};
+```
+
+## loadConfig
+
+加载 Rsbuild 配置文件。
+
+- **类型：**
+
+```ts
+function loadConfig<Config = RsbuildConfig>(params?: {
+  // 默认为 process.cwd()
+  cwd?: string;
+  // 指定配置文件路径，可以为相对路径或绝对路径
+  path?: string;
+  // 未指定 path 时要查找的配置文件名列表
+  configFileNames?: string[];
+  /**
+   * 从配置文件中读取的导出名称
+   * 设置为 `false` 时，只执行配置文件，不读取导出
+   * @default 'default'
+   */
+  exportName?: string | false;
+  meta?: Record<string, unknown>;
+  envMode?: string;
+  /**
+   * 传给配置函数的 command 参数。
+   * @default process.argv[2]
+   */
+  command?: string;
+  /**
+   * 指定配置文件加载器，可选值为 `auto`、`jiti` 或 `native`。
+   * - `auto`：优先使用 Node.js 原生加载器，若加载失败则回退到 jiti
+   * - `jiti`：使用 jiti 作为加载器，开箱即用地支持 TypeScript 和 ESM
+   * - `native`：使用 Node.js 原生加载器。TypeScript 配置文件要求运行时原生支持
+   *   TypeScript，例如 Node.js 22.6+
+   * @default 'auto'
+   */
+  loader?: 'auto' | 'jiti' | 'native';
+}): Promise<{
+  content: Config;
+  filePath: string | null;
+  dependencies: string[];
+}>;
+```
+
+- **示例：**
+
+```ts
+import { loadConfig } from '@rsbuild/core';
+
+// 按默认查找顺序从 cwd 加载 `rsbuild.config.*` 配置文件
+const { content } = await loadConfig();
+
+console.log(content); // -> Rsbuild config object
+
+const rsbuild = await createRsbuild({
+  config: content,
+});
+```
+
+如果 cwd 目录下不存在 Rsbuild 配置文件，loadConfig 方法的返回值为 `{ content: {}, filePath: null }`。
+
+当未指定 `path` 时，`loadConfig` 会按以下顺序查找配置文件：
+
+- `rsbuild.config.ts`
+- `rsbuild.config.js`
+- `rsbuild.config.mts`
+- `rsbuild.config.mjs`
+- `rsbuild.config.cts`
+- `rsbuild.config.cjs`
+
+如果同时存在多个配置文件，`loadConfig` 会使用这个列表中第一个匹配到的文件。
+
+### 自定义配置文件名
+
+使用 `configFileNames` 选项可以替换默认的配置文件查找列表。文件名会相对于 `cwd` 解析，且指定 `path` 时会忽略该选项。
+
+```ts
+import { loadConfig } from '@rsbuild/core';
+
+const { content } = await loadConfig({
+  configFileNames: ['framework.config.ts', 'framework.config.mjs'],
+});
+```
+
+### 指定配置文件
+
+使用 `path` 选项加载 `my-config.ts` 配置文件：
+
+```ts
+import { join } from 'node:path';
+import { loadConfig } from '@rsbuild/core';
+
+const { content } = await loadConfig({
+  path: join(__dirname, 'my-config.ts'),
+});
+```
+
+### 指定导出名称
+
+默认情况下，`loadConfig` 会读取配置文件的默认导出。使用 `exportName` 可以读取命名导出：
+
+```ts title="rsbuild.config.ts"
+export const rsbuildConfig = {
+  // ...
+};
+```
+
+```ts
+import { loadConfig } from '@rsbuild/core';
+
+const { content } = await loadConfig({
+  exportName: 'rsbuildConfig',
+});
+```
+
+当配置文件只需要被执行、不需要读取任何导出时，可以将 `exportName` 设置为 `false`，此时 `content` 为 `{}`。
+
+```ts
+import { loadConfig } from '@rsbuild/core';
+
+const { content } = await loadConfig({
+  exportName: false,
+});
+```
+
+### 传入 meta 对象
+
+加载配置文件，并传入自定义的 meta 对象：
+
+```ts
+import { join } from 'node:path';
+import { loadConfig } from '@rsbuild/core';
+
+const { content } = await loadConfig({
+  meta: {
+    foo: 'bar',
+  },
+});
+```
+
+在 `defineConfig` 定义的配置函数中，你可以通过 `meta` 对象访问到 `foo` 变量：
+
+```ts title="rsbuild.config.ts"
+export default defineConfig(({ meta }) => {
+  console.log(meta.foo); // bar
+  return config;
+});
+```
+
+### 传入 command
+
+默认情况下，`loadConfig` 会将 `process.argv[2]` 作为 `command` 传给配置函数。你可以通过 `command` 选项显式设置该值。
+
+```ts
+import { loadConfig } from '@rsbuild/core';
+
+const { content } = await loadConfig({
+  command: 'build',
+});
+```
+
+## loadEnv
+
+加载 [.env](/guide/advanced/env-vars#env-file) 文件，并返回所有以 `prefixes` 开头的环境变量。
+
+- **类型：**
+
+````ts
+type LoadEnvOptions = {
+  /**
+   * 加载 env 文件的根路径
+   * @default process.cwd()
+   */
+  cwd?: string;
+  /**
+   * 用于指定 .env.[mode] 文件的名称
+   * 等价于 Rsbuild CLI 的 `--env-mode` 选项
+   * @default process.env.NODE_ENV
+   */
+  mode?: string;
+  /**
+   * public 变量的前缀
+   * @default ['PUBLIC_']
+   */
+  prefixes?: string[];
+  /**
+   * 指定一个目标对象来存储环境变量。
+   * 如果未提供，变量将写入 `process.env`。
+   * @default process.env
+   */
+  processEnv?: Record<string, string>;
+};
+
+type LoadEnvResult = {
+  /** .env 文件包含的所有环境变量 */
+  parsed: Record<string, string>;
+  /** 所有 env 文件的绝对路径 */
+  filePaths: string[];
+  /**
+   * 以 prefixes 开头的环境变量
+   *
+   * @example
+   * ```ts
+   * {
+   *   PUBLIC_FOO: 'bar',
+   * }
+   * ```
+   **/
+  rawPublicVars: Record<string, string | undefined>;
+  /**
+   * 以 prefix 开头的环境变量，并经过格式化。
+   * key 包含前缀 `process.env.*` 和 `import.meta.env.*`。
+   * value 经过 `JSON.stringify` 处理。
+   *
+   * @example
+   * ```ts
+   * {
+   *   'process.env.PUBLIC_FOO': '"bar"',
+   *   'import.meta.env.PUBLIC_FOO': '"bar"',
+   * }
+   * ```
+   **/
+  publicVars: Record<string, string>;
+  /** 从 `process.env` 上清除挂载的环境变量 */
+  cleanup: () => void;
+};
+
+function loadEnv(options?: LoadEnvOptions): LoadEnvResult;
+````
+
+- **示例：**
+
+```ts
+import { loadEnv, mergeRsbuildConfig } from '@rsbuild/core';
+
+const { parsed, publicVars } = loadEnv();
+
+const mergedConfig = mergeRsbuildConfig(
+  {
+    source: {
+      define: publicVars,
+    },
+  },
+  userConfig,
+);
+```
+
+该方法也会加载 `.env.local` 和 `.env.[mode]` 等文件，详见 [环境变量](/guide/advanced/env-vars)。
+
+:::tip
+
+- Rsbuild CLI 会自动调用 `loadEnv()` 方法，如果你在使用 Rsbuild CLI，可以通过 [--env-mode](/guide/advanced/env-vars#env-mode) 选项来设置 `mode` 参数。
+- [createRsbuild](#creatersbuild) 的 `loadEnv` 选项会帮助你调用 `loadEnv()` 方法，并处理相关操作。
+
+:::
+
+### 指定目标对象
+
+默认情况下，`loadEnv` 会使用 `process.env` 对象来存储环境变量。你可以通过 `processEnv` 选项来指定一个目标对象来存储环境变量：
+
+```ts
+import { loadEnv } from '@rsbuild/core';
+
+// 传入一个空对象，避免修改 `process.env`
+loadEnv({ processEnv: {} });
+
+// 传入 `process.env` 对象的副本，避免修改原始对象
+loadEnv({ processEnv: { ...process.env } });
+```
+
+## mergeRsbuildConfig
+
+用于合并多份 Rsbuild 配置对象。
+
+`mergeRsbuildConfig` 函数接收多个配置对象作为参数。它会对每个配置对象进行深层合并，自动将多个函数项合并为顺序执行的函数数组，并返回一个新的合并配置对象，不会修改传入的配置对象。
+
+- **类型：**
+
+```ts
+function mergeRsbuildConfig(...configs: (RsbuildConfig | undefined)[]): RsbuildConfig;
+```
+
+### 基础示例
+
+```ts
+import { mergeRsbuildConfig } from '@rsbuild/core';
+
+const config1 = {
+  server: {
+    compress: false,
+  },
+};
+const config2 = {
+  server: {
+    compress: true,
+  },
+};
+
+const mergedConfig = mergeRsbuildConfig(config1, config2);
+
+console.log(mergedConfig); // { server: { compress: true } }
+```
+
+> 该方法不会修改入参中的 config 对象。
+
+### 合并规则
+
+除了深层合并外，`mergeRsbuildConfig` 函数还会对部分选项进行特殊处理。
+
+比如 [tools.rspack](/config/tools/rspack) 可以被设置为一个函数，当多份配置对象都包含 `tools.rspack` 时，`mergeRsbuildConfig` 不会简单地保留最后一个函数。相反，它会将所有的 `tools.rspack` 函数或对象合并到一个数组中。
+
+```ts
+import { mergeRsbuildConfig } from '@rsbuild/core';
+
+const config1 = {
+  tools: {
+    rspack: {
+      someOption: true,
+    },
+  },
+};
+const config2 = {
+  tools: {
+    rspack: (config) => {
+      console.log('function 1');
+      return config;
+    },
+  },
+};
+const config3 = {
+  tools: {
+    rspack: (config) => {
+      console.log('function 2');
+      return config;
+    },
+  },
+};
+
+const mergedConfig = mergeRsbuildConfig(config1, config2, config3);
+```
+
+在以上示例中，合并后的配置为以下形式，该数组首先包含了一个对象 `{ someOption: true }`，然后是按合并顺序排列的两个函数。
+
+数组中的每一项会依次执行，并且上一个函数的输出将作为下一个函数的输入，最终生成一份 Rspack 配置。
+
+```ts
+const mergedConfig = {
+  tools: {
+    rspack: [
+      {
+        someOption: true,
+      },
+      (config) => {
+        console.log('function 1');
+        return config;
+      },
+      (config) => {
+        console.log('function 2');
+        return config;
+      },
+    ],
+  },
+};
+```
+
+通过这种方法，我们可以确保合并多份配置对象时，相同的多个 `tools.rspack` 字段均能够生效。
+
+在 Rsbuild 中，大部分支持函数值的选项都使用上述规则，比如 `tools.postcss`、`tools.less`、`tools.bundlerChain` 等。
+
+## createLogger
+
+创建一个独立的 logger 实例，创建出的 logger 也可以传给 [customLogger](/config/custom-logger) 配置项使用。
+
+> 详见 [日志](/guide/advanced/logging)。
+
+- **示例：**
+
+```ts
+import { createLogger } from '@rsbuild/core';
+
+const logger = createLogger({ level: 'warn' });
+
+logger.warn('This is a warning message');
+logger.error('This is an error message');
+
+// Will not print
+logger.info('This is an info message');
+```
+
+## logger
+
+全局 logger 实例，可以用于输出与 Rsbuild 一致的日志格式。
+
+> 详见 [日志](/guide/advanced/logging)。
+
+- **示例：**
+
+```ts
+import { logger } from '@rsbuild/core';
+
+// Info
+logger.info('This is an info message');
+```
+
+## rspack
+
+如果你需要访问 [@rspack/core](https://npmjs.com/package/@rspack/core) 导出的 API 或插件，可以直接从 `@rsbuild/core` 中引用 `rspack` 对象，无须额外安装 `@rspack/core` 包。
+
+- **类型：** `Rspack`
+- **示例：**
+
+```ts
+// the same as `import { rspack } from '@rspack/core'`
+import { rspack } from '@rsbuild/core';
+
+console.log(rspack.rspackVersion); // a.b.c
+console.log(rspack.util.createHash);
+console.log(rspack.BannerPlugin);
+```
+
+:::tip
+
+- 参考 [Rspack 插件](https://rspack.rs/zh/plugins/) 和 [Rspack JavaScript API](https://rspack.rs/zh/api/javascript-api/) 了解可用的 Rspack API。
+- 不推荐手动安装 `@rspack/core` 包，因为这可能与 Rsbuild 依赖的版本不一致。
+
+:::
+
+## version
+
+当前使用的 `@rsbuild/core` 的版本。
+
+- **类型：** `string`
+- **示例：**
+
+```ts
+import { version } from '@rsbuild/core';
+
+console.log(version); // 1.0.0
+```
+
+## ensureAssetPrefix
+
+`ensureAssetPrefix` 函数用于将给定的 `assetPrefix` 拼接到一个可能是 URL 的字符串前面。如果传入的字符串已经是一个完整的 URL，则直接返回该字符串。
+
+- **类型：**
+
+```ts
+function ensureAssetPrefix(
+  // 需要处理的 URL 字符串。可以是相对路径或绝对 URL
+  url: string,
+  // 需要拼接的 URL 前缀
+  assetPrefix?: Rspack.PublicPath,
+) => string;
+```
+
+如果未传入 `assetPrefix`，Rsbuild 会使用默认的资源前缀 `/`。如果 `assetPrefix` 为 `'auto'` 或函数，该函数会直接返回传入的 URL。
+
+- **示例：**
+
+```ts
+import { ensureAssetPrefix } from '@rsbuild/core';
+
+ensureAssetPrefix('foo/bar.js', '/static/');
+// -> '/static/foo/bar.js'
+
+ensureAssetPrefix('foo/bar.js', 'https://example.com/static/');
+// -> 'https://example.com/static/foo/bar.js'
+
+ensureAssetPrefix('https://example.com/index.html', 'https://example.com/static/');
+// -> 'https://example.com/index.html'
+```

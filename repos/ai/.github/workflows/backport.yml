@@ -1,0 +1,691 @@
+# Backport pull requests to the next-older release branch by adding a
+# "backport" label. Two pull_request events cover both orderings race-free:
+#   - labeled:  picks up a "backport" label added to an already-merged PR.
+#   - closed:   fires when a PR is merged; if it carries the "backport" label
+#               (i.e. the label was added before merge), it is backported.
+# Both paths resolve the PR number directly from the event payload, so there is
+# no commit -> PR reverse lookup that could race GitHub's post-merge indexing.
+
+name: Backport
+
+on:
+  pull_request:
+    types: [labeled, closed]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Pull request number to backport
+        required: true
+        type: number
+
+concurrency: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.inputs.pull_request_number }}
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-pr:
+    name: Resolve backport PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    if: github.repository_owner == 'vercel'
+    outputs:
+      should-backport: ${{ steps.resolve.outputs.should-backport }}
+      pr-number: ${{ steps.resolve.outputs.pr-number }}
+      pr-title: ${{ steps.resolve.outputs.pr-title }}
+      pr-author-login: ${{ steps.resolve.outputs.pr-author-login }}
+      pr-author-type: ${{ steps.resolve.outputs.pr-author-type }}
+      merged-by-login: ${{ steps.resolve.outputs.merged-by-login }}
+      merged-by-type: ${{ steps.resolve.outputs.merged-by-type }}
+      merge-commit-sha: ${{ steps.resolve.outputs.merge-commit-sha }}
+      base-ref: ${{ steps.resolve.outputs.base-ref }}
+
+    steps:
+      - name: Add gh diagnostics
+        run: |
+          set -euo pipefail
+
+          REAL_GH="$(command -v gh)"
+          WRAPPER_DIR="$RUNNER_TEMP/gh-diagnostics"
+          mkdir -p "$WRAPPER_DIR"
+
+          cat > "$WRAPPER_DIR/gh" <<EOF
+          #!/usr/bin/env bash
+          REAL_GH="${REAL_GH}"
+
+          printf '+ gh' >&2
+          printf ' %q' "\$@" >&2
+          printf '\n' >&2
+
+          stdout_file="\$(mktemp)"
+          stderr_file="\$(mktemp)"
+          trap 'rm -f "\$stdout_file" "\$stderr_file"' EXIT
+
+          "\$REAL_GH" "\$@" >"\$stdout_file" 2>"\$stderr_file"
+          status=\$?
+
+          if [ "\$status" -eq 0 ]; then
+            cat "\$stdout_file"
+            cat "\$stderr_file" >&2
+          else
+            echo "::warning::gh command failed with exit code \$status" >&2
+            if [ -s "\$stderr_file" ]; then
+              echo "::group::gh stderr" >&2
+              cat "\$stderr_file" >&2
+              echo "::endgroup::" >&2
+            fi
+            if [ -s "\$stdout_file" ]; then
+              echo "::group::gh stdout" >&2
+              cat "\$stdout_file" >&2
+              echo "::endgroup::" >&2
+            fi
+            echo "::group::GitHub Actions context" >&2
+            echo "workflow=\${GITHUB_WORKFLOW:-}" >&2
+            echo "job=\${GITHUB_JOB:-}" >&2
+            echo "event=\${GITHUB_EVENT_NAME:-}" >&2
+            echo "repository=\${GITHUB_REPOSITORY:-}" >&2
+            echo "run_id=\${GITHUB_RUN_ID:-}" >&2
+            echo "ref=\${GITHUB_REF:-}" >&2
+            echo "sha=\${GITHUB_SHA:-}" >&2
+            echo "event_path=\${GITHUB_EVENT_PATH:-}" >&2
+            echo "REPO=\${REPO:-}" >&2
+            echo "PR_NUMBER=\${PR_NUMBER:-}" >&2
+            echo "PR_EVENT_NUMBER=\${PR_EVENT_NUMBER:-}" >&2
+            echo "PR_ACTION=\${PR_ACTION:-}" >&2
+            echo "::endgroup::" >&2
+            exit "\$status"
+          fi
+          EOF
+
+          sed -i 's/^          //' "$WRAPPER_DIR/gh"
+          chmod +x "$WRAPPER_DIR/gh"
+          echo "$WRAPPER_DIR" >> "$GITHUB_PATH"
+
+      - name: Resolve PR from trusted event
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_ACTION: ${{ github.event.action }}
+          PR_EVENT_NUMBER: ${{ github.event.pull_request.number }}
+          DISPATCH_PR_NUMBER: ${{ github.event.inputs.pull_request_number }}
+          ISSUE_LABEL: ${{ github.event.label.name }}
+          LABELER_LOGIN: ${{ github.event.sender.login }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          set_output() {
+            local name="$1"
+            local value="$2"
+            {
+              echo "${name}<<EOF"
+              echo "${value}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          }
+
+          skip() {
+            echo "$1"
+            set_output "should-backport" "false"
+            exit 0
+          }
+
+          PR_NUMBER=""
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            # `labeled`: only react to the "backport" label being added.
+            # `closed`: react to every closed PR here and let the downstream
+            # "is merged" and "has backport label" checks decide. This catches
+            # the case where the label was added before the PR was merged.
+            if [ "$PR_ACTION" = "labeled" ] && [ "$ISSUE_LABEL" != "backport" ]; then
+              skip "Ignoring non-backport label: $ISSUE_LABEL"
+            fi
+            [ -n "$PR_EVENT_NUMBER" ] || {
+              echo "::error::pull_request event did not include pull_request.number"
+              exit 1
+            }
+            PR_NUMBER="$PR_EVENT_NUMBER"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            [ -n "$DISPATCH_PR_NUMBER" ] || {
+              echo "::error::workflow_dispatch event did not include pull_request_number"
+              exit 1
+            }
+            PR_NUMBER="$DISPATCH_PR_NUMBER"
+          else
+            skip "Unsupported event: $EVENT_NAME"
+          fi
+
+          PR=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}")
+          MERGED=$(echo "$PR" | jq -r '.merged')
+          [ "$MERGED" = "true" ] || skip "PR #${PR_NUMBER} is not merged"
+
+          # Gate on the backport label before anything else — in particular
+          # before the fork-detection comment below. The `closed` trigger fires
+          # for every merged PR, so without this an unlabeled fork PR would be
+          # spammed with a "use workflow_dispatch" comment it never asked for.
+          HAS_BACKPORT_LABEL=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/labels" \
+            --jq 'any(.[]; .name == "backport")')
+          [ "$HAS_BACKPORT_LABEL" = "true" ] || skip "PR #${PR_NUMBER} does not have the backport label"
+
+          HEAD_REPO=$(echo "$PR" | jq -r '.head.repo.full_name // empty')
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" != "$REPO" ]; then
+            {
+              echo "@${LABELER_LOGIN} this pull request was opened from a fork and must be backported with a workflow_dispatch event."
+              echo
+              echo 'Please trigger the Backport workflow manually:'
+              echo 'https://github.com/vercel/ai/actions/workflows/backport.yml'
+              echo
+              echo 'From the terminal, run:'
+              echo
+              echo '```sh'
+              echo "gh workflow run backport.yml --repo vercel/ai -f pull_request_number=${PR_NUMBER}"
+              echo '```'
+            } > comment.md
+
+            # Best-effort: GITHUB_TOKEN is read-only for pull_request events from
+            # forks, so commenting may fail. Don't let that fail the job.
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file comment.md \
+              || echo "::warning::could not comment on fork PR #${PR_NUMBER} (token lacks write access)"
+            skip "PR #${PR_NUMBER} is from a fork and must be backported with workflow_dispatch"
+          fi
+
+          BASE_REF=$(echo "$PR" | jq -r '.base.ref')
+          case "$BASE_REF" in
+            main|release-v*) ;;
+            *) skip "PR #${PR_NUMBER} targets unsupported base branch: ${BASE_REF}" ;;
+          esac
+
+          set_output "should-backport" "true"
+          set_output "pr-number" "$PR_NUMBER"
+          set_output "pr-title" "$(echo "$PR" | jq -r '.title')"
+          set_output "pr-author-login" "$(echo "$PR" | jq -r '.user.login')"
+          set_output "pr-author-type" "$(echo "$PR" | jq -r '.user.type')"
+          set_output "merged-by-login" "$(echo "$PR" | jq -r '.merged_by.login // empty')"
+          set_output "merged-by-type" "$(echo "$PR" | jq -r '.merged_by.type // empty')"
+          set_output "merge-commit-sha" "$(echo "$PR" | jq -r '.merge_commit_sha')"
+          set_output "base-ref" "$BASE_REF"
+
+  find-branch:
+    name: Find target release branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: resolve-pr
+    if: |
+      github.repository_owner == 'vercel' &&
+      needs.resolve-pr.outputs.should-backport == 'true'
+    outputs:
+      release-branch: ${{ steps.find-target.outputs.release-branch }}
+
+    steps:
+      # actions/checkout retries the underlying git fetch internally, but its
+      # built-in backoff (~30s total) is shorter than typical transient GitHub
+      # outages. We add two explicit retries with longer waits on top of that.
+      - name: Checkout Repository
+        id: checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        continue-on-error: true
+        with:
+          fetch-depth: 0
+
+      - name: Wait before checkout retry 1
+        if: steps.checkout.outcome == 'failure'
+        run: sleep 60
+
+      - name: Checkout Repository (retry 1)
+        id: checkout-retry-1
+        if: steps.checkout.outcome == 'failure'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        continue-on-error: true
+        with:
+          fetch-depth: 0
+
+      - name: Wait before checkout retry 2
+        if: steps.checkout.outcome == 'failure' && steps.checkout-retry-1.outcome == 'failure'
+        run: sleep 180
+
+      - name: Checkout Repository (retry 2)
+        if: steps.checkout.outcome == 'failure' && steps.checkout-retry-1.outcome == 'failure'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Find target release branch
+        id: find-target
+        run: |
+          # Retry git fetch on transient remote failures (e.g. 5xx from the
+          # GitHub git server) with linear backoff up to ~5 minutes total.
+          ATTEMPTS=5
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            if git fetch --all; then
+              break
+            fi
+            if [ "$attempt" -eq "$ATTEMPTS" ]; then
+              echo "::error::git fetch failed after $ATTEMPTS attempts"
+              exit 1
+            fi
+            WAIT=$((attempt * 30))
+            echo "Attempt $attempt failed, retrying in ${WAIT}s..."
+            sleep "$WAIT"
+          done
+
+          BASE_REF="${{ needs.resolve-pr.outputs.base-ref }}"
+          RELEASE_BRANCHES=$(git branch -r | grep -E 'origin/release-v[0-9]+\.[0-9]+$' | sed 's/.*origin\///' | sort -V)
+
+          if [ -z "$RELEASE_BRANCHES" ]; then
+            echo "::error::No release branches found matching pattern release-vX.Y"
+            exit 1
+          fi
+
+          echo "Found release branches: $RELEASE_BRANCHES"
+
+          if [ "$BASE_REF" = "main" ]; then
+            TARGET=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+          else
+            TARGET=$(echo "$RELEASE_BRANCHES" | grep -B1 "^${BASE_REF}$" | head -n 1)
+            if [ "$TARGET" = "$BASE_REF" ] || [ -z "$TARGET" ]; then
+              echo "::error::No older release branch found before $BASE_REF"
+              exit 1
+            fi
+          fi
+
+          echo "Target release branch: $TARGET"
+          echo "release-branch=$TARGET" >> "$GITHUB_OUTPUT"
+
+  backport:
+    name: Backport to ${{ needs.find-branch.outputs.release-branch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [resolve-pr, find-branch]
+    if: |
+      github.repository_owner == 'vercel' &&
+      needs.resolve-pr.outputs.should-backport == 'true'
+    # Serialize backport runs for the same PR + release branch. A single PR can
+    # trigger more than one run over its lifetime (e.g. a `closed` run at merge
+    # and a later `labeled` run), so serializing here lets a second run hit the
+    # "Check for existing backport PR" step and exit cleanly instead of racing
+    # on creating the backport branch and PR.
+    concurrency:
+      group: backport-${{ needs.resolve-pr.outputs.pr-number }}-${{ needs.find-branch.outputs.release-branch }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Configure Git
+        run: |
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+      - name: Add gh diagnostics
+        run: |
+          set -euo pipefail
+
+          REAL_GH="$(command -v gh)"
+          WRAPPER_DIR="$RUNNER_TEMP/gh-diagnostics"
+          mkdir -p "$WRAPPER_DIR"
+
+          cat > "$WRAPPER_DIR/gh" <<EOF
+          #!/usr/bin/env bash
+          REAL_GH="${REAL_GH}"
+
+          printf '+ gh' >&2
+          printf ' %q' "\$@" >&2
+          printf '\n' >&2
+
+          stdout_file="\$(mktemp)"
+          stderr_file="\$(mktemp)"
+          trap 'rm -f "\$stdout_file" "\$stderr_file"' EXIT
+
+          "\$REAL_GH" "\$@" >"\$stdout_file" 2>"\$stderr_file"
+          status=\$?
+
+          if [ "\$status" -eq 0 ]; then
+            cat "\$stdout_file"
+            cat "\$stderr_file" >&2
+          else
+            echo "::warning::gh command failed with exit code \$status" >&2
+            if [ -s "\$stderr_file" ]; then
+              echo "::group::gh stderr" >&2
+              cat "\$stderr_file" >&2
+              echo "::endgroup::" >&2
+            fi
+            if [ -s "\$stdout_file" ]; then
+              echo "::group::gh stdout" >&2
+              cat "\$stdout_file" >&2
+              echo "::endgroup::" >&2
+            fi
+            echo "::group::GitHub Actions context" >&2
+            echo "workflow=\${GITHUB_WORKFLOW:-}" >&2
+            echo "job=\${GITHUB_JOB:-}" >&2
+            echo "event=\${GITHUB_EVENT_NAME:-}" >&2
+            echo "repository=\${GITHUB_REPOSITORY:-}" >&2
+            echo "run_id=\${GITHUB_RUN_ID:-}" >&2
+            echo "ref=\${GITHUB_REF:-}" >&2
+            echo "sha=\${GITHUB_SHA:-}" >&2
+            echo "event_path=\${GITHUB_EVENT_PATH:-}" >&2
+            echo "REPO=\${REPO:-}" >&2
+            echo "PR_NUMBER=\${PR_NUMBER:-}" >&2
+            echo "BACKPORT_BRANCH=\${BACKPORT_BRANCH:-}" >&2
+            echo "BASE_BRANCH=\${BASE_BRANCH:-}" >&2
+            echo "::endgroup::" >&2
+            exit "\$status"
+          fi
+          EOF
+
+          sed -i 's/^          //' "$WRAPPER_DIR/gh"
+          chmod +x "$WRAPPER_DIR/gh"
+          echo "$WRAPPER_DIR" >> "$GITHUB_PATH"
+
+      - name: Check for existing backport PR
+        id: check-existing
+        run: |
+          BACKPORT_BRANCH="backport-pr-${{ needs.resolve-pr.outputs.pr-number }}-to-${{ needs.find-branch.outputs.release-branch }}"
+          EXISTING_PR=$(gh api "repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:${BACKPORT_BRANCH}&state=open" --jq '.[0].html_url // empty')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Backport PR already exists: $EXISTING_PR — skipping."
+            echo "existing-pr=$EXISTING_PR" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Remove backport label (already backported)
+        if: steps.check-existing.outputs.existing-pr
+        run: |
+          gh pr edit ${{ needs.resolve-pr.outputs.pr-number }} --remove-label backport || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # GITHUB_TOKEN cannot create commits that modify files under
+      # .github/workflows/ — it lacks the `workflows` permission, which
+      # cannot be granted via the workflow's permissions: block. This is
+      # a hard GitHub restriction to prevent a workflow from rewriting
+      # itself via its own token. Detect this case early and fail with a
+      # clear message rather than blowing up later in
+      # createCommitOnBranch with an opaque "Resource not accessible by
+      # integration" error.
+      - name: Reject PRs that modify workflow files
+        if: '!steps.check-existing.outputs.existing-pr'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.resolve-pr.outputs.pr-number }}
+          RELEASE_BRANCH: ${{ needs.find-branch.outputs.release-branch }}
+        run: |
+          set -euo pipefail
+
+          WORKFLOW_FILES=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" \
+            --jq '[.[] | select(.filename | startswith(".github/workflows/")) | .filename] | join(", ")')
+
+          if [ -z "$WORKFLOW_FILES" ]; then
+            exit 0
+          fi
+
+          echo "::error::PR #${PR_NUMBER} modifies workflow files (${WORKFLOW_FILES}) and cannot be backported automatically. GITHUB_TOKEN lacks the 'workflows' permission required to commit changes under .github/workflows/, and that permission cannot be granted to the default workflow token. Backport this change manually."
+
+          gh pr comment "$PR_NUMBER" --body "❌ Backport to \`${RELEASE_BRANCH}\` skipped: this PR modifies workflow files under \`.github/workflows/\` (\`${WORKFLOW_FILES}\`), which cannot be backported automatically. \`GITHUB_TOKEN\` lacks the \`workflows\` permission required to commit changes to those paths, and that permission cannot be granted to the default workflow token. Please backport this change manually." \
+            || echo "::warning::Failed to comment on PR #${PR_NUMBER} (non-fatal)"
+
+          gh pr edit "$PR_NUMBER" --remove-label backport \
+            || echo "::warning::Failed to remove backport label from PR #${PR_NUMBER} (non-fatal)"
+
+          exit 1
+
+      - name: Checkout Repository
+        if: '!steps.check-existing.outputs.existing-pr'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.find-branch.outputs.release-branch }}
+
+      - name: Create backport branch
+        if: '!steps.check-existing.outputs.existing-pr'
+        run: |
+          # Create a new branch from the latest release branch for the backport
+          git checkout -b backport-pr-${{ needs.resolve-pr.outputs.pr-number }}-to-${{ needs.find-branch.outputs.release-branch }} origin/${{ needs.find-branch.outputs.release-branch }}
+
+      - name: Cherry-pick commits
+        if: '!steps.check-existing.outputs.existing-pr'
+        id: cherry-pick
+        run: |
+          # Get the merge commit hash
+          MERGE_COMMIT="${{ needs.resolve-pr.outputs.merge-commit-sha }}"
+
+          # Cherry-pick the merge commit and capture output
+          CHERRY_PICK_OUTPUT=$(git cherry-pick -m 1 "$MERGE_COMMIT" 2>&1) || CHERRY_PICK_EXIT_CODE=$?
+          echo "$CHERRY_PICK_OUTPUT"
+          echo "git-output<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHERRY_PICK_OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          if [ "${CHERRY_PICK_EXIT_CODE:-0}" -ne 0 ]; then
+            echo "Cherry-pick failed. This backport requires manual intervention."
+            echo "::error::Failed to cherry-pick merge commit $MERGE_COMMIT to ${{ needs.find-branch.outputs.release-branch }} branch"
+            echo "has-conflicts=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-conflicts=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Remap example paths for release-v5.0
+        if: "!steps.check-existing.outputs.existing-pr && needs.find-branch.outputs.release-branch == 'release-v5.0' && steps.cherry-pick.outputs.has-conflicts == 'false'"
+        run: |
+          # On release-v5.0, examples are in examples/ai-core/ but on main they are in examples/ai-functions/
+          # If the cherry-pick created examples/ai-functions/, move the files to examples/ai-core/
+          if [ -d "examples/ai-functions" ]; then
+            echo "Found examples/ai-functions directory, remapping to examples/ai-core..."
+            
+            # Move all files from ai-functions to ai-core using git mv
+            for file in $(find examples/ai-functions -type f); do
+              target="${file/examples\/ai-functions/examples/ai-core}"
+              mkdir -p "$(dirname "$target")"
+              git mv "$file" "$target"
+            done
+            
+            # Remove the now-empty ai-functions directory
+            rm -rf examples/ai-functions
+            
+            # Amend the cherry-pick commit with the corrected paths
+            git add .
+            git commit --amend --no-edit
+            
+            echo "Successfully remapped example paths from examples/ai-functions/ to examples/ai-core/"
+          else
+            echo "No examples/ai-functions directory found, skipping remap"
+          fi
+
+      - name: Commit changes in case of errors
+        if: "!steps.check-existing.outputs.existing-pr && steps.cherry-pick.outputs.has-conflicts == 'true'"
+        run: |
+          # In case of failure, commit the conflicts to allow inspection
+          git add .
+          git commit -m "Backport conflicts for PR #${{ needs.resolve-pr.outputs.pr-number }} to ${{ needs.find-branch.outputs.release-branch }}"
+      - name: Push backport branch as signed commit
+        if: '!steps.check-existing.outputs.existing-pr'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BASE_BRANCH: ${{ needs.find-branch.outputs.release-branch }}
+          BACKPORT_BRANCH: backport-pr-${{ needs.resolve-pr.outputs.pr-number }}-to-${{ needs.find-branch.outputs.release-branch }}
+        run: |
+          # Commits made via the GitHub API with GITHUB_TOKEN are signed by
+          # GitHub automatically. We build the file additions/deletions from
+          # the local cherry-pick result (vs. the base branch tip) and post
+          # them as a single signed commit via the GraphQL
+          # createCommitOnBranch mutation.
+          #
+          # File contents and the assembled JSON payload are kept on disk
+          # and fed to jq via --rawfile / --slurpfile so they never land on
+          # argv — passing them as command-line arguments hits the kernel
+          # ARG_MAX limit on larger backports and fails with "Argument list
+          # too long".
+          set -euo pipefail
+
+          PARENT_OID=$(git rev-parse "origin/${BASE_BRANCH}")
+          HEADLINE=$(git log -1 --format=%s HEAD)
+
+          WORK="$(mktemp -d)"
+          ADDITIONS="${WORK}/additions.json"
+          DELETIONS="${WORK}/deletions.json"
+          BODY_FILE="${WORK}/body.txt"
+          PAYLOAD="${WORK}/payload.json"
+
+          git log -1 --format=%b HEAD > "$BODY_FILE"
+          echo '[]' > "$ADDITIONS"
+          echo '[]' > "$DELETIONS"
+
+          # Collect added/modified files (rename-aware diff is decomposed
+          # into delete+add via --no-renames so each path is independent).
+          while IFS= read -r -d '' path; do
+            [ -z "$path" ] && continue
+            b64="${WORK}/b64"
+            base64 -w0 < "$path" | tr -d '\n' > "$b64"
+            jq -c --arg p "$path" --rawfile c "$b64" \
+              '. + [{path: $p, contents: $c}]' \
+              "$ADDITIONS" > "${ADDITIONS}.tmp"
+            mv "${ADDITIONS}.tmp" "$ADDITIONS"
+          done < <(git diff --no-renames --name-only --diff-filter=AM -z "${PARENT_OID}" HEAD)
+
+          while IFS= read -r -d '' path; do
+            [ -z "$path" ] && continue
+            jq -c --arg p "$path" '. + [{path: $p}]' "$DELETIONS" > "${DELETIONS}.tmp"
+            mv "${DELETIONS}.tmp" "$DELETIONS"
+          done < <(git diff --no-renames --name-only --diff-filter=D -z "${PARENT_OID}" HEAD)
+
+          # Reset the remote branch to the base branch tip (or create it
+          # fresh). This is the "branch already exists, force-push" path
+          # from before, expressed via the refs API.
+          if gh api "repos/${REPO}/git/refs/heads/${BACKPORT_BRANCH}" >/dev/null 2>&1; then
+            echo "Branch ${BACKPORT_BRANCH} already exists on remote (orphaned from a previous run). Force-updating to ${PARENT_OID}."
+            gh api --method PATCH "repos/${REPO}/git/refs/heads/${BACKPORT_BRANCH}" \
+              -f "sha=${PARENT_OID}" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/${REPO}/git/refs" \
+              -f "ref=refs/heads/${BACKPORT_BRANCH}" \
+              -f "sha=${PARENT_OID}" >/dev/null
+          fi
+
+          jq -n \
+            --arg query 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }' \
+            --arg repo "${REPO}" \
+            --arg branch "${BACKPORT_BRANCH}" \
+            --arg expected "${PARENT_OID}" \
+            --arg headline "${HEADLINE}" \
+            --rawfile body "$BODY_FILE" \
+            --slurpfile additions "$ADDITIONS" \
+            --slurpfile deletions "$DELETIONS" \
+            '{
+              query: $query,
+              variables: {
+                input: {
+                  branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                  expectedHeadOid: $expected,
+                  message: {headline: $headline, body: ($body | rtrimstr("\n"))},
+                  fileChanges: {additions: $additions[0], deletions: $deletions[0]}
+                }
+              }
+            }' > "$PAYLOAD"
+
+          gh api graphql --input "$PAYLOAD"
+
+      - name: Determine PR assignee
+        if: '!steps.check-existing.outputs.existing-pr'
+        id: assignee
+        run: |
+          if [ "$MERGED_BY_TYPE" = "User" ]; then
+            echo "login=$MERGED_BY_LOGIN" >> "$GITHUB_OUTPUT"
+          elif [ "$PR_AUTHOR_TYPE" = "User" ]; then
+            echo "login=$PR_AUTHOR_LOGIN" >> "$GITHUB_OUTPUT"
+          else
+            REVIEWER=$(gh api "repos/${{ github.repository }}/pulls/${{ needs.resolve-pr.outputs.pr-number }}/reviews" \
+              --jq '[.[] | select(.user.type == "User")] | last | .user.login // empty')
+            if [ -n "$REVIEWER" ]; then
+              echo "login=$REVIEWER" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MERGED_BY_TYPE: ${{ needs.resolve-pr.outputs.merged-by-type }}
+          MERGED_BY_LOGIN: ${{ needs.resolve-pr.outputs.merged-by-login }}
+          PR_AUTHOR_TYPE: ${{ needs.resolve-pr.outputs.pr-author-type }}
+          PR_AUTHOR_LOGIN: ${{ needs.resolve-pr.outputs.pr-author-login }}
+
+      - name: Create backport pull request
+        if: '!steps.check-existing.outputs.existing-pr'
+        id: create-pr
+        run: |
+          ASSIGNEE_FLAG=""
+          if [ -n "$ASSIGNEE_LOGIN" ]; then
+            ASSIGNEE_FLAG="--assignee $ASSIGNEE_LOGIN"
+          fi
+
+          # Create the backport PR
+          if [ "${{ steps.cherry-pick.outputs.has-conflicts }}" = "true" ]; then
+            PR_URL=$(gh pr create \
+              --title "$PR_TITLE" \
+              --body "$PR_BODY_CONFLICTS" \
+              --base ${{ needs.find-branch.outputs.release-branch }} \
+              --head backport-pr-${{ needs.resolve-pr.outputs.pr-number }}-to-${{ needs.find-branch.outputs.release-branch }} \
+              $ASSIGNEE_FLAG \
+              --draft)
+          else
+            PR_URL=$(gh pr create \
+              --title "$PR_TITLE" \
+              --body "$PR_BODY_NO_CONFLICTS" \
+              --base ${{ needs.find-branch.outputs.release-branch }} \
+              --head backport-pr-${{ needs.resolve-pr.outputs.pr-number }}-to-${{ needs.find-branch.outputs.release-branch }} \
+              $ASSIGNEE_FLAG)
+          fi
+          echo "backport-pr-url=$PR_URL" >> "$GITHUB_OUTPUT"
+          gh pr merge "$PR_URL" --auto --squash || echo "Auto-merge could not be enabled"
+          echo "Created backport PR $PR_URL"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSIGNEE_LOGIN: ${{ steps.assignee.outputs.login }}
+          PR_TITLE: 'Backport: ${{ needs.resolve-pr.outputs.pr-title }}'
+          PR_BODY_NO_CONFLICTS: 'This is an automated backport of #${{ needs.resolve-pr.outputs.pr-number }} to the ${{ needs.find-branch.outputs.release-branch }} branch. FYI @${{ needs.resolve-pr.outputs.pr-author-login }}'
+          PR_BODY_CONFLICTS: |
+
+            This is an automated backport of #${{ needs.resolve-pr.outputs.pr-number }} to the ${{ needs.find-branch.outputs.release-branch }} branch. FYI @${{ needs.resolve-pr.outputs.pr-author-login }}
+            This backport has conflicts that need to be resolved manually.
+
+            ### `git cherry-pick` output
+
+            ```
+            ${{ steps.cherry-pick.outputs.git-output }}
+            ```
+
+      - name: Remove backport label from original PR
+        if: '!steps.check-existing.outputs.existing-pr && steps.create-pr.outputs.backport-pr-url'
+        run: |
+          # The backport PR has already been created at this point, so a
+          # transient GitHub API failure here must not fail the job.
+          gh pr edit ${{ needs.resolve-pr.outputs.pr-number }} --remove-label backport \
+            || echo "::warning::Failed to remove backport label from PR #${{ needs.resolve-pr.outputs.pr-number }} (non-fatal)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Success Comment on original PR
+        if: "!steps.check-existing.outputs.existing-pr && steps.cherry-pick.outputs.has-conflicts == 'false' && steps.create-pr.outputs.backport-pr-url"
+        run: |
+          gh pr comment ${{ needs.resolve-pr.outputs.pr-number }} --body "✅ Backport PR created: ${{ steps.create-pr.outputs.backport-pr-url }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Error Comment on original PR
+        if: "!steps.check-existing.outputs.existing-pr && steps.cherry-pick.outputs.has-conflicts == 'true' && steps.create-pr.outputs.backport-pr-url"
+        run: |
+          gh pr comment ${{ needs.resolve-pr.outputs.pr-number }} --body "⚠️ Backport to ${{ needs.find-branch.outputs.release-branch }} created but has conflicts: ${{ steps.create-pr.outputs.backport-pr-url }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull request failure Comment on original PR
+        if: "!steps.check-existing.outputs.existing-pr && steps.cherry-pick.outputs.has-conflicts == 'true' && !steps.create-pr.outputs.backport-pr-url"
+        run: |
+          gh pr comment ${{ needs.resolve-pr.outputs.pr-number }} --body "❌ Backport to ${{ needs.find-branch.outputs.release-branch }} failed. This backport requires manual intervention. [View workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

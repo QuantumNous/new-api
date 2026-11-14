@@ -1,0 +1,19 @@
+{
+  "name": "@examples/module-federation-v2-remote",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "rsbuild",
+    "build": "rsbuild build"
+  },
+  "dependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@module-federation/enhanced": "catalog:",
+    "@module-federation/rsbuild-plugin": "catalog:",
+    "@rsbuild/core": "workspace:*",
+    "@rsbuild/plugin-react": "workspace:*"
+  }
+}

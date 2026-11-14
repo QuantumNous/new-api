@@ -1,0 +1,6 @@
+node_modules
+dist
+.nitro
+.output
+port*.txt
+test-results

@@ -1,0 +1,57 @@
+[
+  {
+    "type": "dir-section-header",
+    "name": "start",
+    "label": "开始"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "framework",
+    "label": "框架"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "basic",
+    "label": "基础"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "configuration",
+    "label": "配置"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "styling",
+    "label": "样式"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "advanced",
+    "label": "进阶"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "optimization",
+    "label": "优化"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "upgrade",
+    "label": "升级"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "migration",
+    "label": "迁移"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "debug",
+    "label": "调试"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "faq",
+    "label": "常见问题"
+  }
+]

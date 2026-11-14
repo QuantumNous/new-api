@@ -1,0 +1,109 @@
+/**
+ * This configuration file manages Rush integration with JFrog Artifactory services.
+ * More documentation is available on the Rush website: https://rushjs.io
+ */
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/artifactory.schema.json",
+
+  "packageRegistry": {
+    /**
+     * (Required) Set this to "true" to enable Rush to manage tokens for an Artifactory NPM registry.
+     * When enabled, "rush install" will automatically detect when the user's ~/.npmrc
+     * authentication token is missing or expired.  And "rush setup" will prompt the user to
+     * renew their token.
+     *
+     * The default value is false.
+     */
+    "enabled": false,
+
+    /**
+     * (Required) Specify the URL of your NPM registry.  This is the same URL that appears in
+     * your .npmrc file.  It should look something like this example:
+     *
+     *   https://your-company.jfrog.io/your-project/api/npm/npm-private/
+     */
+    "registryUrl": "",
+
+    /**
+     * A list of custom strings that "rush setup" should add to the user's ~/.npmrc file at the time
+     * when the token is updated.  This could be used for example to configure the company registry
+     * to be used whenever NPM is invoked as a standalone command (but it's not needed for Rush
+     * operations like "rush add" and "rush install", which get their mappings from the monorepo's
+     * common/config/rush/.npmrc file).
+     *
+     * NOTE: The ~/.npmrc settings are global for the user account on a given machine, so be careful
+     * about adding settings that may interfere with other work outside the monorepo.
+     */
+    "userNpmrcLinesToAdd": [
+      // "@example:registry=https://your-company.jfrog.io/your-project/api/npm/npm-private/"
+    ],
+
+    /**
+     * (Required) Specifies the URL of the Artifactory control panel where the user can generate
+     * an API key.  This URL is printed after the "visitWebsite" message.
+     * It should look something like this example:  https://your-company.jfrog.io/
+     * Specify an empty string to suppress this line entirely.
+     */
+    "artifactoryWebsiteUrl": "",
+
+    /**
+     * Uncomment this line to specify the type of credential to save in the user's ~/.npmrc file.
+     * The default is "password", which means the user's API token will be traded in for an
+     * npm password specific to that registry. Optionally you can specify "authToken", which
+     * will save the user's API token as credentials instead.
+     */
+    // "credentialType": "password",
+
+    /**
+     * These settings allow the "rush setup" interactive prompts to be customized, for
+     * example with messages specific to your team or configuration.  Specify an empty string
+     * to suppress that message entirely.
+     */
+    "messageOverrides": {
+      /**
+       * Overrides the message that normally says:
+       * "This monorepo consumes packages from an Artifactory private NPM registry."
+       */
+      // "introduction": "",
+
+      /**
+       * Overrides the message that normally says:
+       * "Please contact the repository maintainers for help with setting up an Artifactory user account."
+       */
+      // "obtainAnAccount": "",
+
+      /**
+       * Overrides the message that normally says:
+       * "Please open this URL in your web browser:"
+       *
+       * The "artifactoryWebsiteUrl" string is printed after this message.
+       */
+      // "visitWebsite": "",
+
+      /**
+       * Overrides the message that normally says:
+       * "Your user name appears in the upper-right corner of the JFrog website."
+       */
+      // "locateUserName": "",
+
+      /**
+       * Overrides the message that normally says:
+       * "Click 'Edit Profile' on the JFrog website.  Click the 'Generate API Key'
+       * button if you haven't already done so previously."
+       */
+      // "locateApiKey": ""
+
+      /**
+       * Overrides the message that normally prompts:
+       * "What is your Artifactory user name?"
+       */
+      // "userNamePrompt": ""
+
+      /**
+       * Overrides the message that normally prompts:
+       * "What is your Artifactory API key?"
+       */
+      // "apiKeyPrompt": ""
+    }
+  }
+}

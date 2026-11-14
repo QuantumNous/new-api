@@ -1,0 +1,44 @@
+---
+description: 'charset 配置项允许你指定输出文件的字符编码，以确保它们在不同的环境中能够正确显示。'
+---
+
+# output.charset
+
+- **类型：** `'ascii' | 'utf8'`
+- **默认值：** `'utf8'`
+
+`charset` 配置项允许你指定输出文件的[字符编码](https://developer.mozilla.org/en-US/docs/Glossary/Character_encoding)，以确保它们在不同的环境中能够正确显示。
+
+## UTF8
+
+默认情况下，Rsbuild 的输出是 [UTF-8](https://developer.mozilla.org/en-US/docs/Glossary/UTF-8) 编码，这是 Web 应用中最常用的字符编码。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    charset: 'utf8', // 这是默认值
+  },
+};
+```
+
+当你的 web 服务器返回资源时，请确保发送正确的 [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) 响应头，使浏览器能够正确解析。
+
+## ASCII
+
+如果你希望输出文件使用 [ASCII](https://developer.mozilla.org/en-US/docs/Glossary/ASCII) 编码，可以在配置文件中这样设置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    charset: 'ascii',
+  },
+};
+```
+
+使用 ASCII 编码时，任何非 ASCII 字符都使用反斜杠进行转义，这通常会生成稍大一点的文件，也使其更难阅读。
+
+## 注意事项
+
+目前 `charset` 选项仅会影响经过 [SWC](/guide/configuration/swc) 编译的文件，默认为 JavaScript 和 TypeScript 文件，而 HTML、CSS 文件则不受 `charset` 选项的影响。
+
+对于 HTML 文件，Rsbuild 默认会添加 `<meta charset="utf-8">` 标签，你可以通过 [html.meta](/config/html/meta) 选项来修改它。

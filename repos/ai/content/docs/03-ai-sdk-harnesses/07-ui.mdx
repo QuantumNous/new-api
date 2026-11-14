@@ -1,0 +1,232 @@
+---
+title: UI
+description: Use AI SDK harnesses with useChat.
+---
+
+# Harnesses with AI SDK UI
+
+Harness streams are compatible with AI SDK UI message streams. You can use
+`useChat()` on the client and stream `HarnessAgent` output from a server route.
+
+The important difference from model-based chat routes is session management.
+A harness owns its conversation state, so the route should resume or create a
+`HarnessAgentSession` for the chat id instead of replaying the whole UI message
+history into a model.
+
+## Client
+
+```tsx filename='app/page.tsx'
+'use client';
+
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+import { useState } from 'react';
+
+export default function Page() {
+  const [input, setInput] = useState('');
+  const { messages, sendMessage, status } = useChat({
+    id: 'example-chat',
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+    }),
+  });
+
+  return (
+    <>
+      {messages.map(message => (
+        <div key={message.id}>
+          <strong>{message.role === 'user' ? 'You: ' : 'AI: '}</strong>
+          {message.parts.map((part, index) => {
+            if (part.type === 'text') {
+              return <span key={index}>{part.text}</span>;
+            }
+
+            if (part.type.startsWith('tool-') || part.type === 'dynamic-tool') {
+              return <pre key={index}>{JSON.stringify(part, null, 2)}</pre>;
+            }
+
+            return null;
+          })}
+        </div>
+      ))}
+
+      <form
+        onSubmit={event => {
+          event.preventDefault();
+          if (input.trim()) {
+            sendMessage({ text: input });
+            setInput('');
+          }
+        }}
+      >
+        <input
+          value={input}
+          onChange={event => setInput(event.target.value)}
+          disabled={status !== 'ready'}
+        />
+        <button type="submit" disabled={status !== 'ready'}>
+          Send
+        </button>
+      </form>
+    </>
+  );
+}
+```
+
+## Agent
+
+Define the `HarnessAgent` on the server:
+
+```ts filename='app/api/chat/agent.ts'
+import { HarnessAgent } from '@ai-sdk/harness/agent';
+import { claudeCode } from '@ai-sdk/harness-claude-code';
+import { createVercelSandbox } from '@ai-sdk/sandbox-vercel';
+
+export const agent = new HarnessAgent({
+  harness: claudeCode,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+  instructions: 'You are a helpful coding assistant.',
+});
+```
+
+## Session Store
+
+Persist only the opaque resume state returned by `session.detach()`. If the
+turn paused for approval or was otherwise interrupted, that resume state carries
+the continuation state internally. The chat id can also be the harness
+`sessionId`, which gives the sandbox a stable identity across requests and
+processes.
+
+```ts filename='app/api/chat/session-store.ts'
+import type {
+  HarnessAgentResumeSessionState,
+  HarnessAgentSession,
+} from '@ai-sdk/harness/agent';
+
+const states: Record<string, HarnessAgentResumeSessionState | undefined> = {};
+
+type SessionFactory = {
+  createSession(options?: {
+    sessionId?: string;
+    resumeFrom?: HarnessAgentResumeSessionState;
+  }): Promise<HarnessAgentSession>;
+};
+
+export async function resumeOrCreateSession({
+  agent,
+  chatId,
+}: {
+  agent: SessionFactory;
+  chatId: string;
+}) {
+  const resumeFrom = states[chatId];
+
+  return agent.createSession(
+    resumeFrom ? { sessionId: chatId, resumeFrom } : { sessionId: chatId },
+  );
+}
+
+export async function detachAndPersist({
+  chatId,
+  session,
+}: {
+  chatId: string;
+  session: HarnessAgentSession;
+}) {
+  states[chatId] = await session.detach();
+}
+```
+
+Use durable storage instead of an in-memory map in production.
+
+## Route
+
+Convert UI messages to model messages, run the harness turn, and convert the
+result stream back to a UI message stream:
+
+```ts filename='app/api/chat/route.ts'
+import { agent } from './agent';
+import { detachAndPersist, resumeOrCreateSession } from './session-store';
+import {
+  convertToModelMessages,
+  createUIMessageStreamResponse,
+  toUIMessageStream,
+  type UIMessage,
+} from 'ai';
+
+export async function POST(request: Request) {
+  const body: {
+    id?: string;
+    messages: UIMessage[];
+  } = await request.json();
+
+  if (!body.id) {
+    throw new Error('Missing chat id');
+  }
+
+  const chatId = body.id;
+  const messages = await convertToModelMessages(body.messages);
+  const session = await resumeOrCreateSession({ agent, chatId });
+  const result = await agent.stream({ session, messages });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({
+      stream: result.stream,
+      onEnd: async () => {
+        await detachAndPersist({ chatId, session });
+      },
+    }),
+  });
+}
+```
+
+Do not use `createAgentUIStreamResponse` directly with `HarnessAgent` unless you
+wrap the agent to inject the required session. `HarnessAgent.stream()` requires
+`session` on every call.
+
+## Detach or Stop
+
+Use `session.detach()` when you want to park the harness runtime and keep the
+sandbox warm for the next request. Bridge-backed adapters can usually reattach
+or replay efficiently. If the turn is unfinished, `detach()` includes the turn
+continuation state in the returned resume state.
+
+Use `session.stop()` when you want to save resume state and stop the runtime and
+sandbox after each turn. The next request resumes from persisted state and
+continues any unfinished turn before accepting a new prompt.
+
+## Rendering Harness Parts
+
+Harness output contains the same UI message part shapes used by AI SDK model
+streams:
+
+- `text` and `reasoning` parts for generated content.
+- typed tool parts such as `tool-bash`, `tool-read`, or a host tool like
+  `tool-weather`.
+- `dynamic-tool` parts for dynamic events such as `fileChange` and
+  `compaction`.
+
+Render typed harness built-ins the same way you render normal AI SDK tool
+parts. Check `part.state` for `input-streaming`, `input-available`, and
+`output-available`.
+
+## Type-Safe Tool Parts
+
+Until `HarnessAgent` session options are part of the base `Agent` call
+parameters, infer UI tools from `agent.tools`:
+
+```ts
+import type { InferUITools, UIMessage } from 'ai';
+import { agent } from './agent';
+
+export type HarnessMessage = UIMessage<
+  unknown,
+  never,
+  InferUITools<typeof agent.tools>
+>;
+```
+
+Then use `useChat<HarnessMessage>()` on the client.

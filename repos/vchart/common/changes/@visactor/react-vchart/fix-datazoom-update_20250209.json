@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@visactor/react-vchart",
+      "comment": "fix: ensure DataZoom updates when data source changes (Issue #4185)",
+      "type": "patch"
+    }
+  ],
+  "packageName": "@visactor/react-vchart",
+  "email": "test@example.com"
+}

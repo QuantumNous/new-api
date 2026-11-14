@@ -1,0 +1,31 @@
+engines:
+  duplication:
+    enabled: true
+    config:
+      languages:
+        - ruby
+        - javascript:
+            mass_threshold: 58
+        - python
+        - php
+  eslint:
+    # Disabled since this engine used a different set of version of
+    # `@typescript/eslint` and `typescript`
+    #
+    # @see https://github.com/i18next/i18next/pull/2098
+    enabled: false
+    channel: 'eslint-8'
+  fixme:
+    enabled: true
+ratings:
+  paths:
+    - 'src/**/*'
+exclude_paths:
+  - test/
+  - coverage/
+  - dist/
+  - example/
+  - 'react-i18next.js'
+  - 'react-i18next.min.js'
+  - 'rollup.config.js'
+  - 'src/shallowEqual.js'

@@ -1,0 +1,17 @@
+import { google } from '@ai-sdk/google';
+import { uploadFile } from 'ai';
+import fs from 'node:fs';
+import { run } from '../../lib/run';
+
+run(async () => {
+  const { providerReference, mediaType, filename, providerMetadata } =
+    await uploadFile({
+      api: google,
+      data: fs.readFileSync('./data/comic-cat.png'),
+    });
+
+  console.log('Provider reference:', providerReference);
+  console.log('Media type:', mediaType);
+  console.log('Filename:', filename);
+  console.log('Provider metadata:', providerMetadata);
+});

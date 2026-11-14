@@ -1,0 +1,36 @@
+name: AI Provider API Changes
+
+on:
+  repository_dispatch:
+    types: [ai-provider-api-change]
+
+permissions:
+  contents: read
+
+jobs:
+  create-issue:
+    name: 'Create Issue for Provider API Change'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ vars.VERCEL_AI_SDK_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.VERCEL_AI_SDK_GITHUB_APP_PRIVATE_KEY_PKCS8 }}
+
+      - name: Create issues
+        uses: octokit/request-action@b91aabaa861c777dcdb14e2387e30eddf04619ae # v3.0.0
+        with:
+          route: POST /repos/{owner}/{repo}/issues
+          owner: vercel
+          repo: ai
+          title: |
+            🤖 Provider API update - ${{ github.event.client_payload.release.tag_name }}
+          body: |
+            |
+            ${{ github.event.client_payload.release.body }}
+
+            ${{ github.event.client_payload.release.html_url }}
+          labels: '["maintenance"]'
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}

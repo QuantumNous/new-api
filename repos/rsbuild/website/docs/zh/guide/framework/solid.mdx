@@ -1,0 +1,64 @@
+---
+description: '本文介绍如何基于 Rsbuild 构建 Solid 应用。'
+---
+
+# Solid
+
+本文介绍如何基于 Rsbuild 构建 Solid 应用。
+
+## 创建 Solid 应用
+
+使用 [create-rsbuild](/guide/start/quick-start#create-an-rsbuild-application) 创建基于 Rsbuild 的 Solid 应用：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs
+  command={{
+    npm: 'npm create rsbuild@latest',
+    yarn: 'yarn create rsbuild',
+    pnpm: 'pnpm create rsbuild@latest',
+    bun: 'bun create rsbuild@latest',
+  }}
+/>
+
+然后在 `Select framework` 时选择 `Solid` 即可。
+
+## 全栈框架 \{#full-stack-frameworks}
+
+以下全栈 Solid 框架基于 Rsbuild 构建，并复用 Rsbuild 的插件生态。
+
+### TanStack Start
+
+[TanStack Start](https://tanstack.com/start/latest) 是一个由 TanStack Router 驱动的全栈框架。它提供整页文档 SSR、流式渲染、Server Functions、客户端/服务端构建等能力。
+
+- [文档](https://tanstack.com/start/latest)
+- [示例项目](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/tanstack-start-solid)
+
+你可以运行以下命令来一键初始化 TanStack Start 示例项目：
+
+```bash
+npx giget gh:rstackjs/rstack-examples/rsbuild/tanstack-start-solid tanstack-start
+cd tanstack-start
+pnpm i
+```
+
+## 在已有项目中使用 Solid
+
+要编译 Solid 组件，需注册 Rsbuild 的 [Solid 插件](/plugins/list/plugin-solid)，插件会自动添加 Solid 构建所需的配置。
+
+例如，在 Rsbuild 配置中注册：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginBabel } from '@rsbuild/plugin-babel';
+import { pluginSolid } from '@rsbuild/plugin-solid';
+
+export default defineConfig({
+  plugins: [
+    pluginBabel({
+      include: /\.(?:jsx|tsx)$/,
+    }),
+    pluginSolid(),
+  ],
+});
+```

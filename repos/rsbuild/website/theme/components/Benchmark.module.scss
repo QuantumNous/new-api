@@ -1,0 +1,51 @@
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: 6rem;
+  padding-bottom: 2.5rem;
+  height: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+}
+
+.title {
+  color: var(--rp-c-text-1);
+  font-weight: bold;
+  font-size: 1.875rem;
+  margin-top: 4rem;
+}
+
+@media (min-width: 640px) {
+  .title {
+    font-size: 3rem;
+    line-height: 1;
+  }
+}
+
+.desc {
+  color: var(--rp-c-text-2);
+  margin-top: 2rem;
+  margin-bottom: 1.25rem;
+  margin-left: 1.5rem;
+  margin-right: 1.5rem;
+  text-align: center;
+  font-size: 1.125rem;
+  max-width: 48rem;
+}
+
+.bottomLink {
+  display: block;
+  margin-top: 16px;
+  font-size: 16px;
+  color: var(--rp-c-text-2);
+
+  &:hover {
+    color: var(--rp-c-link);
+  }
+}

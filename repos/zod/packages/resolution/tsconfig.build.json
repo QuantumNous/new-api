@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "es6",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "skipLibCheck": false,
+    "types": []
+  },
+  "include": ["src/*.ts", "src/*.mts", "src/*.cts"],
+}

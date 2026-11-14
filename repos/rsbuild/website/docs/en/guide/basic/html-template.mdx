@@ -1,0 +1,444 @@
+---
+description: 'During the build process, Rsbuild compiles HTML templates and template parameters to generate HTML files.'
+---
+
+# HTML
+
+During the build process, Rsbuild compiles HTML templates and template parameters to generate HTML files.
+
+Rsbuild provides several configuration options for HTML templates. This section explains the basic usage of these options.
+
+## HTML generation
+
+Rsbuild generates an HTML file for each entry defined in [source.entry](/config/source/entry).
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      foo: './src/pages/foo/index.ts', // generate foo.html
+      bar: './src/pages/bar/index.ts', // generate bar.html
+    },
+  },
+};
+```
+
+See [source.entry - HTML generation](/config/source/entry#html-generation) for more details on how to control HTML generation.
+
+## Set template
+
+Use [html.template](/config/html/template) to define the path to a custom HTML template.
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    template: './static/index.html',
+  },
+};
+```
+
+When `html.template` is not set, Rsbuild uses this built-in HTML template:
+
+```html title="defaultTemplate.html"
+<!DOCTYPE html>
+<html>
+  <head></head>
+  <body>
+    <div id="<%= mountId %>"></div>
+  </body>
+</html>
+```
+
+In the default template, `id="<%= mountId %>"` is replaced with `id="root"`. Modify this value using the [html.mountId](/config/html/mount-id) option.
+
+## Set page title
+
+You can set the HTML `<title>` tag using the [html.title](/config/html/title) config.
+
+When your project has only one page, set `html.title` directly:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    title: 'example',
+  },
+};
+```
+
+When your project has multiple pages, you can set different titles for each page based on the entry name.
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    title({ entryName }) {
+      const titles = {
+        foo: 'Foo',
+        bar: 'Bar',
+      };
+      return titles[entryName];
+    },
+  },
+};
+```
+
+:::tip
+For single-page applications (SPA), Rsbuild includes an initial title in the HTML page, but you typically need to dynamically update the page title when routes change, for example using routing libraries or libraries like [React Helmet](https://github.com/nfl/react-helmet).
+:::
+
+## Set page icon
+
+Rsbuild supports setting both the [favicon](https://developer.mozilla.org/en-US/docs/Glossary/Favicon) and the web application icon.
+
+By default, Rsbuild automatically looks for favicon files in the [public directory](/config/server/public-dir). If you want to customize the favicon, use the [html.favicon](/config/html/favicon) option:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    favicon: './src/assets/icon.png',
+  },
+};
+```
+
+You can also use the [html.appIcon](/config/html/app-icon) option to define web application icons, which are displayed when users add your site to their mobile device's home screen:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    appIcon: {
+      name: 'My Website',
+      icons: [
+        { src: './src/assets/logo-192.png', size: 192 },
+        { src: './src/assets/logo-512.png', size: 512 },
+      ],
+    },
+  },
+};
+```
+
+## Set meta tags
+
+You can set meta tags using the [html.meta](/config/html/meta) config.
+
+Rsbuild defaults to setting the charset and viewport meta tags:
+
+```html
+<meta charset="utf-8" /> <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+```
+
+You can also add custom meta tags, like a description:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    meta: {
+      description: 'a description of the page',
+    },
+  },
+};
+```
+
+The generated meta tag in HTML is:
+
+```html
+<meta name="description" content="a description of the page" />
+```
+
+## Default template engine
+
+Rsbuild has a built-in default template engine for processing HTML template files. Its syntax resembles a subset of EJS, with some differences. When an HTML template file has a `.html` extension, Rsbuild uses the built-in template engine to parse it.
+
+For example, if a `text` parameter is defined in the template with the value `'world'`, Rsbuild automatically replaces `<%= text %>` with the specified value during the build.
+
+```html
+<!-- Input  -->
+<div>hello <%= text %>!</div>
+
+<!-- Output -->
+<div>hello world!</div>
+```
+
+### Template parameters
+
+In HTML templates, you can use a variety of template parameters. Rsbuild injects the following default template parameters:
+
+```ts
+type DefaultParameters = {
+  mountId: string; // the value of `html.mountId` config
+  entryName: string; // entry name
+  assetPrefix: string; // the value of dev.assetPrefix or output.assetPrefix configs
+  compilation: Compilation; // Compilation object of Rspack
+  rspackConfig: Rspack.Configuration; // Rspack config object
+  // generated by html-rspack-plugin
+  htmlPlugin: {
+    tags: {
+      headTags: HtmlTagObject[];
+      bodyTags: HtmlTagObject[];
+    };
+    files: {
+      publicPath: string;
+      js: string[];
+      css: string[];
+      favicon?: string;
+    };
+  };
+};
+```
+
+You can use the [html.templateParameters](/config/html/template-parameters) config to pass custom template parameters. For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      text: 'world',
+    },
+  },
+};
+```
+
+Then you can read parameters in the HTML template with `<%= text %>`:
+
+```html title="index.html"
+<div>hello <%= text %>!</div>
+```
+
+The compiled HTML code will be:
+
+```html title="dist/index.html"
+<div>hello world!</div>
+```
+
+### Parameter escaping
+
+When using `<%= text %>`, the parameters will not be escaped. You can use `<%- text %>` to escape parameters.
+
+For example, if the value of the parameter `text` is `'<script>'`, it will be escaped to `&lt;script&gt;`:
+
+```html
+<!-- Input  -->
+<div>hello <%- text %>!</div>
+
+<!-- Output -->
+<div>hello &lt;script&gt;!</div>
+```
+
+:::tip
+Note that Rsbuild's default escape syntax is different from EJS. In EJS, the default escape syntax is `<%= text %>`, whereas Rsbuild's default escape syntax is `<%- text %>`.
+:::
+
+### Conditional statements
+
+- if condition:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      show: true,
+    },
+  },
+};
+```
+
+```ejs
+<% if (show) { %>
+<p>show is true</p>
+<% } %>
+```
+
+- if/else condition:
+
+```ejs
+<% if (show) { %>
+<p>show is true</p>
+<% } else { %>
+<p>show is false</p>
+<% } %>
+```
+
+- else if condition:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      count: 7,
+    },
+  },
+};
+```
+
+```ejs
+<% if (count > 10) { %>
+<p>count > 10</p>
+<% } else if (count > 5) { %>
+<p>count > 5</p>
+<% } else { %>
+<p>count ≤ 5</p>
+<% } %>
+```
+
+- Nested conditions:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      parent: true,
+      child: true,
+    },
+  },
+};
+```
+
+```ejs
+<% if (parent) { %>
+<p>parent is true</p>
+  <% if (child) { %>
+  <p>child is true</p>
+  <% } %>
+<% } %>
+```
+
+- Ternary operator:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      show: true,
+      value: 'success',
+    },
+  },
+};
+```
+
+```ejs
+<p>result: <%= show ? value : 'none' %></p>
+```
+
+### Loop statements
+
+- for loop:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      items: ['Item 1', 'Item 2', 'Item 3'],
+    },
+  },
+};
+```
+
+```ejs title="index.html"
+<ul>
+  <% for (let i = 0; i < items.length; i++) { %>
+  <li><%= items[i] %></li>
+  <% } %>
+</ul>
+```
+
+- forEach loop:
+
+```ejs title="index.html"
+<ul>
+  <% items.forEach(function(item, index) { %>
+  <li><%= item %> <%= index %></li>
+  <% }); %>
+</ul>
+```
+
+- for...of loop:
+
+```ejs title="index.html"
+<ul>
+  <% for (let item of items) { %>
+  <li><%= item %></li>
+  <% } %>
+</ul>
+```
+
+## Other template engines
+
+Rsbuild also supports using other template engines via plugins, such as [EJS](https://ejs.co/) and [Pug](https://pugjs.org/).
+
+### EJS
+
+Rsbuild's built-in template syntax has some differences from [EJS](https://ejs.co/). To use the full EJS syntax, you can use a plugin. See [rsbuild-plugin-ejs](https://github.com/rstackjs/rsbuild-plugin-ejs) for more details.
+
+### Pug
+
+Rsbuild supports the [Pug](https://pugjs.org/) template engine via a plugin. See [@rsbuild/plugin-pug](https://github.com/rstackjs/rsbuild-plugin-pug) for more details.
+
+## Injecting tags
+
+You can insert any tags into the HTML files generated by Rsbuild by configuring [html.tags](/config/html/tags).
+
+In the HTML template, the `htmlPlugin.tags` variable provides access to all tags inserted into the HTML:
+
+```html title="index.html"
+<html>
+  <head>
+    <%= htmlPlugin.tags.headTags %>
+  </head>
+  <body>
+    <div id="root"></div>
+    <%= htmlPlugin.tags.bodyTags %>
+  </body>
+</html>
+```
+
+The `html.tags` config allows you to modify HTML tags by updating these tag variables. Here is a basic example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [{ tag: 'script', attrs: { src: 'https://cdn.example.com/my-script.js' } }],
+  },
+};
+```
+
+- The generated HTML file looks like this:
+
+```html
+<html>
+  <head>
+    <script src="https://cdn.example.com/my-script.js"></script>
+    <!-- some other headTags... -->
+  </head>
+  <body>
+    <!-- some other bodyTags... -->
+  </body>
+</html>
+```
+
+> For more usage, please refer to: [html.tags](/config/html/tags).
+
+:::tip
+Typically, you do not need to manually use the `htmlPlugin.tags.headTags` and `htmlPlugin.tags.bodyTags` template parameters because Rsbuild automatically injects these tags. See [html.inject](/config/html/inject) for more details on adjusting the injection location.
+:::
+
+## HTML plugin
+
+Rsbuild internally implements HTML-related features based on [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin). It is a fork of [html-webpack-plugin](https://github.com/jantimon/html-webpack-plugin), with the same features and options.
+
+You can modify the html-rspack-plugin options via [tools.htmlPlugin](/config/tools/html-plugin), or disable the default html-rspack-plugin.
+
+For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin(config, { entryName }) {
+      if (process.env.NODE_ENV === 'production') {
+        config.filename = `${entryName}.[contenthash:10].html`;
+      }
+    },
+  },
+};
+```
+
+## HTML minification
+
+Rsbuild currently does not minify HTML files. If you need to minify HTML files, you can use the [rsbuild-plugin-html-minifier-terser plugin](https://github.com/rstackjs/rsbuild-plugin-html-minifier-terser).

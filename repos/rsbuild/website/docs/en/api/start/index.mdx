@@ -1,0 +1,60 @@
+---
+description: 'Overview of the Rsbuild JavaScript API, including core methods, instance APIs, environment APIs, and server APIs.'
+---
+
+# JavaScript API
+
+Rsbuild provides a comprehensive JavaScript API for developers to build higher-level tools or frameworks on top of Rsbuild.
+
+Rsbuild's JavaScript API can be used in Node.js, Deno, or Bun.
+
+## Getting started
+
+This basic example demonstrates how to use the Rsbuild JavaScript API.
+
+### 1. Install Rsbuild
+
+Install the `@rsbuild/core` package:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/core -D" />
+
+### 2. Create an Rsbuild instance
+
+Call the [createRsbuild](/api/javascript-api/core#creatersbuild) method to create an Rsbuild instance:
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild();
+```
+
+The `createRsbuild` method accepts various options. Learn more in the [API - createRsbuild](/api/javascript-api/core#creatersbuild) documentation.
+
+### 3. Call Rsbuild instance methods
+
+The Rsbuild instance provides several methods for different scenarios.
+
+For local development, use the [rsbuild.startDevServer](/api/javascript-api/instance#rsbuildstartdevserver) method to start a local dev server:
+
+```ts
+await rsbuild.startDevServer();
+```
+
+Once the dev server starts successfully, these logs will appear:
+
+```
+  ➜  Local:    http://localhost:3000
+  ➜  Network:  use --host to expose
+```
+
+For production deployment, use the [rsbuild.build](/api/javascript-api/instance#rsbuildbuild) method to build production outputs:
+
+```ts
+await rsbuild.build();
+```
+
+> For more information about Rsbuild instance methods, see the [Rsbuild Instance](/api/javascript-api/instance) documentation.
+
+These three steps cover the basic usage of Rsbuild. Next, you can customize the build process with Rsbuild plugins and configurations.

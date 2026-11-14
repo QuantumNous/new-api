@@ -1,0 +1,9 @@
+@custom-media --xs (min-width: 32rem); /* 512px */
+@custom-media --sm (min-width: 40rem); /* 640px */
+@custom-media --md (min-width: 48rem); /* 768px */
+@custom-media --lg (min-width: 64rem); /* 1024px */
+@custom-media --xl (min-width: 80rem); /* 1280px */
+/* stylelint-disable-next-line custom-media-pattern */
+@custom-media --2xl (min-width: 96rem); /* 1536px */
+@custom-media --show-side-nav (min-width: 64rem);
+@custom-media --show-quick-nav (min-width: 84rem);

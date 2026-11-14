@@ -1,0 +1,18 @@
+<!--index.wxml-->
+<view class="container">
+  <view class="userinfo">
+    <block>
+      <view class="userinfo-title-content">
+        <image class="userinfo-avatar" src="https://avatars.githubusercontent.com/u/126661221?s=96&v=4" mode="cover"></image>
+        <text class="userinfo-title">VisActor</text>
+      </view>
+      <text class="userinfo-content">A data visualization solution for narrative and AI.</text>
+    </block>
+  </view>
+  <view class="gallary-container">
+    <view wx:key="name" wx:for="{{charts}}" class="gallary-item">
+      <image bindtap="bindViewTap" id="{{item.name}}" class="gallary-image" src="../gallery/img/{{item.name}}.png" mode="cover"></image>
+      <text class="gallary-name">{{item.name}}</text>
+    </view>
+  </view>
+</view>

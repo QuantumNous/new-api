@@ -1,0 +1,6 @@
+{
+  "name": "@e2e/auto-external-pkg",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js"
+}

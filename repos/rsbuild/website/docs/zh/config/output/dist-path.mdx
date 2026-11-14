@@ -1,0 +1,114 @@
+---
+description: '设置构建产物的输出目录，Rsbuild 会根据产物的类型将其输出到相应的子目录中。'
+---
+
+# output.distPath
+
+- **类型：**
+
+```ts
+type DistPathConfig =
+  | string
+  | {
+      root?: string;
+      html?: string;
+      favicon?: string;
+      js?: string;
+      jsAsync?: string;
+      css?: string;
+      cssAsync?: string;
+      svg?: string;
+      font?: string;
+      wasm?: string;
+      image?: string;
+      media?: string;
+      assets?: string;
+    };
+```
+
+- **默认值：**
+
+```js
+const defaultDistPath = {
+  root: 'dist',
+  html: './',
+  favicon: './',
+  js: output.target === 'node' ? '' : 'static/js',
+  jsAsync: output.target === 'node' ? '' : 'static/js/async',
+  css: 'static/css',
+  cssAsync: 'static/css/async',
+  svg: 'static/svg',
+  font: 'static/font',
+  wasm: 'static/wasm',
+  image: 'static/image',
+  media: 'static/media',
+  assets: 'static/assets';
+};
+```
+
+设置构建产物的输出目录，Rsbuild 会根据产物的类型将其输出到相应的子目录中。
+
+- `string`：设置根输出目录到指定路径，等同于 `distPath.root`。
+- `object`：为每种文件类型设置输出目录。
+
+> 查看 [构建产物目录](/guide/basic/output-files) 了解更多。
+
+## 文件类型
+
+`output.distPath` 可以为不同类型的文件设置不同的输出目录。
+
+下面是 `output.distPath` 中各个选项的说明：
+
+- `root`: 所有构建产物输出的根目录。
+- `html`：HTML 文件的输出目录。
+- `favicon`：favicon 文件的输出目录。
+- `js`：JavaScript 文件的输出目录。
+- `jsAsync`：异步 JavaScript 文件的输出目录，默认会输出到 `distPath.js` 的 `async` 子目录。
+- `css`：CSS 文件的输出目录。
+- `cssAsync`：异步 CSS 文件的输出目录，默认会输出到 `distPath.css` 的 `async` 子目录。
+- `svg`：SVG 图片的输出目录。
+- `font`：字体文件的输出目录。
+- `wasm`：WebAssembly 文件的输出目录。
+- `image`：非 SVG 图片的输出目录。
+- `media`：视频等媒体资源的输出目录。
+- `assets`：其他静态资源的输出目录。例如 [扩展静态资源类型](/guide/basic/static-assets#extend-asset-types) 中定义的资源。
+
+## 根目录
+
+`root` 是构建产物的根目录，可以为相对路径或绝对路径。如果 `root` 的值为相对路径，则会基于当前项目的根目录拼接为绝对路径。
+
+其他目录只能为相对路径，并且会相对于 `root` 进行输出。
+
+## 示例
+
+以 JavaScript 文件为例，会输出到 `distPath.root` + `distPath.js` 目录，即为 `dist/static/js`。
+
+如果需要将 JavaScript 文件输出到 `build/resource/js` 目录，可以这样设置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    distPath: {
+      root: 'build',
+      js: 'resource/js',
+    },
+  },
+};
+```
+
+以上配置会生成如下的目录结构：
+
+```bash
+build
+├── resource
+│   └── js
+│       └── index.js
+└── index.html
+```
+
+## 版本历史
+
+| 版本    | 变更内容                             |
+| ------- | ------------------------------------ |
+| v1.4.13 | 新增对 `distPath.favicon` 选项的支持 |
+| v1.6.0  | 新增对 `string` 类型的支持           |

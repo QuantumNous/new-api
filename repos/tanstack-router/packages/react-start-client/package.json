@@ -1,0 +1,88 @@
+{
+  "name": "@tanstack/react-start-client",
+  "version": "1.168.16",
+  "description": "Modern and scalable routing for React applications",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/router.git",
+    "directory": "packages/react-start-client"
+  },
+  "homepage": "https://tanstack.com/start",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "react",
+    "location",
+    "router",
+    "routing",
+    "async",
+    "async router",
+    "typescript"
+  ],
+  "scripts": {
+    "clean": "rimraf ./dist && rimraf ./coverage",
+    "test": "pnpm test:eslint && pnpm test:types && pnpm test:build && pnpm test:unit",
+    "test:unit": "vitest",
+    "test:unit:dev": "vitest --watch",
+    "test:eslint": "eslint ./src",
+    "test:types": "pnpm run \"/^test:types:ts[0-9]{2}$/\"",
+    "test:types:ts55": "node ../../node_modules/typescript55/lib/tsc.js",
+    "test:types:ts56": "node ../../node_modules/typescript56/lib/tsc.js",
+    "test:types:ts57": "node ../../node_modules/typescript57/lib/tsc.js",
+    "test:types:ts58": "node ../../node_modules/typescript58/lib/tsc.js",
+    "test:types:ts59": "node ../../node_modules/typescript59/lib/tsc.js",
+    "test:types:ts60": "tsc",
+    "test:build": "publint --strict && attw --ignore-rules no-resolution --pack .",
+    "build": "vite build"
+  },
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      }
+    },
+    "./hydration": {
+      "import": {
+        "types": "./dist/esm/hydration.d.ts",
+        "default": "./dist/esm/hydration.js"
+      }
+    },
+    "./Hydrate": {
+      "import": {
+        "types": "./dist/esm/Hydrate.d.ts",
+        "default": "./dist/esm/Hydrate.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:*",
+    "@tanstack/router-core": "workspace:*",
+    "@tanstack/start-client-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.2.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "*",
+    "@types/node": ">=20"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0 || >=19.0.0",
+    "react-dom": ">=18.0.0 || >=19.0.0"
+  }
+}

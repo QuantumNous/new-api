@@ -1,0 +1,12 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'tools/*'
+  - 'examples/*'
+  - 'packages/rsc/tests/e2e/next-server'
+
+minimumReleaseAge: 4320 # 3 days
+
+minimumReleaseAgeExclude:
+  - '@ai-sdk/*'
+  - 'ai'

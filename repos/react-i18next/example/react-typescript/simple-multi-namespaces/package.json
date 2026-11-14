@@ -1,0 +1,41 @@
+{
+  "name": "simple-multi-namespaces",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "i18next": "^23.12.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^15.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "i18next-resources-for-ts": "^1.5.0",
+    "react-scripts": "^5.0.1",
+    "typescript": "^5.5.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "eject": "react-scripts eject",
+    "i18next-resources-for-ts": "i18next-resources-for-ts toc -i ./src/i18n/en -o ./src/@types/resources.ts"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

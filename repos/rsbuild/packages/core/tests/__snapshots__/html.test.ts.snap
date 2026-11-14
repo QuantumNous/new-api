@@ -1,0 +1,458 @@
+// Rstest Snapshot v1
+
+exports[`plugin-html > should allow configuring html.tags 1`] = `
+[
+  HtmlRspackPlugin {
+    "options": {
+      "base": false,
+      "cache": true,
+      "chunks": [
+        "main",
+      ],
+      "chunksSortMode": "auto",
+      "compile": true,
+      "entryName": "main",
+      "excludeChunks": [],
+      "favicon": false,
+      "filename": "main.html",
+      "hash": false,
+      "inject": "head",
+      "meta": {
+        "charset": {
+          "charset": "utf-8",
+        },
+        "viewport": "width=device-width, initial-scale=1.0",
+      },
+      "publicPath": "auto",
+      "scriptLoading": "defer",
+      "showErrors": true,
+      "template": "",
+      "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"root\\"></div></body></html>",
+      "templateParameters": [Function],
+      "title": "Rsbuild App",
+      "xhtml": false,
+      Symbol(entryName): "main",
+    },
+    "version": 6,
+  },
+  HtmlRspackPlugin {
+    "options": {
+      "base": false,
+      "cache": true,
+      "chunks": [
+        "foo",
+      ],
+      "chunksSortMode": "auto",
+      "compile": true,
+      "entryName": "foo",
+      "excludeChunks": [],
+      "favicon": false,
+      "filename": "foo.html",
+      "hash": false,
+      "inject": "head",
+      "meta": {
+        "charset": {
+          "charset": "utf-8",
+        },
+        "viewport": "width=device-width, initial-scale=1.0",
+      },
+      "publicPath": "auto",
+      "scriptLoading": "defer",
+      "showErrors": true,
+      "template": "",
+      "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"root\\"></div></body></html>",
+      "templateParameters": [Function],
+      "title": "Rsbuild App",
+      "xhtml": false,
+      Symbol(entryName): "foo",
+    },
+    "version": 6,
+  },
+]
+`;
+
+exports[`plugin-html > should allow modifying plugin options via tools.htmlPlugin 1`] = `
+HtmlRspackPlugin {
+  "options": {
+    "base": false,
+    "cache": true,
+    "chunks": "all",
+    "chunksSortMode": "auto",
+    "compile": true,
+    "excludeChunks": [],
+    "favicon": false,
+    "filename": "index.html",
+    "hash": false,
+    "inject": true,
+    "meta": {},
+    "publicPath": "auto",
+    "scriptLoading": "defer",
+    "showErrors": true,
+    "template": "auto",
+    "templateContent": false,
+    "templateParameters": [Function],
+    "title": "Rspack App",
+    "xhtml": false,
+    Symbol(entryName): "index",
+  },
+  "version": 6,
+}
+`;
+
+exports[`plugin-html > should allow setting favicon by html.favicon option 1`] = `
+HtmlRspackPlugin {
+  "options": {
+    "base": false,
+    "cache": true,
+    "chunks": [
+      "index",
+    ],
+    "chunksSortMode": "auto",
+    "compile": true,
+    "entryName": "index",
+    "excludeChunks": [],
+    "favicon": false,
+    "filename": "index.html",
+    "hash": false,
+    "inject": "head",
+    "meta": {
+      "charset": {
+        "charset": "utf-8",
+      },
+      "viewport": "width=device-width, initial-scale=1.0",
+    },
+    "publicPath": "auto",
+    "scriptLoading": "defer",
+    "showErrors": true,
+    "template": "",
+    "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"root\\"></div></body></html>",
+    "templateParameters": [Function],
+    "title": "Rsbuild App",
+    "xhtml": false,
+    Symbol(entryName): "index",
+  },
+  "version": 6,
+}
+`;
+
+exports[`plugin-html > should allow setting inject by html.inject option 1`] = `
+HtmlRspackPlugin {
+  "options": {
+    "base": false,
+    "cache": true,
+    "chunks": [
+      "index",
+    ],
+    "chunksSortMode": "auto",
+    "compile": true,
+    "entryName": "index",
+    "excludeChunks": [],
+    "favicon": false,
+    "filename": "index.html",
+    "hash": false,
+    "inject": "body",
+    "meta": {
+      "charset": {
+        "charset": "utf-8",
+      },
+      "viewport": "width=device-width, initial-scale=1.0",
+    },
+    "publicPath": "auto",
+    "scriptLoading": "defer",
+    "showErrors": true,
+    "template": "",
+    "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"root\\"></div></body></html>",
+    "templateParameters": [Function],
+    "title": "Rsbuild App",
+    "xhtml": false,
+    Symbol(entryName): "index",
+  },
+  "version": 6,
+}
+`;
+
+exports[`plugin-html > should enable minify in production 1`] = `
+HtmlRspackPlugin {
+  "options": {
+    "base": false,
+    "cache": true,
+    "chunks": [
+      "index",
+    ],
+    "chunksSortMode": "auto",
+    "compile": true,
+    "entryName": "index",
+    "excludeChunks": [],
+    "favicon": false,
+    "filename": "index.html",
+    "hash": false,
+    "inject": "head",
+    "meta": {
+      "charset": {
+        "charset": "utf-8",
+      },
+      "viewport": "width=device-width, initial-scale=1.0",
+    },
+    "publicPath": "auto",
+    "scriptLoading": "defer",
+    "showErrors": true,
+    "template": "",
+    "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"root\\"></div></body></html>",
+    "templateParameters": [Function],
+    "title": "Rsbuild App",
+    "xhtml": false,
+    Symbol(entryName): "index",
+  },
+  "version": 6,
+}
+`;
+
+exports[`plugin-html > should register html plugin correctly 1`] = `
+HtmlRspackPlugin {
+  "options": {
+    "base": false,
+    "cache": true,
+    "chunks": [
+      "index",
+    ],
+    "chunksSortMode": "auto",
+    "compile": true,
+    "entryName": "index",
+    "excludeChunks": [],
+    "favicon": false,
+    "filename": "index.html",
+    "hash": false,
+    "inject": "head",
+    "meta": {
+      "charset": {
+        "charset": "utf-8",
+      },
+      "viewport": "width=device-width, initial-scale=1.0",
+    },
+    "publicPath": "auto",
+    "scriptLoading": "defer",
+    "showErrors": true,
+    "template": "",
+    "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"root\\"></div></body></html>",
+    "templateParameters": [Function],
+    "title": "Rsbuild App",
+    "xhtml": false,
+    Symbol(entryName): "index",
+  },
+  "version": 6,
+}
+`;
+
+exports[`plugin-html > should stop injecting script tag if inject is () => false 1`] = `
+HtmlRspackPlugin {
+  "options": {
+    "base": false,
+    "cache": true,
+    "chunks": [
+      "index",
+    ],
+    "chunksSortMode": "auto",
+    "compile": true,
+    "entryName": "index",
+    "excludeChunks": [],
+    "favicon": false,
+    "filename": "index.html",
+    "hash": false,
+    "inject": false,
+    "meta": {
+      "charset": {
+        "charset": "utf-8",
+      },
+      "viewport": "width=device-width, initial-scale=1.0",
+    },
+    "publicPath": "auto",
+    "scriptLoading": "defer",
+    "showErrors": true,
+    "template": "",
+    "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"root\\"></div></body></html>",
+    "templateParameters": [Function],
+    "title": "Rsbuild App",
+    "xhtml": false,
+    Symbol(entryName): "index",
+  },
+  "version": 6,
+}
+`;
+
+exports[`plugin-html > should stop injecting script tag if inject is false 1`] = `
+HtmlRspackPlugin {
+  "options": {
+    "base": false,
+    "cache": true,
+    "chunks": [
+      "index",
+    ],
+    "chunksSortMode": "auto",
+    "compile": true,
+    "entryName": "index",
+    "excludeChunks": [],
+    "favicon": false,
+    "filename": "index.html",
+    "hash": false,
+    "inject": false,
+    "meta": {
+      "charset": {
+        "charset": "utf-8",
+      },
+      "viewport": "width=device-width, initial-scale=1.0",
+    },
+    "publicPath": "auto",
+    "scriptLoading": "defer",
+    "showErrors": true,
+    "template": "",
+    "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"root\\"></div></body></html>",
+    "templateParameters": [Function],
+    "title": "Rsbuild App",
+    "xhtml": false,
+    Symbol(entryName): "index",
+  },
+  "version": 6,
+}
+`;
+
+exports[`plugin-html > should support environment-specific HTML config 1`] = `
+[
+  HtmlRspackPlugin {
+    "options": {
+      "base": false,
+      "cache": true,
+      "chunks": [
+        "main",
+      ],
+      "chunksSortMode": "auto",
+      "compile": true,
+      "entryName": "main",
+      "excludeChunks": [],
+      "favicon": false,
+      "filename": "web/main.html",
+      "hash": false,
+      "inject": "head",
+      "meta": {
+        "charset": {
+          "charset": "utf-8",
+        },
+        "viewport": "width=device-width, initial-scale=1.0",
+      },
+      "publicPath": "auto",
+      "scriptLoading": "defer",
+      "showErrors": true,
+      "template": "",
+      "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"app\\"></div></body></html>",
+      "templateParameters": [Function],
+      "title": "web",
+      "xhtml": false,
+      Symbol(entryName): "main",
+    },
+    "version": 6,
+  },
+  HtmlRspackPlugin {
+    "options": {
+      "base": false,
+      "cache": true,
+      "chunks": [
+        "index",
+      ],
+      "chunksSortMode": "auto",
+      "compile": true,
+      "entryName": "index",
+      "excludeChunks": [],
+      "favicon": false,
+      "filename": "index.html",
+      "hash": false,
+      "inject": "head",
+      "meta": {
+        "charset": {
+          "charset": "utf-8",
+        },
+        "viewport": "width=device-width, initial-scale=1.0",
+      },
+      "publicPath": "auto",
+      "scriptLoading": "defer",
+      "showErrors": true,
+      "template": "",
+      "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"app1\\"></div></body></html>",
+      "templateParameters": [Function],
+      "title": "web1",
+      "xhtml": false,
+      Symbol(entryName): "index",
+    },
+    "version": 6,
+  },
+]
+`;
+
+exports[`plugin-html > should support multiple entries 1`] = `
+[
+  HtmlRspackPlugin {
+    "options": {
+      "base": false,
+      "cache": true,
+      "chunks": [
+        "main",
+      ],
+      "chunksSortMode": "auto",
+      "compile": true,
+      "entryName": "main",
+      "excludeChunks": [],
+      "favicon": false,
+      "filename": "main.html",
+      "hash": false,
+      "inject": "head",
+      "meta": {
+        "charset": {
+          "charset": "utf-8",
+        },
+        "viewport": "width=device-width, initial-scale=1.0",
+      },
+      "publicPath": "auto",
+      "scriptLoading": "defer",
+      "showErrors": true,
+      "template": "",
+      "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"root\\"></div></body></html>",
+      "templateParameters": [Function],
+      "title": "Rsbuild App",
+      "xhtml": false,
+      Symbol(entryName): "main",
+    },
+    "version": 6,
+  },
+  HtmlRspackPlugin {
+    "options": {
+      "base": false,
+      "cache": true,
+      "chunks": [
+        "foo",
+      ],
+      "chunksSortMode": "auto",
+      "compile": true,
+      "entryName": "foo",
+      "excludeChunks": [],
+      "favicon": false,
+      "filename": "foo.html",
+      "hash": false,
+      "inject": "head",
+      "meta": {
+        "charset": {
+          "charset": "utf-8",
+        },
+        "viewport": "width=device-width, initial-scale=1.0",
+      },
+      "publicPath": "auto",
+      "scriptLoading": "defer",
+      "showErrors": true,
+      "template": "",
+      "templateContent": "<!DOCTYPE html><html><head></head><body><div id=\\"root\\"></div></body></html>",
+      "templateParameters": [Function],
+      "title": "Rsbuild App",
+      "xhtml": false,
+      Symbol(entryName): "foo",
+    },
+    "version": 6,
+  },
+]
+`;

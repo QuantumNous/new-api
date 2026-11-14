@@ -1,0 +1,3 @@
+#!/bin/sh
+
+node common/scripts/install-run-rush.js commitlint || exit $? #++

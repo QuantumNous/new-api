@@ -1,0 +1,187 @@
+.Trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 2rem;
+  cursor: default;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.5rem;
+  background: canvas;
+  background-clip: padding-box;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-gray-900);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.Trigger:hover,
+.Trigger[data-popup-open] {
+  background: var(--color-gray-50);
+}
+
+.Trigger:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: -1px;
+}
+
+.TriggerValue {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.Popup {
+  --input-container-height: 3rem;
+  max-width: 15rem;
+  max-height: min(24rem, var(--available-height));
+  transform-origin: var(--transform-origin);
+  border-radius: 0.5rem;
+  background: canvas;
+  color: var(--color-gray-900);
+  background-clip: padding-box;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 2.5%),
+    0 1px 3px rgb(0 0 0 / 2.5%);
+  outline: 1px solid var(--color-gray-200);
+  transition:
+    transform 150ms,
+    scale 150ms,
+    opacity 150ms;
+}
+
+.Popup[data-starting-style],
+.Popup[data-ending-style] {
+  scale: 0.9;
+  opacity: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .Popup {
+    box-shadow: none;
+    outline-color: var(--color-gray-300);
+    outline-offset: -1px;
+  }
+}
+
+.InputRow {
+  display: grid;
+  grid-template-columns: 1fr 1.4rem;
+  gap: 0.5rem;
+  width: 15rem;
+  padding: 0.25rem 0.5rem;
+  text-align: center;
+}
+
+.Input {
+  grid-column-start: 1;
+  width: 100%;
+  height: 2rem;
+  padding-left: 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  color: var(--color-gray-900);
+}
+
+.Input:focus {
+  outline: 0;
+}
+
+.ShortcutKey {
+  grid-column-start: 2;
+  align-self: center;
+  display: flex;
+  justify-content: center;
+  height: 1.4rem;
+  border: 1px solid var(--color-gray-300);
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--color-gray-800);
+}
+
+.Separator {
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.Empty {
+  padding: 1rem;
+  font-size: 0.925rem;
+  line-height: 1rem;
+  color: var(--color-gray-600);
+}
+
+.Empty:empty {
+  margin: 0;
+  padding: 0;
+}
+
+.List {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  max-height: min(
+    calc(24rem - var(--input-container-height)),
+    calc(var(--available-height) - var(--input-container-height))
+  );
+  padding: 0.5rem 0;
+  scroll-padding: 0.5rem;
+}
+
+.List:empty {
+  padding: 0;
+}
+
+.Item {
+  position: relative;
+  z-index: 0;
+  display: grid;
+  grid-template-columns: 1rem 1fr 0.75rem 0.75rem;
+  min-width: var(--anchor-width);
+  align-items: center;
+  gap: 0.5rem;
+  cursor: default;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1rem;
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+.Item[data-highlighted] {
+  color: var(--color-gray-800);
+}
+
+.Item[data-highlighted]::before {
+  content: '';
+  position: absolute;
+  inset: 0 0.5rem;
+  z-index: -1;
+  border-radius: 0.25rem;
+  background: var(--color-gray-100);
+}
+
+.ItemIcon {
+  grid-column-start: 1;
+}
+
+.ItemText {
+  grid-column-start: 2;
+}
+
+.ItemIndicator {
+  grid-column-start: 3;
+}
+
+.ItemIndicatorIcon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.ItemCode {
+  grid-column-start: 4;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--color-gray-600);
+}

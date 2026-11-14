@@ -1,0 +1,23 @@
+// Rstest Snapshot v1
+
+exports[`plugin-define > should register define plugin correctly 1`] = `
+DefinePlugin {
+  "_args": [
+    {
+      "NAME": "\\"Jack\\"",
+      "import.meta.env": {
+        "ASSET_PREFIX": "\\"\\"",
+        "BASE_URL": "\\"/\\"",
+        "DEV": false,
+        "MODE": "\\"none\\"",
+        "PROD": false,
+        "SSR": false,
+      },
+      "process.env.ASSET_PREFIX": "\\"\\"",
+      "process.env.BASE_URL": "\\"/\\"",
+    },
+  ],
+  "affectedHooks": "compilation",
+  "name": "DefinePlugin",
+}
+`;

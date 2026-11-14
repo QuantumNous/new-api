@@ -1,0 +1,44 @@
+import { ComponentTypeEnum } from '../interface/type';
+import { BaseComponent } from '../base/base-component';
+import type { IIndicator, IIndicatorSpec } from './interface';
+import type { Maybe } from '../../typings';
+import type { IModelSpecInfo } from '../../model/interface';
+import { Indicator as IndicatorComponents } from '@visactor/vrender-components';
+import type { IGraphic } from '@visactor/vrender-core';
+export declare class Indicator<T extends IIndicatorSpec> extends BaseComponent<T> implements IIndicator {
+    static type: ComponentTypeEnum;
+    type: ComponentTypeEnum;
+    name: string;
+    static readonly builtInTheme: {
+        indicator: import("./interface").IIndicatorTheme;
+    };
+    static specKey: string;
+    specKey: string;
+    layoutType: 'none';
+    layoutZIndex: number;
+    layoutLevel: number;
+    private _gap;
+    private _activeDatum;
+    private _displayData;
+    private _title;
+    private _content;
+    private _indicatorComponent;
+    private _cacheAttrs;
+    static getSpecInfo(chartSpec: any): Maybe<IModelSpecInfo[]>;
+    created(): void;
+    setAttrFromSpec(): void;
+    _compareSpec(spec: T, prevSpec: T): import("../../model/interface").IUpdateSpecResult;
+    protected initEvent(): void;
+    updateDatum(datum: any): void;
+    private initData;
+    updateLayoutAttribute(): void;
+    private _getIndicatorAttrs;
+    private _createOrUpdateIndicatorComponent;
+    private _createText;
+    private _computeLayoutRadius;
+    private isRelativeModel;
+    protected _getNeedClearVRenderComponents(): IGraphic[];
+    clear(): void;
+    getIndicatorComponent(): IndicatorComponents;
+}
+export declare const registerIndicator: () => void;

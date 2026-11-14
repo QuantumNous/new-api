@@ -1,0 +1,25 @@
+{
+  "extends": "@internal/ts-config/tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "baseUrl": "./",
+    "rootDir": "./src",
+    "types": ["jest", "offscreencanvas", "node"],
+    "lib": ["DOM", "ESNext"],
+    "composite": true,
+    "outDir": "./esm",
+    "ignoreDeprecations": "5.0"
+  },
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  },
+  "references": [
+    {
+      "path": "../vchart"
+    }
+  ],
+  "include": ["src"]
+}
