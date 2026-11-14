@@ -749,7 +749,7 @@ func redactVideoResponseBody(body []byte) []byte {
 				continue
 			}
 			for j, part := range parts.Array() {
-				if part.Get("type").String() == "video" {
+				if part.Get("data").Exists() {
 					_ = doc.Delete(fmt.Sprintf("steps.%d.content.%d.data", i, j))
 				}
 			}
