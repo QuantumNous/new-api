@@ -1595,7 +1595,7 @@
       "post": {
         "summary": "音频转录",
         "deprecated": false,
-        "description": "将音频转换为文本",
+        "description": "将音频转换为文本。兼容 OpenAI Whisper 请求格式，也可通过 VolcEngine/Doubao 语音渠道转发到豆包 ASR。",
         "operationId": "createTranscription",
         "tags": [
           "OpenAI音频(Audio)"
