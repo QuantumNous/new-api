@@ -85,6 +85,88 @@ func TestSubscriptionGroupTransitionsPreserveAuthVersionAndSessions(t *testing.T
 	assert.Equal(t, "default", cached.Group)
 }
 
+func TestSubscriptionExpiryMovesUserToRemainingSubscriptionGroup(t *testing.T) {
+	now := time.Now().Unix()
+	tests := []struct {
+		name      string
+		userGroup string
+		remaining []UserSubscription // other subscriptions; Status defaults to active
+		wantGroup string
+	}{
+		{
+			name:      "remaining lower tier",
+			remaining: []UserSubscription{{UpgradeGroup: "basic", DowngradeGroup: "default", EndTime: now + 3600}},
+			wantGroup: "basic",
+		},
+		{
+			name: "remaining subscription with current group",
+			remaining: []UserSubscription{
+				{UpgradeGroup: "basic", DowngradeGroup: "default", EndTime: now + 7200},
+				{UpgradeGroup: "pro", DowngradeGroup: "default", EndTime: now + 3600},
+			},
+			wantGroup: "pro",
+		},
+		{
+			name:      "no remaining subscription",
+			wantGroup: "default",
+		},
+		{
+			name:      "manually assigned group",
+			userGroup: "partner",
+			remaining: []UserSubscription{{UpgradeGroup: "basic", DowngradeGroup: "default", EndTime: now + 3600}},
+			wantGroup: "partner",
+		},
+		{
+			name:      "manually assigned group granted by an older expired subscription",
+			userGroup: "partner",
+			remaining: []UserSubscription{
+				{Status: "expired", UpgradeGroup: "partner", EndTime: now - 86400},
+				{UpgradeGroup: "basic", DowngradeGroup: "default", EndTime: now + 3600},
+			},
+			wantGroup: "partner",
+		},
+	}
+	for _, expire := range []string{"scheduled", "admin"} {
+		for _, tc := range tests {
+			t.Run(expire+"/"+tc.name, func(t *testing.T) {
+				truncateTables(t)
+				group := "pro"
+				if tc.userGroup != "" {
+					group = tc.userGroup
+				}
+				user := User{Username: "subscription-expiry-user", Password: "unused-password-hash", Group: group, AuthVersion: 1}
+				require.NoError(t, DB.Create(&user).Error)
+				paid := UserSubscription{UserId: user.Id, Status: "active", StartTime: now - 7200, EndTime: now - 10,
+					UpgradeGroup: "pro", PrevUserGroup: "basic", DowngradeGroup: "default"}
+				if expire == "admin" {
+					paid.EndTime = now + 3600
+				}
+				require.NoError(t, DB.Create(&paid).Error)
+				for _, sub := range tc.remaining {
+					if sub.Status == "" {
+						sub.Status = "active"
+					}
+					sub.UserId, sub.StartTime = user.Id, now-7200
+					require.NoError(t, DB.Create(&sub).Error)
+				}
+
+				if expire == "admin" {
+					_, err := AdminInvalidateUserSubscription(paid.Id)
+					require.NoError(t, err)
+				} else {
+					expired, err := ExpireDueSubscriptions(10)
+					require.NoError(t, err)
+					assert.Equal(t, 1, expired)
+				}
+
+				var updated User
+				require.NoError(t, DB.First(&updated, user.Id).Error)
+				assert.Equal(t, tc.wantGroup, updated.Group)
+			})
+		}
+	}
+}
+
 func TestSubscriptionGroupCacheRefreshFailureDoesNotChangeCommittedResult(t *testing.T) {
 	previousDB, previousLogDB := DB, LOG_DB
 	previousMainDatabaseType, previousLogDatabaseType := common.MainDatabaseType(), common.LogDatabaseType()
