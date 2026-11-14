@@ -27,6 +27,11 @@ type ImageRequest struct {
 	N                 *uint           `json:"n,omitempty"`
 	Size              string          `json:"size,omitempty"`
 	Quality           string          `json:"quality,omitempty"`
+	// xAI grok-imagine tier parameters. Without these fields the relay entry
+	// JSON binding silently strips them, so channels can only use "size".
+	// omitempty keeps channels that do not set them unaffected.
+	AspectRatio       string          `json:"aspect_ratio,omitempty"`
+	Resolution        string          `json:"resolution,omitempty"`
 	ResponseFormat    string          `json:"response_format,omitempty"`
 	Style             json.RawMessage `json:"style,omitempty"`
 	User              json.RawMessage `json:"user,omitempty"`

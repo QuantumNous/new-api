@@ -69,6 +69,11 @@ func oaiImage2MiniMaxImageRequest(request dto.ImageRequest) MiniMaxImageRequest 
 }
 
 func aspectRatioFromImageRequest(request dto.ImageRequest) string {
+	// Prefer the typed field (set by the relay binding); keep the Extra
+	// lookup as fallback for callers that populate Extra directly.
+	if request.AspectRatio != "" {
+		return request.AspectRatio
+	}
 	if raw, ok := request.Extra["aspect_ratio"]; ok {
 		var aspectRatio string
 		if err := common.Unmarshal(raw, &aspectRatio); err == nil && aspectRatio != "" {
