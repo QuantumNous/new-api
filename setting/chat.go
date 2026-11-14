@@ -29,6 +29,9 @@ var Chats = []map[string]string{
 		"AQBot": "aqbot://providers?{aqbotConfig}",
 	},
 	{
+		"ThinkWatch Lite": "thinkwatch://import?service=newapi&url={address}&key={key}",
+	},
+	{
 		"Lobe Chat 官方示例": "https://chat-preview.lobehub.com/?settings={\"keyVaults\":{\"openai\":{\"apiKey\":\"{key}\",\"baseURL\":\"{address}/v1\"}}}",
 	},
 	{
