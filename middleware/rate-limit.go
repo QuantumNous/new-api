@@ -194,6 +194,15 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// AuthSessionRateLimit keeps routine refreshes out of the login budget and
+// separates logout so exhausting refresh allowance cannot prevent signing out.
+func AuthSessionRateLimit(scope string) gin.HandlerFunc {
+	if !common.AuthSessionRateLimitEnable {
+		return defNext
+	}
+	return rateLimitFactory(common.AuthSessionRateLimitNum, common.AuthSessionRateLimitDuration, "AS:"+scope)
+}
+
 func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	if !common.CriticalRateLimitEnable {
 		return defNext

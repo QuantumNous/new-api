@@ -363,7 +363,7 @@ func ClearRefreshCookie(c *gin.Context) {
 // without this hint the frontend has to POST /api/user/auth/refresh on every
 // cold boot just to learn that an anonymous visitor is anonymous. That request
 // is guaranteed to 401 and still consumes a slot of the IP-keyed
-// CriticalRateLimit budget shared by everyone behind the same address.
+// refresh rate-limit budget shared by everyone behind the same address.
 //
 // The value is the constant "1" and carries no credential: it states that a
 // Refresh Cookie was issued, never who for. Authorization still derives solely
