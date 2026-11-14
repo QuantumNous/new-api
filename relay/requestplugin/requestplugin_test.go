@@ -133,7 +133,7 @@ func TestPlanScopeOrder(t *testing.T) {
 	require.NotNil(t, plan)
 	ids := func(stage, group string, bound []string) []string {
 		var scoped []string
-		for _, instance := range plan.scope(stage, group, "gpt-4o", bound) {
+		for _, instance := range plan.scope(stage, group, "gpt-4o", 0, bound) {
 			scoped = append(scoped, instance.ID)
 		}
 		return scoped
@@ -1583,7 +1583,7 @@ func TestPlanScopeModels(t *testing.T) {
 	require.NotNil(t, plan)
 	ids := func(model string) []string {
 		var scoped []string
-		for _, instance := range plan.scope(StageRequest, "default", model, nil) {
+		for _, instance := range plan.scope(StageRequest, "default", model, 0, nil) {
 			scoped = append(scoped, instance.ID)
 		}
 		return scoped
@@ -1593,6 +1593,81 @@ func TestPlanScopeModels(t *testing.T) {
 	assert.Equal(t, []string{"any", "listed"}, ids("gpt-4o@effort:high"))
 	assert.Equal(t, []string{"any"}, ids("gpt-4o-mini"))
 	assert.Equal(t, []string{"any"}, ids("GPT-4O"))
+}
+
+// scopedPlugin declares a scope: requests for gpt-4o or claude sent through
+// OpenAI (1) or Azure (3) channels.
+const scopedPlugin = `export const meta = {apiVersion: 1, key: "rp-scoped", name: "Scoped", version: "1.0.0", author: {name: "Test"},
+  scope: {models: ["gpt-4o", "claude"], channelTypes: [1, 3]}};
+export function ingress() { return {action: "continue"}; }
+export function outbound() { return {action: "continue"}; }`
+
+func TestPlanScopeFollowsThePluginScope(t *testing.T) {
+	plugin, err := jsplugin.DefaultRegistry.Register(scopedPlugin, jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = jsplugin.DefaultRegistry.Unregister(plugin.Meta.Key) })
+	ids := func(stage, model string, channelType int) []string {
+		var scoped []string
+		for _, instance := range NewPlan().scope(stage, "vip", model, channelType, []string{"confirmed"}) {
+			scoped = append(scoped, instance.ID)
+		}
+		return scoped
+	}
+
+	// The confirmed scope runs on every channel of its types and models, a
+	// channel's binding and the hand-placed members aside.
+	setInstances(t, `[{"id":"confirmed","name":"Scoped","plugin":"rp-scoped","enabled":true,"global":true,"groups":["vip"],"models":["x"],
+		"plugin_scope":{"models":["gpt-4o","claude"],"channel_types":[1,3]}}]`)
+	assert.Equal(t, []string{"confirmed"}, ids(StageOutbound, "gpt-4o", 1))
+	assert.Equal(t, []string{"confirmed"}, ids(StageOutbound, "gpt-4o@effort:high", 3))
+	assert.Empty(t, ids(StageOutbound, "gpt-4o", 14), "another channel type")
+	assert.Empty(t, ids(StageOutbound, "gpt-4o-mini", 1), "another model")
+	// Before a channel is selected a scope with channel types does not hold.
+	assert.Empty(t, ids(StageIngress, "gpt-4o", 0))
+
+	// A plugin update that narrows its scope applies at once; one that widens
+	// it reaches nothing new until confirmed again.
+	setInstances(t, `[{"id":"confirmed","name":"Scoped","plugin":"rp-scoped","enabled":true,"plugin_scope":{"models":["claude"],"channel_types":[1]}}]`)
+	assert.Equal(t, []string{"confirmed"}, ids(StageOutbound, "claude", 1))
+	assert.Empty(t, ids(StageOutbound, "gpt-4o", 1), "widened by the plugin, not confirmed")
+	assert.Empty(t, ids(StageOutbound, "claude", 3), "widened by the plugin, not confirmed")
+	setInstances(t, `[{"id":"confirmed","name":"Scoped","plugin":"rp-scoped","enabled":true,"plugin_scope":{"models":["gemini"],"channel_types":[1]}}]`)
+	assert.Nil(t, NewPlan(), "the plugin no longer holds any of the confirmed scope")
+
+	// A confirmed scope open on one side keeps the side the plugin now names.
+	setInstances(t, `[{"id":"confirmed","name":"Scoped","plugin":"rp-scoped","enabled":true,"plugin_scope":{"models":["claude"],"channel_types":[]}}]`)
+	assert.Equal(t, []string{"confirmed"}, ids(StageOutbound, "claude", 3))
+	assert.Empty(t, ids(StageOutbound, "claude", 14))
+
+	// On a real attempt the instance runs on its channel type, late, as a
+	// channel's instance does, and not on another type.
+	setInstances(t, `[{"id":"confirmed","name":"Scoped","plugin":"rp-scoped","enabled":true,"plugin_scope":{"models":["claude"],"channel_types":[1]}}]`)
+	for channelType, runs := range map[int]bool{1: true, 14: false} {
+		c := newContext(`{"model":"claude"}`, "default")
+		common.SetContextKey(c, constant.ContextKeyOriginalModel, "claude")
+		steps, _, apiErr := Ingress(c, types.RelayFormatOpenAI)
+		require.Nil(t, apiErr)
+		assert.Empty(t, steps, "the channel is not selected yet")
+		info := newInfo()
+		info.OriginModelName, info.ChannelType = "claude", channelType
+		_, apiErr = Outbound(c, info, []byte(`{"model":"claude-up"}`))
+		require.Nil(t, apiErr)
+		stages := []string{}
+		for _, step := range info.RequestPluginSteps {
+			stages = append(stages, step.Stage)
+		}
+		if runs {
+			assert.Equal(t, []string{StageIngress, StageOutbound}, stages)
+		} else {
+			assert.Empty(t, stages)
+		}
+	}
+
+	// A disabled instance never runs, and a hand-placed one is unchanged.
+	setInstances(t, `[
+		{"id":"confirmed","name":"Scoped","plugin":"rp-scoped","enabled":false,"plugin_scope":{"models":["claude"],"channel_types":[1]}},
+		{"id":"manual","name":"Manual","plugin":"rp-scoped","enabled":true,"global":true}]`)
+	assert.Equal(t, []string{"manual"}, ids(StageOutbound, "gemini", 14))
 }
 
 func TestStageContextCarriesUserAndToken(t *testing.T) {
@@ -1876,7 +1951,7 @@ func TestUnavailablePlugin(t *testing.T) {
 	assert.Equal(t, types.ErrorCodeRequestPluginFailed, apiErr.GetErrorCode())
 	assert.Equal(t, "unavailable", stepOf(t, info.RequestPluginSteps, "gone", StageIngress).Error)
 	for _, stage := range []string{StageEgress, StageReply} {
-		assert.False(t, slices.ContainsFunc(NewPlan().scope(stage, "default", "gpt", []string{"gone"}), func(instance *request_plugin_setting.Instance) bool {
+		assert.False(t, slices.ContainsFunc(NewPlan().scope(stage, "default", "gpt", 0, []string{"gone"}), func(instance *request_plugin_setting.Instance) bool {
 			return instance.ID == "gone"
 		}), "only ingress has it in scope")
 	}

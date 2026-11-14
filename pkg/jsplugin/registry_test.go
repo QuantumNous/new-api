@@ -1440,6 +1440,40 @@ func TestOptionalManifestField(t *testing.T) {
 	}
 }
 
+func TestScopeManifestField(t *testing.T) {
+	const head = `export const meta = {apiVersion: 1, key: "scoped", name: "Scoped", version: "1.0.0", author: {name: "Test"}%s};`
+	const relay = `, relay: [{incoming_path: "/v1/chat/completions", upstream_path: "/v1/chat/completions"}]`
+	const ingress = `export function ingress() {}`
+	for name, tc := range map[string]struct {
+		manifest, exports, message string
+		scope                      *TransformScope
+	}{
+		"models and channel types":   {manifest: `, scope: {models: ["gpt-4o", "claude"], channelTypes: [1, 14]}`, exports: ingress, scope: &TransformScope{Models: []string{"gpt-4o", "claude"}, ChannelTypes: []int{1, 14}}},
+		"models alone":               {manifest: `, scope: {models: ["gpt-4o"]}`, exports: ingress, scope: &TransformScope{Models: []string{"gpt-4o"}}},
+		"channel types alone":        {manifest: `, scope: {channelTypes: [3]}`, exports: ingress, scope: &TransformScope{ChannelTypes: []int{3}}},
+		"not declared":               {exports: ingress},
+		"every request":              {manifest: `, scope: {}`, exports: ingress, message: "plugin meta scope must list at least one model or channel type"},
+		"empty lists":                {manifest: `, scope: {models: [], channelTypes: []}`, exports: ingress, message: "must list at least one model or channel type"},
+		"unknown field":              {manifest: `, scope: {groups: ["vip"]}`, exports: ingress, message: `plugin meta scope has unknown field "groups"`},
+		"not an object":              {manifest: `, scope: ["gpt-4o"]`, exports: ingress, message: "plugin meta scope must be an object"},
+		"blank model":                {manifest: `, scope: {models: [" gpt"]}`, exports: ingress, message: "scope.models must hold names of 1 to 128 characters"},
+		"repeated model":             {manifest: `, scope: {models: ["gpt", "gpt"]}`, exports: ingress, message: `scope.models lists "gpt" twice`},
+		"zero channel type":          {manifest: `, scope: {channelTypes: [0]}`, exports: ingress, message: "scope.channelTypes must hold positive channel types"},
+		"text channel type":          {manifest: `, scope: {channelTypes: ["1"]}`, exports: ingress, message: "scope.channelTypes must be an array of integers"},
+		"no request processing part": {manifest: relay + `, scope: {models: ["gpt"]}`, message: "plugin scoped meta scope belongs to the request processing part"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			plugin, err := CompilePlugin(fmt.Sprintf(head, tc.manifest)+tc.exports, Options{})
+			if tc.message != "" {
+				require.ErrorContains(t, err, tc.message)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.scope, plugin.Meta.Scope)
+		})
+	}
+}
+
 func TestValidateConfig(t *testing.T) {
 	plugin, err := compileConfigPlugin(`{type: "object", properties: {
   rules: {type: "array", title: "Rules", maxItems: 2, items: {type: "object", title: "Rule", properties: {

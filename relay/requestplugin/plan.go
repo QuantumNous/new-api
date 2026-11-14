@@ -93,6 +93,9 @@ type Plan struct {
 	submission *submission
 	// media is the attachment text the request's hooks read.
 	media requestMedia
+	// scopes holds, by instance id, where each plugin scope instance runs:
+	// the confirmed scope as far as its plugin's scope still holds it.
+	scopes map[string]*request_plugin_setting.Scope
 }
 
 // NewPlan takes the plan of a new request: nil when no enabled instance has
@@ -156,10 +159,30 @@ func newPlanOf(instances []request_plugin_setting.Instance) *Plan {
 				continue
 			}
 		}
+		var scope *request_plugin_setting.Scope
+		if instance.PluginScope != nil {
+			// A plugin scope instance runs where both the confirmed scope and
+			// the one its plugin declares now hold; an unloaded plugin's
+			// instance keeps its confirmed scope, to fail where it would run.
+			scope = instance.PluginScope
+			if plugin != nil {
+				declared := plugin.Meta.Scope
+				if declared == nil {
+					continue
+				}
+				var ok bool
+				if scope, ok = scope.Within(declared.Models, declared.ChannelTypes); !ok {
+					continue
+				}
+			}
+		}
 		if plan == nil {
-			plan = &Plan{plugins: plugins, ingressRan: map[string]bool{}, unavailable: map[string]string{}}
+			plan = &Plan{plugins: plugins, ingressRan: map[string]bool{}, unavailable: map[string]string{}, scopes: map[string]*request_plugin_setting.Scope{}}
 		}
 		plan.instances = append(plan.instances, instance)
+		if scope != nil {
+			plan.scopes[instance.ID] = scope
+		}
 		if unavailable {
 			plan.unavailable[instance.Plugin] = loadErr
 			continue
@@ -171,11 +194,14 @@ func newPlanOf(instances []request_plugin_setting.Instance) *Plan {
 }
 
 // scope returns the instances that run at stage for a request for model, in
-// order: the global ones, then those of group, then the channel's bound ids;
-// each once. One whose plugin lacks the stage hook does not run, nor one whose
-// models leave out model. An unavailable plugin's instance is in scope at
-// ingress only, where it fails the request.
-func (p *Plan) scope(stage, group, model string, bound []string) []*request_plugin_setting.Instance {
+// order: the global ones and those that follow their plugin's scope, then
+// those of group, then the channel's bound ids; each once. channelType is the
+// type of the attempt's channel, 0 before one is selected: a plugin scope
+// that names channel types holds only once a channel of one of them is. One
+// whose plugin lacks the stage hook does not run, nor one whose models leave
+// out model. An unavailable plugin's instance is in scope at ingress only,
+// where it fails the request.
+func (p *Plan) scope(stage, group, model string, channelType int, bound []string) []*request_plugin_setting.Instance {
 	if p == nil {
 		return nil
 	}
@@ -189,33 +215,50 @@ func (p *Plan) scope(stage, group, model string, bound []string) []*request_plug
 			return
 		}
 		// The models are matched without the @ modifiers of the client's
-		// name, and as written for a model whose real name has an @.
-		if len(instance.Models) > 0 && !slices.Contains(instance.Models, base) && !slices.Contains(instance.Models, model) {
+		// name, and as written for a model whose real name has an @. Those
+		// of a plugin scope instance come from its scope alone.
+		if instance.PluginScope == nil && len(instance.Models) > 0 && !slices.Contains(instance.Models, base) && !slices.Contains(instance.Models, model) {
 			return
 		}
 		scoped = append(scoped, instance)
 	}
 	for i := range p.instances {
-		if p.instances[i].Global {
-			add(&p.instances[i])
+		instance := &p.instances[i]
+		if instance.PluginScope != nil {
+			if scope := p.scopes[instance.ID]; scope != nil && scope.Covers(model, base, channelType) {
+				add(instance)
+			}
+			continue
+		}
+		if instance.Global {
+			add(instance)
 		}
 	}
 	if group != "" {
 		for i := range p.instances {
-			if slices.Contains(p.instances[i].Groups, group) {
+			if p.instances[i].PluginScope == nil && slices.Contains(p.instances[i].Groups, group) {
 				add(&p.instances[i])
 			}
 		}
 	}
 	for _, id := range bound {
 		for i := range p.instances {
-			if p.instances[i].ID == id {
+			if p.instances[i].ID == id && p.instances[i].PluginScope == nil {
 				add(&p.instances[i])
 				break
 			}
 		}
 	}
 	return scoped
+}
+
+// channelType is the channel type of the call, 0 before a channel is
+// selected.
+func (call Call) channelType() int {
+	if call.Channel == nil {
+		return 0
+	}
+	return call.Channel.Type
 }
 
 // Call is one stage run.
@@ -301,7 +344,7 @@ type Outcome struct {
 // rejection or failure of an instance whose plugin is not optional.
 func (p *Plan) Run(ctx context.Context, call Call) Outcome {
 	outcome := Outcome{Body: call.Body, Headers: call.Headers}
-	for _, instance := range p.scope(call.Stage, call.Group, call.Model, call.Bound) {
+	for _, instance := range p.scope(call.Stage, call.Group, call.Model, call.channelType(), call.Bound) {
 		if call.Stage == StageIngress {
 			if call.Late && p.ingressRan[instance.ID] {
 				continue

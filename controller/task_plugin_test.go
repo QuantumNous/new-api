@@ -2146,6 +2146,75 @@ export function parseTaskResult() { return {}; }`,
 	}
 }
 
+func TestRequestPluginInstancesConfirmThePluginScope(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	originalOptions := common.OptionMap
+	common.OptionMap = map[string]string{}
+	t.Cleanup(func() { common.OptionMap = originalOptions })
+	register := func(scope string) {
+		t.Helper()
+		plugin, err := jsplugin.DefaultRegistry.Register(`export const meta = {apiVersion: 1, key: "rp-scoped", name: "Scoped", version: "1.0.0", author: {name: "Test"}`+scope+`};
+export function outbound() { return {action: "continue"}; }`, jsplugin.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = jsplugin.DefaultRegistry.Unregister(plugin.Meta.Key) })
+	}
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: "[]"}))
+	})
+	save := func(body string) (int, string) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/request_plugin/instances", strings.NewReader(body))
+		c.Set("role", common.RoleRootUser)
+		UpdateRequestPluginInstances(c)
+		return recorder.Code, recorder.Body.String()
+	}
+	register(`, scope: {models: ["gpt-4o", "claude"], channelTypes: [1]}`)
+
+	// Confirming the plugin's scope, in any order, saves it; the members of a
+	// hand-placed instance are cleared.
+	code, body := save(`{"instances":[{"id":"rp_scoped1","name":"Scoped","plugin":"rp-scoped","enabled":true,"global":true,"groups":["vip"],"models":["x"],
+		"plugin_scope":{"models":["claude","gpt-4o"],"channel_types":[1]}}]}`)
+	require.Equal(t, http.StatusOK, code, body)
+	saved := request_plugin_setting.GetInstances()
+	require.Len(t, saved, 1)
+	assert.Equal(t, &request_plugin_setting.Scope{Models: []string{"claude", "gpt-4o"}, ChannelTypes: []int{1}}, saved[0].PluginScope)
+	assert.False(t, saved[0].Global)
+	assert.Equal(t, []string{}, saved[0].Groups)
+	assert.Equal(t, []string{}, saved[0].Models)
+
+	// A scope the plugin does not declare cannot be confirmed: the console
+	// cannot widen it, and a new instance cannot take one.
+	for name, scope := range map[string]string{
+		"wider":       `{"models":["gpt-4o","claude","gemini"],"channel_types":[1]}`,
+		"open models": `{"models":[],"channel_types":[1]}`,
+		"open":        `{"models":[],"channel_types":[]}`,
+	} {
+		code, body = save(`{"instances":[{"name":"New","plugin":"rp-scoped","enabled":true,"plugin_scope":` + scope + `}]}`)
+		assert.Equal(t, http.StatusBadRequest, code, name)
+		assert.Contains(t, body, "Plugin rp-scoped changed where it runs", name)
+	}
+	assert.Equal(t, saved, request_plugin_setting.GetInstances())
+
+	// The plugin widens its scope: the saved instance keeps the scope it
+	// confirmed while other edits save, and confirms the new one on review.
+	register(`, scope: {models: ["gpt-4o", "claude", "gemini"], channelTypes: [1, 3]}`)
+	code, body = save(`{"instances":[{"id":"rp_scoped1","name":"Renamed","plugin":"rp-scoped","enabled":false,
+		"plugin_scope":{"models":["claude","gpt-4o"],"channel_types":[1]}}]}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Equal(t, "Renamed", request_plugin_setting.GetInstances()[0].Name)
+	code, body = save(`{"instances":[{"id":"rp_scoped1","name":"Renamed","plugin":"rp-scoped","enabled":true,
+		"plugin_scope":{"models":["gpt-4o","claude","gemini"],"channel_types":[1,3]}}]}`)
+	require.Equal(t, http.StatusOK, code, body)
+	assert.Equal(t, []int{1, 3}, request_plugin_setting.GetInstances()[0].PluginScope.ChannelTypes)
+
+	// A plugin without a scope has none to confirm.
+	register(``)
+	code, body = save(`{"instances":[{"name":"New","plugin":"rp-scoped","enabled":true,"plugin_scope":{"models":["claude"],"channel_types":[]}}]}`)
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Contains(t, body, "Plugin rp-scoped changed where it runs")
+}
+
 func TestUploadTaskPluginAppliesMarketplaceKeyRulesAndCountsCommunityInstalls(t *testing.T) {
 	setupTaskPluginFactoryDisableTest(t)
 	// The install count runs beside the request; :memory: needs one connection.
