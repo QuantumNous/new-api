@@ -93,6 +93,8 @@ export const STATIC_I18N_KEYS = [
   'Connect to self-hosted models served by vLLM',
   'vLLM server address, without /v1',
   'vLLM API key, or EMPTY if authentication is disabled',
+  'Voyage AI',
+  'Connect to Voyage AI embedding and rerank models',
 
   'Price per image',
   'Per image',

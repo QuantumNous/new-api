@@ -39,6 +39,7 @@ const (
 	APITypeAdvancedCustom
 	APITypeSub2API
 	APITypeNewAPI
+	APITypeVoyage
 	// APITypeProviderPlugin serves a task plugin channel (type 61) whose
 	// plugin has relay routes; ChannelType2APIType never returns it.
 	APITypeProviderPlugin

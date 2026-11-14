@@ -36,4 +36,26 @@ var builtinBillingExpr = map[string]string{
 	// requests each, the same pricing page. The calls carry no tokens.
 	constant.DeepSeekSearchModel: `tier("request", fixed(0.00075))`,
 	constant.DeepSeekFetchModel:  `tier("request", fixed(0.00075))`,
+	// https://docs.voyageai.com/docs/pricing (2026-11-13). Voyage bills text
+	// tokens only, except the multimodal models, which also bill image and
+	// video pixels at $0.60 per billion. The adaptor reports 560 pixels as one
+	// image token, so img is $0.60 / 1e9 * 560 * 1e6 = $0.336 per million.
+	"voyage-4-large":        `tier("base", p * 0.12)`,
+	"voyage-4":              `tier("base", p * 0.06)`,
+	"voyage-4-lite":         `tier("base", p * 0.02)`,
+	"voyage-code-4":         `tier("base", p * 0.12)`,
+	"voyage-3-large":        `tier("base", p * 0.18)`,
+	"voyage-3.5":            `tier("base", p * 0.06)`,
+	"voyage-3.5-lite":       `tier("base", p * 0.02)`,
+	"voyage-code-3":         `tier("base", p * 0.18)`,
+	"voyage-finance-2":      `tier("base", p * 0.12)`,
+	"voyage-law-2":          `tier("base", p * 0.12)`,
+	"voyage-context-4":      `tier("base", p * 0.12)`,
+	"voyage-context-3":      `tier("base", p * 0.18)`,
+	"voyage-multimodal-3.5": `tier("base", p * 0.12 + img * 0.336)`,
+	"voyage-multimodal-3":   `tier("base", p * 0.12 + img * 0.336)`,
+	"rerank-3":              `tier("base", p * 0.05)`,
+	"rerank-3-lite":         `tier("base", p * 0.02)`,
+	"rerank-2.5":            `tier("base", p * 0.05)`,
+	"rerank-2.5-lite":       `tier("base", p * 0.02)`,
 }

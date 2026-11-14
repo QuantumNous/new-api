@@ -163,7 +163,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
 			strings.Contains(testModel, "bge-") || // bge 系列模型
 			strings.Contains(testModel, "embed") ||
-			channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
+			channel.Type == constant.ChannelTypeMokaAI || // 其他 embedding 模型
+			channel.Type == constant.ChannelTypeVoyage && !strings.HasPrefix(testModel, "rerank-") { // voyage model names carry neither "embed" nor "bge-"
 			requestPath = "/v1/embeddings" // 修改请求路径
 		}
 
@@ -744,6 +745,14 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 
 func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
+
+	// Voyage embedding models are told apart by channel type, not by name. The
+	// contextualized ones need an explicit input type, which every Voyage
+	// embedding endpoint accepts.
+	if channel != nil && channel.Type == constant.ChannelTypeVoyage && !strings.HasPrefix(model, "rerank-") &&
+		(endpointType == "" || constant.EndpointType(endpointType) == constant.EndpointTypeEmbeddings) {
+		return &dto.EmbeddingRequest{Model: model, Input: []any{"hello world"}, InputType: lo.ToPtr("document")}
+	}
 
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
