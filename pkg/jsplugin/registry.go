@@ -862,8 +862,8 @@ func (r *Registry) GetIgnoringMasterSwitch(key string) (*LoadedPlugin, bool) {
 	return plugin, ok
 }
 
-func (r *Registry) GetByChannelType(channelType int) (*LoadedPlugin, bool) {
-	return r.Generation().GetByChannelType(channelType)
+func (r *Registry) PluginsByChannelType(channelType int) []*LoadedPlugin {
+	return r.Generation().PluginsByChannelType(channelType)
 }
 
 // Enabled reports the master switch position. When false the published
@@ -1178,8 +1178,6 @@ func (r *Registry) recordRebuildFailure(err error) {
 func taskPluginRoutingDebugReason(message string) string {
 	lower := strings.ToLower(message)
 	switch {
-	case strings.Contains(lower, "channeltype"), strings.Contains(lower, "channel type"):
-		return "channel_type_conflict"
 	case strings.Contains(lower, "endpoint"):
 		return "endpoint_conflict"
 	case strings.Contains(lower, "inner gin"), strings.Contains(lower, "rebuilding public routes"):

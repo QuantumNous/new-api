@@ -530,9 +530,9 @@ export const meta = {apiVersion:1,key:"test",name:"Test",version:"1.0.0",author:
 export function buildSubmitRequest(){return {}} export function parseSubmitResponse(){return {}} export function buildQueryRequest(){return {}} export function parseTaskResult(){return {}}
 `, Options{})
 	require.NoError(t, err)
-	plugin, ok := registry.GetByChannelType(1001)
-	require.True(t, ok)
-	assert.Equal(t, "test", plugin.Meta.Key)
+	plugins := registry.PluginsByChannelType(1001)
+	require.Len(t, plugins, 1)
+	assert.Equal(t, "test", plugins[0].Meta.Key)
 }
 
 func TestTaskPluginRoutingDebugReasonDoesNotExposeRawFailure(t *testing.T) {
@@ -541,7 +541,6 @@ func TestTaskPluginRoutingDebugReasonDoesNotExposeRawFailure(t *testing.T) {
 		message  string
 		expected string
 	}{
-		{name: "channel type", message: "channelType 80 conflicts with plugin secret", expected: "channel_type_conflict"},
 		{name: "endpoint", message: `endpoint https://secret.invalid/?key=hidden conflicts`, expected: "endpoint_conflict"},
 		{name: "inner router", message: "inner Gin registration panic: private route", expected: "inner_router_build_failed"},
 		{name: "route", message: `route /private/path conflicts`, expected: "route_conflict"},

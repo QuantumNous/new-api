@@ -59,14 +59,16 @@ export function parseTaskResult() { return {}; }
 `, key, version)
 }
 
-func taskPluginControllerChannelSource(key, version string, channelType int) string {
+// taskPluginControllerModelSource is a task plugin with one model; two
+// plugins whose model names differ only in case conflict.
+func taskPluginControllerModelSource(key, version, modelName string) string {
 	return fmt.Sprintf(`
-export const meta = {apiVersion: 1, key: %q, name: "Test", version: %q, author: {name: "Test"}, channelTypes: [%d], models: ["doc-1"], fetchMode: "per_task"};
+export const meta = {apiVersion: 1, key: %q, name: "Test", version: %q, author: {name: "Test"}, models: [%q], fetchMode: "per_task"};
 export function buildSubmitRequest() { return {}; }
 export function parseSubmitResponse() { return {}; }
 export function buildQueryRequest() { return {}; }
 export function parseTaskResult() { return {}; }
-`, key, version, channelType)
+`, key, version, modelName)
 }
 
 func cleanupTaskPluginControllerRuntime(t *testing.T, key string) {
@@ -1274,9 +1276,9 @@ func TestSyncTaskPluginsCachesRejectedDesiredSourceWithoutLosingIncumbent(t *tes
 	ownerKey := "sync-retained-owner"
 	cleanupTaskPluginControllerRuntime(t, pluginKey)
 	cleanupTaskPluginControllerRuntime(t, ownerKey)
-	v1Source := taskPluginControllerChannelSource(pluginKey, "1.0.0", 9001)
-	v2Source := taskPluginControllerChannelSource(pluginKey, "2.0.0", 9002)
-	ownerSource := taskPluginControllerChannelSource(ownerKey, "1.0.0", 9002)
+	v1Source := taskPluginControllerModelSource(pluginKey, "1.0.0", "retained-v1")
+	v2Source := taskPluginControllerModelSource(pluginKey, "2.0.0", "OWNED-MODEL")
+	ownerSource := taskPluginControllerModelSource(ownerKey, "1.0.0", "owned-model")
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
 		Key: pluginKey, APIVersion: 1, Version: "1.0.0", Source: model.LongText(v1Source), SourceHash: "retained-v1", Enabled: true,
 	}))
@@ -1301,9 +1303,9 @@ func TestSyncTaskPluginsCachesRejectedDesiredSourceWithoutLosingIncumbent(t *tes
 		assert.Same(t, incumbent, active)
 		assert.Equal(t, "2.0.0", jsplugin.DefaultRegistry.OverridePlugins()[pluginKey].Meta.Version)
 		assert.Same(t, incumbent, jsplugin.DefaultRegistry.ActiveOverridePlugins()[pluginKey])
-		assert.Contains(t, jsplugin.DefaultRegistry.RoutingErrors()[pluginKey], "channelType 9002 conflicts")
+		assert.Contains(t, jsplugin.DefaultRegistry.RoutingErrors()[pluginKey], `model "OWNED-MODEL" conflicts`)
 		nodeError := service.NodeSyncStates()[model.SyncTopicPlugins].Errors[pluginKey]
-		assert.Contains(t, nodeError, "channelType 9002 conflicts")
+		assert.Contains(t, nodeError, `model "OWNED-MODEL" conflicts`)
 		taskPluginSyncState.Lock()
 		assert.Equal(t, "retained-v2", taskPluginSyncState.hashes[pluginKey])
 		taskPluginSyncState.Unlock()
@@ -1312,7 +1314,7 @@ func TestSyncTaskPluginsCachesRejectedDesiredSourceWithoutLosingIncumbent(t *tes
 
 	require.NoError(t, model.SaveTaskPlugin(&model.TaskPlugin{
 		Key: ownerKey, APIVersion: 1, Version: "2.0.0",
-		Source: model.LongText(taskPluginControllerChannelSource(ownerKey, "2.0.0", 9003)), SourceHash: "owner-v2", Enabled: true,
+		Source: model.LongText(taskPluginControllerModelSource(ownerKey, "2.0.0", "owner-v2")), SourceHash: "owner-v2", Enabled: true,
 	}))
 	require.NoError(t, model.ActivateTaskPlugin(ownerKey, "2.0.0"))
 	require.NoError(t, syncTaskPluginsOnce())
@@ -1395,13 +1397,13 @@ func TestUploadTaskPluginPreflightConflict(t *testing.T) {
 		{
 			name:      "enabled conflict rejected",
 			key:       "preflight-reject",
-			wantError: "channelType 50 conflicts",
+			wantError: "conflicts with plugin kling",
 		},
 		{
 			name:      "force does not bypass a conflict",
 			key:       "preflight-force",
 			force:     true,
-			wantError: "channelType 50 conflicts",
+			wantError: "conflicts with plugin kling",
 		},
 		{
 			name:        "disabled skips preflight",
@@ -1413,7 +1415,7 @@ func TestUploadTaskPluginPreflightConflict(t *testing.T) {
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			cleanupTaskPluginControllerRuntime(t, testCase.key)
-			source := taskPluginControllerChannelSource(testCase.key, "1.0.0", 50)
+			source := taskPluginControllerModelSource(testCase.key, "1.0.0", "KLING-V3")
 			payload := map[string]any{"source": source}
 			if testCase.enabled != nil {
 				payload["enabled"] = *testCase.enabled
@@ -1525,12 +1527,12 @@ func TestTaskPluginSwitchOnPathsRejectRoutingConflicts(t *testing.T) {
 		setupTaskPluginControllerTest(t)
 		cleanupTaskPluginControllerRuntime(t, "conflict-zeta")
 		cleanupTaskPluginControllerRuntime(t, "conflict-alpha")
-		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("conflict-zeta", "1.0.0", 990)}).Body.String(), `"success":true`)
-		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("conflict-alpha", "1.0.0", 990), "enabled": false}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerModelSource("conflict-zeta", "1.0.0", "conflict-model")}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerModelSource("conflict-alpha", "1.0.0", "CONFLICT-MODEL"), "enabled": false}).Body.String(), `"success":true`)
 
 		recorder := postTaskPluginStatus(t, "conflict-alpha", "", `{"enabled":true}`)
 		assert.Contains(t, recorder.Body.String(), `"success":false`)
-		assert.Contains(t, recorder.Body.String(), "channelType 990 conflicts")
+		assert.Contains(t, recorder.Body.String(), "conflicts with plugin conflict-alpha")
 		assert.Contains(t, recorder.Body.String(), "conflict-zeta")
 		stored, err := model.GetTaskPluginVersion("conflict-alpha", "")
 		require.NoError(t, err)
@@ -1538,21 +1540,20 @@ func TestTaskPluginSwitchOnPathsRejectRoutingConflicts(t *testing.T) {
 
 		require.Contains(t, postTaskPluginStatus(t, "conflict-zeta", "", `{"enabled":false}`).Body.String(), `"success":true`)
 		assert.Contains(t, postTaskPluginStatus(t, "conflict-alpha", "", `{"enabled":true}`).Body.String(), `"success":true`)
-		serving, ok := jsplugin.DefaultRegistry.GetByChannelType(990)
-		require.True(t, ok)
-		assert.Equal(t, "conflict-alpha", serving.Meta.Key)
+		_, ok := jsplugin.DefaultRegistry.Get("conflict-alpha")
+		assert.True(t, ok)
 	})
 
 	t.Run("switching on a factory built-in", func(t *testing.T) {
 		setupTaskPluginFactoryDisableTest(t)
 		cleanupTaskPluginControllerRuntime(t, "kling-rival")
 		require.Contains(t, postTaskPluginStatus(t, "kling", "", `{"enabled":false}`).Body.String(), `"success":true`)
-		// With the built-in off, another plugin may take its channel type.
-		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("kling-rival", "1.0.0", 50)}).Body.String(), `"success":true`)
+		// With the built-in off, another plugin may take its model name.
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerModelSource("kling-rival", "1.0.0", "KLING-V3")}).Body.String(), `"success":true`)
 
 		recorder := postTaskPluginStatus(t, "kling", "", `{"enabled":true}`)
 		assert.Contains(t, recorder.Body.String(), `"success":false`)
-		assert.Contains(t, recorder.Body.String(), "channelType 50 conflicts")
+		assert.Contains(t, recorder.Body.String(), "conflicts with plugin kling")
 		assert.Equal(t, []string{"kling"}, setting.GetTaskPluginDisabledFactoryKeys())
 		_, ok := jsplugin.DefaultRegistry.Get("kling")
 		assert.False(t, ok)
@@ -1567,9 +1568,9 @@ func TestTaskPluginSwitchOnPathsRejectRoutingConflicts(t *testing.T) {
 		setupTaskPluginControllerTest(t)
 		cleanupTaskPluginControllerRuntime(t, "activate-conflict")
 		cleanupTaskPluginControllerRuntime(t, "activate-rival")
-		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("activate-rival", "1.0.0", 991)}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerModelSource("activate-rival", "1.0.0", "activate-model")}).Body.String(), `"success":true`)
 		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerTestSource("activate-conflict", "1.0.0")}).Body.String(), `"success":true`)
-		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("activate-conflict", "2.0.0", 991), "enabled": false}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerModelSource("activate-conflict", "2.0.0", "ACTIVATE-MODEL"), "enabled": false}).Body.String(), `"success":true`)
 
 		recorder := httptest.NewRecorder()
 		context, _ := gin.CreateTestContext(recorder)
@@ -1594,8 +1595,8 @@ func TestTaskPluginSwitchOnPathsRejectRoutingConflicts(t *testing.T) {
 		cleanupTaskPluginControllerRuntime(t, "delete-rival")
 		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerTestSource("delete-conflict", "1.0.0")}).Body.String(), `"success":true`)
 		// Stored switched on before the rival existed, so its own check passed.
-		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("delete-conflict", "2.0.0", 992)}).Body.String(), `"success":true`)
-		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("delete-rival", "1.0.0", 992)}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerModelSource("delete-conflict", "2.0.0", "delete-model")}).Body.String(), `"success":true`)
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerModelSource("delete-rival", "1.0.0", "DELETE-MODEL")}).Body.String(), `"success":true`)
 
 		recorder := deleteTaskPluginVersionRequest(t, "delete-conflict", "1.0.0")
 		assert.Contains(t, recorder.Body.String(), `"success":false`)
@@ -1619,15 +1620,15 @@ func TestTaskPluginSwitchOnPathsRejectRoutingConflicts(t *testing.T) {
 		const overrideVersion = "9.9.9-no-channel-type"
 		overrideSource := taskPluginControllerTestSource("kling", overrideVersion)
 		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": overrideSource}).Body.String(), `"success":true`)
-		// The override serving kling does not claim channel type 50, so the rival may.
-		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerChannelSource("kling-rival", "1.0.0", 50)}).Body.String(), `"success":true`)
+		// The override serving kling does not declare kling-v3, so the rival may.
+		require.Contains(t, postTaskPluginUpload(t, map[string]any{"source": taskPluginControllerModelSource("kling-rival", "1.0.0", "KLING-V3")}).Body.String(), `"success":true`)
 
 		recorder := deleteTaskPluginVersionRequest(t, "kling", overrideVersion)
 		assert.Contains(t, recorder.Body.String(), `"success":false`)
-		assert.Contains(t, recorder.Body.String(), "channelType 50 conflicts")
+		assert.Contains(t, recorder.Body.String(), "conflicts with plugin kling")
 		recorder = postTaskPluginUpload(t, map[string]any{"source": overrideSource, "enabled": false})
 		assert.Contains(t, recorder.Body.String(), `"success":false`)
-		assert.Contains(t, recorder.Body.String(), "channelType 50 conflicts")
+		assert.Contains(t, recorder.Body.String(), "conflicts with plugin kling")
 
 		active, err := model.GetTaskPluginVersion("kling", "")
 		require.NoError(t, err)

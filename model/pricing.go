@@ -268,8 +268,10 @@ func updatePricing() {
 		if ability.ChannelType == constant.ChannelTypeTaskPlugin || ordinaryChannelModels[ability.Model] {
 			continue
 		}
-		plugin, claimed := pluginGeneration.GetByChannelType(ability.ChannelType)
-		if !claimed || !slices.Contains(pluginGeneration.PluginsByModel(ability.Model), plugin) {
+		claimed := slices.ContainsFunc(pluginGeneration.PluginsByModel(ability.Model), func(plugin *jsplugin.LoadedPlugin) bool {
+			return slices.Contains(plugin.Meta.ChannelTypes, ability.ChannelType)
+		})
+		if !claimed {
 			ordinaryChannelModels[ability.Model] = true
 		}
 	}
