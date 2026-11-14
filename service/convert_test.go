@@ -1,11 +1,17 @@
 package service
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -107,6 +113,45 @@ func TestStreamResponseConverterFacadesAcceptTypedNilRelayInfo(t *testing.T) {
 	require.NotNil(t, geminiResp)
 	require.Len(t, geminiResp.Candidates, 1)
 	assert.Zero(t, geminiResp.UsageMetadata.PromptTokenCount)
+}
+
+func TestRequestConverterFacadeInlinesGeminiImageWithDebugEnabled(t *testing.T) {
+	previousDebug := common.DebugEnabled
+	common.DebugEnabled = true
+	t.Cleanup(func() { common.DebugEnabled = previousDebug })
+
+	const pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP4z8CAFWEXHbQSACj/P8Fu7N9hAAAAAElFTkSuQmCC"
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	request := &dto.GeneralOpenAIRequest{
+		Model: "gemini-test",
+		Messages: []dto.Message{
+			{Role: "user", Content: []any{
+				map[string]any{"type": "text", "text": "what color?"},
+				map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/png;base64," + pngBase64}},
+			}},
+		},
+	}
+
+	var result *relayconvert.RequestResult
+	var err error
+	require.NotPanics(t, func() {
+		result, err = ConvertRequest(c, &relaycommon.RelayInfo{}, types.RelayFormatGemini, request)
+	})
+	require.NoError(t, err)
+
+	geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.Len(t, geminiRequest.Contents, 1)
+	parts := geminiRequest.Contents[0].Parts
+	require.Len(t, parts, 2)
+	require.NotNil(t, parts[1].InlineData)
+	assert.Equal(t, "image/png", parts[1].InlineData.MimeType)
+	assert.Equal(t, pngBase64, parts[1].InlineData.Data)
+
+	sources, exists := c.Get(string(constant.ContextKeyFileSourcesToCleanup))
+	require.True(t, exists, "image source should be registered on the gin context for request-end cleanup")
+	assert.Len(t, sources, 1)
 }
 
 func ptrValue[T any](value T) *T {
