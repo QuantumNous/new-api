@@ -7750,6 +7750,14 @@
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム",
     "By clicking sign in, you agree to our": "サインインをクリックすると、以下に同意したことになります：",
-    "By creating an account, you agree to our": "アカウントを作成すると、以下に同意したことになります："
+    "By creating an account, you agree to our": "アカウントを作成すると、以下に同意したことになります：",
+    "Epay": "Epay",
+    "Payment channel": "決済チャネル",
+    "via Stripe": "Stripe 経由",
+    "With Stripe, enable Alipay / WeChat Pay in the Stripe Dashboard first, and make sure the Stripe price currency is supported by these payment methods.": "Stripe を使う場合は、先に Stripe ダッシュボードで Alipay / WeChat Pay を有効にし、Stripe 価格の通貨がこれらの決済方法に対応していることを確認してください。",
+    "Payment methods must be a JSON array of objects with string values": "決済方法は、値がすべて文字列のオブジェクトからなる JSON 配列である必要があります",
+    "Only alipay and wxpay payment methods can use the Stripe channel, got {{type}}": "Stripe チャネルを使用できるのは alipay と wxpay の決済方法のみです（指定値: {{type}}）",
+    "Unsupported payment channel {{provider}} for payment method {{type}}": "決済方法 {{type}} の決済チャネル {{provider}} はサポートされていません",
+    "Payment method {{type}} uses the Stripe channel and must be configured only once": "決済方法 {{type}} は Stripe チャネルを使用するため、1 回だけ設定できます"
   }
 }

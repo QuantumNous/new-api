@@ -7750,6 +7750,14 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "By clicking sign in, you agree to our": "En cliquant sur se connecter, vous acceptez nos",
-    "By creating an account, you agree to our": "En créant un compte, vous acceptez nos"
+    "By creating an account, you agree to our": "En créant un compte, vous acceptez nos",
+    "Epay": "Epay",
+    "Payment channel": "Canal de paiement",
+    "via Stripe": "via Stripe",
+    "With Stripe, enable Alipay / WeChat Pay in the Stripe Dashboard first, and make sure the Stripe price currency is supported by these payment methods.": "Avec Stripe, activez d'abord Alipay / WeChat Pay dans le tableau de bord Stripe et vérifiez que la devise du prix Stripe est prise en charge par ces moyens de paiement.",
+    "Payment methods must be a JSON array of objects with string values": "Les moyens de paiement doivent être un tableau JSON d’objets dont les valeurs sont des chaînes",
+    "Only alipay and wxpay payment methods can use the Stripe channel, got {{type}}": "Seuls les moyens de paiement alipay et wxpay peuvent utiliser le canal Stripe, reçu {{type}}",
+    "Unsupported payment channel {{provider}} for payment method {{type}}": "Canal de paiement {{provider}} non pris en charge pour le moyen de paiement {{type}}",
+    "Payment method {{type}} uses the Stripe channel and must be configured only once": "Le moyen de paiement {{type}} utilise le canal Stripe et ne doit être configuré qu’une seule fois"
   }
 }

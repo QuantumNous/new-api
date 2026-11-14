@@ -96,7 +96,7 @@ func isEpayTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false
 	}
-	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
+	return isEpayWebhookConfigured() && operation_setting.HasEpayPayMethods()
 }
 
 func isEpayWebhookConfigured() bool {

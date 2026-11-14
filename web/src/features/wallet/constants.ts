@@ -39,6 +39,15 @@ export const PAYMENT_TYPES = {
 } as const
 
 /**
+ * Gateways a configured payment method can be paid through. Entries without
+ * a provider are Epay methods.
+ */
+export const PAYMENT_PROVIDERS = {
+  EPAY: 'epay',
+  STRIPE: 'stripe',
+} as const
+
+/**
  * Default payment type
  */
 export const DEFAULT_PAYMENT_TYPE = PAYMENT_TYPES.ALIPAY

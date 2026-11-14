@@ -7750,6 +7750,14 @@
     "Zhipu V4": "智谱 V4",
     "Zoom": "缩放",
     "By clicking sign in, you agree to our": "点击登录即表示您同意我们的",
-    "By creating an account, you agree to our": "创建账户即表示您同意我们的"
+    "By creating an account, you agree to our": "创建账户即表示您同意我们的",
+    "Epay": "易支付",
+    "Payment channel": "支付渠道",
+    "via Stripe": "经 Stripe",
+    "With Stripe, enable Alipay / WeChat Pay in the Stripe Dashboard first, and make sure the Stripe price currency is supported by these payment methods.": "选择 Stripe 前，请先在 Stripe Dashboard 开通 Alipay / WeChat Pay，并确认 Stripe 价格的币种受这两种支付方式支持。",
+    "Payment methods must be a JSON array of objects with string values": "支付方式必须是 JSON 数组，且每项的值都是字符串",
+    "Only alipay and wxpay payment methods can use the Stripe channel, got {{type}}": "只有 alipay 和 wxpay 支付方式可以使用 Stripe 渠道，当前为 {{type}}",
+    "Unsupported payment channel {{provider}} for payment method {{type}}": "支付方式 {{type}} 的支付渠道 {{provider}} 不受支持",
+    "Payment method {{type}} uses the Stripe channel and must be configured only once": "支付方式 {{type}} 使用 Stripe 渠道，只能配置一次"
   }
 }

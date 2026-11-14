@@ -292,6 +292,12 @@ func UpdateOption(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+	case "PayMethods":
+		err = operation_setting.ValidatePayMethodsJsonString(option.Value.(string))
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	case operation_setting.ToolPriceOptionKey:
 		err = operation_setting.ValidateToolPricesJSON(option.Value.(string))
 		if err != nil {
