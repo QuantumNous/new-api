@@ -116,7 +116,8 @@ func (s *SubscriptionFunding) Settle(delta int) error {
 	if delta == 0 {
 		return nil
 	}
-	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	_, err := model.SettleUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	return err
 }
 
 func (s *SubscriptionFunding) Refund() error {

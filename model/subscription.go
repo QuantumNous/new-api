@@ -1547,3 +1547,40 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		return tx.Save(&sub).Error
 	})
 }
+
+// SettleUserSubscriptionDelta applies a settlement delta after the request has
+// been served. Unlike PostConsumeUserSubscriptionDelta, which must refuse an
+// overrun while reserving, a positive delta that overruns the plan fills it to
+// AmountTotal and returns the uncovered part. Refusing here would leave
+// AmountUsed below AmountTotal for good, so every later small pre-consume
+// would still fit and the plan would never be exhausted.
+func SettleUserSubscriptionDelta(userSubscriptionId int, delta int64) (uncovered int64, err error) {
+	if userSubscriptionId <= 0 {
+		return 0, errors.New("invalid userSubscriptionId")
+	}
+	if delta == 0 {
+		return 0, nil
+	}
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var sub UserSubscription
+		if err := lockForUpdate(tx).
+			Where("id = ?", userSubscriptionId).
+			First(&sub).Error; err != nil {
+			return err
+		}
+		newUsed := max(sub.AmountUsed+delta, 0)
+		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+			uncovered = newUsed - sub.AmountTotal
+			newUsed = sub.AmountTotal
+		}
+		sub.AmountUsed = newUsed
+		return tx.Save(&sub).Error
+	})
+	if err != nil {
+		return 0, err
+	}
+	if uncovered > 0 {
+		common.SysLog(common.LogText("subscription %d exhausted at settlement, %d quota of the final delta uncovered", userSubscriptionId, uncovered))
+	}
+	return uncovered, nil
+}
