@@ -22,6 +22,7 @@ export const INTERFACE_LANGUAGE_OPTIONS = [
   { code: 'fr', label: 'Français' },
   { code: 'ru', label: 'Русский' },
   { code: 'ja', label: '日本語' },
+  { code: 'ko', label: '한국어' },
   { code: 'vi', label: 'Tiếng Việt' },
   { code: 'zhTW', label: '繁體中文' },
 ] as const
@@ -62,6 +63,9 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
  */
 export function convertDetectedLanguage(value: string): string {
   const lower = value.trim().replaceAll('_', '-').toLowerCase()
+  // Korean browsers report `ko` / `ko-KR`; `supportedLngs` uses the bare `ko`
+  // code and `load: 'currentOnly'` does not expand `ko-KR` on its own.
+  if (lower === 'ko' || lower.startsWith('ko-')) return 'ko'
   if (!lower.startsWith('zh')) return value
   if (
     lower === 'zhtw' ||
