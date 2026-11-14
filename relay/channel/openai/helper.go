@@ -225,6 +225,25 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		for _, resp := range claudeResponses {
 			_ = helper.ClaudeData(c, *resp)
 		}
+		if !info.ClaudeConvertInfo.Done {
+			// OpenAI-style upstreams can end without a usable usage frame: the
+			// converter defers the terminal message_delta/message_stop to a
+			// usage frame that never arrives, leaving the Claude stream open
+			// and clients reporting a dropped connection. Emit the terminal
+			// events here so the stream always closes.
+			state, serr := relayconvert.NewResponseStreamState(types.RelayFormatOpenAI, types.RelayFormatClaude, relayconvert.ResponseStreamOptions{})
+			if serr != nil {
+				common.SysLog("error creating Claude finalize state: " + serr.Error())
+			} else if results, ferr := service.FinalizeStreamResponse(c, info, state); ferr != nil {
+				common.SysLog("error finalizing Claude stream response: " + ferr.Error())
+			} else {
+				for _, result := range results {
+					if resp, ok := result.Value.(*dto.ClaudeResponse); ok && resp != nil {
+						_ = helper.ClaudeData(c, *resp)
+					}
+				}
+			}
+		}
 		info.ClaudeConvertInfo.Done = true
 
 	case types.RelayFormatGemini:
