@@ -69,10 +69,12 @@ type chatToResponsesStreamTool struct {
 	Name        string
 	Arguments   strings.Builder
 	// Announced records that output_item.added was sent. Custom reports that
-	// the call restores a Responses custom tool; it is fixed at announcement.
-	Announced bool
-	Custom    bool
-	Done      bool
+	// the call restores a Responses custom tool; ToolSearch reports that it
+	// restores a client-executed tool search. Both are fixed at announcement.
+	Announced  bool
+	Custom     bool
+	ToolSearch bool
+	Done       bool
 }
 
 type chatToResponsesOutputRef struct {
@@ -566,8 +568,9 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 		// Announced calls reach the client; custom tool input at completion.
 		s.usageText.WriteString(delta)
 	}
-	// Custom tool input is unwrapped from the complete arguments at the end.
-	if tool.Announced && !tool.Custom && delta != "" {
+	// Custom tool input and tool-search arguments are unwrapped from the
+	// complete arguments at the end, so they never stream as function deltas.
+	if tool.Announced && !tool.Custom && !tool.ToolSearch && delta != "" {
 		events = append(events, s.event(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
 			Type:        responsesEventFunctionArgsDelta,
 			OutputIndex: intPtr(tool.OutputIndex),
@@ -584,6 +587,7 @@ func (s *ChatToResponsesStreamState) announceTool(tool *chatToResponsesStreamToo
 	tool.Announced = true
 	tool.OutputIndex = s.nextIndex(chatToResponsesOutputRef{Kind: "tool", ToolIndex: tool.ChatIndex})
 	tool.Custom = s.Tools.IsCustomTool(tool.Name)
+	tool.ToolSearch = s.Tools.IsToolSearchTool(tool.Name)
 	namespace, name := s.Tools.ResponsesToolName(tool.Name)
 	item := &dto.ResponsesOutput{
 		Type:      responsesOutputTypeFunctionCall,
@@ -598,6 +602,17 @@ func (s *ChatToResponsesStreamState) announceTool(tool *chatToResponsesStreamToo
 		item.Type = responsesOutputTypeCustomToolCall
 		item.Arguments = nil
 		item.Input = []byte(`""`)
+	}
+	if tool.ToolSearch {
+		// The search arguments are a JSON object, so the item is only complete
+		// once the call ends; the object arrives with output_item.done.
+		item = &dto.ResponsesOutput{
+			Type:      responsesOutputTypeToolSearchCall,
+			ID:        tool.ItemID,
+			Status:    "in_progress",
+			CallId:    tool.callID(),
+			Arguments: []byte(`{}`),
+		}
 	}
 	return s.event(responsesEventOutputItemAdded, dto.ResponsesStreamResponse{
 		Type:        responsesEventOutputItemAdded,
@@ -675,7 +690,7 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 				continue
 			}
 			events = append(events, s.announceTool(tool))
-			if !tool.Custom && tool.Arguments.Len() > 0 {
+			if !tool.Custom && !tool.ToolSearch && tool.Arguments.Len() > 0 {
 				events = append(events, s.event(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
 					Type:        responsesEventFunctionArgsDelta,
 					OutputIndex: intPtr(tool.OutputIndex),
@@ -700,7 +715,7 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 				ItemID:      tool.ItemID,
 				Input:       kitutil.GetPointer(input),
 			}))
-		} else {
+		} else if !tool.ToolSearch {
 			argumentsDone := dto.ResponsesStreamResponse{
 				Type:        responsesEventFunctionArgsDone,
 				OutputIndex: intPtr(tool.OutputIndex),
@@ -902,6 +917,15 @@ func (s *ChatToResponsesStreamState) toolOutput(tool *chatToResponsesStreamTool,
 			Name:      name,
 			Namespace: namespace,
 			Input:     chatArgumentsRawMessage(customToolInputFromArguments(tool.Arguments.String())),
+		}
+	}
+	if tool.ToolSearch {
+		return &dto.ResponsesOutput{
+			Type:      responsesOutputTypeToolSearchCall,
+			ID:        tool.ItemID,
+			Status:    status,
+			CallId:    tool.callID(),
+			Arguments: chatArgumentsToToolSearchArguments(tool.Arguments.String()),
 		}
 	}
 	return &dto.ResponsesOutput{
