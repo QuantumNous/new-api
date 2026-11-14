@@ -7750,6 +7750,14 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "By clicking sign in, you agree to our": "Bằng cách nhấp đăng nhập, bạn đồng ý với",
-    "By creating an account, you agree to our": "Bằng cách tạo tài khoản, bạn đồng ý với"
+    "By creating an account, you agree to our": "Bằng cách tạo tài khoản, bạn đồng ý với",
+    "Epay": "Epay",
+    "Payment channel": "Kênh thanh toán",
+    "via Stripe": "qua Stripe",
+    "With Stripe, enable Alipay / WeChat Pay in the Stripe Dashboard first, and make sure the Stripe price currency is supported by these payment methods.": "Khi dùng Stripe, hãy bật Alipay / WeChat Pay trong Stripe Dashboard trước và đảm bảo đơn vị tiền tệ của giá Stripe được các phương thức này hỗ trợ.",
+    "Payment methods must be a JSON array of objects with string values": "Phương thức thanh toán phải là mảng JSON gồm các đối tượng có giá trị chuỗi",
+    "Only alipay and wxpay payment methods can use the Stripe channel, got {{type}}": "Chỉ phương thức thanh toán alipay và wxpay mới có thể dùng kênh Stripe, nhận được {{type}}",
+    "Unsupported payment channel {{provider}} for payment method {{type}}": "Kênh thanh toán {{provider}} không được hỗ trợ cho phương thức thanh toán {{type}}",
+    "Payment method {{type}} uses the Stripe channel and must be configured only once": "Phương thức thanh toán {{type}} dùng kênh Stripe và chỉ được cấu hình một lần"
   }
 }

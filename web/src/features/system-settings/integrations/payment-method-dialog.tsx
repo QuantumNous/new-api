@@ -43,6 +43,7 @@ const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
     type: z.string().min(1, t('Payment type key is required')),
     icon: z.string().optional(),
     min_topup: z.string().optional(),
+    provider: z.string().optional(),
   })
 
 type PaymentMethodDialogFormValues = z.infer<
@@ -57,6 +58,8 @@ export type PaymentMethodData = {
   icon?: string
   min_topup?: string
   color?: string
+  /** Gateway the method is paid through; omitted means Epay. */
+  provider?: string
 }
 
 type PaymentMethodDialogProps = {
@@ -74,6 +77,12 @@ const PAYMENT_TYPE_ICON_NAMES: Record<string, string> = {
 }
 
 const getDefaultIconName = (type: string) => PAYMENT_TYPE_ICON_NAMES[type] ?? ''
+
+// Payment types that can be paid through Stripe Checkout instead of Epay.
+const STRIPE_ROUTABLE_PAYMENT_TYPES = new Set(['alipay', 'wxpay'])
+
+const isStripeRoutableType = (type: string) =>
+  STRIPE_ROUTABLE_PAYMENT_TYPES.has(type)
 
 export function PaymentMethodDialog({
   open,
@@ -120,10 +129,16 @@ export function PaymentMethodDialog({
       type: '',
       icon: '',
       min_topup: '',
+      provider: 'epay',
     },
   })
 
   const iconValue = form.watch('icon')
+  const typeValue = form.watch('type')
+  const providerOptions = [
+    { label: t('Epay'), value: 'epay' },
+    { label: t('Stripe'), value: 'stripe' },
+  ]
 
   useEffect(() => {
     if (editData) {
@@ -132,6 +147,7 @@ export function PaymentMethodDialog({
         type: editData.type,
         icon: editData.icon ?? getDefaultIconName(editData.type),
         min_topup: editData.min_topup ?? '',
+        provider: editData.provider === 'stripe' ? 'stripe' : 'epay',
       })
     } else {
       form.reset({
@@ -139,6 +155,7 @@ export function PaymentMethodDialog({
         type: '',
         icon: '',
         min_topup: '',
+        provider: 'epay',
       })
     }
   }, [editData, form, open])
@@ -153,6 +170,9 @@ export function PaymentMethodDialog({
     }
     if (values.min_topup && values.min_topup.trim() !== '') {
       data.min_topup = values.min_topup
+    }
+    if (values.provider === 'stripe' && isStripeRoutableType(values.type)) {
+      data.provider = 'stripe'
     }
     onSave(data)
     form.reset()
@@ -256,6 +276,33 @@ export function PaymentMethodDialog({
               </FormItem>
             )}
           />
+
+          {isStripeRoutableType(typeValue) && (
+            <FormField
+              control={form.control}
+              name='provider'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Payment channel')}</FormLabel>
+                  <FormControl>
+                    <Combobox
+                      options={providerOptions}
+                      value={field.value || 'epay'}
+                      onValueChange={(value) =>
+                        value !== null && field.onChange(value)
+                      }
+                    />
+                  </FormControl>
+                  <FormDescription className='leading-relaxed'>
+                    {t(
+                      'With Stripe, enable Alipay / WeChat Pay in the Stripe Dashboard first, and make sure the Stripe price currency is supported by these payment methods.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           <FormField
             control={form.control}

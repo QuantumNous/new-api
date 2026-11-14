@@ -129,7 +129,8 @@ export function PaymentMethodsVisualEditor({
         typeof item.type === 'string' &&
         (!('icon' in item) || typeof item.icon === 'string') &&
         (!('min_topup' in item) || typeof item.min_topup === 'string') &&
-        (!('color' in item) || typeof item.color === 'string')
+        (!('color' in item) || typeof item.color === 'string') &&
+        (!('provider' in item) || typeof item.provider === 'string')
     )
   }, [value])
 
@@ -320,9 +321,16 @@ export function PaymentMethodsVisualEditor({
                 id: 'type',
                 header: t('Payment type key'),
                 cell: (method) => (
-                  <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
-                    {method.type}
-                  </code>
+                  <div className='flex items-center gap-2'>
+                    <code className='bg-muted rounded px-1.5 py-0.5 text-sm'>
+                      {method.type}
+                    </code>
+                    {method.provider === 'stripe' && (
+                      <span className='text-muted-foreground text-xs'>
+                        {t('via Stripe')}
+                      </span>
+                    )}
+                  </div>
                 ),
               },
               {
@@ -387,6 +395,7 @@ export function PaymentMethodsVisualEditor({
                 method.icon,
                 method.min_topup,
                 method.color,
+                method.provider,
               ]
                 .filter(Boolean)
                 .join('-')
@@ -399,6 +408,11 @@ export function PaymentMethodsVisualEditor({
                       <code className='bg-muted rounded px-1.5 py-0.5 text-xs'>
                         {method.type}
                       </code>
+                      {method.provider === 'stripe' && (
+                        <span className='text-muted-foreground ml-2 text-xs'>
+                          {t('via Stripe')}
+                        </span>
+                      )}
                     </div>
                     <div className='flex gap-1'>
                       <Button

@@ -1,6 +1,7 @@
 package operation_setting
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/Calcium-Ion/go-epay/epay"
@@ -90,6 +91,88 @@ func ValidateEpaySignOption(key, value string) error {
 	if rsaActive || (key == EpayPlatformPublicKeyOptionKey && strings.TrimSpace(value) != "") {
 		if _, err := epay.ParseRSAPublicKey(publicKey); err != nil {
 			return common.NewMessage("The Epay platform public key is missing or invalid")
+		}
+	}
+	return nil
+}
+
+// Payment providers a PayMethods entry can be routed through. An entry without
+// a "provider" field is an Epay method, which is how every entry behaved before
+// the field existed.
+const (
+	PayMethodProviderEpay   = "epay"
+	PayMethodProviderStripe = "stripe"
+)
+
+// PayMethods types that may be routed through Stripe Checkout instead of Epay.
+const (
+	PayMethodTypeAlipay = "alipay"
+	PayMethodTypeWxpay  = "wxpay"
+)
+
+var stripeCheckoutPayMethodTypes = []string{PayMethodTypeAlipay, PayMethodTypeWxpay}
+
+// PayMethodProvider returns the provider a PayMethods entry is routed through.
+func PayMethodProvider(payMethod map[string]string) string {
+	if payMethod["provider"] == PayMethodProviderStripe {
+		return PayMethodProviderStripe
+	}
+	return PayMethodProviderEpay
+}
+
+// HasEpayPayMethods reports whether at least one configured payment method is
+// routed through Epay.
+func HasEpayPayMethods() bool {
+	for _, payMethod := range PayMethods {
+		if PayMethodProvider(payMethod) == PayMethodProviderEpay {
+			return true
+		}
+	}
+	return false
+}
+
+// ContainsStripePayMethod reports whether method is an alipay or wxpay entry
+// configured to pay through Stripe Checkout.
+func ContainsStripePayMethod(method string) bool {
+	if !slices.Contains(stripeCheckoutPayMethodTypes, method) {
+		return false
+	}
+	for _, payMethod := range PayMethods {
+		if payMethod["type"] == method && PayMethodProvider(payMethod) == PayMethodProviderStripe {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidatePayMethodsJsonString checks a PayMethods option value before it is
+// saved: provider must be empty, epay or stripe; only alipay and wxpay may use
+// stripe; and a type routed through Stripe may appear only once, because the
+// payment endpoints look methods up by type.
+func ValidatePayMethodsJsonString(jsonString string) error {
+	var payMethods []map[string]string
+	if err := common.Unmarshal([]byte(jsonString), &payMethods); err != nil {
+		return common.NewMessage("Payment methods must be a JSON array of objects with string values")
+	}
+	typeCount := make(map[string]int, len(payMethods))
+	stripeTypes := make([]string, 0)
+	for _, payMethod := range payMethods {
+		methodType := payMethod["type"]
+		typeCount[methodType]++
+		switch payMethod["provider"] {
+		case "", PayMethodProviderEpay:
+		case PayMethodProviderStripe:
+			if !slices.Contains(stripeCheckoutPayMethodTypes, methodType) {
+				return common.NewMessage("Only alipay and wxpay payment methods can use the Stripe channel, got {{type}}", map[string]any{"type": methodType})
+			}
+			stripeTypes = append(stripeTypes, methodType)
+		default:
+			return common.NewMessage("Unsupported payment channel {{provider}} for payment method {{type}}", map[string]any{"provider": payMethod["provider"], "type": methodType})
+		}
+	}
+	for _, methodType := range stripeTypes {
+		if typeCount[methodType] > 1 {
+			return common.NewMessage("Payment method {{type}} uses the Stripe channel and must be configured only once", map[string]any{"type": methodType})
 		}
 	}
 	return nil

@@ -7750,6 +7750,14 @@
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom",
     "By clicking sign in, you agree to our": "By clicking sign in, you agree to our",
-    "By creating an account, you agree to our": "By creating an account, you agree to our"
+    "By creating an account, you agree to our": "By creating an account, you agree to our",
+    "Epay": "Epay",
+    "Payment channel": "Payment channel",
+    "via Stripe": "via Stripe",
+    "With Stripe, enable Alipay / WeChat Pay in the Stripe Dashboard first, and make sure the Stripe price currency is supported by these payment methods.": "With Stripe, enable Alipay / WeChat Pay in the Stripe Dashboard first, and make sure the Stripe price currency is supported by these payment methods.",
+    "Payment methods must be a JSON array of objects with string values": "Payment methods must be a JSON array of objects with string values",
+    "Only alipay and wxpay payment methods can use the Stripe channel, got {{type}}": "Only alipay and wxpay payment methods can use the Stripe channel, got {{type}}",
+    "Unsupported payment channel {{provider}} for payment method {{type}}": "Unsupported payment channel {{provider}} for payment method {{type}}",
+    "Payment method {{type}} uses the Stripe channel and must be configured only once": "Payment method {{type}} uses the Stripe channel and must be configured only once"
   }
 }
