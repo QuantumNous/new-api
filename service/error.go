@@ -137,6 +137,80 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	return
 }
 
+const upstreamQuotaInsufficientMessage = "请联系管理员修复该分组"
+
+var upstreamQuotaMarkers = []string{
+	"insufficient_quota",
+	"insufficient_balance",
+	"insufficient balance",
+	"credit balance is too low",
+	"credit balance too low",
+	"credit balance is depleted",
+	"exceeded your current quota",
+	"billing_not_active",
+	"billing not active",
+	"arrearage",
+	"insufficient_user_quota",
+	"余额不足",
+	"余额不够",
+}
+
+// NormalizeUpstreamQuotaError masks provider billing failures while keeping
+// local quota errors available to the user. A normalized upstream error skips
+// retries so the request does not keep selecting the same misconfigured group.
+func NormalizeUpstreamQuotaError(err *types.NewAPIError) *types.NewAPIError {
+	if err == nil || isLocalQuotaError(err) || !isUpstreamQuotaError(err) {
+		return err
+	}
+
+	return types.NewOpenAIError(
+		errors.New(upstreamQuotaInsufficientMessage),
+		types.ErrorCodeUpstreamQuotaInsufficient,
+		err.StatusCode,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
+
+func isLocalQuotaError(err *types.NewAPIError) bool {
+	if err == nil || err.GetErrorType() != types.ErrorTypeNewAPIError {
+		return false
+	}
+	switch err.GetErrorCode() {
+	case types.ErrorCodeInsufficientUserQuota, types.ErrorCodePreConsumeTokenQuotaFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+func isUpstreamQuotaError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	// Generic quota/resource exhaustion also covers RPM/TPM limits. Only
+	// explicit billing failures should replace the message and stop retries.
+	openAIError := err.ToOpenAIError()
+	searchText := strings.ToLower(strings.Join([]string{
+		string(err.GetErrorCode()),
+		openAIError.Type,
+		fmt.Sprintf("%v", openAIError.Code),
+		err.Error(),
+		openAIError.Message,
+	}, " "))
+	// Gemini uses RESOURCE_EXHAUSTED for both rate limits (429) and depleted
+	// prepaid credit (402); the status code disambiguates the billing case.
+	if err.StatusCode == http.StatusPaymentRequired &&
+		(strings.Contains(searchText, "resource_exhausted") || strings.Contains(searchText, "resource exhausted")) {
+		return true
+	}
+	for _, marker := range upstreamQuotaMarkers {
+		if strings.Contains(searchText, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) {
 	if newApiErr == nil {
 		return
