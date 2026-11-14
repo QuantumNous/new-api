@@ -1,10 +1,12 @@
 package ali
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -13,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -86,7 +89,32 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	}
 }
 
+// GetRequestURL selects the native speech/WebSocket endpoints or the matching
+// HTTP compatibility endpoint without mutating the configured channel URL.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if info.RelayMode == constant.RelayModeRealtime {
+		endpoint, err := url.Parse(info.ChannelBaseUrl)
+		if err != nil || endpoint.Host == "" {
+			return "", errors.New("invalid Ali realtime base URL")
+		}
+		switch endpoint.Scheme {
+		case "https":
+			endpoint.Scheme = "wss"
+		case "http":
+			endpoint.Scheme = "ws"
+		case "wss", "ws":
+		default:
+			return "", errors.New("invalid Ali realtime URL scheme")
+		}
+		endpoint.Path = strings.TrimRight(endpoint.Path, "/")
+		if !strings.HasSuffix(endpoint.Path, "/api-ws/v1/realtime") {
+			endpoint.Path += "/api-ws/v1/realtime"
+		}
+		query := endpoint.Query()
+		query.Set("model", info.UpstreamModelName)
+		endpoint.RawQuery = query.Encode()
+		return endpoint.String(), nil
+	}
 	var fullRequestURL string
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
@@ -107,6 +135,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			fullRequestURL = fmt.Sprintf("%s/api/v1/services/rerank/text-rerank/text-rerank", info.ChannelBaseUrl)
 		case constant.RelayModeResponses:
 			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/responses", info.ChannelBaseUrl)
+		case constant.RelayModeAudioSpeech:
+			fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
 		case constant.RelayModeCompletions:
 			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/completions", info.ChannelBaseUrl)
 		default:
@@ -117,10 +147,12 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return fullRequestURL, nil
 }
 
+// SetupRequestHeader authenticates the upstream and enables SSE only for HTTP
+// streaming endpoints; realtime sessions use their WebSocket handshake.
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("Authorization", "Bearer "+info.ApiKey)
-	if info.IsStream {
+	if info.IsStream && info.RelayMode != constant.RelayModeRealtime {
 		req.Set("X-DashScope-SSE", "enable")
 	}
 	if c.GetString("plugin") != "" {
@@ -180,20 +212,49 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	return request, nil
 }
 
+// ConvertAudioRequest validates Qwen's speech formats and billing units before
+// producing a native request, preserving classified 400 errors without retries.
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	if info.RelayMode != constant.RelayModeAudioSpeech {
+		return nil, errors.New("only audio speech (TTS) is supported for ali channel")
+	}
+
+	aliReq, err := convertOpenAITTSRequestToAli(request)
+	if err != nil {
+		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if err := validateAliTTSBilling(info); err != nil {
+		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	jsonData, err := common.Marshal(aliReq)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling ali TTS request: %w", err)
+	}
+	return bytes.NewReader(jsonData), nil
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	return request, nil
 }
 
+// DoRequest uses a WebSocket connection for realtime audio and the shared HTTP
+// transport for other relay modes.
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if info.RelayMode == constant.RelayModeRealtime {
+		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+			return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeChannelModelMappedError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		return channel.DoWssRequest(a, c, info, requestBody)
+	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
+// DoResponse selects the mode-specific response parser and usage contract,
+// including character-count speech and native realtime audio/text usage.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info.RelayMode == constant.RelayModeRealtime {
+		return handleAliRealtimeResponse(c, info)
+	}
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
 		if supportsAliAnthropicMessages(info.UpstreamModelName) {
@@ -207,6 +268,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		switch info.RelayMode {
 		case constant.RelayModeRerank:
 			err, usage = RerankHandler(c, resp, info)
+		case constant.RelayModeAudioSpeech:
+			usage, err = handleAliTTSResponse(c, resp, info)
 		case constant.RelayModeEmbeddings:
 			if isMultimodalEmbeddingModel(info.UpstreamModelName) {
 				err, usage = MultimodalEmbeddingHandler(c, resp, info)

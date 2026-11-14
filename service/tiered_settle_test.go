@@ -1,17 +1,20 @@
 package service
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -1173,6 +1176,278 @@ func TestSamePriceCacheReadsRemainInInput(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, previousCost, cost, "folding cache reads into input must preserve the charge")
 			assert.Equal(t, separateParams.Len, params.Len, "tier conditions keep the full context length")
+		})
+	}
+}
+
+// TestRealtimeCumulativeReservationAndSettlement verifies wallet and token
+// balances after normal final settlement and a repeated idempotent settlement.
+func TestRealtimeCumulativeReservationAndSettlement(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		wallet, token int
+		insufficient  bool
+	}{
+		{"funded session", 5000, 5000, false},
+		{"wallet exhausted", 1000, 5000, true},
+		{"token exhausted rolls back wallet reserve", 5000, 1000, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncate(t)
+			seedUser(t, 8191, tc.wallet)
+			seedToken(t, 8192, 8191, "realtime-billing-test", tc.token)
+			seedChannel(t, 8193)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/realtime", nil)
+			info := &relaycommon.RelayInfo{
+				UserId: 8191, TokenId: 8192, TokenKey: "realtime-billing-test", ForcePreConsume: true,
+				OriginModelName: "voice-alias", StartTime: time.Now(), IsStream: true,
+				UserSetting: dto.UserSetting{BillingPreference: "wallet_only"},
+				ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 8193, UpstreamModelName: "qwen-audio-3.1-realtime-plus"},
+				PriceData:   types.PriceData{ModelRatio: 1, CompletionRatio: 3, AudioRatio: 2, AudioCompletionRatio: 4, GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1}},
+			}
+			require.Nil(t, PreConsumeBilling(ctx, 100, info))
+			usage := &dto.RealtimeUsage{TotalTokens: 377, InputTokens: 336, OutputTokens: 41,
+				InputTokenDetails:  dto.InputTokenDetails{TextTokens: 228, AudioTokens: 108},
+				OutputTokenDetails: dto.OutputTokenDetails{TextTokens: 9, AudioTokens: 32}}
+			require.NoError(t, ReserveRealtimeQuota(ctx, info, usage))
+			require.NoError(t, ReserveRealtimeQuota(ctx, info, usage), "the same cumulative usage must not reserve twice")
+			assert.Equal(t, 727, info.Billing.GetPreConsumedQuota())
+			cumulative := &dto.RealtimeUsage{TotalTokens: 754, InputTokens: 672, OutputTokens: 82,
+				InputTokenDetails:  dto.InputTokenDetails{TextTokens: 456, AudioTokens: 216},
+				OutputTokenDetails: dto.OutputTokenDetails{TextTokens: 18, AudioTokens: 64}}
+			err := ReserveRealtimeQuota(ctx, info, cumulative)
+			reserved := 1454
+			if tc.insufficient {
+				require.Error(t, err)
+				reserved = 727
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, reserved, info.Billing.GetPreConsumedQuota())
+			wallet, err := model.GetUserQuota(info.UserId, true)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wallet-reserved, wallet)
+			var token model.Token
+			require.NoError(t, model.DB.First(&token, info.TokenId).Error)
+			assert.Equal(t, tc.token-reserved, token.RemainQuota)
+			// The second turn has already completed when its usage arrives. Even
+			// on insufficient funds it must settle, with no refund of earlier turns.
+			PostWssConsumeQuota(ctx, info, info.UpstreamModelName, cumulative, nil)
+			wallet, err = model.GetUserQuota(info.UserId, true)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wallet-1454, wallet)
+			require.NoError(t, model.DB.First(&token, info.TokenId).Error)
+			assert.Equal(t, tc.token-1454, token.RemainQuota)
+			assert.Equal(t, 1454, token.UsedQuota)
+			require.NoError(t, info.Billing.Settle(1454))
+			wallet, err = model.GetUserQuota(info.UserId, true)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wallet-1454, wallet, "the second settlement must be idempotent")
+			require.NoError(t, model.DB.First(&token, info.TokenId).Error)
+			assert.Equal(t, tc.token-1454, token.RemainQuota)
+			assert.Equal(t, 1454, token.UsedQuota)
+			var log model.Log
+			require.NoError(t, model.LOG_DB.Where("user_id = ?", info.UserId).Take(&log).Error)
+			assert.Equal(t, 1454, log.Quota)
+			assert.Equal(t, "voice-alias", log.ModelName)
+			assert.True(t, log.IsStream)
+		})
+	}
+}
+
+// TestRealtimeTieredAudioAndSearchBilling keeps model and tool prices stable
+// across cumulative reservations even when administrators change live prices.
+func TestRealtimeTieredAudioAndSearchBilling(t *testing.T) {
+	const modelName = "realtime-audio-billing-test"
+	const toolKey = "search_strategy_turbo:" + modelName
+	operation_setting.SetToolPriceForTest(toolKey, 2)
+	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest(toolKey) })
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	billing := &recordingBillingSettler{}
+	info := &relaycommon.RelayInfo{OriginModelName: modelName, Billing: billing,
+		ChannelMeta:           &relaycommon.ChannelMeta{UpstreamModelName: "qwen-audio-3.1-realtime-plus"},
+		PriceData:             types.PriceData{GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0.5}},
+		TieredBillingSnapshot: makeSnapshot(`tier("audio", p * 2 + c * 4 + ai * 10 + ao * 20)`, 0.5, 0, 0),
+	}
+	info.SetBillableToolCount("search_strategy_turbo", 2)
+	usage := &dto.RealtimeUsage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150,
+		InputTokenDetails:  dto.InputTokenDetails{TextTokens: 40, AudioTokens: 60},
+		OutputTokenDetails: dto.OutputTokenDetails{TextTokens: 20, AudioTokens: 30}}
+	// (40*2 + 20*4 + 60*10 + 30*20) * 0.5 quota/USD-million * 0.5 group = 340.
+	// Two searches at the alias-specific $2/1000 price add 1000 quota.
+	require.NoError(t, ReserveRealtimeQuota(ctx, info, usage))
+	assert.Equal(t, []int{1340}, billing.reserveTargets)
+	quota, result, items := calculateRealtimeQuota(ctx, info, usage)
+	assert.Equal(t, 1340, quota)
+	require.NotNil(t, result)
+	assert.Equal(t, "audio", result.MatchedTier)
+	assert.Equal(t, []ToolSurchargeItem{{Name: "search_strategy_turbo", Count: 2, Price: 2}}, items)
+	operation_setting.SetToolPriceForTest(toolKey, 10)
+	quota, _, items = calculateRealtimeQuota(ctx, info, usage)
+	assert.Equal(t, 1340, quota, "settlement must retain the reserved search price")
+	assert.Equal(t, float64(2), items[0].Price)
+	info.SetBillableToolCount("search_strategy_turbo", 3)
+	require.NoError(t, ReserveRealtimeQuota(ctx, info, usage))
+	assert.Equal(t, 1840, info.FinalPreConsumedQuota, "later turns use the captured price too")
+}
+
+// TestRealtimeExpressionFailureDoesNotRepeatSearchFees exercises a frozen
+// expression whose later branch fails after searches have already been reserved.
+func TestRealtimeExpressionFailureDoesNotRepeatSearchFees(t *testing.T) {
+	const modelName = "realtime-fallback-test"
+	const toolKey = "search_strategy_turbo:" + modelName
+	operation_setting.SetToolPriceForTest(toolKey, 2)
+	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest(toolKey) })
+	for _, newSearches := range []int{0, 1} {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		info := &relaycommon.RelayInfo{OriginModelName: modelName, Billing: &recordingBillingSettler{},
+			PriceData:             types.PriceData{GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 0.5}},
+			TieredBillingSnapshot: makeSnapshot(`len <= 100 ? tier("audio", p * 2 + c * 4 + ai * 10 + ao * 20) : tier("bad", float("bad"))`, 0.5, 0, 0)}
+		info.SetBillableToolCount("search_strategy_turbo", 2)
+		usage := &dto.RealtimeUsage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150,
+			InputTokenDetails:  dto.InputTokenDetails{TextTokens: 40, AudioTokens: 60},
+			OutputTokenDetails: dto.OutputTokenDetails{TextTokens: 20, AudioTokens: 30}}
+		require.NoError(t, ReserveRealtimeQuota(ctx, info, usage))
+		require.Equal(t, 1340, info.FinalPreConsumedQuota)
+		usage.InputTokens++
+		usage.InputTokenDetails.TextTokens++
+		usage.TotalTokens++
+		info.SetBillableToolCount("search_strategy_turbo", 2+newSearches)
+		require.ErrorContains(t, ReserveRealtimeQuota(ctx, info, usage), "failed to evaluate")
+		quota, result, _ := calculateRealtimeQuota(ctx, info, usage)
+		assert.Nil(t, result)
+		assert.Equal(t, 1340+newSearches*500, quota, "only newly incurred searches may be added to the reservation fallback")
+	}
+}
+
+// TestRealtimeUnreconciledUsageKeepsReservation distinguishes an unused
+// connection from delivered output whose terminal usage never arrived.
+func TestRealtimeUnreconciledUsageKeepsReservation(t *testing.T) {
+	for _, incomplete := range []bool{false, true} {
+		t.Run(fmt.Sprint(incomplete), func(t *testing.T) {
+			truncate(t)
+			seedUser(t, 8191, 1000)
+			seedToken(t, 8192, 8191, "realtime-unreconciled", 1000)
+			seedChannel(t, 8193)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/realtime", nil)
+			info := &relaycommon.RelayInfo{UserId: 8191, TokenId: 8192, TokenKey: "realtime-unreconciled", ForcePreConsume: true,
+				OriginModelName: "voice", StartTime: time.Now(), ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 8193},
+				UserSetting:     dto.UserSetting{BillingPreference: "wallet_only"},
+				RealtimeBilling: &relaycommon.RealtimeBillingState{ToolPrices: make(map[string]float64), UsageIncomplete: incomplete}}
+			require.Nil(t, PreConsumeBilling(ctx, 100, info))
+			PostWssConsumeQuota(ctx, info, "voice", &dto.RealtimeUsage{}, nil)
+			want := 0
+			if incomplete {
+				want = 100
+			}
+			balance, err := model.GetUserQuota(info.UserId, true)
+			require.NoError(t, err)
+			assert.Equal(t, 1000-want, balance)
+			var log model.Log
+			require.NoError(t, model.LOG_DB.Where("user_id = ?", info.UserId).Take(&log).Error)
+			assert.Equal(t, want, log.Quota)
+			if incomplete {
+				assert.Contains(t, log.Other, `"realtime_usage_incomplete":true`)
+			}
+		})
+	}
+}
+
+// TestRealtimeUnsafeChargesCannotReserve rejects overflowing charges before
+// they can change an existing reservation or bypass available-funds checks.
+func TestRealtimeUnsafeChargesCannotReserve(t *testing.T) {
+	for _, expr := range []string{`tier("overflow", p * 1e20)`, `invalid +-+ expr`} {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		billing := &recordingBillingSettler{}
+		info := &relaycommon.RelayInfo{Billing: billing, TieredBillingSnapshot: makeSnapshot(expr, 1, 0, 0)}
+		usage := &dto.RealtimeUsage{InputTokens: 100, TotalTokens: 100, InputTokenDetails: dto.InputTokenDetails{TextTokens: 100}}
+		require.Error(t, ReserveRealtimeQuota(ctx, info, usage))
+		assert.Empty(t, billing.reserveTargets)
+		quota, _, _ := calculateRealtimeQuota(ctx, info, usage)
+		assert.GreaterOrEqual(t, quota, 0)
+	}
+	t.Run("response sum overflow", func(t *testing.T) {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		billing := &recordingBillingSettler{}
+		info := &relaycommon.RelayInfo{Billing: billing, TieredBillingSnapshot: makeSnapshot(`tier("large", p * 3e7)`, 1, 0, 0)}
+		usage := dto.RealtimeUsage{InputTokens: 100, TotalTokens: 100, InputTokenDetails: dto.InputTokenDetails{TextTokens: 100}}
+		require.NoError(t, RecordRealtimeResponseBilling(info, "first", usage))
+		require.NoError(t, ReserveRealtimeQuota(ctx, info, &usage))
+		require.NoError(t, RecordRealtimeResponseBilling(info, "second", usage))
+		require.Error(t, ReserveRealtimeQuota(ctx, info, &usage))
+		assert.Equal(t, []int{1500000000}, billing.reserveTargets)
+		quota, _, _ := calculateRealtimeQuota(ctx, info, &usage)
+		assert.Equal(t, int(common.MaxQuota), quota)
+		require.NotNil(t, info.QuotaClamp, "the session sum must retain a saturation audit marker")
+	})
+}
+
+// TestRealtimePerResponseSettlement preserves completed response prices across
+// tier changes, tool-price edits and a later evaluation failure, including logs.
+func TestRealtimePerResponseSettlement(t *testing.T) {
+	const modelName = "realtime-response-tier-test"
+	const toolKey = "search_strategy_turbo:" + modelName
+	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest(toolKey) })
+	for _, failedTurn := range []bool{false, true} {
+		t.Run(fmt.Sprint(failedTurn), func(t *testing.T) {
+			truncate(t)
+			seedUser(t, 8191, 5000)
+			seedToken(t, 8192, 8191, "realtime-turns", 5000)
+			seedChannel(t, 8193)
+			operation_setting.SetToolPriceForTest(toolKey, 2)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/realtime", nil)
+			info := &relaycommon.RelayInfo{UserId: 8191, TokenId: 8192, TokenKey: "realtime-turns", ForcePreConsume: true,
+				OriginModelName: modelName, StartTime: time.Now(), IsStream: true, ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 8193},
+				UserSetting:           dto.UserSetting{BillingPreference: "wallet_only"},
+				PriceData:             types.PriceData{GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1}},
+				TieredBillingSnapshot: makeSnapshot(`len <= 100 ? tier("short", p * 2) : len <= 150 ? tier("long", p * 10) : tier("bad", float("bad"))`, 1, 0, 0)}
+			require.Nil(t, PreConsumeBilling(ctx, 100, info))
+			cumulative := &dto.RealtimeUsage{}
+			for i, tokens := range []int{80, 80, 120} {
+				usage := dto.RealtimeUsage{TotalTokens: tokens, InputTokens: tokens, InputTokenDetails: dto.InputTokenDetails{TextTokens: tokens}}
+				require.NoError(t, RecordRealtimeResponseBilling(info, fmt.Sprint(i), usage))
+				cumulative.TotalTokens += tokens
+				cumulative.InputTokens += tokens
+				cumulative.InputTokenDetails.TextTokens += tokens
+				info.SetBillableToolCount("search_strategy_turbo", min(i+1, 2))
+				require.NoError(t, ReserveRealtimeQuota(ctx, info, cumulative))
+				assert.Equal(t, []int{1080, 2160, 2760}[i], info.FinalPreConsumedQuota)
+				operation_setting.SetToolPriceForTest(toolKey, 10)
+			}
+			if failedTurn {
+				usage := dto.RealtimeUsage{TotalTokens: 200, InputTokens: 200, InputTokenDetails: dto.InputTokenDetails{TextTokens: 200}}
+				require.ErrorContains(t, RecordRealtimeResponseBilling(info, "failed", usage), "failed to evaluate")
+				cumulative.TotalTokens += 200
+				cumulative.InputTokens += 200
+				cumulative.InputTokenDetails.TextTokens += 200
+				require.ErrorContains(t, ReserveRealtimeQuota(ctx, info, cumulative), "failed to evaluate")
+			}
+			PostWssConsumeQuota(ctx, info, modelName, cumulative, nil)
+			wallet, err := model.GetUserQuota(info.UserId, true)
+			require.NoError(t, err)
+			assert.Equal(t, 2240, wallet)
+			var token model.Token
+			require.NoError(t, model.DB.First(&token, info.TokenId).Error)
+			assert.Equal(t, 2240, token.RemainQuota)
+			assert.Equal(t, 2760, token.UsedQuota)
+			var log model.Log
+			require.NoError(t, model.LOG_DB.Where("user_id = ?", info.UserId).Take(&log).Error)
+			assert.Equal(t, 2760, log.Quota)
+			var other struct {
+				Responses []relaycommon.RealtimeTurnCharge `json:"realtime_responses"`
+				Admin     struct {
+					Failed bool `json:"realtime_billing_incomplete"`
+				} `json:"admin_info"`
+			}
+			require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+			require.Len(t, other.Responses, 3)
+			assert.Equal(t, "short", other.Responses[0].Pricing.MatchedTier)
+			assert.Equal(t, "short", other.Responses[1].Pricing.MatchedTier)
+			assert.Equal(t, "long", other.Responses[2].Pricing.MatchedTier)
+			assert.Equal(t, failedTurn, other.Admin.Failed)
 		})
 	}
 }
