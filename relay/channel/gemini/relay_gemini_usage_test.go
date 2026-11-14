@@ -754,3 +754,96 @@ func TestGeminiHandlersCountGroundingQueries(t *testing.T) {
 		})
 	}
 }
+
+/** TestGeminiResponseIDCapture covers generation entry points and log correlation precedence. */
+func TestGeminiResponseIDCapture(t *testing.T) {
+	const body = `{"responseId":"synthetic-response-id","candidates":[{"content":{"role":"model","parts":[{"text":"OK"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":1,"totalTokenCount":6}}`
+	handlers := []struct {
+		name    string
+		format  types.RelayFormat
+		handler func(*gin.Context, *relaycommon.RelayInfo, *http.Response) (*dto.Usage, *types.NewAPIError)
+	}{
+		{"chat", types.RelayFormatOpenAI, GeminiChatHandler},
+		{"native", types.RelayFormatGemini, GeminiTextGenerationHandler},
+		{"responses", types.RelayFormatOpenAIResponses, GeminiResponsesHandler},
+	}
+	for _, h := range handlers {
+		for _, headerID := range []string{"", "synthetic-header-id"} {
+			t.Run(h.name+"/"+headerID, func(t *testing.T) {
+				recorder := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(recorder)
+				c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+				c.Set(common.UpstreamRequestIdKey, headerID)
+				c.Set(common.RequestIdKey, "synthetic-internal-id")
+				info := &relaycommon.RelayInfo{RelayFormat: h.format, OriginModelName: "gemini-test", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gemini-test"}}
+				usage, apiErr := h.handler(c, info, &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))})
+				require.Nil(t, apiErr)
+				require.NotNil(t, usage)
+				assert.Equal(t, 5, usage.PromptTokens)
+				assert.Equal(t, 1, usage.CompletionTokens)
+				want := headerID
+				if want == "" {
+					want = "synthetic-response-id"
+				}
+				assert.Equal(t, want, c.GetString(common.UpstreamRequestIdKey))
+				if h.name == "chat" {
+					var response dto.OpenAITextResponse
+					require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+					assert.Equal(t, "chatcmpl-synthetic-internal-id", response.Id)
+				}
+				if h.name == "native" {
+					assert.JSONEq(t, body, recorder.Body.String())
+				}
+			})
+		}
+	}
+}
+
+/** TestGeminiStreamResponseIDCapture preserves IDs before callbacks and across missing frames. */
+func TestGeminiStreamResponseIDCapture(t *testing.T) {
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+	for _, tc := range []struct {
+		name, header string
+		ids, want    []string
+	}{
+		{"first ID survives empty and changed chunks", "", []string{"synthetic-first", "", "synthetic-second"}, []string{"synthetic-first", "synthetic-first", "synthetic-first"}},
+		{"late ID", "", []string{"", "synthetic-late", ""}, []string{"", "synthetic-late", "synthetic-late"}},
+		{"header wins", "synthetic-header", []string{"synthetic-body", ""}, []string{"synthetic-header", "synthetic-header"}},
+		{"no ID", "", []string{"", ""}, []string{"", ""}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+			c.Set(common.UpstreamRequestIdKey, tc.header)
+			info := &relaycommon.RelayInfo{OriginModelName: "gemini-test", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gemini-test"}}
+			var body strings.Builder
+			for _, id := range tc.ids {
+				data, err := common.Marshal(dto.GeminiChatResponse{ResponseID: id})
+				require.NoError(t, err)
+				body.WriteString("data: " + string(data) + "\n\n")
+			}
+			body.WriteString("data: [DONE]\n\n")
+			var observed []string
+			_, apiErr := geminiStreamHandler(c, info, &http.Response{Body: io.NopCloser(strings.NewReader(body.String()))}, func(string, *dto.GeminiChatResponse) bool {
+				observed = append(observed, c.GetString(common.UpstreamRequestIdKey))
+				return true
+			})
+			require.Nil(t, apiErr)
+			assert.Equal(t, tc.want, observed)
+		})
+	}
+}
+
+/** TestGeminiBlockedResponseIDCapture retains correlation before rejection handling. */
+func TestGeminiBlockedResponseIDCapture(t *testing.T) {
+	for _, handler := range []func(*gin.Context, *relaycommon.RelayInfo, *http.Response) (*dto.Usage, *types.NewAPIError){GeminiChatHandler, GeminiTextGenerationHandler, GeminiResponsesHandler} {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+		info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatOpenAI, OriginModelName: "gemini-test", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gemini-test"}}
+		_, _ = handler(c, info, &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"responseId":"synthetic-blocked-id","promptFeedback":{"blockReason":"SAFETY"},"usageMetadata":{"promptTokenCount":5}}`))})
+		assert.Equal(t, "synthetic-blocked-id", c.GetString(common.UpstreamRequestIdKey))
+		assert.True(t, info.PerformanceBusinessRejection)
+	}
+}
