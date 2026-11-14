@@ -162,6 +162,8 @@ func TestResponsesWithoutUsageAreNotBilled(t *testing.T) {
 		{"embeddings with usage lacking total", embeddingHandler, `{"data":[{"embedding":[0.1],"index":0}],"usage":{}}`},
 		{"contextualized", contextualizedEmbeddingHandler, `{"data":[{"data":[{"embedding":[0.1],"index":0}],"index":0}]}`},
 		{"multimodal without pixels", multimodalEmbeddingHandler, `{"data":[{"embedding":[0.1],"index":0}],"usage":{"text_tokens":3,"total_tokens":3}}`},
+		{"embeddings with empty data", embeddingHandler, `{"data":[],"usage":{"total_tokens":7}}`},
+		{"contextualized with empty data", contextualizedEmbeddingHandler, `{"data":[],"usage":{"total_tokens":7}}`},
 		{"rerank", rerankHandler, `{"data":[{"index":0,"relevance_score":0.9}],"model":"rerank-3"}`},
 		{"negative usage", rerankHandler, `{"data":[{"index":0,"relevance_score":0.9}],"usage":{"total_tokens":-5}}`},
 	} {
@@ -193,6 +195,16 @@ func TestUsageNormalization(t *testing.T) {
 	assert.JSONEq(t, `[{"document":{"text":"Paris"},"index":1,"relevance_score":0.86}]`, string(body.Results))
 	assert.Equal(t, 7, body.Usage.TotalTokens)
 
+	// Vectors, including base64 ones, reach the client untouched.
+	recorder = httptest.NewRecorder()
+	c, _ = gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/embeddings", nil)
+	usage, apiErr = embeddingHandler(c, &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(
+		`{"object":"list","data":[{"object":"embedding","embedding":"AAECAw==","index":0,"text":null}],"model":"voyage-4","usage":{"total_tokens":3}}`))})
+	require.Nil(t, apiErr)
+	assert.Equal(t, 3, usage.PromptTokens)
+	assert.Contains(t, recorder.Body.String(), `"embedding":"AAECAw=="`)
+
 	// A usage of zero is what Voyage reports for a single-token input with an
 	// input type; only an absent usage is refused.
 	zero, err := textUsage(&usageResponse{TotalTokens: common.GetPointer(int64(0))})
@@ -205,6 +217,13 @@ func TestUsageNormalization(t *testing.T) {
 	assert.Equal(t, 16, multimodal.PromptTokens)
 	assert.Equal(t, 6, multimodal.PromptTokensDetails.ImageTokens)
 	assert.Equal(t, 10, multimodal.PromptTokensDetails.TextTokens)
+
+	// voyage-multimodal-3 takes no video; its usage may omit video_pixels.
+	noVideo, err := multimodalUsage(&usageResponse{TextTokens: common.GetPointer(int64(4)), ImagePixels: common.GetPointer(int64(1120))})
+	require.NoError(t, err)
+	assert.Equal(t, 6, noVideo.PromptTokens)
+	_, err = multimodalUsage(&usageResponse{TextTokens: common.GetPointer(int64(4))})
+	require.Error(t, err)
 
 	huge := int64(1) << 62
 	saturated, err := multimodalUsage(&usageResponse{TextTokens: &huge, ImagePixels: &huge, VideoPixels: &huge})

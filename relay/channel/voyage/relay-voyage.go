@@ -89,16 +89,16 @@ type usageResponse struct {
 }
 
 type embeddingResponse struct {
-	Data  json.RawMessage `json:"data"`
-	Model string          `json:"model"`
-	Usage *usageResponse  `json:"usage"`
+	Data  []json.RawMessage `json:"data"`
+	Model string            `json:"model"`
+	Usage *usageResponse    `json:"usage"`
 }
 
 type embeddingResult struct {
-	Object string          `json:"object"`
-	Data   json.RawMessage `json:"data"`
-	Model  string          `json:"model"`
-	Usage  dto.Usage       `json:"usage"`
+	Object string            `json:"object"`
+	Data   []json.RawMessage `json:"data"`
+	Model  string            `json:"model"`
+	Usage  dto.Usage         `json:"usage"`
 }
 
 type rerankResponse struct {
@@ -413,14 +413,19 @@ func textUsage(usage *usageResponse) (*dto.Usage, error) {
 // multimodalUsage bills text tokens, and image and video pixels as image
 // tokens of 560 pixels, which prices a pixel the way Voyage's pixel rate does.
 func multimodalUsage(usage *usageResponse) (*dto.Usage, error) {
-	if usage == nil || usage.TextTokens == nil || usage.ImagePixels == nil || usage.VideoPixels == nil {
+	if usage == nil || usage.TextTokens == nil || usage.ImagePixels == nil {
 		return nil, errors.New("Voyage response has no usage, refusing to bill it")
 	}
-	if *usage.TextTokens < 0 || *usage.ImagePixels < 0 || *usage.VideoPixels < 0 {
+	// voyage-multimodal-3 takes no video, its usage may omit video_pixels.
+	var videoPixels int64
+	if usage.VideoPixels != nil {
+		videoPixels = *usage.VideoPixels
+	}
+	if *usage.TextTokens < 0 || *usage.ImagePixels < 0 || videoPixels < 0 {
 		return nil, errors.New("Voyage response reports negative usage")
 	}
 	const maxPixels = int64(math.MaxInt32) * pixelsPerImageToken
-	pixels := min(*usage.ImagePixels, maxPixels) + min(*usage.VideoPixels, maxPixels)
+	pixels := min(*usage.ImagePixels, maxPixels) + min(videoPixels, maxPixels)
 	imageTokens := tokenCount((pixels + pixelsPerImageToken - 1) / pixelsPerImageToken)
 	textTokens := tokenCount(*usage.TextTokens)
 	promptTokens := tokenCount(int64(textTokens) + int64(imageTokens))
@@ -484,6 +489,9 @@ func contextualizedEmbeddingHandler(c *gin.Context, resp *http.Response) (*dto.U
 	var parsed embeddingResponse
 	if err := common.Unmarshal(body, &parsed); err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+	}
+	if len(parsed.Data) == 0 {
+		return nil, types.NewOpenAIError(errors.New("Voyage response has no data"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 	}
 	usage, err := textUsage(parsed.Usage)
 	if err != nil {
