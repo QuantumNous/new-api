@@ -491,7 +491,8 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 					}
 					return rejected
 				}
-				if strings.HasPrefix(event.Type, "response.") {
+				// Interrupt acknowledgements do not mean this generation was accepted.
+				if strings.HasPrefix(event.Type, "response.") && !strings.HasPrefix(event.Type, responsesWSEventTypeResponseInterrupt) {
 					if !accepted {
 						// Like HTTP, bind the session only once upstream accepted the request.
 						service.RecordChannelAffinity(c, s.lockedChannelID)

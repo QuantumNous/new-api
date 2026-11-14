@@ -899,10 +899,13 @@ func TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation(t *testing
 	for _, tc := range []struct {
 		name, upstream, wantType, wantMessage string
 		status                                int
+		beforeRejection                       string
 	}{
 		{name: "structured error", upstream: `{"type":"error","response_id":"rejected","status":400,"error":{"type":"invalid_request_error","code":"invalid_input","message":"Invalid input"}}`, status: http.StatusBadRequest, wantType: "invalid_request_error", wantMessage: "Invalid input"},
 		// A frame without an error object is still reported as a request error.
 		{name: "bare error", upstream: `{"type":"error","status":500,"message":"upstream rejected"}`, status: http.StatusInternalServerError, wantType: "invalid_request_error", wantMessage: "upstream rejected"},
+		{name: "interrupt before rejection", beforeRejection: `{"type":"response.interrupt","response_id":"previous"}`, upstream: `{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"invalid_input","message":"Invalid input"}}`, status: http.StatusBadRequest, wantType: "invalid_request_error", wantMessage: "Invalid input"},
+		{name: "interrupt acknowledgement before rejection", beforeRejection: `{"type":"response.interrupt.accepted","response_id":"previous"}`, upstream: `{"type":"error","status":400,"error":{"type":"invalid_request_error","code":"invalid_input","message":"Invalid input"}}`, status: http.StatusBadRequest, wantType: "invalid_request_error", wantMessage: "Invalid input"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			preConsumed := make(chan int, 1)
@@ -917,6 +920,9 @@ func TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation(t *testing
 					return
 				}
 				preConsumed <- token.RemainQuota
+				if tc.beforeRejection != "" && !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(tc.beforeRejection))) {
+					return
+				}
 				if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(tc.upstream))) {
 					return
 				}
@@ -935,6 +941,12 @@ func TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation(t *testing
 				}
 			}))
 			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi","max_output_tokens":10}`)))
+			if tc.beforeRejection != "" {
+				require.NoError(t, fixture.client.SetReadDeadline(time.Now().Add(3*time.Second)))
+				_, acknowledgement, err := fixture.client.ReadMessage()
+				require.NoError(t, err)
+				assert.Equal(t, tc.beforeRejection, string(acknowledgement), "interrupt events must still reach the client unchanged")
+			}
 			rejection := readResponsesWSTestEvent(t, fixture.client)
 			assert.Equal(t, "error", rejection["type"])
 			assert.Equal(t, float64(tc.status), rejection["status"])
