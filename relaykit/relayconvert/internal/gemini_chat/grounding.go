@@ -85,7 +85,7 @@ func GroundingWebSearchQueries(response *dto.GeminiChatResponse) []string {
 	return queries
 }
 
-func groundingAnnotationsToChat(metadata *dto.GeminiGroundingMetadata, content dto.GeminiChatContent, rendered string) []byte {
+func groundingAnnotationsToChat(metadata *dto.GeminiGroundingMetadata, parts []renderedGeminiPart, rendered string) []byte {
 	if metadata == nil || len(metadata.GroundingChunks) == 0 || len(metadata.GroundingSupports) == 0 {
 		return nil
 	}
@@ -98,7 +98,6 @@ func groundingAnnotationsToChat(metadata *dto.GeminiGroundingMetadata, content d
 		return nil
 	}
 
-	parts := locateRenderedGeminiParts(content, rendered)
 	textPartCount := 0
 	soleTextPart := -1
 	for index := range parts {
@@ -138,7 +137,7 @@ func newGeminiGroundingStreamCandidate() *geminiGroundingStreamCandidate {
 	return &geminiGroundingStreamCandidate{parts: make(map[int]*streamedGeminiPart)}
 }
 
-func (s *geminiGroundingStreamCandidate) appendContent(content dto.GeminiChatContent, rendered string) {
+func (s *geminiGroundingStreamCandidate) appendContent(content dto.GeminiChatContent, renderedParts []renderedGeminiPart, rendered string) {
 	if s == nil {
 		return
 	}
@@ -146,7 +145,6 @@ func (s *geminiGroundingStreamCandidate) appendContent(content dto.GeminiChatCon
 		s.parts = make(map[int]*streamedGeminiPart)
 	}
 
-	renderedParts := locateRenderedGeminiParts(content, rendered)
 	renderedBase := s.rendered.Len()
 	for index := range content.Parts {
 		partContent := content.Parts[index]
@@ -162,10 +160,7 @@ func (s *geminiGroundingStreamCandidate) appendContent(content dto.GeminiChatCon
 		partStart := part.text.Len()
 		part.text.WriteString(text)
 
-		// A standalone newline is intentionally omitted by the existing Gemini
-		// renderer. Keep it in the source part so later byte offsets stay correct,
-		// but do not claim that it has a corresponding rendered span.
-		if text == "\n" || index >= len(renderedParts) || renderedParts[index].startByte < 0 {
+		if index >= len(renderedParts) || renderedParts[index].startByte < 0 {
 			continue
 		}
 		renderedStart := renderedBase + renderedParts[index].startByte
@@ -330,27 +325,6 @@ func marshalGroundingAnnotations(annotations []any) []byte {
 		return nil
 	}
 	return encoded
-}
-
-func locateRenderedGeminiParts(content dto.GeminiChatContent, rendered string) []renderedGeminiPart {
-	parts := make([]renderedGeminiPart, len(content.Parts))
-	cursor := 0
-	for index := range content.Parts {
-		part := content.Parts[index]
-		text := part.Text
-		parts[index] = renderedGeminiPart{text: text, startByte: -1}
-		if text == "" || part.Thought || cursor > len(rendered) {
-			continue
-		}
-		relative := strings.Index(rendered[cursor:], text)
-		if relative < 0 {
-			continue
-		}
-		start := cursor + relative
-		parts[index].startByte = start
-		cursor = start + len(text)
-	}
-	return parts
 }
 
 func groundingRuneRange(rendered string, part renderedGeminiPart, startByte int, endByte int) (int, int, bool) {
