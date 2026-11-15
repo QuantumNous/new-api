@@ -93,9 +93,10 @@ type Plan struct {
 	submission *submission
 	// media is the attachment text the request's hooks read.
 	media requestMedia
-	// scopes holds, by instance id, where each plugin scope instance runs:
-	// the confirmed scope as far as its plugin's scope still holds it.
-	scopes map[string]*request_plugin_setting.Scope
+	// scopes holds, by instance id, the scopes that must all hold a request
+	// for a plugin scope instance to run: the confirmed one and the one its
+	// plugin declares now.
+	scopes map[string][]*request_plugin_setting.Scope
 }
 
 // NewPlan takes the plan of a new request: nil when no enabled instance has
@@ -159,29 +160,29 @@ func newPlanOf(instances []request_plugin_setting.Instance) *Plan {
 				continue
 			}
 		}
-		var scope *request_plugin_setting.Scope
+		var scopes []*request_plugin_setting.Scope
 		if instance.PluginScope != nil {
 			// A plugin scope instance runs where both the confirmed scope and
-			// the one its plugin declares now hold; an unloaded plugin's
-			// instance keeps its confirmed scope, to fail where it would run.
-			scope = instance.PluginScope
+			// the one its plugin declares now hold the request, each matched
+			// on its own: a list intersection would drop gpt-4o@effort:high
+			// that a confirmed gpt-4o and a declared gpt-4o@effort:high both
+			// hold. An unloaded plugin's instance keeps its confirmed scope,
+			// to fail where it would run.
+			scopes = []*request_plugin_setting.Scope{instance.PluginScope}
 			if plugin != nil {
 				declared := plugin.Meta.Scope
 				if declared == nil {
 					continue
 				}
-				var ok bool
-				if scope, ok = scope.Within(declared.Models, declared.ChannelTypes); !ok {
-					continue
-				}
+				scopes = append(scopes, &request_plugin_setting.Scope{Models: declared.Models, ChannelTypes: declared.ChannelTypes})
 			}
 		}
 		if plan == nil {
-			plan = &Plan{plugins: plugins, ingressRan: map[string]bool{}, unavailable: map[string]string{}, scopes: map[string]*request_plugin_setting.Scope{}}
+			plan = &Plan{plugins: plugins, ingressRan: map[string]bool{}, unavailable: map[string]string{}, scopes: map[string][]*request_plugin_setting.Scope{}}
 		}
 		plan.instances = append(plan.instances, instance)
-		if scope != nil {
-			plan.scopes[instance.ID] = scope
+		if scopes != nil {
+			plan.scopes[instance.ID] = scopes
 		}
 		if unavailable {
 			plan.unavailable[instance.Plugin] = loadErr
@@ -225,7 +226,11 @@ func (p *Plan) scope(stage, group, model string, channelType int, bound []string
 	for i := range p.instances {
 		instance := &p.instances[i]
 		if instance.PluginScope != nil {
-			if scope := p.scopes[instance.ID]; scope != nil && scope.Covers(model, base, channelType) {
+			held := true
+			for _, scope := range p.scopes[instance.ID] {
+				held = held && scope.Covers(model, base, channelType)
+			}
+			if held {
 				add(instance)
 			}
 			continue

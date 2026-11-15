@@ -97,39 +97,6 @@ func (s *Scope) Covers(model, base string, channelType int) bool {
 	return len(s.ChannelTypes) == 0 || channelType > 0 && slices.Contains(s.ChannelTypes, channelType)
 }
 
-// Within returns the part of the confirmed scope s that the scope a plugin
-// declares now also holds, so a plugin update that narrows its scope takes
-// effect at once and one that widens it reaches no new request until an
-// administrator confirms it. ok is false when the two share no request.
-func (s *Scope) Within(models []string, channelTypes []int) (*Scope, bool) {
-	within := &Scope{Models: overlap(s.Models, models), ChannelTypes: overlap(s.ChannelTypes, channelTypes)}
-	if len(s.Models) > 0 && len(models) > 0 && len(within.Models) == 0 {
-		return nil, false
-	}
-	if len(s.ChannelTypes) > 0 && len(channelTypes) > 0 && len(within.ChannelTypes) == 0 {
-		return nil, false
-	}
-	return within, true
-}
-
-// overlap is what two lists, each open when empty, both hold: the other
-// list when one is open, otherwise the items in both.
-func overlap[T comparable](a, b []T) []T {
-	if len(a) == 0 {
-		return b
-	}
-	if len(b) == 0 {
-		return a
-	}
-	var both []T
-	for _, item := range a {
-		if slices.Contains(b, item) {
-			both = append(both, item)
-		}
-	}
-	return both
-}
-
 // Equal reports whether the scope holds the same models and channel types,
 // in any order.
 func (s *Scope) Equal(models []string, channelTypes []int) bool {
