@@ -1632,7 +1632,16 @@ func TestPlanScopeFollowsThePluginScope(t *testing.T) {
 	assert.Empty(t, ids(StageOutbound, "gpt-4o", 1), "widened by the plugin, not confirmed")
 	assert.Empty(t, ids(StageOutbound, "claude", 3), "widened by the plugin, not confirmed")
 	setInstances(t, `[{"id":"confirmed","name":"Scoped","plugin":"rp-scoped","enabled":true,"plugin_scope":{"models":["gemini"],"channel_types":[1]}}]`)
-	assert.Nil(t, NewPlan(), "the plugin no longer holds any of the confirmed scope")
+	assert.Empty(t, ids(StageOutbound, "gemini", 1), "the plugin no longer holds the confirmed scope")
+	assert.Empty(t, ids(StageOutbound, "gpt-4o", 1), "widened by the plugin, not confirmed")
+
+	// Each scope matches the request on its own, modifiers included: a
+	// confirmed gpt-4o@effort:high and a declared gpt-4o both hold
+	// gpt-4o@effort:high, and only that.
+	setInstances(t, `[{"id":"confirmed","name":"Scoped","plugin":"rp-scoped","enabled":true,"plugin_scope":{"models":["gpt-4o@effort:high"],"channel_types":[1]}}]`)
+	assert.Equal(t, []string{"confirmed"}, ids(StageOutbound, "gpt-4o@effort:high", 1))
+	assert.Empty(t, ids(StageOutbound, "gpt-4o", 1), "not confirmed")
+	assert.Empty(t, ids(StageOutbound, "gpt-4o@effort:low", 1), "not confirmed")
 
 	// A confirmed scope open on one side keeps the side the plugin now names.
 	setInstances(t, `[{"id":"confirmed","name":"Scoped","plugin":"rp-scoped","enabled":true,"plugin_scope":{"models":["claude"],"channel_types":[]}}]`)
