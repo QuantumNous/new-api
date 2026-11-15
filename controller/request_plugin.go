@@ -92,6 +92,12 @@ func UpdateRequestPluginInstances(c *gin.Context) {
 func normalizeRequestPluginInstances(instances []request_plugin_setting.Instance) ([]request_plugin_setting.Instance, error) {
 	normalized := make([]request_plugin_setting.Instance, 0, len(instances))
 	ids := make(map[string]bool, len(instances))
+	savedScopes := map[string]*request_plugin_setting.Scope{}
+	for _, saved := range request_plugin_setting.GetInstances() {
+		if saved.PluginScope != nil {
+			savedScopes[saved.ID] = saved.PluginScope
+		}
+	}
 	for _, instance := range instances {
 		if instance.ID != "" {
 			if ids[instance.ID] {
@@ -143,6 +149,23 @@ func normalizeRequestPluginInstances(instances []request_plugin_setting.Instance
 		plugin, ok := jsplugin.DefaultRegistry.GetIgnoringMasterSwitch(instance.Plugin)
 		if ok && !plugin.Meta.HasTransformPart() {
 			return nil, common.NewMessage("Plugin {{plugin}} has no request processing hooks", map[string]any{"plugin": instance.Plugin})
+		}
+		if instance.PluginScope != nil {
+			// The confirmed scope is the plugin's current one, sent back as
+			// the administrator saw it. A saved instance may keep the scope
+			// it confirmed before, so other edits of the list still save.
+			var declared *jsplugin.TransformScope
+			if ok {
+				declared = plugin.Meta.Scope
+			}
+			saved := savedScopes[instance.ID]
+			confirmsDeclared := declared != nil && instance.PluginScope.Equal(declared.Models, declared.ChannelTypes)
+			keepsSaved := saved != nil && saved.Equal(instance.PluginScope.Models, instance.PluginScope.ChannelTypes)
+			if !confirmsDeclared && !keepsSaved {
+				return nil, common.NewMessage("Plugin {{plugin}} changed where it runs; review it again before saving", map[string]any{"plugin": instance.Plugin})
+			}
+			instance.Global, instance.Groups, instance.Models = false, []string{}, []string{}
+			instance.PluginScope = instance.PluginScope.Clone()
 		}
 		if !ok {
 			if instance.Enabled {

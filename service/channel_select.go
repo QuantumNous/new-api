@@ -249,16 +249,11 @@ func pinnedTaskPluginIdentities(c *gin.Context, expected string) ([]int, []strin
 			}
 			pluginKeys = append(pluginKeys, candidate.Meta.Key)
 			for _, channelType := range candidate.Meta.ChannelTypes {
-				if channelType == 0 || channelType == constant.ChannelTypeTaskPlugin {
-					continue
-				}
 				if _, duplicate := seen[channelType]; duplicate {
 					continue
 				}
-				if plugin, indexed := generation.GetByChannelType(channelType); indexed && plugin == candidate {
-					seen[channelType] = struct{}{}
-					channelTypes = append(channelTypes, channelType)
-				}
+				seen[channelType] = struct{}{}
+				channelTypes = append(channelTypes, channelType)
 			}
 		}
 		if expectedFound {

@@ -45,9 +45,11 @@ import {
   saveRequestPluginInstances,
 } from '@/features/task-plugins/api'
 import { PluginIcon } from '@/features/task-plugins/components/plugin-icon'
+import { PluginScopeSummary } from '@/features/task-plugins/components/plugin-scope-summary'
 import { RequestPluginDryRunDialog } from '@/features/task-plugins/components/request-plugin-dry-run-dialog'
 import { RequestPluginInstanceEditor } from '@/features/task-plugins/components/request-plugin-instance-editor'
 import { localizedPluginName } from '@/features/task-plugins/lib/plugin-name'
+import { pluginScopeNeedsReview } from '@/features/task-plugins/lib/plugin-scope'
 import {
   REQUEST_PLUGIN_INSTANCES_QUERY_KEY,
   REQUEST_PLUGIN_OPTIONS_QUERY_KEY,
@@ -167,6 +169,7 @@ export function RequestProcessing() {
               else if (instance.groups.length) {
                 scope = instance.groups.join(', ')
               }
+              const needsReview = pluginScopeNeedsReview(instance, plugin)
               return (
                 <TableRow key={instance.id || index}>
                   <TableCell>
@@ -219,16 +222,41 @@ export function RequestProcessing() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className='max-w-56 break-words whitespace-normal'>
-                    {scope}
-                    {/* Servers before the model filter send no list. */}
-                    {(instance.models ?? []).length > 0 && (
-                      <span className='text-muted-foreground block text-xs'>
-                        {t('Models: {{models}}', {
-                          models: instance.models.join(', '),
-                        })}
-                      </span>
+                  <TableCell className='max-w-72 break-words whitespace-normal'>
+                    {instance.plugin_scope ? (
+                      <div className='space-y-1.5'>
+                        <span>{t('Where the plugin suggests')}</span>
+                        <PluginScopeSummary
+                          scope={instance.plugin_scope}
+                          className='text-xs'
+                        />
+                        {needsReview && (
+                          <Button
+                            variant='link'
+                            size='sm'
+                            className='h-auto p-0'
+                            disabled={busy}
+                            onClick={() => openEditor(instance)}
+                          >
+                            <Badge variant='warning'>
+                              {t('Plugin changed where it runs')}
+                            </Badge>
+                            {t('Review')}
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      scope
                     )}
+                    {/* Servers before the model filter send no list. */}
+                    {!instance.plugin_scope &&
+                      (instance.models ?? []).length > 0 && (
+                        <span className='text-muted-foreground block text-xs'>
+                          {t('Models: {{models}}', {
+                            models: instance.models.join(', '),
+                          })}
+                        </span>
+                      )}
                   </TableCell>
                   <TableCell>
                     <Switch

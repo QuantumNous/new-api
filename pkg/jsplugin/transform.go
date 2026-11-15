@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"unicode/utf8"
 
@@ -43,6 +44,68 @@ const (
 )
 
 var transformCodePattern = regexp.MustCompile(`^[a-z0-9_.-]{1,64}$`)
+
+// Limits on meta.scope, part of the published plugin contract.
+const (
+	maxScopeModels       = 100
+	maxScopeModelRunes   = 128
+	maxScopeChannelTypes = 64
+)
+
+// TransformScope is the range of requests a request processing plugin is
+// made for: its models and the channel types its requests go through. An
+// empty list leaves that side open; a scope always names at least one model
+// or channel type, so a plugin cannot ask for every request.
+type TransformScope struct {
+	Models       []string `json:"models,omitempty"`
+	ChannelTypes []int    `json:"channelTypes,omitempty"`
+}
+
+func decodeTransformScope(value any) (*TransformScope, error) {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("plugin meta scope must be an object")
+	}
+	for field := range object {
+		if field != "models" && field != "channelTypes" {
+			return nil, fmt.Errorf("plugin meta scope has unknown field %q", field)
+		}
+	}
+	models, err := strictStringSlice(object, "models")
+	if err != nil {
+		return nil, fmt.Errorf("plugin meta scope.models must be an array of strings")
+	}
+	channelTypes, err := integerSliceMetaField(object, "channelTypes")
+	if err != nil {
+		return nil, fmt.Errorf("plugin meta scope.channelTypes must be an array of integers")
+	}
+	scope := &TransformScope{}
+	for _, model := range models {
+		if model == "" || strings.TrimSpace(model) != model || utf8.RuneCountInString(model) > maxScopeModelRunes {
+			return nil, fmt.Errorf("plugin meta scope.models must hold names of 1 to %d characters without surrounding spaces", maxScopeModelRunes)
+		}
+		if slices.Contains(scope.Models, model) {
+			return nil, fmt.Errorf("plugin meta scope.models lists %q twice", model)
+		}
+		scope.Models = append(scope.Models, model)
+	}
+	for _, channelType := range channelTypes {
+		if channelType <= 0 {
+			return nil, fmt.Errorf("plugin meta scope.channelTypes must hold positive channel types")
+		}
+		if slices.Contains(scope.ChannelTypes, channelType) {
+			return nil, fmt.Errorf("plugin meta scope.channelTypes lists %d twice", channelType)
+		}
+		scope.ChannelTypes = append(scope.ChannelTypes, channelType)
+	}
+	if len(scope.Models) > maxScopeModels || len(scope.ChannelTypes) > maxScopeChannelTypes {
+		return nil, fmt.Errorf("plugin meta scope lists at most %d models and %d channel types", maxScopeModels, maxScopeChannelTypes)
+	}
+	if len(scope.Models) == 0 && len(scope.ChannelTypes) == 0 {
+		return nil, fmt.Errorf("plugin meta scope must list at least one model or channel type; leave it out for a plugin an administrator places")
+	}
+	return scope, nil
+}
 
 // HasTransformPart reports whether the plugin exports a stage hook.
 func (m Meta) HasTransformPart() bool {
