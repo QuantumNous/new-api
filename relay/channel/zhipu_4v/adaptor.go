@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -59,6 +60,16 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		baseURL = channelconstant.GetChannelBaseURL(channelconstant.ChannelTypeZhipu_v4)
 	}
 	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseURL]
+	trimmedBaseURL := strings.TrimRight(baseURL, "/")
+	if info.RelayMode == relayconstant.RelayModeResponses {
+		if hasSpecialPlan && specialPlan.ResponsesBaseURL != "" {
+			return fmt.Sprintf("%s/responses", specialPlan.ResponsesBaseURL), nil
+		}
+		if strings.HasSuffix(trimmedBaseURL, "/api/v1") {
+			return fmt.Sprintf("%s/responses", trimmedBaseURL), nil
+		}
+		return "", fmt.Errorf("zhipu native responses endpoint is not configured for base URL %q", baseURL)
+	}
 
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
@@ -114,7 +125,8 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return request, nil
+	openAIAdaptor := openai.Adaptor{}
+	return openAIAdaptor.ConvertOpenAIResponsesRequest(c, info, request)
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -129,6 +141,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	default:
 		if info.RelayMode == relayconstant.RelayModeImagesGenerations {
 			return zhipu4vImageHandler(c, resp, info)
+		}
+		if info.RelayMode == relayconstant.RelayModeResponses {
+			if info.IsStream {
+				return openai.OaiResponsesStreamHandler(c, info, resp)
+			}
+			return openai.OaiResponsesHandler(c, info, resp)
 		}
 		adaptor := openai.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)
