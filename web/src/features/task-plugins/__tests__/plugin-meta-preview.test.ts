@@ -21,6 +21,7 @@ import { describe, expect, test, vi } from 'vitest'
 import { parseMarketplaceIndex } from '../lib/marketplace'
 import {
   parsePluginMetaPreview,
+  readPluginSourceParts,
   resolvePluginMetaPreview,
 } from '../lib/plugin-meta-preview'
 import type { MarketplacePlugin } from '../types'
@@ -321,4 +322,56 @@ test('preserves valid protocol declarations and empty model lists from the marke
   expect(
     index.plugins.find((entry) => entry.key === 'empty')?.protocols
   ).toEqual([])
+})
+
+test.each([
+  [
+    'a task plugin',
+    'export const meta = {key: "a"}\nexport function buildSubmitRequest() {}',
+    { task: true, provider: false, transform: false },
+  ],
+  [
+    'a provider plugin',
+    'export const meta = {key: "a", relay: [{incoming_path: "/v1/chat"}]}',
+    { task: false, provider: true, transform: false },
+  ],
+  [
+    'an empty relay list',
+    'export const meta = {key: "a", relay: []}',
+    { task: false, provider: false, transform: false },
+  ],
+  [
+    'a request processing plugin exporting a hook by name',
+    'export const meta = {key: "a"}\nconst check = () => {}\nexport { check as request }',
+    { task: false, provider: false, transform: true },
+  ],
+  [
+    'a renamed export that only looks like a hook',
+    'export const meta = {key: "a"}\nconst request = () => {}\nexport { request as other }',
+    { task: false, provider: false, transform: false },
+  ],
+])('reads the parts of %s from its code', (_name, source, parts) => {
+  expect(readPluginSourceParts(source)).toEqual(parts)
+})
+
+test.each([
+  [
+    'meta is built at run time',
+    'export const meta = makeMeta()\nexport function reply() {}',
+  ],
+  // The literal has no relay, but the gateway loads the routes added later.
+  [
+    'later code changes meta',
+    'export const meta = {key: "a"}\nmeta.relay = [{incoming_path: "/v1/chat"}]',
+  ],
+  [
+    'meta is passed to other code',
+    'export const meta = {key: "a"}\nsetup(meta)',
+  ],
+  [
+    'the code does not parse',
+    'export const meta = {key: "a"}\nexport function (',
+  ],
+])('cannot read the parts when %s', (_name, source) => {
+  expect(readPluginSourceParts(source)).toBeNull()
 })

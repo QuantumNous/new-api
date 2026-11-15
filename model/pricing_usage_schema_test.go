@@ -312,6 +312,142 @@ func TestPricingSharedPluginVariantsUseEachSchemaAndExpression(t *testing.T) {
 	assert.Contains(t, string(encoded), "billing_plugin_variants")
 }
 
+// A model-level price that is only a chat price leaves plugin tasks unpriced:
+// an expression reading chat request quantities (token counts, bare
+// image_count) for any task model, and for a model the plugin also relays, a
+// token ratio or an expression without u(). Pricing shows those providers as
+// unconfigured while the chat price stays saveable, and shows the model-level
+// price beside them while ordinary requests still pay it.
+func TestPluginTaskPricesBesideAChatPrice(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	saved := config.GlobalConfig.ExportAllConfigs()
+	savedPrices, savedRatios := ratio_setting.ModelPrice2JSONString(), ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, DB.Where(commonKeyCol+" IN ?", modelPricingOptionKeys).Delete(&Option{}).Error)
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+	})
+	const tokenExpr = `tier("tokens", p * 2 + c * 8)`
+	const usageExpr = `tier("seconds", u("seconds") * 0.3)`
+	const seconds = `{seconds:{type:"number",unit:"second"}}`
+	for key, models := range map[string]string{
+		"pricing-dual": `["dual-ratio","dual-per-call","dual-tokens","dual-usage","dual-split"], relay: [{incoming_path: "/v1/chat/completions", upstream_path: "/v1/chat/completions"}]`,
+		"pricing-task": `["task-tokens","task-images","task-flat"], channelTypes: [9400]`,
+	} {
+		source := strings.ReplaceAll(pricingUsagePluginSource("1.0.0", seconds), "pricing-usage-probe", key)
+		_, err := jsplugin.DefaultRegistry.Register(strings.Replace(source, `["pricing-usage-model"]`, models, 1), jsplugin.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister(key) })
+	}
+	insertPricingEndpointChannel(t, 940, constant.ChannelTypeTaskPlugin, dto.ChannelOtherSettings{})
+	// A legacy channel type pricing-task claims, and an ordinary channel.
+	insertPricingEndpointChannel(t, 941, 9400, dto.ChannelOtherSettings{})
+	insertPricingEndpointChannel(t, 942, constant.ChannelTypeOpenAI, dto.ChannelOtherSettings{})
+	options := map[string]string{
+		"ModelPrice":                            `{"dual-per-call":0.04}`,
+		"ModelRatio":                            `{"dual-ratio":10}`,
+		"billing_setting.billing_mode":          `{"dual-tokens":"tiered_expr","dual-usage":"tiered_expr","dual-split":"tiered_expr","task-tokens":"tiered_expr","task-images":"tiered_expr","task-flat":"tiered_expr"}`,
+		"billing_setting.billing_expr":          `{"dual-tokens":"tier(\"tokens\", p * 2 + c * 8)","dual-usage":"tier(\"seconds\", u(\"seconds\") * 0.3)","dual-split":"tier(\"tokens\", p * 2 + c * 8)","task-tokens":"tier(\"tokens\", p * 2 + c * 8)","task-images":"tier(\"images\", image_count * 0.04)","task-flat":"tier(\"flat\", 0.04)"}`,
+		billing_setting.PluginBillingExprOption: `{"pricing-dual::dual-split":"tier(\"seconds\", u(\"seconds\") * 0.3)"}`,
+	}
+	for key, value := range options {
+		require.NoError(t, DB.Save(&Option{Key: key, Value: value}).Error)
+	}
+	require.NoError(t, config.GlobalConfig.LoadFromDB(options))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(options["ModelPrice"]))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(options["ModelRatio"]))
+
+	tests := []struct {
+		model, plugin string
+		// variantMode is empty when public pricing lists no provider.
+		variantMode, variantExpr string
+		compatible, relay        bool
+		issue                    string
+		// channels serving the model besides the task plugin channel.
+		channels []int
+		// ordinary: public pricing shows the model-level price beside the
+		// variants.
+		ordinary bool
+	}{
+		{model: "dual-ratio", plugin: "pricing-dual", variantMode: billing_setting.BillingModeTieredExpr, relay: true, issue: ModelPricingIssueUnconfigured, ordinary: true},
+		{model: "dual-per-call", plugin: "pricing-dual", variantMode: billing_setting.BillingModeRatio, relay: true, ordinary: true},
+		{model: "dual-tokens", plugin: "pricing-dual", variantMode: billing_setting.BillingModeTieredExpr, relay: true, issue: ModelPricingIssueUnconfigured, ordinary: true},
+		// Ordinary requests reject a usage expression.
+		{model: "dual-usage", plugin: "pricing-dual", variantMode: billing_setting.BillingModeTieredExpr, variantExpr: usageExpr, compatible: true, relay: true, channels: []int{942}},
+		{model: "dual-split", plugin: "pricing-dual", variantMode: billing_setting.BillingModeTieredExpr, variantExpr: usageExpr, compatible: true, relay: true, ordinary: true},
+		{model: "task-tokens", plugin: "pricing-task", variantMode: billing_setting.BillingModeTieredExpr, issue: ModelPricingIssueUnconfigured, channels: []int{941}},
+		{model: "task-images", plugin: "pricing-task", variantMode: billing_setting.BillingModeTieredExpr, issue: ModelPricingIssueUnconfigured, channels: []int{942}, ordinary: true},
+		{model: "task-flat", plugin: "pricing-task", compatible: true},
+	}
+	for _, tc := range tests {
+		for _, channelID := range append([]int{940}, tc.channels...) {
+			insertPricingEndpointAbility(t, channelID, tc.model)
+		}
+	}
+	// Issues cover only the models an enabled channel serves.
+	issues := map[string]string{}
+	for _, key := range []string{"pricing-dual", "pricing-task"} {
+		found, err := GetModelPricingIssues(key)
+		require.NoError(t, err)
+		for _, issue := range found {
+			issues[issue.ModelName] = issue.Reason
+		}
+	}
+	InvalidatePricingCache()
+	prices := pricingByModel(GetPricing())
+	snapshot, err := GetModelPricingSnapshot([]string{"dual-ratio", "dual-per-call", "dual-tokens", "dual-usage", "dual-split", "task-tokens", "task-images", "task-flat"})
+	require.NoError(t, err)
+	for _, tc := range tests {
+		t.Run(tc.model, func(t *testing.T) {
+			require.Contains(t, prices, tc.model)
+			variants := prices[tc.model].BillingPluginVariants
+			if tc.variantMode == "" {
+				assert.Empty(t, variants)
+			} else {
+				require.Len(t, variants, 1)
+				assert.Equal(t, tc.plugin, variants[0].PluginKey)
+				assert.Equal(t, tc.variantMode, variants[0].BillingMode)
+				assert.Equal(t, tc.variantExpr, variants[0].BillingExpr)
+			}
+			assert.Equal(t, tc.ordinary, prices[tc.model].OrdinaryPricing)
+			index := slices.IndexFunc(snapshot.Entries, func(entry ModelPricingEntry) bool { return entry.ModelName == tc.model })
+			require.GreaterOrEqual(t, index, 0)
+			entry := snapshot.Entries[index]
+			require.Len(t, entry.PluginVariants, 1)
+			assert.Equal(t, tc.compatible, entry.PluginVariants[0].Compatible)
+			assert.Equal(t, tc.relay, entry.PluginVariants[0].Relay)
+			assert.Equal(t, tc.issue, issues[tc.model])
+		})
+	}
+
+	for _, tc := range []struct {
+		name, model string
+		pricing     PricingValues
+		wantErr     string
+	}{
+		{name: "plugin price reading token counts", model: "dual-split", pricing: PricingValues{billing_setting.PluginBillingExprOption: map[string]any{"pricing-dual": `tier("tokens", p * 3)`}}, wantErr: "cannot read chat request quantities"},
+		{name: "plugin price reading image count", model: "task-images", pricing: PricingValues{billing_setting.PluginBillingExprOption: map[string]any{"pricing-task": `tier("images", image_count * 0.05)`}}, wantErr: "cannot read chat request quantities"},
+		{name: "chat token price of a relayed model", model: "dual-tokens", pricing: PricingValues{"billing_setting.billing_expr": `tier("tokens", p * 3 + c * 9)`}},
+		{name: "chat constant price of a relayed model", model: "dual-tokens", pricing: PricingValues{"billing_setting.billing_expr": `tier("flat", 0.05)`}},
+		{name: "usage price of a relayed model is a task price", model: "dual-usage", pricing: PricingValues{"billing_setting.billing_expr": `tier("credits", u("credits") * 2)`}, wantErr: `usage key "credits" is not declared`},
+		{name: "token price of a task model", model: "task-tokens", pricing: PricingValues{"billing_setting.billing_expr": `tier("tokens", p * 3)`}},
+		{name: "image count price of a task model", model: "task-images", pricing: PricingValues{"billing_setting.billing_expr": `tier("images", image_count * 0.05)`}},
+		{name: "usage facts mixed with token counts", model: "task-tokens", pricing: PricingValues{"billing_setting.billing_expr": `tier("mixed", u("seconds") * 0.3 + p * 2)`}, wantErr: "cannot read both"},
+		{name: "usage facts mixed with image count", model: "task-images", pricing: PricingValues{"billing_setting.billing_expr": `tier("mixed", u("seconds") * 0.3 * image_count)`}, wantErr: "cannot read both"},
+	} {
+		t.Run("save "+tc.name, func(t *testing.T) {
+			err := ValidateModelPricing(tc.model, tc.pricing)
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+}
+
 // Prices saved while a plugin fit stop fitting when it changes: a dropped model
 // leaves its provider price stale, and a new provider without the usage the
 // model expression reads cannot charge it. Unpriced models are listed too,

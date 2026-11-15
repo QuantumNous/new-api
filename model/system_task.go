@@ -1,7 +1,10 @@
 package model
 
 import (
+	"context"
+	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 
@@ -21,14 +24,21 @@ const (
 	SystemTaskTypeModelUpdate    = "model_update"
 	SystemTaskTypeMidjourneyPoll = "midjourney_poll"
 	SystemTaskTypeAsyncTaskPoll  = "async_task_poll"
+	SystemTaskTypeChannelBalance = "channel_balance"
+	SystemTaskTypeCleanup        = "system_task_cleanup"
+
+	systemTaskCleanupBatchSize = 500
 )
 
 var ErrSystemTaskLockLost = errors.New("system task lock lost")
 
+// SystemTask is one run of a background job, or one sync task (see
+// SyncTaskType). The (type, id) index answers "newest row of a type" without
+// reading older rows; every node asks it every few seconds.
 type SystemTask struct {
-	ID        int64            `json:"id" gorm:"primary_key"`
+	ID        int64            `json:"id" gorm:"primary_key;index:,composite:type_id,priority:2"`
 	TaskID    string           `json:"task_id" gorm:"type:varchar(64);uniqueIndex"`
-	Type      string           `json:"type" gorm:"type:varchar(64);index"`
+	Type      string           `json:"type" gorm:"type:varchar(64);index:,composite:type_id,priority:1"`
 	Status    SystemTaskStatus `json:"status" gorm:"type:varchar(32);index"`
 	ActiveKey *string          `json:"active_key,omitempty" gorm:"type:varchar(64);uniqueIndex"`
 	Payload   string           `json:"payload" gorm:"type:text"`
@@ -161,12 +171,20 @@ func FindEarliestPendingSystemTasks(taskTypes []string) (map[string]*SystemTask,
 		return tasksByType, nil
 	}
 
-	subQuery := DB.Model(&SystemTask{}).
-		Select("MIN(id)").
+	// Read the ids first: MySQL 5.7 runs "id IN (grouped subquery)" as a scan
+	// of the whole table.
+	var ids []int64
+	if err := DB.Model(&SystemTask{}).
 		Where("type IN ? AND status = ?", taskTypes, SystemTaskStatusPending).
-		Group("type")
+		Group("type").
+		Pluck("MIN(id)", &ids).Error; err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return tasksByType, nil
+	}
 	var tasks []*SystemTask
-	if err := DB.Where("id IN (?)", subQuery).Find(&tasks).Error; err != nil {
+	if err := DB.Where("id IN ?", ids).Find(&tasks).Error; err != nil {
 		return nil, err
 	}
 	for _, task := range tasks {
@@ -247,24 +265,101 @@ func GetLatestSystemTask(taskType string) (*SystemTask, error) {
 	return &task, nil
 }
 
+// GetLatestSystemTaskIDs returns the id of the newest row of each type that
+// has one. Every type is its own MAX(id) subquery, which each database answers
+// from the (type, id) index without reading older rows.
+func GetLatestSystemTaskIDs(taskTypes []string) (map[string]int64, error) {
+	ids := make(map[string]int64, len(taskTypes))
+	if len(taskTypes) == 0 {
+		return ids, nil
+	}
+	columns := make([]string, len(taskTypes))
+	subQueries := make([]any, len(taskTypes))
+	for i, taskType := range taskTypes {
+		columns[i] = "(?)"
+		subQueries[i] = DB.Model(&SystemTask{}).Select("MAX(id)").Where("type = ?", taskType)
+	}
+	rows, err := DB.Raw("SELECT "+strings.Join(columns, ", "), subQueries...).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	latest := make([]sql.NullInt64, len(taskTypes))
+	dest := make([]any, len(latest))
+	for i := range latest {
+		dest[i] = &latest[i]
+	}
+	if rows.Next() {
+		if err := rows.Scan(dest...); err != nil {
+			return nil, err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i, taskType := range taskTypes {
+		if latest[i].Valid {
+			ids[taskType] = latest[i].Int64
+		}
+	}
+	return ids, nil
+}
+
 func GetLatestSystemTasks(taskTypes []string) (map[string]*SystemTask, error) {
 	tasksByType := map[string]*SystemTask{}
-	if len(taskTypes) == 0 {
-		return tasksByType, nil
+	latestIDs, err := GetLatestSystemTaskIDs(taskTypes)
+	if err != nil || len(latestIDs) == 0 {
+		return tasksByType, err
 	}
-
-	subQuery := DB.Model(&SystemTask{}).
-		Select("MAX(id)").
-		Where("type IN ?", taskTypes).
-		Group("type")
+	ids := make([]int64, 0, len(latestIDs))
+	for _, id := range latestIDs {
+		ids = append(ids, id)
+	}
 	var tasks []*SystemTask
-	if err := DB.Where("id IN (?)", subQuery).Find(&tasks).Error; err != nil {
+	if err := DB.Where("id IN ?", ids).Find(&tasks).Error; err != nil {
 		return nil, err
 	}
 	for _, task := range tasks {
 		tasksByType[task.Type] = task
 	}
 	return tasksByType, nil
+}
+
+// DeleteFinishedSystemTasks deletes, in batches, the succeeded and failed rows
+// last updated before cutoff. The newest row of every type stays: the
+// scheduler and the node sync read it. A row that becomes the newest later is
+// newer than cutoff.
+func DeleteFinishedSystemTasks(ctx context.Context, cutoff int64) (int64, error) {
+	var newestIDs []int64
+	if err := DB.Model(&SystemTask{}).Group("type").Pluck("MAX(id)", &newestIDs).Error; err != nil {
+		return 0, err
+	}
+	var deleted int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return deleted, err
+		}
+		query := DB.Model(&SystemTask{}).Where("status IN ? AND updated_at < ?", []SystemTaskStatus{SystemTaskStatusSucceeded, SystemTaskStatusFailed}, cutoff)
+		if len(newestIDs) > 0 {
+			query = query.Where("id NOT IN ?", newestIDs)
+		}
+		// MySQL rejects LIMIT in an IN subquery: read the ids, then delete them.
+		var ids []int64
+		if err := query.Order("id").Limit(systemTaskCleanupBatchSize).Pluck("id", &ids).Error; err != nil {
+			return deleted, err
+		}
+		if len(ids) == 0 {
+			return deleted, nil
+		}
+		result := DB.Where("id IN ?", ids).Delete(&SystemTask{})
+		if result.Error != nil {
+			return deleted, result.Error
+		}
+		deleted += result.RowsAffected
+		if len(ids) < systemTaskCleanupBatchSize {
+			return deleted, nil
+		}
+	}
 }
 
 func ClaimSystemTask(id int64, taskType string, runnerID string, lockUntil int64) (*SystemTask, bool, error) {

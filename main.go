@@ -6,6 +6,7 @@ import (
 	"embed"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -26,6 +27,7 @@ import (
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/pkg/wsmanager"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
@@ -110,6 +112,34 @@ func main() {
 	// endpoint inference can read cached route settings on first request.
 	model.GetPricing()
 
+	// The first plugin sync finishes before the server accepts requests, so no
+	// request runs without the uploaded plugins.
+	controller.SyncTaskPluginsOnce()
+
+	// Every node reloads a topic within seconds of a write to it on any node.
+	// The periodic reloads below stay for writes that do not bump a topic.
+	service.RegisterSyncTopic(model.SyncTopicOptions, func(context.Context) error { return model.LoadOptionsFromDatabase() })
+	if common.MemoryCacheEnabled || common.IsMasterNode {
+		service.RegisterSyncTopic(model.SyncTopicChannels, func(ctx context.Context) error {
+			if common.MemoryCacheEnabled {
+				model.InitChannelCache()
+			}
+			return service.ScanScheduledPlugins(ctx)
+		})
+	}
+	service.RegisterSyncTopic(model.SyncTopicAuthz, func(context.Context) error { return authz.ReloadPolicy() })
+	service.RegisterSyncTopic(model.SyncTopicPlugins, controller.SyncTaskPluginsOnceContext)
+	service.RegisterSyncTopic(model.SyncTopicOAuthProviders, func(context.Context) error { return oauth.LoadCustomProviders() })
+	service.RegisterSyncTopic(model.SyncTopicModels, func(context.Context) error {
+		model.RefreshPricing()
+		return nil
+	})
+	if !common.RedisEnabled {
+		// With Redis every node shares the plan cache.
+		service.RegisterSyncTopic(model.SyncTopicSubscriptionPlans, func(context.Context) error { return model.PurgeSubscriptionPlanCache() })
+	}
+	service.StartNodeSync()
+
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
 	go controller.SyncTaskPlugins()
@@ -120,16 +150,19 @@ func main() {
 	// 数据看板
 	go model.UpdateQuotaData()
 
+	// CHANNEL_UPDATE_FREQUENCY schedules the update of all balances, a system
+	// task registered below.
 	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
-		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))
-		if err != nil {
+		if _, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY")); err != nil {
 			common.FatalLog(common.LogText("failed to parse CHANNEL_UPDATE_FREQUENCY: %s", err.Error()))
 		}
-		go controller.AutomaticallyUpdateChannels(frequency)
 	}
 
 	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
 	service.StartCodexCredentialAutoRefreshTask()
+
+	// Plugin credential refresh before expiry, on the master node every minute
+	service.StartPluginCredentialRefreshTask()
 
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
@@ -148,9 +181,10 @@ func main() {
 		}
 		return a
 	}
+	service.ReportTaskFunc = requestplugin.ReportTask
 
-	// Register the periodic channel test, upstream model update, and async task
-	// polling (Midjourney / Suno / video) jobs as scheduled system tasks
+	// Register the periodic channel test, balance update, upstream model update,
+	// and async task polling (Midjourney / Suno / video) jobs as scheduled system tasks
 	// (DB-lease dedup across masters + run history), then start the runner that
 	// schedules and executes them. Master-only execution and the UpdateTask
 	// switch are enforced inside the runner and each handler's Enabled().
@@ -163,9 +197,10 @@ func main() {
 		model.InitBatchUpdater()
 	}
 
+	host := os.Getenv("HOST")
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
-			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
+			log.Println(http.ListenAndServe(net.JoinHostPort(host, "8005"), nil))
 		})
 		go common.Monitor()
 		common.SysLog(common.LogText("pprof enabled"))
@@ -203,7 +238,7 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:    ":" + port,
+		Addr:    net.JoinHostPort(host, port),
 		Handler: server,
 	}
 
@@ -215,7 +250,7 @@ func main() {
 
 	time.Sleep(100 * time.Millisecond)
 
-	common.LogStartupSuccess(startTime, port)
+	common.LogStartupSuccess(startTime, host, port)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -305,9 +340,15 @@ func InitResources() error {
 		common.FatalLog(common.LogText("failed to initialize database: %s", err.Error()))
 		return err
 	}
+	// Before the loads below: a write made while they run is reloaded later.
+	service.ReadStartupSyncRevisions()
 	if err = authz.Init(model.DB); err != nil {
 		common.FatalLog(common.LogText("failed to initialize authorization: %s", err.Error()))
 		return err
+	}
+	if common.IsMasterNode {
+		// The master rewrote the built-in role policies.
+		model.BumpSyncTopic(model.SyncTopicAuthz)
 	}
 	if common.PasswordLoginEncryptionEnabled {
 		if err = model.InitPasswordEncryption(); err != nil {
@@ -322,6 +363,9 @@ func InitResources() error {
 	if common.IsMasterNode {
 		if err := model.MigrateRetiredFrontendOptions(); err != nil {
 			common.SysError(common.LogText("failed to migrate retired frontend options: %s", err.Error()))
+		}
+		if err := model.MigrateSensitiveWords(); err != nil {
+			common.SysError(common.LogText("failed to migrate sensitive words: %s", err.Error()))
 		}
 	}
 	model.InitOptionMap()
@@ -362,6 +406,8 @@ func InitResources() error {
 	if err != nil {
 		common.SysError(common.LogText("failed to load custom OAuth providers: %s", err.Error()))
 		// Don't return error, custom OAuth is not critical
+		// The node sync loads them again on its first tick.
+		service.SyncTopicLoadFailed(model.SyncTopicOAuthProviders, err)
 	}
 
 	service.StartAuthArtifactCleanup()

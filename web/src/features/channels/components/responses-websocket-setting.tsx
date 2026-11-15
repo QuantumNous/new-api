@@ -34,11 +34,15 @@ import { supportsResponsesWebSocket } from '../lib/responses-websocket'
 
 export function ResponsesWebSocketSetting(props: {
   channelType: number
+  /** Overrides the channel type rule, e.g. for a plugin that can serve it. */
+  supported?: boolean
   disabled?: boolean
 }) {
   const { t } = useTranslation()
   const form = useFormContext<ChannelFormValues>()
-  if (!supportsResponsesWebSocket(props.channelType)) return null
+  if (!(props.supported ?? supportsResponsesWebSocket(props.channelType))) {
+    return null
+  }
 
   return (
     <FormField

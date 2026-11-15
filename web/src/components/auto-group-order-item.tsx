@@ -31,6 +31,8 @@ import { Button } from '@/components/ui/button'
 
 type AutoGroupOrderItemProps = {
   group: string
+  /** The reorder value when it differs from the shown name; defaults to `group`. */
+  value?: string
   index: number
   count: number
   leading?: ReactNode
@@ -60,7 +62,7 @@ export function AutoGroupOrderItem(props: AutoGroupOrderItemProps) {
 
   return (
     <Reorder.Item
-      value={props.group}
+      value={props.value ?? props.group}
       dragListener={false}
       dragMomentum={false}
       dragControls={dragControls}
@@ -122,7 +124,7 @@ export function AutoGroupOrderItem(props: AutoGroupOrderItemProps) {
           variant='ghost'
           size='icon-sm'
           aria-label={t('Remove {{group}}', { group: props.group })}
-          onClick={() => props.onRemove(props.group)}
+          onClick={() => props.onRemove(props.value ?? props.group)}
         >
           <HugeiconsIcon
             icon={Cancel01Icon}

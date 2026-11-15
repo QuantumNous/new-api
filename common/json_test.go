@@ -1,7 +1,10 @@
 package common
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -204,6 +207,63 @@ func TestHostJSONCodecConformance(t *testing.T) {
 		require.NoError(t, Unmarshal([]byte(`{}`), &absent))
 		assert.Nil(t, absent.Count)
 		assert.Nil(t, absent.Enabled)
+	})
+
+	t.Run("decoded values outlive the request buffer", func(t *testing.T) {
+		input := []byte(`{"labels":{"role":"user"},"raw":{"enabled":false},"n":9007199254740993}`)
+		var value struct {
+			Labels map[string]string `json:"labels"`
+			Raw    json.RawMessage   `json:"raw"`
+			N      json.Number       `json:"n"`
+		}
+		require.NoError(t, Unmarshal(input, &value))
+		for i := range input {
+			input[i] = 'x'
+		}
+		assert.Equal(t, map[string]string{"role": "user"}, value.Labels)
+		assert.Equal(t, `{"enabled":false}`, string(value.Raw))
+		assert.Equal(t, json.Number("9007199254740993"), value.N)
+	})
+
+	t.Run("standard error types remain available to callers", func(t *testing.T) {
+		for _, tt := range []struct {
+			name, input string
+			target      any
+			wantError   any
+		}{
+			{"syntax", `{"n":`, new(any), new(*json.SyntaxError)},
+			{"trailing document", `{} {}`, new(any), new(*json.SyntaxError)},
+			{"wrong type", `"text"`, new(int), new(*json.UnmarshalTypeError)},
+			{"unsigned negative", `-1`, new(uint64), new(*json.UnmarshalTypeError)},
+			{"unsigned overflow", `18446744073709551616`, new(uint64), new(*json.UnmarshalTypeError)},
+			{"invalid target", `{}`, nil, new(*json.InvalidUnmarshalError)},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				require.ErrorAs(t, Unmarshal([]byte(tt.input), tt.target), tt.wantError)
+			})
+		}
+	})
+
+	t.Run("large request bodies decode from memory and temporary files", func(t *testing.T) {
+		type request struct {
+			Content string `json:"content"`
+			Count   *int   `json:"count,omitempty"`
+		}
+		want := request{Content: strings.Repeat("图片<&>", 32<<10), Count: &zero}
+		body, err := Marshal(want)
+		require.NoError(t, err)
+		file, err := os.CreateTemp(t.TempDir(), "request-*.json")
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, file.Close()) })
+		_, err = file.Write(append([]byte("prefix"), body...))
+		require.NoError(t, err)
+		_, err = file.Seek(int64(len("prefix")), io.SeekStart)
+		require.NoError(t, err)
+		for _, reader := range []io.Reader{bytes.NewBuffer(body), file} {
+			var got request
+			require.NoError(t, DecodeJson(reader, &got))
+			assert.Equal(t, want, got)
+		}
 	})
 
 	t.Run("relaykit DTO round trip", func(t *testing.T) {

@@ -19,13 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
 
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
+import {
+  PasswordConfirmationStatus,
+  PasswordStrength,
+} from '@/components/password-strength'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -73,6 +77,14 @@ export function ChangePasswordDialog(props: ChangePasswordDialogProps) {
   const form = useForm<PasswordChangeValues>({
     resolver: zodResolver(passwordChangeSchema),
     defaultValues: emptyPasswordForm,
+  })
+  const newPasswordValue = useWatch({
+    control: form.control,
+    name: 'newPassword',
+  })
+  const confirmPasswordValue = useWatch({
+    control: form.control,
+    name: 'confirmPassword',
   })
   const reset = form.reset
   const cancel = security.cancel
@@ -211,16 +223,17 @@ export function ChangePasswordDialog(props: ChangePasswordDialogProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('New Password')}</FormLabel>
-                  <FormControl>
+                  <FormControl describedBy='change-password-strength'>
                     <PasswordInput
                       {...field}
                       autoComplete='new-password'
                       disabled={security.pending}
                     />
                   </FormControl>
-                  <p className='text-muted-foreground text-xs'>
-                    {t('Use 8–128 characters.')}
-                  </p>
+                  <PasswordStrength
+                    id='change-password-strength'
+                    value={newPasswordValue}
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -228,16 +241,22 @@ export function ChangePasswordDialog(props: ChangePasswordDialogProps) {
             <FormField
               control={form.control}
               name='confirmPassword'
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>{t('Confirm New Password')}</FormLabel>
-                  <FormControl>
+                  <FormControl describedBy='change-password-confirmation-status'>
                     <PasswordInput
                       {...field}
                       autoComplete='new-password'
                       disabled={security.pending}
                     />
                   </FormControl>
+                  <PasswordConfirmationStatus
+                    id='change-password-confirmation-status'
+                    password={newPasswordValue}
+                    confirmation={confirmPasswordValue}
+                    hasFieldError={!!fieldState.error}
+                  />
                   <FormMessage />
                 </FormItem>
               )}

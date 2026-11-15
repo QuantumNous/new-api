@@ -14,17 +14,23 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	taskdto "github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/request_plugin_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 	"gorm.io/gorm"
 )
 
@@ -420,4 +426,228 @@ func TestDoubaoRelayedImageStreamSettlement(t *testing.T) {
 			assert.Equal(t, tc.wantQuota, consumeLogs[0].Quota)
 		})
 	}
+}
+
+// reservingBilling holds the estimate when the attempt reserves it, as a
+// billing session does, so a refund shows in the user's quota.
+type reservingBilling struct{ nativeRouteBilling }
+
+func (b *reservingBilling) ReserveBeforeSubmit(quota int) error { return b.Reserve(quota) }
+
+// A task submission runs the request plugins: ingress on the client body
+// before it is decoded, priced or reserved, egress on the body the task
+// plugin built. An ingress stop charges nothing, an egress stop gives the
+// reservation back, and the logs carry the record.
+func TestTaskSubmissionRunsRequestPlugins(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+	require.NoError(t, i18n.Init())
+
+	previousDB, previousLogDB := model.DB, model.LOG_DB
+	previousMemoryCache, previousBatchUpdate, previousLogConsume, previousRedis, previousErrorLog := common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RedisEnabled, constant.ErrorLogEnabled
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Channel{}, &model.Task{}, &model.Log{}))
+	model.DB, model.LOG_DB = database, database
+	common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RedisEnabled, constant.ErrorLogEnabled = false, false, true, false, true
+	previousPrices := ratio_setting.ModelPrice2JSONString()
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"rp-video-1":0.01}`))
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = previousDB, previousLogDB
+		common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RedisEnabled, constant.ErrorLogEnabled = previousMemoryCache, previousBatchUpdate, previousLogConsume, previousRedis, previousErrorLog
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(previousPrices))
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: "[]"}))
+	})
+	require.NoError(t, database.Create(&model.User{Id: 7, Username: "task-plugins-user", Group: "default", Quota: 1_000_000}).Error)
+
+	var sent []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		sent = append(sent, string(body))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"up-1"}`)
+	}))
+	defer upstream.Close()
+
+	for _, source := range []string{`export const meta = {apiVersion: 1, key: "rp-video", name: "Video", version: "1.0.0", author: {name: "Test"}, models: ["rp-video-1"], fetchMode: "per_task"};
+export function buildSubmitRequest(ctx) { return {url: ctx.baseUrl + "/submit", method: "POST", body: {model: ctx.requestBody.model, prompt: ctx.requestBody.prompt}}; }
+export function parseSubmitResponse(ctx) { return {taskId: "up-1", taskData: {prompt: ctx.requestBody.prompt}}; }
+export function buildQueryRequest(ctx) { return {url: ctx.baseUrl + "/query"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }`,
+		`export const meta = {apiVersion: 1, key: "rp-task", name: "Task", version: "1.0.0", author: {name: "Test"}};
+export function ingress(ctx, req) {
+  if (ctx.config.reject) return {action: "reject", code: "blocked.task", message: "No " + ctx.format};
+  return {action: "continue", effects: [{type: "json.patch", ops: [{op: "replace", path: "/prompt", value: req.body.prompt.replace("a@b.c", "[email]")}]}]};
+}
+export function egress(ctx, req) {
+  if (ctx.config.egress) return {action: "reject", code: "blocked.egress", message: ctx.format + " " + req.body.prompt};
+  return {action: "continue"};
+}`} {
+		plugin, registerErr := pluginruntime.DefaultRegistry.Register(source, pluginruntime.Options{})
+		require.NoError(t, registerErr)
+		t.Cleanup(func() { _ = pluginruntime.DefaultRegistry.Unregister(plugin.Meta.Key) })
+	}
+	channel := model.Channel{Type: constant.ChannelTypeTaskPlugin, Name: "rp-video", Key: "sk-test", BaseURL: &upstream.URL, Status: common.ChannelStatusEnabled, Models: "rp-video-1", Group: "default"}
+	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "rp-video"})
+	require.NoError(t, database.Create(&channel).Error)
+
+	submit := func(instances, taskID string) (*httptest.ResponseRecorder, *reservingBilling, *taskdto.TaskError) {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: instances}))
+		sent = nil
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/tasks/rp-video", strings.NewReader(`{"model":"rp-video-1","prompt":"mail a@b.c a cat"}`))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Params = gin.Params{{Key: "key", Value: "rp-video"}}
+		common.SetContextKey(c, constant.ContextKeyUserId, 7)
+		common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
+		common.SetContextKey(c, constant.ContextKeyUserQuota, 1_000_000)
+		middleware.PrepareTaskPluginSubmit()(c)
+		require.False(t, c.IsAborted(), recorder.Body.String())
+		require.Nil(t, middleware.SetupContextForSelectedChannel(c, &channel, "rp-video-1"))
+		billing := &reservingBilling{nativeRouteBilling{userID: 7}}
+		relayInfo := &relaycommon.RelayInfo{
+			UserId: 7, UserGroup: "default", UsingGroup: "default", UserQuota: 1_000_000, TokenGroup: "default",
+			OriginModelName: "rp-video-1", Billing: billing,
+			TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: taskID, LockedChannel: &channel},
+		}
+		outcome, taskErr := executeTaskSubmissionWith(c, relayInfo, relay.RelayTaskSubmit)
+		if taskErr != nil {
+			respondTaskSubmissionError(c, taskErr)
+		} else {
+			presentTaskSubmission(c, outcome)
+		}
+		return recorder, billing, taskErr
+	}
+	lastLog := func(logType int) model.Log {
+		var entry model.Log
+		require.NoError(t, database.Where("type = ?", logType).Order("id DESC").First(&entry).Error)
+		return entry
+	}
+	quota := func() int {
+		var user model.User
+		require.NoError(t, database.First(&user, 7).Error)
+		return user.Quota
+	}
+
+	// An ingress rejection answers in the task error format before anything
+	// is decoded, priced or reserved, and its error log has the record.
+	recorder, billing, taskErr := submit(`[{"id":"door","name":"Door","plugin":"rp-task","enabled":true,"global":true,"config":{"reject":true}}]`, "task_rp_rejected")
+	require.NotNil(t, taskErr)
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.JSONEq(t, `{"code":"request_rejected","message":"No task (code: blocked.task)","data":null}`, recorder.Body.String())
+	assert.NotContains(t, billing.events, "reserve")
+	assert.Empty(t, sent)
+	assert.Equal(t, 1_000_000, quota())
+	errorLog := lastLog(model.LogTypeError)
+	assert.Zero(t, errorLog.ChannelId)
+	assert.JSONEq(t, `[{"plugin":"rp-task","name":{"en":"Task"},"stage":"ingress","rejected":{"code":"blocked.task"}}]`, gjson.Get(errorLog.Other, "request_plugins").Raw)
+	assert.Equal(t, "reject", gjson.Get(errorLog.Other, "admin_info.request_plugins.0.action").Str)
+
+	// The redacted prompt is what the task plugin decodes, prices, sends and
+	// stores; the consume log shows the change.
+	recorder, billing, taskErr = submit(`[{"id":"redact","name":"Redact","plugin":"rp-task","enabled":true,"global":true}]`, "task_rp_redacted")
+	require.Nil(t, taskErr, recorder.Body.String())
+	assert.NotContains(t, billing.events, "refund")
+	require.Len(t, sent, 1)
+	assert.JSONEq(t, `{"model":"rp-video-1","prompt":"mail [email] a cat"}`, sent[0])
+	var task model.Task
+	require.NoError(t, database.Where("task_id = ?", "task_rp_redacted").First(&task).Error)
+	assert.JSONEq(t, `{"prompt":"mail [email] a cat"}`, string(task.Data))
+	consumeLog := lastLog(model.LogTypeConsume)
+	assert.JSONEq(t, `[{"plugin":"rp-task","name":{"en":"Task"},"stage":"ingress","changes":[{"op":"replace","path":"prompt","value":"mail [email] a cat"}]}]`, gjson.Get(consumeLog.Other, "request_plugins").Raw)
+	assert.Equal(t, "redact", gjson.Get(consumeLog.Other, "admin_info.request_plugins.0.instance").Str)
+	assert.NotContains(t, consumeLog.Other, "a@b.c")
+	charged := 1_000_000 - quota()
+	assert.Positive(t, charged)
+
+	// Egress reads the body the task plugin built, after the reserve: its
+	// stop sends nothing and the existing refund gives the quota back.
+	before := quota()
+	recorder, billing, taskErr = submit(`[
+		{"id":"redact","name":"Redact","plugin":"rp-task","enabled":true,"global":true},
+		{"id":"final","name":"Final","plugin":"rp-task","enabled":true,"global":true,"config":{"egress":true}}
+	]`, "task_rp_egress")
+	require.NotNil(t, taskErr)
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Equal(t, "request_rejected", taskErr.Code)
+	assert.Equal(t, "task mail [email] a cat (code: blocked.egress)", taskErr.Message)
+	assert.Equal(t, []string{"reserve", "refund"}, billing.events)
+	assert.Empty(t, sent)
+	assert.Equal(t, before, quota())
+	errorLog = lastLog(model.LogTypeError)
+	assert.Equal(t, channel.Id, errorLog.ChannelId)
+	assert.JSONEq(t, `{"plugin":"rp-task","name":{"en":"Task"},"stage":"egress","rejected":{"code":"blocked.egress"}}`, gjson.Get(errorLog.Other, `request_plugins.#(stage=="egress")`).Raw)
+}
+
+// On a native route the plugin decodes the body again after ingress changed
+// it, so the vendor receives the changed prompt.
+func TestNativeRouteDecodesTheIngressBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+	require.NoError(t, i18n.Init())
+
+	previousDB, previousLogDB := model.DB, model.LOG_DB
+	previousMemoryCache, previousBatchUpdate, previousLogConsume, previousRedis := common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RedisEnabled
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, database.AutoMigrate(&model.User{}, &model.Channel{}, &model.Task{}, &model.Log{}))
+	model.DB, model.LOG_DB = database, database
+	common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RedisEnabled = false, false, false, false
+	previousModelRatios := ratio_setting.ModelRatio2JSONString()
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"kling-v3":1}`))
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = previousDB, previousLogDB
+		common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled, common.RedisEnabled = previousMemoryCache, previousBatchUpdate, previousLogConsume, previousRedis
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(previousModelRatios))
+		require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: "[]"}))
+	})
+	require.NoError(t, database.Create(&model.User{Id: 7, Username: "native-ingress-user", Group: "default", Quota: 1_000_000}).Error)
+
+	var sent string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		sent = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"code":0,"message":"","data":{"task_id":"kling-private-2","task_status":"submitted"}}`)
+	}))
+	defer upstream.Close()
+	plugin, err := pluginruntime.DefaultRegistry.Register(`export const meta = {apiVersion: 1, key: "rp-native", name: "Native", version: "1.0.0", author: {name: "Test"}};
+export function ingress(ctx, req) {
+  return {action: "continue", effects: [{type: "json.patch", ops: [{op: "replace", path: "/prompt", value: ctx.format + ": " + req.body.prompt.replace("a@b.c", "[email]")}]}]};
+}`, pluginruntime.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pluginruntime.DefaultRegistry.Unregister(plugin.Meta.Key) })
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{request_plugin_setting.InstancesOption: `[{"id":"redact","name":"Redact","plugin":"rp-native","enabled":true,"global":true}]`}))
+	channel := model.Channel{Type: constant.ChannelTypeKling, Name: "kling-native-ingress", Key: "sk-test", BaseURL: &upstream.URL, Status: common.ChannelStatusEnabled, Models: "kling-v3", Group: "default"}
+	require.NoError(t, database.Create(&channel).Error)
+
+	generation := pluginruntime.DefaultRegistry.Generation()
+	binding, found := generation.LookupDeclaredRoute(http.MethodPost, "/kling/v1/videos/text2video")
+	require.True(t, found)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/kling/v1/videos/text2video", strings.NewReader(`{"model_name":"kling-v3","prompt":"mail a@b.c a lighthouse"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Generation: generation, Plugin: binding.Plugin, Route: binding.Route})
+	common.SetContextKey(c, constant.ContextKeyUserId, 7)
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+	common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
+	common.SetContextKey(c, constant.ContextKeyUserQuota, 1_000_000)
+	middleware.PrepareTaskPluginRoute()(c)
+	require.False(t, c.IsAborted(), recorder.Body.String())
+	require.Nil(t, middleware.SetupContextForSelectedChannel(c, &channel, "kling-v3"))
+	relayInfo := &relaycommon.RelayInfo{
+		UserId: 7, UserGroup: "default", UsingGroup: "default", UserQuota: 1_000_000, TokenGroup: "default",
+		OriginModelName: "kling-v3", Billing: &nativeRouteBilling{userID: 7},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{Action: c.GetString("task_action"), PublicTaskID: "task_kling_ingress", LockedChannel: &channel},
+	}
+
+	_, taskErr := executeTaskSubmissionWith(c, relayInfo, relay.RelayTaskSubmit)
+
+	require.Nil(t, taskErr)
+	assert.Equal(t, "task: mail [email] a lighthouse", gjson.Get(sent, "prompt").Str, sent)
+	assert.Equal(t, "kling-v3", gjson.Get(sent, "model_name").Str)
 }

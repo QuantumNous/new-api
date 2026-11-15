@@ -375,12 +375,31 @@ func TestVertexAIOmniBuildSubmitRequest(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "https://vertex.example/v1beta1/projects/my-project/locations/global/interactions", descriptor["url"])
 	assert.Equal(t, "image_to_video", descriptor["action"])
-	input := descriptor["body"].(map[string]any)["input"].([]any)
-	require.Len(t, input, 2)
-	assert.Equal(t, map[string]any{"type": "image", "mime_type": "image/png", "data": map[string]any{"__fileRef": "request_file:input_reference", "encoding": "base64"}}, input[1])
+	assert.Equal(t, []any{
+		map[string]any{"type": "image", "mime_type": "image/png", "data": map[string]any{"__fileRef": "request_file:input_reference", "encoding": "base64"}},
+		map[string]any{"type": "text", "text": "animate"},
+	}, descriptor["body"].(map[string]any)["input"])
 
-	_, err = call(map[string]any{"upstreamModel": omni, "authHeader": "Bearer t", "auth": map[string]any{"authHeader": "Bearer t", "projectId": "p"}, "requestBody": map[string]any{"prompt": "x", "duration": 12}})
-	assert.ErrorContains(t, err, "3 to 10")
+	// Several images are sent in order without a task hint, which would limit them to one.
+	descriptor, err = call(map[string]any{
+		"upstreamModel": "gemini-omni-1.2-flash", "authHeader": "Bearer t", "auth": map[string]any{"authHeader": "Bearer t", "projectId": "p"},
+		"requestBody": map[string]any{"prompt": "morph", "duration": 15, "images": []any{"data:image/png;base64,aGVsbG8=", "/9j/4AAQ"}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"model": "gemini-omni-1.2-flash",
+		"input": []any{
+			map[string]any{"type": "image", "mime_type": "image/png", "data": "aGVsbG8="},
+			map[string]any{"type": "image", "mime_type": "image/jpeg", "data": "/9j/4AAQ"},
+			map[string]any{"type": "text", "text": "morph"},
+		},
+		"response_format": []any{map[string]any{"type": "video", "aspect_ratio": "16:9", "resolution": "720p", "duration": "15s"}},
+		"background":      true,
+		"store":           true,
+	}, descriptor["body"])
+
+	_, err = call(map[string]any{"upstreamModel": omni, "authHeader": "Bearer t", "auth": map[string]any{"authHeader": "Bearer t", "projectId": "p"}, "requestBody": map[string]any{"prompt": "x", "duration": 16}})
+	assert.ErrorContains(t, err, "3 to 15")
 	_, err = call(map[string]any{"upstreamModel": omni, "authHeader": "Bearer t", "auth": map[string]any{"authHeader": "Bearer t", "projectId": "p"}, "requestBody": map[string]any{"prompt": "x", "resolution": "2k"}})
 	assert.ErrorContains(t, err, "resolution must be one of 360p")
 	_, err = call(map[string]any{"upstreamModel": omni, "upstream": map[string]any{"kind": "new_api"}, "authHeader": "Bearer t", "auth": map[string]any{}, "requestBody": map[string]any{"prompt": "x"}})
@@ -427,6 +446,7 @@ func TestVertexAIOmniQueryAndParse(t *testing.T) {
 		{"completed uri", stored, map[string]any{"status": "SUCCESS", "progress": "100%", "remoteUrl": "gs://b/v.mp4"}},
 		{"completed without video", map[string]any{"id": "int_1", "status": "completed", "steps": []any{}}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "interaction completed without a video"}},
 		{"failed", map[string]any{"id": "int_1", "status": "failed"}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "failed"}},
+		{"blocked", map[string]any{"id": "int_1", "status": "failed", "errors": []any{map[string]any{"code": "content_blocked", "message": "Request blocked for an unspecified policy reason."}}}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "content_blocked: Request blocked for an unspecified policy reason."}},
 		{"error", map[string]any{"error": map[string]any{"message": "quota exceeded"}}, map[string]any{"status": "FAILURE", "progress": "100%", "reason": "quota exceeded"}},
 		{"unrecognized", map[string]any{"foo": "bar"}, map[string]any{"status": "UNKNOWN", "reason": "unrecognized interaction state"}},
 	} {
@@ -464,6 +484,8 @@ func TestVertexAIOmniUsageAndVideoDecoder(t *testing.T) {
 	assert.Equal(t, map[string]any{"input_tokens": float64(0), "output_tokens": float64(0), "video_tokens": float64(8 * 8688)}, decodePluginValue(t, usage))
 	schema, _ := plugin.Meta.UsageForModel(omni)
 	assert.ElementsMatch(t, []string{"input_tokens", "output_tokens", "video_tokens"}, slices.Collect(maps.Keys(schema)))
+	schema12, _ := plugin.Meta.UsageForModel("gemini-omni-1.2-flash")
+	assert.Equal(t, schema, schema12)
 
 	// Thinking is billed as text output.
 	completed, err := plugin.Engine.Call(t.Context(), "extractUsageOnComplete", map[string]any{"upstreamModel": omni}, map[string]any{}, map[string]any{

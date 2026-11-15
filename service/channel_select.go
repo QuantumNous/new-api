@@ -33,12 +33,17 @@ func AppendTaskPluginIdentityFilter(c *gin.Context, pluginKey string) {
 		return
 	}
 	channelTypes, pluginKeys := pinnedTaskPluginIdentities(c, pluginKey)
-	GetChannelConstraints(c).AddFilter(dto.ChannelFilter{
+	filter := dto.ChannelFilter{
 		Kind:                   dto.FilterTaskPluginIdentity,
 		TaskPluginKey:          pluginKey,
 		TaskPluginChannelTypes: channelTypes,
 		TaskPluginKeys:         pluginKeys,
-	})
+	}
+	if c.Request != nil && c.Request.URL != nil {
+		// An ordinary request may run on a plugin channel whose relay routes serve its path.
+		filter.RequestPath = c.Request.URL.Path
+	}
+	GetChannelConstraints(c).AddFilter(filter)
 }
 
 type RetryParam struct {

@@ -102,6 +102,9 @@ func ReorderChannelPriority(move ChannelPriorityMove) (ChannelPriorityOrder, err
 		result.Revision = channelPriorityRevision(result.Items)
 		return nil
 	})
+	if err == nil && !move.Preview {
+		BumpSyncTopic(SyncTopicChannels)
+	}
 	return result, err
 }
 

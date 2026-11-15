@@ -2,6 +2,8 @@ package plugins
 
 import (
 	"io/fs"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -12,6 +14,16 @@ import (
 )
 
 var expectedKeys = []string{"alibaba", "doubao", "google", "hailuo", "jimeng", "kling", "sora", "sunoapi", "vertex-ai", "vidu", "xai"}
+
+// The built-in request processing plugins and the stage hooks each exports.
+var requestPluginHooks = map[string][]string{
+	"auto-reasoning":     {"request"},
+	"content-moderation": {"ingress", "reply"},
+	"image-compress":     {"outbound"},
+	"param-override":     {"outbound"},
+	"request-filter":     {"ingress", "egress", "reply"},
+	"request-redact":     {"ingress", "egress", "reply"},
+}
 
 func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing.T) {
 	generation := jsplugin.DefaultRegistry.Generation()
@@ -149,7 +161,11 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 			actualKeys = append(actualKeys, entry.Name())
 		}
 	}
-	assert.Equal(t, expectedKeys, actualKeys)
+	// Every other directory holds a request processing plugin, which has no
+	// task part.
+	allKeys := slices.Concat(expectedKeys, slices.Collect(maps.Keys(requestPluginHooks)))
+	slices.Sort(allKeys)
+	assert.Equal(t, allKeys, actualKeys)
 
 	for _, key := range expectedKeys {
 		t.Run(key, func(t *testing.T) {
@@ -190,6 +206,33 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 			for usageKey, schema := range plugin.Meta.UsageSchema {
 				assert.NotEmpty(t, schema.Description, usageKey)
 			}
+		})
+	}
+}
+
+func TestBuiltInRequestPluginsExportTheirStageHooks(t *testing.T) {
+	generation := jsplugin.DefaultRegistry.Generation()
+	require.NotNil(t, generation)
+
+	for key, hooks := range requestPluginHooks {
+		t.Run(key, func(t *testing.T) {
+			plugin, found := generation.Get(key)
+			require.True(t, found, "factory plugin was excluded from the active generation")
+			assert.Equal(t, hooks, plugin.TransformHooks())
+			// A request may skip a failure only of the plugins whose work is
+			// an improvement, never of a policy or a configured override.
+			assert.Equal(t, key == "auto-reasoning" || key == "image-compress", plugin.Meta.Optional)
+			assert.False(t, plugin.Engine.HasExport("buildSubmitRequest"))
+			assert.Empty(t, plugin.Meta.Relay)
+			assert.NotEmpty(t, plugin.Meta.NameI18n["zh"])
+			// An instance saved without config takes the schema defaults.
+			_, err := plugin.ValidateConfig(nil)
+			require.NoError(t, err)
+			// The icon endpoint serves the sidecar logo from this data URI.
+			mediaType, data, err := jsplugin.DecodeIconDataURI(IconDataURI(key))
+			require.NoError(t, err)
+			assert.Equal(t, "image/svg+xml", mediaType)
+			assert.NotEmpty(t, data)
 		})
 	}
 }

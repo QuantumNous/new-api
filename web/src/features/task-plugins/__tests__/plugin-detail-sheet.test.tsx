@@ -30,6 +30,7 @@ import type {
   TaskPluginDetail,
   TaskPluginListItem,
   TaskPluginMeta,
+  TaskPluginParts,
   TaskPluginRecord,
 } from '../types'
 
@@ -59,10 +60,12 @@ function makeItem(): TaskPluginListItem {
 
 function renderSheet(
   metaOverrides: Partial<TaskPluginMeta>,
-  skippedRoutes?: string[]
+  skippedRoutes?: string[],
+  parts?: TaskPluginParts & Pick<TaskPluginDetail, 'transform_hooks'>
 ) {
   const item = makeItem()
   const detail: TaskPluginDetail = {
+    ...parts,
     meta: { ...item.meta, ...metaOverrides },
     source: '',
     layer: 'factory',
@@ -804,4 +807,158 @@ test('keeps the billing parameter table for plugins without usage profiles', asy
   expect(
     screen.queryByText('No billing parameters declared')
   ).not.toBeInTheDocument()
+})
+
+describe('PluginDetailSheet provider plugins', () => {
+  const relay = [
+    { incoming_path: '/v1/responses', upstream_path: '/backend-api/responses' },
+    {
+      incoming_path: '/v1/messages',
+      upstream_path: '/v1/generate',
+      converter: 'plugin',
+      models: ['model-a'],
+    },
+    {
+      incoming_path: '/v1/chat/completions',
+      upstream_path: '/v1/responses',
+      converter: 'openai_chat_completions_to_openai_responses',
+    },
+  ]
+  const providerOnly: TaskPluginParts = {
+    task: false,
+    provider: true,
+    login: true,
+    refresh: true,
+  }
+
+  test('given a provider-only plugin, the billing and sandbox tabs are not offered', async () => {
+    renderSheet({ relay }, undefined, providerOnly)
+
+    expect(
+      await screen.findByRole('region', { name: 'Forwarded routes' })
+    ).toBeVisible()
+    expect(screen.queryByRole('tab', { name: 'Billing parameters' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Plugin sandbox' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Plugin source' })).toBeVisible()
+  })
+
+  test('given a provider-only plugin, the overview omits the fetch mode and the task endpoints', async () => {
+    renderSheet({ relay }, undefined, providerOnly)
+
+    const metadata = await screen.findByRole('region', {
+      name: 'Plugin metadata',
+    })
+    expect(metadata.textContent).not.toContain('Fetch mode')
+    expect(metadata.textContent).toContain('Plugin')
+    expect(screen.queryByRole('region', { name: 'Endpoints' })).toBeNull()
+  })
+
+  test('given a provider plugin with login, the header carries the Channel and Account login tags', async () => {
+    renderSheet({ relay }, undefined, providerOnly)
+
+    expect(await screen.findByText('Channel')).toBeVisible()
+    expect(screen.getByText('Account login')).toBeVisible()
+  })
+
+  test('given relay routes, each lists its client path, upstream path and conversion', async () => {
+    renderSheet({ relay }, undefined, providerOnly)
+
+    const routes = await screen.findByRole('region', {
+      name: 'Forwarded routes',
+    })
+    const rows = within(routes).getAllByRole('listitem')
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toHaveTextContent('/v1/responses')
+    expect(rows[0]).toHaveTextContent('/backend-api/responses')
+    expect(rows[0]).toHaveTextContent('Native forwarding')
+    expect(rows[1]).toHaveTextContent('Converted by the plugin')
+    expect(rows[2]).toHaveTextContent('OpenAI Chat to OpenAI Responses')
+  })
+
+  test('given a plugin with both parts, the task tabs, endpoints and forwarded routes all render', async () => {
+    renderSheet({ relay, protocols: ['openai_video'] }, undefined, {
+      ...providerOnly,
+      task: true,
+    })
+
+    expect(
+      await screen.findByRole('region', { name: 'Forwarded routes' })
+    ).toBeVisible()
+    expect(screen.getByRole('region', { name: 'Endpoints' })).toBeVisible()
+    expect(
+      screen.getByRole('tab', { name: 'Billing parameters' })
+    ).toBeVisible()
+    expect(screen.getByRole('tab', { name: 'Plugin sandbox' })).toBeVisible()
+  })
+
+  test('given an older server without part flags, a task plugin keeps its tabs and has no part tags', async () => {
+    renderSheet({})
+
+    expect(
+      await screen.findByRole('tab', { name: 'Billing parameters' })
+    ).toBeVisible()
+    expect(screen.getByRole('tab', { name: 'Plugin sandbox' })).toBeVisible()
+    expect(screen.queryByText('Channel')).toBeNull()
+    expect(screen.queryByText('Account login')).toBeNull()
+    expect(
+      screen.queryByRole('region', { name: 'Forwarded routes' })
+    ).toBeNull()
+  })
+})
+
+describe('PluginDetailSheet request processing part', () => {
+  const transformOnly = {
+    task: false,
+    provider: false,
+    transform: true,
+    transform_hooks: ['ingress', 'egress'],
+  }
+  const configSchema = {
+    type: 'object' as const,
+    properties: {
+      message: {
+        type: 'string' as const,
+        title: { en: 'Refusal message', zh: '拒绝提示' },
+        description: { en: 'Shown to the client' },
+        default: 'Blocked',
+      },
+      rules: { type: 'array' as const, title: 'Rules' },
+    },
+  }
+
+  test('given a request processing only plugin, the overview lists its stages in plain words and its settings read-only', async () => {
+    renderSheet({ models: null, configSchema }, undefined, transformOnly)
+
+    const section = await screen.findByRole('region', {
+      name: 'Request processing',
+    })
+    const stages = within(section).getAllByRole('listitem')
+    expect(stages.map((stage) => stage.textContent)).toEqual([
+      'Before the request is read',
+      'Final check',
+    ])
+    const settings = within(section).getByRole('table', { name: 'Settings' })
+    expect(settings).toHaveTextContent('Refusal message')
+    expect(settings).toHaveTextContent('Shown to the client')
+    expect(settings).toHaveTextContent('"Blocked"')
+    expect(within(settings).queryByRole('textbox')).toBeNull()
+  })
+
+  test('given a request processing only plugin, the header tag shows and the task and channel details are hidden', async () => {
+    renderSheet({ models: null, configSchema }, undefined, transformOnly)
+
+    const metadata = await screen.findByRole('region', {
+      name: 'Plugin metadata',
+    })
+    const tag = screen
+      .getAllByText('Request processing')
+      .find((element) => element.dataset.slot === 'badge')
+    expect(tag).toBeVisible()
+    expect(metadata.textContent).not.toContain('Channel types')
+    expect(metadata.textContent).not.toContain('Default base URL')
+    expect(screen.queryByRole('region', { name: 'Models' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Endpoints' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Billing parameters' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Plugin sandbox' })).toBeNull()
+  })
 })

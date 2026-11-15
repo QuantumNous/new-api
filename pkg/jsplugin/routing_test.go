@@ -2,8 +2,12 @@ package jsplugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -811,6 +815,16 @@ func TestDeclarativeRouteValidationProtectsNamespacesAndCanonicalSyntax(t *testi
 			expectedError: "reserved namespace /console",
 		},
 		{
+			name:          "request processing page",
+			route:         Route{Method: "GET", Path: "/request-processing", Type: RouteTypeQuery, Render: "native"},
+			expectedError: "reserved namespace /request-processing",
+		},
+		{
+			name:          "security page",
+			route:         Route{Method: "GET", Path: "/security/:section", Type: RouteTypeQuery, Render: "native"},
+			expectedError: "reserved namespace /security",
+		},
+		{
 			name:          "dynamic root can claim reserved subtree",
 			route:         Route{Method: "POST", Path: "/:root/jobs", Type: RouteTypeSubmit},
 			expectedError: "intersects reserved namespace",
@@ -1221,4 +1235,21 @@ func routingProtocolExport(name string) string {
 		renderEvents: function() { return {events: [], state: null, done: false}; },
 		renderFinal: function(ctx, task) { return task; }
 	}};`, name)
+}
+
+// Every console page is a reserved namespace, so a plugin route cannot
+// answer a reload or a direct visit of the page.
+func TestReservedRouteNamespacesCoverConsolePages(t *testing.T) {
+	entries, err := os.ReadDir("../../web/src/routes/_authenticated")
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Skip("the web sources are not in this tree")
+	}
+	require.NoError(t, err)
+	for _, entry := range entries {
+		name := strings.TrimSuffix(entry.Name(), ".tsx")
+		if name == "route" || strings.HasPrefix(name, "-") {
+			continue
+		}
+		assert.Contains(t, reservedRouteNamespaces, "/"+name, "console page /%s", name)
+	}
 }

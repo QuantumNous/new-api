@@ -35,6 +35,7 @@ import {
 } from '@/features/pricing/lib/billing-expr'
 import { formatBillingCondition } from '@/features/pricing/lib/billing-expression/condition-display'
 import { compileBillingExpression } from '@/features/pricing/lib/billing-expression/parser'
+import { usesChatQuantities } from '@/features/pricing/lib/plugin-pricing'
 import type { BillingUsageSchema } from '@/features/pricing/types'
 
 import { formatPricingNumber } from './pricing-format'
@@ -97,7 +98,12 @@ export function usesTaskModelPricing(
   if (compiled.status === 'ready' && compiled.functions.has('u')) return true
   if (!schema) return false
   if (!data?.billingExpr?.trim()) return true
-  if (compiled.status === 'ready' && compiled.functions.has('fixed')) {
+  // fixed() and chat request quantities are ordinary prices: they never price
+  // a task.
+  if (
+    compiled.status === 'ready' &&
+    (compiled.functions.has('fixed') || usesChatQuantities(compiled.variables))
+  ) {
     return false
   }
   const active = variants.filter((variant) => !variant.stale)

@@ -1,5 +1,5 @@
-github.com/MoeForge/moego v0.1.0-alpha.1 h1:d+asBZu+2oKnBj1kzdvdANMStbIKw9BLCpknuWjiR28=
-github.com/MoeForge/moego v0.1.0-alpha.1/go.mod h1:SBNiQjCpWC3IEBMKFBOwOyhhQ3jywMrISqCwJTdr4aA=
+github.com/MoeForge/moego v0.1.0-alpha.3 h1:sn8Kg4qY/gqGXU4CCJWfgzouaim6alkvXcob0uFDohg=
+github.com/MoeForge/moego v0.1.0-alpha.3/go.mod h1:SBNiQjCpWC3IEBMKFBOwOyhhQ3jywMrISqCwJTdr4aA=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

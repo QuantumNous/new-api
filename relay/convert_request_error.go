@@ -11,6 +11,11 @@ import (
 )
 
 func newConvertRequestFailedError(c *gin.Context, info *relaycommon.RelayInfo, err error) *types.NewAPIError {
+	// A request plugin's rejection or failure keeps its own status and code.
+	var pluginErr *types.NewAPIError
+	if errors.As(err, &pluginErr) && (pluginErr.GetErrorCode() == types.ErrorCodeRequestRejected || pluginErr.GetErrorCode() == types.ErrorCodeRequestPluginFailed) {
+		return pluginErr
+	}
 	var loss *types.ConversionLossError
 	if errors.As(err, &loss) {
 		info.RecordConversionDiagnostics(c, loss.Diagnostics)
