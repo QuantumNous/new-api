@@ -36,39 +36,52 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 
 	helper.SetEventStreamHeaders(c)
 	id := helper.GetResponseID(c)
-	var responseText string
+	var responseText strings.Builder
+	var usage *dto.Usage
+	completed := false
 	isFirst := true
 
 	for scanner.Scan() {
-		data := scanner.Text()
-		if len(data) < len("data: ") {
+		data, ok := strings.CutPrefix(scanner.Text(), "data:")
+		if !ok {
 			continue
 		}
-		data = strings.TrimPrefix(data, "data: ")
-		data = strings.TrimSuffix(data, "\r")
+		data = strings.TrimSpace(data)
 
 		if data == "[DONE]" {
+			completed = true
 			break
 		}
 
 		var response dto.ChatCompletionsStreamResponse
-		err := json.Unmarshal([]byte(data), &response)
-		if err != nil {
+		if err := common.UnmarshalJsonStr(data, &response); err != nil {
 			logger.LogError(c, common.LogText("error_unmarshalling_stream_response: %s", err.Error()))
 			continue
 		}
-		for _, choice := range response.Choices {
-			choice.Delta.Role = "assistant"
-			responseText += choice.Delta.GetContentString()
-		}
-		response.Id = id
-		response.Model = info.UpstreamModelName
-		err = helper.ObjectData(c, response)
 		if isFirst {
 			isFirst = false
 			info.FirstResponseTime = time.Now()
 		}
-		if err != nil {
+		for _, choice := range response.Choices {
+			content := choice.Delta.GetContentString()
+			responseText.WriteString(content)
+			if usage != nil && (content != "" || choice.Delta.GetReasoningContent() != "" || len(choice.Delta.ToolCalls) > 0) {
+				usage = nil
+			}
+		}
+		// Cloudflare sends usage deltas before the final summary. Empty frames do not replace a summary.
+		if len(response.Choices) == 0 || response.IsFinished() {
+			if summary := cloudflareChatUsage(response.Usage); summary != nil {
+				usage = summary
+			}
+		}
+		if len(response.Choices) == 0 && response.Usage != nil {
+			continue
+		}
+		response.Usage = nil
+		response.Id = id
+		response.Model = info.UpstreamModelName
+		if err := helper.ObjectData(c, response); err != nil {
 			logger.LogError(c, common.LogText("error_rendering_stream_response: %s", err.Error()))
 		}
 	}
@@ -76,7 +89,9 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 	if err := scanner.Err(); err != nil {
 		logger.LogError(c, common.LogText("error_scanning_stream_response: %s", err.Error()))
 	}
-	usage := service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	if !completed || usage == nil {
+		usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 	if info.ShouldIncludeUsage {
 		response := helper.GenerateFinalUsageResponse(id, info.StartTime.Unix(), info.UpstreamModelName, *usage)
 		err := helper.ObjectData(c, response)
@@ -98,19 +113,21 @@ func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response)
 	}
 	service.CloseResponseBodyGracefully(resp)
 	var response dto.TextResponse
-	err = json.Unmarshal(responseBody, &response)
-	if err != nil {
+	if err := common.Unmarshal(responseBody, &response); err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
 	response.Model = info.UpstreamModelName
-	var responseText string
-	for _, choice := range response.Choices {
-		responseText += choice.Message.StringContent()
+	usage := cloudflareChatUsage(&response.Usage)
+	if usage == nil {
+		var responseText strings.Builder
+		for _, choice := range response.Choices {
+			responseText.WriteString(choice.Message.StringContent())
+		}
+		usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
-	usage := service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	response.Usage = *usage
 	response.Id = helper.GetResponseID(c)
-	jsonResponse, err := json.Marshal(response)
+	jsonResponse, err := common.Marshal(response)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil
 	}
@@ -118,6 +135,23 @@ func cfHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response)
 	c.Writer.WriteHeader(resp.StatusCode)
 	_, _ = c.Writer.Write(jsonResponse)
 	return nil, usage
+}
+
+func cloudflareChatUsage(upstream *dto.Usage) *dto.Usage {
+	if upstream == nil || upstream.PromptTokens <= 0 || upstream.TotalTokens < upstream.PromptTokens ||
+		upstream.CompletionTokens != upstream.TotalTokens-upstream.PromptTokens {
+		return nil
+	}
+	cached := upstream.PromptTokensDetails.CachedTokens
+	if cached < 0 || cached > upstream.PromptTokens {
+		return nil
+	}
+	return &dto.Usage{
+		PromptTokens:        upstream.PromptTokens,
+		CompletionTokens:    upstream.CompletionTokens,
+		TotalTokens:         upstream.TotalTokens,
+		PromptTokensDetails: dto.InputTokenDetails{CachedTokens: cached},
+	}
 }
 
 func cfSTTHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*types.NewAPIError, *dto.Usage) {

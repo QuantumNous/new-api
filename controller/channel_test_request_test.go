@@ -310,3 +310,109 @@ func TestCloudflareEmbeddingResponseCompatibility(t *testing.T) {
 		})
 	}
 }
+
+func TestCloudflareChatUsage(t *testing.T) {
+	const usageFields = `"prompt_tokens":3554,"completion_tokens":2,"total_tokens":3556,"prompt_tokens_details":{"cached_tokens":3456}`
+	const upstreamUsage = `{` + usageFields + `}`
+	const foreignUsage = `{` + usageFields + `,"billing_usage":{"semantic":"openai","openai_usage":{"prompt_tokens":9,"completion_tokens":2,"total_tokens":11}},"claude_cache_creation_5_m_tokens":100}`
+	const streamDeltas = "data: " + `{"choices":[{"delta":{"role":"assistant"}}],"usage":{"prompt_tokens":3554,"total_tokens":3554}}` + "\n\n" +
+		"data: " + `{"choices":[{"delta":{"content":"O"}}],"usage":{"completion_tokens":1,"total_tokens":1}}` + "\n\n" +
+		"data: " + `{"choices":[{"delta":{"content":"K"},"finish_reason":"stop"}],"usage":{"completion_tokens":1,"total_tokens":1}}` + "\n\n" +
+		"data: " + `{"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens_details":{"cached_tokens":3456}}}` + "\n\n"
+	const streamSummary = "data: " + `{"choices":[{"delta":{},"finish_reason":"stop"}],"usage":` + upstreamUsage + `}` + "\n\n"
+	const emptyFrame = "data: {\"choices\":[],\"usage\":null}\n\n"
+	const reasoningFrame = "data: " + `{"choices":[{"delta":{"reasoning_content":"more reasoning"}}]}` + "\n\n"
+	const done = "data: [DONE]\n\n"
+	const message = `"choices":[{"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}]`
+	const estimatedPrompt = 4000
+
+	for _, tc := range []struct {
+		name         string
+		body         string
+		stream       bool
+		includeUsage bool
+		wantUpstream bool
+	}{
+		{name: "stream summary", body: streamDeltas + streamSummary + done, stream: true, includeUsage: true, wantUpstream: true},
+		{name: "stream without client usage", body: streamDeltas + streamSummary + done, stream: true, wantUpstream: true},
+		{name: "usage-only stream summary", body: streamDeltas + "data: {\"choices\":[],\"usage\":" + upstreamUsage + "}\n\n" + done, stream: true, includeUsage: true, wantUpstream: true},
+		{name: "empty frame after summary", body: streamDeltas + streamSummary + emptyFrame + done, stream: true, includeUsage: true, wantUpstream: true},
+		{name: "output after summary", body: streamDeltas + streamSummary + reasoningFrame + done, stream: true, includeUsage: true},
+		{name: "stream ignores unrelated billing fields", body: streamDeltas + strings.Replace(streamSummary, upstreamUsage, foreignUsage, 1) + done, stream: true, includeUsage: true, wantUpstream: true},
+		{name: "stream without upstream summary", body: streamDeltas + done, stream: true, includeUsage: true},
+		{name: "interrupted stream", body: streamDeltas + streamSummary, stream: true, includeUsage: true},
+		{name: "non-stream usage", body: `{` + message + `,"usage":` + upstreamUsage + `}`, wantUpstream: true},
+		{name: "non-stream ignores unrelated billing fields", body: `{` + message + `,"usage":` + foreignUsage + `}`, wantUpstream: true},
+		{name: "non-stream missing usage", body: `{` + message + `}`},
+		{name: "non-stream invalid cache count", body: `{` + message + `,"usage":` + strings.Replace(upstreamUsage, "3456", "5000", 1) + `}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			info := &relaycommon.RelayInfo{
+				RelayMode:          relayconstant.RelayModeChatCompletions,
+				IsStream:           tc.stream,
+				ShouldIncludeUsage: tc.includeUsage,
+				RelayFormat:        types.RelayFormatOpenAI,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelType:       constant.ChannelCloudflare,
+					UpstreamModelName: "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+				},
+			}
+			info.SetEstimatePromptTokens(estimatedPrompt)
+			resp := &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(tc.body))}
+			result, apiErr := (&cloudflare.Adaptor{}).DoResponse(c, resp, info)
+			require.Nil(t, apiErr)
+			usage, ok := result.(*dto.Usage)
+			require.True(t, ok)
+			require.NotNil(t, usage)
+
+			assert.Equal(t, !tc.wantUpstream, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+			if tc.wantUpstream {
+				assert.Equal(t, &dto.Usage{
+					PromptTokens:        3554,
+					CompletionTokens:    2,
+					TotalTokens:         3556,
+					PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 3456},
+				}, usage)
+			} else {
+				assert.Equal(t, estimatedPrompt, usage.PromptTokens)
+				assert.Positive(t, usage.CompletionTokens)
+				assert.Equal(t, estimatedPrompt+usage.CompletionTokens, usage.TotalTokens)
+				assert.Zero(t, usage.PromptTokensDetails.CachedTokens)
+			}
+			if !tc.stream {
+				var response dto.TextResponse
+				require.NoError(t, common.Unmarshal(w.Body.Bytes(), &response))
+				assert.Equal(t, *usage, response.Usage)
+				return
+			}
+
+			var text strings.Builder
+			var usageFrames []*dto.Usage
+			for line := range strings.SplitSeq(w.Body.String(), "\n") {
+				data, ok := strings.CutPrefix(line, "data: ")
+				if !ok || data == "[DONE]" {
+					continue
+				}
+				var chunk dto.ChatCompletionsStreamResponse
+				require.NoError(t, common.UnmarshalJsonStr(data, &chunk))
+				for _, choice := range chunk.Choices {
+					text.WriteString(choice.Delta.GetContentString())
+				}
+				if chunk.Usage != nil {
+					usageFrames = append(usageFrames, chunk.Usage)
+					assert.Empty(t, chunk.Choices)
+				}
+			}
+			assert.Equal(t, "OK", text.String())
+			if tc.includeUsage {
+				require.Len(t, usageFrames, 1)
+				assert.Equal(t, usage, usageFrames[0])
+			} else {
+				assert.Empty(t, usageFrames)
+			}
+		})
+	}
+}
