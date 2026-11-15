@@ -28,6 +28,7 @@ import {
   ListTodo,
   MessageSquare,
   PlugZap,
+  PanelsTopLeft,
   Radio,
   ServerCog,
   Settings,
@@ -41,6 +42,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarBadges, SidebarData } from '@/components/layout/types'
+import { useCustomPages } from '@/features/custom-pages/hooks/use-custom-pages'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -51,6 +53,7 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
   const { t } = useTranslation()
+  const { links, isError } = useCustomPages()
 
   return {
     navGroups: [
@@ -129,6 +132,22 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
           },
         ],
       },
+      ...(!isError && links.length > 0
+        ? [
+            {
+              id: 'custom-pages',
+              title: t('Custom Pages'),
+              items: links.map((page) => ({
+                title: page.name,
+                url: page.href,
+                icon: PanelsTopLeft,
+                highlight: page.highlight,
+                highlightColor: page.highlightColor,
+                requiredRole: page.adminOnly ? ROLE.ADMIN : undefined,
+              })),
+            },
+          ]
+        : []),
       {
         id: 'admin',
         title: t('Admin'),
