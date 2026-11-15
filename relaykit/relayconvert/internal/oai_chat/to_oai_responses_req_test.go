@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing.T) {
@@ -34,10 +34,41 @@ func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing
 
 	assert.Equal(t, "gpt-test", got.Model)
 	assert.Equal(t, `"system rules\n\ndeveloper rules"`, string(got.Instructions))
-	assert.Equal(t, "input_image", gjson.GetBytes(got.Input, "0.content.1.type").String())
-	assert.Equal(t, "function_call", gjson.GetBytes(got.Input, "2.type").String())
-	assert.Equal(t, "call_1", gjson.GetBytes(got.Input, "2.call_id").String())
-	assert.Equal(t, "function_call_output", gjson.GetBytes(got.Input, "3.type").String())
+	assert.Equal(t, "input_image", ojson.GetBytes(got.Input, "0.content.1.type").String())
+	assert.Equal(t, "function_call", ojson.GetBytes(got.Input, "2.type").String())
+	assert.Equal(t, "call_1", ojson.GetBytes(got.Input, "2.call_id").String())
+	assert.Equal(t, "function_call_output", ojson.GetBytes(got.Input, "3.type").String())
+}
+
+func TestChatCompletionsRequestToResponsesRequestImageDetail(t *testing.T) {
+	tests := []struct {
+		name     string
+		imageURL any
+		want     string
+	}{
+		{name: "object without detail defaults to auto", imageURL: map[string]any{"url": "https://example.test/a.png"}, want: "auto"},
+		{name: "low detail is preserved", imageURL: map[string]any{"url": "https://example.test/a.png", "detail": "low"}, want: "low"},
+		{name: "high detail is preserved", imageURL: map[string]any{"url": "https://example.test/a.png", "detail": "high"}, want: "high"},
+		{name: "auto detail is preserved", imageURL: map[string]any{"url": "https://example.test/a.png", "detail": "auto"}, want: "auto"},
+		{name: "original detail is preserved", imageURL: map[string]any{"url": "https://example.test/a.png", "detail": "original"}, want: "original"},
+		{name: "unknown detail falls back to auto", imageURL: map[string]any{"url": "https://example.test/a.png", "detail": "bogus"}, want: "auto"},
+		{name: "plain string url defaults to auto", imageURL: "https://example.test/a.png", want: "auto"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ChatCompletionsRequestToResponsesRequest(context.Background(), &dto.GeneralOpenAIRequest{
+				Model: "gpt-test",
+				Messages: []dto.Message{{Role: "user", Content: []any{
+					map[string]any{"type": "image_url", "image_url": tt.imageURL},
+				}}},
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, "input_image", ojson.GetBytes(got.Input, "0.content.0.type").String())
+			assert.Equal(t, tt.want, ojson.GetBytes(got.Input, "0.content.0.detail").String())
+		})
+	}
 }
 
 func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *testing.T) {
@@ -56,7 +87,7 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *test
 
 		encoded, err := kitutil.Marshal(got)
 		require.NoError(t, err)
-		assert.Equal(t, key, gjson.GetBytes(encoded, "prompt_cache_key").String())
+		assert.Equal(t, key, ojson.GetBytes(encoded, "prompt_cache_key").String())
 	})
 
 	t.Run("absent", func(t *testing.T) {
@@ -68,7 +99,7 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *test
 
 		encoded, err := kitutil.Marshal(got)
 		require.NoError(t, err)
-		assert.False(t, gjson.GetBytes(encoded, "prompt_cache_key").Exists())
+		assert.False(t, ojson.GetBytes(encoded, "prompt_cache_key").Exists())
 	})
 }
 
@@ -100,8 +131,8 @@ func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *
 			encoded, err := kitutil.Marshal(got)
 			require.NoError(t, err)
 
-			assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
-			value := gjson.GetBytes(encoded, "thinking_budget")
+			assert.True(t, ojson.GetBytes(encoded, "enable_thinking").Bool())
+			value := ojson.GetBytes(encoded, "thinking_budget")
 			assert.True(t, value.Exists())
 			assert.Equal(t, tt.want, value.Int())
 		})

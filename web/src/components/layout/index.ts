@@ -47,10 +47,7 @@ export { defaultTopNavLinks } from './config/top-nav.config'
 export { MOBILE_DRAWER_ANIMATION, MOBILE_DRAWER_CONFIG } from './constants'
 
 // Sidebar view registry
-export {
-  getNavGroupsForPath,
-  resolveSidebarView,
-} from './lib/sidebar-view-registry'
+export { resolveSidebarView } from './lib/sidebar-view-registry'
 
 // Type exports (type-only to avoid conflicts with components above)
 export type {

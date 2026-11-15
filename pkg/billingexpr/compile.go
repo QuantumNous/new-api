@@ -3,6 +3,7 @@ package billingexpr
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 
@@ -132,6 +133,7 @@ var compileEnvPrototypeV1 = map[string]any{
 	"cr":          float64(0),
 	"cc":          float64(0),
 	"cc1h":        float64(0),
+	"cc12h":       float64(0),
 	"img":         float64(0),
 	"img_cr":      float64(0),
 	"img_o":       float64(0),
@@ -318,6 +320,18 @@ func UsedVarsByHash(exprStr, hash string) map[string]bool {
 		return entry.usedVars
 	}
 	return nil
+}
+
+// chatQuantityVars are the quantities a chat request fills: the token counts of
+// its response and the image count it asks for. Task usage billing has none of
+// them, so there the token counts would read 0 and image_count 1.
+var chatQuantityVars = []string{"p", "c", "len", "cr", "cc", "cc1h", "cc12h", "img", "img_cr", "img_o", "ai", "ao", "image_count"}
+
+// UsesChatQuantities reports whether an expression reads a chat request
+// quantity, including in branches the current request would not evaluate.
+func UsesChatQuantities(exprStr string) bool {
+	usedVars := UsedVars(exprStr)
+	return slices.ContainsFunc(chatQuantityVars, func(name string) bool { return usedVars[name] })
 }
 
 // UsedUsageKeys returns literal keys referenced by u("...") calls. Calls with

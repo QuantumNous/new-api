@@ -59,7 +59,7 @@ afterEach(() => {
   }
 })
 
-it.each(['none', 'standard', 'claude_ttl'] as const)(
+it.each(['none', 'standard', 'claude_ttl', 'openai_ttl'] as const)(
   'uses the %s cache profile consistently in current billing and draft previews',
   async (mode) => {
     const cacheWriteMode = mode
@@ -134,11 +134,15 @@ it.each(['none', 'standard', 'claude_ttl'] as const)(
         expect(
           within(panel).queryByText('Cache create (1h) price')
         ).not.toBeInTheDocument()
-      } else {
         expect(
-          within(panel).getByText(
-            mode === 'claude_ttl' ? 'Cache Creation (5m)' : 'Cache write price'
-          ).nextElementSibling
+          within(panel).queryByText('Cache create (12h) price')
+        ).not.toBeInTheDocument()
+      } else {
+        let writeLabel = 'Cache write price'
+        if (mode === 'claude_ttl') writeLabel = 'Cache Creation (5m)'
+        if (mode === 'openai_ttl') writeLabel = 'Cache Creation (30m)'
+        expect(
+          within(panel).getByText(writeLabel).nextElementSibling
         ).toHaveTextContent('$5')
         if (mode === 'claude_ttl') {
           expect(
@@ -148,6 +152,16 @@ it.each(['none', 'standard', 'claude_ttl'] as const)(
         } else {
           expect(
             within(panel).queryByText('Cache create (1h) price')
+          ).not.toBeInTheDocument()
+        }
+        if (mode === 'openai_ttl') {
+          expect(
+            within(panel).getByText('Cache create (12h) price')
+              .nextElementSibling
+          ).toHaveTextContent('$10')
+        } else {
+          expect(
+            within(panel).queryByText('Cache create (12h) price')
           ).not.toBeInTheDocument()
         }
       }
@@ -383,10 +397,22 @@ it.each(['default', 'unset'] as const)(
     await user.clear(price)
     await user.type(price, '0.25')
     const region = screen.getByRole('region', { name: 'Edit model pricing' })
-    const button = screen.getByRole('button', { name: 'Save model prices' })
+    const editor = region.closest('form')
+    if (!editor) throw new Error('Pricing editor form not found')
+    // The page top bar has its own Save; this one is the editor's action bar.
+    const button = within(editor).getByRole('button', {
+      name: 'Save model prices',
+    })
     expect(region).not.toContainElement(button)
     expect(button.parentElement?.parentElement).toHaveClass('shrink-0')
     await user.click(button)
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'Confirm price changes',
+    })
+    expect(save).not.toHaveBeenCalled()
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Confirm and save' })
+    )
     await waitFor(() => expect(save).toHaveBeenCalledOnce())
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({ ExposeRatioEnabled: variant === 'default' }),

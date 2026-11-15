@@ -170,9 +170,9 @@ describe('New API channel task plugin extensions', () => {
       upstreams: ['new_api'],
     },
     {
-      key: 'hailuo',
-      name: 'Hailuo',
-      models: ['minimax'],
+      key: 'acme',
+      name: 'Acme',
+      models: ['acme-video'],
       upstreams: ['vendor'],
     },
   ]

@@ -38,6 +38,7 @@ import { ResponsesWebSocketSetting } from '../responses-websocket-setting'
 
 const supportedChannelTypes = [
   1,
+  3,
   57,
   CHANNEL_TYPE_ADVANCED_CUSTOM,
   CHANNEL_TYPE_SUB2API,

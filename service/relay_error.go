@@ -64,35 +64,44 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	if err == nil {
 		return
 	}
-	logger.LogError(c, common.LogText("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode())))
+	upstreamURLs := common.UpstreamAddresses(c)
+	logger.LogError(c, common.LogText("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode(upstreamURLs...))))
 	if ShouldDisableChannel(err) && channelError.AutoBan {
-		reason := err.MaskSensitiveErrorWithStatusCode()
+		reason := err.MaskSensitiveErrorWithStatusCode(upstreamURLs...)
 		gopool.Go(func() {
 			DisableChannel(channelError, reason)
 		})
 	}
 
-	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
-		userId := c.GetInt("id")
-		tokenName := c.GetString("token_name")
-		modelName := c.GetString("original_model")
-		tokenId := c.GetInt("token_id")
-		userGroup := c.GetString("group")
-		other := model.NewLogOther()
-		if c.Request != nil && c.Request.URL != nil {
-			other.SetPublic("request_path", c.Request.URL.Path)
-		}
-		other.SetPublic("error_type", err.GetErrorType())
-		other.SetPublic("error_code", err.GetErrorCode())
-		other.SetPublic("status_code", err.StatusCode)
-		AppendRelayLogAdminInfo(c, relayInfo, other)
-		AppendResponseModelLogInfo(relayInfo, other)
-		AppendTaskPluginContextAuditInfo(c, other)
-		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
-		if startTime.IsZero() {
-			startTime = time.Now()
-		}
-		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelError.ChannelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+	RecordRelayErrorLog(c, channelError.ChannelId, err, relayInfo)
+}
+
+// RecordRelayErrorLog writes the error log of a failed relay request when
+// error logs are on. channelId is 0 for a request that reached no channel.
+func RecordRelayErrorLog(c *gin.Context, channelId int, err *types.NewAPIError, relayInfo *relaycommon.RelayInfo) {
+	if !constant.ErrorLogEnabled || !types.IsRecordErrorLog(err) {
+		return
 	}
+	userId := c.GetInt("id")
+	tokenName := c.GetString("token_name")
+	modelName := c.GetString("original_model")
+	tokenId := c.GetInt("token_id")
+	userGroup := c.GetString("group")
+	other := model.NewLogOther()
+	if c.Request != nil && c.Request.URL != nil {
+		other.SetPublic("request_path", c.Request.URL.Path)
+	}
+	other.SetPublic("error_type", err.GetErrorType())
+	other.SetPublic("error_code", err.GetErrorCode())
+	other.SetPublic("status_code", err.StatusCode)
+	AppendRelayLogAdminInfo(c, relayInfo, other)
+	appendRequestPluginRecord(relayInfo, other)
+	AppendResponseModelLogInfo(relayInfo, other)
+	AppendTaskPluginContextAuditInfo(c, other)
+	startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
+	if startTime.IsZero() {
+		startTime = time.Now()
+	}
+	useTimeSeconds := int(time.Since(startTime).Seconds())
+	model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(common.UpstreamAddresses(c)...), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 }

@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 /* eslint-disable react-refresh/only-export-components */
 import { useQueryClient } from '@tanstack/react-query'
+import type { OnChangeFn, SortingState } from '@tanstack/react-table'
 import React, {
   createContext,
   useContext,
   useState,
   useCallback,
   useMemo,
+  useEffect,
 } from 'react'
 
 import { useChannelUpstreamUpdates } from '../hooks/use-channel-upstream-updates'
@@ -59,12 +61,14 @@ type ChannelsContextType = {
   setCurrentTag: (tag: string | null) => void
   enableTagMode: boolean
   setEnableTagMode: (enabled: boolean) => void
-  idSort: boolean
-  setIdSort: (enabled: boolean) => void
+  sorting: SortingState
+  setSorting: OnChangeFn<SortingState>
   batchMode: boolean
   setBatchMode: (enabled: boolean) => void
   sensitiveVisible: boolean
   setSensitiveVisible: (visible: boolean) => void
+  priorityActionContainer: HTMLDivElement | null
+  setPriorityActionContainer: (container: HTMLDivElement | null) => void
   upstream: UpstreamUpdateState
 }
 
@@ -87,11 +91,22 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
   const [enableTagMode, setEnableTagMode] = useState(() => {
     return localStorage.getItem('enable-tag-mode') === 'true'
   })
-  const [idSort, setIdSort] = useState(() => {
-    return localStorage.getItem('channels-id-sort') === 'true'
-  })
+  const [sorting, setSorting] = useState<SortingState>(() => [
+    {
+      id:
+        localStorage.getItem('channels-id-sort') === 'true' ? 'id' : 'priority',
+      desc: true,
+    },
+  ])
+  const idSort = sorting[0]?.id === 'id'
+  useEffect(() => {
+    // Retain the existing ID-sort preference for returning users.
+    localStorage.setItem('channels-id-sort', String(idSort))
+  }, [idSort])
   const [batchMode, setBatchMode] = useState(false)
   const [sensitiveVisible, setSensitiveVisible] = useState(true)
+  const [priorityActionContainer, setPriorityActionContainer] =
+    useState<HTMLDivElement | null>(null)
 
   const queryClient = useQueryClient()
   const refreshChannels = useCallback(async () => {
@@ -112,12 +127,14 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
       setCurrentTag,
       enableTagMode,
       setEnableTagMode,
-      idSort,
-      setIdSort,
+      sorting,
+      setSorting,
       batchMode,
       setBatchMode,
       sensitiveVisible,
       setSensitiveVisible,
+      priorityActionContainer,
+      setPriorityActionContainer,
       upstream,
     }),
     [
@@ -125,9 +142,10 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
       currentRow,
       currentTag,
       enableTagMode,
-      idSort,
+      sorting,
       batchMode,
       sensitiveVisible,
+      priorityActionContainer,
       upstream,
     ]
   )

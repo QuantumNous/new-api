@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -58,6 +60,7 @@ const maxAdvancedCustomBalanceResponseBytes = 256 << 10
 type channelBalanceResult struct {
 	Balance     float64
 	RawResponse string
+	Detail      *model.ChannelBalanceDetail
 }
 
 type OpenAIUsageResponse struct {
@@ -305,9 +308,16 @@ func getDeepSeekBalanceUSD(response DeepSeekUsageResponse, usdExchangeRate float
 		if balance < 0 {
 			return 0, errors.New("USD balance must be non-negative")
 		}
-		return balance, nil
+		if balance > 0 {
+			return balance, nil
+		}
 	}
 	if cnyBalance == nil {
+		// An empty USD wallet is a valid balance. Only report a missing
+		// currency when the response carried neither USD nor CNY.
+		if usdBalance != nil {
+			return 0, nil
+		}
 		return 0, errors.New("currency USD or CNY not found")
 	}
 	if math.IsNaN(usdExchangeRate) || math.IsInf(usdExchangeRate, 0) {
@@ -421,6 +431,113 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	return availableBalanceUsd, nil
 }
 
+func updateChannelSub2APIBalance(channel *model.Channel) (float64, error) {
+	baseURL := channel.GetBaseURL()
+	if baseURL == "" {
+		return 0, errors.New("Sub2API channel is missing base_url")
+	}
+	url := fmt.Sprintf("%s/v1/usage", strings.TrimRight(baseURL, "/"))
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	if err != nil {
+		return 0, err
+	}
+
+	type sub2apiUsageResponse struct {
+		Balance      *float64 `json:"balance"`
+		Remaining    *float64 `json:"remaining"`
+		IsValid      *bool    `json:"isValid"`
+		Subscription *struct {
+			DailyLimitUSD   *float64 `json:"daily_limit_usd"`
+			WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
+			MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
+		} `json:"subscription"`
+	}
+	usage := sub2apiUsageResponse{}
+	if err := common.Unmarshal(body, &usage); err != nil {
+		return 0, err
+	}
+	if usage.IsValid != nil && !*usage.IsValid {
+		return 0, errors.New("Sub2API key is invalid (isValid=false)")
+	}
+
+	balance := usage.Remaining
+	if balance == nil {
+		balance = usage.Balance
+	}
+	if balance == nil {
+		return 0, errors.New("Sub2API /v1/usage response is missing remaining and balance fields (the key may belong to a subscription group without an available balance)")
+	}
+	// Sub2API reports remaining=-1 for a subscription group with no daily, weekly,
+	// or monthly limit. A wallet balance can legitimately be negative, so detect
+	// the unlimited case from the subscription limits rather than the value.
+	subscription := usage.Subscription
+	if subscription != nil && subscription.DailyLimitUSD == nil && subscription.WeeklyLimitUSD == nil && subscription.MonthlyLimitUSD == nil {
+		return 0, errors.New("Sub2API /v1/usage reports an unlimited subscription without a finite balance")
+	}
+	channel.UpdateBalance(*balance)
+	return *balance, nil
+}
+
+// updateChannelNewAPIBalance reads the upstream key's remaining quota. When the
+// upstream also returns its owner's quota, the smaller of the two is what the
+// key can still spend. Quota converts to USD with the upstream's quota_per_unit.
+func updateChannelNewAPIBalance(channel *model.Channel) (float64, error) {
+	baseURL := strings.TrimRight(channel.GetBaseURL(), "/")
+	if baseURL == "" {
+		return 0, errors.New("New API channel is missing base_url")
+	}
+	body, err := GetResponseBody("GET", baseURL+"/api/usage/token/", channel, GetAuthHeader(channel.Key))
+	if err != nil {
+		return 0, err
+	}
+	var usage struct {
+		Code    bool   `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			TotalAvailable float64 `json:"total_available"`
+			UnlimitedQuota bool    `json:"unlimited_quota"`
+			UserQuota      *struct {
+				TotalAvailable float64 `json:"total_available"`
+			} `json:"user_quota"`
+		} `json:"data"`
+	}
+	if err := common.Unmarshal(body, &usage); err != nil {
+		return 0, err
+	}
+	if !usage.Code {
+		return 0, fmt.Errorf("New API usage query failed: %s", usage.Message)
+	}
+	remaining := usage.Data.TotalAvailable
+	if usage.Data.UnlimitedQuota {
+		remaining = math.Inf(1)
+	}
+	if userQuota := usage.Data.UserQuota; userQuota != nil {
+		remaining = min(remaining, userQuota.TotalAvailable)
+	}
+	if math.IsInf(remaining, 1) {
+		return 0, common.NewMessage(`The upstream key has unlimited quota. Turn on "Allow querying user quota" for this key on the upstream to see the real balance.`)
+	}
+
+	body, err = GetResponseBody("GET", baseURL+"/api/status", channel, nil)
+	if err != nil {
+		return 0, err
+	}
+	var status struct {
+		Data struct {
+			QuotaPerUnit float64 `json:"quota_per_unit"`
+		} `json:"data"`
+	}
+	if err := common.Unmarshal(body, &status); err != nil {
+		return 0, err
+	}
+	if status.Data.QuotaPerUnit <= 0 {
+		return 0, errors.New("New API /api/status response is missing quota_per_unit")
+	}
+	balance := remaining / status.Data.QuotaPerUnit
+	channel.UpdateBalance(balance)
+	return balance, nil
+}
+
 func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, error) {
 	key := strings.TrimSpace(channel.Key)
 	info := &relaycommon.RelayInfo{
@@ -507,12 +624,20 @@ func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, e
 	return channelBalanceResult{RawResponse: string(formatted)}, nil
 }
 
+// updateChannelBalance queries a built-in channel type's balance and stores
+// its detail next to the USD balance the query writes.
 func updateChannelBalance(channel *model.Channel) (channelBalanceResult, error) {
+	var result channelBalanceResult
+	var err error
 	if channel.Type == constant.ChannelTypeAdvancedCustom {
-		return fetchAdvancedCustomBalance(channel)
+		result, err = fetchAdvancedCustomBalance(channel)
+	} else {
+		var balance float64
+		balance, err = updateStandardChannelBalance(channel)
+		result = channelBalanceResult{Balance: balance}
 	}
-	balance, err := updateStandardChannelBalance(channel)
-	return channelBalanceResult{Balance: balance}, err
+	result.Detail = recordBuiltinBalance(channel, result, err)
+	return result, err
 }
 
 func updateStandardChannelBalance(channel *model.Channel) (float64, error) {
@@ -545,6 +670,10 @@ func updateStandardChannelBalance(channel *model.Channel) (float64, error) {
 		return updateChannelOpenRouterBalance(channel)
 	case constant.ChannelTypeMoonshot:
 		return updateChannelMoonshotBalance(channel)
+	case constant.ChannelTypeSub2API:
+		return updateChannelSub2APIBalance(channel)
+	case constant.ChannelTypeNewAPI:
+		return updateChannelNewAPIBalance(channel)
 	default:
 		return 0, common.NewMessage("Not implemented yet")
 	}
@@ -592,7 +721,28 @@ func UpdateChannelBalance(c *gin.Context) {
 		return
 	}
 	if channel.Type == constant.ChannelTypeTaskPlugin {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "Task Plugin channels do not support balance queries"})
+		plugin, ok := service.PluginOfChannel(channel)
+		if !ok || !pluginReportsBalance(plugin) {
+			common.ApiErrorT(c, "The plugin of this channel does not report a balance")
+			return
+		}
+		_, detail, err := updatePluginChannelBalance(channel, plugin, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		balance := channel.Balance
+		if detail != nil {
+			if usd, ok := usdBalance(detail.BalanceResult); ok {
+				balance = usd
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success":        true,
+			"message":        "",
+			"balance":        balance,
+			"balance_detail": detail,
+		})
 		return
 	}
 	if channel.ChannelInfo.IsMultiKey {
@@ -610,61 +760,106 @@ func UpdateChannelBalance(c *gin.Context) {
 	}
 	if result.RawResponse == "" {
 		response["balance"] = result.Balance
+		response["balance_detail"] = result.Detail
 	} else {
 		response["raw_response"] = result.RawResponse
 	}
 	c.JSON(http.StatusOK, response)
 }
 
-func updateAllChannelsBalance() error {
-	channels, err := model.GetAllChannels(0, 0, true, false)
-	if err != nil {
-		return err
-	}
-	for _, channel := range channels {
-		if channel.Status != common.ChannelStatusEnabled {
-			continue
-		}
-		if channel.ChannelInfo.IsMultiKey {
-			continue // skip multi-key channels
-		}
-		// TODO: support Azure
-		//if channel.Type != common.ChannelTypeOpenAI && channel.Type != common.ChannelTypeCustom {
-		//	continue
-		//}
-		result, err := updateChannelBalance(channel)
-		if err != nil {
-			continue
-		} else if result.RawResponse == "" {
-			// err is nil & balance <= 0 means quota is used up
-			if result.Balance <= 0 {
-				service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), "Insufficient balance")
-			}
-		}
-		time.Sleep(common.RequestInterval)
-	}
-	return nil
+// channelBalanceSummary is the result of an update of all balances.
+type channelBalanceSummary struct {
+	Queried int `json:"queried"`
 }
 
+// updateAllChannelsBalance queries the balance of every enabled channel,
+// balanceUpdateConcurrency channels at once, and reports how many of them it
+// has queried. Once ctx ends, as when the run loses its task lease, it starts
+// no more queries and returns ctx's error.
+func updateAllChannelsBalance(ctx context.Context, report func(processed, total int)) (channelBalanceSummary, error) {
+	channels, err := model.GetAllChannels(0, 0, true, false)
+	if err != nil {
+		return channelBalanceSummary{}, err
+	}
+	enabled := make([]*model.Channel, 0, len(channels))
+	for _, channel := range channels {
+		if channel.Status == common.ChannelStatusEnabled {
+			enabled = append(enabled, channel)
+		}
+	}
+	report(0, len(enabled))
+
+	queue := make(chan *model.Channel)
+	queried := make(chan struct{})
+	var workers sync.WaitGroup
+	for range balanceUpdateConcurrency {
+		workers.Go(func() {
+			for channel := range queue {
+				updateBalanceInRun(channel)
+				queried <- struct{}{}
+				time.Sleep(common.RequestInterval)
+			}
+		})
+	}
+	go func() {
+		defer close(queue)
+		for _, channel := range enabled {
+			select {
+			case <-ctx.Done():
+				return
+			case queue <- channel:
+			}
+		}
+	}()
+	go func() {
+		workers.Wait()
+		close(queried)
+	}()
+
+	summary := channelBalanceSummary{}
+	for range queried {
+		summary.Queried++
+		report(summary.Queried, len(enabled))
+	}
+	return summary, ctx.Err()
+}
+
+// UpdateAllChannelsBalance queues an update of all balances as a system task
+// and answers at once with its task id. When one is already queued or
+// running, it answers with that one, and started is false.
 func UpdateAllChannelsBalance(c *gin.Context) {
-	// TODO: make it async
-	err := updateAllChannelsBalance()
+	task, created, err := service.EnqueueSystemTask(model.SystemTaskTypeChannelBalance, nil)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-	})
-	return
+	data := gin.H{"started": created, "task_id": task.TaskID, "status": task.Status}
+	if !created {
+		common.ApiSuccessT(c, "A balance update is already running", data)
+		return
+	}
+	common.ApiSuccessT(c, "Balance update started in the background", data)
 }
 
-func AutomaticallyUpdateChannels(frequency int) {
-	for {
-		time.Sleep(time.Duration(frequency) * time.Minute)
-		common.SysLog(common.LogText("updating all channels"))
-		_ = updateAllChannelsBalance()
-		common.SysLog(common.LogText("channels update done"))
+// GetChannelBalanceTask answers the progress of an update of all balances,
+// read from the system task any node can see: its status, how many enabled
+// channels it has queried of how many, and its failure. It reads no other
+// kind of system task.
+func GetChannelBalanceTask(c *gin.Context) {
+	task, err := model.GetSystemTaskByTaskID(c.Param("task_id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
 	}
+	if task == nil || task.Type != model.SystemTaskTypeChannelBalance {
+		common.ApiErrorT(c, "Balance update task not found")
+		return
+	}
+	response := task.ToResponse()
+	common.ApiSuccess(c, gin.H{
+		"task_id": response.TaskID,
+		"status":  response.Status,
+		"state":   response.State,
+		"error":   response.Error,
+	})
 }

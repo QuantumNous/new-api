@@ -55,6 +55,8 @@ func registerChannelRoutes(apiRouter *gin.RouterGroup) {
 }
 
 var channelPermissionRoutes = []permissionRoute{
+	{method: http.MethodGet, path: "/priority/order", permission: authz.ChannelRead, handler: controller.GetChannelPriorityOrder},
+	{method: http.MethodPost, path: "/priority/reorder", permission: authz.ChannelWrite, handler: controller.ReorderChannelPriority},
 	{method: http.MethodGet, path: "/", permission: authz.ChannelRead, handler: controller.GetAllChannels},
 	{method: http.MethodGet, path: "/search", permission: authz.ChannelRead, handler: controller.SearchChannels},
 	{method: http.MethodGet, path: "/models", permission: authz.ChannelRead, handler: controller.ChannelListModels},
@@ -66,6 +68,7 @@ var channelPermissionRoutes = []permissionRoute{
 	{method: http.MethodGet, path: "/test/:id", permission: authz.ChannelOperate, handler: controller.TestChannel},
 	{method: http.MethodGet, path: "/update_balance", permission: authz.ChannelOperate, handler: controller.UpdateAllChannelsBalance},
 	{method: http.MethodGet, path: "/update_balance/:id", permission: authz.ChannelOperate, handler: controller.UpdateChannelBalance},
+	{method: http.MethodGet, path: "/update_balance/task/:task_id", permission: authz.ChannelOperate, handler: controller.GetChannelBalanceTask},
 	{method: http.MethodPost, path: "/", permission: authz.ChannelSensitiveWrite, handler: controller.AddChannel},
 	{method: http.MethodPut, path: "/", permission: authz.ChannelWrite, handler: controller.UpdateChannel},
 	{method: http.MethodPost, path: "/status/batch", permission: authz.ChannelOperate, handler: controller.BatchUpdateChannelStatus},
@@ -82,6 +85,10 @@ var channelPermissionRoutes = []permissionRoute{
 	{method: http.MethodGet, path: "/:id/sglang/status", permission: authz.ChannelRead, handler: controller.GetSGLangChannelStatus},
 	{method: http.MethodPost, path: "/fetch_models", permission: authz.ChannelSensitiveWrite, handler: controller.FetchModels},
 	{method: http.MethodPost, path: "/:id/codex/refresh", permission: authz.ChannelSensitiveWrite, handler: controller.RefreshCodexChannelCredential},
+	{method: http.MethodPost, path: "/:id/plugin_login", permission: authz.ChannelSensitiveWrite, handler: controller.StartPluginLogin},
+	{method: http.MethodPost, path: "/:id/plugin_login/continue", permission: authz.ChannelSensitiveWrite, handler: controller.ContinuePluginLogin},
+	{method: http.MethodPost, path: "/plugin_login/callback", permission: authz.ChannelSensitiveWrite, handler: controller.CompletePluginLoginCallback},
+	{method: http.MethodGet, path: "/:id/plugin_credentials", permission: authz.ChannelRead, handler: controller.GetPluginCredentials},
 	{method: http.MethodGet, path: "/:id/codex/usage", permission: authz.ChannelRead, handler: controller.GetCodexChannelUsage},
 	{method: http.MethodGet, path: "/:id/codex/usage/reset-credits", permission: authz.ChannelRead, handler: controller.GetCodexChannelRateLimitResetCredits},
 	{method: http.MethodPost, path: "/:id/codex/usage/reset", permission: authz.ChannelOperate, handler: controller.ResetCodexChannelUsage},

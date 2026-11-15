@@ -59,6 +59,16 @@ func Unmarshal(data []byte, v any) error {
 	return codec.Unmarshal(data, v)
 }
 
+// UnmarshalNoCopy lets supporting codecs borrow strings and raw JSON from data.
+// Keep data and borrowed raw JSON immutable while decoded values are in use.
+// Other codecs use their ordinary Unmarshal implementation.
+func UnmarshalNoCopy(data []byte, v any) error {
+	if borrowing, ok := codec.(interface{ UnmarshalNoCopy([]byte, any) error }); ok {
+		return borrowing.UnmarshalNoCopy(data, v)
+	}
+	return codec.Unmarshal(data, v)
+}
+
 func UnmarshalJsonStr(data string, v any) error {
 	return codec.Unmarshal(StringToByteSlice(data), v)
 }
@@ -112,6 +122,22 @@ func JsonRawMessageToString(data json.RawMessage) string {
 		return string(trimmed)
 	}
 	return value
+}
+
+// ObjectMember returns a member of a JSON object exactly as written, or nil
+// when the member is missing or null or data is not an object. A decoded map
+// encoded again would sort the keys of nested objects, such as the property
+// order of a schema.
+func ObjectMember(data []byte, key string) json.RawMessage {
+	var members map[string]json.RawMessage
+	if err := Unmarshal(data, &members); err != nil {
+		return nil
+	}
+	member := members[key]
+	if GetJsonType(member) == "null" {
+		return nil
+	}
+	return member
 }
 
 func StringToByteSlice(s string) []byte {

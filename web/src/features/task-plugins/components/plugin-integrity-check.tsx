@@ -34,7 +34,6 @@ type PluginIntegrityCheckProps = {
   expected?: string
   digest?: string | null
   isLoading: boolean
-  sourceAvailable: boolean
 }
 
 export function PluginIntegrityCheck(props: PluginIntegrityCheckProps) {
@@ -44,9 +43,7 @@ export function PluginIntegrityCheck(props: PluginIntegrityCheckProps) {
   let label = t('No integrity hash')
   if (props.expected) {
     status = 'unavailable'
-    label = props.sourceAvailable
-      ? t('Integrity verification unavailable in this environment')
-      : t('File could not be verified')
+    label = t('File could not be verified')
     if (props.isLoading) {
       status = 'pending'
       label = t('Checking file integrity...')
@@ -88,20 +85,14 @@ export function PluginIntegrityCheck(props: PluginIntegrityCheckProps) {
         <AlertDescription className='text-xs leading-relaxed'>
           {status === 'failed' &&
             t(
-              'The downloaded source does not match the sha256 declared in the index. Do not install it.'
+              'This file differs from the one the source published. Do not install it.'
             )}
           {status === 'unavailable' &&
-            t(
-              'The source is unavailable or this browser cannot calculate SHA-256. The gateway checks the published hash during installation.'
-            )}
+            t('The file is checked again when you install it.')}
           {status === 'missing' &&
-            t(
-              'This source does not publish a sha256 for this version, so the downloaded source cannot be pinned to what the source intended.'
-            )}
-          {(status === 'verified' || status === 'pending') &&
-            t(
-              'A matching hash confirms the published file, not the safety of its code.'
-            )}
+            t('Read the plugin code before installing it.')}
+          {status === 'verified' &&
+            t('This file matches the one the source published.')}
         </AlertDescription>
       </Alert>
       {props.expected && (

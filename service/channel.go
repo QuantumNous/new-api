@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -16,23 +17,13 @@ func formatNotifyType(channelId int, status int) string {
 	return fmt.Sprintf("%s_%d_%d", dto.NotifyTypeChannelUpdate, channelId, status)
 }
 
-func shouldCloseActiveWebSocketsAfterDisable(channelId int) bool {
+func shouldCloseActiveWebSocketsAfterDisable(channelId int) (bool, *model.Channel) {
 	channel, err := model.GetChannelById(channelId, true)
 	if err != nil {
 		common.SysLog(common.LogText("failed to check channel status before closing active websockets: channel_id=%d, error=%v", channelId, err))
-		return true
+		return true, nil
 	}
-	return channel.Status != common.ChannelStatusEnabled
-}
-
-// RootUserLanguage returns the saved language of the root user, who receives
-// channel notices; it is empty when the root user saved none.
-func RootUserLanguage() string {
-	root := model.GetRootUser()
-	if root == nil {
-		return ""
-	}
-	return root.GetSetting().Language
+	return channel.Status != common.ChannelStatusEnabled, channel
 }
 
 // disable & notify
@@ -47,25 +38,27 @@ func DisableChannel(channelError types.ChannelError, reason string) {
 
 	success := model.UpdateChannelStatus(channelError.ChannelId, channelError.UsingKey, common.ChannelStatusAutoDisabled, reason)
 	if success {
-		if shouldCloseActiveWebSocketsAfterDisable(channelError.ChannelId) {
+		closeWebSockets, channel := shouldCloseActiveWebSocketsAfterDisable(channelError.ChannelId)
+		if closeWebSockets {
 			CloseActiveWebSocketsForChannel(channelError.ChannelId, ChannelDisabledCloseReason)
 		}
-		lang := RootUserLanguage()
 		params := map[string]any{"Name": channelError.ChannelName, "Id": channelError.ChannelId, "Reason": reason}
-		subject := i18n.Translate(lang, i18n.MsgChannelNotifyDisabledSubject, params)
-		content := i18n.Translate(lang, i18n.MsgChannelNotifyDisabledContent, params)
-		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
+		NotifyChannelWatchers(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), func(lang string) (string, string) {
+			return i18n.Translate(lang, i18n.MsgChannelNotifyDisabledSubject, params), i18n.Translate(lang, i18n.MsgChannelNotifyDisabledContent, params)
+		})
+		if common.IsMasterNode && channel != nil {
+			scheduledPlugins.disabled(channel, channelError.UsingKey, time.Now())
+		}
 	}
 }
 
 func EnableChannel(channelId int, usingKey string, channelName string) {
 	success := model.UpdateChannelStatus(channelId, usingKey, common.ChannelStatusEnabled, "")
 	if success {
-		lang := RootUserLanguage()
 		params := map[string]any{"Name": channelName, "Id": channelId}
-		subject := i18n.Translate(lang, i18n.MsgChannelNotifyEnabledSubject, params)
-		content := i18n.Translate(lang, i18n.MsgChannelNotifyEnabledContent, params)
-		NotifyRootUser(formatNotifyType(channelId, common.ChannelStatusEnabled), subject, content)
+		NotifyChannelWatchers(formatNotifyType(channelId, common.ChannelStatusEnabled), func(lang string) (string, string) {
+			return i18n.Translate(lang, i18n.MsgChannelNotifyEnabledSubject, params), i18n.Translate(lang, i18n.MsgChannelNotifyEnabledContent, params)
+		})
 	}
 }
 

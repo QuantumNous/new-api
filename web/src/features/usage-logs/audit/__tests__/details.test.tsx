@@ -143,6 +143,7 @@ it.each([
     ['remain_quota', 'auto_groups', 'cross_group_retry'],
     'Remaining quota, Auto Group Chain, Cross-group retry',
   ],
+  [['allow_user_quota_query'], 'Allow querying user quota'],
 ])(
   'describes token configuration changes %j',
   async (changedFields, expected) => {

@@ -43,7 +43,7 @@ interface LogStatCardsProps {
   onDataUpdate?: (data: QuotaDataItem[], loading: boolean) => void
 }
 
-const MAX_INLINE_STAT_CHARS = 9
+const MAX_INLINE_STAT_CHARS = 7
 
 function formatStatNumber(value: number, locale: Intl.LocalesArgument) {
   const fullValue = formatNumber(value, locale)
@@ -63,11 +63,9 @@ export function LogStatCards(props: LogStatCardsProps) {
   const statCardsConfig = useModelStatCardsConfig()
   const user = useAuthStore((state) => state.auth.user)
   const isAdmin = !!(user?.role && user.role >= 10)
-  const [stats, setStats] = useState<{
-    totalQuota: number
-    totalCount: number
-    totalTokens: number
-  } | null>(null)
+  const [stats, setStats] = useState<ReturnType<
+    typeof calculateDashboardStats
+  > | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
@@ -119,6 +117,8 @@ export function LogStatCards(props: LogStatCardsProps) {
     rpm: stats?.totalCount ?? 0,
     quota: stats?.totalQuota ?? 0,
     tpm: stats?.totalTokens ?? 0,
+    cacheRead: stats?.totalCacheReadTokens ?? 0,
+    cacheCreation: stats?.totalCacheCreationTokens ?? 0,
   }
 
   const items = statCardsConfig.map((config) => {
@@ -133,6 +133,7 @@ export function LogStatCards(props: LogStatCardsProps) {
         : formatStatNumber(rawValue, locale)
 
     return {
+      key: config.key,
       title: config.title,
       value: formatted.displayValue,
       fullValue: formatted.fullValue,
@@ -144,7 +145,7 @@ export function LogStatCards(props: LogStatCardsProps) {
 
   return (
     <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid min-w-0 grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
+      <div className='divide-border/60 grid min-w-0 grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-7'>
         {items.map((it, idx) => {
           const Icon = it.icon
           let valueContent
@@ -184,9 +185,12 @@ export function LogStatCards(props: LogStatCardsProps) {
 
           return (
             <div
-              key={it.title}
+              key={it.key}
+              role='group'
+              aria-label={it.title}
+              aria-busy={loading}
               className={cn(
-                'min-w-0 px-2.5 py-1.5 sm:px-5 sm:py-4',
+                'min-w-0 px-2.5 py-1.5 sm:px-3 sm:py-4 xl:px-4',
                 idx === items.length - 1 &&
                   items.length % 2 !== 0 &&
                   'col-span-2 sm:col-span-1'
@@ -200,7 +204,10 @@ export function LogStatCards(props: LogStatCardsProps) {
                 >
                   <Icon />
                 </IconBadge>
-                <div className='text-muted-foreground truncate text-[11px] leading-4 font-medium tracking-wide uppercase sm:text-xs sm:tracking-wider'>
+                <div
+                  className='text-muted-foreground truncate text-[11px] leading-4 font-medium tracking-wide uppercase sm:text-xs sm:tracking-wider'
+                  title={it.title}
+                >
                   {it.title}
                 </div>
               </div>
@@ -210,6 +217,11 @@ export function LogStatCards(props: LogStatCardsProps) {
           )
         })}
       </div>
+      {/*<p className='text-muted-foreground border-t px-3 py-2 text-xs'>*/}
+      {/*  {t(*/}
+      {/*    'Cache usage is recorded only after the upgrade; historical data is not backfilled.'*/}
+      {/*  )}*/}
+      {/*</p>*/}
     </div>
   )
 }

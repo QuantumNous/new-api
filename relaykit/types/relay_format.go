@@ -9,6 +9,7 @@ const (
 	RelayFormatOpenAIResponses                       = "openai_responses"
 	RelayFormatOpenAIResponsesCompaction             = "openai_responses_compaction"
 	RelayFormatOpenAIAlphaSearch                     = "openai_alpha_search"
+	RelayFormatDeepSeekTools                         = "deepseek_tools"
 	RelayFormatOpenAIAudio                           = "openai_audio"
 	RelayFormatOpenAIImage                           = "openai_image"
 	RelayFormatOpenAIRealtime                        = "openai_realtime"

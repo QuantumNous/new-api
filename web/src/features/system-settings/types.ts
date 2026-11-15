@@ -316,6 +316,9 @@ export type BillingSettings = {
   PayMethods: string
   'payment_setting.amount_options': string
   'payment_setting.amount_discount': string
+  'payment_setting.epay_sign_type': string
+  'payment_setting.epay_merchant_private_key': string
+  'payment_setting.epay_platform_public_key': string
   'payment_setting.compliance_confirmed': boolean
   'payment_setting.compliance_terms_version': string
   'payment_setting.compliance_confirmed_at': number
@@ -362,7 +365,12 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  QuotaRemindEnabled: boolean
   QuotaRemindThreshold: string
+  EmailProvider: 'smtp' | 'resend'
+  ResendApiKey: string
+  ResendKeyConfigured: boolean
+  ResendFrom: string
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string
@@ -378,6 +386,7 @@ export type OperationsSettings = {
   LogConsumeEnabled: boolean
   'log_setting.user_export_enabled': boolean
   'log_setting.max_range_days': number
+  'system_task_setting.retention_days': number
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number
   'performance_setting.disk_cache_max_size_mb': number
@@ -398,9 +407,6 @@ export type SecuritySettings = {
   ModelRequestRateLimitSuccessCount: number
   ModelRequestRateLimitDurationMinutes: number
   ModelRequestRateLimitGroup: string
-  CheckSensitiveEnabled: boolean
-  CheckSensitiveOnPromptEnabled: boolean
-  SensitiveWords: string
   'fetch_setting.enable_ssrf_protection': boolean
   'fetch_setting.allow_private_ip': boolean
   'fetch_setting.domain_filter_mode': boolean
@@ -463,6 +469,7 @@ export type UpstreamConfig = {
 }
 
 export type FetchUpstreamRatiosRequest = {
+  include_unchanged?: boolean
   upstreams: UpstreamConfig[]
   timeout: number
 }

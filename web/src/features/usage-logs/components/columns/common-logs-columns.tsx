@@ -76,6 +76,7 @@ import type { LogOtherData } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { LogCostDisplay } from '../log-cost-display'
 import { ModelBadge } from '../model-badge'
+import { RequestPluginLogMarker } from '../request-plugin-record'
 import { TimingMetricsCell, StreamTpsCell } from '../timing-metrics-cell'
 import { useUsageLogsContext } from '../usage-logs-provider'
 
@@ -228,9 +229,12 @@ function buildTypeDetailSegments(
 
       const cacheEntries = tieredSummary.priceEntries
         .filter((entry) =>
-          ['cacheReadPrice', 'cacheCreatePrice', 'cacheCreate1hPrice'].includes(
-            entry.field
-          )
+          [
+            'cacheReadPrice',
+            'cacheCreatePrice',
+            'cacheCreate1hPrice',
+            'cacheCreate12hPrice',
+          ].includes(entry.field)
         )
         .map((entry) => {
           return formatPriceCompact(entry.price)
@@ -251,6 +255,7 @@ function buildTypeDetailSegments(
               'cacheReadPrice',
               'cacheCreatePrice',
               'cacheCreate1hPrice',
+              'cacheCreate12hPrice',
             ].includes(entry.field)
         )
         .map((entry) =>
@@ -300,6 +305,10 @@ function buildTypeDetailSegments(
           other.cache_creation_ratio_1h != null &&
           other.cache_creation_ratio_1h !== 0
             ? formatPriceCompact(inputPriceUSD * other.cache_creation_ratio_1h)
+            : null,
+          other.cache_creation_ratio_12h != null &&
+          other.cache_creation_ratio_12h !== 0
+            ? formatPriceCompact(inputPriceUSD * other.cache_creation_ratio_12h)
             : null,
         ].filter(Boolean) as string[]
 
@@ -677,6 +686,7 @@ export function useCommonLogsColumns(
           if (!isDisplayableLogType(log.type)) return null
 
           const modelInfo = formatModelName(log)
+          const requestPlugins = parseLogOther(log.other)?.request_plugins
 
           return (
             <div className='flex w-fit flex-col gap-0.5'>
@@ -685,6 +695,9 @@ export function useCommonLogsColumns(
                 actualModel={modelInfo.actualModel}
                 responseModel={modelInfo.responseModel}
               />
+              {requestPlugins?.length ? (
+                <RequestPluginLogMarker items={requestPlugins} />
+              ) : null}
             </div>
           )
         },

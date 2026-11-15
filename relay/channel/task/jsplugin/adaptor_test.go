@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"mime"
@@ -15,9 +16,11 @@ import (
 	"net/textproto"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -27,9 +30,12 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 const mockPlugin = `
@@ -412,6 +418,32 @@ export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit"}} expo
 	assert.Contains(t, taskErr.Message, "must not return renderer")
 }
 
+func TestTaskAdaptorMasksChannelAddressInBuildFailure(t *testing.T) {
+	source := `
+export const meta = {apiVersion:1,key:"build-fail",name:"Build Fail",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task",allowedHosts:["assets.corp.internal"]};
+export function buildSubmitRequest(ctx){throw new Error("utils.fetch to private.example.com failed: dial tcp: lookup private.example.com: no such host; utils.fetch to assets.corp.internal failed: dial tcp: lookup assets.corp.internal: no such host")}
+export function parseSubmitResponse(){return {taskId:"one"}} export function buildQueryRequest(){return {}} export function parseTaskResult(){return {status:"SUCCESS"}}
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", nil)
+	c.Set("task_request", map[string]any{"model": "m"})
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://private.example.com")
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://private.example.com"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}, OriginModelName: "m"}
+	adaptor := New(plugin)
+	adaptor.Init(info)
+
+	taskErr := adaptor.ValidateRequestAndSetAction(c, info)
+
+	require.NotNil(t, taskErr)
+	assert.Equal(t, "plugin_request_invalid", taskErr.Code)
+	assert.True(t, taskErr.LocalError)
+	assert.Contains(t, taskErr.Message, "no such host")
+	assert.NotContains(t, taskErr.Message, "private.example.com")
+	assert.NotContains(t, taskErr.Message, "assets.corp.internal")
+}
+
 const orderedProtocolPlugin = `
 export const meta = {apiVersion:1,key:"ordered",name:"Ordered",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task",requiredCapabilities:["json-order@1"],protocols:[{name:"openai_responses",supports:["sync"]}]};
 export const protocols = {openai_responses:{decodeRequest:function(ctx){const b = ctx.body.value; return {kind:"submit",model:ctx.model,requestBody:{model:b.model,state:b.state,questions:b.questions}};},renderFinal:function(){return {};}}};
@@ -431,14 +463,11 @@ func TestTaskAdaptorJSONOrderCapability(t *testing.T) {
 		source string
 		client string
 		want   string
-		status int
 	}{
 		{name: "declared keeps the client's order", source: orderedProtocolPlugin, client: client,
 			want: `{"model":"m","state":{"zeta":"1","alpha":"2","mid":"&<>"},"questions":{"q2":{"type":"noul"},"q1":{"type":"noul"}}}`},
 		{name: "undeclared stays sorted", source: undeclared, client: client,
 			want: `{"model":"m","questions":{"q1":{"type":"noul"},"q2":{"type":"noul"}},"state":{"alpha":"2","mid":"\u0026\u003c\u003e","zeta":"1"}}`},
-		{name: "declared still bounds billing quantities", source: orderedProtocolPlugin,
-			client: `{"model":"m","state":{"duration":3601},"questions":{}}`, status: http.StatusBadRequest},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -458,14 +487,7 @@ func TestTaskAdaptorJSONOrderCapability(t *testing.T) {
 			adaptor := New(plugin)
 			adaptor.Init(info)
 
-			taskErr := adaptor.ValidateRequestAndSetAction(c, info)
-			if tc.status != 0 {
-				require.NotNil(t, taskErr)
-				assert.Equal(t, tc.status, taskErr.StatusCode)
-				assert.Equal(t, "plugin_usage_invalid", taskErr.Code)
-				return
-			}
-			require.Nil(t, taskErr)
+			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
 			body, err := adaptor.BuildRequestBody(c, info)
 			require.NoError(t, err)
 			raw, err := io.ReadAll(body)
@@ -625,6 +647,238 @@ export function buildContentRequest(ctx) {
 	assert.ErrorContains(t, err, "utils.fetch is not available in protocols.openai_video.render")
 }
 
+type taskQueryRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f taskQueryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestTaskQueryRedirects(t *testing.T) {
+	service.InitHttpClient()
+	client := service.GetHttpClient()
+	originalClient := *client
+	fetchSetting := system_setting.GetFetchSetting()
+	originalSetting := *fetchSetting
+	t.Cleanup(func() {
+		*client = originalClient
+		*fetchSetting = originalSetting
+	})
+	*fetchSetting = system_setting.FetchSetting{
+		EnableSSRFProtection: true,
+		DomainList:           []string{"blocked.example"},
+		AllowedPorts:         []string{"1-65535"},
+	}
+	const source = `
+export const meta = {apiVersion:1,key:"redirect",name:"Redirect",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"batch"};
+export function buildSubmitRequest(ctx) {return {url:ctx.baseUrl+"/submit"};}
+export function parseSubmitResponse() {return {taskId:"task"};}
+export function buildQueryRequest(ctx) {return ctx.state;}
+export function parseTaskResult() {return {status:"SUCCESS"};}
+export function buildBatchQueryRequest(ctx,tasks) {return tasks[0].state;}
+export function parseBatchResult() {return [];}
+`
+	defaultPlugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	type redirectCase struct {
+		name           string
+		start          string
+		locations      []string
+		allowedHosts   []string
+		status         int
+		body           string
+		batch          bool
+		ordered        bool
+		loop           bool
+		wantRequests   int
+		credentialHops int
+		wantError      string
+	}
+	cases := []redirectCase{
+		{name: "host case and explicit default port", locations: []string{"https://API.example:443/final"}, wantRequests: 2, credentialHops: 2},
+		{name: "port change is cross origin", locations: []string{"https://api.example:8443/final"}, wantRequests: 2, credentialHops: 1},
+		{name: "subdomain is cross origin", locations: []string{"https://sub.api.example/final"}, wantRequests: 2, credentialHops: 1},
+		{name: "HTTPS upgrade keeps the configured host", start: "http://api.example/query", locations: []string{"https://api.example/final"}, wantRequests: 2, credentialHops: 2},
+		{name: "authorized cross origin", locations: []string{"https://cdn.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 2, credentialHops: 2},
+		{name: "allowedHosts does not authorize unlisted hosts", locations: []string{"https://other.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 2, credentialHops: 1},
+		{name: "explicit allowed port", locations: []string{"https://api.example:8443/final"}, allowedHosts: []string{"api.example:8443"}, wantRequests: 2, credentialHops: 2},
+		{name: "authorized origin does not authorize its subdomain", locations: []string{"https://sub.cdn.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 2, credentialHops: 1},
+		{name: "authorized origin does not authorize other ports", locations: []string{"https://cdn.example:8443/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 2, credentialHops: 1},
+		{name: "untrusted chain never restores credentials", locations: []string{"https://cdn.example/next", "/more", "https://api.example/final"}, wantRequests: 4, credentialHops: 1},
+		{name: "trust after an untrusted hop cannot restore credentials", locations: []string{"https://other.example/next", "https://cdn.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 3, credentialHops: 1},
+		{name: "authorized chain can return to origin", locations: []string{"https://cdn.example/next", "https://api.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 3, credentialHops: 3},
+		{name: "redirect URL credentials are removed", locations: []string{"https://username:location-secret@cdn.example/final"}, wantRequests: 2, credentialHops: 1},
+		{name: "SSRF still rejects an authorized origin", locations: []string{"https://blocked.example/final?key=location-secret"}, allowedHosts: []string{"blocked.example"}, wantRequests: 1, credentialHops: 1, wantError: "blocked"},
+		{name: "SSRF checks later hops", locations: []string{"https://cdn.example/next", "https://blocked.example/final"}, wantRequests: 2, credentialHops: 1, wantError: "blocked"},
+		{name: "HTTPS downgrade is rejected even for the channel host", locations: []string{"http://api.example/final?key=location-secret"}, wantRequests: 1, credentialHops: 1, wantError: "cannot downgrade HTTPS"},
+		{name: "redirect limit remains enforced", loop: true, wantRequests: 10, credentialHops: 10, wantError: "stopped after 10 redirects"},
+	}
+	for _, status := range []int{301, 302, 303, 307, 308} {
+		cases = append(cases,
+			redirectCase{name: fmt.Sprintf("same origin %d", status), status: status, locations: []string{"/final"}, wantRequests: 2, credentialHops: 2},
+			redirectCase{name: fmt.Sprintf("cross origin %d", status), status: status, locations: []string{"https://cdn.example/final?signature=download-token"}, wantRequests: 2, credentialHops: 1},
+		)
+	}
+	for _, status := range []int{307, 308} {
+		cases = append(cases,
+			redirectCase{name: fmt.Sprintf("batch same origin body %d", status), status: status, body: `{"ids":["task"]}`, batch: true, locations: []string{"/final"}, wantRequests: 2, credentialHops: 2},
+			redirectCase{name: fmt.Sprintf("batch untrusted body %d", status), status: status, body: `{"ids":["task"]}`, batch: true, locations: []string{"https://cdn.example/final?key=location-secret"}, wantRequests: 1, credentialHops: 1, wantError: "cannot replay a body"},
+			redirectCase{name: fmt.Sprintf("batch authorized body %d", status), status: status, body: `{"ids":["task"]}`, batch: true, ordered: true, locations: []string{"https://cdn.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 2, credentialHops: 2},
+		)
+	}
+	cases = append(cases, redirectCase{name: "POST to GET across origins", status: 303, body: `{"ids":["task"]}`, batch: true, locations: []string{"https://cdn.example/final"}, wantRequests: 2, credentialHops: 1})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.start == "" {
+				tc.start = "https://api.example/query?key=query-secret"
+			}
+			if tc.status == 0 {
+				tc.status = http.StatusFound
+			}
+			descriptor := requestDescriptor{URL: tc.start, Method: http.MethodGet, Headers: map[string]string{
+				"Authorization": "Bearer channel-secret", "Cookie": "session=channel-secret",
+				"X-API-Key": "channel-secret", "x-goog-api-key": "channel-secret", "X-Vendor-Credential": "channel-secret",
+				"Accept": "application/json", "Accept-Language": "en", "Content-Type": "application/json",
+			}}
+			if tc.body != "" {
+				descriptor.Method, descriptor.Body = http.MethodPost, tc.body
+			}
+			state, err := common.Marshal(descriptor)
+			require.NoError(t, err)
+			task := &model.Task{TaskID: "task", PrivateData: model.TaskPrivateData{PluginState: state}}
+			type sentRequest struct {
+				request *http.Request
+				body    string
+			}
+			var sent []sentRequest
+			// Exercise net/http's real redirect machinery without external DNS
+			// or TLS servers; the transport records exactly what it would send.
+			client.Transport = taskQueryRoundTripper(func(req *http.Request) (*http.Response, error) {
+				var body []byte
+				if req.Body != nil {
+					var readErr error
+					body, readErr = io.ReadAll(req.Body)
+					require.NoError(t, readErr)
+					require.NoError(t, req.Body.Close())
+				}
+				sent = append(sent, sentRequest{request: req.Clone(req.Context()), body: string(body)})
+				resp := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"status":"SUCCESS"}`)), Request: req}
+				if tc.loop {
+					resp.StatusCode = tc.status
+					resp.Header.Set("Location", "/query")
+				} else if len(sent) <= len(tc.locations) {
+					resp.StatusCode = tc.status
+					resp.Header.Set("Location", tc.locations[len(sent)-1])
+				}
+				return resp, nil
+			})
+			pluginSource := source
+			if len(tc.allowedHosts) > 0 {
+				hosts, marshalErr := common.Marshal(tc.allowedHosts)
+				require.NoError(t, marshalErr)
+				pluginSource = strings.Replace(pluginSource, `fetchMode:"batch"`, `fetchMode:"batch",allowedHosts:`+string(hosts), 1)
+			}
+			if tc.ordered {
+				pluginSource = strings.Replace(pluginSource, `fetchMode:"batch"`, `fetchMode:"batch",requiredCapabilities:["json-order@1"]`, 1)
+			}
+			plugin, registerErr := pluginruntime.NewRegistry().Register(pluginSource, pluginruntime.Options{})
+			require.NoError(t, registerErr)
+			adaptor := New(plugin)
+			var resp *http.Response
+			if tc.batch {
+				resp, err = adaptor.FetchBatchTasks(tc.start, "channel-secret", []*model.Task{task}, "")
+			} else {
+				resp, err = adaptor.FetchTask(tc.start, "channel-secret", task, "")
+			}
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+				assert.NotContains(t, err.Error(), "location-secret")
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				require.NoError(t, resp.Body.Close())
+			}
+			require.Len(t, sent, tc.wantRequests)
+			for i, hop := range sent {
+				for _, name := range []string{"Authorization", "Cookie", "X-API-Key", "X-Goog-Api-Key", "X-Vendor-Credential"} {
+					if i < tc.credentialHops {
+						assert.Contains(t, hop.request.Header.Get(name), "channel-secret", "hop %d, header %s", i, name)
+					} else {
+						assert.Empty(t, hop.request.Header.Get(name), "hop %d, header %s", i, name)
+					}
+				}
+				if i >= tc.credentialHops {
+					assert.Empty(t, hop.request.Header.Get("Referer"), "hop %d", i)
+					assert.Nil(t, hop.request.URL.User, "hop %d", i)
+				}
+				assert.Equal(t, "application/json", hop.request.Header.Get("Accept"))
+				assert.Equal(t, "en", hop.request.Header.Get("Accept-Language"))
+				if i == 0 || tc.status == 307 || tc.status == 308 {
+					assert.Equal(t, tc.body, hop.body)
+					assert.Equal(t, descriptor.Method, hop.request.Method)
+				} else {
+					assert.Empty(t, hop.body)
+					assert.Equal(t, http.MethodGet, hop.request.Method)
+				}
+			}
+			if tc.wantError == "" && strings.Contains(tc.locations[len(tc.locations)-1], "signature=") {
+				assert.Equal(t, "download-token", sent[len(sent)-1].request.URL.Query().Get("signature"))
+			}
+		})
+	}
+
+	t.Run("query policy does not change the shared client", func(t *testing.T) {
+		var headers []http.Header
+		client.Transport = taskQueryRoundTripper(func(req *http.Request) (*http.Response, error) {
+			headers = append(headers, req.Header.Clone())
+			resp := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: http.NoBody, Request: req}
+			if len(headers) == 1 {
+				resp.StatusCode = http.StatusFound
+				resp.Header.Set("Location", "https://cdn.example/final")
+			}
+			return resp, nil
+		})
+		req, err := http.NewRequest(http.MethodGet, "https://api.example/query", nil)
+		require.NoError(t, err)
+		req.Header.Set("X-API-Key", "shared-client-value")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		require.Len(t, headers, 2)
+		assert.Equal(t, "shared-client-value", headers[1].Get("X-API-Key"))
+	})
+
+	t.Run("real HTTP receivers do not receive cross origin credentials", func(t *testing.T) {
+		client.Transport = originalClient.Transport
+		fetchSetting.AllowPrivateIp = true
+		received := make(chan http.Header, 2)
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			received <- r.Header.Clone()
+			_, _ = w.Write([]byte(`{"status":"SUCCESS"}`))
+		}))
+		defer target.Close()
+		origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			received <- r.Header.Clone()
+			http.Redirect(w, r, target.URL+"/final", http.StatusFound)
+		}))
+		defer origin.Close()
+		resp, err := New(defaultPlugin).doFetchDescriptor(origin.URL, "", "", requestDescriptor{
+			URL:     origin.URL + "/query?key=query-secret",
+			Headers: map[string]string{"X-API-Key": "channel-secret", "x-goog-api-key": "channel-secret", "X-Vendor-Credential": "channel-secret"},
+		})
+		require.NoError(t, err)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		assert.JSONEq(t, `{"status":"SUCCESS"}`, string(body))
+		initialHeaders, redirectedHeaders := <-received, <-received
+		assert.Equal(t, "channel-secret", initialHeaders.Get("X-API-Key"))
+		for _, name := range []string{"X-API-Key", "X-Goog-Api-Key", "X-Vendor-Credential", "Referer"} {
+			assert.Empty(t, redirectedHeaders.Get(name), name)
+		}
+	})
+}
+
 func TestTaskAdaptorMapsJSContract(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	service.InitHttpClient()
@@ -711,6 +965,115 @@ func TestTaskAdaptorMapsJSContract(t *testing.T) {
 	}`, string(rendered))
 	_, err = plugin.Engine.Export(context.Background(), "meta")
 	require.NoError(t, err)
+}
+
+func TestTaskAdaptorHeaderOverrides(t *testing.T) {
+	service.InitHttpClient()
+	source := strings.ReplaceAll(mockPlugin, `"X-Plugin":`, `"Authorization": "plugin-default", "X-Plugin":`)
+	source += `
+export function buildBatchQueryRequest(ctx) {
+  return {url: ctx.baseUrl + "/batch", method: "POST", headers: {Authorization: "plugin-default", "X-Plugin": "batch"}, body: {}};
+}
+export function parseBatchResult() { return {}; }
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	overrides := map[string]any{
+		"X-API-Key":     "{api_key}",
+		"Authorization": "Custom {api_key}",
+		"X-Plugin":      "configured",
+		"Host":          "upstream.example",
+		"*":             true,
+		"re:^X-Trace-":  true,
+		"X-Client":      "{client_header:X-Trace-Id}",
+	}
+	for _, mode := range []string{"submit", "poll", "batch"} {
+		for _, tc := range []struct {
+			name    string
+			headers map[string]any
+			invalid bool
+		}{
+			{name: "plugin defaults"},
+			{name: "channel overrides", headers: overrides},
+			{name: "invalid header value", headers: map[string]any{"X-API-Key": "key\r\nInjected: value"}, invalid: true},
+		} {
+			t.Run(mode+"/"+tc.name, func(t *testing.T) {
+				received := make(chan *http.Request, 1)
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					received <- r.Clone(r.Context())
+					_, _ = w.Write([]byte(`{}`))
+				}))
+				defer server.Close()
+				info := &relaycommon.RelayInfo{
+					ChannelMeta: &relaycommon.ChannelMeta{
+						ChannelBaseUrl:  server.URL,
+						ApiKey:          "channel-key",
+						HeadersOverride: tc.headers,
+					},
+					TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+				}
+				adaptor := New(plugin)
+				adaptor.Init(info)
+				task := &model.Task{PrivateData: model.TaskPrivateData{UpstreamTaskID: "task-1", Key: "task-key"}}
+				var resp *http.Response
+				var requestErr error
+				wantKey := "channel-key"
+				wantPlugin := "submit"
+				switch mode {
+				case "submit":
+					c, _ := gin.CreateTestContext(httptest.NewRecorder())
+					c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+					c.Request.Header.Set("X-Trace-Id", "client-trace")
+					c.Request.Header.Set("X-API-Key", "client-key")
+					c.Request.Header.Set("Authorization", "client-authorization")
+					c.Request.Header.Set("Cookie", "client-session")
+					c.Set("task_request", relaycommon.TaskSubmitReq{Prompt: "hello"})
+					body, err := adaptor.BuildRequestBody(c, info)
+					require.NoError(t, err)
+					resp, requestErr = adaptor.DoRequest(c, info, body)
+				case "poll":
+					wantKey, wantPlugin = "task-key", "query"
+					resp, requestErr = adaptor.FetchTask(server.URL, "argument-key", task, "")
+				case "batch":
+					wantKey, wantPlugin = "batch-key", "batch"
+					resp, requestErr = adaptor.FetchBatchTasks(server.URL, "batch-key", []*model.Task{task}, "")
+				}
+				if resp != nil {
+					t.Cleanup(func() { _ = resp.Body.Close() })
+				}
+				if tc.invalid {
+					require.Error(t, requestErr)
+					assert.Nil(t, resp)
+					assert.Empty(t, received, "invalid configuration must reject the descriptor request before sending it")
+					return
+				}
+				require.NoError(t, requestErr)
+				require.NotNil(t, resp)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				require.Len(t, received, 1)
+				request := <-received
+				assert.Empty(t, request.Header.Get("Cookie"))
+				if tc.headers == nil {
+					assert.Equal(t, wantPlugin, request.Header.Get("X-Plugin"))
+					assert.Equal(t, "plugin-default", request.Header.Get("Authorization"))
+					assert.Empty(t, request.Header.Get("X-API-Key"))
+				} else {
+					assert.Equal(t, "configured", request.Header.Get("X-Plugin"))
+					assert.Equal(t, wantKey, request.Header.Get("X-API-Key"))
+					assert.Equal(t, "Custom "+wantKey, request.Header.Get("Authorization"))
+					assert.Equal(t, "upstream.example", request.Host)
+					wantClient := ""
+					if mode == "submit" {
+						wantClient = "client-trace"
+					}
+					assert.Equal(t, wantClient, request.Header.Get("X-Client"))
+					assert.Equal(t, wantClient, request.Header.Get("X-Trace-Id"))
+					assert.Equal(t, "{api_key}", tc.headers["X-API-Key"], "resolving credentials must not mutate channel configuration")
+				}
+				assert.Equal(t, "channel-key", info.ApiKey, "polling must not change shared channel credentials")
+			})
+		}
+	}
 }
 
 func TestTaskAdaptorPreservesSoraVideoResponseFields(t *testing.T) {
@@ -874,62 +1237,26 @@ export function extractUsageOnComplete(task, result, body) { return (body || {})
 		return adaptor, context, info
 	}
 
-	requestTests := []struct {
-		name string
-		body map[string]any
-	}{
-		{
-			name: "duration in resolved metadata",
-			body: map[string]any{"metadata": map[string]any{"duration": relaycommon.MaxTaskDurationSeconds + 1}},
-		},
-		{
-			name: "count in resolved metadata",
-			body: map[string]any{"metadata": map[string]any{"count": dto.MaxImageN + 1}},
-		},
-		{
-			name: "declared enum in resolved metadata",
-			body: map[string]any{"metadata": map[string]any{"mode": "turbo"}},
-		},
-		{
-			name: "implicit duration key without declaration",
-			body: map[string]any{"durationSeconds": relaycommon.MaxTaskDurationSeconds + 1},
-		},
-		{
-			name: "implicit count key without declaration",
-			body: map[string]any{"image_count": dto.MaxImageN + 1},
-		},
-		{
-			name: "negative resolved duration",
-			body: map[string]any{"duration": -1},
-		},
-		{
-			name: "non-finite resolved duration",
-			body: map[string]any{"duration": math.Inf(1)},
-		},
-		{
-			name: "metadata cannot hide behind valid top-level duration",
-			body: map[string]any{
-				"duration": relaycommon.MaxTaskDurationSeconds,
-				"metadata": map[string]any{"duration": relaycommon.MaxTaskDurationSeconds + 1},
+	t.Run("request members are not read as quantities and usage facts stay bounded", func(t *testing.T) {
+		// Plugins validate their own requests; members named like a quantity
+		// or a usage field are vendor parameters or client content.
+		adaptor, context, info := newRequest(t, map[string]any{
+			"duration": -1,
+			"metadata": map[string]any{
+				"count":      dto.MaxImageN + 1,
+				"mode":       "turbo",
+				"parameters": map[string]any{"durationSeconds": relaycommon.MaxTaskDurationSeconds + 1},
 			},
-		},
-		{
-			name: "nested passthrough duration",
-			body: map[string]any{
-				"metadata": map[string]any{
-					"parameters": map[string]any{"duration": relaycommon.MaxTaskDurationSeconds + 1},
-				},
-			},
-		},
-	}
-	for _, testCase := range requestTests {
-		t.Run(testCase.name, func(t *testing.T) {
-			adaptor, context, info := newRequest(t, testCase.body)
-			taskErr := adaptor.ValidateRequestAndSetAction(context, info)
-			require.NotNil(t, taskErr)
-			assert.Equal(t, "plugin_usage_invalid", taskErr.Code)
+			"state":            map[string]any{"options": map[string]any{"y": "Yes", "n": "No"}},
+			"hookUsageEntries": []any{map[string]any{"name": "duration", "value": -1}},
 		})
-	}
+		require.Nil(t, adaptor.ValidateRequestAndSetAction(context, info))
+		_, err := adaptor.ExtractUsageFactsValidated(context, info)
+		assert.Error(t, err)
+		ratios, err := adaptor.EstimateBillingValidated(context, info)
+		assert.Error(t, err)
+		assert.Nil(t, ratios)
+	})
 
 	hookTests := []struct {
 		name  string
@@ -974,17 +1301,6 @@ export function extractUsageOnComplete(task, result, body) { return (body || {})
 		})
 	}
 
-	t.Run("numeric strings remain valid in vendor request fields", func(t *testing.T) {
-		adaptor, context, info := newRequest(t, map[string]any{
-			"metadata": map[string]any{
-				"duration": "5",
-				"count":    "2",
-				"mode":     "std",
-			},
-		})
-		assert.Nil(t, adaptor.ValidateRequestAndSetAction(context, info))
-	})
-
 	t.Run("numeric strings from usage hooks are rejected", func(t *testing.T) {
 		adaptor, context, info := newRequest(t, map[string]any{
 			"hookUsageEntries": []any{map[string]any{"name": "duration", "value": "5"}},
@@ -993,53 +1309,6 @@ export function extractUsageOnComplete(task, result, body) { return (body || {})
 		ratios, err := adaptor.EstimateBillingValidated(context, info)
 		require.Error(t, err)
 		assert.Nil(t, ratios)
-	})
-
-	t.Run("duration -1 passes only for plugins that declare duration-auto@1", func(t *testing.T) {
-		declaring, err := pluginruntime.NewRegistry().Register(strings.Replace(source, `fetchMode: "per_task",`, `fetchMode: "per_task", requiredCapabilities: ["duration-auto@1"],`, 1), pluginruntime.Options{})
-		require.NoError(t, err)
-		for _, tc := range []struct {
-			name      string
-			declaring bool
-			body      map[string]any
-			accepted  bool
-		}{
-			{"undeclared plugins keep rejecting it", false, map[string]any{"metadata": map[string]any{"duration": -1}}, false},
-			{"vendor parameters and declared usage fields", true, map[string]any{
-				"duration": -1,
-				"metadata": map[string]any{"seconds": "-1", "parameters": map[string]any{"durationSeconds": -1}},
-			}, true},
-			{"other negative durations", true, map[string]any{"metadata": map[string]any{"duration": -2}}, false},
-			{"durations above the host limit", true, map[string]any{"metadata": map[string]any{"duration": relaycommon.MaxTaskDurationSeconds + 1}}, false},
-			{"negative counts", true, map[string]any{"metadata": map[string]any{"count": -1}}, false},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				adaptor, context, info := newRequest(t, tc.body)
-				if tc.declaring {
-					adaptor = New(declaring)
-					adaptor.Init(info)
-				}
-				taskErr := adaptor.ValidateRequestAndSetAction(context, info)
-				if tc.accepted {
-					assert.Nil(t, taskErr)
-					return
-				}
-				require.NotNil(t, taskErr)
-				assert.Equal(t, "plugin_usage_invalid", taskErr.Code)
-			})
-		}
-
-		adaptor, context, info := newRequest(t, map[string]any{
-			"metadata":         map[string]any{"duration": -1},
-			"hookUsageEntries": []any{map[string]any{"name": "duration", "value": -1}},
-		})
-		adaptor = New(declaring)
-		adaptor.Init(info)
-		require.Nil(t, adaptor.ValidateRequestAndSetAction(context, info))
-		_, err = adaptor.ExtractUsageFactsValidated(context, info)
-		assert.Error(t, err, "usage facts stay non-negative")
-		_, err = adaptor.EstimateBillingValidated(context, info)
-		assert.Error(t, err, "billing ratios stay non-negative")
 	})
 
 	t.Run("declared token facts use int32 saturation instead of duration cap", func(t *testing.T) {
@@ -1072,9 +1341,6 @@ export function extractUsageOnComplete(task, result, body) { return (body || {})
 
 	t.Run("canonical maxima and enum are accepted", func(t *testing.T) {
 		adaptor, context, info := newRequest(t, map[string]any{
-			"duration": relaycommon.MaxTaskDurationSeconds,
-			"count":    dto.MaxImageN,
-			"mode":     "std",
 			"hookUsageEntries": []any{
 				map[string]any{"name": "duration", "value": float64(relaycommon.MaxTaskDurationSeconds)},
 				map[string]any{"name": "count", "value": float64(dto.MaxImageN)},
@@ -1332,6 +1598,33 @@ func TestSubmitContextOriginTasksNilDataOnInvalidJSON(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, originTasks, 1)
 	assert.Nil(t, originTasks[0]["data"])
+}
+
+func TestSubmitContextExposesClientHeadersWithoutCredentials(t *testing.T) {
+	plugin, err := pluginruntime.NewRegistry().Register(mockPlugin, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+	adaptor.Init(info)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/vendor/v1/jobs", nil)
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request.Header.Set("TypeSafe-Danger-Zone-Long-Context", "true")
+	c.Request.Header.Add("X-Trace", "first")
+	c.Request.Header.Add("X-Trace", "second")
+	for _, name := range []string{"Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key", "X-Goog-Api-Key", "Mj-Api-Secret"} {
+		c.Request.Header.Set(name, "gateway-secret")
+	}
+
+	headers := adaptor.submitContext(c, info)["requestHeaders"]
+
+	assert.Equal(t, map[string]string{
+		"Content-Type":                      "application/json",
+		"Accept":                            "",
+		"Typesafe-Danger-Zone-Long-Context": "true",
+		"X-Trace":                           "first",
+	}, headers)
+	assert.Equal(t, headers, adaptor.submitContext(nil, info)["requestHeaders"], "hooks without a client request see the submission headers")
 }
 
 func TestSubmitContextNormalizesRequestBodyOnEveryCall(t *testing.T) {
@@ -1769,23 +2062,6 @@ export function extractUsageOnComplete(ctx,result,body){return body.usage;}
 		})
 	}
 
-	t.Run("request revalidated after model rewrite", func(t *testing.T) {
-		adaptor, c, info := newRequest(t, "public-alias", "video", map[string]any{
-			"rewriteTo": "image", "metadata": map[string]any{"units": dto.MaxImageN + 1},
-		})
-		taskErr := adaptor.ValidateRequestAndSetAction(c, info)
-		require.NotNil(t, taskErr)
-		assert.Equal(t, "plugin_usage_invalid", taskErr.Code)
-	})
-
-	t.Run("request enum belongs to the rewritten model", func(t *testing.T) {
-		adaptor, c, info := newRequest(t, "public-alias", "video", map[string]any{
-			"rewriteTo": "image", "mode": "image", "units": 2,
-		})
-		require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
-		assert.Equal(t, "image", info.UpstreamModelName)
-	})
-
 	t.Run("completion selects each persisted model including legacy origin fallback", func(t *testing.T) {
 		adaptor, _, _ := newRequest(t, "public-alias", "image", map[string]any{})
 		for _, tc := range []struct {
@@ -1871,9 +2147,13 @@ export function parseSubmitEvent(ctx,event,previous) {
   state.event = event.event; state.id = event.id;
   return {state:state,done:chunk.complete === true};
 }
-export function parseSubmitResponse(ctx,response){return {taskId:"vendor-document",taskData:response.body,immediate:{status:"SUCCESS"},state:{revision:1}};}
+export function parseSubmitResponse(ctx,response){
+  if(response.body && response.body.document==="unreadable") throw new Error("unreadable result");
+  return {taskId:"vendor-document",taskData:response.body,immediate:{status:"SUCCESS"},state:{revision:1}};
+}
 export function parseTaskResult(){return {status:"SUCCESS"};}
 export function buildQueryRequest(ctx){return {url:ctx.baseUrl+"/query"};}
+export function extractUsageOnSubmit(ctx,body){return {units:body.units};}
 export function extractUsageOnComplete(ctx,result,body){
   if(ctx.model!=="alias" || ctx.upstreamModel!=="document" || ctx.taskId!=="vendor-document" || ctx.publicTaskId!=="public-document" || ctx.state.revision!==1 || ctx.data.document!==body.document) throw new Error("invalid completion context");
   return {units:body.units};
@@ -1897,7 +2177,9 @@ func TestTaskSubmitStreamContract(t *testing.T) {
 		{"intermediate state limit", "data: {\"largeState\":true}\n\ndata: {\"resetState\":true}\n\n", "text/event-stream", false},
 		{"encoded state limit", "data: {\"escapedState\":true}\n\n", "text/event-stream", false},
 		{"event limit", "data: " + strings.Repeat("x", maxTaskPluginPersistedJSONBytes) + "\n\n", "text/event-stream", false},
-		{"wrong response type", "{}", "application/json", false},
+		// A gateway released before relayed streams answers a stream request
+		// on its native route with one JSON body.
+		{"JSON reply to a stream request", `{"document":"helloworld","units":3,"event":"message","id":"doc-1"}`, "application/json", true},
 		{"undeclared stream", "data: {}\n\n", "text/event-stream", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1933,6 +2215,155 @@ func TestTaskSubmitStreamContract(t *testing.T) {
 	}
 }
 
+// A native route's client receives every upstream event as the vendor framed
+// it, and once one has arrived the submission settles instead of failing. The
+// plugin's usage settles it only when the upstream finished the stream; a
+// stream that broke off, or whose result the plugin cannot read, keeps the
+// reserved charge for both pricing modes. A stream that relayed nothing still
+// fails.
+func TestTaskSubmitStreamRelaysToNativeClients(t *testing.T) {
+	plugin, err := pluginruntime.CompilePlugin(documentStreamPlugin, pluginruntime.Options{})
+	require.NoError(t, err)
+	const first = "data: {\"part\":\"a\",\"units\":1}\n\n"
+	nativeSubmit := func(t *testing.T, body io.Reader) (*TaskAdaptor, *relaycommon.RelayInfo, *httptest.ResponseRecorder, *channel.TaskSubmitResponse, *taskdto.TaskError) {
+		info := &relaycommon.RelayInfo{OriginModelName: "alias", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "document", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "public-document"}}
+		adaptor := New(plugin)
+		adaptor.Init(info)
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/compile", nil)
+		c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: pluginruntime.Route{Method: http.MethodPost, Path: "/compile", Type: pluginruntime.RouteTypeSubmit}})
+		c.Set("task_request", map[string]any{})
+		require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+		_, err := adaptor.BuildRequestBody(c, info)
+		require.NoError(t, err)
+		parsed, taskErr := adaptor.ParseResponse(c, &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(body)}, info)
+		return adaptor, info, recorder, parsed, taskErr
+	}
+	for _, tc := range []struct {
+		name, body string
+		breaks     bool
+		// wantFacts nil: the reserved charge stands.
+		wantFacts map[string]any
+		wantTask  string
+	}{
+		{"completed", ": ping\n\nid: 1\n" + first + "data: {\"part\":\"b\",\"units\":2,\"complete\":true}\n\n", false, map[string]any{"units": float64(2)}, "vendor-document"},
+		{"closed by the upstream", first, false, map[string]any{"units": float64(1)}, "vendor-document"},
+		{"broken off", first, true, nil, "vendor-document"},
+		{"hook failure on the first event", "data: {\"error\":true}\n\n", false, nil, "vendor-document"},
+		{"hook failure after an event", first + "event: error\ndata: {\"error\":true}\n\n", false, nil, "vendor-document"},
+		{"unreadable result", "data: {\"part\":\"unreadable\",\"units\":1,\"complete\":true}\n\n", false, nil, "public-document"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var body io.Reader = strings.NewReader(tc.body)
+			if tc.breaks {
+				body = io.MultiReader(body, iotest.ErrReader(io.ErrUnexpectedEOF))
+			}
+			adaptor, info, recorder, parsed, taskErr := nativeSubmit(t, body)
+			require.Nil(t, taskErr)
+			assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+			assert.Equal(t, tc.body, recorder.Body.String(), "the client receives the events as the vendor framed them")
+			require.NotNil(t, parsed.Immediate)
+			assert.Equal(t, "SUCCESS", parsed.Immediate.Status)
+			assert.Equal(t, tc.wantTask, parsed.UpstreamTaskID)
+			assert.Equal(t, tc.wantFacts, parsed.Immediate.UsageFacts)
+			ratios := adaptor.AdjustBillingOnSubmit(info, parsed.TaskData)
+			if tc.wantFacts == nil {
+				assert.Nil(t, ratios, "per-call pricing keeps the reservation too")
+			} else {
+				assert.Equal(t, map[string]float64{"units": tc.wantFacts["units"].(float64)}, ratios)
+			}
+		})
+	}
+
+	t.Run("a stream that relayed nothing still fails", func(t *testing.T) {
+		_, _, recorder, _, taskErr := nativeSubmit(t, strings.NewReader("data: {\"part\":\"a\""))
+		require.NotNil(t, taskErr)
+		assert.True(t, taskErr.NoRetry)
+		assert.Empty(t, recorder.Body.String())
+	})
+
+	// A downstream gateway relaying this gateway's stream must see the same
+	// end, so a stream that broke off reaches the client cut off.
+	for _, tc := range []struct {
+		name    string
+		breaks  bool
+		wantErr error
+	}{
+		{"the client's stream ends cleanly when the upstream finished it", false, nil},
+		{"the client's stream is cut off when the upstream's broke off", true, io.ErrUnexpectedEOF},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				info := &relaycommon.RelayInfo{OriginModelName: "alias", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "document", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "public-document"}}
+				adaptor := New(plugin)
+				adaptor.Init(info)
+				c, _ := gin.CreateTestContext(w)
+				c.Request = r
+				c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: pluginruntime.Route{Method: http.MethodPost, Path: "/compile", Type: pluginruntime.RouteTypeSubmit}})
+				c.Set("task_request", map[string]any{})
+				require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+				var body io.Reader = strings.NewReader(first)
+				if tc.breaks {
+					body = io.MultiReader(body, iotest.ErrReader(io.ErrUnexpectedEOF))
+				}
+				_, taskErr := adaptor.ParseResponse(c, &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(body)}, info)
+				assert.Nil(t, taskErr)
+			}))
+			defer server.Close()
+			resp, err := http.Post(server.URL+"/compile", "application/json", nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			received, err := io.ReadAll(resp.Body)
+			assert.Equal(t, first, string(received))
+			if tc.wantErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// A native route that declares retainResult: false never persists its reply,
+// so a Base64 image reply may exceed the 1 MiB task data limit.
+func TestTaskSubmitReplyLimitFollowsRetainResult(t *testing.T) {
+	plugin, err := pluginruntime.CompilePlugin(documentStreamPlugin, pluginruntime.Options{})
+	require.NoError(t, err)
+	document := strings.Repeat("x", maxTaskPluginPersistedJSONBytes+1024)
+	discard := false
+	for _, tc := range []struct {
+		name   string
+		retain *bool
+		valid  bool
+	}{
+		{"retained reply", nil, false},
+		{"discarded reply", &discard, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{OriginModelName: "alias", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "document", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "public-document"}}
+			adaptor := New(plugin)
+			adaptor.Init(info)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/compile", nil)
+			c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: pluginruntime.Route{Method: http.MethodPost, Path: "/compile", Type: pluginruntime.RouteTypeSubmit, RetainResult: tc.retain}})
+			c.Set("task_request", map[string]any{"responseType": "json"})
+			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+			_, err := adaptor.BuildRequestBody(c, info)
+			require.NoError(t, err)
+			body := `{"document":"` + document + `","units":1}`
+			parsed, taskErr := adaptor.ParseResponse(c, &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body))}, info)
+			if !tc.valid {
+				require.NotNil(t, taskErr)
+				assert.Contains(t, taskErr.Error.Error(), "exceeds size limit")
+				return
+			}
+			require.Nil(t, taskErr)
+			assert.Len(t, parsed.TaskData, len(body))
+		})
+	}
+}
+
 func TestTaskSubmitStreamCancellationClosesReader(t *testing.T) {
 	plugin, err := pluginruntime.CompilePlugin(documentStreamPlugin, pluginruntime.Options{})
 	require.NoError(t, err)
@@ -1940,7 +2371,7 @@ func TestTaskSubmitStreamCancellationClosesReader(t *testing.T) {
 	defer writer.Close()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	_, err = New(plugin).readSubmitEvents(ctx, &http.Response{Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: reader}, nil)
+	_, _, err = New(plugin).readSubmitEvents(ctx, &http.Response{Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: reader}, nil, submitEventStream{frameLimit: maxTaskPluginPersistedJSONBytes})
 	require.ErrorIs(t, err, context.Canceled)
 	_, err = writer.Write([]byte("data: {}\n\n"))
 	require.Error(t, err)
@@ -1954,7 +2385,7 @@ func TestTaskSubmitStreamIdleTimeout(t *testing.T) {
 	require.NoError(t, err)
 	reader, writer := io.Pipe()
 	defer writer.Close()
-	_, err = New(plugin).readSubmitEvents(t.Context(), &http.Response{Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: reader}, nil)
+	_, _, err = New(plugin).readSubmitEvents(t.Context(), &http.Response{Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: reader}, nil, submitEventStream{frameLimit: maxTaskPluginPersistedJSONBytes})
 	require.ErrorContains(t, err, "idle timeout")
 }
 
@@ -2188,6 +2619,28 @@ export function parseSubmitEventDelta(ctx,event,previous) {
 		})
 	}
 
+	t.Run("invalid changes after a relayed event keep the reservation", func(t *testing.T) {
+		info := &relaycommon.RelayInfo{OriginModelName: "alias", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "document", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "public-document"}}
+		adaptor := New(plugin)
+		adaptor.Init(info)
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Request = httptest.NewRequest(http.MethodPost, "/compile", nil)
+		c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: pluginruntime.Route{Method: http.MethodPost, Path: "/compile", Type: pluginruntime.RouteTypeSubmit}})
+		c.Set("task_request", map[string]any{})
+		require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+		stream := "data: " + first + "\n\ndata: {\"changes\":[{\"op\":\"append\",\"path\":[\"document\"],\"value\":\"x\"}]}\n\n"
+		response := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(stream))}
+		parsed, taskErr := adaptor.ParseResponse(c, response, info)
+		require.Nil(t, taskErr)
+		assert.Equal(t, stream, recorder.Body.String())
+		require.NotNil(t, parsed.Immediate)
+		assert.Equal(t, "SUCCESS", parsed.Immediate.Status)
+		assert.Nil(t, parsed.TaskData, "a half-applied result is never published")
+		assert.Nil(t, parsed.Immediate.UsageFacts)
+		assert.Nil(t, adaptor.AdjustBillingOnSubmit(info, parsed.TaskData))
+	})
+
 	t.Run("delta hook exported without the declaration", func(t *testing.T) {
 		undeclared := strings.Replace(source, `requiredCapabilities:["submit-sse-delta@1"],`, "", 1)
 		undeclared = strings.Replace(undeclared, "export function parseSubmitEvent(", "function unusedSnapshotHook(", 1)
@@ -2374,4 +2827,135 @@ func TestTaskAdaptorChainsSunoBatchFetchThroughNewAPIUpstream(t *testing.T) {
 	require.Contains(t, results, "task_up_public")
 	assert.Equal(t, "SUCCESS", results["task_up_public"].TaskInfo.Status)
 	assert.Equal(t, []string{"POST /suno/submit/MUSIC", "POST /suno/fetch"}, seen)
+}
+
+// When distribution binds another candidate of a shared native route, that
+// plugin decodes the request again, reading the parameters under its own
+// names, and must resolve the same model.
+func TestTaskAdaptorReDecodesReboundNativeRouteCandidate(t *testing.T) {
+	sourceFor := func(key, model, param string) string {
+		return fmt.Sprintf(`
+export const meta = {apiVersion:1,key:%q,name:%q,version:"1.0.0",author:{name:"Test"},models:["claimed-model","drifted-model"],fetchMode:"per_task",
+	routes:[{method:"POST",path:"/probe/v1/jobs/:%s",type:"submit",action:"route-action",decode:"createJob",render:"jobCreated"}]};
+export const native = {
+	createJob(ctx){return {kind:"submit",model:%q,action:"by-"+%q,requestBody:{by:%q,param:ctx.params[%q]}};},
+	jobCreated(ctx,task){return task;},
+};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit",method:"POST",body:ctx.requestBody}}
+export function parseSubmitResponse(){return {taskId:"one"}}
+export function buildQueryRequest(){return {url:"https://provider.example"}}
+export function parseTaskResult(){return {status:"SUCCESS"}}
+`, key, key, param, model, key, key, param)
+	}
+	// The second decode matches its model as the first did: a channel alias
+	// or a case variant names the same task as the prepared name.
+	previousDB := model.DB
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	model.DB = database
+	t.Cleanup(func() {
+		model.DB = previousDB
+		model.InitChannelCache()
+	})
+	require.NoError(t, database.AutoMigrate(&model.Channel{}))
+	require.NoError(t, database.Create(&model.Channel{Type: constant.ChannelTypeTaskPlugin, Status: common.ChannelStatusEnabled, Key: "key",
+		Models: "claimed-alias", ModelMapping: common.GetPointer(`{"claimed-alias":"claimed-model"}`)}).Error)
+	model.InitChannelCache()
+	for _, testCase := range []struct {
+		name, betaModel, prepared string
+		wantError                 bool
+	}{
+		{name: "same model", betaModel: "claimed-model", prepared: "claimed-model"},
+		{name: "model drift", betaModel: "drifted-model", prepared: "claimed-model", wantError: true},
+		{name: "same channel alias", betaModel: "claimed-alias", prepared: "claimed-alias"},
+		{name: "case variant", betaModel: "CLAIMED-MODEL", prepared: "claimed-model"},
+		{name: "declared name for a prepared alias", betaModel: "claimed-model", prepared: "claimed-alias", wantError: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			registry := pluginruntime.NewRegistry()
+			_, err := registry.Register(sourceFor("route-alpha", "claimed-model", "kind"), pluginruntime.Options{})
+			require.NoError(t, err)
+			beta, err := registry.Register(sourceFor("route-beta", testCase.betaModel, "variant"), pluginruntime.Options{})
+			require.NoError(t, err)
+			generation := registry.Generation()
+			candidates := generation.LookupDeclaredRoutes("POST", "/probe/v1/jobs/:x")
+			require.Len(t, candidates, 2)
+
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/probe/v1/jobs/video", nil)
+			c.Params = gin.Params{{Key: "s3", Value: "video"}}
+			c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Generation: generation, Plugin: beta, Route: candidates[1].Route, Candidates: candidates})
+			c.Set(pluginruntime.ContextKeyRouteRequest, pluginruntime.RouteRequestContext{
+				Params: map[string]string{"kind": "video"}, Body: map[string]any{"kind": "json", "value": map[string]any{}},
+				RequestBody: map[string]any{"by": "route-alpha", "param": "video"},
+			})
+			c.Set("task_request", map[string]any{"by": "route-alpha", "param": "video"})
+			c.Set("task_action", "by-route-alpha")
+			c.Set("resolved_task_model", testCase.prepared)
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}, OriginModelName: testCase.prepared}
+			adaptor := New(beta)
+			adaptor.Init(info)
+
+			taskErr := adaptor.ValidateRequestAndSetAction(c, info)
+
+			if testCase.wantError {
+				require.NotNil(t, taskErr)
+				assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+				assert.Contains(t, taskErr.Message, "pinned model")
+				return
+			}
+			require.Nil(t, taskErr)
+			assert.Equal(t, map[string]any{"by": "route-beta", "param": "video"}, c.MustGet("task_request"))
+			assert.Equal(t, "by-route-beta", c.GetString("task_action"))
+			assert.Equal(t, "by-route-beta", info.Action)
+			assert.Equal(t, map[string]string{"variant": "video"}, c.MustGet(pluginruntime.ContextKeyRouteRequest).(pluginruntime.RouteRequestContext).Params)
+		})
+	}
+}
+
+// buildContentRequest may address the artifact's bytes inside a JSON reply;
+// the path follows the JSON change path rules and the media type must fit a
+// header.
+func TestTaskAdaptorBuildContentRequestPassesContentPath(t *testing.T) {
+	descriptorFor := func(contentPath, mimeType string) string {
+		return strings.Replace(mockPlugin, `export function listArtifacts() { return []; }
+export function buildContentRequest() { throw new Error("artifact_not_found"); }`, `export function listArtifacts() { return [{key: "video", type: "video"}]; }
+export function buildContentRequest(ctx) {
+  return {url: ctx.baseUrl + "/operations:fetch", method: "POST", body: {operationName: "op"}, responseType: "json", contentPath: `+contentPath+`, mimeType: `+mimeType+`};
+}`, 1)
+	}
+	task := &model.Task{TaskID: "task", Status: model.TaskStatusSuccess, Data: []byte(`{}`)}
+	for _, testCase := range []struct {
+		name, contentPath, mimeType string
+		wantError                   string
+	}{
+		{name: "operation video bytes", contentPath: `["response", "videos", 0, "bytesBase64Encoded"]`, mimeType: `"video/mp4"`},
+		{name: "too deep", contentPath: `Array.from({length: 33}, function() { return "a"; })`, mimeType: `"video/mp4"`, wantError: "at most 32 segments"},
+		{name: "negative index", contentPath: `["response", -1]`, mimeType: `"video/mp4"`, wantError: "non-negative integers"},
+		{name: "fractional index", contentPath: `["response", 1.5]`, mimeType: `"video/mp4"`, wantError: "non-negative integers"},
+		{name: "object segment", contentPath: `["response", {}]`, mimeType: `"video/mp4"`, wantError: "strings or integers"},
+		{name: "header injection", contentPath: `["response"]`, mimeType: `"video/mp4\r\nX-Injected: 1"`, wantError: "invalid artifact mimeType"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			plugin, err := pluginruntime.NewRegistry().Register(descriptorFor(testCase.contentPath, testCase.mimeType), pluginruntime.Options{})
+			require.NoError(t, err)
+			adaptor := New(plugin)
+			adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example", ApiKey: "key"}})
+
+			descriptor, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodHead})
+
+			if testCase.wantError != "" {
+				require.ErrorContains(t, err, testCase.wantError)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, http.MethodPost, descriptor.Method)
+			assert.JSONEq(t, `{"operationName":"op"}`, string(descriptor.Body))
+			require.Len(t, descriptor.ContentPath, 4)
+			assert.Equal(t, []any{"response", "videos"}, descriptor.ContentPath[:2])
+			assert.EqualValues(t, 0, descriptor.ContentPath[2])
+			assert.Equal(t, "bytesBase64Encoded", descriptor.ContentPath[3])
+			assert.Equal(t, "video/mp4", descriptor.MimeType)
+		})
+	}
 }

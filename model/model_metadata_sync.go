@@ -19,12 +19,16 @@ var metadataMutationMu sync.Mutex
 func metadataTransaction(change func(*gorm.DB) error) error {
 	metadataMutationMu.Lock()
 	defer metadataMutationMu.Unlock()
-	return DB.Transaction(func(tx *gorm.DB) error {
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := lockMetadataMutation(tx); err != nil {
 			return err
 		}
 		return change(tx)
 	})
+	if err == nil {
+		BumpSyncTopic(SyncTopicModels)
+	}
+	return err
 }
 
 func lockMetadataMutation(tx *gorm.DB) error {

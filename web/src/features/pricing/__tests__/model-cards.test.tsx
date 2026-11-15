@@ -496,6 +496,47 @@ describe('model cards', () => {
     expect(screen.queryByText(/1K|1M/)).not.toBeInTheDocument()
   })
 
+  it('hides a task usage price left at zero while another usage price is set', () => {
+    render(
+      <ModelCard
+        model={pricingModel({
+          billing_mode: 'tiered_expr',
+          billing_expr: 'tier("base", u("count") * 0 + u("seconds") * 0.7)',
+          billing_usage_schema: {
+            count: {
+              type: 'number',
+              unit: 'count',
+              description: { en: 'Per-task price' },
+            },
+            seconds: {
+              type: 'number',
+              unit: 'second',
+              description: { en: 'Video generation unit price' },
+            },
+          },
+        })}
+        onClick={vi.fn()}
+      />
+    )
+    expect(screen.getByText('Video generation unit price')).toBeVisible()
+    expect(screen.queryByText('Per-task price')).not.toBeInTheDocument()
+  })
+
+  it('does not show the tier name of a single-tier task price', () => {
+    render(
+      <ModelCard
+        model={pricingModel({
+          billing_mode: 'tiered_expr',
+          billing_expr: 'tier("base", u("seconds") * 0.4)',
+          billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+        })}
+        onClick={vi.fn()}
+      />
+    )
+    expect(screen.getByText(/^\$0\.4$/)).toBeVisible()
+    expect(screen.queryByText('(base)')).not.toBeInTheDocument()
+  })
+
   it('shows the unconfigured usage message without inventing a token price', () => {
     render(
       <ModelCard

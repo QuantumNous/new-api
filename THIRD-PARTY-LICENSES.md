@@ -3,147 +3,172 @@
 This file summarizes direct third-party dependencies used by distributed builds of this project.
 It is an engineering compliance artifact and should be kept with Docker images, standalone binaries, frontend bundles, and Electron installers.
 
-Scope: direct dependencies from `go.mod`, `web/package.json`, and `electron/package.json`.
+Scope: direct dependencies from `go.mod` (including the in-repo `relaykit` and `tokenkit` modules), `web/package.json`, and `electron/package.json`.
 Transitive dependencies should be audited before a final external release.
 
 ## Dependency Inventory
 
-| Area     | Scope       | Ecosystem | Dependency                                            | Version                              | License                                            |
-|----------|-------------|-----------|-------------------------------------------------------|--------------------------------------|----------------------------------------------------|
-| backend  | production  | Go        | `github.com/Calcium-Ion/go-epay`                      | `v0.0.4`                             | Proprietary/Internal - owned by project maintainer |
-| backend  | production  | Go        | `github.com/Calcium-Ion/moejs`                        | `v0.1.0-alpha.5`                     | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/abema/go-mp4`                             | `v1.4.1`                             | MIT                                                |
-| backend  | test        | Go        | `github.com/alicebob/miniredis/v2`                    | `v2.38.0`                            | MIT                                                |
-| backend  | production  | Go        | `github.com/andybalholm/brotli`                       | `v1.1.1`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/anknown/ahocorasick`                      | `v0.0.0-20190904063843-d75dbd5169c0` | MIT                                                |
-| backend  | production  | Go        | `github.com/aws/aws-sdk-go-v2`                        | `v1.41.5`                            | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/aws/aws-sdk-go-v2/credentials`            | `v1.19.10`                           | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/aws/aws-sdk-go-v2/service/bedrockruntime` | `v1.50.4`                            | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/aws/smithy-go`                            | `v1.24.2`                            | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/bytedance/gopkg`                          | `v0.1.3`                             | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/gin-contrib/cors`                         | `v1.7.2`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/gin-contrib/gzip`                         | `v0.0.6`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/gin-contrib/static`                       | `v0.0.1`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/gin-gonic/gin`                            | `v1.9.1`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/glebarez/sqlite`                          | `v1.9.0`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/go-audio/aiff`                            | `v1.1.0`                             | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/go-audio/wav`                             | `v1.1.0`                             | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/go-playground/validator/v10`              | `v10.20.0`                           | MIT                                                |
-| backend  | production  | Go        | `github.com/go-redis/redis/v8`                        | `v8.11.5`                            | BSD-2-Clause                                       |
-| backend  | production  | Go        | `github.com/go-webauthn/webauthn`                     | `v0.14.0`                            | BSD-3-Clause                                       |
-| backend  | production  | Go        | `github.com/golang-jwt/jwt/v5`                        | `v5.3.0`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/google/uuid`                              | `v1.6.0`                             | BSD-3-Clause                                       |
-| backend  | production  | Go        | `github.com/gorilla/websocket`                        | `v1.5.0`                             | BSD-2-Clause                                       |
-| backend  | production  | Go        | `github.com/grafana/pyroscope-go`                     | `v1.2.7`                             | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/jfreymuth/oggvorbis`                      | `v1.0.5`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/jinzhu/copier`                            | `v0.4.0`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/joho/godotenv`                            | `v1.5.1`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/mewkiz/flac`                              | `v1.0.13`                            | Unlicense                                          |
-| backend  | production  | Go        | `github.com/nicksnyder/go-i18n/v2`                    | `v2.6.1`                             | MIT                                                |
-| backend  | test        | Go        | `github.com/openai/openai-go`                         | `v1.12.0`                            | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/pkg/errors`                               | `v0.9.1`                             | BSD-2-Clause                                       |
-| backend  | production  | Go        | `github.com/pquerna/otp`                              | `v1.5.0`                             | Apache-2.0                                         |
-| backend  | production  | Go        | `github.com/samber/hot`                               | `v0.11.0`                            | MIT                                                |
-| backend  | production  | Go        | `github.com/samber/lo`                                | `v1.52.0`                            | MIT                                                |
-| backend  | production  | Go        | `github.com/shirou/gopsutil`                          | `v3.21.11+incompatible`              | BSD-3-Clause                                       |
-| backend  | production  | Go        | `github.com/shopspring/decimal`                       | `v1.4.0`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/stretchr/testify`                         | `v1.12.1`                            | MIT                                                |
-| backend  | production  | Go        | `github.com/stripe/stripe-go/v81`                     | `v81.4.0`                            | MIT                                                |
-| backend  | production  | Go        | `github.com/tcolgate/mp3`                             | `v0.0.0-20170426193717-e79c5a46d300` | MIT                                                |
-| backend  | production  | Go        | `github.com/thanhpk/randstr`                          | `v1.0.6`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/tidwall/gjson`                            | `v1.18.0`                            | MIT                                                |
-| backend  | production  | Go        | `github.com/tidwall/sjson`                            | `v1.2.5`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/tiktoken-go/tokenizer`                    | `v0.6.2`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/waffo-com/waffo-go`                       | `v1.3.1`                             | MIT                                                |
-| backend  | production  | Go        | `github.com/yapingcat/gomedia`                        | `v0.0.0-20240906162731-17feea57090c` | MIT                                                |
-| backend  | production  | Go        | `golang.org/x/crypto`                                 | `v0.45.0`                            | BSD-3-Clause                                       |
-| backend  | production  | Go        | `golang.org/x/image`                                  | `v0.38.0`                            | BSD-3-Clause                                       |
-| backend  | production  | Go        | `golang.org/x/net`                                    | `v0.47.0`                            | BSD-3-Clause                                       |
-| backend  | production  | Go        | `golang.org/x/sync`                                   | `v0.20.0`                            | BSD-3-Clause                                       |
-| backend  | production  | Go        | `golang.org/x/sys`                                    | `v0.38.0`                            | BSD-3-Clause                                       |
-| backend  | production  | Go        | `golang.org/x/text`                                   | `v0.35.0`                            | BSD-3-Clause                                       |
-| backend  | production  | Go        | `gopkg.in/yaml.v3`                                    | `v3.0.1`                             | Apache-2.0 OR MIT                                  |
-| backend  | production  | Go        | `gorm.io/driver/mysql`                                | `v1.4.3`                             | MIT                                                |
-| backend  | production  | Go        | `gorm.io/driver/postgres`                             | `v1.5.2`                             | MIT                                                |
-| backend  | production  | Go        | `gorm.io/gorm`                                        | `v1.25.2`                            | MIT                                                |
-| backend  | production  | Go        | `github.com/expr-lang/expr`                           | `v1.17.8`                            | MIT                                                |
-| web      | production  | npm       | `@base-ui/react`                                      | `1.6.0`                              | MIT                                                |
-| web      | production  | npm       | `@codemirror/lang-javascript`                         | `6.2.5`                              | MIT                                                |
-| web      | production  | npm       | `@codemirror/lang-markdown`                           | `6.5.1`                              | MIT                                                |
-| web      | production  | npm       | `@codemirror/language`                                | `6.12.4`                             | MIT                                                |
-| web      | production  | npm       | `@codemirror/state`                                   | `6.7.1`                              | MIT                                                |
-| web      | production  | npm       | `@codemirror/view`                                    | `6.43.6`                             | MIT                                                |
-| web      | production  | npm       | `@fontsource-variable/lora`                           | `5.3.0`                              | OFL-1.1                                            |
-| web      | production  | npm       | `@fontsource-variable/public-sans`                    | `5.3.0`                              | OFL-1.1                                            |
-| web      | production  | npm       | `@hookform/resolvers`                                 | `5.4.0`                              | MIT                                                |
-| web      | production  | npm       | `@hugeicons/core-free-icons`                          | `4.2.2`                              | MIT                                                |
-| web      | production  | npm       | `@hugeicons/react`                                    | `1.1.9`                              | MIT                                                |
-| web      | production  | npm       | `@lezer/highlight`                                    | `1.2.3`                              | MIT                                                |
-| web      | production  | npm       | `@lobehub/icons`                                      | `5.14.0`                             | MIT                                                |
-| web      | production  | npm       | `@tanstack/react-query`                               | `5.101.2`                            | MIT                                                |
-| web      | production  | npm       | `@tanstack/react-router`                              | `1.170.18`                           | MIT                                                |
-| web      | production  | npm       | `@tanstack/react-table`                               | `8.21.3`                             | MIT                                                |
-| web      | production  | npm       | `@tanstack/react-virtual`                             | `3.14.6`                             | MIT                                                |
-| web      | production  | npm       | `@visactor/react-vchart`                              | `2.1.4`                              | MIT                                                |
-| web      | production  | npm       | `@visactor/vchart`                                    | `2.1.4`                              | MIT                                                |
-| web      | production  | npm       | `ai`                                                  | `7.0.31`                             | Apache-2.0                                         |
-| web      | production  | npm       | `auto-skeleton-react`                                 | `1.0.5`                              | MIT                                                |
-| web      | production  | npm       | `axios`                                               | `1.18.1`                             | MIT                                                |
-| web      | production  | npm       | `class-variance-authority`                            | `0.7.1`                              | Apache-2.0                                         |
-| web      | production  | npm       | `clsx`                                                | `2.1.1`                              | MIT                                                |
-| web      | production  | npm       | `cmdk`                                                | `1.1.1`                              | MIT                                                |
-| web      | production  | npm       | `dayjs`                                               | `1.11.21`                            | MIT                                                |
-| web      | production  | npm       | `dompurify`                                           | `3.4.11`                             | Apache-2.0 OR MPL-2.0                              |
-| web      | production  | npm       | `i18next`                                             | `26.3.6`                             | MIT                                                |
-| web      | production  | npm       | `i18next-browser-languagedetector`                    | `8.2.1`                              | MIT                                                |
-| web      | production  | npm       | `input-otp`                                           | `1.4.2`                              | MIT                                                |
-| web      | production  | npm       | `katex`                                               | `0.17.0`                             | MIT                                                |
-| web      | production  | npm       | `lucide-react`                                        | `1.25.0`                             | ISC                                                |
-| web      | production  | npm       | `marked`                                              | `18.0.6`                             | MIT                                                |
-| web      | production  | npm       | `motion`                                              | `12.42.2`                            | MIT                                                |
-| web      | production  | npm       | `nanoid`                                              | `5.1.16`                             | MIT                                                |
-| web      | production  | npm       | `next-themes`                                         | `0.4.6`                              | MIT                                                |
-| web      | production  | npm       | `qrcode.react`                                        | `4.2.0`                              | ISC                                                |
-| web      | production  | npm       | `react`                                               | `19.2.7`                             | MIT                                                |
-| web      | production  | npm       | `react-day-picker`                                    | `10.0.1`                             | MIT                                                |
-| web      | production  | npm       | `react-dom`                                           | `19.2.7`                             | MIT                                                |
-| web      | production  | npm       | `react-hook-form`                                     | `7.82.0`                             | MIT                                                |
-| web      | production  | npm       | `react-i18next`                                       | `17.0.10`                            | MIT                                                |
-| web      | production  | npm       | `react-icons`                                         | `5.7.0`                              | MIT                                                |
-| web      | production  | npm       | `react-resizable-panels`                              | `4.12.2`                             | MIT                                                |
-| web      | production  | npm       | `react-top-loading-bar`                               | `3.0.2`                              | MIT                                                |
-| web      | production  | npm       | `recharts`                                            | `3.9.1`                              | MIT                                                |
-| web      | production  | npm       | `shiki`                                               | `4.3.1`                              | MIT                                                |
-| web      | production  | npm       | `sonner`                                              | `2.0.7`                              | MIT                                                |
-| web      | production  | npm       | `sse.js`                                              | `2.8.0`                              | Apache-2.0                                         |
-| web      | production  | npm       | `stream-markdown-parser`                              | `1.1.3`                              | MIT                                                |
-| web      | production  | npm       | `tailwind-merge`                                      | `3.6.0`                              | MIT                                                |
-| web      | production  | npm       | `tailwindcss`                                         | `4.3.3`                              | MIT                                                |
-| web      | production  | npm       | `tokenlens`                                           | `1.3.1`                              | MIT                                                |
-| web      | production  | npm       | `tw-animate-css`                                      | `1.4.0`                              | MIT                                                |
-| web      | production  | npm       | `use-stick-to-bottom`                                 | `1.1.6`                              | MIT                                                |
-| web      | production  | npm       | `vaul`                                                | `1.1.2`                              | MIT                                                |
-| web      | production  | npm       | `zod`                                                 | `4.4.3`                              | MIT                                                |
-| web      | production  | npm       | `zustand`                                             | `5.0.14`                             | MIT                                                |
-| web      | development | npm       | `@rsbuild/core`                                       | `2.1.6`                              | MIT                                                |
-| web      | development | npm       | `@rsbuild/plugin-react`                               | `2.1.0`                              | MIT                                                |
-| web      | development | npm       | `@rsbuild/plugin-tailwindcss`                         | `2.0.3`                              | MIT                                                |
-| web      | development | npm       | `@tanstack/react-query-devtools`                      | `5.101.2`                            | MIT                                                |
-| web      | development | npm       | `@tanstack/react-router-devtools`                     | `1.167.0`                            | MIT                                                |
-| web      | development | npm       | `@tanstack/router-plugin`                             | `1.168.23`                           | MIT                                                |
-| web      | development | npm       | `@types/node`                                         | `26.1.1`                             | MIT                                                |
-| web      | development | npm       | `@types/react`                                        | `19.2.17`                            | MIT                                                |
-| web      | development | npm       | `@types/react-dom`                                    | `19.2.3`                             | MIT                                                |
-| web      | development | npm       | `@typescript/native-preview`                          | `7.0.0-dev.20260707.2`               | Apache-2.0                                         |
-| web      | development | npm       | `@xyflow/react`                                       | `12.11.2`                            | MIT                                                |
-| web      | development | npm       | `embla-carousel-react`                                | `8.6.0`                              | MIT                                                |
-| web      | development | npm       | `knip`                                                | `6.27.0`                             | ISC                                                |
-| web      | development | npm       | `oxfmt`                                               | `0.57.0`                             | MIT                                                |
-| web      | development | npm       | `oxlint`                                              | `1.74.0`                             | MIT                                                |
-| web      | development | npm       | `shadcn`                                              | `4.13.1`                             | MIT                                                |
-| electron | development | npm       | `cross-env`                                           | `7.0.3`                              | MIT                                                |
-| electron | development | npm       | `electron`                                            | `39.8.5`                             | MIT                                                |
-| electron | development | npm       | `electron-builder`                                    | `26.7.0`                             | MIT                                                |
+| Area     | Scope       | Ecosystem | Dependency                                              | Version                              | License                 |
+|----------|-------------|-----------|---------------------------------------------------------|--------------------------------------|-------------------------|
+| backend  | production  | Go        | `github.com/Azure/go-ntlmssp`                           | `v0.1.1`                             | MIT                     |
+| backend  | production  | Go        | `github.com/Calcium-Ion/go-epay`                        | `v0.0.6`                             | MIT                     |
+| backend  | production  | Go        | `github.com/ClickHouse/clickhouse-go/v2`                | `v2.46.0`                            | Apache-2.0              |
+| backend  | production  | Go        | `github.com/HugoSmits86/nativewebp`                     | `v1.3.0`                             | MIT                     |
+| backend  | production  | Go        | `github.com/MoeForge/moego`                             | `v0.1.0-alpha.3`                     | MIT                     |
+| backend  | production  | Go        | `github.com/MoeForge/moejs`                             | `v0.1.0`                             | Apache-2.0              |
+| backend  | production  | Go        | `github.com/abema/go-mp4`                               | `v1.4.1`                             | MIT                     |
+| backend  | test        | Go        | `github.com/alicebob/miniredis/v2`                      | `v2.38.0`                            | MIT                     |
+| backend  | production  | Go        | `github.com/andybalholm/brotli`                         | `v1.2.0`                             | MIT                     |
+| backend  | production  | Go        | `github.com/anknown/ahocorasick`                        | `v0.0.0-20190904063843-d75dbd5169c0` | MIT                     |
+| backend  | production  | Go        | `github.com/aws/aws-sdk-go-v2`                          | `v1.41.5`                            | Apache-2.0              |
+| backend  | production  | Go        | `github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream` | `v1.7.8`                             | Apache-2.0              |
+| backend  | production  | Go        | `github.com/aws/aws-sdk-go-v2/credentials`              | `v1.19.10`                           | Apache-2.0              |
+| backend  | production  | Go        | `github.com/aws/aws-sdk-go-v2/service/bedrockruntime`   | `v1.50.4`                            | Apache-2.0              |
+| backend  | production  | Go        | `github.com/aws/smithy-go`                              | `v1.24.2`                            | Apache-2.0              |
+| backend  | production  | Go        | `github.com/bytedance/gopkg`                            | `v0.1.3`                             | Apache-2.0              |
+| backend  | production  | Go        | `github.com/casbin/casbin/v2`                           | `v2.135.0`                           | Apache-2.0              |
+| backend  | production  | Go        | `github.com/coreos/go-oidc/v3`                          | `v3.21.0`                            | Apache-2.0              |
+| backend  | production  | Go        | `github.com/expr-lang/expr`                             | `v1.17.8`                            | MIT                     |
+| backend  | production  | Go        | `github.com/fxamacker/cbor/v2`                          | `v2.9.0`                             | MIT                     |
+| backend  | production  | Go        | `github.com/gin-contrib/cors`                           | `v1.7.2`                             | MIT                     |
+| backend  | production  | Go        | `github.com/gin-contrib/gzip`                           | `v0.0.6`                             | MIT                     |
+| backend  | production  | Go        | `github.com/gin-contrib/static`                         | `v0.0.1`                             | MIT                     |
+| backend  | production  | Go        | `github.com/gin-gonic/gin`                              | `v1.9.1`                             | MIT                     |
+| backend  | production  | Go        | `github.com/glebarez/go-sqlite`                         | `v1.21.2`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `github.com/glebarez/sqlite`                            | `v1.11.0`                            | MIT                     |
+| backend  | production  | Go        | `github.com/go-audio/aiff`                              | `v1.1.0`                             | Apache-2.0              |
+| backend  | production  | Go        | `github.com/go-audio/wav`                               | `v1.1.0`                             | Apache-2.0              |
+| backend  | production  | Go        | `github.com/go-playground/validator/v10`                | `v10.20.0`                           | MIT                     |
+| backend  | production  | Go        | `github.com/go-redis/redis/v8`                          | `v8.11.5`                            | BSD-2-Clause            |
+| backend  | production  | Go        | `github.com/go-sql-driver/mysql`                        | `v1.7.0`                             | MPL-2.0                 |
+| backend  | production  | Go        | `github.com/go-webauthn/webauthn`                       | `v0.14.0`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `github.com/golang-jwt/jwt/v5`                          | `v5.3.0`                             | MIT                     |
+| backend  | production  | Go        | `github.com/google/uuid`                                | `v1.6.0`                             | BSD-3-Clause            |
+| backend  | production  | Go        | `github.com/gorilla/websocket`                          | `v1.5.3`                             | BSD-2-Clause            |
+| backend  | production  | Go        | `github.com/grafana/pyroscope-go`                       | `v1.2.7`                             | Apache-2.0              |
+| backend  | production  | Go        | `github.com/jackc/pgx/v5`                               | `v5.9.2`                             | MIT                     |
+| backend  | production  | Go        | `github.com/jfreymuth/oggvorbis`                        | `v1.0.5`                             | MIT                     |
+| backend  | production  | Go        | `github.com/jinzhu/copier`                              | `v0.4.0`                             | MIT                     |
+| backend  | production  | Go        | `github.com/joho/godotenv`                              | `v1.5.1`                             | MIT                     |
+| backend  | test        | Go        | `github.com/json-iterator/go`                           | `v1.1.12`                            | MIT                     |
+| backend  | production  | Go        | `github.com/klauspost/compress`                         | `v1.18.3`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `github.com/ledongthuc/pdf`                             | `v0.0.0-20261020125853-5e46805f718e` | BSD-3-Clause            |
+| backend  | production  | Go        | `github.com/mewkiz/flac`                                | `v1.0.13`                            | Unlicense               |
+| backend  | production  | Go        | `github.com/nicksnyder/go-i18n/v2`                      | `v2.6.1`                             | MIT                     |
+| backend  | test        | Go        | `github.com/openai/openai-go`                           | `v1.12.0`                            | Apache-2.0              |
+| backend  | production  | Go        | `github.com/pkg/errors`                                 | `v0.9.1`                             | BSD-2-Clause            |
+| backend  | production  | Go        | `github.com/pquerna/otp`                                | `v1.5.0`                             | Apache-2.0              |
+| backend  | production  | Go        | `github.com/prometheus/common`                          | `v0.62.0`                            | Apache-2.0              |
+| backend  | production  | Go        | `github.com/samber/hot`                                 | `v0.11.0`                            | MIT                     |
+| backend  | production  | Go        | `github.com/samber/lo`                                  | `v1.53.0`                            | MIT                     |
+| backend  | production  | Go        | `github.com/shirou/gopsutil`                            | `v3.21.11+incompatible`              | BSD-3-Clause            |
+| backend  | production  | Go        | `github.com/shopspring/decimal`                         | `v1.4.0`                             | MIT                     |
+| backend  | test        | Go        | `github.com/stretchr/testify`                           | `v1.12.1`                            | MIT                     |
+| backend  | production  | Go        | `github.com/stripe/stripe-go/v81`                       | `v81.4.0`                            | MIT                     |
+| backend  | production  | Go        | `github.com/tcolgate/mp3`                               | `v0.0.0-20170426193717-e79c5a46d300` | MIT                     |
+| backend  | production  | Go        | `github.com/thanhpk/randstr`                            | `v1.0.6`                             | MIT                     |
+| backend  | production  | Go        | `github.com/tidwall/gjson`                              | `v1.19.0`                            | MIT                     |
+| backend  | production  | Go        | `github.com/tiktoken-go/tokenizer`                      | `v0.8.1`                             | MIT                     |
+| backend  | production  | Go        | `github.com/waffo-com/waffo-go`                         | `v1.3.2`                             | MIT                     |
+| backend  | production  | Go        | `github.com/waffo-com/waffo-pancake-sdk-go`             | `v0.3.1`                             | MIT                     |
+| backend  | production  | Go        | `github.com/yapingcat/gomedia`                          | `v0.0.0-20240906162731-17feea57090c` | MIT                     |
+| backend  | production  | Go        | `golang.org/x/crypto`                                   | `v0.52.0`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `golang.org/x/image`                                    | `v0.41.0`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `golang.org/x/net`                                      | `v0.55.0`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `golang.org/x/oauth2`                                   | `v0.36.0`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `golang.org/x/sync`                                     | `v0.20.0`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `golang.org/x/sys`                                      | `v0.45.0`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `golang.org/x/text`                                     | `v0.37.0`                            | BSD-3-Clause            |
+| backend  | production  | Go        | `gopkg.in/yaml.v3`                                      | `v3.0.1`                             | Apache-2.0 OR MIT       |
+| backend  | production  | Go        | `gorm.io/driver/clickhouse`                             | `v0.6.0`                             | MIT                     |
+| backend  | production  | Go        | `gorm.io/driver/mysql`                                  | `v1.5.7`                             | MIT                     |
+| backend  | production  | Go        | `gorm.io/driver/postgres`                               | `v1.5.9`                             | MIT                     |
+| backend  | production  | Go        | `gorm.io/gorm`                                          | `v1.25.12`                           | MIT                     |
+| web      | production  | npm       | `@base-ui/react`                                        | `1.6.0`                              | MIT                     |
+| web      | production  | npm       | `@codemirror/lang-javascript`                           | `6.2.5`                              | MIT                     |
+| web      | production  | npm       | `@codemirror/lang-markdown`                             | `6.5.1`                              | MIT                     |
+| web      | production  | npm       | `@codemirror/language`                                  | `6.12.4`                             | MIT                     |
+| web      | production  | npm       | `@codemirror/state`                                     | `6.7.1`                              | MIT                     |
+| web      | production  | npm       | `@codemirror/view`                                      | `6.43.6`                             | MIT                     |
+| web      | production  | npm       | `@fontsource-variable/lora`                             | `5.3.0`                              | OFL-1.1                 |
+| web      | production  | npm       | `@fontsource-variable/public-sans`                      | `5.3.0`                              | OFL-1.1                 |
+| web      | production  | npm       | `@hookform/resolvers`                                   | `5.4.0`                              | MIT                     |
+| web      | production  | npm       | `@hugeicons/core-free-icons`                            | `4.2.2`                              | MIT                     |
+| web      | production  | npm       | `@hugeicons/react`                                      | `1.1.9`                              | MIT                     |
+| web      | production  | npm       | `@lezer/highlight`                                      | `1.2.3`                              | MIT                     |
+| web      | production  | npm       | `@lobehub/icons`                                        | `5.22.0`                             | MIT                     |
+| web      | production  | npm       | `@tanstack/react-query`                                 | `5.101.2`                            | MIT                     |
+| web      | production  | npm       | `@tanstack/react-router`                                | `1.170.18`                           | MIT                     |
+| web      | production  | npm       | `@tanstack/react-table`                                 | `8.21.3`                             | MIT                     |
+| web      | production  | npm       | `@tanstack/react-virtual`                               | `3.14.6`                             | MIT                     |
+| web      | production  | npm       | `@visactor/react-vchart`                                | `2.1.4`                              | MIT                     |
+| web      | production  | npm       | `@visactor/vchart`                                      | `2.1.4`                              | MIT                     |
+| web      | production  | npm       | `ai`                                                    | `7.0.136`                            | Apache-2.0              |
+| web      | production  | npm       | `auto-skeleton-react`                                   | `1.0.5`                              | MIT                     |
+| web      | production  | npm       | `axios`                                                 | `1.18.1`                             | MIT                     |
+| web      | production  | npm       | `class-variance-authority`                              | `0.7.1`                              | Apache-2.0              |
+| web      | production  | npm       | `clsx`                                                  | `2.1.1`                              | MIT                     |
+| web      | production  | npm       | `cmdk`                                                  | `1.1.1`                              | MIT                     |
+| web      | production  | npm       | `dayjs`                                                 | `1.11.21`                            | MIT                     |
+| web      | production  | npm       | `dompurify`                                             | `3.4.17`                             | Apache-2.0 OR MPL-2.0   |
+| web      | production  | npm       | `i18next`                                               | `26.3.6`                             | MIT                     |
+| web      | production  | npm       | `i18next-browser-languagedetector`                      | `8.2.1`                              | MIT                     |
+| web      | production  | npm       | `input-otp`                                             | `1.4.2`                              | MIT                     |
+| web      | production  | npm       | `katex`                                                 | `0.18.2`                             | MIT                     |
+| web      | production  | npm       | `lucide-react`                                          | `1.25.0`                             | ISC                     |
+| web      | production  | npm       | `marked`                                                | `18.0.6`                             | MIT                     |
+| web      | production  | npm       | `motion`                                                | `12.42.2`                            | MIT                     |
+| web      | production  | npm       | `nanoid`                                                | `5.1.16`                             | MIT                     |
+| web      | production  | npm       | `next-themes`                                           | `0.4.6`                              | MIT                     |
+| web      | production  | npm       | `node-forge`                                            | `1.4.0`                              | BSD-3-Clause OR GPL-2.0 |
+| web      | production  | npm       | `qrcode.react`                                          | `4.2.0`                              | ISC                     |
+| web      | production  | npm       | `react`                                                 | `19.2.7`                             | MIT                     |
+| web      | production  | npm       | `react-day-picker`                                      | `10.0.1`                             | MIT                     |
+| web      | production  | npm       | `react-dom`                                             | `19.2.7`                             | MIT                     |
+| web      | production  | npm       | `react-hook-form`                                       | `7.82.0`                             | MIT                     |
+| web      | production  | npm       | `react-i18next`                                         | `17.0.10`                            | MIT                     |
+| web      | production  | npm       | `react-icons`                                           | `5.7.0`                              | MIT                     |
+| web      | production  | npm       | `react-resizable-panels`                                | `4.12.2`                             | MIT                     |
+| web      | production  | npm       | `react-top-loading-bar`                                 | `3.0.2`                              | MIT                     |
+| web      | production  | npm       | `recharts`                                              | `3.9.1`                              | MIT                     |
+| web      | production  | npm       | `shiki`                                                 | `4.3.1`                              | MIT                     |
+| web      | production  | npm       | `sonner`                                                | `2.0.7`                              | MIT                     |
+| web      | production  | npm       | `sse.js`                                                | `2.8.0`                              | Apache-2.0              |
+| web      | production  | npm       | `stream-markdown-parser`                                | `1.2.18`                             | MIT                     |
+| web      | production  | npm       | `tailwind-merge`                                        | `3.6.0`                              | MIT                     |
+| web      | production  | npm       | `tailwindcss`                                           | `4.3.3`                              | MIT                     |
+| web      | production  | npm       | `tokenlens`                                             | `1.3.1`                              | MIT                     |
+| web      | production  | npm       | `tw-animate-css`                                        | `1.4.0`                              | MIT                     |
+| web      | production  | npm       | `use-stick-to-bottom`                                   | `1.1.6`                              | MIT                     |
+| web      | production  | npm       | `vaul`                                                  | `1.1.2`                              | MIT                     |
+| web      | production  | npm       | `yace`                                                  | `1.1.1`                              | MIT                     |
+| web      | production  | npm       | `yaml`                                                  | `2.9.0`                              | ISC                     |
+| web      | production  | npm       | `zod`                                                   | `4.4.3`                              | MIT                     |
+| web      | production  | npm       | `zustand`                                               | `5.0.14`                             | MIT                     |
+| web      | development | npm       | `@rsbuild/core`                                         | `2.1.6`                              | MIT                     |
+| web      | development | npm       | `@rsbuild/plugin-react`                                 | `2.1.0`                              | MIT                     |
+| web      | development | npm       | `@rsbuild/plugin-tailwindcss`                           | `2.0.3`                              | MIT                     |
+| web      | development | npm       | `@tanstack/react-query-devtools`                        | `5.101.2`                            | MIT                     |
+| web      | development | npm       | `@tanstack/react-router-devtools`                       | `1.167.0`                            | MIT                     |
+| web      | development | npm       | `@tanstack/router-plugin`                               | `1.168.42`                           | MIT                     |
+| web      | development | npm       | `@testing-library/jest-dom`                             | `7.0.0`                              | MIT                     |
+| web      | development | npm       | `@testing-library/react`                                | `16.3.2`                             | MIT                     |
+| web      | development | npm       | `@testing-library/user-event`                           | `14.6.1`                             | MIT                     |
+| web      | development | npm       | `@types/node`                                           | `26.1.1`                             | MIT                     |
+| web      | development | npm       | `@types/node-forge`                                     | `1.3.14`                             | MIT                     |
+| web      | development | npm       | `@types/react`                                          | `19.2.17`                            | MIT                     |
+| web      | development | npm       | `@types/react-dom`                                      | `19.2.3`                             | MIT                     |
+| web      | development | npm       | `@xyflow/react`                                         | `12.11.2`                            | MIT                     |
+| web      | development | npm       | `embla-carousel-react`                                  | `8.6.0`                              | MIT                     |
+| web      | development | npm       | `jsdom`                                                 | `29.1.1`                             | MIT                     |
+| web      | development | npm       | `knip`                                                  | `6.27.0`                             | ISC                     |
+| web      | development | npm       | `oxfmt`                                                 | `0.72.0`                             | MIT                     |
+| web      | development | npm       | `oxlint`                                                | `1.74.0`                             | MIT                     |
+| web      | development | npm       | `shadcn`                                                | `4.13.1`                             | MIT                     |
+| web      | development | npm       | `vitest`                                                | `4.1.10`                             | MIT                     |
+| electron | development | npm       | `cross-env`                                             | `7.0.3`                              | MIT                     |
+| electron | development | npm       | `electron`                                              | `41.10.6`                            | MIT                     |
+| electron | development | npm       | `electron-builder`                                      | `26.15.3`                            | MIT                     |
 
 ## License Texts
 
@@ -297,6 +322,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+### MPL-2.0
+
+Mozilla Public License 2.0
+https://mozilla.org/MPL/2.0/
+
+The source code of the MPL-covered files is available from the upstream project at https://github.com/go-sql-driver/mysql.
+
 ### OFL-1.1
 
 SIL Open Font License 1.1
@@ -308,10 +340,6 @@ https://openfontlicense.org/open-font-license-official-text/
 When distributing font files, preserve the OFL license text, copyright notices,
 and reserved font name restrictions supplied by the upstream font project.
 
-### Proprietary/Internal - owned by project maintainer
-
-This dependency is owned by the project maintainer and is not treated as a third-party open source dependency for this review.
-
 ### Unlicense
 
 The Unlicense
@@ -322,3 +350,391 @@ this software, either in source code form or as a compiled binary, for any
 purpose, commercial or non-commercial, and by any means.
 
 For more information, please refer to https://unlicense.org/
+
+## moejs Bundled Notices
+
+[moejs v0.1.0 — THIRD_PARTY_NOTICES, sections 1–4](https://github.com/MoeForge/moejs/blob/v0.1.0/THIRD_PARTY_NOTICES)
+
+```text
+------------------------------------------------------------------------
+1. Unicode CLDR 48.0
+------------------------------------------------------------------------
+
+What:     The Unicode Common Locale Data Repository: locale data such as
+          names, date, time and number patterns and symbols, plural rules,
+          time zone names, locale aliases, likely subtags and supplemental
+          data, as Intl uses them.
+Upstream: Unicode CLDR 48.0, https://cldr.unicode.org/
+          https://unicode.org/Public/cldr/48/cldr-common-48.zip
+          https://github.com/unicode-org/cldr, tag release-48
+License:  Unicode License v3 (SPDX: Unicode-3.0)
+
+Files:
+  engine/intl_locale_tables.go       generated by internal/gen/cldr from
+  engine/intl_date_tables.go         CLDR 48.0
+  engine/intl_number_tables.go
+  engine/intl_supp_tables.go
+  engine/intl_tz_tables.go           generated by internal/gen/cldr from
+                                     CLDR 48.0 and tzdata 2026c (section 7)
+  engine/collate.go                  lists in the CLDR root collation order
+  engine/builtin_intl_locale_info.go CLDR's collation types
+  engine/testdata/intl_plurals.xml.gz
+  engine/testdata/intl_ordinals.xml.gz
+                                     CLDR's common/supplemental/plurals.xml
+                                     and ordinals.xml
+  engine/testdata/intl_date_node.json.gz
+  engine/testdata/intl_number_node.json.gz
+  engine/testdata/intl_tz_icu.json.gz
+  engine/testdata/langtag_icu.json.gz
+  engine/testdata/intl_probe.node.txt
+                                     expected outputs recorded from Node.js
+                                     24 (ICU 78.3 with CLDR 48.0), which
+                                     contain CLDR data
+
+The text below is the LICENSE file of https://github.com/unicode-org/cldr at
+tag release-48.
+
+UNICODE LICENSE V3
+
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright © 2004-2025 Unicode, Inc.
+
+NOTICE TO USER: Carefully read the following legal agreement. BY
+DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of data files and any associated documentation (the "Data Files") or
+software and any associated documentation (the "Software") to deal in the
+Data Files or Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, and/or sell
+copies of the Data Files or Software, and to permit persons to whom the
+Data Files or Software are furnished to do so, provided that either (a)
+this copyright and permission notice appear with all copies of the Data
+Files or Software, or (b) this copyright and permission notice appear in
+associated Documentation.
+
+THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+THIRD PARTY RIGHTS.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+FILES OR SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder shall
+not be used in advertising or otherwise to promote the sale, use or other
+dealings in these Data Files or Software without prior written
+authorization of the copyright holder.
+
+SPDX-License-Identifier: Unicode-3.0
+
+------------------------------------------------------------------------
+2. Unicode Character Database and IDNA data, Unicode 17.0.0
+------------------------------------------------------------------------
+
+What:     Unicode character properties (general categories, scripts,
+          binary properties, case mappings and foldings, emoji data),
+          normalization and decomposition data, the UAX #29 segmentation
+          properties and break tests, the normalization test, and the
+          UTS #46 IDNA mapping table.
+Upstream: The Unicode Standard 17.0.0, https://www.unicode.org/Public/17.0.0/
+          (ucd/, ucd/auxiliary/, ucd/emoji/, ucd/extracted/, emoji/, idna/)
+License:  Unicode License v3 (SPDX: Unicode-3.0). The files say
+          "© 2025 Unicode®, Inc." and refer to
+          https://www.unicode.org/terms_of_use.html, which puts them under
+          the license below.
+
+Files:
+  internal/regexpsyntax/unicode_tables.go   generated by internal/gen/ucd
+  engine/unicode_norm_tables.go             generated by internal/gen/ucd -norm
+  engine/unicode_seg_tables.go              generated by internal/gen/ucd -seg
+  engine/decomp_tables.go                   generated by internal/gen/decomp
+  webapi/internal/whatwgurl/idna_tables.go  generated by internal/gen/idna
+  engine/testdata/grapheme_break_test.txt.gz
+  engine/testdata/word_break_test.txt.gz
+  engine/testdata/sentence_break_test.txt.gz
+  engine/testdata/normalization_test.txt.gz
+                                     GraphemeBreakTest.txt, WordBreakTest.txt,
+                                     SentenceBreakTest.txt and
+                                     NormalizationTest.txt, trimmed
+  webapi/internal/whatwgurl/testdata/IdnaTestV2.json.gz
+  webapi/internal/whatwgurl/testdata/IdnaTestV2-removed.json
+                                     web-platform-tests' conversion of
+                                     IdnaTestV2.txt (see also section 5)
+
+The text below is https://www.unicode.org/license.txt as published on
+2026-10-24.
+
+UNICODE LICENSE V3
+
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright © 1991-2026 Unicode, Inc.
+
+NOTICE TO USER: Carefully read the following legal agreement. BY
+DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of data files and any associated documentation (the "Data Files") or
+software and any associated documentation (the "Software") to deal in the
+Data Files or Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, and/or sell
+copies of the Data Files or Software, and to permit persons to whom the
+Data Files or Software are furnished to do so, provided that either (a)
+this copyright and permission notice appear with all copies of the Data
+Files or Software, or (b) this copyright and permission notice appear in
+associated Documentation.
+
+THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+THIRD PARTY RIGHTS.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+FILES OR SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder shall
+not be used in advertising or otherwise to promote the sale, use or other
+dealings in these Data Files or Software without prior written
+authorization of the copyright holder.
+
+------------------------------------------------------------------------
+3. ICU 78.3 (ported code)
+------------------------------------------------------------------------
+
+What:     International Components for Unicode. moejs ports parts of
+          ICU4C's date, time zone and number formatting to Go, so that Intl
+          formats as V8 with ICU does.
+Upstream: ICU 78.3, https://icu.unicode.org/
+          https://github.com/unicode-org/icu, tag release-78.3
+License:  Unicode License v3 (SPDX: Unicode-3.0). Parts of the ported ICU
+          files are also "Copyright (C) 1997-2016, International Business
+          Machines Corporation and others" under the ICU License for ICU
+          1.8.1 to ICU 57.1.
+
+Files:
+  engine/intl_date_pattern.go     DateTimePatternGenerator (i18n/dtptngen.cpp)
+  engine/intl_date_range.go       DateIntervalFormat and DateIntervalInfo
+                                  (i18n/dtitvfmt.cpp, dtitvinf.cpp)
+  engine/intl_date_format.go      SimpleDateFormat (i18n/smpdtfmt.cpp)
+  engine/intl_tz.go               TimeZoneFormat, TimeZoneNames and
+                                  TimeZoneGenericNames (i18n/tzfmt.cpp,
+                                  tznames_impl.cpp, tzgnames.cpp)
+  engine/intl_number_format.go    the number formatter and
+                                  NumberRangeFormatter (i18n/number_*.cpp,
+                                  numrange_impl.cpp)
+  engine/intl_number_pattern.go   number patterns
+                                  (i18n/number_patternstring.cpp,
+                                  number_affixutils.cpp,
+                                  number_patternmodifier.cpp)
+  engine/builtin_intl_datetimeformat.go
+                                  the style patterns of SimpleDateFormat
+  internal/gen/cldr/date.go       ICU's reading of CLDR's calendar data
+                                  (DateFormatSymbols, DayPeriodRules)
+  internal/gen/cldr/tz.go         ICU's reading of CLDR's time zone data
+                                  (getCanonicalCountry, getReferenceZoneID,
+                                  the offset patterns) and the spans in which
+                                  ICU's DST flag differs from tzdata's
+  engine/segment.go               the word-like status of a segment, after
+  internal/gen/ucd/seg.go         ICU's word break rules
+                                  (data/brkitr/rules/word.txt)
+
+The texts below are the first two parts of the LICENSE file of
+https://github.com/unicode-org/icu at tag release-78.3: the Unicode License
+v3 and the ICU License for ICU 1.8.1 to ICU 57.1. The rest of that file
+covers third-party components of ICU (dictionaries, Google double-conversion,
+build scripts and others) that moejs does not use.
+
+UNICODE LICENSE V3
+
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright © 2016-2025 Unicode, Inc.
+
+NOTICE TO USER: Carefully read the following legal agreement. BY
+DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of data files and any associated documentation (the "Data Files") or
+software and any associated documentation (the "Software") to deal in the
+Data Files or Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, and/or sell
+copies of the Data Files or Software, and to permit persons to whom the
+Data Files or Software are furnished to do so, provided that either (a)
+this copyright and permission notice appear with all copies of the Data
+Files or Software, or (b) this copyright and permission notice appear in
+associated Documentation.
+
+THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+THIRD PARTY RIGHTS.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+FILES OR SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder shall
+not be used in advertising or otherwise to promote the sale, use or other
+dealings in these Data Files or Software without prior written
+authorization of the copyright holder.
+
+SPDX-License-Identifier: Unicode-3.0
+
+----------------------------------------------------------------------
+
+ICU License - ICU 1.8.1 to ICU 57.1
+
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright (c) 1995-2016 International Business Machines Corporation and others
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, and/or sell copies of the Software, and to permit persons
+to whom the Software is furnished to do so, provided that the above
+copyright notice(s) and this permission notice appear in all copies of
+the Software and that both the above copyright notice(s) and this
+permission notice appear in supporting documentation.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF THIRD PARTY RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+HOLDERS INCLUDED IN THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY
+SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER
+RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF
+CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder
+shall not be used in advertising or otherwise to promote the sale, use
+or other dealings in this Software without prior written authorization
+of the copyright holder.
+
+All trademarks and registered trademarks mentioned herein are the
+property of their respective owners.
+
+------------------------------------------------------------------------
+4. V8 (ported code)
+------------------------------------------------------------------------
+
+What:     Google's JavaScript engine. moejs ports V8's date string parser
+          and the code behind V8's stack traces and error messages, so that
+          Date.parse, Error.prototype.stack and TypeError messages match
+          Node.js.
+Upstream: V8, https://v8.dev/
+          https://chromium.googlesource.com/v8/v8 (mirror
+          https://github.com/v8/v8), branch-heads/13.6 (the V8 of Node.js 24)
+License:  BSD-3-Clause. The ported files carry "Copyright <year> the V8
+          project authors. All rights reserved.": 2011 for
+          src/date/dateparser* and src/execution/messages.cc, 2012 for
+          src/ast/prettyprinter.cc, 2018 for
+          src/objects/js-date-time-format.cc and 2019 for
+          src/objects/call-site-info.cc.
+
+Files:
+  engine/date_parse.go            DateParser (src/date/dateparser.h,
+                                  dateparser-inl.h, dateparser.cc)
+  engine/interp_stack.go          stack trace serialization
+                                  (src/objects/call-site-info.cc:
+                                  SerializeJSStackFrame, AppendMethodCall,
+                                  AppendFileLocation and the functions they
+                                  call)
+  engine/builtin_error.go         Error.captureStackTrace
+                                  (ErrorUtils::CaptureStackTrace,
+                                  src/execution/messages.cc)
+  compiler/callee.go              CallPrinter (src/ast/prettyprinter.cc)
+  engine/builtin_intl_datetimeformat.go
+                                  ReplaceSkeleton, HourCycleFromPattern and
+                                  ReplaceHourCycleInPattern
+                                  (src/objects/js-date-time-format.cc)
+
+The text below is the LICENSE file of V8 at branch-heads/13.6.
+
+This license applies to all parts of V8 that are not externally
+maintained libraries.  The externally maintained libraries used by V8
+are:
+
+  - PCRE test suite, located in
+    test/mjsunit/third_party/regexp-pcre/regexp-pcre.js.  This is based on the
+    test suite from PCRE-7.3, which is copyrighted by the University
+    of Cambridge and Google, Inc.  The copyright notice and license
+    are embedded in regexp-pcre.js.
+
+  - Layout tests, located in test/mjsunit/third_party/object-keys.  These are
+    based on layout tests from webkit.org which are copyrighted by
+    Apple Computer, Inc. and released under a 3-clause BSD license.
+
+  - Strongtalk assembler, the basis of the files assembler-arm-inl.h,
+    assembler-arm.cc, assembler-arm.h, assembler-ia32-inl.h,
+    assembler-ia32.cc, assembler-ia32.h, assembler-x64-inl.h,
+    assembler-x64.cc, assembler-x64.h, assembler.cc and assembler.h.
+    This code is copyrighted by Sun Microsystems Inc. and released
+    under a 3-clause BSD license.
+
+  - Valgrind client API header, located at third_party/valgrind/valgrind.h
+    This is released under the BSD license.
+
+  - The Wasm C/C++ API headers, located at third_party/wasm-api/wasm.{h,hh}
+    This is released under the Apache license. The API's upstream prototype
+    implementation also formed the basis of V8's implementation in
+    src/wasm/c-api.cc.
+
+These libraries have their own licenses; we recommend you read them,
+as their terms may differ from the terms below.
+
+Further license information can be found in LICENSE files located in
+sub-directories.
+
+Copyright 2014, the V8 project authors. All rights reserved.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+    * Neither the name of Google Inc. nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```

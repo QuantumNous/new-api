@@ -34,6 +34,13 @@ func TestConvertImageEditRequestMultipart(t *testing.T) {
 		require.NoError(t, err)
 		_, err = part.Write([]byte("fake image"))
 		require.NoError(t, err)
+		require.NoError(t, writer.WriteField("complexity", "low"))
+		for _, name := range []string{"mask", "markup"} {
+			part, err := writer.CreateFormFile(name, name+".png")
+			require.NoError(t, err)
+			_, err = part.Write([]byte("fake " + name))
+			require.NoError(t, err)
+		}
 		require.NoError(t, writer.Close())
 
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -66,6 +73,9 @@ func TestConvertImageEditRequestMultipart(t *testing.T) {
 		require.Equal(t, "true", replayedRequest.PostForm.Get("stream"))
 		require.Equal(t, "3", replayedRequest.PostForm.Get("partial_images"))
 		require.Len(t, replayedRequest.MultipartForm.File["image"], 1)
+		require.Equal(t, "low", replayedRequest.PostForm.Get("complexity"))
+		require.Len(t, replayedRequest.MultipartForm.File["mask"], 1)
+		require.Len(t, replayedRequest.MultipartForm.File["markup"], 1)
 
 		file, err := replayedRequest.MultipartForm.File["image"][0].Open()
 		require.NoError(t, err)

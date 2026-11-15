@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/request_plugin_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
@@ -85,7 +86,7 @@ func GetOptions(c *gin.Context) {
 	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
-		if k == "theme.frontend" || k == "billing_setting.billing_mode" || k == "billing_setting.billing_expr" {
+		if k == "theme.frontend" || k == "billing_setting.billing_mode" || k == "billing_setting.billing_expr" || k == "ResendKeyConfigured" {
 			continue
 		}
 		value := common.Interface2String(v)
@@ -93,7 +94,8 @@ func GetOptions(c *gin.Context) {
 			strings.HasSuffix(k, "Secret") ||
 			strings.HasSuffix(k, "Key") ||
 			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key")
+			strings.HasSuffix(k, "api_key") ||
+			strings.HasSuffix(k, "private_key")
 		if isSensitiveKey {
 			continue
 		}
@@ -105,6 +107,9 @@ func GetOptions(c *gin.Context) {
 			optionValues[k] = value
 		}
 	}
+	options = append(options, &model.Option{
+		Key: "ResendKeyConfigured", Value: strconv.FormatBool(strings.TrimSpace(common.OptionMap["ResendApiKey"]) != ""),
+	})
 	common.OptionMapRWMutex.Unlock()
 	// Display the same effective expressions used by pricing and settlement,
 	// including built-in defaults absent from persisted administrator options.
@@ -205,6 +210,11 @@ func UpdateOption(c *gin.Context) {
 	default:
 		if isPaymentComplianceOptionKey(option.Key) {
 			common.ApiErrorT(c, "Compliance confirmation fields cannot be changed through the general settings API")
+			return
+		}
+		// The request plugin API validates each instance config.
+		if option.Key == request_plugin_setting.InstancesOption {
+			common.ApiErrorT(c, "Request plugin instances cannot be changed through the general settings API")
 			return
 		}
 	}

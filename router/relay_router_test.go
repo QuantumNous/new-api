@@ -9,7 +9,10 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/plugins"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,6 +88,60 @@ func TestListModelsSupportsOpenAIAndGeminiAuthentication(t *testing.T) {
 			if test.expectedObject != "" {
 				assert.Equal(t, test.expectedObject, payload["object"])
 			}
+		})
+	}
+}
+
+func TestGeminiRelayHandsLongRunningPredictionToPluginRoute(t *testing.T) {
+	setupRelayRouterTestDB(t)
+	require.NoError(t, i18n.Init())
+	user := model.User{Username: "veo-user", Status: common.UserStatusEnabled, Group: "default", Quota: 100}
+	require.NoError(t, model.DB.Create(&user).Error)
+	require.NoError(t, model.DB.Create(&model.Token{UserId: user.Id, Key: "veotestkey", Status: common.TokenStatusEnabled, ExpiredTime: -1, UnlimitedQuota: true}).Error)
+
+	engine := gin.New()
+	SetRelayRouter(engine)
+	source, err := plugins.Source("google")
+	require.NoError(t, err)
+	registry := jsplugin.NewRegistry()
+	_, err = registry.RegisterFactory(source, jsplugin.Options{Key: "google"})
+	require.NoError(t, err)
+	// The plugin route authenticates as in production, then names itself.
+	handlers := func(generation *jsplugin.RoutingGeneration, group jsplugin.RouteGroup) []gin.HandlerFunc {
+		production := productionPluginRouteHandlers(generation, group)
+		return []gin.HandlerFunc{production[0], production[1], production[2], func(c *gin.Context) {
+			c.String(http.StatusOK, "plugin %s for user %d", group.Bindings[0].Plugin.Meta.Key, c.GetInt("id"))
+		}}
+	}
+	require.NoError(t, registry.SetGenerationPreparer(newPluginGenerationBuilder(engine.Routes(), nil, handlers).prepare))
+	require.Empty(t, registry.RoutingErrors())
+	previousRegistry := defaultPluginDispatcher.registry
+	defaultPluginDispatcher.registry = registry
+	t.Cleanup(func() { defaultPluginDispatcher.registry = previousRegistry })
+	engine.NoRoute(defaultPluginDispatcher.dispatch)
+
+	for _, testCase := range []struct {
+		method   string
+		path     string
+		toPlugin bool
+	}{
+		{method: http.MethodPost, path: "/v1beta/models/veo-3.1-generate-preview:predictLongRunning", toPlugin: true},
+		{method: http.MethodGet, path: "/v1beta/models/veo-3.1-generate-preview/operations/task_sample", toPlugin: true},
+		{method: http.MethodPost, path: "/v1beta/models/gemini-2.5-flash:generateContent"},
+	} {
+		t.Run(testCase.path, func(t *testing.T) {
+			request := httptest.NewRequest(testCase.method, testCase.path, strings.NewReader(`{}`))
+			request.Header.Set("x-goog-api-key", "veotestkey")
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, request)
+
+			if testCase.toPlugin {
+				assert.Equal(t, fmt.Sprintf("plugin google for user %d", user.Id), recorder.Body.String())
+				return
+			}
+			// The relay looks for a Gemini channel serving the model; there is none.
+			assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), `"code":"model_not_found"`)
 		})
 	}
 }

@@ -159,7 +159,7 @@ func TestBuiltInKlingResponsesNonStreamDecodesWithOfficialGoSDK(t *testing.T) {
 	defer cancel()
 
 	response, err := client.Responses.New(requestContext, responses.ResponseNewParams{
-		Model: shared.ResponsesModel("kling-v2-master"),
+		Model: shared.ResponsesModel("kling-v3"),
 		Input: responses.ResponseNewParamsInputUnion{
 			OfString: openai.String("camera orbit"),
 		},
@@ -167,7 +167,7 @@ func TestBuiltInKlingResponsesNonStreamDecodesWithOfficialGoSDK(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, responses.ResponseStatusCompleted, response.Status)
-	assert.Equal(t, "kling-v2-master", response.Model)
+	assert.Equal(t, "kling-v3", response.Model)
 	assert.Contains(t, response.OutputText(), "https://gateway.example/v1/tasks/task_kling_sdk_final/artifacts/video/content")
 	assert.NotContains(t, response.OutputText(), "upstream.example")
 	assert.Equal(t, "kling", response.Metadata["vendor"])
@@ -187,7 +187,7 @@ func TestBuiltInKlingResponsesStreamDecodesWithOfficialGoSDK(t *testing.T) {
 	defer cancel()
 
 	stream := client.Responses.NewStreaming(requestContext, responses.ResponseNewParams{
-		Model: shared.ResponsesModel("kling-v2-master"),
+		Model: shared.ResponsesModel("kling-v3"),
 		Input: responses.ResponseNewParamsInputUnion{
 			OfString: openai.String("camera orbit"),
 		},
@@ -228,7 +228,7 @@ func builtInKlingProtocolSDKFixture(t *testing.T, taskID string) (pluginruntime.
 	registry := pluginruntime.NewRegistry()
 	plugin, err := registry.RegisterFactory(source, pluginruntime.Options{Key: "kling"})
 	require.NoError(t, err)
-	binding, found := registry.Generation().LookupEndpoint(http.MethodPost, "/v1/responses", "kling-v2-master")
+	binding, found := registry.Generation().LookupEndpoint(http.MethodPost, "/v1/responses", "kling-v3")
 	require.True(t, found)
 	pinned := pluginruntime.PinnedEndpoint{
 		Generation: registry.Generation(),

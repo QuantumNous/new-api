@@ -68,6 +68,9 @@ func TestJSONHelpersRouteThroughInjectedCodec(t *testing.T) {
 	assert.Equal(t, map[string]int{"e": 5}, converted)
 
 	assert.Equal(t, "hello", JsonRawMessageToString(json.RawMessage(`"hello"`)))
+	var borrowed map[string]string
+	require.NoError(t, UnmarshalNoCopy([]byte(`{"text":"hello"}`), &borrowed))
+	assert.Equal(t, "hello", borrowed["text"])
 
 	assert.Equal(t, []string{
 		"Marshal",   // Marshal
@@ -79,5 +82,6 @@ func TestJSONHelpersRouteThroughInjectedCodec(t *testing.T) {
 		"Marshal",   // Any2Type encode
 		"Unmarshal", // Any2Type decode
 		"Unmarshal", // JsonRawMessageToString string literal
+		"Unmarshal", // UnmarshalNoCopy falls back for a codec without borrowing
 	}, fake.calls)
 }

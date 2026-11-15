@@ -29,9 +29,16 @@ func toOllamaResponseFormat(responseFormat *dto.ResponseFormat) (any, error) {
 		if len(responseFormat.JsonSchema) == 0 {
 			return nil, nil
 		}
-		var jsonSchema dto.FormatJsonSchema
+		// The raw schema keeps the client's property order, which the
+		// model fills the properties in.
+		var jsonSchema struct {
+			Schema common.RawMessage `json:"schema"`
+		}
 		if err := common.Unmarshal(responseFormat.JsonSchema, &jsonSchema); err != nil {
 			return nil, fmt.Errorf("invalid ollama response format: %w", err)
+		}
+		if len(jsonSchema.Schema) == 0 || common.GetJsonType(jsonSchema.Schema) == "null" {
+			return nil, nil
 		}
 		return jsonSchema.Schema, nil
 	default:

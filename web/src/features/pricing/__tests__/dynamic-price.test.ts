@@ -793,6 +793,7 @@ describe('shared plugin price summaries', () => {
     ).toEqual(['credits', 'images'])
     expect(getCardExamplePrice(model, summaryOptions)).toEqual({
       label: 'Beta sample',
+      total: 3,
       formatted: '$3',
     })
   })
