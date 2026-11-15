@@ -137,6 +137,40 @@ type AdminUpsertSubscriptionPlanRequest struct {
 	Plan model.SubscriptionPlan `json:"plan"`
 }
 
+// normalizeQuotaUsableGroups trims, dedupes and drops empty entries from a
+// comma-separated group list. An empty result means the subscription quota
+// applies to all groups (unrestricted).
+func normalizeQuotaUsableGroups(raw string) string {
+	parts := strings.Split(raw, ",")
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		g := strings.TrimSpace(p)
+		if g == "" || seen[g] {
+			continue
+		}
+		seen[g] = true
+		result = append(result, g)
+	}
+	return strings.Join(result, ",")
+}
+
+// validateQuotaUsableGroups ensures every listed group exists in the group ratio
+// settings. The input must already be normalized.
+func validateQuotaUsableGroups(c *gin.Context, groups string) bool {
+	if groups == "" {
+		return true
+	}
+	groupRatio := ratio_setting.GetGroupRatioCopy()
+	for _, g := range strings.Split(groups, ",") {
+		if _, ok := groupRatio[g]; !ok {
+			common.ApiErrorT(c, "Quota usable group does not exist")
+			return false
+		}
+	}
+	return true
+}
+
 func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
@@ -190,6 +224,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 			common.ApiErrorT(c, "Upgrade group does not exist")
 			return
 		}
+	}
+	req.Plan.QuotaUsableGroups = normalizeQuotaUsableGroups(req.Plan.QuotaUsableGroups)
+	if !validateQuotaUsableGroups(c, req.Plan.QuotaUsableGroups) {
+		return
 	}
 	req.Plan.DowngradeGroup = strings.TrimSpace(req.Plan.DowngradeGroup)
 	if req.Plan.DowngradeGroup != "" {
@@ -265,6 +303,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	req.Plan.QuotaUsableGroups = normalizeQuotaUsableGroups(req.Plan.QuotaUsableGroups)
+	if !validateQuotaUsableGroups(c, req.Plan.QuotaUsableGroups) {
+		return
+	}
 	req.Plan.DowngradeGroup = strings.TrimSpace(req.Plan.DowngradeGroup)
 	if req.Plan.DowngradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.DowngradeGroup]; !ok {
@@ -296,6 +338,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
 			"upgrade_group":              req.Plan.UpgradeGroup,
+			"quota_usable_groups":        req.Plan.QuotaUsableGroups,
 			"downgrade_group":            req.Plan.DowngradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
