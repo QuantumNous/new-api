@@ -367,3 +367,58 @@ func TestImageHelperKeepsAdaptorClassifiedConvertError(t *testing.T) {
 	assert.True(t, types.IsSkipRetryError(apiErr), "other channels must not be asked to serve the same name")
 	assert.Contains(t, apiErr.Error(), "not served by the alibaba task plugin")
 }
+
+// Image request failures the gateway raises before contacting the upstream are
+// request errors: a conversion the adaptor rejects, and a channel override
+// condition that meets a request value of another type. Neither may be retried
+// on other channels nor count as a channel error that could disable the
+// channel.
+func TestImageHelperLocalFailuresAreRequestErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		channelType int
+		override    map[string]any
+		code        types.ErrorCode
+		status      int
+	}{
+		{name: "adaptor conversion failure", channelType: constant.ChannelTypeAnthropic, code: types.ErrorCodeConvertRequestFailed, status: http.StatusInternalServerError},
+		{
+			name:        "override condition meets a request value of another type",
+			channelType: constant.ChannelTypeOpenAI,
+			override: map[string]any{"operations": []any{map[string]any{
+				"path": "size", "mode": "set", "value": "1024x1024",
+				"conditions": []any{map[string]any{"path": "quality", "mode": "gt", "value": 1}},
+			}}},
+			code:   types.ErrorCodeInvalidRequest,
+			status: http.StatusBadRequest,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"model":"gpt-image-2","prompt":"a cat","quality":"high"}`))
+			c.Request.Header.Set("Content-Type", "application/json")
+			common.SetContextKey(c, constant.ContextKeyChannelType, tc.channelType)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://upstream.invalid")
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "fixture-key")
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "gpt-image-2")
+			if tc.override != nil {
+				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, tc.override)
+			}
+			request, err := helper.GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
+			require.NoError(t, err)
+			info := &relaycommon.RelayInfo{Request: request, OriginModelName: "gpt-image-2", RelayMode: relayconstant.RelayModeImagesGenerations,
+				RequestURLPath: c.Request.URL.Path, Billing: &imageReservation{limit: 500000},
+				PriceData: hosttypes.PriceData{UsePrice: true, ModelPrice: 0.04, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}},
+			}
+
+			apiErr := ImageHelper(c, info)
+
+			require.NotNil(t, apiErr)
+			assert.Equal(t, tc.code, apiErr.GetErrorCode())
+			assert.Equal(t, tc.status, apiErr.StatusCode)
+			assert.False(t, types.IsChannelError(apiErr))
+			assert.True(t, types.IsSkipRetryError(apiErr), "the same request fails the same way on every channel")
+			assert.Equal(t, "local", service.RelayErrorSource(apiErr))
+		})
+	}
+}
