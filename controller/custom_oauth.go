@@ -37,6 +37,7 @@ type CustomOAuthProviderResponse struct {
 	EmailField            string `json:"email_field"`
 	WellKnown             string `json:"well_known"`
 	AuthStyle             int    `json:"auth_style"`
+	AutoLinkPolicy        string `json:"auto_link_policy"`
 	AccessPolicy          string `json:"access_policy"`
 	AccessDeniedMessage   string `json:"access_denied_message"`
 }
@@ -67,6 +68,7 @@ func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthPro
 		EmailField:            p.EmailField,
 		WellKnown:             p.WellKnown,
 		AuthStyle:             p.AuthStyle,
+		AutoLinkPolicy:        p.AutoLinkPolicy,
 		AccessPolicy:          p.AccessPolicy,
 		AccessDeniedMessage:   p.AccessDeniedMessage,
 	}
@@ -132,6 +134,7 @@ type CreateCustomOAuthProviderRequest struct {
 	EmailField            string `json:"email_field"`
 	WellKnown             string `json:"well_known"`
 	AuthStyle             int    `json:"auth_style"`
+	AutoLinkPolicy        string `json:"auto_link_policy"`
 	AccessPolicy          string `json:"access_policy"`
 	AccessDeniedMessage   string `json:"access_denied_message"`
 }
@@ -250,6 +253,7 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		EmailField:            req.EmailField,
 		WellKnown:             req.WellKnown,
 		AuthStyle:             req.AuthStyle,
+		AutoLinkPolicy:        req.AutoLinkPolicy,
 		AccessPolicy:          req.AccessPolicy,
 		AccessDeniedMessage:   req.AccessDeniedMessage,
 	}
@@ -283,6 +287,7 @@ type UpdateCustomOAuthProviderRequest struct {
 	EmailField            string  `json:"email_field"`
 	WellKnown             *string `json:"well_known"`            // Optional: if nil, keep existing
 	AuthStyle             *int    `json:"auth_style"`            // Optional: if nil, keep existing
+	AutoLinkPolicy        *string `json:"auto_link_policy"`      // Optional: if nil, keep existing
 	AccessPolicy          *string `json:"access_policy"`         // Optional: if nil, keep existing
 	AccessDeniedMessage   *string `json:"access_denied_message"` // Optional: if nil, keep existing
 }
@@ -372,6 +377,9 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	}
 	if req.AuthStyle != nil {
 		provider.AuthStyle = *req.AuthStyle
+	}
+	if req.AutoLinkPolicy != nil {
+		provider.AutoLinkPolicy = *req.AutoLinkPolicy
 	}
 	if req.AccessPolicy != nil {
 		provider.AccessPolicy = *req.AccessPolicy
