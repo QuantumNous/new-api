@@ -19,6 +19,7 @@ import (
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/agenticrouter"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -156,6 +157,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	// 学习型档位路由（fast/mid/strong，默认 shadow 只记录不切换）。
+	// 通过 AGENTIC_ROUTER_* 环境变量配置，未配置时是零开销 no-op。
+	// 必须在 GenRelayInfo 之前调用：active 模式改写请求模型后才会进入计费与选渠。
+	agenticrouter.Decide(c, request)
+
 	relayInfo, err = relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
@@ -171,6 +177,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		if relayFormat != types.RelayFormatOpenAIRealtime {
 			perfmetrics.RecordRelayResult(c.Request.Context(), relayInfo, resultErr)
+			agenticrouter.Settle(c, resultErr == nil)
 		}
 		if recovered != nil {
 			panic(recovered)
