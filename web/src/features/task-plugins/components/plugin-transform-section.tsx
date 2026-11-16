@@ -28,11 +28,13 @@ import {
 } from '@/components/ui/table'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
+import { declaredPluginScope } from '../lib/plugin-scope'
 import { REQUEST_PLUGIN_STAGE_LABELS } from '../lib/request-plugins'
 import type {
   RequestPluginConfigField,
   RequestPluginConfigSchema,
 } from '../types'
+import { PluginScopeSummary } from './plugin-scope-summary'
 
 const FIELD_TYPE_LABELS: Record<RequestPluginConfigField['type'], string> = {
   string: 'Text',
@@ -47,9 +49,11 @@ const FIELD_TYPE_LABELS: Record<RequestPluginConfigField['type'], string> = {
 export function PluginTransformSection(props: {
   hooks: string[]
   schema?: RequestPluginConfigSchema
+  scope?: { models?: string[] | null; channelTypes?: number[] | null } | null
 }) {
   const { t, i18n } = useTranslation()
   const fields = Object.entries(props.schema?.properties ?? {})
+  const scope = declaredPluginScope({ scope: props.scope })
   return (
     <section
       className='space-y-4 rounded-lg border p-4'
@@ -68,6 +72,14 @@ export function PluginTransformSection(props: {
           <p className='text-sm'>{t('Not declared')}</p>
         )}
       </div>
+      {scope && (
+        <div className='space-y-2'>
+          <h4 className='text-muted-foreground text-xs'>
+            {t('Where the plugin suggests')}
+          </h4>
+          <PluginScopeSummary scope={scope} />
+        </div>
+      )}
       <div className='space-y-2'>
         <h4 className='text-muted-foreground text-xs'>{t('Settings')}</h4>
         {fields.length ? (

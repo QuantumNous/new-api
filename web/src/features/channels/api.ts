@@ -118,6 +118,8 @@ export type TaskPluginOption = {
   optional?: boolean
   /** The request processing stages the plugin runs at. */
   transform_hooks?: string[] | null
+  /** The models and channel types the plugin is made for, if it names them. */
+  scope?: { models?: string[] | null; channelTypes?: number[] | null } | null
   configSchema?: RequestPluginConfigSchema
   /** Requests the plugin offers for trying it out. */
   samples?: RequestPluginSample[] | null

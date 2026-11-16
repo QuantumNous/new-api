@@ -530,9 +530,9 @@ export const meta = {apiVersion:1,key:"test",name:"Test",version:"1.0.0",author:
 export function buildSubmitRequest(){return {}} export function parseSubmitResponse(){return {}} export function buildQueryRequest(){return {}} export function parseTaskResult(){return {}}
 `, Options{})
 	require.NoError(t, err)
-	plugin, ok := registry.GetByChannelType(1001)
-	require.True(t, ok)
-	assert.Equal(t, "test", plugin.Meta.Key)
+	plugins := registry.PluginsByChannelType(1001)
+	require.Len(t, plugins, 1)
+	assert.Equal(t, "test", plugins[0].Meta.Key)
 }
 
 func TestTaskPluginRoutingDebugReasonDoesNotExposeRawFailure(t *testing.T) {
@@ -541,7 +541,6 @@ func TestTaskPluginRoutingDebugReasonDoesNotExposeRawFailure(t *testing.T) {
 		message  string
 		expected string
 	}{
-		{name: "channel type", message: "channelType 80 conflicts with plugin secret", expected: "channel_type_conflict"},
 		{name: "endpoint", message: `endpoint https://secret.invalid/?key=hidden conflicts`, expected: "endpoint_conflict"},
 		{name: "inner router", message: "inner Gin registration panic: private route", expected: "inner_router_build_failed"},
 		{name: "route", message: `route /private/path conflicts`, expected: "route_conflict"},
@@ -1436,6 +1435,40 @@ func TestOptionalManifestField(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.optional, plugin.Meta.Optional)
+		})
+	}
+}
+
+func TestScopeManifestField(t *testing.T) {
+	const head = `export const meta = {apiVersion: 1, key: "scoped", name: "Scoped", version: "1.0.0", author: {name: "Test"}%s};`
+	const relay = `, relay: [{incoming_path: "/v1/chat/completions", upstream_path: "/v1/chat/completions"}]`
+	const ingress = `export function ingress() {}`
+	for name, tc := range map[string]struct {
+		manifest, exports, message string
+		scope                      *TransformScope
+	}{
+		"models and channel types":   {manifest: `, scope: {models: ["gpt-4o", "claude"], channelTypes: [1, 14]}`, exports: ingress, scope: &TransformScope{Models: []string{"gpt-4o", "claude"}, ChannelTypes: []int{1, 14}}},
+		"models alone":               {manifest: `, scope: {models: ["gpt-4o"]}`, exports: ingress, scope: &TransformScope{Models: []string{"gpt-4o"}}},
+		"channel types alone":        {manifest: `, scope: {channelTypes: [3]}`, exports: ingress, scope: &TransformScope{ChannelTypes: []int{3}}},
+		"not declared":               {exports: ingress},
+		"every request":              {manifest: `, scope: {}`, exports: ingress, message: "plugin meta scope must list at least one model or channel type"},
+		"empty lists":                {manifest: `, scope: {models: [], channelTypes: []}`, exports: ingress, message: "must list at least one model or channel type"},
+		"unknown field":              {manifest: `, scope: {groups: ["vip"]}`, exports: ingress, message: `plugin meta scope has unknown field "groups"`},
+		"not an object":              {manifest: `, scope: ["gpt-4o"]`, exports: ingress, message: "plugin meta scope must be an object"},
+		"blank model":                {manifest: `, scope: {models: [" gpt"]}`, exports: ingress, message: "scope.models must hold names of 1 to 128 characters"},
+		"repeated model":             {manifest: `, scope: {models: ["gpt", "gpt"]}`, exports: ingress, message: `scope.models lists "gpt" twice`},
+		"zero channel type":          {manifest: `, scope: {channelTypes: [0]}`, exports: ingress, message: "scope.channelTypes must hold positive channel types"},
+		"text channel type":          {manifest: `, scope: {channelTypes: ["1"]}`, exports: ingress, message: "scope.channelTypes must be an array of integers"},
+		"no request processing part": {manifest: relay + `, scope: {models: ["gpt"]}`, message: "plugin scoped meta scope belongs to the request processing part"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			plugin, err := CompilePlugin(fmt.Sprintf(head, tc.manifest)+tc.exports, Options{})
+			if tc.message != "" {
+				require.ErrorContains(t, err, tc.message)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.scope, plugin.Meta.Scope)
 		})
 	}
 }

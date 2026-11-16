@@ -143,9 +143,9 @@ func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing
 		{48, "xai"},
 	}
 	for _, channelType := range channelTypes {
-		plugin, found := generation.GetByChannelType(channelType.value)
-		require.True(t, found)
-		require.Equal(t, channelType.key, plugin.Meta.Key)
+		plugins := generation.PluginsByChannelType(channelType.value)
+		require.Len(t, plugins, 1, channelType.value)
+		require.Equal(t, channelType.key, plugins[0].Meta.Key)
 	}
 }
 

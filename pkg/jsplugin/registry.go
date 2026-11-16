@@ -123,6 +123,9 @@ type Meta struct {
 	// Optional lets a request skip an instance of the plugin that fails at a
 	// stage; without it the failure stops the request.
 	Optional bool `json:"optional,omitempty"`
+	// Scope is the range of requests the plugin is made for, which an
+	// administrator confirms once to run an instance there.
+	Scope *TransformScope `json:"scope,omitempty"`
 	// Samples are the requests the request plugin editor offers to try the
 	// plugin with.
 	Samples []Sample `json:"samples,omitempty"`
@@ -549,8 +552,10 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 			return nil, err
 		}
 	}
-	if _, present := value.(map[string]any)["optional"]; present && !meta.HasTransformPart() {
-		return nil, fmt.Errorf("plugin %s meta optional belongs to the request processing part; export ingress, request, outbound, egress, reply or report, or remove it", meta.Key)
+	for _, field := range []string{"optional", "scope"} {
+		if _, present := value.(map[string]any)[field]; present && !meta.HasTransformPart() {
+			return nil, fmt.Errorf("plugin %s meta %s belongs to the request processing part; export ingress, request, outbound, egress, reply or report, or remove it", meta.Key, field)
+		}
 	}
 	if engine.HasExport("validateConfig") {
 		if !meta.HasTransformPart() {
@@ -857,8 +862,8 @@ func (r *Registry) GetIgnoringMasterSwitch(key string) (*LoadedPlugin, bool) {
 	return plugin, ok
 }
 
-func (r *Registry) GetByChannelType(channelType int) (*LoadedPlugin, bool) {
-	return r.Generation().GetByChannelType(channelType)
+func (r *Registry) PluginsByChannelType(channelType int) []*LoadedPlugin {
+	return r.Generation().PluginsByChannelType(channelType)
 }
 
 // Enabled reports the master switch position. When false the published
@@ -1173,8 +1178,6 @@ func (r *Registry) recordRebuildFailure(err error) {
 func taskPluginRoutingDebugReason(message string) string {
 	lower := strings.ToLower(message)
 	switch {
-	case strings.Contains(lower, "channeltype"), strings.Contains(lower, "channel type"):
-		return "channel_type_conflict"
 	case strings.Contains(lower, "endpoint"):
 		return "endpoint_conflict"
 	case strings.Contains(lower, "inner gin"), strings.Contains(lower, "rebuilding public routes"):
@@ -1235,6 +1238,9 @@ func cloneMeta(meta Meta) Meta {
 	}
 	if meta.NameI18n != nil {
 		meta.NameI18n = maps.Clone(meta.NameI18n)
+	}
+	if meta.Scope != nil {
+		meta.Scope = &TransformScope{Models: slices.Clone(meta.Scope.Models), ChannelTypes: slices.Clone(meta.Scope.ChannelTypes)}
 	}
 	if meta.KeyHint != nil {
 		meta.KeyHint = maps.Clone(meta.KeyHint)
@@ -1374,7 +1380,7 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	for field := range object {
 		switch field {
-		case "requiredCapabilities", "submitResponseTypes", "sortPriority", "website", "apiVersion", "key", "name", "icon", "description", "version", "author", "baseUrl", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "upstreams", "routes", "protocols", "usageSchema", "usageExamples", "usageProfiles", "auth", "endpoints", "submitPaths", "actions", "relay", "configSchema", "optional", "samples", "channelConfig", "keyHint":
+		case "requiredCapabilities", "submitResponseTypes", "sortPriority", "website", "apiVersion", "key", "name", "icon", "description", "version", "author", "baseUrl", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "upstreams", "routes", "protocols", "usageSchema", "usageExamples", "usageProfiles", "auth", "endpoints", "submitPaths", "actions", "relay", "configSchema", "optional", "scope", "samples", "channelConfig", "keyHint":
 		default:
 			return Meta{}, &UnknownMetaFieldError{Field: field}
 		}
@@ -1525,6 +1531,11 @@ func decodeMeta(value any) (Meta, error) {
 	if value, exists := object["optional"]; exists {
 		if meta.Optional, ok = value.(bool); !ok {
 			return Meta{}, fmt.Errorf("plugin meta optional must be a boolean")
+		}
+	}
+	if value, exists := object["scope"]; exists {
+		if meta.Scope, err = decodeTransformScope(value); err != nil {
+			return Meta{}, err
 		}
 	}
 	switch auth := object["auth"].(type) {

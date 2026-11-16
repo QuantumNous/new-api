@@ -23,6 +23,7 @@ import {
   ListChecks,
   Pencil,
   Plug,
+  Sparkles,
   Users,
 } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
@@ -47,12 +48,14 @@ import { resolveLocalizedText } from '@/lib/localized-text'
 import { resolveModelProvider } from '@/lib/model-provider'
 
 import { localizedPluginName } from '../lib/plugin-name'
+import { declaredPluginScope, samePluginScope } from '../lib/plugin-scope'
 import {
   fromRequestPluginConfigDraft,
   requestPluginConfigDefaults,
   toRequestPluginConfigDraft,
 } from '../lib/request-plugins'
-import type { RequestPluginInstance } from '../types'
+import type { RequestPluginInstance, RequestPluginScope } from '../types'
+import { PluginScopeSummary } from './plugin-scope-summary'
 import { RequestPluginConfigForm } from './request-plugin-config-form'
 import { RequestPluginPicker } from './request-plugin-picker'
 import {
@@ -78,8 +81,18 @@ type RequestPluginInstanceEditorProps = {
   onSave: (instance: RequestPluginInstance) => void
 }
 
-/** Which requests an instance processes besides the channels that add it. */
-type InstanceScope = 'all' | 'groups' | 'channels'
+/**
+ * Which requests an instance processes besides the channels that add it;
+ * plugin follows the scope its plugin suggests.
+ */
+type InstanceScope = 'plugin' | 'all' | 'groups' | 'channels'
+
+const PLUGIN_SCOPE = {
+  value: 'plugin',
+  icon: Sparkles,
+  title: 'Where the plugin suggests',
+  hint: 'The channels and models the plugin is made for, new ones included',
+} as const
 
 const SCOPES = [
   {
@@ -192,7 +205,9 @@ function InstanceEditorDialog(props: RequestPluginInstanceEditorProps) {
   const [name, setName] = useState(props.instance?.name ?? '')
   const [renaming, setRenaming] = useState(false)
   const [enabled, setEnabled] = useState(props.instance?.enabled ?? true)
+  // A new instance takes its place once a plugin is picked.
   const [scope, setScope] = useState<InstanceScope>(() => {
+    if (props.instance?.plugin_scope) return 'plugin'
     if (!props.instance || props.instance.global) return 'all'
     return props.instance.groups.length > 0 ? 'groups' : 'channels'
   })
@@ -220,13 +235,26 @@ function InstanceEditorDialog(props: RequestPluginInstanceEditorProps) {
   const pluginName = plugin
     ? localizedPluginName(plugin, i18n.language)
     : pluginKey
+  const declaredScope = declaredPluginScope(plugin)
+  const savedScope = props.instance?.plugin_scope ?? null
+  // The scope the instance confirms: the plugin's current one, or the one a
+  // saved instance confirmed when the plugin has none to offer any more.
+  const confirmedScope: RequestPluginScope | null = declaredScope ?? savedScope
+  const scopeChanged =
+    savedScope !== null &&
+    declaredScope !== null &&
+    !samePluginScope(savedScope, declaredScope)
+  const followsPlugin = scope === 'plugin' && confirmedScope !== null
+  const scopeOptions = confirmedScope ? [PLUGIN_SCOPE, ...SCOPES] : SCOPES
   const groupsMissing = scope === 'groups' && groups.length === 0
-  const modelsMissing = modelScope === 'chosen' && models.length === 0
+  const modelsMissing =
+    !followsPlugin && modelScope === 'chosen' && models.length === 0
 
   const pick = (key: string) => {
     const next = props.plugins.find((item) => item.key === key)
     setPluginKey(key)
     setName(next ? localizedPluginName(next, i18n.language) : key)
+    setScope(declaredPluginScope(next) ? 'plugin' : 'all')
     setDraft(
       toRequestPluginConfigDraft(
         next?.configSchema,
@@ -243,16 +271,26 @@ function InstanceEditorDialog(props: RequestPluginInstanceEditorProps) {
 
   const buildInstance = (
     config: Record<string, unknown>
-  ): RequestPluginInstance => ({
-    id: props.instance?.id ?? '',
-    name: name.trim() || pluginName,
-    plugin: pluginKey,
-    enabled,
-    global: scope === 'all',
-    groups: scope === 'groups' ? groups : [],
-    models: modelScope === 'chosen' ? models : [],
-    config,
-  })
+  ): RequestPluginInstance => {
+    const instance: RequestPluginInstance = {
+      id: props.instance?.id ?? '',
+      name: name.trim() || pluginName,
+      plugin: pluginKey,
+      enabled,
+      global: scope === 'all',
+      groups: scope === 'groups' ? groups : [],
+      models: modelScope === 'chosen' ? models : [],
+      config,
+    }
+    if (!followsPlugin) return instance
+    return {
+      ...instance,
+      global: false,
+      groups: [],
+      models: [],
+      plugin_scope: confirmedScope,
+    }
+  }
 
   const submit = () => {
     let config = props.instance?.config ?? {}
@@ -439,11 +477,34 @@ function InstanceEditorDialog(props: RequestPluginInstanceEditorProps) {
               id={`${formId}-scope`}
               labelledBy={`${formId}-scope`}
               value={scope}
-              options={SCOPES}
+              options={scopeOptions}
               disabled={props.saving}
-              className='grid gap-2 sm:grid-cols-3'
+              className={
+                confirmedScope
+                  ? 'grid gap-2 sm:grid-cols-2'
+                  : 'grid gap-2 sm:grid-cols-3'
+              }
               onValueChange={setScope}
             />
+            {followsPlugin && (
+              <div className='space-y-2 rounded-xl border p-3'>
+                {scopeChanged && (
+                  <p className='text-sm font-medium'>
+                    {t(
+                      'The plugin changed where it runs. Saving confirms the new range.'
+                    )}
+                  </p>
+                )}
+                {plugin && !declaredScope && (
+                  <p className='text-sm font-medium'>
+                    {t(
+                      'The plugin no longer suggests where it runs, so this instance does not run. Choose another place for it.'
+                    )}
+                  </p>
+                )}
+                <PluginScopeSummary scope={confirmedScope} />
+              </div>
+            )}
             {scope === 'groups' && (
               <MultiSelect
                 id={`${formId}-groups`}
@@ -460,16 +521,18 @@ function InstanceEditorDialog(props: RequestPluginInstanceEditorProps) {
             {showAllErrors && groupsMissing && (
               <FieldError>{t('Pick at least one group')}</FieldError>
             )}
-            <ScopeCards<ModelScope>
-              id={`${formId}-models`}
-              label={t('Models')}
-              value={modelScope}
-              options={MODEL_SCOPES}
-              disabled={props.saving}
-              className='grid gap-2 pt-1 sm:grid-cols-2'
-              onValueChange={setModelScope}
-            />
-            {modelScope === 'chosen' && (
+            {!followsPlugin && (
+              <ScopeCards<ModelScope>
+                id={`${formId}-models`}
+                label={t('Models')}
+                value={modelScope}
+                options={MODEL_SCOPES}
+                disabled={props.saving}
+                className='grid gap-2 pt-1 sm:grid-cols-2'
+                onValueChange={setModelScope}
+              />
+            )}
+            {!followsPlugin && modelScope === 'chosen' && (
               <MultiSelect
                 id={`${formId}-model-list`}
                 options={[...new Set([...props.models, ...models])].map(
