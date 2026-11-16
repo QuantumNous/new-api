@@ -8,6 +8,7 @@ import (
 )
 
 type FlowQuotaData struct {
+	DisplayName string `json:"display_name,omitempty" gorm:"-"`
 	UserID      int    `json:"user_id,omitempty" gorm:"column:user_id"`
 	Username    string `json:"username,omitempty" gorm:"column:username"`
 	NodeName    string `json:"node_name,omitempty" gorm:"column:node_name"`
@@ -23,14 +24,38 @@ type FlowQuotaData struct {
 }
 
 func GetFlowQuotaData(startTime int64, endTime int64, username string, userID int, role int) ([]*FlowQuotaData, error) {
+	var rows []*FlowQuotaData
+	var err error
 	switch {
 	case role >= common.RoleRootUser:
-		return getRootFlowQuotaData(startTime, endTime, username)
+		rows, err = getRootFlowQuotaData(startTime, endTime, username)
 	case role >= common.RoleAdminUser:
-		return getAdminFlowQuotaData(startTime, endTime, username)
+		rows, err = getAdminFlowQuotaData(startTime, endTime, username)
 	default:
 		return getSelfFlowQuotaData(startTime, endTime, userID)
 	}
+	if err != nil {
+		return nil, err
+	}
+	userIDs := make([]int, 0)
+	seen := make(map[int]bool)
+	for _, row := range rows {
+		if row.UserID > 0 && !seen[row.UserID] {
+			seen[row.UserID] = true
+			userIDs = append(userIDs, row.UserID)
+		}
+	}
+	identities, err := dashboardUserIdentities(userIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if user, ok := identities[row.UserID]; ok {
+			row.Username = user.Username
+			row.DisplayName = user.DisplayName
+		}
+	}
+	return rows, nil
 }
 
 func flowQuotaBaseQuery(startTime int64, endTime int64) *gorm.DB {

@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { MultiSelect } from '@/components/multi-select'
 
@@ -27,6 +27,27 @@ const options = [
   { value: 'a', label: 'a' },
   { value: 'c', label: 'c' },
 ]
+
+it('searches friendly labels as well as stored values without changing the selected identity', async () => {
+  const onChange = vi.fn()
+  const user = userEvent.setup()
+  render(
+    <MultiSelect
+      options={[{ value: 'user:1', label: 'Alex (alex_a)' }]}
+      selected={[]}
+      onChange={onChange}
+    />
+  )
+  const input = screen.getByRole('combobox')
+  await user.type(input, 'Alex')
+  await user.click(screen.getByRole('option', { name: 'Alex (alex_a)' }))
+  expect(onChange).toHaveBeenCalledWith(['user:1'])
+  await user.clear(input)
+  await user.type(input, 'user:1')
+  expect(
+    screen.getByRole('option', { name: 'Alex (alex_a)' })
+  ).toBeInTheDocument()
+})
 
 function Fixture(props: {
   initialSelected?: string[]

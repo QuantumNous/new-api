@@ -20,16 +20,13 @@ import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import type { EventParamsDefinition, IVChart } from '@visactor/vchart'
 import {
-  Activity,
   ChevronRight,
   CircleAlert,
   EyeOff,
   GitBranch,
-  Hash,
   Info,
   Loader2,
   Route,
-  WalletCards,
 } from 'lucide-react'
 import {
   Fragment,
@@ -61,6 +58,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { getFlowQuotaDates } from '@/features/dashboard/api'
+import { USAGE_METRIC_OPTIONS } from '@/features/dashboard/constants'
 import {
   buildDashboardFlowData,
   buildFlowSankeySpec,
@@ -101,12 +99,6 @@ interface FlowChartsProps {
   // When false, sensitive node labels are masked in the rendered Sankey.
   sensitiveVisible?: boolean
 }
-
-const FLOW_METRIC_OPTIONS = [
-  { value: 'quota', labelKey: 'By quota', icon: WalletCards },
-  { value: 'tokens', labelKey: 'By tokens', icon: Hash },
-  { value: 'requests', labelKey: 'By requests', icon: Activity },
-] as const
 
 const FLOW_METRIC_LABEL_KEYS: Record<FlowMetric, string> = {
   quota: 'Quota',
@@ -574,7 +566,7 @@ export function FlowCharts(props: FlowChartsProps) {
               className='shrink-0'
             >
               <TabsList aria-label={t('Flow width metric')}>
-                {FLOW_METRIC_OPTIONS.map((option) => {
+                {USAGE_METRIC_OPTIONS.map((option) => {
                   const Icon = option.icon
                   return (
                     <TabsTrigger

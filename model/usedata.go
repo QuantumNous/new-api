@@ -170,14 +170,58 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 	return quotaDatas, err
 }
 
-func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
-	var quotaDatas []*QuotaData
-	err = DB.Table("quota_data").
-		Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(cache_creation_tokens) as cache_creation_tokens").
+// UserQuotaData adds current display information without changing stored usage.
+type UserQuotaData struct {
+	QuotaData
+	DisplayName string `json:"display_name,omitempty" gorm:"-"`
+}
+
+func GetQuotaDataGroupByUser(startTime int64, endTime int64) ([]*UserQuotaData, error) {
+	var quotaDatas []*UserQuotaData
+	err := DB.Table("quota_data").
+		Select("user_id, username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(cache_creation_tokens) as cache_creation_tokens").
 		Where("created_at >= ? and created_at <= ?", startTime, endTime).
-		Group("username, created_at").
+		Group("user_id, username, created_at").
 		Find(&quotaDatas).Error
-	return quotaDatas, err
+	if err != nil {
+		return nil, err
+	}
+	userIDs := make([]int, 0)
+	seen := make(map[int]bool)
+	for _, row := range quotaDatas {
+		if row.UserID > 0 && !seen[row.UserID] {
+			seen[row.UserID] = true
+			userIDs = append(userIDs, row.UserID)
+		}
+	}
+	identities, err := dashboardUserIdentities(userIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range quotaDatas {
+		if user, ok := identities[row.UserID]; ok {
+			row.Username = user.Username
+			row.DisplayName = user.DisplayName
+		}
+	}
+	return quotaDatas, nil
+}
+
+// dashboardUserIdentities resolves current labels without modifying usage history.
+func dashboardUserIdentities(userIDs []int) (map[int]User, error) {
+	identities := make(map[int]User, len(userIDs))
+	// Bound IN parameters for SQLite and large installations.
+	for start := 0; start < len(userIDs); start += 500 {
+		var users []User
+		if err := DB.Select("id, username, display_name").
+			Where("id IN ?", userIDs[start:min(start+500, len(userIDs))]).Find(&users).Error; err != nil {
+			return nil, err
+		}
+		for _, user := range users {
+			identities[user.Id] = user
+		}
+	}
+	return identities, nil
 }
 
 func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
