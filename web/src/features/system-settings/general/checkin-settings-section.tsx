@@ -75,42 +75,52 @@ export function CheckinSettingsSection({
     },
   })
 
-  const { isDirty, isSubmitting } = form.formState
+  const {
+    defaultValues: savedValues = defaultValues,
+    isDirty,
+    isSubmitting,
+  } = form.formState
   const enabled = form.watch('enabled')
 
   async function onSubmit(values: Values) {
-    const updates: Array<{ key: string; value: string }> = []
+    const updates: Array<{ field: keyof Values; key: string; value: string }> =
+      []
 
-    if (values.enabled !== defaultValues.enabled && !values.enabled) {
+    if (values.enabled !== savedValues.enabled && !values.enabled) {
       updates.push({
+        field: 'enabled',
         key: 'checkin_setting.enabled',
         value: String(values.enabled),
       })
     }
 
-    if (values.minQuota !== defaultValues.minQuota) {
+    if (values.minQuota !== savedValues.minQuota) {
       updates.push({
+        field: 'minQuota',
         key: 'checkin_setting.min_quota',
         value: String(values.minQuota),
       })
     }
 
-    if (values.paidUsersOnly !== defaultValues.paidUsersOnly) {
+    if (values.paidUsersOnly !== savedValues.paidUsersOnly) {
       updates.push({
+        field: 'paidUsersOnly',
         key: 'checkin_setting.paid_users_only',
         value: String(values.paidUsersOnly),
       })
     }
 
-    if (values.maxQuota !== defaultValues.maxQuota) {
+    if (values.maxQuota !== savedValues.maxQuota) {
       updates.push({
+        field: 'maxQuota',
         key: 'checkin_setting.max_quota',
         value: String(values.maxQuota),
       })
     }
 
-    if (values.enabled !== defaultValues.enabled && values.enabled) {
+    if (values.enabled !== savedValues.enabled && values.enabled) {
       updates.push({
+        field: 'enabled',
         key: 'checkin_setting.enabled',
         value: 'true',
       })
@@ -121,8 +131,14 @@ export function CheckinSettingsSection({
       return
     }
 
-    for (const update of updates) {
-      await updateOption.mutateAsync(update)
+    try {
+      for (const { field, ...update } of updates) {
+        await updateOption.mutateAsync(update)
+        form.resetField(field, { defaultValue: values[field] })
+      }
+    } catch {
+      // useUpdateOption reports the error; keep unsaved fields available for retry.
+      return
     }
 
     form.reset(values)
@@ -197,6 +213,7 @@ export function CheckinSettingsSection({
                     <FormControl>
                       <Input
                         type='number'
+                        disabled={updateOption.isPending || isSubmitting}
                         min={0}
                         placeholder={t('1000')}
                         {...field}
@@ -219,6 +236,7 @@ export function CheckinSettingsSection({
                     <FormControl>
                       <Input
                         type='number'
+                        disabled={updateOption.isPending || isSubmitting}
                         min={0}
                         placeholder={t('10000')}
                         {...field}

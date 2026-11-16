@@ -140,13 +140,29 @@ func TestPaidOnlyCheckinDatabaseMatrix(t *testing.T) {
 				})
 			}
 			t.Run("payment lookup failure does not grant a reward", func(t *testing.T) {
-				operation_setting.GetCheckinSetting().PaidUsersOnly = true
+				setting := operation_setting.GetCheckinSetting()
+				setting.Enabled, setting.PaidUsersOnly = true, true
+				setting.MinQuota, setting.MaxQuota = 100, 100
+				user := model.User{
+					Id:       len(cases) + 1,
+					Username: "checkin_lookup_failure",
+					AffCode:  "lookup_fail",
+					Quota:    500,
+					Status:   common.UserStatusEnabled,
+				}
+				require.NoError(t, db.Create(&user).Error)
 				require.NoError(t, db.Migrator().DropTable(&model.TopUp{}))
-				assert.False(t, performCheckinRequest(t, http.MethodGet, 1).Success)
-				assert.False(t, performCheckinRequest(t, http.MethodPost, 1).Success)
+				for _, method := range []string{http.MethodGet, http.MethodPost} {
+					response := performCheckinRequest(t, method, user.Id)
+					assert.False(t, response.Success)
+					assert.Equal(t, "Failed to verify check-in eligibility", response.Message)
+				}
 				var checkins int64
-				require.NoError(t, db.Model(&model.Checkin{}).Where("user_id = ?", 1).Count(&checkins).Error)
+				require.NoError(t, db.Model(&model.Checkin{}).Where("user_id = ?", user.Id).Count(&checkins).Error)
 				assert.Zero(t, checkins)
+				var after model.User
+				require.NoError(t, db.First(&after, user.Id).Error)
+				assert.Equal(t, user.Quota, after.Quota)
 			})
 		})
 	}
