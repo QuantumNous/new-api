@@ -86,6 +86,20 @@ func (w *responseCapture) Write(data []byte) (int, error) {
 	return n, err
 }
 
+// WriteHeartbeat records delivered keepalive bytes while preserving the
+// underlying writer's distinction between heartbeats and successful responses.
+func (w *responseCapture) WriteHeartbeat(data []byte) error {
+	before := w.ResponseWriter.Size()
+	err := forwardHeartbeat(w.ResponseWriter, data)
+	// Size may start at -1 before headers; normalize it to count body bytes.
+	n := min(len(data), max(0, w.ResponseWriter.Size()-max(0, before)))
+	w.mu.Lock()
+	w.written += int64(n)
+	w.kept = append(w.kept, data[:min(n, maxReportResponseBytes-len(w.kept))]...)
+	w.mu.Unlock()
+	return err
+}
+
 func (w *responseCapture) WriteString(text string) (int, error) {
 	n, err := w.ResponseWriter.WriteString(text)
 	w.mu.Lock()

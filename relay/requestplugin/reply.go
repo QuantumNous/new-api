@@ -856,6 +856,40 @@ func (w *replyWriter) Write(data []byte) (int, error) {
 	return w.ResponseWriter.Write(data)
 }
 
+// WriteHeartbeat bypasses reply text checks without turning keepalive output
+// into successful model output for the underlying affinity writer.
+func (w *replyWriter) WriteHeartbeat(data []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.stopped {
+		return nil
+	}
+	return forwardHeartbeat(w.ResponseWriter, data)
+}
+
+// forwardHeartbeat preserves heartbeat semantics across request-plugin writers.
+// Without an affinity-aware writer, it retains ordinary write/flush behavior.
+func forwardHeartbeat(writer gin.ResponseWriter, data []byte) error {
+	if heartbeat, ok := writer.(interface{ WriteHeartbeat([]byte) error }); ok {
+		return heartbeat.WriteHeartbeat(data)
+	}
+	if _, err := writer.Write(data); err != nil {
+		return err
+	}
+	writer.Flush()
+	var current http.ResponseWriter = writer
+	for {
+		if flusher, ok := current.(interface{ FlushError() error }); ok {
+			return flusher.FlushError()
+		}
+		unwrapper, ok := current.(interface{ Unwrap() http.ResponseWriter })
+		if !ok {
+			return nil
+		}
+		current = unwrapper.Unwrap()
+	}
+}
+
 func (w *replyWriter) WriteString(text string) (int, error) {
 	return w.Write([]byte(text))
 }

@@ -29,7 +29,9 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/request_plugin_setting"
 
 	"github.com/gin-gonic/gin"
@@ -2061,4 +2063,51 @@ func TestMasterSwitchOffKeepsRequestProcessing(t *testing.T) {
 	stored, err := storage.Bytes()
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"model":"gpt","messages":[],"patched":true}`, string(stored))
+}
+
+// TestReplyHeartbeatPreservesAffinity checks that reply filtering and report
+// capture preserve pending-retry bindings while recording the delivered heartbeat.
+func TestReplyHeartbeatPreservesAffinity(t *testing.T) {
+	setupReplyPlugins(t, `[{"id":"check","name":"Check","plugin":"rp-reply","enabled":true,"global":true,"config":{"words":["secret"]}}]`)
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	*setting = operation_setting.ChannelAffinitySetting{
+		Enabled: true, SwitchOnSuccess: true, DefaultTTLSeconds: 60,
+		Rules: []operation_setting.ChannelAffinityRule{{
+			Name: "plugin-heartbeat", ModelRegex: []string{".*"},
+			KeySources: []operation_setting.ChannelAffinityKeySource{{Type: "request_header", Key: "X-Session"}},
+		}},
+	}
+	t.Cleanup(func() { *setting = previous })
+	c, recorder := replyContext(t, "/v1/chat/completions", types.RelayFormatOpenAI)
+	c.Request.Header.Set("X-Session", t.Name())
+	_, found := service.GetPreferredChannelByAffinity(c, "gpt", "default")
+	require.False(t, found)
+	c.Set("channel_id", 11)
+	service.RecordChannelAffinity(c, 11)
+	t.Cleanup(func() { service.ClearCurrentChannelAffinityCache(c) })
+	service.BindChannelAffinityResponse(c, 11)
+	capture := &responseCapture{ResponseWriter: c.Writer}
+	c.Writer = capture
+	info := replyInfo(types.RelayFormatOpenAI, relayconstant.RelayModeChatCompletions)
+	info.IsStream = true
+	finish := Reply(c, types.RelayFormatOpenAI, info)
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Set("channel_id", 22)
+	heartbeat, ok := c.Writer.(interface{ WriteHeartbeat([]byte) error })
+	require.True(t, ok)
+	require.NoError(t, heartbeat.WriteHeartbeat([]byte(": PING\n\n")))
+	bound, found := service.GetPreferredChannelByAffinity(c, "gpt", "default")
+	require.True(t, found)
+	assert.Equal(t, 11, bound)
+	assert.Equal(t, ": PING\n\n", recorder.Body.String())
+	assert.Equal(t, recorder.Body.String(), string(capture.kept))
+	assert.Equal(t, int64(recorder.Body.Len()), capture.written)
+	_, err := c.Writer.WriteString("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hello\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+	require.NoError(t, err)
+	finish()
+	bound, found = service.GetPreferredChannelByAffinity(c, "gpt", "default")
+	require.True(t, found)
+	assert.Equal(t, 22, bound, "successful reply output binds the retry channel")
+	assert.Contains(t, recorder.Body.String(), "hello")
 }
