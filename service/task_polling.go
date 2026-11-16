@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/samber/lo"
 )
@@ -63,6 +65,33 @@ type BatchTaskResult struct {
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
+
+// ReportTaskFunc is injected by main: it hands a task that reached its final
+// state to the request plugins' report hooks (requestplugin.ReportTask).
+var ReportTaskFunc func(task *model.Task)
+
+// reportFinalTask reports a task once, after its final state is stored and
+// settled. A task no instance may report costs nothing.
+func reportFinalTask(task *model.Task) {
+	if ReportTaskFunc != nil && task.PrivateData.RequestPlugins != nil {
+		ReportTaskFunc(task)
+	}
+}
+
+// reportFailedTasks reports tasks failed in one bulk update with reason.
+func reportFailedTasks(tasks []*model.Task, reason string) {
+	now := time.Now().Unix()
+	for _, task := range tasks {
+		if task == nil || task.PrivateData.RequestPlugins == nil {
+			continue
+		}
+		task.Status, task.Progress, task.FailReason = model.TaskStatusFailure, "100%", reason
+		if task.FinishTime == 0 {
+			task.FinishTime = now
+		}
+		reportFinalTask(task)
+	}
+}
 
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
 // 每次最多处理 100 条，剩余的下个周期继续处理。
@@ -111,6 +140,7 @@ func sweepTimedOutTasks(ctx context.Context) {
 		if !isLegacy && task.Quota != 0 {
 			RefundTaskQuota(ctx, task, reason)
 		}
+		reportFinalTask(task)
 	}
 
 	if timedOutCount > 0 {
@@ -166,11 +196,13 @@ func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) 
 		taskChannelM := make(map[int][]string)
 		taskM := make(map[string]*model.Task)
 		nullTaskIds := make([]int64, 0)
+		var nullTasks []*model.Task
 		for _, task := range tasks {
 			upstreamID := task.GetUpstreamTaskID()
 			if upstreamID == "" {
 				// 统计失败的未完成任务
 				nullTaskIds = append(nullTaskIds, task.ID)
+				nullTasks = append(nullTasks, task)
 				continue
 			}
 			taskM[upstreamID] = task
@@ -186,6 +218,7 @@ func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) 
 				logger.LogError(ctx, common.LogText("Fix null task_id task error: %v", err))
 			} else {
 				logger.LogInfo(ctx, common.LogText("Fix null task_id task success: %v", nullTaskIds))
+				reportFailedTasks(nullTasks, "")
 			}
 		}
 		if len(taskChannelM) == 0 {
@@ -260,6 +293,8 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 		})
 		if err != nil {
 			common.SysLog(common.LogText("UpdateSunoTask error: %v", err))
+		} else {
+			reportFailedTasks(bulkFailedTasks(taskIds, taskM), "Failed to get the channel information. Please contact the administrator")
 		}
 		return err
 	}
@@ -286,7 +321,34 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 	}
 	info.ApiKey = ch.Key
 	adaptor.Init(info)
-	resp, err := adaptor.FetchBatchTasks(baseURL, ch.Key, tasks, proxy)
+	// A batch query carries one credential, so it holds only the tasks one
+	// credential account submitted: another account's answer could report a
+	// finished task missing and refund it.
+	var accounts []string
+	batches := make(map[string][]*model.Task)
+	for _, task := range tasks {
+		account := task.PrivateData.CredentialAccount
+		if _, ok := batches[account]; !ok {
+			accounts = append(accounts, account)
+		}
+		batches[account] = append(batches[account], task)
+	}
+	var errs []error
+	for _, account := range accounts {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err := pollTaskBatch(ctx, adaptor, channelId, baseURL, ch.Key, proxy, batches[account]); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// pollTaskBatch sends one batch query for tasks and applies the results it
+// returns for them.
+func pollTaskBatch(ctx context.Context, adaptor BatchTaskPollingAdaptor, channelId int, baseURL, key, proxy string, tasks []*model.Task) error {
+	resp, err := adaptor.FetchBatchTasks(baseURL, key, tasks, proxy)
 	if err != nil {
 		common.SysLog(common.LogText("Get Task Do req error: %v", err))
 		return recordPollFailureForTasks(ctx, adaptor, tasks, pollClassTransport, 0, err.Error())
@@ -315,11 +377,15 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 	if err != nil {
 		return recordPollFailureForTasks(ctx, adaptor, tasks, pollClassHookError, resp.StatusCode, err.Error())
 	}
+	batch := make(map[string]*model.Task, len(tasks))
+	for _, task := range tasks {
+		batch[task.GetUpstreamTaskID()] = task
+	}
 	for upstreamID, responseItem := range responseItems {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		task := taskM[upstreamID]
+		task := batch[upstreamID]
 		if task == nil {
 			logger.LogWarn(ctx, common.LogText("Batch task response ignored: unknown task_id=%s", upstreamID))
 			continue
@@ -446,6 +512,8 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 		})
 		if errUpdate != nil {
 			common.SysLog(common.LogText("UpdateVideoTask error: %v", errUpdate))
+		} else {
+			reportFailedTasks(bulkFailedTasks(taskIds, taskM), "Failed to get the channel information. Please contact the administrator")
 		}
 		return fmt.Errorf("CacheGetChannel failed: %w", err)
 	}
@@ -643,32 +711,51 @@ func finalizeTerminalTask(ctx context.Context, adaptor TaskPollingAdaptor, task 
 	if task.Status == model.TaskStatusFailure && !billingSettled && task.Quota != 0 {
 		RefundTaskQuota(ctx, task, task.FailReason)
 	}
+	reportFinalTask(task)
+}
+
+// bulkFailedTasks are the tasks of upstream ids a bulk update failed.
+func bulkFailedTasks(upstreamIDs []string, tasks map[string]*model.Task) []*model.Task {
+	failed := make([]*model.Task, 0, len(upstreamIDs))
+	for _, upstreamID := range upstreamIDs {
+		failed = append(failed, tasks[upstreamID])
+	}
+	return failed
 }
 
 func redactVideoResponseBody(body []byte) []byte {
-	var m map[string]any
-	if err := common.Unmarshal(body, &m); err != nil {
+	// Only the redacted members change; the rest keeps the upstream bytes.
+	if !ojson.ValidBytes(body) || !ojson.GetBytesNoCopy(body, "@this").IsObject() {
 		return body
 	}
-	resp, _ := m["response"].(map[string]any)
-	if resp != nil {
-		delete(resp, "bytesBase64Encoded")
-		if v, ok := resp["video"].(string); ok {
-			resp["video"] = truncateBase64(v)
+	doc := ojson.NewDoc(body)
+	if resp := ojson.GetBytesNoCopy(body, "response"); resp.IsObject() {
+		_ = doc.Delete("response.bytesBase64Encoded")
+		if video := resp.Get("video"); video.Type == ojson.String {
+			_ = doc.Set("response.video", truncateBase64(video.Str))
 		}
-		if vs, ok := resp["videos"].([]any); ok {
-			for i := range vs {
-				if vm, ok := vs[i].(map[string]any); ok {
-					delete(vm, "bytesBase64Encoded")
+		if videos := resp.Get("videos"); videos.IsArray() {
+			for i, video := range videos.Array() {
+				if video.IsObject() {
+					_ = doc.Delete(fmt.Sprintf("response.videos.%d.bytesBase64Encoded", i))
 				}
 			}
 		}
 	}
-	b, err := common.Marshal(m)
-	if err != nil {
-		return body
+	if steps := ojson.GetBytesNoCopy(body, "steps"); steps.IsArray() {
+		for i, step := range steps.Array() {
+			parts := step.Get("content")
+			if !parts.IsArray() {
+				continue
+			}
+			for j, part := range parts.Array() {
+				if part.Get("type").String() == "video" {
+					_ = doc.Delete(fmt.Sprintf("steps.%d.content.%d.data", i, j))
+				}
+			}
+		}
 	}
-	return b
+	return doc.Bytes()
 }
 
 func truncateBase64(s string) string {

@@ -173,6 +173,22 @@ func TestRedactVideoResponseBodyPreservesPollingPayloadShape(t *testing.T) {
 	assert.Equal(t, "https://media.example/video.mp4", video["uri"])
 }
 
+func TestRedactVideoResponseBodyDropsInteractionInlineVideo(t *testing.T) {
+	body := []byte(`{"id":"int_1","status":"completed","steps":[{"type":"model_output","content":[{"type":"video","mime_type":"video/mp4","data":"` + strings.Repeat("a", 1024) + `"},{"type":"text","text":"done"}]}]}`)
+
+	var stored map[string]any
+	require.NoError(t, common.Unmarshal(redactVideoResponseBody(body), &stored))
+	content := stored["steps"].([]any)[0].(map[string]any)["content"].([]any)
+	assert.Equal(t, map[string]any{"type": "video", "mime_type": "video/mp4"}, content[0])
+	assert.Equal(t, "done", content[1].(map[string]any)["text"])
+}
+
+func TestRedactVideoResponseBodyKeepsUntouchedBytes(t *testing.T) {
+	body := []byte(`{"name":"op","response":{"videos":[{"uri":"u","bytesBase64Encoded":"x"}],"durationSeconds":8.0,"bytesBase64Encoded":"y"},"done":true}`)
+
+	assert.Equal(t, `{"name":"op","response":{"videos":[{"uri":"u"}],"durationSeconds":8.0},"done":true}`, string(redactVideoResponseBody(body)))
+}
+
 func seedTaskPollingChannel(t *testing.T, id int, disableSleep bool) {
 	t.Helper()
 	ch := &model.Channel{
@@ -1077,4 +1093,70 @@ func TestUpdateBatchTasksPollClassification(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A task reports once, when it reaches its final state: not per poll, not
+// when another poller lost the race, never when no instance may report it.
+func TestTaskReportsOnceAtTheFinalState(t *testing.T) {
+	truncate(t)
+	const userID, tokenID, channelID = 520, 520, 520
+	seedUser(t, userID, 10_000)
+	seedToken(t, tokenID, userID, "sk-poll-report", 7_000)
+	ch := &model.Channel{Id: channelID, Type: constant.ChannelTypeKling, Name: "poll", Key: "sk-test", Status: common.ChannelStatusEnabled}
+
+	var reported []string
+	previous := ReportTaskFunc
+	ReportTaskFunc = func(task *model.Task) { reported = append(reported, task.TaskID+":"+string(task.Status)) }
+	t.Cleanup(func() { ReportTaskFunc = previous })
+
+	newTask := func(id string, plugins bool) *model.Task {
+		task := makeTask(userID, channelID, 1_000, tokenID, BillingSourceWallet, 0)
+		task.TaskID = id
+		task.PrivateData.UpstreamTaskID = "upstream_" + id
+		if plugins {
+			task.PrivateData.RequestPlugins = &model.TaskRequestPlugins{Instances: []string{"audit"}}
+		}
+		require.NoError(t, model.DB.Create(task).Error)
+		return task
+	}
+	reload := func(task *model.Task) *model.Task {
+		var stored model.Task
+		require.NoError(t, model.DB.First(&stored, task.ID).Error)
+		return &stored
+	}
+	poll := func(task *model.Task, status model.TaskStatus) {
+		adaptor := &scriptedPollingAdaptor{parse: &relaycommon.TaskInfo{Status: string(status), Url: "https://cdn.example.com/v.mp4"}}
+		require.NoError(t, updateVideoSingleTask(context.Background(), adaptor, ch, task.GetUpstreamTaskID(), map[string]*model.Task{
+			task.GetUpstreamTaskID(): task,
+		}))
+	}
+
+	task := newTask("report_once", true)
+	stale := reload(task)
+	poll(task, model.TaskStatusInProgress)
+	poll(reload(task), model.TaskStatusInProgress)
+	assert.Empty(t, reported)
+
+	poll(reload(task), model.TaskStatusSuccess)
+	assert.Equal(t, []string{"report_once:SUCCESS"}, reported)
+	// Another poller that read the row before it finished loses the update.
+	poll(stale, model.TaskStatusSuccess)
+	assert.Len(t, reported, 1)
+
+	plain := newTask("no_plugins", false)
+	poll(plain, model.TaskStatusSuccess)
+	assert.Len(t, reported, 1)
+
+	failed := newTask("fails", true)
+	poll(failed, model.TaskStatusFailure)
+	assert.Equal(t, "fails:FAILURE", reported[1])
+
+	previousTimeout := constant.TaskTimeoutMinutes
+	constant.TaskTimeoutMinutes = 1
+	t.Cleanup(func() { constant.TaskTimeoutMinutes = previousTimeout })
+	timedOut := newTask("times_out", true)
+	require.NoError(t, model.DB.Model(&model.Task{}).Where("id = ?", timedOut.ID).Update("submit_time", time.Now().Add(-time.Hour).Unix()).Error)
+	sweepTimedOutTasks(context.Background())
+	sweepTimedOutTasks(context.Background())
+	assert.Equal(t, []string{"report_once:SUCCESS", "fails:FAILURE", "times_out:FAILURE"}, reported)
 }

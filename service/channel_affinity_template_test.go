@@ -196,6 +196,25 @@ func TestExtractChannelAffinityValue_RequestHeader(t *testing.T) {
 	require.Equal(t, "tenant-123", value)
 }
 
+func TestExtractChannelAffinityValue_JSONFile(t *testing.T) {
+	previous := common.GetDiskCacheConfig()
+	common.SetDiskCacheConfig(common.DiskCacheConfig{Enabled: true, ThresholdMB: 0, MaxSizeMB: 16, Path: t.TempDir()})
+	t.Cleanup(func() { common.SetDiskCacheConfig(previous) })
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"image":"`+strings.Repeat("A", 1<<20)+`","metadata":{"key":" tenant-123 ","count":0,"enabled":false},"items":[{"id":"chosen"}]}`))
+	t.Cleanup(func() { common.CleanupBodyStorage(c) })
+	for _, tc := range []struct{ path, want string }{
+		{"metadata.key", "tenant-123"},
+		{"metadata.count", "0"},
+		{"metadata.enabled", "false"},
+		{"items.0.id", "chosen"},
+		{`items.#(id=="chosen").id`, "chosen"},
+		{"absent", ""},
+	} {
+		assert.Equal(t, tc.want, extractChannelAffinityValue(c, operation_setting.ChannelAffinityKeySource{Type: "gjson", Path: tc.path}), tc.path)
+	}
+}
+
 func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

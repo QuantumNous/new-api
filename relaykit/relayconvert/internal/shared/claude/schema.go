@@ -3,8 +3,8 @@ package claude
 import (
 	"encoding/json"
 
+	"github.com/MoeForge/moego/ojson"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
-	"github.com/tidwall/sjson"
 )
 
 // FunctionParametersToInputSchema returns function parameters as a Claude
@@ -31,12 +31,12 @@ func FunctionParametersToInputSchema(parameters json.RawMessage) (schema json.Ra
 	schema = parameters
 	var err error
 	if len(fields.Type) == 0 || kitutil.GetJsonType(fields.Type) == "null" {
-		if schema, err = sjson.SetRawBytes(schema, "type", []byte(`"object"`)); err != nil {
+		if schema, err = ojson.SetRawBytes(schema, "type", []byte(`"object"`)); err != nil {
 			return empty, false
 		}
 	}
 	if len(fields.Properties) == 0 || kitutil.GetJsonType(fields.Properties) == "null" {
-		if schema, err = sjson.SetRawBytes(schema, "properties", []byte(`{}`)); err != nil {
+		if schema, err = ojson.SetRawBytes(schema, "properties", []byte(`{}`)); err != nil {
 			return empty, false
 		}
 	}

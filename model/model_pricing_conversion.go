@@ -235,7 +235,7 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 	// settlement path as an ordinary text model.
 	var channels []Channel
 	candidates := DB.Model(&Ability{}).Select("channel_id").Where("model = ?", name)
-	if err := DB.Select("type", "status", "models", "model_mapping").Where("id IN (?)", candidates).Find(&channels).Error; err != nil {
+	if err := DB.Select("type", "status", "models", "model_mapping", "setting").Where("id IN (?)", candidates).Find(&channels).Error; err != nil {
 		return nil, err
 	}
 	names := []string{name}
@@ -243,7 +243,9 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 		if !slices.Contains(channel.GetModels(), name) {
 			continue
 		}
-		if channel.Type == constant.ChannelTypeTaskPlugin {
+		// The relay models of a plugin's provider part price like ordinary
+		// models; its task models were caught above.
+		if channel.Type == constant.ChannelTypeTaskPlugin && channelRelayConfig(&channel) == nil {
 			return &ModelPricingConversion{UnsupportedReason: "Task pricing must be converted manually using the task usage schema."}, nil
 		}
 		if slices.Contains(common.GetEndpointTypesByChannelType(channel.Type, name), constant.EndpointTypeOpenAIVideo) {

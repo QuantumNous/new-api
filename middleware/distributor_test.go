@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,6 +21,80 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type streamedBodyStorage struct {
+	common.BodyStorage
+}
+
+func (streamedBodyStorage) Bytes() ([]byte, error) {
+	return nil, errors.New("disk body must be read through readers")
+}
+
+func TestJSONModelRoutingUsesReadersForDiskBodies(t *testing.T) {
+	previous := common.GetDiskCacheConfig()
+	t.Cleanup(func() { common.SetDiskCacheConfig(previous) })
+	large := strings.Repeat("image-data", 32<<10)
+	prefix := `{"model":"model-a",`
+	acrossRead := prefix + strings.Repeat(" ", (64<<10)-len(prefix)-3) + `"\u006d\u006f\u0064\u0065\u006c":"model-b"}`
+	for _, disk := range []bool{false, true} {
+		storageName := "memory"
+		if disk {
+			storageName = "file"
+		}
+		t.Run(storageName, func(t *testing.T) {
+			common.SetDiskCacheConfig(common.DiskCacheConfig{Enabled: disk, ThresholdMB: 0, MaxSizeMB: 16, Path: t.TempDir()})
+			for _, tt := range []struct {
+				name, body, model, group, wantError string
+			}{
+				{"large body", `{"model":"model-a","group":"g","stream":true,"background":false,"input":"` + large + `"}`, "model-a", "g", ""},
+				{"fields after payload", `{"input":"` + large + `","model":"model-a","group":"g"}`, "model-a", "g", ""},
+				{"escaped model key", `{"\u006d\u006f\u0064\u0065\u006c":"model-a"}`, "model-a", "", ""},
+				{"nested models", `{"model":"model-a","nested":[{"model":"x"},{"model":"y"}],"text":"\"model\":false"}`, "model-a", "", ""},
+				{"long unrelated key", `{"` + large + `":"x","model":"model-a"}`, "model-a", "", ""},
+				{"duplicate model", `{"model":"model-a","model":"model-b"}`, "", "", "model must be provided once"},
+				{"duplicate key across reads", acrossRead, "", "", "model must be provided once"},
+				{"wrong model type", `{"model":false}`, "", "", "field model must be a string"},
+				{"wrong group type", `{"model":"model-a","group":[]}`, "", "", "field group must be a string"},
+				{"trailing JSON", `{"model":"model-a"} {}`, "", "", "invalid JSON request body"},
+				{"truncated payload", `{"model":"model-a","input":"` + large, "", "", "invalid JSON request body"},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					storage, err := common.CreateBodyStorage([]byte(tt.body))
+					require.NoError(t, err)
+					t.Cleanup(func() { require.NoError(t, storage.Close()) })
+					require.Equal(t, disk, storage.IsDisk())
+					c, _ := gin.CreateTestContext(httptest.NewRecorder())
+					c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(tt.body))
+					c.Request.Header.Set("Content-Type", "application/json")
+					if disk {
+						c.Set(common.KeyBodyStorage, streamedBodyStorage{storage})
+					} else {
+						c.Set(common.KeyBodyStorage, storage)
+					}
+					request, err := getModelFromJSONBody(c)
+					if tt.wantError != "" {
+						require.EqualError(t, err, tt.wantError)
+						return
+					}
+					require.NoError(t, err)
+					assert.Equal(t, tt.model, request.Model)
+					assert.Equal(t, tt.group, request.Group)
+					if tt.name == "large body" {
+						stream, background := jsonBodyBoolFlags(c)
+						assert.True(t, stream)
+						assert.False(t, background)
+					}
+					var decoded ModelRequest
+					require.NoError(t, common.UnmarshalBodyReusableNoCopy(c, &decoded))
+					assert.Equal(t, *request, decoded)
+					replayed, err := io.ReadAll(c.Request.Body)
+					require.NoError(t, err)
+					assert.Equal(t, tt.body, string(replayed))
+				})
+			}
+		})
+	}
+}
 
 func TestChannelMatchesExpectedTaskPluginUsesGenericChannelSetting(t *testing.T) {
 	channel := &model.Channel{Type: constant.ChannelTypeTaskPlugin}
@@ -49,6 +125,49 @@ func TestChannelMatchesExpectedTaskPluginUsesPinnedLegacyIndex(t *testing.T) {
 	assert.True(t, channelMatchesExpectedTaskPlugin(c, channel, "legacy-alpha"))
 	assert.False(t, channelMatchesExpectedTaskPlugin(c, channel, "legacy-beta"))
 	assert.False(t, channelMatchesExpectedTaskPlugin(c, &model.Channel{Type: constant.ChannelTypeJimeng}, "legacy-alpha"))
+}
+
+// Two plugins may declare one built-in channel type, each with its own
+// models: a channel of the type serves the plugin of the requested model, and
+// when both declare it the first in key order runs.
+func TestSharedChannelTypeServesEachDeclaringPlugin(t *testing.T) {
+	registry := jsplugin.NewRegistry()
+	_, err := registry.Register(distributorEndpointPluginSourceWithModels("zhipu-video", constant.ChannelTypeZhipu_v4, "glm-video", "glm-shared"), jsplugin.Options{})
+	require.NoError(t, err)
+	_, err = registry.Register(distributorEndpointPluginSourceWithModels("zhipu-image", constant.ChannelTypeZhipu_v4, "glm-image", "glm-shared"), jsplugin.Options{})
+	require.NoError(t, err)
+	generation := registry.Generation()
+	require.Empty(t, registry.RoutingErrors())
+	channel := &model.Channel{Id: 1, Type: constant.ChannelTypeZhipu_v4}
+
+	for _, testCase := range []struct{ model, plugin string }{
+		{model: "glm-video", plugin: "zhipu-video"},
+		{model: "glm-image", plugin: "zhipu-image"},
+		{model: "glm-shared", plugin: "zhipu-image"},
+	} {
+		t.Run(testCase.model, func(t *testing.T) {
+			candidates := generation.LookupEndpointCandidates("POST", "/v1/responses", testCase.model)
+			require.NotEmpty(t, candidates)
+			c, _ := gin.CreateTestContext(nil)
+			c.Set(jsplugin.ContextKeyPinnedPlugin, jsplugin.PinnedPlugin{Generation: generation, Plugin: candidates[len(candidates)-1].Plugin})
+			c.Set(jsplugin.ContextKeyPinnedEndpoint, jsplugin.PinnedEndpoint{
+				Generation: generation,
+				Plugin:     candidates[len(candidates)-1].Plugin,
+				Protocol:   candidates[len(candidates)-1].Protocol,
+				Operation:  candidates[len(candidates)-1].Operation,
+				Model:      testCase.model,
+				Candidates: candidates,
+			})
+			expected := candidates[len(candidates)-1].Plugin.Meta.Key
+			c.Set("expected_task_plugin_key", expected)
+
+			assert.True(t, channelMatchesExpectedTaskPlugin(c, channel, expected))
+			require.Nil(t, SetupContextForSelectedChannel(c, channel, testCase.model))
+			value, exists := c.Get(jsplugin.ContextKeyPinnedEndpoint)
+			require.True(t, exists)
+			assert.Equal(t, testCase.plugin, value.(jsplugin.PinnedEndpoint).Plugin.Meta.Key)
+		})
+	}
 }
 
 func TestChannelMatchesExpectedTaskPluginRejectsUnindexedLegacyChannel(t *testing.T) {
@@ -131,6 +250,11 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 }
 
 func distributorEndpointPluginSource(key string, channelType int) string {
+	return distributorEndpointPluginSourceWithModels(key, channelType, "task-model")
+}
+
+func distributorEndpointPluginSourceWithModels(key string, channelType int, models ...string) string {
+	encoded, _ := common.Marshal(models)
 	return fmt.Sprintf(`
 export const meta = {
   apiVersion: 1,
@@ -139,7 +263,7 @@ export const meta = {
   version: "1.0.0",
   author: {name: "Test"},
   channelTypes: [%d],
-  models: ["task-model"],
+  models: %s,
   fetchMode: "per_task",
   protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],
 };
@@ -148,11 +272,11 @@ export function parseSubmitResponse() { return {taskId: "task"}; }
 export function buildQueryRequest() { return {}; }
 export function parseTaskResult() { return {status: "SUCCESS"}; }
 export const protocols = {openai_responses: {
-  decodeRequest: function(ctx) { return {kind: "submit", model: "task-model", requestBody: ctx.body.value}; },
+  decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model, requestBody: ctx.body.value}; },
   renderEvents: function() { return {events: [], state: null, done: false}; },
   renderFinal: function() { return {output: []}; },
 }};
-`, key, key, channelType)
+`, key, key, channelType, encoded)
 }
 
 func TestTokenModelLimitAllowsLegacyAliasAndModifierVariant(t *testing.T) {
@@ -310,6 +434,44 @@ func TestSharedEndpointRebindsToSelectedType61Plugin(t *testing.T) {
 	assert.Equal(t, "beta", c.GetString("task_plugin_key"))
 	assert.Equal(t, "beta", c.GetString("expected_task_plugin_key"))
 	assert.Equal(t, "beta", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).Plugin.Meta.Key)
+}
+
+// On a native path two plugins declare, the selected channel names the
+// executing plugin, which takes over the route and the task identity.
+func TestSharedNativeRouteRebindsToSelectedPlugin(t *testing.T) {
+	registry := jsplugin.NewRegistry()
+	for _, key := range []string{"route-alpha", "route-beta"} {
+		_, err := registry.Register(fmt.Sprintf(`
+export const meta = {apiVersion: 1, key: %q, name: %q, version: "1.0.0", author: {name: "Test"}, models: ["task-model"], fetchMode: "per_task",
+	routes: [{method: "POST", path: "/probe/v1/jobs", type: "submit", decode: "decode", render: "render"}]};
+export const native = {decode() { return {}; }, render() { return {}; }};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`, key, key), jsplugin.Options{})
+		require.NoError(t, err)
+	}
+	generation := registry.Generation()
+	candidates := generation.LookupDeclaredRoutes("POST", "/probe/v1/jobs")
+	require.Len(t, candidates, 2)
+	c, _ := gin.CreateTestContext(nil)
+	c.Set(jsplugin.ContextKeyPinnedPlugin, jsplugin.PinnedPlugin{Generation: generation, Plugin: candidates[0].Plugin})
+	c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Generation: generation, Plugin: candidates[0].Plugin, Route: candidates[0].Route, Candidates: candidates})
+	c.Set("expected_task_plugin_key", "route-alpha")
+	channel := &model.Channel{Id: 3, Type: constant.ChannelTypeTaskPlugin}
+	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "unrelated"})
+	assert.False(t, channelMatchesExpectedTaskPlugin(c, channel, "route-alpha"))
+	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "route-beta"})
+
+	require.Nil(t, SetupContextForSelectedChannel(c, channel, "task-model"))
+	pinned := c.MustGet(jsplugin.ContextKeyPinnedRoute).(jsplugin.PinnedRoute)
+	assert.Same(t, candidates[1].Plugin, pinned.Plugin)
+	assert.Equal(t, candidates[1].Route, pinned.Route)
+	assert.Same(t, candidates[1].Plugin, c.MustGet(jsplugin.ContextKeyPinnedPlugin).(jsplugin.PinnedPlugin).Plugin)
+	for _, key := range []string{"expected_task_plugin_key", "task_plugin_key", "platform"} {
+		assert.Equal(t, "route-beta", c.GetString(key), key)
+	}
 }
 
 func TestChannelMatchesExpectedTaskPluginUsesNewAPIExtensions(t *testing.T) {

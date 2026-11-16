@@ -16,11 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { cn } from '@/lib/utils'
 
 import { HOST_PROTOCOL_ENDPOINTS } from '../lib/host-protocols'
 import type { TaskPluginMeta, TaskPluginRoute } from '../types'
@@ -34,6 +43,7 @@ import { PluginModelList } from './plugin-model-list'
 function EndpointRow(props: {
   method: string
   path: string
+  muted?: boolean
   children?: ReactNode
 }) {
   const { t } = useTranslation()
@@ -46,7 +56,14 @@ function EndpointRow(props: {
         {props.method}
       </Badge>
       <div className='min-w-0 space-y-1.5 pt-1'>
-        <span className='block font-mono text-xs break-all'>{props.path}</span>
+        <span
+          className={cn(
+            'block font-mono text-xs break-all',
+            props.muted && 'text-muted-foreground'
+          )}
+        >
+          {props.path}
+        </span>
         <div className='flex flex-wrap items-center gap-1.5'>
           {props.children}
         </div>
@@ -62,8 +79,68 @@ function EndpointRow(props: {
 }
 
 /**
+ * The address under /{key} at which the gateway also serves a declared route,
+ * which always reaches this plugin. A route whose first segment is the key or
+ * a proper prefix of it (alibaba's /ali, sunoapi's /suno) is already the
+ * plugin's own address and has none.
+ */
+function keyAddress(pluginKey: string | undefined, path: string) {
+  const first = path.split('/')[1] ?? ''
+  if (!pluginKey || (first !== '' && pluginKey.startsWith(first))) {
+    return undefined
+  }
+  return `/${pluginKey}${path}`
+}
+
+/**
+ * One route the plugin declares itself, at its declared path or, when
+ * `showKeyAddress` is set, at its /{key} address. A declared path the gateway
+ * leaves to the /{key} address (`skippedRoutes`, as "METHOD /path") is shown
+ * muted wherever it is the path displayed.
+ */
+function DeclaredRouteRow(props: {
+  route: TaskPluginRoute
+  pluginKey?: string
+  skippedRoutes?: string[]
+  showKeyAddress?: boolean
+}) {
+  const { t } = useTranslation()
+  const pinnedPath = keyAddress(props.pluginKey, props.route.path)
+  const path =
+    props.showKeyAddress && pinnedPath ? pinnedPath : props.route.path
+  const muted =
+    path === props.route.path &&
+    props.skippedRoutes?.includes(`${props.route.method} ${props.route.path}`)
+  return (
+    <EndpointRow method={props.route.method} path={path} muted={muted}>
+      <span className='text-muted-foreground text-xs'>
+        {props.route.type === 'submit' && t('Submit request')}
+        {props.route.type === 'query' && t('Retrieve result')}
+        {props.route.type === 'dynamic' && t('Dynamic operation')}
+      </span>
+      {props.route.models?.length ? (
+        <PluginModelList
+          models={props.route.models}
+          collapsedLabel={t('Model scope')}
+        />
+      ) : null}
+      {muted && pinnedPath ? (
+        <span className='text-muted-foreground text-xs'>
+          {t('Only served at the /{{key}} address', { key: props.pluginKey })}
+        </span>
+      ) : null}
+    </EndpointRow>
+  )
+}
+
+/**
  * The endpoints a plugin exposes: first the host protocol endpoints derived
  * from each `meta.protocols` claim, then the native routes it declares itself.
+ *
+ * Each native route is listed once, by its declared path; a toggle switches
+ * every path that has a /{key} address to that address. Once a plugin declares
+ * paths outside its own prefix (the vendor's official paths), its routes under
+ * that prefix are the older addresses kept working and are folded at the end.
  *
  * The supported request forms of a mode-bearing protocol are rendered on the
  * create endpoint rather than next to the protocol name, because `supports`
@@ -76,10 +153,19 @@ export function PluginEndpoints(props: {
   routesNote?: ReactNode
   protocols?: TaskPluginMeta['protocols']
   routes?: TaskPluginRoute[]
+  pluginKey?: string
+  skippedRoutes?: string[]
 }) {
   const { t } = useTranslation()
+  const [showKeyAddresses, setShowKeyAddresses] = useState(false)
   const claims = props.protocols ?? []
   const routes = props.routes ?? []
+  const vendorRoutes = routes.filter((route) =>
+    keyAddress(props.pluginKey, route.path)
+  )
+  const legacyRoutes = vendorRoutes.length
+    ? routes.filter((route) => !keyAddress(props.pluginKey, route.path))
+    : []
 
   return (
     <div className='space-y-3'>
@@ -156,33 +242,74 @@ export function PluginEndpoints(props: {
       {props.routesNote}
       {routes.length > 0 ? (
         <div className='bg-muted/30 space-y-1.5 rounded-md p-3'>
-          <p className='text-muted-foreground text-xs'>
-            {t('Plugin-defined interfaces')}
-          </p>
-          <ul className='divide-y'>
-            {routes.map((route) => (
-              <EndpointRow
-                key={`${route.method} ${route.path}`}
-                method={route.method}
-                path={route.path}
+          <div className='flex flex-wrap items-center justify-between gap-2'>
+            <p className='text-muted-foreground text-xs'>
+              {t('Plugin-defined interfaces')}
+            </p>
+            {vendorRoutes.length > 0 && (
+              <ToggleGroup
+                value={[showKeyAddresses ? 'key' : 'vendor']}
+                onValueChange={(value) => {
+                  // Pressing the selected form again keeps it selected.
+                  if (value.length) setShowKeyAddresses(value[0] === 'key')
+                }}
+                aria-label={t('Address format')}
+                variant='outline'
+                size='sm'
               >
-                <span className='text-muted-foreground font-mono text-[11px]'>
-                  {route.type}
-                </span>
-                <span className='text-muted-foreground text-xs'>
-                  {route.type === 'submit' && t('Submit request')}
-                  {route.type === 'query' && t('Retrieve result')}
-                  {route.type === 'dynamic' && t('Dynamic operation')}
-                </span>
-                {route.models?.length ? (
-                  <PluginModelList
-                    models={route.models}
-                    collapsedLabel={t('Model scope')}
-                  />
-                ) : null}
-              </EndpointRow>
+                <ToggleGroupItem value='vendor'>
+                  {t('Vendor path')}
+                </ToggleGroupItem>
+                <ToggleGroupItem value='key' className='font-mono'>
+                  /{props.pluginKey}
+                </ToggleGroupItem>
+              </ToggleGroup>
+            )}
+          </div>
+          <ul className='divide-y'>
+            {(vendorRoutes.length ? vendorRoutes : routes).map((route) => (
+              <DeclaredRouteRow
+                key={`${route.method} ${route.path}`}
+                route={route}
+                pluginKey={props.pluginKey}
+                skippedRoutes={props.skippedRoutes}
+                showKeyAddress={showKeyAddresses}
+              />
             ))}
           </ul>
+          {legacyRoutes.length > 0 && (
+            <Collapsible>
+              <CollapsibleTrigger
+                render={
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    className='group h-auto gap-1 px-1 py-1 text-xs'
+                  />
+                }
+              >
+                {t('Legacy addresses ({{count}})', {
+                  count: legacyRoutes.length,
+                })}
+                <ChevronDown
+                  className='size-3 transition-transform group-aria-expanded:rotate-180'
+                  aria-hidden='true'
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <ul className='divide-y'>
+                  {legacyRoutes.map((route) => (
+                    <DeclaredRouteRow
+                      key={`${route.method} ${route.path}`}
+                      route={route}
+                      pluginKey={props.pluginKey}
+                      skippedRoutes={props.skippedRoutes}
+                    />
+                  ))}
+                </ul>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </div>
       ) : null}
     </div>

@@ -144,6 +144,43 @@ describe('pricing controls', () => {
       matches: ['task'],
     },
     {
+      name: 'a plugin model whose ordinary requests pay a token ratio',
+      pricing: {
+        billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+        ordinary_pricing: true,
+        billing_plugin_variants: [
+          {
+            plugin_key: 'alpha',
+            plugin_name: 'Alpha',
+            billing_mode: 'tiered_expr',
+            billing_expr: '',
+            billing_usage_schema: {
+              seconds: { type: 'number', unit: 'second' },
+            },
+          },
+        ],
+      },
+      matches: ['token'],
+    },
+    {
+      name: 'a plugin model without ordinary requests retaining the task category',
+      pricing: {
+        billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+        billing_plugin_variants: [
+          {
+            plugin_key: 'alpha',
+            plugin_name: 'Alpha',
+            billing_mode: 'tiered_expr',
+            billing_expr: '',
+            billing_usage_schema: {
+              seconds: { type: 'number', unit: 'second' },
+            },
+          },
+        ],
+      },
+      matches: ['task'],
+    },
+    {
       name: 'unparseable dynamic pricing retaining its legacy category',
       pricing: {
         quota_type: 1,

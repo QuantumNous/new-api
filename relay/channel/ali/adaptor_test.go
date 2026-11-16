@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -18,7 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestConvertOpenAIRequestFiltersThinkingBudgetByUpstreamModel(t *testing.T) {
@@ -82,8 +82,8 @@ func TestConvertOpenAIRequestFiltersThinkingBudgetByUpstreamModel(t *testing.T) 
 			encoded, err := common.Marshal(converted)
 			require.NoError(t, err)
 
-			assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
-			value := gjson.GetBytes(encoded, "thinking_budget")
+			assert.True(t, ojson.GetBytes(encoded, "enable_thinking").Bool())
+			value := ojson.GetBytes(encoded, "thinking_budget")
 			assert.Equal(t, tt.wantBudget, value.Exists())
 			if tt.wantBudget {
 				assert.Equal(t, tt.wantValue, value.Int())
@@ -128,7 +128,7 @@ func TestConvertOpenAIRequestPreservesExplicitZeroForMappedQwenModel(t *testing.
 	encoded, err := common.Marshal(converted)
 	require.NoError(t, err)
 
-	value := gjson.GetBytes(encoded, "thinking_budget")
+	value := ojson.GetBytes(encoded, "thinking_budget")
 	assert.True(t, value.Exists())
 	assert.Equal(t, int64(0), value.Int())
 }
@@ -279,7 +279,7 @@ func TestConvertClaudeRequestWebSearch(t *testing.T) {
 			wire, err := common.Marshal(converted)
 			require.NoError(t, err)
 			for path, want := range tt.want {
-				value := gjson.GetBytes(wire, path)
+				value := ojson.GetBytes(wire, path)
 				if want == "" {
 					assert.False(t, value.Exists(), "%s in %s", path, wire)
 					continue

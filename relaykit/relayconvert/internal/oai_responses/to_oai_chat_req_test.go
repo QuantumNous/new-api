@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *testing.T) {
@@ -54,7 +54,7 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *t
 	assert.Equal(t, "medium", got.ReasoningEffort)
 	assert.Equal(t, `"user-1"`, string(got.User))
 	assert.Equal(t, `false`, string(got.Store))
-	assert.Equal(t, "abc", gjson.GetBytes(got.Metadata, "trace").String())
+	assert.Equal(t, "abc", ojson.GetBytes(got.Metadata, "trace").String())
 }
 
 func TestResponsesRequestToChatCompletionsRequestPreservesQwenThinkingBudget(t *testing.T) {
@@ -81,8 +81,8 @@ func TestResponsesRequestToChatCompletionsRequestPreservesQwenThinkingBudget(t *
 			encoded, err := kitutil.Marshal(got)
 			require.NoError(t, err)
 
-			assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
-			value := gjson.GetBytes(encoded, "thinking_budget")
+			assert.True(t, ojson.GetBytes(encoded, "enable_thinking").Bool())
+			value := ojson.GetBytes(encoded, "thinking_budget")
 			assert.True(t, value.Exists())
 			assert.Equal(t, tt.want, value.Int())
 		})
@@ -220,7 +220,7 @@ func TestResponsesRequestToChatCompletionsRequestToolsToolChoiceAndTextFormat(t 
 	assert.Equal(t, "function", got.Tools[0].Type)
 	assert.Equal(t, "lookup", got.Tools[0].Function.Name)
 	assert.Equal(t, "Lookup data", got.Tools[0].Function.Description)
-	assert.Equal(t, "object", gjson.GetBytes(got.Tools[0].Function.Parameters, "type").String())
+	assert.Equal(t, "object", ojson.GetBytes(got.Tools[0].Function.Parameters, "type").String())
 	assert.Equal(t, map[string]any{
 		"type": "function",
 		"function": map[string]any{
@@ -229,8 +229,8 @@ func TestResponsesRequestToChatCompletionsRequestToolsToolChoiceAndTextFormat(t 
 	}, got.ToolChoice)
 	require.NotNil(t, got.ResponseFormat)
 	assert.Equal(t, "json_schema", got.ResponseFormat.Type)
-	assert.Equal(t, "answer", gjson.GetBytes(got.ResponseFormat.JsonSchema, "name").String())
-	assert.True(t, gjson.GetBytes(got.ResponseFormat.JsonSchema, "strict").Bool())
+	assert.Equal(t, "answer", ojson.GetBytes(got.ResponseFormat.JsonSchema, "name").String())
+	assert.True(t, ojson.GetBytes(got.ResponseFormat.JsonSchema, "strict").Bool())
 }
 
 func TestResponsesRequestToChatCompletionsRequestEncodesCustomToolHistoryAsFunction(t *testing.T) {
@@ -258,7 +258,7 @@ func TestResponsesRequestToChatCompletionsRequestEncodesCustomToolHistoryAsFunct
 	assert.Equal(t, "function", toolCalls[0].Type)
 	assert.Equal(t, "call_custom", toolCalls[0].ID)
 	assert.Equal(t, "exec", toolCalls[0].Function.Name)
-	assert.Equal(t, `echo "hi" && ls`, gjson.Get(toolCalls[0].Function.Arguments, "input").String())
+	assert.Equal(t, `echo "hi" && ls`, ojson.Get(toolCalls[0].Function.Arguments, "input").String())
 	assert.Empty(t, toolCalls[0].Custom)
 	assert.Equal(t, dto.Message{Role: "tool", ToolCallId: "call_custom", Content: "hi"}, got.Messages[1])
 }

@@ -18,6 +18,15 @@ func GetModelPricingConfig(c *gin.Context) {
 	common.ApiSuccess(c, snapshot)
 }
 
+func GetModelPricingIssues(c *gin.Context) {
+	issues, err := model.GetModelPricingIssues("")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, issues)
+}
+
 func PreviewModelPricingConversion(c *gin.Context) {
 	var request struct {
 		ModelName string              `json:"model_name"`

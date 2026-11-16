@@ -2,14 +2,17 @@ package advancedcustom
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -19,9 +22,9 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 func TestAdaptorUsesExactRouteAndQueryAuth(t *testing.T) {
@@ -58,6 +61,17 @@ func TestAdaptorUsesExactRouteAndQueryAuth(t *testing.T) {
 // URL, and a channel proxy is dialed before the upstream; a failed handshake
 // must hide both.
 func TestAdaptorMasksDialedHostsInDialFailure(t *testing.T) {
+	originalDialer := websocket.DefaultDialer
+	dialer := *originalDialer
+	dialer.NetDialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if strings.HasPrefix(address, "localhost:") {
+			return (&net.Dialer{}).DialContext(ctx, network, address)
+		}
+		return nil, fmt.Errorf("dial %s %s: test connection failure", network, address)
+	}
+	websocket.DefaultDialer = &dialer
+	t.Cleanup(func() { websocket.DefaultDialer = originalDialer })
+
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 	}))
@@ -1079,7 +1093,7 @@ func TestAdaptorConvertsClaudeAndGeminiRequestsToResponsesUpstream(t *testing.T)
 				require.NoError(t, err)
 				wire, err := common.Marshal(converted)
 				require.NoError(t, err)
-				assert.JSONEq(t, `[{"type":"web_search"}]`, gjson.GetBytes(wire, "tools").Raw)
+				assert.JSONEq(t, `[{"type":"web_search"}]`, ojson.GetBytes(wire, "tools").Raw)
 				url, err := adaptor.GetRequestURL(info)
 				require.NoError(t, err)
 				assert.Equal(t, "https://fallback.example/v1/responses", url)

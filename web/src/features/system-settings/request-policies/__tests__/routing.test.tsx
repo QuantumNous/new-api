@@ -626,7 +626,7 @@ it('invalid JSON stays editable and prevents saving', async () => {
   expect(api.patch).not.toHaveBeenCalled()
 })
 
-it('cache cleanup uses the existing cache API without saving the draft', async () => {
+it('cache cleanup confirms its scope and uses the existing API without saving the draft', async () => {
   vi.spyOn(api, 'delete').mockResolvedValue({ data: { success: true } })
   show()
   await userEvent.click(
@@ -634,7 +634,7 @@ it('cache cleanup uses the existing cache API without saving the draft', async (
   )
   await userEvent.click(
     within(screen.getByRole('alertdialog')).getByRole('button', {
-      name: 'Continue',
+      name: 'Clear All Cache',
     })
   )
   await waitFor(() =>
@@ -644,6 +644,225 @@ it('cache cleanup uses the existing cache API without saving the draft', async (
     )
   )
   expect(api.patch).not.toHaveBeenCalled()
+})
+
+it('refreshing cache statistics reads the counts without deleting cache or saving rules', async () => {
+  vi.spyOn(api, 'delete').mockResolvedValue({ data: { success: true } })
+  show()
+  const refresh = await screen.findByRole('button', {
+    name: 'Refresh cache statistics',
+  })
+  await waitFor(() => expect(refresh).toBeEnabled())
+  expect(
+    screen.getByText(
+      'Refreshing updates the counts. Clearing cache makes subsequent requests select channels again.'
+    )
+  ).toBeVisible()
+  vi.mocked(api.get).mockClear()
+
+  await userEvent.click(refresh)
+
+  await waitFor(() => expect(refresh).toBeEnabled())
+  expect(api.get).toHaveBeenCalledWith(
+    '/api/option/channel_affinity_cache',
+    expect.any(Object)
+  )
+  expect(api.delete).not.toHaveBeenCalled()
+  expect(api.patch).not.toHaveBeenCalled()
+})
+
+it('clearing a rule from its cache cell targets that rule and refreshes both row counts', async () => {
+  const rule = JSON.parse(options['channel_affinity_setting.rules'])[0]
+  currentOptions['channel_affinity_setting.rules'] = JSON.stringify([
+    rule,
+    { ...rule, name: 'Other rule' },
+  ])
+  const get = vi.mocked(api.get).getMockImplementation()
+  if (!get) throw new Error('API fixture is not initialized')
+  let cleared = false
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url !== '/api/option/channel_affinity_cache') return get(url, config)
+    return {
+      data: {
+        success: true,
+        data: {
+          enabled: true,
+          total: cleared ? 3 : 5,
+          unknown: 0,
+          by_rule_name: { 'Session rule': cleared ? 0 : 2, 'Other rule': 3 },
+          cache_capacity: 100000,
+          cache_algo: 'lru',
+        },
+      },
+    }
+  })
+  vi.spyOn(api, 'delete').mockImplementation(async () => {
+    cleared = true
+    return { data: { success: true } }
+  })
+  show()
+  const clear = await screen.findByRole('button', {
+    name: 'Clear cache for Session rule',
+  })
+  await waitFor(() => expect(clear).toBeEnabled())
+  const cacheCell = clear.closest('td')
+  expect(cacheCell).toHaveTextContent('2')
+
+  clear.focus()
+  await userEvent.keyboard('{Enter}')
+
+  const dialog = screen.getByRole('alertdialog')
+  expect(dialog).toHaveTextContent('Session rule')
+  expect(dialog).toHaveTextContent(
+    'Subsequent requests will select channels again.'
+  )
+  expect(api.delete).not.toHaveBeenCalled()
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  expect(api.delete).not.toHaveBeenCalled()
+  await userEvent.click(clear)
+  await userEvent.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Clear cache',
+    })
+  )
+
+  await waitFor(() => expect(cacheCell).toHaveTextContent('0'))
+  expect(api.delete).toHaveBeenCalledExactlyOnceWith(
+    '/api/option/channel_affinity_cache',
+    { params: { rule_name: 'Session rule' } }
+  )
+  expect(
+    screen
+      .getByRole('button', { name: 'Clear cache for Other rule' })
+      .closest('td')
+  ).toHaveTextContent('3')
+  expect(screen.getByRole('table')).toHaveTextContent('Session rule')
+  expect(api.patch).not.toHaveBeenCalled()
+})
+
+it.each([
+  [
+    false,
+    'Session rule',
+    'This rule shares its cache and cannot be cleared separately.',
+  ],
+  [true, 'Unsaved rule', 'Save this rule before clearing its cache.'],
+])(
+  'disables per-rule clearing when isolation is %s and the rule is %s',
+  async (isolated, name, reason) => {
+    const rule = JSON.parse(options['channel_affinity_setting.rules'])[0]
+    currentOptions['channel_affinity_setting.rules'] = JSON.stringify([
+      { ...rule, name, include_rule_name: isolated },
+    ])
+    show()
+    const clear = await screen.findByRole('button', {
+      name: `Clear cache for ${name}`,
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('100,000')
+    )
+    expect(clear).toBeDisabled()
+    await userEvent.keyboard('{Tab}')
+    act(() => clear.parentElement?.focus())
+    expect(await screen.findByText(reason)).toBeVisible()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  }
+)
+
+it.each(['business', 'network'])(
+  'a %s cache deletion failure keeps confirmation open for retry and blocks duplicate submissions',
+  async (failure) => {
+    let resolve!: (value: {
+      data: { success: boolean; message?: string }
+    }) => void
+    let reject!: (reason: Error) => void
+    const pending = new Promise<{
+      data: { success: boolean; message?: string }
+    }>((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise
+      reject = rejectPromise
+    })
+    vi.spyOn(api, 'delete').mockReturnValueOnce(pending)
+    show()
+    const clear = await screen.findByRole('button', {
+      name: 'Clear cache for Session rule',
+    })
+    await waitFor(() => expect(clear).toBeEnabled())
+    await userEvent.click(clear)
+    const dialog = screen.getByRole('alertdialog')
+    const confirm = within(dialog).getByRole('button', { name: 'Clear cache' })
+    await userEvent.click(confirm)
+    expect(confirm).toBeDisabled()
+    expect(
+      within(dialog).getByRole('button', { name: 'Cancel' })
+    ).toBeDisabled()
+    await userEvent.click(confirm)
+    expect(api.delete).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      if (failure === 'network') {
+        reject(new Error('Cache unavailable'))
+      } else {
+        resolve({
+          data: { success: false, message: 'Cache unavailable' },
+        })
+      }
+    })
+
+    await waitFor(() => expect(confirm).toBeEnabled())
+    expect(dialog).toBeVisible()
+    expect(clear.closest('td')).toHaveTextContent('2')
+    vi.mocked(api.delete).mockResolvedValueOnce({ data: { success: true } })
+    await userEvent.click(confirm)
+    await waitFor(() =>
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    )
+    expect(api.delete).toHaveBeenCalledTimes(2)
+    expect(api.patch).not.toHaveBeenCalled()
+  }
+)
+
+it('saving a renamed rule refreshes statistics and enables its cache action', async () => {
+  const get = vi.mocked(api.get).getMockImplementation()
+  if (!get) throw new Error('API fixture is not initialized')
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    const response = await get(url, config)
+    if (url === '/api/option/channel_affinity_cache') {
+      const savedRules = JSON.parse(
+        currentOptions['channel_affinity_setting.rules']
+      )
+      return {
+        data: {
+          success: true,
+          data: {
+            enabled: true,
+            total: 0,
+            unknown: 0,
+            by_rule_name: { [savedRules[0].name]: 0 },
+            cache_capacity: 100000,
+            cache_algo: 'lru',
+          },
+        },
+      }
+    }
+    return response
+  })
+  show()
+  await userEvent.click(await screen.findByRole('tab', { name: 'JSON' }))
+  const rule = JSON.parse(options['channel_affinity_setting.rules'])[0]
+  fireEvent.input(await screen.findByRole('textbox', { name: 'Rules JSON' }), {
+    target: { value: JSON.stringify([{ ...rule, name: 'Renamed rule' }]) },
+  })
+  await userEvent.click(screen.getByRole('tab', { name: 'Visual' }))
+  const clear = screen.getByRole('button', {
+    name: 'Clear cache for Renamed rule',
+  })
+  expect(clear).toBeDisabled()
+
+  await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+  await waitFor(() => expect(clear).toBeEnabled())
+  expect(clear.closest('td')).toHaveTextContent('0')
 })
 
 it('keyboard navigation switches editor tabs and restores the visual draft', async () => {
@@ -748,13 +967,27 @@ it('unavailable cache statistics show an unknown count and refresh recovers the 
   const row = within(section).getByRole('row', {
     name: /Session rule.*X-Session/,
   })
-  expect(within(row).getByRole('cell', { name: '—' })).toBeVisible()
+  expect(
+    within(row).getByRole('button', { name: 'Clear cache for Session rule' })
+  ).toBeDisabled()
+  expect(
+    within(row)
+      .getByRole('button', { name: 'Clear cache for Session rule' })
+      .closest('td')
+  ).toHaveTextContent('—')
   cacheAvailable = true
   await userEvent.click(
-    within(section).getByRole('button', { name: 'Refresh Cache' })
+    within(section).getByRole('button', { name: 'Refresh cache statistics' })
   )
   await waitFor(() => expect(status).toHaveTextContent(/2\s*\/\s*100,000/))
-  expect(within(row).getByRole('cell', { name: '2' })).toBeVisible()
+  expect(
+    within(row).getByRole('button', { name: 'Clear cache for Session rule' })
+  ).toBeEnabled()
+  expect(
+    within(row)
+      .getByRole('button', { name: 'Clear cache for Session rule' })
+      .closest('td')
+  ).toHaveTextContent('2')
   expect(api.patch).not.toHaveBeenCalled()
 })
 
@@ -782,7 +1015,11 @@ it.each([
     await waitFor(() => expect(status).toHaveTextContent(capacity))
     const table = within(section).getByRole('table')
     expect(within(table).getByRole('cell', { name: ttl })).toBeVisible()
-    expect(within(table).getByRole('cell', { name: '2' })).toBeVisible()
+    expect(
+      within(table)
+        .getByRole('button', { name: 'Clear cache for Session rule' })
+        .closest('td')
+    ).toHaveTextContent('2')
 
     await act(async () => {
       await i18next.changeLanguage('fr')

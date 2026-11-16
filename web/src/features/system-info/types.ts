@@ -60,6 +60,16 @@ export type SystemInstanceInfo = {
     }
     [key: string]: unknown
   }
+  /** What this node last loaded, per sync topic. */
+  sync?: Record<
+    string,
+    {
+      revision: number
+      applied_at: number
+      error?: string
+      errors?: Record<string, string>
+    }
+  >
   [key: string]: unknown
 }
 
@@ -84,6 +94,36 @@ export type SystemInstanceDeleteResponse = {
   data?: {
     deleted_count: number
   }
+}
+
+export type NodeSyncTopicState = {
+  synced: boolean
+  applied_at: number
+  error: string
+  /** Per-item load failures, such as plugins, by item key. */
+  errors: Record<string, string>
+}
+
+export type NodeSyncNode = {
+  node_name: string
+  online: boolean
+  topics: Record<string, NodeSyncTopicState>
+}
+
+export type NodeSync = {
+  topics: Array<{
+    topic: string
+    revision: number
+    updated_at: number
+    updated_by: string
+  }>
+  nodes: NodeSyncNode[]
+}
+
+export type NodeSyncResponse = {
+  success: boolean
+  message: string
+  data?: Partial<NodeSync>
 }
 
 export type SystemTaskHistoryDeleteResponse = {
