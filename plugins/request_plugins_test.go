@@ -985,14 +985,14 @@ func TestBuiltInRequestPluginSamples(t *testing.T) {
 			for _, sample := range samples {
 				langs[sample.Lang]++
 				assert.NotEmpty(t, sample.Name["en"])
-				assert.NotEmpty(t, sample.Name["zh"])
+				assert.Empty(t, sample.Name["zh"])
 				assert.Equal(t, "openai", sample.Format)
 			}
-			// One to three samples in each of English and Chinese.
-			assert.Len(t, langs, 2)
+			// One to three English samples; no built-in translated sample set.
+			assert.Len(t, langs, 1)
 			assert.GreaterOrEqual(t, langs["en"], 1)
 			assert.LessOrEqual(t, langs["en"], 3)
-			assert.Equal(t, langs["en"], langs["zh"])
+			assert.Zero(t, langs["zh"])
 		})
 	}
 	sample := func(key, lang string) jsplugin.Sample {
@@ -1008,7 +1008,7 @@ func TestBuiltInRequestPluginSamples(t *testing.T) {
 
 	// The redaction samples carry an email and a phone number in the
 	// request and in the reply.
-	for _, lang := range []string{"en", "zh"} {
+	for _, lang := range []string{"en"} {
 		redact := sample("request-redact", lang)
 		result := runRequestPlugin(t, "request-redact", "ingress", `{}`, jsplugin.TransformRequest{Body: redact.Body})
 		body, _ := applyEffects(t, string(redact.Body), result)
@@ -1017,7 +1017,7 @@ func TestBuiltInRequestPluginSamples(t *testing.T) {
 		assert.Len(t, reply.Masks, 2, lang)
 	}
 	// The filter samples hit the rule its schema shows as an example.
-	for _, lang := range []string{"en", "zh"} {
+	for _, lang := range []string{"en"} {
 		filter := sample("request-filter", lang)
 		pattern := map[string]string{"en": "internal use only", "zh": "仅限内部使用"}[lang]
 		result := runRequestPlugin(t, "request-filter", "ingress", `{"rules": [{"pattern": "`+pattern+`"}]}`, jsplugin.TransformRequest{Body: filter.Body})
@@ -1025,7 +1025,7 @@ func TestBuiltInRequestPluginSamples(t *testing.T) {
 	}
 	// The reasoning samples have a tool, so the default rules apply.
 	assert.True(t, gjson.GetBytes(sample("auto-reasoning", "en").Body, "tools.0").Exists())
-	assert.Equal(t, "[sample-image]", gjson.GetBytes(sample("image-compress", "zh").Body, "messages.0.content.1").Str)
+	assert.Equal(t, "[sample-image]", gjson.GetBytes(sample("image-compress", "en").Body, "messages.0.content.1").Str)
 	encoded, err := common.Marshal(sample("param-override", "en"))
 	require.NoError(t, err)
 	assert.False(t, gjson.GetBytes(encoded, "reply").Exists())

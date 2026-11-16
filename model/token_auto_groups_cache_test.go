@@ -64,8 +64,8 @@ func TestTokenUpdateSynchronouslyNarrowsPreheatedAutoGroupsCache(t *testing.T) {
 
 	require.NoError(t, token.SetAutoGroups([]string{"vip"}))
 	require.NoError(t, token.Update())
-	// Update 是限制性变更：写库前删除缓存并设置 fence。缓存不再提供旧的
-	// 宽分组值，下一次读取必须看到收紧后的分组。
+	// Update is a restrictive change: delete the cache and set up a fence before writing to the library. The cache no longer serves the old
+	// With a wide grouping value, the next read must see the tightened grouping.
 	_, cacheErr := cacheGetTokenByKey(token.Key)
 	require.Error(t, cacheErr, "the pre-update cache entry must be invalidated")
 	reloaded, err := GetTokenByKey(token.Key, false)
@@ -73,8 +73,8 @@ func TestTokenUpdateSynchronouslyNarrowsPreheatedAutoGroupsCache(t *testing.T) {
 	assert.JSONEq(t, `["vip"]`, reloaded.AutoGroups)
 }
 
-// cacheSetTokenForTest 以测试身份写入完整 token 缓存（含额度字段），
-// 模拟“已水合”的缓存状态。
+// cacheSetTokenForTest writes the complete token cache (including the quota field) as a tester,
+// Simulates a "hydrated" cache state.
 func cacheSetTokenForTest(token Token) error {
 	_, err := cacheInitToken(token)
 	return err

@@ -51,14 +51,14 @@ type Channel struct {
 	AutoBan           *int    `json:"auto_ban" gorm:"default:1"`
 	OtherInfo         string  `json:"other_info"`
 	Tag               *string `json:"tag" gorm:"index"`
-	Setting           *string `json:"setting" gorm:"type:text"` // 渠道额外设置
+	Setting           *string `json:"setting" gorm:"type:text"` // Channel additional settings
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
-	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
+	OtherSettings string `json:"settings" gorm:"column:settings"` // Other settings store information such as the azure version that does not need to be retrieved. For details, see dto.ChannelOtherSettings
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
@@ -70,12 +70,12 @@ type Channel struct {
 const ChannelStatusReasonAllKeysDisabled = "All keys are disabled"
 
 type ChannelInfo struct {
-	IsMultiKey             bool                  `json:"is_multi_key"`                        // 是否多Key模式
-	MultiKeySize           int                   `json:"multi_key_size"`                      // 多Key模式下的Key数量
-	MultiKeyStatusList     map[int]int           `json:"multi_key_status_list"`               // key状态列表，key index -> status
-	MultiKeyDisabledReason map[int]string        `json:"multi_key_disabled_reason,omitempty"` // key禁用原因列表，key index -> reason
-	MultiKeyDisabledTime   map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key禁用时间列表，key index -> time
-	MultiKeyPollingIndex   int                   `json:"multi_key_polling_index"`             // 多Key模式下轮询的key索引
+	IsMultiKey             bool                  `json:"is_multi_key"`                        // Whether to use multiple Key mode
+	MultiKeySize           int                   `json:"multi_key_size"`                      // Number of Keys in multi-Key mode
+	MultiKeyStatusList     map[int]int           `json:"multi_key_status_list"`               // Key status list, key index -> status
+	MultiKeyDisabledReason map[int]string        `json:"multi_key_disabled_reason,omitempty"` // Key disable reason list, key index -> reason
+	MultiKeyDisabledTime   map[int]int64         `json:"multi_key_disabled_time,omitempty"`   // key disabled time list, key index -> time
+	MultiKeyPollingIndex   int                   `json:"multi_key_polling_index"`             // Key index polled in multi-key mode
 	MultiKeyMode           constant.MultiKeyMode `json:"multi_key_mode"`
 }
 
@@ -177,8 +177,8 @@ func ApplyChannelGroupFilter(query *gorm.DB, group string) *gorm.DB {
 }
 
 // Value implements driver.Valuer interface
-// 必须返回 string 而非 []byte:PG simple protocol 下 []byte 参数按 bytea
-// 编码,写 json 列会触发 SQLSTATE 22P02。
+// Must return string instead of []byte: The []byte parameter under PG simple protocol is bytea
+// Encoding, writing json columns will trigger SQLSTATE 22P02.
 func (c ChannelInfo) Value() (driver.Value, error) {
 	b, err := common.Marshal(&c)
 	if err != nil {
@@ -450,28 +450,28 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 	var channels []*Channel
 	modelsCol := "`models`"
 
-	// 如果是 PostgreSQL，使用双引号
+	// If PostgreSQL, use double quotes
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		modelsCol = `"models"`
 	}
 
 	baseURLCol := "`base_url`"
-	// 如果是 PostgreSQL，使用双引号
+	// If PostgreSQL, use double quotes
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		baseURLCol = `"base_url"`
 	}
 
 	order := resolveChannelSortOptions(idSort, sortOptions)
 
-	// 构造基础查询
+	// Construct basic query
 	baseQuery := DB.Model(&Channel{}).Omit("key")
 
-	// 构造WHERE子句
+	// Construct WHERE clause
 	whereClause := "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + " LIKE ?"
 	args := []any{common.String2Int(keyword), "%" + keyword + "%", keyword, "%" + keyword + "%", "%" + model + "%"}
 	baseQuery = ApplyChannelGroupFilter(baseQuery.Where(whereClause, args...), group)
 
-	// 执行查询
+	// Execute query
 	err := order.Apply(baseQuery).Find(&channels).Error
 	if err != nil {
 		return nil, err
@@ -541,7 +541,7 @@ func BatchDeleteChannels(ids []int) (int64, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	// 使用事务 分批删除channel表和abilities表
+	// Use transactions to delete the channel table and abilities table in batches
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return 0, tx.Error
@@ -895,7 +895,7 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 		}
 		if channelCache.ChannelInfo.IsMultiKey {
 			beforeStatus := channelCache.Status
-			// 如果是多Key模式，更新缓存中的状态
+			// If it is multi-Key mode, update the status in the cache
 			handlerMultiKeyUpdate(channelCache, usingKey, status, reason)
 			if beforeStatus != channelCache.Status {
 				CacheUpdateChannelStatus(channelId, channelCache.Status)
@@ -903,7 +903,7 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			//CacheUpdateChannel(channelCache)
 			//return true
 		} else {
-			// 如果缓存渠道存在，且状态已是目标状态，直接返回
+			// If the cache channel exists and the status is already the target status, return directly
 			if channelCache.Status == status {
 				return false
 			}
@@ -1016,7 +1016,7 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 	updateData := Channel{}
 	shouldReCreateAbilities := false
 	updatedTag := tag
-	// 如果 newTag 不为空且不等于 tag，则更新 tag
+	// If newTag is not empty and not equal to tag, update tag
 	if newTag != nil && *newTag != tag {
 		updateData.Tag = newTag
 		updatedTag = *newTag
@@ -1117,13 +1117,13 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 	var tags []*string
 	modelsCol := "`models`"
 
-	// 如果是 PostgreSQL，使用双引号
+	// If PostgreSQL, use double quotes
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		modelsCol = `"models"`
 	}
 
 	baseURLCol := "`base_url`"
-	// 如果是 PostgreSQL，使用双引号
+	// If PostgreSQL, use double quotes
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		baseURLCol = `"base_url"`
 	}
@@ -1133,10 +1133,10 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 		order = "id desc"
 	}
 
-	// 构造基础查询
+	// Construct basic query
 	baseQuery := DB.Model(&Channel{}).Omit("key")
 
-	// 构造WHERE子句
+	// Construct WHERE clause
 	whereClause := "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + " LIKE ?"
 	args := []any{common.String2Int(keyword), "%" + keyword + "%", keyword, "%" + keyword + "%", "%" + model + "%"}
 	baseQuery = ApplyChannelGroupFilter(baseQuery.Where(whereClause, args...), group)
@@ -1208,7 +1208,7 @@ func (channel *Channel) GetSetting() dto.ChannelSettings {
 		err := common.Unmarshal([]byte(*channel.Setting), &setting)
 		if err != nil {
 			common.SysLog(common.LogText("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
-			channel.Setting = nil // 清空设置以避免后续错误
+			channel.Setting = nil // Clear settings to avoid subsequent errors
 			// Only the cleared column is written: the rest of this copy, its key
 			// included, may be older than the stored channel.
 			_ = DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("setting", nil).Error
@@ -1232,7 +1232,7 @@ func (channel *Channel) GetOtherSettings() dto.ChannelOtherSettings {
 		err := common.UnmarshalJsonStr(channel.OtherSettings, &setting)
 		if err != nil {
 			common.SysLog(common.LogText("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
-			channel.OtherSettings = "{}" // 清空设置以避免后续错误
+			channel.OtherSettings = "{}" // Clear settings to avoid subsequent errors
 			// Only the cleared column is written, as in GetSetting.
 			_ = DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("settings", channel.OtherSettings).Error
 		}
@@ -1281,13 +1281,13 @@ func GetChannelsByIds(ids []int) ([]*Channel, error) {
 }
 
 func BatchSetChannelTag(ids []int, tag *string) error {
-	// 开启事务
+	// Open transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
 
-	// 更新标签
+	// Update label
 	err := tx.Model(&Channel{}).Where("id in (?)", ids).Update("tag", tag).Error
 	if err != nil {
 		tx.Rollback()
@@ -1309,7 +1309,7 @@ func BatchSetChannelTag(ids []int, tag *string) error {
 		}
 	}
 
-	// 提交事务
+	// commit transaction
 	if err = tx.Commit().Error; err != nil {
 		return err
 	}

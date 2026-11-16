@@ -3,10 +3,7 @@ export const meta = {
   key: "jimeng",
   name: "Jimeng",
   icon: "Jimeng.Color",
-  description: {
-    en: "Volcengine Jimeng video generation (text-to-video, image-to-video, and first-and-last-frame)",
-    zh: "火山引擎即梦视频生成（文生视频、图生视频、首尾帧）",
-  },
+  description: { en: "Volcengine Jimeng video generation (text-to-video, image-to-video, and first-and-last-frame)" },
   version: "1.2.0",
   author: { name: "QuantumNous" },
   channelTypes: [51],
@@ -18,18 +15,18 @@ export const meta = {
     seconds: {
       type: "number",
       unit: "second",
-      description: { en: "Video generation unit price", zh: "视频生成单价" },
+      description: { en: "Video generation unit price" },
     },
     // Product tier derived from the final outbound req_key.
     product: {
       enum: ["s2_pro", "v30_720p", "v30_1080p", "v30_pro"],
       enumLabels: {
-        s2_pro: { en: "S2.0 Pro", zh: "S2.0 Pro" },
-        v30_720p: { en: "3.0 720p", zh: "3.0 720p" },
-        v30_1080p: { en: "3.0 1080p", zh: "3.0 1080p" },
-        v30_pro: { en: "3.0 Pro", zh: "3.0 Pro" },
+        s2_pro: { en: "S2.0 Pro" },
+        v30_720p: { en: "3.0 720p" },
+        v30_1080p: { en: "3.0 1080p" },
+        v30_pro: { en: "3.0 Pro" },
       },
-      description: { en: "Product tier", zh: "产品档位" },
+      description: { en: "Product tier" },
     },
   },
   usageExamples: [

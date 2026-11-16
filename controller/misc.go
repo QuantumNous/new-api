@@ -28,7 +28,7 @@ func TestStatus(c *gin.Context) {
 		writeAccountStatusError(c, http.StatusServiceUnavailable, "Database connection failed")
 		return
 	}
-	// 获取HTTP统计信息
+	// Get HTTP statistics
 	httpStats := middleware.GetStats()
 	c.JSON(http.StatusOK, gin.H{
 		"success":    true,
@@ -72,7 +72,7 @@ func GetStatus(c *gin.Context) {
 		"turnstile_site_key":          common.TurnstileSiteKey,
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit":              common.QuotaPerUnit,
-		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
+		// Compatible with old front-end: retain display_in_currency while providing new quota_display_type
 		"display_in_currency":           operation_setting.IsCurrencyDisplay(),
 		"quota_display_type":            operation_setting.GetQuotaDisplayType(),
 		"custom_currency_symbol":        operation_setting.GetGeneralSetting().CustomCurrencySymbol,
@@ -98,13 +98,13 @@ func GetStatus(c *gin.Context) {
 		"price":             operation_setting.Price,
 		"stripe_unit_price": setting.StripeUnitPrice,
 
-		// 面板启用开关
+		// Panel enable switch
 		"api_info_enabled":      cs.ApiInfoEnabled,
 		"uptime_kuma_enabled":   cs.UptimeKumaEnabled,
 		"announcements_enabled": cs.AnnouncementsEnabled,
 		"faq_enabled":           cs.FAQEnabled,
 
-		// 模块管理配置
+		// Module management configuration
 		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
 		"SidebarModulesAdmin": common.OptionMap["SidebarModulesAdmin"],
 
@@ -129,7 +129,7 @@ func GetStatus(c *gin.Context) {
 		"quota_remind_threshold":      common.QuotaRemindThreshold,
 	}
 
-	// 根据启用状态注入可选内容
+	// Inject optional content based on enabled status
 	if cs.ApiInfoEnabled {
 		data["api_info"] = console_setting.GetApiInfo()
 	}

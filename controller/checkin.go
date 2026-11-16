@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetCheckinStatus 获取用户签到状态和历史记录
+// GetCheckinStatus Gets user check-in status and history
 func GetCheckinStatus(c *gin.Context) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {
@@ -19,7 +19,7 @@ func GetCheckinStatus(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
-	// 获取月份参数，默认为当前月份
+	// Get the month parameter, the default is the current month
 	month := c.DefaultQuery("month", time.Now().Format("2006-01"))
 
 	stats, err := model.GetUserCheckinStats(userId, month)
@@ -39,7 +39,7 @@ func GetCheckinStatus(c *gin.Context) {
 	})
 }
 
-// DoCheckin 执行用户签到
+// DoCheckin performs user check-in
 func DoCheckin(c *gin.Context) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {

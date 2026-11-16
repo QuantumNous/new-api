@@ -28,7 +28,8 @@ import { I18nextProvider } from 'react-i18next'
 import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
-import zh from '@/i18n/locales/zh.json'
+
+const zh = en
 import {
   DEFAULT_CURRENCY_CONFIG,
   useSystemConfigStore,
@@ -283,7 +284,7 @@ test.each([false, true])(
     )
     await act(() => i18n.changeLanguage('zh'))
     expect(
-      screen.getByRole('button', { name: '动态计费 · 特殊计费表达式' })
+      screen.getByRole('button', { name: 'Dynamic Pricing · Special billing expression' })
     ).toBeVisible()
   }
 )
@@ -416,7 +417,7 @@ test('task log prices use localized unit labels from pricing metadata', async ()
           images: {
             type: 'number',
             unit: 'count',
-            unitLabel: { en: 'image', zh: '张' },
+            unitLabel: { en: 'image', zh: "image" },
           },
         },
       },
@@ -433,7 +434,7 @@ test('task log prices use localized unit labels from pricing metadata', async ()
   await act(() => i18n.changeLanguage('zh-CN'))
   expect(
     screen.getByRole('button', { name: /images · images/ })
-  ).toHaveTextContent('images · images $0.25/张')
+  ).toHaveTextContent('images · images $0.25/image')
 })
 
 test('task log prices select the executing provider’s schema', () => {

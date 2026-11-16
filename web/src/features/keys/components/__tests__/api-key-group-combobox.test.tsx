@@ -61,7 +61,7 @@ const options = [
     value: 'auto',
     label: 'auto',
     desc: 'Global automatic routing',
-    ratio: '自动',
+    ratio: "Auto",
   },
   { value: 'default', label: 'default', desc: 'User group', ratio: 1 },
   { value: 'vip', label: 'vip', desc: 'Priority group', ratio: 3 },
@@ -122,7 +122,7 @@ describe('API key group combobox Auto effect', () => {
     expect(triggerRatio).toHaveTextContent('Auto')
     expect(triggerRatio).not.toHaveTextContent('Ratio')
     expect(triggerRatio).not.toHaveTextContent('x')
-    expect(trigger).not.toHaveTextContent('自动')
+    expect(trigger).not.toHaveTextContent("Automatic group")
     expect(triggerRatio).toHaveClass(
       'relative',
       'overflow-visible',

@@ -70,7 +70,7 @@ var (
 	lastGetPricingTime   time.Time
 	updatePricingLock    sync.Mutex
 
-	// 缓存映射：模型名 -> 启用分组 / 计费类型
+	// Cache mapping: model name -> enable grouping/billing type
 	modelEnableGroups     = make(map[string][]string)
 	modelQuotaTypeMap     = make(map[string]int)
 	modelEnableGroupsLock = sync.RWMutex{}
@@ -104,10 +104,10 @@ func InvalidatePricingCache() {
 	lastGetPricingTime = time.Time{}
 }
 
-// GetVendors 返回当前定价接口使用到的供应商信息
+// GetVendors returns the supplier information used by the current pricing interface
 func GetVendors() []PricingVendor {
 	if time.Since(lastGetPricingTime) > time.Minute*1 || len(pricingMap) == 0 {
-		// 保证先刷新一次
+		// Make sure to refresh it first
 		GetPricing()
 	}
 	return vendorsList
@@ -221,7 +221,7 @@ func updatePricing() {
 		common.SysLog(common.LogText("GetAllEnableAbilityWithChannels error: %v", err))
 		return
 	}
-	// 预加载模型元数据与供应商一次，避免循环查询
+	// Preload model metadata and suppliers once to avoid circular queries
 	var allMeta []Model
 	_ = DB.Find(&allMeta).Error
 	names := make([]string, 0, len(enableAbilities))
@@ -230,7 +230,7 @@ func updatePricing() {
 	}
 	metaMap := resolveModelMetadata(allMeta, names)
 
-	// 预加载供应商
+	// Preload provider
 	var vendors []Vendor
 	_ = DB.Find(&vendors).Error
 	vendorMap := make(map[int]*Vendor)
@@ -238,10 +238,10 @@ func updatePricing() {
 		vendorMap[vendors[i].Id] = &vendors[i]
 	}
 
-	// 初始化默认供应商映射
+	// Initialize default vendor mapping
 	initDefaultVendorMapping(metaMap, vendorMap, enableAbilities)
 
-	// 构建对前端友好的供应商列表
+	// Build a front-end friendly supplier list
 	vendorsList = make([]PricingVendor, 0, len(vendorMap))
 	for _, v := range vendorMap {
 		vendorsList = append(vendorsList, PricingVendor{
@@ -276,11 +276,11 @@ func updatePricing() {
 		}
 	}
 
-	//这里使用切片而不是Set，因为一个模型可能支持多个端点类型，并且第一个端点是优先使用端点
+	// Slice is used here instead of Set because a model may support multiple endpoint types, and the first endpoint is used first.
 	modelSupportEndpointsStr := make(map[string][]string)
 	advancedCustomConfigs := loadPricingAdvancedCustomConfigs(enableAbilities)
 
-	// 先根据已有能力填充原生端点
+	// First populate the native endpoint based on existing capabilities
 	for _, ability := range enableAbilities {
 		endpoints := modelSupportEndpointsStr[ability.Model]
 		channelTypes := getPricingEndpointTypesForAbility(ability, advancedCustomConfigs)
@@ -292,7 +292,7 @@ func updatePricing() {
 		modelSupportEndpointsStr[ability.Model] = endpoints
 	}
 
-	// 再补充模型自定义端点：若配置有效则追加到已有推断，不再裁剪渠道真实能力
+	// Supplement the model custom endpoint: if the configuration is valid, it will be appended to the existing inference, and the real capacity of the channel will no longer be cut.
 	for modelName, meta := range metaMap {
 		if strings.TrimSpace(meta.Endpoints) == "" {
 			continue
@@ -322,9 +322,9 @@ func updatePricing() {
 		modelSupportEndpointTypes[model] = supportedEndpoints
 	}
 
-	// 构建全局 supportedEndpointMap（默认 + 自定义覆盖）
+	// Build global supportedEndpointMap (default + custom override)
 	supportedEndpointMap = make(map[string]common.EndpointInfo)
-	// 1. 默认端点
+	// 1. Default endpoint
 	for _, endpoints := range modelSupportEndpointTypes {
 		for _, et := range endpoints {
 			if info, ok := common.GetDefaultEndpointInfo(et); ok {
@@ -334,7 +334,7 @@ func updatePricing() {
 			}
 		}
 	}
-	// 2. 自定义端点（models 表）覆盖默认
+	// 2. Custom endpoint (models table) overrides the default
 	for _, meta := range metaMap {
 		if strings.TrimSpace(meta.Endpoints) == "" {
 			continue
@@ -369,9 +369,9 @@ func updatePricing() {
 			SupportedEndpointTypes: modelSupportEndpointTypes[model],
 		}
 
-		// 补充模型元数据（描述、标签、供应商、状态）
+		// Supplementary model metadata (description, tags, suppliers, status)
 		if meta, ok := metaMap[model]; ok {
-			// 若模型被禁用(status!=1)，则直接跳过，不返回给前端
+			// If the model is disabled (status!=1), it will be skipped directly and will not be returned to the front end.
 			if meta.Status != 1 {
 				continue
 			}
@@ -478,12 +478,12 @@ func updatePricing() {
 		pricingMap = append(pricingMap, pricing)
 	}
 
-	// 防止大更新后数据不通用
+	// Prevent data from becoming incompatible after major updates
 	if len(pricingMap) > 0 {
 		pricingMap[0].PricingVersion = "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
 	}
 
-	// 刷新缓存映射，供高并发快速查询
+	// Refresh cache mapping for high concurrency and fast query
 	modelEnableGroupsLock.Lock()
 	modelEnableGroups = make(map[string][]string)
 	modelQuotaTypeMap = make(map[string]int)
@@ -496,7 +496,7 @@ func updatePricing() {
 	lastGetPricingTime = time.Now()
 }
 
-// GetSupportedEndpointMap 返回全局端点到路径的映射
+// GetSupportedEndpointMap returns a mapping of global endpoints to paths
 func GetSupportedEndpointMap() map[string]common.EndpointInfo {
 	return supportedEndpointMap
 }

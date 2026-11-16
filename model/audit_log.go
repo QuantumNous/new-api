@@ -204,7 +204,7 @@ func GetAuditLogs(filter AuditLogFilter, start, limit, viewerRole int) ([]*Audit
 
 // UserAccessTokenStatus describes the legacy users.access_token credential.
 //
-// Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+// Deprecated: The old panel access token is only used during the transition period after the upgrade; it will be removed when the users.access_token column is deleted.
 type UserAccessTokenStatus struct {
 	Exists     bool   `json:"exists"`
 	TokenHint  string `json:"token_hint"`
@@ -216,7 +216,7 @@ type UserAccessTokenStatus struct {
 
 // GetUserAccessTokenStatus reads last use of the legacy token from the access audit.
 //
-// Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+// Deprecated: The old panel access token is only used during the transition period after the upgrade; it will be removed when the users.access_token column is deleted.
 func GetUserAccessTokenStatus(userId int) (*UserAccessTokenStatus, error) {
 	var user User
 	if err := DB.Select("id", "role", "access_token", "access_token_created_at").First(&user, userId).Error; err != nil {

@@ -64,7 +64,7 @@ function CellHarness(props: {
 describe('API key group table cell', () => {
   test('keeps the group and compact localized multiplier together with one subtle flowing edge', () => {
     const { container } = render(
-      <CellHarness group='auto' ratio='自动' crossGroupRetry />
+      <CellHarness group='auto' ratio="Auto" crossGroupRetry />
     )
     const group = screen.getByText('Cross-group')
     const multiplier = screen
@@ -73,7 +73,7 @@ describe('API key group table cell', () => {
     expect(group).toBeInTheDocument()
     expect(multiplier).toHaveClass('h-5', 'min-w-12', 'rounded-md')
     expect(multiplier).not.toHaveTextContent('Ratio')
-    expect(container).not.toHaveTextContent('自动')
+    expect(container).not.toHaveTextContent("Automatic group")
     expect(container.querySelector('[data-auto-group-frame]')).toBeNull()
     const flow = container.querySelector('[data-auto-group-flow-border]')
     expect(flow).toHaveClass('auto-group-flow-border-subtle')
@@ -152,9 +152,9 @@ describe('API key group table cell', () => {
   })
 
   test('never turns a string-valued normal group ratio into an automatic multiplier', () => {
-    render(<CellHarness group='vip' ratio='自动' />)
+    render(<CellHarness group='vip' ratio="Auto" />)
     expect(screen.getByText('vip')).toBeInTheDocument()
     expect(screen.queryByText('Auto')).not.toBeInTheDocument()
-    expect(screen.queryByText('自动')).not.toBeInTheDocument()
+    expect(screen.queryByText("Auto")).not.toBeInTheDocument()
   })
 })

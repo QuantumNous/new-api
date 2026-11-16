@@ -347,7 +347,7 @@ func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
-	// Ollama 通常不需要 Bearer token，但为了兼容性保留
+	// Ollama does not normally require Bearer tokens, but retains them for compatibility
 	if apiKey != "" {
 		request.Header.Set("Authorization", "Bearer "+apiKey)
 	}
@@ -377,13 +377,13 @@ func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
 	return tagsResponse.Models, nil
 }
 
-// 拉取 Ollama 模型 (非流式)
+// Pull Ollama model (non-streaming)
 func PullOllamaModel(baseURL, apiKey, modelName string) error {
 	url := fmt.Sprintf("%s/api/pull", baseURL)
 
 	pullRequest := OllamaPullRequest{
 		Name:   modelName,
-		Stream: false, // 非流式，简化处理
+		Stream: false, // Non-streaming, simplified processing
 	}
 
 	requestBody, err := common.Marshal(pullRequest)
@@ -392,7 +392,7 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 	}
 
 	client := &http.Client{
-		Timeout: 30 * 60 * 1000 * time.Millisecond, // 30分钟超时，支持大模型
+		Timeout: 30 * 60 * 1000 * time.Millisecond, // 30 minutes timeout, supports large models
 	}
 	request, err := http.NewRequest("POST", url, strings.NewReader(string(requestBody)))
 	if err != nil {
@@ -418,13 +418,13 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 	return nil
 }
 
-// 流式拉取 Ollama 模型 (支持进度回调)
+// Streaming pull Ollama model (supports progress callback)
 func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback func(OllamaPullResponse)) error {
 	url := fmt.Sprintf("%s/api/pull", baseURL)
 
 	pullRequest := OllamaPullRequest{
 		Name:   modelName,
-		Stream: true, // 启用流式
+		Stream: true, // enable streaming
 	}
 
 	requestBody, err := common.Marshal(pullRequest)
@@ -433,7 +433,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 	}
 
 	client := &http.Client{
-		Timeout: 60 * 60 * 1000 * time.Millisecond, // 1小时超时，支持超大模型
+		Timeout: 60 * 60 * 1000 * time.Millisecond, // 1 hour timeout, supports very large models
 	}
 	request, err := http.NewRequest("POST", url, strings.NewReader(string(requestBody)))
 	if err != nil {
@@ -456,7 +456,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 		return fmt.Errorf("failed to pull model, status %d: %s", response.StatusCode, string(body))
 	}
 
-	// 读取流式响应
+	// Read streaming response
 	scanner := helper.NewStreamScanner(response.Body)
 	successful := false
 	for scanner.Scan() {
@@ -467,14 +467,14 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 
 		var pullResponse OllamaPullResponse
 		if err := common.Unmarshal([]byte(line), &pullResponse); err != nil {
-			continue // 忽略解析失败的行
+			continue // Ignore lines where parsing fails
 		}
 
 		if progressCallback != nil {
 			progressCallback(pullResponse)
 		}
 
-		// 检查是否出现错误或完成
+		// Check for errors or completion
 		if strings.EqualFold(pullResponse.Status, "error") {
 			return fmt.Errorf("failed to pull model: %s", strings.TrimSpace(line))
 		}
@@ -495,7 +495,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 	return nil
 }
 
-// 删除 Ollama 模型
+// Delete Ollama model
 func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 	url := fmt.Sprintf("%s/api/delete", baseURL)
 

@@ -167,7 +167,7 @@ const IMAGE_REQUEST_KEYS = [
   "layer_decomposition_options",
 ];
 
-const IMAGE_UNIT_LABEL = { en: "image", zh: "张", "zh-TW": "張", fr: "image", ja: "枚", ru: "изображение", vi: "ảnh" };
+const IMAGE_UNIT_LABEL = { en: "image" };
 // Each output image is billed at its own pixel tier (official pricing bills
 // layers individually). Estimated at submit from the requested size and count;
 // settled from data[].size per successful image.
@@ -177,14 +177,14 @@ const IMAGE_USAGE_SCHEMA = {
     type: "number",
     unit: "count",
     unitLabel: IMAGE_UNIT_LABEL,
-    description: { en: "Image generation unit price (1.5K and below)", zh: "图片生成单价（1.5K 及以下）" },
+    description: { en: "Image generation unit price (1.5K and below)" },
   },
   // Successful output images above IMAGE_TIER_MAX_PIXELS.
   images_above_1_5k: {
     type: "number",
     unit: "count",
     unitLabel: IMAGE_UNIT_LABEL,
-    description: { en: "Image generation unit price (above 1.5K)", zh: "图片生成单价（1.5K 以上）" },
+    description: { en: "Image generation unit price (above 1.5K)" },
   },
   // Reference images: request count at submit, usage.input_images on completion.
   // Seedream 5.0 pro charges from the second image; the expression carries that
@@ -193,12 +193,12 @@ const IMAGE_USAGE_SCHEMA = {
     type: "number",
     unit: "count",
     unitLabel: IMAGE_UNIT_LABEL,
-    description: { en: "Input image unit price", zh: "输入图片单价" },
+    description: { en: "Input image unit price" },
   },
   // Layer decomposition outputs (base image plus layers) are priced per layer at their own rate.
   layer_decomposition: {
     type: "boolean",
-    description: { en: "Whether layer decomposition is enabled", zh: "是否开启图层拆分" },
+    description: { en: "Whether layer decomposition is enabled" },
   },
 };
 
@@ -217,7 +217,7 @@ function seedreamUsageSchema(profile) {
     schema.images_up_to_1_5k = IMAGE_USAGE_SCHEMA.images_up_to_1_5k;
     schema.images_above_1_5k = IMAGE_USAGE_SCHEMA.images_above_1_5k;
   } else {
-    schema.images_above_1_5k = { ...IMAGE_USAGE_SCHEMA.images_above_1_5k, description: { en: "Image generation unit price", zh: "图片生成单价" } };
+    schema.images_above_1_5k = { ...IMAGE_USAGE_SCHEMA.images_above_1_5k, description: { en: "Image generation unit price" } };
   }
   schema.input_images = IMAGE_USAGE_SCHEMA.input_images;
   if (profile.layers) schema.layer_decomposition = IMAGE_USAGE_SCHEMA.layer_decomposition;
@@ -231,11 +231,11 @@ function seedreamUsageFacts(lower, higher, inputImages, layered) {
 }
 
 function seedreamUsageExamples(profile) {
-  const examples = [{ label: "2K · 1 张", facts: seedreamUsageFacts(0, 1, 0, false) }];
-  if (hasLowerImageTier(profile)) examples.push({ label: "1K · 1 张 · 2 张参考图", facts: seedreamUsageFacts(1, 0, 2, false) });
-  else examples.push({ label: "2K · 1 张 · 2 张参考图", facts: seedreamUsageFacts(0, 1, 2, false) });
-  if (profile.sequential) examples.push({ label: "2K · 4 张组图", facts: seedreamUsageFacts(0, 4, 0, false) });
-  if (profile.layers) examples.push({ label: "图层拆分 · 2K 底图 + 4 层 1.5K", facts: seedreamUsageFacts(4, 1, 1, true) });
+  const examples = [{ label: "2K · 1 photo", facts: seedreamUsageFacts(0, 1, 0, false) }];
+  if (hasLowerImageTier(profile)) examples.push({ label: "1K · 1 picture · 2 reference pictures", facts: seedreamUsageFacts(1, 0, 2, false) });
+  else examples.push({ label: "2K · 1 picture · 2 reference pictures", facts: seedreamUsageFacts(0, 1, 2, false) });
+  if (profile.sequential) examples.push({ label: "2K · 4 pictures", facts: seedreamUsageFacts(0, 4, 0, false) });
+  if (profile.layers) examples.push({ label: "Layer split · 2K basemap + 4 layers 1.5K", facts: seedreamUsageFacts(4, 1, 1, true) });
   // Examples are complete vectors over the profile schema alone.
   const keys = Object.keys(seedreamUsageSchema(profile));
   return examples.map((example) => ({ label: example.label, facts: Object.fromEntries(keys.map((key) => [key, example.facts[key]])) }));
@@ -245,34 +245,34 @@ function seedreamUsageExamples(profile) {
 // lists only the resolutions and input kinds the model offers.
 function seedanceUsageSchema(profile) {
   const resolutionLabels = {};
-  for (const resolution of profile.resolutions) resolutionLabels[resolution] = { en: resolution, zh: resolution };
+  for (const resolution of profile.resolutions) resolutionLabels[resolution] = { en: resolution };
   const schema = {
     // Upstream billing tokens (estimated at submit, actual on completion).
     tokens: {
       type: "number",
       unit: "token",
-      description: { en: "Billing token unit price", zh: "计费 Token 单价" },
+      description: { en: "Billing token unit price" },
     },
     // Output video resolution; Seedance token unit price varies by resolution tier.
     resolution: {
       enum: profile.resolutions,
       enumLabels: resolutionLabels,
-      description: { en: "Output video resolution", zh: "输出视频分辨率" },
+      description: { en: "Output video resolution" },
     },
   };
   // Whether the request includes reference video input; Seedance 2.x prices video-to-video tokens at a lower unit rate.
   if (profile.videoInput) {
     schema.video_input = {
       enum: ["none", "video"],
-      enumLabels: { none: { en: "No reference video", zh: "无参考视频" }, video: { en: "With reference video", zh: "有参考视频" } },
-      description: { en: "Reference video input", zh: "参考视频输入" },
+      enumLabels: { none: { en: "No reference video" }, video: { en: "With reference video" } },
+      description: { en: "Reference video input" },
     };
   }
   // Seedance 1.5 pro prices videos with and without audio differently.
   if (profile.audio) {
     schema.generate_audio = {
       type: "boolean",
-      description: { en: "Whether audio is generated", zh: "是否生成音频" },
+      description: { en: "Whether audio is generated" },
     };
   }
   return schema;
@@ -284,12 +284,12 @@ function seedanceUsageSchema(profile) {
 // examples, plus the reference-video and silent variants the profile prices.
 function seedanceUsageExamples(profile) {
   const specs = profile.resolutions.map((resolution) => ({
-    label: resolution + " · 5s" + (profile.audio ? " · 有声" : ""),
+    label: resolution + " · 5s" + (profile.audio ? "· Audio" : ""),
     resolution: resolution,
     seconds: 5,
   }));
-  if (profile.videoInput) specs.push({ label: "720p · 5s (+4s 输入视频)", resolution: "720p", seconds: 9, video_input: "video" });
-  if (profile.audio) specs.push({ label: "720p · 5s · 无声", resolution: "720p", seconds: 5, generate_audio: false });
+  if (profile.videoInput) specs.push({ label: "720p · 5s (+4s input video)", resolution: "720p", seconds: 9, video_input: "video" });
+  if (profile.audio) specs.push({ label: "720p · 5s · Silent", resolution: "720p", seconds: 5, generate_audio: false });
   return specs.map((spec) => {
     const facts = { tokens: Math.round(estimateTokens(spec.seconds, spec.resolution)), resolution: spec.resolution };
     if (profile.videoInput) facts.video_input = spec.video_input || "none";
@@ -321,10 +321,7 @@ export const meta = {
   key: "doubao",
   name: "Doubao",
   icon: "Doubao.Color",
-  description: {
-    en: "Volcengine Doubao Seedance video generation and Seedream image generation",
-    zh: "火山引擎豆包 Seedance 视频生成与 Seedream 图片生成",
-  },
+  description: { en: "Volcengine Doubao Seedance video generation and Seedream image generation" },
   version: "1.5.0",
   author: { name: "QuantumNous" },
   channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format

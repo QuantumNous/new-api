@@ -58,7 +58,7 @@ func checkRedisLimit(userId int, notifyType string) (bool, error) {
 	ctx := context.Background()
 	key := fmt.Sprintf("notify_limit:%d:%s", userId, notifyType)
 
-	// SETNX 只在窗口开始时写入过期时间，INCR 会保留原 TTL；放在同一事务里避免产生永不过期的计数
+	// SETNX only writes the expiration time at the beginning of the window, and INCR will retain the original TTL; put it in the same transaction to avoid generating a count that will never expire.
 	pipe := common.RDB.TxPipeline()
 	pipe.SetNX(ctx, key, 0, getDuration())
 	incr := pipe.Incr(ctx, key)

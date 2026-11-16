@@ -145,7 +145,7 @@ func WeChatBind(c *gin.Context) {
 		common.ApiErrorT(c, "This {{provider}} account has already been bound", providerParams("WeChat"))
 		return
 	}
-	// 只更新绑定列，避免完整用户快照覆盖并发的封禁、降权或分组变更。
+	// Only update binding columns to avoid full user snapshots from overwriting concurrent bans, demotions, or group changes.
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
 		return model.UpdateUserBindColumnForSessionWithTx(tx, identity, "wechat_id", wechatId)
 	}); err != nil {

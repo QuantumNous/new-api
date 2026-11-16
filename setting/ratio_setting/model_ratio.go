@@ -12,7 +12,7 @@ import (
 
 // from songquanpeng/one-api
 const (
-	USD2RMB = 7.3 // 暂定 1 USD = 7.3 RMB
+	USD2RMB = 7.3 // Tentatively 1 USD = 7.3 RMB
 	USD     = 500 // $0.002 = 1 -> $1 = 500
 	RMB     = USD / USD2RMB
 )
@@ -185,8 +185,8 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.5-flash-preview-04-17-thinking":  0.075,
 	"gemini-2.5-flash-preview-05-20":           0.075,
 	"gemini-2.5-flash-preview-05-20-thinking":  0.075,
-	"gemini-2.5-flash-thinking-*":              0.075, // 用于为后续所有2.5 flash thinking budget 模型设置默认倍率
-	"gemini-2.5-pro-thinking-*":                0.625, // 用于为后续所有2.5 pro thinking budget 模型设置默认倍率
+	"gemini-2.5-flash-thinking-*":              0.075, // Used to set the default magnification for all subsequent 2.5 flash thinking budget models
+	"gemini-2.5-pro-thinking-*":                0.625, // Used to set the default magnification for all subsequent 2.5 pro thinking budget models
 	"gemini-2.5-flash-lite-preview-thinking-*": 0.05,
 	"gemini-2.5-flash-lite-preview-06-17":      0.05,
 	"gemini-2.5-flash":                         0.15,
@@ -217,8 +217,8 @@ var defaultModelRatio = map[string]float64{
 	"SparkDesk-v3.5":                           1.2858, // ￥0.018 / 1k tokens
 	"SparkDesk-v4.0":                           1.2858,
 	"hunyuan":                                  7.143, // ¥0.1 / 1k tokens  // https://cloud.tencent.com/document/product/1729/97731#e0e6be58-60c8-469f-bdeb-6c264ce3b4d0
-	// https://platform.lingyiwanwu.com/docs#-计费单元
-	// 已经按照 7.2 来换算美元价格
+	// https://platform.lingyiwanwu.com/docs#-Billing unit
+	// The price has been converted to USD according to 7.2
 	"yi-34b-chat-0205":       0.18,
 	"yi-34b-chat-200k":       0.864,
 	"yi-vl-plus":             0.432,
@@ -242,7 +242,7 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-chat":          0.27 / 2,
 	"deepseek-coder":         0.27 / 2,
 	"deepseek-reasoner":      0.55 / 2, // 0.55 / 1k tokens
-	// Perplexity online 模型对搜索额外收费，有需要应自行调整，此处不计入搜索费用
+	// The Perplexity online model charges extra for search. You should adjust it yourself if necessary. The search fee is not included here.
 	"llama-3-sonar-small-32k-chat":   0.2 / 1000 * USD,
 	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
 	"llama-3-sonar-large-32k-chat":   1 / 1000 * USD,
@@ -356,7 +356,7 @@ func UpdateModelPriceByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(modelPriceMap, jsonStr, InvalidateExposedDataCache)
 }
 
-// GetModelPrice 返回模型的价格，如果模型不存在则返回-1，false
+// GetModelPrice returns the price of the model, if the model does not exist it returns -1, false
 func GetModelPrice(name string, printErr bool) (float64, bool) {
 	name = FormatMatchingModelName(name)
 
@@ -374,7 +374,7 @@ func UpdateModelRatioByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(modelRatioMap, jsonStr, InvalidateExposedDataCache)
 }
 
-// 处理带有思考预算的模型名称，方便统一定价
+// Handle model names with thought budgets to facilitate unified pricing
 func handleThinkingBudgetModel(name, prefix, wildcard string) string {
 	if strings.HasPrefix(name, prefix) && strings.Contains(name, "-thinking-") {
 		return wildcard
@@ -497,7 +497,7 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			}
 			return 4, false
 		}
-		// gpt-5 匹配
+		// gpt-5 match
 		if strings.HasPrefix(name, "gpt-5") {
 			if !strings.Contains(name, ".") {
 				return 8, true
@@ -511,14 +511,14 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			// gpt-5.5 and later models are unlocked
 			return 6, false
 		}
-		// gpt-4.5-preview匹配
+		// gpt-4.5-preview matching
 		if strings.HasPrefix(name, "gpt-4.5-preview") {
 			return 2, true
 		}
 		if strings.HasPrefix(name, "gpt-4-turbo") || strings.HasSuffix(name, "gpt-4-1106") || strings.HasSuffix(name, "gpt-4-1105") {
 			return 3, true
 		}
-		// 没有特殊标记的 gpt-4 模型默认倍率为 2
+		// gpt-4 models without special markings have a default magnification of 2
 		return 2, false
 	}
 	if strings.HasPrefix(name, "o1") || strings.HasPrefix(name, "o3") {
@@ -553,9 +553,9 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			return 4, true
 		} else if strings.HasPrefix(name, "gemini-2.0") {
 			return 4, true
-		} else if strings.HasPrefix(name, "gemini-2.5-pro") { // 移除preview来增加兼容性，这里假设正式版的倍率和preview一致
+		} else if strings.HasPrefix(name, "gemini-2.5-pro") { // Remove preview to increase compatibility. It is assumed that the magnification of the official version is the same as that of preview.
 			return 8, false
-		} else if strings.HasPrefix(name, "gemini-2.5-flash") { // 处理不同的flash模型倍率
+		} else if strings.HasPrefix(name, "gemini-2.5-flash") { // Handling different flash model magnifications
 			if strings.HasPrefix(name, "gemini-2.5-flash-preview") {
 				return 3.5 / 0.15, false
 			}
@@ -587,7 +587,7 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			return 4, false
 		}
 	}
-	// hint 只给官方上4倍率，由于开源模型供应商自行定价，不对其进行补全倍率进行强制对齐
+	// hint only gives the official 4x magnification. Since the open source model supplier sets its own price, it does not complete the magnification for forced alignment.
 	if strings.HasPrefix(name, "ERNIE-Speed-") {
 		return 2, true
 	} else if strings.HasPrefix(name, "ERNIE-Lite-") {
@@ -720,7 +720,7 @@ func HasConfiguredModelRatio(name string) bool {
 	return ok
 }
 
-// 转换模型名，减少渠道必须配置各种带参数模型
+// Convert model names to reduce channels that must configure various models with parameters
 func FormatMatchingModelName(name string) string {
 	if strings.HasPrefix(name, "gemini-2.5-flash-lite") {
 		name = handleThinkingBudgetModel(name, "gemini-2.5-flash-lite", "gemini-2.5-flash-lite-thinking-*")
@@ -739,7 +739,7 @@ func FormatMatchingModelName(name string) string {
 	return name
 }
 
-// result: 倍率or价格， usePrice， exist
+// result: magnification or price, usePrice, exist
 func GetModelRatioOrPrice(model string) (float64, bool, bool) { // price or ratio
 	price, usePrice := GetModelPrice(model, false)
 	if usePrice {

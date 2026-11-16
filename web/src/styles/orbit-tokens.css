@@ -1,0 +1,81 @@
+/* Shared reference measurements. Functional New API controls retain their semantics. */
+:root {
+  --ws-primary: #0f172a;
+  --ws-primary-hover: #1e293b;
+  --ws-primary-active: #020617;
+  --ws-primary-text: #fff;
+  --ws-primary-transparent: #0f172a1a;
+  --ws-dark: #0f172a;
+  --ws-dark-hover: #1e293b;
+  --ws-dark-active: #020617;
+  --ws-bg: #fff;
+  --ws-bg-page: #fff;
+  --ws-surface: #fff;
+  --ws-bg-white: #fff;
+  --ws-bg-muted: #f8fafc;
+  --ws-bg-subtle: #f1f5f9;
+  --ws-border: #e2e8f0;
+  --ws-border-subtle: #f1f5f9;
+  --ws-border-divider: #f0f0f0;
+  --ws-settings-bg: #fff;
+  --ws-modal-bg: #fff;
+  --ws-drawer-bg: #fff;
+  --ws-settings-sidebar-bg: #f4f4f5;
+  --ws-settings-input-bg: #fff;
+  --ws-focus-border: #9197ff;
+  --ws-focus-shadow: 0 0 0 2px #9197ff33;
+  --ws-text: #0f172a;
+  --ws-text-primary: #0f172a;
+  --ws-text-secondary: #64748b;
+  --text-secondary: #64748b;
+  --ws-text-muted: #9ca3af;
+  --ws-text-checkbox: #4b5563;
+  --ws-error-bg: #fef2f2;
+  --ws-error-border: #fee2e2;
+  --ws-error-text: #dc2626;
+  --ws-radius-sm: 6px;
+  --ws-radius-md: 8px;
+  --ws-radius-lg: 10px;
+  --ws-radius-full: 9999px;
+  --ws-shadow-sm: 0 1px 4px #00000014;
+  --ws-shadow-md: 0 2px 8px #00000014;
+  --ws-shadow-dark: 0 2px 6px #0f172a26;
+  --ws-shadow-dark-hover: 0 4px 10px #0f172a38;
+  --ws-sidebar-tab-active-bg: #14151c0f;
+  --ws-sidebar-tab-hover-bg: #14151c0a;
+  --ws-sidebar-tab-active-hover-bg: #14151c14;
+  --ws-bg-hover: #14151c0a;
+  --ws-sidebar-bg: #f4f4f5;
+  --ws-sidebar-menu-color: #334155;
+  --efm_ant-color-bg-base: #fff;
+  --orbit-accent: #615ced;
+  --orbit-accent-surface: #f3f3fe;
+  --orbit-teal: #c3eee0;
+}
+/* The product has one typeface, including existing auth and administration shells. */
+:root,
+:root[data-font],
+:root[data-theme-preset] {
+  --font-ui-sans: Inter, 'Inter Variable', sans-serif;
+  --font-public-sans: Inter, 'Inter Variable', sans-serif;
+  --font-inter: Inter, 'Inter Variable', sans-serif;
+  --font-manrope: Inter, 'Inter Variable', sans-serif;
+  --font-serif: Inter, 'Inter Variable', sans-serif;
+  --font-body: Inter, 'Inter Variable', sans-serif;
+  --font-heading: Inter, 'Inter Variable', sans-serif;
+}
+/* Orbit default shell. Explicit administrator/user theme presets keep their color choices. */
+:root:not(.dark):not([data-theme-preset]),
+:root:not(.dark)[data-theme-preset='default'] {
+  --background: #fff;
+  --foreground: #0f172a;
+  --card: #fff;
+  --primary: #0f172a;
+  --primary-foreground: #fff;
+  --secondary: #f3f3fe;
+  --border: #e2e8f0;
+  --ring: #9197ff;
+  --radius: 0.5rem;
+  --sidebar: #f4f4f5;
+  --sidebar-foreground: #334155;
+}

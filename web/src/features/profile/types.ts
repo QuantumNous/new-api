@@ -43,7 +43,7 @@ export interface UserProfile {
   username: string
   /** Display name */
   display_name: string
-  /** User role (1=普通用户, 10=管理员, 100=超级管理员) */
+  /* * User role (1=normal user, 10=administrator, 100=super administrator) */
   role: number
   /** Email address */
   email?: string
@@ -55,7 +55,7 @@ export interface UserProfile {
   used_quota: number
   /** Total request count */
   request_count: number
-  /** Account status (1=启用, 2=禁用, 3=待审核, 4=已删除) */
+  /* * Account status (1=enabled, 2=disabled, 3=pending review, 4=deleted) */
   status: number
   /** Access token (system token) */
   access_token?: string

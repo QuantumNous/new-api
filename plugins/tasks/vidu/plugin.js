@@ -3,10 +3,7 @@ export const meta = {
   key: "vidu",
   name: "Vidu",
   icon: "Vidu.Color",
-  description: {
-    en: "Shengshu Vidu video generation (text-to-video, image-to-video, first-and-last-frame, and reference-to-video)",
-    zh: "生数 Vidu 视频生成（文生视频、图生视频、首尾帧、参考生视频）",
-  },
+  description: { en: "Shengshu Vidu video generation (text-to-video, image-to-video, first-and-last-frame, and reference-to-video)" },
   version: "1.2.0",
   author: { name: "QuantumNous" },
   channelTypes: [52],
@@ -35,26 +32,26 @@ export const meta = {
     credits: {
       type: "number",
       unit: "credit",
-      description: { en: "Vidu credit unit price", zh: "Vidu 积分单价" },
+      description: { en: "Vidu credit unit price" },
     },
     // Requested video duration in seconds.
     duration: {
       type: "number",
       unit: "second",
-      description: { en: "Video generation unit price", zh: "视频生成单价" },
+      description: { en: "Video generation unit price" },
     },
     // Requested output video resolution.
     resolution: {
       enum: ["360p", "540p", "720p", "1080p", "2K", "4K"],
       enumLabels: {
-        "360p": { en: "360p", zh: "360p" },
-        "540p": { en: "540p", zh: "540p" },
-        "720p": { en: "720p", zh: "720p" },
-        "1080p": { en: "1080p", zh: "1080p" },
-        "2K": { en: "2K", zh: "2K" },
-        "4K": { en: "4K", zh: "4K" },
+        "360p": { en: "360p" },
+        "540p": { en: "540p" },
+        "720p": { en: "720p" },
+        "1080p": { en: "1080p" },
+        "2K": { en: "2K" },
+        "4K": { en: "4K" },
       },
-      description: { en: "Output video resolution", zh: "输出视频分辨率" },
+      description: { en: "Output video resolution" },
     },
   },
   // credits is 0 in examples because this plugin does not estimate vendor credits;

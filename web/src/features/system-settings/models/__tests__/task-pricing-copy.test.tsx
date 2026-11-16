@@ -35,9 +35,9 @@ function renderPricing(unitLabel?: Record<string, string>) {
           enum: ['music', 'lyrics'],
           enumLabels: {
             music: { en: 'Generate songs', zh: '生成歌曲' },
-            lyrics: { en: 'Generate lyrics', zh: '生成歌词' },
+            lyrics: { en: 'Generate lyrics', zh: "Generate Lyrics" },
           },
-          description: { en: 'Generate songs or lyrics', zh: '生成歌曲或歌词' },
+          description: { en: 'Generate songs or lyrics', zh: 'Generate songs or lyrics' },
         },
         clips: {
           type: 'number',
@@ -73,8 +73,8 @@ it('shows localized schema explanations in the price table and calculator', asyn
     )
   ).toBeVisible()
   await act(() => i18next.changeLanguage('zhCN'))
-  expect(within(table).getByText('生成歌曲单价')).toBeVisible()
-  expect(screen.getByRole('combobox', { name: '生成歌曲或歌词' })).toBeVisible()
+  expect(within(table).getByText("Song generation unit price")).toBeVisible()
+  expect(screen.getByRole('combobox', { name: 'Generate songs or lyrics' })).toBeVisible()
 })
 
 it('uses count unit labels in the price matrix and calculator without changing the charge', async () => {
@@ -86,9 +86,9 @@ it('uses count unit labels in the price matrix and calculator without changing t
     )
   ).toBeVisible()
   await act(() => i18next.changeLanguage('zhCN'))
-  expect(within(screen.getByRole('table')).getByText('$/首')).toBeVisible()
-  expect(screen.getByText('首')).toBeVisible()
-  expect(screen.getByText(/1 首 × \$11\/首 = \$12/)).toBeVisible()
+  expect(within(screen.getByRole('table')).getByText('$/song')).toBeVisible()
+  expect(screen.getByText("song")).toBeVisible()
+  expect(screen.getByText(/1 song × \$11\/song = \$12/)).toBeVisible()
 })
 
 it('identifies pricing conditions and keeps the additional charge unchanged when sample usage changes', async () => {
@@ -307,7 +307,7 @@ it.each(['image', 'video'] as const)(
         image_count: {
           type: 'number' as const,
           unit: 'count' as const,
-          unitLabel: { en: 'image', zh: '张' },
+          unitLabel: { en: 'image', zh: "image" },
           description: { en: 'Image quantity' },
         },
       },

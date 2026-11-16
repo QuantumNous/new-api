@@ -11,7 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
-// WorkerRequest Worker请求的数据结构
+// WorkerRequest Data structure of Worker request
 type WorkerRequest struct {
 	URL     string            `json:"url"`
 	Key     string            `json:"key"`
@@ -20,7 +20,7 @@ type WorkerRequest struct {
 	Body    json.RawMessage   `json:"body,omitempty"`
 }
 
-// DoWorkerRequest 通过Worker发送请求
+// DoWorkerRequest sends request through Worker
 func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 	if !system_setting.EnableWorker() {
 		return nil, fmt.Errorf("worker not enabled")
@@ -29,7 +29,7 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 		return nil, fmt.Errorf("only support https url")
 	}
 
-	// SSRF防护：验证请求URL
+	// SSRF Protection: Verify Request URL
 	fetchSetting := system_setting.GetFetchSetting()
 	if err := common.ValidateURLWithFetchSetting(req.URL, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain); err != nil {
 		return nil, fmt.Errorf("request reject: %v", err)
@@ -40,7 +40,7 @@ func DoWorkerRequest(req *WorkerRequest) (*http.Response, error) {
 		workerUrl += "/"
 	}
 
-	// 序列化worker请求数据
+	// Serialize worker request data
 	workerPayload, err := common.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal worker payload: %v", err)
@@ -58,7 +58,7 @@ func DoDownloadRequest(originUrl string, reason ...string) (resp *http.Response,
 		}
 		return DoWorkerRequest(req)
 	} else {
-		// SSRF防护：验证请求URL（非Worker模式）
+		// SSRF protection: Verify request URL (non-worker mode)
 		if err := ValidateSSRFProtectedFetchURL(originUrl); err != nil {
 			return nil, fmt.Errorf("request reject: %v", err)
 		}

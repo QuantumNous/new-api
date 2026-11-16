@@ -27,8 +27,8 @@ var commonFalseVal string
 var logKeyCol string
 var logGroupCol string
 
-// jsonScanBytes 归一化 json 列的驱动返回值:不同驱动/协议模式下同一列可能
-// 以 []byte 或 string 返回,静默丢弃 string 会导致字段被清零而不报错。
+// Driver return value of jsonScanBytes normalized json column: the same column may be used in different driver/protocol modes
+// Return as []byte or string, silently discarding string will cause the field to be cleared without reporting an error.
 func jsonScanBytes(value any) []byte {
 	switch v := value.(type) {
 	case []byte:
@@ -151,8 +151,8 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error)
 		if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
 			// Use PostgreSQL
 			common.SysLog(common.LogText("using PostgreSQL as database"))
-			// 同时关闭 pgx 隐式与 GORM 显式预处理语句:命名 prepared statement 与
-			// 事务池代理(PgBouncer/Neon/Supabase)不兼容,会触发 FATAL 08P01/42P05。
+			// Turn off pgx implicit and GORM explicit prepared statements at the same time: named prepared statement and
+			// The transaction pool agent (PgBouncer/Neon/Supabase) is incompatible and will trigger FATAL 08P01/42P05.
 			db, err := gorm.Open(postgresMigrationDialector{postgres.Dialector{Config: &postgres.Config{
 				DSN:                  dsn,
 				PreferSimpleProtocol: true,
@@ -720,7 +720,7 @@ func CloseDB() error {
 // default charset/collation can store Chinese characters. It allows common
 // Chinese-capable charsets (utf8mb4, utf8, gbk, big5, gb18030) and panics otherwise.
 func checkMySQLChineseSupport(db *gorm.DB) error {
-	// 仅检测：当前库默认字符集/排序规则 + 各表的排序规则（隐含字符集）
+	// Only detects: current library default character set/collation + collation of each table (implied character set)
 
 	// Read current schema defaults
 	var schemaCharset, schemaCollation string
@@ -747,7 +747,7 @@ func checkMySQLChineseSupport(db *gorm.DB) error {
 			}
 			return strings.HasPrefix(clLower, prefix)
 		}
-		// 如果仅提供了排序规则，尝试按排序规则前缀判断
+		// If only collation is provided, try to judge by collation prefix
 		for _, prefix := range allowedCharsets {
 			if strings.HasPrefix(clLower, prefix) {
 				return true
@@ -756,13 +756,13 @@ func checkMySQLChineseSupport(db *gorm.DB) error {
 		return false
 	}
 
-	// 1) 当前库默认值必须支持中文
+	// 1) The current library default value must support Chinese
 	if !isChineseCapable(schemaCharset, schemaCollation) {
 		return fmt.Errorf("Schema default charset/collation is not Chinese-capable: schema(%s/%s). Please set to utf8mb4/utf8/gbk/big5/gb18030",
 			schemaCharset, schemaCollation)
 	}
 
-	// 2) 所有物理表的排序规则（隐含字符集）必须支持中文
+	// 2) The collation rules (implied character sets) of all physical tables must support Chinese
 	type tableInfo struct {
 		Name      string
 		Collation *string
@@ -774,12 +774,12 @@ func checkMySQLChineseSupport(db *gorm.DB) error {
 
 	var badTables []string
 	for _, t := range tables {
-		// NULL 或空表示继承库默认设置，已在上面校验库默认，视为通过
+		// NULL or empty means inheriting the library default settings. The library defaults have been verified above and are considered passed.
 		if t.Collation == nil || *t.Collation == "" {
 			continue
 		}
 		cl := *t.Collation
-		// 仅凭排序规则判断是否中文可用
+		// Determine whether Chinese is available only based on sorting rules
 		ok := false
 		lower := strings.ToLower(cl)
 		for _, prefix := range allowedCharsets {
@@ -794,7 +794,7 @@ func checkMySQLChineseSupport(db *gorm.DB) error {
 	}
 
 	if len(badTables) > 0 {
-		// 限制输出数量以避免日志过长
+		// Limit the number of outputs to avoid overly long logs
 		maxShow := 20
 		shown := badTables
 		if len(shown) > maxShow {

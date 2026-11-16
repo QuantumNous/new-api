@@ -218,7 +218,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	if req.InputReference != "" {
 		req.Images = []string{req.InputReference}
 	} else if len(req.Images) == 0 && strings.TrimSpace(req.Image) != "" {
-		// 兼容单图上传
+		// Compatible with single image upload
 		req.Images = []string{strings.TrimSpace(req.Image)}
 	}
 
@@ -258,7 +258,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 		if model == "sora-2-pro" && !lo.Contains([]string{"720x1280", "1280x720", "1792x1024", "1024x1792"}, size) {
 			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
 		}
-		// OtherRatios 已移到 Sora adaptor 的 EstimateBilling 中设置
+		// OtherRatios has been moved to the Sora adapter's EstimateBilling setting
 	}
 
 	storeTaskRequest(c, info, action, req)
@@ -275,7 +275,7 @@ func isKnownTaskField(field string) bool {
 		"images":          true,
 		"size":            true,
 		"duration":        true,
-		"input_reference": true, // Sora 特有字段
+		"input_reference": true, // Sora specific fields
 	}
 	return knownFields[field]
 }
@@ -290,7 +290,7 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 			return createTaskError(err, "invalid_multipart_form", http.StatusBadRequest, true)
 		}
 	}
-	// 为了metadata字段的兼容性，统一UnmarshalBodyReusable
+	// For the compatibility of metadata fields, UnmarshalBodyReusable is unified
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		return createTaskError(err, "invalid_request", http.StatusBadRequest, true)
 	}
@@ -304,7 +304,7 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	}
 
 	if len(req.Images) == 0 && strings.TrimSpace(req.Image) != "" {
-		// 兼容单图上传
+		// Compatible with single image upload
 		req.Images = []string{req.Image}
 	}
 

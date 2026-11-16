@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newTestContainerUsage 在临时目录中构造 cgroup 文件，避免依赖运行环境的真实 cgroup。
+// newTestContainerUsage constructs a cgroup file in the temporary directory to avoid relying on the real cgroup of the running environment.
 func newTestContainerUsage(t *testing.T, schedulableCPUs float64, files map[string]string) *containerUsage {
 	t.Helper()
 	root := t.TempDir()
@@ -40,7 +40,7 @@ func TestContainerCPUSaturation(t *testing.T) {
 			schedulableCPUs: 4,
 			files:           map[string]string{"cpu.max": "200000 100000\n", "cpu.stat": "usage_usec 1000000\nuser_usec 900000\n"},
 			usageFile:       "cpu.stat",
-			usageAfter:      "usage_usec 6000000\n", // 5 秒用 1 核，配额 2 核
+			usageAfter:      "usage_usec 6000000\n", // 5 seconds using 1 core, quota 2 cores
 			want:            50,
 		},
 		{
@@ -48,7 +48,7 @@ func TestContainerCPUSaturation(t *testing.T) {
 			schedulableCPUs: 4,
 			files:           map[string]string{"cpu.max": "50000 100000\n", "cpu.stat": "usage_usec 1000000\n"},
 			usageFile:       "cpu.stat",
-			usageAfter:      "usage_usec 3500000\n", // 5 秒用 0.5 核，配额 0.5 核
+			usageAfter:      "usage_usec 3500000\n", // 0.5 cores used for 5 seconds, quota 0.5 cores
 			want:            100,
 		},
 		{
@@ -56,7 +56,7 @@ func TestContainerCPUSaturation(t *testing.T) {
 			schedulableCPUs: 1,
 			files:           map[string]string{"cpu.max": "200000 100000\n", "cpu.stat": "usage_usec 1000000\n"},
 			usageFile:       "cpu.stat",
-			usageAfter:      "usage_usec 6000000\n", // cpuset 只有 1 核，已打满
+			usageAfter:      "usage_usec 6000000\n", // cpuset has only 1 core and is fully loaded.
 			want:            100,
 		},
 		{
@@ -68,7 +68,7 @@ func TestContainerCPUSaturation(t *testing.T) {
 				"cpuacct/cpuacct.usage": "1000000000\n",
 			},
 			usageFile:  "cpuacct/cpuacct.usage",
-			usageAfter: "11000000000\n", // 纳秒：5 秒用 2 核
+			usageAfter: "11000000000\n", // Nanoseconds: 5 seconds using 2 cores
 			want:       100,
 		},
 	}
@@ -199,8 +199,8 @@ func TestSystemOverloadRequiresConsecutiveSamples(t *testing.T) {
 		{usage: 95, wantOverload: false},
 		{usage: 95, wantOverload: true},
 		{usage: 95, wantOverload: true},
-		{usage: 50, wantOverload: false}, // 回落即恢复
-		{usage: 95, wantOverload: false}, // 重新累计
+		{usage: 50, wantOverload: false}, // Fall back to recovery
+		{usage: 95, wantOverload: false}, // Reaccumulate
 		{usage: 95, wantOverload: false},
 		{usage: 95, wantOverload: true},
 	}

@@ -107,13 +107,13 @@ function RootComponent() {
   )
 }
 
-// 同一页面会话内避免重复检查；刷新后重新校验当前服务实例。
+// Avoid repeated checks within the same page session; recheck the current service instance after refreshing.
 let setupStatusChecked = false
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
 }>()({
-  // 应用初始化与路由解析前统一校验会话
+  // Unified verification session before application initialization and route resolution
   beforeLoad: async ({ location }) => {
     const legacyTarget = resolveLegacyRoute(location.href)
     if (legacyTarget) {
@@ -125,7 +125,7 @@ export const Route = createRootRouteWithContext<{
       !setupStatusChecked && !pathname.startsWith('/setup')
     const authBootstrap = bootstrapAuthentication()
 
-    // 只检查 setup 状态（如果需要）
+    // Only check setup status (if needed)
     if (needsSetupCheck) {
       const [status] = await Promise.all([
         getSetupStatus().catch((error) => {

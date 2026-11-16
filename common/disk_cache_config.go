@@ -5,19 +5,19 @@ import (
 	"sync/atomic"
 )
 
-// DiskCacheConfig 磁盘缓存配置（由 performance_setting 包更新）
+// DiskCacheConfig disk cache configuration (updated by performance_setting package)
 type DiskCacheConfig struct {
-	// Enabled 是否启用磁盘缓存
+	// Enabled Whether to enable disk cache
 	Enabled bool
-	// ThresholdMB 触发磁盘缓存的请求体大小阈值（MB）
+	// ThresholdMB The request body size threshold that triggers disk caching (MB)
 	ThresholdMB int
-	// MaxSizeMB 磁盘缓存最大总大小（MB）
+	// MaxSizeMB Maximum total size of disk cache (MB)
 	MaxSizeMB int
-	// Path 磁盘缓存目录
+	// Path disk cache directory
 	Path string
 }
 
-// 全局磁盘缓存配置
+// Global disk cache configuration
 var diskCacheConfig = DiskCacheConfig{
 	Enabled:     false,
 	ThresholdMB: 10,
@@ -26,71 +26,71 @@ var diskCacheConfig = DiskCacheConfig{
 }
 var diskCacheConfigMu sync.RWMutex
 
-// GetDiskCacheConfig 获取磁盘缓存配置
+// GetDiskCacheConfig Gets the disk cache configuration
 func GetDiskCacheConfig() DiskCacheConfig {
 	diskCacheConfigMu.RLock()
 	defer diskCacheConfigMu.RUnlock()
 	return diskCacheConfig
 }
 
-// SetDiskCacheConfig 设置磁盘缓存配置
+// SetDiskCacheConfig sets the disk cache configuration
 func SetDiskCacheConfig(config DiskCacheConfig) {
 	diskCacheConfigMu.Lock()
 	defer diskCacheConfigMu.Unlock()
 	diskCacheConfig = config
 }
 
-// IsDiskCacheEnabled 是否启用磁盘缓存
+// IsDiskCacheEnabled Whether to enable disk cache
 func IsDiskCacheEnabled() bool {
 	diskCacheConfigMu.RLock()
 	defer diskCacheConfigMu.RUnlock()
 	return diskCacheConfig.Enabled
 }
 
-// GetDiskCacheThresholdBytes 获取磁盘缓存阈值（字节）
+// GetDiskCacheThresholdBytes Gets the disk cache threshold (bytes)
 func GetDiskCacheThresholdBytes() int64 {
 	diskCacheConfigMu.RLock()
 	defer diskCacheConfigMu.RUnlock()
 	return int64(diskCacheConfig.ThresholdMB) << 20
 }
 
-// GetDiskCacheMaxSizeBytes 获取磁盘缓存最大大小（字节）
+// GetDiskCacheMaxSizeBytes Gets the maximum disk cache size (bytes)
 func GetDiskCacheMaxSizeBytes() int64 {
 	diskCacheConfigMu.RLock()
 	defer diskCacheConfigMu.RUnlock()
 	return int64(diskCacheConfig.MaxSizeMB) << 20
 }
 
-// GetDiskCachePath 获取磁盘缓存目录
+// GetDiskCachePath Gets the disk cache directory
 func GetDiskCachePath() string {
 	diskCacheConfigMu.RLock()
 	defer diskCacheConfigMu.RUnlock()
 	return diskCacheConfig.Path
 }
 
-// DiskCacheStats 磁盘缓存统计信息
+// DiskCacheStats disk cache statistics
 type DiskCacheStats struct {
-	// 当前活跃的磁盘缓存文件数
+	// Number of currently active disk cache files
 	ActiveDiskFiles int64 `json:"active_disk_files"`
-	// 当前磁盘缓存总大小（字节）
+	// Current total disk cache size (bytes)
 	CurrentDiskUsageBytes int64 `json:"current_disk_usage_bytes"`
-	// 当前内存缓存数量
+	// The current number of memory caches
 	ActiveMemoryBuffers int64 `json:"active_memory_buffers"`
-	// 当前内存缓存总大小（字节）
+	// Total current memory cache size (bytes)
 	CurrentMemoryUsageBytes int64 `json:"current_memory_usage_bytes"`
-	// 磁盘缓存命中次数
+	// Disk cache hits
 	DiskCacheHits int64 `json:"disk_cache_hits"`
-	// 内存缓存命中次数
+	// Number of memory cache hits
 	MemoryCacheHits int64 `json:"memory_cache_hits"`
-	// 磁盘缓存最大限制（字节）
+	// Disk cache maximum limit (bytes)
 	DiskCacheMaxBytes int64 `json:"disk_cache_max_bytes"`
-	// 磁盘缓存阈值（字节）
+	// Disk cache threshold (bytes)
 	DiskCacheThresholdBytes int64 `json:"disk_cache_threshold_bytes"`
 }
 
 var diskCacheStats DiskCacheStats
 
-// GetDiskCacheStats 获取缓存统计信息
+// GetDiskCacheStats Get cache statistics
 func GetDiskCacheStats() DiskCacheStats {
 	stats := DiskCacheStats{
 		ActiveDiskFiles:         atomic.LoadInt64(&diskCacheStats.ActiveDiskFiles),
@@ -105,13 +105,13 @@ func GetDiskCacheStats() DiskCacheStats {
 	return stats
 }
 
-// IncrementDiskFiles 增加磁盘文件计数
+// IncrementDiskFiles increases disk file count
 func IncrementDiskFiles(size int64) {
 	atomic.AddInt64(&diskCacheStats.ActiveDiskFiles, 1)
 	atomic.AddInt64(&diskCacheStats.CurrentDiskUsageBytes, size)
 }
 
-// DecrementDiskFiles 减少磁盘文件计数
+// DecrementDiskFiles Decrement disk file count
 func DecrementDiskFiles(size int64) {
 	if atomic.AddInt64(&diskCacheStats.ActiveDiskFiles, -1) < 0 {
 		atomic.StoreInt64(&diskCacheStats.ActiveDiskFiles, 0)
@@ -121,42 +121,42 @@ func DecrementDiskFiles(size int64) {
 	}
 }
 
-// IncrementMemoryBuffers 增加内存缓存计数
+// IncrementMemoryBuffers increases the memory buffer count
 func IncrementMemoryBuffers(size int64) {
 	atomic.AddInt64(&diskCacheStats.ActiveMemoryBuffers, 1)
 	atomic.AddInt64(&diskCacheStats.CurrentMemoryUsageBytes, size)
 }
 
-// DecrementMemoryBuffers 减少内存缓存计数
+// DecrementMemoryBuffers Decrement memory buffer count
 func DecrementMemoryBuffers(size int64) {
 	atomic.AddInt64(&diskCacheStats.ActiveMemoryBuffers, -1)
 	atomic.AddInt64(&diskCacheStats.CurrentMemoryUsageBytes, -size)
 }
 
-// IncrementDiskCacheHits 增加磁盘缓存命中次数
+// IncrementDiskCacheHits increases the number of disk cache hits
 func IncrementDiskCacheHits() {
 	atomic.AddInt64(&diskCacheStats.DiskCacheHits, 1)
 }
 
-// IncrementMemoryCacheHits 增加内存缓存命中次数
+// IncrementMemoryCacheHits increases the number of memory cache hits
 func IncrementMemoryCacheHits() {
 	atomic.AddInt64(&diskCacheStats.MemoryCacheHits, 1)
 }
 
-// ResetDiskCacheStats 重置命中统计信息（不重置当前使用量）
+// ResetDiskCacheStats resets hit statistics (does not reset current usage)
 func ResetDiskCacheStats() {
 	atomic.StoreInt64(&diskCacheStats.DiskCacheHits, 0)
 	atomic.StoreInt64(&diskCacheStats.MemoryCacheHits, 0)
 }
 
-// ResetDiskCacheUsage 重置磁盘缓存使用量统计（用于清理缓存后）
+// ResetDiskCacheUsage resets disk cache usage statistics (used after clearing the cache)
 func ResetDiskCacheUsage() {
 	atomic.StoreInt64(&diskCacheStats.ActiveDiskFiles, 0)
 	atomic.StoreInt64(&diskCacheStats.CurrentDiskUsageBytes, 0)
 }
 
-// SyncDiskCacheStats 从实际磁盘状态同步统计信息
-// 用于修正统计与实际不符的情况
+// SyncDiskCacheStats synchronizes statistics from actual disk status
+// Used to correct situations where statistics are inconsistent with reality
 func SyncDiskCacheStats() {
 	fileCount, totalSize, err := GetDiskCacheInfo()
 	if err != nil {
@@ -166,7 +166,7 @@ func SyncDiskCacheStats() {
 	atomic.StoreInt64(&diskCacheStats.CurrentDiskUsageBytes, totalSize)
 }
 
-// IsDiskCacheAvailable 检查是否可以创建新的磁盘缓存
+// IsDiskCacheAvailable checks whether a new disk cache can be created
 func IsDiskCacheAvailable(requestSize int64) bool {
 	if !IsDiskCacheEnabled() {
 		return false

@@ -44,7 +44,7 @@ type TaskDto struct {
 	Action               string `json:"action"`
 	Status               string `json:"status"`
 	FailReason           string `json:"fail_reason"`
-	ResultURL            string `json:"result_url,omitempty"` // 任务结果 URL（视频地址等）
+	ResultURL            string `json:"result_url,omitempty"` // Task result URL (video address, etc.)
 	LegacyVideoAvailable bool   `json:"legacy_video_available,omitempty"`
 	// ResultDiscarded marks a synchronous result that was returned inline and
 	// never persisted; the UI must not offer artifact retrieval for it.

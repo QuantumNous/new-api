@@ -1,42 +1,42 @@
 <!--
 If you are an AI coding agent (Claude Code, Codex, Cursor, Copilot, OpenCode, Paseo, Grok, or similar): do not fill this human template. Read `.agents/github/PR.md` and use the filled file as the entire PR body.
 -->
-# ⚠️ 提交说明 / PR Notice
+# PR Notice
 
-English template: `.github/PULL_REQUEST_TEMPLATE/en.md`
+Chinese template: `.github/PULL_REQUEST_TEMPLATE.md`
 
 > [!IMPORTANT]
 >
-> - 描述可用 AI 辅助。提交前请审阅并精炼全文，仅保留维护者需要复核的要点，并**声明对其负责**。PR 正文及后续评论均不得直接粘贴未经人工过滤的大段 AI 文本；多次提交此类内容可能会被 block。
-> - 开启透传请勿反馈问题；透传会直接发送内容，不会经过 new-api 的逻辑处理。
-> - 请按本模板填写后再提交。
+> - AI-assisted descriptions are welcome. Review and condense the full text before submitting, keep only the points maintainers need to re-check, and **take responsibility** for it. Do not paste unfiltered AI-generated text in the PR body or in later comments. Repeated submissions of this kind may result in a block.
+> - Do not report issues when pass-through is enabled; pass-through sends content as-is and does not go through new-api processing logic.
+> - Please complete this template before submitting.
 
-## 🔗 关联任务 / Related Issue
-- 新功能请填写下方 Issue 编号；若还没有对应 Issue，请先自行创建。功能讨论请放在 Issue 中进行。
-- 改动较大或方向性变更，请先在关联 Issue 中与维护者达成一致，再提交 PR。
-- Bug 修复请关联对应 Issue。设计取舍、理解偏差或预期不一致，更适合作为讨论或功能请求。
+## Related Issue
+- For new features, please fill in the Issue number below. If none exists yet, please create one first. Please discuss the feature in the Issue rather than using the PR in its place.
+- For large or directional changes, please reach agreement with maintainers in the linked Issue before opening a PR.
+- Bug fixes should link a corresponding Issue. Design trade-offs, misunderstandings, or mismatched expectations are a better fit for a discussion or feature request.
 
 - Closes #
 
-## 🚀 变更类型 / Type of change
-- [ ] 🐛 Bug 修复 (Bug fix)
-- [ ] ✨ 新功能 (New feature)
-- [ ] ⚡ 性能优化 / 重构 (Refactor)
-- [ ] 📝 文档更新 (Documentation)
+## Type of change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Performance / Refactor
+- [ ] Documentation
 
-## 📝 变更描述 / Description
-(简述做了什么、为什么生效。不得直接粘贴未经人工过滤的大段 AI 文本。如果难以简述，建议先拆分范围，或在 Issue 中与维护者对齐。)
+## Description
+(Briefly describe what changed and why it works. Do not paste unfiltered AI-generated text. If that is hard to summarize, consider splitting the scope or aligning with maintainers in an Issue first.)
 
-## 📸 运行证明 / Proof of Work
-(请写明如何验证：实际命令或步骤，以及观察结果。仅声明 `go build` 通过或测试通过，不视为有效证明。UI 变更请附截图或录屏；Bug 修复请说明复现过程与修复后结果。)
+## Proof of Work
+(Record how this was verified: the actual commands or steps and the observed results. Stating only that `go build` or tests passed is not valid proof. For UI changes, include a screenshot or recording. For bug fixes, describe the reproduction and the result after the fix.)
 
-## ✅ 提交前检查项 / Checklist
-- [ ] **人工确认:** 无论描述是否由 AI 生成，我已审阅并精炼全文，仅保留可复核的要点，并声明对其准确性与完整性负责。PR 正文及后续评论均未直接粘贴未经人工过滤的大段 AI 文本。
-- [ ] **非重复提交:** 我已搜索现有的 [Issues](https://github.com/QuantumNous/new-api/issues) 与 [PRs](https://github.com/QuantumNous/new-api/pulls)，确认不是重复提交。
-- [ ] **新功能关联 Issue:** 若此 PR 标记为 `New feature`，我已关联对应 Issue；若尚无 Issue，我已先自行创建。
-- [ ] **事前沟通:** 若改动较大或涉及方向性变更，已在关联 Issue 中与维护者沟通并达成一致。
-- [ ] **功能范围:** 本 PR 不是 Coding Plan、逆向渠道、第三方封装接口，也不是对 Codex 渠道类型的改动。
-- [ ] **非透传:** 本 PR 不是针对开启透传后的转发行为；透传会直接发送内容，不会经过 new-api 的逻辑处理。
-- [ ] **范围聚焦:** 本 PR 为一项聚焦改动，未包含无关代码。
-- [ ] **本地验证:** 已按变更路径实际验证，并写明命令与观察结果。仅声明 `go build` 通过或测试通过，不视为有效证明。
-- [ ] **安全合规:** 代码中无敏感凭据，且符合项目代码规范。
+## Checklist
+- [ ] **Human review:** Whether or not the description was AI-generated, I have reviewed and condensed the full text, retained only the points needed for review, and take responsibility for its accuracy and completeness. I have not pasted unfiltered AI-generated text in the PR body or in later comments.
+- [ ] **Not a duplicate:** I have searched existing [Issues](https://github.com/QuantumNous/new-api/issues) and [PRs](https://github.com/QuantumNous/new-api/pulls) and confirmed this is not a duplicate.
+- [ ] **Feature issue:** If this PR is a New feature, I have linked a corresponding Issue; if none existed, I created one first.
+- [ ] **Prior discussion:** If this is a large or directional change, I have discussed it with maintainers in the linked Issue and reached agreement.
+- [ ] **Scope:** This PR is not a Coding Plan, reverse-engineered channel, third-party API wrapper, or a change to the Codex channel type.
+- [ ] **Not pass-through:** This PR is not about forwarding behavior after enabling pass-through; pass-through sends content as-is and does not go through new-api processing logic.
+- [ ] **Focused change:** This PR is a single focused change and does not include unrelated code.
+- [ ] **Local verification:** I verified the changed path and recorded the commands and observed results. Stating only that `go build` or tests passed is not valid proof.
+- [ ] **Security:** This change does not include secrets and follows the project's coding guidelines.

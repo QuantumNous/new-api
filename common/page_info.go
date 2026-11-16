@@ -7,11 +7,11 @@ import (
 )
 
 type PageInfo struct {
-	Page     int `json:"page"`      // page num 页码
-	PageSize int `json:"page_size"` // page size 页大小
+	Page     int `json:"page"`      // page num page number
+	PageSize int `json:"page_size"` // page size page size
 
-	Total int `json:"total"` // 总条数，后设置
-	Items any `json:"items"` // 数据，后设置
+	Total int `json:"total"` // Total number of items, later set
+	Items any `json:"items"` // data, post-set
 }
 
 func (p *PageInfo) GetStartIdx() int {
@@ -40,7 +40,7 @@ func (p *PageInfo) SetItems(items any) {
 
 func GetPageQuery(c *gin.Context) *PageInfo {
 	pageInfo := &PageInfo{}
-	// 手动获取并处理每个参数
+	// Get and process each parameter manually
 	if page, err := strconv.Atoi(c.Query("p")); err == nil {
 		pageInfo.Page = page
 	}
@@ -48,7 +48,7 @@ func GetPageQuery(c *gin.Context) *PageInfo {
 		pageInfo.PageSize = pageSize
 	}
 	if pageInfo.Page < 1 {
-		// 兼容
+		// Compatible
 		page, _ := strconv.Atoi(c.Query("p"))
 		if page != 0 {
 			pageInfo.Page = page
@@ -58,7 +58,7 @@ func GetPageQuery(c *gin.Context) *PageInfo {
 	}
 
 	if pageInfo.PageSize == 0 {
-		// 兼容
+		// Compatible
 		pageSize, _ := strconv.Atoi(c.Query("ps"))
 		if pageSize != 0 {
 			pageInfo.PageSize = pageSize

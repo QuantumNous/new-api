@@ -106,8 +106,8 @@ func aliResponsesToolUsage(raw []byte) map[string]int {
 
 // aliAnthropicWebSearchEntrypoint is the client marker DashScope's
 // Anthropic-compatible endpoint requires in system before it runs web search:
-// "使用 Anthropic SDK 或 HTTP 直接调用时，需在 system 中传入客户端标识
-// x-anthropic-billing-header: cc_entrypoint=cli;，否则联网搜索不生效。"
+// "When calling directly using Anthropic SDK or HTTP, you need to pass in the client ID in the system
+// x-anthropic-billing-header: cc_entrypoint=cli;, otherwise the network search will not take effect. "
 // (https://help.aliyun.com/zh/model-studio/web-search). The marker must be a
 // system text block: sent as a plain string system, qwen3.8-flash answered
 // without searching (2026-10-05).

@@ -73,7 +73,7 @@ type ChannelMeta struct {
 	ChannelOtherSettings dto.ChannelOtherSettings
 	UpstreamModelName    string
 	IsModelMapped        bool
-	SupportStreamOptions bool // 是否支持流式选项
+	SupportStreamOptions bool // Whether streaming options are supported
 }
 
 type TokenCountMeta struct {
@@ -86,8 +86,8 @@ type RelayInfo struct {
 	TokenKey          string
 	TokenGroup        string
 	UserId            int
-	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
-	UserGroup         string // 用户所在分组
+	UsingGroup        string // The group used will change when auto retries across groups.
+	UserGroup         string // User's group
 	TokenUnlimited    bool
 	StartTime         time.Time
 	FirstResponseTime time.Time
@@ -109,7 +109,7 @@ type RelayInfo struct {
 	RequestURLPath     string
 	RequestHeaders     map[string]string
 	ShouldIncludeUsage bool
-	DisablePing        bool // 是否禁止向下游发送自定义 Ping
+	DisablePing        bool // Whether to disable sending custom pings downstream
 	ClientWs           *websocket.Conn
 	TargetWs           *websocket.Conn
 	InputAudioFormat   string
@@ -132,13 +132,13 @@ type RelayInfo struct {
 	ClaudeToChatStreamState any
 	ChatToGeminiStreamState any
 	ReceivedResponseCount   int
-	FinalPreConsumedQuota   int // 最终预消耗的配额
-	// ForcePreConsume 为 true 时禁用 BillingSession 的信任额度旁路，
-	// 强制预扣全额。用于异步任务（视频/音乐生成等），因为请求返回后任务仍在运行，
-	// 必须在提交前锁定全额。
+	FinalPreConsumedQuota   int // Final pre-consumed quota
+	// ForcePreConsume is true to disable trust limit bypass for BillingSession.
+	// Mandatory withholding of full amount. Used for asynchronous tasks (video/music generation, etc.) because the task is still running after the request returns,
+	// The full amount must be locked prior to submission.
 	ForcePreConsume bool
-	// Billing 是计费会话，封装了预扣费/结算/退款的统一生命周期。
-	// 初始免费组可为 nil；若 auto 重试切换到付费组，会在发送前创建。
+	// Billing is a billing session that encapsulates the unified life cycle of prepayment/settlement/refund.
+	// The initial free group can be nil; if auto retries to switch to a paid group, it will be created before sending.
 	Billing BillingSettler
 	// BillingSource indicates whether this request is billed from wallet quota or subscription.
 	// "" or "wallet" => wallet; "subscription" => subscription
@@ -200,8 +200,8 @@ type RelayInfo struct {
 	// RequestConversionChain records request format conversions in order, e.g.
 	// ["openai", "openai_responses"] or ["openai", "claude"].
 	RequestConversionChain []types.RelayFormat
-	// 最终请求到上游的格式。可由 adaptor 显式设置；
-	// 若为空，调用 GetFinalRequestRelayFormat 会回退到 RequestConversionChain 的最后一项或 RelayFormat。
+	// The format of the final request to the upstream. Can be set explicitly by adapter;
+	// If empty, calling GetFinalRequestRelayFormat will fall back to the last item of RequestConversionChain or RelayFormat.
 	FinalRequestRelayFormat types.RelayFormat
 
 	StreamStatus *StreamStatus
@@ -369,7 +369,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	}
 
 	// reset some fields based on channel meta
-	// 重置某些字段，例如模型名称等
+	// Reset some fields like model name etc.
 	if info.Request != nil {
 		info.Request.SetModelName(info.OriginModelName)
 	}
@@ -453,7 +453,7 @@ func (info *RelayInfo) ToString() string {
 	return b.String()
 }
 
-// 定义支持流式选项的通道类型
+// Define channel types that support streaming options
 var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeOpenAI:         true,
 	constant.ChannelTypeAnthropic:      true,
@@ -609,7 +609,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 	//paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 
 	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
-	// 当令牌分组为空时，表示使用用户分组
+	// When the token group is empty, it indicates that the user group is used
 	if tokenGroup == "" {
 		tokenGroup = common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 	}
@@ -1039,8 +1039,8 @@ type OriginTaskRef struct {
 type TaskRelayInfo struct {
 	Action       string
 	OriginTaskID string
-	// PublicTaskID 是提交时预生成的 task_xxxx 格式公开 ID，
-	// 供 DoResponse 在返回给客户端时使用（避免暴露上游真实 ID）。
+	// PublicTaskID is the public ID in task_xxxx format that is pre-generated when submitting.
+	// For use by DoResponse when returning to the client (to avoid exposing the upstream real ID).
 	PublicTaskID string
 
 	ConsumeQuota bool
@@ -1145,8 +1145,8 @@ type TaskInfo struct {
 	Url              string          `json:"url,omitempty"`
 	RemoteUrl        string          `json:"remote_url,omitempty"`
 	Progress         string          `json:"progress,omitempty"`
-	CompletionTokens int             `json:"completion_tokens,omitempty"` // 用于按倍率计费
-	TotalTokens      int             `json:"total_tokens,omitempty"`      // 用于按倍率计费
+	CompletionTokens int             `json:"completion_tokens,omitempty"` // Used for billing based on multiple rates
+	TotalTokens      int             `json:"total_tokens,omitempty"`      // Used for billing based on multiple rates
 	UsageFacts       map[string]any  `json:"usage_facts,omitempty"`
 	PluginState      json.RawMessage `json:"plugin_state,omitempty"`
 }
@@ -1202,13 +1202,13 @@ func SetJSONMember(doc *ojson.Doc, parent, key string, value any) error {
 	return doc.Set(path, value)
 }
 
-// RemoveDisabledFields 从请求 JSON 数据中移除渠道设置中禁用的字段
-// service_tier: 服务层级字段，可能导致额外计费（OpenAI、Claude、Responses API 支持）
-// inference_geo: Claude 数据驻留推理区域字段（仅 Claude 支持，默认过滤）
-// speed: Claude 推理速度模式字段（仅 Claude 支持，默认过滤）
-// store: 数据存储授权字段，涉及用户隐私（仅 OpenAI、Responses API 支持，默认允许透传，禁用后可能导致 Codex 无法使用）
-// safety_identifier: 安全标识符，用于向 OpenAI 报告违规用户（仅 OpenAI 支持，涉及用户隐私）
-// stream_options.include_obfuscation: 响应流混淆控制字段（仅 OpenAI Responses API 支持）
+// RemoveDisabledFields Removes disabled fields in channel settings from request JSON data
+// service_tier: Service tier field, which may result in additional billing (supported by OpenAI, Claude, and Responses API)
+// inference_geo: Claude data resident inference region field (only supported by Claude, filtered by default)
+// speed: Claude inference speed mode field (only supported by Claude, filtered by default)
+// store: Data storage authorization field, involving user privacy (only supported by OpenAI and Responses API, transparent transmission is allowed by default, and disabling it may cause Codex to become unusable)
+// safety_identifier: Safety identifier, used to report violating users to OpenAI (only supported by OpenAI, involving user privacy)
+// stream_options.include_obfuscation: response stream obfuscation control field (only supported by OpenAI Responses API)
 func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOtherSettings, channelPassThroughEnabled bool) ([]byte, error) {
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || channelPassThroughEnabled {
 		return jsonData, nil
@@ -1225,32 +1225,32 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 	}
 
 	var disabled []string
-	// 默认移除 service_tier，除非明确允许（避免额外计费风险）
+	// Remove service_tier by default unless explicitly allowed (avoids additional billing risk)
 	if !channelOtherSettings.AllowServiceTier {
 		disabled = append(disabled, "service_tier")
 	}
 
-	// 默认移除 inference_geo，除非明确允许（避免在未授权情况下透传数据驻留区域）
+	// Remove inference_geo by default unless explicitly allowed (to avoid unauthorized passthrough of data resident areas)
 	if !channelOtherSettings.AllowInferenceGeo {
 		disabled = append(disabled, "inference_geo")
 	}
 
-	// 默认移除 speed，除非明确允许（避免意外切换 Claude 推理速度模式）
+	// Remove speed by default unless explicitly allowed (to avoid accidentally switching Claude inference speed mode)
 	if !channelOtherSettings.AllowSpeed {
 		disabled = append(disabled, "speed")
 	}
 
-	// 默认允许 store 透传，除非明确禁用（禁用可能影响 Codex 使用）
+	// Store transparent transmission is allowed by default unless explicitly disabled (disabling may affect Codex use)
 	if channelOtherSettings.DisableStore {
 		disabled = append(disabled, "store")
 	}
 
-	// 默认移除 safety_identifier，除非明确允许（保护用户隐私，避免向 OpenAI 报告用户信息）
+	// Remove safety_identifier by default unless explicitly allowed (to protect user privacy and avoid reporting user information to OpenAI)
 	if !channelOtherSettings.AllowSafetyIdentifier {
 		disabled = append(disabled, "safety_identifier")
 	}
 
-	// 默认移除 stream_options.include_obfuscation，除非明确允许（避免关闭响应流混淆保护）
+	// Remove stream_options.include_obfuscation by default unless explicitly allowed (avoids turning off response stream obfuscation protection)
 	removeObfuscation := !channelOtherSettings.AllowIncludeObfuscation && ojson.GetBytesNoCopy(jsonData, "stream_options").IsObject()
 	if removeObfuscation {
 		disabled = append(disabled, "stream_options.include_obfuscation")

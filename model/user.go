@@ -92,16 +92,16 @@ type User struct {
 	WeChatId             string                     `json:"wechat_id" gorm:"column:wechat_id;index"`
 	TelegramId           string                     `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode     string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
-	AccessToken          *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
-	AccessTokenCreatedAt *int64                     `json:"-" gorm:"type:bigint;column:access_token_created_at"`    // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+	AccessToken          *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // Deprecated: The old panel access token is only used during the transition period after the upgrade; it will be removed when the users.access_token column is deleted.
+	AccessTokenCreatedAt *int64                     `json:"-" gorm:"type:bigint;column:access_token_created_at"`    // Deprecated: The old panel access token is only used during the transition period after the upgrade; it will be removed when the users.access_token column is deleted.
 	Quota                int                        `json:"quota" gorm:"type:int;default:0"`
 	UsedQuota            int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount         int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
 	Group                string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
 	AffCode              string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount             int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
-	AffQuota             int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
-	AffHistoryQuota      int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
+	AffQuota             int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // Invitation remaining quota
+	AffHistoryQuota      int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // Invitation history amount
 	InviterId            int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
 	DeletedAt            gorm.DeletedAt             `gorm:"index"`
 	LinuxDOId            string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
@@ -130,7 +130,7 @@ func (user *User) ToBaseUser() *UserBase {
 	return cache
 }
 
-// Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+// Deprecated: The old panel access token is only used during the transition period after the upgrade; it will be removed when the users.access_token column is deleted.
 func (user *User) GetAccessToken() string {
 	if user.AccessToken == nil {
 		return ""
@@ -138,14 +138,14 @@ func (user *User) GetAccessToken() string {
 	return *user.AccessToken
 }
 
-// Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+// Deprecated: The old panel access token is only used during the transition period after the upgrade; it will be removed when the users.access_token column is deleted.
 func (user *User) SetAccessToken(token string) {
 	user.AccessToken = &token
 }
 
 // RevokeUserAccessToken returns the generation actually revoked under the row lock.
 //
-// Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+// Deprecated: The old panel access token is only used during the transition period after the upgrade; it will be removed when the users.access_token column is deleted.
 func RevokeUserAccessToken(id int) (string, error) {
 	var tokenRef string
 	err := DB.Transaction(func(tx *gorm.DB) error {
@@ -197,8 +197,8 @@ func UpdateUserSetting(userId int, setting dto.UserSetting) error {
 	return PublishUserAuthCache(userId)
 }
 
-// userBindColumns 允许通过 UpdateUserBindColumn 更新的第三方账号绑定列白名单。
-// 列名只可能来自代码内部的 provider 实现，白名单是防御纵深，不依赖调用方自律。
+// userBindColumns allows a whitelist of third-party account binding columns updated through UpdateUserBindColumn.
+// The column name can only come from the provider implementation inside the code. The whitelist is a defense depth and does not rely on the caller's self-discipline.
 var userBindColumns = map[string]bool{
 	"github_id":   true,
 	"discord_id":  true,
@@ -207,10 +207,10 @@ var userBindColumns = map[string]bool{
 	"wechat_id":   true,
 }
 
-// UpdateUserBindColumn 第三方账号绑定字段的专用更新。
-// 绑定操作必须只写绑定列：若改为“读取完整用户 → 改一个字段 → 整体更新”，
-// 读快照期间并发发生的封禁、降权或分组变更会被旧快照覆盖恢复。
-// 角色、状态、分组只允许通过各自带锁/CAS 的专用方法修改。
+// UpdateUserBindColumn Special update for third-party account binding fields.
+// The binding operation must only write to the binding column: if it is changed to "read the complete user → change a field → update as a whole",
+// Bans, downgrades, or group changes that occur concurrently during the reading of the snapshot will be overwritten and restored by the old snapshot.
+// Roles, statuses, and groups are only allowed to be modified through their own dedicated methods with locks/CAS.
 func UpdateUserBindColumn(userId int, column string, value string) error {
 	if userId <= 0 {
 		return common.NewMessage("ID is empty!")
@@ -221,18 +221,18 @@ func UpdateUserBindColumn(userId int, column string, value string) error {
 	return DB.Model(&User{}).Where("id = ?", userId).Update(column, value).Error
 }
 
-// 根据用户角色生成默认的边栏配置
+// Generate default sidebar configuration based on user role
 func generateDefaultSidebarConfigForRole(userRole int) string {
 	defaultConfig := map[string]any{}
 
-	// 聊天区域 - 所有用户都可以访问
+	// Chat area - accessible to all users
 	defaultConfig["chat"] = map[string]any{
 		"enabled":    true,
 		"playground": true,
 		"chat":       true,
 	}
 
-	// 控制台区域 - 所有用户都可以访问
+	// Console area - accessible to all users
 	defaultConfig["console"] = map[string]any{
 		"enabled":    true,
 		"detail":     true,
@@ -242,26 +242,26 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 		"task":       true,
 	}
 
-	// 个人中心区域 - 所有用户都可以访问
+	// Personal Center Area - accessible to all users
 	defaultConfig["personal"] = map[string]any{
 		"enabled":  true,
 		"topup":    true,
 		"personal": true,
 	}
 
-	// 管理员区域 - 根据角色决定
+	// Administrator area - determined by role
 	if userRole == common.RoleAdminUser {
-		// 管理员可以访问管理员区域，但不能访问系统设置
+		// Administrators can access the administrator area but not system settings
 		defaultConfig["admin"] = map[string]any{
 			"enabled":    true,
 			"channel":    true,
 			"models":     true,
 			"redemption": true,
 			"user":       true,
-			"setting":    false, // 管理员不能访问系统设置
+			"setting":    false, // Administrators cannot access system settings
 		}
 	} else if userRole == common.RoleRootUser {
-		// 超级管理员可以访问所有功能
+		// Super administrator has access to all features
 		defaultConfig["admin"] = map[string]any{
 			"enabled":    true,
 			"channel":    true,
@@ -271,9 +271,9 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"setting":    true,
 		}
 	}
-	// 普通用户不包含admin区域
+	// Ordinary users do not include the admin area
 
-	// 转换为JSON字符串
+	// Convert to JSON string
 	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog(common.LogText("failed to generate the default sidebar config: %s", err.Error()))
@@ -440,7 +440,7 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	var total int64
 	var err error
 
-	// 开始事务
+	// start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -451,17 +451,17 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 		}
 	}()
 
-	// 构建基础查询
+	// Build a basic query
 	query := tx.Unscoped().Model(&User{})
 
-	// 构建搜索条件
+	// Build search criteria
 	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
 	likeArgs := []any{"%" + keyword + "%", "%" + keyword + "%", "%" + keyword + "%"}
 
-	// 尝试将关键字转换为整数ID
+	// Try converting keywords to integer IDs
 	keywordInt, err := strconv.Atoi(keyword)
 	if err == nil {
-		// 如果是数字，同时搜索ID和其他字段
+		// If it is a number, search both ID and other fields
 		likeCondition = "id = ? OR " + likeCondition
 		likeArgs = append([]any{keywordInt}, likeArgs...)
 	}
@@ -481,14 +481,14 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 		}
 	}
 
-	// 获取总数
+	// Get total
 	err = query.Count(&total).Error
 	if err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
 
-	// 获取分页数据
+	// Get paginated data
 	order := resolveUserSortOptions(sortOptions)
 	err = order.Apply(query.Omit("password", "access_token")).Limit(num).Offset(startIdx).Find(&users).Error
 	if err != nil {
@@ -496,7 +496,7 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 		return nil, 0, err
 	}
 
-	// 提交事务
+	// commit transaction
 	if err = tx.Commit().Error; err != nil {
 		return nil, 0, err
 	}
@@ -585,39 +585,39 @@ func inviteUser(inviterId int) error {
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
-	// 检查quota是否小于最小额度
+	// Check whether the quota is less than the minimum amount
 	if float64(quota) < common.QuotaPerUnit {
 		return common.NewMessage("Minimum transfer quota is {{min}}!", map[string]any{"min": logger.FormatQuota(common.QuotaFromFloat(common.QuotaPerUnit))})
 	}
 
-	// 开始数据库事务
+	// Start database transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
-	defer tx.Rollback() // 确保在函数退出时事务能回滚
+	defer tx.Rollback() // Ensure that the transaction can be rolled back when the function exits
 
-	// 加锁查询用户以确保数据一致性
+	// Lock query users to ensure data consistency
 	err := lockForUpdate(tx).First(user, user.Id).Error
 	if err != nil {
 		return err
 	}
 
-	// 再次检查用户的AffQuota是否足够
+	// Check again if the user's AffQuota is sufficient
 	if user.AffQuota < quota {
 		return common.NewMessage("Invitation quota is insufficient!")
 	}
 
-	// 更新用户额度
+	// Update user quota
 	user.AffQuota -= quota
 	user.Quota += quota
 
-	// 保存用户状态
+	// Save user status
 	if err := tx.Save(user).Error; err != nil {
 		return err
 	}
 
-	// 提交事务
+	// commit transaction
 	return tx.Commit().Error
 }
 
@@ -681,10 +681,10 @@ func (user *User) Insert(inviterId int) error {
 			user.Quota = common.QuotaForNewUser
 			user.AffCode = common.GetRandomString(4)
 
-			// 初始化用户设置，包括默认的边栏配置
+			// Initialize user settings, including default sidebar configuration
 			if user.Setting == "" {
 				defaultSetting := dto.UserSetting{}
-				// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
+				// SidebarModules are not set here for the time being, because they need to be set according to the role after the user is created.
 				user.SetSetting(defaultSetting)
 			}
 
@@ -699,11 +699,11 @@ func (user *User) Insert(inviterId int) error {
 }
 
 func (user *User) finishInsert(inviterId int) {
-	// 用户创建成功后，根据角色初始化边栏配置
-	// 需要重新获取用户以确保有正确的ID和Role
+	// After the user is successfully created, initialize the sidebar configuration based on the role.
+	// Need to re-acquire the user to ensure the correct ID and Role
 	var createdUser User
 	if err := DB.Where("username = ?", user.Username).First(&createdUser).Error; err == nil {
-		// 生成基于角色的默认边栏配置
+		// Generate role-based default sidebar configuration
 		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
 		if defaultSidebarConfig != "" {
 			currentSetting := createdUser.GetSetting()
@@ -745,7 +745,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		user.Quota = common.QuotaForNewUser
 		user.AffCode = common.GetRandomString(4)
 
-		// 初始化用户设置
+		// Initialize user settings
 		if user.Setting == "" {
 			defaultSetting := dto.UserSetting{}
 			user.SetSetting(defaultSetting)
@@ -758,7 +758,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 // FinalizeOAuthUserCreation performs post-transaction tasks for OAuth user creation.
 // This should be called after the transaction commits successfully.
 func (user *User) FinalizeOAuthUserCreation(inviterId int) {
-	// 用户创建成功后，根据角色初始化边栏配置
+	// After the user is successfully created, initialize the sidebar configuration based on the role.
 	var createdUser User
 	if err := DB.Where("id = ?", user.Id).First(&createdUser).Error; err == nil {
 		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
@@ -1228,7 +1228,7 @@ func IsAdmin(userId int) bool {
 // ValidateAccessToken resolves a legacy plaintext access token. After the
 // transition deadline it rejects every value without querying the database.
 //
-// Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
+// Deprecated: The old panel access token is only used during the transition period after the upgrade; it will be removed when the users.access_token column is deleted.
 func ValidateAccessToken(token string) (*User, error) {
 	if token == "" {
 		return nil, nil
@@ -1463,7 +1463,7 @@ func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 		return
 	}
 
-	//// 更新缓存
+	// //Update cache
 	//if err := invalidateUserCache(id); err != nil {
 	//	common.SysError("failed to invalidate user cache: " + err.Error())
 	//}

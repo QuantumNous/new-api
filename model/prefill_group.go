@@ -9,19 +9,19 @@ import (
 	"gorm.io/gorm"
 )
 
-// PrefillGroup 用于存储可复用的“组”信息，例如模型组、标签组、端点组等。
-// Name 字段保持唯一，用于在前端下拉框中展示。
-// Type 字段用于区分组的类别，可选值如：model、tag、endpoint。
-// Items 字段使用 JSON 数组保存对应类型的字符串集合，示例：
+// PrefillGroup is used to store reusable "group" information, such as model groups, label groups, endpoint groups, etc.
+// The Name field remains unique and is used for display in the front-end drop-down box.
+// The Type field is used to distinguish the category of the group. Optional values include: model, tag, and endpoint.
+// The Items field uses a JSON array to save a collection of strings of the corresponding type, example:
 // ["gpt-4o", "gpt-3.5-turbo"]
-// 设计遵循 3NF，避免冗余，提供灵活扩展能力。
+// The design follows 3NF, avoids redundancy, and provides flexible expansion capabilities.
 
-// JSONValue 基于 json.RawMessage 实现，支持从数据库的 []byte 和 string 两种类型读取
+// JSONValue is implemented based on json.RawMessage and supports reading from the database's []byte and string types.
 type JSONValue json.RawMessage
 
-// Value 实现 driver.Valuer 接口，用于数据库写入
-// 必须返回 string 而非 []byte:PG simple protocol 下 []byte 按 bytea 编码,
-// 写 json 列会触发 SQLSTATE 22P02。
+// Value implements the driver.Valuer interface for database writing
+// Must return string instead of []byte: under PG simple protocol []byte is encoded by bytea,
+// Writing to a json column triggers SQLSTATE 22P02.
 func (j JSONValue) Value() (driver.Value, error) {
 	if j == nil {
 		return nil, nil
@@ -29,14 +29,14 @@ func (j JSONValue) Value() (driver.Value, error) {
 	return string(j), nil
 }
 
-// Scan 实现 sql.Scanner 接口，兼容不同驱动返回的类型
+// Scan implements the sql.Scanner interface and is compatible with the types returned by different drivers.
 func (j *JSONValue) Scan(value any) error {
 	switch v := value.(type) {
 	case nil:
 		*j = nil
 		return nil
 	case []byte:
-		// 拷贝底层字节，避免保留底层缓冲区
+		// Copy the underlying bytes to avoid retaining the underlying buffer
 		b := make([]byte, len(v))
 		copy(b, v)
 		*j = JSONValue(b)
@@ -45,7 +45,7 @@ func (j *JSONValue) Scan(value any) error {
 		*j = JSONValue([]byte(v))
 		return nil
 	default:
-		// 其他类型尝试序列化为 JSON
+		// Other types try to serialize to JSON
 		b, err := json.Marshal(v)
 		if err != nil {
 			return err
@@ -55,7 +55,7 @@ func (j *JSONValue) Scan(value any) error {
 	}
 }
 
-// MarshalJSON 确保在对外编码时与 json.RawMessage 行为一致
+// MarshalJSON ensures consistent behavior with json.RawMessage when encoding externally
 func (j JSONValue) MarshalJSON() ([]byte, error) {
 	if j == nil {
 		return []byte("null"), nil
@@ -63,7 +63,7 @@ func (j JSONValue) MarshalJSON() ([]byte, error) {
 	return j, nil
 }
 
-// UnmarshalJSON 确保在对外解码时与 json.RawMessage 行为一致
+// UnmarshalJSON ensures consistent behavior with json.RawMessage when decoding externally
 func (j *JSONValue) UnmarshalJSON(data []byte) error {
 	if data == nil {
 		*j = nil
@@ -86,7 +86,7 @@ type PrefillGroup struct {
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
-// Insert 新建组
+// Insert new group
 func (g *PrefillGroup) Insert() error {
 	now := common.GetTimestamp()
 	g.CreatedTime = now
@@ -94,7 +94,7 @@ func (g *PrefillGroup) Insert() error {
 	return DB.Create(g).Error
 }
 
-// IsPrefillGroupNameDuplicated 检查组名称是否重复（排除自身 ID）
+// IsPrefillGroupNameDuplicated checks whether the group name is duplicated (excluding its own ID)
 func IsPrefillGroupNameDuplicated(id int, name string) (bool, error) {
 	if name == "" {
 		return false, nil
@@ -104,18 +104,18 @@ func IsPrefillGroupNameDuplicated(id int, name string) (bool, error) {
 	return cnt > 0, err
 }
 
-// Update 更新组
+// Update update group
 func (g *PrefillGroup) Update() error {
 	g.UpdatedTime = common.GetTimestamp()
 	return DB.Save(g).Error
 }
 
-// DeleteByID 根据 ID 删除组
+// DeleteByID deletes a group based on ID
 func DeletePrefillGroupByID(id int) error {
 	return DB.Delete(&PrefillGroup{}, id).Error
 }
 
-// GetAllPrefillGroups 获取全部组，可按类型过滤（为空则返回全部）
+// GetAllPrefillGroups Gets all groups, which can be filtered by type (returns all if empty)
 func GetAllPrefillGroups(groupType string) ([]*PrefillGroup, error) {
 	var groups []*PrefillGroup
 	query := DB.Model(&PrefillGroup{})

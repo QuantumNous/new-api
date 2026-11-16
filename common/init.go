@@ -47,7 +47,7 @@ func InitEnv() {
 		os.Exit(0)
 	}
 
-	DefaultLanguage = os.Getenv("DEFAULT_LANGUAGE")
+	DefaultLanguage = "en"
 	SetLogLanguage(DefaultLanguage)
 
 	if os.Getenv("SESSION_SECRET") != "" {
@@ -188,11 +188,11 @@ func initConstantEnv() {
 	constant.DifyDebug = GetEnvOrDefaultBool("DIFY_DEBUG", true)
 	constant.MaxFileDownloadMB = GetEnvOrDefault("MAX_FILE_DOWNLOAD_MB", 64)
 	constant.StreamScannerMaxBufferMB = GetEnvOrDefault("STREAM_SCANNER_MAX_BUFFER_MB", 128)
-	// MaxRequestBodyMB 请求体最大大小（解压后），用于防止超大请求/zip bomb导致内存暴涨
+	// MaxRequestBodyMB The maximum size of the request body (after decompression), used to prevent memory explosion caused by oversized requests/zip bombs
 	constant.MaxRequestBodyMB = GetEnvOrDefault("MAX_REQUEST_BODY_MB", 128)
 	constant.PluginMemoryLimitMB = GetEnvOrDefault("PLUGIN_MEMORY_LIMIT_MB", 512)
 	constant.AnonymousRequestBodyLimitKB = GetEnvOrDefault("ANONYMOUS_REQUEST_BODY_LIMIT_KB", 512)
-	// ForceStreamOption 覆盖请求参数，强制返回usage信息
+	// ForceStreamOption overrides request parameters and forces usage information to be returned
 	constant.ForceStreamOption = GetEnvOrDefaultBool("FORCE_STREAM_OPTION", true)
 	constant.CountToken = GetEnvOrDefaultBool("CountToken", true)
 	constant.GetMediaToken = GetEnvOrDefaultBool("GET_MEDIA_TOKEN", true)
@@ -202,18 +202,18 @@ func initConstantEnv() {
 	constant.AzureDefaultAPIVersion = GetEnvOrDefaultString("AZURE_DEFAULT_API_VERSION", "2025-04-01-preview")
 	constant.NotifyLimitCount = GetEnvOrDefault("NOTIFY_LIMIT_COUNT", 2)
 	constant.NotificationLimitDurationMinute = positiveUserSessionEnv("NOTIFICATION_LIMIT_DURATION_MINUTE", 10)
-	// GenerateDefaultToken 是否生成初始令牌，默认关闭。
+	// GenerateDefaultToken Whether to generate an initial token, turned off by default.
 	constant.GenerateDefaultToken = GetEnvOrDefaultBool("GENERATE_DEFAULT_TOKEN", false)
-	// 是否启用错误日志
+	// Whether to enable error logging
 	constant.ErrorLogEnabled = GetEnvOrDefaultBool("ERROR_LOG_ENABLED", false)
-	// 任务轮询时查询的最大数量
+	// The maximum number of queries when polling for a task
 	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
-	// 异步任务超时时间（分钟），超过此时间未完成的任务将被标记为失败并退款。0 表示禁用。
+	// Asynchronous task timeout (minutes). Tasks that are not completed after this time will be marked as failed and refunded. 0 means disabled.
 	constant.TaskTimeoutMinutes = GetEnvOrDefault("TASK_TIMEOUT_MINUTES", 4320)
 	// Consecutive unrecognized/transient poll failures before the task is failed and refunded.
 	constant.TaskPollMaxFailures = GetEnvOrDefault("TASK_POLL_MAX_FAILURES", 20)
-	// 声明式任务协议桥只观察数据库；这些值控制一次客户端观察连接，
-	// 不改变后台轮询或结算生命周期。
+	// The declarative task protocol bridge only observes the database; these values control the connection once the client observes it,
+	// No changes to background polling or settlement lifecycle.
 	constant.TaskPluginProtocolTimeoutSeconds = GetEnvOrDefault("TASK_PLUGIN_PROTOCOL_TIMEOUT_SECONDS", 600)
 	constant.TaskPluginProtocolTickMilliseconds = GetEnvOrDefault("TASK_PLUGIN_PROTOCOL_TICK_MILLISECONDS", 2000)
 	constant.TaskPluginProtocolTickJitterMilliseconds = GetEnvOrDefault("TASK_PLUGIN_PROTOCOL_TICK_JITTER_MILLISECONDS", 500)

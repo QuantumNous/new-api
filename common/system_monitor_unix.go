@@ -8,7 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// GetDiskSpaceInfo 获取缓存目录所在磁盘的空间信息 (Unix/Linux/macOS)
+// GetDiskSpaceInfo Gets the space information of the disk where the cache directory is located (Unix/Linux/macOS)
 func GetDiskSpaceInfo() DiskSpaceInfo {
 	cachePath := GetDiskCachePath()
 	if cachePath == "" {
@@ -23,7 +23,7 @@ func GetDiskSpaceInfo() DiskSpaceInfo {
 		return info
 	}
 
-	// 计算磁盘空间 (显式转换以兼容 FreeBSD，其字段类型为 int64)
+	// Calculate disk space (explicit conversion for compatibility with FreeBSD, whose field type is int64)
 	bsize := uint64(stat.Bsize)
 	info.Total = uint64(stat.Blocks) * bsize
 	info.Free = uint64(stat.Bavail) * bsize

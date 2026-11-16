@@ -30,7 +30,7 @@ import type { ReactElement } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import zh from '@/i18n/locales/zh.json'
+import zh from '@/i18n/locales/en.json'
 import type { PermissionResourceDef } from '@/lib/admin-permissions'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
@@ -98,8 +98,8 @@ it.each([
       <AuditLogDetailsDialog entry={log} />
     </I18nextProvider>
   )
-  await userEvent.click(screen.getByRole('button', { name: '详情' }))
-  const dialog = await screen.findByRole('dialog', { name: '日志详情' })
+  await userEvent.click(screen.getByRole('button', { name: "Details" }))
+  const dialog = await screen.findByRole('dialog', { name: "Log Details" })
   expect(within(dialog).getByText(label)).toBeVisible()
   expect(within(dialog).getByText('literal-name (ID: 1)')).toBeVisible()
 })
@@ -114,13 +114,13 @@ it('uses the returned authentication method for personal access records', async 
 })
 
 it.each([
-  ['token.create', '创建 API 令牌「1」（ID: 11）'],
-  ['token.update', '更新 API 令牌「1」（ID: 11）'],
-  ['token.status_update', '更新 API 令牌「1」（ID: 11）'],
-  ['token.delete', '删除 API 令牌「1」（ID: 11）'],
-  ['token.delete_batch', '批量删除 API 令牌'],
-  ['token.key_view', '查看 API 令牌「1」的密钥（ID: 11）'],
-  ['token.key_view_batch', '批量查看 API 令牌密钥'],
+  ['token.create', 'Create API token “1” (ID: 11)'],
+  ['token.update', 'Update API token “1” (ID: 11)'],
+  ['token.status_update', 'Update API token “1” (ID: 11)'],
+  ['token.delete', 'Delete API token “1” (ID: 11)'],
+  ['token.delete_batch', "Batch delete API tokens"],
+  ['token.key_view', 'View key for API token “1” (ID: 11)'],
+  ['token.key_view_batch', "View API token keys in batch"],
 ])('localizes the neutral event summary for %s', async (action, summary) => {
   const i18n = createInstance()
   await i18n.init({ lng: 'zh', resources: { zh } })
@@ -637,30 +637,30 @@ it.each([
     '/api/redemption/batch',
     { count: 15 },
     true,
-    '批量删除了 15 个兑换码',
+    'Batch deleted 15 redemption codes',
   ],
   [
     'redemption.delete_batch',
     '/api/redemption/batch',
     { count: 0 },
     true,
-    '批量删除了 0 个兑换码',
+    'Batch deleted 0 redemption codes',
   ],
   [
     'redemption.delete',
     '/api/redemption/batch',
     {},
     true,
-    '批量删除兑换码（数量未记录）',
+    "Batch deleted redemption codes (count not recorded)",
   ],
   [
     'redemption.delete_batch',
     '/api/redemption/batch',
     {},
     false,
-    '批量删除兑换码失败',
+    "Failed to batch delete redemption codes",
   ],
-  ['redemption.delete', '/api/redemption/:id', {}, true, '删除了一个兑换码'],
+  ['redemption.delete', '/api/redemption/:id', {}, true, "Deleted a redemption code"],
 ])(
   'renders redemption audit %s at %s with recorded result %j',
   async (action, route, params, success, summary) => {
@@ -900,16 +900,16 @@ it('loads scope labels for a generated token when its details open', async () =>
     </I18nextProvider>
   )
   expect(get).not.toHaveBeenCalled()
-  await userEvent.click(screen.getByRole('button', { name: '详情' }))
-  const dialog = await screen.findByRole('dialog', { name: '日志详情' })
-  expect(await within(dialog).findByText('查看, 编辑')).toBeVisible()
+  await userEvent.click(screen.getByRole('button', { name: "Details" }))
+  const dialog = await screen.findByRole('dialog', { name: "Log Details" })
+  expect(await within(dialog).findByText('View, Edit')).toBeVisible()
   expect(get).toHaveBeenCalledWith(
     '/api/user/access_tokens/scopes',
     expect.anything()
   )
-  expect(within(dialog).getByText('个人资料')).toBeVisible()
-  expect(within(dialog).getByText('1 项权限不在当前权限目录中')).toBeVisible()
-  expect(within(dialog).getByText('永不过期')).toBeVisible()
+  expect(within(dialog).getByText("Profile")).toBeVisible()
+  expect(within(dialog).getByText('1 permissions are no longer available')).toBeVisible()
+  expect(within(dialog).getByText("Never expires")).toBeVisible()
   expect(dialog).not.toHaveTextContent(/profile:|retired/)
 })
 
@@ -942,15 +942,15 @@ it('loads scope labels for a permission change when its details open', async () 
       />
     </I18nextProvider>
   )
-  await userEvent.click(screen.getByRole('button', { name: '详情' }))
-  const dialog = await screen.findByRole('dialog', { name: '日志详情' })
-  expect(await within(dialog).findByText('查看, 编辑')).toBeVisible()
+  await userEvent.click(screen.getByRole('button', { name: "Details" }))
+  const dialog = await screen.findByRole('dialog', { name: "Log Details" })
+  expect(await within(dialog).findByText('View, Edit')).toBeVisible()
   expect(get).toHaveBeenCalledWith(
     '/api/user/access_tokens/scopes',
     expect.anything()
   )
-  expect(within(dialog).getByText('原权限')).toBeVisible()
-  expect(within(dialog).getByText('用户')).toBeVisible()
+  expect(within(dialog).getByText("Previous permissions")).toBeVisible()
+  expect(within(dialog).getByText("Users")).toBeVisible()
   expect(dialog).not.toHaveTextContent(/profile:|user:/)
 })
 

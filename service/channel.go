@@ -30,7 +30,7 @@ func shouldCloseActiveWebSocketsAfterDisable(channelId int) (bool, *model.Channe
 func DisableChannel(channelError types.ChannelError, reason string) {
 	common.SysLog(common.LogText("channel %q (#%d) failed, disabling it, reason: %s", channelError.ChannelName, channelError.ChannelId, common.LocalLogPreview(reason)))
 
-	// 检查是否启用自动禁用功能
+	// Check if auto-disable feature is enabled
 	if !channelError.AutoBan {
 		common.SysLog(common.LogText("channel %q (#%d) has automatic disabling turned off, skipping", channelError.ChannelName, channelError.ChannelId))
 		return

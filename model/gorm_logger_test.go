@@ -15,7 +15,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// 保护契约:数据库驱动错误消息可能内联数据值,非 DEBUG 下日志只保留错误码。
+// Protection contract: Database driver error messages may have inline data values, and logs under non-DEBUG only retain error codes.
 func TestSanitizeDBErrorStripsDriverMessage(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -80,8 +80,8 @@ func TestSanitizeDBErrorKeepsNonDriverErrors(t *testing.T) {
 	assert.Equal(t, err, sanitizeDBError(err))
 }
 
-// 保护契约:经 gorm 真实链路,错误日志同时满足 SQL 参数化、驱动错误脱敏、
-// 调用点归因到业务代码;DEBUG=true 恢复参数值与错误原文。
+// Protection contract: Through gorm real link, error log meets SQL parameterization, driver error desensitization,
+// The call point is attributed to the business code; DEBUG=true restores parameter values and original error text.
 func TestGormLoggerEndToEndSanitizedOutput(t *testing.T) {
 	previousDebug := common.DebugEnabled
 	t.Cleanup(func() { common.DebugEnabled = previousDebug })

@@ -12,15 +12,15 @@ import (
 
 var StartTime = time.Now().Unix() // unit: second
 var Version = "v0.0.0"            // this hard coding will be replaced automatically when building, no need to manually change
-var SystemName = "New API"
+var SystemName = "BEU Developer Orbit"
 var Footer = ""
-var Logo = ""
+var Logo = "/orbit-mark.svg"
 var TopUpLink = ""
 
 // var ChatLink = ""
 // var ChatLink2 = ""
 var QuotaPerUnit = 500 * 1000.0 // $0.002 / 1K tokens
-// 保留旧变量以兼容历史逻辑，实际展示由 general_setting.quota_display_type 控制
+// The old variables are retained to be compatible with historical logic, and the actual display is controlled by general_setting.quota_display_type
 var DisplayInCurrencyEnabled = true
 var DisplayTokenStatEnabled = true
 var DrawingEnabled = true
@@ -75,8 +75,8 @@ var TelegramOAuthEnabled = false
 var TurnstileCheckEnabled = false
 var RegisterEnabled = true
 
-var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
-var EmailAliasRestrictionEnabled = false  // 是否启用邮箱别名限制
+var EmailDomainRestrictionEnabled = false // Whether to enable email domain name restrictions
+var EmailAliasRestrictionEnabled = false  // Whether to enable email alias restrictions
 var EmailDomainWhitelist = []string{
 	"gmail.com",
 	"163.com",
@@ -151,8 +151,8 @@ const (
 	NodeNameSourceHostname = "hostname"
 )
 
-// NodeName 节点名称，优先从 NODE_NAME 环境变量读取，未配置时回退主机名。
-// 用于审计日志和后台任务中标识节点身份；多实例部署时建议显式配置稳定 NODE_NAME。
+// NodeName node name, first read from the NODE_NAME environment variable, fallback to the host name if not configured.
+// Used to identify node identities in audit logs and background tasks; when deploying multiple instances, it is recommended to explicitly configure stable NODE_NAME.
 var NodeName = ""
 
 // NodeNameSource records how NodeName was chosen so future instance-management

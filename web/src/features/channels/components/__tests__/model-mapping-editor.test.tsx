@@ -23,7 +23,8 @@ import { I18nextProvider } from 'react-i18next'
 import { expect, test, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
-import zh from '@/i18n/locales/zh.json'
+
+const zh = en
 
 import { ModelMappingEditor } from '../model-mapping-editor'
 
@@ -68,16 +69,16 @@ test('language changes preserve draft mappings and explain the same direction in
   )
 
   await act(() => i18n.changeLanguage('zh'))
-  expect(screen.getByText('请求模型名称')).toBeVisible()
-  expect(screen.getByText('上游模型名称')).toBeVisible()
+  expect(screen.getByText("Request Model Name")).toBeVisible()
+  expect(screen.getByText("Upstream Model Name")).toBeVisible()
   expect(screen.getByDisplayValue('client-alias')).toBeVisible()
   expect(screen.getByDisplayValue('provider-model')).toBeVisible()
 
   await user.click(screen.getByRole('tab', { name: 'JSON' }))
   expect(
-    screen.getByText('JSON 的键是请求模型名称，值是上游模型名称。')
+    screen.getByText("JSON keys are request model names; values are upstream model names.")
   ).toBeVisible()
-  expect(screen.getByRole('textbox', { name: '模型映射' })).toHaveValue(
+  expect(screen.getByRole('textbox', { name: "Model Mapping" })).toHaveValue(
     '{\n  "client-alias": "provider-model"\n}'
   )
   expect(onChange).toHaveBeenLastCalledWith(

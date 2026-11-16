@@ -8,8 +8,8 @@ import (
 	"sync"
 )
 
-// FileSource 统一的文件来源抽象接口
-// 支持 URL 和 base64 两种来源，提供懒加载和缓存机制
+// FileSource unified file source abstract interface
+// Supports both URL and base64 sources, providing lazy loading and caching mechanisms
 type FileSource interface {
 	IsURL() bool
 	GetIdentifier() string
@@ -26,7 +26,7 @@ type FileSource interface {
 	Mu() *sync.Mutex
 }
 
-// baseFileSource 共享的缓存/锁/清理注册状态
+// baseFileSource shared cache/lock/cleanup registration status
 type baseFileSource struct {
 	cachedData  *CachedFileData
 	cacheLoaded bool
@@ -68,7 +68,7 @@ func (b *baseFileSource) Mu() *sync.Mutex {
 }
 
 // ---------------------------------------------------------------------------
-// URLSource — URL 来源的 FileSource 实现
+// URLSource — FileSource implementation of URL source
 // ---------------------------------------------------------------------------
 
 type URLSource struct {
@@ -90,7 +90,7 @@ func (u *URLSource) GetRawData() string { return u.URL }
 func (u *URLSource) ClearRawData() {}
 
 // ---------------------------------------------------------------------------
-// Base64Source — Base64 内联数据来源的 FileSource 实现
+// Base64Source — FileSource implementation of the Base64 inline data source
 // ---------------------------------------------------------------------------
 
 type Base64Source struct {
@@ -139,22 +139,22 @@ func NewFileSourceFromData(data string, mimeType string) FileSource {
 }
 
 // ---------------------------------------------------------------------------
-// CachedFileData — 缓存的文件数据（支持内存和磁盘两种模式）
+// CachedFileData — cached file data (supports both memory and disk modes)
 // ---------------------------------------------------------------------------
 
 type CachedFileData struct {
-	base64Data  string        // 内存中的 base64 数据（小文件）
-	MimeType    string        // MIME 类型
-	Size        int64         // 文件大小（字节）
-	DiskSize    int64         // 磁盘缓存实际占用大小（字节，通常是 base64 长度）
-	ImageConfig *image.Config // 图片配置（如果是图片）
-	ImageFormat string        // 图片格式（如果是图片）
+	base64Data  string        // Base64 data in memory (small files)
+	MimeType    string        // MIME type
+	Size        int64         // File size (bytes)
+	DiskSize    int64         // Actual disk cache size (bytes, usually base64 length)
+	ImageConfig *image.Config // Picture configuration (if it is a picture)
+	ImageFormat string        // Picture format (if it is a picture)
 
-	diskPath        string     // 磁盘缓存文件路径（大文件）
-	isDisk          bool       // 是否使用磁盘缓存
-	diskMu          sync.Mutex // 磁盘操作锁（保护磁盘文件的读取和删除）
-	diskClosed      bool       // 是否已关闭/清理
-	statDecremented bool       // 是否已扣减统计
+	diskPath        string     // Disk cache file path (large files)
+	isDisk          bool       // Whether to use disk cache
+	diskMu          sync.Mutex // Disk operation lock (protects the reading and deletion of disk files)
+	diskClosed      bool       // Has it been closed/cleaned?
+	statDecremented bool       // Whether statistics have been deducted
 
 	OnClose func(size int64)
 }

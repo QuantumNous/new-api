@@ -22,6 +22,7 @@
   },
   "include": [
     "rsbuild.config.ts",
+    "rsbuild.preview.config.ts",
     "vitest.config.ts",
     "scripts/oxlint/__tests__/*.test.ts"
   ]

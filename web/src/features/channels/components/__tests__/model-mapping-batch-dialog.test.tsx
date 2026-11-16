@@ -22,7 +22,7 @@ import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { expect, test, vi } from 'vitest'
 
-import fr from '@/i18n/locales/fr.json'
+import fr from '@/i18n/locales/en.json'
 
 import { ModelMappingBatchDialog } from '../model-mapping-batch-dialog'
 
@@ -258,12 +258,12 @@ test('long translated source labels wrap inside their row without covering the m
       />
     </I18nextProvider>
   )
-  const tabs = screen.getByRole('tablist', { name: 'Sélectionner les modèles' })
+  const tabs = screen.getByRole('tablist', { name: 'Select models' })
   expect(tabs).toHaveClass('grid-cols-2', 'group-data-horizontal/tabs:h-auto')
   for (const tab of within(tabs).getAllByRole('tab')) {
     expect(tab).toHaveClass('whitespace-normal', 'h-auto')
   }
   expect(
-    screen.getByRole('textbox', { name: 'Rechercher des modèles...' })
+    screen.getByRole('textbox', { name: 'Search models...' })
   ).toBeVisible()
 })

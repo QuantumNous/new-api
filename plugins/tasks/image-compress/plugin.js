@@ -1,11 +1,8 @@
 export const meta = {
   apiVersion: 1,
   key: "image-compress",
-  name: { en: "Image compression", zh: "图片压缩" },
-  description: {
-    en: "Compresses large images in requests before they are sent upstream",
-    zh: "发送到上游前压缩请求中的大图片",
-  },
+  name: { en: "Image compression" },
+  description: { en: "Compresses large images in requests before they are sent upstream" },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   // A failure sends the images as they are, which is safe.
@@ -15,33 +12,27 @@ export const meta = {
     properties: {
       mode: {
         type: "string",
-        title: { en: "Compression mode", zh: "压缩方式" },
-        description: {
-          en: "Lossless keeps every pixel and turns PNG and GIF images into WebP, so the upstream must accept WebP",
-          zh: "无损模式保留全部像素，把 PNG 和 GIF 图片转为 WebP，上游需要支持 WebP",
-        },
+        title: { en: "Compression mode" },
+        description: { en: "Lossless keeps every pixel and turns PNG and GIF images into WebP, so the upstream must accept WebP" },
         enum: ["lossless", "lossy"],
         enumTitles: [
-          { en: "Lossless", zh: "无损" },
-          { en: "Lossy", zh: "有损" },
+          { en: "Lossless" },
+          { en: "Lossy" },
         ],
         default: "lossless",
       },
       minBytes: {
         type: "integer",
-        title: { en: "Minimum image size", zh: "最小图片大小" },
-        description: { en: "Images at least this large are compressed", zh: "不小于此大小的图片会被压缩" },
+        title: { en: "Minimum image size" },
+        description: { en: "Images at least this large are compressed" },
         unit: "byte",
         minimum: 0,
         default: 512000,
       },
       maxSide: {
         type: "integer",
-        title: { en: "Maximum side length", zh: "最长边" },
-        description: {
-          en: "Images with a longer side are compressed and scaled down to fit",
-          zh: "边长超过此值的图片会被压缩并等比缩小",
-        },
+        title: { en: "Maximum side length" },
+        description: { en: "Images with a longer side are compressed and scaled down to fit" },
         unit: "pixel",
         minimum: 16,
         maximum: 16384,
@@ -50,24 +41,18 @@ export const meta = {
       },
       format: {
         type: "string",
-        title: { en: "Output format", zh: "输出格式" },
-        description: {
-          en: "Automatic uses PNG for images with transparency and JPEG for the rest",
-          zh: "自动时有透明部分的图片用 PNG，其余用 JPEG",
-        },
+        title: { en: "Output format" },
+        description: { en: "Automatic uses PNG for images with transparency and JPEG for the rest" },
         enum: ["auto", "jpeg", "png"],
-        enumTitles: [{ en: "Automatic", zh: "自动" }, "JPEG", "PNG"],
+        enumTitles: [{ en: "Automatic" }, "JPEG", "PNG"],
         default: "auto",
         visibleWhen: { mode: "lossy" },
       },
       // The host applies quality to JPEG output only.
       quality: {
         type: "integer",
-        title: { en: "JPEG quality", zh: "JPEG 质量" },
-        description: {
-          en: "Higher keeps more detail and saves less space",
-          zh: "越高越清晰，节省的空间越少",
-        },
+        title: { en: "JPEG quality" },
+        description: { en: "Higher keeps more detail and saves less space" },
         minimum: 1,
         maximum: 100,
         default: 85,
@@ -76,25 +61,16 @@ export const meta = {
     },
   },
   samples: [
-    {
-      name: { en: "Describe an image", zh: "描述图片" },
+{
+      name: { en: "Describe an image" },
       lang: "en",
       format: "openai",
       body: {
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: [{ type: "text", text: "What is in this picture?" }, "[sample-image]"] }],
       },
-    },
-    {
-      name: { en: "Describe an image", zh: "描述图片" },
-      lang: "zh",
-      format: "openai",
-      body: {
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: [{ type: "text", text: "这张图片里有什么？" }, "[sample-image]"] }],
-      },
-    },
-  ],
+    }
+],
 };
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];

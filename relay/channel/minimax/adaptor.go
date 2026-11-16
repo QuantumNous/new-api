@@ -54,7 +54,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		OutputFormat: outputFormat,
 	}
 
-	// 同步扩展字段的厂商自定义metadata
+	// Synchronize manufacturer-defined metadata of extended fields
 	if len(request.Metadata) > 0 {
 		if err := json.Unmarshal(request.Metadata, &minimaxRequest); err != nil {
 			return nil, fmt.Errorf("error unmarshalling metadata to minimax request: %w", err)

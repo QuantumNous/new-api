@@ -2,27 +2,27 @@ package common
 
 import "github.com/gin-gonic/gin"
 
-// BillingSettler 抽象计费会话的生命周期操作。
-// 由 service.BillingSession 实现，存储在 RelayInfo 上以避免循环引用。
+// BillingSettler abstracts the lifecycle operations of a billing session.
+// Implemented by service.BillingSession, stored on RelayInfo to avoid circular references.
 type BillingSettler interface {
-	// Settle 根据实际消耗额度进行结算，计算 delta = actualQuota - preConsumedQuota，
-	// 同时调整资金来源（钱包/订阅）和令牌额度。
+	// Settle settles according to the actual consumption quota, and calculates delta = actualQuota - preConsumedQuota,
+	// Also adjust the funding source (wallet/subscription) and token limit.
 	Settle(actualQuota int) error
 
-	// Refund 退还所有预扣费额度（资金来源 + 令牌），幂等安全。
-	// 通过 gopool 异步执行。如果已经结算或退款则不做任何操作。
+	// Refund refunds all withholding fees (fund source + token), idempotent and safe.
+	// Asynchronous execution via gopool. If settlement or refund has already been made, no action will be taken.
 	Refund(c *gin.Context)
 
-	// NeedsRefund 返回会话是否存在需要退还的预扣状态（未结算且未退款）。
+	// NeedsRefund Returns whether the session has a withholding status that needs to be refunded (unsettled and not refunded).
 	NeedsRefund() bool
 
-	// GetPreConsumedQuota 返回实际预扣的额度值（信任用户可能为 0）。
+	// GetPreConsumedQuota returns the actual withholding quota value (may be 0 for trusted users).
 	GetPreConsumedQuota() int
 
-	// Reserve 将预扣额度补到目标值；若目标值不高于当前预扣额度则不做任何事。
+	// Reserve will make up the withholding amount to the target value; if the target value is not higher than the current withholding amount, nothing will be done.
 	Reserve(targetQuota int) error
 
-	// ReserveBeforeSubmit 与 Reserve 相同，用于发起上游请求前价格已经确定的补扣
-	// （例如任务重试换到更贵的渠道）：钱包余额不足时返回额度不足，不记为欠费。
+	// ReserveBeforeSubmit is the same as Reserve, used for subsidy when the price has been determined before initiating the upstream request.
+	// (For example, the task is retried and switched to a more expensive channel): When the wallet balance is insufficient, the amount returned is insufficient and will not be recorded as arrears.
 	ReserveBeforeSubmit(targetQuota int) error
 }

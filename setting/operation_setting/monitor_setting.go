@@ -25,7 +25,7 @@ const (
 	MaxChannelTestConcurrency       = 32
 )
 
-// 默认配置
+// Default configuration
 var monitorSetting = MonitorSetting{
 	AutoTestChannelEnabled: false,
 	AutoTestChannelMinutes: 10,
@@ -34,7 +34,7 @@ var monitorSetting = MonitorSetting{
 }
 
 func init() {
-	// 注册到全局配置管理器
+	// Register to the global configuration manager
 	config.GlobalConfig.Register("monitor_setting", &monitorSetting)
 }
 

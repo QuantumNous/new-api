@@ -412,7 +412,7 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if relayInfo.IsPlayground {
 		return nil
 	}
-	// 原子预扣：检查与扣减在同一操作中完成，并发请求不可能同时通过检查后超扣。
+	// Atomic withholding: Checking and deduction are completed in the same operation. It is impossible for concurrent requests to pass the check and then exceed the deduction at the same time.
 	reserved, err := model.TryReserveTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota, relayInfo.TokenUnlimited)
 	if err != nil {
 		return err
@@ -556,7 +556,7 @@ func quotaReminderDue(userSetting dto.UserSetting, before int64, after int64) bo
 func quotaNotifyContent(lang string, notifyType string, prompt string, remaining string) (string, []any) {
 	switch notifyType {
 	case dto.NotifyTypeBark:
-		// Bark推送使用简短文本，不支持HTML
+		// Bark push uses short text and does not support HTML
 		return i18n.Translate(lang, i18n.MsgNotifyQuotaLowBark, map[string]any{"Prompt": prompt, "Quota": remaining}), []any{prompt, remaining}
 	case dto.NotifyTypeGotify:
 		return i18n.Translate(lang, i18n.MsgNotifyQuotaLowGotify, map[string]any{"Prompt": prompt, "Quota": remaining}), []any{prompt, remaining}

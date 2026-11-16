@@ -10,11 +10,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// TwoFA 用户2FA设置表
+// TwoFA User 2FA Settings Form
 type TwoFA struct {
 	Id             int            `json:"id" gorm:"primaryKey"`
 	UserId         int            `json:"user_id" gorm:"unique;not null;index"`
-	Secret         string         `json:"-" gorm:"type:varchar(255);not null"` // TOTP密钥，不返回给前端
+	Secret         string         `json:"-" gorm:"type:varchar(255);not null"` // TOTP key, not returned to frontend
 	IsEnabled      bool           `json:"is_enabled"`
 	FailedAttempts int            `json:"failed_attempts" gorm:"default:0"`
 	LockedUntil    *time.Time     `json:"locked_until,omitempty"`
@@ -24,18 +24,18 @@ type TwoFA struct {
 	DeletedAt      gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
-// TwoFABackupCode 备用码使用记录表
+// TwoFABackupCode backup code usage record table
 type TwoFABackupCode struct {
 	Id        int            `json:"id" gorm:"primaryKey"`
 	UserId    int            `json:"user_id" gorm:"not null;index"`
-	CodeHash  string         `json:"-" gorm:"type:varchar(255);not null"` // 备用码哈希
+	CodeHash  string         `json:"-" gorm:"type:varchar(255);not null"` // Backup code hash
 	IsUsed    bool           `json:"is_used"`
 	UsedAt    *time.Time     `json:"used_at,omitempty"`
 	CreatedAt time.Time      `json:"created_at"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
-// GetTwoFAByUserId 根据用户ID获取2FA设置
+// GetTwoFAByUserId Gets 2FA settings based on user ID
 func GetTwoFAByUserId(userId int) (*TwoFA, error) {
 	if userId == 0 {
 		return nil, errors.New("user ID is empty")
@@ -45,7 +45,7 @@ func GetTwoFAByUserId(userId int) (*TwoFA, error) {
 	err := DB.Where("user_id = ?", userId).First(&twoFA).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // 返回nil表示未设置2FA
+			return nil, nil // Return nil to indicate that 2FA is not set up
 		}
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func GetTwoFAByUserId(userId int) (*TwoFA, error) {
 	return &twoFA, nil
 }
 
-// IsTwoFAEnabled 检查用户是否启用了2FA
+// IsTwoFAEnabled checks if the user has 2FA enabled
 func IsTwoFAEnabled(userId int) (bool, error) {
 	twoFA, err := GetTwoFAByUserId(userId)
 	if err != nil {
@@ -73,14 +73,14 @@ func (t *TwoFA) updateUsageState() error {
 	}).Error
 }
 
-// ResetFailedAttempts 重置失败尝试次数
+// ResetFailedAttempts resets the number of failed attempts
 func (t *TwoFA) ResetFailedAttempts() error {
 	t.FailedAttempts = 0
 	t.LockedUntil = nil
 	return t.updateUsageState()
 }
 
-// IncrementFailedAttempts 增加失败尝试次数
+// IncrementFailedAttempts increases the number of failed attempts
 func (t *TwoFA) IncrementFailedAttempts() error {
 	if t.Id == 0 {
 		return errors.New("2FA record ID is empty")
@@ -133,7 +133,7 @@ func (t *TwoFA) IncrementFailedAttempts() error {
 	return errors.New("conflicting updates to the 2FA failure count, please retry")
 }
 
-// IsLocked 检查账户是否被锁定
+// IsLocked checks whether the account is locked
 func (t *TwoFA) IsLocked() bool {
 	if t.LockedUntil == nil {
 		return false
@@ -193,7 +193,7 @@ func replaceBackupCodesWithAuthVersion(userId int, codes []string, identity *Aut
 	return PublishUserAuthCache(userId)
 }
 
-// ValidateBackupCode 验证并使用备用码
+// ValidateBackupCode validates and uses the backup code
 func ValidateBackupCode(userId int, code string) (bool, error) {
 	if !common.ValidateBackupCode(code) {
 		return false, errors.New("the verification code or backup code is incorrect")
@@ -201,13 +201,13 @@ func ValidateBackupCode(userId int, code string) (bool, error) {
 
 	normalizedCode := common.NormalizeBackupCode(code)
 
-	// 查找未使用的备用码
+	// Find unused backup codes
 	var backupCodes []TwoFABackupCode
 	if err := DB.Where("user_id = ? AND is_used = false", userId).Find(&backupCodes).Error; err != nil {
 		return false, err
 	}
 
-	// 验证备用码
+	// Verification backup code
 	for _, bc := range backupCodes {
 		if common.ValidatePasswordAndHash(normalizedCode, bc.CodeHash) {
 			now := time.Now()
@@ -227,7 +227,7 @@ func ValidateBackupCode(userId int, code string) (bool, error) {
 	return false, nil
 }
 
-// GetUnusedBackupCodeCount 获取未使用的备用码数量
+// GetUnusedBackupCodeCount Gets the number of unused backup codes
 func GetUnusedBackupCodeCount(userId int) (int, error) {
 	var count int64
 	err := DB.Model(&TwoFABackupCode{}).Where("user_id = ? AND is_used = false", userId).Count(&count).Error
@@ -273,23 +273,23 @@ func disableTwoFAWithAuthVersion(userId int, identity *AuthSessionIdentity) erro
 	return PublishUserAuthCache(userId)
 }
 
-// ValidateTOTPAndUpdateUsage 验证TOTP并更新使用记录
+// ValidateTOTPAndUpdateUsage validates TOTP and updates usage records
 func (t *TwoFA) ValidateTOTPAndUpdateUsage(code string) (bool, error) {
-	// 检查是否被锁定
+	// Check if it is locked
 	if t.IsLocked() {
 		return false, fmt.Errorf("the account is locked, retry after %v", t.LockedUntil.Format("2006-01-02 15:04:05"))
 	}
 
-	// 验证TOTP码
+	// Verify TOTP code
 	if !common.ValidateTOTPCode(t.Secret, code) {
-		// 增加失败次数
+		// Increase the number of failures
 		if err := t.IncrementFailedAttempts(); err != nil {
 			return false, err
 		}
 		return false, nil
 	}
 
-	// 验证成功，重置失败次数并更新最后使用时间
+	// Verification is successful, the number of failures is reset and the last usage time is updated.
 	now := time.Now()
 	t.FailedAttempts = 0
 	t.LockedUntil = nil
@@ -302,28 +302,28 @@ func (t *TwoFA) ValidateTOTPAndUpdateUsage(code string) (bool, error) {
 	return true, nil
 }
 
-// ValidateBackupCodeAndUpdateUsage 验证备用码并更新使用记录
+// ValidateBackupCodeAndUpdateUsage validates backup codes and updates usage records
 func (t *TwoFA) ValidateBackupCodeAndUpdateUsage(code string) (bool, error) {
-	// 检查是否被锁定
+	// Check if it is locked
 	if t.IsLocked() {
 		return false, fmt.Errorf("the account is locked, retry after %v", t.LockedUntil.Format("2006-01-02 15:04:05"))
 	}
 
-	// 验证备用码
+	// Verification backup code
 	valid, err := ValidateBackupCode(t.UserId, code)
 	if err != nil {
 		return false, err
 	}
 
 	if !valid {
-		// 增加失败次数
+		// Increase the number of failures
 		if err := t.IncrementFailedAttempts(); err != nil {
 			return false, err
 		}
 		return false, nil
 	}
 
-	// 验证成功，重置失败次数并更新最后使用时间
+	// Verification is successful, the number of failures is reset and the last usage time is updated.
 	now := time.Now()
 	t.FailedAttempts = 0
 	t.LockedUntil = nil
@@ -336,16 +336,16 @@ func (t *TwoFA) ValidateBackupCodeAndUpdateUsage(code string) (bool, error) {
 	return true, nil
 }
 
-// GetTwoFAStats 获取2FA统计信息（管理员使用）
+// GetTwoFAStats Gets 2FA statistics (for administrator use)
 func GetTwoFAStats() (map[string]any, error) {
 	var totalUsers, enabledUsers int64
 
-	// 总用户数
+	// Total number of users
 	if err := DB.Model(&User{}).Count(&totalUsers).Error; err != nil {
 		return nil, err
 	}
 
-	// 启用2FA的用户数
+	// Number of users with 2FA enabled
 	if err := DB.Model(&TwoFA{}).Where("is_enabled = true").Count(&enabledUsers).Error; err != nil {
 		return nil, err
 	}

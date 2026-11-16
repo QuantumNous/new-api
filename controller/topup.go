@@ -26,15 +26,15 @@ import (
 func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
 
-	// 获取支付方式
+	// Get payment method
 	payMethods := operation_setting.PayMethods
 	if !complianceConfirmed {
 		payMethods = []map[string]string{}
 	}
 
-	// 如果启用了 Stripe 支付，添加到支付方法列表
+	// If Stripe payments are enabled, add to the list of payment methods
 	if isStripeTopUpEnabled() {
-		// 检查是否已经包含 Stripe
+		// Check if Stripe is already included
 		hasStripe := false
 		for _, method := range payMethods {
 			if method["type"] == "stripe" {
@@ -75,7 +75,7 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
-	// 如果启用了 Waffo 支付，添加到支付方法列表
+	// If Waffo payments are enabled, add to the list of payment methods
 	enableWaffo := isWaffoTopUpEnabled()
 	if enableWaffo {
 		hasWaffo := false
@@ -158,8 +158,8 @@ func GetEpayClient() *epay.Client {
 
 func getPayMoney(amount int64, group string) float64 {
 	dAmount := decimal.NewFromInt(amount)
-	// 充值金额以“展示类型”为准：
-	// - USD/CNY: 前端传 amount 为金额单位；TOKENS: 前端传 tokens，需要换成 USD 金额
+	// The recharge amount is based on the "display type":
+	// - USD/CNY: The front-end passes amount as the amount unit; TOKENS: The front-end passes tokens, which need to be converted into USD amount.
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 		dAmount = dAmount.Div(dQuotaPerUnit)
@@ -374,13 +374,13 @@ func RequestEpay(c *gin.Context) {
 var orderLocks sync.Map
 var createLock sync.Mutex
 
-// refCountedMutex 带引用计数的互斥锁，确保最后一个使用者才从 map 中删除
+// refCountedMutex mutex with reference counting, ensuring that the last user is deleted from the map
 type refCountedMutex struct {
 	mu       sync.Mutex
 	refCount int
 }
 
-// LockOrder 尝试对给定订单号加锁
+// LockOrder attempts to lock the given order number
 func LockOrder(tradeNo string) {
 	createLock.Lock()
 	var rcm *refCountedMutex
@@ -395,7 +395,7 @@ func LockOrder(tradeNo string) {
 	rcm.mu.Lock()
 }
 
-// UnlockOrder 释放给定订单号的锁
+// UnlockOrder releases the lock for the given order number
 func UnlockOrder(tradeNo string) {
 	v, ok := orderLocks.Load(tradeNo)
 	if !ok {
@@ -422,7 +422,7 @@ func EpayNotify(c *gin.Context) {
 	var params map[string]string
 
 	if c.Request.Method == "POST" {
-		// POST 请求：从 POST body 解析参数
+		// POST request: parsing parameters from POST body
 		if err := c.Request.ParseForm(); err != nil {
 			logger.LogError(c.Request.Context(), common.LogText("Epay webhook failed to parse POST form path=%q client_ip=%s error=%q", c.Request.RequestURI, c.ClientIP(), err.Error()))
 			_, _ = c.Writer.Write([]byte("fail"))
@@ -433,7 +433,7 @@ func EpayNotify(c *gin.Context) {
 			return r
 		}, map[string]string{})
 	} else {
-		// GET 请求：从 URL Query 解析参数
+		// GET request: parsing parameters from URL Query
 		params = lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
 			r[t] = c.Request.URL.Query().Get(t)
 			return r
@@ -470,8 +470,8 @@ func EpayNotify(c *gin.Context) {
 	logger.LogInfo(c.Request.Context(), common.LogText("Epay webhook signature verified trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))
 
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
-		// 进程内锁只是优化；重复/并发回调的正确性由 RechargeEpay 的
-		// 数据库行锁 + 事务内状态校验保证（多实例部署下同样安全）。
+		// In-process locking is just an optimization; correctness of duplicate/concurrent callbacks is determined by RechargeEpay's
+		// Database row lock + intra-transaction state verification guarantee (same security under multi-instance deployment).
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
 		alreadyDone, err := model.RechargeEpay(verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP())
@@ -558,7 +558,7 @@ func GetUserTopUps(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
-// GetAllTopUps 管理员获取全平台充值记录
+// GetAllTopUps administrator obtains all platform recharge records
 func GetAllTopUps(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
@@ -587,7 +587,7 @@ type AdminCompleteTopupRequest struct {
 	TradeNo string `json:"trade_no"`
 }
 
-// AdminCompleteTopUp 管理员补单接口
+// AdminCompleteTopUp administrator order filling interface
 func AdminCompleteTopUp(c *gin.Context) {
 	var req AdminCompleteTopupRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.TradeNo == "" {
@@ -595,7 +595,7 @@ func AdminCompleteTopUp(c *gin.Context) {
 		return
 	}
 
-	// 订单级互斥，防止并发补单
+	// Order-level mutual exclusion to prevent concurrent order replenishment
 	LockOrder(req.TradeNo)
 	defer UnlockOrder(req.TradeNo)
 

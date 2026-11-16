@@ -107,11 +107,11 @@ describe('server error message mapping', () => {
 
   test('translates a backend source key and leaves upstream text as written', async () => {
     i18next.addResourceBundle('zhCN', 'translation', {
-      'Task timed out': '任务超时',
+      'Task timed out': "Task timed out",
     })
     await i18next.changeLanguage('zhCN')
     try {
-      expect(translateServerText(i18next.t, 'Task timed out')).toBe('任务超时')
+      expect(translateServerText(i18next.t, 'Task timed out')).toBe("Task timed out")
       const upstream = 'upstream said {{bad}} and $t(Task timed out)'
       expect(translateServerText(i18next.t, upstream)).toBe(upstream)
     } finally {

@@ -435,7 +435,7 @@ export function UserAuthForm({
           onOpenChange={handleWeChatDialogChange}
           title={t('WeChat sign in')}
           description={t(
-            'Scan the QR code to follow the official account and reply with “验证码” to receive your verification code.'
+            "Scan the QR code to follow the official account, then reply with its configured verification keyword to receive your code."
           )}
           contentClassName='max-w-sm'
           headerClassName='text-left'

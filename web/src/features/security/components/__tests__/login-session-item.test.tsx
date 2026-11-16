@@ -49,16 +49,16 @@ afterEach(async () => {
   await act(() => i18next.changeLanguage('en'))
 })
 
-test('renders last-active relative time in zhCN and fr instead of English ago', async () => {
+test('keeps last-active relative time English after legacy language requests', async () => {
   await setInterfaceLanguage('zhCN')
   const { rerender } = render(
     <LoginSessionItem session={session} onRevoke={() => undefined} />
   )
-  const chinese = screen.getByText(/小时/).textContent ?? ''
-  expect(chinese).not.toMatch(/ago/i)
+  const chinese = screen.getByText(/ago/).textContent ?? ''
+  expect(chinese).toMatch(/ago/i)
 
   await setInterfaceLanguage('fr')
   rerender(<LoginSessionItem session={session} onRevoke={() => undefined} />)
-  const french = screen.getByText(/heure/).textContent ?? ''
-  expect(french).not.toMatch(/ago/i)
+  const french = screen.getByText(/ago/).textContent ?? ''
+  expect(french).toMatch(/ago/i)
 })

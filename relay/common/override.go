@@ -71,11 +71,11 @@ type paramOverrideAuditRecorder struct {
 }
 
 type ConditionOperation struct {
-	Path           string `json:"path"`             // JSON路径
+	Path           string `json:"path"`             // JSON path
 	Mode           string `json:"mode"`             // full, prefix, suffix, contains, regex, gt, gte, lt, lte
-	Value          any    `json:"value"`            // 匹配的值
-	Invert         bool   `json:"invert"`           // 反选功能，true表示取反结果
-	PassMissingKey bool   `json:"pass_missing_key"` // 未获取到json key时的行为
+	Value          any    `json:"value"`            // matching value
+	Invert         bool   `json:"invert"`           // Inverse selection function, true means negating the result
+	PassMissingKey bool   `json:"pass_missing_key"` // Behavior when json key is not obtained
 }
 
 type ParamOperation struct {
@@ -85,8 +85,8 @@ type ParamOperation struct {
 	KeepOrigin bool                 `json:"keep_origin"`
 	From       string               `json:"from,omitempty"`
 	To         string               `json:"to,omitempty"`
-	Conditions []ConditionOperation `json:"conditions,omitempty"` // 条件列表
-	Logic      string               `json:"logic,omitempty"`      // AND, OR (默认OR)
+	Conditions []ConditionOperation `json:"conditions,omitempty"` // condition list
+	Logic      string               `json:"logic,omitempty"`      // AND, OR (default OR)
 }
 
 type ParamOverrideReturnError struct {
@@ -179,10 +179,10 @@ func ApplyParamOverride(jsonData []byte, paramOverride map[string]any, condition
 		return jsonData, nil
 	}
 	auditRecorder := getParamOverrideAuditRecorder(conditionContext)
-	// 新旧两种格式的所有修改都在同一个 Doc 上进行，最后只生成一次输出
+	// All modifications to the old and new formats are made on the same Doc, and only one output is generated in the end.
 	doc := ojson.NewDoc(jsonData)
 
-	// 尝试断言为操作格式
+	// Try asserting in action format
 	if operations, ok := tryParseOperations(paramOverride); ok {
 		legacyOverride := buildLegacyParamOverride(paramOverride)
 		if len(legacyOverride) > 0 {
@@ -194,7 +194,7 @@ func ApplyParamOverride(jsonData []byte, paramOverride map[string]any, condition
 		return applyOperations(doc, operations, conditionContext)
 	}
 
-	// 直接使用旧方法
+	// Just use the old method
 	if err := applyOperationsLegacy(doc, paramOverride, auditRecorder); err != nil {
 		return nil, err
 	}
@@ -593,7 +593,7 @@ func GetEffectiveHeaderOverride(info *RelayInfo) map[string]any {
 }
 
 func tryParseOperations(paramOverride map[string]any) ([]ParamOperation, bool) {
-	// 检查是否包含 "operations" 字段
+	// Check if "operations" field is included
 	opsValue, exists := paramOverride["operations"]
 	if !exists {
 		return nil, false
@@ -620,17 +620,17 @@ func tryParseOperations(paramOverride map[string]any) ([]ParamOperation, bool) {
 	for _, opMap := range opMaps {
 		operation := ParamOperation{}
 
-		// 断言必要字段
+		// Assert required fields
 		if path, ok := opMap["path"].(string); ok {
 			operation.Path = path
 		}
 		if mode, ok := opMap["mode"].(string); ok {
 			operation.Mode = mode
 		} else {
-			return nil, false // mode 是必需的
+			return nil, false // mode is required
 		}
 
-		// 可选字段
+		// optional fields
 		if value, exists := opMap["value"]; exists {
 			operation.Value = value
 		}
@@ -646,10 +646,10 @@ func tryParseOperations(paramOverride map[string]any) ([]ParamOperation, bool) {
 		if logic, ok := opMap["logic"].(string); ok {
 			operation.Logic = logic
 		} else {
-			operation.Logic = "OR" // 默认为OR
+			operation.Logic = "OR" // Default is OR
 		}
 
-		// 解析条件
+		// parsing conditions
 		if conditions, exists := opMap["conditions"]; exists {
 			parsedConditions, err := parseConditionOperations(conditions)
 			if err != nil {
@@ -665,7 +665,7 @@ func tryParseOperations(paramOverride map[string]any) ([]ParamOperation, bool) {
 
 func checkConditions(doc *ojson.Doc, contextJSON string, conditions []ConditionOperation, logic string) (bool, error) {
 	if len(conditions) == 0 {
-		return true, nil // 没有条件，直接通过
+		return true, nil // No conditions, pass directly
 	}
 	results := make([]bool, len(conditions))
 	for i := range conditions {
@@ -683,7 +683,7 @@ func checkConditions(doc *ojson.Doc, contextJSON string, conditions []ConditionO
 }
 
 func checkSingleCondition(doc *ojson.Doc, contextJSON string, condition *ConditionOperation) (bool, error) {
-	// 处理负数索引
+	// Handling negative indexes
 	path := processNegativeIndex(doc, condition.Path)
 	value := doc.Get(path)
 	if !value.Exists() && contextJSON != "" {
@@ -696,7 +696,7 @@ func checkSingleCondition(doc *ojson.Doc, contextJSON string, condition *Conditi
 		return false, nil
 	}
 
-	// 利用ojson的类型解析
+	// Using ojson type analysis
 	targetBytes, err := common.Marshal(condition.Value)
 	if err != nil {
 		return false, fmt.Errorf("failed to marshal condition value: %v", err)
@@ -749,7 +749,7 @@ func processNegativeIndex(doc *ojson.Doc, path string) string {
 	return result
 }
 
-// compareGjsonValues 直接比较两个ojson.Result，支持所有比较模式
+// compareGjsonValues directly compares two ojson.Result, supports all comparison modes
 func (condition *ConditionOperation) compareGjsonValues(jsonValue, targetValue ojson.Result) (bool, error) {
 	mode := strings.ToLower(condition.Mode)
 	switch mode {
@@ -784,18 +784,18 @@ func (condition *ConditionOperation) compareGjsonValues(jsonValue, targetValue o
 }
 
 func compareEqual(jsonValue, targetValue ojson.Result) (bool, error) {
-	// 对null值特殊处理：两个都是null返回true，一个是null另一个不是返回false
+	// Special treatment for null values: both are null and return true, one is null and the other is not returns false
 	if jsonValue.Type == ojson.Null || targetValue.Type == ojson.Null {
 		return jsonValue.Type == ojson.Null && targetValue.Type == ojson.Null, nil
 	}
 
-	// 对布尔值特殊处理
+	// Special handling of Boolean values
 	if (jsonValue.Type == ojson.True || jsonValue.Type == ojson.False) &&
 		(targetValue.Type == ojson.True || targetValue.Type == ojson.False) {
 		return jsonValue.Bool() == targetValue.Bool(), nil
 	}
 
-	// 如果类型不同，报错
+	// If the types are different, an error will be reported
 	if jsonValue.Type != targetValue.Type {
 		return false, &ParamOverrideRequestValueError{Err: fmt.Errorf("compare for different types, got %v and %v", jsonValue.Type, targetValue.Type)}
 	}
@@ -813,8 +813,8 @@ func compareEqual(jsonValue, targetValue ojson.Result) (bool, error) {
 }
 
 func compareNumeric(jsonValue, targetValue ojson.Result, operator string) (bool, error) {
-	// 只有数字类型才支持数值比较。规则值不是数字是配置错误，
-	// 请求值不是数字是请求错误。
+	// Numeric comparisons are supported only for numeric types. The rule value is not a number, which is a configuration error.
+	// A request value that is not a number is a request error.
 	if targetValue.Type != ojson.Number {
 		return false, fmt.Errorf("numeric comparison requires both values to be numbers, got %v and %v", jsonValue.Type, targetValue.Type)
 	}
@@ -839,17 +839,17 @@ func compareNumeric(jsonValue, targetValue ojson.Result, operator string) (bool,
 	}
 }
 
-// applyOperationsLegacy 原参数覆盖方法。
+// applyOperationsLegacy original parameter override method.
 //
-// 旧实现把整个 jsonData unmarshal 成 map[string]interface{} 再 marshal 回来，
-// 对包含大 base64 字段（如 Gemini inlineData.data）的请求会放大数倍内存
-// （interface 装箱、map bucket、再次 marshal）。
-// 这里改成在 ojson.Doc 上按顶层 key 逐个写入，
-// 不再把 payload 解码到 map[string]interface{}。
+// The old implementation unmarshaled the entire jsonData into map[string]interface{} and then marshaled it back.
+// Requests containing large base64 fields (such as Gemini inlineData.data) amplify memory several times
+// (interface boxing, map bucket, marshal again).
+// Here it is changed to write one by one according to the top key on ojson.Doc.
+// No longer decode payload to map[string]interface{}.
 //
-// 语义保持：每个 paramOverride 顶层 key 视为字面 key（不解析点号路径），
-// 与旧的 reqMap[key] = value 一致。包含 `.` `*` `?` `\` 的 key 会被转义，
-// 防止被 ojson 当作嵌套路径或通配符。
+// Semantics maintained: Each paramOverride top-level key is treated as a literal key (dotted paths are not parsed),
+// Consistent with the old reqMap[key] = value. Keys containing `.` `*` `?` `\` will be escaped.
+// Prevent ojson from being treated as nested paths or wildcards.
 func applyOperationsLegacy(doc *ojson.Doc, paramOverride map[string]any, auditRecorder *paramOverrideAuditRecorder) error {
 	for key, value := range paramOverride {
 		escaped := escapeSjsonLiteralKey(key)
@@ -861,8 +861,8 @@ func applyOperationsLegacy(doc *ojson.Doc, paramOverride map[string]any, auditRe
 	return nil
 }
 
-// escapeSjsonLiteralKey 把可能被 ojson 误判为路径或通配符的字符转义，
-// 用于把字面 key 安全地传给 ojson.Doc.Set。
+// escapeSjsonLiteralKey escapes characters that may be misjudged by ojson as paths or wildcards.
+// Used to safely pass literal keys to ojson.Doc.Set.
 func escapeSjsonLiteralKey(key string) string {
 	if !strings.ContainsAny(key, ".*?\\") {
 		return key
@@ -880,15 +880,15 @@ func escapeSjsonLiteralKey(key string) string {
 	return sb.String()
 }
 
-// applyOperations 在同一个 ojson.Doc 上依次应用所有 param override 操作，
-// 返回最终的请求体。
+// applyOperations applies all param override operations sequentially on the same ojson.Doc,
+// Return the final request body.
 //
-// 旧实现每个操作都调用一次 sjson.SetBytes，每次都要复制整个请求体，
-// 对大 base64 payload（如 Gemini inlineData.data）来说操作越多拷贝越多。
-// ojson.Doc 只拆开编辑经过的对象和数组，其余部分仍是输入的切片；
-// 条件、负数索引、keep_origin 等读取都通过 doc.Get 读当前文档，
-// 最后由 doc.Bytes() 一次性生成输出。doc.Get 的结果可能指向输入，
-// 不能在本次调用之外保留。
+// The old implementation calls sjson.SetBytes once for each operation and copies the entire request body each time.
+// For large base64 payloads (such as Gemini inlineData.data), the more operations, the more copies will be made.
+// ojson.Doc only disassembles the edited objects and arrays, and the rest are still input slices;
+// Conditions, negative indexes, keep_origin and other readings all read the current document through doc.Get.
+// Finally, the output is generated in one go by doc.Bytes(). The result of doc.Get may point to the input,
+// Cannot be retained outside of this call.
 func applyOperations(doc *ojson.Doc, operations []ParamOperation, conditionContext map[string]any) ([]byte, error) {
 	context := ensureContextMap(conditionContext)
 	auditRecorder := getParamOverrideAuditRecorder(context)
@@ -898,15 +898,15 @@ func applyOperations(doc *ojson.Doc, operations []ParamOperation, conditionConte
 	}
 
 	for _, op := range operations {
-		// 检查条件是否满足
+		// Check whether the conditions are met
 		ok, err := checkConditions(doc, contextJSON, op.Conditions, op.Logic)
 		if err != nil {
 			return nil, err
 		}
 		if !ok {
-			continue // 条件不满足，跳过当前操作
+			continue // If the condition is not met, skip the current operation.
 		}
-		// 处理路径中的负数索引
+		// Handling negative indices in paths
 		opPath := processNegativeIndex(doc, op.Path)
 		var opPaths []string
 		if isPathBasedOperation(op.Mode) {
@@ -1827,7 +1827,7 @@ func modifyValue(doc *ojson.Doc, path string, value any, keepOrigin, isPrepend b
 func modifyArray(doc *ojson.Doc, path string, value any, isPrepend bool) error {
 	current := doc.Get(path)
 	var newArray []any
-	// 添加新值
+	// Add new value
 	addValue := func() {
 		if arr, ok := value.([]any); ok {
 			newArray = append(newArray, arr...)
@@ -1835,7 +1835,7 @@ func modifyArray(doc *ojson.Doc, path string, value any, isPrepend bool) error {
 			newArray = append(newArray, value)
 		}
 	}
-	// 添加原值（保留原始字节，对象键顺序不变）
+	// Add original value (keep original bytes, object key order unchanged)
 	addOriginal := func() {
 		current.ForEach(func(_, val ojson.Result) bool {
 			newArray = append(newArray, common.RawMessage(val.Raw))
@@ -1952,8 +1952,8 @@ type pruneObjectsOptions struct {
 	recursive  bool
 }
 
-// pruneObjects 在原 Doc 上删除 path（为空时为整个请求体）下满足条件的对象，
-// 其余内容保持原样。
+// pruneObjects deletes objects that meet the conditions under path (the entire request body when empty) on the original Doc.
+// The rest of the content remains as is.
 func pruneObjects(doc *ojson.Doc, path, contextJSON string, value any) error {
 	options, err := parsePruneObjectsOptions(value)
 	if err != nil {
@@ -1972,7 +1972,7 @@ func pruneObjects(doc *ojson.Doc, path, contextJSON string, value any) error {
 	if _, err := collectPrunedObjects(target, path, options, contextJSON, true, &pruned); err != nil {
 		return err
 	}
-	// 从后往前删，前面数组元素的下标不受影响
+	// Delete from back to front, the subscript of the previous array element will not be affected
 	for i := len(pruned) - 1; i >= 0; i-- {
 		if pruned[i].member {
 			err = DeleteJSONMember(doc, pruned[i].path)
@@ -2111,16 +2111,16 @@ func parseConditionOperations(raw any) ([]ConditionOperation, error) {
 	}
 }
 
-// prunedObject 是 prune_objects 要删除的对象：对象成员按键删除所有副本，
-// 数组元素按下标删除。
+// prunedObject is the prune_objects object to delete: object members delete all copies by key,
+// Array elements are deleted by subscript.
 type prunedObject struct {
 	path   string
 	member bool
 }
 
-// collectPrunedObjects 遍历 node：数组逐个检查元素，对象满足条件时（根节点除外）
-// 整个删除，recursive 时继续检查对象的成员。要删除的路径按文档顺序追加到
-// pruned，返回值表示 node 本身是否要删除。
+// collectPrunedObjects traverses node: the array checks elements one by one, when the object meets the conditions (except the root node)
+// When deleting the entire object, recursive continues to check the members of the object. The paths to be deleted are appended in document order to
+// pruned, the return value indicates whether the node itself needs to be deleted.
 func collectPrunedObjects(node ojson.Result, path string, options pruneObjectsOptions, contextJSON string, isRoot bool, pruned *[]prunedObject) (bool, error) {
 	prefix := ""
 	if path != "" {
@@ -2168,8 +2168,8 @@ func collectPrunedObjects(node ojson.Result, path string, options pruneObjectsOp
 	}
 }
 
-// mergeObjects 把 value 的成员写入 path 处的对象：已有成员原地替换，新成员按
-// 键名顺序追加到末尾，其余成员保持原样。
+// mergeObjects writes the members of value to the object at path: existing members are replaced in place, and new members are
+// The key names are appended to the end in sequence, leaving the remaining members as they are.
 func mergeObjects(doc *ojson.Doc, path string, value any, keepOrigin bool) error {
 	var newMap map[string]any
 	switch v := value.(type) {
@@ -2194,16 +2194,16 @@ func mergeObjects(doc *ojson.Doc, path string, value any, keepOrigin bool) error
 	return nil
 }
 
-// BuildParamOverrideContext 提供 ApplyParamOverride 可用的上下文信息。
-// 目前内置以下字段：
-//   - upstream_model/model：始终为通道映射后的上游模型名。
-//   - original_model：请求最初指定的模型名。
-//   - user_id：已认证用户 ID。
-//   - user_group：用户所属分组。
-//   - token_group：令牌指定的分组；未指定时回退为用户分组。
-//   - using_group：当前实际使用的分组，自动跨分组重试时可能变化。
-//   - request_path：请求路径
-//   - is_channel_test：是否为渠道测试请求（同 is_test）。
+// BuildParamOverrideContext provides context information available to ApplyParamOverride.
+// Currently the following fields are built in:
+// - upstream_model/model: always the upstream model name after channel mapping.
+// - original_model: Request the originally specified model name.
+// - user_id: Authenticated user ID.
+// - user_group: the group to which the user belongs.
+// - token_group: The group specified by the token; if not specified, it falls back to the user group.
+// - using_group: The currently used group, which may change when automatically retrying across groups.
+// - request_path: request path
+// - is_channel_test: Whether it is a channel test request (same as is_test).
 func BuildParamOverrideContext(info *RelayInfo) map[string]any {
 	if info == nil {
 		return nil

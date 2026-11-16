@@ -192,8 +192,8 @@ it.each([
 )
 
 it.each([
-  { language: 'zhCN', locale: 'zh-CN' },
-  { language: 'zhTW', locale: 'zh-TW' },
+  { language: 'zhCN', locale: 'en' },
+  { language: 'zhTW', locale: 'en' },
 ])(
   'formats status numbers and timestamps for $language',
   async ({ language, locale }) => {

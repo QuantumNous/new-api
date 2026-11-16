@@ -82,9 +82,9 @@ func authHelper(c *gin.Context, minRole int) {
 		setAccessTokenContext(c, lookup)
 	}
 
-	// 管理/root 写操作审计兜底：内聚在鉴权链路里，保证任何经过 AdminAuth/RootAuth
-	// 的写接口都会自动留痕（无需在路由上单独挂审计中间件，避免漏挂）。
-	// handler 内手动埋点者会设置 ContextKeyAuditLogged，finishAdminAudit 据此跳过。
+	// Management/root write operation auditing: integrated in the authentication link to ensure that anything passing AdminAuth/RootAuth
+	// The write interface will automatically leave traces (there is no need to hang the audit middleware separately on the route to avoid missing connections).
+	// Those who manually bury the point in the handler will set ContextKeyAuditLogged, and finishAdminAudit will be skipped accordingly.
 	var auditWriter *auditResponseWriter
 	if minRole >= common.RoleAdminUser {
 		auditWriter = beginAdminAudit(c)
@@ -452,10 +452,10 @@ func TokenOrUserAuth() func(c *gin.Context) {
 	}
 }
 
-// TokenAuthReadOnly 宽松版本的令牌认证中间件，用于只读查询接口。
-// 只验证令牌 key 是否存在，不检查过期时间和额度。
-// 即使令牌已过期或已耗尽，也允许访问；已禁用的令牌会被拒绝。
-// 仍然检查令牌 IP 白名单和用户是否被封禁。
+// TokenAuthReadOnly loose version of token authentication middleware for read-only query interface.
+// It only verifies whether the token key exists, and does not check the expiration time and amount.
+// Access is allowed even if the token has expired or been exhausted; disabled tokens are denied.
+// Still checking the token IP whitelist and if the user is banned.
 func TokenAuthReadOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		key := c.Request.Header.Get("Authorization")
@@ -527,16 +527,16 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		// 先检测是否为ws
+		// First check whether it is ws
 		applyWebSocketSubprotocolAuthorization(c.Request.Header)
-		// 检查path包含/v1/messages 或 /v1/models
+		// Check that path contains /v1/messages or /v1/models
 		if strings.Contains(c.Request.URL.Path, "/v1/messages") || strings.Contains(c.Request.URL.Path, "/v1/models") {
 			anthropicKey := c.Request.Header.Get("x-api-key")
 			if anthropicKey != "" {
 				c.Request.Header.Set("Authorization", "Bearer "+anthropicKey)
 			}
 		}
-		// gemini api 从query中获取key
+		// gemini api gets key from query
 		if c.Request.URL.Path == "/v1/models" ||
 			strings.HasPrefix(c.Request.URL.Path, "/v1beta/models") ||
 			strings.HasPrefix(c.Request.URL.Path, "/v1beta/openai/models") ||
@@ -545,7 +545,7 @@ func TokenAuth() func(c *gin.Context) {
 			if skKey != "" {
 				c.Request.Header.Set("Authorization", "Bearer "+skKey)
 			}
-			// 从x-goog-api-key header中获取key
+			// Get key from x-goog-api-key header
 			xGoogKey := c.Request.Header.Get("x-goog-api-key")
 			if xGoogKey != "" {
 				c.Request.Header.Set("Authorization", "Bearer "+xGoogKey)

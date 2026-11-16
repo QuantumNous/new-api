@@ -162,8 +162,8 @@ func GetHttpClient() *http.Client {
 	return httpClient
 }
 
-// GetSSRFProtectedHTTPClient 返回带拨号时 SSRF 校验的客户端。
-// ssrfProtectedHTTPClient 由 InitHttpClient 在启动时初始化，运行期只读。
+// GetSSRFProtectedHTTPClient Returns the client with SSRF verification when dialing.
+// ssrfProtectedHTTPClient is initialized by InitHttpClient at startup and is read-only during runtime.
 func GetSSRFProtectedHTTPClient() *http.Client {
 	if fetchSetting := system_setting.GetFetchSetting(); fetchSetting != nil && !fetchSetting.EnableSSRFProtection {
 		return GetHttpClient()

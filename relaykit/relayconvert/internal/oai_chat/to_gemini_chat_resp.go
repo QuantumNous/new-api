@@ -48,7 +48,7 @@ func NewChatToGeminiStreamState() *ChatToGeminiStreamState {
 	}
 }
 
-// ResponseOpenAI2Gemini 将 OpenAI 响应转换为 Gemini 格式
+// ResponseOpenAI2Gemini Convert OpenAI response to Gemini format
 func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta.Meta) *dto.GeminiChatResponse {
 	totalTokens := openAIResponse.TotalTokens
 	if totalTokens == 0 {
@@ -74,7 +74,7 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta
 			SafetyRatings: []dto.GeminiChatSafetyRating{},
 		}
 
-		// 设置结束原因
+		// Set end reason
 		var finishReason string
 		switch choice.FinishReason {
 		case "stop":
@@ -90,7 +90,7 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta
 		}
 		candidate.FinishReason = &finishReason
 
-		// 转换消息内容
+		// Convert message content
 		content := dto.GeminiChatContent{
 			Role:  "model",
 			Parts: make([]dto.GeminiPart, 0),
@@ -123,9 +123,9 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta
 	return geminiResponse
 }
 
-// StreamResponseOpenAI2Gemini 将 OpenAI 流式响应转换为 Gemini 格式
+// StreamResponseOpenAI2Gemini Convert OpenAI streaming response to Gemini format
 func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamResponse, info convmeta.Meta) *dto.GeminiChatResponse {
-	// 检查是否有实际内容或结束标志
+	// Check if there is actual content or closing flag
 	hasContent := false
 	hasFinishReason := false
 	for _, choice := range openAIResponse.Choices {
@@ -137,7 +137,7 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 		}
 	}
 
-	// 如果没有实际内容且没有结束标志，跳过。主要针对 openai 流响应开头的空数据
+	// If there is no actual content and no end flag, skip it. Mainly for empty data at the beginning of the openai stream response
 	if !hasContent && !hasFinishReason {
 		return nil
 	}
@@ -151,7 +151,7 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 		HasUsageMetadata: true,
 		UsageMetadata: dto.GeminiUsageMetadata{
 			PromptTokenCount:     estimatePromptTokens,
-			CandidatesTokenCount: 0, // 流式响应中可能没有完整的 usage 信息
+			CandidatesTokenCount: 0, // Streaming response may not have complete usage information
 			TotalTokenCount:      estimatePromptTokens,
 		},
 	}
@@ -172,7 +172,7 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 			SafetyRatings: []dto.GeminiChatSafetyRating{},
 		}
 
-		// 设置结束原因
+		// Set end reason
 		if choice.FinishReason != nil {
 			var finishReason string
 			switch *choice.FinishReason {
@@ -190,13 +190,13 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 			candidate.FinishReason = &finishReason
 		}
 
-		// 转换消息内容
+		// Convert message content
 		content := dto.GeminiChatContent{
 			Role:  "model",
 			Parts: make([]dto.GeminiPart, 0),
 		}
 
-		// 处理工具调用
+		// Handling tool calls
 		if choice.Delta.ToolCalls != nil {
 			for _, toolCall := range choice.Delta.ToolCalls {
 				part := dto.GeminiPart{
@@ -209,7 +209,7 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 				content.Parts = append(content.Parts, part)
 			}
 		} else {
-			// 处理文本内容
+			// Process text content
 			textContent := choice.Delta.GetContentString()
 			if textContent != "" {
 				part := dto.GeminiPart{

@@ -40,16 +40,16 @@ func GetSubscription(c *gin.Context) {
 	}
 	quota := remainQuota + usedQuota
 	amount := float64(quota)
-	// OpenAI 兼容接口中的 *_USD 字段含义保持“额度单位”对应值：
-	// 我们将其解释为以“站点展示类型”为准：
-	// - USD: 直接除以 QuotaPerUnit
-	// - CNY: 先转 USD 再乘汇率
-	// - TOKENS: 直接使用 tokens 数量
+	// The meaning of the *_USD field in the OpenAI compatible interface remains the corresponding value of "Quota Unit":
+	// We interpret this as based on the "Site Display Type":
+	// - USD: Divide directly by QuotaPerUnit
+	// - CNY: Convert USD first and then multiply by the exchange rate
+	// - TOKENS: directly use the number of tokens
 	switch operation_setting.GetQuotaDisplayType() {
 	case operation_setting.QuotaDisplayTypeCNY:
 		amount = amount / common.QuotaPerUnit * operation_setting.USDExchangeRate
 	case operation_setting.QuotaDisplayTypeTokens:
-		// amount 保持 tokens 数值
+		// amount holds the value of tokens
 	default:
 		amount = amount / common.QuotaPerUnit
 	}
@@ -95,7 +95,7 @@ func GetUsage(c *gin.Context) {
 	case operation_setting.QuotaDisplayTypeCNY:
 		amount = amount / common.QuotaPerUnit * operation_setting.USDExchangeRate
 	case operation_setting.QuotaDisplayTypeTokens:
-		// tokens 保持原值
+		// tokens retain their original values
 	default:
 		amount = amount / common.QuotaPerUnit
 	}

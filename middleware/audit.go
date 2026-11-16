@@ -12,10 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// auditResponseWriter 包装 gin.ResponseWriter，捕获响应状态码并将响应体复制一份到
-// 有限大小的缓冲区，用于判断业务是否成功（解析响应 JSON 的 success 字段）。
-// 缓冲区有上限，避免大响应（如密钥导出）占用过多内存；超出上限则不再缓存，
-// 此时仅依据 HTTP 状态码判断成败。
+// auditResponseWriter wraps gin.ResponseWriter, captures the response status code and copies the response body to
+// A buffer of limited size, used to determine whether the business is successful (parsing the success field of the response JSON).
+// The buffer has an upper limit to prevent large responses (such as key export) from occupying too much memory; if the upper limit is exceeded, it will no longer be cached.
+// At this time, success or failure is determined only based on the HTTP status code.
 type auditResponseWriter struct {
 	gin.ResponseWriter
 	body    *bytes.Buffer
@@ -38,73 +38,73 @@ func (w *auditResponseWriter) WriteString(s string) (int, error) {
 	return w.Write([]byte(s))
 }
 
-// auditRouteActions 将「METHOD + 路由模板」映射为语言无关的操作标识 action。
-// 这些是未被 handler 手动埋点的写操作，由中间件兜底记录；前端依据 action 用 i18n 本地化展示。
-// 未命中的写操作回退为 action="generic"，前端展示 "METHOD route"。
+// auditRouteActions maps "METHOD + route template" to a language-independent operation identifier action.
+// These are write operations that have not been manually buried by the handler, and are recorded by the middleware; the front end uses i18n localization for display based on the action.
+// Missed write operations fall back to action="generic", and the front end displays "METHOD route".
 var auditRouteActions = map[string]string{
-	// 用户管理
+	// User management
 	"POST /api/user/topup/complete":                    "user.topup_complete",
 	"DELETE /api/user/:id/reset_passkey":               "user.reset_passkey",
 	"DELETE /api/user/:id/oauth/bindings/:provider_id": "user.oauth_unbind",
 
-	// 系统设置（root）
+	// System settings (root)
 	"POST /api/option/payment_compliance":       "option.payment_compliance",
 	"POST /api/option/rest_model_ratio":         "option.reset_ratio",
 	"DELETE /api/option/channel_affinity_cache": "option.clear_affinity_cache",
 
-	// 自定义 OAuth（root）
+	// Custom OAuth (root)
 	"POST /api/custom-oauth-provider/":      "custom_oauth.create",
 	"PUT /api/custom-oauth-provider/:id":    "custom_oauth.update",
 	"DELETE /api/custom-oauth-provider/:id": "custom_oauth.delete",
 
-	// 性能/缓存（root）
+	// Performance/Cache (root)
 	"DELETE /api/performance/disk_cache": "performance.clear_disk_cache",
 	"POST /api/performance/gc":           "performance.gc",
 	"DELETE /api/performance/logs":       "performance.clear_logs",
 
-	// 兑换码
+	// Redeem code
 	"PUT /api/redemption/":           "redemption.update",
 	"POST /api/redemption/batch":     "redemption.delete_batch",
 	"DELETE /api/redemption/:id":     "redemption.delete",
 	"DELETE /api/redemption/invalid": "redemption.delete_invalid",
 
-	// 预填组
+	// prefilled group
 	"POST /api/prefill_group/":      "prefill_group.create",
 	"PUT /api/prefill_group/":       "prefill_group.update",
 	"DELETE /api/prefill_group/:id": "prefill_group.delete",
 
-	// 供应商
+	// supplier
 	"POST /api/vendors/":      "vendor.create",
 	"PUT /api/vendors/":       "vendor.update",
 	"DELETE /api/vendors/:id": "vendor.delete",
 
-	// 模型元数据
+	// Model metadata
 	"POST /api/models/":              "model.create",
 	"PUT /api/models/":               "model.update",
 	"DELETE /api/models/:id":         "model.delete",
 	"POST /api/models/sync_upstream": "model.sync_upstream",
 
-	// 部署
+	// deploy
 	"POST /api/deployments/":      "deployment.create",
 	"PUT /api/deployments/:id":    "deployment.update",
 	"DELETE /api/deployments/:id": "deployment.delete",
 
-	// 订阅（管理员）
+	// Subscribe (Admin)
 	"POST /api/subscription/admin/plans":    "subscription.plan_create",
 	"PUT /api/subscription/admin/plans/:id": "subscription.plan_update",
 	"POST /api/subscription/admin/bind":     "subscription.bind",
 
-	// 日志
+	// Log
 	"POST /api/system-task/log-cleanup": "log.cleanup_start",
 }
 
-// beginAdminAudit 在管理/root 写操作进入 handler 前包装 ResponseWriter，
-// 以便事后解析响应判断业务是否成功。仅对写方法（POST/PUT/PATCH/DELETE）生效；
-// 只读请求返回 nil，调用方据此跳过事后兜底记录。
+// beginAdminAudit wraps the ResponseWriter before the management/root write operation enters the handler.
+// In order to analyze the response afterwards to determine whether the business was successful. Only effective for write methods (POST/PUT/PATCH/DELETE);
+// Read-only requests return nil, allowing the caller to skip post-mortem logging.
 //
-// 该函数由 authHelper 在鉴权通过、c.Next() 之前调用：因为任何管理/root 接口都
-// 必然经过 AdminAuth/RootAuth，将审计兜底内聚到鉴权链路即可保证「新增接口自动留痕」，
-// 无需在路由上再单独挂一层审计中间件（避免漏挂）。
+// This function is called by authHelper before authentication, c.Next(): because any management/root interface
+// It must go through AdminAuth/RootAuth and integrate the auditing into the authentication link to ensure that "new interfaces automatically leave traces".
+// There is no need to install a separate layer of audit middleware on the routing (to avoid missing connections).
 func beginAdminAudit(c *gin.Context) *auditResponseWriter {
 	method := c.Request.Method
 	if method != "POST" && method != "PUT" && method != "PATCH" && method != "DELETE" {
@@ -119,15 +119,15 @@ func beginAdminAudit(c *gin.Context) *auditResponseWriter {
 	return writer
 }
 
-// finishAdminAudit 在 c.Next() 之后对管理/高危写操作做兜底审计记录。
-// 若 handler 内已手动埋点（设置 ContextKeyAuditLogged），则跳过，避免重复。
+// finishAdminAudit makes a thorough audit record of management/high-risk write operations after c.Next().
+// If the handler has been manually embedded (ContextKeyAuditLogged is set), it will be skipped to avoid duplication.
 func finishAdminAudit(c *gin.Context, writer *auditResponseWriter) {
 	if writer == nil {
 		return
 	}
 	method := c.Request.Method
 
-	// handler 已手动记录更精细的审计日志，跳过兜底。
+	// The handler has manually recorded more detailed audit logs, skipping the details.
 	if common.GetContextKeyBool(c, constant.ContextKeyAuditLogged) {
 		return
 	}
@@ -150,14 +150,14 @@ func finishAdminAudit(c *gin.Context, writer *auditResponseWriter) {
 		routeParams[p.Key] = p.Value
 	}
 
-	// op.params 为语言无关参数，供前端 i18n 渲染；generic 时携带 method/route。
+	// op.params are language-independent parameters for front-end i18n rendering; generic carries method/route.
 	opParams := map[string]any{}
 	if action == "generic" {
 		opParams["method"] = method
 		opParams["route"] = route
 	}
 
-	// content 为英文兜底文本（供导出等非本地化消费者使用）。
+	// content is the English summary text (for non-localized consumers such as export).
 	content := method + " " + route
 
 	adminInfo := &model.AuditAdminInfo{
@@ -185,8 +185,8 @@ func auditAuthMethod(c *gin.Context) string {
 	return "session"
 }
 
-// auditResponseSuccess 依据 HTTP 状态码与响应体推断操作是否成功。
-// 优先解析响应 JSON 中的 success 字段；无法解析时退回到状态码判断。
+// auditResponseSuccess infers whether the operation was successful based on the HTTP status code and response body.
+// Prioritize parsing the success field in the response JSON; if it cannot be parsed, it will fall back to status code judgment.
 func auditResponseSuccess(status int, body []byte) bool {
 	if status >= 400 {
 		return false

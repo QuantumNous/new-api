@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { t } from 'i18next'
 
 export const ROLE = {
-  GUEST: 0, // 后续如果需要用到这个角色那就再加，同语先留一下
+  GUEST: 0, // If you need to use this character later, add it. Leave the same language for now.
   USER: 1,
   ADMIN: 10,
   SUPER_ADMIN: 100,

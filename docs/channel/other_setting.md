@@ -1,26 +1,26 @@
-# 渠道额外设置说明
+# Additional channel setting instructions
 
-该配置用于设置一些额外的渠道参数，可以通过 JSON 对象进行配置。主要包含以下三个设置项：
+This configuration is used to set some additional channel parameters and can be configured through a JSON object. It mainly includes the following three setting items:
 
 1. force_format
-    - 用于标识是否对数据进行强制格式化为 OpenAI 格式
-    - 类型为布尔值，设置为 true 时启用强制格式化
+- Used to identify whether the data is forced to be formatted into OpenAI format
+- Type is boolean, set to true to enable forced formatting
 
 2. proxy
-    - 用于配置网络代理
-    - 类型为字符串，支持 `http`、`https`、`socks5` 和 `socks5h` 协议
-    - 保存时必须包含协议和主机；仅允许空路径或根路径 `/`，不允许 query 或 fragment
-    - SOCKS 代理未填写端口时，运行时使用默认端口 `1080`
+- Used to configure network proxy
+- Type is string, supports `http`, `https`, `socks5` and `socks5h` protocols
+- Protocol and host must be included when saving; only empty path or root path `/` is allowed, no query or fragment is allowed
+- When the SOCKS proxy does not fill in the port, the default port `1080` is used when running.
 
 3. thinking_to_content
-   - 用于标识是否将思考内容`reasoning_content`转换为`<think>`标签拼接到内容中返回
-   - 类型为布尔值，设置为 true 时启用思考内容转换
+- Used to identify whether to convert the thinking content `reasoning_content` into the `<think>` tag and splice it into the content and return it
+- Type is boolean, when set to true enables thinking content conversion
 
 --------------------------------------------------------------
 
-## JSON 格式示例
+## JSON format example
 
-以下是一个示例配置，启用强制格式化并设置了代理地址：
+The following is an example configuration with force formatting enabled and the proxy address set:
 
 ```json
 {
@@ -32,10 +32,10 @@
 
 --------------------------------------------------------------
 
-通过调整上述 JSON 配置中的值，可以灵活控制渠道的额外行为，比如是否进行格式化以及使用特定的网络代理。
+By adjusting the values in the JSON configuration above, you can flexibly control additional behavior of the channel, such as whether to format and use specific web proxies.
 
-## 升级兼容性
+## Upgrade compatibility
 
-旧版本会忽略代理地址中的 path、query 和 fragment。为避免升级后中断已有渠道流量，运行时会继续剥离这些遗留后缀，并对同一代理地址每个进程记录一次不含凭证和后缀的警告。该兼容逻辑不会改写数据库；再次保存渠道时必须按上述严格规则修正代理地址。
+Older versions ignore path, query, and fragment in proxy addresses. To avoid disrupting existing channel traffic after the upgrade, the runtime will continue to strip these legacy suffixes and log a warning without credentials and suffixes for each process for the same proxy address. This compatibility logic will not rewrite the database; when saving the channel again, the proxy address must be corrected according to the strict rules mentioned above.
 
-代理连接使用 30 秒 TCP 拨号超时和 30 秒 KeepAlive；TLS 握手超时为 10 秒。这些超时同样适用于未配置渠道代理的中转请求。
+Proxy connections use a 30 second TCP dial timeout and a 30 second KeepAlive; the TLS handshake timeout is 10 seconds. These timeouts also apply to transit requests without a channel proxy configured.

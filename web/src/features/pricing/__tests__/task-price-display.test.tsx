@@ -164,7 +164,7 @@ it('explains missing task metadata while retaining the original expression', () 
 })
 
 it('falls back for omitted count labels and preserves canonical units for other quantities', () => {
-  expect(taskUsageUnitLabel({ unit: 'count' }, 'zhCN', '次')).toBe('次')
+  expect(taskUsageUnitLabel({ unit: 'count' }, 'zhCN', "unit")).toBe("unit")
   expect(
     taskUsageUnitLabel(
       { unit: 'token', unitLabel: { en: 'image' } },
@@ -182,7 +182,7 @@ const imageModel: PricingModel = {
     image_count: {
       type: 'number',
       unit: 'count',
-      unitLabel: { en: 'image', zh: '张', 'zh-TW': '張' },
+      unitLabel: { en: 'image', zh: "image", 'zh-TW': "image" },
       description: { en: 'Image generation unit price', zh: '图片生成单价' },
     },
   },
@@ -214,8 +214,8 @@ it.each([false, true])(
       </QueryClientProvider>
     )
     await act(() => i18next.changeLanguage('zhCN'))
-    expect(screen.getAllByText('图片生成单价')).toHaveLength(2)
-    expect(screen.getAllByText(configured ? '/ 张' : '张')).toHaveLength(2)
+    expect(screen.getAllByText("Image generation unit price")).toHaveLength(2)
+    expect(screen.getAllByText(configured ? '/ image' : "image")).toHaveLength(2)
     expect(screen.queryByText('image_count')).not.toBeInTheDocument()
     if (configured) {
       expect(screen.getByText('$0.2')).toBeVisible()
@@ -243,8 +243,8 @@ it('updates count unit labels across cards, table cells and breakdowns with loca
   )
   for (const [language, unit] of [
     ['en', 'image'],
-    ['zhTW', '張'],
-    ['zhCN', '张'],
+    ['zhTW', "image"],
+    ['zhCN', "image"],
     ['fr', 'image'],
   ]) {
     await act(() => i18next.changeLanguage(language))
@@ -335,7 +335,7 @@ it('shows one standard task price and a localized group price without duplicate 
   expect(screen.getByText('$0.22')).toBeVisible()
   expect(screen.getByText('$0.44')).toBeVisible()
   await act(() => i18next.changeLanguage('zhCN'))
-  expect(screen.getAllByText('生成歌曲单价', { exact: false })).toHaveLength(2)
+  expect(screen.getAllByText("Song generation unit price", { exact: false })).toHaveLength(2)
   await act(() => i18next.changeLanguage('fr'))
   expect(
     screen.getAllByText('Song generation unit price', { exact: false })
@@ -346,7 +346,7 @@ it('labels even a single task price on model cards', async () => {
   render(<ModelCard model={model} onClick={() => {}} />)
   expect(screen.getByText('Song generation unit price')).toBeVisible()
   await act(() => i18next.changeLanguage('zhCN'))
-  expect(screen.getByText('生成歌曲单价')).toBeVisible()
+  expect(screen.getByText("Song generation unit price")).toBeVisible()
 })
 
 it('preserves condition tables, boolean states and additional charges', () => {
@@ -400,7 +400,7 @@ it('keeps rules and custom expressions out of the simple price layout', () => {
   expect(taskPriceLabel(undefined, 'clips', 'fr')).toBe('clips')
   expect(
     taskPriceLabel({ en: 'Song price', zh: '歌曲单价' }, 'clips', 'zh-TW')
-  ).toBe('歌曲单价')
+  ).toBe("Song price")
   expect(
     taskPriceLabel({ en: 'Song price', zh: '歌曲单价' }, 'clips', 'ja')
   ).toBe('Song price')
@@ -441,8 +441,8 @@ it('uses plugin option labels and infers a unique fallback without expanding unr
   expect(screen.queryByText('Pricing conditions')).not.toBeInTheDocument()
   expect(screen.queryByText('480p')).not.toBeInTheDocument()
   await act(() => i18next.changeLanguage('zhCN'))
-  expect(screen.getAllByText('无参考视频')).toHaveLength(2)
-  expect(screen.getAllByText('有参考视频')).toHaveLength(2)
+  expect(screen.getAllByText("No reference video")).toHaveLength(2)
+  expect(screen.getAllByText("With reference video")).toHaveLength(2)
   await act(() => i18next.changeLanguage('ja'))
   expect(screen.getAllByText('With reference video')).toHaveLength(2)
 })
@@ -473,7 +473,7 @@ it('names ambiguous fallback rows other cases and keeps unmatched enum values re
   ).toBe('Reference video input: mixed')
   expect(
     taskEnumLabel(
-      { enum: ['x'], enumLabels: { x: { en: 'English', zh: '中文' } } },
+      { enum: ['x'], enumLabels: { x: { en: 'English', zh: "Chinese" } } },
       'x',
       'fr'
     )
@@ -606,7 +606,7 @@ it('switches provider group prices, localized conditions and examples, and shows
   expect(within(panel).getByText('$3')).toBeVisible()
   expect(within(panel).getByText('$6')).toBeVisible()
   await act(() => i18next.changeLanguage('zhCN'))
-  expect(within(panel).getByText('专业模式')).toBeVisible()
+  expect(within(panel).getByText("Professional mode")).toBeVisible()
   await act(() => i18next.changeLanguage('en'))
   await user.click(screen.getByRole('tab', { name: 'Gamma' }))
   panel = screen.getByRole('tabpanel', { name: 'Gamma' })

@@ -183,9 +183,9 @@ func TestChannelNoticesFollowEachAdministratorsSwitch(t *testing.T) {
 			"channel_test Channel test completed",
 		},
 		"admin-turned-on": {
-			fmt.Sprintf("%s 通道「notice-review」（#%d）已被禁用", disabledType, channel.Id),
-			fmt.Sprintf("%s 通道「notice-review」（#%d）已被启用", enabledType, channel.Id),
-			"channel_test 通道测试完成",
+			fmt.Sprintf(`%s Channel "notice-review" (#%d) has been disabled`, disabledType, channel.Id),
+			fmt.Sprintf(`%s Channel "notice-review" (#%d) has been enabled`, enabledType, channel.Id),
+			"channel_test Channel test completed",
 		},
 	}, received)
 }

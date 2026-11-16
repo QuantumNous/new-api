@@ -25,13 +25,13 @@ import (
 	"github.com/samber/lo"
 )
 
-// TaskPollingAdaptor 定义轮询所需的最小适配器接口，避免 service -> relay 的循环依赖
+// TaskPollingAdaptor defines the minimum adapter interface required for polling to avoid the circular dependency of service -> relay
 type TaskPollingAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 	FetchTask(baseURL string, key string, task *model.Task, proxy string) (*http.Response, error)
 	ParseTaskResult(task *model.Task, resp *http.Response, body []byte) (*relaycommon.TaskInfo, error)
-	// AdjustBillingOnComplete 在任务到达终态（成功/失败）时由轮询循环调用。
-	// 返回正数触发差额结算（补扣/退还），返回 0 保持预扣费金额不变。
+	// AdjustBillingOnComplete is called by the polling loop when the task reaches the final state (success/failure).
+	// Returning a positive number triggers balance settlement (compensation/refund), returning 0 keeps the withholding fee amount unchanged.
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
@@ -62,8 +62,8 @@ type BatchTaskResult struct {
 	Data       any
 }
 
-// GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
-// 打破 service -> relay -> relay/channel -> service 的循环依赖。
+// GetTaskAdaptorFunc is injected by the main package and used to obtain the task adapter of the specified platform.
+// Break the circular dependency of service -> relay -> relay/channel -> service.
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
 
 // ReportTaskFunc is injected by main: it hands a task that reached its final
@@ -93,9 +93,9 @@ func reportFailedTasks(tasks []*model.Task, reason string) {
 	}
 }
 
-// sweepTimedOutTasks 在主轮询之前独立清理超时任务。
-// 每次最多处理 100 条，剩余的下个周期继续处理。
-// 使用 per-task CAS (UpdateWithStatus) 防止覆盖被正常轮询已推进的任务。
+// sweepTimedOutTasks Independently cleans up timeout tasks before the main poll.
+// A maximum of 100 items can be processed each time, and the remaining items will be processed in the next cycle.
+// Use per-task CAS (UpdateWithStatus) to prevent overwriting a task that has been advanced by normal polling.
 func sweepTimedOutTasks(ctx context.Context) {
 	if constant.TaskTimeoutMinutes <= 0 {
 		return
@@ -120,8 +120,8 @@ func sweepTimedOutTasks(ctx context.Context) {
 		task.FinishTime = now
 		if isLegacy {
 			task.FailReason = legacyReason
-			// 旧系统任务明确不退款，随终态 CAS 一并清掉 quota，
-			// 避免留下可再次退款的计费状态。
+			// It is clear that there will be no refunds for the old system tasks, and the quota will be cleared along with the final CAS.
+			// Avoid being left with a billing status that can be refunded again.
 			task.Quota = 0
 		} else {
 			task.FailReason = reason
@@ -200,7 +200,7 @@ func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) 
 		for _, task := range tasks {
 			upstreamID := task.GetUpstreamTaskID()
 			if upstreamID == "" {
-				// 统计失败的未完成任务
+				// Count failed unfinished tasks
 				nullTaskIds = append(nullTaskIds, task.ID)
 				nullTasks = append(nullTasks, task)
 				continue
@@ -234,13 +234,13 @@ func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) 
 	return summary
 }
 
-// DispatchPlatformUpdate 按平台分发轮询更新
+// DispatchPlatformUpdate distributes polling updates by platform
 func DispatchPlatformUpdate(ctx context.Context, platform constant.TaskPlatform, taskChannelM map[int][]string, taskM map[string]*model.Task) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if platform == constant.TaskPlatformMidjourney {
-		// MJ 轮询由其自身处理，这里预留入口
+		// MJ polling is handled by itself, and the entrance is reserved here
 		return
 	}
 	adaptor := GetTaskAdaptorFunc(platform)
@@ -457,7 +457,7 @@ func pollTaskBatch(ctx context.Context, adaptor BatchTaskPollingAdaptor, channel
 	return nil
 }
 
-// UpdateVideoTasks 按渠道更新所有视频任务
+// UpdateVideoTasks updates all video tasks by channel
 func UpdateVideoTasks(ctx context.Context, platform constant.TaskPlatform, taskChannelM map[int][]string, taskM map[string]*model.Task) error {
 	channelIDs := make([]int, 0, len(taskChannelM))
 	for channelID := range taskChannelM {
@@ -704,7 +704,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	return nil
 }
 
-// finalizeTerminalTask 终态统一收尾（状态 CAS 赢家调用，恰好一次）：采样 + 结算 + 失败兜底退款。
+// finalizeTerminalTask final state unified ending (state CAS winner call, exactly once): sampling + settlement + failure to fully refund.
 func finalizeTerminalTask(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
 	perfmetrics.RecordTaskResult(task, taskResult)
 	billingSettled := settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
@@ -766,14 +766,14 @@ func truncateBase64(s string) string {
 	return s[:maxKeep] + "..."
 }
 
-// settleTaskBillingOnComplete 任务完成时的统一计费调整。
-// 返回 true 表示用量结算路径已接管最终计费；失败任务仅在返回 false 时补做全额退款。
-// 优先级：1. tiered snapshot → 2. adaptor 调整 → 3. token 重算。
+// settleTaskBillingOnComplete Unified billing adjustment when the task is completed.
+// Returning true indicates that the usage settlement path has taken over final billing; a failed task will only make a full refund when false is returned.
+// Priority: 1. tiered snapshot → 2. adapter adjustment → 3. token recalculation.
 //
-// 表达式求值失败会保留预扣额度，因此也视为已接管，避免错误全退。
+// If the expression fails to evaluate, the withholding amount will be retained, so it is also considered to have been taken over, avoiding a full refund due to errors.
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) bool {
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.TieredSnapshot != nil {
-		// 用量表达式结算只适用于成功任务；失败任务由调用方全额退款。
+		// Usage expression settlement is only applicable to successful tasks; failed tasks will be fully refunded by the caller.
 		if task.Status == model.TaskStatusFailure {
 			return false
 		}
@@ -790,17 +790,17 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		RecalculateTaskQuota(ctx, task, result.ActualQuotaAfterGroup, common.NewMessage("Settled by the task usage expression"), result.Clamp)
 		return true
 	}
-	// 按次计费的成功任务保持预扣；失败任务由调用方全额退款。
+	// Successful pay-per-view tasks remain withheld; failed tasks are fully refunded by the caller.
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
 		logger.LogInfo(ctx, common.LogText("task %s is billed per request, skipping difference settlement", task.TaskID))
 		return false
 	}
-	// 优先让 adaptor 决定最终额度。
+	// Priority is given to the adapter to decide the final amount.
 	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
 		RecalculateTaskQuota(ctx, task, actualQuota, common.NewMessage("Adjusted by the channel adaptor"))
 		return true
 	}
-	// 回退到 token 重算。
+	// Fall back to token recalculation.
 	tokens := taskResult.TotalTokens
 	if tokens == 0 && taskResult.CompletionTokens > 0 {
 		tokens = taskResult.CompletionTokens

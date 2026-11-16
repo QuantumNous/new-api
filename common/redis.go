@@ -112,7 +112,7 @@ func RedisHSetObj(key string, obj any, expiration time.Duration) error {
 
 	data := make(map[string]any)
 
-	// 使用反射遍历结构体字段
+	// Traverse structure fields using reflection
 	v := reflect.ValueOf(obj).Elem()
 	t := v.Type()
 	for i := 0; i < v.NumField(); i++ {
@@ -124,7 +124,7 @@ func RedisHSetObj(key string, obj any, expiration time.Duration) error {
 			continue
 		}
 
-		// 处理指针类型
+		// Handling pointer types
 		if value.Kind() == reflect.Pointer {
 			if value.IsNil() {
 				data[field.Name] = ""
@@ -133,20 +133,20 @@ func RedisHSetObj(key string, obj any, expiration time.Duration) error {
 			value = value.Elem()
 		}
 
-		// 处理布尔类型
+		// Handling boolean types
 		if value.Kind() == reflect.Bool {
 			data[field.Name] = strconv.FormatBool(value.Bool())
 			continue
 		}
 
-		// 其他类型直接转换为字符串
+		// Other types are converted directly to strings
 		data[field.Name] = fmt.Sprintf("%v", value.Interface())
 	}
 
 	txn := RDB.TxPipeline()
 	txn.HSet(ctx, key, data)
 
-	// 只有在 expiration 大于 0 时才设置过期时间
+	// Set expiration time only if expiration is greater than 0
 	if expiration > 0 {
 		txn.Expire(ctx, key, expiration)
 	}
@@ -243,29 +243,29 @@ func RedisIncr(key string, delta int64) error {
 	if DebugEnabled {
 		SysLog(LogText("Redis INCR: key=%s, delta=%d", key, delta))
 	}
-	// 检查键的剩余生存时间
+	// Check the remaining time to live of a key
 	ttlCmd := RDB.TTL(context.Background(), key)
 	ttl, err := ttlCmd.Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return fmt.Errorf("failed to get TTL: %w", err)
 	}
 
-	// 只有在 key 存在且有 TTL 时才需要特殊处理
+	// Special handling is only required if the key exists and has a TTL
 	if ttl > 0 {
 		ctx := context.Background()
-		// 开始一个Redis事务
+		// Start a Redis transaction
 		txn := RDB.TxPipeline()
 
-		// 减少余额
+		// Reduce balance
 		decrCmd := txn.IncrBy(ctx, key, delta)
 		if err := decrCmd.Err(); err != nil {
-			return err // 如果减少失败，则直接返回错误
+			return err // If the reduction fails, an error is returned directly.
 		}
 
-		// 重新设置过期时间，使用原来的过期时间
+		// Reset the expiration time and use the original expiration time
 		txn.Expire(ctx, key, ttl)
 
-		// 执行事务
+		// Execute transaction
 		_, err = txn.Exec(ctx)
 		return err
 	}

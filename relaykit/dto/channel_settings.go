@@ -102,7 +102,7 @@ const (
 type AwsKeyType string
 
 const (
-	AwsKeyTypeAKSK   AwsKeyType = "ak_sk" // 默认
+	AwsKeyTypeAKSK   AwsKeyType = "ak_sk" // Default
 	AwsKeyTypeApiKey AwsKeyType = "api_key"
 )
 
@@ -116,25 +116,25 @@ const (
 type ChannelOtherSettings struct {
 	AzureResponsesVersion                 string                `json:"azure_responses_version,omitempty"`
 	VertexKeyType                         VertexKeyType         `json:"vertex_key_type,omitempty"`    // "json" or "api_key"
-	VertexProjectID                       string                `json:"vertex_project_id,omitempty"`  // 仅当 vertex_key_type=api_key 时使用；JSON 模式下从 service account 解析
-	VertexAPIVersion                      string                `json:"vertex_api_version,omitempty"` // Google 模型（Gemini、Imagen）请求路径版本："v1"（默认）或 "v1beta1"
+	VertexProjectID                       string                `json:"vertex_project_id,omitempty"`  // Only used when vertex_key_type=api_key; parsed from service account in JSON mode
+	VertexAPIVersion                      string                `json:"vertex_api_version,omitempty"` // Google model (Gemini, Imagen) request path version: "v1" (default) or "v1beta1"
 	OpenRouterEnterprise                  *bool                 `json:"openrouter_enterprise,omitempty"`
-	ClaudeBetaQuery                       bool                  `json:"claude_beta_query,omitempty"`          // Claude 渠道是否强制追加 ?beta=true
-	AllowServiceTier                      bool                  `json:"allow_service_tier,omitempty"`         // 是否允许 service_tier 透传（默认过滤以避免额外计费）
-	AllowInferenceGeo                     bool                  `json:"allow_inference_geo,omitempty"`        // 是否允许 inference_geo 透传（仅 Claude，默认过滤以满足数据驻留合规
-	AllowSpeed                            bool                  `json:"allow_speed,omitempty"`                // 是否允许 speed 透传（仅 Claude，默认过滤以避免意外切换推理速度模式）
-	AllowSafetyIdentifier                 bool                  `json:"allow_safety_identifier,omitempty"`    // 是否允许 safety_identifier 透传（默认过滤以保护用户隐私）
-	DisableStore                          bool                  `json:"disable_store,omitempty"`              // 是否禁用 store 透传（默认允许透传，禁用后可能导致 Codex 无法使用）
-	AllowIncludeObfuscation               bool                  `json:"allow_include_obfuscation,omitempty"`  // 是否允许 stream_options.include_obfuscation 透传（默认过滤以避免关闭流混淆保护）
-	DisableTaskPollingSleep               bool                  `json:"disable_task_polling_sleep,omitempty"` // 是否跳过异步任务轮询间隔
+	ClaudeBetaQuery                       bool                  `json:"claude_beta_query,omitempty"`          // Is Claude channel forced to add?beta=true
+	AllowServiceTier                      bool                  `json:"allow_service_tier,omitempty"`         // Whether to allow service_tier transparent transmission (default filtering to avoid additional billing)
+	AllowInferenceGeo                     bool                  `json:"allow_inference_geo,omitempty"`        // Whether to allow inference_geo passthrough (Claude only, default filtering to meet data residency compliance
+	AllowSpeed                            bool                  `json:"allow_speed,omitempty"`                // Whether to allow speed passthrough (Claude only, default filtering to avoid accidentally switching inference speed mode)
+	AllowSafetyIdentifier                 bool                  `json:"allow_safety_identifier,omitempty"`    // Whether to allow safety_identifier transparent transmission (default filtering to protect user privacy)
+	DisableStore                          bool                  `json:"disable_store,omitempty"`              // Whether to disable store transparent transmission (transparent transmission is allowed by default, disabling it may cause Codex to become unusable)
+	AllowIncludeObfuscation               bool                  `json:"allow_include_obfuscation,omitempty"`  // Whether to allow stream_options.include_obfuscation passthrough (default filtering to avoid turning off stream obfuscation protection)
+	DisableTaskPollingSleep               bool                  `json:"disable_task_polling_sleep,omitempty"` // Whether to skip asynchronous task polling interval
 	AwsKeyType                            AwsKeyType            `json:"aws_key_type,omitempty"`
 	AwsApiType                            AwsApiType            `json:"aws_api_type,omitempty"`
-	UpstreamModelUpdateCheckEnabled       bool                  `json:"upstream_model_update_check_enabled,omitempty"`        // 是否检测上游模型更新
-	UpstreamModelUpdateAutoSyncEnabled    bool                  `json:"upstream_model_update_auto_sync_enabled,omitempty"`    // 是否自动同步上游模型更新
-	UpstreamModelUpdateLastCheckTime      int64                 `json:"upstream_model_update_last_check_time,omitempty"`      // 上次检测时间
-	UpstreamModelUpdateLastDetectedModels []string              `json:"upstream_model_update_last_detected_models,omitempty"` // 上次检测到的可加入模型
-	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
-	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
+	UpstreamModelUpdateCheckEnabled       bool                  `json:"upstream_model_update_check_enabled,omitempty"`        // Whether to detect upstream model updates
+	UpstreamModelUpdateAutoSyncEnabled    bool                  `json:"upstream_model_update_auto_sync_enabled,omitempty"`    // Whether to automatically synchronize upstream model updates
+	UpstreamModelUpdateLastCheckTime      int64                 `json:"upstream_model_update_last_check_time,omitempty"`      // Last detection time
+	UpstreamModelUpdateLastDetectedModels []string              `json:"upstream_model_update_last_detected_models,omitempty"` // Last detected joinable model
+	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // Last detected deletable model
+	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // Manually ignored models
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
 	// OllamaOpenAIChat routes Ollama chat completions to the OpenAI-compatible
 	// /v1/chat/completions endpoint. When unset, chat completions keep using

@@ -42,19 +42,19 @@ type TaskSubmitResult struct {
 	//PerCallPrice   types.PriceData
 }
 
-// ResolveOriginTask 处理基于已有任务的提交（remix / continuation）：
-// 查找原始任务、从中提取模型名称、将渠道锁定到原始任务的渠道
-// （通过 info.LockedChannel，重试时复用同一渠道并轮换 key），
-// 以及提取 OtherRatios（时长、分辨率）。
-// 该函数在控制器的重试循环之前调用一次，其结果通过 info 字段和上下文持久化。
+// ResolveOriginTask handles submissions based on existing tasks (remix / continuation):
+// Find the original task, extract the model name from it, and lock the channel to the original task's channel
+// (Through info.LockedChannel, the same channel is reused and the key is rotated when retrying),
+// and extract OtherRatios (duration, resolution).
+// This function is called once before the controller's retry loop, and its results are persisted via the info field and context.
 func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	// 检测 remix action
+	// Detect remix action
 	path := c.Request.URL.Path
 	if strings.Contains(path, "/v1/videos/") && strings.HasSuffix(path, "/remix") {
 		info.Action = constant.TaskActionRemix
 	}
 
-	// 提取 remix 任务的 video_id
+	// Extract the video_id of the remix task
 	if info.Action == constant.TaskActionRemix {
 		videoID := c.Param("video_id")
 		if strings.TrimSpace(videoID) == "" {
@@ -67,7 +67,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 		return nil
 	}
 
-	// 查找原始任务
+	// Find original task
 	originTask, exist, err := model.GetByTaskId(info.UserId, info.OriginTaskID)
 	if err != nil {
 		return service.TaskErrorWrapper(err, "get_origin_task_failed", http.StatusInternalServerError, common.UpstreamAddresses(c)...)
@@ -76,7 +76,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 		return service.TaskErrorWrapperLocal(errors.New("task_origin_not_exist"), "task_not_exist", http.StatusBadRequest)
 	}
 
-	// 从原始任务推导模型名称
+	// Derivation of model name from original task
 	if info.OriginModelName == "" {
 		if originTask.Properties.OriginModelName != "" {
 			info.OriginModelName = originTask.Properties.OriginModelName
@@ -91,7 +91,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 		}
 	}
 
-	// 锁定到原始任务的渠道（重试时复用同一渠道，轮换 key）
+	// Lock to the channel of the original task (reuse the same channel when retrying, rotate the key)
 	ch, err := model.GetChannelById(originTask.ChannelId, true)
 	if err != nil {
 		return service.TaskErrorWrapperLocal(err, "channel_not_found", http.StatusBadRequest)
@@ -117,15 +117,15 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 		info.ApiKey = key
 	}
 
-	// 提取 remix 参数（时长、分辨率 → OtherRatios）
+	// Extract remix parameters (duration, resolution → OtherRatios)
 	if info.Action == constant.TaskActionRemix {
 		if originTask.PrivateData.BillingContext != nil {
-			// 新的 remix 逻辑：直接从原始任务的 BillingContext 中提取 OtherRatios（如果存在）
+			// New remix logic: extract OtherRatios directly from the original task's BillingContext if present
 			for s, f := range originTask.PrivateData.BillingContext.OtherRatios {
 				info.PriceData.AddOtherRatio(s, f)
 			}
 		} else {
-			// 旧的 remix 逻辑：直接从 task data 解析 seconds 和 size（如果存在）
+			// Old remix logic: parse seconds and size directly from task data (if present)
 			var taskData map[string]any
 			_ = common.Unmarshal(originTask.Data, &taskData)
 			secondsStr, _ := taskData["seconds"].(string)
@@ -133,7 +133,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 			if seconds <= 0 {
 				seconds = 4
 			}
-			// 历史任务数据可能包含未经校验的时长，作为计费乘数前必须钳制
+			// Historical task data may contain unverified duration and must be clamped before being used as a billing multiplier.
 			if seconds > relaycommon.MaxTaskDurationSeconds {
 				seconds = relaycommon.MaxTaskDurationSeconds
 			}
@@ -195,11 +195,11 @@ func ApplyOriginTaskAffinity(c *gin.Context, info *relaycommon.RelayInfo) *dto.T
 	return ApplyChannelPin(c, info)
 }
 
-// RelayTaskSubmit 完成 task 提交的全部流程（每次尝试调用一次）：
-// 刷新渠道元数据 → 确定 platform/adaptor → 验证请求 →
-// 估算计费(EstimateBilling) → 计算价格 → 预扣费（重试时补足差额）→
-// 构建/发送/解析上游请求 → 提交后计费调整(AdjustBillingOnSubmit)。
-// 共享控制器编排负责未落库退款、最终额度预留、落库和结算。
+// RelayTaskSubmit completes the entire task submission process (called once per attempt):
+// Refresh channel metadata → OK platform/adaptor → Verify request →
+// Estimate Billing → Calculate price → Withhold fees (make up the difference when retrying) →
+// Build/send/parse upstream request → post-submit billing adjustment (AdjustBillingOnSubmit).
+// The shared controller orchestration is responsible for undelivered refunds, final quota reservation, inventory placement and settlement.
 func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {
 	info.InitChannelMeta(c)
 
@@ -213,7 +213,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		}
 	}
 
-	// 1. 确定 platform → 创建适配器 → 验证请求
+	// 1. Determine platform → Create adapter → Verify request
 	platform := constant.TaskPlatform(c.GetString("platform"))
 	if platform == "" {
 		platform = GetTaskPlatform(c)
@@ -246,7 +246,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		return nil, taskErr
 	}
 
-	// 2. 确定模型名称
+	// 2. Determine the model name
 	modelName := info.OriginModelName
 	if modelName == "" {
 		modelName = service.CoverTaskActionToModelName(platform, info.Action)
@@ -260,8 +260,8 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		}
 	}
 
-	// 4. 价格计算：基础模型价格。重试可能换了插件或渠道，每次尝试都重新定价，
-	//    不沿用上一次尝试的表达式快照。
+	// 4. Price calculation: base model price. You may have changed the plug-in or channel when trying again, and the price will be re-priced every time you try.
+	// The expression snapshot from the last attempt is not inherited.
 	info.OriginModelName = modelName
 	info.TieredBillingSnapshot = nil
 	var priceData types.PriceData
@@ -329,9 +329,9 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	info.PriceData = priceData
 
-	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
-	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
-	//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
+	// 5. Billing estimation: Let the adapter provide OtherRatios (duration, resolution, etc.) based on user requests
+	// Must be called after ModelPriceHelperPerCall (it rebuilds PriceData).
+	// ResolveOriginTask may have OtherRatios preset in the remix path, merged here.
 	if info.TieredBillingSnapshot == nil {
 		var estimatedRatios map[string]float64
 		if validatedProvider, ok := adaptor.(channel.TaskValidatedBillingProvider); ok {
@@ -349,7 +349,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		}
 	}
 
-	// 6. 将 OtherRatios 应用到基础额度（饱和转换，防止溢出成负数）
+	// 6. Apply OtherRatios to the basic amount (saturation conversion to prevent overflow into negative numbers)
 	if info.TieredBillingSnapshot == nil && !common.StringsContains(constant.TaskPricePatches, modelName) {
 		quotaWithRatios := info.PriceData.ApplyOtherRatiosToFloat(float64(info.PriceData.Quota))
 		quota, clamp := common.QuotaFromFloatChecked(quotaWithRatios)
@@ -357,8 +357,8 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		noteTaskQuotaClamp(info, clamp)
 	}
 
-	// 7. 预扣费：首次尝试创建计费会话；重试时会话已存在，换到更贵的渠道要在
-	//    发起上游请求前补足预扣，余额不足就不发请求。
+	// 7. Prepayment: Try to create a billing session for the first time; the session already exists when you try again, and you need to switch to a more expensive channel in
+	// Make up for the withholding before initiating an upstream request. If the balance is insufficient, the request will not be issued.
 	if info.Billing != nil || !info.PriceData.FreeModel {
 		info.ForcePreConsume = true
 		if apiErr := service.PreConsumeBilling(c, info.PriceData.Quota, info); apiErr != nil {
@@ -366,7 +366,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		}
 	}
 
-	// 8. 构建请求体
+	// 8. Construct the request body
 	requestBody, err := adaptor.BuildRequestBody(c, info)
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError, common.UpstreamAddresses(c)...)
@@ -378,7 +378,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		return nil, requestplugin.TaskError(apiErr)
 	}
 
-	// 9. 发送请求
+	// 9. Send a request
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError, common.UpstreamAddresses(c)...)
@@ -404,7 +404,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		return nil, service.TaskErrorWrapperLocal(errors.New("task adaptor returned an empty response"), "plugin_submit_response_invalid", http.StatusBadGateway)
 	}
 
-	// 11. 提交后计费调整：让适配器根据上游实际返回调整 OtherRatios
+	// 11. Post-submit billing adjustment: let the adapter adjust OtherRatios based on the actual return from the upstream
 	finalQuota := info.PriceData.Quota
 	if parsed.Immediate != nil && parsed.Immediate.Status == model.TaskStatusFailure {
 		finalQuota = 0
@@ -423,7 +423,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	} else {
 		if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, parsed.TaskData); len(adjustedRatios) > 0 {
 			if adjustedQuota, ok := recalcQuotaFromRatios(info, adjustedRatios); ok {
-				// 基于调整后的 ratios 重新计算 quota
+				// Recalculate quota based on adjusted ratios
 				finalQuota = adjustedQuota
 				info.PriceData.ReplaceOtherRatios(adjustedRatios)
 				info.PriceData.Quota = finalQuota
@@ -444,16 +444,16 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}, nil
 }
 
-// recalcQuotaFromRatios 根据 adjustedRatios 重新计算 quota。
-// 公式: baseQuota × ∏(ratio) — 其中 baseQuota 是不含 OtherRatios 的基础额度。
+// recalcQuotaFromRatios recalculates quota based on adjustedRatios.
+// Formula: baseQuota × ∏(ratio) — where baseQuota is the base quota without OtherRatios.
 func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float64) (int, bool) {
-	// 从 PriceData 获取不含 OtherRatios 的基础价格
+	// Get the base price without OtherRatios from PriceData
 	baseQuota := info.PriceData.RemoveOtherRatiosFromFloat(float64(info.PriceData.Quota))
 	priceData := info.PriceData
 	if !priceData.ReplaceOtherRatios(ratios) {
 		return 0, false
 	}
-	// 应用新的 ratios
+	// Apply new ratios
 	result := priceData.ApplyOtherRatiosToFloat(baseQuota)
 	quota, clamp := common.QuotaFromFloatChecked(result)
 	noteTaskQuotaClamp(info, clamp)
@@ -518,13 +518,13 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 
 	isOpenAIVideoAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/videos/")
 
-	// Gemini/Vertex 支持实时查询：用户 fetch 时直接从上游拉取最新状态
+	// Gemini/Vertex supports real-time query: the user directly pulls the latest status from the upstream when fetching
 	if realtimeResp := tryRealtimeFetch(originTask, isOpenAIVideoAPI); len(realtimeResp) > 0 {
 		respBody = realtimeResp
 		return
 	}
 
-	// OpenAI Video API 格式: 走各 adaptor 的 ConvertToOpenAIVideo
+	// OpenAI Video API format: ConvertToOpenAIVideo of various adapters
 	if isOpenAIVideoAPI {
 		adaptor := GetTaskAdaptor(originTask.Platform)
 		if adaptor == nil {
@@ -544,7 +544,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
-	// 通用 TaskDto 格式
+	// Generic TaskDto format
 	respBody, err = common.Marshal(dto.TaskResponse[any]{
 		Code: "success",
 		Data: TaskModel2Dto(originTask),
@@ -555,9 +555,9 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	return
 }
 
-// tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
-// 仅当渠道类型为 Gemini 或 Vertex 时触发；其他渠道或出错时返回 nil。
-// 当非 OpenAI Video API 时，还会构建自定义格式的响应体。
+// tryRealtimeFetch attempts to pull Gemini/Vertex task status from upstream in real time.
+// Only triggered when the channel type is Gemini or Vertex; returns nil on other channels or on error.
+// When not using the OpenAI Video API, a custom-formatted response body is also constructed.
 func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	channelModel, err := model.GetChannelById(task.ChannelId, true)
 	if err != nil {
@@ -610,7 +610,7 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		_ = service.UpdateVideoTasks(context.Background(), task.Platform,
 			map[int][]string{task.ChannelId: {upstreamID}}, map[string]*model.Task{upstreamID: task})
 	} else {
-		// 将上游最新状态更新到 task
+		// Update the latest upstream status to the task
 		if ti.Status != "" {
 			task.Status = status
 		}
@@ -631,12 +631,12 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		}
 	}
 
-	// OpenAI Video API 由调用者的 ConvertToOpenAIVideo 分支处理
+	// The OpenAI Video API is handled by the caller's ConvertToOpenAIVideo branch
 	if isOpenAIVideoAPI {
 		return nil
 	}
 
-	// 非 OpenAI Video API: 构建自定义格式响应
+	// Non-OpenAI Video API: Building custom format responses
 	format := detectVideoFormat(body)
 	out := map[string]any{
 		"error":    nil,
@@ -653,7 +653,7 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	return respBody
 }
 
-// detectVideoFormat 从 Gemini/Vertex 原始响应中探测视频格式
+// detectVideoFormat Detect video format from Gemini/Vertex raw response
 func detectVideoFormat(rawBody []byte) string {
 	var raw map[string]any
 	if err := common.Unmarshal(rawBody, &raw); err != nil {
@@ -678,7 +678,7 @@ func detectVideoFormat(rawBody []byte) string {
 	return mt
 }
 
-// mapTaskStatusToSimple 将内部 TaskStatus 映射为简化状态字符串
+// mapTaskStatusToSimple maps an internal TaskStatus to a simplified status string
 func mapTaskStatusToSimple(status model.TaskStatus) string {
 	switch status {
 	case model.TaskStatusSuccess:

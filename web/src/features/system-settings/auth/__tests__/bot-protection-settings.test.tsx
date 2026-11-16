@@ -30,7 +30,7 @@ import { useState } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import zh from '@/i18n/locales/zh.json'
+import zh from '@/i18n/locales/en.json'
 import { api } from '@/lib/api'
 
 import { SettingsPageProvider } from '../../components/settings-page-context'

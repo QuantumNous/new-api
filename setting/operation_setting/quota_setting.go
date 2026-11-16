@@ -9,12 +9,12 @@ import (
 )
 
 type QuotaSetting struct {
-	EnableFreeModelPreConsume bool    `json:"enable_free_model_pre_consume"` // 是否对免费模型启用预消耗
-	TrustQuotaUSD             float64 `json:"trust_quota_usd"`               // 钱包免预扣门槛，0 表示禁用
-	PreConsumeMultiplier      float64 `json:"pre_consume_multiplier"`        // 预计输入费用的预扣倍率，仅影响预留
+	EnableFreeModelPreConsume bool    `json:"enable_free_model_pre_consume"` // Whether to enable pre-consumption for free models
+	TrustQuotaUSD             float64 `json:"trust_quota_usd"`               // Wallet-free withholding threshold, 0 means disabled
+	PreConsumeMultiplier      float64 `json:"pre_consume_multiplier"`        // The withholding rate for the expected input expense, which only affects reservations
 }
 
-// 默认配置
+// Default configuration
 var quotaSetting = QuotaSetting{
 	EnableFreeModelPreConsume: true,
 	TrustQuotaUSD:             10,
@@ -22,7 +22,7 @@ var quotaSetting = QuotaSetting{
 }
 
 func init() {
-	// 注册到全局配置管理器
+	// Register to the global configuration manager
 	config.GlobalConfig.Register("quota_setting", &quotaSetting)
 }
 

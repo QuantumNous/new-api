@@ -42,21 +42,20 @@ export function MaskedValueTrigger(props: ComponentProps<typeof Button>) {
 }
 
 interface MaskedValueDisplayProps {
-  /** 弹层内标题，如 "Full API Key" / "Full Code" */
+  /* * Title in the pop-up layer, such as "Full API Key" / "Full Code" */
   label: string
-  /** 完整值，在 Popover 内完整展示 */
+  /* * Full value, fully displayed in Popover */
   fullValue: string
-  /** 表格内显示的脱敏值 */
+  /* * Desensitization values shown in the table */
   maskedValue: string
-  /** 复制按钮的 tooltip */
+  /* * Copy button tooltip */
   copyTooltip: string
-  /** 复制按钮的 aria-label */
+  /* * Copy button's aria-label */
   copyAriaLabel: string
 }
 
-/**
- * 用于在表格中展示脱敏密钥/兑换码：点击显示完整内容（文本块完整显示，非 Input），支持一键复制。
- */
+/* *
+ * Used to display the desensitization key/redemption code in the table: click to display the complete content (the text block is fully displayed, not Input), and supports one-click copying. */
 export function MaskedValueDisplay(props: MaskedValueDisplayProps) {
   return (
     <div className='flex max-w-full min-w-0 items-center'>

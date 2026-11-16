@@ -29,9 +29,9 @@ describe('model group selector group detail', () => {
       resources: {
         zh: {
           translation: {
-            'User group': '用户分组',
-            Auto: '自动',
-            'Ratio: {{value}}': '倍率：{{value}}',
+            'User group': "User Group",
+            Auto: "Auto",
+            'Ratio: {{value}}': "Ratio: {{value}}",
           },
         },
       },
@@ -39,7 +39,7 @@ describe('model group selector group detail', () => {
 
     expect(
       formatGroupDetail({ desc: 'User group', ratio: 'auto' }, i18n.t)
-    ).toBe('用户分组 · 倍率：自动')
+    ).toBe('User Group · Ratio: Auto')
   })
 
   test('keeps an administrator description and a numeric ratio as written', async () => {

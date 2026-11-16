@@ -26,7 +26,7 @@ export const Route = createFileRoute('/(auth)/sign-up')({
   beforeLoad: async () => {
     const { auth } = useAuthStore.getState()
 
-    // 如果已经有用户信息，说明已登录，注册页对其无意义，跳转到 dashboard
+    // If there is already user information, it means you are logged in. The registration page is meaningless and jumps to the dashboard.
     if (auth.user) {
       throw redirect({ to: '/dashboard' })
     }

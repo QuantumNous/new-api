@@ -13,16 +13,16 @@ import (
 	"github.com/MoeForge/moego/ojson"
 )
 
-// BodyStorage 请求体存储接口
+// BodyStorage request body storage interface
 type BodyStorage interface {
 	io.ReadSeeker
 	io.Closer
 	// Bytes returns read-only contents. Store edits in a new BodyStorage;
 	// decoded strings and raw JSON may still refer to these bytes.
 	Bytes() ([]byte, error)
-	// Size 获取数据大小
+	// Size gets the data size
 	Size() int64
-	// IsDisk 是否是磁盘存储
+	// IsDisk is disk storage?
 	IsDisk() bool
 	// NewReader returns an independent reader positioned at the start of the
 	// stored payload. Each call returns a reader with its own cursor, so
@@ -61,10 +61,10 @@ func ReadBodyJSONFields(storage BodyStorage, paths ...string) ([]ojson.Result, e
 	return ojson.GetManyBytes(data, paths...), nil
 }
 
-// ErrStorageClosed 存储已关闭错误
+// ErrStorageClosed Storage has been closed error
 var ErrStorageClosed = fmt.Errorf("body storage is closed")
 
-// memoryStorage 内存存储实现
+// memoryStorage memory storage implementation
 type memoryStorage struct {
 	data   []byte
 	reader *bytes.Reader
@@ -141,7 +141,7 @@ func (m *memoryStorage) IsDisk() bool {
 	return false
 }
 
-// diskStorage 磁盘存储实现
+// diskStorage disk storage implementation
 type diskStorage struct {
 	file     *os.File
 	filePath string
@@ -151,13 +151,13 @@ type diskStorage struct {
 }
 
 func newDiskStorage(data []byte, cachePath string) (*diskStorage, error) {
-	// 使用统一的缓存目录管理
+	// Use unified cache directory management
 	filePath, file, err := CreateDiskCacheFile(DiskCacheTypeBody)
 	if err != nil {
 		return nil, err
 	}
 
-	// 写入数据
+	// Write data
 	n, err := file.Write(data)
 	if err != nil {
 		file.Close()
@@ -165,7 +165,7 @@ func newDiskStorage(data []byte, cachePath string) (*diskStorage, error) {
 		return nil, fmt.Errorf("failed to write to temp file: %w", err)
 	}
 
-	// 重置文件指针
+	// Reset file pointer
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		file.Close()
 		os.Remove(filePath)
@@ -183,13 +183,13 @@ func newDiskStorage(data []byte, cachePath string) (*diskStorage, error) {
 }
 
 func newDiskStorageFromReader(reader io.Reader, maxBytes int64, cachePath string) (*diskStorage, error) {
-	// 使用统一的缓存目录管理
+	// Use unified cache directory management
 	filePath, file, err := CreateDiskCacheFile(DiskCacheTypeBody)
 	if err != nil {
 		return nil, err
 	}
 
-	// 从 reader 读取并写入文件
+	// Read and write files from reader
 	written, err := io.Copy(file, io.LimitReader(reader, maxBytes+1))
 	if err != nil {
 		file.Close()
@@ -203,7 +203,7 @@ func newDiskStorageFromReader(reader io.Reader, maxBytes int64, cachePath string
 		return nil, ErrRequestBodyTooLarge
 	}
 
-	// 重置文件指针
+	// Reset file pointer
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		file.Close()
 		os.Remove(filePath)
@@ -256,25 +256,25 @@ func (d *diskStorage) Bytes() ([]byte, error) {
 		return nil, ErrStorageClosed
 	}
 
-	// 保存当前位置
+	// Save current location
 	currentPos, err := d.file.Seek(0, io.SeekCurrent)
 	if err != nil {
 		return nil, err
 	}
 
-	// 移动到开头
+	// move to beginning
 	if _, err := d.file.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
 
-	// 读取全部内容
+	// Read all content
 	data := make([]byte, d.size)
 	_, err = io.ReadFull(d.file, data)
 	if err != nil {
 		return nil, err
 	}
 
-	// 恢复位置
+	// restore location
 	if _, err := d.file.Seek(currentPos, io.SeekStart); err != nil {
 		return nil, err
 	}
@@ -314,13 +314,13 @@ func CreateBodyStorage(data []byte) (BodyStorage, error) {
 	size := int64(len(data))
 	threshold := GetDiskCacheThresholdBytes()
 
-	// 检查是否应该使用磁盘缓存
+	// Check if disk cache should be used
 	if IsDiskCacheEnabled() &&
 		size >= threshold &&
 		IsDiskCacheAvailable(size) {
 		storage, err := newDiskStorage(data, GetDiskCachePath())
 		if err != nil {
-			// 如果磁盘存储失败，回退到内存存储
+			// If disk storage fails, fall back to memory storage
 			SysError(LogText("failed to create disk storage, falling back to memory: %v", err))
 			return newMemoryStorage(data), nil
 		}
@@ -330,11 +330,11 @@ func CreateBodyStorage(data []byte) (BodyStorage, error) {
 	return newMemoryStorage(data), nil
 }
 
-// CreateBodyStorageFromReader 从 Reader 创建存储（用于大请求的流式处理）
+// CreateBodyStorageFromReader creates storage from Reader (for streaming of large requests)
 func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes int64) (BodyStorage, error) {
 	threshold := GetDiskCacheThresholdBytes()
 
-	// 如果启用了磁盘缓存且内容长度超过阈值，直接使用磁盘存储
+	// If disk caching is enabled and the content length exceeds the threshold, use disk storage directly
 	if IsDiskCacheEnabled() &&
 		contentLength > 0 &&
 		contentLength >= threshold &&
@@ -344,15 +344,15 @@ func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes
 			if IsRequestBodyTooLargeError(err) {
 				return nil, err
 			}
-			// 磁盘存储失败，reader 已被消费，无法安全回退
-			// 直接返回错误而非尝试回退（因为 reader 数据已丢失）
+			// Disk storage failed, reader has been consumed and cannot be safely rolled back.
+			// Return an error instead of trying to rollback (because reader data has been lost)
 			return nil, fmt.Errorf("disk storage creation failed: %w", err)
 		}
 		IncrementDiskCacheHits()
 		return storage, nil
 	}
 
-	// 使用内存读取
+	// Read using memory
 	data, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
 	if err != nil {
 		return nil, err
@@ -365,7 +365,7 @@ func CreateBodyStorageFromReader(reader io.Reader, contentLength int64, maxBytes
 	if err != nil {
 		return nil, err
 	}
-	// 如果最终使用内存存储，记录内存缓存命中
+	// If in-memory storage is eventually used, record the in-memory cache hit
 	if !storage.IsDisk() {
 		IncrementMemoryCacheHits()
 	} else {
@@ -439,8 +439,8 @@ func NewReplayableBodyReader(storage BodyStorage) ReplayableBody {
 	return &replayableBodyReader{storage: storage}
 }
 
-// CleanupOldCacheFiles 清理旧的缓存文件（用于启动时清理残留）
+// CleanupOldCacheFiles cleans old cache files (used to clean up residues at startup)
 func CleanupOldCacheFiles() {
-	// 使用统一的缓存管理
+	// Use unified cache management
 	CleanupOldDiskCacheFiles(5 * time.Minute)
 }

@@ -219,7 +219,7 @@ func GenerateRandomCharsKey(length int) (string, error) {
 }
 
 func GenerateRandomKey(length int) (string, error) {
-	bytes := make([]byte, length*3/4) // 对于48位的输出，这里应该是36
+	bytes := make([]byte, length*3/4) // For 48-bit output, this should be 36
 	if _, err := crand.Read(bytes); err != nil {
 		return "", err
 	}

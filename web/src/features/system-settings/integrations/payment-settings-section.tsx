@@ -1039,7 +1039,7 @@ export function PaymentSettingsSection({
                             onBlur={field.onBlur}
                             textareaRef={field.ref}
                             placeholder={t(
-                              '[{"name":"支付宝","type":"alipay","icon":"SiAlipay"}]'
+                              "[{\"name\":\"Alipay\",\"type\":\"alipay\",\"icon\":\"SiAlipay\"}]"
                             )}
                             heightClassName='h-40 min-h-40 max-h-40'
                             aria-invalid={Boolean(

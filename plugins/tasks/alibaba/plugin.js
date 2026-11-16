@@ -123,12 +123,12 @@ const Z_IMAGE_PROMPT_EXTEND_RATIO = 2;
 // Base64 uploads on the OpenAI edits endpoint are bounded by DashScope's 10 MB input image limit.
 const MAX_INPUT_IMAGE_BYTES = 10485760;
 
-const IMAGE_UNIT_LABEL = { en: "image", zh: "张", "zh-TW": "張", fr: "image", ja: "枚", ru: "изображение", vi: "ảnh" };
+const IMAGE_UNIT_LABEL = { en: "image" };
 const IMAGE_COUNT_FIELD = {
   type: "number",
   unit: "count",
   unitLabel: IMAGE_UNIT_LABEL,
-  description: { en: "Image generation unit price", zh: "图片生成单价" },
+  description: { en: "Image generation unit price" },
 };
 
 const WAN_IMAGE_USAGE_SCHEMA = { image_count: IMAGE_COUNT_FIELD };
@@ -138,7 +138,7 @@ const Z_IMAGE_USAGE_SCHEMA = {
   image_count: IMAGE_COUNT_FIELD,
   prompt_extend: {
     type: "boolean",
-    description: { en: "Whether prompt rewriting is enabled", zh: "是否开启提示词改写" },
+    description: { en: "Whether prompt rewriting is enabled" },
   },
 };
 
@@ -149,14 +149,14 @@ const QWEN_IMAGE3_USAGE_SCHEMA = {
   image_count: IMAGE_COUNT_FIELD,
   output_image_type: {
     enum: ["qima_output_1k", "qima_output_2k"],
-    enumLabels: { qima_output_1k: { en: "1K output", zh: "1K 输出" }, qima_output_2k: { en: "2K output", zh: "2K 输出" } },
-    description: { en: "Output image tier", zh: "输出图片档位" },
+    enumLabels: { qima_output_1k: { en: "1K output" }, qima_output_2k: { en: "2K output" } },
+    description: { en: "Output image tier" },
   },
   input_image_count: {
     type: "number",
     unit: "count",
     unitLabel: IMAGE_UNIT_LABEL,
-    description: { en: "Input image unit price", zh: "输入图片单价" },
+    description: { en: "Input image unit price" },
   },
 };
 
@@ -164,19 +164,19 @@ const QWEN_IMAGE3_USAGE_SCHEMA = {
 // capability table so pricing lists only the tiers the model offers.
 function wanVideoUsageSchema(resolutions, audio) {
   const resolutionLabels = {};
-  for (const resolution of resolutions) resolutionLabels[resolution] = { en: resolution, zh: resolution };
+  for (const resolution of resolutions) resolutionLabels[resolution] = { en: resolution };
   const schema = {
     // Billable seconds: output duration, or input + output for Wan3.
     seconds: {
       type: "number",
       unit: "second",
-      description: { en: "Video generation unit price", zh: "视频生成单价" },
+      description: { en: "Video generation unit price" },
     },
     // Requested output video resolution.
     resolution: {
       enum: resolutions,
       enumLabels: resolutionLabels,
-      description: { en: "Output video resolution", zh: "输出视频分辨率" },
+      description: { en: "Output video resolution" },
     },
   };
   // wan2.6-i2v-flash prices audio and silent output differently. parameters.audio
@@ -184,7 +184,7 @@ function wanVideoUsageSchema(resolutions, audio) {
   if (audio) {
     schema.audio = {
       type: "boolean",
-      description: { en: "Whether audio is generated", zh: "是否生成音频" },
+      description: { en: "Whether audio is generated" },
     };
   }
   return schema;
@@ -218,10 +218,7 @@ export const meta = {
   key: "alibaba",
   name: "Alibaba Bailian",
   icon: "Bailian.Color",
-  description: {
-    en: "Alibaba Cloud Bailian image and video generation (Wan, Qwen-Image, Z-Image)",
-    zh: "阿里云百炼图片与视频生成（万相、千问图像、Z-Image）",
-  },
+  description: { en: "Alibaba Cloud Bailian image and video generation (Wan, Qwen-Image, Z-Image)" },
   version: "1.5.0",
   author: { name: "QuantumNous" },
   channelTypes: [17],

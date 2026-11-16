@@ -1,73 +1,73 @@
 # RelayKit
 
-RelayKit 是一个 Go 模块，在 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 和 Gemini `generateContent` 四种协议之间转换请求、非流式响应和流式事件。
+RelayKit is a Go module that converts requests, non-streaming responses, and streaming events between four protocols: OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and Gemini `generateContent`.
 
-它从 [new-api](https://github.com/QuantumNous/new-api) 中拆出，模块路径是 `github.com/QuantumNous/new-api/relaykit`，运行时依赖是 uuid、lo、gjson 和 sjson 四个包。它做协议数据的建模和转换，HTTP 收发、SSE 读写、渠道选择、鉴权和计费由宿主程序完成，所以可以嵌进其他 Go 网关或代理。
+It is detached from [new-api](https://github.com/QuantumNous/new-api), the module path is `github.com/QuantumNous/new-api/relaykit`, and the runtime dependencies are the four packages uuid, lo, gjson and sjson. It models and converts protocol data. HTTP sending and receiving, SSE reading and writing, channel selection, authentication and accounting are completed by the host program, so it can be embedded in other Go gateways or proxies.
 
-## 支持矩阵
+## Support matrix
 
-四种协议两两之间都能转换，请求、非流式响应和流式响应覆盖同一张表：
+Each of the four protocols can be converted, and requests, non-streaming responses and streaming responses cover the same table:
 
-| 源格式 \ 目标格式 | OpenAI Chat | OpenAI Responses | Claude Messages | Gemini |
+| Source Format \ Target Format | OpenAI Chat | OpenAI Responses | Claude Messages | Gemini |
 |---|---:|---:|---:|---:|
 | OpenAI Chat | | `good` | `fair` | `fair` |
 | OpenAI Responses | `good` | | `fair` | `fair` |
 | Claude Messages | `fair` | `fair` | | `discouraged` |
 | Gemini | `fair` | `fair` | `discouraged` | |
 
-`good` 表示两种协议结构接近，字段基本一一对应。`fair` 表示主要内容都能转，协议独有的字段以诊断报告。其中 Gemini 转 Responses 的请求和响应、Claude 转 Responses 的响应、Responses 转 Gemini 的响应经 OpenAI Chat 中转。`discouraged` 表示 Claude 和 Gemini 之间请求和响应都经 OpenAI Chat 中转两跳，丢字段的机会更多。实际走的路径在转换结果的 `Steps` 里，等级在 `Quality` 里。
+`good` means that the structures of the two protocols are close and the fields are basically one-to-one correspondence. `fair` indicates that the main content can be transferred, and the fields unique to the protocol are reported in diagnostics. Among them, the requests and responses from Gemini to Responses, the responses from Claude to Responses, and the responses from Responses to Gemini are transferred through OpenAI Chat. `discouraged` means that requests and responses between Claude and Gemini are transferred through OpenAI Chat for two hops, and there are more opportunities to lose fields. The actual path is in `Steps` of the conversion result, and the level is in `Quality`.
 
-## 功能
+## Function
 
-### 自动选路
+### Automatic route selection
 
-`ConvertRequest` 和 `ConvertResponse` 按传入 DTO 的具体类型判断源协议，`NewResponseStreamState` 按参数里的源格式和目标格式，都查表选直接转换器或多跳路径。结果里有源格式、目标格式、转换器 ID、质量等级、实际经过的每一步和诊断列表。要固定路径时用 `ConvertRequestVia`，要按 ID 执行时用 `ConvertRequestByID`、`ConvertResponseByID` 和 `NewResponseStreamStateByID`。
+`ConvertRequest` and `ConvertResponse` determine the source protocol based on the specific type of the incoming DTO, and `NewResponseStreamState` looks up the table to select a direct converter or multi-hop path based on the source format and target format in the parameters. The results include the source format, target format, converter ID, quality level, actual steps taken and a list of diagnostics. Use `ConvertRequestVia` when you want to fix the path, and use `ConvertRequestByID`, `ConvertResponseByID` and `NewResponseStreamStateByID` when you want to execute by ID.
 
-### 工具调用
+### Tool call
 
-function tool 的定义、调用和结果在四种协议之间互转。Responses 的 custom tool 和带 namespace 的工具发往 Chat、Claude、Gemini 上游时改成普通 function tool，编码方式记在 `convmeta.ResponsesToolState` 里，响应转换时按这份记录还原成 Responses 的形状。托管 web search 按目标协议重新编码：Chat 用 `web_search_options`，Responses、Claude 和 Gemini 各用自己协议的 web search 工具定义，宿主可以通过 `Options.WebSearch` 为某个上游改写编码。其他托管工具在目标协议里表达不了的部分，转换照常完成，缺失写进诊断。
+Function tool definitions, calls, and results are converted between the four protocols. Responses' custom tools and tools with namespace are changed to ordinary function tools when sent to the upstream of Chat, Claude, and Gemini. The encoding method is recorded in `convmeta.ResponsesToolState`. During response conversion, this record is used to restore the shape of Responses. Hosted web search is recoded according to the target protocol: Chat uses `web_search_options`, Responses, Claude, and Gemini are each defined by web search tools of their own protocols. The host can rewrite the encoding for an upstream through `Options.WebSearch`. For parts that other hosting tools cannot express in the target protocol, the conversion is completed as usual, and the missing parts are written into the diagnosis.
 
-### 推理设置
+### Inference settings
 
-reasoning effort、thinking budget 和是否返回思考内容用 `dto.ReasoningConversionState` 在转换步骤之间传递，多跳路径上的每一步都能读到精确的 budget 和 effort。Claude 的 max_tokens 和 budget 超出模型范围时会调整，Gemini 的 thinkingConfig 按模型归一化，这些改动都以诊断返回，例如 `claude_max_tokens_raised` 和 `claude_budget_adjusted`。
+Reasoning effort, thinking budget, and whether to return thinking content are passed between conversion steps using `dto.ReasoningConversionState`. The precise budget and effort can be read at each step on the multi-hop path. Claude's max_tokens and budget are adjusted when they exceed the model range, Gemini's thinkingConfig is normalized by the model, and these changes are returned as diagnostics, such as `claude_max_tokens_raised` and `claude_budget_adjusted`.
 
-### 多模态
+### Multimodal
 
-图片和文件内容块在协议之间转换。需要下载 URL 或解析 data URL 时，RelayKit 调用宿主用 `SetMediaResolver` 注册的函数，未注册时转换返回错误。
+Image and file content blocks are converted between protocols. When it is necessary to download a URL or parse a data URL, RelayKit calls the function registered by the host with `SetMediaResolver`. If it is not registered, the conversion returns an error.
 
 ### Usage
 
-每个响应转换都返回统一的 `dto.Usage`，含输入、输出、缓存命中，以及 Claude 缓存写入按 5 分钟和 1 小时的拆分。`Usage.BillingUsage` 同时带着上游原始的 usage 结构和它来自哪个协议，宿主可以按上游的计量规则计费。流式转换把分散在多个事件里的 usage 累加到 `ResponseStreamState`。`dto.MergeUsageNonZero` 一类函数合并两份 usage 时，后到的非零字段覆盖已有值，后到的零值保留已有的计数。
+Each response transformation returns a uniform `dto.Usage` with input, output, cache hits, and a 5-minute and 1-hour split of Claude cache writes. `Usage.BillingUsage` also carries the upstream original usage structure and the protocol it comes from. The host can bill according to the upstream metering rules. Streaming conversion accumulates usage scattered across multiple events into `ResponseStreamState`. `dto.MergeUsageNonZero` When a type of function merges two usages, the non-zero field that arrives later overwrites the existing value, and the zero value that arrives later retains the existing count.
 
-### 流式
+### Streaming
 
-每条上游流对应一个 `ResponseStreamState`，跨事件的工具调用拼接、usage 和结束状态都存在这里。上游结束后调用 `FinalizeStreamResponse`，转换器在这一步补发终止事件和最终 usage。目标是 Responses 时，上游中途出错可以调用 `FailResponsesStream` 生成 Responses 协议的错误事件，`ResponseStreamOptions.EmitSequenceNumber` 打开后每个事件带 `sequence_number`。
+Each upstream stream corresponds to an `ResponseStreamState`, and cross-event tool call splicing, usage and end status are stored here. `FinalizeStreamResponse` is called after the upstream is completed, and the converter reissues the termination event and final usage in this step. When the target is Responses, if an error occurs in the upstream, you can call `FailResponsesStream` to generate an error event of the Responses protocol. After `ResponseStreamOptions.EmitSequenceNumber` is turned on, each event will contain `sequence_number`.
 
-### 宿主钩子
+### Host hook
 
-JSON 编解码默认用 `encoding/json`，宿主可以在启动时用 `kitutil.SetCodec` 换成别的实现，DTO 上自定义的 `MarshalJSON` 和 `UnmarshalJSON` 也走同一个编解码器。数据形状异常的日志通过 `kitutil.SetLogging` 和 `kitutil.SetSystemErrorLogging` 交给宿主，默认写到 stderr。
+JSON encoding and decoding uses `encoding/json` by default. The host can use `kitutil.SetCodec` to change to other implementations at startup. The customized `MarshalJSON` and `UnmarshalJSON` on the DTO also use the same codec. Logs with abnormal data shape are sent to the host through `kitutil.SetLogging` and `kitutil.SetSystemErrorLogging`, and are written to stderr by default.
 
-## 安装
+## Installation
 
-RelayKit 要求 Go 1.25.1 或更高版本。tag 的形式是 `relaykit/vX.Y.Z`，`@latest` 解析到最新的一个。
+RelayKit requires Go 1.25.1 or higher. The form of tag is `relaykit/vX.Y.Z`, `@latest` is parsed to the latest one.
 
 ```bash
 go get github.com/QuantumNous/new-api/relaykit@latest
 ```
 
-| 包 | 内容 |
+| Package | Contents |
 |---|---|
-| `relaykit/dto` | 四种协议的请求、响应、流式事件和 usage 结构，以及 new-api 宿主共用的渠道、定价和用户设置结构 |
-| `relaykit/types` | 协议格式、错误、诊断、文件来源等共享类型 |
-| `relaykit/relayconvert` | 请求、响应和流式转换入口 |
-| `relaykit/relayconvert/convmeta` | 转换上下文接口 `Meta`、默认实现 `Values` 和选项 `Options` |
-| `relaykit/relayconvert/reasoning` | 推理设置的解析、合并和渲染，包括模型名尾缀解析 |
-| `relaykit/relayconvert/kitutil` | JSON 编解码和日志钩子 |
-| `relaykit/reasonmap` | Claude 和 OpenAI 之间的结束原因映射 |
+| `relaykit/dto` | The request, response, streaming event and usage structures of the four protocols, as well as the channel, pricing and user settings structures shared by the new-api host |
+| `relaykit/types` | Sharing types such as protocol format, errors, diagnostics, file sources, etc. |
+| `relaykit/relayconvert` | Request, response and streaming conversion portal |
+| `relaykit/relayconvert/convmeta` | Transformation context interface `Meta`, default implementation `Values`, and options `Options` |
+| `relaykit/relayconvert/reasoning` | Parsing, merging and rendering of inference settings, including model name suffix parsing |
+| `relaykit/relayconvert/kitutil` | JSON encoding and decoding and logging hooks |
+| `relaykit/reasonmap` | Ending reason mapping between Claude and OpenAI |
 
-## 快速开始
+## Quick start
 
-下面把 OpenAI Chat Completions 请求转换成 Claude Messages 请求：
+Next, convert the OpenAI Chat Completions request into a Claude Messages request:
 
 ```go
 package main
@@ -117,11 +117,11 @@ func main() {
 }
 ```
 
-`ConvertRequest` 按请求的具体 DTO 类型推断源格式。传入 nil、原始 JSON、`map[string]any` 或其他类型时返回错误。
+`ConvertRequest` Infers the source format by the specific DTO type requested. Returns an error when nil, raw JSON, `map[string]any`, or other types are passed in.
 
-### 非流式响应
+### Non-streaming response
 
-响应转换用同一套目标格式参数：
+Response conversion uses the same set of target format parameters:
 
 ```go
 result, err := relayconvert.ConvertResponse(
@@ -138,18 +138,18 @@ openAIResponse := result.Value.(*dto.OpenAITextResponse)
 usage := result.Usage
 ```
 
-支持的响应 DTO：
+Supported response DTOs:
 
-| 格式 | 非流式响应 | 流式事件 |
+| Format | Non-Streaming Response | Streaming Event |
 |---|---|---|
 | OpenAI Chat | `dto.OpenAITextResponse` | `dto.ChatCompletionsStreamResponse` |
 | OpenAI Responses | `dto.OpenAIResponsesResponse` | `dto.ResponsesStreamResponse` |
 | Claude Messages | `dto.ClaudeResponse` | `dto.ClaudeResponse` |
 | Gemini | `dto.GeminiChatResponse` | `dto.GeminiChatResponse` |
 
-### 流式响应
+### Streaming response
 
-每条上游流创建一个 `ResponseStreamState`，上游结束后调用 `FinalizeStreamResponse`：
+Each upstream stream creates an `ResponseStreamState`, and calls `FinalizeStreamResponse` after the upstream ends:
 
 ```go
 state, err := relayconvert.NewResponseStreamState(
@@ -188,13 +188,13 @@ usage := state.Usage()
 diagnostics := state.Diagnostics()
 ```
 
-SSE 的读取和写入由宿主完成：把每个上游事件解析成对应的 DTO 传进来，再把转换结果编码后发给下游。`FinalizeStreamResponse` 每条流都要调用，部分转换器在这一步才补发终止事件和最终 usage。
+The reading and writing of SSE is completed by the host: each upstream event is parsed into the corresponding DTO and passed in, and then the conversion result is encoded and sent to the downstream. `FinalizeStreamResponse` must be called for each stream. Some converters reissue the termination event and final usage at this step.
 
-## 转换上下文
+##Convert context
 
-大多数基础转换的 `convmeta.Meta` 参数可以传 `nil`。需要模型名、推理设置、工具编码记录或流式状态时，用 `convmeta.Values`，或者在宿主里实现 `convmeta.Meta`。自己实现时，指针类型的每个方法都要能在 nil receiver 上返回零值，接口注释写了原因。
+`nil` can be passed as the `convmeta.Meta` parameter for most basic transformations. When you need a model name, inference settings, tool encoding records, or streaming state, use `convmeta.Values`, or implement `convmeta.Meta` in the host. When implementing it yourself, each method of the pointer type must be able to return a zero value on the nil receiver. The reason is written in the interface annotation.
 
-按请求传入的选项放在 `convmeta.Options`：
+Options passed in by request are placed in `convmeta.Options`:
 
 ```go
 meta := &convmeta.Values{
@@ -211,39 +211,39 @@ meta := &convmeta.Values{
 }
 ```
 
-| 选项 | 作用 |
+| Options | Function |
 |---|---|
-| `Claude.DefaultMaxTokens` | 源请求没有 max_tokens 时，转 Claude 用这个函数取值 |
-| `Claude.ThinkingAdapterEnabled`、`Gemini.ThinkingAdapterEnabled` | 模型名尾缀适配开关，见下文 |
-| `Claude.ThinkingAdapterBudgetTokensPercentage`、`Gemini.ThinkingAdapterBudgetTokensPercentage` | 尾缀适配触发时，thinking budget 占 max_tokens 的比例 |
-| `Claude.WebSearchToolVersion` | 转 Claude 时 web search 工具的版本，空值用 `web_search_20250305` |
-| `Gemini.FunctionCallThoughtSignatureEnabled` | 给 function call 部分附加 thoughtSignature |
-| `Gemini.SupportsImagine` | 判断模型是否支持生图，支持时切换响应模态 |
-| `Gemini.SafetySetting` | 按分类返回 safetySettings 的阈值 |
-| `ToolLossPolicy` | 跨协议丢失工具行为时的处理，见下文 |
-| `OpenRouterDialect` | 上游是 OpenRouter 时打开，转换器会输出它额外接受的字段 |
-| `WebSearch` | 为某个上游改写托管 web search 的编码 |
-| `PreserveThinkingSuffix`、`PreserveEffortTail` | 判断哪些模型名要原样保留尾缀 |
+| `Claude.DefaultMaxTokens` | When the source request does not have max_tokens, turn to Claude and use this function to get the value |
+| `Claude.ThinkingAdapterEnabled`, `Gemini.ThinkingAdapterEnabled` | Model name suffix adaptation switch, see below |
+| `Claude.ThinkingAdapterBudgetTokensPercentage`, `Gemini.ThinkingAdapterBudgetTokensPercentage` | When tailfix adaptation is triggered, the ratio of thinking budget to max_tokens |
+| `Claude.WebSearchToolVersion` | The version of the web search tool when converting to Claude, use `web_search_20250305` for empty values |
+| `Gemini.FunctionCallThoughtSignatureEnabled` | Attach thoughtSignature to the function call part |
+| `Gemini.SupportsImagine` | Determine whether the model supports drawing, and switch the response mode if it supports |
+| `Gemini.SafetySetting` | Return the threshold of safetySettings by category |
+| `ToolLossPolicy` | Handling when tool behavior is lost across protocols, see below |
+| `OpenRouterDialect` | Opened when the upstream is OpenRouter, the converter will output the additional fields it accepts |
+| `WebSearch` | Rewrite the encoding of a hosted web search for an upstream |
+| `PreserveThinkingSuffix`, `PreserveEffortTail` | Determine which model names should keep the suffix as they are |
 
-转 Claude 时请求需要 `max_tokens`。源请求没有时，RelayKit 调用 `Claude.DefaultMaxTokens` 取值，两者都没有时返回错误。
+The request requires `max_tokens` when transferring to Claude. When the source request does not exist, RelayKit calls `Claude.DefaultMaxTokens` to get the value. If neither of them exists, an error is returned.
 
-RelayKit 按请求里的 `Model` 生成上游请求，调用前把它设成上游使用的模型名。带 `-thinking`、`-nothinking`、`-thinking-<budget>` 或 `-high` 这类尾缀的 Claude、Gemini 模型名由调用方在转换前解析：调用 `reasoning.ParseClaudeModelSuffix` 或 `reasoning.ParseGeminiModelSuffix`，`allowSuffixAlias` 参数传 `ThinkingAdapterEnabled`，把返回的 `Intent` 用 `reasoning.StateFromIntent` 写进 `Values.ReasoningConversion`，再把裁掉尾缀的模型名放进请求。开关关闭时这两个函数原样返回模型名，推理设置来自请求字段。
+RelayKit generates an upstream request based on `Model` in the request, and sets it to the model name used by the upstream before calling. Claude and Gemini model names with suffixes such as `-thinking`, `-nothinking`, `-thinking-<budget>` or `-high` are parsed by the caller before conversion: call `reasoning.ParseClaudeModelSuffix` or `reasoning.ParseGeminiModelSuffix`, pass the `allowSuffixAlias` parameter to `ThinkingAdapterEnabled`, and return the `Intent` uses `reasoning.StateFromIntent` to write `Values.ReasoningConversion`, and then puts the model name with the suffix cut off into the request. When the switch is off, these two functions return the model name unchanged, with the inferred settings coming from the request fields.
 
-## 诊断与损耗策略
+## Diagnosis and attrition strategies
 
-每个转换结果都带 `Diagnostics`，每条诊断有代码、字段路径、说明、级别和源目标格式。级别 `warning` 表示展示层面的差异，`error` 表示工具行为或内容发生了变化。常见代码有 `hosted_web_search_omitted`、`trailing_assistant_omitted` 和 `unsupported_media_type`。
+Each conversion result comes with `Diagnostics`, and each diagnosis has a code, field path, description, level, and source target format. Level `warning` indicates a presentation-level difference, and `error` indicates a change in tool behavior or content. Common codes are `hosted_web_search_omitted`, `trailing_assistant_omitted`, and `unsupported_media_type`.
 
-`Options.ToolLossPolicy` 决定请求阶段怎么处理诊断：
+`Options.ToolLossPolicy` determines how diagnostics are handled during the request phase:
 
-- `allow` 是默认值，转换完成，所有损耗以诊断返回。
-- `safe` 在请求阶段遇到 `error` 级诊断时返回 `*types.ConversionLossError`。
-- `strict` 在请求阶段遇到任何诊断都返回这个错误。
+- `allow` is the default value, conversion is completed and all losses are returned with diagnostics.
+- `safe` Returns `*types.ConversionLossError` when an `error` level diagnostic is encountered during the request phase.
+- `strict` returns this error for any diagnostics encountered during the request phase.
 
-响应和流式转换在三种策略下都完成转换并返回诊断。流式用 `state.Diagnostics()` 读到目前为止累计的诊断，包括没有产生下游事件的那些。
+Response and streaming conversions complete the conversion and return diagnostics under all three strategies. Streaming uses `state.Diagnostics()` to read the accumulated diagnostics so far, including those that did not generate downstream events.
 
-## 媒体解析
+## Media analysis
 
-跨协议的图片转换有时需要下载 URL 内容或解析 data URL。宿主在启动时注册解析函数：
+Cross-protocol image conversion sometimes requires downloading URL content or parsing data URLs. The host registers the parsing function at startup:
 
 ```go
 relayconvert.SetMediaResolver(relayconvert.MediaResolver{
@@ -252,39 +252,39 @@ relayconvert.SetMediaResolver(relayconvert.MediaResolver{
 })
 ```
 
-两个函数的签名见 `relayconvert.MediaResolver`。需要媒体解析而没有注册时，转换返回错误。网络请求由这两个函数发起。
+See `relayconvert.MediaResolver` for the signatures of both functions. The conversion returns an error when media resolution is required but not registered. Network requests are initiated by these two functions.
 
-## 转换结果
+## Conversion result
 
-请求转换返回 `relayconvert.RequestResult`，响应转换返回 `relayconvert.ResponseResult`，字段有：
+The request conversion returns `relayconvert.RequestResult`, and the response conversion returns `relayconvert.ResponseResult`. The fields are:
 
-- `Value`：转换后的 DTO
-- `From`、`To`：源格式和目标格式
-- `Converter`：转换器 ID
-- `Quality`：质量等级
-- `Steps`：实际经过的每一步
-- `Diagnostics`：诊断列表
-- `Usage`、`Stream`：响应结果独有，统一 usage 和是否来自流式转换
+- `Value`: Converted DTO
+- `From`, `To`: source format and target format
+- `Converter`: converter ID
+- `Quality`: quality level
+- `Steps`: every step actually passed
+- `Diagnostics`: diagnostic list
+- `Usage`, `Stream`: the response results are unique, unified usage and whether they come from streaming conversion
 
-## 开发
+## Development
 
-在 `relaykit` 目录运行：
+Run in the `relaykit` directory:
 
 ```bash
 GOWORK=off go build ./...
 GOWORK=off go test ./...
 ```
 
-`GOWORK=off` 让模块脱离仓库的 workspace 单独构建，这是 new-api 对 RelayKit 改动的检查项。转换矩阵由 golden test 覆盖，协议输出变化确认是预期行为后更新快照：
+`GOWORK=off` allows the module to be built separately from the workspace of the warehouse. This is a check item of new-api for RelayKit changes. The transformation matrix is covered by golden test, and the snapshot is updated after the protocol output changes are confirmed to be expected behavior:
 
 ```bash
 GOWORK=off go test ./relayconvert -run TestGolden -update
 ```
 
-## 版本
+## Version
 
-RelayKit 处于 `v0.x`。公开 API 和 DTO 可能在小版本里变化，升级前对照发布说明和序列化结果。每对协议都有对方没有的字段，建议对业务里用到的工具调用、多模态、推理和流式场景加端到端测试。
+RelayKit is at `v0.x`. The public API and DTO may change in minor versions. Please refer to the release notes and serialization results before upgrading. Each pair of protocols has fields that the other does not have. It is recommended to add end-to-end testing for tool calls, multi-modal, reasoning and streaming scenarios used in the business.
 
-## 许可证
+## License
 
-RelayKit 是 new-api 项目的一部分，遵循项目根目录中的 [GNU Affero General Public License v3.0](../LICENSE)。
+RelayKit is part of the new-api project and complies with the [GNU Affero General Public License v3.0](../LICENSE) in the project root directory.

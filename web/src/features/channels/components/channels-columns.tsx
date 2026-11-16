@@ -337,10 +337,9 @@ function TagWeightCell({ channel }: { channel: TagRow }) {
   )
 }
 
-/**
+/* *
  * Inline balance/used values longer than this switch to locale-aware compact
- * notation (e.g. "$28万"); the precise value stays available in the tooltip.
- */
+ * notation (e.g. "$280,000"); the precise value stays available in the tooltip. */
 const MAX_INLINE_BALANCE_CHARS = 8
 const SENSITIVE_MASK = '••••'
 

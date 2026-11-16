@@ -1,29 +1,29 @@
-# 前端计费表达式规范
+# Front-end billing expression specification
 
-前端共享表达式语义，各入口保留自己的展示策略。后端
-`pkg/billingexpr` 是实际扣费依据；浏览器模拟不修改配置、不发送请求、不扣费。
+The front-end shares expression semantics, and each entrance retains its own display strategy. backend
+`pkg/billingexpr` is the actual deduction basis; browser simulation does not modify the configuration, does not send requests, and does not deduct fees.
 
-## 三种不同的能力
+## Three different abilities
 
-1. **可执行**：解析器和解释器支持该表达式，且提供了所需上下文。
-2. **可结构化展示**：整个表达式符合对应展示适配器接受的价格形状。
-3. **可视化编辑**：现有表单可以无损表达并重新生成它。
+1. **Executable**: The expression is supported by parsers and interpreters and the required context is provided.
+2. **Structured display**: The entire expression conforms to the price shape accepted by the corresponding display adapter.
+3. **Visual Editing**: Existing forms can be expressed losslessly and regenerated.
 
-这三种能力不能互相推断。`max(p * 2, 100)` 可以模拟，但不能提取为输入单价 2。
-未知请求参数不能被替换为空对象、零、false 或默认档位。
+These three abilities cannot be inferred from each other. `max(p * 2, 100)` can be simulated but cannot be extracted as input unit price 2.
+Unknown request parameters cannot be replaced with an empty object, zero, false, or the default gear.
 
-## 接口与数据流
+## Interface and data flow
 
-- `compileBillingExpression(source)`：返回 `ready`（源文本、AST、依赖、规则位置）或带诊断的失败结果。
-- `evaluateBillingExpression(sourceOrCompiled, context)`：返回 `success`（`cost`、`matchedTier`、`requestRules`），或 `invalid` / `unsupported` / `missing_context`。
-- `display.ts`：只识别完整的标准 token 阶梯、schema 支持的任务枚举阶梯，以及标准阶梯外层的时间分支。任务阶梯中引用 schema 未声明枚举值的分支视为不可达并跳过，其余档位照常识别；`task-display.ts` 对这类比较按恒不成立处理。
-- `structure.ts`：无损拆分顶层表达式；字符串内的括号、运算符和转义不作为表达式结构。
-- `condition-display.ts`：从 AST 将星期范围、小时区间、条件组合及补集转换为本地化说明。详情、分组表、日志和模拟规则共用；原始源码只在无法识别的条件上回退。
-- `visual.ts`：`parseVisualBillingDocument(source)` 将 AST 转为条件分支与价格叶子；`serializeVisualBillingDocument(document)` 返回完整源码或字段错误，不返回残缺表达式。文档保留源码、节点身份、来源区间、变量是否存在及字符串草稿；通过与来源节点比较识别修改并局部替换。
-- 原有 `billing-expr.ts`、`tier-expr.ts`、`task-expr.ts` 是兼容入口。展示适配器保留字段名、顺序、费用单位和回退值。
+- `compileBillingExpression(source)`: Return `ready` (source text, AST, dependency, rule location) or failure result with diagnostics.
+- `evaluateBillingExpression(sourceOrCompiled, context)`: Returns `success` (`cost`, `matchedTier`, `requestRules`), or `invalid` / `unsupported` / `missing_context`.
+- `display.ts`: Only recognizes the complete standard token ladder, the task enumeration ladder supported by the schema, and the time branch in the outer layer of the standard ladder. The branch in the task ladder that references the schema without declaring an enumeration value is considered unreachable and skipped, and the other gears are identified as usual; `task-display.ts` treats this type of comparison as always untrue.
+- `structure.ts`: lossless splitting of top-level expressions; parentheses, operators, and escapes within strings are not treated as expression structures.
+- `condition-display.ts`: Convert week ranges, hour ranges, condition combinations and complements from AST to localized descriptions. Details, grouping tables, logs and simulation rules are shared; the original source code only falls back on unrecognized conditions.
+- `visual.ts`: `parseVisualBillingDocument(source)` converts AST into conditional branches and price leaves; `serializeVisualBillingDocument(document)` returns complete source code or field errors, but does not return incomplete expressions. The document retains the source code, node identity, source interval, variable existence and string draft; modifications are identified and partially replaced by comparing with the source node.
+- The original `billing-expr.ts`, `tier-expr.ts`, and `task-expr.ts` are compatible entries. The presentation adapter preserves field names, order, cost units, and fallback values.
 
-编译结果按原始字符串缓存，最多保留 128 项。每次求值新建执行状态，档位、时间缓存和规则命中不会泄漏至其他请求。
-不使用 `eval` 或 `new Function`，不解析 JavaScript 对象成员，不访问全局对象。
+Compiled results are cached as raw strings, retaining up to 128 items. A new execution state is created for each evaluation, and gear, time cache, and rule hits will not be leaked to other requests.
+Does not use `eval` or `new Function`, does not parse JavaScript object members, and does not access global objects.
 
 `BillingSimulationContext`：
 
@@ -36,109 +36,109 @@
 }
 ```
 
-- `tokens` 是已归一化的计费变量；模拟器不再次减缓存。`p`、`c` 与现有预估输入含义相同。
-- 基础预估的 `len` 默认沿用 `p + cr + cc + cc1h + cc12h`，可显式覆盖；不从请求 JSON 推断 token。
-- 表达式给 `cc` 定价、未给 `cc1h` 或 `cc12h` 定价时，基础预估与后端一样把 1 小时写入的 6/3.75 倍、12 小时写入的 2 倍计入 `cc`，`cc` 本身未定价时这些写入不计费。
-- 省略 `request` 表示没有模拟请求上下文；显式 `{}` 表示一个没有请求头、请求体字段的请求。只有开启请求模拟后，界面才提供空请求。
-- `usage` 对应任务 `u()` 字段；不从请求体猜测任务用量。
-- `now` 是一次求值共享的绝对时刻，省略时在开始求值时取得当前时间。
-- 输入 token 必须为有限非负数。执行失败不返回可用费用，不以 0 代替错误。
+- `tokens` is a normalized billing variable; the emulator does not cache it again. `p`, `c` have the same meaning as existing estimate inputs.
+- The basic estimated `len` defaults to `p + cr + cc + cc1h + cc12h` and can be explicitly overridden; the token is not inferred from the request JSON.
+- When the expression prices `cc` but does not price `cc1h` or `cc12h`, the basic estimate is the same as the backend. 6/3.75 times of 1-hour writes and 2 times of 12-hour writes are included in `cc`. When `cc` itself is not priced, these writes are not charged.
+- Omitting `request` indicates that there is no simulated request context; explicit `{}` indicates a request without request headers and request body fields. Only after request simulation is enabled, the interface provides empty requests.
+- `usage` corresponds to the task `u()` field; the task usage is not guessed from the request body.
+- `now` is the absolute time shared by an evaluation. If omitted, the current time will be obtained when the evaluation starts.
+- The input token must be a finite non-negative number. If the execution fails, the available fee will not be returned, and the error will not be replaced with 0.
 
-## 支持语法与后端语义
+## Support syntax and backend semantics
 
-支持默认版本和 `v1:`，十进制数及科学计数法、单/双引号字符串及常用转义、`true` / `false` / `nil`、括号、`+ - * / %`、比较、`!`、`&&`、`||` 和三元条件。
+Supports default version and `v1:`, decimal numbers and scientific notation, single/double quoted strings and common escapes, `true` / `false` / `nil`, brackets, `+ - * / %`, comparisons, `!`, `&&`, `||` and ternary conditions.
 
-函数：`tier`、`param`、`header`、`has`、`u`、`hour`、`minute`、`weekday`、`month`、`day`、`min`、`max`、`abs`、`ceil`、`floor`。
+Functions: `tier`, `param`, `header`, `has`, `u`, `hour`, `minute`, ORBITCODE 7TOKEN, `month`, `day`, `min`, `max`, `abs`, `ceil`, `floor`.
 
-- 逻辑运算与条件分支短路执行；条件必须为布尔值，不采用 JavaScript 的 truthy 规则。
-- 数值与字符串不做 JavaScript 隐式转换。除法返回数值；取模要求整数操作数，token 和 JSON 数值按后端浮点语义处理。
-- `param` 路径先去除首尾空白；支持 `a.b`、`items.0.price`、转义键及 `items.#` 长度。不存在和 JSON null 返回 `nil`；显式零、false 和空字符串保持原值。
-- 请求头名称忽略大小写，名称和值去除首尾空白；空名称和值跳过，不存在返回空字符串。
-- `has` 区分空子串、nil；JSON 容器采用后端 `fmt.Sprint` 的表示形式。
-- `u` 读取显式任务事实，缺失字段返回 nil，缺失整个任务上下文报告 `missing_context`。
-- 五个时间函数按表达式指定的 IANA 时区计算。小时 0–23、分钟 0–59、星期日 0、月份 1–12。空时区或无效时区回退 UTC。`Local` 依赖服务端进程时区，浏览器明确不支持。
-- 规则轨迹遵循后端：条件包含请求/时间探针、两个分支为数值字面量且 fallback 为 1 的三元节点才记录。被短路跳过的规则保留为未匹配。
+- Short-circuit execution of logical operations and conditional branches; the condition must be a Boolean value, and the truthy rules of JavaScript are not used.
+- There is no JavaScript implicit conversion between numbers and strings. Division returns a numerical value; modulo requires integer operands, and token and JSON values ​​are processed according to back-end floating point semantics.
+- The `param` path removes leading and trailing blanks first; supports `a.b`, `items.0.price`, escape keys and `items.#` length. Not present and JSON null return `nil`; explicit zero, false, and empty strings retain their original values.
+- Request header names ignore case, and names and values remove leading and trailing blanks; empty names and values are skipped, and empty strings are returned if they do not exist.
+- `has` distinguishes between empty substrings and nil; the JSON container uses the backend `fmt.Sprint` representation.
+- `u` reads explicit task facts, missing fields return nil, missing entire task context reports `missing_context`.
+- Five time functions are evaluated in the IANA time zone specified by the expression. Hour 0–23, Minute 0–59, Sunday 0, Month 1–12. Empty or invalid time zone falls back to UTC. `Local` relies on the server process time zone, which is clearly not supported by the browser.
+- Rule track follows the backend: Only ternary nodes whose conditions include request/time probes, two branches are numerical literals, and fallback is 1 are recorded. Rules that are skipped by short-circuiting are left unmatched.
 
-不支持完整 Expr 语言和完整 GJSON：高级查询、管道、通配符、任意函数和对象操作会报告无法模拟；原始表达式仍保留。超出 JavaScript 安全整数精度的整数运算不声称与 Go 等价。表达式长度、token 数量及深度均有限制，超限明确降级。
+The full Expr language and full GJSON are not supported: advanced queries, pipes, wildcards, arbitrary functions, and object operations report that they cannot be mocked; the original expression remains. Integer operations beyond JavaScript's safe integer precision are not claimed to be equivalent to Go. There are limits on expression length, number of tokens, and depth, and will be downgraded if limits are exceeded.
 
-## 金额单位
+## Amount unit
 
-解释器返回原始表达式数值，**不做货币、分组或充值比例换算**。
+The interpreter returns the original expression value, without currency, grouping or recharge ratio conversion**.
 
-- Token：显示单次费用时只除以 `1_000_000` 一次。
-- 任务：表达式已返回单次费用，不能再整体除以百万。任务 token 字段的 `/ 1000000` 属于表达式本身。
-- 展示仍通过现有币种、充值比例、分组倍率格式化链。前端模拟不计算实际额度取整和饱和。
+- Token: Only divide `1_000_000` once when displaying a single cost.
+- Task: The expression has returned a single cost and cannot be divided whole by millions. The `/ 1000000` of the task token field belongs to the expression itself.
+- The display still formats the chain through the existing currency, recharge ratio, and grouping ratio. The front-end simulation does not calculate the actual amount rounding and saturation.
 
-## 展示入口契约
+## Show entry contract
 
-| 入口                       | 保留的规则                                                             |
+| Entrance | Reserved Rules |
 | -------------------------- | ---------------------------------------------------------------------- |
-| 广场卡片、列表价格、缓存价 | 未选分组取可用最低倍率；已选分组取该组；合法零倍率有效                 |
-| Token 摘要                 | 取第一档及原有字段顺序；不计算跨档最低价或通用范围                     |
-| 请求附加倍率               | 基础价格与附加规则分开，包括独立时间倍率                               |
-| 任务摘要                   | 最后一档为基础值；沿用逐字段范围；免费档参与，同价不显示范围           |
-| 详情基础价格               | 倍率为 1                                                               |
-| 详情分组表、完整明细       | 展示所有档位、条件和分组，不替换成当前时段摘要                         |
-| 任务矩阵、示例             | 保留原有矩阵、唯一补集与示例选择；公共示例排除请求倍率                 |
-| 使用日志                   | 后端档位、规则轨迹优先；保留标签优先、用量事实辅助匹配；未知标签不猜价 |
-| 可视化编辑、快照、价格同步 | 只做无损转换，保留原文及原有回退                                       |
-| 特殊表达式、未配置价格     | 保留特殊表达式和空态，不提取局部价格                                   |
+| Square card, list price, cache price | For unselected groups, the lowest available magnification will be taken; for selected groups, the group will be taken; legal zero magnification is valid |
+| Token summary | Take the first file and the original field order; do not calculate the lowest price across files or the common range |
+| Request additional multipliers | Base price separate from additional rules, including independent time multipliers |
+| Task summary | The last level is the basic value; the field-by-field range is used; free level participation, the same price does not display the range |
+| Details Base Price | Multiply 1 |
+| Detailed grouping table, complete details | Display all gears, conditions and groupings without replacing them with the current period summary |
+| Task matrix, examples | Retain the original matrix, unique complement and example selection; public examples exclude request magnification |
+| Usage log | Back-end gear, rule track priority; retained tag priority, usage facts to assist matching; unknown tags do not guess the price |
+| Visual editing, snapshots, price synchronization | Only lossless conversion, retaining the original text and original rollback |
+| Special expressions, unconfigured prices | Keep special expressions and empty states, do not extract local prices |
 
-新增时间分支适配器只接受外层条件仅依赖时间、分支内部为既有标准 token 阶梯的形状。
-摘要按当前时间筛选时间分支，再按原规则取第一档。第一档即使更贵也不会改取其他档。
-包含未知请求参数的条件不自动扩展为范围。
+The new time branch adapter only accepts outer conditions that only depend on time, and the inner part of the branch is the shape of the existing standard token ladder.
+The summary filters the time branches according to the current time, and then takes the first file according to the original rules. Even if the first gear is more expensive, you will not switch to other gears.
+Conditions containing unknown request parameters are not automatically expanded into ranges.
 
-`getDynamicPricingTiers` 和 `parseTiersFromExpr` 返回完整档位；
-`getCurrentTimePricingTiers` 仅用于实时摘要。时间条件文本随完整档位传给详情与日志。
-条件展示保留原始时区标识（如 `Asia/Shanghai`），不将其翻译成地名；中文星期与时间范围使用“至”。
-`useBillingTime` 共用一个分钟时钟，在分钟边界、页面可见性变化时更新；无时间依赖不订阅。
-日志不订阅这个时钟。
+`getDynamicPricingTiers` and `parseTiersFromExpr` return the full gear;
+`getCurrentTimePricingTiers` is for real-time summaries only. The time condition text is passed to the details and logs with the complete gear.
+Conditional display retains the original time zone identifier (such as `Asia/Shanghai`) and does not translate it into place names; Chinese weekdays and time ranges use "to".
+`useBillingTime` shares a minute clock and is updated when the minute boundary and page visibility change; no time dependency and no subscription.
+The log is not subscribed to this clock.
 
-## 编辑器约定
+## Editor conventions
 
-原有基础预估保留排除请求附加倍率、排除分组倍率的口径。
-独立“请求模拟”面板计算完整表达式，包含请求规则，仍排除分组倍率。
-请求体使用 `JsonCodeEditor`，请求头使用 `JsonEditor` 的字符串映射模式。
-指定时间必须是带时区偏移的 ISO 日期时间；错误输入使当前模拟结果失效。
+The original basic estimation retains the caliber of excluding request additional magnification and excluding group magnification.
+The stand-alone "Request Simulation" panel evaluates the full expression, including the request rule, still excluding the grouped magnification.
+The request body uses `JsonCodeEditor`, and the request header uses the string mapping mode of `JsonEditor`.
+The specified time must be an ISO date-time with a time zone offset; incorrect entry invalidates the current simulation results.
 
-布尔任务用量在请求模拟面板中使用 schema 对应的选择控件，保留 true/false 类型；不会修改原有任务矩阵的识别规则。
+Boolean task usage uses the selection control corresponding to the schema in the request simulation panel, retaining the true/false type; the identification rules of the original task matrix will not be modified.
 
-请求上下文只存于界面状态。预览和时间刷新不调用配置更新回调。
-无法无损转换的原始表达式不能切换成默认可视化价格覆盖原文。
+The request context only exists in the interface state. Preview and time refresh do not call the configuration update callback.
+Original expressions that cannot be converted losslessly cannot be switched to the default visual price overlay of the original text.
 
-Token 编辑器优先使用原有阶梯表单；旧表单无法承载时使用条件树文档，
-不改变 `tryParseVisualConfig` 的返回含义或价格同步调用方。
-旧表单生成时会省略额外变量的零价格，因此带显式零缓存价的单档也使用文档表单。
+The Token editor gives priority to using the original ladder form; when the old form cannot be carried, the conditional tree document is used.
+Does not change the return meaning of `tryParseVisualConfig` or price sync callers.
+The old form was generated with the zero price of the extra variable omitted, so single files with an explicit zero cache price also used the document form.
 
-条件树编辑支持：
+Conditional tree editing supports:
 
-- `&&`、`||`、`!` 的任意受解析器深度限制的组合，五个时间函数以及 `p`、`c`、`len` 与非负有限数字的比较；时间值必须为整数。
-- 条件分支内继续嵌套 token 阶梯；否则分支是前一条件的补集，不另写可能重叠或遗漏的条件。
-- 标准 `tier(name, variable * price + ...)` token 价格叶子，以及 `tier(name, fixed(amount))` 按次价格叶子；同一条件树可混合两种计费方式。token 变量每个最多一次，支持任意价格项顺序和单项价格。
-- 成对的起止条件复用区间输入，分别保留 `>`、`>=`、`<`、`<=`；跨午夜使用“任一满足”。小时结束边界支持 `< 24`。其他比较仍以独立条件输入。
-- 档位名称按字符串转义保存；缺失变量与显式 `cr * 0` 不互换。币种只转换价格字段，不改变时段、token 阈值或附加请求倍率。
+- Any parser-depth-limited combination of `&&`, `||`, `!`, five time functions and comparisons of `p`, `c`, `len` with non-negative finite numbers; time values must be integers.
+- Continue to nest token ladders within conditional branches; otherwise, the branch is the complement of the previous condition, and conditions that may overlap or be missed are not written separately.
+- Standard `tier(name, variable * price + ...)` token price leaf, and `tier(name, fixed(amount))` pay-per-view price leaf; the same condition tree can mix the two billing methods. Each token variable can be used at most once, supporting any order of price items and individual prices.
+- Paired start and end conditions reuse interval input, retaining `>`, `>=`, `<`, and `<=` respectively; use "Any Satisfaction" across midnight. End of hour boundary supports `< 24`. Other comparisons are still entered in independent terms.
+- Gear names are saved as string escapes; missing variables are not interchangeable with explicit `cr * 0`. The currency only converts the price field and does not change the time period, token threshold or additional request multiplier.
 
-未编辑时模式切换、币种切换、模拟及直接保存保留原始表达式。
-价格或条件变动仅替换对应源码区间；结构改变时重建受影响子树并保留括号。
-附加请求规则使用独立源码状态，只有编辑请求规则时才重新生成，时间价格档位不转换成请求倍率。
-新增计费分支复制当前价格到条件成立和否则两侧，条件初始留空。
-简单阶梯和条件树的价格区都可切换“按 token / 按次”，切换保留另一种方式的本地价格草稿。
-新增按次价格留空并阻止保存，明确输入 `0` 才表示免费；存储金额始终为 USD。
-按次价格不随 1K/1M token 展示单位缩放，混合计费摘要与明细分别标注单位。
-日志优先使用后端记录的 `billing_unit` 和 `fixed_price`，同名分支的高亮同时核对计费单位及固定价格。
-空条件组、非法数字、无效的新时区以及编译失败的草稿显示错误并阻止保存和模式切换，保留上次有效配置。
-原文已有的时区标识及其后端回退语义保持不变；新输入的时区必须是有效 IANA 标识。
+Mode switching, currency switching, simulation and direct saving retain the original expression when not edited.
+When prices or conditions change, only the corresponding source code range is replaced; when the structure changes, the affected subtree is rebuilt and the brackets are retained.
+Additional request rules use independent source code status and are regenerated only when request rules are edited. Time and price scales are not converted into request ratios.
+Add a new billing branch to copy the current price to both sides of the condition is true and otherwise, and the condition is initially left blank.
+The price area of the simple ladder and condition tree can be switched to "by token / per time", and the switch retains the local price draft of another method.
+Leave the new pay-per-view price blank and prevent saving. Explicitly enter `0` to mean it is free; the storage amount is always USD.
+The pay-per-view price does not scale with the 1K/1M token display unit, and the mixed billing summary and details are marked with separate units.
+The logs preferentially use the `billing_unit` and `fixed_price` recorded in the backend. The highlighting of branches with the same name also checks the billing unit and fixed price.
+Empty condition groups, illegal numbers, invalid new time zones, and drafts that fail to compile display errors and prevent saves and mode switches, retaining the last valid configuration.
+Existing time zone identifiers from the original text and their backend fallback semantics remain unchanged; newly entered time zones must be valid IANA identifiers.
 
-条件树沿用项目现有输入、选择器与菜单组件，通过蓝色（全部满足）、紫色（任一满足）、琥珀色（取反）的浅底色、组编号和连接线标明归属；普通条件保持紧凑单行，组内相邻的起止比较可合并展示。合并只影响表单呈现，未编辑时不创建或改写 AST 分组。附加操作收进菜单，条件成立与否则结果直接标明目标档位。
+The condition tree follows the existing input, selector and menu components of the project, and uses light background colors of blue (all satisfied), purple (any satisfied), amber (inverted), group numbers and connecting lines to indicate ownership; ordinary conditions are kept in a compact single line, and adjacent start and end comparisons within the group can be combined and displayed. Merging only affects form rendering and does not create or rewrite AST groups when not edited. Additional operations are included in the menu, and if the condition is met or otherwise, the result directly indicates the target gear.
 
-`min`、`max`、非线性价格、重复变量、请求参数条件等超出上述编辑形状的表达式仍保留原文。
-可计算或可展示不代表可视化编辑；条件编辑与价格摘要各自保持既有的条件识别边界，二者均支持固定价叶子。
+Expressions beyond the above editing shapes such as `min`, `max`, non-linear prices, repeated variables, request parameter conditions, etc. will still retain the original text.
+Calculable or displayable does not mean visual editing; conditional editing and price summary each maintain the existing condition identification boundaries, and both support fixed price leaves.
 
-## 回归验证
+## Regression verification
 
-- Go 与浏览器读取 `pkg/billingexpr/testdata/frontend_simulation.json` 同一组契约样例。
-- 音频转换样例通过 `conversion` 绑定后端生成输入，通过 `displayTiers` 同时验证分支与价格展示；转换模板变更必须同步更新契约。有限的等价 AST 变体（括号、`max` 参数顺序、价格乘法左右顺序、音频 OR 顺序）保持相同展示。
-- 时间测试固定绝对时间，覆盖高峰边界、周末、午夜跨月及夏令时。
-- 原有价格、分组、任务、日志、编辑器、同步测试的业务预期保持不变。
-- 组件测试覆盖请求面板的显式开启、JSON/时间错误、倍率结果、单位、配置不变，以及卡片时间刷新。
-- 不用完整 DOM 快照、网络服务或浏览器当前实际时间作为计算预期。
+- Go and the browser read the same set of contract samples `pkg/billingexpr/testdata/frontend_simulation.json`.
+- The audio conversion example binds the backend to generate input through `conversion`, and simultaneously verifies the branch and price display through `displayTiers`; changes to the conversion template must update the contract simultaneously. Limited equivalent AST variants (parentheses, `max` parameter order, price multiplication left and right order, audio OR order) maintain the same presentation.
+- Time test fixes absolute time, covering peak boundaries, weekends, midnight cross-month and daylight saving time.
+- The business expectations of the original prices, groups, tasks, logs, editors, and synchronous testing remain unchanged.
+- Component testing covers the explicit opening of the request panel, JSON/time errors, magnification results, unchanged units, configuration, and card time refresh.
+- Don't use full DOM snapshots, web services, or the browser's current actual time as calculation expectations.

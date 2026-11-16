@@ -431,7 +431,7 @@ func (c *ClaudeRequest) SetModelName(modelName string) {
 	}
 }
 
-// AddTool 添加工具到请求中
+// AddTool adds a tool to the request
 func (c *ClaudeRequest) AddTool(tool any) {
 	if c.Tools == nil {
 		c.Tools = make([]any, 0)
@@ -453,12 +453,12 @@ func (c *ClaudeRequest) AddTool(tool any) {
 		}
 		c.Tools = append(merged, tool)
 	default:
-		// 如果Tools不是[]any类型，重新初始化为[]any
+		// If Tools is not of type []any, reinitialize it to []any
 		c.Tools = []any{tool}
 	}
 }
 
-// GetTools 获取工具列表
+// GetTools gets the list of tools
 func (c *ClaudeRequest) GetTools() []any {
 	if c.Tools == nil {
 		return nil
@@ -488,7 +488,7 @@ func (c *ClaudeRequest) GetEfforts() string {
 	return ""
 }
 
-// ProcessTools 处理工具列表，支持类型断言
+// ProcessTools processing tool list, supports type assertion
 func ProcessTools(tools []any) ([]*Tool, []*ClaudeWebSearchTool) {
 	var normalTools []*Tool
 	var webSearchTools []*ClaudeWebSearchTool
@@ -516,7 +516,7 @@ func ProcessTools(tools []any) ([]*Tool, []*ClaudeWebSearchTool) {
 				normalTools = append(normalTools, &normalTool)
 			}
 		default:
-			// 未知类型，跳过
+			// Unknown type, skip
 			continue
 		}
 	}
@@ -641,7 +641,7 @@ func (c *ClaudeResponse) GetIndex() int {
 	return *c.Index
 }
 
-// GetClaudeError 从动态错误类型中提取ClaudeError结构
+// GetClaudeError Extracts a ClaudeError structure from a dynamic error type
 func (c *ClaudeResponse) GetClaudeError() *types.ClaudeError {
 	if c.Error == nil {
 		return nil
@@ -653,7 +653,7 @@ func (c *ClaudeResponse) GetClaudeError() *types.ClaudeError {
 	case *types.ClaudeError:
 		return err
 	case map[string]any:
-		// 处理从JSON解析来的map结构
+		// Process map structures parsed from JSON
 		claudeErr := &types.ClaudeError{}
 		if errType, ok := err["type"].(string); ok {
 			claudeErr.Type = errType
@@ -663,13 +663,13 @@ func (c *ClaudeResponse) GetClaudeError() *types.ClaudeError {
 		}
 		return claudeErr
 	case string:
-		// 处理简单字符串错误
+		// Handling simple string errors
 		return &types.ClaudeError{
 			Type:    "upstream_error",
 			Message: err,
 		}
 	default:
-		// 未知类型，尝试转换为字符串
+		// Unknown type, trying to convert to string
 		return &types.ClaudeError{
 			Type:    "unknown_upstream_error",
 			Message: fmt.Sprintf("unknown_error: %v", err),

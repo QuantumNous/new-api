@@ -21,7 +21,7 @@ func requestOpenAI2Ali(request dto.GeneralOpenAIRequest, upstreamModelName strin
 	// DashScope rejects top_p at the 0 and 1 boundaries, so an explicit value is
 	// clamped into the open interval. The clamp stays at two decimals because
 	// some models on the platform reject a third decimal with
-	// "top_p参数非法：限制小数点[2]位".
+	// "The top_p parameter is illegal: limit decimal point [2] places".
 	//
 	// A request that omits top_p is left untouched: injecting a value would
 	// silently replace the model's own default with near-greedy decoding.

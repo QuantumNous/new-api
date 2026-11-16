@@ -6,11 +6,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// Vendor 用于存储供应商信息，供模型引用
-// Name 唯一，用于在模型中关联
-// Icon 采用 @lobehub/icons 的图标名，前端可直接渲染
-// Status 预留字段，1 表示启用
-// 本表同样遵循 3NF 设计范式
+// Vendor is used to store supplier information for model reference
+// Name unique, used to associate in the model
+// Icon uses the icon name of @lobehub/icons, and the front end can render it directly
+// Status reserved field, 1 means enabled
+// This table also follows the 3NF design paradigm
 
 type Vendor struct {
 	ModelCount  int64          `json:"model_count" gorm:"-"`
@@ -25,7 +25,7 @@ type Vendor struct {
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_vendor_name_delete_at,priority:2"`
 }
 
-// Insert 创建新的供应商记录
+// Insert creates a new supplier record
 func (v *Vendor) Insert() error {
 	v.Id = 0
 	err := metadataTransaction(func(tx *gorm.DB) error {
@@ -43,7 +43,7 @@ func (v *Vendor) Insert() error {
 	return err
 }
 
-// IsVendorNameDuplicated 检查供应商名称是否重复（排除自身 ID）
+// IsVendorNameDuplicated checks whether the vendor name is duplicated (excluding self-ID)
 func IsVendorNameDuplicated(id int, name string) (bool, error) {
 	if name == "" {
 		return false, nil
@@ -53,7 +53,7 @@ func IsVendorNameDuplicated(id int, name string) (bool, error) {
 	return cnt > 0, err
 }
 
-// Update 更新供应商记录
+// Update updates supplier records
 func (v *Vendor) Update() error {
 	err := metadataTransaction(func(tx *gorm.DB) error {
 		var saved Vendor
@@ -79,7 +79,7 @@ func (v *Vendor) Update() error {
 // Delete rejects referenced vendors rather than leaving orphaned model records.
 func (v *Vendor) Delete() error { return DeleteVendors([]int{v.Id}) }
 
-// GetVendorByID 根据 ID 获取供应商
+// GetVendorByID Gets the supplier based on ID
 func GetVendorByID(id int) (*Vendor, error) {
 	var v Vendor
 	err := DB.First(&v, id).Error
@@ -93,7 +93,7 @@ func GetVendorByID(id int) (*Vendor, error) {
 	return &v, nil
 }
 
-// GetAllVendors 获取全部供应商（分页）
+// GetAllVendors Get all suppliers (pagination)
 func GetAllVendors(offset int, limit int) ([]*Vendor, error) {
 	vendors, _, err := SearchVendors("", offset, limit)
 	return vendors, err

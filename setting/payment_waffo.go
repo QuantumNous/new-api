@@ -23,7 +23,7 @@ var (
 	WaffoMinTopUp              int     = 1
 )
 
-// GetWaffoPayMethods 从 options 读取 Waffo 支付方式配置
+// GetWaffoPayMethods reads Waffo payment method configuration from options
 func GetWaffoPayMethods() []constant.WaffoPayMethod {
 	common.OptionMapRWMutex.RLock()
 	jsonStr := common.OptionMap["WaffoPayMethods"]
@@ -39,7 +39,7 @@ func GetWaffoPayMethods() []constant.WaffoPayMethod {
 	return methods
 }
 
-// SetWaffoPayMethods 序列化 Waffo 支付方式配置并更新 OptionMap
+// SetWaffoPayMethods serializes Waffo payment method configuration and updates OptionMap
 func SetWaffoPayMethods(methods []constant.WaffoPayMethod) error {
 	jsonBytes, err := common.Marshal(methods)
 	if err != nil {
@@ -57,7 +57,7 @@ func copyDefaultWaffoPayMethods() []constant.WaffoPayMethod {
 	return cp
 }
 
-// WaffoPayMethods2JsonString 将默认 WaffoPayMethods 序列化为 JSON 字符串（供 InitOptionMap 使用）
+// WaffoPayMethods2JsonString Serializes default WaffoPayMethods to a JSON string (for use by InitOptionMap)
 func WaffoPayMethods2JsonString() string {
 	jsonBytes, err := common.Marshal(constant.DefaultWaffoPayMethods)
 	if err != nil {

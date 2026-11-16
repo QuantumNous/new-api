@@ -2,7 +2,7 @@ package dto
 
 import "github.com/QuantumNous/new-api/relaykit/types"
 
-// 这里不好动就不动了，本来想独立出来的（
+// If it's not easy to move here, I won't move. I originally wanted to be independent (
 type OpenAIModels struct {
 	Id                     string               `json:"id"`
 	Object                 string               `json:"object"`

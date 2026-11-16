@@ -10,7 +10,7 @@ import (
 
 type PaymentSetting struct {
 	AmountOptions  []int           `json:"amount_options"`
-	AmountDiscount map[int]float64 `json:"amount_discount"` // 充值金额对应的折扣，例如 100 元 0.9 表示 100 元充值享受 9 折优惠
+	AmountDiscount map[int]float64 `json:"amount_discount"` // The discount corresponding to the recharge amount, for example, 0.9 for 100 yuan means that a 100 yuan recharge will enjoy a 10% discount.
 
 	ComplianceConfirmed    bool   `json:"compliance_confirmed"`
 	ComplianceTermsVersion string `json:"compliance_terms_version"`
@@ -18,7 +18,7 @@ type PaymentSetting struct {
 	ComplianceConfirmedBy  int    `json:"compliance_confirmed_by"`
 	ComplianceConfirmedIP  string `json:"compliance_confirmed_ip"`
 
-	// 易支付签名方式：MD5 使用 EpayKey；RSA 使用商户私钥签名请求、平台公钥验证回调。
+	// Epay signature method: MD5 uses EpayKey; RSA uses merchant private key signature request and platform public key verification callback.
 	EpaySignType           string `json:"epay_sign_type"`
 	EpayMerchantPrivateKey string `json:"epay_merchant_private_key"`
 	EpayPlatformPublicKey  string `json:"epay_platform_public_key"`
@@ -35,16 +35,16 @@ const (
 	EpayPlatformPublicKeyOptionKey  = "payment_setting.epay_platform_public_key"
 )
 
-// 默认配置
+// Default configuration
 var paymentSetting = PaymentSetting{
 	AmountOptions:  []int{10, 20, 50, 100, 200, 500},
 	AmountDiscount: map[int]float64{},
-	// 没有保存过签名方式的站点按 MD5 运行，升级后行为不变。
+	// Sites that have not saved the signature method run according to MD5, and the behavior remains unchanged after the upgrade.
 	EpaySignType: EpaySignTypeMD5,
 }
 
 func init() {
-	// 注册到全局配置管理器
+	// Register to the global configuration manager
 	config.GlobalConfig.Register("payment_setting", &paymentSetting)
 }
 

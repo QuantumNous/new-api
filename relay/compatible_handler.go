@@ -49,16 +49,16 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	}
 
 	includeUsage := true
-	// 判断用户是否需要返回使用情况
+	// Determine whether the user needs to return to the usage situation
 	if request.StreamOptions != nil {
 		includeUsage = request.StreamOptions.IncludeUsage
 	}
 
-	// 如果不支持StreamOptions，将StreamOptions设置为nil
+	// If StreamOptions is not supported, set StreamOptions to nil
 	if !info.SupportStreamOptions || !lo.FromPtrOr(request.Stream, false) {
 		request.StreamOptions = nil
 	} else {
-		// 如果支持StreamOptions，且请求中没有设置StreamOptions，根据配置文件设置StreamOptions
+		// If StreamOptions is supported and StreamOptions is not set in the request, set StreamOptions according to the configuration file.
 		if constant.ForceStreamOption {
 			request.StreamOptions = &dto.StreamOptions{
 				IncludeUsage: true,
@@ -172,7 +172,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
 			newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-			// reset status code 重置状态码
+			// reset status code reset status code
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 			return newApiErr
 		}
@@ -180,7 +180,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	usage, newApiErr := adaptor.DoResponse(c, httpResp, info)
 	if newApiErr != nil {
-		// reset status code 重置状态码
+		// reset status code reset status code
 		service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 		return newApiErr
 	}

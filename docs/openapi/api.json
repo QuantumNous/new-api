@@ -1,76 +1,76 @@
 {
   "openapi": "3.0.1",
   "info": {
-    "title": "后台管理接口",
+    "title": "Backend management interface",
     "description": "",
     "version": "1.0.0"
   },
   "tags": [
     {
-      "name": "系统"
+      "name": "system"
     },
     {
-      "name": "用户登陆注册"
+      "name": "User login registration"
     },
     {
       "name": "OAuth"
     },
     {
-      "name": "用户管理"
+      "name": "User management"
     },
     {
-      "name": "充值"
+      "name": "Recharge"
     },
     {
-      "name": "两步验证"
+      "name": "two-step verification"
     },
     {
-      "name": "安全验证"
+      "name": "Security verification"
     },
     {
-      "name": "渠道管理"
+      "name": "Channel management"
     },
     {
-      "name": "令牌管理"
+      "name": "Token management"
     },
     {
-      "name": "兑换码"
+      "name": "Redeem code"
     },
     {
-      "name": "日志"
+      "name": "Log"
     },
     {
-      "name": "数据统计"
+      "name": "Statistics"
     },
     {
-      "name": "分组"
+      "name": "Group"
     },
     {
-      "name": "任务"
+      "name": "Task"
     },
     {
-      "name": "供应商"
+      "name": "supplier"
     },
     {
-      "name": "模型管理"
+      "name": "Model management"
     },
     {
-      "name": "系统设置"
+      "name": "System settings"
     }
   ],
   "paths": {
     "/api/setup": {
       "get": {
-        "summary": "获取初始化状态",
+        "summary": "Get initialization status",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -84,11 +84,11 @@
         ]
       },
       "post": {
-        "summary": "初始化系统",
+        "summary": "Initialize the system",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "requestBody": {
@@ -110,7 +110,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -126,16 +126,16 @@
     },
     "/api/status": {
       "get": {
-        "summary": "获取系统状态",
+        "summary": "Get system status",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -151,16 +151,16 @@
     },
     "/api/status/test": {
       "get": {
-        "summary": "测试系统状态",
+        "summary": "Test system status",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -176,16 +176,16 @@
     },
     "/api/uptime/status": {
       "get": {
-        "summary": "获取Uptime Kuma状态",
+        "summary": "Get Uptime Kuma status",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -201,16 +201,16 @@
     },
     "/api/notice": {
       "get": {
-        "summary": "获取公告",
+        "summary": "Get announcements",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -226,16 +226,16 @@
     },
     "/api/user-agreement": {
       "get": {
-        "summary": "获取用户协议",
+        "summary": "Get User Agreement",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -251,16 +251,16 @@
     },
     "/api/privacy-policy": {
       "get": {
-        "summary": "获取隐私政策",
+        "summary": "Get privacy policy",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -276,16 +276,16 @@
     },
     "/api/about": {
       "get": {
-        "summary": "获取关于信息",
+        "summary": "Get information about",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -301,16 +301,16 @@
     },
     "/api/home_page_content": {
       "get": {
-        "summary": "获取首页内容",
+        "summary": "Get home page content",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -326,16 +326,16 @@
     },
     "/api/pricing": {
       "get": {
-        "summary": "获取定价信息",
+        "summary": "Get pricing information",
         "deprecated": false,
-        "description": "🔓 无需鉴权（可选登录）",
+        "description": "🔓 No authentication required (optional login)",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -351,16 +351,16 @@
     },
     "/api/models": {
       "get": {
-        "summary": "获取模型列表",
+        "summary": "Get model list",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -376,16 +376,16 @@
     },
     "/api/ratio_config": {
       "get": {
-        "summary": "获取倍率配置",
+        "summary": "Get magnification configuration",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "系统"
+          "system"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -401,11 +401,11 @@
     },
     "/api/verification": {
       "get": {
-        "summary": "发送邮箱验证码",
+        "summary": "Send email verification code",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [
           {
@@ -420,7 +420,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -436,11 +436,11 @@
     },
     "/api/reset_password": {
       "get": {
-        "summary": "发送密码重置邮件",
+        "summary": "Send password reset email",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [
           {
@@ -455,7 +455,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -471,11 +471,11 @@
     },
     "/api/user/reset": {
       "post": {
-        "summary": "重置密码",
+        "summary": "reset password",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [],
         "requestBody": {
@@ -500,7 +500,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -516,11 +516,11 @@
     },
     "/api/user/register": {
       "post": {
-        "summary": "用户注册",
+        "summary": "User registration",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [],
         "requestBody": {
@@ -551,7 +551,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -567,11 +567,11 @@
     },
     "/api/user/login": {
       "post": {
-        "summary": "用户登录",
+        "summary": "User login",
         "deprecated": false,
-        "description": "🔓 无需鉴权。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
+        "description": "🔓 No authentication required. Issuing a new login session may return 409 AUTH_SESSION_LIMIT or 429 AUTH_SESSION_ISSUANCE_LIMIT.",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [],
         "requestBody": {
@@ -593,11 +593,11 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           },
           "409": {
-            "description": "该用户的活跃登录 Session 已达上限",
+            "description": "The user's active login sessions have reached the upper limit",
             "content": {
               "application/json": {
                 "schema": {
@@ -607,7 +607,7 @@
             }
           },
           "429": {
-            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "description": "The number of Sessions created by this user within the statistics window has reached the upper limit.",
             "content": {
               "application/json": {
                 "schema": {
@@ -629,11 +629,11 @@
     },
     "/api/user/login/2fa": {
       "post": {
-        "summary": "两步验证登录",
+        "summary": "Two-step verification login",
         "deprecated": false,
-        "description": "🔓 无需鉴权（登录流程）。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
+        "description": "🔓 No authentication required (login process). Issuing a new login session may return 409 AUTH_SESSION_LIMIT or 429 AUTH_SESSION_ISSUANCE_LIMIT.",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [],
         "requestBody": {
@@ -647,7 +647,7 @@
                   },
                   "flow_token": {
                     "type": "string",
-                    "description": "密码校验成功后返回的一次性 2FA 登录流程令牌"
+                    "description": "A one-time 2FA login process token returned after successful password verification"
                   }
                 }
               }
@@ -656,11 +656,11 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           },
           "409": {
-            "description": "该用户的活跃登录 Session 已达上限",
+            "description": "The user's active login sessions have reached the upper limit",
             "content": {
               "application/json": {
                 "schema": {
@@ -670,7 +670,7 @@
             }
           },
           "429": {
-            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "description": "The number of Sessions created by this user within the statistics window has reached the upper limit.",
             "content": {
               "application/json": {
                 "schema": {
@@ -692,17 +692,17 @@
     },
     "/api/user/auth/refresh": {
       "post": {
-        "summary": "刷新面板登录",
+        "summary": "Refresh panel login",
         "deprecated": false,
-        "description": "使用 HttpOnly Refresh Cookie 轮换刷新令牌并返回新的 AuthBundle；SESSION_COOKIE_SECURE=true 时要求同源或可信 Origin，false/未配置时保持本地 HTTP 兼容模式。已有内存会话时通过 X-Auth-Session 绑定预期 SID，Cookie 不匹配返回 409 AUTH_SESSION_MISMATCH 且不修改 Cookie。",
+        "description": "Use HttpOnly Refresh Cookie to rotate refresh tokens and return new AuthBundle; require same-origin or trusted Origin when SESSION_COOKIE_SECURE=true, maintain local HTTP compatibility mode when false/not configured. When there is an existing memory session, the expected SID is bound through X-Auth-Session. If the cookie does not match, 409 AUTH_SESSION_MISMATCH is returned and the cookie is not modified.",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [
           {
             "name": "X-Auth-Session",
             "in": "header",
-            "description": "可选的预期登录会话 SID；冷启动时可省略",
+            "description": "Optional expected login session SID; can be omitted on cold start",
             "required": false,
             "schema": {
               "type": "string"
@@ -711,11 +711,11 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           },
           "409": {
-            "description": "X-Auth-Session 与 Refresh Cookie 的 SID 不一致；不修改 Cookie 或会话",
+            "description": "X-Auth-Session is inconsistent with Refresh Cookie's SID; does not modify cookie or session",
             "headers": {}
           }
         },
@@ -724,17 +724,17 @@
     },
     "/api/user/auth/logout": {
       "post": {
-        "summary": "撤销当前登录会话",
+        "summary": "Revoke current login session",
         "deprecated": false,
-        "description": "撤销明确的 Bearer/X-Auth-Session 会话；仅当 HttpOnly Refresh Cookie 属于同一 SID 时才撤销并清除 Cookie，避免跨标签页误踢其他账号。SESSION_COOKIE_SECURE=true 时要求同源或可信 Origin，false/未配置时保持本地 HTTP 兼容模式。",
+        "description": "Revoke explicit Bearer/X-Auth-Session sessions; revoke and clear cookies only when the HttpOnly Refresh Cookie belongs to the same SID, to avoid accidentally kicking other accounts across tabs. When SESSION_COOKIE_SECURE=true, the same origin or trusted Origin is required; when false/not configured, the local HTTP compatibility mode is maintained.",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [
           {
             "name": "X-Auth-Session",
             "in": "header",
-            "description": "可选的预期登录会话 SID",
+            "description": "Optional expected login session SID",
             "required": false,
             "schema": {
               "type": "string"
@@ -743,7 +743,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -752,16 +752,16 @@
     },
     "/api/user/sessions": {
       "get": {
-        "summary": "查看登录会话",
+        "summary": "View login session",
         "deprecated": false,
-        "description": "🔐 需要面板 Access Token；PAT 不能管理浏览器登录会话。只返回当前 user_auth_version 的有效会话，当前会话优先，最多 100 条。",
+        "description": "🔐 Requires Panel Access Token; PAT cannot manage browser login sessions. Only valid sessions of the current user_auth_version are returned, with the current session taking priority, up to 100.",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "返回当前鉴权版本的有效登录会话",
+            "description": "Returns a valid login session for the current authentication version",
             "headers": {}
           }
         },
@@ -774,11 +774,11 @@
     },
     "/api/user/sessions/{sid}": {
       "delete": {
-        "summary": "撤销指定登录会话",
+        "summary": "Revoke the specified login session",
         "deprecated": false,
-        "description": "🔐 需要面板 Access Token，可撤销当前会话",
+        "description": "🔐 Requires panel Access Token, which can revoke the current session",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [
           {
@@ -793,7 +793,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -806,16 +806,16 @@
     },
     "/api/user/sessions/revoke-others": {
       "post": {
-        "summary": "撤销其他登录会话",
+        "summary": "Revoke other login sessions",
         "deprecated": false,
-        "description": "🔐 保留当前登录会话并撤销该用户的其他会话，包含列表不可见的旧 user_auth_version active 残留行",
+        "description": "🔐 Preserve the current login session and revoke other sessions for this user, including the old user_auth_version active residual line that is not visible in the list",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -828,16 +828,16 @@
     },
     "/api/user/groups": {
       "get": {
-        "summary": "获取用户分组列表",
+        "summary": "Get user group list",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -853,16 +853,16 @@
     },
     "/api/user/passkey/login/begin": {
       "post": {
-        "summary": "开始Passkey登录",
+        "summary": "Start Passkey login",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 No authentication required",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -878,20 +878,20 @@
     },
     "/api/user/passkey/login/finish": {
       "post": {
-        "summary": "完成Passkey登录",
+        "summary": "Complete Passkey login",
         "deprecated": false,
-        "description": "🔓 无需鉴权。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
+        "description": "🔓 No authentication required. Issuing a new login session may return 409 AUTH_SESSION_LIMIT or 429 AUTH_SESSION_ISSUANCE_LIMIT.",
         "tags": [
-          "用户登陆注册"
+          "User login registration"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           },
           "409": {
-            "description": "该用户的活跃登录 Session 已达上限",
+            "description": "The user's active login sessions have reached the upper limit",
             "content": {
               "application/json": {
                 "schema": {
@@ -901,7 +901,7 @@
             }
           },
           "429": {
-            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "description": "The number of Sessions created by this user within the statistics window has reached the upper limit.",
             "content": {
               "application/json": {
                 "schema": {
@@ -923,9 +923,9 @@
     },
     "/api/oauth/github": {
       "get": {
-        "summary": "GitHub OAuth登录",
+        "summary": "GitHub OAuth login",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
+        "description": "🔓 No authentication required (OAuth callback). Creating a local login Session is also subject to AUTH_SESSION_LIMIT and AUTH_SESSION_ISSUANCE_LIMIT.",
         "tags": [
           "OAuth"
         ],
@@ -942,7 +942,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           },
           "409": {
@@ -964,9 +964,9 @@
     },
     "/api/oauth/discord": {
       "get": {
-        "summary": "Discord OAuth登录",
+        "summary": "Discord OAuth login",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
+        "description": "🔓 No authentication required (OAuth callback). Creating a local login Session is also subject to AUTH_SESSION_LIMIT and AUTH_SESSION_ISSUANCE_LIMIT.",
         "tags": [
           "OAuth"
         ],
@@ -983,7 +983,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           },
           "409": {
@@ -1005,16 +1005,16 @@
     },
     "/api/oauth/oidc": {
       "get": {
-        "summary": "OIDC登录",
+        "summary": "OIDC login",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
+        "description": "🔓 No authentication required (OAuth callback). Creating a local login Session is also subject to AUTH_SESSION_LIMIT and AUTH_SESSION_ISSUANCE_LIMIT.",
         "tags": [
           "OAuth"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           },
           "409": {
@@ -1036,16 +1036,16 @@
     },
     "/api/oauth/linuxdo": {
       "get": {
-        "summary": "LinuxDO OAuth登录",
+        "summary": "LinuxDO OAuth login",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
+        "description": "🔓 No authentication required (OAuth callback). Creating a local login Session is also subject to AUTH_SESSION_LIMIT and AUTH_SESSION_ISSUANCE_LIMIT.",
         "tags": [
           "OAuth"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           },
           "409": {
@@ -1067,9 +1067,9 @@
     },
     "/api/oauth/state": {
       "post": {
-        "summary": "生成OAuth State",
+        "summary": "Generate OAuth State",
         "deprecated": false,
-        "description": "创建一次性 OAuth AuthFlow。login 无需鉴权；bind 需要面板 Access Token 并绑定当前登录会话",
+        "description": "Create a one-time OAuth AuthFlow. login does not require authentication; bind requires the panel Access Token and binds the current login session",
         "tags": [
           "OAuth"
         ],
@@ -1097,7 +1097,7 @@
                   },
                   "aff": {
                     "type": "string",
-                    "description": "仅 login intent 可用的 affiliate code"
+                    "description": "Affiliate code available only for login intent"
                   }
                 }
               }
@@ -1106,7 +1106,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1122,16 +1122,16 @@
     },
     "/api/oauth/wechat": {
       "get": {
-        "summary": "微信OAuth登录",
+        "summary": "WeChat OAuth login",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
+        "description": "🔓 No authentication required (OAuth callback). Creating a local login Session is also subject to AUTH_SESSION_LIMIT and AUTH_SESSION_ISSUANCE_LIMIT.",
         "tags": [
           "OAuth"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           },
           "409": {
@@ -1153,9 +1153,9 @@
     },
     "/api/oauth/wechat/bind": {
       "post": {
-        "summary": "绑定微信",
+        "summary": "Bind WeChat",
         "deprecated": false,
-        "description": "🔐 需要面板 Access Token",
+        "description": "🔐 Requires Panel Access Token",
         "tags": [
           "OAuth"
         ],
@@ -1180,7 +1180,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1193,9 +1193,9 @@
     },
     "/api/oauth/email/bind": {
       "post": {
-        "summary": "绑定邮箱",
+        "summary": "Bind email",
         "deprecated": false,
-        "description": "🔐 需要面板 Access Token",
+        "description": "🔐 Requires Panel Access Token",
         "tags": [
           "OAuth"
         ],
@@ -1225,7 +1225,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1238,16 +1238,16 @@
     },
     "/api/oauth/telegram/login": {
       "get": {
-        "summary": "Telegram登录",
+        "summary": "Telegram login",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
+        "description": "🔓 No authentication required (OAuth callback). Creating a local login Session is also subject to AUTH_SESSION_LIMIT and AUTH_SESSION_ISSUANCE_LIMIT.",
         "tags": [
           "OAuth"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           },
           "409": {
@@ -1269,16 +1269,16 @@
     },
     "/api/oauth/telegram/bind/start": {
       "post": {
-        "summary": "创建 Telegram 绑定流程",
+        "summary": "Create Telegram binding process",
         "deprecated": false,
-        "description": "🔐 需要面板 Access Token；返回绑定 widget 使用的一次性 flow_token 与 callback_url",
+        "description": "🔐 Requires panel Access Token; returns the one-time flow_token and callback_url used by the bound widget",
         "tags": [
           "OAuth"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1291,9 +1291,9 @@
     },
     "/api/oauth/telegram/bind/{flow_token}": {
       "get": {
-        "summary": "完成 Telegram 绑定",
+        "summary": "Complete Telegram binding",
         "deprecated": false,
-        "description": "Telegram widget 回调；通过一次性 flow_token 关联并重新校验创建该流程的登录会话。始终以 302 回到 /oauth/telegram：成功携带 telegram_bind=success，失败携带 telegram_bind=error、flow_token 和稳定 error_code（TELEGRAM_BIND_DISABLED、TELEGRAM_BIND_INVALID_REQUEST、TELEGRAM_BIND_FLOW_INVALID、TELEGRAM_BIND_SESSION_INVALID、TELEGRAM_BIND_ALREADY_BOUND、TELEGRAM_BIND_USER_DELETED、TELEGRAM_BIND_USER_DISABLED 或 TELEGRAM_BIND_INTERNAL_ERROR），不会透传底层错误文案。",
+        "description": "Telegram widget callback; associates and revalidates the login session that created the flow via a one-time flow_token. Always returns 302 to /oauth/telegram: success carries telegram_bind=success, failure carries telegram_bind=error, flow_token and stable error_code (TELEGRAM_BIND_DISABLED, TELEGRAM_BIND_INVALID_REQUEST, TELEGRAM_BIND_FLOW_INVALID, TELEGRAM_BIND_SESSION_INVALID, TELEGRAM_BIND_ALREADY_BOUND, TELEGRAM_BIND_USER_DELETED, TELEGRAM_BIND_USER_DISABLED or TELEGRAM_BIND_INTERNAL_ERROR), the underlying error text will not be transparently transmitted.",
         "tags": [
           "OAuth"
         ],
@@ -1309,7 +1309,7 @@
         ],
         "responses": {
           "302": {
-            "description": "重定向到 /oauth/telegram 的绑定结果回调",
+            "description": "Binding result callback redirected to /oauth/telegram",
             "headers": {}
           }
         },
@@ -1318,16 +1318,16 @@
     },
     "/api/user/self/groups": {
       "get": {
-        "summary": "获取当前用户分组",
+        "summary": "Get the current user group",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1343,16 +1343,16 @@
     },
     "/api/user/self": {
       "get": {
-        "summary": "获取当前用户信息",
+        "summary": "Get current user information",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1366,11 +1366,11 @@
         ]
       },
       "put": {
-        "summary": "更新当前用户信息",
+        "summary": "Update current user information",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "requestBody": {
@@ -1398,7 +1398,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1412,16 +1412,16 @@
         ]
       },
       "delete": {
-        "summary": "注销当前用户",
+        "summary": "Log out current user",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1437,16 +1437,16 @@
     },
     "/api/user/models": {
       "get": {
-        "summary": "获取用户可用模型",
+        "summary": "Get user available models",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1462,16 +1462,16 @@
     },
     "/api/user/token": {
       "get": {
-        "summary": "生成访问令牌",
+        "summary": "Generate access token",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1487,16 +1487,16 @@
     },
     "/api/user/passkey": {
       "get": {
-        "summary": "获取Passkey状态",
+        "summary": "Get Passkey status",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1510,16 +1510,16 @@
         ]
       },
       "delete": {
-        "summary": "删除Passkey",
+        "summary": "Delete Passkey",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1535,16 +1535,16 @@
     },
     "/api/user/passkey/register/begin": {
       "post": {
-        "summary": "开始注册Passkey",
+        "summary": "Start registering Passkey",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1560,16 +1560,16 @@
     },
     "/api/user/passkey/register/finish": {
       "post": {
-        "summary": "完成注册Passkey",
+        "summary": "Complete registration Passkey",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1585,16 +1585,16 @@
     },
     "/api/user/passkey/verify/begin": {
       "post": {
-        "summary": "开始验证Passkey",
+        "summary": "Start verifying Passkey",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1610,16 +1610,16 @@
     },
     "/api/user/passkey/verify/finish": {
       "post": {
-        "summary": "完成验证Passkey",
+        "summary": "Complete verification Passkey",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1635,16 +1635,16 @@
     },
     "/api/user/aff": {
       "get": {
-        "summary": "获取邀请码",
+        "summary": "Get invitation code",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1660,11 +1660,11 @@
     },
     "/api/user/aff_transfer": {
       "post": {
-        "summary": "转换邀请额度",
+        "summary": "Convert invitation quota",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "requestBody": {
@@ -1683,7 +1683,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1699,11 +1699,11 @@
     },
     "/api/user/setting": {
       "put": {
-        "summary": "更新用户设置",
+        "summary": "Update user settings",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "requestBody": {
@@ -1731,7 +1731,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1747,16 +1747,16 @@
     },
     "/api/user/topup": {
       "get": {
-        "summary": "获取所有充值记录",
+        "summary": "Get all recharge records",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1772,11 +1772,11 @@
     },
     "/api/user/": {
       "get": {
-        "summary": "获取所有用户",
+        "summary": "Get all users",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [
           {
@@ -1800,7 +1800,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1814,11 +1814,11 @@
         ]
       },
       "post": {
-        "summary": "创建用户",
+        "summary": "Create user",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "requestBody": {
@@ -1832,7 +1832,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1846,11 +1846,11 @@
         ]
       },
       "put": {
-        "summary": "更新用户",
+        "summary": "Update user",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "requestBody": {
@@ -1864,7 +1864,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1880,16 +1880,16 @@
     },
     "/api/user/topup/complete": {
       "post": {
-        "summary": "管理员完成充值",
+        "summary": "The administrator completes the recharge",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1905,11 +1905,11 @@
     },
     "/api/user/search": {
       "get": {
-        "summary": "搜索用户",
+        "summary": "Search users",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [
           {
@@ -1933,7 +1933,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1949,11 +1949,11 @@
     },
     "/api/user/{id}": {
       "get": {
-        "summary": "获取指定用户",
+        "summary": "Get the specified user",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [
           {
@@ -1969,7 +1969,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -1983,11 +1983,11 @@
         ]
       },
       "delete": {
-        "summary": "删除用户",
+        "summary": "Delete user",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [
           {
@@ -2003,7 +2003,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2019,11 +2019,11 @@
     },
     "/api/user/{id}/reset_passkey": {
       "delete": {
-        "summary": "管理员重置用户Passkey",
+        "summary": "Administrator resets user Passkey",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [
           {
@@ -2039,7 +2039,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2055,11 +2055,11 @@
     },
     "/api/user/{id}/2fa": {
       "delete": {
-        "summary": "管理员禁用用户2FA",
+        "summary": "Admin disables 2FA for user",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [
           {
@@ -2075,7 +2075,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2091,11 +2091,11 @@
     },
     "/api/user/manage": {
       "post": {
-        "summary": "管理用户状态",
+        "summary": "Manage user status",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "用户管理"
+          "User management"
         ],
         "parameters": [],
         "requestBody": {
@@ -2124,7 +2124,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2140,16 +2140,16 @@
     },
     "/api/user/topup/info": {
       "get": {
-        "summary": "获取充值信息",
+        "summary": "Get recharge information",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "充值"
+          "Recharge"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2165,16 +2165,16 @@
     },
     "/api/user/topup/self": {
       "get": {
-        "summary": "获取用户充值记录",
+        "summary": "Get user recharge records",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "充值"
+          "Recharge"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2190,16 +2190,16 @@
     },
     "/api/user/pay": {
       "post": {
-        "summary": "发起易支付",
+        "summary": "Initiate Easy Pay",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "充值"
+          "Recharge"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2215,16 +2215,16 @@
     },
     "/api/user/amount": {
       "post": {
-        "summary": "获取支付金额",
+        "summary": "Get payment amount",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "充值"
+          "Recharge"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2240,16 +2240,16 @@
     },
     "/api/user/stripe/pay": {
       "post": {
-        "summary": "发起Stripe支付",
+        "summary": "Initiate Stripe payment",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "充值"
+          "Recharge"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2265,16 +2265,16 @@
     },
     "/api/user/stripe/amount": {
       "post": {
-        "summary": "获取Stripe支付金额",
+        "summary": "Get Stripe payment amount",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "充值"
+          "Recharge"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2290,16 +2290,16 @@
     },
     "/api/user/creem/pay": {
       "post": {
-        "summary": "发起Creem支付",
+        "summary": "Initiate Creem payment",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "充值"
+          "Recharge"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2315,16 +2315,16 @@
     },
     "/api/user/epay/notify": {
       "get": {
-        "summary": "易支付回调",
+        "summary": "Easy Pay Callback",
         "deprecated": false,
-        "description": "🔓 无需鉴权（支付回调）",
+        "description": "🔓 No authentication required (payment callback)",
         "tags": [
-          "充值"
+          "Recharge"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2342,14 +2342,14 @@
       "post": {
         "summary": "Stripe Webhook",
         "deprecated": false,
-        "description": "🔓 无需鉴权（Webhook回调）",
+        "description": "🔓 No authentication required (Webhook callback)",
         "tags": [
-          "充值"
+          "Recharge"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2367,14 +2367,14 @@
       "post": {
         "summary": "Creem Webhook",
         "deprecated": false,
-        "description": "🔓 无需鉴权（Webhook回调）",
+        "description": "🔓 No authentication required (Webhook callback)",
         "tags": [
-          "充值"
+          "Recharge"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2390,16 +2390,16 @@
     },
     "/api/user/2fa/status": {
       "get": {
-        "summary": "获取2FA状态",
+        "summary": "Get 2FA status",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "两步验证"
+          "two-step verification"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2415,16 +2415,16 @@
     },
     "/api/user/2fa/setup": {
       "post": {
-        "summary": "设置2FA",
+        "summary": "Set up 2FA",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "两步验证"
+          "two-step verification"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2440,11 +2440,11 @@
     },
     "/api/user/2fa/enable": {
       "post": {
-        "summary": "启用2FA",
+        "summary": "Enable 2FA",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "两步验证"
+          "two-step verification"
         ],
         "parameters": [],
         "requestBody": {
@@ -2463,7 +2463,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2479,11 +2479,11 @@
     },
     "/api/user/2fa/disable": {
       "post": {
-        "summary": "禁用2FA",
+        "summary": "Disable 2FA",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "两步验证"
+          "two-step verification"
         ],
         "parameters": [],
         "requestBody": {
@@ -2502,7 +2502,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2518,16 +2518,16 @@
     },
     "/api/user/2fa/backup_codes": {
       "post": {
-        "summary": "重新生成备用码",
+        "summary": "Regenerate backup code",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "两步验证"
+          "two-step verification"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2543,16 +2543,16 @@
     },
     "/api/user/2fa/stats": {
       "get": {
-        "summary": "获取2FA统计",
+        "summary": "Get 2FA statistics",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "两步验证"
+          "two-step verification"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2568,16 +2568,16 @@
     },
     "/api/verify": {
       "post": {
-        "summary": "通用安全验证",
+        "summary": "Universal security verification",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "安全验证"
+          "Security verification"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2593,16 +2593,16 @@
     },
     "/api/verify/status": {
       "get": {
-        "summary": "获取验证状态",
+        "summary": "Get verification status",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "安全验证"
+          "Security verification"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2618,11 +2618,11 @@
     },
     "/api/channel/": {
       "get": {
-        "summary": "获取所有渠道",
+        "summary": "Get all channels",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [
           {
@@ -2682,7 +2682,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2696,11 +2696,11 @@
         ]
       },
       "post": {
-        "summary": "添加渠道",
+        "summary": "Add channel",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "requestBody": {
@@ -2727,7 +2727,7 @@
         },
         "responses": {
           "200": {
-            "description": "创建成功时返回本次新建渠道的 ID；业务失败仍使用 HTTP 200，success 为 false 且不返回 data。",
+            "description": "When the creation is successful, the ID of the newly created channel is returned; if the business fails, HTTP 200 is still used, success is false and no data is returned.",
             "headers": {},
             "content": {
               "application/json": {
@@ -2742,33 +2742,33 @@
                     },
                     "data": {
                       "type": "object",
-                      "description": "仅创建成功时返回，不包含渠道凭证。",
+                      "description": "It is only returned if the creation is successful and does not include channel credentials.",
                       "properties": {
                         "ids": {
                           "type": "array",
-                          "description": "本次实际新建渠道的 ID，按创建顺序排列。single 和 multi_to_single 最多创建一个渠道，batch 可创建多个；按现有规则过滤后未创建渠道时为 []。",
+                          "description": "The IDs of the actually newly created channels this time are arranged in the order of creation. single and multi_to_single can create at most one channel, and batch can create multiple channels; [] when no channel is created after filtering by existing rules.",
                           "items": {
                             "type": "integer"
                           }
                         },
                         "id": {
                           "type": "integer",
-                          "description": "仅本次恰好新建一个渠道时返回，与 ids[0] 相同。"
+                          "description": "It is returned only if a new channel happens to be created this time, which is the same as ids[0]."
                         },
                         "results": {
                           "type": "array",
-                          "description": "原始输入与新建渠道的对应关系；按输入顺序返回，不含 Key。被现有规则过滤掉的输入不返回条目；未创建渠道时为 []。multi_to_single 的多个输入会对应同一个 channel_id。",
+                          "description": "Correspondence between the original input and the new channel; returned in the order of input, excluding Key. Inputs filtered by existing rules return no entries; [] when no channel is created. Multiple inputs of multi_to_single will correspond to the same channel_id.",
                           "items": {
                             "type": "object",
                             "properties": {
                               "input_index": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "description": "从 0 开始的原始输入位置。single 的整个 channel.key（含多行 JSON）为输入 0；batch/multi_to_single 普通 Key 与 Vertex API Key 使用原始换行分割位置；Vertex 服务账号 JSON 使用原始数组下标。下标保留被过滤空项占用的位置，不重新编号。"
+                                "description": "Original input position starting from 0. The entire channel.key of single (including multi-line JSON) is input 0; batch/multi_to_single common Key and Vertex API Key use original newline separation positions; Vertex service account JSON uses original array subscripts. The subscript retains the position occupied by filter empty items and is not renumbered."
                               },
                               "channel_id": {
                                 "type": "integer",
-                                "description": "该输入对应的本次新建渠道 ID。"
+                                "description": "This input corresponds to the newly created channel ID."
                               }
                             },
                             "required": [
@@ -2791,7 +2791,7 @@
                 },
                 "examples": {
                   "single": {
-                    "summary": "新建一个渠道",
+                    "summary": "Create a new channel",
                     "value": {
                       "success": true,
                       "message": "",
@@ -2810,7 +2810,7 @@
                     }
                   },
                   "batch": {
-                    "summary": "批量新建渠道（原始第 0、2 项为空，被过滤）",
+                    "summary": "Create new channels in batches (original items 0 and 2 are empty and filtered)",
                     "value": {
                       "success": true,
                       "message": "",
@@ -2833,7 +2833,7 @@
                     }
                   },
                   "empty": {
-                    "summary": "批次过滤空 Key 后未创建渠道",
+                    "summary": "No channel is created after batch filtering empty keys",
                     "value": {
                       "success": true,
                       "message": "",
@@ -2844,7 +2844,7 @@
                     }
                   },
                   "multi_to_single": {
-                    "summary": "多个输入合并为一个渠道（原始第 1 项为空，被过滤）",
+                    "summary": "Multiple inputs are combined into one channel (original item 1 is empty and filtered)",
                     "value": {
                       "success": true,
                       "message": "",
@@ -2881,11 +2881,11 @@
         ]
       },
       "put": {
-        "summary": "更新渠道",
+        "summary": "Update channel",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "requestBody": {
@@ -2899,7 +2899,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2915,11 +2915,11 @@
     },
     "/api/channel/search": {
       "get": {
-        "summary": "搜索渠道",
+        "summary": "search channels",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [
           {
@@ -2952,7 +2952,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2968,16 +2968,16 @@
     },
     "/api/channel/models": {
       "get": {
-        "summary": "获取渠道模型列表",
+        "summary": "Get channel model list",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -2993,16 +2993,16 @@
     },
     "/api/channel/models_enabled": {
       "get": {
-        "summary": "获取已启用模型列表",
+        "summary": "Get the list of enabled models",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3018,11 +3018,11 @@
     },
     "/api/channel/{id}": {
       "get": {
-        "summary": "获取指定渠道",
+        "summary": "Get the designated channel",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [
           {
@@ -3038,7 +3038,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3052,11 +3052,11 @@
         ]
       },
       "delete": {
-        "summary": "删除渠道",
+        "summary": "Delete channel",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [
           {
@@ -3072,7 +3072,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3088,11 +3088,11 @@
     },
     "/api/channel/{id}/key": {
       "post": {
-        "summary": "获取渠道密钥",
+        "summary": "Get channel key",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）+ 安全验证",
+        "description": "👑 Requires super administrator privileges (Root) + security verification",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [
           {
@@ -3108,7 +3108,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3124,16 +3124,16 @@
     },
     "/api/channel/test": {
       "get": {
-        "summary": "测试所有渠道",
+        "summary": "Test all channels",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3149,11 +3149,11 @@
     },
     "/api/channel/test/{id}": {
       "get": {
-        "summary": "测试指定渠道",
+        "summary": "Test designated channels",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [
           {
@@ -3169,7 +3169,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3185,16 +3185,16 @@
     },
     "/api/channel/update_balance": {
       "get": {
-        "summary": "更新所有渠道余额",
+        "summary": "Update all channel balances",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3210,11 +3210,11 @@
     },
     "/api/channel/update_balance/{id}": {
       "get": {
-        "summary": "更新指定渠道余额",
+        "summary": "Update the specified channel balance",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [
           {
@@ -3230,7 +3230,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3246,16 +3246,16 @@
     },
     "/api/channel/disabled": {
       "delete": {
-        "summary": "删除已禁用渠道",
+        "summary": "Delete disabled channels",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3271,11 +3271,11 @@
     },
     "/api/channel/batch": {
       "post": {
-        "summary": "批量删除渠道",
+        "summary": "Delete channels in batches",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "requestBody": {
@@ -3297,7 +3297,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3313,16 +3313,16 @@
     },
     "/api/channel/fix": {
       "post": {
-        "summary": "修复渠道能力",
+        "summary": "Repair channel capabilities",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3338,11 +3338,11 @@
     },
     "/api/channel/fetch_models/{id}": {
       "get": {
-        "summary": "获取上游模型列表",
+        "summary": "Get the upstream model list",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [
           {
@@ -3358,7 +3358,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3374,11 +3374,11 @@
     },
     "/api/channel/fetch_models": {
       "post": {
-        "summary": "获取模型列表",
+        "summary": "Get model list",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "requestBody": {
@@ -3389,31 +3389,31 @@
                 "properties": {
                   "base_url": {
                     "type": "string",
-                    "description": "上游基础地址。编辑预览时显式空字符串表示清除已保存值，省略则沿用已保存值；相对上游路径要求非空的完整基础地址。"
+                    "description": "Upstream base address. When editing the preview, an explicit empty string means clearing the saved value. If omitted, the saved value will be used; the relative upstream path requires a non-empty complete base address."
                   },
                   "type": {
                     "type": "integer",
-                    "description": "渠道类型。高级自定义渠道为 58。"
+                    "description": "Channel type. Advanced custom channels are 58."
                   },
                   "key": {
                     "type": "string",
-                    "description": "新建渠道预览使用的 API 密钥。提供 channel_id 时忽略此字段，并在服务端使用渠道已保存的单密钥或多密钥配置。"
+                    "description": "API key to use for new channel preview. Ignore this field when providing a channel_id and use the channel's saved single-key or multi-key configuration on the server side."
                   },
                   "channel_id": {
                     "type": "integer",
-                    "description": "可选的已保存渠道 ID。用于在不向前端返回密钥的情况下预览尚未保存的高级自定义配置。"
+                    "description": "Optional saved channel ID. Used to preview unsaved advanced custom configurations without returning keys to the front end."
                   },
                   "advanced_custom": {
                     "type": "string",
-                    "description": "可选的高级自定义配置 JSON 字符串。新建高级自定义渠道时必填；编辑预览时覆盖已保存配置，省略则沿用已保存配置。模型发现仅支持显式的 /v1/models 路由和 OpenAI data[].id 响应。"
+                    "description": "Optional advanced custom configuration JSON string. Required when creating a new advanced custom channel; overwrite the saved configuration when editing the preview, if omitted, the saved configuration will be used. Model discovery only supports explicit /v1/models routes and OpenAI data[].id responses."
                   },
                   "header_override": {
                     "type": "string",
-                    "description": "可选的全局请求头覆盖 JSON 字符串。编辑预览时覆盖已保存值，显式空字符串表示清除，省略则沿用。"
+                    "description": "Optional global request header override JSON string. Overwrite the saved value when editing the preview. An explicit empty string means clearing it. If it is omitted, it will be used."
                   },
                   "proxy": {
                     "type": "string",
-                    "description": "可选的网络代理。编辑预览时覆盖已保存值，显式空字符串表示清除，省略则沿用。"
+                    "description": "Optional network proxy. Overwrite the saved value when editing the preview. An explicit empty string means clearing it. If it is omitted, it will be used."
                   }
                 }
               }
@@ -3422,7 +3422,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3438,11 +3438,11 @@
     },
     "/api/channel/batch/tag": {
       "post": {
-        "summary": "批量设置渠道标签",
+        "summary": "Set channel labels in batches",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "requestBody": {
@@ -3467,7 +3467,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3483,11 +3483,11 @@
     },
     "/api/channel/tag/models": {
       "get": {
-        "summary": "获取标签模型",
+        "summary": "Get label model",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [
           {
@@ -3502,7 +3502,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3518,11 +3518,11 @@
     },
     "/api/channel/tag/disabled": {
       "post": {
-        "summary": "禁用标签渠道",
+        "summary": "Disable label channel",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "requestBody": {
@@ -3541,7 +3541,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3557,11 +3557,11 @@
     },
     "/api/channel/tag/enabled": {
       "post": {
-        "summary": "启用标签渠道",
+        "summary": "Enable tag channels",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "requestBody": {
@@ -3580,7 +3580,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3596,11 +3596,11 @@
     },
     "/api/channel/tag": {
       "put": {
-        "summary": "编辑标签渠道",
+        "summary": "Edit tag channel",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "requestBody": {
@@ -3628,7 +3628,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3644,11 +3644,11 @@
     },
     "/api/channel/copy/{id}": {
       "post": {
-        "summary": "复制渠道",
+        "summary": "Copy channel",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [
           {
@@ -3682,7 +3682,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3698,11 +3698,11 @@
     },
     "/api/channel/multi_key/manage": {
       "post": {
-        "summary": "管理多密钥",
+        "summary": "Manage multiple keys",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "渠道管理"
+          "Channel management"
         ],
         "parameters": [],
         "requestBody": {
@@ -3736,7 +3736,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3752,11 +3752,11 @@
     },
     "/api/token/": {
       "get": {
-        "summary": "获取所有令牌",
+        "summary": "Get all tokens",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "令牌管理"
+          "Token management"
         ],
         "parameters": [
           {
@@ -3780,7 +3780,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3794,11 +3794,11 @@
         ]
       },
       "post": {
-        "summary": "创建令牌",
+        "summary": "Create token",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "令牌管理"
+          "Token management"
         ],
         "parameters": [],
         "requestBody": {
@@ -3812,7 +3812,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3826,11 +3826,11 @@
         ]
       },
       "put": {
-        "summary": "更新令牌",
+        "summary": "update token",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "令牌管理"
+          "Token management"
         ],
         "parameters": [],
         "requestBody": {
@@ -3844,7 +3844,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3860,11 +3860,11 @@
     },
     "/api/token/search": {
       "get": {
-        "summary": "搜索令牌",
+        "summary": "search token",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "令牌管理"
+          "Token management"
         ],
         "parameters": [
           {
@@ -3879,7 +3879,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3895,11 +3895,11 @@
     },
     "/api/token/{id}": {
       "get": {
-        "summary": "获取指定令牌",
+        "summary": "Get the specified token",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "令牌管理"
+          "Token management"
         ],
         "parameters": [
           {
@@ -3915,7 +3915,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3929,11 +3929,11 @@
         ]
       },
       "delete": {
-        "summary": "删除令牌",
+        "summary": "delete token",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "令牌管理"
+          "Token management"
         ],
         "parameters": [
           {
@@ -3949,7 +3949,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -3965,11 +3965,11 @@
     },
     "/api/token/batch": {
       "post": {
-        "summary": "批量删除令牌",
+        "summary": "Delete tokens in batches",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "令牌管理"
+          "Token management"
         ],
         "parameters": [],
         "requestBody": {
@@ -3991,7 +3991,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4007,11 +4007,11 @@
     },
     "/api/usage/token/": {
       "get": {
-        "summary": "获取令牌使用情况",
+        "summary": "Get token usage",
         "deprecated": false,
-        "description": "🔑 需要令牌认证（TokenAuth）",
+        "description": "🔑 Requires token authentication (TokenAuth)",
         "tags": [
-          "令牌管理"
+          "Token management"
         ],
         "parameters": [
           {
@@ -4027,7 +4027,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4043,11 +4043,11 @@
     },
     "/api/redemption/": {
       "get": {
-        "summary": "获取所有兑换码",
+        "summary": "Get all redemption codes",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "兑换码"
+          "Redeem code"
         ],
         "parameters": [
           {
@@ -4071,7 +4071,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4085,11 +4085,11 @@
         ]
       },
       "post": {
-        "summary": "创建兑换码",
+        "summary": "Create redemption code",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "兑换码"
+          "Redeem code"
         ],
         "parameters": [],
         "requestBody": {
@@ -4103,7 +4103,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4117,11 +4117,11 @@
         ]
       },
       "put": {
-        "summary": "更新兑换码",
+        "summary": "Update redemption code",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "兑换码"
+          "Redeem code"
         ],
         "parameters": [],
         "requestBody": {
@@ -4135,7 +4135,7 @@
         },
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4151,11 +4151,11 @@
     },
     "/api/redemption/search": {
       "get": {
-        "summary": "搜索兑换码",
+        "summary": "Search for redemption codes",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "兑换码"
+          "Redeem code"
         ],
         "parameters": [
           {
@@ -4170,7 +4170,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4186,11 +4186,11 @@
     },
     "/api/redemption/{id}": {
       "get": {
-        "summary": "获取指定兑换码",
+        "summary": "Get designated redemption code",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "兑换码"
+          "Redeem code"
         ],
         "parameters": [
           {
@@ -4206,7 +4206,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4220,11 +4220,11 @@
         ]
       },
       "delete": {
-        "summary": "删除兑换码",
+        "summary": "Delete redemption code",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "兑换码"
+          "Redeem code"
         ],
         "parameters": [
           {
@@ -4240,7 +4240,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4256,16 +4256,16 @@
     },
     "/api/redemption/invalid": {
       "delete": {
-        "summary": "删除无效兑换码",
+        "summary": "Delete invalid redemption code",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "兑换码"
+          "Redeem code"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4281,11 +4281,11 @@
     },
     "/api/log/": {
       "get": {
-        "summary": "获取所有日志",
+        "summary": "Get all logs",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "日志"
+          "Log"
         ],
         "parameters": [
           {
@@ -4309,7 +4309,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4325,11 +4325,11 @@
     },
     "/api/system-task/log-cleanup": {
       "post": {
-        "summary": "创建日志清理任务",
+        "summary": "Create a log cleaning task",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）。使用 target_timestamp 指定需清理的历史日志边界，并返回异步系统任务。",
+        "description": "👑 Requires super administrator privileges (Root). Use target_timestamp to specify the historical log boundary to be cleaned, and return an asynchronous system task.",
         "tags": [
-          "日志"
+          "Log"
         ],
         "parameters": [
           {
@@ -4344,7 +4344,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功创建任务或返回参数错误",
+            "description": "Task created successfully or parameter error returned",
             "headers": {}
           }
         },
@@ -4360,16 +4360,16 @@
     },
     "/api/log/stat": {
       "get": {
-        "summary": "获取日志统计",
+        "summary": "Get log statistics",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "日志"
+          "Log"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4385,16 +4385,16 @@
     },
     "/api/log/self/stat": {
       "get": {
-        "summary": "获取个人日志统计",
+        "summary": "Get personal log statistics",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "日志"
+          "Log"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4410,11 +4410,11 @@
     },
     "/api/log/search": {
       "get": {
-        "summary": "搜索日志",
+        "summary": "Search log",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "日志"
+          "Log"
         ],
         "parameters": [
           {
@@ -4429,7 +4429,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4445,16 +4445,16 @@
     },
     "/api/log/self": {
       "get": {
-        "summary": "获取个人日志",
+        "summary": "Get personal log",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "日志"
+          "Log"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4470,11 +4470,11 @@
     },
     "/api/log/self/search": {
       "get": {
-        "summary": "搜索个人日志",
+        "summary": "Search personal logs",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "日志"
+          "Log"
         ],
         "parameters": [
           {
@@ -4489,7 +4489,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4505,11 +4505,11 @@
     },
     "/api/log/token": {
       "get": {
-        "summary": "通过令牌获取日志",
+        "summary": "Get logs by token",
         "deprecated": false,
-        "description": "🔓 无需鉴权（通过令牌查询）",
+        "description": "🔓 No authentication required (query via token)",
         "tags": [
-          "日志"
+          "Log"
         ],
         "parameters": [
           {
@@ -4524,7 +4524,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4540,16 +4540,16 @@
     },
     "/api/data/": {
       "get": {
-        "summary": "获取所有额度数据",
+        "summary": "Get all quota data",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "数据统计"
+          "Statistics"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4565,16 +4565,16 @@
     },
     "/api/data/self": {
       "get": {
-        "summary": "获取个人额度数据",
+        "summary": "Get personal quota data",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "数据统计"
+          "Statistics"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4590,16 +4590,16 @@
     },
     "/api/group/": {
       "get": {
-        "summary": "获取所有分组",
+        "summary": "Get all groups",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "分组"
+          "Group"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4615,16 +4615,16 @@
     },
     "/api/prefill_group/": {
       "get": {
-        "summary": "获取预填分组",
+        "summary": "Get prefilled groups",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "分组"
+          "Group"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4638,16 +4638,16 @@
         ]
       },
       "post": {
-        "summary": "创建预填分组",
+        "summary": "Create pre-populated groups",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "分组"
+          "Group"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4661,16 +4661,16 @@
         ]
       },
       "put": {
-        "summary": "更新预填分组",
+        "summary": "Update prepopulated grouping",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "分组"
+          "Group"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4686,11 +4686,11 @@
     },
     "/api/prefill_group/{id}": {
       "delete": {
-        "summary": "删除预填分组",
+        "summary": "Delete prefilled group",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "分组"
+          "Group"
         ],
         "parameters": [
           {
@@ -4706,7 +4706,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4722,16 +4722,16 @@
     },
     "/api/mj/": {
       "get": {
-        "summary": "获取所有Midjourney任务",
+        "summary": "Get all Midjourney missions",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "任务"
+          "Task"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4747,16 +4747,16 @@
     },
     "/api/mj/self": {
       "get": {
-        "summary": "获取个人Midjourney任务",
+        "summary": "Get a personal Midjourney mission",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "任务"
+          "Task"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4772,16 +4772,16 @@
     },
     "/api/task/": {
       "get": {
-        "summary": "获取所有任务",
+        "summary": "Get all tasks",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "任务"
+          "Task"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4797,16 +4797,16 @@
     },
     "/api/task/self": {
       "get": {
-        "summary": "获取个人任务",
+        "summary": "Get personal tasks",
         "deprecated": false,
-        "description": "🔐 需要登录（User权限）",
+        "description": "🔐 Requires login (User permissions)",
         "tags": [
-          "任务"
+          "Task"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4822,16 +4822,16 @@
     },
     "/api/vendors/": {
       "get": {
-        "summary": "获取所有供应商",
+        "summary": "Get all suppliers",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "供应商"
+          "supplier"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4845,16 +4845,16 @@
         ]
       },
       "post": {
-        "summary": "创建供应商",
+        "summary": "Create supplier",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "供应商"
+          "supplier"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4868,16 +4868,16 @@
         ]
       },
       "put": {
-        "summary": "更新供应商",
+        "summary": "Update supplier",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "供应商"
+          "supplier"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4893,11 +4893,11 @@
     },
     "/api/vendors/search": {
       "get": {
-        "summary": "搜索供应商",
+        "summary": "Search suppliers",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "供应商"
+          "supplier"
         ],
         "parameters": [
           {
@@ -4912,7 +4912,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4928,11 +4928,11 @@
     },
     "/api/vendors/{id}": {
       "get": {
-        "summary": "获取指定供应商",
+        "summary": "Get designated suppliers",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "供应商"
+          "supplier"
         ],
         "parameters": [
           {
@@ -4948,7 +4948,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4962,11 +4962,11 @@
         ]
       },
       "delete": {
-        "summary": "删除供应商",
+        "summary": "Delete supplier",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "供应商"
+          "supplier"
         ],
         "parameters": [
           {
@@ -4982,7 +4982,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -4998,16 +4998,16 @@
     },
     "/api/models/": {
       "get": {
-        "summary": "获取所有模型元数据",
+        "summary": "Get all model metadata",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "模型管理"
+          "Model management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5021,16 +5021,16 @@
         ]
       },
       "post": {
-        "summary": "创建模型元数据",
+        "summary": "Create model metadata",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "模型管理"
+          "Model management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5044,16 +5044,16 @@
         ]
       },
       "put": {
-        "summary": "更新模型元数据",
+        "summary": "Update model metadata",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "模型管理"
+          "Model management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5069,11 +5069,11 @@
     },
     "/api/models/search": {
       "get": {
-        "summary": "搜索模型",
+        "summary": "Search model",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "模型管理"
+          "Model management"
         ],
         "parameters": [
           {
@@ -5088,7 +5088,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5104,11 +5104,11 @@
     },
     "/api/models/{id}": {
       "get": {
-        "summary": "获取指定模型",
+        "summary": "Get the specified model",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "模型管理"
+          "Model management"
         ],
         "parameters": [
           {
@@ -5124,7 +5124,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5138,11 +5138,11 @@
         ]
       },
       "delete": {
-        "summary": "删除模型",
+        "summary": "Delete model",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "模型管理"
+          "Model management"
         ],
         "parameters": [
           {
@@ -5158,7 +5158,7 @@
         ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5174,16 +5174,16 @@
     },
     "/api/models/sync_upstream/preview": {
       "get": {
-        "summary": "预览上游模型同步",
+        "summary": "Preview upstream model synchronization",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "模型管理"
+          "Model management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5199,16 +5199,16 @@
     },
     "/api/models/sync_upstream": {
       "post": {
-        "summary": "同步上游模型",
+        "summary": "Synchronize upstream models",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "模型管理"
+          "Model management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5224,16 +5224,16 @@
     },
     "/api/models/missing": {
       "get": {
-        "summary": "获取缺失模型",
+        "summary": "Get missing model",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👨‍💼 Requires administrator rights (Admin)",
         "tags": [
-          "模型管理"
+          "Model management"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5249,16 +5249,16 @@
     },
     "/api/option/": {
       "get": {
-        "summary": "获取系统选项",
+        "summary": "Get system options",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）。已退役的 theme.frontend 不在列表中返回。",
+        "description": "👑 Requires super administrator privileges (Root). Retired theme.frontend is not returned in the list.",
         "tags": [
-          "系统设置"
+          "System settings"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5272,16 +5272,16 @@
         ]
       },
       "put": {
-        "summary": "更新系统选项",
+        "summary": "Update system options",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）。兼容期内 theme.frontend=default 可幂等写入，其他主题值会被拒绝。",
+        "description": "👑 Requires super administrator privileges (Root). During the compatibility period, theme.frontend=default can be written idempotently, and other theme values ​​will be rejected.",
         "tags": [
-          "系统设置"
+          "System settings"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5297,16 +5297,16 @@
     },
     "/api/option/rest_model_ratio": {
       "post": {
-        "summary": "重置模型倍率",
+        "summary": "Reset model magnification",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 Requires super administrator privileges (Root)",
         "tags": [
-          "系统设置"
+          "System settings"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5322,16 +5322,16 @@
     },
     "/api/ratio_sync/channels": {
       "get": {
-        "summary": "获取可同步渠道",
+        "summary": "Get syncable channels",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 Requires super administrator privileges (Root)",
         "tags": [
-          "系统设置"
+          "System settings"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5347,16 +5347,16 @@
     },
     "/api/ratio_sync/fetch": {
       "post": {
-        "summary": "获取上游倍率",
+        "summary": "Get upstream magnification",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 Requires super administrator privileges (Root)",
         "tags": [
-          "系统设置"
+          "System settings"
         ],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "success",
             "headers": {}
           }
         },
@@ -5577,7 +5577,7 @@
     },
     "responses": {
       "AuthSessionLimit": {
-        "description": "该用户的活跃登录 Session 已达上限",
+        "description": "The user's active login sessions have reached the upper limit",
         "content": {
           "application/json": {
             "schema": {
@@ -5587,7 +5587,7 @@
         }
       },
       "AuthSessionIssuanceLimit": {
-        "description": "该用户在统计窗口内创建的 Session 已达上限",
+        "description": "The number of Sessions created by this user within the statistics window has reached the upper limit.",
         "content": {
           "application/json": {
             "schema": {
@@ -5602,31 +5602,31 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "session",
-        "description": "已废弃：Gin session 不再用于面板鉴权"
+        "description": "Deprecated: Gin session is no longer used for panel authentication"
       },
       "AccessToken1": {
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT or PAT",
-        "description": "面板短期 JWT 或 User.AccessToken PAT；不再要求 New-Api-User"
+        "description": "Panel short-lived JWT or User.AccessToken PAT; New-Api-User is no longer required"
       },
       "NewApiUser1": {
         "type": "apiKey",
         "in": "header",
         "name": "New-Api-User",
-        "description": "已废弃且不再参与鉴权；PAT 客户端可以移除此请求头"
+        "description": "Deprecated and no longer involved in authentication; PAT clients can remove this request header"
       },
       "RefreshCookie": {
         "type": "apiKey",
         "in": "cookie",
         "name": "new_api_refresh",
-        "description": "仅 refresh/logout 使用的 HttpOnly、SameSite=Strict Cookie"
+        "description": "HttpOnly, SameSite=Strict Cookie used only by refresh/logout"
       },
       "SecurityProof": {
         "type": "apiKey",
         "in": "header",
         "name": "X-Security-Proof",
-        "description": "绑定用户、登录会话和 scope 的短期二次验证 Proof"
+        "description": "Short-term secondary verification for binding users, login sessions and scopes Proof"
       },
       "Combination222": {
         "group": [

@@ -3,10 +3,7 @@ export const meta = {
   key: "sora",
   name: "Sora",
   icon: "Sora.Color",
-  description: {
-    en: "OpenAI Sora video generation (text-to-video, image-to-video, and remix)",
-    zh: "OpenAI Sora 视频生成（文生视频、图生视频、remix）",
-  },
+  description: { en: "OpenAI Sora video generation (text-to-video, image-to-video, and remix)" },
   version: "1.1.0",
   channelTypes: [55, 1], // OpenAI-type channels natively serve sora with the same wire format
   author: { name: "QuantumNous" },
@@ -19,18 +16,18 @@ export const meta = {
     seconds: {
       type: "number",
       unit: "second",
-      description: { en: "Video generation unit price", zh: "视频生成单价" },
+      description: { en: "Video generation unit price" },
     },
     // Requested output video dimensions.
     size: {
       enum: ["720x1280", "1280x720", "1792x1024", "1024x1792"],
       enumLabels: {
-        "720x1280": { en: "720x1280", zh: "720x1280" },
-        "1280x720": { en: "1280x720", zh: "1280x720" },
-        "1792x1024": { en: "1792x1024", zh: "1792x1024" },
-        "1024x1792": { en: "1024x1792", zh: "1024x1792" },
+        "720x1280": { en: "720x1280" },
+        "1280x720": { en: "1280x720" },
+        "1792x1024": { en: "1792x1024" },
+        "1024x1792": { en: "1024x1792" },
       },
-      description: { en: "Output video dimensions", zh: "输出视频尺寸" },
+      description: { en: "Output video dimensions" },
     },
   },
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],

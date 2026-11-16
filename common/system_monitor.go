@@ -9,31 +9,31 @@ import (
 	"github.com/shirou/gopsutil/mem"
 )
 
-// DiskSpaceInfo 磁盘空间信息
+// DiskSpaceInfo disk space information
 type DiskSpaceInfo struct {
-	// 总空间（字节）
+	// Total space (bytes)
 	Total uint64 `json:"total"`
-	// 可用空间（字节）
+	// Free space (bytes)
 	Free uint64 `json:"free"`
-	// 已用空间（字节）
+	// Used space (bytes)
 	Used uint64 `json:"used"`
-	// 使用百分比
+	// Use percentage
 	UsedPercent float64 `json:"used_percent"`
 }
 
-// SystemStatus 系统状态信息
+// SystemStatus system status information
 type SystemStatus struct {
 	CPUUsage    float64
 	MemoryUsage float64
 	DiskUsage   float64
 	SampledAt   time.Time
-	// 过载判定带连续性要求：单一采样尖峰不再直接熔断，需连续多次超阈值。
+	// Overload judgment with continuity requirements: a single sampling peak is no longer directly fused, but must exceed the threshold multiple times in a row.
 	CPUOverloaded    bool
 	MemoryOverloaded bool
 	DiskOverloaded   bool
 }
 
-// SystemOverload 是哨兵据以拒绝请求的过载项，Error 文本带当前值与生效阈值。
+// SystemOverload is the overload used by Sentinel to reject requests. The Error text contains the current value and the effective threshold.
 type SystemOverload struct {
 	Code      string
 	Resource  string
@@ -49,10 +49,10 @@ var latestSystemStatus atomic.Value
 
 const (
 	systemMonitorInterval = 5 * time.Second
-	// 连续 3 次采样（约 15 秒）仍高于阈值才判定过载，
-	// 任一采样回落到阈值以下即恢复，避免瞬时尖峰打满重试。
+	// Overload will be determined only when 3 consecutive samples (about 15 seconds) are still higher than the threshold.
+	// It will be restored when any sampling falls below the threshold to avoid retrying when the instantaneous spike is full.
 	overloadConsecutiveSamples = 3
-	// 采样超过该时长未刷新（监控未运行或被阻塞）时，哨兵不据此熔断。
+	// When the sampling exceeds this time and is not refreshed (monitoring is not running or is blocked), the sentinel will not be blown accordingly.
 	systemStatusMaxAge = 30 * time.Second
 )
 
@@ -60,7 +60,7 @@ func init() {
 	latestSystemStatus.Store(SystemStatus{})
 }
 
-// StartSystemMonitor 启动系统监控
+// StartSystemMonitor starts system monitoring
 func StartSystemMonitor() {
 	go func() {
 		usage := newContainerUsage()
@@ -83,8 +83,8 @@ func StartSystemMonitor() {
 	}()
 }
 
-// overloadDetector 为每项资源累计连续超阈值的采样次数：连续 overloadConsecutiveSamples 次
-// 才标记过载，任一次回落立即清零并重新累计。
+// overloadDetector accumulates the number of consecutive samples exceeding the threshold for each resource: consecutive overloadConsecutiveSamples times
+// It will be marked as overload, and any drop will be immediately cleared and accumulated again.
 type overloadDetector struct {
 	cpuSamples    int
 	memorySamples int
@@ -106,7 +106,7 @@ func countOverloadSample(samples *int, over bool) bool {
 	return *samples == overloadConsecutiveSamples
 }
 
-// exceedsThreshold 判断采样值是否超过阈值；阈值 <= 0 表示不检查该项。
+// exceedsThreshold determines whether the sampling value exceeds the threshold; threshold <= 0 means not to check this item.
 func exceedsThreshold(usage float64, threshold int) bool {
 	return threshold > 0 && int(usage) > threshold
 }
@@ -115,8 +115,8 @@ func collectSystemStatus(usage *containerUsage) SystemStatus {
 	now := time.Now()
 	status := SystemStatus{SampledAt: now}
 
-	// CPU / 内存优先按容器 cgroup 配额计算；容器口径不可用时回退宿主机口径，
-	// 保持对未限制资源或被挂载为宿主 cgroup 的环境的兼容。
+	// CPU/memory is calculated based on the container cgroup quota first; when the container caliber is unavailable, it falls back to the host caliber.
+	// Maintain compatibility with environments that have unrestricted resources or are mounted as hosting cgroups.
 	if saturation, ok := usage.cpuSaturation(now); ok {
 		status.CPUUsage = saturation
 	} else if percents, err := cpu.Percent(0, false); err == nil && len(percents) > 0 {
@@ -135,14 +135,14 @@ func collectSystemStatus(usage *containerUsage) SystemStatus {
 	return status
 }
 
-// GetSystemStatus 获取当前系统状态
+// GetSystemStatus gets the current system status
 func GetSystemStatus() SystemStatus {
 	return latestSystemStatus.Load().(SystemStatus)
 }
 
-// CheckSystemOverload 返回哨兵应据以熔断的过载项。监控关闭、采样缺失或已超过
-// systemStatusMaxAge 时返回 nil。过载标记来自连续采样，阈值按当前配置复核，
-// 运行时关闭或调高阈值后立即放行，不必等待下一次采样。
+// CheckSystemOverload Returns the overload that the sentinel should circuit against. Monitoring is off, sampling is missing or has exceeded
+// Returns nil when systemStatusMaxAge is set. The overload flag is derived from continuous sampling, and the threshold is reviewed according to the current configuration.
+// When running, turn off or increase the threshold and release immediately without waiting for the next sampling.
 func CheckSystemOverload(status SystemStatus, config PerformanceMonitorConfig, now time.Time) *SystemOverload {
 	if !config.Enabled || status.SampledAt.IsZero() || now.Sub(status.SampledAt) > systemStatusMaxAge {
 		return nil

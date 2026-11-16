@@ -179,7 +179,7 @@ func TestReserveFallsBackToDatabaseWhenRedisIsUnavailable(t *testing.T) {
 	require.NoError(t, populateUserCache(user))
 	server.Close()
 
-	// Redis 故障时降级为数据库条件更新：服务保持可用且不会超扣。
+	// Downgrade to database conditional update when Redis fails: the service remains available and will not be oversubscribed.
 	reserved, err := TryReserveUserQuota(user.Id, 5)
 	require.NoError(t, err)
 	assert.True(t, reserved)
@@ -234,7 +234,7 @@ func TestTokenCacheInitPreservesLiveQuotaAndFenceBlocksStaleSnapshot(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, cacheQuotaOK, result)
 
-	// 已存在的哈希只刷新 TTL：数据库快照不得覆盖已被原子预扣的余额。
+	// Existing hashes are only refreshed TTL: Database snapshots must not overwrite balances that have been atomically withheld.
 	code, err := cacheInitToken(stale)
 	require.NoError(t, err)
 	assert.Equal(t, 2, code)
@@ -242,7 +242,7 @@ func TestTokenCacheInitPreservesLiveQuotaAndFenceBlocksStaleSnapshot(t *testing.
 	require.NoError(t, err)
 	assert.Equal(t, 30, cached.RemainQuota)
 
-	// 变更期间：fence 删除缓存并拦截并发读者手中的过期快照。
+	// During changes: fence deletes the cache and intercepts expired snapshots in the hands of concurrent readers.
 	require.NoError(t, invalidateTokenCacheForMutation(token.Key))
 	code, err = cacheInitToken(stale)
 	require.NoError(t, err)
@@ -250,7 +250,7 @@ func TestTokenCacheInitPreservesLiveQuotaAndFenceBlocksStaleSnapshot(t *testing.
 	_, err = cacheGetTokenByKey(token.Key)
 	assert.Error(t, err)
 
-	// fence 过期后可重新从数据库水合。
+	// The fence can be rehydrated from the database after expiration.
 	server.FastForward(time.Duration(tokenCacheFenceSeconds+1) * time.Second)
 	fresh, err := GetTokenByKey(token.Key, false)
 	require.NoError(t, err)

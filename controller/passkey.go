@@ -355,7 +355,7 @@ func PasskeyLoginFinish(c *gin.Context) {
 	}
 
 	handler := func(rawID, userHandle []byte) (webauthnlib.User, error) {
-		// 首先通过凭证ID查找用户
+		// First find the user by credential ID
 		credential, err := model.GetPasskeyByCredentialID(rawID)
 		if err != nil {
 			return nil, fmt.Errorf("passkey credential not found: %w", err)
@@ -365,7 +365,7 @@ func PasskeyLoginFinish(c *gin.Context) {
 			return nil, service.ErrVerificationFailed
 		}
 
-		// 通过凭证获取用户
+		// Get user by credentials
 		user := &model.User{Id: credential.UserID}
 		if err := user.FillUserById(); err != nil {
 			return nil, fmt.Errorf("failed to load the passkey user: %w", err)
@@ -378,7 +378,7 @@ func PasskeyLoginFinish(c *gin.Context) {
 		if len(userHandle) > 0 {
 			userID, parseErr := strconv.Atoi(string(userHandle))
 			if parseErr != nil {
-				// 记录异常但继续验证，因为某些客户端可能使用非数字格式
+				// Log the exception but continue validating as some clients may use non-numeric formats
 				common.SysLog(common.LogText("PasskeyLogin: userHandle parse error for credential, length: %d", len(userHandle)))
 			} else if userID != user.Id {
 				return nil, errors.New("user handle does not match the credential")

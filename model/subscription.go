@@ -612,8 +612,8 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if !plan.Enabled {
 			// still allow completion for already purchased orders
 		}
-		// 锁定用户行：并发完成同一用户的不同订单（包括多实例部署下）时，
-		// 使 CreateUserSubscriptionFromPlanTx 的 MaxPurchasePerUser 检查按用户串行。
+		// Locking user rows: When completing different orders for the same user concurrently (including under multi-instance deployment),
+		// Make CreateUserSubscriptionFromPlanTx's MaxPurchasePerUser check serialized by user.
 		var userRow User
 		if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
 			return err
@@ -733,7 +733,7 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.M
 	}
 	groupChanged := false
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		// 与 CompleteSubscriptionOrder 一致：先锁用户行，再做购买次数检查。
+		// Consistent with CompleteSubscriptionOrder: lock the user row first, and then check the number of purchases.
 		var userRow User
 		if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&userRow).Error; err != nil {
 			return err

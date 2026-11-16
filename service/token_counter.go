@@ -46,7 +46,7 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 }
 
 func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
-	// 是否统计token
+	// Whether to count tokens
 	if !constant.CountToken {
 		return 0, nil
 	}
@@ -83,12 +83,12 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 			if err != nil {
 				return 0, fmt.Errorf("error getting audio duration: %v", err)
 			}
-			// duration 来自用户上传文件的元数据，可被伪造成天文数字或负数。
-			// 负值会让 token 估算变成负数（低估预扣费），先钳到 0 再转换。
+			// duration metadata from user-uploaded files, can be faked to be astronomical or negative.
+			// Negative values will cause the token estimate to become a negative number (underestimating the withholding fee). First, clamp it to 0 and then convert it.
 			if duration < 0 {
 				duration = 0
 			}
-			// 一分钟 1000 token，与 $price / minute 对齐。
+			// 1000 tokens per minute, aligned with $price / minute.
 			totalAudioToken += common.QuotaRound(math.Ceil(duration) / 60.0 * 1000)
 		}
 		return totalAudioToken, nil
@@ -105,7 +105,7 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 
 	if info.RelayFormat == types.RelayFormatOpenAI {
 		tkm += meta.ToolsCount * 8
-		tkm += meta.MessagesCount * 3 // 每条消息的格式化token数量
+		tkm += meta.MessagesCount * 3 // Number of formatted tokens per message
 		tkm += meta.NameCount * 3
 		tkm += 3
 	}
@@ -116,27 +116,27 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 		shouldFetchFiles = false
 	}
 
-	// 是否本地计算媒体token数量
+	// Whether to calculate the number of media tokens locally
 	if !constant.GetMediaToken {
 		shouldFetchFiles = false
 	}
 
-	// 是否在非流模式下本地计算媒体token数量
+	// Whether to calculate the number of media tokens locally in non-streaming mode
 	if !constant.GetMediaTokenNotStream && !info.IsStream {
 		shouldFetchFiles = false
 	}
 
-	// 使用统一的文件服务获取文件类型
+	// Get file types using unified file services
 	for _, file := range meta.Files {
 		if file.Source == nil {
 			continue
 		}
 
-		// 如果文件类型未知且需要获取，通过 MIME 类型检测
+		// If the file type is unknown and needs to be retrieved, pass MIME type detection
 		if file.FileType == "" || (file.Source.IsURL() && shouldFetchFiles) {
-			// 注意：这里我们直接调用 LoadFileSource 而不是 GetMimeType
-			// 因为 GetMimeType 内部可能会调用 GetFileTypeFromUrl (HEAD 请求)
-			// 而我们这里既然要计算 token，通常需要完整数据
+			// Note: Here we call LoadFileSource directly instead of GetMimeType
+			// Because GetMimeType may internally call GetFileTypeFromUrl (HEAD request)
+			// Since we want to calculate token here, we usually need complete data
 			cachedData, err := LoadFileSource(c, file.Source, "token_counter")
 			if err != nil {
 				if shouldFetchFiles {
@@ -253,7 +253,7 @@ func CountAudioTokenInput(audioBase64 string, audioFormat string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	// duration 来自用户提供的音频元数据，饱和转换防止 int 回绕
+	// duration comes from user-supplied audio metadata, saturation conversion prevents int wraparound
 	return common.QuotaFromFloat(duration / 60 * 100 / 0.06), nil
 }
 
@@ -265,6 +265,6 @@ func CountAudioTokenOutput(audioBase64 string, audioFormat string) (int, error) 
 	if err != nil {
 		return 0, err
 	}
-	// duration 来自上游返回的音频元数据，饱和转换防止 int 回绕
+	// duration Audio metadata returned from upstream, saturation conversion prevents int wraparound
 	return common.QuotaFromFloat(duration / 60 * 200 / 0.24), nil
 }

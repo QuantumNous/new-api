@@ -2,27 +2,27 @@ package operation_setting
 
 import "github.com/QuantumNous/new-api/setting/config"
 
-// TokenSetting 令牌相关配置
+// TokenSetting token related configuration
 type TokenSetting struct {
-	MaxUserTokens int `json:"max_user_tokens"` // 每用户最大令牌数量
+	MaxUserTokens int `json:"max_user_tokens"` // Maximum number of tokens per user
 }
 
-// 默认配置
+// Default configuration
 var tokenSetting = TokenSetting{
-	MaxUserTokens: 1000, // 默认每用户最多 1000 个令牌
+	MaxUserTokens: 1000, // Default maximum 1000 tokens per user
 }
 
 func init() {
-	// 注册到全局配置管理器
+	// Register to the global configuration manager
 	config.GlobalConfig.Register("token_setting", &tokenSetting)
 }
 
-// GetTokenSetting 获取令牌配置
+// GetTokenSetting Gets the token configuration
 func GetTokenSetting() *TokenSetting {
 	return &tokenSetting
 }
 
-// GetMaxUserTokens 获取每用户最大令牌数量
+// GetMaxUserTokens Gets the maximum number of tokens per user
 func GetMaxUserTokens() int {
 	return GetTokenSetting().MaxUserTokens
 }

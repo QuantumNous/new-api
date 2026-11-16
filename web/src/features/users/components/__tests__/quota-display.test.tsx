@@ -43,7 +43,7 @@ import { I18nextProvider } from 'react-i18next'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { TooltipProvider } from '@/components/ui/tooltip'
-import zh from '@/i18n/locales/zh.json'
+import zh from '@/i18n/locales/en.json'
 import { api } from '@/lib/api'
 import { formatTimestampToDate } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth-store'
@@ -337,7 +337,7 @@ it('sends balance sorting to the server and keeps invitation details on two line
   expect(screen.getByText(/Invited 2 users · Earnings:/)).toBeInTheDocument()
 })
 
-it('shows balance above usage on mobile cards in Chinese', async () => {
+it('shows balance above usage on mobile cards with a legacy language preference', async () => {
   const originalMatchMedia = window.matchMedia
   vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
     ...originalMatchMedia(query),
@@ -347,16 +347,16 @@ it('shows balance above usage on mobile cards in Chinese', async () => {
   await i18n.changeLanguage('zh')
   try {
     await renderUsersList()
-    expect(screen.getByText('可用余额 ($)')).toBeInTheDocument()
-    expect(screen.getByText('已用')).toBeInTheDocument()
+    expect(screen.getByText('Available Balance ($)')).toBeInTheDocument()
+    expect(screen.getByText("Used")).toBeInTheDocument()
     expect(screen.getByText('0.0038')).toBeInTheDocument()
     expect(screen.getByText('0.0022')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     await userEvent.click(
-      screen.getByRole('button', { name: /可用余额 0.0038/ })
+      screen.getByRole('button', { name: /Available Balance 0.0038/ })
     )
-    const detail = await screen.findByRole('dialog', { name: '额度 ($)' })
-    expect(within(detail).getByText('累计已用')).toBeInTheDocument()
+    const detail = await screen.findByRole('dialog', { name: 'Quota ($)' })
+    expect(within(detail).getByText("Total Used")).toBeInTheDocument()
     expect(within(detail).getByText('0.0022')).toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
   } finally {

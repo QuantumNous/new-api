@@ -16,9 +16,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// 保护契约:PostgreSQL 走 simple protocol(PrepareStmt 关闭)时,driver.Valuer
-// 返回 []byte 会被 pgx 按 bytea 十六进制字面量编码,写入 json 列触发
-// SQLSTATE 22P02。所有 json 列的 Value() 必须返回 string(或 nil)。
+// Protection contract: When PostgreSQL uses simple protocol (PrepareStmt is turned off), driver.Valuer
+// Returning []byte will be triggered by pgx encoding the bytea hexadecimal literal and writing it into the json column.
+// SQLSTATE 22P02. Value() for all json columns must return string (or nil).
 func TestJSONColumnValuersReturnString(t *testing.T) {
 	testCases := []struct {
 		name   string
@@ -58,7 +58,7 @@ func TestJSONColumnValuersReturnString(t *testing.T) {
 	}
 }
 
-// 空值仍返回 nil,保持列的 NULL 语义。
+// Null values still return nil, maintaining the column's NULL semantics.
 func TestJSONColumnValuersZeroValueIsNil(t *testing.T) {
 	for name, valuer := range map[string]driver.Valuer{
 		"Properties":      Properties{},
@@ -73,8 +73,8 @@ func TestJSONColumnValuersZeroValueIsNil(t *testing.T) {
 	}
 }
 
-// 保护契约:json 列的 Scan 必须同时接受 []byte 与 string——不同驱动/协议
-// 模式返回类型不同,静默丢弃 string 会把已有数据清零。
+// Protection contract: Scan of json columns must accept both []byte and string - different drivers/protocols
+// The mode return type is different. Silently discarding string will clear existing data.
 func TestJSONColumnScannersAcceptStringAndBytes(t *testing.T) {
 	toInput := func(kind string, payload string) any {
 		if kind == "bytes" {

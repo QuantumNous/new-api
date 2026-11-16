@@ -658,7 +658,7 @@ describe('shared plugin price summaries', () => {
             images: {
               type: 'number',
               unit: 'count',
-              unitLabel: { en: 'image', zh: '张' },
+              unitLabel: { en: 'image', zh: "image" },
             },
           },
         },
@@ -667,7 +667,7 @@ describe('shared plugin price summaries', () => {
     expect(
       getDynamicPricingSummary(model, summaryOptions)?.primaryEntries[0]
     ).toMatchObject({
-      unitLabel: { en: 'image', zh: '张' },
+      unitLabel: { en: 'image', zh: "image" },
       minValue: 0.4,
       maxValue: 0.8,
     })

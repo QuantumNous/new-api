@@ -92,8 +92,8 @@ export function mapStatusDataToConfig(
   }
 
   return {
-    systemName: (data.system_name as string | undefined) || DEFAULT_SYSTEM_NAME,
-    logo: (data.logo as string | undefined) || DEFAULT_LOGO,
+    systemName: !data.system_name || data.system_name === 'New API' ? DEFAULT_SYSTEM_NAME : String(data.system_name),
+    logo: !data.logo || data.logo === '/logo.png' ? DEFAULT_LOGO : String(data.logo),
     footerHtml: data.footer_html as string | undefined,
     demoSiteEnabled: data.demo_site_enabled as boolean | undefined,
     displayTokenStatEnabled: data.display_token_stat_enabled as

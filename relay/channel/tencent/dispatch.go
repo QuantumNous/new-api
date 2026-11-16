@@ -11,7 +11,7 @@ import (
 
 const tokenHubBaseURL = "https://tokenhub.tencentmaas.com"
 
-// DispatchAdaptor 按密钥格式分流:三段式 ak/sk 走原生 TC3,单段 TokenHub key 走 OpenAI 兼容。
+// DispatchAdaptor is divided according to the key format: three-stage ak/sk uses native TC3, and single-stage TokenHub key uses OpenAI compatibility.
 type DispatchAdaptor struct {
 	channel.Adaptor
 }

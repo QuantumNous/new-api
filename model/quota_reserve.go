@@ -102,8 +102,8 @@ func cacheApplyTokenQuotaDelta(id int, key string, delta int64) (cacheQuotaResul
 	return quotaResultFromLua(result, err)
 }
 
-// persistUserQuotaDelta 把已在缓存侧预扣成功的增量落库；批量模式下入队，
-// 直写模式下要求行存在（用户已删除时报错，交由调用方补偿缓存）。
+// persistUserQuotaDelta stores the increments that have been successfully withheld on the cache side; adds them to the queue in batch mode.
+// In write-through mode, the row is required to exist (an error will be reported if the user has deleted it, and the caller will compensate for the cache).
 func persistUserQuotaDelta(id int, delta int) error {
 	if common.BatchUpdateEnabled {
 		addNewRecord(BatchUpdateTypeUserQuota, id, delta)
@@ -159,8 +159,8 @@ func reserveTokenQuotaDB(id int, quota int) (bool, error) {
 }
 
 // TryReserveUserQuota atomically checks and deducts a user's wallet quota.
-// 缓存命中时以缓存余额为准（避免批量模式下过期的数据库余额放大并发超扣）；
-// Redis 异常或水合失败时降级为数据库条件更新，保证服务可用。
+// When the cache is hit, the cache balance shall prevail (to avoid the amplification of expired database balances in batch mode and concurrent over-deduction);
+// When Redis is abnormal or hydration fails, it is downgraded to database condition update to ensure service availability.
 func TryReserveUserQuota(id int, quota int) (bool, error) {
 	if quota < 0 {
 		return false, errors.New("quota cannot be negative")

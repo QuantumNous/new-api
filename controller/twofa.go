@@ -58,7 +58,7 @@ func Enable2FA(c *gin.Context) {
 	common.ApiSuccess(c, authRotationData(bundle))
 }
 
-// Disable2FA 禁用2FA
+// Disable2FA Disable 2FA
 func Disable2FA(c *gin.Context) {
 	if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeTwoFADisable}) == nil {
 		return
@@ -75,13 +75,13 @@ func Disable2FA(c *gin.Context) {
 		return
 	}
 
-	// 记录操作日志
+	// Record operation log
 	recordUserSecurityAudit(c, userId, "user.2fa_disable_self", nil)
 
 	common.ApiSuccessT(c, "Two-factor authentication disabled", authRotationData(bundle))
 }
 
-// Get2FAStatus 获取用户2FA状态
+// Get2FAStatus Gets user 2FA status
 func Get2FAStatus(c *gin.Context) {
 	userId := c.GetInt("id")
 
@@ -100,7 +100,7 @@ func Get2FAStatus(c *gin.Context) {
 		status["enabled"] = twoFA.IsEnabled
 		status["locked"] = twoFA.IsLocked()
 		if twoFA.IsEnabled {
-			// 获取剩余备用码数量
+			// Get the number of remaining backup codes
 			backupCount, err := model.GetUnusedBackupCodeCount(userId)
 			if err != nil {
 				common.SysLog(common.LogText("failed to count backup codes: %s", err.Error()))
@@ -117,14 +117,14 @@ func Get2FAStatus(c *gin.Context) {
 	})
 }
 
-// RegenerateBackupCodes 重新生成备用码
+// RegenerateBackupCodes Regenerate backup codes
 func RegenerateBackupCodes(c *gin.Context) {
 	if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeTwoFABackupCodes}) == nil {
 		return
 	}
 	identity, _ := middleware.GetStepUpIdentity(c)
 	userId := identity.UserID
-	// 生成新的备用码
+	// Generate new backup code
 	backupCodes, err := common.GenerateBackupCodes()
 	if err != nil {
 		common.ApiErrorT(c, "Failed to regenerate backup codes")
@@ -132,7 +132,7 @@ func RegenerateBackupCodes(c *gin.Context) {
 		return
 	}
 
-	// 保存新的备用码并原子推进用户鉴权版本
+	// Save the new backup code and atomically advance the user authentication version
 	if err := model.ReplaceBackupCodesForSession(identity, backupCodes); err != nil {
 		common.ApiErrorT(c, "Failed to save backup codes")
 		common.SysLog(common.LogText("failed to save backup codes: %s", err.Error()))
@@ -144,7 +144,7 @@ func RegenerateBackupCodes(c *gin.Context) {
 		return
 	}
 
-	// 记录操作日志
+	// Record operation log
 	recordUserSecurityAudit(c, userId, "user.2fa_backup_codes", nil)
 
 	data := authRotationData(bundle)
@@ -152,12 +152,12 @@ func RegenerateBackupCodes(c *gin.Context) {
 	common.ApiSuccessT(c, "Backup codes regenerated successfully", data)
 }
 
-// Verify2FALogin 登录时验证2FA
+// Verify2FALogin Verify 2FA when logging in
 func Verify2FALogin(c *gin.Context) {
 	VerifyLogin(c)
 }
 
-// Admin2FAStats 管理员获取2FA统计信息
+// Admin2FAStats Administrator gets 2FA statistics
 func Admin2FAStats(c *gin.Context) {
 	stats, err := model.GetTwoFAStats()
 	if err != nil {
@@ -172,7 +172,7 @@ func Admin2FAStats(c *gin.Context) {
 	})
 }
 
-// AdminDisable2FA 管理员强制禁用用户2FA
+// AdminDisable2FA The administrator forcibly disables 2FA for users
 func AdminDisable2FA(c *gin.Context) {
 	userIdStr := c.Param("id")
 	userId, err := strconv.Atoi(userIdStr)
@@ -181,7 +181,7 @@ func AdminDisable2FA(c *gin.Context) {
 		return
 	}
 
-	// 检查目标用户权限
+	// Check target user permissions
 	targetUser, err := model.GetUserById(userId, false)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		common.ApiErrorT(c, "User does not exist")
@@ -202,7 +202,7 @@ func AdminDisable2FA(c *gin.Context) {
 		return
 	}
 
-	// 禁用2FA
+	// Disable 2FA
 	if err := model.DisableTwoFAWithAuthVersion(userId); err != nil {
 		if errors.Is(err, model.ErrTwoFANotEnabled) {
 			common.ApiErrorT(c, "Two-factor authentication is not enabled.")

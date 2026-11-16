@@ -3,10 +3,10 @@
 const VIDEO_SECONDS_FIELD = {
   type: "number",
   unit: "second",
-  description: { en: "Video generation unit price", zh: "视频生成单价" },
+  description: { en: "Video generation unit price" },
 };
 
-const RESOLUTION_DESCRIPTION = { en: "Output video resolution", zh: "输出视频分辨率" };
+const RESOLUTION_DESCRIPTION = { en: "Output video resolution" };
 
 // MiniMax-H3 allows duration 4 to 15 and renders 768P or 2K.
 const H3_USAGE_SCHEMA = {
@@ -19,13 +19,13 @@ const H3_USAGE_SCHEMA = {
   input_images: {
     type: "number",
     unit: "count",
-    description: { en: "Input image unit price", zh: "输入图片单价" },
+    description: { en: "Input image unit price" },
   },
   // Input video duration in seconds (reserved at the request maximum, actual on completion).
   input_video_seconds: {
     type: "number",
     unit: "second",
-    description: { en: "Input video unit price", zh: "输入视频单价" },
+    description: { en: "Input video unit price" },
   },
 };
 
@@ -85,10 +85,7 @@ export const meta = {
   key: "hailuo",
   name: "Hailuo Video",
   icon: "Hailuo.Color",
-  description: {
-    en: "MiniMax Hailuo video generation (text-to-video, image-to-video, and MiniMax-H3 multimodal reference)",
-    zh: "MiniMax 海螺视频生成（文生视频、图生视频、MiniMax-H3 多模态参考生视频）",
-  },
+  description: { en: "MiniMax Hailuo video generation (text-to-video, image-to-video, and MiniMax-H3 multimodal reference)" },
   version: "1.4.0",
   author: { name: "QuantumNous" },
   channelTypes: [35],
@@ -463,7 +460,7 @@ function h3APIError(body) {
   return { message: message, statusCode: Number.isInteger(statusCode) ? statusCode : 0 };
 }
 
-// Older T2V-01*/I2V-01*/S2V-01 official tables disagree on 1080P support (research: 未验证).
+// Older T2V-01*/I2V-01*/S2V-01 official tables disagree on 1080P support (research: not verified).
 // Keep those models permissive: duration 6 only, resolution optional. A native
 // request leaves its resolution to MiniMax and passes none.
 function validateHailuoCombo(model, duration, resolution, hasImage) {

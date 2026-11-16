@@ -52,14 +52,14 @@ type Task struct {
 	ID         int64                 `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
 	CreatedAt  int64                 `json:"created_at" gorm:"index"`
 	UpdatedAt  int64                 `json:"updated_at"`
-	TaskID     string                `json:"task_id" gorm:"type:varchar(191);index"` // 第三方id，不一定有/ song id\ Task id
-	Platform   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // 平台
+	TaskID     string                `json:"task_id" gorm:"type:varchar(191);index"` // Third-party id, not necessarily /song id\Task id
+	Platform   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // platform
 	UserId     int                   `json:"user_id" gorm:"index"`
-	Group      string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
+	Group      string                `json:"group" gorm:"type:varchar(50)"` // Revised billing
 	ChannelId  int                   `json:"channel_id" gorm:"index"`
 	Quota      int                   `json:"quota"`
-	Action     string                `json:"action" gorm:"type:varchar(40);index"` // 任务类型, song, lyrics, description-mode
-	Status     TaskStatus            `json:"status" gorm:"type:varchar(20);index"` // 任务状态
+	Action     string                `json:"action" gorm:"type:varchar(40);index"` // Task type, song, lyrics, description-mode
+	Status     TaskStatus            `json:"status" gorm:"type:varchar(20);index"` // Task status
 	FailReason string                `json:"fail_reason"`
 	SubmitTime int64                 `json:"submit_time" gorm:"index"`
 	StartTime  int64                 `json:"start_time" gorm:"index"`
@@ -67,7 +67,7 @@ type Task struct {
 	Progress   string                `json:"progress" gorm:"type:varchar(20);index"`
 	Properties Properties            `json:"properties" gorm:"type:json"`
 	Username   string                `json:"username,omitempty" gorm:"-"`
-	// 禁止返回给用户，内部可能包含key等隐私信息
+	// It is prohibited to return to the user. It may contain private information such as keys.
 	PrivateData TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
 	Data        json.RawMessage `json:"data" gorm:"type:json"`
 }
@@ -100,8 +100,8 @@ func (m Properties) Value() (driver.Value, error) {
 	if m == (Properties{}) {
 		return nil, nil
 	}
-	// 必须返回 string 而非 []byte:PG simple protocol 下 []byte 按 bytea 编码,
-	// 写 json 列会触发 SQLSTATE 22P02。
+	// Must return string instead of []byte: under PG simple protocol []byte is encoded by bytea,
+	// Writing to a json column triggers SQLSTATE 22P02.
 	b, err := common.Marshal(m)
 	if err != nil {
 		return nil, err
@@ -111,17 +111,17 @@ func (m Properties) Value() (driver.Value, error) {
 
 type TaskPrivateData struct {
 	Key            string `json:"key,omitempty"`
-	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // Upstream real task ID
+	ResultURL      string `json:"result_url,omitempty"`       // The result URL after the task is successful (video address, etc.)
 	// Execution records safe, immutable request provenance. It lives next to
 	// other private task state so public task DTOs cannot expose it by accident.
 	Execution *TaskExecutionSnapshot `json:"execution,omitempty"`
-	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
-	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
-	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
-	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
-	NodeName       string              `json:"node_name,omitempty"`       // 发起任务的节点名，轮询结算阶段据此归属日志而非最后查询节点
-	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	// Billing context: used for asynchronous refund/difference settlement (read in polling phase)
+	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" or "subscription"
+	SubscriptionId int                 `json:"subscription_id,omitempty"` // Subscription ID, used for subscription refunds
+	TokenId        int                 `json:"token_id,omitempty"`        // Token ID, used for token credit refund
+	NodeName       string              `json:"node_name,omitempty"`       // The name of the node that initiated the task, according to which the log is assigned during the polling settlement phase instead of the last query node.
+	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // Billing parameter snapshot (used for polling phase recalculation)
 	// ResponsesBackground records that the openai_responses create request
 	// asked for background:true. Every task is durable and survives client
 	// disconnect regardless; this only echoes the protocol-level request
@@ -188,14 +188,14 @@ type TaskPluginAuthorSnapshot struct {
 	URL  string `json:"url,omitempty"`
 }
 
-// TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
+// TaskBillingContext records the billing parameters when the task is submitted so that the amount can be recalculated during the polling phase.
 type TaskBillingContext struct {
-	ModelPrice      float64                      `json:"model_price,omitempty"`       // 模型单价
-	GroupRatio      float64                      `json:"group_ratio,omitempty"`       // 分组倍率
-	ModelRatio      float64                      `json:"model_ratio,omitempty"`       // 模型倍率
-	OtherRatios     map[string]float64           `json:"other_ratios,omitempty"`      // 附加倍率（时长、分辨率等）
-	OriginModelName string                       `json:"origin_model_name,omitempty"` // 模型名称，必须为OriginModelName
-	PerCallBilling  bool                         `json:"per_call_billing,omitempty"`  // 按次计费：跳过轮询阶段的差额结算
+	ModelPrice      float64                      `json:"model_price,omitempty"`       // Model unit price
+	GroupRatio      float64                      `json:"group_ratio,omitempty"`       // Group magnification
+	ModelRatio      float64                      `json:"model_ratio,omitempty"`       // Model magnification
+	OtherRatios     map[string]float64           `json:"other_ratios,omitempty"`      // Additional magnification (duration, resolution, etc.)
+	OriginModelName string                       `json:"origin_model_name,omitempty"` // Model name, must be OriginModelName
+	PerCallBilling  bool                         `json:"per_call_billing,omitempty"`  // Pay-per-view: Difference settlement skipping the polling stage
 	TieredSnapshot  *billingexpr.BillingSnapshot `json:"tiered_snapshot,omitempty"`
 }
 
@@ -205,8 +205,8 @@ func (t *Task) ResultRetrievable() bool {
 	return !t.PrivateData.ResultDiscarded
 }
 
-// GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
-// 旧数据没有 UpstreamTaskID 时，TaskID 本身就是上游 ID
+// GetUpstreamTaskID Gets the real upstream task ID (used to communicate with provider)
+// When the old data does not have an UpstreamTaskID, the TaskID itself is the upstream ID.
 func (t *Task) GetUpstreamTaskID() string {
 	if t.PrivateData.UpstreamTaskID != "" {
 		return t.PrivateData.UpstreamTaskID
@@ -214,8 +214,8 @@ func (t *Task) GetUpstreamTaskID() string {
 	return t.TaskID
 }
 
-// GetResultURL 获取任务结果 URL（视频地址等）
-// 新数据存在 PrivateData.ResultURL 中；旧数据回退到 FailReason（历史兼容）
+// GetResultURL Gets the task result URL (video address, etc.)
+// New data is stored in PrivateData.ResultURL; old data falls back to FailReason (historical compatibility)
 func (t *Task) GetResultURL() string {
 	if t.PrivateData.ResultURL != "" {
 		return t.PrivateData.ResultURL
@@ -223,7 +223,7 @@ func (t *Task) GetResultURL() string {
 	return t.FailReason
 }
 
-// GenerateTaskID 生成对外暴露的 task_xxxx 格式 ID
+// GenerateTaskID generates an externally exposed task_xxxx format ID
 func GenerateTaskID() string {
 	key, _ := common.GenerateRandomCharsKey(32)
 	return "task_" + key
@@ -245,7 +245,7 @@ func (p TaskPrivateData) Value() (driver.Value, error) {
 		!p.ResultDiscarded && p.RequestPlugins == nil {
 		return nil, nil
 	}
-	// 同 Properties.Value:string 避免 PG simple protocol 的 bytea 编码。
+	// Same as Properties.Value:string to avoid bytea encoding of PG simple protocol.
 	b, err := common.Marshal(p)
 	if err != nil {
 		return nil, err
@@ -253,7 +253,7 @@ func (p TaskPrivateData) Value() (driver.Value, error) {
 	return string(b), nil
 }
 
-// SyncTaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段
+// SyncTaskQueryParams is a structure containing all search conditions. More fields can be added as needed.
 type SyncTaskQueryParams struct {
 	Platform       constant.TaskPlatform
 	ChannelID      string
@@ -290,7 +290,7 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 		}
 	}
 
-	// 使用预生成的公开 ID（如果有），否则新生成
+	// Use pre-generated public ID if available, otherwise generate a new one
 	taskID := ""
 	if relayInfo.TaskRelayInfo != nil && relayInfo.TaskRelayInfo.PublicTaskID != "" {
 		taskID = relayInfo.TaskRelayInfo.PublicTaskID
@@ -317,7 +317,7 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 	var tasks []*Task
 	var err error
 
-	// 初始化查询构建器
+	// Initialize query builder
 	query := DB.Where("user_id = ?", userId)
 
 	if queryParams.TaskID != "" {
@@ -333,14 +333,14 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 		query = query.Where("platform = ?", queryParams.Platform)
 	}
 	if queryParams.StartTimestamp != 0 {
-		// 假设您已将前端传来的时间戳转换为数据库所需的时间格式，并处理了时间戳的验证和解析
+		// It is assumed that you have converted the timestamp from the front end into the time format required by the database, and handled the verification and parsing of the timestamp.
 		query = query.Where("submit_time >= ?", queryParams.StartTimestamp)
 	}
 	if queryParams.EndTimestamp != 0 {
 		query = query.Where("submit_time <= ?", queryParams.EndTimestamp)
 	}
 
-	// 获取数据
+	// Get data
 	// Task lists never render the persisted upstream snapshot; the dashboard
 	// loads media through the artifacts endpoint instead.
 	err = query.Omit("channel_id", "data").Order("id desc").Limit(num).Offset(startIdx).Find(&tasks).Error
@@ -355,10 +355,10 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 	var tasks []*Task
 	var err error
 
-	// 初始化查询构建器
+	// Initialize query builder
 	query := DB
 
-	// 添加过滤条件
+	// Add filter
 	if queryParams.ChannelID != "" {
 		query = query.Where("channel_id = ?", queryParams.ChannelID)
 	}
@@ -387,7 +387,7 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 		query = query.Where("submit_time <= ?", queryParams.EndTimestamp)
 	}
 
-	// 获取数据
+	// Get data
 	err = query.Omit("data").Order("id desc").Limit(num).Offset(startIdx).Find(&tasks).Error
 	if err != nil {
 		return nil

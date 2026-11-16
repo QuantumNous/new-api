@@ -35,48 +35,10 @@ export type LocalizedTextValue = string | Record<string, string>
  */
 export function resolveLocalizedText(
   value: LocalizedTextValue | undefined | null,
-  language: string
+  _language: string
 ): string {
-  if (value == null) return ''
   if (typeof value === 'string') return value
-  if (typeof value !== 'object' || Array.isArray(value)) return ''
-
-  const texts = new Map<string, string>()
-  for (const [key, text] of Object.entries(value)) {
-    if (typeof text !== 'string' || text.trim() === '') continue
-    const locale = key.trim().replaceAll('_', '-').toLowerCase()
-    if (!locale) continue
-    texts.set(locale, text)
-  }
-  if (texts.size === 0) return ''
-
-  for (const candidate of localeFallbackKeys(language)) {
-    const hit = texts.get(candidate)
-    if (hit !== undefined) return hit
-  }
-
-  const firstKey = [...texts.keys()].sort((left, right) =>
-    left.localeCompare(right)
-  )[0]
-  return firstKey ? (texts.get(firstKey) ?? '') : ''
-}
-
-function localeFallbackKeys(language: string): string[] {
-  const normalized = language.trim().replaceAll('_', '-').toLowerCase()
-  const keys: string[] = []
-  const add = (tag: string) => {
-    if (tag && !keys.includes(tag)) keys.push(tag)
-  }
-
-  add(normalized)
-  if (normalized === 'zhcn') add('zh-cn')
-  if (normalized === 'zhtw') add('zh-tw')
-
-  if (normalized.includes('-')) {
-    add(normalized.slice(0, normalized.indexOf('-')))
-  } else if (normalized === 'zhcn' || normalized === 'zhtw') {
-    add('zh')
-  }
-  add('en')
-  return keys
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
+  // Third-party metadata keeps its wire format; Orbit only displays English.
+  return typeof value.en === 'string' ? value.en : ''
 }

@@ -109,7 +109,7 @@ describe('plugin source URL normalization', () => {
 describe('plugin source byte length', () => {
   test('counts UTF-8 bytes rather than UTF-16 code units', () => {
     assert.equal(pluginSourceByteLength('abc'), 3)
-    assert.equal(pluginSourceByteLength('中文'), 6)
+    assert.equal(pluginSourceByteLength("中文"), 6)
   })
 })
 

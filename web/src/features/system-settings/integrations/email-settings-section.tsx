@@ -317,7 +317,7 @@ export function EmailSettingsSection({
                         {...field}
                         autoComplete='off'
                         disabled={isSaving}
-                        placeholder='New API'
+                        placeholder='BEU Developer Orbit'
                       />
                     </FormControl>
                     <FormDescription>
@@ -546,7 +546,7 @@ export function EmailSettingsSection({
                     <FormControl>
                       <Input
                         autoComplete='off'
-                        placeholder={t('New API &lt;noreply@example.com&gt;')}
+                        placeholder={t('BEU Developer Orbit &lt;noreply@example.com&gt;')}
                         {...field}
                         onChange={(event) => field.onChange(event.target.value)}
                       />

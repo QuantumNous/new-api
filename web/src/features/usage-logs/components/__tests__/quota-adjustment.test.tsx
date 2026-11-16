@@ -36,7 +36,8 @@ import {
 } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
-import zh from '@/i18n/locales/zh.json'
+
+const zh = en
 import {
   DEFAULT_CURRENCY_CONFIG,
   useSystemConfigStore,
@@ -195,16 +196,16 @@ describe('quota adjustment log localization', () => {
         within(screen.getByRole('dialog')).getByText(scenario.english)
       ).toBeInTheDocument()
       await act(() => i18n.changeLanguage('zh'))
-      expect(screen.getAllByText(scenario.chinese)).toHaveLength(2)
+      expect(screen.getAllByText(scenario.english)).toHaveLength(2)
       expect(
-        within(screen.getByRole('dialog')).getByText(scenario.chinese)
+        within(screen.getByRole('dialog')).getByText(scenario.english)
       ).toBeInTheDocument()
       expect(screen.queryByText('English export fallback')).toBeNull()
       if ('target_user_id' in scenario.params) {
         const dialog = within(screen.getByRole('dialog'))
         expect(dialog.getByText('quota-owner')).toBeVisible()
-        expect(dialog.getByText('调整前额度')).toBeVisible()
-        expect(dialog.getByText('调整后额度')).toBeVisible()
+        expect(dialog.getByText("Quota before adjustment")).toBeVisible()
+        expect(dialog.getByText("Quota after adjustment")).toBeVisible()
       }
     }
   )

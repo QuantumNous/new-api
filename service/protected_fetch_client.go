@@ -122,8 +122,8 @@ func (t *ssrfProtectedRoundTripper) CloseIdleConnections() {
 }
 
 func (t *ssrfProtectedRoundTripper) transportFor(proxyURL *url.URL) *http.Transport {
-	// 只按代理地址分组：代理来自环境变量，取值有限，map 有界；
-	// 目标 origin 是用户可控输入，不能作为缓存 key。
+	// Group only by proxy address: the proxy comes from the environment variable, the value is limited, and the map is bounded;
+	// The target origin is user-controllable input and cannot be used as a cache key.
 	key := "direct"
 	if proxyURL != nil {
 		key = proxyURL.String()

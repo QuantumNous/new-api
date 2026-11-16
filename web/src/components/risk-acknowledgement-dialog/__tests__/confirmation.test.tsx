@@ -24,13 +24,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { RiskAcknowledgementDialog } from '@/components/risk-acknowledgement-dialog'
 
 const requiredTextParts = [
-  { type: 'input', text: '我已阅读并理解上述合规提醒' },
+  { type: 'input', text: "I have read and understood the above compliance reminder" },
   { type: 'static', text: '，' },
-  { type: 'input', text: '确认相关法律风险' },
-  { type: 'static', text: '，并' },
-  { type: 'input', text: '确认承担因部署' },
+  { type: 'input', text: "acknowledge the related legal risks" },
+  { type: 'static', text: ", and " },
+  { type: 'input', text: "confirm that I bear legal responsibility arising from deployment" },
   { type: 'static', text: '、' },
-  { type: 'input', text: '运营和收费行为产生的法律责任' },
+  { type: 'input', text: "operation and charging behavior" },
 ] satisfies ComponentProps<
   typeof RiskAcknowledgementDialog
 >['requiredTextParts']
@@ -97,7 +97,7 @@ describe('risk acknowledgement confirmation', () => {
     }
     expect(confirm).toBeEnabled()
 
-    const input = screen.getByPlaceholderText('确认相关法律风险')
+    const input = screen.getByPlaceholderText("acknowledge the related legal risks")
     await user.clear(input)
     expect(confirm).toBeDisabled()
     await user.paste('确认相关法律风')
@@ -105,7 +105,7 @@ describe('risk acknowledgement confirmation', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true')
 
     await user.clear(input)
-    await user.paste('确认相关法律风险')
+    await user.paste("acknowledge the related legal risks")
     expect(confirm).toBeEnabled()
     await user.click(confirm)
     expect(onConfirm).toHaveBeenCalledOnce()
@@ -116,7 +116,7 @@ describe('risk acknowledgement confirmation', () => {
     async (commitEvent) => {
       const { user } = renderConfirmation({
         requiredTextParts: [],
-        requiredText: '我已阅读并理解上述合规提醒',
+        requiredText: "I have read and understood the above compliance reminder",
         checklist: ['I understand the risks'],
       })
       const input = screen.getByRole('textbox')
@@ -128,7 +128,7 @@ describe('risk acknowledgement confirmation', () => {
         isComposing: true,
       })
       fireEvent[commitEvent](input, {
-        target: { value: '我已阅读并理解上述合规提醒' },
+        target: { value: "I have read and understood the above compliance reminder" },
         data: '醒',
       })
       expect(confirm).toBeDisabled()
@@ -136,7 +136,7 @@ describe('risk acknowledgement confirmation', () => {
       await user.click(
         screen.getByRole('checkbox', { name: 'I understand the risks' })
       )
-      expect(input).toHaveValue('我已阅读并理解上述合规提醒')
+      expect(input).toHaveValue("I have read and understood the above compliance reminder")
       expect(confirm).toBeEnabled()
       await user.clear(input)
       expect(confirm).toBeDisabled()

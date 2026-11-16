@@ -224,7 +224,7 @@ func TestBuiltInRequestPluginsExportTheirStageHooks(t *testing.T) {
 			assert.Equal(t, key == "auto-reasoning" || key == "image-compress", plugin.Meta.Optional)
 			assert.False(t, plugin.Engine.HasExport("buildSubmitRequest"))
 			assert.Empty(t, plugin.Meta.Relay)
-			assert.NotEmpty(t, plugin.Meta.NameI18n["zh"])
+			assert.Empty(t, plugin.Meta.NameI18n["zh"])
 			// An instance saved without config takes the schema defaults.
 			_, err := plugin.ValidateConfig(nil)
 			require.NoError(t, err)

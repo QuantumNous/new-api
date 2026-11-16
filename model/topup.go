@@ -170,10 +170,10 @@ func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, ta
 	})
 }
 
-// RechargeEpay 原子完成易支付订单：订单行锁、状态校验、成功更新与用户额度增加
-// 在同一个事务内完成，因此同一订单的并发/重复回调（包括多实例部署下）最多充值一次。
-// alreadyDone=true 表示订单此前已完成，本次为幂等重复回调。
-// 进程内的 LockOrder 只是优化，正确性由本函数的数据库行锁保证。
+// RechargeEpay atomically completes easy payment orders: order line lock, status verification, successful update and user quota increase
+// Completed within the same transaction, so concurrent/repeated callbacks for the same order (including under multi-instance deployment) can be recharged at most once.
+// alreadyDone=true means that the order has been completed before, and this time it is an idempotent repeated callback.
+// The in-process LockOrder is only an optimization, and the correctness is guaranteed by the database row lock of this function.
 func RechargeEpay(tradeNo string, actualPaymentMethod string, callerIp string) (alreadyDone bool, err error) {
 	if tradeNo == "" {
 		return false, errors.New("payment order number not provided")
@@ -289,10 +289,10 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	return nil
 }
 
-// topUpQueryWindowSeconds 限制充值记录查询的时间窗口（秒）。
+// topUpQueryWindowSeconds limits the time window (seconds) for recharge record query.
 const topUpQueryWindowSeconds int64 = 30 * 24 * 60 * 60
 
-// topUpQueryCutoff 返回允许查询的最早 create_time（秒级 Unix 时间戳）。
+// topUpQueryCutoff returns the earliest create_time (seconds Unix timestamp) allowed for a query.
 func topUpQueryCutoff() int64 {
 	return common.GetTimestamp() - topUpQueryWindowSeconds
 }
@@ -333,7 +333,7 @@ func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, tota
 	return topups, total, nil
 }
 
-// GetAllTopUps 获取全平台的充值记录（管理员使用，不限制时间窗口）
+// GetAllTopUps obtains the recharge records of the entire platform (for administrator use, no time window limit)
 func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -362,11 +362,11 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 	return topups, total, nil
 }
 
-// searchTopUpCountHardLimit 搜索充值记录时 COUNT 的安全上限，
-// 防止对超大表执行无界 COUNT 触发 DoS。
+// searchTopUpCountHardLimit The safety upper limit of COUNT when searching for recharge records,
+// Prevent unbounded COUNT from triggering DoS on very large tables.
 const searchTopUpCountHardLimit = 10000
 
-// SearchUserTopUps 按订单号搜索某用户的充值记录
+// SearchUserTopUps Search a user's recharge record by order number
 func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -406,7 +406,7 @@ func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (to
 	return topups, total, nil
 }
 
-// SearchAllTopUps 按订单号搜索全平台充值记录（管理员使用，不限制时间窗口）
+// SearchAllTopUps Search all platform recharge records by order number (for administrator use, no time window limit)
 func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -446,7 +446,7 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 	return topups, total, nil
 }
 
-// ManualCompleteTopUp 管理员手动完成订单并给用户充值
+// ManualCompleteTopUp The administrator manually completes the order and recharges the user
 func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	if tradeNo == "" {
 		return common.NewMessage("Order number not provided")
@@ -464,12 +464,12 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
-		// 行级锁，避免并发补单
+		// Row-level locks to avoid concurrent order filling
 		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
 			return common.NewMessage("Top-up order does not exist")
 		}
 
-		// 幂等处理：已成功直接返回
+		// Idempotent processing: Return directly if successful
 		if topUp.Status == common.TopUpStatusSuccess {
 			return nil
 		}
@@ -478,9 +478,9 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return common.NewMessage("Order is not pending payment and cannot be completed")
 		}
 
-		// 计算应充值额度：
-		// - Stripe 订单：Money 代表经分组倍率换算后的美元数量，直接 * QuotaPerUnit
-		// - 其他订单（如易支付）：Amount 为美元数量，* QuotaPerUnit
+		// Calculate the recharge amount:
+		// - Stripe order: Money represents the dollar amount converted by the grouping rate, directly * QuotaPerUnit
+		// - Other orders (such as EasyPay): Amount is the dollar quantity, * QuotaPerUnit
 		var quotaErr error
 		if topUp.PaymentProvider == PaymentProviderStripe {
 			quotaToAdd, quotaErr = common.WalletQuotaFromDecimalStrict(
@@ -495,14 +495,14 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return ErrInvalidTopUpQuota
 		}
 
-		// 标记完成
+		// Mark complete
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
 
-		// 增加用户额度（立即写库，保持一致性）
+		// Increase user quota (write database immediately to maintain consistency)
 		if err := creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil); err != nil {
 			return err
 		}
@@ -517,7 +517,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		return err
 	}
 
-	// 事务外记录日志，避免阻塞
+	// Log outside transactions to avoid blocking
 	syncCreditUserQuotaCache(userId, quotaToAdd, common.LogText("manual topup"))
 	RecordTopupLog(userId, common.NewMessage("Administrator completed the order, amount added: {{quota}}, payment amount: {{amount}}", map[string]any{"quota": logger.FormatQuota(quotaToAdd), "amount": fmt.Sprintf("%f", payMoney)}), callerIp, paymentMethod, "admin")
 	return nil
@@ -556,25 +556,25 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return err
 		}
 
-		// Creem 直接使用 Amount 作为充值额度（整数）
+		// Creem directly uses Amount as the recharge amount (integer)
 		quota, err = common.WalletQuotaFromDecimalStrict(decimal.NewFromInt(topUp.Amount))
 		if err != nil || quota <= 0 {
 			return ErrInvalidTopUpQuota
 		}
 
-		// 构建更新字段，优先使用邮箱，如果邮箱为空则使用用户名
+		// Build an update field, using email first, and username if email is empty
 		updateFields := map[string]any{}
 
-		// 如果有客户邮箱，尝试更新用户邮箱（仅当用户邮箱为空时）
+		// If there is a customer mailbox, try to update the user mailbox (only if the user mailbox is empty)
 		if customerEmail != "" {
-			// 先检查用户当前邮箱是否为空
+			// First check whether the user's current mailbox is empty
 			var user User
 			err = tx.Where("id = ?", topUp.UserId).First(&user).Error
 			if err != nil {
 				return err
 			}
 
-			// 如果用户邮箱为空，则更新为支付时使用的邮箱
+			// If the user's email address is empty, it will be updated to the email address used for payment.
 			if user.Email == "" {
 				updateFields["email"] = customerEmail
 			}
@@ -618,7 +618,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 		}
 
 		if topUp.Status == common.TopUpStatusSuccess {
-			return nil // 幂等：已成功直接返回
+			return nil // Idempotent: Successfully returned directly
 		}
 
 		if topUp.Status != common.TopUpStatusPending {

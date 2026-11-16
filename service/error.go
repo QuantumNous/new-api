@@ -39,7 +39,7 @@ func MidjourneyErrorWithStatusCodeWrapper(code int, desc string, statusCode int)
 //	if !strings.HasPrefix(lowerText, "get file base64 from url") && !strings.HasPrefix(lowerText, "mime type is not supported") {
 //		if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
 //			common.SysLog(fmt.Sprintf("error: %s", text))
-//			text = "请求上游地址失败"
+// text = "Request for upstream address failed"
 //		}
 //	}
 //	openAIError := dto.OpenAIError{
@@ -204,10 +204,10 @@ func TaskErrorWrapper(err error, code string, statusCode int, upstreamURLs ...st
 	lowerText := strings.ToLower(text)
 	if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
 		common.SysLog(common.LogText("error: %s", text))
-		//text = "请求上游地址失败"
+		// text = "Request for upstream address failed"
 		text = common.MaskSensitiveInfo(text, upstreamURLs...)
 	}
-	//避免暴露内部错误
+	// Avoid exposing internal errors
 	taskError := &taskdto.TaskError{
 		Code:       code,
 		Message:    text,
@@ -218,7 +218,7 @@ func TaskErrorWrapper(err error, code string, statusCode int, upstreamURLs ...st
 	return taskError
 }
 
-// TaskErrorFromAPIError 将 PreConsumeBilling 返回的 NewAPIError 转换为 TaskError。
+// TaskErrorFromAPIError Converts the NewAPIError returned by PreConsumeBilling to a TaskError.
 func TaskErrorFromAPIError(apiErr *types.NewAPIError) *taskdto.TaskError {
 	if apiErr == nil {
 		return nil

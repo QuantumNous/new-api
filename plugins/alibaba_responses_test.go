@@ -78,7 +78,7 @@ func TestAlibabaResponsesProtocol(t *testing.T) {
 			}
 			for key, field := range schema {
 				assert.NotEmpty(t, field.Description["en"], name+" "+key)
-				assert.NotEmpty(t, field.Description["zh"], name+" "+key)
+				assert.Empty(t, field.Description["zh"], name+" "+key)
 			}
 		}
 	})

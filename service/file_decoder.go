@@ -18,8 +18,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetFileTypeFromUrl 获取文件类型，返回 mime type， 例如 image/jpeg, image/png, image/gif, image/bmp, image/tiff, application/pdf
-// 如果获取失败，返回 application/octet-stream
+// GetFileTypeFromUrl gets the file type and returns mime type, such as image/jpeg, image/png, image/gif, image/bmp, image/tiff, application/pdf
+// If acquisition fails, return application/octet-stream
 func GetFileTypeFromUrl(c *gin.Context, url string, reason ...string) (string, error) {
 	response, err := DoDownloadRequest(url, []string{"get_mime_type", strings.Join(reason, ", ")}...)
 	if err != nil {
@@ -133,9 +133,9 @@ func GetFileTypeFromUrl(c *gin.Context, url string, reason ...string) (string, e
 	return "application/octet-stream", nil
 }
 
-// GetFileBase64FromUrl 从 URL 获取文件的 base64 编码数据
-// Deprecated: 请使用 GetBase64Data 配合 types.NewURLFileSource 替代
-// 此函数保留用于向后兼容，内部已重构为调用统一的文件服务
+// GetFileBase64FromUrl Gets the base64-encoded data of a file from a URL
+// Deprecated: Please use GetBase64Data with types.NewURLFileSource instead
+// This function is reserved for backward compatibility and has been refactored internally to call the unified file service
 func GetFileBase64FromUrl(c *gin.Context, url string, reason ...string) (*types.LocalFileData, error) {
 	source := types.NewURLFileSource(url)
 	cachedData, err := LoadFileSource(c, source, reason...)
@@ -143,7 +143,7 @@ func GetFileBase64FromUrl(c *gin.Context, url string, reason ...string) (*types.
 		return nil, err
 	}
 
-	// 转换为旧的 LocalFileData 格式以保持兼容
+	// Convert to the old LocalFileData format to maintain compatibility
 	base64Data, err := cachedData.GetBase64Data()
 	if err != nil {
 		return nil, err

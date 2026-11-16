@@ -57,12 +57,12 @@ async function chineseTranslator() {
     resources: {
       zh: {
         translation: {
-          Time: '时间',
-          User: '用户',
-          Channel: '渠道',
+          Time: "Time",
+          User: "Users",
+          Channel: "Channels",
           Consume: '消费',
-          'Top-up': '充值',
-          Yes: '是',
+          'Top-up': "Top-up",
+          Yes: "Yes",
           'Recharged {{amount}}': '充值 {{amount}}',
         },
       },
@@ -77,9 +77,9 @@ describe('usage log CSV export', () => {
 
     const header = getLogCsvHeader(false, t)
 
-    expect(header[0]).toBe('时间')
-    expect(header).not.toContain('用户')
-    expect(header).not.toContain('渠道')
+    expect(header[0]).toBe("Time")
+    expect(header).not.toContain("Users")
+    expect(header).not.toContain("Channels")
   })
 
   test('administrator row shows the user and channel next to the matching header', async () => {
@@ -89,8 +89,8 @@ describe('usage log CSV export', () => {
     const row = getLogCsvRow(consumeLog, true, t)
 
     expect(row).toHaveLength(header.length)
-    expect(row[header.indexOf('用户')]).toBe('alice')
-    expect(row[header.indexOf('渠道')]).toBe('#162 azure')
+    expect(row[header.indexOf("Users")]).toBe('alice')
+    expect(row[header.indexOf("Channels")]).toBe('#162 azure')
   })
 
   test('consume log row matches the log table values', async () => {
@@ -102,7 +102,7 @@ describe('usage log CSV export', () => {
       'prod',
       'default',
       'gpt-4o-mini',
-      '是',
+      "Yes",
       '2008',
       '16',
       '1906',
@@ -152,7 +152,7 @@ describe('usage log CSV export', () => {
 
     const row = getLogCsvRow(topup, false, t)
 
-    expect(row.slice(1, 2)).toEqual(['充值'])
+    expect(row.slice(1, 2)).toEqual(["Top-up"])
     expect(row.slice(5, 12)).toEqual(['', '', '', '', '', '', ''])
     expect(row.at(-1)).toBe('充值 $5')
   })

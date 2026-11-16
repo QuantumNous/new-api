@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 限流窗口必须由 NOTIFICATION_LIMIT_DURATION_MINUTE 决定，不能在整点被重置
+// The current limiting window must be determined by NOTIFICATION_LIMIT_DURATION_MINUTE and cannot be reset on the hour
 func TestCheckNotificationLimitWindowSpansClockHours(t *testing.T) {
 	originalRedis := common.RedisEnabled
 	originalCount := constant.NotifyLimitCount
@@ -68,7 +68,7 @@ func TestCheckNotificationLimitRedisWindowSpansClockHours(t *testing.T) {
 	constant.NotifyLimitCount = 2
 	constant.NotificationLimitDurationMinute = 720
 
-	// 窗口在 2 小时前开始并已发满，剩余 10 小时
+	// Window started 2 hours ago and is full, 10 hours remaining
 	userId := 900010
 	key := fmt.Sprintf("notify_limit:%d:%s", userId, dto.NotifyTypeQuotaExceed)
 	require.NoError(t, server.Set(key, "2"))

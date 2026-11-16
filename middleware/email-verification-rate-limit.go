@@ -10,8 +10,8 @@ import (
 
 const (
 	EmailVerificationRateLimitMark = "EV"
-	EmailVerificationMaxRequests   = 2  // 30秒内最多2次
-	EmailVerificationDuration      = 30 // 30秒时间窗口
+	EmailVerificationMaxRequests   = 2  // Maximum 2 times within 30 seconds
+	EmailVerificationDuration      = 30 // 30 second time window
 )
 
 func redisEmailVerificationRateLimiter(c *gin.Context) {

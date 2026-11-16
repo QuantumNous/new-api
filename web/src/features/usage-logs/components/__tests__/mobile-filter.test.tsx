@@ -37,8 +37,9 @@ import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-import zhTW from '@/i18n/locales/zh-TW.json'
-import zh from '@/i18n/locales/zh.json'
+import zhTW from '@/i18n/locales/en.json'
+
+const zh = zhTW
 import { api } from '@/lib/api'
 
 import { CommonLogsFilterBar } from '../common-logs-filter-bar'
@@ -287,7 +288,7 @@ it.each([
   { language: 'zh', resources: zh.translation },
   { language: 'zh-TW', resources: zhTW.translation },
 ])(
-  'labels the calendar-month preset as 本月 in $language and selects the complete month',
+  'keeps the calendar-month preset English for legacy $language preferences and selects the complete month',
   async ({ language, resources }) => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 8, 8, 12))
@@ -303,7 +304,7 @@ it.each([
       />
     )
     await user.click(screen.getByRole('button', { name: /^2026/ }))
-    const preset = screen.getByRole('button', { name: '本月' })
+    const preset = screen.getByRole('button', { name: 'Current month' })
     expect(preset).toBeVisible()
     await user.click(preset)
     expect(onChange).toHaveBeenCalledWith({

@@ -550,8 +550,8 @@ test('plugin names follow the interface language when the plugin has one', async
   renderInstances(language)
   await screen.findByText('Block secrets')
 
-  expect(screen.getAllByRole('row')[1]).toHaveTextContent('请求过滤')
-  expect(screen.queryByText('Request filter')).toBeNull()
+  expect(screen.getAllByRole('row')[1]).toHaveTextContent("Request filter")
+  expect(screen.queryByText((filterPlugin.name_i18n as Record<string, string>).zh)).toBeNull()
 })
 
 test('an instance whose plugin is disabled or removed is marked in the list', async () => {

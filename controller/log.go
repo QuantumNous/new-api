@@ -169,12 +169,12 @@ func exportLogs(c *gin.Context, all bool) {
 	common.ApiSuccess(c, gin.H{"count": count})
 }
 
-// Deprecated: SearchAllLogs 已废弃，前端未使用该接口。
+// Deprecated: SearchAllLogs is deprecated and is not used by the front end.
 func SearchAllLogs(c *gin.Context) {
 	common.ApiErrorT(c, "This API is deprecated")
 }
 
-// Deprecated: SearchUserLogs 已废弃，前端未使用该接口。
+// Deprecated: SearchUserLogs is deprecated and is not used by the front end.
 func SearchUserLogs(c *gin.Context) {
 	common.ApiErrorT(c, "This API is deprecated")
 }

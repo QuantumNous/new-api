@@ -8,19 +8,19 @@ const OMNI_USAGE_SCHEMA = {
   input_tokens: {
     type: "number",
     unit: "token",
-    description: { en: "Input token unit price", zh: "输入 Token 单价" },
+    description: { en: "Input token unit price" },
   },
   // Text output tokens, including thinking (reported on completion).
   output_tokens: {
     type: "number",
     unit: "token",
-    description: { en: "Text output token unit price", zh: "文本输出 Token 单价" },
+    description: { en: "Text output token unit price" },
   },
   // Video output tokens (estimated at submit, reported on completion).
   video_tokens: {
     type: "number",
     unit: "token",
-    description: { en: "Video output token unit price", zh: "视频输出 Token 单价" },
+    description: { en: "Video output token unit price" },
   },
 };
 // Input and text output are only known on completion, which reports them.
@@ -33,10 +33,7 @@ export const meta = {
   key: "vertex-ai",
   name: "Google Veo & Gemini Omni (Vertex AI)",
   icon: "VertexAI.Color",
-  description: {
-    en: "Google Veo and Gemini Omni Flash video generation on Vertex AI (text-to-video and image-to-video)",
-    zh: "Google Veo 与 Gemini Omni Flash 视频生成（文生视频、图生视频），Vertex AI 版本",
-  },
+  description: { en: "Google Veo and Gemini Omni Flash video generation on Vertex AI (text-to-video and image-to-video)" },
   version: "1.3.1",
   channelTypes: [41],
   author: { name: "QuantumNous" },
@@ -57,18 +54,18 @@ export const meta = {
     seconds: {
       type: "number",
       unit: "second",
-      description: { en: "Video generation unit price", zh: "视频生成单价" },
+      description: { en: "Video generation unit price" },
     },
     // Requested video output resolution.
     resolution: {
       enum: ["720p", "1080p", "4k"],
-      enumLabels: { "720p": { en: "720p", zh: "720p" }, "1080p": { en: "1080p", zh: "1080p" }, "4k": { en: "4k", zh: "4k" } },
-      description: { en: "Output video resolution", zh: "输出视频分辨率" },
+      enumLabels: { "720p": { en: "720p" }, "1080p": { en: "1080p" }, "4k": { en: "4k" } },
+      description: { en: "Output video resolution" },
     },
     // Whether audio is generated. Default true. Audio and muted tiers have different prices.
     generate_audio: {
       type: "boolean",
-      description: { en: "Whether audio is generated", zh: "是否生成音频" },
+      description: { en: "Whether audio is generated" },
     },
   },
   usageExamples: [

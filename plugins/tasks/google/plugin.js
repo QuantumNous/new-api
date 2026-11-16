@@ -3,10 +3,7 @@ export const meta = {
   key: "google",
   name: "Google Veo (Gemini API)",
   icon: "Gemini.Color",
-  description: {
-    en: "Google Veo video generation on the Gemini API (text-to-video and image-to-video)",
-    zh: "Google Veo 视频生成（文生视频、图生视频），Gemini API 版本",
-  },
+  description: { en: "Google Veo video generation on the Gemini API (text-to-video and image-to-video)" },
   version: "1.2.0",
   author: { name: "QuantumNous" },
   channelTypes: [24],
@@ -18,13 +15,13 @@ export const meta = {
     seconds: {
       type: "number",
       unit: "second",
-      description: { en: "Video generation unit price", zh: "视频生成单价" },
+      description: { en: "Video generation unit price" },
     },
     // Requested video output resolution. Veo prices differ per resolution tier.
     resolution: {
       enum: ["720p", "1080p", "4k"],
-      enumLabels: { "720p": { en: "720p", zh: "720p" }, "1080p": { en: "1080p", zh: "1080p" }, "4k": { en: "4k", zh: "4k" } },
-      description: { en: "Output video resolution", zh: "输出视频分辨率" },
+      enumLabels: { "720p": { en: "720p" }, "1080p": { en: "1080p" }, "4k": { en: "4k" } },
+      description: { en: "Output video resolution" },
     },
   },
   usageExamples: [

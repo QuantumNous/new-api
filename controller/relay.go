@@ -270,7 +270,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 }
 
 func writeRelayStreamError(c *gin.Context, format types.RelayFormat, apiError *types.NewAPIError) {
-	// 心跳提交响应头后，最终错误继续通过同一个流返回。
+	// After the heartbeat submits the response headers, the final error continues to be returned through the same stream.
 	status, _ := common.GetContextKeyType[*relaycommon.StreamStatus](c, constant.ContextKeyResponseStreamStatus)
 	if status == nil {
 		status = relaycommon.NewStreamStatus()
@@ -319,9 +319,9 @@ func CountClaudeTokens(c *gin.Context) {
 }
 
 var upgrader = websocket.Upgrader{
-	Subprotocols: []string{"realtime", "responses"}, // WS 握手支持的协议，如果有使用 Sec-WebSocket-Protocol，则必须在此声明对应的 Protocol
+	Subprotocols: []string{"realtime", "responses"}, // Protocols supported by WS handshake. If Sec-WebSocket-Protocol is used, the corresponding Protocol must be declared here.
 	CheckOrigin: func(r *http.Request) bool {
-		return true // 允许跨域
+		return true // Allow cross domain
 	},
 }
 
@@ -972,7 +972,7 @@ func respondTaskSubmissionError(c *gin.Context, taskErr *taskdto.TaskError) {
 	respondTaskError(c, taskErr)
 }
 
-// respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
+// respondTaskError uniformly outputs Task error response (including rewriting of 429 current limit prompt)
 func respondTaskError(c *gin.Context, taskErr *taskdto.TaskError) {
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = i18n.T(c, i18n.MsgRelayGroupUpstreamSaturated)
@@ -1014,14 +1014,14 @@ func decideTaskRetry(c *gin.Context, taskErr *taskdto.TaskError, retryTimes int)
 	case taskErr.StatusCode == http.StatusTooManyRequests, taskErr.StatusCode == 307:
 		return retry
 	case taskErr.StatusCode/100 == 5:
-		// 超时不重试
+		// No retry after timeout
 		if operation_setting.IsAlwaysSkipRetryStatusCode(taskErr.StatusCode) {
 			stop.Reason = "system_retry_exclusion"
 			break
 		}
 		return retry
 	case taskErr.StatusCode == http.StatusBadRequest, taskErr.StatusCode == 408:
-		// azure处理超时不重试
+		// azure processing timeout without retrying
 		stop.Reason = "status_not_retryable"
 	case taskErr.LocalError:
 		stop.Reason = "local_rejection"

@@ -153,8 +153,8 @@ func GetPasskeySettings() *PasskeySettings {
 
 func (s PasskeySettings) WithDefaults(serverAddress string) PasskeySettings {
 	if s.RPID == "" && serverAddress != "" {
-		// 从ServerAddress提取域名作为RPID
-		// ServerAddress可能是 "https://newapi.pro" 这种格式
+		// Extract domain name from ServerAddress as RPID
+		// ServerAddress may be in the format "https://newapi.pro"
 		serverAddr := strings.TrimSpace(serverAddress)
 		if parsed, err := url.Parse(serverAddr); err == nil && parsed.Host != "" {
 			s.RPID = parsed.Host

@@ -1,7 +1,7 @@
 package model
 
 func GetModelEnableGroups(modelName string) []string {
-	// 确保缓存最新
+	// Make sure the cache is up to date
 	GetPricing()
 
 	if modelName == "" {
@@ -17,7 +17,7 @@ func GetModelEnableGroups(modelName string) []string {
 	return groups
 }
 
-// GetModelQuotaTypes 返回指定模型的计费类型集合（来自缓存）
+// GetModelQuotaTypes returns the billing type collection of the specified model (from cache)
 func GetModelQuotaTypes(modelName string) []int {
 	GetPricing()
 

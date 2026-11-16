@@ -12,12 +12,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GetAllModelsMeta 获取模型列表（分页）
+// GetAllModelsMeta Gets the model list (pagination)
 func GetAllModelsMeta(c *gin.Context) {
 	listModelsMeta(c, "", "")
 }
 
-// SearchModelsMeta 搜索模型列表
+// SearchModelsMeta search model list
 func SearchModelsMeta(c *gin.Context) {
 	listModelsMeta(c, c.Query("keyword"), c.Query("vendor"))
 }
@@ -83,7 +83,7 @@ func listModelsMeta(c *gin.Context, keyword, vendor string) {
 	})
 }
 
-// GetModelMeta 根据 ID 获取单条模型信息
+// GetModelMeta Gets a single piece of model information based on ID
 func GetModelMeta(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -103,7 +103,7 @@ func GetModelMeta(c *gin.Context) {
 	common.ApiSuccess(c, &m)
 }
 
-// CreateModelMeta 新建模型
+// CreateModelMeta new model
 func CreateModelMeta(c *gin.Context) {
 	var m model.Model
 	if err := c.ShouldBindJSON(&m); err != nil {
@@ -118,7 +118,7 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	// 名称冲突检查
+	// Name conflict checking
 	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
 		common.ApiError(c, err)
 		return
@@ -136,7 +136,7 @@ func CreateModelMeta(c *gin.Context) {
 	common.ApiSuccess(c, &m)
 }
 
-// UpdateModelMeta 更新模型
+// UpdateModelMeta update model
 func UpdateModelMeta(c *gin.Context) {
 	statusOnly := c.Query("status_only") == "true"
 
@@ -155,7 +155,7 @@ func UpdateModelMeta(c *gin.Context) {
 			common.ApiErrorMsg(c, "invalid catalog visibility")
 			return
 		}
-		// 只更新状态，防止误清空其他字段
+		// Only update the status to prevent accidentally clearing other fields
 		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Update("status", m.Status).Error; err != nil {
 			common.ApiError(c, err)
 			return
@@ -170,7 +170,7 @@ func UpdateModelMeta(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
-		// 名称冲突检查
+		// Name conflict checking
 		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
 			common.ApiError(c, err)
 			return
@@ -189,7 +189,7 @@ func UpdateModelMeta(c *gin.Context) {
 	common.ApiSuccess(c, &m)
 }
 
-// DeleteModelMeta 删除模型
+// DeleteModelMeta delete model
 func DeleteModelMeta(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)

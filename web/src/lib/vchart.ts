@@ -17,6 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export const VCHART_OPTION = {
-  // 与老前端保持一致（浏览器环境渲染优化）
+  // Consistent with the old front-end (browser environment rendering optimization)
   mode: 'desktop-browser',
 } as const

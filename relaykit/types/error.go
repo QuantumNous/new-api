@@ -251,7 +251,7 @@ type NewAPIErrorOptions func(*NewAPIError)
 
 func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPIError {
 	var newErr *NewAPIError
-	// 保留深层传递的 new err
+	// Preserve new err passed deeply
 	if errors.As(err, &newErr) {
 		for _, op := range ops {
 			op(newErr)
@@ -273,7 +273,7 @@ func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPI
 
 func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
 	var newErr *NewAPIError
-	// 保留深层传递的 new err
+	// Preserve new err passed deeply
 	if errors.As(err, &newErr) {
 		if newErr.RelayError == nil {
 			openaiError := OpenAIError{

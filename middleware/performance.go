@@ -10,11 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SystemPerformanceCheck 检查系统性能中间件
+// SystemPerformanceCheck checks system performance middleware
 func SystemPerformanceCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 仅检查 Relay 接口 (/v1, /v1beta 等)
-		// 这里简单判断路径前缀，可以根据实际路由调整
+		// Only check Relay interfaces (/v1, /v1beta, etc.)
+		// Here we simply determine the path prefix, which can be adjusted according to the actual route.
 		path := c.Request.URL.Path
 		if strings.HasPrefix(path, "/v1/messages") {
 			if err := checkSystemPerformance(); err != nil {
@@ -37,10 +37,10 @@ func SystemPerformanceCheck() gin.HandlerFunc {
 	}
 }
 
-// checkSystemPerformance 检查系统性能是否超过阈值
+// checkSystemPerformance checks whether system performance exceeds the threshold
 func checkSystemPerformance() *types.NewAPIError {
-	// 过载标记在采样侧完成：CPU / 内存按容器 cgroup 配额计算，并要求连续多次
-	// 超阈值；判定时再按当前阈值复核，并忽略过期采样。
+	// Overload marking is done on the sampling side: CPU/memory is calculated per container cgroup quota and required multiple times in a row
+	// Exceeding the threshold; when judging, review based on the current threshold and ignore expired samples.
 	overload := common.CheckSystemOverload(common.GetSystemStatus(), common.GetPerformanceMonitorConfig(), time.Now())
 	if overload == nil {
 		return nil

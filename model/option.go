@@ -34,7 +34,7 @@ func InitOptionMap() {
 	common.OptionMapRWMutex.Lock()
 	common.OptionMap = make(map[string]string)
 
-	// 添加原有的系统配置
+	// Add original system configuration
 	common.OptionMap["FileUploadPermission"] = strconv.Itoa(common.FileUploadPermission)
 	common.OptionMap["FileDownloadPermission"] = strconv.Itoa(common.FileDownloadPermission)
 	common.OptionMap["ImageUploadPermission"] = strconv.Itoa(common.ImageUploadPermission)
@@ -185,7 +185,7 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
 
-	// 自动添加所有注册的模型配置
+	// Automatically add all registered model configurations
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
 	maps.Copy(common.OptionMap, modelConfigs)
 
@@ -394,12 +394,12 @@ func updateOptionMap(key string, value string) (err error) {
 	defer common.OptionMapRWMutex.Unlock()
 	common.OptionMap[key] = value
 
-	// 检查是否是模型配置 - 使用更规范的方式处理
+	// Check if it is a model configuration - handle it in a more formal way
 	if handleConfigUpdate(key, value) {
-		return nil // 已由配置系统处理
+		return nil // Processed by configuration system
 	}
 
-	// 处理传统配置项...
+	// Handling legacy configuration items...
 	if strings.HasSuffix(key, "Permission") {
 		intValue, _ := strconv.Atoi(value)
 		switch key {
@@ -447,7 +447,7 @@ func updateOptionMap(key string, value string) (err error) {
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
-			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
+			// Compatible with old fields: synchronize to new configuration general_setting.quota_display_type (effective at runtime)
 			// true -> USD, false -> TOKENS
 			newVal := "USD"
 			if !boolValue {
@@ -714,7 +714,7 @@ func updateOptionMap(key string, value string) (err error) {
 	return err
 }
 
-// handleConfigUpdate 处理分层配置更新，返回是否已处理
+// handleConfigUpdate handles hierarchical configuration updates and returns whether they have been processed
 func handleConfigUpdate(key, value string) bool {
 	if key == operation_setting.ToolPriceOptionKey {
 		operation_setting.LoadToolPricesFromJSONString(value)
@@ -723,25 +723,25 @@ func handleConfigUpdate(key, value string) bool {
 
 	parts := strings.SplitN(key, ".", 2)
 	if len(parts) != 2 {
-		return false // 不是分层配置
+		return false // Not a hierarchical configuration
 	}
 
 	configName := parts[0]
 	configKey := parts[1]
 
-	// 获取配置对象
+	// Get configuration object
 	cfg := config.GlobalConfig.Get(configName)
 	if cfg == nil {
-		return false // 未注册的配置
+		return false // Unregistered configuration
 	}
 
-	// 更新配置
+	// Update configuration
 	configMap := map[string]string{
 		configKey: value,
 	}
 	config.UpdateConfigFromMap(cfg, configMap)
 
-	// 特定配置的后处理
+	// Configuration-specific post-processing
 	if configName == "performance_setting" {
 		performance_setting.UpdateAndSync()
 	} else if configName == "billing_setting" {
@@ -749,5 +749,5 @@ func handleConfigUpdate(key, value string) bool {
 		ratio_setting.InvalidateExposedDataCache()
 	}
 
-	return true // 已处理
+	return true // Processed
 }

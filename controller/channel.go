@@ -520,8 +520,8 @@ func GetChannel(c *gin.Context) {
 	return
 }
 
-// GetChannelKey 获取渠道密钥（需要通过安全验证中间件）
-// 此函数依赖 SecureVerificationRequired 中间件，确保用户已通过安全验证
+// GetChannelKey Gets the channel key (requires security verification middleware)
+// This function relies on the SecureVerificationRequired middleware to ensure that the user has passed security verification
 func GetChannelKey(c *gin.Context) {
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil || channelId <= 0 {
@@ -529,7 +529,7 @@ func GetChannelKey(c *gin.Context) {
 		return
 	}
 
-	// 获取渠道信息（包含密钥）
+	// Get channel information (including key)
 	channel, err := model.GetChannelById(channelId, true)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		common.ApiErrorT(c, "Channel does not exist")
@@ -540,13 +540,13 @@ func GetChannelKey(c *gin.Context) {
 		return
 	}
 
-	// 记录操作审计日志（高危：查看渠道密钥）
+	// Record operation audit logs (high risk: view channel keys)
 	recordManageAudit(c, "channel.key_view", map[string]any{
 		"id":   channelId,
 		"name": channel.Name,
 	})
 
-	// 返回渠道密钥
+	// Return channel key
 	// A plugin credential shows as its summary, never its secrets.
 	common.ApiSuccessT(c, "Fetched successfully", map[string]any{
 		"key": jsplugin.RedactCredentialLines(channel.Key),
@@ -576,13 +576,13 @@ func normalizePluginConfig(channel *model.Channel, plugin *jsplugin.LoadedPlugin
 	return nil
 }
 
-// validateChannel 通用的渠道校验函数
+// validateChannel general channel verification function
 func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel == nil {
 		return fmt.Errorf("channel cannot be empty")
 	}
 
-	// 校验 channel settings
+	// Verify channel settings
 	if err := channel.ValidateSettings(); err != nil {
 		return common.NewMessage("Invalid channel settings format: {{error}}", map[string]any{"error": err.Error()})
 	}
@@ -678,7 +678,7 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		return fmt.Errorf("SGLang channel base URL cannot be empty")
 	}
 
-	// 如果是添加操作，检查 channel 和 key 是否为空
+	// If it is an add operation, check whether channel and key are empty
 	if isAdd {
 		// A channel of a plugin that logs in may start without a key.
 		if channel.Key == "" && !service.ChannelSupportsPluginLogin(channel) {
@@ -688,7 +688,7 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 			return err
 		}
 
-		// 检查模型名称长度是否超过 255
+		// Check if model name length exceeds 255
 		for _, m := range channel.GetModels() {
 			if len(m) > 255 {
 				return common.NewMessage("Model name is too long: {{model}}", map[string]any{"model": m})
@@ -696,7 +696,7 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
-	// VertexAI 特殊校验
+	// VertexAI special verification
 	if channel.Type == constant.ChannelTypeVertexAi {
 		if channel.Other == "" {
 			return common.NewMessage("Deployment region cannot be empty")
@@ -837,7 +837,7 @@ func AddChannel(c *gin.Context) {
 	baseURLFromPluginDefault := addChannelRequest.Channel != nil &&
 		addChannelRequest.Channel.Type == constant.ChannelTypeTaskPlugin &&
 		(addChannelRequest.Channel.BaseURL == nil || strings.TrimSpace(*addChannelRequest.Channel.BaseURL) == "")
-	// 使用统一的校验函数
+	// Use a unified verification function
 	if err := validateChannel(addChannelRequest.Channel, true); err != nil {
 		common.ApiError(c, err)
 		return
@@ -1199,7 +1199,7 @@ func DeleteChannelBatch(c *gin.Context) {
 type PatchChannel struct {
 	model.Channel
 	MultiKeyMode *string `json:"multi_key_mode"`
-	KeyMode      *string `json:"key_mode"` // 多key模式下密钥覆盖或者追加
+	KeyMode      *string `json:"key_mode"` // Key overwriting or appending in multi-key mode
 }
 
 type ChannelStatusRequest struct {
@@ -1244,7 +1244,7 @@ func UpdateChannel(c *gin.Context) {
 
 	baseURLFromPluginDefault := channel.Type == constant.ChannelTypeTaskPlugin &&
 		(channel.BaseURL == nil || strings.TrimSpace(*channel.BaseURL) == "")
-	// 使用统一的校验函数
+	// Use a unified verification function
 	if err := validateChannel(&channel.Channel, false); err != nil {
 		common.ApiError(c, err)
 		return
@@ -1293,9 +1293,9 @@ func UpdateChannel(c *gin.Context) {
 	// nextKey is the key the edit sets on a stored key: a submitted key replaces
 	// it, and an empty one keeps it.
 	nextKey := func(stored string) (string, error) { return channel.Key, nil }
-	// 处理多key模式下的密钥追加/覆盖逻辑
+	// Handle key append/overwrite logic in multi-key mode
 	if channel.KeyMode != nil && *channel.KeyMode == "append" && channel.ChannelInfo.IsMultiKey {
-		// 追加模式：将新密钥添加到现有密钥列表
+		// Append mode: adds a new key to the existing key list
 		nextKey = func(stored string) (string, error) {
 			if stored == "" {
 				return channel.Key, nil
@@ -1303,9 +1303,9 @@ func UpdateChannel(c *gin.Context) {
 			var newKeys []string
 			var existingKeys []string
 
-			// 解析现有密钥
+			// Parse existing keys
 			if strings.HasPrefix(strings.TrimSpace(stored), "[") {
-				// JSON数组格式
+				// JSON array format
 				var arr []json.RawMessage
 				if err := json.Unmarshal([]byte(strings.TrimSpace(stored)), &arr); err == nil {
 					existingKeys = make([]string, len(arr))
@@ -1314,13 +1314,13 @@ func UpdateChannel(c *gin.Context) {
 					}
 				}
 			} else {
-				// 换行分隔格式
+				// newline delimited format
 				existingKeys = strings.Split(strings.Trim(stored, "\n"), "\n")
 			}
 
-			// 处理 Vertex AI 的特殊情况
+			// Handling special cases for Vertex AI
 			if channel.Type == constant.ChannelTypeVertexAi && channel.GetOtherSettings().VertexKeyType != dto.VertexKeyTypeAPIKey {
-				// 尝试解析新密钥为JSON数组
+				// Try parsing the new key into a JSON array
 				if strings.HasPrefix(strings.TrimSpace(channel.Key), "[") {
 					array, _, err := getVertexArrayKeys(channel.Key)
 					if err != nil {
@@ -1328,11 +1328,11 @@ func UpdateChannel(c *gin.Context) {
 					}
 					newKeys = array
 				} else {
-					// 单个JSON密钥
+					// Single JSON key
 					newKeys = []string{channel.Key}
 				}
 			} else {
-				// 普通渠道的处理
+				// Ordinary channel processing
 				inputKeys := strings.SplitSeq(channel.Key, "\n")
 				for key := range inputKeys {
 					key = strings.TrimSpace(key)
@@ -1448,7 +1448,7 @@ func UpdateChannel(c *gin.Context) {
 	if keyChanged {
 		service.RevokeRemovedChannelCredentials(originChannel, keyBefore, keyAfter)
 	}
-	// 记录变更的字段名（语言无关的字段标识），密钥仅记录"已更换"绝不记录内容。
+	// The changed field name (language-independent field identifier) is recorded. The key only records "changed" and never the content.
 	changedFields := make([]string, 0)
 	if channel.Models != originChannel.Models {
 		changedFields = append(changedFields, "models")
@@ -1552,7 +1552,7 @@ func isManageableChannelStatus(status int) bool {
 	return status == common.ChannelStatusEnabled || status == common.ChannelStatusManuallyDisabled
 }
 
-// equalStringPtr 比较两个 *string 是否相等（均为 nil 视为相等）。
+// equalStringPtr Compares two *strings for equality (both nil are considered equal).
 func equalStringPtr(a, b *string) bool {
 	if a == nil && b == nil {
 		return true
@@ -1937,7 +1937,7 @@ func ManageMultiKeys(c *gin.Context) {
 		return
 	}
 
-	// get_key_status 为只读查询，不记录审计；其余为修改操作，记录审计并跳过中间件兜底。
+	// get_key_status is a read-only query and does not record audits; the rest are modification operations, records audits and skips the middleware.
 	if request.Action == "get_key_status" {
 		markAuditLogged(c)
 	} else {
@@ -2114,7 +2114,7 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		err = saveManagedKeyStatus(channel.Id, func(stored *model.Channel) error {
-			// 从状态列表中删除该密钥的记录，使其回到默认启用状态
+			// Remove the key's record from the status list, returning it to its default enabled state
 			delete(stored.ChannelInfo.MultiKeyStatusList, keyIndex)
 			delete(stored.ChannelInfo.MultiKeyDisabledTime, keyIndex)
 			delete(stored.ChannelInfo.MultiKeyDisabledReason, keyIndex)
@@ -2131,7 +2131,7 @@ func ManageMultiKeys(c *gin.Context) {
 		return
 
 	case "enable_all_keys":
-		// 清空所有禁用状态，使所有密钥回到默认启用状态
+		// Clear all disabled status and return all keys to the default enabled status
 		var enabledCount int
 		err = saveManagedKeyStatus(channel.Id, func(stored *model.Channel) error {
 			enabledCount = len(stored.ChannelInfo.MultiKeyStatusList)
@@ -2151,7 +2151,7 @@ func ManageMultiKeys(c *gin.Context) {
 		return
 
 	case "disable_all_keys":
-		// 禁用所有启用的密钥
+		// Disable all enabled keys
 		var disabledCount int
 		shouldCloseWebSocket := false
 		err = saveManagedKeyStatus(channel.Id, func(stored *model.Channel) error {
@@ -2172,7 +2172,7 @@ func ManageMultiKeys(c *gin.Context) {
 					status = s
 				}
 
-				// 只禁用当前启用的密钥
+				// Disable only currently enabled keys
 				if status == 1 {
 					stored.ChannelInfo.MultiKeyStatusList[i] = 2 // disabled
 					disabledCount++
@@ -2221,14 +2221,14 @@ func ManageMultiKeys(c *gin.Context) {
 
 			newIndex := 0
 			for i, key := range keys {
-				// 跳过要删除的密钥
+				// Skip keys for deletion
 				if i == keyIndex {
 					continue
 				}
 
 				remainingKeys = append(remainingKeys, key)
 
-				// 保留其他密钥的状态信息，重新索引
+				// Preserve state information for other keys, re-index
 				if stored.ChannelInfo.MultiKeyStatusList != nil {
 					if status, exists := stored.ChannelInfo.MultiKeyStatusList[i]; exists && status != 1 {
 						newStatusList[newIndex] = status
@@ -2295,12 +2295,12 @@ func ManageMultiKeys(c *gin.Context) {
 					}
 				}
 
-				// 只删除自动禁用（status == 3）的密钥，保留启用（status == 1）和手动禁用（status == 2）的密钥
+				// Remove only automatically disabled (status == 3) keys, keep enabled (status == 1) and manually disabled (status == 2) keys
 				if status == 3 {
 					deletedCount++
 				} else {
 					remainingKeys = append(remainingKeys, key)
-					// 保留非自动禁用密钥的状态信息，重新索引
+					// Preserve state information for non-automatically disabled keys, re-index
 					if status != 1 {
 						newStatusList[newIndex] = status
 						if stored.ChannelInfo.MultiKeyDisabledTime != nil {
@@ -2354,7 +2354,7 @@ func multiKeyActionRequiresSensitiveWrite(action string) bool {
 	return action == "delete_key" || action == "delete_disabled_keys"
 }
 
-// OllamaPullModel 拉取 Ollama 模型
+// OllamaPullModel pulls the Ollama model
 func OllamaPullModel(c *gin.Context) {
 	var req struct {
 		ChannelID int    `json:"channel_id"`
@@ -2377,7 +2377,7 @@ func OllamaPullModel(c *gin.Context) {
 		return
 	}
 
-	// 获取渠道信息
+	// Get channel information
 	channel, err := model.GetChannelById(req.ChannelID, true)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -2387,7 +2387,7 @@ func OllamaPullModel(c *gin.Context) {
 		return
 	}
 
-	// 检查是否是 Ollama 渠道
+	// Check if it is an Ollama channel
 	if channel.Type != constant.ChannelTypeOllama {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -2417,7 +2417,7 @@ func OllamaPullModel(c *gin.Context) {
 	})
 }
 
-// OllamaPullModelStream 流式拉取 Ollama 模型
+// OllamaPullModelStream Streaming pull Ollama model
 func OllamaPullModelStream(c *gin.Context) {
 	var req struct {
 		ChannelID int    `json:"channel_id"`
@@ -2440,7 +2440,7 @@ func OllamaPullModelStream(c *gin.Context) {
 		return
 	}
 
-	// 获取渠道信息
+	// Get channel information
 	channel, err := model.GetChannelById(req.ChannelID, true)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -2450,7 +2450,7 @@ func OllamaPullModelStream(c *gin.Context) {
 		return
 	}
 
-	// 检查是否是 Ollama 渠道
+	// Check if it is an Ollama channel
 	if channel.Type != constant.ChannelTypeOllama {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -2464,7 +2464,7 @@ func OllamaPullModelStream(c *gin.Context) {
 		baseURL = channel.GetBaseURL()
 	}
 
-	// 设置 SSE 头部
+	// Set SSE header
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
@@ -2472,14 +2472,14 @@ func OllamaPullModelStream(c *gin.Context) {
 
 	key := strings.Split(channel.Key, "\n")[0]
 
-	// 创建进度回调函数
+	// Create a progress callback function
 	progressCallback := func(progress ollama.OllamaPullResponse) {
 		data, _ := json.Marshal(progress)
 		fmt.Fprintf(c.Writer, "data: %s\n\n", string(data))
 		c.Writer.Flush()
 	}
 
-	// 执行拉取
+	// Execute pull
 	err = ollama.PullOllamaModelStream(baseURL, key, req.ModelName, progressCallback)
 
 	if err != nil {
@@ -2494,12 +2494,12 @@ func OllamaPullModelStream(c *gin.Context) {
 		fmt.Fprintf(c.Writer, "data: %s\n\n", string(successData))
 	}
 
-	// 发送结束标志
+	// Send end flag
 	fmt.Fprintf(c.Writer, "data: [DONE]\n\n")
 	c.Writer.Flush()
 }
 
-// OllamaDeleteModel 删除 Ollama 模型
+// OllamaDeleteModel deletes the Ollama model
 func OllamaDeleteModel(c *gin.Context) {
 	var req struct {
 		ChannelID int    `json:"channel_id"`
@@ -2522,7 +2522,7 @@ func OllamaDeleteModel(c *gin.Context) {
 		return
 	}
 
-	// 获取渠道信息
+	// Get channel information
 	channel, err := model.GetChannelById(req.ChannelID, true)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -2532,7 +2532,7 @@ func OllamaDeleteModel(c *gin.Context) {
 		return
 	}
 
-	// 检查是否是 Ollama 渠道
+	// Check if it is an Ollama channel
 	if channel.Type != constant.ChannelTypeOllama {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -2562,7 +2562,7 @@ func OllamaDeleteModel(c *gin.Context) {
 	})
 }
 
-// OllamaVersion 获取 Ollama 服务版本信息
+// OllamaVersion Gets Ollama service version information
 func OllamaVersion(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

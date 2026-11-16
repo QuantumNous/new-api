@@ -2,7 +2,7 @@ package dto
 
 type VideoRequest struct {
 	Model          string         `json:"model,omitempty" example:"kling-v1"`                                                                                                                                    // Model/style ID
-	Prompt         string         `json:"prompt,omitempty" example:"宇航员站起身走了"`                                                                                                                                   // Text prompt
+	Prompt         string         `json:"prompt,omitempty" example:"An astronaut stands up and walks away"`                                                                                                      // Text prompt
 	Image          string         `json:"image,omitempty" example:"https://h2.inkwai.com/bs2/upload-ylab-stunt/se/ai_portal_queue_mmu_image_upscale_aiweb/3214b798-e1b4-4b00-b7af-72b5b0417420_raw_image_0.jpg"` // Image input (URL/Base64)
 	Duration       float64        `json:"duration" example:"5.0"`                                                                                                                                                // Video duration (seconds)
 	Width          int            `json:"width" example:"512"`                                                                                                                                                   // Video width
@@ -15,32 +15,32 @@ type VideoRequest struct {
 	Metadata       map[string]any `json:"metadata,omitempty"`                                                                                                                                                    // Vendor-specific/custom params (e.g. negative_prompt, style, quality_level, etc.)
 }
 
-// VideoResponse 视频生成提交任务后的响应
+// VideoResponse video generation response after submitting the task
 type VideoResponse struct {
 	TaskId string `json:"task_id"`
 	Status string `json:"status"`
 }
 
-// VideoTaskResponse 查询视频生成任务状态的响应
+// VideoTaskResponse Query the response of video generation task status
 type VideoTaskResponse struct {
-	TaskId   string             `json:"task_id" example:"abcd1234efgh"` // 任务ID
-	Status   string             `json:"status" example:"succeeded"`     // 任务状态
-	Url      string             `json:"url,omitempty"`                  // 视频资源URL（成功时）
-	Format   string             `json:"format,omitempty" example:"mp4"` // 视频格式
-	Metadata *VideoTaskMetadata `json:"metadata,omitempty"`             // 结果元数据
-	Error    *VideoTaskError    `json:"error,omitempty"`                // 错误信息（失败时）
+	TaskId   string             `json:"task_id" example:"abcd1234efgh"` // Task ID
+	Status   string             `json:"status" example:"succeeded"`     // Task status
+	Url      string             `json:"url,omitempty"`                  // Video resource URL (on success)
+	Format   string             `json:"format,omitempty" example:"mp4"` // video format
+	Metadata *VideoTaskMetadata `json:"metadata,omitempty"`             // Result metadata
+	Error    *VideoTaskError    `json:"error,omitempty"`                // Error message (on failure)
 }
 
-// VideoTaskMetadata 视频任务元数据
+// VideoTaskMetadata video task metadata
 type VideoTaskMetadata struct {
-	Duration float64 `json:"duration" example:"5.0"`  // 实际生成的视频时长
-	Fps      int     `json:"fps" example:"30"`        // 实际帧率
-	Width    int     `json:"width" example:"512"`     // 实际宽度
-	Height   int     `json:"height" example:"512"`    // 实际高度
-	Seed     int     `json:"seed" example:"20231234"` // 使用的随机种子
+	Duration float64 `json:"duration" example:"5.0"`  // Actual generated video duration
+	Fps      int     `json:"fps" example:"30"`        // Actual frame rate
+	Width    int     `json:"width" example:"512"`     // actual width
+	Height   int     `json:"height" example:"512"`    // actual height
+	Seed     int     `json:"seed" example:"20231234"` // Random seed to use
 }
 
-// VideoTaskError 视频任务错误信息
+// VideoTaskError video task error message
 type VideoTaskError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`

@@ -44,7 +44,7 @@ type GlobalSettings struct {
 	ChatCompletionsToResponsesPolicy ChatCompletionsToResponsesPolicy `json:"chat_completions_to_responses_policy"`
 }
 
-// 默认配置
+// Default configuration
 var defaultOpenaiSettings = GlobalSettings{
 	PassThroughRequestEnabled: false,
 	ThinkingModelBlacklist: []string{
@@ -64,11 +64,11 @@ var defaultOpenaiSettings = GlobalSettings{
 	},
 }
 
-// 全局实例
+// global instance
 var globalSettings = defaultOpenaiSettings
 
 func init() {
-	// 注册到全局配置管理器
+	// Register to the global configuration manager
 	config.GlobalConfig.Register("global", &globalSettings)
 }
 

@@ -135,7 +135,7 @@ return 1`
 	).Int()
 }
 
-// cacheGetTokenByKey 从缓存读取 token；不完整的哈希（如仅有配额字段）会被拒绝。
+// cacheGetTokenByKey reads the token from the cache; incomplete hashes (such as only the quota field) are rejected.
 func cacheGetTokenByKey(key string) (*Token, error) {
 	if !common.RedisEnabled {
 		return nil, fmt.Errorf("redis is not enabled")

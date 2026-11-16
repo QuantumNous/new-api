@@ -149,7 +149,7 @@ test('a balance of limits only shows its fullest limit, and the hover lists ever
       unlimited: false,
       windows: [
         { name: '5-hour', used: 45, limit: 50, unit: 'requests' },
-        { name: { en: 'Weekly', zh: '每周' }, used: 10, limit: 100 },
+        { name: { en: 'Weekly', zh: "Weekly" }, used: 10, limit: 100 },
       ],
       error: 'Upstream answered 429',
     })

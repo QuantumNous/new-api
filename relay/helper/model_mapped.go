@@ -25,7 +25,7 @@ func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.
 			return fmt.Errorf("unmarshal_model_mapping_failed")
 		}
 
-		// 支持链式模型重定向，最终使用链尾的模型
+		// Supports chained model redirection, ultimately using the model at the end of the chain
 		currentModel := info.OriginModelName
 		visitedModels := map[string]bool{
 			currentModel: true,
@@ -37,7 +37,7 @@ func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.
 				mappedModel, exists = modelMap[baseModel]
 			}
 			if exists && mappedModel != "" {
-				// 模型重定向循环检测，避免无限循环
+				// Model redirection loop detection to avoid infinite loops
 				if visitedModels[mappedModel] {
 					if mappedModel == currentModel {
 						if currentModel == info.OriginModelName {

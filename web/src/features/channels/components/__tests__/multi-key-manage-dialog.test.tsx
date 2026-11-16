@@ -87,7 +87,7 @@ function OpenDialog(props: { channel: Channel }) {
 
 test('translates the disabled reasons the server writes and shows upstream text as written', async () => {
   i18next.addResourceBundle('zhCN', 'translation', {
-    'Plugin credential needs a new login': '插件凭证需要重新登录',
+    'Plugin credential needs a new login': "Plugin credential needs a new login",
   })
   await i18next.changeLanguage('zhCN')
   const upstream = 'upstream said {{bad}}'
@@ -124,7 +124,7 @@ test('translates the disabled reasons the server writes and shows upstream text 
     </QueryClientProvider>
   )
 
-  expect(await screen.findByText('插件凭证需要重新登录')).toBeInTheDocument()
+  expect(await screen.findByText("Plugin credential needs a new login")).toBeInTheDocument()
   expect(screen.getByText(upstream)).toBeInTheDocument()
 })
 

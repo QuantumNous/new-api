@@ -58,7 +58,7 @@ func formatRequest(requestBody io.Reader, requestHeader http.Header) (*AwsClaude
 	return &awsClaudeRequest, nil
 }
 
-// NovaMessage Nova模型使用messages-v1格式
+// NovaMessage Nova model uses messages-v1 format
 type NovaMessage struct {
 	Role    string        `json:"role"`
 	Content []NovaContent `json:"content"`
@@ -69,20 +69,20 @@ type NovaContent struct {
 }
 
 type NovaRequest struct {
-	SchemaVersion   string               `json:"schemaVersion"`             // 请求版本，例如 "1.0"
-	Messages        []NovaMessage        `json:"messages"`                  // 对话消息列表
-	InferenceConfig *NovaInferenceConfig `json:"inferenceConfig,omitempty"` // 推理配置，可选
+	SchemaVersion   string               `json:"schemaVersion"`             // Request version, e.g. "1.0"
+	Messages        []NovaMessage        `json:"messages"`                  // Conversation message list
+	InferenceConfig *NovaInferenceConfig `json:"inferenceConfig,omitempty"` // Inference configuration, optional
 }
 
 type NovaInferenceConfig struct {
-	MaxTokens     int      `json:"maxTokens,omitempty"`     // 最大生成的 token 数
-	Temperature   float64  `json:"temperature,omitempty"`   // 随机性 (默认 0.7, 范围 0-1)
-	TopP          float64  `json:"topP,omitempty"`          // nucleus sampling (默认 0.9, 范围 0-1)
-	TopK          int      `json:"topK,omitempty"`          // 限制候选 token 数 (默认 50, 范围 0-128)
-	StopSequences []string `json:"stopSequences,omitempty"` // 停止生成的序列
+	MaxTokens     int      `json:"maxTokens,omitempty"`     // Maximum number of tokens generated
+	Temperature   float64  `json:"temperature,omitempty"`   // Randomness (default 0.7, range 0-1)
+	TopP          float64  `json:"topP,omitempty"`          // nucleus sampling (default 0.9, range 0-1)
+	TopK          int      `json:"topK,omitempty"`          // Limit the number of candidate tokens (default 50, range 0-128)
+	StopSequences []string `json:"stopSequences,omitempty"` // Stop the generated sequence
 }
 
-// 转换OpenAI请求为Nova格式
+// Convert OpenAI requests to Nova format
 func convertToNovaRequest(req *dto.GeneralOpenAIRequest) *NovaRequest {
 	novaMessages := make([]NovaMessage, len(req.Messages))
 	for i, msg := range req.Messages {
@@ -97,7 +97,7 @@ func convertToNovaRequest(req *dto.GeneralOpenAIRequest) *NovaRequest {
 		Messages:      novaMessages,
 	}
 
-	// 设置推理配置
+	// Set up inference configuration
 	if (req.MaxTokens != nil && *req.MaxTokens != 0) || (req.Temperature != nil && *req.Temperature != 0) || (req.TopP != nil && *req.TopP != 0) || (req.TopK != nil && *req.TopK != 0) || req.Stop != nil {
 		novaReq.InferenceConfig = &NovaInferenceConfig{}
 		if req.MaxTokens != nil && *req.MaxTokens != 0 {
@@ -122,7 +122,7 @@ func convertToNovaRequest(req *dto.GeneralOpenAIRequest) *NovaRequest {
 	return novaReq
 }
 
-// parseStopSequences 解析停止序列，支持字符串或字符串数组
+// parseStopSequences parses stop sequences, supports strings or string arrays
 func parseStopSequences(stop any) []string {
 	if stop == nil {
 		return nil

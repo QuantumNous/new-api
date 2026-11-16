@@ -94,10 +94,9 @@ export interface CurrencyFormatOptions {
   abbreviate?: boolean
   /** Minimal absolute value to display when rounding would produce zero */
   minimumNonZero?: number
-  /**
-   * Use locale-aware compact notation for large values (e.g. "$28万" in zh,
-   * "$280K" in en). The currency symbol is preserved.
-   */
+  /* *
+   * Use locale-aware compact notation for large values (e.g. "$280,000" in en,
+   * "$280K" in en). The currency symbol is preserved. */
   compact?: boolean
   /** Whether to include the currency/custom symbol. Token displays are unchanged. */
   showSymbol?: boolean

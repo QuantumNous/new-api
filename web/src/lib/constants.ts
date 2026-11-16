@@ -21,8 +21,10 @@ For commercial licensing, please contact support@quantumnous.com
  */
 
 // System Configuration Defaults
-export const DEFAULT_SYSTEM_NAME = 'New API'
-export const DEFAULT_LOGO = '/logo.png'
+import { ORBIT_BRAND } from './orbit-brand'
+
+export const DEFAULT_SYSTEM_NAME = ORBIT_BRAND.name
+export const DEFAULT_LOGO = ORBIT_BRAND.logo
 
 // LocalStorage Keys
 export const STORAGE_KEYS = {

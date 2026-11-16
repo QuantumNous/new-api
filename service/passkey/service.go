@@ -173,7 +173,7 @@ func resolveOrigins(r *http.Request, settings *system_setting.PasskeySettings) (
 			origins = append(origins, trimmed)
 		}
 		if len(origins) == 0 {
-			// 如果配置了Origins但过滤后为空，使用自动推导
+			// If Origins is configured but empty after filtering, use automatic derivation.
 			goto autoDetect
 		}
 		return origins, nil
@@ -184,10 +184,10 @@ autoDetect:
 	if scheme == "http" && !settings.AllowInsecureOrigin && r.Host != "localhost" && r.Host != "127.0.0.1" && !strings.HasPrefix(r.Host, "127.0.0.1:") && !strings.HasPrefix(r.Host, "localhost:") {
 		return nil, fmt.Errorf("passkey requires HTTPS, current request: %s://%s; allow insecure origins in the Passkey settings or configure HTTPS", scheme, r.Host)
 	}
-	// 优先使用请求的完整Host（包含端口）
+	// Give priority to using the complete Host of the request (including port)
 	host := r.Host
 
-	// 如果无法从请求获取Host，尝试从ServerAddress获取
+	// If the Host cannot be obtained from the request, try to obtain it from the ServerAddress
 	if host == "" && system_setting.ServerAddress != "" {
 		if parsed, err := url.Parse(system_setting.ServerAddress); err == nil && parsed.Host != "" {
 			host = parsed.Host

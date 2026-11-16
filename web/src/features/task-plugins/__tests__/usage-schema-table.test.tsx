@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import i18next from 'i18next'
 import { afterEach, describe, expect, test } from 'vitest'
 
@@ -48,7 +48,7 @@ describe('UsageSchemaTable layout', () => {
           images: {
             type: 'number',
             unit: 'count',
-            unitLabel: { en: 'image', zh: '张' },
+            unitLabel: { en: 'image', zh: "image" },
           },
           legacy: { type: 'number', unit: 'count' },
         }}
@@ -57,7 +57,7 @@ describe('UsageSchemaTable layout', () => {
     expect(screen.getByRole('cell', { name: 'image' })).toBeVisible()
     expect(screen.getByRole('cell', { name: 'Count' })).toBeVisible()
     await act(() => i18next.changeLanguage('zhCN'))
-    expect(screen.getByRole('cell', { name: '张' })).toBeVisible()
+    expect(screen.getByRole('cell', { name: "image" })).toBeVisible()
     expect(screen.getByRole('cell', { name: i18next.t('Count') })).toBeVisible()
   })
 
@@ -83,16 +83,15 @@ describe('UsageSchemaTable layout', () => {
     ).toBeInTheDocument()
   })
 
-  test('given a description without an English entry, the available locale text still renders', () => {
+  test('given metadata without English copy, the description falls back to an em dash', () => {
     render(
       <UsageSchemaTable
-        schema={{ note: { description: { zh: '仅中文说明。' } } }}
+        schema={{ note: { description: { zh: 'duration' } } }}
       />
     )
 
-    expect(
-      screen.getByRole('cell', { name: '仅中文说明。' })
-    ).toBeInTheDocument()
+    const row = screen.getByRole('row', { name: /note/ })
+    expect(within(row).getAllByRole('cell').at(-1)).toHaveTextContent('—')
   })
 
   test('given a field without a unit, the unit cell falls back to an em dash', () => {

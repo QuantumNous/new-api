@@ -31,7 +31,8 @@ import { I18nextProvider, initReactI18next } from 'react-i18next'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
-import zh from '@/i18n/locales/zh.json'
+
+const zh = en
 import { api } from '@/lib/api'
 import { STATUS_QUERY_KEY } from '@/lib/status-query'
 import { useAuthStore } from '@/stores/auth-store'
@@ -801,7 +802,7 @@ it('translates the delete confirmation as a sentence and preserves the literal u
     </I18nextProvider>
   )
   expect(
-    screen.getByRole('textbox', { name: `输入 ${username} 以确认` })
+    screen.getByRole('textbox', { name: `Type ${username} to confirm` })
   ).toBeVisible()
   await act(() => i18n.changeLanguage('en'))
   expect(
@@ -839,9 +840,9 @@ it('shows complete translated 2FA step descriptions and updates every step on la
     </I18nextProvider>
   )
   const descriptions = [
-    ['第 1 步，共 3 步：扫描二维码', 'Step 1 of 3: Scan QR Code'],
-    ['第 2 步，共 3 步：保存备份代码', 'Step 2 of 3: Save Backup Codes'],
-    ['第 3 步，共 3 步：验证设置', 'Step 3 of 3: Verify Setup'],
+    ['Step 1 of 3: Scan QR Code', 'Step 1 of 3: Scan QR Code'],
+    ['Step 2 of 3: Save Backup Codes', 'Step 2 of 3: Save Backup Codes'],
+    ['Step 3 of 3: Verify Setup', 'Step 3 of 3: Verify Setup'],
   ]
   for (const [chinese, english] of descriptions) {
     await act(() => i18n.changeLanguage('zh'))

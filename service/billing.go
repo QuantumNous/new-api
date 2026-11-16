@@ -17,10 +17,10 @@ const (
 	BillingSourceSubscription = "subscription"
 )
 
-// PreConsumeBilling 根据用户计费偏好创建 BillingSession 并执行预扣费。
-// 会话存储在 relayInfo.Billing 上，供后续 Settle / Refund 使用。
-// 会话已存在时（任务重试换到另一个渠道）把预扣补到 preConsumedQuota，
-// 和首次预扣一样必须由余额覆盖。
+// PreConsumeBilling creates a BillingSession and performs withholding based on user billing preferences.
+// The session is stored on relayInfo.Billing for subsequent Settle/Refund use.
+// When the session already exists (the task is retried and switched to another channel), the withholding is added to preConsumedQuota.
+// Like the initial withholding it must be covered by the remaining balance.
 func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycommon.RelayInfo) *types.NewAPIError {
 	if relayInfo != nil && relayInfo.QuotaClamp != nil {
 		return types.NewErrorWithStatusCode(
@@ -57,11 +57,11 @@ func PreConsumeBilling(c *gin.Context, preConsumedQuota int, relayInfo *relaycom
 }
 
 // ---------------------------------------------------------------------------
-// SettleBilling — 后结算辅助函数
+// SettleBilling — post-settlement helper function
 // ---------------------------------------------------------------------------
 
-// SettleBilling 执行计费结算。如果 RelayInfo 上有 BillingSession 则通过 session 结算，
-// 否则回退到旧的 PostConsumeQuota 路径（兼容按次计费等场景）。
+// SettleBilling performs billing settlement. If there is a BillingSession on the RelayInfo, it will be settled through the session.
+// Otherwise, fall back to the old PostConsumeQuota path (compatible with scenarios such as pay-per-view).
 func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuota int) error {
 	if relayInfo.Billing != nil {
 		preConsumed := relayInfo.Billing.GetPreConsumedQuota()
@@ -89,7 +89,7 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 			return err
 		}
 
-		// 发送额度通知（订阅计费使用订阅剩余额度）
+		// Send quota notification (subscription billing uses the remaining quota of the subscription)
 		if actualQuota != 0 {
 			if relayInfo.BillingSource == BillingSourceSubscription {
 				checkAndSendSubscriptionQuotaNotify(relayInfo)
@@ -100,7 +100,7 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		return nil
 	}
 
-	// 回退：无 BillingSession 时使用旧路径
+	// Fallback: Use old path when no BillingSession
 	quotaDelta := actualQuota - relayInfo.FinalPreConsumedQuota
 	if quotaDelta != 0 {
 		return PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)

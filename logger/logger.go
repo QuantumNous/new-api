@@ -123,7 +123,7 @@ func logHelper(ctx context.Context, level string, msg string) {
 
 // LogQuota formats a quota for a server log line.
 func LogQuota(quota int) string {
-	// 新逻辑：根据额度展示类型输出
+	// New logic: output based on quota display type
 	q := float64(quota)
 	switch operation_setting.GetQuotaDisplayType() {
 	case operation_setting.QuotaDisplayTypeCNY:
@@ -175,7 +175,7 @@ func FormatQuota(quota int) string {
 	}
 }
 
-// LogJson 仅供测试使用 only for test
+// LogJson only for test use only for test
 func LogJson(ctx context.Context, msg string, obj any) {
 	if !common.DebugEnabled {
 		return

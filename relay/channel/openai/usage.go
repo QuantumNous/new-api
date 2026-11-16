@@ -18,7 +18,7 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 			usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
 		}
 	case constant.ChannelTypeZhipu_v4:
-		// 智普的cached_tokens在标准位置: usage.prompt_tokens_details.cached_tokens
+		// Zhipu's cached_tokens are in the standard location: usage.prompt_tokens_details.cached_tokens
 		if usage.PromptTokensDetails.CachedTokens == 0 {
 			if usage.InputTokensDetails != nil && usage.InputTokensDetails.CachedTokens > 0 {
 				usage.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens
@@ -29,7 +29,7 @@ func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, res
 			}
 		}
 	case constant.ChannelTypeMoonshot:
-		// Moonshot的cached_tokens在非标准位置: choices[].usage.cached_tokens
+		// Moonshot's cached_tokens are in non-standard locations: choices[].usage.cached_tokens
 		if usage.PromptTokensDetails.CachedTokens == 0 {
 			if usage.InputTokensDetails != nil && usage.InputTokensDetails.CachedTokens > 0 {
 				usage.PromptTokensDetails.CachedTokens = usage.InputTokensDetails.CachedTokens
@@ -81,8 +81,8 @@ func extractCachedTokensFromBody(body []byte) (int, bool) {
 	return 0, false
 }
 
-// extractMoonshotCachedTokensFromBody 从Moonshot的非标准位置提取cached_tokens
-// Moonshot的流式响应格式: {"choices":[{"usage":{"cached_tokens":111}}]}
+// extractMoonshotCachedTokensFromBody Extract cached_tokens from Moonshot's non-standard location
+// Moonshot's streaming response format: {"choices":[{"usage":{"cached_tokens":111}}]}
 func extractMoonshotCachedTokensFromBody(body []byte) (int, bool) {
 	if len(body) == 0 {
 		return 0, false
@@ -100,7 +100,7 @@ func extractMoonshotCachedTokensFromBody(body []byte) (int, bool) {
 		return 0, false
 	}
 
-	// 遍历choices查找cached_tokens
+	// Traverse choices to find cached_tokens
 	for _, choice := range payload.Choices {
 		if choice.Usage.CachedTokens != nil && *choice.Usage.CachedTokens > 0 {
 			return *choice.Usage.CachedTokens, true
@@ -110,7 +110,7 @@ func extractMoonshotCachedTokensFromBody(body []byte) (int, bool) {
 	return 0, false
 }
 
-// extractLlamaCachedTokensFromBody 从llama.cpp的非标准位置提取cache_n
+// extractLlamaCachedTokensFromBody Extract cache_n from non-standard location of llama.cpp
 func extractLlamaCachedTokensFromBody(body []byte) (int, bool) {
 	if len(body) == 0 {
 		return 0, false

@@ -29,18 +29,17 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
-import { type TopNavLink } from '../types'
+import type { TopNavLink } from '../types'
 
 type TopNavProps = React.HTMLAttributes<HTMLElement> & {
   links: TopNavLink[]
 }
 
-/**
- * 顶部导航栏组件
- * 在大屏幕显示水平导航，在小屏幕显示下拉菜单
- */
+/* *
+ * Top navigation bar component
+ * Display horizontal navigation on large screens and drop-down menus on small screens */
 export function TopNav({ className, links, ...props }: TopNavProps) {
-  // 规范化链接，确保所有可选属性都有默认值
+  // Canonicalize links to ensure all optional attributes have default values
   const normalizedLinks = useMemo(
     () =>
       links.map((link) => ({
@@ -54,7 +53,7 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
 
   return (
     <>
-      {/* 移动端下拉菜单 */}
+      {/* Mobile drop-down menu */}
       <div className='lg:hidden'>
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger
@@ -87,14 +86,14 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
                       </Link>
                     )
                   }
-                ></DropdownMenuItem>
+                 />
               )
             )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* 桌面端水平导航 */}
+      {/* Desktop horizontal navigation */}
       <nav
         className={cn(
           'hidden items-center space-x-4 lg:flex lg:space-x-4 xl:space-x-6',

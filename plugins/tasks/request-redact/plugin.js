@@ -5,11 +5,8 @@ const DEFAULT_CATEGORIES = ["email", "phone", "id_card", "bank_card", "api_key"]
 export const meta = {
   apiVersion: 1,
   key: "request-redact",
-  name: { en: "Request redaction", zh: "请求脱敏" },
-  description: {
-    en: "Replaces personal information and keys in request text before it is sent",
-    zh: "发送前替换请求文本中的个人信息和密钥",
-  },
+  name: { en: "Request redaction" },
+  description: { en: "Replaces personal information and keys in request text before it is sent" },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   configSchema: {
@@ -17,60 +14,57 @@ export const meta = {
     properties: {
       categories: {
         type: "array",
-        title: { en: "Built-in types", zh: "内置类型" },
-        description: { en: "Types of information to replace", zh: "要替换的信息类型" },
+        title: { en: "Built-in types" },
+        description: { en: "Types of information to replace" },
         default: DEFAULT_CATEGORIES,
         uniqueItems: true,
         items: {
           type: "string",
-          title: { en: "Type", zh: "类型" },
-          description: { en: "Type of information", zh: "信息类型" },
+          title: { en: "Type" },
+          description: { en: "Type of information" },
           enum: CATEGORIES,
           enumTitles: [
-            { en: "Email addresses", zh: "邮箱地址" },
-            { en: "Phone numbers", zh: "电话号码" },
-            { en: "ID card numbers", zh: "身份证号" },
-            { en: "Bank card numbers", zh: "银行卡号" },
-            { en: "API keys and tokens", zh: "API 密钥和令牌" },
-            { en: "IPv4 addresses", zh: "IPv4 地址" },
+            { en: "Email addresses" },
+            { en: "Phone numbers" },
+            { en: "ID card numbers" },
+            { en: "Bank card numbers" },
+            { en: "API keys and tokens" },
+            { en: "IPv4 addresses" },
           ],
         },
       },
       rules: {
         type: "array",
-        title: { en: "Custom rules", zh: "自定义规则" },
-        description: { en: "Regular expressions applied after the built-in types", zh: "在内置类型之后应用的正则表达式" },
+        title: { en: "Custom rules" },
+        description: { en: "Regular expressions applied after the built-in types" },
         default: [],
         maxItems: 50,
         items: {
           type: "object",
-          title: { en: "Rule", zh: "规则" },
-          description: { en: "Text to replace", zh: "要替换的文本" },
+          title: { en: "Rule" },
+          description: { en: "Text to replace" },
           required: ["pattern"],
           properties: {
             pattern: {
               type: "string",
               format: "regex",
-              title: { en: "Regular expression", zh: "正则表达式" },
-              description: { en: "Text that matches is replaced", zh: "匹配到的文本会被替换" },
+              title: { en: "Regular expression" },
+              description: { en: "Text that matches is replaced" },
               minLength: 1,
               maxLength: 1024,
               examples: ["EMP-\\d{6}"],
             },
             replacement: {
               type: "string",
-              title: { en: "Replacement text", zh: "替换文本" },
-              description: { en: "Leave empty to use the default replacement text", zh: "留空时使用默认替换文本" },
+              title: { en: "Replacement text" },
+              description: { en: "Leave empty to use the default replacement text" },
               maxLength: 64,
               examples: ["[EMPLOYEE_ID]"],
             },
             id: {
               type: "string",
-              title: { en: "Rule ID", zh: "规则 ID" },
-              description: {
-                en: "Recorded in logs when the rule matches; leave empty to number rules in order",
-                zh: "命中时记录在日志中，留空时按顺序编号",
-              },
+              title: { en: "Rule ID" },
+              description: { en: "Recorded in logs when the rule matches; leave empty to number rules in order" },
               maxLength: 64,
               examples: ["employee-id"],
             },
@@ -79,40 +73,34 @@ export const meta = {
       },
       replacement: {
         type: "string",
-        title: { en: "Default replacement text", zh: "默认替换文本" },
-        description: { en: "Text that replaces each match", zh: "替换每处匹配的文本" },
+        title: { en: "Default replacement text" },
+        description: { en: "Text that replaces each match" },
         default: "[REDACTED]",
         minLength: 1,
         maxLength: 64,
       },
       finalCheck: {
         type: "string",
-        title: { en: "Check before sending", zh: "发送前检查" },
-        description: {
-          en: "Action when the request to be sent still contains such information",
-          zh: "即将发送的请求仍含此类信息时的处理方式",
-        },
+        title: { en: "Check before sending" },
+        description: { en: "Action when the request to be sent still contains such information" },
         enum: ["reject", "off"],
         enumTitles: [
-          { en: "Reject the request", zh: "拒绝请求" },
-          { en: "Off", zh: "关闭" },
+          { en: "Reject the request" },
+          { en: "Off" },
         ],
         default: "reject",
       },
       replies: {
         type: "boolean",
-        title: { en: "Mask replies", zh: "遮盖回复" },
-        description: {
-          en: "Also mask these types and rules in model replies",
-          zh: "同时遮盖模型回复中的这些类型和规则",
-        },
+        title: { en: "Mask replies" },
+        description: { en: "Also mask these types and rules in model replies" },
         default: false,
       },
     },
   },
   samples: [
-    {
-      name: { en: "Email and phone number", zh: "邮箱和电话号码" },
+{
+      name: { en: "Email and phone number" },
       lang: "en",
       format: "openai",
       body: {
@@ -125,18 +113,8 @@ export const meta = {
         ],
       },
       reply: "Hi Jane (jane.doe@example.com), feel free to call me at +14155550123 any time after 5 pm.",
-    },
-    {
-      name: { en: "Email and phone number", zh: "邮箱和电话号码" },
-      lang: "zh",
-      format: "openai",
-      body: {
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: "帮我给 zhang.wei@example.cn 写一条消息，告诉他下午五点后可以打 13812345678 找我。" }],
-      },
-      reply: "张伟你好（zhang.wei@example.cn），下午五点后可以拨打 13812345678 联系我。",
-    },
-  ],
+    }
+],
 };
 
 const ID_CARD_WEIGHTS = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2];

@@ -64,7 +64,7 @@ func main() {
 		return
 	}
 
-	common.SysLog(common.LogText("New API %s started", common.Version))
+	common.SysLog(common.LogText("BEU Developer Orbit %s started", common.Version))
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -140,14 +140,14 @@ func main() {
 	}
 	service.StartNodeSync()
 
-	// 热更新配置
+	// Hot update configuration
 	go model.SyncOptions(common.SyncFrequency)
 	go controller.SyncTaskPlugins()
 
-	// 周期性重载授权策略，保证多节点/多 master 部署下权限变更能传播到每个实例
+	// Periodically reload the authorization policy to ensure that permission changes can be propagated to each instance under multi-node/multi-master deployment
 	go authz.StartPolicySync(common.SyncFrequency)
 
-	// 数据看板
+	// Data dashboard
 	go model.UpdateQuotaData()
 
 	// CHANNEL_UPDATE_FREQUENCY schedules the update of all balances, a system
@@ -227,7 +227,7 @@ func main() {
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
 
-	// 设置路由
+	// Set up routing
 	router.SetRouter(server, router.WebAssets{
 		BuildFS:   buildFS,
 		IndexPage: indexPage,
@@ -264,7 +264,7 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		common.SysError(common.LogText("server forced to shutdown: %v", err))
 	}
-	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
+	// Kanban data in memory is saved into the database to avoid losing data that has not been dropped into the database after restarting (issue #5679)
 	if common.DataExportEnabled {
 		model.SaveQuotaDataCache()
 	}
@@ -324,7 +324,7 @@ func InitResources() error {
 		}
 	}
 
-	// 加载环境变量
+	// Load environment variables
 	common.InitEnv()
 
 	logger.SetupLogger()
@@ -370,7 +370,7 @@ func InitResources() error {
 	}
 	model.InitOptionMap()
 
-	// 清理旧的磁盘缓存文件
+	// Clean old disk cache files
 	common.CleanupOldCacheFiles()
 
 	// Initialize SQL Database
@@ -387,7 +387,7 @@ func InitResources() error {
 
 	perfmetrics.Init()
 
-	// 启动系统监控
+	// Start system monitoring
 	common.StartSystemMonitor()
 
 	// Initialize i18n

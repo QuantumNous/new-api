@@ -1,0 +1,987 @@
+[
+  {
+    "path": "bin/time_test.sh",
+    "sha256": "1ec250d7c1b3caf919914be70f9631959c5feb4d6679b3c8ece9e1349ed38bf4",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "common/json_test.go",
+    "sha256": "af090ace424013ea0a135449673fa9828b6143b8bd12016b03cddef0645d93d7",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "common/system_monitor_test.go",
+    "sha256": "656c055efb57efbc31ff6d47c1a2660d8283787999f5b152fed36a1f5ec27d5f",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "common/system_monitor_test.go",
+    "sha256": "154dd38fbda2f92186f25975d2efeb5923194b47c6d76a874d964f4328c9fe59",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "common/system_monitor_test.go",
+    "sha256": "a026e04e15059c7bd277667211c2bfb413f24ec5dc802452d16561a4b7213e23",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/access_token_audit_test.go",
+    "sha256": "1f0715853b13fa18f99dbccd7052cc0210ca820096948fa10a805402cd128849",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/email_delivery_test.go",
+    "sha256": "dd91951ef7ec2457157c93905b0ed1b63b83f0e11198ce64c33fc1dcd4269710",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/email_delivery_test.go",
+    "sha256": "c11b4dc8c0fc04c58ca943397d55de36bde768f8ed3d855e12555a6a48fe3c0c",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/model_list_test.go",
+    "sha256": "e05486bd9ee9bdb86891450579ad8cb0c03725ffd1d0fac2b1758857df70882d",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/model_list_test.go",
+    "sha256": "6d5f827a664d33cda031ddeca1e20b8c7e5cc9ab4edb1da3da52aef4e542f6fa",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/security_account_test.go",
+    "sha256": "146eaba5e1c5580274731c3d810ece8ff9fe30a2e5bec4786c7bbb7de70a7c47",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/security_account_test.go",
+    "sha256": "ce44753d6be3e14c5e28a53217afbfbf643933213f91844f4d7e59206f0f71e1",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/security_account_test.go",
+    "sha256": "23b4cfc89be5bbbdd92763b6bde4c6ef47c0614d4bcfa7ba0f64bdd73143d5aa",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/task_plugin_test.go",
+    "sha256": "949d58301dd910d855f3f2285f86db7c446b7befd62e6583a624ef1dbdd52540",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/task_plugin_test.go",
+    "sha256": "d18ebd19ba295ab357bd4fcd3770e74fa83684e808b5561a21adca087eb59e9d",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/task_plugin_test.go",
+    "sha256": "e906b75e639f1f719fa0db5376a1dd1064838006927b8d9d6cacb5b931565ded",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/task_plugin_test.go",
+    "sha256": "e21d173dfacf9fca672531abe2c0c1e2a80aef71f6872b8814d98c87302e2469",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/task_plugin_test.go",
+    "sha256": "9775ebfe8f9e992335ff6e4e8b7cb02b9d8668ca9d28f1bc55a1e8f3e4c965c2",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/task_plugin_test.go",
+    "sha256": "d34e8745d9cf10e3ff27ab5f785370a6bd4718fc6938d57dee86a3de55fe076b",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "controller/task_plugin_test.go",
+    "sha256": "947404dd293cf293ba52739679ca4a6255c68ee5b17cf2317afb517e5e97ec3c",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "model/json_column_test.go",
+    "sha256": "0165aebde52901936289d63b03b429fb9afff1d2c208adb1d71f2a0a9017c818",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "model/json_column_test.go",
+    "sha256": "e02a2819e3785ef5a3010c27ad6f19beba8c982babd402bc4933145a4b474c8a",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "model/json_column_test.go",
+    "sha256": "c41b785fa8f2cb218422145de5352ec7de924e8ce19b5597b7698c9912859248",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "model/json_column_test.go",
+    "sha256": "d947e62a2395dfcb0cab5bf651a6b4f968eb126f51f89dd7b911ac89ddd7de89",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "model/pricing_usage_schema_test.go",
+    "sha256": "03fde39aba290ee5882fe18798ec9286bca3621e0706df71431349df7e454783",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "model/pricing_usage_schema_test.go",
+    "sha256": "68c62ca184a876ec0d81560be2f6b7b2448b1bc11af004449389ed3e7700ad0e",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/engine_test.go",
+    "sha256": "61419653745deb99627950ba5109f53607300bf96b17d2a66430bcd2f4b6bddb",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/engine_test.go",
+    "sha256": "b01bc6984388a51cea83258551dfac5e46b8ecd33b07cfc903e6c98d1b5d7164",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/engine_test.go",
+    "sha256": "6483b6c61b527b7360021cebfb91092fc2c76482020e543c8967f802e5e614bb",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/engine_test.go",
+    "sha256": "4b76ed12110a45f1461bd4020f0dda6d2396711be5ba021bd798afec583eeb96",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/engine_test.go",
+    "sha256": "2c28c01095305788539dc56685cc2d2b9a453df50b196cf3de522827808a9ee1",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/engine_test.go",
+    "sha256": "391c5893e5fa06c05d6a271060b795d3a5dd2d29b1428c87318f80398ee9d0b0",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/keywords_test.go",
+    "sha256": "9455e756bf09845cd62e5ea03c8414c46c95495b6df4053543daa55833cde9f7",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/keywords_test.go",
+    "sha256": "860038b90c690ad8a075b7a7904ff5eb411cb267050fb6a4df7afd5b07ea54d8",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/keywords_test.go",
+    "sha256": "c5e77cfee3f659cb675916c701b45d80477c725128e1ea46c00a19072d64a9ed",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "bd9a5241263bb390aeada60ee00a487b28d6d685891953595a337c8acaf99236",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "3bc197e4980326746a54876be6e4e06ac422a28735f1f4b2a04bc7e26e93a707",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "a3b9a493f654ea93e131cb7b4d9fec1b00e968a98a39fecf720634ec75404f82",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "f56c7f0bfa1ec673fedc5528804eb4bf442ad32d9641d5b5b158edc0e6897291",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "2990fced29f77cf0ea6793dba903da02992fed8c80a62913150e5ca5d2b298cd",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "be6fb6579a90d72305d3191a3270c35777ecd4f4ab591d0bc313dd08120c5c20",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "edb96b1f6a5b6e5060808ba4416c04741fc1a7fb5d8a31100864f088470667cf",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "e52b9d3bab0d9f412389db2a55a45abed174002e389b296d6d5f55641f03075b",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "af8354a9b850cd61556d77fc4f2bff13021b4f012e92fc8e1aa50f27d1b7e20c",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "9d1afd590efab956cc28bb6173f660141aa6c9e0b21533743f19a84f3952c061",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/provider_test.go",
+    "sha256": "95a7d23d14c1adfc82eb2112d16906d17cfd72a7a6099b4b7c759b75b7de2065",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "2cb1ff835ac9852852d06f9b133c3d1640ce6a6da2b2171740f06924d7d21842",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "820bfe21b1c2111d54acf76f926b128684aa2d098ad7e2434f9a57e13736be5e",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "2f30076236211328049833898833abf6a4ae1f0ff9a4c5b9d07e4df23ee85782",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "f66f9ca1f7fc482d68965b685e601a9f58d723c06c6d50c11d2ab26f29698e18",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "92e624b95e7fca15bad81d56dc22e940b795820ba3b6a7d0589f5384b7b16de7",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "626786858e1c99ca376be363902d406a4e4e4c37b33788511b8ab168f266f968",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "9be32a14c8e08e0773754982857982fd186984efad9f89a0425adfa0a621a986",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "3b5e996006b650d8042837eb137c46fa603b5b897d49a27bf75aa61e77bc1340",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "23284bd45dd85b954ddf34aae339de3d0e57b4e8c34b2e8fae6251f815529000",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "b801c1d5a33f5c3e69a26c2f2361bc657e2d50fcbf6b3b9b5a60160cef46f714",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "2033a0bbf1c1ba0313655f66e4c0a3081d0011d2c83d6a3328cd91b81df32fbc",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "f895cd4897cae2b80adc7f6421e63c6391988b2050c8a3f2086793799bfdbfab",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "4704cd37c75cc3c8d530714812dc49131144177ef78ff13c819a13e1ebe3b2fc",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "b2a3161e5ba96778baf032d9bfdc734c5abfd5efdd26e83edd7100fce7495768",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "37f27f61391a2c1caddaba6775c5d979d1427248a796ff76499c0c84062fa8e6",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "21d8a9c6d6871625408e04be2de14b95490fc5340d4ef6ade863a238040a7ef2",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "cd2a68c66eb38950a548050d536de31d5660f61a22fe9cbf1a37fcd1f33f0fdf",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "0f87a9a9c27f1c34cae79625f0b3adf0d94883f023eeb92814bfd252420d2279",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "89529146e48d5326eb66670c227d56ef081da2d7f9d5247b692aa6e56936b9d6",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "820a007cb1b45f27b31f8a9563887f2078e9628c3f4e2afc27305fc2451a9207",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "0ff256934e5ee8ced38d206388bc357c93ac91e10472d2e5e46fa01893bcc96a",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "a130331abaceef84a7d3644b0a8ae25c6c407ad6ab69b08b4c6cc7ad1c876a95",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "31e568459a0c29f16cd2f367a434497e71ee114ce38a1b20b33c725cced07649",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "3aa59bec7f48a9998d96163035d7c9af886e16f2c3d469c22786ff83db48aaf2",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "a15332f965b123ad65424deef172e24086873e9390b09742b9a0ed5e097ea7eb",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "a019ec235814f5664a8a1ec794c8d282aedba5b2ed049353a9e7656f3802a2fb",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "d2c3d076d397a4c4813fbae36eeeb352951463880d2bd326b0da4802f6f1b450",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "a680da5fe6c3efd77db6464172308aac7847a7072f354f9a470e6f6b78717dff",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "020109167ea30dc821cb411c5b01f33f8baa8f6438627b06cc81857a10233ea5",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "f3367882bcf80e1cd4836ca5d5a834e404ac9374599f0e2b6965d53da7e61dad",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "ebe8b70a59e0407b7b308b7b17369bc41239e1027349d08600ae47175a7654cf",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "acd4ce3629c43b70fcc50c9fd79f48f9bdb9fcb827126da8b82ae074043a9043",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "dbf42f79c7257b69d327d07e8b302ebce1152144874d8701e2ef99c05a0f63f1",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "f520a9413c365bf3efaddc0583ba12eb023d404c2a0c12a88a4a91c4df8bd6da",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "ddb6cf97cb7770b3cd5b2168480c7d45cc91be09ee70c726a6d13b95ec6c6b33",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "61f3a20632bcea585ac9890a7954747ca81671c840eee51ca12a74e658017d5e",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "e1eba7578e48996b9d44d61ca7944d8d94d12961608d101c7baf2dce7cae5d31",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "3e3cd3417b910561c1252721a96ea47ee7cef747a91b8fd771a27d942b05ec52",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "4187795a30ad37230ce2b12e44d3d1fdd26491b3e181137cd233b38307261997",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "pkg/jsplugin/registry_test.go",
+    "sha256": "67287016d25ac20a74497ae58ccdbeb695da0194502ce526831ee0c92302c080",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/alibaba_responses_test.go",
+    "sha256": "1322b1ccf1a0c6a04f2ff86e439d8ba1fba69a8440ba609163c8659547b4c377",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/alibaba_responses_test.go",
+    "sha256": "69f682cbb7b6de69dcf6606405a5384e1fb4ff5f51b637ae94db0aad4c07949b",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/alibaba_responses_test.go",
+    "sha256": "7fdcff22d95fc216be5482c44ec8671f5da081d72300e8167c093cb0d7ba3f7a",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/doubao_responses_test.go",
+    "sha256": "81889f6bc46e4b2d1280817d4ee8fa61353bc0fa326839d47712a0df126e0f18",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/doubao_responses_test.go",
+    "sha256": "5f74721eb427dc42f942b2103c784e7a32294e2dc24eb07e306d0abf11f732cb",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/request_plugins_test.go",
+    "sha256": "08d8a5674d1236825b966e2c89eb4c309ed4469f2b08a1570ebf1b05b2b371c8",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/request_plugins_test.go",
+    "sha256": "92f00ca1b7f91976a5ca6b2476780046cc97d5e933aae56666c89b49c079e173",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/request_plugins_test.go",
+    "sha256": "da2a057f17661b34eb954a5df38bf83529aa419da4eed69fe5bb8d2b26d86b5b",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/request_plugins_test.go",
+    "sha256": "1acb3ceb38d45b9c63a68d89df07754f6e545a3f948c28ac3a3e1cda37f898ce",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/request_plugins_test.go",
+    "sha256": "e71c46a699a8804df3186297a24acba78afe3f33428fa330b266ffaeff46aea0",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/request_plugins_test.go",
+    "sha256": "cddfc297f7ac44d7eae35ff990149fee77492c521e3b44fdf39e0d07936f517a",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/request_plugins_test.go",
+    "sha256": "36763e2dc17593a09d98ce478b574b7a1cb6921bba01f596b90afc21af428297",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "plugins/request_plugins_test.go",
+    "sha256": "e52055ea84e6217e46c9f1f6c05925c290f726d0cc53221d33cf26e2b7ac4610",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relay/channel/ollama/stream_test.go",
+    "sha256": "7204856ece3072eddef9c1bd72c71d92944a3081a4b894e85f88ff6e8eb9a116",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relay/channel/task/jsplugin/adaptor_test.go",
+    "sha256": "87f16cb86b614282d813499fd3450866abbebe7504408b9840e37a163963937b",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relay/channel/task/jsplugin/adaptor_test.go",
+    "sha256": "d937b3bc5f5d7d4472643e98ab56fada3fc0670c88d8540a1d2e8310e5989b17",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relay/common/override_test.go",
+    "sha256": "e306cfa8db7e47043f4a6bd47a241fd27695cb0f55de5517702eab942a1e9cd6",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relay/common/override_test.go",
+    "sha256": "6506b73cd7ea4f3aaa79bed4a1970ce08b9f2b2eec660c2af692272e0ee5c5e3",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relay/common/override_test.go",
+    "sha256": "7b7694e235aefbdbce9b62ea147fbca649d32a9c7c06ff4ff150ccabf1cc3252",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relay/requestplugin/requestplugin_test.go",
+    "sha256": "a8aa417370df80372c168a64a34f77a49e284ea285db8f8f638f05717470933e",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relay/requestplugin/requestplugin_test.go",
+    "sha256": "e92eccb3de82c66c1647ea60a4a71ae2cdd77621bd35b85d3235e4492bd138df",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relay/requestplugin/requestplugin_test.go",
+    "sha256": "64d9cfd774d8881ff059fd50836754aba1a15a980b837e67f847e56bad223077",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relay/responses_websocket_test.go",
+    "sha256": "1968590b81c8ab849f77b3cbb9dd045eb7924da4534cfdcac2960f02d3bc360e",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "relaykit/relayconvert/internal/oai_chat/to_oai_responses_req_test.go",
+    "sha256": "aacb96762aa78a25066d02a6610f4cdb0f59a90f9f9b862724612927b6d783f0",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "service/provider_plugin_token_test.go",
+    "sha256": "24186f1ee61cc81aee9a3ac9990242a77061f6b8222e305aee4a78c005ba7b25",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "service/provider_plugin_token_test.go",
+    "sha256": "c3abd3ac197a66147a71841b2522b90b20b5847b5ad9f3b215f22fcecc691898",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "service/provider_plugin_token_test.go",
+    "sha256": "f62179378f4af9894bec2e1d19e0abbf2125a5b27536aacb3f4dcf047f73f509",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "tokenkit/tokenkit_test.go",
+    "sha256": "112523e71e6734f417fa9cd78e85b16105d56eb614eba4d6ed8175856e5f47ec",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "tokenkit/tokenkit_test.go",
+    "sha256": "b1efc90cc156006b6cdb1f4b19ac05f49684db174eb9d693525968ebd0a4c3ba",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "tokenkit/tokenkit_test.go",
+    "sha256": "5b7232e7abc1df2c50a565f5dc79cbc020ade6e7d8eb28882ebb9d981f0ff166",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/components/__tests__/password-strength.test.tsx",
+    "sha256": "9be0fd029b6373697b9a4a9111e3c29cbe4bed0152b98b054e7d844b76d66d5a",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/components/__tests__/password-strength.test.tsx",
+    "sha256": "dcb4ee80472e9391d78b3b4efbaea3deda312b351818069d44473270f19b4e1f",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/components/ai-elements/__tests__/response-fade.test.ts",
+    "sha256": "3745f0428b8b29f8a96f23ff2fac595cf49a961b2e9425c90e652addc62a8c64",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/components/model-group-selector/__tests__/group-detail.test.ts",
+    "sha256": "f618790682dd991f52e07c318670611973d56e6745014ea36ee033119d7229ba",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/components/model-group-selector/__tests__/group-detail.test.ts",
+    "sha256": "609d37b55e37eaeb87e49fbc4e1a6fee81f5b665963d683ddd4c126c2d969e06",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/components/risk-acknowledgement-dialog/__tests__/confirmation.test.tsx",
+    "sha256": "aaf249d0d4e755e5e8f9128eeb872c1e7e124b9b2f3c472d99dca4e5db295215",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/components/risk-acknowledgement-dialog/__tests__/confirmation.test.tsx",
+    "sha256": "b4b274c583af2d1fb843a00cf88c2c1184a255bb15497ae7fca674e98424026f",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/components/risk-acknowledgement-dialog/__tests__/confirmation.test.tsx",
+    "sha256": "09d49c5f7c17786a14f2799476f5d0aea1f735048854eb76713b0e3dd200549a",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/channels/components/__tests__/provider-selection.test.tsx",
+    "sha256": "4628af21e5755143dcd783257a1f0c47e2a7fc7bf20bbbcaeb315352dae60991",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/channels/components/__tests__/provider-selection.test.tsx",
+    "sha256": "4a373b42eade0928d853d5bfc82217a254ed9f333fdaaa2f291b1a5211258081",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/channels/components/__tests__/provider-selection.test.tsx",
+    "sha256": "c1affa049e4057e13c4edad7648e979b7c2d3b99448a72cfdc922a6bc6ea43dc",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/channels/components/__tests__/provider-selection.test.tsx",
+    "sha256": "367965d8112c13db40499768ba0e630cbb8bc21bab6a84427cf553eafa2fc5b5",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/keys/components/__tests__/api-key-listing.test.tsx",
+    "sha256": "52feb0a22ffe990d69f2c66133d00e5b813263449b4725e231f96856aaefeda6",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "41bf723bf433325b6f366c8ec1730720bad221116bd6d60bbad9768940e5788b",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "a120818f4cde04c729e2eb25dc41a9afd7cc3508c75eecef60bc923a0059e019",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "7b405425f5b39528b7288400c26a3bf1b805332933db92881e1274b71b52166b",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "83413c1e1d26518f31f4b408cbce50f2de0dd0975bb21e0e7aa255b570a835e4",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "8244c6a87ab3e2e602119c22f661fd5b901bc27e3512316bd6c2a7b3e71f5f89",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "a943769743592389a2d0e942a2ad12e265348c529f0901aaef43df08c056943a",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "6e077c19fec16ecd2e6103e13992aaba485e5d3196c29c040faf994d3dadf717",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "cd814dce735e943930591d24644396e702e25028b6472029bd9ef81674da7e46",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "92c96dd0748e729f7ab354bd79b5b34050be543d9d1fc0fb3791a6c1366ee945",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "b4663ed0da3e2f98c28fe4c22b27acf9b34a7d447d92400c07484f96bb5582e4",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "03fcbd169d6d01e4786597f3ec65c63dd27118f753ea01dc62cbca6cc58ec6b9",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "09e9b27a8576ff3bc87acaee9da86ae435aefa3285d9d69cc859ca03222c412c",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/pricing/__tests__/task-price-display.test.tsx",
+    "sha256": "c40e3977414e2d69d5308dcb4aa935bb49a38e99175c5d4df72a28d3cf483f7d",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/request-processing/__tests__/request-processing.test.tsx",
+    "sha256": "50849429fe4bae65259820b49e5da0104ee3acb7a052acd1f75a02af6b112dd9",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/request-processing/__tests__/request-processing.test.tsx",
+    "sha256": "cf6a7aeda62acea56c23135a078ebe2ab5998657cba4f2241311c10680aae18e",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/auth/__tests__/oauth-settings.test.tsx",
+    "sha256": "8093bb25e0e27bf1a9d6edf041cc6d4f7208d4ec37f0acd4b5d1209ce0e87a56",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/auth/__tests__/passkey-settings.test.tsx",
+    "sha256": "0256c4ee3d6862b86d7729f15395d1c6a3cd08e14778bb5bceb8aaf65af6fd3c",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/integrations/__tests__/email-settings-section.test.tsx",
+    "sha256": "d40b65bb2c207e9eb84aa10c8aad9b27988dab052e2c8b09bcbf3e33d02ea338",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/task-pricing-copy.test.tsx",
+    "sha256": "90edf956125a678543528fa08ba3b9056a26860393a70f9c2db64bb1ae4b8887",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/task-pricing-copy.test.tsx",
+    "sha256": "41bf723bf433325b6f366c8ec1730720bad221116bd6d60bbad9768940e5788b",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/task-pricing-copy.test.tsx",
+    "sha256": "ecf7718aae60b0ed18b48c2ccf1d4eb4161d84ee19eead58a3c2f939c073b475",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "ee7a1a3433ba3f472683ad0dd3a8e3bdc9f8a2d77f42a3f1dea7012cee6c5240",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "40ad1e3745448fb41cd11f2f343771ee8856a2b01ef28c6b6fa395ab8e1241b2",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "d5735e19b5f91f17558d72b910ae451378ffef9367bd097a9435c3339bc27f6d",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "f466207a2d8d2bd048f02190b2cdd0f4ebec8d127d95328ee65758b4eb341176",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "910c9bcbdb0341653521c3ae1b15ca788b5bf71071c48b04813f175a3a136277",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "cb2080dfe4d2cf26dc06f067b201a2c48cff1896001e0a6510799fc17173fb78",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "499d8a5c705eabae7ccaefe8b5241981181bad7ae8c686e47c41533ec1ae0922",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "66968502b6f238e0b3f6a4ca66e50d362d2def66d96a1fd98dd948ac10a765af",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "a2b3e981bfa8df807ab565de640f8895c9cdcb763bed5e9b2743f2efe29ad94c",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "71004efff0a8d5467dd60d84e1ff158cec4088579d653ad7ecfa19e70495a126",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/system-settings/models/__tests__/visual-billing-editor.test.tsx",
+    "sha256": "c9b63690301f78f9fbe0a355edc75f1d9d1b74461d0598e0d186cad598068b7a",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/marketplace.test.ts",
+    "sha256": "fdb3cb23ec5e51fbe557d5a995b7fc111bc9b92e9afd859e85ee6c31b5ee46b7",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/plugin-changelog-panel.test.tsx",
+    "sha256": "a3a55f70299e225dd766075e00ea23fa23baef2e411068d05688c49439f63a36",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/plugin-changelog-panel.test.tsx",
+    "sha256": "0df284c26ac5b1d2ebec6bf439b67e9240108bcd58c8f1b1af255463d78e3668",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/plugin-changelog-panel.test.tsx",
+    "sha256": "43aa74a02e7cd8f1cc8ff1c9a3e47dcae65a8c40b655b133f3750b4909e4cb63",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/plugin-changelog.test.ts",
+    "sha256": "c5a0fbd652afde1e3f403f9bfe8bcc58b1a4b54a522834e780ea2c714d1bf1a3",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/plugin-changelog.test.ts",
+    "sha256": "b73fe52c82827271e626273dc22685eff1cf7e7f382cb77a6f768efa3e696a15",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/plugin-detail-sheet.test.tsx",
+    "sha256": "cf6a7aeda62acea56c23135a078ebe2ab5998657cba4f2241311c10680aae18e",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/plugin-readme.test.ts",
+    "sha256": "6c0b9b9310068dbfa31b164da2456e1ea3c2d8ea732fe7a2aeb797e5a6a0bc92",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/plugin-readme.test.ts",
+    "sha256": "dbc32599fe1e750157fb69039341b6122fb31caa713e7a1d636e75e0eec73fc7",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/plugin-url.test.ts",
+    "sha256": "7b08a89b648879c5cab3049e1732de6cf77e137967e35741cd26519fbb7e47b6",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/plugins-table.test.tsx",
+    "sha256": "1df0c5000f9de812144d7598d998d09f6c99ebb34bfd0ba25517e4bd69c0c99b",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/request-plugin-try-panel.test.tsx",
+    "sha256": "ed2a0fa5d2d28824cf348242d5c663bd97506630601e27b6d6684fea3dc6ea8b",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/request-plugin-try-panel.test.tsx",
+    "sha256": "d916b2143de8dd58cd748c755854584b6b28353bbc34e7f9090ac1a21583d699",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/request-plugin-try-panel.test.tsx",
+    "sha256": "5040d9bd35d41d92295febc6f6d2d64ad3a08a59029dcb9e880603a85a11a4e4",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/text-diff.test.ts",
+    "sha256": "d557f5f4cd47711305744aaba79a907dbfa85f5549ef24fdf652e173d3a1da13",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/text-diff.test.ts",
+    "sha256": "bd6005a1d81bd222727d7e35061e8a9d33a624125b3e01e73b01ac35908c2940",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/text-diff.test.ts",
+    "sha256": "155b4b7f13bb66d1111edfca97b6430329d7d8ba9f73f0e18dc81afc3e4ea236",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/text-diff.test.ts",
+    "sha256": "57c4b6e4d8193c1ea7de133fd9eb20d605c9506467d9e2c20e7290a28b9b7c10",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/task-plugins/__tests__/usage-schema-table.test.tsx",
+    "sha256": "89b0e01c5b22ca91a803f9b7deeaf04cc2f08d6937311c09505ba0c9b4d3e5e1",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/audit/__tests__/details.test.tsx",
+    "sha256": "2655bb71b4deb0ed91cf6d963430c2bb3c81c0f41bf3f11ddd510c5ab3807e41",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/audit/__tests__/details.test.tsx",
+    "sha256": "2c27e0d813e29e056e024cb7672d32d907fd090f1af5db1dabac52b814f9bf41",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/components/__tests__/detail-preview.test.tsx",
+    "sha256": "4c0fe71f25c89d34aaeed68fe734fd79667855552ebda16bce16500c0d18dc73",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/components/__tests__/detail-preview.test.tsx",
+    "sha256": "72134409cc5b426a5ef0f8083f664bd75f16b18cacb7683a539cdec709bc297a",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/components/__tests__/quota-adjustment.test.tsx",
+    "sha256": "69c350c0f8acb59c2f2b5c6cd29538f3b7d7aa05558cfd3f85c76aa8315cb3ac",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/components/__tests__/quota-adjustment.test.tsx",
+    "sha256": "e2378ea0d3ee8cc39ad72a248644bdc498158289226d5ff5fa7adaa012692143",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/components/__tests__/quota-adjustment.test.tsx",
+    "sha256": "722421e0a7d4c200b051bf4083af5ba58373a41967e73bde4b2b4e07d0759294",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/components/__tests__/quota-adjustment.test.tsx",
+    "sha256": "c12c9c507486da9e0f5a4e50634b9e1edf29cfe6bad86b14c7f01f7e305f1302",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/components/__tests__/request-plugin-record.test.tsx",
+    "sha256": "eb7683f2b071df2a9fbca2c1fde33e99882527a4c10ce8ca59d615fdd8710b18",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/components/__tests__/request-plugin-record.test.tsx",
+    "sha256": "916da0fe41939914948eef4ca184423d5be50309ca9e77cfc11f27a8c3c6744d",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/lib/__tests__/export.test.ts",
+    "sha256": "4040f70de31a113553c81539e9a8d49a5a1f03c5a4494c497bcfc5771f89229e",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/lib/__tests__/export.test.ts",
+    "sha256": "6b26312e966cb9e12e80166f89373a027cbc1e49feba5789b70e01776431d688",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/lib/__tests__/export.test.ts",
+    "sha256": "be1d64df260a59627713904fba4bab2f41090dd4497abb183b3e0f17621f8cfa",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/features/usage-logs/lib/__tests__/export.test.ts",
+    "sha256": "4f4a36b9e8c618355b3b5f8aa737c0d5e57af0fc748b69e8bc097ad2be207eac",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/lib/server-error-message.test.ts",
+    "sha256": "89350a4f4c6b00f696ee39d386fcc1cba54d7215ce54851dd677e6dfa35a2ed1",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/lib/server-error-message.test.ts",
+    "sha256": "a434a59fa26a8f636e6b6ffe92f5acc2de1df5f563707a0eaae964f75c6ae12a",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  },
+  {
+    "path": "web/src/lib/server-error-message.test.ts",
+    "sha256": "861633525c5f6b8278eed8ec699f1915dcd66d1e479c30e790b8eef130dc0047",
+    "reason": "Original Unicode, security, or localized provider metadata compatibility fixture; not product copy."
+  }
+]

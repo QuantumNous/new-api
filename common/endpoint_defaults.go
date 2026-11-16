@@ -2,20 +2,20 @@ package common
 
 import "github.com/QuantumNous/new-api/constant"
 
-// EndpointInfo 描述单个端点的默认请求信息
-// path: 上游路径
-// method: HTTP 请求方式，例如 POST/GET
-// 目前均为 POST，后续可扩展
+// EndpointInfo describes the default request information for a single endpoint
+// path: upstream path
+// method: HTTP request method, such as POST/GET
+// Currently all are POST and can be expanded in the future.
 //
-// json 标签用于直接序列化到 API 输出
-// 例如：{"path":"/v1/chat/completions","method":"POST"}
+// json tag for direct serialization to API output
+// For example: {"path":"/v1/chat/completions","method":"POST"}
 
 type EndpointInfo struct {
 	Path   string `json:"path"`
 	Method string `json:"method"`
 }
 
-// defaultEndpointInfoMap 保存内置端点的默认 Path 与 Method
+// defaultEndpointInfoMap saves the default Path and Method of built-in endpoints
 var defaultEndpointInfoMap = map[constant.EndpointType]EndpointInfo{
 	constant.EndpointTypeOpenAI:                {Path: "/v1/chat/completions", Method: "POST"},
 	constant.EndpointTypeOpenAIResponse:        {Path: "/v1/responses", Method: "POST"},
@@ -30,7 +30,7 @@ var defaultEndpointInfoMap = map[constant.EndpointType]EndpointInfo{
 	constant.EndpointTypeEmbeddings:            {Path: "/v1/embeddings", Method: "POST"},
 }
 
-// GetDefaultEndpointInfo 返回指定端点类型的默认信息以及是否存在
+// GetDefaultEndpointInfo returns the default information for the specified endpoint type and whether it exists
 func GetDefaultEndpointInfo(et constant.EndpointType) (EndpointInfo, bool) {
 	info, ok := defaultEndpointInfoMap[et]
 	return info, ok

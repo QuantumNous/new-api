@@ -296,7 +296,7 @@ describe('metadata editing', () => {
   it.each([
     {
       name: 'business rejection',
-      response: { success: false, message: '模型名称已存在' },
+      response: { success: false, message: "Model name already exists" },
     },
     { name: 'HTTP rejection', response: null },
   ])(
@@ -314,7 +314,7 @@ describe('metadata editing', () => {
       } else {
         const error = new AxiosError('Request failed with status code 409')
         error.response = {
-          data: { message: '模型名称已存在' },
+          data: { message: "Model name already exists" },
           status: 409,
           statusText: 'Conflict',
           headers: {},
@@ -341,7 +341,7 @@ describe('metadata editing', () => {
       await user.type(screen.getByLabelText('Description'), 'Keep this draft')
       await user.click(screen.getByRole('button', { name: 'Save metadata' }))
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        '模型名称已存在'
+        "Model name already exists"
       )
       expect(fallbackError).not.toHaveBeenCalled()
       expect(close).not.toHaveBeenCalled()

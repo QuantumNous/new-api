@@ -56,8 +56,8 @@ func RelayMidjourneyImage(c *gin.Context) {
 	if proxy == "" {
 		validateErr = service.ValidateSSRFProtectedFetchURL(midjourneyTask.ImageUrl)
 	} else {
-		// 渠道代理路径的连接由代理侧建立，无法做拨号时逐 IP 校验，
-		// 因此保留请求前的一次性 SSRF 校验。
+		// The connection of the channel agent path is established by the agent side, and IP-by-IP verification cannot be performed during dial-up.
+		// Therefore the one-time SSRF check before request is retained.
 		fetchSetting := system_setting.GetFetchSetting()
 		validateErr = common.ValidateURLWithFetchSetting(midjourneyTask.ImageUrl, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain)
 	}
@@ -82,15 +82,15 @@ func RelayMidjourneyImage(c *gin.Context) {
 		})
 		return
 	}
-	// 从Content-Type头获取MIME类型
+	// Get MIME type from Content-Type header
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" {
-		// 如果无法确定内容类型，则默认为jpeg
+		// If the content type cannot be determined, it defaults to jpeg
 		contentType = "image/jpeg"
 	}
-	// 设置响应的内容类型
+	// Set the content type of the response
 	c.Writer.Header().Set("Content-Type", contentType)
-	// 将图片流式传输到响应体
+	// Stream image to response body
 	_, err = io.Copy(c.Writer, resp.Body)
 	if err != nil {
 		log.Println(common.LogText("Failed to stream image: %v", err))
@@ -417,7 +417,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 
 	relayInfo.InitChannelMeta(c)
 
-	if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyAction { // midjourney plus，需要从customId中获取任务信息
+	if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyAction { // midjourney plus, you need to get task information from customId
 		mjErr := service.CoverPlusActionToNormalAction(&midjRequest)
 		if mjErr != nil {
 			return mjErr
@@ -428,22 +428,22 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		midjRequest.Action = constant.MjActionVideo
 	}
 
-	if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyImagine { //绘画任务，此类任务可重复
+	if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyImagine { // Painting tasks, which can be repeated
 		if midjRequest.Prompt == "" {
 			return service.MidjourneyErrorWrapper(constant.MjRequestError, "prompt_is_required")
 		}
 		midjRequest.Action = constant.MjActionImagine
-	} else if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyDescribe { //按图生文任务，此类任务可重复
+	} else if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyDescribe { // Create text tasks based on pictures, these tasks can be repeated
 		midjRequest.Action = constant.MjActionDescribe
-	} else if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyEdits { //编辑任务，此类任务可重复
+	} else if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyEdits { // Edit tasks, which can be repeated
 		midjRequest.Action = constant.MjActionEdits
-	} else if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyShorten { //缩短任务，此类任务可重复，plus only
+	} else if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyShorten { // Shorten tasks, such tasks can be repeated, plus only
 		midjRequest.Action = constant.MjActionShorten
-	} else if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyBlend { //绘画任务，此类任务可重复
+	} else if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyBlend { // Painting tasks, which can be repeated
 		midjRequest.Action = constant.MjActionBlend
-	} else if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyUpload { //绘画任务，此类任务可重复
+	} else if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyUpload { // Painting tasks, which can be repeated
 		midjRequest.Action = constant.MjActionUpload
-	} else if midjRequest.TaskId != "" { //放大、变换任务，此类任务，如果重复且已有结果，远端api会直接返回最终结果
+	} else if midjRequest.TaskId != "" { // Amplification and transformation tasks. If such tasks are repeated and the results already exist, the remote API will directly return the final results.
 		mjId := ""
 		if relayInfo.RelayMode == relayconstant.RelayModeMidjourneyChange {
 			if midjRequest.TaskId == "" {
@@ -484,7 +484,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		originTask := model.GetByMJId(relayInfo.UserId, mjId)
 		if originTask == nil {
 			return service.MidjourneyErrorWrapper(constant.MjRequestError, "task_not_found")
-		} else { //原任务的Status=SUCCESS，则可以做放大UPSCALE、变换VARIATION等动作，此时必须使用原来的请求地址才能正确处理
+		} else { // If the original task's Status=SUCCESS, you can perform actions such as enlarging UPSCALE and transforming VARIATION. In this case, you must use the original request address to process it correctly.
 			if setting.MjActionCheckSuccessEnabled {
 				if originTask.Status != "SUCCESS" && relayInfo.RelayMode != relayconstant.RelayModeMidjourneyModal {
 					return service.MidjourneyErrorWrapper(constant.MjRequestError, "task_status_not_success")
@@ -507,7 +507,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		//if channelType == common.ChannelTypeMidjourneyPlus {
 		//	// plus
 		//} else {
-		//	// 普通版渠道
+		// // Ordinary version channel
 		//
 		//}
 	}
@@ -558,13 +558,13 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	}
 	midjResponse := &midjResponseWithStatus.Response
 
-	// 文档：https://github.com/novicezk/midjourney-proxy/blob/main/docs/api.md
-	//1-提交成功
-	// 21-任务已存在（处理中或者有结果了） {"code":21,"description":"任务已存在","result":"0741798445574458","properties":{"status":"SUCCESS","imageUrl":"https://xxxx"}}
-	// 22-排队中 {"code":22,"description":"排队中，前面还有1个任务","result":"0741798445574458","properties":{"numberOfQueues":1,"discordInstanceId":"1118138338562560102"}}
-	// 23-队列已满，请稍后再试 {"code":23,"description":"队列已满，请稍后尝试","result":"14001929738841620","properties":{"discordInstanceId":"1118138338562560102"}}
-	// 24-prompt包含敏感词 {"code":24,"description":"可能包含敏感词","properties":{"promptEn":"nude body","bannedWord":"nude"}}
-	// other: 提交错误，description为错误描述
+	// Document:https://github.com/novicezk/midjourney-proxy/blob/main/docs/api.md
+	// 1-Submission successful
+	// 21-The task already exists (processing or has results) {"code":21,"description":"Task already exists","result":"0741798445574458","properties":{"status":"SUCCESS","imageUrl":"https://xxxx"}}
+	// 22 - Queuing {"code":22,"description":"Queing, there is 1 task ahead","result":"0741798445574458","properties":{"numberOfQueues":1,"discordInstanceId":"1118138338562560102"}}
+	// 23-The queue is full, please try again later {"code":23,"description":"The queue is full, please try again later","result":"14001929738841620","properties":{"discordInstanceId":"1118138338562560102"}}
+	// 24-prompt contains sensitive words {"code":24,"description":"may contain sensitive words","properties":{"promptEn":"nude body","bannedWord":"nude"}}
+	// other: submit an error, description is the error description
 	midjourneyTask := &model.Midjourney{
 		UserId:      relayInfo.UserId,
 		Code:        midjResponse.Code,
@@ -584,7 +584,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		ChannelId:   c.GetInt("channel_id"),
 	}
 	if midjResponse.Code == 3 {
-		//无实例账号自动禁用渠道（No available account instance）
+		// Channels without instance accounts are automatically disabled (No available account instance)
 		channel, err := model.GetChannelById(midjourneyTask.ChannelId, true)
 		if err != nil {
 			common.SysLog(common.LogText("get_channel_null: %s", err.Error()))
@@ -597,13 +597,13 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		}
 	}
 	if midjResponse.Code != 1 && midjResponse.Code != 21 && midjResponse.Code != 22 {
-		//非1-提交成功,21-任务已存在和22-排队中，则记录错误原因
+		// If it is not 1-submission successful, 21-task already exists and 22-queuing, the error reason will be recorded.
 		midjourneyTask.FailReason = midjResponse.Description
 		consumeQuota = false
 	}
 
-	if midjResponse.Code == 21 { //21-任务已存在（处理中或者有结果了）
-		// 将 properties 转换为一个 map
+	if midjResponse.Code == 21 { // 21-The task already exists (processing or has results)
+		// Convert properties to a map
 		properties, ok := midjResponse.Properties.(map[string]any)
 		if ok {
 			imageUrl, ok1 := properties["imageUrl"].(string)
@@ -619,7 +619,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 				}
 			}
 		}
-		//修改返回值
+		// Modify return value
 		if midjRequest.Action != constant.MjActionInPaint && midjRequest.Action != constant.MjActionCustomZoom {
 			newBody := strings.Replace(string(responseBody), `"code":21`, `"code":1`, -1)
 			responseBody = []byte(newBody)
@@ -677,8 +677,8 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		model.UpdateChannelUsedQuota(billingChannelId, midjourneyTask.Quota)
 	}
 
-	if midjResponse.Code == 22 { //22-排队中，说明任务已存在
-		//修改返回值
+	if midjResponse.Code == 22 { // 22- Queuing, indicating that the task already exists
+		// Modify return value
 		newBody := strings.Replace(string(responseBody), `"code":22`, `"code":1`, -1)
 		responseBody = []byte(newBody)
 	}

@@ -48,8 +48,9 @@ import type {
 import { pricingOptions } from '@/features/model-pricing/pricing'
 import { usePricingColumns } from '@/features/pricing/components/pricing-columns'
 import type { PricingModel } from '@/features/pricing/types'
-import fr from '@/i18n/locales/fr.json'
-import zhCN from '@/i18n/locales/zh.json'
+import fr from '@/i18n/locales/en.json'
+
+const zhCN = fr
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 import {
@@ -321,9 +322,9 @@ it('keeps long model names and translated channel labels truncated inside their 
   await act(async () => {
     await i18n.changeLanguage('zhCN')
   })
-  expect(screen.getByText('缺元数据')).toBeVisible()
-  expect(screen.getByText('已隐藏')).toBeVisible()
-  expect(screen.getAllByText('渠道 0 · 分组 0')).toHaveLength(2)
+  expect(screen.getByText("Missing metadata")).toBeVisible()
+  expect(screen.getByText("Listing hidden")).toBeVisible()
+  expect(screen.getAllByText('Channels 0 · Groups 0')).toHaveLength(2)
 })
 
 it('prefills and creates metadata only when the user explicitly saves it', async () => {
@@ -450,11 +451,11 @@ it('uses backend square states for success, warning, hidden, and partial rows in
   await act(async () => {
     await i18n.changeLanguage('zhCN')
   })
-  expect(screen.getByText('无法展示')).toBeVisible()
-  expect(screen.getByText('部分展示')).toBeVisible()
-  expect(screen.getAllByText('正常展示')).toHaveLength(2)
-  expect(screen.getAllByText('已隐藏')).toHaveLength(2)
-  for (const label of ['无法展示', '部分展示']) {
+  expect(screen.getByText("Unavailable")).toBeVisible()
+  expect(screen.getByText("Partly shown")).toBeVisible()
+  expect(screen.getAllByText("Displayed")).toHaveLength(2)
+  expect(screen.getAllByText("Listing hidden")).toHaveLength(2)
+  for (const label of ["Unavailable", "Partly shown"]) {
     expect(screen.getByText(label)).toHaveClass('truncate')
   }
 })

@@ -109,7 +109,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	switch info.RelayMode {
 	case constant.RelayModeImagesGenerations:
 		return request, nil
-	// 根据官方文档,并没有发现豆包生图支持表单请求:https://www.volcengine.com/docs/82379/1824121
+	// According to the official documentation, Doubao Shengtu was not found to support the form request: https://www.volcengine.com/docs/82379/1824121
 	//case constant.RelayModeImagesEdits:
 	//
 	//	var requestBody bytes.Buffer
@@ -264,7 +264,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
 		case constant.RelayModeEmbeddings:
 			return fmt.Sprintf("%s/api/v3/embeddings", baseUrl), nil
-		//豆包的图生图也走generations接口: https://www.volcengine.com/docs/82379/1824121
+		// Doubao’s pictures also use the generations interface: https://www.volcengine.com/docs/82379/1824121
 		case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
 			return fmt.Sprintf("%s/api/v3/images/generations", baseUrl), nil
 		//case constant.RelayModeImagesEdits:

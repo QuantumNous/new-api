@@ -2,7 +2,7 @@ package common
 
 import "sync/atomic"
 
-// PerformanceMonitorConfig 性能监控配置
+// PerformanceMonitorConfig performance monitoring configuration
 type PerformanceMonitorConfig struct {
 	Enabled         bool
 	CPUThreshold    int
@@ -13,7 +13,7 @@ type PerformanceMonitorConfig struct {
 var performanceMonitorConfig atomic.Value
 
 func init() {
-	// 初始化默认配置
+	// Initialize default configuration
 	performanceMonitorConfig.Store(PerformanceMonitorConfig{
 		Enabled:         true,
 		CPUThreshold:    90,
@@ -22,12 +22,12 @@ func init() {
 	})
 }
 
-// GetPerformanceMonitorConfig 获取性能监控配置
+// GetPerformanceMonitorConfig Gets performance monitoring configuration
 func GetPerformanceMonitorConfig() PerformanceMonitorConfig {
 	return performanceMonitorConfig.Load().(PerformanceMonitorConfig)
 }
 
-// SetPerformanceMonitorConfig 设置性能监控配置
+// SetPerformanceMonitorConfig sets performance monitoring configuration
 func SetPerformanceMonitorConfig(config PerformanceMonitorConfig) {
 	performanceMonitorConfig.Store(config)
 }

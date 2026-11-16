@@ -19,7 +19,7 @@ var validGeminiSafetySettings = map[string]struct{}{
 	"HARM_BLOCK_THRESHOLD_UNSPECIFIED": {},
 }
 
-// GeminiSettings defines Gemini model configuration. 注意bool要以enabled结尾才可以生效编辑
+// GeminiSettings defines Gemini model configuration. Note that bool must end with enabled to take effect.
 type GeminiSettings struct {
 	SafetySettings                        map[string]string `json:"safety_settings"`
 	VersionSettings                       map[string]string `json:"version_settings"`
@@ -30,7 +30,7 @@ type GeminiSettings struct {
 	RemoveFunctionResponseIdEnabled       bool              `json:"remove_function_response_id_enabled"`
 }
 
-// 默认配置
+// Default configuration
 var defaultGeminiSettings = GeminiSettings{
 	SafetySettings: map[string]string{
 		"default": defaultGeminiSafetySetting,
@@ -54,20 +54,20 @@ var defaultGeminiSettings = GeminiSettings{
 	RemoveFunctionResponseIdEnabled:       true,
 }
 
-// 全局实例
+// global instance
 var geminiSettings = defaultGeminiSettings
 
 func init() {
-	// 注册到全局配置管理器
+	// Register to the global configuration manager
 	config.GlobalConfig.Register("gemini", &geminiSettings)
 }
 
-// GetGeminiSettings 获取Gemini配置
+// GetGeminiSettings Get Gemini configuration
 func GetGeminiSettings() *GeminiSettings {
 	return &geminiSettings
 }
 
-// GetGeminiSafetySetting 获取安全设置
+// GetGeminiSafetySetting Gets security settings
 func GetGeminiSafetySetting(key string) string {
 	settings := geminiSettings.SafetySettings
 	if value := settings[key]; value != "" {
@@ -100,7 +100,7 @@ func ValidateGeminiSafetySettings(value string) error {
 	return nil
 }
 
-// GetGeminiVersionSetting 获取版本设置
+// GetGeminiVersionSetting Gets the version setting
 func GetGeminiVersionSetting(key string) string {
 	if value, ok := geminiSettings.VersionSettings[key]; ok {
 		return value

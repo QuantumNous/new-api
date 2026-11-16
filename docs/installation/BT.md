@@ -1,57 +1,57 @@
-# 宝塔面板部署教程
+# Pagoda panel deployment tutorial
 
-本文档提供使用宝塔面板 Docker 功能部署 New API 的图文教程。
+This document provides a graphic tutorial for deploying New API using the Docker function of Pagoda Panel.
 
-> 📖 官方文档：[宝塔面板部署](https://docs.newapi.pro/zh/docs/installation/deployment-methods/bt-docker-installation)
+> 📖 Official document: [Pagoda Panel Deployment](https://docs.newapi.pro/zh/docs/installation/deployment-methods/bt-docker-installation)
 
 ***
 
-## 前置要求
+## Prerequisites
 
-| 项目    | 要求                                 |
+| Projects | Requirements |
 | ----- | ---------------------------------- |
-| 宝塔面板  | ≥ 9.2.0 版本                         |
-| 推荐系统  | CentOS 7+、Ubuntu 18.04+、Debian 10+ |
-| 服务器配置 | 至少 1 核 2G 内存                       |
+| Pagoda Panel | ≥ version 9.2.0 |
+| Recommended system | CentOS 7+, Ubuntu 18.04+, Debian 10+ |
+| Server configuration | At least 1 core 2G memory |
 
 ***
 
-## 步骤一：安装宝塔面板
+## Step 1: Install the pagoda panel
 
-1. 前往 [宝塔面板官网](https://www.bt.cn/new/download.html) 下载适合您系统的安装脚本
-2. 运行安装脚本安装宝塔面板
-3. 安装完成后，使用提供的地址、用户名和密码登录宝塔面板
-
-***
-
-## 步骤二：安装 Docker
-
-1. 登录宝塔面板后，在左侧菜单栏找到并点击 **Docker**
-2. 首次进入会提示安装 Docker 服务，点击 **立即安装**
-3. 按照提示完成 Docker 服务的安装
+1. Go to [Pagoda Panel Official Website](https://www.bt.cn/new/download.html) to download the installation script suitable for your system
+2. Run the installation script to install the Pagoda panel
+3. After the installation is complete, use the provided address, username and password to log in to the Pagoda panel
 
 ***
 
-## 步骤三：安装 New API
+## Step 2: Install Docker
 
-### 方法一：使用宝塔应用商店（推荐）
+1. After logging in to the Pagoda panel, find and click **Docker** on the left menu bar
+2. When you enter for the first time, you will be prompted to install the Docker service. Click **Install Now**
+3. Follow the prompts to complete the installation of the Docker service
 
-1. 在宝塔面板 Docker 功能中，点击 **应用商店**
-2. 搜索并找到 **New-API**
-3. 点击 **安装**
-4. 配置以下基本选项：
-   - **容器名称**：可自定义，默认为 `new-api`
-   - **端口映射**：默认为 `3000:3000`
-   - **环境变量**：
-     - `SESSION_SECRET`：会话密钥（**必填**，多机部署时必须一致）
-     - `CRYPTO_SECRET`：加密密钥（使用 Redis 时必填）
-5. 点击 **确认** 开始安装
-6. 等待安装完成后，访问 `http://您的服务器IP:3000` 即可使用
+***
 
-### 方法二：使用 Docker Compose
+## Step 3: Install New API
 
-1. 在宝塔面板中创建网站目录，如 `/www/wwwroot/new-api`
-2. 创建 `docker-compose.yml` 文件：
+### Method 1: Use Pagoda App Store (recommended)
+
+1. In the Docker function of the Pagoda panel, click **App Store**
+2. Search and find **New-API**
+3. Click **Install**
+4. Configure the following basic options:
+- **Container name**: Customizable, default is `new-api`
+- **Port Mapping**: Default is `3000:3000`
+- **Environment variables**:
+- `SESSION_SECRET`: session key (**required**, must be consistent when deployed on multiple machines)
+- `CRYPTO_SECRET`: encryption key (required when using Redis)
+5. Click **Confirm** to start the installation
+6. After the installation is completed, visit `http://your server IP:3000` to use it.
+
+### Method 2: Use Docker Compose
+
+1. Create a website directory in the Pagoda panel, such as `/www/wwwroot/new-api`
+2. Create the `docker-compose.yml` file:
 
 ```yaml
 version: '3'
@@ -65,11 +65,11 @@ services:
     volumes:
       - ./data:/data
     environment:
-      - SESSION_SECRET=your_session_secret_here  # 请修改为随机字符串
+      - SESSION_SECRET=your_session_secret_here # Please change it to a random string
       - TZ=Asia/Shanghai
 ```
 
-1. 在终端中进入目录并启动：
+1. Go to the directory in the terminal and start:
 
 ```bash
 cd /www/wwwroot/new-api
@@ -78,74 +78,74 @@ docker-compose up -d
 
 ***
 
-## 配置说明
+## Configuration instructions
 
-### 必要环境变量
+### Necessary environment variables
 
-| 变量名                 | 说明                 | 是否必填   |
+| Variable name | Description | Is it required |
 | ------------------- | ------------------ | ------ |
-| `SESSION_SECRET`    | 会话密钥，多机部署必须一致      | **必填** |
-| `CRYPTO_SECRET`     | 加密密钥，使用 Redis 时必填  | 条件必填   |
-| `SQL_DSN`           | 数据库连接字符串（使用外部数据库时） | 可选     |
-| `REDIS_CONN_STRING` | Redis 连接字符串        | 可选     |
+| `SESSION_SECRET` | Session key, multi-machine deployment must be consistent | **Required** |
+| `CRYPTO_SECRET` | Encryption key, required when using Redis | Condition required |
+| `SQL_DSN` | Database connection string (when using an external database) | Optional |
+| `REDIS_CONN_STRING` | Redis connection string | Optional |
 
-### 生成随机密钥
+### Generate random key
 
 ```bash
-# 生成 SESSION_SECRET
+# generate SESSION_SECRET
 openssl rand -hex 16
 
-# 或使用 Linux 命令
+# Or use Linux command
 head -c 16 /dev/urandom | xxd -p
 ```
 
 ***
 
-## 常见问题
+## FAQ
 
-### Q1：无法访问 3000 端口？
+### Q1: Unable to access port 3000?
 
-1. 检查服务器防火墙是否开放 3000 端口
-2. 在宝塔面板 **安全** 中放行 3000 端口
-3. 检查云服务器安全组是否开放端口
+1. Check whether the server firewall opens port 3000
+2. Release port 3000 in the Pagoda Panel **Security**
+3. Check whether the cloud server security group has open ports
 
-### Q2：登录后提示会话失效？
+### Q2: Is it prompted that the session has expired after logging in?
 
-确保设置了 `SESSION_SECRET` 环境变量，且值不为空。
+Make sure the `SESSION_SECRET` environment variable is set and the value is not empty.
 
-### Q3：数据如何持久化？
+### Q3: How to persist data?
 
-使用 Docker 卷映射数据目录：
+Use Docker volumes to map the data directory:
 
 ```yaml
 volumes:
   - ./data:/data
 ```
 
-### Q4：如何更新版本？
+### Q4: How to update the version?
 
 ```bash
-# 拉取最新镜像
+# Pull the latest image
 docker pull calciumion/new-api:latest
 
-# 重启容器
+# Restart container
 docker-compose down && docker-compose up -d
 ```
 
 ***
 
-## 相关链接
+## Related links
 
-- [官方文档](https://docs.newapi.pro/zh/docs/installation)
-- [环境变量配置](https://docs.newapi.pro/zh/docs/installation/config-maintenance/environment-variables)
-- [常见问题](https://docs.newapi.pro/zh/docs/support/faq)
-- [GitHub 仓库](https://github.com/QuantumNous/new-api)
+- [Official Documentation](https://docs.newapi.pro/zh/docs/installation)
+- [Environment variable configuration](https://docs.newapi.pro/zh/docs/installation/config-maintenance/environment-variables)
+- [FAQ](https://docs.newapi.pro/zh/docs/support/faq)
+- [GitHub repository](https://github.com/QuantumNous/new-api)
 
 ***
 
-## 截图示例
+## Screenshot example
 
-![宝塔面板 Docker 安装](https://github.com/user-attachments/assets/7a6fc03e-c457-45e4-b8f9-184508fc26b0)
+![Pagoda Panel Docker Installation](https://github.com/user-attachments/assets/7a6fc03e-c457-45e4-b8f9-184508fc26b0)
 
-> ⚠️ 注意：密钥为环境变量 `SESSION_SECRET`，请务必设置！
+> ⚠️ Note: The key is the environment variable `SESSION_SECRET`, please be sure to set it!
 

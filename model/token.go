@@ -27,10 +27,10 @@ type Token struct {
 	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
 	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
 	Group              string         `json:"group" gorm:"default:''"`
-	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	CrossGroupRetry    bool           `json:"cross_group_retry"` // Retry across groups, only auto grouping is valid
 	AutoGroups         string         `json:"-" gorm:"type:text"`
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
-	// 允许用此令牌查询所属用户的额度；新建令牌默认开启，已有令牌升级后保持关闭
+	// Allows this token to be used to query the user's quota; it is enabled by default for new tokens and remains closed after an existing token is upgraded.
 	AllowUserQuotaQuery bool   `json:"allow_user_quota_query"`
 	CacheExpiresAt      int64  `json:"-" gorm:"-"`
 	CacheMAC            string `json:"-" gorm:"-"`
@@ -114,16 +114,16 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 	return tokens, err
 }
 
-// sanitizeLikePattern 校验并清洗用户输入的 LIKE 搜索模式。
-// 规则：
-//  1. 转义 ! 和 _（使用 ! 作为 ESCAPE 字符，兼容 MySQL/PostgreSQL/SQLite）
-//  2. 连续的 % 合并为单个 %
-//  3. 最多允许 2 个 %
-//  4. 含 % 时（模糊搜索），去掉 % 后关键词长度必须 >= 2
-//  5. 不含 % 时按精确匹配
+// sanitizeLikePattern validates and sanitizes the LIKE search pattern entered by the user.
+// Rules:
+// 1. Escape ! and _ (use ! as ESCAPE character, compatible with MySQL/PostgreSQL/SQLite)
+// 2. Concatenate consecutive % into a single %
+// 3. Maximum of 2 % allowed
+// 4. When containing % (fuzzy search), after removing %, the keyword length must be >= 2
+// 5. Press exact match if % is not included
 func sanitizeLikePattern(input string) (string, error) {
-	// 1. 先转义 ESCAPE 字符 ! 自身，再转义 _
-	//    使用 ! 而非 \ 作为 ESCAPE 字符，避免 MySQL 中反斜杠的字符串转义问题
+	// 1. Escape the ESCAPE character ! itself first, and then escape _
+	// Use ! instead of \ as the ESCAPE character to avoid backslash string escaping issues in MySQL
 	input = strings.ReplaceAll(input, "!", "!!")
 	input = strings.ReplaceAll(input, `_`, `!_`)
 
@@ -131,23 +131,23 @@ func sanitizeLikePattern(input string) (string, error) {
 		return "", err
 	}
 
-	// 5. 无 % 时，精确全匹配
+	// 5. Without %, exact full match
 	return input, nil
 }
 
 func validateLikePattern(input string) error {
-	// 1. 连续的 % 直接拒绝
+	// 1. Continuous % direct rejection
 	if strings.Contains(input, "%%") {
 		return common.NewMessage("The search pattern cannot contain consecutive % wildcards")
 	}
 
-	// 2. 统计 % 数量，不得超过 2
+	// 2. Statistics % quantity, shall not exceed 2
 	count := strings.Count(input, "%")
 	if count > 2 {
 		return common.NewMessage("The search pattern can contain at most 2 % wildcards")
 	}
 
-	// 3. 含 % 时，去掉 % 后关键词长度必须 >= 2
+	// 3. When containing %, the keyword length must be >= 2 after removing %
 	if count > 0 {
 		stripped := strings.ReplaceAll(input, "%", "")
 		if len(stripped) < 2 {
@@ -161,7 +161,7 @@ func validateLikePattern(input string) error {
 const searchHardLimit = 100
 
 func SearchUserTokens(userId int, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
-	// model 层强制截断
+	// Model layer forced truncation
 	if limit <= 0 || limit > searchHardLimit {
 		limit = searchHardLimit
 	}
@@ -173,7 +173,7 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 		token = strings.TrimPrefix(token, "sk-")
 	}
 
-	// 超量用户（令牌数超过上限）只允许精确搜索，禁止模糊搜索
+	// Excessive users (the number of tokens exceeds the upper limit) only allow precise searches, and fuzzy searches are prohibited.
 	maxTokens := operation_setting.GetMaxUserTokens()
 	hasFuzzy := strings.Contains(keyword, "%") || strings.Contains(token, "%")
 	if hasFuzzy {
@@ -189,7 +189,7 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 
 	baseQuery := DB.Model(&Token{}).Where("user_id = ?", userId)
 
-	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）
+	// Add LIKE condition only if it is not empty, skip if it is empty (this field will not be filtered)
 	if keyword != "" {
 		keywordPattern, err := sanitizeLikePattern(keyword)
 		if err != nil {
@@ -205,14 +205,14 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 		baseQuery = baseQuery.Where(commonKeyCol+" LIKE ? ESCAPE '!'", tokenPattern)
 	}
 
-	// 先查匹配总数（用于分页，受 maxTokens 上限保护，避免全表 COUNT）
+	// Check the total number of matches first (used for paging, protected by the maxTokens upper limit to avoid full table COUNT)
 	err = baseQuery.Limit(maxTokens).Count(&total).Error
 	if err != nil {
 		common.SysError(common.LogText("failed to count search tokens: %s", err.Error()))
 		return nil, 0, common.NewMessage("Failed to search tokens")
 	}
 
-	// 再分页查数据
+	// Check the data again
 	err = baseQuery.Order("id desc").Offset(offset).Limit(limit).Find(&tokens).Error
 	if err != nil {
 		common.SysError(common.LogText("failed to search tokens: %s", err.Error()))
@@ -295,8 +295,8 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 		return nil, err
 	}
 	if common.RedisEnabled {
-		// 用数据库快照初始化或修复元数据，Lua 保留正在使用的额度计数。
-		// 初始化失败不影响本次读取。
+		// Initialize or repair metadata with a database snapshot, and Lua keeps a count of credits in use.
+		// Failure of initialization does not affect this reading.
 		if _, cacheErr := cacheInitToken(*token); cacheErr != nil {
 			common.SysLog(common.LogText("failed to init token cache: %s", cacheErr.Error()))
 		}
@@ -312,7 +312,7 @@ func (token *Token) Insert() error {
 
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (token *Token) Update() (err error) {
-	// 写库前失效缓存并设置 fence，防止并发读者把过期快照重新写回缓存。
+	// Invalidate the cache and set up a fence before writing to the database to prevent concurrent readers from rewriting expired snapshots back to the cache.
 	if cacheErr := invalidateTokenCacheForMutation(token.Key); cacheErr != nil {
 		common.SysLog(common.LogText("failed to invalidate token cache before update: %s", cacheErr.Error()))
 	}
@@ -385,8 +385,8 @@ func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
 	}
 	if common.RedisEnabled {
 		gopool.Go(func() {
-			// 守卫式增量：哈希不存在时跳过，由下次读取从数据库水合，
-			// 绝不创建只有配额字段的残缺哈希。
+			// Guarded increment: skip when the hash does not exist, and hydrate it from the database by the next read.
+			// Never create a mutilated hash with only a quota field.
 			if _, err := cacheApplyTokenQuotaDelta(tokenId, key, int64(quota)); err != nil {
 				common.SysLog(common.LogText("failed to increase token quota: %s", err.Error()))
 			}
@@ -446,7 +446,7 @@ func CountUserTokens(userId int) (int64, error) {
 	return total, err
 }
 
-// BatchDeleteTokens 删除指定用户的一组令牌，返回成功删除数量
+// BatchDeleteTokens deletes a set of tokens for the specified user and returns the number of successful deletions
 func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	if len(ids) == 0 {
 		return 0, common.NewMessage("Token IDs cannot be empty")
@@ -483,9 +483,9 @@ func GetTokenKeysByIds(ids []int, userId int) ([]Token, error) {
 	return tokens, err
 }
 
-// InvalidateUserTokensCache 清理指定用户所有令牌在 Redis 中的缓存，
-// 配合 InvalidateUserCache 使用，可在用户被禁用/删除时立即阻断其令牌的请求。
-// 下一次请求将从数据库重新加载令牌及用户状态，从而立即识别出被禁用的用户。
+// InvalidateUserTokensCache clears the cache of all tokens of the specified user in Redis.
+// Used with InvalidateUserCache, it can block requests for tokens immediately when a user is disabled/removed.
+// The next request will reload the token and user status from the database, immediately identifying disabled users.
 func InvalidateUserTokensCache(userId int) error {
 	if !common.RedisEnabled {
 		return nil

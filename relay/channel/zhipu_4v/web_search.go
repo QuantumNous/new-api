@@ -15,7 +15,7 @@ import (
 const zhipuSearchEngine = "search_std"
 
 // encodeWebSearch maps hosted web search onto the GLM Chat web_search tool
-// (https://docs.bigmodel.cn/api-reference/模型-api/对话补全). Claude and
+// (https://docs.bigmodel.cn/api-reference/model-api/dialogue completion). Claude and
 // Responses clients reach Zhipu natively, so only the Chat target is handled.
 // search_result makes non-stream responses carry the top-level web_search
 // array; search_intent:false skips intent detection when the client forced

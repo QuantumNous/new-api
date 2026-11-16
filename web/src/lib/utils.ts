@@ -27,16 +27,15 @@ export function sleep(ms: number = 1000) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/**
- * 清理 CSS 变量名，替换特殊字符
- * 用于将模型名称（如 gpt-3.5-turbo）转换为有效的 CSS 变量名（gpt-3-5-turbo）
- * @param name - 原始名称
- * @returns 清理后的 CSS 变量名
- */
+/* *
+ * Clean up CSS variable names and replace special characters
+ * Used to convert model names (such as gpt-3.5-turbo) into valid CSS variable names (gpt-3-5-turbo)
+ * @param name - original name
+ * @returns cleaned CSS variable name */
 export function sanitizeCssVariableName(name: string): string {
-  // 将点号、空格、斜杠替换为连字符
-  // 移除其他不允许在 CSS 变量名中的特殊字符
-  return name.replace(/[.\s/]/g, '-').replace(/[^\w-]/g, '')
+  // Replace periods, spaces, and slashes with hyphens
+  // Remove other special characters not allowed in CSS variable names
+  return name.replaceAll(/[.\s/]/g, '-').replaceAll(/[^\w-]/g, '')
 }
 
 /**
@@ -83,7 +82,7 @@ export function getPageNumbers(currentPage: number, totalPages: number) {
  */
 export function truncateText(text: string, maxLength: number): string {
   if (!text || text.length <= maxLength) return text
-  return text.slice(0, maxLength) + '...'
+  return `${text.slice(0, maxLength)  }...`
 }
 
 /**

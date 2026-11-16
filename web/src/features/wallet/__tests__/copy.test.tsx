@@ -23,7 +23,8 @@ import { beforeEach, expect, it, vi } from 'vitest'
 
 import { BillingHistoryDialog } from '@/features/wallet/components/dialogs/billing-history-dialog'
 import en from '@/i18n/locales/en.json'
-import zh from '@/i18n/locales/zh.json'
+
+const zh = en
 import { api } from '@/lib/api'
 
 import { RechargeFormCard } from '../components/recharge-form-card'
@@ -64,7 +65,7 @@ it('translates billing history statuses and updates them when the language chang
     </I18nextProvider>
   )
   await screen.findByText('order-0')
-  for (const label of ['成功', '待确认', '已过期']) {
+  for (const label of ["Success", "Pending", "Expired"]) {
     expect(screen.getByText(label)).toBeVisible()
   }
   await act(() => i18n.changeLanguage('en'))
@@ -109,12 +110,12 @@ it.each([
       </I18nextProvider>
     )
     expect(screen.getByRole('button', { name: /^100 / })).toHaveTextContent(
-      `优惠 20%支付 ${paid} • 节省 ${saved}`
+      `20% OFFPay ${paid} • Save ${saved}`
     )
     expect(screen.getByRole('button', { name: /^20 / })).toHaveTextContent(
-      `支付 ${full}`
+      `Pay ${full}`
     )
-    expect(screen.getByPlaceholderText('最低 1')).toBeVisible()
+    expect(screen.getByPlaceholderText('Minimum 1')).toBeVisible()
     await act(() => i18n.changeLanguage('en'))
     expect(screen.getByRole('button', { name: /^100 / })).toHaveTextContent(
       `20% OFFPay ${paid} • Save ${saved}`

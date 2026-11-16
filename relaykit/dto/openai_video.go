@@ -15,7 +15,7 @@ const (
 
 type OpenAIVideo struct {
 	ID                 string            `json:"id"`
-	TaskID             string            `json:"task_id,omitempty"` //兼容旧接口 待废弃
+	TaskID             string            `json:"task_id,omitempty"` // Compatible with old interfaces to be abandoned
 	Object             string            `json:"object"`
 	Model              string            `json:"model"`
 	Status             string            `json:"status"` // Should use VideoStatus constants: VideoStatusQueued, VideoStatusInProgress, VideoStatusCompleted, VideoStatusFailed

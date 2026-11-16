@@ -32,13 +32,13 @@ export const Route = createFileRoute('/(auth)/sign-in')({
   component: SignIn,
   validateSearch: searchSchema,
   beforeLoad: async ({ search }) => {
-    // 根 guard 可能因为没有会话提示而跳过了 refresh。此处必须回源确认，
-    // 否则持有有效 Refresh Cookie 的用户会被要求重新输入密码。
+    // The root guard may have skipped the refresh because there is no session prompt. You must go back to the source to confirm here.
+    // Otherwise users with valid Refresh Cookies will be asked to re-enter their password.
     await resolveAuthentication()
 
     const { auth } = useAuthStore.getState()
 
-    // 如果已经有用户信息，说明已登录
+    // If there is already user information, it means you are logged in
     if (auth.user) {
       const target =
         sanitizeAuthRedirect(search?.redirect, window.location.origin) ??

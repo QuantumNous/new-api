@@ -12,7 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as authRouteRouteImport } from './routes/(auth)/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AccessLimitsRouteImport } from './routes/access-limits'
+import { Route as CollegeSponsorshipRouteImport } from './routes/college-sponsorship'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as DocsRouteImport } from './routes/docs'
+import { Route as ModelHubRouteImport } from './routes/model-hub'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as RequestsRouteImport } from './routes/requests'
+import { Route as StudentVerificationRouteImport } from './routes/student-verification'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as UserAgreementRouteImport } from './routes/user-agreement'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
@@ -88,9 +97,54 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccessLimitsRoute = AccessLimitsRouteImport.update({
+  id: '/access-limits',
+  path: '/access-limits',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollegeSponsorshipRoute = CollegeSponsorshipRouteImport.update({
+  id: '/college-sponsorship',
+  path: '/college-sponsorship',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelHubRoute = ModelHubRouteImport.update({
+  id: '/model-hub',
+  path: '/model-hub',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RequestsRoute = RequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudentVerificationRoute = StudentVerificationRouteImport.update({
+  id: '/student-verification',
+  path: '/student-verification',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UserAgreementRoute = UserAgreementRouteImport.update({
@@ -438,7 +492,16 @@ const AuthenticatedOauthPluginKeyCallbackRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/access-limits': typeof AccessLimitsRoute
+  '/college-sponsorship': typeof CollegeSponsorshipRoute
+  '/contact': typeof ContactRoute
+  '/docs': typeof DocsRoute
+  '/model-hub': typeof ModelHubRoute
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/requests': typeof RequestsRoute
+  '/student-verification': typeof StudentVerificationRoute
+  '/terms': typeof TermsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/forgot-password': typeof authForgotPasswordRoute
@@ -503,7 +566,16 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/access-limits': typeof AccessLimitsRoute
+  '/college-sponsorship': typeof CollegeSponsorshipRoute
+  '/contact': typeof ContactRoute
+  '/docs': typeof DocsRoute
+  '/model-hub': typeof ModelHubRoute
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/requests': typeof RequestsRoute
+  '/student-verification': typeof StudentVerificationRoute
+  '/terms': typeof TermsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
@@ -570,7 +642,16 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/(auth)': typeof authRouteRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/access-limits': typeof AccessLimitsRoute
+  '/college-sponsorship': typeof CollegeSponsorshipRoute
+  '/contact': typeof ContactRoute
+  '/docs': typeof DocsRoute
+  '/model-hub': typeof ModelHubRoute
+  '/privacy': typeof PrivacyRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/requests': typeof RequestsRoute
+  '/student-verification': typeof StudentVerificationRoute
+  '/terms': typeof TermsRoute
   '/user-agreement': typeof UserAgreementRoute
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
@@ -637,7 +718,16 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/access-limits'
+    | '/college-sponsorship'
+    | '/contact'
+    | '/docs'
+    | '/model-hub'
+    | '/privacy'
     | '/privacy-policy'
+    | '/requests'
+    | '/student-verification'
+    | '/terms'
     | '/user-agreement'
     | '/system-settings'
     | '/forgot-password'
@@ -702,7 +792,16 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/access-limits'
+    | '/college-sponsorship'
+    | '/contact'
+    | '/docs'
+    | '/model-hub'
+    | '/privacy'
     | '/privacy-policy'
+    | '/requests'
+    | '/student-verification'
+    | '/terms'
     | '/user-agreement'
     | '/forgot-password'
     | '/oauth'
@@ -768,7 +867,16 @@ export interface FileRouteTypes {
     | '/'
     | '/(auth)'
     | '/_authenticated'
+    | '/access-limits'
+    | '/college-sponsorship'
+    | '/contact'
+    | '/docs'
+    | '/model-hub'
+    | '/privacy'
     | '/privacy-policy'
+    | '/requests'
+    | '/student-verification'
+    | '/terms'
     | '/user-agreement'
     | '/_authenticated/system-settings'
     | '/(auth)/forgot-password'
@@ -836,7 +944,16 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   authRouteRoute: typeof authRouteRouteWithChildren
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AccessLimitsRoute: typeof AccessLimitsRoute
+  CollegeSponsorshipRoute: typeof CollegeSponsorshipRoute
+  ContactRoute: typeof ContactRoute
+  DocsRoute: typeof DocsRoute
+  ModelHubRoute: typeof ModelHubRoute
+  PrivacyRoute: typeof PrivacyRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  RequestsRoute: typeof RequestsRoute
+  StudentVerificationRoute: typeof StudentVerificationRoute
+  TermsRoute: typeof TermsRoute
   UserAgreementRoute: typeof UserAgreementRoute
   errors401Route: typeof errors401Route
   errors403Route: typeof errors403Route
@@ -874,11 +991,74 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/access-limits': {
+      id: '/access-limits'
+      path: '/access-limits'
+      fullPath: '/access-limits'
+      preLoaderRoute: typeof AccessLimitsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/college-sponsorship': {
+      id: '/college-sponsorship'
+      path: '/college-sponsorship'
+      fullPath: '/college-sponsorship'
+      preLoaderRoute: typeof CollegeSponsorshipRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/model-hub': {
+      id: '/model-hub'
+      path: '/model-hub'
+      fullPath: '/model-hub'
+      preLoaderRoute: typeof ModelHubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy-policy': {
       id: '/privacy-policy'
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/requests': {
+      id: '/requests'
+      path: '/requests'
+      fullPath: '/requests'
+      preLoaderRoute: typeof RequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/student-verification': {
+      id: '/student-verification'
+      path: '/student-verification'
+      fullPath: '/student-verification'
+      preLoaderRoute: typeof StudentVerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/user-agreement': {
@@ -1465,7 +1645,16 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   authRouteRoute: authRouteRouteWithChildren,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AccessLimitsRoute: AccessLimitsRoute,
+  CollegeSponsorshipRoute: CollegeSponsorshipRoute,
+  ContactRoute: ContactRoute,
+  DocsRoute: DocsRoute,
+  ModelHubRoute: ModelHubRoute,
+  PrivacyRoute: PrivacyRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  RequestsRoute: RequestsRoute,
+  StudentVerificationRoute: StudentVerificationRoute,
+  TermsRoute: TermsRoute,
   UserAgreementRoute: UserAgreementRoute,
   errors401Route: errors401Route,
   errors403Route: errors403Route,

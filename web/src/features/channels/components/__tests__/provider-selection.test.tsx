@@ -22,7 +22,7 @@ import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { expect, test, vi } from 'vitest'
 
-import zh from '@/i18n/locales/zh.json'
+import zh from '@/i18n/locales/en.json'
 
 import type { TaskPluginOption } from '../../api'
 import { ChannelProviderPicker } from '../drawers/channel-provider-picker'
@@ -152,7 +152,7 @@ test('Zhipu GLM uses the renamed Chinese label and remains searchable after chan
     screen.getByRole('option', { name: 'Zhipu GLM Built-in #26' })
   ).toBeVisible()
   await act(() => language.changeLanguage('zh'))
-  expect(screen.getByRole('option', { name: '智谱GLM 内置 #26' })).toBeVisible()
+  expect(screen.getByRole('option', { name: 'Zhipu GLM Built-in #26' })).toBeVisible()
 })
 
 test('plugin extensions keep built-in and independent plugin choices distinct in every category', async () => {
@@ -692,10 +692,10 @@ test('every built-in provider has a description and Anthropic includes compatibl
   )
   await act(() => language.changeLanguage('zhCN'))
   expect(anthropic).toHaveAccessibleDescription(
-    '接入 Anthropic API 或兼容其接口的服务'
+    "Connect to the Anthropic API or compatible services"
   )
   expect(
-    within(anthropic).getByText('接入 Anthropic API 或兼容其接口的服务')
+    within(anthropic).getByText("Connect to the Anthropic API or compatible services")
   ).toBeVisible()
 })
 
@@ -778,8 +778,8 @@ test('plugin descriptions follow the current language with an English fallback a
   ).not.toHaveAccessibleDescription()
 
   await act(() => language.changeLanguage('zhCN'))
-  expect(within(option).getByText('通过厂商接口生成视频')).toBeVisible()
-  expect(option).toHaveAccessibleDescription('通过厂商接口生成视频')
+  expect(within(option).getByText("Video generation via the vendor API")).toBeVisible()
+  expect(option).toHaveAccessibleDescription("Video generation via the vendor API")
   await act(() => language.changeLanguage('fr'))
   await user.click(
     within(option).getByText('Video generation via the vendor API')

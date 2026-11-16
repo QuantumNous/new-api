@@ -1,11 +1,8 @@
 export const meta = {
   apiVersion: 1,
   key: "request-filter",
-  name: { en: "Request filter", zh: "请求过滤" },
-  description: {
-    en: "Rejects requests whose text matches a keyword or regular expression",
-    zh: "拒绝文本命中关键词或正则表达式的请求",
-  },
+  name: { en: "Request filter" },
+  description: { en: "Rejects requests whose text matches a keyword or regular expression" },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   configSchema: {
@@ -13,48 +10,45 @@ export const meta = {
     properties: {
       rules: {
         type: "array",
-        title: { en: "Rules", zh: "规则" },
-        description: { en: "The request is rejected when any rule matches", zh: "命中任一规则时拒绝请求" },
+        title: { en: "Rules" },
+        description: { en: "The request is rejected when any rule matches" },
         default: [],
         maxItems: 500,
         items: {
           type: "object",
-          title: { en: "Rule", zh: "规则" },
-          description: { en: "Text that causes a rejection", zh: "会导致拒绝的文本" },
+          title: { en: "Rule" },
+          description: { en: "Text that causes a rejection" },
           required: ["pattern"],
           properties: {
             pattern: {
               type: "string",
-              title: { en: "Keyword or expression", zh: "关键词或表达式" },
-              description: { en: "Keyword or regular expression to match", zh: "要匹配的关键词或正则表达式" },
+              title: { en: "Keyword or expression" },
+              description: { en: "Keyword or regular expression to match" },
               minLength: 1,
               maxLength: 1024,
               examples: ["internal use only"],
             },
             type: {
               type: "string",
-              title: { en: "Match type", zh: "匹配方式" },
-              description: { en: "How the pattern is matched", zh: "匹配内容的方式" },
+              title: { en: "Match type" },
+              description: { en: "How the pattern is matched" },
               enum: ["keyword", "regex"],
               enumTitles: [
-                { en: "Keyword", zh: "关键词" },
-                { en: "Regular expression", zh: "正则表达式" },
+                { en: "Keyword" },
+                { en: "Regular expression" },
               ],
               default: "keyword",
             },
             caseSensitive: {
               type: "boolean",
-              title: { en: "Case sensitive", zh: "区分大小写" },
-              description: { en: "Whether letter case must match", zh: "是否区分大小写" },
+              title: { en: "Case sensitive" },
+              description: { en: "Whether letter case must match" },
               default: false,
             },
             id: {
               type: "string",
-              title: { en: "Rule ID", zh: "规则 ID" },
-              description: {
-                en: "Recorded in logs when the rule matches; leave empty to number rules in order",
-                zh: "命中时记录在日志中，留空时按顺序编号",
-              },
+              title: { en: "Rule ID" },
+              description: { en: "Recorded in logs when the rule matches; leave empty to number rules in order" },
               maxLength: 64,
               examples: ["internal-docs"],
             },
@@ -64,44 +58,35 @@ export const meta = {
       keywords: {
         type: "string",
         format: "keywords",
-        title: { en: "Keyword list", zh: "关键词列表" },
-        description: {
-          en: "One per line; the request is rejected when any of them appears",
-          zh: "每行一个，请求中出现任意一个时拒绝",
-        },
+        title: { en: "Keyword list" },
+        description: { en: "One per line; the request is rejected when any of them appears" },
         default: "",
         maxLength: 1048576,
       },
       keywordsCaseSensitive: {
         type: "boolean",
-        title: { en: "Keywords are case sensitive", zh: "关键词区分大小写" },
+        title: { en: "Keywords are case sensitive" },
         default: false,
       },
       message: {
         type: "string",
-        title: { en: "Rejection message", zh: "拒绝提示" },
-        description: {
-          en: "Shown to the client; leave empty for the default message",
-          zh: "返回给客户端，留空时使用默认提示",
-        },
+        title: { en: "Rejection message" },
+        description: { en: "Shown to the client; leave empty for the default message" },
         default: "",
         maxLength: 256,
         examples: ["This request contains content that is not allowed"],
       },
       replies: {
         type: "boolean",
-        title: { en: "Check replies", zh: "检查回复" },
-        description: {
-          en: "Also stop model replies that match a rule",
-          zh: "同时中止命中规则的模型回复",
-        },
+        title: { en: "Check replies" },
+        description: { en: "Also stop model replies that match a rule" },
         default: false,
       },
     },
   },
   samples: [
-    {
-      name: { en: "Internal memo", zh: "内部备忘录" },
+{
+      name: { en: "Internal memo" },
       lang: "en",
       format: "openai",
       body: {
@@ -109,18 +94,8 @@ export const meta = {
         messages: [{ role: "user", content: "Summarize this memo. It is marked internal use only: Q3 revenue grew 12 percent." }],
       },
       reply: "This memo is for internal use only. It reports that Q3 revenue grew 12 percent.",
-    },
-    {
-      name: { en: "Internal memo", zh: "内部备忘录" },
-      lang: "zh",
-      format: "openai",
-      body: {
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: "总结这份备忘录，它标注了仅限内部使用：第三季度收入增长 12%。" }],
-      },
-      reply: "这份备忘录仅限内部使用，内容是第三季度收入增长 12%。",
-    },
-  ],
+    }
+],
 };
 
 const TEXT_PART_TYPES = ["text", "input_text", "output_text"];

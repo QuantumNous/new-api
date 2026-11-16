@@ -2,36 +2,36 @@ package operation_setting
 
 import "github.com/QuantumNous/new-api/setting/config"
 
-// CheckinSetting 签到功能配置
+// CheckinSetting check-in function configuration
 type CheckinSetting struct {
-	Enabled  bool `json:"enabled"`   // 是否启用签到功能
-	MinQuota int  `json:"min_quota"` // 签到最小额度奖励
-	MaxQuota int  `json:"max_quota"` // 签到最大额度奖励
+	Enabled  bool `json:"enabled"`   // Whether to enable the check-in function
+	MinQuota int  `json:"min_quota"` // Minimum amount of reward for signing in
+	MaxQuota int  `json:"max_quota"` // Maximum sign-in reward
 }
 
-// 默认配置
+// Default configuration
 var checkinSetting = CheckinSetting{
-	Enabled:  false, // 默认关闭
-	MinQuota: 1000,  // 默认最小额度 1000 (约 0.002 USD)
-	MaxQuota: 10000, // 默认最大额度 10000 (约 0.02 USD)
+	Enabled:  false, // Off by default
+	MinQuota: 1000,  // The default minimum amount is 1000 (approximately 0.002 USD)
+	MaxQuota: 10000, // The default maximum amount is 10,000 (approximately 0.02 USD)
 }
 
 func init() {
-	// 注册到全局配置管理器
+	// Register to the global configuration manager
 	config.GlobalConfig.Register("checkin_setting", &checkinSetting)
 }
 
-// GetCheckinSetting 获取签到配置
+// GetCheckinSetting Gets the check-in configuration
 func GetCheckinSetting() *CheckinSetting {
 	return &checkinSetting
 }
 
-// IsCheckinEnabled 是否启用签到功能
+// IsCheckinEnabled Whether to enable the check-in function
 func IsCheckinEnabled() bool {
 	return checkinSetting.Enabled
 }
 
-// GetCheckinQuotaRange 获取签到额度范围
+// GetCheckinQuotaRange Gets the check-in quota range
 func GetCheckinQuotaRange() (min, max int) {
 	return checkinSetting.MinQuota, checkinSetting.MaxQuota
 }

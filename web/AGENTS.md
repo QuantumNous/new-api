@@ -1,228 +1,208 @@
-# 前端开发规范
+# Front-end development specifications
 
-本文档定义前端项目的开发规范与最佳实践，供开发与 AI 助手共同遵循。具体依赖与脚本以 `package.json` 为准。
+This document defines the development specifications and best practices for front-end projects for development and AI assistants to follow. The specific dependencies and scripts are subject to `package.json`.
 
 ---
 
-## 一、项目概览
+## 1. Project Overview
 
-### 技术栈
+### Technology stack
 
-| 类别       | 技术                                                              |
+| Category | Technology |
 | ---------- | ----------------------------------------------------------------- |
-| 包管理     | Bun                                                               |
-| 框架       | React 19、TypeScript                                              |
-| 数据与请求 | @tanstack/react-query、axios、Zustand                             |
-| 路由       | @tanstack/react-router                                            |
-| 表格与列表 | @tanstack/react-table、@tanstack/react-virtual                    |
-| 国际化     | i18next、react-i18next、i18next-browser-languagedetector          |
-| 日期       | Day.js                                                            |
-| UI 与样式  | Base UI、Hugeicons、Tailwind CSS、clsx / class-variance-authority |
-| 表单       | React Hook Form、Zod                                              |
-| 图表       | @visactor/vchart、@visactor/react-vchart                          |
-| 工具       | qrcode.react、oxfmt、oxlint、vitest（可选）                       |
+| Package Management | Bun |
+| Framework | React 19, TypeScript |
+| Data and requests | @tanstack/react-query, axios, Zustand |
+| routing | @tanstack/react-router |
+| Tables and lists | @tanstack/react-table, @tanstack/react-virtual |
+| Internationalization | i18next, react-i18next, English-only interpolation |
+| Date | Day.js |
+| UI & Style | Base UI, Hugeicons, Tailwind CSS, clsx/class-variance-authority |
+| Form | React Hook Form, Zod |
+| Charts | @visactor/vchart, @visactor/react-vchart |
+| Tools | qrcode.react, oxfmt, oxlint, vitest (optional) |
 
-优先复用项目已有组件与能力（见 [3.3 组件](#33-组件)）；项目内无合适实现时，再评估已安装依赖及成熟、维护良好的开源库。仅在复用、组合或合理扩展仍无法满足需求时自行实现，并说明具体能力缺口。
-
----
-
-## 二、目录
-
-- [一、项目概览](#一项目概览)
-- [二、目录](#二目录)
-- [三、开发规范](#三开发规范)
-  - [3.1 国际化](#31-国际化)
-  - [3.2 代码风格与类型](#32-代码风格与类型)
-  - [3.3 组件](#33-组件)
-  - [3.4 性能](#34-性能)
-  - [3.5 状态管理](#35-状态管理)
-  - [3.6 API 请求](#36-api-请求)
-  - [3.7 表单](#37-表单)
-  - [3.8 路由](#38-路由)
-  - [3.9 错误处理](#39-错误处理)
-  - [3.10 样式](#310-样式)
-  - [3.11 文件组织](#311-文件组织)
-  - [3.12 可访问性](#312-可访问性)
-  - [3.13 安全](#313-安全)
-  - [3.14 测试](#314-测试)
-  - [3.15 依赖管理](#315-依赖管理)
-  - [3.16 构建与部署](#316-构建与部署)
-- [四、协作与提交](#四协作与提交)
-- [更新日志](#更新日志)
+Prioritize reusing existing components and capabilities of the project (see [3.3 Components](#33-Components)); if there is no suitable implementation in the project, then evaluate installed dependencies and mature and well-maintained open source libraries. Only implement it yourself when reuse, combination or reasonable expansion still cannot meet the needs, and explain the specific capability gaps.
 
 ---
 
-## 三、开发规范
+## 2. Directory
 
-### 3.1 国际化
+- Project overview
+- Contents
+- Development conventions
+  - [3.1 Internationalization](#31-Internationalization)
+  - [3.2 Coding style and type](#32-Coding style and type)
+  - [3.3 Components](#33-Components)
+  - [3.4 Performance](#34-Performance)
+  - [3.5 Status Management](#35-Status Management)
+  - [3.6 API request](#36-api-request)
+  - [3.7 Form](#37-Form)
+  - [3.8 Routing](#38-Routing)
+  - [3.9 Error handling](#39-Error handling)
+  - [3.10 Style](#310-Style)
+  - [3.11 File Organization](#311-File Organization)
+  - [3.12 Accessibility](#312-Accessibility)
+  - [3.13 Security](#313-Security)
+  - [3.14 Test](#314-Test)
+  - [3.15 Dependency Management](#315-Dependency Management)
+  - [3.16 Build and Deployment](#316-Build and Deployment)
+- [4. Collaboration and Submission](#4Collaboration and Submission)
+- [Update Log](#Update Log)
 
-- **页面文本**：所有面向用户的文案均需支持 i18n，使用 `useTranslation()` 的 `t()` 进行翻译。
-- **使用场景**
-  - **React 组件**：必须使用 `const { t } = useTranslation()`，以保证语言切换时组件会重新渲染。
-  - **非 React 环境**（工具函数、常量、类方法）：可使用 `import { t } from 'i18next'`；此类用法不会随语言切换自动更新，仅在不依赖响应式更新的场景使用。
-  - 即使父组件已使用 `useTranslation()`，子组件仍应自行使用，以保证独立性。
-- **专有名词**：品牌、产品、技术术语等可保留英文（如 API、React、TypeScript）；若有约定俗成的译法则使用翻译。
-- **翻译键**：使用有层级、语义清晰的键名，如 `dashboard.overview.title`，并保持命名一致。
+---
 
-- **枚举与文案（常量中的 i18n）**
-  各 feature 的 `constants.ts` 中常出现「枚举/状态 + 展示文案」或「成功/错误消息」，须统一约定以免遗漏 i18n、用法混乱：
-  - **成功/错误/提示类消息**（如 `SUCCESS_MESSAGES`、`ERROR_MESSAGES`）：常量值仅表示 **i18n 键**（与英文 fallback 同字面量）。展示时**必须**通过 `t()` 使用，例如 `toast.success(t(SUCCESS_MESSAGES.API_KEY_CREATED))`、`toast.error(t(ERROR_MESSAGES.UNEXPECTED))`，**禁止**直接 `toast.success(SUCCESS_MESSAGES.xxx)` 当作最终文案。
-  - **状态/选项的 label**：在常量中统一用 **labelKey**（字符串，即 i18n 键），组件中通过 `t(config.labelKey)` 渲染；或约定用 `label` 存与 en 一致的 key 字符串，组件用 `t(config.label)`。同一 feature 内只采用一种方式，避免混用。
-  - **新增此类常量时**：同步在 `src/i18n/static-keys.ts` 中登记对应 key（若项目用其做提取），或确保文案以 `t('...')` 字面量形式出现以便扫描，避免遗漏翻译。
+## 3. Development specifications
 
-**数字格式化与 Intl 语言参数（强制）**
+### 3.1 English-only interface
 
-- 普通数字、紧凑数字展示必须优先复用 `@/lib/format` 的 `formatNumber` / `formatCompactNumber`；金额、余额与额度使用已有 `@/lib/currency` 或对应业务封装，保留精度、单位与换算语义。已有封装无法表达的格式选项才可直接使用 `Intl.NumberFormat`，不能为统一调用方式改变数值显示精度。
-- `zhCN` / `zhTW` 是项目的界面语言码，不是合法的 BCP 47 标签。来自界面语言的参数，无论直接引用、解构、变量别名或函数透传，在进入 `Intl.*`、`toLocaleString` / `toLocaleDateString` / `toLocaleTimeString` 或公共格式化函数前，必须使用 `@/i18n/languages` 的 `toIntlLocale()` 转换。禁止自行编写 `zhCN` 等语言码映射；只处理简体中文会遗漏繁体中文。
-- React 组件通过 `useTranslation()` 订阅语言，在渲染时计算 `const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)`，例如 `formatNumber(value, locale)`。不得把当前语言固定在模块常量或初始 state 中；语言切换后格式必须更新。明确使用运行环境默认语言或固定协议语言的场景，可省略 locale、传 `undefined` 或使用合法的固定标签。
-- `bun run lint` / `bun run lint:fix` 启用 **`project/intl-locale` error**，检查上述调用中的原始 `language` / `resolvedLanguage`、本地变量赋值与解构别名，以及非法固定标签；不得通过 lint-disable 绕过。静态检查不追踪跨函数或跨模块的数据流，调用方仍须遵守转换约定。
-- 修改语言转换或数字格式化时，回归测试必须覆盖 `zhCN`、`zhTW`、其余五种界面语言，以及非法语言的降级；涉及组件语言响应时还须覆盖切换语言。修改 lint 规则须验证违规代码报错且合法转换不误报，类型检查和构建通过不能替代这些验证。
+English is the only supported language. Follow `../../ENGLISH_ONLY_POLICY.md`. Keep existing `t()` calls for interpolation and compatibility, and maintain English resource entries where needed. Do not add translated bundles, language detection, or language selectors. Use the shared `toIntlLocale()` adapter, which always returns English, for interface-derived formatting. Tests must verify English output even when old preferences or browser headers request another language.
 
-### 3.2 代码风格与类型
+### 3.2 Code style and type
 
-- **表达式**：禁止 2 层及以上嵌套三元表达式；改用 `if-else`、提前返回或抽取函数。单层三元可保留，但需简洁。
-- **可读性**：控制函数圈复杂度，复杂逻辑拆成小函数；变量与函数命名需有意义，遵循驼峰等常规约定。
-- **TypeScript**：避免 `any`，优先具体类型或 `unknown`；为参数与返回值显式标注类型；仅类型用途的导入使用 `import type { X } from '...'`。
-- **类型检查**：每次改动 TypeScript 或 TSX 代码后都要执行类型检查（如 `bun check -b`）；若出现类型错误，须修复至无错误为止，不得遗留。
-- **Lint 检查**：每次完成代码改动前，必须对所涉及文件执行 lint 检查，并修复这些文件中的所有 lint error；不得遗留 error。warning 可按变更范围与风险评估处理。
-- **解构**：对象非必要不要进行解构，特别是组件的 props；直接使用 `props.xxx` 更清晰，避免不必要的解构增加代码复杂度。
+- **Expression**: Disable nested ternary expressions at 2 levels or above; use `if-else`, early return or extraction function instead. Single-layer ternary can be retained, but it needs to be simple.
+- **Readability**: Control the complexity of the function loop, and split complex logic into small functions; the naming of variables and functions must be meaningful and follow conventional conventions such as camel case.
+- **TypeScript**: Avoid `any`, prefer concrete types or `unknown`; explicitly type parameters and return values; use `import type { X } from '...'` for type-only imports.
+- **Type checking**: Type checking (such as `bun check -b`) must be performed every time TypeScript or TSX code is changed; if a type error occurs, it must be repaired until there is no error and must not be left behind.
+- **Lint check**: Before each code change is completed, lint checks must be performed on the files involved and all lint errors in these files must be repaired; no errors must be left behind. warnings can be handled based on change scope and risk assessment.
+- **Destructuring**: Do not deconstruct objects unless necessary, especially props of components; it is clearer to use `props.xxx` directly to avoid unnecessary destructuring that increases code complexity.
 
-### 3.3 组件
+### 3.3 Components
 
-**先检索，再复用，最后才新增（强制）**
+**Retrieve first, then reuse, and finally add (mandatory)**
 
-- **开发前检索**：新增或修改 UI 前，必须读取项目 `shadcn-ui` 技能，使用 `rg --files` / `rg` 检索 `src/components/` 和相关 `src/features/`；涉及通用交互时同时检查 `src/hooks/`。按用途和行为查找，不能只查准备新增的组件名。阅读候选组件的实现、props 和实际调用示例后再确定方案。
-- **复用顺序**：优先使用满足场景的项目业务封装；能力不足时，先评估现有 props、插槽、组合方式或兼容扩展。业务封装确实不适用时，再用 `src/components/ui/` 中已有基础组件组合。项目内仍有能力缺口时，才评估引入组件或新增实现；查外部 registry 不能替代项目内检索。
-- **复用到行为层**：仅使用 `Button`、`Dialog`、`AlertDialog` 等基础组件，不代表已经复用了对应的复制、确认、弹窗布局等通用能力。已有业务封装能覆盖时，必须使用该封装，禁止在 feature 内重新拼装同一套交互、状态和样式。
-- **新增条件**：新增替代实现前，必须明确候选组件缺少的具体能力，并在变更说明或 PR 中记录候选路径及不能复用、组合或兼容扩展的原因。文案、图标、尺寸、颜色或所在页面不同，不构成重复实现的理由；优先通过已有 API 和主题约定处理这些差异。
-- **合理组合**：允许新增承载业务数据、权限、事件和内容的 feature 组件，但其中的通用 UI 与交互必须继续复用。扩展公共组件需保持已有调用行为，不能为单个页面塞入无关业务逻辑，也不能为消除少量相似代码建立过度通用的抽象。
-- **基础元素边界**：业务代码中，已有基础组件覆盖的按钮、输入框、选择器、弹层等控件，必须使用项目组件，不能手写同等控件或直接绕过封装调用底层库。普通语义化布局、隐藏字段及现有组件无法表达的特殊控件可使用原生元素；特殊控件仍须说明能力缺口并满足可访问性要求。
+- **Pre-development search**: Before adding or modifying the UI, you must read the project `shadcn-ui` skill, use `rg --files` / `rg` to retrieve `src/components/` and related `src/features/`; also check `src/hooks/` when common interactions are involved. Search by purpose and behavior, not just the name of the component to be added. Read the candidate component's implementation, props, and actual call examples before deciding on a solution.
+- **Reuse order**: Give priority to using project business packages that meet the scenario; when capabilities are insufficient, first evaluate existing props, slots, combination methods or compatible extensions. When business encapsulation is indeed not applicable, use the existing basic component combination in `src/components/ui/`. Only when there are still capability gaps within the project will the introduction of components or new implementations be evaluated; checking external registries cannot replace in-project searches.
+- **Reuse to the behavior layer**: Only using basic components such as `Button`, `Dialog`, and `AlertDialog` does not mean that the corresponding common capabilities such as copying, confirmation, and pop-up window layout have been reused. When an existing business encapsulation can cover it, this encapsulation must be used, and it is prohibited to reassemble the same set of interactions, states, and styles within the feature.
+- **New conditions**: Before adding an alternative implementation, the specific capabilities that the candidate component lacks must be clarified, and the candidate path and the reasons why it cannot be reused, combined, or compatible with extensions must be recorded in the change description or PR. Differences in copywriting, icons, sizes, colors or pages do not constitute a reason for repeated implementation; priority is given to handling these differences through existing APIs and theme conventions.
+- **Reasonable combination**: It is allowed to add new feature components that carry business data, permissions, events and content, but the common UI and interaction must continue to be reused. When extending public components, you need to maintain the existing calling behavior. You cannot stuff irrelevant business logic into a single page, and you cannot create overly general abstractions to eliminate a small amount of similar code.
+- **Basic element boundary**: In the business code, controls such as buttons, input boxes, selectors, and pop-ups that are covered by basic components must use project components. You cannot hand-write equivalent controls or directly bypass the encapsulation and call the underlying library. Native elements can be used for ordinary semantic layouts, hidden fields, and special controls that cannot be expressed by existing components; special controls must still explain capability gaps and meet accessibility requirements.
 
-以下为常用检索入口，不能把本表当作完整组件清单：
+The following are commonly used search entries. This table cannot be regarded as a complete list of components:
 
-| 场景                             | 优先检查的项目入口                                                                   |
+| Scenario | Priority check item entry |
 | -------------------------------- | ------------------------------------------------------------------------------------ |
-| 通用弹窗布局                     | `@/components/dialog`                                                                |
-| 删除、危险操作及普通确认         | `@/components/confirm-dialog`                                                        |
-| 复制按钮与剪贴板交互             | `@/components/copy-button`、`@/hooks/use-copy-to-clipboard`                          |
-| 空状态、加载状态、错误状态       | `@/components/empty-state`、`@/components/loading-state`、`@/components/error-state` |
-| 表格、分页、工具栏及列表布局     | `@/components/data-table`，先读该目录的 `README.md` 和公开导出                       |
-| 按钮、输入、选择、提示等基础控件 | `@/components/ui/`，以 `components.json` 和本地实现为准                              |
+| Universal pop-up window layout | `@/components/dialog` |
+| Deletion, Dangerous Operations and General Confirmation | `@/components/confirm-dialog` |
+| Copy button interacts with clipboard | `@/components/copy-button`, `@/hooks/use-copy-to-clipboard` |
+| Empty state, loading state, error state | `@/components/empty-state`, `@/components/loading-state`, `@/components/error-state` |
+| Table, paging, toolbar and list layout | `@/components/data-table`, first read the directory's `README.md` and public export |
+| Basic controls such as buttons, inputs, selections, and prompts | `@/components/ui/`, subject to `components.json` and local implementation |
 
-- 使用函数式组件与 Hooks，单一职责；组件 props 须有明确类型（接口或类型别名）。
-- **Props 使用**：组件 props 非必要不要解构，直接使用 `props.xxx` 访问属性，保持代码清晰（详见 [3.2 代码风格与类型](#32-代码风格与类型)）。
-- 单文件超过约 200 行时考虑拆分子组件或将逻辑抽到自定义 Hooks；类型定义可与组件同文件或放在同模块的 `types` 中。
+- Use functional components and Hooks, single responsibility; component props must have clear types (interfaces or type aliases).
+- **Props usage**: Do not deconstruct component props unless necessary. Use `props.xxx` directly to access properties to keep the code clear (see [3.2 Code Style and Type](#32-Code Style and Type) for details).
+- When a single file exceeds about 200 lines, consider splitting sub-components or extracting logic to custom Hooks; the type definition can be in the same file as the component or placed in `types` in the same module.
 
-### 3.4 性能
+### 3.4 Performance
 
-- **React**：合理使用 `useMemo`、`useCallback` 减少无效重渲染；避免在渲染路径中创建新对象/数组；必要时使用 `React.memo`。
-- **代码分割**：使用 `React.lazy` 与动态 `import` 做按需加载，控制首屏与路由体积。
-- **资源**：图片选用合适格式与尺寸，大列表考虑虚拟滚动（如 @tanstack/react-virtual），大量图片考虑懒加载。
+- **React**: Use `useMemo` and `useCallback` appropriately to reduce invalid re-rendering; avoid creating new objects/arrays in the rendering path; use `React.memo` when necessary.
+- **Code Splitting**: Use `React.lazy` and dynamic `import` for on-demand loading to control the first screen and routing volume.
+- **Resources**: Choose appropriate formats and sizes for images, consider virtual scrolling (such as @tanstack/react-virtual) for large lists, and consider lazy loading for large numbers of images.
 
-### 3.5 状态管理
+### 3.5 Status Management
 
-- 使用 Zustand 的 `create` 定义 store，并为 state 与 actions 定义清晰类型。
-- 组件内优先用选择器订阅，避免整 store 订阅导致多余渲染，例如：`const user = useAuthStore((s) => s.auth.user)`。
-- 需持久化的状态在 store 内读写 localStorage，并在初始化时恢复。
-- Store 按功能放在 `src/stores/`，单文件职责清晰，命名表意明确。
+- Use Zustand's `create` to define the store and define clear types for state and actions.
+- Prioritize using selectors to subscribe within components to avoid redundant rendering caused by whole store subscriptions, for example: `const user = useAuthStore((s) => s.auth.user)`.
+- The state that needs to be persisted is read and written to localStorage in the store and restored during initialization.
+- Store is placed in `src/stores/` according to function. The responsibilities of a single file are clear and the naming is clear.
 
-### 3.6 API 请求
+### 3.6 API request
 
-- **React Query**：数据获取用 `useQuery`，变更用 `useMutation`；为每个查询配置唯一 `queryKey`（建议数组形式、层级一致）；在 `onSuccess` 中对相关 query 做 `invalidateQueries`，可配合乐观更新。服务端错误统一通过 `handleServerError` 处理（详见 [3.9 错误处理](#39-错误处理)）。
-- **Axios**：使用项目统一的 `api` 实例（含 `baseURL`、`headers`、`withCredentials: true`）；GET 默认请求去重，特殊请求可通过配置关闭；认证刷新与请求重试在拦截器中处理；普通错误提示由 Query/Mutation 的最终失败回调或直接调用方负责。
+- **React Query**: Use `useQuery` for data acquisition, and `useMutation` for change; configure a unique `queryKey` for each query (recommended array form, consistent level); do `invalidateQueries` for related queries in `onSuccess`, which can cooperate with optimistic updates. Server-side errors are handled uniformly through `handleServerError` (see [3.9 Error Handling](#39-Error Handling) for details).
+- **Axios**: Use the project's unified `api` instance (including `baseURL`, `headers`, `withCredentials: true`); GET default request deduplication, special requests can be turned off through configuration; authentication refresh and request retry are handled in the interceptor; ordinary error prompts are the responsibility of the final failure callback of Query/Mutation or the direct caller.
 
-### 3.7 表单
+### 3.7 Form
 
-- 使用 React Hook Form + Zod：在功能模块的 `lib/` 下定义 schema，并用 `z.infer` 导出表单类型；`useForm` 配合 `@hookform/resolvers/zod` 做校验。
-- 提交逻辑放在 `onSubmit`，展示加载与错误状态；成功后视场景重置表单或关闭弹窗。服务端校验错误映射到对应字段并展示（字段级错误展示方式见 [3.9 错误处理](#39-错误处理)）。
+- Use React Hook Form + Zod: Define the schema under `lib/` in the function module, and use `z.infer` to export the form type; `useForm` cooperates with `@hookform/resolvers/zod` for verification.
+- The submission logic is placed in `onSubmit` to display the loading and error status; after success, the scene resets the form or closes the pop-up window. Server-side verification errors are mapped to corresponding fields and displayed (for field-level error display methods, see [3.9 Error Handling](#39-Error Handling)).
 
-### 3.8 路由
+### 3.8 Routing
 
-- 使用 TanStack Router，路由文件位于 `src/routes/`，通过 `createFileRoute` 定义；搜索参数用 Zod schema + `validateSearch` 校验。
-- 在 `beforeLoad` 中做认证与重定向，避免不必要的请求；嵌套结构用布局路由与 `_authenticated` 等前缀，子路由通过 `<Outlet />` 渲染。
-- 导航使用 `useNavigate` 或 `Link`，保持类型安全，避免直接操作 `window.location`。
+- Using TanStack Router, the routing file is located in `src/routes/` and defined by `createFileRoute`; the search parameters are verified with Zod schema + `validateSearch`.
+- Perform authentication and redirection in `beforeLoad` to avoid unnecessary requests; nested structures use layout routing and `_authenticated` as prefixes, and sub-routes are rendered through `<Outlet />`.
+- Navigate using `useNavigate` or `Link` to maintain type safety and avoid direct manipulation of `window.location`.
 
-### 3.9 错误处理
+### 3.9 Error handling
 
-- **服务端错误**：统一使用 `handleServerError(error, fallbackMessage?)`，优先保留服务端具体原因。相同失败沿 `cause` 传播时只提示一次；不同操作即使文案相同也分别提示。禁止把完整 Axios 错误对象（可能包含凭据）直接写入控制台。
-- **提示归属**：普通请求拦截器不弹 Toast。使用共享 `createAppQueryClient` 在 Query/Mutation 最终失败时提示；Mutation 自定义 `onError` 负责自己的提示或表单错误。自动重试期间和主动取消时不报错。`meta.errorToast: false` 关闭自动提示，页面仍可主动调用错误处理函数。
-- **业务失败**：保留原始 API 响应契约；Query 使用 `requireServerSuccess` 检查 `success: false`，或在业务层用 `createServerError(response, fallbackMessage?)` 抛错并保留来源。直接请求须明确处理失败响应和 Promise 拒绝；需要展示失败状态的 Mutation 不得把失败结果当作保存成功。
-- **认证兼容**：保留稳定错误码映射及 `AuthOperationError` 的安全消息，不解开其来源来展示被屏蔽的细节。维护既有刷新、跳转和一次性授权不重放约束。
-- **展示**：使用 `toast.error` 等统一方式；路由级错误由 `errorComponent` 承接，提供友好错误页并记录便于排查的信息。
-- **表单**：校验与服务端错误映射到字段后，在字段下方展示；使用 `form.setError` 等与表单库一致的方式。
+- **Server-side error**: Use `handleServerError(error, fallbackMessage?)` uniformly, and give priority to retaining the specific reasons on the server side. The same failure will only be prompted once when propagating along `cause`; different operations will be prompted separately even if the copywriting is the same. Disables writing the full Axios error object (possibly containing credentials) directly to the console.
+- **Prompt Attribution**: Ordinary request interceptors do not play Toast. Use the shared `createAppQueryClient` to prompt when Query/Mutation ultimately fails; Mutation's custom `onError` is responsible for its own prompts or form errors. No error will be reported during automatic retry and active cancellation. `meta.errorToast: false` turns off automatic prompts, and the page can still actively call the error handling function.
+- **Business Failure**: Retain the original API response contract; Query uses `requireServerSuccess` to check `success: false`, or use `createServerError(response, fallbackMessage?)` at the business layer to throw an error and retain the source. Direct requests must explicitly handle failure responses and Promise rejections; Mutation that needs to display failure status must not treat the failure result as a successful save.
+- **Authentication Compatible**: Preserves stable error code mapping and security messages of `AuthOperationError`, without unraveling their sources to display blocked details. Maintain existing refresh, jump, and one-time authorization non-replay constraints.
+- **Display**: Use unified methods such as `toast.error`; routing-level errors are handled by `errorComponent`, providing friendly error pages and recording information for easy troubleshooting.
+- **Form**: After the verification and server-side errors are mapped to fields, they are displayed below the fields; use `form.setError` and other methods consistent with the form library.
 
-### 3.10 样式
+### 3.10 Style
 
-- 以 Tailwind 工具类为主，动态类名用 `cn()` 合并；非动态场景避免内联样式。
-- 响应式采用移动优先与 Tailwind 断点（`sm:`、`md:`、`lg:` 等）；主题与暗色用 CSS 变量与 `dark:`，自定义样式集中在 `src/styles/`，组件内尽量少写自定义 CSS。
+- Mainly use Tailwind tool classes, and use `cn()` to merge dynamic class names; avoid inline styles in non-dynamic scenarios.
+- Responsiveness uses mobile first and Tailwind breakpoints (`sm:`, `md:`, `lg:`, etc.); themes and dark colors use CSS variables and `dark:`, custom styles are concentrated in `src/styles/`, and as little custom CSS is written in components as possible.
 
-### 3.11 文件组织
+### 3.11 File Organization
 
-- **功能模块**：置于 `src/features/<feature>/`，内含 `components/`、`lib/`、`hooks/`，以及按需的 `api.ts`、`types.ts`、`constants.ts`、入口组件等。
-- **通用**：通用组件放 `src/components/`，通用工具与类型放 `src/lib/`；组件文件 PascalCase，工具/类型文件 kebab-case 或 `types.ts`，类型使用 PascalCase 命名并 `export type`。
+- **Function module**: placed in `src/features/<feature>/`, containing `components/`, `lib/`, `hooks/`, as well as on-demand `api.ts`, `types.ts`, `constants.ts`, entrance components, etc.
+- **General**: put `src/components/` for general components, `src/lib/` for general tools and types; component files PascalCase, tool/type files kebab-case or `types.ts`, types are named with PascalCase and `export type`.
 
-### 3.12 可访问性
+### 3.12 Accessibility
 
-- 使用语义化 HTML（如 `header`、`nav`、`main`、`footer`），表单用 `label` 关联输入。
-- 保证键盘可操作与焦点顺序合理；必要时使用 ARIA（如 `aria-label`、`aria-expanded`、`aria-hidden`）；装饰性图标加 `aria-hidden="true"`，重要信息提供文本等价。
-- 对比度满足 WCAG 2.1 AA（正文至少 4.5:1）。
+- Use semantic HTML (such as `header`, `nav`, `main`, `footer`), and form associated inputs with `label`.
+- Ensure that the keyboard is operable and the focus sequence is reasonable; use ARIA (such as `aria-label`, `aria-expanded`, `aria-hidden`) when necessary; add `aria-hidden="true"` to decorative icons, and provide text equivalents for important information.
+- Contrast ratio meets WCAG 2.1 AA (at least 4.5:1 for text).
 
-### 3.13 安全
+### 3.13 Security
 
-- 认证与权限在路由与接口层校验；敏感操作增加二次确认等。
-- 前后端均做数据校验（如 Zod），不信任仅前端校验；敏感信息不落前端存储，配置用环境变量，禁止硬编码密钥。
-- 依赖 React 默认转义，慎用 `dangerouslySetInnerHTML`；跨域与 Cookie 使用 `withCredentials` 并按后端要求处理 CSRF。
+- Authentication and permissions are verified at the routing and interface layers; secondary confirmations are added for sensitive operations.
+- Data verification is performed on both the front and back ends (such as Zod), and only the front-end verification is not trusted; sensitive information is not stored in the front-end, environment variables are used for configuration, and hard-coded keys are prohibited.
+- Rely on React's default escape, use `dangerouslySetInnerHTML` with caution; use `withCredentials` across domains and cookies and handle CSRF according to backend requirements.
 
-### 3.14 测试
+### 3.14 Test
 
-- 工具函数与纯逻辑优先单元测试（Vitest），测试文件 `*.test.ts`；组件用 React Testing Library 测交互与行为，避免测实现细节。
-- 新增功能、修复缺陷或修改现有行为时，必须同步新增或更新测试；Bug 修复必须先编写能够稳定复现问题的失败用例，再实现修复并确认用例转为通过。
-- 修改前端组件的布局、尺寸、滚动定位、焦点管理、键盘操作、选中状态、禁用状态、加载状态、空状态、错误状态或响应式行为时，必须补充对应的回归测试，覆盖本次变更保护的用户可见行为，防止后续调整重新引入问题。
-- 功能模块或组件模块的测试必须放在该模块专属的 `__tests__/` 目录中，例如 `src/components/model-group-selector/__tests__/layout.test.ts`；禁止将新增测试文件与正式代码文件平铺在同一目录。
-- 测试文件按被测职责命名，例如 `layout.test.ts`、`selection.test.ts`、`validation.test.ts`；一个测试文件只覆盖一个明确模块或职责，避免形成跨模块的超大测试文件。
-- 每个测试用例应只保护一个可描述的行为，名称必须包含触发条件和预期结果；优先使用 Arrange、Act、Assert 的清晰结构，避免在单个用例中混合多个无关断言。
-- 测试必须覆盖主要成功路径以及本次变更涉及的关键边界和失败路径，包括空数据、单项和多项数据、超长文本、无效输入、禁用状态、异步失败与降级逻辑；不得为了数量机械枚举不相关输入。
-- 布局测试应断言明确且稳定的行为契约，例如固定尺寸、排列方向、溢出策略、滚动目标和降级路径；不要仅断言组件能够渲染，也不要依赖浏览器像素误差、浏览器私有实现或脆弱的完整 class 字符串快照。
-- 组件交互测试应从用户视角查询元素并执行点击、输入、键盘和焦点操作，断言可见结果、可访问状态或对外回调；禁止直接断言组件内部 state、私有函数调用次数或无用户意义的 DOM 层级。
-- 涉及可访问性的组件必须覆盖可访问名称、键盘可操作性，以及 `aria-expanded`、`aria-selected`、`aria-disabled`、`aria-invalid` 等与视觉状态一致的属性。
-- 涉及 i18n 文案的测试优先通过稳定的角色、label 或翻译键语义定位元素，避免将某一种语言的完整展示文案作为与业务无关的脆弱断言；若翻译内容本身是契约，则应明确覆盖语言切换或 fallback 行为。
-- 异步测试必须等待明确的界面状态或 Promise 结果，不得使用固定 `sleep`、依赖执行耗时或制造竞态；定时器、网络请求和浏览器 API 仅在必要边界进行可控 mock，并在每个用例后恢复。
-- 优先测试真实代码路径；只有外部网络、时间、随机数、存储或浏览器 API 等不可控边界可以 mock。禁止 mock 被测模块自身，也不要通过复制生产逻辑到测试中计算期望结果。
-- 测试数据应使用最小且具有业务含义的显式 fixture，测试内部必须独立初始化并清理全局状态、缓存、localStorage、mock 和定时器，确保用例可单独运行且不依赖执行顺序。
-- 快照测试仅适用于稳定且人工可审查的结构输出；交互组件、复杂 DOM 和 Tailwind class 列表不得使用大范围快照代替行为断言。
-- 关键流程补充集成与 E2E（如 MSW 模拟 API、Playwright/Cypress）；核心功能目标覆盖率 80% 以上，关注业务路径与关键分支。
-- 测试必须保护真实用户行为、稳定 API 契约或明确回归路径；禁止为了覆盖率添加 smoke、sleep/timing、随机输入、日志输出或只证明代码运行的测试。
-- 新增或大幅重写测试时优先使用 Vitest 与 React Testing Library 的标准断言和查询方式，避免手写通用断言辅助函数；只有表达项目特定业务不变量时才抽取测试 helper。
-- 清理测试时先合并重复场景、删除不明不白的实现细节断言；若旧测试间接覆盖了真实契约，需替换为更小、更直接的行为测试。
-- 提交前必须至少运行受影响测试文件，并根据影响范围执行相关测试集、`bun check -b` 和涉及文件的 lint；不得在未看到最新通过结果的情况下声明测试完成。
+- Tool function and pure logic first unit test (Vitest), test file `*.test.ts`; components use React Testing Library to test interaction and behavior to avoid testing implementation details.
+- When adding new functions, fixing defects, or modifying existing behaviors, tests must be added or updated simultaneously; when fixing bugs, you must first write a failed use case that can stably reproduce the problem, then implement the repair and confirm that the use case is passed.
+- When modifying the layout, size, scroll positioning, focus management, keyboard operation, selected state, disabled state, loading state, empty state, error state or responsive behavior of front-end components, corresponding regression tests must be added to cover the user-visible behavior protected by this change to prevent subsequent adjustments from reintroducing problems.
+- Tests of functional modules or component modules must be placed in the `__tests__/` directory exclusive to the module, such as `src/components/model-group-selector/__tests__/layout.test.ts`; it is prohibited to tile new test files in the same directory as the official code files.
+- Test files are named according to the responsibilities under test, such as `layout.test.ts`, `selection.test.ts`, `validation.test.ts`; a test file only covers a clear module or responsibility to avoid the formation of overly large test files across modules.
+- Each test case should protect only one describable behavior, and the name must include the triggering condition and expected result; give priority to using clear structures of Arrange, Act, and Assert to avoid mixing multiple irrelevant assertions in a single use case.
+- Tests must cover the main success path as well as the critical boundaries and failure paths involved in this change, including empty data, single and multiple data, overlong text, invalid input, disabled status, asynchronous failure and degradation logic; mechanical enumeration of irrelevant inputs for the sake of quantity is not allowed.
+- Layout tests should assert clear and stable behavioral contracts, such as fixed sizes, alignment directions, overflow policies, scroll targets, and fallback paths; don't just assert that a component can render, and don't rely on browser pixel errors, browser-private implementations, or fragile full class string snapshots.
+- Component interaction testing should query elements from the user's perspective and perform click, input, keyboard, and focus operations, and assert visible results, accessible status, or external callbacks; it is prohibited to directly assert the component's internal state, the number of private function calls, or the DOM hierarchy that has no user meaning.
+- Components involving accessibility must override the accessibility name, keyboard operability, and properties such as `aria-expanded`, `aria-selected`, `aria-disabled`, `aria-invalid` that are consistent with the visual state.
+- Tests involving i18n copywriting prioritize semantically positioned elements through stable roles, labels, or translation keys to avoid treating the complete display copywriting in a certain language as a fragile assertion unrelated to the business; if the translation content itself is a contract, language switching or fallback behavior should be clearly covered.
+- Asynchronous tests must wait for clear interface status or Promise results, and must not use fixed `sleep`, depend on execution time, or create race conditions; timers, network requests, and browser APIs are only controllable mocked at necessary boundaries and restored after each use case.
+- Prioritize testing of real code paths; only uncontrollable boundaries such as external network, time, random numbers, storage, or browser APIs can be mocked. It is forbidden to mock the module under test itself, nor to calculate the expected results by copying production logic into the test.
+- Test data should use explicit fixtures that are minimal and have business meaning. Global state, cache, localStorage, mocks, and timers must be initialized and cleaned independently within the test to ensure that the test case can be run independently and does not depend on the execution order.
+- Snapshot testing should only be used for stable and human-reviewable structural output; interactive components, complex DOMs, and Tailwind class lists must not use large-scale snapshots in place of behavioral assertions.
+- Supplementary integration of key processes and E2E (such as MSW simulation API, Playwright/Cypress); target coverage of core functions is more than 80%, focusing on business paths and key branches.
+- Tests must protect real user behavior, stable API contracts, or clear regression paths; it is prohibited to add smoke, sleep/timing, random input, log output, or tests that only prove that the code runs for the sake of coverage.
+- When adding or significantly rewriting tests, give priority to using the standard assertions and query methods of Vitest and React Testing Library to avoid hand-written universal assertion helper functions; extract test helpers only when expressing project-specific business invariants.
+- When cleaning up tests, first merge duplicate scenarios and delete unclear implementation details assertions; if old tests indirectly cover the real contract, they need to be replaced with smaller and more direct behavioral tests.
+- At least the affected test files must be run before submission, and the relevant test set, `bun check -b` and lint of the involved files must be executed according to the scope of the impact; test completion must not be declared without seeing the latest passing results.
 
-### 3.15 依赖管理
+### 3.15 Dependency management
 
-- 使用 **Bun**：`bun install`、`bun add <pkg>`、`bun add -d <pkg>`、`bun remove <pkg>`、`bun pm ls`、`bun update` 等。
-- 新增依赖前评估维护情况、体积与许可；生产与开发依赖区分清楚，版本用 `^`/`~` 控制，定期更新以获取安全修复。
+- Use **Bun**: `bun install`, `bun add <pkg>`, `bun add -d <pkg>`, `bun remove <pkg>`, `bun pm ls`, `bun update`, etc.
+- Evaluate the maintenance status, volume and license before adding new dependencies; clearly distinguish production and development dependencies, use `^`/`~` to control versions, and update regularly to obtain security fixes.
 
-### 3.16 构建与部署
+### 3.16 Build and Deployment
 
-- 使用 Rsbuild，配置见 `rsbuild.config.ts`；脚本以 `package.json` 为准（如 `bun run dev`、`bun run build`、`bun check -b`、`bun run lint`、`bun run format`），包管理见 [3.15 依赖管理](#315-依赖管理)。
-- 代码分割与懒加载策略见 [3.4 性能](#34-性能)；资源使用合适格式与压缩，环境变量用 `.env` 且以 `VITE_` 前缀，不在代码中硬编码。
-- **发布前**：执行 typecheck、lint、format 检查，完成生产构建并检查产物体积与环境变量配置。
-
----
-
-## 四、协作与提交
-
-- 提交信息清晰、符合项目约定，描述变更内容与原因，中英文统一即可。
-- 变更需经过代码审查，符合本文档规范，并关注质量、性能与安全。
-- UI 变更完成前必须检查新增组件、基础组件导入及手写交互是否绕过已有业务封装；发现重复实现应在本次变更范围内改为复用。保留的新实现需在变更说明中说明能力缺口，typecheck、lint 和测试通过不能替代此项检查。
-- 重大功能或规范变更时更新相关文档与 `AGENTS.md`。
+- Use Rsbuild, see `rsbuild.config.ts` for configuration; the script shall be subject to `package.json` (such as `bun run dev`, `bun run build`, `bun check -b`, `bun run lint`, `bun run format`), and for package management, see [3.15 Dependency Management](#315-Dependency Management).
+- For code splitting and lazy loading strategies, see [3.4 Performance] (#34-Performance); use appropriate formats and compression for resources, use `.env` for environment variables and prefix them with `VITE_`, and do not hardcode them in the code.
+- **Before release**: Perform typecheck, lint, format checks, complete the production build and check the product volume and environment variable configuration.
 
 ---
 
-## 更新日志
+## 4. Collaboration and submission
 
-- **2026-01-28**：初始版本（国际化、代码、组件、类型等基础规范）。
-- **2026-01-28**：补充状态管理、API、表单、路由、错误处理、样式、文件组织、可访问性、安全、测试、依赖与构建部署规范。
-- **2026-01-29**：重组文档结构，合并重复内容，明确主次与交叉引用。
-- **2026-01-31**：在 3.2 中补充「类型检查」要求：改动 TS/TSX 后须执行 typecheck 并修复至无错。
-- **2026-06-21**：在 3.2 中补充「Lint 检查」要求：完成代码改动前须修复所涉及文件的所有 lint error。
-- **2026-09-06**：明确组件复用的强制检索流程、业务封装优先级、新增条件、常用入口及审查要求。
+- The submitted information must be clear, consistent with the project agreement, and describe the content and reasons for the change in both Chinese and English.
+- Changes are subject to code review, compliance with the specifications of this document, and attention to quality, performance, and security.
+- Before completing the UI change, you must check whether new components, basic component imports, and handwritten interactions bypass existing business encapsulation; if duplicate implementations are found, they should be reused within the scope of this change. Retained new implementations need to describe the capability gap in the change description. Typecheck, lint and test passing cannot replace this check.
+- Update relevant documentation and `AGENTS.md` when major functionality or specification changes occur.
+
+---
+
+## Update log
+
+- **2026-01-28**: Initial version (basic specifications such as internationalization, code, components, types, etc.).
+- **2026-01-28**: Supplementary state management, API, forms, routing, error handling, styles, file organization, accessibility, security, testing, dependencies and build deployment specifications.
+- **2026-01-29**: Reorganize the document structure, merge duplicate content, and clarify primary and secondary and cross-references.
+- **2026-01-31**: Added "type check" requirements in 3.2: After changing TS/TSX, typecheck must be executed and repaired until there are no errors.
+- **2026-06-21**: Added "Lint check" requirement in 3.2: all lint errors of the involved files must be fixed before completing code changes.
+- **2026-09-06**: Clarify the mandatory retrieval process, business encapsulation priority, new conditions, common entrances and review requirements for component reuse.

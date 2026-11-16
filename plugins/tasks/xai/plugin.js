@@ -27,18 +27,18 @@ const EDIT_RESOLUTION_CAP = "720p";
 const SECONDS_FIELD = {
   type: "number",
   unit: "second",
-  description: { en: "Video generation unit price", zh: "视频生成单价" },
+  description: { en: "Video generation unit price" },
 };
 const INPUT_IMAGES_FIELD = {
   type: "number",
   unit: "count",
-  unitLabel: { en: "image", zh: "张", "zh-TW": "張" },
-  description: { en: "Input image unit price", zh: "输入图片单价" },
+  unitLabel: { en: "image" },
+  description: { en: "Input image unit price" },
 };
 const INPUT_VIDEO_SECONDS_FIELD = {
   type: "number",
   unit: "second",
-  description: { en: "Input video unit price", zh: "输入视频单价" },
+  description: { en: "Input video unit price" },
 };
 // xAI still bills a request its moderation blocks ("Usage Guidelines
 // Violation Fee", docs.x.ai/developers/pricing), so such a task settles as
@@ -46,9 +46,9 @@ const INPUT_VIDEO_SECONDS_FIELD = {
 // delivered video.
 const MODERATED_FIELD = {
   type: "boolean",
-  description: { en: "Blocked by content moderation", zh: "被内容审核拦截" },
+  description: { en: "Blocked by content moderation" },
 };
-const RESOLUTION_DESCRIPTION = { en: "Output video resolution", zh: "输出视频分辨率" };
+const RESOLUTION_DESCRIPTION = { en: "Output video resolution" };
 
 const GROK_IMAGINE_VIDEO_USAGE_SCHEMA = {
   seconds: SECONDS_FIELD,
@@ -70,10 +70,7 @@ export const meta = {
   key: "xai",
   name: "xAI",
   icon: "XAI",
-  description: {
-    en: "xAI Grok Imagine video generation (text-to-video, image-to-video, reference-to-video, video editing, and video extension)",
-    zh: "xAI Grok Imagine 视频生成（文生视频、图生视频、参考生视频、视频编辑、视频延长）",
-  },
+  description: { en: "xAI Grok Imagine video generation (text-to-video, image-to-video, reference-to-video, video editing, and video extension)" },
   version: "1.2.0",
   author: { name: "QuantumNous" },
   channelTypes: [48], // xAI-type channels serve the video API with the same key

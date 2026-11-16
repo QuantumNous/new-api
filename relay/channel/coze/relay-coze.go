@@ -22,7 +22,7 @@ import (
 
 func convertCozeChatRequest(c *gin.Context, request dto.GeneralOpenAIRequest) *CozeChatRequest {
 	var messages []CozeEnterMessage
-	// 将 request的messages的role为user的content转换为CozeMessage
+	// Convert the content of request messages whose role is user to CozeMessage
 	for _, message := range request.Messages {
 		if message.Role == "user" {
 			messages = append(messages, CozeEnterMessage{
@@ -63,7 +63,7 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 	if cozeResponse.Code != 0 {
 		return nil, types.NewError(errors.New(cozeResponse.Msg), types.ErrorCodeBadResponseBody)
 	}
-	// 从上下文获取 usage
+	// Get usage from context
 	var usage dto.Usage
 	usage.PromptTokens = c.GetInt("coze_input_count")
 	usage.CompletionTokens = c.GetInt("coze_output_count")
@@ -78,7 +78,7 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 			response.Created = data.CreatedAt
 		}
 	}
-	// 添加 response.Choices
+	// Add response.Choices
 	response.Choices = []dto.OpenAITextResponseChoice{
 		{
 			Index:        0,
@@ -152,7 +152,7 @@ func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 func handleCozeEvent(c *gin.Context, event string, data string, responseText *string, usage *dto.Usage, id string, info *relaycommon.RelayInfo) {
 	switch event {
 	case "conversation.chat.completed":
-		// 将 data 解析为 CozeChatResponseData
+		// Parse data into CozeChatResponseData
 		var chatData CozeChatResponseData
 		err := json.Unmarshal([]byte(data), &chatData)
 		if err != nil {
@@ -169,7 +169,7 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 		helper.ObjectData(c, stopResponse)
 
 	case "conversation.message.delta":
-		// 将 data 解析为 CozeChatV3MessageDetail
+		// Parse data into CozeChatV3MessageDetail
 		var messageData CozeChatV3MessageDetail
 		err := json.Unmarshal([]byte(data), &messageData)
 		if err != nil {
@@ -217,7 +217,7 @@ func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo
 	requestURL := fmt.Sprintf("%s/v3/chat/retrieve", info.ChannelBaseUrl)
 
 	requestURL = requestURL + "?conversation_id=" + c.GetString("coze_conversation_id") + "&chat_id=" + c.GetString("coze_chat_id")
-	// 将 conversationId和chatId作为参数发送get请求
+	// Send get request with conversationId and chatId as parameters
 	req, err := http.NewRequest("GET", requestURL, nil)
 	if err != nil {
 		return err, false
@@ -227,16 +227,16 @@ func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo
 		return err, false
 	}
 
-	resp, err := doRequest(req, info) // 调用 doRequest
+	resp, err := doRequest(req, info) // Call doRequest
 	if err != nil {
 		return err, false
 	}
-	if resp == nil { // 确保在 doRequest 失败时 resp 不为 nil 导致 panic
+	if resp == nil { // Make sure resp is not nil causing panic when doRequest fails
 		return fmt.Errorf("resp is nil"), false
 	}
-	defer resp.Body.Close() // 确保响应体被关闭
+	defer resp.Body.Close() // Make sure the response body is closed
 
-	// 解析 resp 到 CozeChatResponse
+	// Parse resp to CozeChatResponse
 	var cozeResponse CozeChatResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -247,7 +247,7 @@ func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo
 		return fmt.Errorf("unmarshal response body failed: %w", err), false
 	}
 	if cozeResponse.Data.Status == "completed" {
-		// 在上下文设置 usage
+		// Set usage in context
 		c.Set("coze_token_count", cozeResponse.Data.Usage.TokenCount)
 		c.Set("coze_output_count", cozeResponse.Data.Usage.OutputCount)
 		c.Set("coze_input_count", cozeResponse.Data.Usage.InputCount)
@@ -284,7 +284,7 @@ func doRequest(req *http.Request, info *relaycommon.RelayInfo) (*http.Response, 
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 	resp, err := client.Do(req)
-	if err != nil { // 增加对 client.Do(req) 返回错误的检查
+	if err != nil { // Add checking for errors returned by client.Do(req)
 		return nil, fmt.Errorf("client.Do failed: %w", err)
 	}
 	// _ = resp.Body.Close()

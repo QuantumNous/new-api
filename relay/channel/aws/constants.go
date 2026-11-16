@@ -155,7 +155,7 @@ var awsRegionCrossModelPrefixMap = map[string]string{
 
 var ChannelName = "aws"
 
-// 判断是否为Nova模型
+// Determine whether it is a Nova model
 func isNovaModel(modelId string) bool {
 	return strings.Contains(modelId, "nova-")
 }

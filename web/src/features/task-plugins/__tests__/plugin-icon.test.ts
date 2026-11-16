@@ -154,7 +154,7 @@ describe('textAvatarClass', () => {
   })
 
   test('always picks from the palette', () => {
-    for (const seed of ['a', 'sunoapi', 'third-party-plugin', '插件', '']) {
+    for (const seed of ['a', 'sunoapi', 'third-party-plugin', "Plugins", '']) {
       assert.ok(
         (TEXT_AVATAR_PALETTE as readonly string[]).includes(
           textAvatarClass(seed)

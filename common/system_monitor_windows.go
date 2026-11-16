@@ -8,7 +8,7 @@ import (
 	"unsafe"
 )
 
-// GetDiskSpaceInfo 获取缓存目录所在磁盘的空间信息 (Windows)
+// GetDiskSpaceInfo Gets the space information of the disk where the cache directory is located (Windows)
 func GetDiskSpaceInfo() DiskSpaceInfo {
 	cachePath := GetDiskCachePath()
 	if cachePath == "" {

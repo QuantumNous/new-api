@@ -1,11 +1,8 @@
 export const meta = {
   apiVersion: 1,
   key: "param-override",
-  name: { en: "Global parameter override", zh: "全局参数覆盖" },
-  description: {
-    en: "Applies parameter override rules to all requests or to chosen groups, with the same syntax as a channel's parameter override. To change a single channel, use that channel's own parameter override; on the same parameter, the channel's setting wins",
-    zh: "对全部请求或指定分组应用参数覆盖规则，语法与渠道的参数覆盖相同。只修改单个渠道时，请使用该渠道自己的参数覆盖；同一参数以渠道的设置为准",
-  },
+  name: { en: "Global parameter override" },
+  description: { en: "Applies parameter override rules to all requests or to chosen groups, with the same syntax as a channel's parameter override. To change a single channel, use that channel's own parameter override; on the same parameter, the channel's setting wins" },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   configSchema: {
@@ -14,8 +11,8 @@ export const meta = {
       override: {
         type: "object",
         format: "json",
-        title: { en: "Parameter override", zh: "参数覆盖" },
-        description: { en: "Same syntax as the channel parameter override", zh: "语法与渠道参数覆盖相同" },
+        title: { en: "Parameter override" },
+        description: { en: "Same syntax as the channel parameter override" },
         default: {},
         examples: [
           {
@@ -35,25 +32,16 @@ export const meta = {
     },
   },
   samples: [
-    {
-      name: { en: "Plain chat", zh: "普通对话" },
+{
+      name: { en: "Plain chat" },
       lang: "en",
       format: "openai",
       body: {
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: "Explain what an API rate limit is in two sentences." }],
       },
-    },
-    {
-      name: { en: "Plain chat", zh: "普通对话" },
-      lang: "zh",
-      format: "openai",
-      body: {
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: "用两句话解释什么是 API 限流。" }],
-      },
-    },
-  ],
+    }
+],
 };
 
 const REJECT_CODE = /^[a-z0-9_.-]{1,64}$/;

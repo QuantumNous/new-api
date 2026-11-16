@@ -35,7 +35,7 @@ func (input *tokenAutoGroupsInput) UnmarshalJSON(data []byte) error {
 type tokenRequest struct {
 	model.Token
 	AutoGroups tokenAutoGroupsInput `json:"auto_groups"`
-	// 指针区分“未传”和显式 false：新建时未传即开启，更新时未传则保留原值。
+	// The pointer distinguishes between "not passed" and explicit false: it is turned on if it is not passed when creating a new one, and the original value is retained when it is not passed when updating.
 	AllowUserQuotaQuery *bool `json:"allow_user_quota_query"`
 }
 
@@ -271,7 +271,7 @@ func GetTokenUsage(c *gin.Context) {
 		"model_limits_enabled": token.ModelLimitsEnabled,
 		"expires_at":           expiredAt,
 	}
-	// 用户额度只在令牌允许时返回；IP 白名单已由 TokenAuthReadOnly 检查。
+	// User quota is only returned if the token allows it; the IP whitelist has been checked by TokenAuthReadOnly.
 	if token.AllowUserQuotaQuery {
 		userQuota, err := model.GetUserQuota(token.UserId, false)
 		var userUsedQuota int
@@ -310,7 +310,7 @@ func AddToken(c *gin.Context) {
 	}
 	params := tokenAuditParams(c)
 	params["name"] = token.Name
-	// 非无限额度时，检查额度值是否超出有效范围
+	// When the quota is not unlimited, check whether the quota value exceeds the valid range.
 	if !token.UnlimitedQuota {
 		if token.RemainQuota < 0 {
 			common.ApiErrorT(c, "Quota value cannot be negative")
@@ -322,7 +322,7 @@ func AddToken(c *gin.Context) {
 			return
 		}
 	}
-	// 检查用户令牌数量是否已达上限
+	// Check whether the number of user tokens has reached the upper limit
 	maxTokens := operation_setting.GetMaxUserTokens()
 	count, err := model.CountUserTokens(c.GetInt("id"))
 	if err != nil {

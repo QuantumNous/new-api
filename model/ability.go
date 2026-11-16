@@ -66,23 +66,23 @@ func getPriority(group string, model string, retry int) (int, error) {
 	err := DB.Model(&Ability{}).
 		Select("DISTINCT(priority)").
 		Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
-		Order("priority DESC").              // 按优先级降序排序
-		Pluck("priority", &priorities).Error // Pluck用于将查询的结果直接扫描到一个切片中
+		Order("priority DESC").              // Sort by priority descending
+		Pluck("priority", &priorities).Error // Pluck is used to scan the results of a query directly into a slice
 
 	if err != nil {
-		// 处理错误
+		// handling errors
 		return 0, err
 	}
 
 	if len(priorities) == 0 {
-		// 如果没有查询到优先级，则返回错误
+		// If the priority is not queried, an error is returned.
 		return 0, errors.New("database consistency is broken")
 	}
 
-	// 确定要使用的优先级
+	// Determine which priority to use
 	var priorityToUse int
 	if retry >= len(priorities) {
-		// 如果重试次数大于优先级数，则使用最小的优先级
+		// If the number of retries is greater than the number of priorities, use the smallest priority
 		priorityToUse = priorities[len(priorities)-1]
 	} else {
 		priorityToUse = priorities[retry]
@@ -271,7 +271,7 @@ func (channel *Channel) DeleteAbilities() error {
 // Make sure the channel is completed before calling this function.
 func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 	isNewTx := false
-	// 如果没有传入事务，创建新的事务
+	// If no transaction is passed in, create a new transaction
 	if tx == nil {
 		tx = DB.Begin()
 		if tx.Error != nil {
@@ -331,7 +331,7 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 		}
 	}
 
-	// 如果是新创建的事务，需要提交
+	// If it is a newly created transaction, it needs to be submitted
 	if isNewTx {
 		return tx.Commit().Error
 	}

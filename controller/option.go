@@ -432,7 +432,7 @@ func UpdateOption(c *gin.Context) {
 		}
 		return
 	}
-	// 出于安全考虑只记录被修改的配置项名称，不记录配置值（可能含密钥等敏感信息）。
+	// For security reasons, only the name of the modified configuration item is recorded, and the configuration value (which may contain sensitive information such as keys) is not recorded.
 	recordManageAudit(c, "option.update", map[string]any{
 		"key": option.Key,
 	})

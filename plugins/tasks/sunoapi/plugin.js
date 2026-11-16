@@ -5,10 +5,7 @@ export const meta = {
   key: "sunoapi",
   name: "SunoAPI",
   icon: "text",
-  description: {
-    en: "SunoAPI project music and lyrics generation",
-    zh: "SunoAPI 项目 音乐与歌词生成",
-  },
+  description: { en: "SunoAPI project music and lyrics generation" },
   version: "1.1.0",
   author: { name: "QuantumNous" },
   channelTypes: [36],
@@ -21,13 +18,13 @@ export const meta = {
     clips: {
       type: "number",
       unit: "count",
-      description: { en: "Song or lyrics generation unit price", zh: "生成歌曲或歌词单价" },
+      description: { en: "Song or lyrics generation unit price" },
     },
     // Suno generation action.
     action: {
       enum: ["music", "lyrics"],
-      enumLabels: { music: { en: "Generate songs", zh: "生成歌曲" }, lyrics: { en: "Generate lyrics", zh: "生成歌词" } },
-      description: { en: "Generate songs or lyrics", zh: "生成歌曲或歌词" },
+      enumLabels: { music: { en: "Generate songs" }, lyrics: { en: "Generate lyrics" } },
+      description: { en: "Generate songs or lyrics" },
     },
   },
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }],

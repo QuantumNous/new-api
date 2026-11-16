@@ -17,7 +17,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// streamKeepAliveWriter 在业务写入前保活，写入开始时等待心跳退出。
+// streamKeepAliveWriter keeps alive before business writing and waits for heartbeat exit when writing starts.
 type streamKeepAliveWriter struct {
 	gin.ResponseWriter
 	mutex       sync.Mutex
@@ -84,8 +84,8 @@ func (writer *streamKeepAliveWriter) ping() error {
 	return PingData(writer.pingContext)
 }
 
-// StartStreamKeepAlive 按 interval 发送心跳，覆盖请求准备和重试；业务写入开始后交给流处理器。
-// 内层请求复用外层的保活，内层清理不会提前结束它。
+// StartStreamKeepAlive sends heartbeats at intervals, covering request preparation and retry; after business writing starts, it is handed over to the stream processor.
+// The inner layer requests reuse the outer layer's keep-alive, and the inner layer cleanup will not end it early.
 func StartStreamKeepAlive(c *gin.Context, interval time.Duration) func() {
 	if previous := keepAliveWriter(c); previous != nil {
 		select {
@@ -106,7 +106,7 @@ func StartStreamKeepAlive(c *gin.Context, interval time.Duration) func() {
 	SetEventStreamHeaders(c)
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 120*time.Minute)
 	pingContext := c.Copy()
-	// 心跳使用原 writer，业务写入才会触发交接。
+	// The heartbeat uses the original writer, and business writing will trigger the handover.
 	pingContext.Writer = c.Writer
 	writer := &streamKeepAliveWriter{ResponseWriter: c.Writer, cancel: cancel, done: make(chan struct{}), pingContext: pingContext}
 	c.Writer = writer
@@ -114,7 +114,7 @@ func StartStreamKeepAlive(c *gin.Context, interval time.Duration) func() {
 	return writer.stop
 }
 
-// keepAliveWriter 返回 c.Writer 链上的请求保活，包括被其他 writer（如请求插件的回复检查）包裹的情况。
+// keepAliveWriter returns the request keepalive on the c.Writer chain, including when wrapped by other writers (such as the request plugin's reply check).
 func keepAliveWriter(c *gin.Context) *streamKeepAliveWriter {
 	var writer http.ResponseWriter = c.Writer
 	for writer != nil {
@@ -195,12 +195,12 @@ func requestContextDone(c *gin.Context) bool {
 }
 
 func SetEventStreamHeaders(c *gin.Context) {
-	// 检查是否已经设置过头部
+	// Check if the header has been set
 	if _, exists := c.Get("event_stream_headers_set"); exists {
 		return
 	}
 
-	// 设置标志，表示头部已经设置过
+	// Set the flag to indicate that the header has been set
 	c.Set("event_stream_headers_set", true)
 
 	c.Writer.Header().Set("Content-Type", "text/event-stream")

@@ -146,28 +146,28 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 
 	requestPath := "/v1/chat/completions"
 
-	// 如果指定了端点类型，使用指定的端点类型
+	// If an endpoint type is specified, use the specified endpoint type
 	if endpointType != "" {
 		if endpointInfo, ok := common.GetDefaultEndpointInfo(constant.EndpointType(endpointType)); ok {
 			requestPath = endpointInfo.Path
 		}
 	} else {
-		// 如果没有指定端点类型，使用原有的自动检测逻辑
+		// If the endpoint type is not specified, the original automatic detection logic is used
 
 		if strings.Contains(strings.ToLower(testModel), "rerank") {
 			requestPath = "/v1/rerank"
 		}
 
-		// 先判断是否为 Embedding 模型
+		// First determine whether it is an Embedding model
 		if strings.Contains(strings.ToLower(testModel), "embedding") ||
-			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
-			strings.Contains(testModel, "bge-") || // bge 系列模型
+			strings.HasPrefix(testModel, "m3e") || // m3e series models
+			strings.Contains(testModel, "bge-") || // bge series models
 			strings.Contains(testModel, "embed") ||
-			channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
-			requestPath = "/v1/embeddings" // 修改请求路径
+			channel.Type == constant.ChannelTypeMokaAI { // Other embedding models
+			requestPath = "/v1/embeddings" // Modify request path
 		}
 
-		// VolcEngine 图像生成模型
+		// VolcEngine image generation model
 		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
 			requestPath = "/v1/images/generations"
 		}
@@ -187,8 +187,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			requestPath = strings.ReplaceAll(endpointInfo.Path, "{model}", testModel)
 		}
 	}
-	// Gemini 原生流式通过 URL action（:streamGenerateContent）表达而非请求体字段，
-	// GeminiChatRequest.IsStream 依据请求 URL 判定，合成请求路径需与生产入口保持一致
+	// Gemini native streaming is expressed through URL action (:streamGenerateContent) instead of the request body field.
+	// GeminiChatRequest.IsStream is determined based on the request URL, and the synthetic request path must be consistent with the production entry
 	if isStream && constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
 		requestPath = strings.Replace(requestPath, ":generateContent", ":streamGenerateContent", 1)
 	}
@@ -223,7 +223,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	// Determine relay format based on endpoint type or request path
 	var relayFormat types.RelayFormat
 	if endpointType != "" {
-		// 根据指定的端点类型设置 relayFormat
+		// Set relayFormat based on the specified endpoint type
 		switch constant.EndpointType(endpointType) {
 		case constant.EndpointTypeOpenAI:
 			relayFormat = types.RelayFormatOpenAI
@@ -245,7 +245,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			relayFormat = types.RelayFormatOpenAI
 		}
 	} else {
-		// 根据请求路径自动检测
+		// Automatic detection based on request path
 		relayFormat = types.RelayFormatOpenAI
 		if c.Request.URL.Path == "/v1/embeddings" {
 			relayFormat = types.RelayFormatEmbedding
@@ -311,7 +311,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 
 	testModel = info.UpstreamModelName
-	// 更新请求中的模型名称
+	// Model name in update request
 	request.SetModelName(testModel)
 
 	// InitChannelMeta resolved the API type, the provider plugin one included.
@@ -333,7 +333,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	}
 
-	//// 创建一个用于日志的 info 副本，移除 ApiKey
+	// // Create a copy of info for logging, remove ApiKey
 	//logInfo := info
 	//logInfo.ApiKey = ""
 	common.SysLog(common.LogText("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
@@ -350,10 +350,10 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	adaptor.Init(info)
 
 	var convertedRequest any
-	// 根据 RelayMode 选择正确的转换函数
+	// Choose the correct conversion function based on RelayMode
 	switch info.RelayMode {
 	case relayconstant.RelayModeEmbeddings:
-		// Embedding 请求 - request 已经是正确的类型
+		// Embedding request - request is already of the correct type
 		if embeddingReq, ok := request.(*dto.EmbeddingRequest); ok {
 			convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, *embeddingReq)
 		} else {
@@ -364,7 +364,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			}
 		}
 	case relayconstant.RelayModeImagesGenerations:
-		// 图像生成请求 - request 已经是正确的类型
+		// Image generation request - request is already of the correct type
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
 			convertedRequest, err = adaptor.ConvertImageRequest(c, info, *imageReq)
 		} else {
@@ -375,7 +375,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			}
 		}
 	case relayconstant.RelayModeRerank:
-		// Rerank 请求 - request 已经是正确的类型
+		// Rerank request - request is already of the correct type
 		if rerankReq, ok := request.(*dto.RerankRequest); ok {
 			convertedRequest, err = adaptor.ConvertRerankRequest(c, info.RelayMode, *rerankReq)
 		} else {
@@ -386,7 +386,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			}
 		}
 	case relayconstant.RelayModeResponses:
-		// Response 请求 - request 已经是正确的类型
+		// Response request - request is already of the correct type
 		if responseReq, ok := request.(*dto.OpenAIResponsesRequest); ok {
 			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *responseReq)
 		} else {
@@ -745,17 +745,17 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
-	// 根据端点类型构建不同的测试请求
+	// Build different test requests based on endpoint type
 	if endpointType != "" {
 		switch constant.EndpointType(endpointType) {
 		case constant.EndpointTypeEmbeddings:
-			// 返回 EmbeddingRequest
+			// Return EmbeddingRequest
 			return &dto.EmbeddingRequest{
 				Model: model,
 				Input: []any{"hello world"},
 			}
 		case constant.EndpointTypeImageGeneration:
-			// 返回 ImageRequest
+			// Return ImageRequest
 			return &dto.ImageRequest{
 				Model:  model,
 				Prompt: "a cute cat",
@@ -763,7 +763,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Size:   "1024x1024",
 			}
 		case constant.EndpointTypeJinaRerank:
-			// 返回 RerankRequest
+			// ReturnRerankRequest
 			return &dto.RerankRequest{
 				Model:     model,
 				Query:     "What is Deep Learning?",
@@ -771,14 +771,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				TopN:      lo.ToPtr(2),
 			}
 		case constant.EndpointTypeOpenAIResponse:
-			// 返回 OpenAIResponsesRequest
+			// Return OpenAIResponsesRequest
 			return &dto.OpenAIResponsesRequest{
 				Model:  model,
 				Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
 				Stream: lo.ToPtr(isStream),
 			}
 		case constant.EndpointTypeOpenAIResponseCompact:
-			// 返回 OpenAIResponsesCompactionRequest
+			// Return OpenAIResponsesCompactionRequest
 			return &dto.OpenAIResponsesCompactionRequest{
 				Model: model,
 				Input: testResponsesInput,
@@ -826,7 +826,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		}
 	}
 
-	// 自动检测逻辑（保持原有行为）
+	// Automatic detection logic (maintain original behavior)
 	if strings.Contains(strings.ToLower(model), "rerank") {
 		return &dto.RerankRequest{
 			Model:     model,
@@ -836,11 +836,11 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		}
 	}
 
-	// 先判断是否为 Embedding 模型
+	// First determine whether it is an Embedding model
 	if strings.Contains(strings.ToLower(model), "embedding") ||
 		strings.HasPrefix(model, "m3e") ||
 		strings.Contains(model, "bge-") {
-		// 返回 EmbeddingRequest
+		// Return EmbeddingRequest
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
@@ -856,7 +856,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		}
 	}
 
-	// Chat/Completion 请求 - 返回 GeneralOpenAIRequest
+	// Chat/Completion request - returns GeneralOpenAIRequest
 	testRequest := &dto.GeneralOpenAIRequest{
 		Model:  model,
 		Stream: lo.ToPtr(isStream),

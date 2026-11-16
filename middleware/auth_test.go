@@ -100,7 +100,7 @@ func TestTokenAuthReadOnlyTranslatesErrors(t *testing.T) {
 		acceptLanguage string
 		want           string
 	}{
-		{"zh-CN", "未提供令牌"},
+		{"zh-CN", "Token not provided"},
 		{"en-US", "Token not provided"},
 	} {
 		recorder := httptest.NewRecorder()

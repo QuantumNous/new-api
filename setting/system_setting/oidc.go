@@ -17,11 +17,11 @@ type OIDCSettings struct {
 	UserInfoEndpoint      string `json:"user_info_endpoint"`
 }
 
-// 默认配置
+// Default configuration
 var defaultOIDCSettings = OIDCSettings{}
 
 func init() {
-	// 注册到全局配置管理器
+	// Register to the global configuration manager
 	config.GlobalConfig.Register("oidc", &defaultOIDCSettings)
 }
 

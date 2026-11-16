@@ -3,10 +3,7 @@ export const meta = {
   key: "kling",
   name: "Kling",
   icon: "Kling.Color",
-  description: {
-    en: "Kuaishou Kling video generation (text-to-video and image-to-video)",
-    zh: "快手可灵视频生成（文生视频、图生视频）",
-  },
+  description: { en: "Kuaishou Kling video generation (text-to-video and image-to-video)" },
   version: "1.2.0",
   author: { name: "QuantumNous" },
   channelTypes: [50],
@@ -18,7 +15,7 @@ export const meta = {
     units: {
       type: "number",
       unit: "credit",
-      description: { en: "Kling credit unit price", zh: "可灵资源包单位单价" },
+      description: { en: "Kling credit unit price" },
     },
   },
   usageExamples: [
