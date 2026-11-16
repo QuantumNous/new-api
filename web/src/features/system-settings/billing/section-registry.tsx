@@ -200,6 +200,7 @@ const BILLING_SECTIONS = [
       <CheckinSettingsSection
         defaultValues={{
           enabled: settings['checkin_setting.enabled'],
+          paidUsersOnly: settings['checkin_setting.paid_users_only'],
           minQuota: settings['checkin_setting.min_quota'],
           maxQuota: settings['checkin_setting.max_quota'],
         }}

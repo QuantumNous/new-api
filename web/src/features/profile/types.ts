@@ -228,6 +228,10 @@ export interface CheckinStats {
 export interface CheckinStatusResponse {
   /** Whether check-in feature is enabled */
   enabled: boolean
+  /** Whether a completed payment is required */
+  paid_users_only?: boolean
+  /** Whether this user is eligible to claim a reward */
+  eligible?: boolean
   /** Check-in statistics */
   stats: CheckinStats
 }

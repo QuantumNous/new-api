@@ -45,6 +45,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const schema = z.object({
   enabled: z.boolean(),
+  paidUsersOnly: z.boolean(),
   minQuota: z.coerce.number().int().min(0),
   maxQuota: z.coerce.number().int().min(0),
 })
@@ -56,6 +57,7 @@ export function CheckinSettingsSection({
 }: {
   defaultValues: {
     enabled: boolean
+    paidUsersOnly: boolean
     minQuota: number
     maxQuota: number
   }
@@ -67,6 +69,7 @@ export function CheckinSettingsSection({
     resolver: zodResolver(schema) as unknown as Resolver<Values>,
     defaultValues: {
       enabled: defaultValues.enabled,
+      paidUsersOnly: defaultValues.paidUsersOnly,
       minQuota: defaultValues.minQuota,
       maxQuota: defaultValues.maxQuota,
     },
@@ -78,7 +81,7 @@ export function CheckinSettingsSection({
   async function onSubmit(values: Values) {
     const updates: Array<{ key: string; value: string }> = []
 
-    if (values.enabled !== defaultValues.enabled) {
+    if (values.enabled !== defaultValues.enabled && !values.enabled) {
       updates.push({
         key: 'checkin_setting.enabled',
         value: String(values.enabled),
@@ -92,10 +95,24 @@ export function CheckinSettingsSection({
       })
     }
 
+    if (values.paidUsersOnly !== defaultValues.paidUsersOnly) {
+      updates.push({
+        key: 'checkin_setting.paid_users_only',
+        value: String(values.paidUsersOnly),
+      })
+    }
+
     if (values.maxQuota !== defaultValues.maxQuota) {
       updates.push({
         key: 'checkin_setting.max_quota',
         value: String(values.maxQuota),
+      })
+    }
+
+    if (values.enabled !== defaultValues.enabled && values.enabled) {
+      updates.push({
+        key: 'checkin_setting.enabled',
+        value: 'true',
       })
     }
 
@@ -131,6 +148,30 @@ export function CheckinSettingsSection({
                   <FormDescription>
                     {t(
                       'Allow users to check in daily for random quota rewards'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={updateOption.isPending || isSubmitting}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='paidUsersOnly'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Only paying users can check in')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Users become eligible after a successful paid top-up or subscription purchase'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>
