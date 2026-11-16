@@ -205,7 +205,7 @@ func miniMaxImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 
 	jsonResponse, err = service.RewriteImageURLs(c, jsonResponse)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
+		return &dto.Usage{}, types.NewError(err, types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")

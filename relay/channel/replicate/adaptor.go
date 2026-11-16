@@ -297,7 +297,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	responseBytes, err = service.RewriteImageURLs(c, responseBytes)
 	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
+		return &dto.Usage{}, types.NewError(err, types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
 	}
 
 	c.Writer.Header().Set("Content-Type", "application/json")

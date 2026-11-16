@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -21,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -29,6 +32,8 @@ import (
 
 type imageReservation struct {
 	held, limit int
+	settled     []int
+	refunded    bool
 }
 
 func (s *imageReservation) Reserve(quota int) error {
@@ -39,11 +44,132 @@ func (s *imageReservation) Reserve(quota int) error {
 	return nil
 }
 func (s *imageReservation) GetPreConsumedQuota() int { return s.held }
-func (*imageReservation) Settle(int) error           { return nil }
-func (*imageReservation) Refund(*gin.Context)        {}
-func (*imageReservation) NeedsRefund() bool          { return false }
+func (s *imageReservation) Settle(quota int) error {
+	s.settled = append(s.settled, quota)
+	return nil
+}
+func (s *imageReservation) Refund(*gin.Context) {
+	if s.NeedsRefund() {
+		s.refunded = true
+	}
+}
+func (s *imageReservation) NeedsRefund() bool { return len(s.settled) == 0 && !s.refunded }
 
 func (s *imageReservation) ReserveBeforeSubmit(quota int) error { return s.Reserve(quota) }
+
+func TestImageURLProxySettlesGeneratedImagesOnRewriteFailure(t *testing.T) {
+	service.InitHttpClient()
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
+	batch, logConsume := common.BatchUpdateEnabled, common.LogConsumeEnabled
+	address, publicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress
+	common.BatchUpdateEnabled, common.LogConsumeEnabled = true, false
+	system_setting.ServerAddress, system_setting.TaskPublicAddress = "https://gateway.example", ""
+	t.Cleanup(func() {
+		common.BatchUpdateEnabled, common.LogConsumeEnabled = batch, logConsume
+		system_setting.ServerAddress, system_setting.TaskPublicAddress = address, publicAddress
+	})
+	const invalidURL = "ftp://upstream.example/image.png?secret=upstream"
+	const validURL = "https://upstream.example/image.png?secret=upstream"
+	const usage = `,"usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}`
+	for _, tc := range []struct {
+		name, response                      string
+		channelType, count                  int
+		edit, disabled, invalidBase, failed bool
+	}{
+		{name: "generation rewrite fails", response: `{"data":[{"url":"` + invalidURL + `"},{"url":"` + validURL + `"}]` + usage + `}`, count: 2},
+		{name: "edit object rewrite fails", response: `{"data":{"url":"` + invalidURL + `"}` + usage + `}`, count: 1, edit: true},
+		{name: "invalid public address", response: `{"data":[{"url":"` + validURL + `"}]` + usage + `}`, count: 1, invalidBase: true},
+		{name: "disabled keeps response", response: `{"data":[{"url":"` + invalidURL + `"}]` + usage + `}`, count: 1, disabled: true},
+		{name: "upstream failure refunds", response: `{"error":{"type":"upstream_error","message":"generation failed"}}`, failed: true},
+		{name: "minimax rewrite fails", channelType: constant.ChannelTypeMiniMax, response: `{"data":{"image_urls":["` + invalidURL + `"]},"base_resp":{"status_code":0}}`, count: 3},
+		{name: "jimeng rewrite fails", channelType: constant.ChannelTypeJimeng, response: `{"code":10000,"data":{"image_urls":["` + invalidURL + `"]}}`, count: 3},
+		{name: "replicate rewrite fails", channelType: constant.ChannelTypeReplicate, response: `{"status":"succeeded","output":["` + invalidURL + `"]}`, count: 3},
+	} {
+		for _, pricing := range []string{"fixed", "image expression", "token expression"} {
+			if pricing == "token expression" && tc.channelType != 0 {
+				continue
+			}
+			t.Run(tc.name+"/"+pricing, func(t *testing.T) {
+				var calls atomic.Int32
+				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls.Add(1)
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = io.WriteString(w, tc.response)
+				}))
+				t.Cleanup(upstream.Close)
+				recorder := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(recorder)
+				t.Cleanup(func() { common.CleanupBodyStorage(c) })
+				path, mode := "/v1/images/generations", relayconstant.RelayModeImagesGenerations
+				if tc.edit {
+					path, mode = "/v1/images/edits", relayconstant.RelayModeImagesEdits
+				}
+				const body = `{"model":"gpt-image-2","prompt":"a cat","n":3}`
+				c.Request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+				c.Request.Header.Set("Content-Type", "application/json")
+				common.SetContextKey(c, constant.ContextKeyOriginalModel, "gpt-image-2")
+				common.SetContextKey(c, constant.ContextKeyChannelType, cmp.Or(tc.channelType, constant.ChannelTypeOpenAI))
+				common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
+				common.SetContextKey(c, constant.ContextKeyChannelKey, "fixture-ak|fixture-sk")
+				common.SetContextKey(c, constant.ContextKeyChannelId, 42)
+				common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{ImageURLProxy: !tc.disabled})
+				request, err := helper.GetAndValidOpenAIImageRequest(c, mode)
+				require.NoError(t, err)
+				info := relaycommon.GenRelayInfoImage(c, request)
+				info.RelayMode = mode
+				reservation := &imageReservation{held: 60000, limit: 500000}
+				info.Billing = reservation
+				info.UserQuota = 1000000
+				info.PriceData = hosttypes.PriceData{UsePrice: true, ModelPrice: 0.04, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}}
+				wantQuota := tc.count * 20000
+				if pricing != "fixed" {
+					expr := `tier("image", fixed(0.04)) * image_count`
+					estimatedCount := common.GetPointer(3)
+					if pricing == "token expression" {
+						expr, estimatedCount, wantQuota = `tier("tokens", p * 2 + c * 3)`, nil, 40
+					}
+					info.PriceData.UsePrice = false
+					info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{BillingMode: "tiered_expr", ExprString: expr, ExprHash: billingexpr.ExprHashString(expr), GroupRatio: 1, QuotaPerUnit: common.QuotaPerUnit, EstimatedImageCount: estimatedCount}
+					info.BillingRequestInput = &billingexpr.RequestInput{Body: []byte(body), ImageCount: common.GetPointer(3)}
+				}
+				if tc.invalidBase {
+					system_setting.ServerAddress = "invalid"
+					defer func() { system_setting.ServerAddress = "https://gateway.example" }()
+				}
+
+				apiErr := ImageHelper(c, info)
+				if tc.disabled {
+					require.Nil(t, apiErr)
+					assert.Equal(t, tc.response, recorder.Body.String())
+				} else {
+					require.NotNil(t, apiErr)
+					assert.False(t, c.Writer.Written(), "the relay must still return the error to the client")
+					assert.NotContains(t, apiErr.Error(), "upstream.example")
+					if !tc.failed {
+						assert.True(t, types.IsSkipRetryError(apiErr))
+						assert.Equal(t, types.ErrorCodeBadResponseBody, apiErr.GetErrorCode())
+					}
+				}
+				assert.EqualValues(t, 1, calls.Load())
+				assert.Same(t, apiErr, RefundFailedRequestBilling(c, info, apiErr))
+				if tc.failed {
+					assert.Empty(t, reservation.settled)
+					assert.True(t, reservation.refunded)
+					return
+				}
+				assert.Equal(t, []int{wantQuota}, reservation.settled)
+				assert.False(t, reservation.refunded)
+				consume, ok := common.GetContextKeyType[*model.RecordConsumeLogParams](c, constant.ContextKeyConsumeLog)
+				require.True(t, ok)
+				assert.Equal(t, wantQuota, consume.Quota)
+				if tc.channelType == 0 {
+					assert.Equal(t, 10, consume.PromptTokens)
+					assert.Equal(t, 20, consume.CompletionTokens)
+				}
+			})
+		}
+	}
+}
 
 func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 	service.InitHttpClient()

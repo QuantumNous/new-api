@@ -880,7 +880,7 @@ func TestImageProxyPublicDownloadFiltersHeadersAndCredentials(t *testing.T) {
 				c.Request.Header.Set(header, "client-secret")
 			}
 			ImageProxy(c)
-			assert.Equal(t, http.StatusOK, recorder.Code)
+			require.Equal(t, http.StatusOK, recorder.Code)
 			assert.Equal(t, "image/png", recorder.Header().Get("Content-Type"))
 			assert.Equal(t, strconv.Itoa(len(image)), recorder.Header().Get("Content-Length"))
 			assert.Equal(t, "private, no-store", recorder.Header().Get("Cache-Control"))
@@ -895,6 +895,7 @@ func TestImageProxyPublicDownloadFiltersHeadersAndCredentials(t *testing.T) {
 			} else {
 				assert.Equal(t, image, recorder.Body.String())
 			}
+			require.Len(t, received, 1)
 			request := <-received
 			assert.Equal(t, http.MethodGet, request.Method)
 			assert.Equal(t, "/image.png?signature=upstream-secret", request.URL.String())
@@ -929,10 +930,11 @@ func TestImageProxyFollowsRedirectsWithoutCredentialsOrReferer(t *testing.T) {
 	c.Request.Header.Set("Cookie", "session=client-secret")
 	c.Request.Header.Set("Referer", "https://gateway.example/private")
 	ImageProxy(c)
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, imageProxyTestPNG, recorder.Body.String())
 	assert.Empty(t, recorder.Header().Get("Location"))
 	assert.Empty(t, recorder.Header().Get("Set-Cookie"))
+	require.Len(t, received, 3)
 	for range 3 {
 		header := <-received
 		assert.Empty(t, header.Get("Authorization"))
@@ -1076,8 +1078,9 @@ func TestImageProxyUsesOriginatingChannelProxy(t *testing.T) {
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("setting", string(settings)).Error)
 	c, recorder := imageProxyDownloadContext(t, http.MethodGet, "http://8.8.8.8/image.png?signature=hidden")
 	ImageProxy(c)
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, imageProxyTestPNG, recorder.Body.String())
+	require.Len(t, received, 1)
 	request := <-received
 	assert.Equal(t, "http://8.8.8.8/image.png?signature=hidden", request.URL.String())
 	assert.Empty(t, request.Header.Get("Authorization"))
