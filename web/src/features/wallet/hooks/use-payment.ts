@@ -36,6 +36,7 @@ import {
   isWaffoPayment,
   isWaffoPancakePayment,
   submitPaymentForm,
+  type PaymentSelection,
 } from '../lib'
 import type { AmountRequest, AmountResponse } from '../types'
 
@@ -61,15 +62,15 @@ const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
 
 export async function requestPaymentAmount(
   topupAmount: number,
-  paymentType: string,
+  payment: PaymentSelection,
   calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
 ): Promise<number> {
   let calculator = calculators.regular
-  if (isStripePayment(paymentType)) {
+  if (isStripePayment(payment.type, payment.provider)) {
     calculator = calculators.stripe
-  } else if (isWaffoPayment(paymentType)) {
+  } else if (isWaffoPayment(payment.type)) {
     calculator = calculators.waffo
-  } else if (isWaffoPancakePayment(paymentType)) {
+  } else if (isWaffoPancakePayment(payment.type)) {
     calculator = calculators.waffoPancake
   }
 
@@ -88,12 +89,12 @@ export function usePayment() {
 
   // Calculate payment amount
   const calculatePaymentAmount = useCallback(
-    async (topupAmount: number, paymentType: string) => {
+    async (topupAmount: number, payment: PaymentSelection) => {
       try {
         setCalculating(true)
         const calculatedAmount = await requestPaymentAmount(
           topupAmount,
-          paymentType
+          payment
         )
         setAmount(calculatedAmount)
         return calculatedAmount
@@ -109,21 +110,21 @@ export function usePayment() {
 
   // Process payment
   const processPayment = useCallback(
-    async (topupAmount: number, paymentType: string) => {
+    async (topupAmount: number, payment: PaymentSelection) => {
       try {
         setProcessing(true)
 
-        const isStripe = isStripePayment(paymentType)
+        const isStripe = isStripePayment(payment.type, payment.provider)
         const amount = Math.floor(topupAmount)
 
         const response = isStripe
           ? await requestStripePayment({
               amount,
-              payment_method: 'stripe',
+              payment_method: payment.type,
             })
           : await requestPayment({
               amount,
-              payment_method: paymentType,
+              payment_method: payment.type,
             })
 
         if (!isApiSuccess(response)) {

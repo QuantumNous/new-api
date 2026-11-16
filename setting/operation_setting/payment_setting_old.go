@@ -49,9 +49,12 @@ func PayMethods2JsonString() string {
 	return string(jsonBytes)
 }
 
+// ContainsPayMethod reports whether method is a configured Epay payment method.
+// Entries routed through Stripe are excluded, so the Epay order endpoints
+// reject them.
 func ContainsPayMethod(method string) bool {
 	for _, payMethod := range PayMethods {
-		if payMethod["type"] == method {
+		if payMethod["type"] == method && PayMethodProvider(payMethod) == PayMethodProviderEpay {
 			return true
 		}
 	}

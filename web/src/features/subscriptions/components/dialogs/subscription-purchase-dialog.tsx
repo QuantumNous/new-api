@@ -56,6 +56,8 @@ interface Props {
   enableWaffoPancake?: boolean
   enableOnlineTopUp?: boolean
   epayMethods?: PaymentMethod[]
+  /** Alipay / WeChat Pay methods paid through Stripe Checkout (one-time payment of the plan price in USD). */
+  stripeMethods?: PaymentMethod[]
   purchaseLimit?: number
   purchaseCount?: number
   userQuota?: number
@@ -83,9 +85,15 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
     props.enableWaffoPancake && !!plan.waffo_pancake_product_id
+  const stripeMethods = props.enableStripe ? props.stripeMethods || [] : []
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
-  const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
+  const hasAnyPayment =
+    hasStripe ||
+    hasCreem ||
+    hasWaffoPancake ||
+    hasEpay ||
+    stripeMethods.length > 0
   const totalAmount = Number(plan.total_amount || 0)
   const price = Number(plan.price_amount || 0).toFixed(2)
   const quotaPerUnit =
@@ -103,10 +111,13 @@ export function SubscriptionPurchaseDialog(props: Props) {
     (props.purchaseLimit || 0) > 0 &&
     (props.purchaseCount || 0) >= (props.purchaseLimit || 0)
 
-  const handlePayStripe = async () => {
+  const handlePayStripe = async (paymentMethod?: string) => {
     setPaying(true)
     try {
-      const res = await paySubscriptionStripe({ plan_id: plan.id })
+      const res = await paySubscriptionStripe({
+        plan_id: plan.id,
+        payment_method: paymentMethod,
+      })
       if (res.message === 'success' && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Payment page opened'))
@@ -337,18 +348,32 @@ export function SubscriptionPurchaseDialog(props: Props) {
             <p className='text-muted-foreground text-xs'>
               {t('Select payment method')}
             </p>
-            {(hasStripe || hasCreem || hasWaffoPancake) && (
+            {(hasStripe ||
+              hasCreem ||
+              hasWaffoPancake ||
+              stripeMethods.length > 0) && (
               <div className='grid grid-cols-2 gap-2 sm:flex'>
                 {hasStripe && (
                   <Button
                     variant='outline'
                     className='flex-1'
-                    onClick={handlePayStripe}
+                    onClick={() => handlePayStripe()}
                     disabled={paying || limitReached}
                   >
                     Stripe
                   </Button>
                 )}
+                {stripeMethods.map((method) => (
+                  <Button
+                    key={method.type}
+                    variant='outline'
+                    className='flex-1'
+                    onClick={() => handlePayStripe(method.type)}
+                    disabled={paying || limitReached}
+                  >
+                    {method.name || method.type}
+                  </Button>
+                ))}
                 {hasCreem && (
                   <Button
                     variant='outline'

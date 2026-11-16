@@ -94,6 +94,8 @@ export interface PaymentMethod {
   name: string
   /** Payment method type identifier */
   type: string
+  /** Gateway the method is paid through: epay (default) or stripe */
+  provider?: string
   /** Legacy optional color for UI display */
   color?: string
   /** Minimum topup amount for this payment method */

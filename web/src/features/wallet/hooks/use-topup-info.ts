@@ -25,6 +25,7 @@ import {
   generatePresetAmounts,
   mergePresetAmounts,
   getMinTopupAmount,
+  isStripePayment,
 } from '../lib'
 import type {
   TopupInfo,
@@ -68,14 +69,19 @@ function parsePaymentMethods(
       const rawMinTopup = Number(item.min_topup)
       const normalizedMinTopup = Number.isFinite(rawMinTopup) ? rawMinTopup : 0
       const type = typeof item.type === 'string' ? item.type : ''
+      const provider =
+        typeof item.provider === 'string' ? item.provider : undefined
+      // Methods paid through Stripe fall back to the Stripe minimum top-up.
+      const paidThroughStripe = isStripePayment(type, provider)
 
       return {
         name: typeof item.name === 'string' ? item.name : '',
         type,
         color: typeof item.color === 'string' ? item.color : undefined,
         icon: typeof item.icon === 'string' ? item.icon : undefined,
+        provider,
         min_topup:
-          type === 'stripe' && normalizedMinTopup <= 0
+          paidThroughStripe && normalizedMinTopup <= 0
             ? stripeMinTopup
             : normalizedMinTopup,
       }

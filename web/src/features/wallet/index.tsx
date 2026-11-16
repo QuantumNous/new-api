@@ -43,7 +43,7 @@ import {
   useWaffoPancakePayment,
 } from './hooks'
 import {
-  getDefaultPaymentType,
+  getDefaultPaymentMethod,
   getMinTopupAmount,
   dispatchSelectedPayment,
 } from './lib'
@@ -145,28 +145,29 @@ export function Wallet(props: WalletProps) {
       setTopupAmount(minTopup)
 
       // Calculate initial payment amount with default payment type
-      const defaultPaymentType = getDefaultPaymentType(topupInfo)
-      calculatePaymentAmount(minTopup, defaultPaymentType)
+      calculatePaymentAmount(minTopup, getDefaultPaymentMethod(topupInfo))
     }
   }, [topupInfo, calculatePaymentAmount])
 
-  // Get current payment type (selected or default)
-  const getCurrentPaymentType = useCallback(() => {
-    return selectedPaymentMethod?.type || getDefaultPaymentType(topupInfo)
+  // Get current payment method (selected or default)
+  const getCurrentPayment = useCallback(() => {
+    return selectedPaymentMethod?.type
+      ? selectedPaymentMethod
+      : getDefaultPaymentMethod(topupInfo)
   }, [selectedPaymentMethod, topupInfo])
 
   // Handle preset selection
   const handleSelectPreset = (preset: PresetAmount) => {
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
-    calculatePaymentAmount(preset.value, getCurrentPaymentType())
+    calculatePaymentAmount(preset.value, getCurrentPayment())
   }
 
   // Handle topup amount change
   const handleTopupAmountChange = (amount: number) => {
     setTopupAmount(amount)
     setSelectedPreset(null)
-    calculatePaymentAmount(amount, getCurrentPaymentType())
+    calculatePaymentAmount(amount, getCurrentPayment())
   }
 
   // Handle payment method selection
@@ -183,7 +184,7 @@ export function Wallet(props: WalletProps) {
       }
 
       // Calculate payment amount and show confirmation dialog
-      await calculatePaymentAmount(topupAmount, method.type)
+      await calculatePaymentAmount(topupAmount, method)
       setConfirmDialogOpen(true)
     } finally {
       setPaymentLoading(null)
@@ -263,7 +264,7 @@ export function Wallet(props: WalletProps) {
     setPaymentLoading(loadingKey)
 
     try {
-      await calculatePaymentAmount(topupAmount, PAYMENT_TYPES.WAFFO)
+      await calculatePaymentAmount(topupAmount, { type: PAYMENT_TYPES.WAFFO })
       setConfirmDialogOpen(true)
     } finally {
       setPaymentLoading(null)

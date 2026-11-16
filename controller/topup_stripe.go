@@ -70,7 +70,7 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 }
 
 func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
-	if req.PaymentMethod != model.PaymentMethodStripe {
+	if !isStripeCheckoutPaymentMethod(req.PaymentMethod) {
 		paymentError(c, common.NewMessage("Unsupported payment channel"))
 		return
 	}
@@ -109,7 +109,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	reference := fmt.Sprintf("new-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "ref_" + common.Sha1([]byte(reference))
 
-	payLink, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.Amount, req.SuccessURL, req.CancelURL)
+	payLink, err := genStripeLink(referenceId, user.StripeCustomer, user.Email, req.PaymentMethod, req.Amount, req.SuccessURL, req.CancelURL)
 	if err != nil {
 		logger.LogError(c.Request.Context(), common.LogText("Stripe failed to create Checkout Session user_id=%d trade_no=%s amount=%d error=%q", id, referenceId, req.Amount, err.Error()))
 		paymentError(c, common.NewMessage("Failed to start payment"))
@@ -121,7 +121,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		Amount:          req.Amount,
 		Money:           chargedMoney,
 		TradeNo:         referenceId,
-		PaymentMethod:   model.PaymentMethodStripe,
+		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderStripe,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
@@ -132,13 +132,24 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		paymentError(c, common.NewMessage("Failed to create order"))
 		return
 	}
-	logger.LogInfo(c.Request.Context(), common.LogText("Stripe top-up order created user_id=%d trade_no=%s amount=%d money=%.2f", id, referenceId, req.Amount, chargedMoney))
+	logger.LogInfo(c.Request.Context(), common.LogText("Stripe top-up order created user_id=%d trade_no=%s payment_method=%s amount=%d money=%.2f", id, referenceId, req.PaymentMethod, req.Amount, chargedMoney))
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
 			"pay_link": payLink,
 		},
 	})
+}
+
+// isStripeCheckoutPaymentMethod reports whether a wallet or subscription order may
+// pay through Stripe Checkout with paymentMethod: the built-in "stripe" method,
+// or an alipay/wxpay method the administrator routed through Stripe while
+// Stripe top-up (and with it the Stripe webhook) is enabled.
+func isStripeCheckoutPaymentMethod(paymentMethod string) bool {
+	if paymentMethod == model.PaymentMethodStripe {
+		return true
+	}
+	return isStripeTopUpEnabled() && operation_setting.ContainsStripePayMethod(paymentMethod)
 }
 
 func RequestStripeAmount(c *gin.Context) {
@@ -350,19 +361,32 @@ func sessionExpired(ctx context.Context, event stripe.Event) {
 //   - referenceId: unique reference identifier for the transaction
 //   - customerId: existing Stripe customer ID (empty string if new customer)
 //   - email: customer email address for new customer creation
+//   - paymentMethod: "stripe", or an alipay/wxpay method routed through Stripe
 //   - amount: quantity of units to purchase
 //   - successURL: custom URL to redirect after successful payment (empty for default)
 //   - cancelURL: custom URL to redirect when payment is canceled (empty for default)
 //
 // Returns the checkout session URL or an error if the session creation fails.
-func genStripeLink(referenceId string, customerId string, email string, amount int64, successURL string, cancelURL string) (string, error) {
+func genStripeLink(referenceId string, customerId string, email string, paymentMethod string, amount int64, successURL string, cancelURL string) (string, error) {
 	if !strings.HasPrefix(setting.StripeApiSecret, "sk_") && !strings.HasPrefix(setting.StripeApiSecret, "rk_") {
 		return "", errors.New("invalid Stripe API key")
 	}
 
 	stripe.Key = setting.StripeApiSecret
 
-	// Use custom URLs if provided, otherwise use defaults
+	params := newStripeTopUpCheckoutParams(referenceId, customerId, email, paymentMethod, amount, successURL, cancelURL)
+	result, err := session.New(params)
+	if err != nil {
+		return "", err
+	}
+
+	return result.URL, nil
+}
+
+// newStripeTopUpCheckoutParams builds the Checkout Session for a wallet
+// top-up: StripePriceId × amount in payment mode. Empty redirect URLs fall back
+// to the console usage-log and wallet pages.
+func newStripeTopUpCheckoutParams(referenceId string, customerId string, email string, paymentMethod string, amount int64, successURL string, cancelURL string) *stripe.CheckoutSessionParams {
 	if successURL == "" {
 		successURL = paymentReturnPath("/usage-logs")
 	}
@@ -383,23 +407,40 @@ func genStripeLink(referenceId string, customerId string, email string, amount i
 		Mode:                stripe.String(string(stripe.CheckoutSessionModePayment)),
 		AllowPromotionCodes: stripe.Bool(setting.StripePromotionCodesEnabled),
 	}
+	applyStripeCheckoutPaymentMethod(params, paymentMethod)
+	applyStripeCheckoutCustomer(params, customerId, email)
+	return params
+}
 
-	if "" == customerId {
-		if "" != email {
-			params.CustomerEmail = stripe.String(email)
+// applyStripeCheckoutPaymentMethod restricts a Checkout Session to the payment
+// method the user picked. The legacy "stripe" method sets nothing, so Checkout
+// keeps offering the payment methods enabled in the Stripe Dashboard. WeChat
+// Pay in Checkout requires the web client option.
+func applyStripeCheckoutPaymentMethod(params *stripe.CheckoutSessionParams, paymentMethod string) {
+	switch paymentMethod {
+	case operation_setting.PayMethodTypeAlipay:
+		params.PaymentMethodTypes = []*string{stripe.String(string(stripe.PaymentMethodTypeAlipay))}
+	case operation_setting.PayMethodTypeWxpay:
+		params.PaymentMethodTypes = []*string{stripe.String(string(stripe.PaymentMethodTypeWeChatPay))}
+		params.PaymentMethodOptions = &stripe.CheckoutSessionPaymentMethodOptionsParams{
+			WeChatPay: &stripe.CheckoutSessionPaymentMethodOptionsWeChatPayParams{
+				Client: stripe.String("web"),
+			},
 		}
+	}
+}
 
-		params.CustomerCreation = stripe.String(string(stripe.CheckoutSessionCustomerCreationAlways))
-	} else {
+// applyStripeCheckoutCustomer reuses the user's Stripe customer, or asks
+// Checkout to create one prefilled with the user's email.
+func applyStripeCheckoutCustomer(params *stripe.CheckoutSessionParams, customerId string, email string) {
+	if customerId != "" {
 		params.Customer = stripe.String(customerId)
+		return
 	}
-
-	result, err := session.New(params)
-	if err != nil {
-		return "", err
+	if email != "" {
+		params.CustomerEmail = stripe.String(email)
 	}
-
-	return result.URL, nil
+	params.CustomerCreation = stripe.String(string(stripe.CheckoutSessionCustomerCreationAlways))
 }
 
 func GetChargedAmount(count float64, user model.User) float64 {

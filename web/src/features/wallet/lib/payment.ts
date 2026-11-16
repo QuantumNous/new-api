@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { getServerMessage } from '@/lib/server-error-message'
 
 import {
+  PAYMENT_PROVIDERS,
   PAYMENT_TYPES,
   DEFAULT_PRESET_MULTIPLIERS,
   DEFAULT_PAYMENT_TYPE,
@@ -87,10 +88,50 @@ export function submitPaymentForm(
 }
 
 /**
- * Check if payment method is Stripe
+ * The part of a payment method that decides its payment flow.
  */
-export function isStripePayment(paymentType: string): boolean {
-  return paymentType === PAYMENT_TYPES.STRIPE
+export type PaymentSelection = Pick<PaymentMethod, 'type' | 'provider'>
+
+/**
+ * Check if a payment method pays through Stripe Checkout: the built-in Stripe
+ * entry, or an Alipay / WeChat Pay entry the administrator routed through Stripe.
+ */
+export function isStripePayment(
+  paymentType: string,
+  provider?: string
+): boolean {
+  return (
+    paymentType === PAYMENT_TYPES.STRIPE ||
+    provider === PAYMENT_PROVIDERS.STRIPE
+  )
+}
+
+/**
+ * Payment methods paid through the Epay form flow.
+ */
+export function getEpayPayMethods(
+  payMethods: PaymentMethod[] = []
+): PaymentMethod[] {
+  return payMethods.filter(
+    (m) =>
+      !!m?.type &&
+      m.type !== PAYMENT_TYPES.CREEM &&
+      !isStripePayment(m.type, m.provider)
+  )
+}
+
+/**
+ * Alipay / WeChat Pay methods the administrator routed through Stripe Checkout.
+ */
+export function getStripeRoutedPayMethods(
+  payMethods: PaymentMethod[] = []
+): PaymentMethod[] {
+  return payMethods.filter(
+    (m) =>
+      !!m?.type &&
+      m.type !== PAYMENT_TYPES.STRIPE &&
+      m.provider === PAYMENT_PROVIDERS.STRIPE
+  )
 }
 
 /**
@@ -112,7 +153,7 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
 }
 
 export interface PaymentProcessors {
-  regular: (topupAmount: number, paymentType: string) => Promise<boolean>
+  regular: (topupAmount: number, payment: PaymentSelection) => Promise<boolean>
   waffo: (topupAmount: number, payMethodIndex: number) => Promise<boolean>
   waffoPancake: (topupAmount: number) => Promise<boolean>
 }
@@ -134,35 +175,41 @@ export async function dispatchSelectedPayment(
     return processors.waffoPancake(topupAmount)
   }
 
-  return processors.regular(topupAmount, paymentMethod.type)
+  return processors.regular(topupAmount, {
+    type: paymentMethod.type,
+    provider: paymentMethod.provider,
+  })
 }
 
 /**
- * Get default payment type from topup info
+ * Get the default payment method from topup info
  */
-export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
+export function getDefaultPaymentMethod(
+  topupInfo: TopupInfo | null
+): PaymentSelection {
   if (!topupInfo) {
-    return DEFAULT_PAYMENT_TYPE
+    return { type: DEFAULT_PAYMENT_TYPE }
   }
 
   // Return first available payment method or default
   if (topupInfo.pay_methods?.length > 0) {
-    return topupInfo.pay_methods[0].type
+    const first = topupInfo.pay_methods[0]
+    return { type: first.type, provider: first.provider }
   }
 
   if (topupInfo.enable_stripe_topup) {
-    return PAYMENT_TYPES.STRIPE
+    return { type: PAYMENT_TYPES.STRIPE }
   }
 
   if (topupInfo.enable_waffo_topup) {
-    return PAYMENT_TYPES.WAFFO
+    return { type: PAYMENT_TYPES.WAFFO }
   }
 
   if (topupInfo.enable_waffo_pancake_topup) {
-    return PAYMENT_TYPES.WAFFO_PANCAKE
+    return { type: PAYMENT_TYPES.WAFFO_PANCAKE }
   }
 
-  return DEFAULT_PAYMENT_TYPE
+  return { type: DEFAULT_PAYMENT_TYPE }
 }
 
 /**

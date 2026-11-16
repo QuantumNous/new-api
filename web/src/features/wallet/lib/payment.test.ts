@@ -21,6 +21,8 @@ import { describe, expect, test } from 'vitest'
 import { PAYMENT_TYPES } from '../constants'
 import {
   dispatchSelectedPayment,
+  getEpayPayMethods,
+  getStripeRoutedPayMethods,
   isStripePayment,
   isWaffoPayment,
   isWaffoPancakePayment,
@@ -81,5 +83,53 @@ describe('payment dispatch', () => {
 
     expect(success).toBe(false)
     expect(called).toBe(false)
+  })
+})
+
+describe('payment provider routing', () => {
+  const payMethods = [
+    { name: 'Alipay', type: 'alipay', provider: 'stripe' },
+    { name: 'WeChat', type: 'wxpay', provider: 'epay' },
+    { name: 'Custom', type: 'custom1' },
+    { name: 'Stripe', type: 'stripe', provider: 'stripe' },
+    { name: 'Creem', type: 'creem' },
+  ]
+
+  test('treats an Alipay entry with the stripe provider as a Stripe payment', () => {
+    expect(isStripePayment('alipay', 'stripe')).toBe(true)
+    expect(isStripePayment('alipay', 'epay')).toBe(false)
+    expect(isStripePayment('alipay')).toBe(false)
+  })
+
+  test('lists only Epay-routed entries for the Epay form, including legacy entries without a provider', () => {
+    expect(getEpayPayMethods(payMethods).map((m) => m.type)).toEqual([
+      'wxpay',
+      'custom1',
+    ])
+  })
+
+  test('lists Stripe-routed Alipay / WeChat entries without the built-in Stripe entry', () => {
+    expect(getStripeRoutedPayMethods(payMethods).map((m) => m.type)).toEqual([
+      'alipay',
+    ])
+  })
+
+  test('passes the selected provider to the regular payment flow', async () => {
+    const payments: unknown[] = []
+    await dispatchSelectedPayment(
+      { name: 'Alipay', type: 'alipay', provider: 'stripe' },
+      50,
+      null,
+      {
+        regular: async (_amount, payment) => {
+          payments.push(payment)
+          return true
+        },
+        waffo: async () => false,
+        waffoPancake: async () => false,
+      }
+    )
+
+    expect(payments).toEqual([{ type: 'alipay', provider: 'stripe' }])
   })
 })

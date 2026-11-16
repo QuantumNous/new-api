@@ -92,11 +92,10 @@ func isWaffoPancakeWebhookEnabled() bool {
 	return isWaffoPancakeTopUpEnabled()
 }
 
+// isEpayTopUpEnabled reports whether new Epay orders can be placed: the
+// gateway is configured and at least one payment method is routed through it.
 func isEpayTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
-		return false
-	}
-	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
+	return isEpayWebhookEnabled() && operation_setting.HasEpayPayMethods()
 }
 
 func isEpayWebhookConfigured() bool {
@@ -110,6 +109,12 @@ func isEpayWebhookConfigured() bool {
 	return strings.TrimSpace(operation_setting.EpayKey) != ""
 }
 
+// isEpayWebhookEnabled does not depend on which provider the payment methods
+// use: orders placed through Epay before a method was moved to Stripe must
+// still be completed by their callbacks.
 func isEpayWebhookEnabled() bool {
-	return isEpayTopUpEnabled()
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
 }

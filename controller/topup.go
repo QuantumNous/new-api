@@ -27,13 +27,28 @@ func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
 
 	// 获取支付方式
-	payMethods := operation_setting.PayMethods
-	if !complianceConfirmed {
-		payMethods = []map[string]string{}
+	// Each entry carries its provider. Alipay/WeChat Pay entries routed through
+	// Stripe are listed only while Stripe top-up is configured, independent of
+	// whether Epay is configured.
+	stripeTopUpEnabled := isStripeTopUpEnabled()
+	payMethods := make([]map[string]string, 0, len(operation_setting.PayMethods)+3)
+	if complianceConfirmed {
+		for _, method := range operation_setting.PayMethods {
+			provider := operation_setting.PayMethodProvider(method)
+			if provider == operation_setting.PayMethodProviderStripe && !stripeTopUpEnabled {
+				continue
+			}
+			if method["type"] == model.PaymentMethodStripe {
+				provider = operation_setting.PayMethodProviderStripe
+			}
+			method = maps.Clone(method)
+			method["provider"] = provider
+			payMethods = append(payMethods, method)
+		}
 	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
-	if isStripeTopUpEnabled() {
+	if stripeTopUpEnabled {
 		// 检查是否已经包含 Stripe
 		hasStripe := false
 		for _, method := range payMethods {
@@ -47,6 +62,7 @@ func GetTopUpInfo(c *gin.Context) {
 			stripeMethod := map[string]string{
 				"name":      "Stripe",
 				"type":      "stripe",
+				"provider":  operation_setting.PayMethodProviderStripe,
 				"color":     "#635BFF",
 				"min_topup": strconv.Itoa(setting.StripeMinTopUp),
 			}
