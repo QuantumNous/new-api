@@ -17,8 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Lexer, type MarkedToken, type Token } from 'marked'
-import { parseDocument } from 'yaml'
-import { z } from 'zod'
 
 import type { MarketplacePlugin } from '../types'
 import {
@@ -27,6 +25,18 @@ import {
   findMarketplaceVersion,
   resolvePluginSourceUrl,
 } from './marketplace'
+import {
+  documentLocale,
+  downloadPluginDocument,
+  isDocumentLinkTarget,
+  PluginDocumentFormatError,
+  readFrontMatter,
+  readFrontMatterTranslations,
+  resolvePluginDocumentFiles,
+  tokenLines,
+  type PluginDocumentFile,
+  type PluginDocumentLocation,
+} from './plugin-document'
 
 export const CHANGELOG_CATEGORIES = [
   'Added',
@@ -47,30 +57,18 @@ export type PluginChangelog = {
 }
 
 type ChangelogIdentity = { plugin: string; version: string; locale: string }
-const MAX_CHANGELOG_BYTES = 256 * 1024
-const metadataSchema = z
-  .object({
-    changelogVersion: z.literal(1),
-    plugin: z.string().min(1),
-    version: z.string().min(1),
-    locale: z.string().min(1),
-    translations: z.record(z.string(), z.string()).optional(),
-  })
-  .strict()
+const CHANGELOG_METADATA_KEYS = [
+  'changelogVersion',
+  'plugin',
+  'version',
+  'locale',
+  'translations',
+] as const
 
-/** Translate the app's language aliases to canonical release-note language tags. */
-export function changelogLocale(language: string): string {
-  const normalized = language.trim().replaceAll('_', '-').toLowerCase()
-  if (['zh', 'zhcn', 'zh-cn', 'zh-hans'].includes(normalized)) return 'zh-CN'
-  if (['zhtw', 'zh-tw', 'zh-hant'].includes(normalized)) return 'zh-TW'
-  try {
-    return Intl.getCanonicalLocales(normalized)[0] ?? 'en'
-  } catch {
-    return 'en'
-  }
-}
-
-/** Resolve the sidecar for an index-registered version, including the official proxy index. */
+/**
+ * Derives `CHANGELOG.md` beside the version's `plugin.js`, for index entries
+ * that do not list a changelog. Includes the official proxy index.
+ */
 export function resolvePluginChangelogUrl(
   indexUrl: string,
   plugin: MarketplacePlugin,
@@ -105,25 +103,63 @@ export function resolvePluginChangelogUrl(
 }
 
 /** No HTML, images, task checkboxes or nested blocks can become marketplace content. */
-function validateChangelogInline(tokens: Token[], depth = 0): void {
-  if (depth > 32) throw new Error('Changelog inline nesting exceeds the limit')
-  for (const token of tokens as MarkedToken[]) {
+function validateChangelogInline(
+  tokens: Token[],
+  raw: string,
+  firstLine: number,
+  location: PluginDocumentLocation,
+  depth = 0
+): void {
+  if (depth > 32) {
+    throw new PluginDocumentFormatError(location, firstLine, 'unsupported')
+  }
+  const lines = tokenLines(tokens, raw, firstLine)
+  for (const [i, token] of (tokens as MarkedToken[]).entries()) {
     switch (token.type) {
       case 'text':
-        if (token.tokens) validateChangelogInline(token.tokens, depth + 1)
+        if (token.tokens) {
+          validateChangelogInline(
+            token.tokens,
+            token.raw,
+            lines[i],
+            location,
+            depth + 1
+          )
+        }
         break
       case 'escape':
       case 'codespan':
       case 'br':
         break
+      case 'link':
+        if (!isDocumentLinkTarget(token.href)) {
+          throw new PluginDocumentFormatError(location, lines[i], 'link')
+        }
+        validateChangelogInline(
+          token.tokens,
+          token.raw,
+          lines[i],
+          location,
+          depth + 1
+        )
+        break
       case 'strong':
       case 'em':
       case 'del':
-      case 'link':
-        validateChangelogInline(token.tokens, depth + 1)
+        validateChangelogInline(
+          token.tokens,
+          token.raw,
+          lines[i],
+          location,
+          depth + 1
+        )
         break
+      case 'html':
+        throw new PluginDocumentFormatError(location, lines[i], 'html')
+      case 'image':
+        throw new PluginDocumentFormatError(location, lines[i], 'image')
       default:
-        throw new Error('Unsupported changelog content')
+        throw new PluginDocumentFormatError(location, lines[i], 'unsupported')
     }
   }
 }
@@ -133,87 +169,117 @@ export function parsePluginChangelog(
   identity: ChangelogIdentity,
   sourceUrl: string
 ): { document: PluginChangelog; translations: Record<string, string> } {
-  if (new TextEncoder().encode(text).length > MAX_CHANGELOG_BYTES) {
-    throw new Error('Changelog exceeds the size limit')
+  const location = {
+    name:
+      identity.locale === 'en'
+        ? 'CHANGELOG.md'
+        : `CHANGELOG.${identity.locale}.md`,
+    sourceUrl,
   }
-  const lines = text.replaceAll('\r\n', '\n').split('\n')
-  const end = lines.indexOf('---', 1)
-  if (lines[0] !== '---' || end < 1) {
-    throw new Error('Missing changelog metadata')
-  }
-  const yaml = parseDocument(lines.slice(1, end).join('\n'), {
-    schema: 'core',
-    uniqueKeys: true,
-    stringKeys: true,
+  const frontMatter = readFrontMatter(text, location, {
+    required: true,
+    keys: CHANGELOG_METADATA_KEYS,
   })
-  if (yaml.errors.length || yaml.warnings.length) {
-    throw new Error('Invalid changelog metadata')
+  const metadata = frontMatter.data
+  if (metadata.changelogVersion !== 1) {
+    throw new PluginDocumentFormatError(
+      location,
+      frontMatter.keyLine(['changelogVersion']),
+      metadata.changelogVersion === undefined
+        ? 'front_matter'
+        : 'changelog_version'
+    )
   }
-  const metadata = metadataSchema.parse(yaml.toJS({ maxAliasCount: 0 }))
-  if (
-    metadata.plugin !== identity.plugin ||
-    metadata.version !== identity.version ||
-    metadata.locale !== identity.locale
-  ) {
-    throw new Error('Changelog identity does not match the selected version')
-  }
-  if (
-    Intl.getCanonicalLocales(metadata.locale)[0] !== metadata.locale ||
-    (metadata.locale !== 'en' && metadata.translations !== undefined)
-  ) {
-    throw new Error('Invalid changelog locale')
-  }
-  const translations = metadata.translations ?? {}
-  for (const [locale, file] of Object.entries(translations)) {
-    if (
-      locale === 'en' ||
-      Intl.getCanonicalLocales(locale)[0] !== locale ||
-      file !== `CHANGELOG.${locale}.md`
-    ) {
-      throw new Error('Invalid changelog translation filename')
+  for (const key of ['plugin', 'version', 'locale'] as const) {
+    const value = metadata[key]
+    if (typeof value !== 'string' || !value) {
+      throw new PluginDocumentFormatError(
+        location,
+        frontMatter.keyLine([key]),
+        'front_matter'
+      )
+    }
+    if (value !== identity[key]) {
+      throw new PluginDocumentFormatError(
+        location,
+        frontMatter.keyLine([key]),
+        'identity'
+      )
     }
   }
-  const tokens = Lexer.lex(lines.slice(end + 1).join('\n'), {
-    gfm: true,
-  }).filter((token) => token.type !== 'space') as MarkedToken[]
+  const translations = readFrontMatterTranslations(
+    frontMatter,
+    { ...location, locale: identity.locale },
+    'CHANGELOG'
+  )
+
+  const tokens: MarkedToken[] = []
+  const lines: number[] = []
+  const lexed = Lexer.lex(frontMatter.body, { gfm: true }) as MarkedToken[]
+  const lexedLines = tokenLines(lexed, frontMatter.body, frontMatter.bodyLine)
+  for (const [i, token] of lexed.entries()) {
+    if (token.type === 'space') continue
+    tokens.push(token)
+    lines.push(lexedLines[i])
+  }
   const title = tokens[0]
-  const release = tokens[1]
   if (
     title?.type !== 'heading' ||
     title.depth !== 1 ||
-    title.text !== 'Changelog' ||
+    title.text !== 'Changelog'
+  ) {
+    throw new PluginDocumentFormatError(location, lines[0] ?? null, 'title')
+  }
+  const release = tokens[1]
+  if (
     release?.type !== 'heading' ||
     release.depth !== 2 ||
     release.text !== `[${identity.version}]`
   ) {
-    throw new Error('Invalid changelog release heading')
+    throw new PluginDocumentFormatError(
+      location,
+      lines[1] ?? null,
+      'release_heading'
+    )
   }
   const sections: PluginChangelog['sections'] = []
   let previousCategory = -1
   for (let i = 2; i < tokens.length; i += 2) {
     const heading = tokens[i]
-    const list = tokens[i + 1]
-    if (
-      heading?.type !== 'heading' ||
-      heading.depth !== 3 ||
-      list?.type !== 'list' ||
-      list.ordered ||
-      !list.items.length
-    ) {
-      throw new Error('Invalid changelog category or list')
+    if (heading.type !== 'heading' || heading.depth !== 3) {
+      throw new PluginDocumentFormatError(location, lines[i], 'unsupported')
     }
     const categoryIndex = (CHANGELOG_CATEGORIES as readonly string[]).indexOf(
       heading.text
     )
+    if (categoryIndex < 0) {
+      throw new PluginDocumentFormatError(
+        location,
+        lines[i],
+        'unknown_category'
+      )
+    }
     if (categoryIndex <= previousCategory) {
-      throw new Error('Invalid changelog category order')
+      throw new PluginDocumentFormatError(location, lines[i], 'category_order')
     }
     previousCategory = categoryIndex
-    for (const item of list.items) {
+    const list = tokens[i + 1]
+    if (list?.type !== 'list' || list.ordered || !list.items.length) {
+      throw new PluginDocumentFormatError(
+        location,
+        lines[i + 1] ?? lines[i],
+        'category_list'
+      )
+    }
+    const itemLines = tokenLines(list.items, list.raw, lines[i + 1])
+    for (const [j, item] of list.items.entries()) {
       const blocks = item.tokens.filter(
         (token) => token.type !== 'space'
       ) as MarkedToken[]
       const paragraph = blocks[0]
+      if (blocks.some((block) => block.type === 'html')) {
+        throw new PluginDocumentFormatError(location, itemLines[j], 'html')
+      }
       if (
         item.task ||
         blocks.length !== 1 ||
@@ -221,9 +287,14 @@ export function parsePluginChangelog(
         !paragraph.text.trim() ||
         !paragraph.tokens
       ) {
-        throw new Error('Changelog entries must be nonempty inline paragraphs')
+        throw new PluginDocumentFormatError(location, itemLines[j], 'entry')
       }
-      validateChangelogInline(paragraph.tokens)
+      validateChangelogInline(
+        paragraph.tokens,
+        paragraph.raw,
+        itemLines[j],
+        location
+      )
     }
     sections.push({
       category: CHANGELOG_CATEGORIES[categoryIndex],
@@ -231,51 +302,17 @@ export function parsePluginChangelog(
     })
   }
   if (!sections.some((section) => section.category !== 'Migration')) {
-    throw new Error('Changelog must contain a change')
+    throw new PluginDocumentFormatError(location, null, 'no_change')
   }
   return { document: { ...identity, sourceUrl, sections }, translations }
 }
 
-async function fetchChangelogFile(
-  url: string,
-  signal: AbortSignal
-): Promise<string | null> {
-  signal.throwIfAborted()
-  const response = await fetch(url, {
-    signal,
-    credentials: 'omit',
-    redirect: 'error',
-    referrerPolicy: 'no-referrer',
-  })
-  if (response.status === 404) {
-    await response.body?.cancel()
-    return null
-  }
-  if (!response.ok) {
-    await response.body?.cancel()
-    throw new Error('Changelog download failed')
-  }
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error('Missing changelog body')
-  const decoder = new TextDecoder('utf-8', { fatal: true })
-  let bytes = 0
-  let text = ''
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      bytes += value.byteLength
-      if (bytes > MAX_CHANGELOG_BYTES) {
-        throw new Error('Changelog exceeds the size limit')
-      }
-      text += decoder.decode(value, { stream: true })
-    }
-    return text + decoder.decode()
-  } finally {
-    await reader.cancel()
-  }
-}
-
+/**
+ * Loads the release notes in the reader's language. Index entries that list
+ * a changelog use it; older entries fall back to `CHANGELOG.md` beside
+ * `plugin.js` and the translations its front matter names. Null means the
+ * version has no changelog.
+ */
 export async function fetchPluginChangelog(options: {
   indexUrl: string
   plugin: MarketplacePlugin
@@ -283,48 +320,74 @@ export async function fetchPluginChangelog(options: {
   language: string
   signal: AbortSignal
 }): Promise<PluginChangelog | null> {
-  const url = resolvePluginChangelogUrl(
-    options.indexUrl,
+  const listed = findMarketplaceVersion(
     options.plugin,
     options.version
-  )
-  if (!url) throw new Error('No changelog path for the selected version')
-  const signal = AbortSignal.any([options.signal, AbortSignal.timeout(15_000)])
-  const text = await fetchChangelogFile(url, signal)
+  )?.changelog
+  const locale = documentLocale(options.language)
+  let canonical: PluginDocumentFile | null = null
+  let translation: PluginDocumentFile | null = null
+  if (listed) {
+    ;({ canonical, translation } = resolvePluginDocumentFiles(
+      options.indexUrl,
+      listed,
+      'CHANGELOG',
+      locale
+    ))
+  } else {
+    const url = resolvePluginChangelogUrl(
+      options.indexUrl,
+      options.plugin,
+      options.version
+    )
+    if (url) {
+      canonical = { url, name: 'CHANGELOG.md', sourceUrl: url, locale: 'en' }
+    }
+  }
+  if (!canonical) return null
+  const text = await downloadPluginDocument(canonical, options.signal)
   if (text === null) return null
   const identity = {
     plugin: options.plugin.key,
     version: options.version,
     locale: 'en',
   }
-  const canonical = parsePluginChangelog(text, identity, url)
-  const locale = changelogLocale(options.language)
-  const filename = canonical.translations[locale]
-  if (filename) {
-    try {
-      const translatedUrl = new URL(filename, url).href
-      const translation = await fetchChangelogFile(translatedUrl, signal)
-      if (translation !== null) {
-        const translated = parsePluginChangelog(
-          translation,
-          { ...identity, locale },
-          translatedUrl
-        )
-        if (
-          translated.document.sections.length ===
-            canonical.document.sections.length &&
-          translated.document.sections.every(
-            (section, i) =>
-              section.category === canonical.document.sections[i].category
-          )
-        ) {
-          return translated.document
-        }
-      }
-    } catch {
-      // A missing, invalid or unavailable translation always falls back to English.
-      options.signal.throwIfAborted()
+  const english = parsePluginChangelog(text, identity, canonical.sourceUrl)
+  if (!listed && Object.hasOwn(english.translations, locale)) {
+    const url = new URL(english.translations[locale], canonical.url).href
+    translation = {
+      url,
+      name: `CHANGELOG.${locale}.md`,
+      sourceUrl: url,
+      locale,
     }
   }
-  return canonical.document
+  if (!translation) return english.document
+  try {
+    const translatedText = await downloadPluginDocument(
+      translation,
+      options.signal
+    )
+    if (translatedText !== null) {
+      const translated = parsePluginChangelog(
+        translatedText,
+        { ...identity, locale },
+        translation.sourceUrl
+      )
+      if (
+        translated.document.sections.length ===
+          english.document.sections.length &&
+        translated.document.sections.every(
+          (section, i) =>
+            section.category === english.document.sections[i].category
+        )
+      ) {
+        return translated.document
+      }
+    }
+  } catch {
+    // A missing, invalid or unavailable translation always falls back to English.
+    options.signal.throwIfAborted()
+  }
+  return english.document
 }

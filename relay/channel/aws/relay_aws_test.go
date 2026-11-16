@@ -222,6 +222,21 @@ func TestDoAwsClientRequest_ForwardsThinkingBlockBindingAndBetaList(t *testing.T
 	assert.JSONEq(t, `{"type":"adaptive","display":"summarized","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`, string(payload.Thinking))
 }
 
+// InvokeModel takes the model and streaming from the request, so the
+// pass-through body keeps no copy of either, even when the client repeats them.
+func TestBuildAwsRequestBodyPassThroughDropsRepeatedModelAndStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"a","stream":true,"max_tokens":8,"stream":false,"model":"b"}`))
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	info.ChannelSetting.PassThroughBodyEnabled = true
+
+	body, err := buildAwsRequestBody(c, info, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, `{"max_tokens":8}`, string(body))
+}
+
 func TestDoAwsClientRequest_PreservesSafeguards(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	settings := model_setting.GetGlobalSettings()
@@ -990,4 +1005,54 @@ func TestMantleCanceledRequestSkipsRetry(t *testing.T) {
 	var apiError *relaytypes.NewAPIError
 	require.ErrorAs(t, err, &apiError)
 	assert.True(t, relaytypes.IsSkipRetryError(apiError))
+}
+
+func TestAWSApiKeyTypeInvokesThroughSDKWithBearerToken(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprintf("stream=%t", stream), func(t *testing.T) {
+			info := newMantleTestInfo()
+			info.ChannelOtherSettings.AwsApiType = ""
+			info.ChannelOtherSettings.AwsKeyType = dto.AwsKeyTypeApiKey
+			info.IsStream = stream
+			info.UpstreamModelName = "claude-3-5-sonnet-20240620"
+			c := newAwsTestContext(httptest.NewRecorder(), context.Background())
+			a := &Adaptor{}
+			a.Init(info)
+
+			requestURL, err := a.GetRequestURL(info)
+			require.NoError(t, err)
+			assert.Empty(t, requestURL)
+
+			response, err := a.DoRequest(c, info, strings.NewReader(`{"max_tokens":16,"messages":[{"role":"user","content":"hi"}]}`))
+			require.NoError(t, err)
+			assert.Nil(t, response)
+			require.NotNil(t, a.AwsClient)
+
+			var seen *http.Request
+			capture := func(options *bedrockruntime.Options) {
+				options.Retryer = aws.NopRetryer{}
+				options.HTTPClient = awsHTTPClientFunc(func(request *http.Request) (*http.Response, error) {
+					seen = request
+					return nil, errors.New("captured")
+				})
+			}
+			if stream {
+				input, ok := a.AwsReq.(*bedrockruntime.InvokeModelWithResponseStreamInput)
+				require.True(t, ok)
+				_, _ = a.AwsClient.InvokeModelWithResponseStream(context.Background(), input, capture)
+			} else {
+				input, ok := a.AwsReq.(*bedrockruntime.InvokeModelInput)
+				require.True(t, ok)
+				_, _ = a.AwsClient.InvokeModel(context.Background(), input, capture)
+			}
+			require.NotNil(t, seen)
+			action := "invoke"
+			if stream {
+				action = "invoke-with-response-stream"
+			}
+			assert.Equal(t, "bedrock-runtime.us-east-1.amazonaws.com", seen.URL.Host)
+			assert.Equal(t, "/model/us."+awsTestModel+"/"+action, seen.URL.Path)
+			assert.Equal(t, "Bearer test-api-key", seen.Header.Get("Authorization"))
+		})
+	}
 }

@@ -2,12 +2,13 @@ package jsplugin
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"strings"
 	"unicode"
+
+	"github.com/MoeForge/moego/base64"
 )
 
 // MaxIconDataURIBytes bounds an uploaded plugin logo. It is deliberately

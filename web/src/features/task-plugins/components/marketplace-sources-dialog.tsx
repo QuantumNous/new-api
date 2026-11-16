@@ -38,7 +38,7 @@ import { Label } from '@/components/ui/label'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { listMarketplaceSources, updateMarketplaceSources } from '../api'
-import { isDefaultMarketplaceSource } from '../lib/marketplace'
+import { marketplaceSourceKind } from '../lib/marketplace'
 import type { MarketplaceSource } from '../types'
 
 type MarketplaceSourcesDialogProps = {
@@ -107,9 +107,7 @@ export function MarketplaceSourcesDialog(props: MarketplaceSourcesDialogProps) {
         <DialogHeader>
           <DialogTitle>{t('Marketplace sources')}</DialogTitle>
           <DialogDescription>
-            {t(
-              'Each source serves an index.json listing installable plugins. Indexes are fetched by your browser; the gateway makes no outbound requests.'
-            )}
+            {t('The marketplace lists the plugins these sources offer.')}
           </DialogDescription>
         </DialogHeader>
         <div className='space-y-3'>
@@ -125,9 +123,13 @@ export function MarketplaceSourcesDialog(props: MarketplaceSourcesDialogProps) {
                   {t('Source name')}
                 </Label>
                 <div className='flex items-center gap-2'>
-                  {isDefaultMarketplaceSource(row.index_url) ? (
+                  {marketplaceSourceKind(row.index_url) === 'official' && (
                     <Badge variant='secondary'>{t('Official')}</Badge>
-                  ) : (
+                  )}
+                  {marketplaceSourceKind(row.index_url) === 'community' && (
+                    <Badge variant='secondary'>{t('Community')}</Badge>
+                  )}
+                  {marketplaceSourceKind(row.index_url) === 'third_party' && (
                     <Badge variant='destructive'>
                       {t('Third-party — use at your own risk')}
                     </Badge>
@@ -156,7 +158,7 @@ export function MarketplaceSourcesDialog(props: MarketplaceSourcesDialogProps) {
                 }
               />
               <Label htmlFor={`marketplace-source-url-${row.rowId}`}>
-                {t('Index URL')}
+                {t('Source address')}
               </Label>
               <Input
                 id={`marketplace-source-url-${row.rowId}`}
@@ -186,7 +188,7 @@ export function MarketplaceSourcesDialog(props: MarketplaceSourcesDialogProps) {
             <AlertTitle>{t('Third-party source risk')}</AlertTitle>
             <AlertDescription>
               {t(
-                'Anyone can publish an index. A plugin installed from a third-party source has the same access as one you upload by hand: review its source before installing.'
+                'Third-party sources are run by others. Read the plugin code before installing it.'
               )}
             </AlertDescription>
           </Alert>

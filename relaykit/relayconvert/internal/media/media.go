@@ -2,12 +2,12 @@ package media
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"strings"
 	"sync"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/base64"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 

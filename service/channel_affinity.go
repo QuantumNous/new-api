@@ -3,12 +3,13 @@ package service
 import (
 	"hash/fnv"
 	"maps"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/MoeForge/moego/ojson"
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
@@ -17,7 +18,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/hot"
-	"github.com/tidwall/gjson"
 )
 
 const (
@@ -317,16 +317,16 @@ func extractChannelAffinityValue(c *gin.Context, src operation_setting.ChannelAf
 		if err != nil {
 			return ""
 		}
-		body, err := storage.Bytes()
-		if err != nil || len(body) == 0 {
+		values, err := common.ReadBodyJSONFields(storage, src.Path)
+		if err != nil {
 			return ""
 		}
-		res := gjson.GetBytes(body, src.Path)
+		res := values[0]
 		if !res.Exists() {
 			return ""
 		}
 		switch res.Type {
-		case gjson.String, gjson.Number, gjson.True, gjson.False:
+		case ojson.String, ojson.Number, ojson.True, ojson.False:
 			return strings.TrimSpace(res.String())
 		default:
 			return strings.TrimSpace(res.Raw)

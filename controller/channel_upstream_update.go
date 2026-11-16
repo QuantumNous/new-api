@@ -7,12 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	"github.com/QuantumNous/new-api/relay/channel/providerplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -335,6 +336,24 @@ func sanitizeAdvancedCustomRequestError(err error, key string, requestURL string
 }
 
 func getFetchModelsResponseBody(method string, requestURL string, channel *model.Channel, headers http.Header) ([]byte, error) {
+	response, err := sendFetchModelsRequest(method, requestURL, channel, headers)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	return readFetchModelsResponse(response)
+}
+
+func readFetchModelsResponse(response *http.Response) ([]byte, error) {
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status code: %d", response.StatusCode)
+	}
+	return io.ReadAll(response.Body)
+}
+
+// sendFetchModelsRequest sends a model list request through the channel's
+// proxy and TLS setting. The caller closes the response body.
+func sendFetchModelsRequest(method string, requestURL string, channel *model.Channel, headers http.Header) (*http.Response, error) {
 	request, err := http.NewRequest(method, requestURL, nil)
 	if err != nil {
 		return nil, err
@@ -352,15 +371,7 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 	if err != nil {
 		return nil, err
 	}
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status code: %d", response.StatusCode)
-	}
-	return io.ReadAll(response.Body)
+	return client.Do(request)
 }
 
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
@@ -368,6 +379,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		plugin, ok := jsplugin.DefaultRegistry.Get(channel.GetSetting().TaskPluginKey)
 		if !ok {
 			return nil, fmt.Errorf("task plugin %q is not registered", channel.GetSetting().TaskPluginKey)
+		}
+		if _, ok := plugin.Meta.ModelListRoute(); ok {
+			return fetchProviderPluginUpstreamModelIDs(channel, plugin)
 		}
 		return normalizeModelNames(plugin.Meta.Models), nil
 	}
@@ -501,6 +515,71 @@ func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string)
 	return parseOpenAIModelIDs(body)
 }
 
+// fetchProviderPluginUpstreamModelIDs lists the models of a channel through
+// its plugin's /v1/models relay route, as on an Advanced Custom channel. A
+// route with the plugin converter answers in the vendor's format and
+// convertResponse turns the reply into an OpenAI model list, chaining more
+// pages when the vendor pages it.
+func fetchProviderPluginUpstreamModelIDs(channel *model.Channel, plugin *jsplugin.LoadedPlugin) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	key, err := service.PluginModelListKey(ctx, channel, plugin)
+	if err != nil {
+		return nil, err
+	}
+	settings := channel.GetOtherSettings()
+	settings.AdvancedCustom = plugin.Meta.ChannelRelayConfig(plugin.ChannelConfigFor(settings.PluginConfig))
+	info := &relaycommon.RelayInfo{
+		RelayFormat:    types.RelayFormatOpenAI,
+		RelayMode:      relayconstant.RelayModeUnknown,
+		RequestURLPath: dto.AdvancedCustomModelListPath,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:          channel.Type,
+			ChannelId:            channel.Id,
+			ChannelIsMultiKey:    channel.ChannelInfo.IsMultiKey,
+			ChannelMultiKeyIndex: pluginKeyIndex(channel, key),
+			ChannelBaseUrl:       channel.GetBaseURL(),
+			ApiKey:               key,
+			ChannelSetting:       channel.GetSetting(),
+			ChannelOtherSettings: settings,
+		},
+	}
+	body, err := providerplugin.FetchModelList(ctx, plugin, info, providerplugin.ManagementClient{
+		Override: func(headers http.Header, apiKey string) error {
+			return applyFetchModelsHeaderOverrides(channel, apiKey, headers)
+		},
+		Send: func(request *http.Request) (*http.Response, error) {
+			return sendChannelRequest(channel, request)
+		},
+	})
+	if err != nil {
+		return nil, sanitizeFetchModelsError(err, key)
+	}
+	return parseOpenAIModelIDs(body)
+}
+
+// pluginKeyIndex is the index of the key line key among the channel's keys,
+// 0 when it is not one of them.
+func pluginKeyIndex(channel *model.Channel, key string) int {
+	for index, line := range channel.GetKeys() {
+		if line == key {
+			return index
+		}
+	}
+	return 0
+}
+
+// sendChannelRequest sends a channel management request through the
+// channel's proxy and TLS setting. The caller closes the response body.
+func sendChannelRequest(channel *model.Channel, request *http.Request) (*http.Response, error) {
+	setting := channel.GetSetting()
+	client, err := service.GetHttpClientWithProxySettings(setting.Proxy, setting)
+	if err != nil {
+		return nil, err
+	}
+	return client.Do(request)
+}
+
 func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {
 	channel.SetOtherSettings(settings)
 	updates := map[string]any{
@@ -554,7 +633,9 @@ func checkAndPersistChannelUpstreamModelUpdates(
 		return false, autoAdded, err
 	}
 	if modelsChanged {
-		if err = channel.UpdateAbilities(nil); err != nil {
+		err = channel.UpdateAbilities(nil)
+		model.BumpSyncTopic(model.SyncTopicChannels)
+		if err != nil {
 			return true, autoAdded, err
 		}
 	}
@@ -1016,7 +1097,9 @@ func applyChannelUpstreamModelUpdates(
 	}
 
 	if modelsChanged {
-		if err := channel.UpdateAbilities(nil); err != nil {
+		err := channel.UpdateAbilities(nil)
+		model.BumpSyncTopic(model.SyncTopicChannels)
+		if err != nil {
 			return addModels, removeModels, remainingModels, remainingRemoveModels, true, err
 		}
 	}

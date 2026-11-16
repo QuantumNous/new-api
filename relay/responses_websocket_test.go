@@ -472,6 +472,23 @@ func TestNormalizeResponsesWSCreateEventFlat(t *testing.T) {
 	}
 }
 
+// The HTTP body and the upstream event keep the client's member order and
+// number spelling; only the WebSocket members change.
+func TestResponsesWSCreateEventKeepsClientBytes(t *testing.T) {
+	message := []byte(`{"type":"response.create","model":"m","text":{"format":{"type":"json_schema","name":"r","schema":{"properties":{"b":{},"a":{}}}}},"temperature":1.0,"stream":true,"generate":false}`)
+
+	create, _, err := normalizeResponsesWSTestMessage(message)
+	require.NoError(t, err)
+	assert.Equal(t, `{"model":"m","text":{"format":{"type":"json_schema","name":"r","schema":{"properties":{"b":{},"a":{}}}}},"temperature":1.0}`, string(create.Body))
+
+	event, err := buildResponsesWSCreateEvent(create.Body, create.Generate, "s1")
+	require.NoError(t, err)
+	assert.Equal(t, `{"model":"m","text":{"format":{"type":"json_schema","name":"r","schema":{"properties":{"b":{},"a":{}}}}},"temperature":1.0,"type":"response.create","stream_id":"s1","generate":false}`, string(event))
+
+	_, _, err = normalizeResponsesWSTestMessage([]byte(`{"type":"response.create","response":["m"]}`))
+	assert.Error(t, err)
+}
+
 func TestBuildResponsesWSCreateEventIsFlat(t *testing.T) {
 	payload := []byte(`{
 		"model": "gpt-5.3-codex-spark",
