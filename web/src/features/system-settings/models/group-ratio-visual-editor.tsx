@@ -98,6 +98,7 @@ type GroupRatioVisualEditorProps = {
   groupRatio: string
   topupGroupRatio: string
   userUsableGroups: string
+  groupAdminNotes: string
   groupGroupRatio: string
   autoGroups: string
   maxTokenAutoGroupsField: ReactNode
@@ -156,33 +157,42 @@ function parseNestedRatioMap(
   })
 }
 
+// A group keeps one description. For a user-selectable group it is stored in
+// UserUsableGroups and shown to users; otherwise it is stored in
+// GroupAdminNotes, which only the admin console reads.
 function buildGroupPricingRows(
   groupRatio: string,
   userUsableGroups: string,
-  topupGroupRatio: string
+  topupGroupRatio: string,
+  groupAdminNotes: string
 ): GroupPricingRow[] {
   const ratioMap = parseRatioMap(groupRatio)
   const usableMap = parseUsableMap(userUsableGroups)
   const topupMap = parseRatioMap(topupGroupRatio)
+  const notesMap = parseUsableMap(groupAdminNotes)
   const names = new Set([
     ...Object.keys(ratioMap),
     ...Object.keys(usableMap),
     ...Object.keys(topupMap),
   ])
 
-  return [...names].map((name) => ({
-    _id: createGroupPricingId(),
-    name,
-    ratio: String(normalizeRatio(ratioMap[name])),
-    topupRatio: Object.hasOwn(topupMap, name) ? String(topupMap[name]) : '',
-    selectable: Object.hasOwn(usableMap, name),
-    description: String(usableMap[name] ?? ''),
-  }))
+  return [...names].map((name) => {
+    const selectable = Object.hasOwn(usableMap, name)
+    return {
+      _id: createGroupPricingId(),
+      name,
+      ratio: String(normalizeRatio(ratioMap[name])),
+      topupRatio: Object.hasOwn(topupMap, name) ? String(topupMap[name]) : '',
+      selectable,
+      description: String((selectable ? usableMap : notesMap)[name] ?? ''),
+    }
+  })
 }
 
 function serializeGroupPricingRows(rows: GroupPricingRow[]) {
   const groupRatio: Record<string, number> = {}
   const userUsableGroups: Record<string, string> = {}
+  const groupAdminNotes: Record<string, string> = {}
   const topupGroupRatio: Record<string, number> = {}
 
   for (const row of rows) {
@@ -191,6 +201,8 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
     groupRatio[name] = normalizeRatio(row.ratio)
     if (row.selectable) {
       userUsableGroups[name] = row.description
+    } else if (row.description) {
+      groupAdminNotes[name] = row.description
     }
     const topup = row.topupRatio.trim()
     if (topup !== '' && Number.isFinite(Number(topup))) {
@@ -201,6 +213,7 @@ function serializeGroupPricingRows(rows: GroupPricingRow[]) {
   return {
     GroupRatio: JSON.stringify(groupRatio, null, 2),
     UserUsableGroups: JSON.stringify(userUsableGroups, null, 2),
+    GroupAdminNotes: JSON.stringify(groupAdminNotes, null, 2),
     TopupGroupRatio: JSON.stringify(topupGroupRatio, null, 2),
   }
 }
@@ -211,18 +224,33 @@ function groupPricingSignature(rows: GroupPricingRow[]): string {
     groupRatio: parseRatioMap(serialized.GroupRatio),
     userUsableGroups: parseUsableMap(serialized.UserUsableGroups),
     topupGroupRatio: parseRatioMap(serialized.TopupGroupRatio),
+    groupAdminNotes: parseUsableMap(serialized.GroupAdminNotes),
   })
 }
 
 function sourceGroupPricingSignature(
   groupRatio: string,
   userUsableGroups: string,
-  topupGroupRatio: string
+  topupGroupRatio: string,
+  groupAdminNotes: string
 ): string {
+  const ratioMap = parseRatioMap(groupRatio)
+  const usableMap = parseUsableMap(userUsableGroups)
+  const topupMap = parseRatioMap(topupGroupRatio)
+  // Only notes the table can show are compared: a note on a selectable or
+  // unknown group has no row to hold it.
+  const notes: Record<string, string> = {}
+  for (const [name, note] of Object.entries(parseUsableMap(groupAdminNotes))) {
+    const known = Object.hasOwn(ratioMap, name) || Object.hasOwn(topupMap, name)
+    if (known && !Object.hasOwn(usableMap, name) && note) {
+      notes[name] = String(note)
+    }
+  }
   return JSON.stringify({
-    groupRatio: parseRatioMap(groupRatio),
-    userUsableGroups: parseUsableMap(userUsableGroups),
-    topupGroupRatio: parseRatioMap(topupGroupRatio),
+    groupRatio: ratioMap,
+    userUsableGroups: usableMap,
+    topupGroupRatio: topupMap,
+    groupAdminNotes: notes,
   })
 }
 
@@ -273,6 +301,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
   groupRatio,
   topupGroupRatio,
   userUsableGroups,
+  groupAdminNotes,
   groupGroupRatio,
   autoGroups,
   maxTokenAutoGroupsField,
@@ -370,6 +399,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
           groupRatio={groupRatio}
           userUsableGroups={userUsableGroups}
           topupGroupRatio={topupGroupRatio}
+          groupAdminNotes={groupAdminNotes}
           onChange={onChange}
           onShowDetail={setDetailGroup}
         />
@@ -463,6 +493,7 @@ export const GroupRatioVisualEditor = memo(function GroupRatioVisualEditor({
         registry={registry}
         topupGroupRatio={topupGroupRatio}
         userUsableGroups={userUsableGroups}
+        groupAdminNotes={groupAdminNotes}
         groupGroupRatio={groupGroupRatio}
         autoGroups={autoGroupsList}
         groupSpecialUsableGroup={groupSpecialUsableGroup}
@@ -475,6 +506,7 @@ type GroupPricingTableProps = {
   groupRatio: string
   userUsableGroups: string
   topupGroupRatio: string
+  groupAdminNotes: string
   onChange: (field: string, value: string) => void
   onShowDetail: (name: string) => void
 }
@@ -483,20 +515,27 @@ function GroupPricingTable({
   groupRatio,
   userUsableGroups,
   topupGroupRatio,
+  groupAdminNotes,
   onChange,
   onShowDetail,
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
-    buildGroupPricingRows(groupRatio, userUsableGroups, topupGroupRatio)
+    buildGroupPricingRows(
+      groupRatio,
+      userUsableGroups,
+      topupGroupRatio,
+      groupAdminNotes
+    )
   )
 
   useEffect(() => {
     const incomingSignature = sourceGroupPricingSignature(
       groupRatio,
       userUsableGroups,
-      topupGroupRatio
+      topupGroupRatio,
+      groupAdminNotes
     )
     setRows((currentRows) => {
       if (groupPricingSignature(currentRows) === incomingSignature) {
@@ -505,10 +544,11 @@ function GroupPricingTable({
       return buildGroupPricingRows(
         groupRatio,
         userUsableGroups,
-        topupGroupRatio
+        topupGroupRatio,
+        groupAdminNotes
       )
     })
-  }, [groupRatio, userUsableGroups, topupGroupRatio])
+  }, [groupRatio, userUsableGroups, topupGroupRatio, groupAdminNotes])
 
   const emitRows = useCallback(
     (nextRows: GroupPricingRow[]) => {
@@ -516,6 +556,7 @@ function GroupPricingTable({
       const serialized = serializeGroupPricingRows(nextRows)
       onChange('GroupRatio', serialized.GroupRatio)
       onChange('UserUsableGroups', serialized.UserUsableGroups)
+      onChange('GroupAdminNotes', serialized.GroupAdminNotes)
       onChange('TopupGroupRatio', serialized.TopupGroupRatio)
     },
     [onChange]
@@ -723,21 +764,21 @@ function GroupPricingTable({
                 id: 'description',
                 header: t('Description'),
                 className: 'min-w-56',
-                cell: (row) =>
-                  row.selectable ? (
+                cell: (row) => {
+                  const label = row.selectable
+                    ? t('Group description')
+                    : t('Admin note (not shown to users)')
+                  return (
                     <Input
                       value={row.description}
-                      aria-label={t('Group description')}
-                      placeholder={t('Group description')}
+                      aria-label={label}
+                      placeholder={label}
                       onChange={(event) =>
                         updateRow(row._id, 'description', event.target.value)
                       }
                     />
-                  ) : (
-                    <span className='text-muted-foreground px-3 text-sm'>
-                      -
-                    </span>
-                  ),
+                  )
+                },
               },
               {
                 id: 'actions',
@@ -1260,6 +1301,7 @@ type GroupDetailSheetProps = {
   registry: RegistryEntry[]
   topupGroupRatio: string
   userUsableGroups: string
+  groupAdminNotes: string
   groupGroupRatio: string
   autoGroups: string[]
   groupSpecialUsableGroup: string
@@ -1294,6 +1336,7 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
     const entry = props.registry.find((item) => item.name === name)
     const topupMap = parseRatioMap(props.topupGroupRatio)
     const usableMap = parseUsableMap(props.userUsableGroups)
+    const notesMap = parseUsableMap(props.groupAdminNotes)
     const overrideMap = parseNestedRatioMap(props.groupGroupRatio)
     const specialMap = safeJsonParse<Record<string, Record<string, string>>>(
       props.groupSpecialUsableGroup,
@@ -1335,6 +1378,7 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
       topupRatio: Object.hasOwn(topupMap, name) ? String(topupMap[name]) : null,
       selectable: Object.hasOwn(usableMap, name),
       description: String(usableMap[name] ?? ''),
+      adminNote: String(notesMap[name] ?? ''),
       incomingOverrides,
       outgoingOverrides,
       visibilityRules,
@@ -1345,6 +1389,7 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
     props.registry,
     props.topupGroupRatio,
     props.userUsableGroups,
+    props.groupAdminNotes,
     props.groupGroupRatio,
     props.autoGroups,
     props.groupSpecialUsableGroup,
@@ -1396,6 +1441,14 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
                     </dt>
                     <dd className='text-right font-medium'>
                       {detail.description}
+                    </dd>
+                  </div>
+                )}
+                {!detail.selectable && detail.adminNote && (
+                  <div className='flex justify-between gap-4'>
+                    <dt className='text-muted-foreground'>{t('Admin note')}</dt>
+                    <dd className='text-right font-medium'>
+                      {detail.adminNote}
                     </dd>
                   </div>
                 )}
