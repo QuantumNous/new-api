@@ -9,6 +9,7 @@ export default defineConfig({
   plugins: [pluginReact(), pluginTailwindcss()],
   source: { entry: { index: './src/preview/main.tsx' } },
   resolve: {
+    aliasStrategy: 'prefer-alias',
     alias: {
       '@/hooks/use-status': path.resolve('src/preview/status.ts'),
       '@/lib/orbit-brand': path.resolve('src/preview/brand.ts'),

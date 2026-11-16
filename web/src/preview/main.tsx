@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 /** GitHub Pages entry point: public design review only, with no backend or authentication. */
 import {
   createRootRoute,
@@ -20,20 +21,29 @@ import { ORBIT_BRAND } from '@/lib/orbit-brand'
 
 import '@/styles/index.css'
 
+const previewQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: { enabled: false, retry: false, staleTime: Infinity },
+  },
+})
+previewQueryClient.setQueryData(['status'], { register_enabled: true })
+
 const root = createRootRoute({
   component: () => (
-    <ThemeProvider>
-      <Outlet />
-      <aside className='orbit-preview-notice' aria-label='Preview status'>
-        Temporary design preview · Account and API operations are unavailable.{' '}
-        <a
-          className='underline'
-          href='https://github.com/Pratik2k25/BEU-Developer-Orbit/tree/feature/orbit-phase1-wusrouter-replica'
-        >
-          Preview source
-        </a>
-      </aside>
-    </ThemeProvider>
+    <QueryClientProvider client={previewQueryClient}>
+      <ThemeProvider>
+        <Outlet />
+        <aside className='orbit-preview-notice' aria-label='Preview status'>
+          Temporary design preview · Account and API operations are unavailable.{' '}
+          <a
+            className='underline'
+            href='https://github.com/Pratik2k25/BEU-Developer-Orbit/tree/feature/orbit-phase1-wusrouter-replica'
+          >
+            Preview source
+          </a>
+        </aside>
+      </ThemeProvider>
+    </QueryClientProvider>
   ),
 })
 export function PreviewOnly() {
