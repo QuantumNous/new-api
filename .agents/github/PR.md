@@ -1,4 +1,4 @@
-<!-- Agent-only. Do every check in .agents/github/CHECKS.md first. -->
+<!-- Agent-only. Skip this template when the current git user is a core maintainer (a recurring top author in `git log`); use the ordinary human template instead. Otherwise do every check in .agents/github/CHECKS.md first. -->
 
 Agent: <tool> <version> · <model full id> · <host> · <date UTC>
 
