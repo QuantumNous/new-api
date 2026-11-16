@@ -6,16 +6,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/cachex"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
+	"github.com/samber/hot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -482,5 +487,126 @@ func TestSessionRulesInheritOrOverrideGlobalDefault(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestStrictAffinityReservation exercises routing before any response is written.
+func TestStrictAffinityReservation(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	for _, id := range []int{2101, 2102} {
+		createChannelSelectAutoGroupsChannel(t, db, id, "default", "affinity-model")
+	}
+	model.InitChannelCache()
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	getChannelAffinityCache()
+	previousCache := channelAffinityCache
+	t.Cleanup(func() { *setting = previous; channelAffinityCache = previousCache })
+	*setting = operation_setting.ChannelAffinitySetting{Enabled: true, DefaultTTLSeconds: 60, Rules: []operation_setting.ChannelAffinityRule{{
+		Name: "race", ModelRegex: []string{"^affinity-model$"}, SessionMode: "strict",
+		KeySources: []operation_setting.ChannelAffinityKeySource{{Type: "request_header", Key: "X-Session"}},
+	}}}
+	for _, backend := range []string{"memory", "redis"} {
+		t.Run(backend, func(t *testing.T) {
+			var client *redis.Client
+			if backend == "redis" {
+				server := miniredis.RunT(t)
+				client = redis.NewClient(&redis.Options{Addr: server.Addr()})
+				t.Cleanup(func() { _ = client.Close() })
+			}
+			channelAffinityCache = cachex.NewHybridCache(cachex.HybridCacheConfig[int]{Namespace: channelAffinityCacheNamespace, Redis: client, RedisCodec: cachex.IntCodec{},
+				Memory: func() *hot.HotCache[string, int] { return hot.NewHotCache[string, int](hot.LRU, 10).Build() },
+			})
+			contexts := make([]*gin.Context, 2)
+			selected := make([]*model.Channel, 2)
+			failures := make([]*ChannelSelectError, 2)
+			attempts := make([]int, 2)
+			misses := make([]bool, 2)
+			candidates := make([]*model.Channel, 2)
+			for i := range 2 {
+				var err error
+				candidates[i], err = model.CacheGetChannel(2101 + i)
+				require.NoError(t, err)
+				require.NotNil(t, candidates[i])
+			}
+			var ready, workers sync.WaitGroup
+			ready.Add(2)
+			winnerDone := make(chan struct{})
+			for i := range 2 {
+				ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+				ctx.Request.Header.Set("X-Session", t.Name())
+				contexts[i] = ctx
+				workers.Go(func() {
+					selected[i], _, failures[i] = selectChannelWithAffinity(ctx, "affinity-model", &RetryParam{Ctx: ctx, TokenGroup: "default", ModelName: "affinity-model"}, func(c *gin.Context, name string, retry *RetryParam) (*model.Channel, string, *ChannelSelectError) {
+						attempts[i]++
+						if attempts[i] > 1 {
+							return selectChannelForRequest(c, name, retry)
+						}
+						_, found := GetPreferredChannelByAffinity(c, name, retry.TokenGroup)
+						misses[i] = !found
+						// Both cache misses have different eligible candidates before
+						// either reservation runs. Request 1 then loses to request 0.
+						ready.Done()
+						ready.Wait()
+						if i == 1 {
+							<-winnerDone
+						}
+						return candidates[i], "default", nil
+					})
+					if i == 0 {
+						close(winnerDone)
+					}
+				})
+			}
+			workers.Wait()
+			for i := range 2 {
+				require.Nil(t, failures[i])
+				require.NotNil(t, selected[i])
+			}
+			assert.Equal(t, []bool{true, true}, misses)
+			assert.Equal(t, []int{1, 2}, attempts, "the losing candidate must re-enter normal selection")
+			assert.Equal(t, 2101, selected[0].Id)
+			assert.Equal(t, 2101, selected[1].Id)
+			key, _, ok := getChannelAffinityContext(contexts[0])
+			require.True(t, ok)
+			bound, found, err := channelAffinityCache.Get(key)
+			require.NoError(t, err)
+			require.True(t, found)
+			assert.Equal(t, selected[0].Id, bound)
+			assert.False(t, contexts[0].Writer.Written(), "binding exists before upstream output")
+			assert.True(t, ShouldSkipRetryAfterChannelAffinityFailure(contexts[0]))
+			// A failed first request must leave the reservation for peers and continuations.
+			contexts[0].Writer.WriteHeader(http.StatusBadGateway)
+			next, _, selectErr := SelectChannelForRequest(contexts[1], "affinity-model", &RetryParam{Ctx: contexts[1], TokenGroup: "default", ModelName: "affinity-model"})
+			require.Nil(t, selectErr)
+			assert.Equal(t, bound, next.Id)
+			replacement := 2101
+			if bound == replacement {
+				replacement = 2102
+			}
+			require.NoError(t, channelAffinityCache.SetWithTTL(key, replacement, time.Minute))
+			// Neither a late completion nor stale invalid-channel cleanup may clobber it.
+			RecordChannelAffinity(contexts[0], bound)
+			deleted, err := channelAffinityCache.CompareAndDelete(key, bound)
+			require.NoError(t, err)
+			assert.False(t, deleted)
+			current, _, err := channelAffinityCache.Get(key)
+			require.NoError(t, err)
+			assert.Equal(t, replacement, current)
+			// Prefer retains its existing completion-time binding behavior.
+			RequestPolicy(contexts[0]).SessionMode = "prefer"
+			RecordChannelAffinity(contexts[0], bound)
+			current, _, err = channelAffinityCache.Get(key)
+			require.NoError(t, err)
+			assert.Equal(t, bound, current)
+			if client != nil {
+				require.NoError(t, client.Close())
+				rejected, _, selectErr := SelectChannelForRequest(contexts[1], "affinity-model", &RetryParam{Ctx: contexts[1], TokenGroup: "default", ModelName: "affinity-model"})
+				assert.Nil(t, rejected)
+				require.NotNil(t, selectErr)
+				assert.Equal(t, http.StatusServiceUnavailable, selectErr.StatusCode)
+			}
+		})
 	}
 }
