@@ -63,3 +63,25 @@ func TestTaskPluginDisabledFactoryKeysBadJSONReturnsEmpty(t *testing.T) {
 		})
 	}
 }
+
+func TestTaskPluginMarketplaceSourceKindComesFromTheAddress(t *testing.T) {
+	cases := map[string]string{
+		"https://www.newapi.ai/api/v1/plugins/index.json":                               TaskPluginMarketplaceKindOfficial,
+		"https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json": TaskPluginMarketplaceKindOfficial,
+		" https://www.newapi.ai/api/v1/community/index.json ":                           TaskPluginMarketplaceKindCommunity,
+		"https://www.newapi.ai/api/v1/community/index.json?official=1":                  TaskPluginMarketplaceKindThirdParty,
+		"http://www.newapi.ai/api/v1/plugins/index.json":                                TaskPluginMarketplaceKindThirdParty,
+		"https://mirror.example.com/plugins/index.json":                                 TaskPluginMarketplaceKindThirdParty,
+	}
+	for indexURL, kind := range cases {
+		assert.Equal(t, kind, TaskPluginMarketplaceSourceKind(indexURL), indexURL)
+	}
+}
+
+func TestTaskPluginMarketplaceDefaultsIncludeCommunityButSavedListsStay(t *testing.T) {
+	setupTaskPluginDisabledFactoryKeysTest(t)
+	assert.Contains(t, GetTaskPluginMarketplaceSources(), TaskPluginMarketplaceSource{Name: "Community", IndexURL: CommunityTaskPluginMarketplaceIndexURL})
+
+	common.OptionMap[TaskPluginMarketplaceSourcesKey] = `[{"name":"Official","index_url":"https://www.newapi.ai/api/v1/plugins/index.json"}]`
+	assert.Equal(t, []TaskPluginMarketplaceSource{{Name: "Official", IndexURL: "https://www.newapi.ai/api/v1/plugins/index.json"}}, GetTaskPluginMarketplaceSources())
+}

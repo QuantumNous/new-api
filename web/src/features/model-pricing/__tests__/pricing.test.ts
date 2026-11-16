@@ -142,6 +142,21 @@ describe('shared model pricing', () => {
       ).toThrow()
     }
   })
+
+  it('reads expression drafts from the form fields over loaded option keys', () => {
+    const options = pricingOptions({
+      'billing_setting.billing_mode': '{}',
+      'billing_setting.billing_expr': '{}',
+      BillingMode: '{"example":"tiered_expr"}',
+      BillingExpr: '{"example":"tier(\\"base\\", p * 2)"}',
+    })
+    expect(JSON.parse(options['billing_setting.billing_expr'])).toEqual({
+      example: 'tier("base", p * 2)',
+    })
+    expect(JSON.parse(options['billing_setting.billing_mode'])).toEqual({
+      example: 'tiered_expr',
+    })
+  })
 })
 
 it('tracks nested provider prices by model, preserves :: in model names, and ignores key order', () => {

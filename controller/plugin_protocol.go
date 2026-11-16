@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"errors"
-	"fmt"
 	"hash/fnv"
 	"net/http"
 	"strconv"
@@ -21,6 +20,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
@@ -249,6 +249,11 @@ func serveTaskPluginProtocol(
 	var outcome *taskSubmissionOutcome
 	var taskErr *dto.TaskError
 	var relayInfoErr error
+	// The request plugins' report hooks receive the submission once the
+	// client has the response.
+	defer func() {
+		requestplugin.Report(c, types.RelayFormatTask, relayInfo, nil, taskReportError(taskErr))
+	}()
 	submissionStage := "relay_info"
 	// A Responses client only observes an asynchronous task. Once admitted,
 	// disconnecting that observer must not cancel submission, persistence, or
@@ -1182,36 +1187,11 @@ func taskPluginProtocolRendererContext(
 	if pinned.Plugin == nil {
 		return nil, errors.New("task artifact projection is unavailable")
 	}
-
-	artifacts, err := taskjsplugin.New(pinned.Plugin).ListArtifacts(task)
-	if err != nil {
-		return nil, fmt.Errorf("project task artifacts: %w", err)
-	}
-	artifacts, err = validateProjectedTaskArtifacts(artifacts)
+	artifacts, err := taskjsplugin.RendererArtifacts(pinned.Plugin, task, artifactContentURL)
 	if err != nil {
 		return nil, err
 	}
-	if len(artifacts) > 0 && artifactContentURL == nil {
-		return nil, errors.New("task artifact projection is unavailable")
-	}
-
-	rendererArtifacts := make(map[string]any, len(artifacts))
-	for _, artifact := range artifacts {
-		contentURL, buildErr := artifactContentURL(task.TaskID, artifact.Key)
-		if buildErr != nil {
-			return nil, fmt.Errorf("build task artifact content URL: %w", buildErr)
-		}
-		item := map[string]any{
-			"key":  artifact.Key,
-			"type": artifact.Type,
-			"url":  contentURL,
-		}
-		if artifact.MimeType != "" {
-			item["mimeType"] = artifact.MimeType
-		}
-		rendererArtifacts[artifact.Key] = item
-	}
-	rendererContext["artifacts"] = rendererArtifacts
+	rendererContext["artifacts"] = artifacts
 	return rendererContext, nil
 }
 
@@ -1263,6 +1243,12 @@ func respondPluginProtocolSubmissionError(c *gin.Context, taskErr *dto.TaskError
 	status := http.StatusInternalServerError
 	if taskErr != nil && taskErr.StatusCode >= 400 && taskErr.StatusCode <= 599 {
 		status = taskErr.StatusCode
+	}
+	if requestplugin.Stopped(taskErr) {
+		// A request plugin's stop keeps its code and message, as on chat
+		// routes.
+		respondPluginProtocolError(c, status, taskErr.Code, common.MessageWithRequestId(taskErr.Message, c.GetString(common.RequestIdKey)))
+		return
 	}
 	switch status {
 	case http.StatusBadRequest:

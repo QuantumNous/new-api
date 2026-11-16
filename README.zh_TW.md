@@ -266,7 +266,7 @@ bun run dev -- --port 5173
 | `web/` | Web 控制台，參閱[前端開發約定](./web/AGENTS.md) |
 | [electron/](./electron/README.md) | 桌面封裝與打包 |
 
-貢獻前請閱讀 [AGENTS.md](./AGENTS.md)。依改動範圍執行檢查：Go 模組使用 `make test`；前端在 `web/` 下執行 `bun run typecheck`、`bun run lint`、`bun run test` 和 `bun run build`。修改 RelayKit 後還必須在 `relaykit/` 下執行 `GOWORK=off go build ./...`。
+貢獻前請閱讀 [AGENTS.md](./AGENTS.md)。依改動範圍執行檢查：Go 模組使用 `make test`；前端在 `web/` 下執行 `bun check -b`、`bun run lint`、`bun run test` 和 `bun run build`。修改 RelayKit 後還必須在 `relaykit/` 下執行 `GOWORK=off go build ./...`。
 
 <a id="documentation"></a>
 

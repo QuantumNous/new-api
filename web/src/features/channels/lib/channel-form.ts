@@ -209,6 +209,7 @@ export const channelFormSchema = z
     base_url: z.string().optional(),
     task_plugin_key: z.string().optional(),
     task_extend_plugin_keys: z.array(z.string()).optional(),
+    request_plugins: z.array(z.string()).optional(),
     key: z.string(),
     openai_organization: z.string().optional(),
     models: z.string().min(1, ERROR_MESSAGES.REQUIRED_MODELS),
@@ -279,6 +280,7 @@ export const channelFormSchema = z
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
     vertex_project_id: z.string().optional(), // Vertex AI specific (api_key mode only)
+    vertex_api_version: z.enum(['v1', 'v1beta1']).optional(), // Vertex AI Google model (Gemini, Imagen) path version
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
     aws_api_type: z.enum(['invoke_model', 'mantle']).optional(),
     azure_responses_version: z.string().optional(), // Azure specific
@@ -296,6 +298,13 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    // The bound plugin's channel settings (type 61, stored in settings JSON)
+    plugin_config: z.record(z.string(), z.unknown()).optional(),
+    // Their values as typed, null until edited (not sent to backend)
+    plugin_config_draft: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -436,6 +445,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   base_url: '',
   task_plugin_key: '',
   task_extend_plugin_keys: [],
+  request_plugins: [],
   key: '',
   openai_organization: '',
   models: '',
@@ -474,6 +484,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   is_enterprise_account: false,
   vertex_key_type: 'json',
   vertex_project_id: '',
+  vertex_api_version: 'v1',
   aws_key_type: 'ak_sk',
   aws_api_type: 'invoke_model',
   azure_responses_version: '',
@@ -491,6 +502,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
   advanced_custom: '',
+  plugin_config: {},
+  plugin_config_draft: null,
 }
 
 // ============================================================================
@@ -507,6 +520,7 @@ export function transformChannelToFormDefaults(
   let extraSettings = {
     task_plugin_key: '',
     task_extend_plugin_keys: [] as string[],
+    request_plugins: [] as string[],
     force_format: false,
     thinking_to_content: false,
     proxy: '',
@@ -530,6 +544,11 @@ export function transformChannelToFormDefaults(
       extraSettings = {
         task_plugin_key: parsed.task_plugin_key || '',
         task_extend_plugin_keys: readTaskExtendPluginKeys(channel.type, parsed),
+        request_plugins: Array.isArray(parsed.request_plugins)
+          ? parsed.request_plugins.filter(
+              (id: unknown): id is string => typeof id === 'string'
+            )
+          : [],
         force_format: parsed.force_format || false,
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
@@ -552,6 +571,7 @@ export function transformChannelToFormDefaults(
   // Parse type-specific settings from settings field
   let vertexKeyType: 'json' | 'api_key' = 'json'
   let vertexProjectId = ''
+  let vertexApiVersion: 'v1' | 'v1beta1' = 'v1'
   let azureResponsesVersion = ''
   let isEnterpriseAccount = false
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
@@ -569,12 +589,15 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
   let advancedCustom = ''
+  let pluginConfig: Record<string, unknown> = {}
 
   if (channel.settings) {
     try {
       const parsed = JSON.parse(channel.settings)
       vertexKeyType = parsed.vertex_key_type || 'json'
       vertexProjectId = parsed.vertex_project_id || ''
+      vertexApiVersion =
+        parsed.vertex_api_version === 'v1beta1' ? 'v1beta1' : 'v1'
       azureResponsesVersion = parsed.azure_responses_version || ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
@@ -599,6 +622,9 @@ export function transformChannelToFormDefaults(
         : ''
       if (parsed.advanced_custom) {
         advancedCustom = stringifyAdvancedCustomConfig(parsed.advanced_custom)
+      }
+      if (isJsonObjectValue(parsed.plugin_config)) {
+        pluginConfig = parsed.plugin_config
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -638,6 +664,7 @@ export function transformChannelToFormDefaults(
     is_enterprise_account: isEnterpriseAccount,
     vertex_key_type: vertexKeyType,
     vertex_project_id: vertexProjectId,
+    vertex_api_version: vertexApiVersion,
     azure_responses_version: azureResponsesVersion,
     aws_key_type: awsKeyType,
     aws_api_type: awsApiType,
@@ -654,6 +681,8 @@ export function transformChannelToFormDefaults(
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     advanced_custom: advancedCustom,
+    plugin_config: pluginConfig,
+    plugin_config_draft: null,
   }
 }
 
@@ -671,12 +700,17 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
       formData.task_extend_plugin_keys?.length
         ? formData.task_extend_plugin_keys
         : undefined,
+    request_plugins: formData.request_plugins?.length
+      ? formData.request_plugins
+      : undefined,
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.proxy?.trim() || '',
     pass_through_body_enabled: formData.pass_through_body_enabled === true,
+    // A plugin channel shows the switch only when its plugin can serve it.
     responses_websocket_enabled:
-      supportsResponsesWebSocket(formData.type) &&
+      (supportsResponsesWebSocket(formData.type) ||
+        formData.type === CHANNEL_TYPE_TASK_PLUGIN) &&
       formData.responses_websocket_enabled === true,
     image_url_proxy: formData.image_url_proxy === true,
     system_prompt: formData.system_prompt || '',
@@ -727,9 +761,11 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     } else {
       delete settingsObj.vertex_project_id
     }
+    settingsObj.vertex_api_version = formData.vertex_api_version || 'v1'
   } else {
     delete settingsObj.vertex_key_type
     delete settingsObj.vertex_project_id
+    delete settingsObj.vertex_api_version
   }
 
   // Add azure_responses_version for Azure channels (type 3)
@@ -815,8 +851,12 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   settingsObj.disable_task_polling_sleep =
     formData.disable_task_polling_sleep === true
 
-  // Upstream model update settings (for model-fetchable channel types)
-  if (MODEL_FETCHABLE_TYPES.has(formData.type)) {
+  // Upstream model update settings (for model-fetchable channel types; a
+  // plugin channel shows them when its plugin can list models)
+  if (
+    MODEL_FETCHABLE_TYPES.has(formData.type) ||
+    formData.type === CHANNEL_TYPE_TASK_PLUGIN
+  ) {
     settingsObj.upstream_model_update_check_enabled =
       formData.upstream_model_update_check_enabled === true
     settingsObj.upstream_model_update_auto_sync_enabled =
@@ -850,6 +890,16 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   } else if ('advanced_custom' in settingsObj) {
     delete settingsObj.advanced_custom
+  }
+
+  // Only set values are kept; the plugin's defaults apply to the rest.
+  if (
+    formData.type === CHANNEL_TYPE_TASK_PLUGIN &&
+    Object.keys(formData.plugin_config ?? {}).length > 0
+  ) {
+    settingsObj.plugin_config = formData.plugin_config
+  } else {
+    delete settingsObj.plugin_config
   }
 
   return JSON.stringify(settingsObj)

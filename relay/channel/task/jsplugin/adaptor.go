@@ -3,7 +3,6 @@ package jsplugin
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,12 +15,13 @@ import (
 	"net/textproto"
 	"net/url"
 	"reflect"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/MoeForge/moego/base64"
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
@@ -29,6 +29,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
@@ -47,6 +48,11 @@ type requestDescriptor struct {
 	RewriteModel   string            `json:"rewriteModel"`
 	BodyType       string            `json:"bodyType"`
 	Parts          []requestPart     `json:"parts"`
+
+	// ContentPath and MimeType are read from buildContentRequest only: the
+	// artifact's bytes are a base64 string at that path of the JSON reply.
+	ContentPath []any  `json:"contentPath"`
+	MimeType    string `json:"mimeType"`
 	// BodyText is the body as JSON.stringify wrote it, for a plugin that
 	// preserves JSON order: the upstream gets the members in that order.
 	BodyText json.RawMessage `json:"-"`
@@ -67,6 +73,9 @@ type orderedRequestDescriptor struct {
 	RewriteModel   string            `json:"rewriteModel"`
 	BodyType       string            `json:"bodyType"`
 	Parts          []requestPart     `json:"parts"`
+
+	ContentPath []any  `json:"contentPath"`
+	MimeType    string `json:"mimeType"`
 }
 
 type requestPart struct {
@@ -101,6 +110,23 @@ var taskArtifactKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~-]{0,1
 // hooks receive every other request header.
 var gatewayCredentialHeaders = []string{"Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key", "X-Goog-Api-Key", "Mj-Api-Secret"}
 
+// ClientRequestHeaders is the client's request headers as decoders and driver
+// hooks receive them: the first value of each under its canonical name,
+// without the headers that carry gateway credentials, and with Content-Type
+// and Accept always present.
+func ClientRequestHeaders(header http.Header) map[string]string {
+	headers := make(map[string]string, len(header)+2)
+	for name, values := range header {
+		name = http.CanonicalHeaderKey(name)
+		if len(values) > 0 && !slices.Contains(gatewayCredentialHeaders, name) {
+			headers[name] = values[0]
+		}
+	}
+	headers["Content-Type"] = header.Get("Content-Type")
+	headers["Accept"] = header.Get("Accept")
+	return headers
+}
+
 const maxTaskArtifacts = 64
 
 // maxTaskPluginPersistedJSONBytes is the shared ceiling for taskData and plugin state.
@@ -119,6 +145,18 @@ type TaskAdaptor struct {
 	// requestBodyText is the decoded requestBody as JSON text, which hooks
 	// of a plugin that preserves JSON order receive instead.
 	requestBodyText json.RawMessage
+	// keepReservation is set when the client of a native route already holds
+	// the relayed events of a submission whose stream stopped before the
+	// upstream finished it, or whose result the plugin could not read: the
+	// task then settles at the reserved quota.
+	keepReservation bool
+	// credential is the submission's plugin credential, nil for a static key.
+	credential *pluginruntime.Credential
+	// pollKey is the key line the last FetchTask or FetchBatchTasks sent; the
+	// parse hooks of its response receive the same line.
+	pollKey string
+	// bodySHA256 hashes the submit body for signRequest.
+	bodySHA256 string
 }
 
 func New(plugin *pluginruntime.LoadedPlugin) *TaskAdaptor { return &TaskAdaptor{plugin: plugin} }
@@ -155,7 +193,44 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 			}
 		}
 	}
-	if _, exists := c.Get("task_request"); !exists {
+	// On a native path several plugins declare, the channel may have bound a
+	// plugin other than the one that prepared the request; it decodes again,
+	// as after a request plugin changed the body.
+	refreshed := c.GetBool(pluginruntime.ContextKeyRequestRefreshed)
+	if pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
+		if pinned, ok := pinnedValue.(pluginruntime.PinnedRoute); ok && (len(pinned.Candidates) > 1 || refreshed) && pinned.Plugin == a.plugin {
+			if requestValue, present := c.Get(pluginruntime.ContextKeyRouteRequest); present {
+				if requestContext, valid := requestValue.(pluginruntime.RouteRequestContext); valid {
+					requestContext.Params = pluginruntime.RouteParams(c.Params, pinned.Route)
+					resolvedValue, requestBodyText, callErr := a.plugin.Engine.CallPathWithMemberJSON(
+						context.WithoutCancel(c.Request.Context()), 0, a.plugin.Meta.JSONTextMember("requestBody"),
+						"native", []string{pinned.Route.Decode}, requestContext.JSValueFor(a.plugin.Meta),
+					)
+					resolved, resolvedOK := resolvedValue.(map[string]any)
+					kind, _ := resolved["kind"].(string)
+					resolvedModel, _ := resolved["model"].(string)
+					served, _, owned := model.ResolveTaskPluginModel(pinned.Generation, resolvedModel, a.plugin.Meta.Models)
+					if callErr != nil || !resolvedOK || kind != string(pluginruntime.RouteTypeSubmit) || !owned || served != c.GetString("resolved_task_model") {
+						return service.TaskErrorWrapperLocal(fmt.Errorf("final task plugin decoder rejected the pinned model"), "plugin_request_invalid", http.StatusBadRequest)
+					}
+					if _, forbidden := resolved["renderer"]; forbidden {
+						return service.TaskErrorWrapperLocal(fmt.Errorf("decoder must not return renderer"), "plugin_request_invalid", http.StatusBadRequest)
+					}
+					requestContext.RequestBody = resolved["requestBody"]
+					c.Set(pluginruntime.ContextKeyRouteRequest, requestContext)
+					c.Set("task_request", requestContext.RequestBody)
+					c.Set(pluginruntime.ContextKeyRequestBodyText, requestBodyText)
+					action := pinned.Route.Action
+					if resolvedAction, valid := resolved["action"].(string); valid && strings.TrimSpace(resolvedAction) != "" {
+						action = resolvedAction
+					}
+					c.Set("task_action", action)
+					info.Action = action
+				}
+			}
+		}
+	}
+	if request, exists := c.Get("task_request"); !exists || refreshed && isBasicTaskRequest(request) {
 		if taskErr := relaycommon.ValidateBasicTaskRequest(c, info, "image_to_video"); taskErr != nil {
 			return taskErr
 		}
@@ -169,6 +244,12 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		return taskErr
 	}
 	return nil
+}
+
+// isBasicTaskRequest reports a task_request ValidateBasicTaskRequest stored.
+func isBasicTaskRequest(request any) bool {
+	_, basic := request.(relaycommon.TaskSubmitReq)
+	return basic
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
@@ -220,6 +301,9 @@ func (a *TaskAdaptor) ExtractUsageFactsValidated(c *gin.Context, info *relaycomm
 }
 
 func (a *TaskAdaptor) AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskData []byte) map[string]float64 {
+	if a.keepReservation {
+		return nil
+	}
 	var data any
 	if err := common.Unmarshal(taskData, &data); err != nil {
 		data = string(taskData)
@@ -252,7 +336,16 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 	if a.submit == nil {
 		return "", fmt.Errorf("plugin submit request was not built")
 	}
-	return a.submit.URL, pluginruntime.ValidateRequestURL(a.submit.URL, info.ChannelBaseUrl, a.plugin.Meta.AllowedHosts)
+	requestURL := a.submit.URL
+	if a.credential != nil && len(a.credential.Query) > 0 {
+		target, err := url.Parse(requestURL)
+		if err != nil {
+			return "", err
+		}
+		applyTaskCredential(a.credential, target, http.Header{})
+		requestURL = target.String()
+	}
+	return requestURL, pluginruntime.ValidateRequestURL(requestURL, info.ChannelBaseUrl, a.plugin.Meta.AllowedHosts)
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
@@ -267,6 +360,7 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, _ *r
 	if a.submit.BodyType == "multipart" {
 		req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	}
+	applyTaskCredential(a.credential, &url.URL{}, req.Header)
 	return nil
 }
 
@@ -470,9 +564,8 @@ func encodeFilePlaceholder(placeholder map[string]any, form *multipart.Form, lim
 		return "", fmt.Errorf("inlined files exceed the %d byte limit", limit)
 	}
 	*total += int64(len(data))
-	encoded := base64.StdEncoding.EncodeToString(data)
 	if encoding == "base64" {
-		return encoded, nil
+		return base64.StdEncoding.EncodeToString(data), nil
 	}
 	mimeType := "application/octet-stream"
 	if override, ok := placeholder["mimeType"].(string); ok && strings.TrimSpace(override) != "" {
@@ -480,45 +573,145 @@ func encodeFilePlaceholder(placeholder map[string]any, form *multipart.Form, lim
 	} else if contentType := header.Header.Get("Content-Type"); contentType != "" {
 		mimeType = contentType
 	}
-	return "data:" + mimeType + ";base64," + encoded, nil
+	return base64.EncodeDataURL(mimeType, data), nil
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, body io.Reader) (*http.Response, error) {
 	wasStream := info.IsStream
 	info.IsStream = false
 	defer func() { info.IsStream = wasStream }()
+	if info.ChannelType == constant.ChannelTypeTaskPlugin && a.plugin.HasProviderHook("signRequest") {
+		var raw []byte
+		if body != nil {
+			var err error
+			if raw, err = io.ReadAll(body); err != nil {
+				return nil, err
+			}
+			body = bytes.NewReader(raw)
+		}
+		a.bodySHA256 = bodySHA256(raw)
+	}
+	// A credential line is no API key, so {api_key} in header overrides is
+	// empty while the request is built.
+	if a.credential != nil {
+		line := info.ApiKey
+		info.ApiKey = ""
+		defer func() { info.ApiKey = line }()
+	}
+	// A native route relays an SSE reply to the client as it arrives, so the
+	// vendor's work and what the client receives no longer depend on the
+	// client staying: from here the submission ignores the client leaving,
+	// keeps reading to the end and settles. Keep-alive comments reset the
+	// idle timeout, so the upstream request is bounded by the submission
+	// deadline of the host protocols (TASK_PLUGIN_PROTOCOL_TIMEOUT_SECONDS).
+	var release context.CancelFunc
+	if a.submit != nil && a.submit.ResponseType == "sse" && relaysSubmitEvents(c) {
+		detached := c.Request.WithContext(context.WithoutCancel(c.Request.Context()))
+		timeout := time.Duration(constant.TaskPluginProtocolTimeoutSeconds) * time.Second
+		if timeout <= 0 {
+			timeout = 10 * time.Minute
+		}
+		var upstream context.Context
+		upstream, release = context.WithTimeout(detached.Context(), timeout)
+		c.Request = detached.WithContext(upstream)
+		defer func() { c.Request = detached }()
+	}
 	if a.submit != nil && strings.TrimSpace(a.submit.Method) != "" {
 		originalMethod := c.Request.Method
 		c.Request.Method = strings.ToUpper(a.submit.Method)
 		defer func() { c.Request.Method = originalMethod }()
 	}
-	return channel.DoTaskApiRequest(a, c, info, body)
+	resp, err := channel.DoTaskApiRequest(a, c, info, body)
+	if release != nil {
+		if err != nil || resp == nil {
+			release()
+		} else {
+			resp.Body = deadlineBody{ReadCloser: resp.Body, release: release}
+		}
+	}
+	return resp, err
 }
 
-func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (_ *channel.TaskSubmitResponse, taskErr *dto.TaskError) {
+// deadlineBody releases the deadline of a relayed submission's upstream
+// request once its reply is closed.
+type deadlineBody struct {
+	io.ReadCloser
+	release context.CancelFunc
+}
+
+func (b deadlineBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.release()
+	return err
+}
+
+// relaysSubmitEvents reports whether the submission came through a native
+// route, whose client receives an SSE reply event by event.
+func relaysSubmitEvents(c *gin.Context) bool {
+	_, native := c.Get(pluginruntime.ContextKeyPinnedRoute)
+	return native
+}
+
+// submitReplyLimit bounds the submit reply and each of its SSE events. A
+// native route that declares retainResult: false delivers the reply once and
+// never persists it, so it may be as large as a downloaded file, which lets a
+// vendor return Base64 images.
+func submitReplyLimit(c *gin.Context) int64 {
+	if value, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
+		if pinned, ok := value.(pluginruntime.PinnedRoute); ok && pinned.Route.RetainResult != nil && !*pinned.Route.RetainResult {
+			return max(maxInlineFileBytes(), maxTaskPluginPersistedJSONBytes)
+		}
+	}
+	return maxTaskPluginPersistedJSONBytes
+}
+
+func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (submitted *channel.TaskSubmitResponse, taskErr *dto.TaskError) {
 	started := time.Now()
 	var responseBody any
 	var err error
 	streaming := a.submit != nil && a.submit.ResponseType == "sse"
 	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	acceptedStream := streaming || mediaType == "text/event-stream"
+	eventStream := mediaType == "text/event-stream"
+	acceptedStream := streaming || eventStream
+	relayed := false
 	defer func() {
-		if acceptedStream && taskErr != nil {
+		switch {
+		case taskErr == nil:
+		case relayed:
+			// The client already holds the vendor's events, so the task
+			// completes at the reserved quota instead of failing and refunding
+			// the vendor's work.
+			logger.LogWarn(c, common.LogText("task plugin %s could not read the result of a relayed submit stream; settling at the reserved quota: %s", a.plugin.Meta.Key, taskErr.Message))
+			a.keepReservation = true
+			submitted = &channel.TaskSubmitResponse{UpstreamTaskID: info.PublicTaskID, Immediate: &relaycommon.TaskInfo{Status: model.TaskStatusSuccess, Progress: taskcommon.ProgressComplete}}
+			taskErr = nil
+		case acceptedStream:
 			taskErr.NoRetry = true
 		}
 	}()
-	if !streaming && acceptedStream {
+	if !streaming && eventStream {
 		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("unexpected SSE response for a JSON submission"), "plugin_submit_response_invalid", http.StatusBadGateway)
 	}
-	if streaming {
+	replyLimit := submitReplyLimit(c)
+	if eventStream {
 		// Every failure after accepting this stream is non-retryable: the
 		// upstream may already have performed billable work.
 		defer resp.Body.Close()
-		responseBody, err = a.readSubmitEvents(c.Request.Context(), resp, a.submitContext(c, info))
+		var client *gin.Context
+		if relaysSubmitEvents(c) {
+			client = c
+		}
+		var stopped bool
+		responseBody, stopped, err = a.readSubmitEvents(c.Request.Context(), resp, a.submitContext(c, info), submitEventStream{client: client, frameLimit: replyLimit})
+		relayed = client != nil && c.Writer.Written()
+		a.keepReservation = stopped
 	} else {
+		// A stream request may get a JSON reply too: a gateway released
+		// before relayed streams reads the vendor's stream on its native
+		// route and answers with one JSON body.
 		var body []byte
-		body, err = io.ReadAll(io.LimitReader(resp.Body, maxTaskPluginPersistedJSONBytes+1))
-		if err == nil && len(body) > maxTaskPluginPersistedJSONBytes {
+		body, err = io.ReadAll(io.LimitReader(resp.Body, replyLimit+1))
+		if err == nil && int64(len(body)) > replyLimit {
 			err = fmt.Errorf("task submit response exceeds size limit")
 		}
 		responseBody = string(body)
@@ -564,10 +757,16 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 		)
 		return nil, service.TaskErrorWrapper(err, "plugin_submit_response_invalid", http.StatusBadGateway, common.UpstreamAddresses(c)...)
 	}
+	// Only an immediate terminal result goes unpersisted; any other task data
+	// is stored and keeps the persisted limit.
+	dataLimit := int64(maxTaskPluginPersistedJSONBytes)
+	if parsed.Immediate != nil && (parsed.Immediate.Status == "SUCCESS" || parsed.Immediate.Status == "FAILURE") {
+		dataLimit = replyLimit
+	}
 	var taskData []byte
 	if parsed.TaskData != nil {
 		taskData, err = common.Marshal(parsed.TaskData)
-		if err != nil || len(taskData) > maxTaskPluginPersistedJSONBytes {
+		if err != nil || int64(len(taskData)) > dataLimit {
 			if err == nil {
 				err = fmt.Errorf("task data exceeds size limit")
 			}
@@ -599,6 +798,11 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 	if immediate.Status != model.TaskStatusSuccess || !a.hasHook(c.Request.Context(), "extractUsageOnComplete") {
 		return response, nil
 	}
+	// A relayed stream that stopped early keeps the reservation: the plugin
+	// did not see the end of the vendor's work.
+	if a.keepReservation {
+		return response, nil
+	}
 	// Match the polling hook context without persisting a temporary task.
 	task := &model.Task{TaskID: info.PublicTaskID, Action: info.Action, Data: taskData,
 		Properties: model.Properties{OriginModelName: info.OriginModelName, UpstreamModelName: info.UpstreamModelName}}
@@ -625,6 +829,17 @@ func (a *TaskAdaptor) GetChannelName() string { return a.plugin.Meta.Name }
 func (a *TaskAdaptor) FetchMode() string      { return a.plugin.Meta.FetchMode }
 
 func (a *TaskAdaptor) FetchBatchTasks(baseURL, key string, tasks []*model.Task, proxy string) (*http.Response, error) {
+	// The host batches only tasks one credential account submitted, so the
+	// first task's account polls them all.
+	var first *model.Task
+	if len(tasks) > 0 {
+		first = tasks[0]
+	}
+	key, err := a.taskCredentialLine(context.Background(), key, first)
+	if err != nil {
+		return nil, err
+	}
+	a.pollKey = key
 	taskContexts := make([]map[string]any, 0, len(tasks))
 	for _, task := range tasks {
 		taskCtx, err := a.queryContext(task, key, baseURL, proxy)
@@ -648,6 +863,11 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy str
 	if task != nil && task.PrivateData.Key != "" {
 		key = task.PrivateData.Key
 	}
+	key, err := a.taskCredentialLine(context.Background(), key, task)
+	if err != nil {
+		return nil, err
+	}
+	a.pollKey = key
 	ctx, err := a.queryContext(task, key, baseURL, proxy)
 	if err != nil {
 		return nil, err
@@ -662,66 +882,32 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy str
 // hookFetcher sends a driver hook's utils.fetch requests to the hosts its
 // request descriptors may use, through the channel's proxy like poll requests.
 func (a *TaskAdaptor) hookFetcher(baseURL, proxy string) pluginruntime.Fetcher {
-	return func(ctx context.Context, request pluginruntime.FetchRequest) (pluginruntime.FetchResponse, error) {
-		if err := pluginruntime.ValidateRequestURL(request.URL, baseURL, a.plugin.Meta.AllowedHosts); err != nil {
-			return pluginruntime.FetchResponse{}, err
-		}
-		client, err := service.GetHttpClientWithProxySettings(proxy, a.channelSetting())
-		if err != nil {
-			return pluginruntime.FetchResponse{}, err
-		}
-		// A redirect reaches the plugin as it is; fetching its location is a
-		// new request, checked and counted again.
-		noRedirects := *client
-		noRedirects.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-		req, err := http.NewRequestWithContext(ctx, request.Method, request.URL, nil)
-		if err != nil {
-			return pluginruntime.FetchResponse{}, err
-		}
-		for name, value := range request.Headers {
-			req.Header.Set(name, value)
-		}
-		started := time.Now()
-		resp, err := noRedirects.Do(req)
-		if err != nil {
-			logger.LogDebug(ctx, "task_plugin subsystem=fetch event=failed plugin=%q hook=%q method=%q host=%q reason=transport_error elapsed_ms=%d",
-				a.plugin.Meta.Key, request.Hook, request.Method, req.URL.Host, time.Since(started).Milliseconds())
-			return pluginruntime.FetchResponse{}, err
-		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(io.LimitReader(resp.Body, pluginruntime.MaxFetchBodyBytes+1))
-		if err != nil {
-			return pluginruntime.FetchResponse{}, err
-		}
-		headers := make(map[string]string, len(resp.Header))
-		for name, values := range resp.Header {
-			if len(values) > 0 {
-				headers[name] = values[0]
-			}
-		}
-		logger.LogDebug(ctx, "task_plugin subsystem=fetch event=done plugin=%q hook=%q method=%q host=%q status=%d bytes=%d elapsed_ms=%d",
-			a.plugin.Meta.Key, request.Hook, request.Method, req.URL.Host, resp.StatusCode, len(body), time.Since(started).Milliseconds())
-		return pluginruntime.FetchResponse{Status: resp.StatusCode, Headers: headers, Body: body}, nil
-	}
+	return service.PluginFetcher(a.plugin, baseURL, proxy, a.channelSetting())
 }
 
 func (a *TaskAdaptor) doFetchDescriptor(baseURL, key, proxy string, descriptor requestDescriptor) (*http.Response, error) {
 	if err := pluginruntime.ValidateRequestURL(descriptor.URL, baseURL, a.plugin.Meta.AllowedHosts); err != nil {
 		return nil, err
 	}
+	credential, err := a.parseTaskCredential(a.channelType(), key)
+	if err != nil {
+		return nil, err
+	}
+	var body []byte
 	var requestBody io.Reader
 	if descriptor.Body != nil {
 		if bodyText, ok := descriptor.Body.(string); ok {
-			requestBody = strings.NewReader(bodyText)
+			body = []byte(bodyText)
 		} else if descriptor.BodyText != nil {
-			requestBody = bytes.NewReader(descriptor.BodyText)
+			body = descriptor.BodyText
 		} else {
 			encoded, marshalErr := common.Marshal(descriptor.Body)
 			if marshalErr != nil {
 				return nil, marshalErr
 			}
-			requestBody = bytes.NewReader(encoded)
+			body = encoded
 		}
+		requestBody = bytes.NewReader(body)
 	}
 	method := strings.ToUpper(strings.TrimSpace(descriptor.Method))
 	if method == "" {
@@ -734,7 +920,11 @@ func (a *TaskAdaptor) doFetchDescriptor(baseURL, key, proxy string, descriptor r
 	for name, value := range descriptor.Headers {
 		req.Header.Set(name, value)
 	}
-	if err := channel.ApplyHeaderOverride(a.headerOverrideInfo(key), nil, req); err != nil {
+	applyTaskCredential(credential, req.URL, req.Header)
+	if err := channel.ApplyHeaderOverride(a.headerOverrideInfo(overrideKey(key, credential)), nil, req); err != nil {
+		return nil, err
+	}
+	if err := a.signTaskRequest(context.Background(), a.channelType(), baseURL, key, credential, method, req.URL, req.Header, bodySHA256(body)); err != nil {
 		return nil, err
 	}
 	client, err := service.GetHttpClientWithProxySettings(proxy, a.channelSetting())
@@ -1071,6 +1261,35 @@ func (a *TaskAdaptor) ListArtifacts(task *model.Task) ([]channel.TaskArtifact, e
 	return validateTaskArtifacts(value)
 }
 
+// RendererArtifacts projects a SUCCESS task's artifacts for a presenter as
+// {key: {key, type, url, mimeType?}}, each url a gateway content address from
+// contentURL. Other tasks, and plugins without listArtifacts, have none.
+func RendererArtifacts(plugin *pluginruntime.LoadedPlugin, task *model.Task, contentURL func(taskID, artifactKey string) (string, error)) (map[string]any, error) {
+	projected := make(map[string]any)
+	if task == nil || task.Status != model.TaskStatusSuccess {
+		return projected, nil
+	}
+	artifacts, err := New(plugin).ListArtifacts(task)
+	if err != nil {
+		return nil, fmt.Errorf("project task artifacts: %w", err)
+	}
+	if len(artifacts) > 0 && contentURL == nil {
+		return nil, fmt.Errorf("task artifact projection is unavailable")
+	}
+	for _, artifact := range artifacts {
+		artifactURL, urlErr := contentURL(task.TaskID, artifact.Key)
+		if urlErr != nil {
+			return nil, fmt.Errorf("build task artifact content URL: %w", urlErr)
+		}
+		item := map[string]any{"key": artifact.Key, "type": artifact.Type, "url": artifactURL}
+		if artifact.MimeType != "" {
+			item["mimeType"] = artifact.MimeType
+		}
+		projected[artifact.Key] = item
+	}
+	return projected, nil
+}
+
 func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task, artifactKey string, clientRequest channel.TaskArtifactClientRequest) (*channel.TaskContentRequest, error) {
 	if !a.hasHook(context.Background(), "buildContentRequest") {
 		return nil, nil
@@ -1089,7 +1308,11 @@ func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task,
 	hookContext["artifactKey"] = artifactKey
 	hookContext["baseUrl"] = a.info.ChannelBaseUrl
 	hookContext["clientRequest"] = jsonValue(clientRequest)
-	if err = a.applyUpstreamCredentials(hookContext, a.info.ChannelType, a.info.ApiKey, a.info.ChannelSetting.Proxy); err != nil {
+	key, err := a.taskCredentialLine(ctx, a.info.ApiKey, task)
+	if err != nil {
+		return nil, err
+	}
+	if err = a.applyUpstreamCredentials(hookContext, a.info.ChannelType, key, a.info.ChannelSetting.Proxy); err != nil {
 		return nil, err
 	}
 	fetchContext := pluginruntime.WithFetcher(ctx, a.hookFetcher(a.info.ChannelBaseUrl, a.info.ChannelSetting.Proxy))
@@ -1134,31 +1357,58 @@ func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task,
 			}
 		}
 	}
+	if err = pluginruntime.ValidateJSONPath(descriptor.ContentPath); err != nil {
+		return nil, fmt.Errorf("plugin returned an invalid artifact content path: %w", err)
+	}
+	if len(descriptor.MimeType) > 255 || strings.ContainsAny(descriptor.MimeType, "\r\n") {
+		return nil, fmt.Errorf("plugin returned an invalid artifact mimeType")
+	}
+	requestURL := descriptor.URL
 	headers := descriptor.Headers
 	if !descriptor.Credentialless {
+		credential, credentialErr := a.parseTaskCredential(a.info.ChannelType, key)
+		if credentialErr != nil {
+			return nil, credentialErr
+		}
 		var overrides map[string]string
-		if overrides, err = channel.ResolveHeaderOverride(a.headerOverrideInfo(a.info.ApiKey), nil); err != nil {
+		if overrides, err = channel.ResolveHeaderOverride(a.headerOverrideInfo(overrideKey(key, credential)), nil); err != nil {
 			return nil, err
 		}
-		if len(overrides) > 0 {
-			headers = make(map[string]string, len(descriptor.Headers)+len(overrides))
+		signs := a.info.ChannelType == constant.ChannelTypeTaskPlugin && a.plugin.HasProviderHook("signRequest")
+		if len(overrides) > 0 || credential != nil || signs {
+			header := make(http.Header, len(descriptor.Headers)+len(overrides))
 			for name, value := range descriptor.Headers {
-				headers[http.CanonicalHeaderKey(strings.TrimSpace(name))] = value
+				header.Set(strings.TrimSpace(name), value)
 			}
+			target, parseErr := url.Parse(requestURL)
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			applyTaskCredential(credential, target, header)
 			for name, value := range overrides {
 				// A content request keeps the host of its URL.
 				if name != "host" {
-					headers[http.CanonicalHeaderKey(name)] = value
+					header.Set(name, value)
 				}
+			}
+			if err = a.signTaskRequest(ctx, a.info.ChannelType, a.info.ChannelBaseUrl, key, credential, method, target, header, bodySHA256(body)); err != nil {
+				return nil, err
+			}
+			requestURL = target.String()
+			headers = make(map[string]string, len(header))
+			for name := range header {
+				headers[name] = header.Get(name)
 			}
 		}
 	}
 	return &channel.TaskContentRequest{
-		URL:            descriptor.URL,
+		URL:            requestURL,
 		Method:         method,
 		Headers:        headers,
 		Body:           body,
 		Credentialless: descriptor.Credentialless,
+		ContentPath:    descriptor.ContentPath,
+		MimeType:       descriptor.MimeType,
 	}, nil
 }
 
@@ -1255,11 +1505,18 @@ func (a *TaskAdaptor) batchQueryContext(key, baseURL, proxy string, tasks []map[
 	return ctx, nil
 }
 
+// queryCredentials returns what the parse hooks of a poll response receive:
+// the key line the poll sent, which on a channel with credentials is the
+// submitting account's line rather than the whole key.
 func (a *TaskAdaptor) queryCredentials() (key, baseURL, proxy string) {
 	if a.info == nil || !a.info.HasChannelMeta() {
 		return "", "", ""
 	}
-	return a.info.ApiKey, a.info.ChannelBaseUrl, a.info.ChannelSetting.Proxy
+	key = a.pollKey
+	if key == "" {
+		key = a.info.ApiKey
+	}
+	return key, a.info.ChannelBaseUrl, a.info.ChannelSetting.Proxy
 }
 
 // channelType is the executing channel's type when polling or content
@@ -1286,6 +1543,7 @@ func (a *TaskAdaptor) channelSetting() kitdto.ChannelSettings {
 // channel key is that gateway's token, so it is sent as a Bearer header for
 // every auth type instead of running the plugin's vendor auth scheme.
 func (a *TaskAdaptor) applyUpstreamCredentials(ctx map[string]any, channelType int, key, proxy string) error {
+	a.applyChannelContext(ctx, channelType)
 	if channelType == constant.ChannelTypeNewAPI {
 		ctx["upstream"] = map[string]any{"kind": pluginruntime.UpstreamKindNewAPI}
 		ctx["auth"] = map[string]any{"authHeader": "Bearer " + key}
@@ -1294,6 +1552,23 @@ func (a *TaskAdaptor) applyUpstreamCredentials(ctx map[string]any, channelType i
 		return nil
 	}
 	ctx["upstream"] = map[string]any{"kind": pluginruntime.UpstreamKindVendor}
+	credential, err := a.parseTaskCredential(channelType, key)
+	if err != nil {
+		return err
+	}
+	if credential != nil {
+		// A plugin credential replaces meta.auth; its data reaches the
+		// plugin's own hooks only.
+		authHeader := credentialAuthorization(credential)
+		ctx["auth"] = map[string]any{"authHeader": authHeader}
+		ctx["authHeader"] = authHeader
+		var data any
+		if len(credential.Data) > 0 {
+			data = pluginruntime.RawJSON(credential.Data)
+		}
+		ctx["credential"] = data
+		return nil
+	}
 	auth, err := resolveAuth(a.plugin.Meta.Auth, key, proxy)
 	if err != nil {
 		return err
@@ -1304,6 +1579,25 @@ func (a *TaskAdaptor) applyUpstreamCredentials(ctx map[string]any, channelType i
 		ctx["apiKey"] = key
 	}
 	return nil
+}
+
+// applyChannelContext gives a hook ctx the plugin config of the executing
+// task plugin channel, {} elsewhere, and on a built-in channel type the plugin
+// serves (meta.channelTypes) the channel's raw other setting as channelOther.
+func (a *TaskAdaptor) applyChannelContext(ctx map[string]any, channelType int) {
+	ctx["config"] = map[string]any{}
+	if a.info == nil || !a.info.HasChannelMeta() || a.info.ChannelId == 0 || channelType == constant.ChannelTypeNewAPI {
+		return
+	}
+	channel, err := model.CacheGetChannel(a.info.ChannelId)
+	if err != nil {
+		return
+	}
+	if channelType == constant.ChannelTypeTaskPlugin {
+		ctx["config"] = pluginruntime.RawJSON(a.plugin.ChannelConfigFor(channel.GetOtherSettings().PluginConfig))
+		return
+	}
+	ctx["channelOther"] = channel.Other
 }
 
 func hookHTTPResponse(resp *http.Response) map[string]any {
@@ -1380,7 +1674,7 @@ func validateTaskArtifacts(value any) ([]channel.TaskArtifact, error) {
 		if rawMimeType, exists := item["mimeType"]; exists {
 			var mimeTypeOK bool
 			mimeType, mimeTypeOK = rawMimeType.(string)
-			if !mimeTypeOK {
+			if !mimeTypeOK || len(mimeType) > 255 || strings.ContainsAny(mimeType, "\r\n") {
 				return nil, fmt.Errorf("plugin artifact has invalid mimeType")
 			}
 		}
@@ -1410,6 +1704,7 @@ func (a *TaskAdaptor) requestDescriptor(ctx context.Context, hook string, args .
 		ResponseType: ordered.ResponseType, URL: ordered.URL, Method: ordered.Method, Headers: ordered.Headers,
 		Credentialless: ordered.Credentialless, Action: ordered.Action, Model: ordered.Model,
 		RewriteModel: ordered.RewriteModel, BodyType: ordered.BodyType, Parts: ordered.Parts,
+		ContentPath: ordered.ContentPath, MimeType: ordered.MimeType,
 	}
 	switch {
 	case len(ordered.Body) == 0 || string(ordered.Body) == "null":
@@ -1429,6 +1724,11 @@ func (a *TaskAdaptor) requestDescriptor(ctx context.Context, hook string, args .
 func (a *TaskAdaptor) buildSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*requestDescriptor, error) {
 	if a.submit != nil {
 		return a.submit, nil
+	}
+	if info.HasChannelMeta() {
+		if err := a.useFreshSubmitCredential(c, info); err != nil {
+			return nil, err
+		}
 	}
 	started := time.Now()
 	// buildSubmitRequest runs before quota is reserved, so a failed fetch
@@ -1559,14 +1859,7 @@ func (a *TaskAdaptor) submitContext(c *gin.Context, info *relaycommon.RelayInfo)
 					routeRequest.Query[key] = append([]string(nil), values...)
 				}
 			}
-			for name, values := range c.Request.Header {
-				name = http.CanonicalHeaderKey(name)
-				if len(values) > 0 && !slices.Contains(gatewayCredentialHeaders, name) {
-					requestHeaders[name] = values[0]
-				}
-			}
-			requestHeaders["Content-Type"] = c.GetHeader("Content-Type")
-			requestHeaders["Accept"] = c.GetHeader("Accept")
+			requestHeaders = ClientRequestHeaders(c.Request.Header)
 			if strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
 				if form, err := common.ParseMultipartFormReusable(c); err == nil {
 					defer form.RemoveAll()

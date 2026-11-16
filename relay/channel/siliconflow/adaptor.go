@@ -62,6 +62,16 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	return sfRequest, nil
 }
 
+// OutboundImageCount reads the image count of an image request body:
+// SiliconFlow generates batch_size images.
+func (a *Adaptor) OutboundImageCount(body []byte) (*uint, error) {
+	var request struct {
+		BatchSize *uint `json:"batch_size"`
+	}
+	err := common.Unmarshal(body, &request)
+	return request.BatchSize, err
+}
+
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 

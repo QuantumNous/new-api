@@ -16,14 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { TaskPluginOption } from '@/features/channels/api'
 import { api, type ApiRequestConfig } from '@/lib/api'
 import { createServerError } from '@/lib/server-error-message'
 
 import type {
   ApiResponse,
   MarketplaceSource,
+  RequestPluginDryRunRequest,
+  RequestPluginDryRunResult,
+  RequestPluginInstance,
   TaskPluginDetail,
   TaskPluginListItem,
+  TaskPluginPricingNotice,
   TaskPluginRecord,
   TaskPluginUsage,
   TaskPluginDryRunRequest,
@@ -115,6 +120,8 @@ export async function installMarketplacePlugin(request: {
   sourceSha256?: string
   remark: string
   icon?: string
+  /** The marketplace source the plugin came from; the gateway checks its key rules. */
+  marketplaceIndexUrl: string
 }) {
   const response = await api.post<ApiResponse<TaskPluginDetail>>(
     '/api/plugin/task',
@@ -124,6 +131,7 @@ export async function installMarketplacePlugin(request: {
       enabled: true,
       remark: request.remark,
       icon: request.icon || undefined,
+      marketplaceIndexUrl: request.marketplaceIndexUrl,
     },
     mutationConfig
   )
@@ -147,12 +155,12 @@ export async function updateMarketplaceSources(sources: MarketplaceSource[]) {
 }
 
 export async function activateTaskPlugin(key: string, version: string) {
-  const response = await api.post<ApiResponse<null>>(
+  const response = await api.post<ApiResponse<TaskPluginPricingNotice>>(
     `/api/plugin/task/${encodeURIComponent(key)}/activate`,
     { version },
     mutationConfig
   )
-  requireSuccess(response.data)
+  return requireSuccess(response.data)
 }
 
 export async function setTaskPluginStatus(
@@ -160,12 +168,12 @@ export async function setTaskPluginStatus(
   enabled: boolean,
   options?: { cascade?: boolean; force?: boolean }
 ) {
-  const response = await api.post<ApiResponse<null>>(
+  const response = await api.post<ApiResponse<TaskPluginPricingNotice>>(
     `/api/plugin/task/${encodeURIComponent(key)}/status`,
     { enabled },
     { ...mutationConfig, params: options }
   )
-  requireSuccess(response.data)
+  return requireSuccess(response.data)
 }
 
 export async function deleteTaskPluginVersion(
@@ -173,11 +181,11 @@ export async function deleteTaskPluginVersion(
   version: string,
   force = false
 ) {
-  const response = await api.delete<ApiResponse<null>>(
+  const response = await api.delete<ApiResponse<TaskPluginPricingNotice>>(
     `/api/plugin/task/${encodeURIComponent(key)}/versions/${encodeURIComponent(version)}`,
     { ...mutationConfig, params: force ? { force: true } : undefined }
   )
-  requireSuccess(response.data)
+  return requireSuccess(response.data)
 }
 
 export async function getTaskPluginEnabledOption() {
@@ -199,4 +207,40 @@ export async function setTaskPluginEnabledOption(enabled: boolean) {
     mutationConfig
   )
   requireSuccess(response.data)
+}
+
+/** The request processing plugins an instance can use. */
+export async function listRequestPluginOptions() {
+  const response = await api.get<ApiResponse<TaskPluginOption[]>>(
+    '/api/task_plugin_options'
+  )
+  return requireSuccess(response.data).filter((option) => option.transform)
+}
+
+export async function listRequestPluginInstances() {
+  const response = await api.get<
+    ApiResponse<{ instances: RequestPluginInstance[] | null }>
+  >('/api/request_plugin/instances')
+  return requireSuccess(response.data).instances ?? []
+}
+
+/** Replaces the whole list; its order is the order instances run in. */
+export async function saveRequestPluginInstances(
+  instances: RequestPluginInstance[]
+) {
+  const response = await api.put<
+    ApiResponse<{ instances: RequestPluginInstance[] | null }>
+  >('/api/request_plugin/instances', { instances }, mutationConfig)
+  return requireSuccess(response.data).instances ?? []
+}
+
+export async function dryRunRequestPlugins(
+  request: RequestPluginDryRunRequest
+) {
+  const response = await api.post<ApiResponse<RequestPluginDryRunResult>>(
+    '/api/request_plugin/dry_run',
+    request,
+    mutationConfig
+  )
+  return requireSuccess(response.data)
 }

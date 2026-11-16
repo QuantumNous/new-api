@@ -864,6 +864,60 @@ func TestCalculateTextQuotaSummaryBillsOpenAICacheWriteTokens(t *testing.T) {
 	})
 }
 
+func TestCalculateTextQuotaSummaryBillsCacheCreationInputTokens(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	relayInfo := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "cache-creation-input",
+		PriceData: hosttypes.PriceData{
+			ModelRatio:         1,
+			CompletionRatio:    1,
+			CacheRatio:         0.1,
+			CacheCreationRatio: 1.25,
+			GroupRatioInfo:     hosttypes.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+
+	t.Run("creation tokens billed at creation ratio", func(t *testing.T) {
+		var usage dto.Usage
+		require.NoError(t, common.Unmarshal([]byte(`{"prompt_tokens":1510,"completion_tokens":20,"total_tokens":1530,"prompt_tokens_details":{"cached_tokens":1200,"cache_creation_input_tokens":300,"cache_creation":{"ephemeral_5m_input_tokens":300}}}`), &usage))
+		summary := calculateTextQuotaSummary(ctx, relayInfo, &usage)
+
+		assert.Equal(t, 1510, summary.PromptTokens)
+		assert.Equal(t, 1200, summary.CacheTokens)
+		assert.Equal(t, 300, summary.CacheCreationTokens)
+		assert.Zero(t, summary.CacheCreationTokens5m)
+		assert.Zero(t, summary.CacheCreationTokens1h)
+		// (1510-1200-300) + 1200*0.1 + 300*1.25 + 20 = 525
+		assert.Equal(t, 525, summary.Quota)
+	})
+
+	t.Run("missing creation field stays in prompt price", func(t *testing.T) {
+		var usage dto.Usage
+		require.NoError(t, common.Unmarshal([]byte(`{"prompt_tokens":1510,"completion_tokens":20,"total_tokens":1530,"prompt_tokens_details":{"cached_tokens":1200}}`), &usage))
+		summary := calculateTextQuotaSummary(ctx, relayInfo, &usage)
+
+		assert.Zero(t, summary.CacheCreationTokens)
+		// (1510-1200) + 1200*0.1 + 20 = 450
+		assert.Equal(t, 450, summary.Quota)
+	})
+
+	t.Run("cache write and creation scalar take the larger count", func(t *testing.T) {
+		var usage dto.Usage
+		require.NoError(t, common.Unmarshal([]byte(`{"prompt_tokens":1510,"completion_tokens":20,"total_tokens":1530,"prompt_tokens_details":{"cached_tokens":1200,"cache_write_tokens":100,"cache_creation_input_tokens":300}}`), &usage))
+		summary := calculateTextQuotaSummary(ctx, relayInfo, &usage)
+
+		assert.Equal(t, 300, summary.CacheCreationTokens)
+		assert.Zero(t, summary.CacheCreationTokens5m)
+		assert.Zero(t, summary.CacheCreationTokens1h)
+		assert.Equal(t, 525, summary.Quota)
+	})
+}
+
 // OpenAI 12h cache writes bill at twice the write price and keep their own
 // count in the consume log, with ratio and expression pricing alike.
 func TestPostTextConsumeQuotaBillsOpenAI12hCacheWrites(t *testing.T) {

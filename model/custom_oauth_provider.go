@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+
+	"gorm.io/gorm"
 )
 
 type accessPolicyPayload struct {
@@ -104,29 +106,48 @@ func GetCustomOAuthProviderBySlug(slug string) (*CustomOAuthProvider, error) {
 	return &provider, nil
 }
 
-// CreateCustomOAuthProvider creates a new custom OAuth provider
+// CreateCustomOAuthProvider creates a new custom OAuth provider. No periodic
+// reload covers the providers, so the sync topic bumps in the same
+// transaction: a change other nodes never learn of is not stored either.
 func CreateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if err := validateCustomOAuthProvider(provider); err != nil {
 		return err
 	}
-	return DB.Create(provider).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(provider).Error; err != nil {
+			return err
+		}
+		return bumpSyncTopic(tx, SyncTopicOAuthProviders)
+	})
 }
 
-// UpdateCustomOAuthProvider updates an existing custom OAuth provider
+// UpdateCustomOAuthProvider updates an existing custom OAuth provider, with
+// its sync topic bump in the same transaction.
 func UpdateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if err := validateCustomOAuthProvider(provider); err != nil {
 		return err
 	}
-	return DB.Save(provider).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(provider).Error; err != nil {
+			return err
+		}
+		return bumpSyncTopic(tx, SyncTopicOAuthProviders)
+	})
 }
 
-// DeleteCustomOAuthProvider deletes a custom OAuth provider by ID
+// DeleteCustomOAuthProvider deletes a custom OAuth provider by ID, with its
+// sync topic bump in the same transaction.
 func DeleteCustomOAuthProvider(id int) error {
-	// First, delete all user bindings for this provider
-	if err := DB.Where("provider_id = ?", id).Delete(&UserOAuthBinding{}).Error; err != nil {
-		return err
-	}
-	return DB.Delete(&CustomOAuthProvider{}, id).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		// First, delete all user bindings for this provider
+		if err := tx.Where("provider_id = ?", id).Delete(&UserOAuthBinding{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&CustomOAuthProvider{}, id).Error; err != nil {
+			return err
+		}
+		return bumpSyncTopic(tx, SyncTopicOAuthProviders)
+	})
 }
 
 // IsSlugTaken checks if a slug is already taken by another provider

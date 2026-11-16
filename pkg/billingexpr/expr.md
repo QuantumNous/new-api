@@ -169,7 +169,7 @@ OpenAI 已于 2026-05-12 下线 DALL·E 2/3；其校验、默认值和倍率保�
 |----------|-----------|---------|
 | `tier` | `tier(name, value) → float64` | Records which pricing tier matched; must wrap the cost expression |
 | `fixed` | `fixed(amount) → float64` | A USD price per request, used only as the complete price in `tier(name, fixed(amount))` |
-| `param` | `param(path) → any` | Reads a JSON path from the request body (uses gjson) |
+| `param` | `param(path) → any` | Reads a JSON path from the request body (uses ojson, gjson path syntax) |
 | `header` | `header(key) → string` | Reads a request header value |
 | `has` | `has(source, substr) → bool` | Substring check |
 | `hour` | `hour(tz) → int` | Current hour in timezone (0-23) |
@@ -300,6 +300,23 @@ billing mode. The flat override map is a separate option and never contributes
 composite keys to model names or model-price synchronization exports. Existing
 prices are not rewritten. The billing snapshot freezes the selected expression;
 completion uses that snapshot even if provider pricing later changes.
+
+Chat request quantities never price a task: the token variables (`p`, `c`,
+`len`, cache, image and audio token counts) would read 0, and bare
+`image_count` would read 1 whatever the task makes. Task image counts come only
+from `u("image_count")`. Submission rejects an override or model-level
+expression that reads a chat request quantity with 400 `model_price_error`,
+override saves reject them, and no expression may mix them with `u()`. A
+model-level expression reading them stays saveable as the model's chat price;
+its plugins show as unconfigured.
+
+A plugin can also relay a model: one of its relay routes other than the model
+list and balance routes accepts the client model. The model-level price is then
+that model's chat price too. Without the plugin's own override, its tasks use
+it only when it is a per-call price or an expression that reads `u()`; a token
+ratio alone or an expression without `u()` leaves the plugin unconfigured, and
+submission rejects its tasks with 400 `model_price_error`. A model the plugin
+does not relay keeps the legacy per-call charge derived from a token ratio.
 
 A model-level expression save smoke-tests each candidate's selected schema,
 skipping candidates with their own override in the same complete draft.

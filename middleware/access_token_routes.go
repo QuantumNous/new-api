@@ -150,6 +150,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"PUT /api/option/":                                           accessTokenScopeRule("option:write"),
 	"PUT /api/option/passkey/domains":                            accessTokenScopeRule("option:write"),
 	"GET /api/option/model_pricing":                              accessTokenScopeRule("option:read"),
+	"GET /api/option/model_pricing/issues":                       accessTokenScopeRule("option:read"),
 	"PATCH /api/option/model_pricing":                            accessTokenScopeRule("option:write"),
 	"POST /api/option/model_pricing/convert":                     accessTokenScopeRule("option:read"),
 	"POST /api/option/model_pricing/preview":                     accessTokenScopeRule("option:read"),
@@ -186,6 +187,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"GET /api/system-task/current":                 accessTokenScopeRule("ops:read"),
 	"GET /api/system-task/:task_id":                accessTokenScopeRule("ops:read"),
 	"GET /api/system-info/instances":               accessTokenScopeRule("ops:read"),
+	"GET /api/system-info/sync":                    accessTokenScopeRule("ops:read"),
 	"DELETE /api/system-info/stale-instances":      accessTokenScopeRule("ops:write"),
 	"DELETE /api/system-info/instances/:node_name": accessTokenScopeRule("ops:write"),
 
@@ -203,6 +205,9 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/plugin/task/:key/status":              accessTokenScopeRule("plugin:write"),
 	"POST /api/plugin/task/:key/dryrun":              accessTokenScopeRule("plugin:write"),
 	"DELETE /api/plugin/task/:key/versions/:version": accessTokenScopeRule("plugin:write"),
+	// router/api-router.go: /api/request_plugin
+	"PUT /api/request_plugin/instances": accessTokenScopeRule("plugin:write"),
+	"POST /api/request_plugin/dry_run":  accessTokenScopeRule("plugin:write"),
 
 	// router/channel-router.go: the key route is RootAuth, not Casbin-guarded.
 	"POST /api/channel/:id/key": accessTokenScopeRule(service.AccessTokenScopeOf(authz.ChannelSecretView)),

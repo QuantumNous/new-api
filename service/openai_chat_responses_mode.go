@@ -1,9 +1,9 @@
 package service
 
 import (
-	"regexp"
 	"sync"
 
+	"github.com/MoeForge/moego/regexp"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 )
 
