@@ -17,54 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Coins, Layers } from 'lucide-react'
-import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
-
-export type MetricMode = 'quota' | 'tokens'
-
-const METRIC_STORAGE_FALLBACK: MetricMode = 'quota'
-
-function readStoredMetric(storageKey: string): MetricMode {
-  if (typeof window === 'undefined') return METRIC_STORAGE_FALLBACK
-  try {
-    const stored = window.localStorage.getItem(storageKey)
-    if (stored === 'quota' || stored === 'tokens') return stored
-  } catch {
-    // localStorage can be unavailable in restricted contexts
-  }
-  return METRIC_STORAGE_FALLBACK
-}
-
-/**
- * Remembers the last selected metric mode for a given storage key, so the
- * dashboard reopens in the mode the user used last instead of always Amount.
- */
-export function useMetricMode(
-  storageKey: string,
-  fallback: MetricMode = METRIC_STORAGE_FALLBACK
-): [MetricMode, (value: MetricMode) => void] {
-  const [metric, setMetric] = useState<MetricMode>(() =>
-    readStoredMetric(storageKey)
-  )
-
-  const update = useCallback(
-    (value: MetricMode) => {
-      setMetric(value)
-      if (typeof window !== 'undefined') {
-        try {
-          window.localStorage.setItem(storageKey, value)
-        } catch {
-          // ignore quota / security errors, the in-memory state still applies
-        }
-      }
-    },
-    [storageKey]
-  )
-
-  return [metric, update]
-}
+import {
+  type DashboardMetric,
+  type DashboardMetricArea,
+  useDashboardMetricStore,
+} from '@/stores/dashboard-metric-store'
 
 const METRIC_OPTIONS = [
   { value: 'quota' as const, labelKey: 'Amount', Icon: Coins },
@@ -72,48 +33,52 @@ const METRIC_OPTIONS = [
 ]
 
 interface MetricToggleProps {
-  value: MetricMode
-  onChange: (value: MetricMode) => void
+  area: DashboardMetricArea
   className?: string
 }
 
-export function MetricToggle({ value, onChange, className }: MetricToggleProps) {
+export function MetricToggle({ area, className }: MetricToggleProps) {
   const { t } = useTranslation()
+  const metric = useDashboardMetricStore((state) => state[area])
+  const setMetric = useDashboardMetricStore((state) => state.setMetric)
 
   return (
-    <div
+    <ToggleGroup
+      value={[metric]}
+      onValueChange={(values) => {
+        if (values.length > 0) {
+          setMetric(area, values[0] as DashboardMetric)
+        }
+      }}
       className={cn(
-        'bg-muted/40 ring-border/60 inline-flex h-8 shrink-0 items-center rounded-full p-0.5 ring-1',
+        'bg-muted/40 ring-border/60 h-8 shrink-0 gap-0 rounded-full p-0.5 ring-1',
         className
       )}
-      role='group'
       aria-label={t('Display mode')}
     >
       {METRIC_OPTIONS.map(({ value: optionValue, labelKey, Icon }) => {
-        const active = value === optionValue
+        const active = metric === optionValue
         return (
-          <button
+          <ToggleGroupItem
             key={optionValue}
-            type='button'
-            aria-pressed={active}
-            onClick={() => onChange(optionValue)}
+            value={optionValue}
             className={cn(
-              'inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-medium whitespace-nowrap transition-all duration-200',
+              'h-7 gap-1.5 rounded-full border-0 px-3 text-xs font-medium whitespace-nowrap shadow-none transition-all duration-200 hover:bg-transparent',
               active
-                ? 'bg-background text-foreground ring-border/60 shadow-sm ring-1'
+                ? 'bg-background text-foreground ring-border/60 aria-pressed:bg-background data-[state=on]:bg-background hover:bg-background shadow-sm ring-1'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
             <Icon
               className={cn(
-                'size-3.5 transition-colors',
+                'size-3.5',
                 active ? 'text-primary' : 'text-muted-foreground/70'
               )}
             />
             {t(labelKey)}
-          </button>
+          </ToggleGroupItem>
         )
       })}
-    </div>
+    </ToggleGroup>
   )
 }

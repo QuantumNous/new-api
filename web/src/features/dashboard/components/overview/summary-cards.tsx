@@ -25,10 +25,8 @@ import { useTranslation } from 'react-i18next'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
 import { getUserQuotaDates } from '@/features/dashboard/api'
-import {
-  MetricToggle,
-  useMetricMode,
-} from '@/features/dashboard/components/ui/metric-toggle'
+import { MetricToggle } from '@/features/dashboard/components/ui/metric-toggle'
+import { useDashboardMetricStore } from '@/stores/dashboard-metric-store'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { useStatus } from '@/hooks/use-status'
@@ -152,7 +150,7 @@ export function SummaryCards() {
   const remainQuota = Number(user?.quota ?? 0)
   const usedQuota = Number(user?.used_quota ?? 0)
   const requestCount = Number(user?.request_count ?? 0)
-  const [metric, setMetric] = useMetricMode('dashboard.metric.overview')
+  const metric = useDashboardMetricStore((state) => state.overview)
 
   const usageTrendQuery = useQuery({
     queryKey: [
@@ -293,7 +291,7 @@ export function SummaryCards() {
                 {t('Monitor balance, usage, and request volume')}
               </p>
             </div>
-            <MetricToggle value={metric} onChange={setMetric} />
+            <MetricToggle area='overview' />
           </div>
           <StaggerContainer className='grid grid-cols-3 gap-1.5 sm:gap-3'>
             {items.map((it) => (

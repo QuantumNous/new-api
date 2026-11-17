@@ -84,6 +84,22 @@ export function processChartData(
   const formatQuotaTotal = (value: number) =>
     metric === 'tokens' ? formatInt(value) : renderQuotaCompat(value, 2)
 
+  // Token mode plots raw counts; amount mode keeps the legacy 4-decimal
+  // conversion. Both chart paths share this so they cannot drift apart.
+  const usageValue = (rawAmount: number, rawTokens: number): number => {
+    if (metric === 'tokens') {
+      return rawTokens
+    }
+    if (rawAmount === 0) {
+      return 0
+    }
+    const usd = rawAmount / quotaPerUnit
+    if (usd === 0) {
+      return 0
+    }
+    return Number(usd.toFixed(4))
+  }
+
   const MAX_TOOLTIP_MODELS = 15
   const isOtherTooltipKey = (key: string) =>
     key === 'Other' || key === otherLabel
@@ -339,10 +355,8 @@ export function processChartData(
       const rawAmount = Number(stats?.quota) || 0
       const rawTokens = Number(stats?.tokens) || 0
       const rawQuota = metric === 'tokens' ? rawTokens : rawAmount
-      const usd = rawAmount ? rawAmount / quotaPerUnit : 0
       // Match legacy frontend getQuotaWithUnit(..., 4)
-      const usage =
-        metric === 'tokens' ? rawTokens : usd ? Number(usd.toFixed(4)) : 0
+      const usage = usageValue(rawAmount, rawTokens)
       return {
         Time: time,
         Model: model,
@@ -380,9 +394,7 @@ export function processChartData(
       const rawAmount = Number(stats?.quota) || 0
       const rawTokens = Number(stats?.tokens) || 0
       const rawQuota = metric === 'tokens' ? rawTokens : rawAmount
-      const usd = rawAmount ? rawAmount / quotaPerUnit : 0
-      const usage =
-        metric === 'tokens' ? rawTokens : usd ? Number(usd.toFixed(4)) : 0
+      const usage = usageValue(rawAmount, rawTokens)
       timeSum += rawQuota
       const key = topAreaModels.has(model) ? model : otherLabel
       const prev = buckets.get(key) || { rawQuota: 0, usage: 0 }

@@ -95,8 +95,9 @@ type User struct {
 	AccessToken          *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
 	AccessTokenCreatedAt *int64                     `json:"-" gorm:"type:bigint;column:access_token_created_at"`    // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
 	Quota                int                        `json:"quota" gorm:"type:int;default:0"`
-	UsedQuota            int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
-	RequestCount         int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	UsedQuota            int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"`      // used quota
+	UsedTokens           int64                      `json:"used_tokens" gorm:"type:bigint;default:0;column:used_tokens"` // lifetime token usage
+	RequestCount         int                        `json:"request_count" gorm:"type:int;default:0;"`                    // request number
 	Group                string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
 	AffCode              string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount             int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
@@ -1451,6 +1452,23 @@ func UpdateUserUsedQuota(id int, quota int) {
 	}
 }
 
+// UpdateUserUsedTokens adds to the lifetime token counter. Every consume record
+// updates it, so unlike quota_data it stays current when DataExportEnabled is off
+// and does not lag by the export interval. That keeps the token total in the same
+// accounting period as used_quota.
+func UpdateUserUsedTokens(id int, tokens int) {
+	if tokens <= 0 {
+		return
+	}
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeUsedTokens, id, tokens)
+		return
+	}
+	if err := DB.Model(&User{}).Where("id = ?", id).Update("used_tokens", gorm.Expr("used_tokens + ?", tokens)).Error; err != nil {
+		common.SysLog(common.LogText("failed to update user used tokens: %s", err.Error()))
+	}
+}
+
 func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 	err := DB.Model(&User{}).Where("id = ?", id).Updates(
 		map[string]any{
@@ -1469,8 +1487,8 @@ func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 	//}
 }
 
-func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, requestCount int) {
-	if quota == 0 && usedQuota == 0 && requestCount == 0 {
+func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, usedTokens int, requestCount int) {
+	if quota == 0 && usedQuota == 0 && usedTokens == 0 && requestCount == 0 {
 		return
 	}
 
@@ -1478,6 +1496,7 @@ func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, r
 		map[string]any{
 			"quota":         gorm.Expr("quota + ?", quota),
 			"used_quota":    gorm.Expr("used_quota + ?", usedQuota),
+			"used_tokens":   gorm.Expr("used_tokens + ?", usedTokens),
 			"request_count": gorm.Expr("request_count + ?", requestCount),
 		},
 	).Error

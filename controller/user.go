@@ -495,7 +495,6 @@ func buildSelfUserData(user *model.User) map[string]any {
 	userSetting := user.GetSetting()
 	permissions := calculateUserPermissions(user.Role)
 	permissions["admin_permissions"] = authz.Capabilities(user.Id, user.Role)
-	usedTokens, _ := model.GetUserUsedTokens(user.Id)
 	return map[string]any{
 		"id":                user.Id,
 		"username":          user.Username,
@@ -512,7 +511,7 @@ func buildSelfUserData(user *model.User) map[string]any {
 		"group":             user.Group,
 		"quota":             user.Quota,
 		"used_quota":        user.UsedQuota,
-		"used_tokens":       usedTokens,
+		"used_tokens":       user.UsedTokens,
 		"request_count":     user.RequestCount,
 		"aff_code":          user.AffCode,
 		"aff_count":         user.AffCount,

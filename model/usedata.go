@@ -42,16 +42,6 @@ type QuotaDataLogParams struct {
 	NodeName            string
 }
 
-// GetUserUsedTokens returns the lifetime token total recorded for a user.
-func GetUserUsedTokens(userId int) (int64, error) {
-	var total int64
-	err := DB.Model(&QuotaData{}).
-		Where("user_id = ?", userId).
-		Select("COALESCE(SUM(token_used), 0)").
-		Scan(&total).Error
-	return total, err
-}
-
 func UpdateQuotaData() {
 	for {
 		if common.DataExportEnabled {

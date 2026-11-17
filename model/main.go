@@ -278,6 +278,23 @@ func InitLogDB() (err error) {
 
 var userQuotaColumns = []string{"quota", "used_quota", "aff_quota", "aff_history"}
 
+// backfillUserUsedTokens seeds users.used_tokens from the token history that
+// existing installations already wrote to quota_data. It runs once, when the
+// column is first created, so an upgrade keeps the lifetime total instead of
+// restarting the counter at zero.
+func backfillUserUsedTokens() error {
+	if !DB.Migrator().HasTable("quota_data") {
+		return nil
+	}
+	err := DB.Exec(
+		"UPDATE users SET used_tokens = COALESCE((SELECT SUM(token_used) FROM quota_data WHERE quota_data.user_id = users.id), 0)",
+	).Error
+	if err != nil {
+		return fmt.Errorf("backfill users.used_tokens: %w", err)
+	}
+	return nil
+}
+
 // ensureUserQuotaColumns rejects a legacy 32-bit wallet schema before any
 // migrations run. The 64-bit-only build intentionally does not auto-upgrade
 // an existing wallet; operators must migrate it explicitly before starting.
@@ -339,6 +356,8 @@ func migrateDB() error {
 		common.SysError(common.LogText("failed to migrate options primary key: %s", err.Error()))
 	}
 
+	hadUsedTokensColumn := DB.Migrator().HasTable(&User{}) && DB.Migrator().HasColumn(&User{}, "used_tokens")
+
 	err := DB.AutoMigrate(
 		&Channel{},
 		&Token{},
@@ -379,6 +398,11 @@ func migrateDB() error {
 	)
 	if err != nil {
 		return err
+	}
+	if !hadUsedTokensColumn {
+		if err := backfillUserUsedTokens(); err != nil {
+			return err
+		}
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err

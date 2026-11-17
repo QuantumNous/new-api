@@ -22,10 +22,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconBadge } from '@/components/ui/icon-badge'
-import {
-  MetricToggle,
-  useMetricMode,
-} from '@/features/dashboard/components/ui/metric-toggle'
+import { MetricToggle } from '@/features/dashboard/components/ui/metric-toggle'
+import { useDashboardMetricStore } from '@/stores/dashboard-metric-store'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import {
@@ -73,7 +71,7 @@ export function ConsumptionDistributionChart(
   const [chartType, setChartType] = useState<ConsumptionDistributionChartType>(
     props.defaultChartType ?? 'bar'
   )
-  const [metric, setMetric] = useMetricMode('dashboard.metric.consumption')
+  const metric = useDashboardMetricStore((state) => state.consumption)
   const [themeReady, setThemeReady] = useState(false)
   const themeManagerRef = useRef<
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
@@ -139,7 +137,7 @@ export function ConsumptionDistributionChart(
         </div>
 
         <div className='flex flex-wrap items-center gap-2'>
-          <MetricToggle value={metric} onChange={setMetric} />
+          <MetricToggle area='consumption' />
           <div className='bg-muted/40 ring-border/60 inline-flex h-8 w-full items-center overflow-x-auto rounded-full p-0.5 ring-1 sm:w-auto'>
             {CONSUMPTION_DISTRIBUTION_CHART_OPTIONS.map((item) => {
               const Icon = CHART_TYPE_ICONS[item.value]
