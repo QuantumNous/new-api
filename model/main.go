@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -278,21 +279,45 @@ func InitLogDB() (err error) {
 
 var userQuotaColumns = []string{"quota", "used_quota", "aff_quota", "aff_history"}
 
+// usedTokensBackfillOptionKey marks a completed seed of users.used_tokens. The
+// update itself only raises the counter, so a retry after a failed start can
+// never pull a counter back to an older export total.
+const usedTokensBackfillOptionKey = "user_used_tokens_backfill"
+
 // backfillUserUsedTokens seeds users.used_tokens from the token history that
-// existing installations already wrote to quota_data. It runs once, when the
-// column is first created, so an upgrade keeps the lifetime total instead of
-// restarting the counter at zero.
+// existing installations already wrote before this column existed. Export data
+// only exists while DataExportEnabled is on, so the consume log is read as well;
+// the larger of the two is kept, which covers an export-off period without
+// counting the same request twice. The update itself only raises the counter, so
+// a retry after a failed start can never pull a counter back to an older total.
 func backfillUserUsedTokens() error {
-	if !DB.Migrator().HasTable("quota_data") {
+	if !DB.Migrator().HasTable(&User{}) {
 		return nil
 	}
-	err := DB.Exec(
-		"UPDATE users SET used_tokens = COALESCE((SELECT SUM(token_used) FROM quota_data WHERE quota_data.user_id = users.id), 0)",
-	).Error
-	if err != nil {
-		return fmt.Errorf("backfill users.used_tokens: %w", err)
-	}
-	return nil
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var marker Option
+		if err := tx.Where(&Option{Key: usedTokensBackfillOptionKey}).First(&marker).Error; err == nil {
+			return nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		seed := "0"
+		if tx.Migrator().HasTable("quota_data") {
+			exported := "COALESCE((SELECT SUM(token_used) FROM quota_data WHERE quota_data.user_id = users.id), 0)"
+			seed = "CASE WHEN " + seed + " > " + exported + " THEN " + seed + " ELSE " + exported + " END"
+		}
+		if tx.Migrator().HasTable("logs") {
+			logged := "COALESCE((SELECT SUM(prompt_tokens + completion_tokens) FROM logs WHERE logs.user_id = users.id AND logs.type = 2), 0)"
+			seed = "CASE WHEN " + seed + " > " + logged + " THEN " + seed + " ELSE " + logged + " END"
+		}
+		update := "UPDATE users SET used_tokens = CASE WHEN used_tokens > " + seed +
+			" THEN used_tokens ELSE " + seed + " END"
+		if err := tx.Exec(update).Error; err != nil {
+			return fmt.Errorf("backfill users.used_tokens: %w", err)
+		}
+		return tx.Save(&Option{Key: usedTokensBackfillOptionKey, Value: "done"}).Error
+	})
 }
 
 // ensureUserQuotaColumns rejects a legacy 32-bit wallet schema before any
@@ -356,8 +381,6 @@ func migrateDB() error {
 		common.SysError(common.LogText("failed to migrate options primary key: %s", err.Error()))
 	}
 
-	hadUsedTokensColumn := DB.Migrator().HasTable(&User{}) && DB.Migrator().HasColumn(&User{}, "used_tokens")
-
 	err := DB.AutoMigrate(
 		&Channel{},
 		&Token{},
@@ -399,10 +422,8 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
-	if !hadUsedTokensColumn {
-		if err := backfillUserUsedTokens(); err != nil {
-			return err
-		}
+	if err := backfillUserUsedTokens(); err != nil {
+		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err

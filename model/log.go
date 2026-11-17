@@ -341,6 +341,12 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	// Request plugin report hooks read what the request settled, whether or
 	// not consume logs are kept.
 	common.SetContextKey(c, constant.ContextKeyConsumeLog, &params)
+	// The lifetime token counter follows the settlement path, not the log
+	// retention switch: used_quota is updated even when consume logs are off,
+	// so counting only behind the switch below would drift the two totals apart.
+	if totalTokens := params.PromptTokens + params.CompletionTokens; totalTokens > 0 {
+		UpdateUserUsedTokens(userId, totalTokens)
+	}
 	if !common.LogConsumeEnabled {
 		return
 	}
@@ -388,12 +394,6 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	err := createLog(log)
 	if err != nil {
 		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
-	}
-	// Accumulate the lifetime token counter regardless of the export switch.
-	// quota_data only receives rows while DataExportEnabled is on, and the
-	// dashboard compares this total against used_quota, which every request updates.
-	if totalTokens := params.PromptTokens + params.CompletionTokens; totalTokens > 0 {
-		UpdateUserUsedTokens(userId, totalTokens)
 	}
 	if common.DataExportEnabled {
 		var cacheReadTokens, cacheCreationTokens int
