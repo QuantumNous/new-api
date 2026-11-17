@@ -3,6 +3,7 @@ package controller
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -160,6 +161,11 @@ func normalizeQuotaUsableGroups(raw string) string {
 func validateQuotaUsableGroups(c *gin.Context, groups string) bool {
 	if groups == "" {
 		return true
+	}
+	// quota_usable_groups 列为 varchar(255)，超长会被部分数据库静默截断。
+	if utf8.RuneCountInString(groups) > 255 {
+		common.ApiErrorT(c, "Quota usable groups cannot exceed 255 characters")
+		return false
 	}
 	groupRatio := ratio_setting.GetGroupRatioCopy()
 	for _, g := range strings.Split(groups, ",") {

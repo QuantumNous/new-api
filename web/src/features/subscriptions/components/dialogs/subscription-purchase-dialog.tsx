@@ -87,6 +87,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
   const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
   const totalAmount = Number(plan.total_amount || 0)
+  const quotaUsableGroups = (plan.quota_usable_groups || '')
+    .split(',')
+    .map((group) => group.trim())
+    .filter(Boolean)
   const price = Number(plan.price_amount || 0).toFixed(2)
   const quotaPerUnit =
     currency?.quotaPerUnit && currency.quotaPerUnit > 0
@@ -283,6 +287,29 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <GroupBadge group={plan.upgrade_group} />
             </div>
           )}
+          <div className='flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3'>
+            <span className='text-muted-foreground text-sm'>
+              {t('Quota Usable Groups')}
+            </span>
+            <div className='flex min-w-0 flex-wrap gap-1 sm:flex-1 sm:justify-end'>
+              {quotaUsableGroups.length > 0 ? (
+                quotaUsableGroups.map((group) => (
+                  <GroupBadge
+                    key={group}
+                    group={group}
+                    label={group}
+                    className='h-auto whitespace-normal'
+                  >
+                    <span className='min-w-0 leading-normal wrap-anywhere'>
+                      {group}
+                    </span>
+                  </GroupBadge>
+                ))
+              ) : (
+                <span className='text-sm'>{t('All Groups')}</span>
+              )}
+            </div>
+          </div>
           <Separator />
           <div className='flex items-center justify-between'>
             <span className='text-sm font-medium'>{t('Amount Due')}</span>

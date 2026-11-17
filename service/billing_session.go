@@ -155,6 +155,24 @@ func (s *BillingSession) GetPreConsumedQuota() int {
 	return s.preConsumedQuota
 }
 
+// EnsureSubscriptionGroupEligible 校验订阅资金来源仍可支付当前分组。
+// 重试可能切换分组，已按其他分组预扣的订阅不能继续为本请求扣费；
+// 调用方应拒绝复用会话，让失败路径退还既有预扣。
+func (s *BillingSession) EnsureSubscriptionGroupEligible(usingGroup string) error {
+	sub, ok := s.funding.(*SubscriptionFunding)
+	if !ok || sub.subscriptionId == 0 {
+		return nil
+	}
+	eligible, err := model.IsUserSubscriptionEligibleForGroup(sub.subscriptionId, usingGroup)
+	if err != nil {
+		return err
+	}
+	if !eligible {
+		return fmt.Errorf("subscription %d is not eligible for group %q", sub.subscriptionId, usingGroup)
+	}
+	return nil
+}
+
 func (s *BillingSession) Reserve(targetQuota int) error {
 	return s.reserve(targetQuota, false)
 }
@@ -487,7 +505,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if apiErr != nil {
 			if apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
 				// 仅当用户的活跃订阅允许钱包回退时才回退到钱包，否则返回订阅额度不足错误
-				allowOverflow, overflowErr := model.UserActiveSubscriptionsAllowWalletOverflow(relayInfo.UserId)
+				allowOverflow, overflowErr := model.UserActiveSubscriptionsAllowWalletOverflow(relayInfo.UserId, relayInfo.UsingGroup)
 				if overflowErr != nil {
 					return nil, types.NewError(overflowErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 				}

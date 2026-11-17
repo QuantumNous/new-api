@@ -7188,6 +7188,7 @@
     "Empty = all groups": "Empty = all groups",
     "Subscription quota only applies to these groups; requests in other groups use wallet balance. Leave empty to apply to all groups.": "Subscription quota only applies to these groups; requests in other groups use wallet balance. Leave empty to apply to all groups.",
     "Quota usable group does not exist": "Quota usable group does not exist",
+    "Quota usable groups cannot exceed 255 characters": "Quota usable groups cannot exceed 255 characters",
     "Upgrade plaintext SMTP connection with STARTTLS before authentication": "Upgrade plaintext SMTP connection with STARTTLS before authentication",
     "Upload": "Upload",
     "Upload a JavaScript plugin.": "Upload a JavaScript plugin.",
