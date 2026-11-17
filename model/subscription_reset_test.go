@@ -407,6 +407,36 @@ func TestPreConsumeUserSubscriptionGroupFilter(t *testing.T) {
 	assert.EqualValues(t, 100, replay.AmountUsedAfter)
 }
 
+func TestPreConsumeUserSubscriptionReplayGroupGuard(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&SubscriptionPreConsumeRecord{}))
+	t.Cleanup(func() { DB.Exec("DELETE FROM subscription_pre_consume_records") })
+	now := common.GetTimestamp()
+	activeEnd := now + 30*24*3600
+
+	seedGroupPlan(t, 9806, "default")
+	seedGroupSub(t, 9817, 8901, 9806, "active", activeEnd)
+
+	_, err := PreConsumeUserSubscription("group-replay-1", 8901, "m", 0, 100, "default")
+	require.NoError(t, err)
+
+	_, err = PreConsumeUserSubscription("group-replay-1", 8901, "m", 0, 100, "vip")
+	require.Error(t, err, "replay must not hand a restricted reservation to another group")
+	assert.Contains(t, err.Error(), "not eligible for group")
+
+	var sub UserSubscription
+	require.NoError(t, DB.First(&sub, 9817).Error)
+	assert.EqualValues(t, 100, sub.AmountUsed, "rejected replay must leave the reservation untouched")
+	var record SubscriptionPreConsumeRecord
+	require.NoError(t, DB.Where("request_id = ?", "group-replay-1").First(&record).Error)
+	assert.EqualValues(t, 100, record.PreConsumed)
+	assert.NotEqual(t, "refunded", record.Status)
+
+	replay, err := PreConsumeUserSubscription("group-replay-1", 8901, "m", 0, 100, "default")
+	require.NoError(t, err, "eligible replay must stay idempotent")
+	assert.EqualValues(t, 100, replay.AmountUsedAfter)
+}
+
 func TestRefundSubscriptionPreConsumeIsIdempotent(t *testing.T) {
 	truncateTables(t)
 	require.NoError(t, DB.AutoMigrate(&SubscriptionPreConsumeRecord{}))

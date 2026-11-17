@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -319,6 +320,34 @@ func TestSubscriptionGroupBillingDatabaseMatrix(t *testing.T) {
 				require.Nil(t, service.PreConsumeBilling(ctx, 2500, info))
 				assert.EqualValues(t, 2500, subUsed(sub.Id))
 				assert.Equal(t, 497500, tokenRemain(token.Id))
+			})
+
+			t.Run("tiered retry group switch is guarded", func(t *testing.T) {
+				user, token := seedUser(500000, 500000)
+				plan := seedPlan("default", true)
+				sub := seedSub(user.Id, plan.Id, 0, true)
+				ctx, info := newRelay(user, token, "subscription_first", "default")
+
+				require.Nil(t, service.PreConsumeBilling(ctx, 1000, info))
+				info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{
+					BillingMode:               "tiered_expr",
+					GroupRatio:                1,
+					EstimatedQuotaBeforeGroup: 2000,
+					EstimatedQuotaAfterGroup:  2000,
+					QuotaPerUnit:              500000,
+				}
+				info.PriceData.GroupRatioInfo.GroupRatio = 2
+				info.UsingGroup = "vip"
+				apiErr := service.PrepareTieredBillingForSelectedGroup(ctx, info)
+				require.NotNil(t, apiErr, "tiered retry preparation must reject an ineligible group")
+				assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+				assert.EqualValues(t, 1000, subUsed(sub.Id))
+				assert.Equal(t, 1.0, info.TieredBillingSnapshot.GroupRatio,
+					"the guard must run before the snapshot refresh")
+
+				info.UsingGroup = "default"
+				require.Nil(t, service.PrepareTieredBillingForSelectedGroup(ctx, info))
+				assert.EqualValues(t, 4000, subUsed(sub.Id))
 			})
 		})
 	}

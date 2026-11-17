@@ -508,6 +508,7 @@ export function SubscriptionsMutateDrawer({
                         selected={field.value || []}
                         onChange={field.onChange}
                         placeholder={t('Empty = all groups')}
+                        aria-label={t('Quota Usable Groups')}
                         className='w-full'
                       />
                     </FormControl>
