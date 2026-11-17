@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"math/rand"
 	"sync"
 	"time"
@@ -187,9 +188,29 @@ func (r *Router) Correct(decisionID int, newReward float64) float64 {
 
 // SetMode 切换 shadow / active。
 func (r *Router) SetMode(mode string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if mode == "active" || mode == "shadow" {
 		r.State.Mode = mode
 	}
+}
+
+// Mode 返回当前路由模式（shadow/active）。
+func (r *Router) Mode() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.State.Mode
+}
+
+// MarshalState 在锁内序列化状态（宿主持久化用，避免与并发的 Decide/Settle 竞态）。
+func (r *Router) MarshalState() []byte {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	b, err := json.Marshal(r.State)
+	if err != nil {
+		return nil
+	}
+	return b
 }
 
 func rebuildFeatures(d *Decision) []float64 {

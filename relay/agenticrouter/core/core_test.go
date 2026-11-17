@@ -3,38 +3,35 @@ package core
 import (
 	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // golden 数值与 js/test/core.test.js、python/tests/test_core.py 一一对拍。
 // 修改任何公式时，必须同步更新另两份用例。
 
 func TestClassify(t *testing.T) {
-	if got := Classify("你好"); got.Type != "other" || got.Complexity != 0 {
-		t.Errorf("Classify(你好) = %+v", got)
-	}
+	got := Classify("你好")
+	assert.Equal(t, Classification{Type: "other", Complexity: 0}, got, "Classify(你好)")
+
 	c1 := Classify("帮我总结这篇文章的要点")
-	if c1.Type != "summarize" || c1.Complexity != 0.05 {
-		t.Errorf("c1 = %+v", c1)
-	}
+	assert.Equal(t, "summarize", c1.Type)
+	assert.Equal(t, 0.05, c1.Complexity)
+
 	c2 := Classify("def solve(x):\n  return x + 1\n```python")
-	if c2.Type != "code" || c2.Complexity != 0.55 {
-		t.Errorf("c2 = %+v", c2)
-	}
+	assert.Equal(t, "code", c2.Type)
+	assert.Equal(t, 0.55, c2.Complexity)
+
 	c3 := Classify("请帮我重构这个模块并做性能优化")
-	if c3.Type != "agentic" || c3.Complexity != 0.55 {
-		t.Errorf("c3 = %+v", c3)
-	}
+	assert.Equal(t, "agentic", c3.Type)
+	assert.Equal(t, 0.55, c3.Complexity)
 }
 
 func TestFeaturesOf(t *testing.T) {
 	text := "def solve(x):\n  return x + 1\n```python"
 	f := FeaturesOf(Classify(text), text)
 	want := []float64{1, 0.55, 38.0 / 4000, 1, 0, 0, 0, 0, 0}
-	for i := range want {
-		if f[i] != want[i] {
-			t.Errorf("f[%d] = %v, want %v", i, f[i], want[i])
-		}
-	}
+	assert.Equal(t, want, f)
 }
 
 func TestTierOf(t *testing.T) {
@@ -48,22 +45,14 @@ func TestTierOf(t *testing.T) {
 		{"", "unknown"},
 	}
 	for _, c := range cases {
-		if got := TierOf(c.model); got != c.want {
-			t.Errorf("TierOf(%q) = %q, want %q", c.model, got, c.want)
-		}
+		assert.Equal(t, c.want, TierOf(c.model), "TierOf(%q)", c.model)
 	}
 }
 
 func TestRecommendRule(t *testing.T) {
-	if got := RecommendRule(Classification{Complexity: 0.8}).Tier; got != "strong" {
-		t.Errorf("0.8 → %s", got)
-	}
-	if got := RecommendRule(Classification{Complexity: 0.2}).Tier; got != "fast" {
-		t.Errorf("0.2 → %s", got)
-	}
-	if got := RecommendRule(Classification{Complexity: 0.5}).Tier; got != "mid" {
-		t.Errorf("0.5 → %s", got)
-	}
+	assert.Equal(t, "strong", RecommendRule(Classification{Complexity: 0.8}).Tier)
+	assert.Equal(t, "fast", RecommendRule(Classification{Complexity: 0.2}).Tier)
+	assert.Equal(t, "mid", RecommendRule(Classification{Complexity: 0.5}).Tier)
 }
 
 func TestResolveTier(t *testing.T) {
@@ -73,35 +62,39 @@ func TestResolveTier(t *testing.T) {
 			"fast": {"a/flash"}, "mid": {"b/mid"}, "strong": {"a/pro"},
 		},
 	}
-	if r := ResolveTier("fast", "a", mt, true); r.Target != "flash" || r.Provider != "a" || r.Used != "fast" || r.Note != "" {
-		t.Errorf("same-provider: %+v", r)
-	}
-	if r := ResolveTier("mid", "a", mt, true); r.Target != "mid" || r.Provider != "b" || r.Note != "cross-provider" {
-		t.Errorf("cross-provider: %+v", r)
-	}
-	if r := ResolveTier("mid", "a", mt, false); r.Target != "pro" || r.Used != "strong" || r.Note != "mid->strong fallback" {
-		t.Errorf("mid fallback: %+v", r)
-	}
-	if r := ResolveTier("mid", "a", ModelTiers{}, true); r.Note != "tiers-not-ready" {
-		t.Errorf("not ready: %+v", r)
-	}
+	r := ResolveTier("fast", "a", mt, true)
+	assert.Equal(t, "flash", r.Target)
+	assert.Equal(t, "a", r.Provider)
+	assert.Equal(t, "fast", r.Used)
+	assert.Equal(t, "", r.Note)
+
+	r = ResolveTier("mid", "a", mt, true)
+	assert.Equal(t, "mid", r.Target)
+	assert.Equal(t, "b", r.Provider)
+	assert.Equal(t, "cross-provider", r.Note)
+
+	r = ResolveTier("mid", "a", mt, false)
+	assert.Equal(t, "pro", r.Target)
+	assert.Equal(t, "strong", r.Used)
+	assert.Equal(t, "mid->strong fallback", r.Note)
+
+	assert.Equal(t, "tiers-not-ready", ResolveTier("mid", "a", ModelTiers{}, true).Note)
 }
 
 func TestRewardOf(t *testing.T) {
-	if r, _ := RewardOf(Outcome{Success: true, DtMs: 5000}, true); r != 1 {
-		t.Errorf("clean = %v", r)
-	}
-	if r, _ := RewardOf(Outcome{Success: false}, false); r != 0 {
-		t.Errorf("failed = %v", r)
-	}
+	r, _ := RewardOf(Outcome{Success: true, DtMs: 5000}, true)
+	assert.Equal(t, 1.0, r, "clean close")
+
+	r, _ = RewardOf(Outcome{Success: false}, false)
+	assert.Equal(t, 0.0, r, "failed")
+
 	// 工具失败2(0.4) + 重试1(0.2) + 成本0.02(0.4) + 延迟45s(0.1) → 负 → 钳 0
-	if r, _ := RewardOf(Outcome{Success: true, ToolErrors: 2, Retries: 1, CostYuan: 0.02, DtMs: 45000}, true); r != 0 {
-		t.Errorf("penalties = %v", r)
-	}
+	r, _ = RewardOf(Outcome{Success: true, ToolErrors: 2, Retries: 1, CostYuan: 0.02, DtMs: 45000}, true)
+	assert.Equal(t, 0.0, r, "penalties clamp to zero")
+
 	// 1 - 0.2(一次工具失败) - 0.04(成本) = 0.76
-	if r, _ := RewardOf(Outcome{Success: true, ToolErrors: 1, CostYuan: 0.002, DtMs: 5000}, true); r != 0.76 {
-		t.Errorf("0.76 case = %v", r)
-	}
+	r, _ = RewardOf(Outcome{Success: true, ToolErrors: 1, CostYuan: 0.002, DtMs: 5000}, true)
+	assert.Equal(t, 0.76, r)
 }
 
 func TestApplyReward(t *testing.T) {
@@ -113,29 +106,22 @@ func TestApplyReward(t *testing.T) {
 		Pool: []string{"ucb", "linucb", "knn", "rule"},
 	}
 	ApplyReward(s, rec)
-	if s.UCB.Total != 1 {
-		t.Errorf("ucb total = %d", s.UCB.Total)
-	}
+	assert.Equal(t, 1, s.UCB.Total)
 	arm := s.UCB.Arms["code:fast"]
-	if arm.N != 1 || arm.Mean != 1 {
-		t.Errorf("arm = %+v", arm)
+	if assert.NotNil(t, arm) {
+		assert.Equal(t, 1, arm.N)
+		assert.Equal(t, 1.0, arm.Mean)
 	}
 	wantW := []float64{1, 0.5, 0.1, 1, 0, 0, 0, 0, 0}
-	for i, w := range s.Lin.TierW["fast"] {
-		if w != wantW[i] {
-			t.Errorf("lin w[%d] = %v, want %v", i, w, wantW[i])
-		}
-	}
-	if s.Lin.TierN["fast"] != 1 || s.Lin.Total != 1 {
-		t.Errorf("lin counters")
-	}
-	if len(s.KNN.Pool) != 1 || s.KNN.Pool[0].Tier != "fast" || s.KNN.Pool[0].R != 1 {
-		t.Errorf("knn pool = %+v", s.KNN.Pool)
+	assert.Equal(t, wantW, s.Lin.TierW["fast"])
+	assert.Equal(t, 1, s.Lin.TierN["fast"])
+	assert.Equal(t, 1, s.Lin.Total)
+	if assert.Len(t, s.KNN.Pool, 1) {
+		assert.Equal(t, "fast", s.KNN.Pool[0].Tier)
+		assert.Equal(t, 1.0, s.KNN.Pool[0].R)
 	}
 	w1 := 2.5 * math.Exp(0.075)
-	if math.Abs(s.Exp3.Weights["rule"]-w1) > 1e-12 {
-		t.Errorf("exp3 w1 = %v, want %v", s.Exp3.Weights["rule"], w1)
-	}
+	assert.InDelta(t, w1, s.Exp3.Weights["rule"], 1e-12)
 
 	// 第二次：lr=0.5, dot=2.26, err=-1.26
 	ApplyReward(s, &RewardRec{
@@ -143,19 +129,14 @@ func TestApplyReward(t *testing.T) {
 		F: rec.F, Reward: 1, Chosen: "rule", PChosen: 0.5,
 		Pool: rec.Pool,
 	})
-	if arm.N != 2 || arm.Mean != 1 {
-		t.Errorf("arm after 2nd = %+v", arm)
-	}
+	assert.Equal(t, 2, s.UCB.Arms["code:fast"].N)
+	assert.Equal(t, 1.0, s.UCB.Arms["code:fast"].Mean)
 	wants := []float64{0.37, 0.185, 0.037}
 	for i, wv := range wants {
-		if math.Abs(s.Lin.TierW["fast"][i]-wv) > 1e-12 {
-			t.Errorf("lin2 w[%d] = %v, want %v", i, s.Lin.TierW["fast"][i], wv)
-		}
+		assert.InDelta(t, wv, s.Lin.TierW["fast"][i], 1e-12, "lin2 w[%d]", i)
 	}
 	w2 := w1 * math.Exp(0.15)
-	if math.Abs(s.Exp3.Weights["rule"]-w2) > 1e-12 {
-		t.Errorf("exp3 w2 = %v, want %v", s.Exp3.Weights["rule"], w2)
-	}
+	assert.InDelta(t, w2, s.Exp3.Weights["rule"], 1e-12)
 }
 
 func TestCorrectReward(t *testing.T) {
@@ -168,16 +149,14 @@ func TestCorrectReward(t *testing.T) {
 	}
 	ApplyReward(s, rec)
 	CorrectReward(s, rec, 0) // 👎：1 → 0
-	if arm := s.UCB.Arms["code:fast"]; arm.Mean != 0 || arm.N != 1 {
-		t.Errorf("arm = %+v", arm)
+	arm := s.UCB.Arms["code:fast"]
+	if assert.NotNil(t, arm) {
+		assert.Equal(t, 0.0, arm.Mean)
+		assert.Equal(t, 1, arm.N)
 	}
-	for i, w := range s.Lin.TierW["fast"] {
-		if w != 0 {
-			t.Errorf("lin w[%d] = %v, want 0", i, w)
-		}
-	}
-	if len(s.KNN.Pool) != 2 || s.KNN.Pool[1].R != 0 {
-		t.Errorf("knn = %+v", s.KNN.Pool)
+	assert.Equal(t, []float64{0, 0, 0, 0, 0, 0, 0, 0, 0}, s.Lin.TierW["fast"])
+	if assert.Len(t, s.KNN.Pool, 2) {
+		assert.Equal(t, 0.0, s.KNN.Pool[1].R)
 	}
 }
 
@@ -199,23 +178,15 @@ func TestRouterDecideSettle(t *testing.T) {
 	r.SetMode("active")
 
 	d := r.Decide("帮我总结这篇文章的要点", "p1", nil)
-	if d.ID != 1 || d.Type != "summarize" || d.Settled {
-		t.Errorf("d = %+v", d)
-	}
-	switch d.Model {
-	case "lite", "base", "pro":
-	default:
-		t.Errorf("model = %q", d.Model)
-	}
+	assert.Equal(t, 1, d.ID)
+	assert.Equal(t, "summarize", d.Type)
+	assert.False(t, d.Settled)
+	assert.Contains(t, []string{"lite", "base", "pro"}, d.Model)
 
 	res := r.Settle(1, Outcome{Success: true, DtMs: 5000})
-	if res == nil || res.Reward != 1 {
-		t.Errorf("res = %+v", res)
+	if assert.NotNil(t, res) {
+		assert.Equal(t, 1.0, res.Reward)
 	}
-	if r.State.UCB.Total != 1 {
-		t.Errorf("ucb total = %d", r.State.UCB.Total)
-	}
-	if again := r.Settle(1, Outcome{Success: true}); again != nil {
-		t.Errorf("double settle should be nil, got %+v", again)
-	}
+	assert.Equal(t, 1, r.State.UCB.Total)
+	assert.Nil(t, r.Settle(1, Outcome{Success: true}), "double settle must be a no-op")
 }
