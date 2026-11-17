@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -239,7 +240,11 @@ func InitLogDB() (err error) {
 		common.SetLogDatabaseType(common.MainDatabaseType())
 		initCol()
 		if common.IsMasterNode {
-			return MigrateAuditLogs()
+			if err := MigrateAuditLogs(); err != nil {
+				return err
+			}
+			// The seed reads the log database, so it runs after LOG_DB exists.
+			return backfillUserUsedTokens()
 		}
 		return
 	}
@@ -269,8 +274,10 @@ func InitLogDB() (err error) {
 			return nil
 		}
 		common.SysLog(common.LogText("database migration started"))
-		err = migrateLOGDB()
-		return err
+		if err = migrateLOGDB(); err != nil {
+			return err
+		}
+		return backfillUserUsedTokens()
 	} else {
 		common.FatalLog(err)
 	}
@@ -284,15 +291,87 @@ var userQuotaColumns = []string{"quota", "used_quota", "aff_quota", "aff_history
 // never pull a counter back to an older export total.
 const usedTokensBackfillOptionKey = "user_used_tokens_backfill"
 
+// usedTokensSeedChunk bounds how many users go into one CASE expression.
+const usedTokensSeedChunk = 500
+
+type userTokenSum struct {
+	UserId int   `gorm:"column:user_id"`
+	Total  int64 `gorm:"column:total"`
+}
+
+// consumeLogTokenSums reads consume-log token totals per user from the log
+// database. The log database can be a separate DSN (even ClickHouse), so this
+// cannot be a subquery inside the users update.
+func consumeLogTokenSums() (map[int]int64, error) {
+	sums := make(map[int]int64)
+	if LOG_DB == nil || !LOG_DB.Migrator().HasTable("logs") {
+		return sums, nil
+	}
+	var rows []userTokenSum
+	err := LOG_DB.Table("logs").
+		Select("user_id, COALESCE(SUM(prompt_tokens + completion_tokens), 0) AS total").
+		Where("type = ?", LogTypeConsume).
+		Group("user_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("sum consume log tokens: %w", err)
+	}
+	for _, row := range rows {
+		if row.Total > 0 {
+			sums[row.UserId] = row.Total
+		}
+	}
+	return sums, nil
+}
+
+// raiseUserUsedTokens applies per-user log totals without ever lowering a
+// counter, in bounded statements so a large install does not send one query
+// per user.
+func raiseUserUsedTokens(tx *gorm.DB, sums map[int]int64) error {
+	if len(sums) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(sums))
+	for id := range sums {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	if !tx.Migrator().HasTable(&User{}) {
+		return nil
+	}
+	for start := 0; start < len(ids); start += usedTokensSeedChunk {
+		end := min(start+usedTokensSeedChunk, len(ids))
+		var when, in strings.Builder
+		for i := start; i < end; i++ {
+			if i > start {
+				when.WriteByte(' ')
+				in.WriteByte(',')
+			}
+			fmt.Fprintf(&when, "WHEN %d THEN %d", ids[i], sums[ids[i]])
+			fmt.Fprintf(&in, "%d", ids[i])
+		}
+		stmt := "UPDATE users SET used_tokens = CASE " + when.String() + " ELSE used_tokens END" +
+			" WHERE id IN (" + in.String() + ") AND used_tokens < CASE " + when.String() + " ELSE 0 END"
+		if err := tx.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("seed users.used_tokens from consume logs: %w", err)
+		}
+	}
+	return nil
+}
+
 // backfillUserUsedTokens seeds users.used_tokens from the token history that
 // existing installations already wrote before this column existed. Export data
 // only exists while DataExportEnabled is on, so the consume log is read as well;
 // the larger of the two is kept, which covers an export-off period without
-// counting the same request twice. The update itself only raises the counter, so
-// a retry after a failed start can never pull a counter back to an older total.
+// counting the same request twice. Completion is recorded only after both
+// sources have been applied, so a start that fails half way seeds again.
 func backfillUserUsedTokens() error {
-	if !DB.Migrator().HasTable(&User{}) {
+	if DB == nil || !DB.Migrator().HasTable(&User{}) {
 		return nil
+	}
+	logSums, err := consumeLogTokenSums()
+	if err != nil {
+		return err
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var marker Option
@@ -302,19 +381,16 @@ func backfillUserUsedTokens() error {
 			return err
 		}
 
-		seed := "0"
 		if tx.Migrator().HasTable("quota_data") {
 			exported := "COALESCE((SELECT SUM(token_used) FROM quota_data WHERE quota_data.user_id = users.id), 0)"
-			seed = "CASE WHEN " + seed + " > " + exported + " THEN " + seed + " ELSE " + exported + " END"
+			update := "UPDATE users SET used_tokens = CASE WHEN used_tokens > " + exported +
+				" THEN used_tokens ELSE " + exported + " END"
+			if err := tx.Exec(update).Error; err != nil {
+				return fmt.Errorf("backfill users.used_tokens: %w", err)
+			}
 		}
-		if tx.Migrator().HasTable("logs") {
-			logged := "COALESCE((SELECT SUM(prompt_tokens + completion_tokens) FROM logs WHERE logs.user_id = users.id AND logs.type = 2), 0)"
-			seed = "CASE WHEN " + seed + " > " + logged + " THEN " + seed + " ELSE " + logged + " END"
-		}
-		update := "UPDATE users SET used_tokens = CASE WHEN used_tokens > " + seed +
-			" THEN used_tokens ELSE " + seed + " END"
-		if err := tx.Exec(update).Error; err != nil {
-			return fmt.Errorf("backfill users.used_tokens: %w", err)
+		if err := raiseUserUsedTokens(tx, logSums); err != nil {
+			return err
 		}
 		return tx.Save(&Option{Key: usedTokensBackfillOptionKey, Value: "done"}).Error
 	})
@@ -420,9 +496,6 @@ func migrateDB() error {
 		&UserAccessToken{},
 	)
 	if err != nil {
-		return err
-	}
-	if err := backfillUserUsedTokens(); err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {

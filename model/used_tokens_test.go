@@ -6,8 +6,10 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func clearUsedTokensBackfillMarker(t *testing.T) {
@@ -195,4 +197,36 @@ func TestBackfillUserUsedTokensUsesConsumeLogs(t *testing.T) {
 	var got User
 	require.NoError(t, DB.First(&got, user.Id).Error)
 	assert.EqualValues(t, 500, got.UsedTokens)
+}
+
+// LOG_SQL_DSN can point the consume log at a different database. The seed has to
+// read that database, not the empty logs table the main database migrated.
+func TestBackfillUserUsedTokensReadsSeparateLogDatabase(t *testing.T) {
+	setupUserUpdateTestState(t)
+	user := createUserBindTestUser(t)
+	clearUsedTokensBackfillMarker(t)
+
+	logDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, logDB.AutoMigrate(&Log{}))
+
+	previousLogDB := LOG_DB
+	LOG_DB = logDB
+	t.Cleanup(func() { LOG_DB = previousLogDB })
+
+	require.NoError(t, logDB.Create(&Log{
+		UserId:           user.Id,
+		Username:         user.Username,
+		Type:             LogTypeConsume,
+		CreatedAt:        1000,
+		PromptTokens:     700,
+		CompletionTokens: 300,
+	}).Error)
+	require.NoError(t, DB.Exec("DELETE FROM quota_data").Error)
+
+	require.NoError(t, backfillUserUsedTokens())
+
+	var got User
+	require.NoError(t, DB.First(&got, user.Id).Error)
+	assert.EqualValues(t, 1000, got.UsedTokens)
 }
