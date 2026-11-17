@@ -76,7 +76,10 @@ export function PricingConversionDialog(props: {
     splitBillingExprAndRequestRules(props.preview.expression).billingExpr
   )
   const afterRows = tiers.flatMap((tier, index) =>
-    getDynamicPriceEntries(tier, { tokenUnit: 'M' }).map((row) => ({
+    getDynamicPriceEntries(tier, {
+      tokenUnit: 'M',
+      modelName: props.preview.modelName,
+    }).map((row) => ({
       ...row,
       key: `${index}-${row.key}`,
       tierLabel: tiers.length > 1 ? t(tier.conditionText || tier.label) : '',

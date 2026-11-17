@@ -20,6 +20,8 @@ import assert from 'node:assert/strict'
 
 import { describe, expect, test } from 'vitest'
 
+import { getTieredBillingSummary } from '@/features/usage-logs/lib/format'
+
 import { parseTiersFromExpr } from '../lib/billing-expr'
 import { getBillingModeLabelKey } from '../lib/billing-mode'
 import {
@@ -53,6 +55,65 @@ const summaryOptions = {
   usdExchangeRate: 6,
   groupRatioMultiplier: 2,
 }
+
+test.each([
+  [
+    'gpt-model',
+    ' + cc * 5 + cc12h * 10',
+    ['Cache Write (30m)', 'Cache Write (12h)'],
+  ],
+  [
+    'claude-model',
+    ' + cc * 5 + cc1h * 8',
+    ['Cache Write (5m)', 'Cache Write (1h)'],
+  ],
+  ['gpt-model', ' + cc * 5', ['Cache Write (30m)']],
+  ['claude-model', ' + cc * 0', ['Cache Write (5m)']],
+  ['gemini-model', '', []],
+  ['alias-model', ' + cc * 5', ['Cache Write']],
+  [
+    'gpt-model',
+    ' + cc * 5 + cc1h * 8 + cc12h * 10',
+    ['Cache Write', 'Cache Write (Claude 1h)', 'Cache Write (GPT 12h)'],
+  ],
+])(
+  'uses the same cache labels on price pages and logs for %s%s',
+  (modelName, cachePrices, expected) => {
+    const expression = `tier("base", p * 4 + c * 20 + cr * 0.4${cachePrices})`
+    const summary = getDynamicPricingSummary(
+      pricingModel({
+        model_name: modelName,
+        billing_mode: 'tiered_expr',
+        billing_expr: expression,
+      }),
+      { tokenUnit: 'M' }
+    )
+    const log = getTieredBillingSummary(
+      {
+        billing_mode: 'tiered_expr',
+        expr_b64: btoa(expression),
+        matched_tier: 'base',
+        cache_tokens: 100,
+      },
+      modelName
+    )
+    const cacheFields = new Set([
+      'cacheCreatePrice',
+      'cacheCreate1hPrice',
+      'cacheCreate12hPrice',
+    ])
+    expect(
+      summary?.entries
+        .filter((entry) => cacheFields.has(entry.field))
+        .map((entry) => entry.shortLabel)
+    ).toEqual(expected)
+    expect(
+      log?.priceEntries
+        .filter((entry) => cacheFields.has(entry.field))
+        .map((entry) => entry.shortLabel)
+    ).toEqual(expected)
+  }
+)
 
 describe('expression price summaries', () => {
   test('keeps request prices unchanged by token units and separates mixed billing units', () => {
