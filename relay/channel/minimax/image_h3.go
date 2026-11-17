@@ -697,7 +697,10 @@ func miniMaxH3GenerationFailure(message, code string) *types.NewAPIError {
 // miniMaxH3ImageStreamHandler answers a streaming MiniMax H3 image response.
 // Every upstream event is forwarded as it arrives, the generated images are
 // counted from the events that carry an image, and the usage is taken from
-// the summary event that ends the stream.
+// the summary event that ends the stream. An upstream error event is held
+// back: a request that produced no image failed as a whole and the relay
+// answers it with a single error, while a request that produced images
+// forwards the error event to tell the client that not every image was made.
 func miniMaxH3ImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(errors.New("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -712,6 +715,7 @@ func miniMaxH3ImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	var generatedImages int64
 	var failed bool
 	var failureMessage, failureCode string
+	var failureEvent string
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		raw := common.StringToByteSlice(data)
@@ -734,7 +738,12 @@ func miniMaxH3ImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 			case "error":
 				failed = true
 				failureMessage, failureCode = miniMaxH3StreamError(raw)
+				failureEvent = data
 				sr.Error(errors.New(failureMessage))
+				// The error event is held back. The relay owns the error
+				// answer of a failed request, and forwarding the event as
+				// well would answer the client twice.
+				return
 			}
 		}
 		if err := writeMiniMaxH3StreamEvent(c, raw); err != nil {
@@ -767,10 +776,17 @@ func miniMaxH3ImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 
 	// An upstream error event that produced no image is a failed request: it
 	// refunds the reservation instead of billing for images that were never
-	// produced, like the non-stream path does. The error event already reached
-	// the client, so the relay error is returned without writing another body.
+	// produced, like the non-stream path does. The relay error is the single
+	// answer of the failed request, so the held back error event is dropped
+	// instead of being a second error in the same stream.
 	if failed && generatedImages == 0 {
 		return nil, miniMaxH3GenerationFailure(failureMessage, failureCode)
+	}
+
+	// The request produced images, so it is billed for them and the upstream
+	// error event tells the client that not every image was produced.
+	if failed && failureEvent != "" {
+		_ = writeMiniMaxH3StreamEvent(c, common.StringToByteSlice(failureEvent))
 	}
 
 	return usage, nil

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -555,6 +556,65 @@ func TestMiniMaxH3ImageHandler(t *testing.T) {
 	require.NotNil(t, info.BillingImageCount)
 	assert.Equal(t, 1, *info.BillingImageCount)
 	assert.Contains(t, recorder.Body.String(), "https://example.com/h3-image/output-0.jpg")
+}
+
+func TestMiniMaxH3ImageStreamHandlerReportsUpstreamError(t *testing.T) {
+	// Not parallel: the stream scanner reads the global streaming timeout.
+	previousTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = previousTimeout })
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       ioNopCloser("data: {\"type\":\"error\",\"error\":{\"message\":\"upstream refused the prompt\",\"code\":\"1027\"}}\n\n"),
+	}
+
+	usage, err := miniMaxH3ImageStreamHandler(c, info, resp)
+	// The failed stream must still return the relay error, it is what refunds
+	// the reservation.
+	require.NotNil(t, err)
+	assert.Nil(t, usage)
+	assert.Contains(t, err.Error(), "upstream refused the prompt")
+	assert.Contains(t, err.Error(), "1027")
+
+	// The relay owns the error answer of the stream, so the upstream error
+	// event must not be forwarded as well.
+	assert.NotContains(t, recorder.Body.String(), "upstream refused the prompt")
+}
+
+func TestMiniMaxH3ImageStreamHandlerForwardsPartialFailure(t *testing.T) {
+	// Not parallel: the stream scanner reads the global streaming timeout.
+	previousTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = previousTimeout })
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}
+	stream := "data: {\"type\":\"image_generation.partial_succeeded\",\"url\":\"https://example.com/h3-image/output-0.jpg\"}\n\n" +
+		"data: {\"type\":\"error\",\"error\":{\"message\":\"one image failed\",\"code\":\"1027\"}}\n\n"
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       ioNopCloser(stream),
+	}
+
+	usage, err := miniMaxH3ImageStreamHandler(c, info, resp)
+	// The request produced an image, so it is billed for it and it did not
+	// fail as a whole.
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+
+	body := recorder.Body.String()
+	assert.Contains(t, body, "https://example.com/h3-image/output-0.jpg")
+	assert.Contains(t, body, "event: error\n")
+	assert.Contains(t, body, "one image failed")
 }
 
 func newMiniMaxMultipartContext(t *testing.T, fields map[string]string, files map[string][]string) *gin.Context {
