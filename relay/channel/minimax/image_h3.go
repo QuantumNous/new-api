@@ -2,10 +2,12 @@ package minimax
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -230,19 +232,37 @@ func miniMaxH3FormFiles(form *multipart.Form) []*multipart.FileHeader {
 	files := make([]*multipart.FileHeader, 0, len(form.File))
 	files = append(files, form.File["image"]...)
 	files = append(files, form.File["image[]"]...)
-	keys := make([]string, 0, len(form.File))
 
+	// An indexed key carries the position of the reference, so the keys are
+	// ordered by that number: image[2] comes before image[10].
+	type indexedKey struct {
+		key   string
+		index int
+	}
+	indexed := make([]indexedKey, 0, len(form.File))
 	for key := range form.File {
 		if key == "image" || key == "image[]" {
 			continue
 		}
-		if strings.HasPrefix(key, "image[") {
-			keys = append(keys, key)
+		rest, ok := strings.CutPrefix(key, "image[")
+		if !ok {
+			continue
 		}
+		position, err := strconv.Atoi(strings.TrimSuffix(rest, "]"))
+		if err != nil {
+			// A key the client did not number keeps its place at the end.
+			position = math.MaxInt
+		}
+		indexed = append(indexed, indexedKey{key: key, index: position})
 	}
-	slices.Sort(keys)
-	for _, key := range keys {
-		files = append(files, form.File[key]...)
+	slices.SortFunc(indexed, func(a, b indexedKey) int {
+		if order := cmp.Compare(a.index, b.index); order != 0 {
+			return order
+		}
+		return cmp.Compare(a.key, b.key)
+	})
+	for _, item := range indexed {
+		files = append(files, form.File[item.key]...)
 	}
 	return files
 }
@@ -445,8 +465,13 @@ func miniMaxH3AreaForPixels(pixels int) string {
 }
 
 // miniMaxH3ValidateAspectRatio checks an explicit aspect ratio against the
-// upstream limits.
+// upstream limits. The upstream also accepts "auto", which lets it pick the
+// ratio from the prompt and the reference images.
 func miniMaxH3ValidateAspectRatio(aspectRatio string) error {
+	if strings.EqualFold(strings.TrimSpace(aspectRatio), "auto") {
+		return nil
+	}
+
 	widthText, heightText, ok := strings.Cut(aspectRatio, ":")
 	if !ok {
 		return miniMaxH3ClientError(errors.New("aspect_ratio must be in the X:Y format"))
@@ -623,20 +648,17 @@ func miniMaxH3ImageHandler(c *gin.Context, resp *http.Response, info *relaycommo
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if failed := miniMaxH3FailedImages(parsed.Data); failed != nil {
-		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("minimax image generation failed: %s (code %s)", failed.Message, failed.Code),
-			types.ErrorCodeBadResponseBody,
-			http.StatusBadGateway,
-		)
+		return nil, miniMaxH3GenerationFailure(failed.Message, failed.Code)
 	}
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
-	if _, err := c.Writer.Write(responseBody); err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
-	}
 
 	openai.NormalizeOpenAIUsage(&parsed.Usage)
 	info.UpdateImageCount(openai.OpenaiImageResponseCount(responseBody))
+
+	// The upstream already generated the images. A failed write only means the client disconnected, so it must not skip settlement.
+	_, _ = c.Writer.Write(responseBody)
+
 	return &parsed.Usage, nil
 }
 
@@ -652,6 +674,24 @@ func miniMaxH3FailedImages(data []h3ImageData) *h3ImageError {
 		}
 	}
 	return data[0].Error
+}
+
+// miniMaxH3GenerationFailure builds the relay error of a failed MiniMax image
+// request, so the reservation is refunded instead of billed for images that
+// were never produced.
+func miniMaxH3GenerationFailure(message, code string) *types.NewAPIError {
+	if code != "" {
+		return types.NewErrorWithStatusCode(
+			fmt.Errorf("minimax image generation failed: %s (code %s)", message, code),
+			types.ErrorCodeBadResponseBody,
+			http.StatusBadGateway,
+		)
+	}
+	return types.NewErrorWithStatusCode(
+		fmt.Errorf("minimax image generation failed: %s", message),
+		types.ErrorCodeBadResponseBody,
+		http.StatusBadGateway,
+	)
 }
 
 // miniMaxH3ImageStreamHandler answers a streaming MiniMax H3 image response.
@@ -671,6 +711,7 @@ func miniMaxH3ImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	usage := &dto.Usage{}
 	var generatedImages int64
 	var failed bool
+	var failureMessage, failureCode string
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		raw := common.StringToByteSlice(data)
@@ -692,7 +733,8 @@ func miniMaxH3ImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 				}
 			case "error":
 				failed = true
-				sr.Error(errors.New(miniMaxH3StreamErrorMessage(raw)))
+				failureMessage, failureCode = miniMaxH3StreamError(raw)
+				sr.Error(errors.New(failureMessage))
 			}
 		}
 		if err := writeMiniMaxH3StreamEvent(c, raw); err != nil {
@@ -723,6 +765,14 @@ func miniMaxH3ImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 		}
 	}
 
+	// An upstream error event that produced no image is a failed request: it
+	// refunds the reservation instead of billing for images that were never
+	// produced, like the non-stream path does. The error event already reached
+	// the client, so the relay error is returned without writing another body.
+	if failed && generatedImages == 0 {
+		return nil, miniMaxH3GenerationFailure(failureMessage, failureCode)
+	}
+
 	return usage, nil
 }
 
@@ -740,17 +790,25 @@ func writeMiniMaxH3StreamEvent(c *gin.Context, data []byte) error {
 	return helper.StringData(c, string(data))
 }
 
-// miniMaxH3StreamErrorMessage reads the message of an upstream error event.
-func miniMaxH3StreamErrorMessage(data []byte) string {
+// miniMaxH3StreamError reads the message and the code of an upstream error
+// event. The message falls back to a generic text when the event carries
+// none.
+func miniMaxH3StreamError(data []byte) (message string, code string) {
 	var payload struct {
 		Error struct {
-			Message string `json:"message"`
+			Message string          `json:"message"`
+			Code    json.RawMessage `json:"code"`
 		} `json:"error"`
 	}
 	if err := common.Unmarshal(data, &payload); err == nil {
-		if message := strings.TrimSpace(payload.Error.Message); message != "" {
-			return message
+		message = strings.TrimSpace(payload.Error.Message)
+		code = strings.Trim(strings.TrimSpace(string(payload.Error.Code)), `"`)
+		if code == "null" {
+			code = ""
 		}
 	}
-	return "upstream image stream returned an error event"
+	if message == "" {
+		message = "upstream image stream returned an error event"
+	}
+	return message, code
 }

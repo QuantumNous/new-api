@@ -315,9 +315,10 @@ func TestConvertMiniMaxH3EditRequestFromJSON(t *testing.T) {
 	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesEdits}
 
 	cases := []struct {
-		name    string
-		request dto.ImageRequest
-		want    []h3ImageRef
+		name            string
+		request         dto.ImageRequest
+		want            []h3ImageRef
+		wantAspectRatio string
 	}{
 		{
 			name: "image objects",
@@ -352,6 +353,21 @@ func TestConvertMiniMaxH3EditRequestFromJSON(t *testing.T) {
 			},
 			want: []h3ImageRef{{ImageURL: "https://example.com/cat.jpg"}},
 		},
+		{
+			name: "auto size and aspect ratio",
+			request: dto.ImageRequest{
+				Model:  "MiniMax-H3-Image",
+				Prompt: "replace image 1 with image 2",
+				N:      uintPtr(1),
+				Size:   "auto",
+				Extra: map[string]json.RawMessage{
+					"aspect_ratio": json.RawMessage(`"auto"`),
+				},
+				Image: json.RawMessage(`"https://example.com/cat.jpg"`),
+			},
+			want:            []h3ImageRef{{ImageURL: "https://example.com/cat.jpg"}},
+			wantAspectRatio: "auto",
+		},
 	}
 
 	for _, testCase := range cases {
@@ -362,6 +378,7 @@ func TestConvertMiniMaxH3EditRequestFromJSON(t *testing.T) {
 			body, ok := got.(MiniMaxH3ImageRequest)
 			require.True(t, ok)
 			assert.Equal(t, testCase.want, body.Images)
+			assert.Equal(t, testCase.wantAspectRatio, body.AspectRatio)
 		})
 	}
 }
@@ -432,39 +449,75 @@ func TestConvertMiniMaxH3EditRequestFromMultipart(t *testing.T) {
 
 	adaptor := &Adaptor{}
 	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesEdits}
-	context := newMiniMaxMultipartContext(t,
-		map[string]string{
-			"model":           "MiniMax-H3-Image",
-			"prompt":          "replace image 1 with image 2",
-			"n":               "2",
-			"aspect_ratio":    "16:9",
-			"response_format": "url",
-			"stream":          "true",
+
+	cases := []struct {
+		name string
+		// files holds the uploaded reference images by their multipart field
+		// name, wantOrder the order they are forwarded in.
+		files     map[string][]string
+		wantOrder []string
+	}{
+		{
+			name:      "image array parts keep the client order",
+			files:     map[string][]string{"image[]": {"cat.jpg", "dog.png"}},
+			wantOrder: []string{"cat.jpg", "dog.png"},
 		},
-		map[string][]string{"image[]": {"cat.jpg", "dog.png"}},
-	)
+		{
+			name: "indexed image parts are ordered by their index",
+			files: map[string][]string{
+				"image[10]": {"tenth.jpg"},
+				"image[2]":  {"second.jpg"},
+			},
+			wantOrder: []string{"second.jpg", "tenth.jpg"},
+		},
+	}
 
-	got, err := adaptor.ConvertImageRequest(context, info, dto.ImageRequest{
-		Model:  "MiniMax-H3-Image",
-		Prompt: "replace image 1 with image 2",
-		N:      uintPtr(2),
-	})
-	require.NoError(t, err)
-	body, ok := got.(*bytes.Buffer)
-	require.True(t, ok)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			context := newMiniMaxMultipartContext(t,
+				map[string]string{
+					"model":           "MiniMax-H3-Image",
+					"prompt":          "replace image 1 with image 2",
+					"n":               "2",
+					"aspect_ratio":    "16:9",
+					"response_format": "url",
+					"stream":          "true",
+				},
+				testCase.files,
+			)
 
-	payload := body.String()
-	assert.Contains(t, payload, `name="model"`)
-	assert.Contains(t, payload, "MiniMax-H3-Image")
-	assert.Contains(t, payload, `name="n"`)
-	assert.Contains(t, payload, `name="aspect_ratio"`)
-	assert.Contains(t, payload, "16:9")
-	assert.Contains(t, payload, `name="stream"`)
-	assert.Contains(t, payload, "true")
-	assert.Contains(t, payload, `name="image[]"`)
-	assert.Contains(t, payload, "cat.jpg")
-	assert.Contains(t, payload, "dog.png")
-	assert.True(t, strings.HasPrefix(context.Request.Header.Get("Content-Type"), "multipart/form-data"))
+			got, err := adaptor.ConvertImageRequest(context, info, dto.ImageRequest{
+				Model:  "MiniMax-H3-Image",
+				Prompt: "replace image 1 with image 2",
+				N:      uintPtr(2),
+			})
+			require.NoError(t, err)
+			body, ok := got.(*bytes.Buffer)
+			require.True(t, ok)
+
+			payload := body.String()
+			assert.Contains(t, payload, `name="model"`)
+			assert.Contains(t, payload, "MiniMax-H3-Image")
+			assert.Contains(t, payload, `name="n"`)
+			assert.Contains(t, payload, `name="aspect_ratio"`)
+			assert.Contains(t, payload, "16:9")
+			assert.Contains(t, payload, `name="stream"`)
+			assert.Contains(t, payload, "true")
+			assert.Contains(t, payload, `name="image[]"`)
+			assert.True(t, strings.HasPrefix(context.Request.Header.Get("Content-Type"), "multipart/form-data"))
+
+			// The prompt refers to the reference images by position, so the
+			// upstream body must list them in that order.
+			previous := -1
+			for _, name := range testCase.wantOrder {
+				position := strings.Index(payload, name)
+				require.NotEqual(t, -1, position, "payload %s", payload)
+				assert.Greater(t, position, previous, "payload %s", payload)
+				previous = position
+			}
+		})
+	}
 }
 
 func TestMiniMaxH3ImageHandler(t *testing.T) {
