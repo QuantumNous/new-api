@@ -78,3 +78,16 @@ func TestBackfillUserUsedTokensSeedsFromQuotaData(t *testing.T) {
 	require.NoError(t, DB.First(&got, user.Id).Error)
 	assert.EqualValues(t, 425, got.UsedTokens)
 }
+
+// GetSelfUserById selects an explicit column list; missing used_tokens there
+// silently reported 0 to every dashboard client.
+func TestGetSelfUserByIdReturnsUsedTokens(t *testing.T) {
+	setupUserUpdateTestState(t)
+	user := createUserBindTestUser(t)
+
+	UpdateUserUsedTokens(user.Id, 1234)
+
+	got, err := GetSelfUserById(user.Id)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1234, got.UsedTokens)
+}
