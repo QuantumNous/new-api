@@ -297,3 +297,23 @@ func TestBackfillUserUsedTokensAddsOnlyTheDifference(t *testing.T) {
 	require.NoError(t, DB.First(&after, user.Id).Error)
 	assert.EqualValues(t, 1005, after.UsedTokens)
 }
+
+// Two masters can seed at the same time. Because the difference is computed
+// from the row inside the statement, the second one adds zero instead of a
+// stale total.
+func TestApplyUserTokenSeedIsIdempotent(t *testing.T) {
+	setupUserUpdateTestState(t)
+	user := createUserBindTestUser(t)
+
+	targets := map[int]int64{user.Id: 1000}
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return applyUserTokenSeed(tx, targets)
+	}))
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return applyUserTokenSeed(tx, targets)
+	}))
+
+	var got User
+	require.NoError(t, DB.First(&got, user.Id).Error)
+	assert.EqualValues(t, 1000, got.UsedTokens)
+}

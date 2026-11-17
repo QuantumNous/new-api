@@ -346,34 +346,19 @@ func exportedTokenSums() (map[int]int64, error) {
 	return sums, nil
 }
 
-// applyUserTokenSeed raises users.used_tokens towards the seed targets by adding
-// the per-user difference, never by assigning the target. Additions keep
-// increments that other nodes commit between the history read and this update,
-// and a second run without the marker computes zero differences, so the seed is
-// idempotent even if the completion marker is lost.
+// applyUserTokenSeed raises users.used_tokens towards the seed targets without
+// assigning them. The difference is computed inside the statement from the
+// row's own value, so two masters that seed at the same time cannot add a stale
+// difference twice: the second statement sees the committed value and adds
+// zero. For the same reason a run without the completion marker cannot
+// double-count, and a counter that other nodes keep incrementing is never
+// replaced by an older total.
 func applyUserTokenSeed(tx *gorm.DB, targets map[int]int64) error {
 	if len(targets) == 0 || !tx.Migrator().HasTable(&User{}) {
 		return nil
 	}
-	var current []userTokenSum
-	if err := tx.Table("users").Select("id AS user_id, used_tokens AS total").Scan(&current).Error; err != nil {
-		return fmt.Errorf("read users.used_tokens: %w", err)
-	}
-	now := make(map[int]int64, len(current))
-	for _, row := range current {
-		now[row.UserId] = row.Total
-	}
-	deltas := make(map[int]int64, len(targets))
-	for id, target := range targets {
-		if diff := target - now[id]; diff > 0 {
-			deltas[id] = diff
-		}
-	}
-	if len(deltas) == 0 {
-		return nil
-	}
-	ids := make([]int, 0, len(deltas))
-	for id := range deltas {
+	ids := make([]int, 0, len(targets))
+	for id := range targets {
 		ids = append(ids, id)
 	}
 	sort.Ints(ids)
@@ -385,10 +370,11 @@ func applyUserTokenSeed(tx *gorm.DB, targets map[int]int64) error {
 				when.WriteByte(' ')
 				in.WriteByte(',')
 			}
-			fmt.Fprintf(&when, "WHEN %d THEN %d", ids[i], deltas[ids[i]])
+			fmt.Fprintf(&when, "WHEN %d THEN CASE WHEN COALESCE(used_tokens, 0) >= %d THEN 0 ELSE %d - COALESCE(used_tokens, 0) END",
+				ids[i], targets[ids[i]], targets[ids[i]])
 			fmt.Fprintf(&in, "%d", ids[i])
 		}
-		stmt := "UPDATE users SET used_tokens = used_tokens + CASE id " + when.String() + " ELSE 0 END" +
+		stmt := "UPDATE users SET used_tokens = COALESCE(used_tokens, 0) + CASE id " + when.String() + " ELSE 0 END" +
 			" WHERE id IN (" + in.String() + ")"
 		if err := tx.Exec(stmt).Error; err != nil {
 			return fmt.Errorf("seed users.used_tokens: %w", err)
