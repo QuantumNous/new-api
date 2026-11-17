@@ -237,6 +237,33 @@ func TestCreateUserRejectsNonStandardRole(t *testing.T) {
 	}
 }
 
+// A taken username, including one held by a soft-deleted account, is rejected
+// with a readable message before the admin-creation proof is spent.
+func TestCreateUserRejectsTakenUsernameBeforeConsumingProof(t *testing.T) {
+	_, identity, target := setupAdminUserTest(t)
+	deleted := &model.User{Username: "deleted-user", Password: target.Password, Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "deleted-aff"}
+	require.NoError(t, model.DB.Create(deleted).Error)
+	require.NoError(t, model.DB.Delete(deleted).Error)
+	createAdmin := service.VerificationOperation{Scope: service.VerificationScopeAdminUserCreate, Context: []byte(`{"role":10}`)}
+	proof := issueSecurityEnrollmentProof(t, identity, createAdmin, service.VerificationMethodPassword)
+
+	for _, username := range []string{target.Username, deleted.Username} {
+		t.Run(username, func(t *testing.T) {
+			body := fmt.Sprintf(`{"username":%q,"password":"admin-password-1","role":10}`, username)
+			response := adminUserRequest(http.MethodPost, "/api/user/", body, proof, identity, common.RoleRootUser, nil, CreateUser)
+			var result securityEnrollmentResponse
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+			assert.False(t, result.Success)
+			assert.Equal(t, "Username already exists or has been deleted", result.Message)
+			var count int64
+			require.NoError(t, model.DB.Unscoped().Model(&model.User{}).Where("username = ?", username).Count(&count).Error)
+			assert.EqualValues(t, 1, count)
+		})
+	}
+	_, err := service.ConsumeOperationProof(proof, identity, createAdmin)
+	assert.NoError(t, err)
+}
+
 func TestAdminUserProofIsBoundToTargetAndActionAndConsumedOnce(t *testing.T) {
 	_, identity, target := setupAdminUserTest(t)
 	other := &model.User{Username: "other-user", Password: target.Password, Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "other-aff"}
