@@ -656,6 +656,12 @@ func isJSONRequest(c *gin.Context) bool {
 	return strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json")
 }
 
+// It is the exported entry point for other channels
+// that serve the OpenAI image shape.
+func DetectImageMimeType(filename string) string {
+	return detectImageMimeType(filename)
+}
+
 // detectImageMimeType determines the MIME type based on the file extension
 func detectImageMimeType(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
