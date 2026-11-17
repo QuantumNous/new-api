@@ -267,3 +267,33 @@ func TestBackfillUserUsedTokensKeepsPerUserTotals(t *testing.T) {
 	assert.EqualValues(t, 1000, gotFirst.UsedTokens)
 	assert.EqualValues(t, 2000, gotSecond.UsedTokens)
 }
+
+// The seed adds the difference instead of assigning the history total, so a
+// settlement committed while the seed runs survives, and a re-run without the
+// marker computes a zero difference and changes nothing.
+func TestBackfillUserUsedTokensAddsOnlyTheDifference(t *testing.T) {
+	setupUserUpdateTestState(t)
+	user := createUserBindTestUser(t)
+	clearUsedTokensBackfillMarker(t)
+
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("used_tokens", 10).Error)
+	require.NoError(t, DB.Exec("DELETE FROM quota_data").Error)
+	require.NoError(t, LOG_DB.Create(&Log{
+		UserId: user.Id, Username: user.Username, Type: LogTypeConsume, CreatedAt: 1000,
+		PromptTokens: 1000,
+	}).Error)
+
+	require.NoError(t, backfillUserUsedTokens())
+	var seeded User
+	require.NoError(t, DB.First(&seeded, user.Id).Error)
+	assert.EqualValues(t, 1000, seeded.UsedTokens)
+
+	// A settlement lands after the seed, then the seed is retried from scratch.
+	UpdateUserUsedTokens(user.Id, 5)
+	clearUsedTokensBackfillMarker(t)
+	require.NoError(t, backfillUserUsedTokens())
+
+	var after User
+	require.NoError(t, DB.First(&after, user.Id).Error)
+	assert.EqualValues(t, 1005, after.UsedTokens)
+}

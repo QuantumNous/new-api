@@ -324,21 +324,59 @@ func consumeLogTokenSums() (map[int]int64, error) {
 	return sums, nil
 }
 
-// raiseUserUsedTokens applies per-user log totals without ever lowering a
-// counter, in bounded statements so a large install does not send one query
-// per user.
-func raiseUserUsedTokens(tx *gorm.DB, sums map[int]int64) error {
-	if len(sums) == 0 {
+// exportedTokenSums reads the per-user token totals the export table kept.
+func exportedTokenSums() (map[int]int64, error) {
+	sums := make(map[int]int64)
+	if !DB.Migrator().HasTable("quota_data") {
+		return sums, nil
+	}
+	var rows []userTokenSum
+	err := DB.Table("quota_data").
+		Select("user_id, COALESCE(SUM(token_used), 0) AS total").
+		Group("user_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("sum exported tokens: %w", err)
+	}
+	for _, row := range rows {
+		if row.Total > 0 {
+			sums[row.UserId] = row.Total
+		}
+	}
+	return sums, nil
+}
+
+// applyUserTokenSeed raises users.used_tokens towards the seed targets by adding
+// the per-user difference, never by assigning the target. Additions keep
+// increments that other nodes commit between the history read and this update,
+// and a second run without the marker computes zero differences, so the seed is
+// idempotent even if the completion marker is lost.
+func applyUserTokenSeed(tx *gorm.DB, targets map[int]int64) error {
+	if len(targets) == 0 || !tx.Migrator().HasTable(&User{}) {
 		return nil
 	}
-	ids := make([]int, 0, len(sums))
-	for id := range sums {
+	var current []userTokenSum
+	if err := tx.Table("users").Select("id AS user_id, used_tokens AS total").Scan(&current).Error; err != nil {
+		return fmt.Errorf("read users.used_tokens: %w", err)
+	}
+	now := make(map[int]int64, len(current))
+	for _, row := range current {
+		now[row.UserId] = row.Total
+	}
+	deltas := make(map[int]int64, len(targets))
+	for id, target := range targets {
+		if diff := target - now[id]; diff > 0 {
+			deltas[id] = diff
+		}
+	}
+	if len(deltas) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(deltas))
+	for id := range deltas {
 		ids = append(ids, id)
 	}
 	sort.Ints(ids)
-	if !tx.Migrator().HasTable(&User{}) {
-		return nil
-	}
 	for start := 0; start < len(ids); start += usedTokensSeedChunk {
 		end := min(start+usedTokensSeedChunk, len(ids))
 		var when, in strings.Builder
@@ -347,13 +385,13 @@ func raiseUserUsedTokens(tx *gorm.DB, sums map[int]int64) error {
 				when.WriteByte(' ')
 				in.WriteByte(',')
 			}
-			fmt.Fprintf(&when, "WHEN %d THEN %d", ids[i], sums[ids[i]])
+			fmt.Fprintf(&when, "WHEN %d THEN %d", ids[i], deltas[ids[i]])
 			fmt.Fprintf(&in, "%d", ids[i])
 		}
-		stmt := "UPDATE users SET used_tokens = CASE id " + when.String() + " ELSE used_tokens END" +
-			" WHERE id IN (" + in.String() + ") AND used_tokens < CASE id " + when.String() + " ELSE 0 END"
+		stmt := "UPDATE users SET used_tokens = used_tokens + CASE id " + when.String() + " ELSE 0 END" +
+			" WHERE id IN (" + in.String() + ")"
 		if err := tx.Exec(stmt).Error; err != nil {
-			return fmt.Errorf("seed users.used_tokens from consume logs: %w", err)
+			return fmt.Errorf("seed users.used_tokens: %w", err)
 		}
 	}
 	return nil
@@ -362,9 +400,12 @@ func raiseUserUsedTokens(tx *gorm.DB, sums map[int]int64) error {
 // backfillUserUsedTokens seeds users.used_tokens from the token history that
 // existing installations already wrote before this column existed. Export data
 // only exists while DataExportEnabled is on, so the consume log is read as well;
-// the larger of the two is kept, which covers an export-off period without
-// counting the same request twice. Completion is recorded only after both
-// sources have been applied, so a start that fails half way seeds again.
+// the larger of the two is the target, which covers an export-off period
+// without counting the same request twice. The target is reached by adding the
+// difference to the current counter, so a counter that a serving node keeps
+// incrementing is never replaced by an older total. Completion is recorded only
+// after both sources have been applied, so a start that fails half way seeds
+// again on the next boot.
 func backfillUserUsedTokens() error {
 	if DB == nil || !DB.Migrator().HasTable(&User{}) {
 		return nil
@@ -379,9 +420,22 @@ func backfillUserUsedTokens() error {
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
-	logSums, err := consumeLogTokenSums()
+	exported, err := exportedTokenSums()
 	if err != nil {
 		return err
+	}
+	logSum, err := consumeLogTokenSums()
+	if err != nil {
+		return err
+	}
+	targets := make(map[int]int64, len(exported)+len(logSum))
+	for id, total := range exported {
+		targets[id] = total
+	}
+	for id, total := range logSum {
+		if totals, ok := targets[id]; !ok || total > totals {
+			targets[id] = total
+		}
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var marker Option
@@ -391,15 +445,7 @@ func backfillUserUsedTokens() error {
 			return err
 		}
 
-		if tx.Migrator().HasTable("quota_data") {
-			exported := "COALESCE((SELECT SUM(token_used) FROM quota_data WHERE quota_data.user_id = users.id), 0)"
-			update := "UPDATE users SET used_tokens = CASE WHEN used_tokens > " + exported +
-				" THEN used_tokens ELSE " + exported + " END"
-			if err := tx.Exec(update).Error; err != nil {
-				return fmt.Errorf("backfill users.used_tokens: %w", err)
-			}
-		}
-		if err := raiseUserUsedTokens(tx, logSums); err != nil {
+		if err := applyUserTokenSeed(tx, targets); err != nil {
 			return err
 		}
 		return tx.Save(&Option{Key: usedTokensBackfillOptionKey, Value: "done"}).Error
