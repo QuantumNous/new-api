@@ -32,6 +32,7 @@ func TestInMemoryRateLimiterEnforcesWindowBoundary(t *testing.T) {
 	queue.append(100)
 
 	queue.removeExpired(159, 60)
+	assert.EqualValues(t, 1, queue.retryAfter(159, 60))
 	assert.Equal(t, 2, queue.length)
 
 	queue.removeExpired(160, 60)

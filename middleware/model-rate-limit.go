@@ -25,44 +25,44 @@ const (
 	modelRateLimitTimeFormat              = "2006-01-02T15:04:05.000Z"
 )
 
-// 检查Redis中的请求限制
-func checkRedisRateLimit(ctx context.Context, rdb *redis.Client, key string, maxCount int, duration int64) (bool, error) {
+// redisSuccessRetryAfter returns zero on admission or the remaining window in seconds.
+func redisSuccessRetryAfter(ctx context.Context, rdb *redis.Client, key string, maxCount int, duration int64) (int64, error) {
 	// 如果maxCount为0，表示不限制
 	if maxCount == 0 {
-		return true, nil
+		return 0, nil
 	}
 
 	// 获取当前计数
 	length, err := rdb.LLen(ctx, key).Result()
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
 	// 如果未达到限制，允许请求
 	if length < int64(maxCount) {
-		return true, nil
+		return 0, nil
 	}
 
 	// 检查时间窗口
 	oldTimeStr, _ := rdb.LIndex(ctx, key, -1).Result()
 	oldTime, err := time.Parse(modelRateLimitTimeFormat, oldTimeStr)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
 	nowTimeStr := time.Now().UTC().Format(modelRateLimitTimeFormat)
 	nowTime, err := time.Parse(modelRateLimitTimeFormat, nowTimeStr)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	// 如果在时间窗口内已达到限制，拒绝请求
 	subTime := nowTime.Sub(oldTime).Seconds()
 	if int64(subTime) < duration {
 		rdb.Expire(ctx, key, time.Duration(setting.ModelRequestRateLimitDurationMinutes)*time.Minute)
-		return false, nil
+		return duration - max(0, int64(subTime)), nil
 	}
 
-	return true, nil
+	return 0, nil
 }
 
 // 记录Redis请求
@@ -78,6 +78,11 @@ func recordRedisRequest(ctx context.Context, rdb *redis.Client, key string, maxC
 	rdb.Expire(ctx, key, time.Duration(setting.ModelRequestRateLimitDurationMinutes)*time.Minute)
 }
 
+func rejectModelRateLimit(c *gin.Context, seconds int64, message string) {
+	c.Header("Retry-After", strconv.FormatInt(max(1, seconds), 10))
+	abortWithOpenAiMessage(c, http.StatusTooManyRequests, message)
+}
+
 // Redis限流处理器
 func redisRateLimitHandler(subject string, duration int64, totalMaxCount, successMaxCount int) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -86,14 +91,14 @@ func redisRateLimitHandler(subject string, duration int64, totalMaxCount, succes
 
 		// 1. 检查成功请求数限制
 		successKey := fmt.Sprintf("rateLimit:%s:%s", ModelRequestRateLimitSuccessCountMark, subject)
-		allowed, err := checkRedisRateLimit(ctx, rdb, successKey, successMaxCount, duration)
+		retryAfter, err := redisSuccessRetryAfter(ctx, rdb, successKey, successMaxCount, duration)
 		if err != nil {
 			fmt.Println(common.LogText("failed to check the successful request limit: %s", err.Error()))
 			abortWithOpenAiMessage(c, http.StatusInternalServerError, "rate_limit_check_failed")
 			return
 		}
-		if !allowed {
-			abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitReached, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": successMaxCount}))
+		if retryAfter > 0 {
+			rejectModelRateLimit(c, retryAfter, i18n.T(c, i18n.MsgRateLimitReached, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": successMaxCount}))
 			return
 		}
 
@@ -102,7 +107,7 @@ func redisRateLimitHandler(subject string, duration int64, totalMaxCount, succes
 			totalKey := fmt.Sprintf("rateLimit:%s", subject)
 			// 初始化
 			tb := limiter.New(ctx, rdb)
-			allowed, err = tb.Allow(
+			allowed, err := tb.Allow(
 				ctx,
 				totalKey,
 				limiter.WithCapacity(rateLimitCapacity(totalMaxCount, duration)),
@@ -117,7 +122,11 @@ func redisRateLimitHandler(subject string, duration int64, totalMaxCount, succes
 			}
 
 			if !allowed {
-				abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitTotalReached, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": totalMaxCount}))
+				// The bucket refills totalMaxCount tokens per second and consumes
+				// duration tokens per request. Even an empty bucket can recover
+				// after this interval, assuming no competing requests.
+				retryAfter := 1 + (duration-1)/int64(totalMaxCount)
+				rejectModelRateLimit(c, retryAfter, i18n.T(c, i18n.MsgRateLimitTotalReached, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": totalMaxCount}))
 				return
 			}
 		}
@@ -141,16 +150,19 @@ func memoryRateLimitHandler(subject string, duration int64, totalMaxCount, succe
 		successKey := ModelRequestRateLimitSuccessCountMark + subject
 
 		// 1. 检查总请求数限制（当totalMaxCount为0时跳过）
-		if totalMaxCount > 0 && !inMemoryRateLimiter.Request(totalKey, totalMaxCount, duration) {
-			abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitTotalReached, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": totalMaxCount}))
-			return
+		if totalMaxCount > 0 {
+			if retryAfter := inMemoryRateLimiter.RequestRetryAfter(totalKey, totalMaxCount, duration); retryAfter > 0 {
+				rejectModelRateLimit(c, retryAfter, i18n.T(c, i18n.MsgRateLimitTotalReached, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": totalMaxCount}))
+				return
+			}
 		}
 
 		var reservation *common.RateLimitReservation
 		if successMaxCount > 0 {
-			reservation = inMemoryRateLimiter.Reserve(successKey, successMaxCount, duration)
+			var retryAfter int64
+			reservation, retryAfter = inMemoryRateLimiter.ReserveWithRetryAfter(successKey, successMaxCount, duration)
 			if reservation == nil {
-				abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitReached, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": successMaxCount}))
+				rejectModelRateLimit(c, retryAfter, i18n.T(c, i18n.MsgRateLimitReached, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": successMaxCount}))
 				return
 			}
 			defer reservation.Complete(false)
