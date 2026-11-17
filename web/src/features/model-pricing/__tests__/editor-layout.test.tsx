@@ -129,7 +129,7 @@ it.each(['none', 'standard', 'claude_ttl', 'openai_ttl'] as const)(
     for (const panel of [billing, preview]) {
       if (mode === 'none') {
         expect(
-          within(panel).queryByText('Cache write price')
+          within(panel).queryByText('Standard cache write price')
         ).not.toBeInTheDocument()
         expect(
           within(panel).queryByText('Cache create (1h) price')
@@ -138,9 +138,9 @@ it.each(['none', 'standard', 'claude_ttl', 'openai_ttl'] as const)(
           within(panel).queryByText('Cache create (12h) price')
         ).not.toBeInTheDocument()
       } else {
-        let writeLabel = 'Cache write price'
-        if (mode === 'claude_ttl') writeLabel = 'Cache Creation (5m)'
-        if (mode === 'openai_ttl') writeLabel = 'Cache Creation (30m)'
+        let writeLabel = 'Standard cache write price'
+        if (mode === 'claude_ttl') writeLabel = 'Cache create (5m) price'
+        if (mode === 'openai_ttl') writeLabel = 'Cache create (30m) price'
         expect(
           within(panel).getByText(writeLabel).nextElementSibling
         ).toHaveTextContent('$5')
