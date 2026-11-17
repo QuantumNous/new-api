@@ -22,6 +22,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconBadge } from '@/components/ui/icon-badge'
+import {
+  MetricToggle,
+  useMetricMode,
+} from '@/features/dashboard/components/ui/metric-toggle'
 import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { useTheme } from '@/context/theme-provider'
 import {
@@ -69,6 +73,7 @@ export function ConsumptionDistributionChart(
   const [chartType, setChartType] = useState<ConsumptionDistributionChartType>(
     props.defaultChartType ?? 'bar'
   )
+  const [metric, setMetric] = useMetricMode('dashboard.metric.consumption')
   const [themeReady, setThemeReady] = useState(false)
   const themeManagerRef = useRef<
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
@@ -104,9 +109,10 @@ export function ConsumptionDistributionChart(
         props.loading ? [] : props.data,
         timeGranularity,
         t,
-        chartRadius
+        chartRadius,
+        metric
       ),
-    [props.data, props.loading, timeGranularity, t, chartRadius]
+    [props.data, props.loading, timeGranularity, t, chartRadius, metric]
   )
   const spec = chartType === 'bar' ? chartData.spec_line : chartData.spec_area
   const specType = typeof spec?.type === 'string' ? spec.type : chartType
@@ -132,25 +138,28 @@ export function ConsumptionDistributionChart(
           </span>
         </div>
 
-        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>
-          {CONSUMPTION_DISTRIBUTION_CHART_OPTIONS.map((item) => {
-            const Icon = CHART_TYPE_ICONS[item.value]
-            return (
-              <button
-                key={item.value}
-                type='button'
-                onClick={() => setChartType(item.value)}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
-                  chartType === item.value
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Icon className='size-3.5' />
-                {t(item.labelKey)}
-              </button>
-            )
-          })}
+        <div className='flex flex-wrap items-center gap-2'>
+          <MetricToggle value={metric} onChange={setMetric} />
+          <div className='bg-muted/40 ring-border/60 inline-flex h-8 w-full items-center overflow-x-auto rounded-full p-0.5 ring-1 sm:w-auto'>
+            {CONSUMPTION_DISTRIBUTION_CHART_OPTIONS.map((item) => {
+              const Icon = CHART_TYPE_ICONS[item.value]
+              return (
+                <button
+                  key={item.value}
+                  type='button'
+                  onClick={() => setChartType(item.value)}
+                  className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                    chartType === item.value
+                      ? 'bg-background text-foreground ring-border/60 shadow-sm ring-1'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Icon className='size-3.5' />
+                  {t(item.labelKey)}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
