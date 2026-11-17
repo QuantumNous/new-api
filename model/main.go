@@ -350,8 +350,8 @@ func raiseUserUsedTokens(tx *gorm.DB, sums map[int]int64) error {
 			fmt.Fprintf(&when, "WHEN %d THEN %d", ids[i], sums[ids[i]])
 			fmt.Fprintf(&in, "%d", ids[i])
 		}
-		stmt := "UPDATE users SET used_tokens = CASE " + when.String() + " ELSE used_tokens END" +
-			" WHERE id IN (" + in.String() + ") AND used_tokens < CASE " + when.String() + " ELSE 0 END"
+		stmt := "UPDATE users SET used_tokens = CASE id " + when.String() + " ELSE used_tokens END" +
+			" WHERE id IN (" + in.String() + ") AND used_tokens < CASE id " + when.String() + " ELSE 0 END"
 		if err := tx.Exec(stmt).Error; err != nil {
 			return fmt.Errorf("seed users.used_tokens from consume logs: %w", err)
 		}
@@ -368,6 +368,16 @@ func raiseUserUsedTokens(tx *gorm.DB, sums map[int]int64) error {
 func backfillUserUsedTokens() error {
 	if DB == nil || !DB.Migrator().HasTable(&User{}) {
 		return nil
+	}
+	// Check the marker first: an instance that already seeded must not pay for
+	// aggregating the whole consume history on every start.
+	var marker Option
+	err := DB.Where(&Option{Key: usedTokensBackfillOptionKey}).First(&marker).Error
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
 	}
 	logSums, err := consumeLogTokenSums()
 	if err != nil {

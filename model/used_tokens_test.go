@@ -230,3 +230,40 @@ func TestBackfillUserUsedTokensReadsSeparateLogDatabase(t *testing.T) {
 	require.NoError(t, DB.First(&got, user.Id).Error)
 	assert.EqualValues(t, 1000, got.UsedTokens)
 }
+
+// A searched CASE (CASE WHEN 1 THEN ...) compares the id against a constant that
+// is always true, so every user would receive the first total. Each branch must
+// be keyed by id.
+func TestBackfillUserUsedTokensKeepsPerUserTotals(t *testing.T) {
+	setupUserUpdateTestState(t)
+	clearUsedTokensBackfillMarker(t)
+
+	first := User{
+		Username: "seed-first", Password: "unused", Role: common.RoleCommonUser,
+		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "seed-aff-first",
+	}
+	second := User{
+		Username: "seed-second", Password: "unused", Role: common.RoleCommonUser,
+		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: "seed-aff-second",
+	}
+	require.NoError(t, DB.Create(&first).Error)
+	require.NoError(t, DB.Create(&second).Error)
+	require.NoError(t, DB.Exec("DELETE FROM quota_data").Error)
+
+	require.NoError(t, LOG_DB.Create(&Log{
+		UserId: first.Id, Username: first.Username, Type: LogTypeConsume, CreatedAt: 1000,
+		PromptTokens: 1000,
+	}).Error)
+	require.NoError(t, LOG_DB.Create(&Log{
+		UserId: second.Id, Username: second.Username, Type: LogTypeConsume, CreatedAt: 1000,
+		PromptTokens: 2000,
+	}).Error)
+
+	require.NoError(t, backfillUserUsedTokens())
+
+	var gotFirst, gotSecond User
+	require.NoError(t, DB.First(&gotFirst, first.Id).Error)
+	require.NoError(t, DB.First(&gotSecond, second.Id).Error)
+	assert.EqualValues(t, 1000, gotFirst.UsedTokens)
+	assert.EqualValues(t, 2000, gotSecond.UsedTokens)
+}
