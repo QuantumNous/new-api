@@ -42,9 +42,14 @@ import (
 
 const pendingKey = "agentic_router_pending"
 
+// pending 记录一次待结算的路由决策。train=false 表示该请求最终由原模型
+// 服务（blocked / shadow），其结果不能归因于路由档位——结算只做观测。
+// mode 是决策发生时的模式快照：中途切换 shadow/active 不影响已开始请求的归属。
 type pending struct {
 	id    int
 	start time.Time
+	mode  string
+	train bool
 }
 
 var (
@@ -138,26 +143,29 @@ func (h *Hook) Decide(c *gin.Context, request dto.Request) {
 	}
 	text, originModel := extractText(body)
 	if text == "" {
-		return // 提取不到用户文本（部分任务格式）时跳过路由
+		return // 提取不到用户文本（部分任务格式 / 纯空白内容）时跳过路由
 	}
 	d := h.router.Decide(text, "", availableTiers(h.router))
 	if d == nil {
 		return
 	}
 	h.resolveModel(d)
+	train := d.Mode == "active"
 	if d.Mode == "active" && d.Model != "" && d.Model != originModel {
 		if tokenAllowsModel(c, d.Model) {
 			request.SetModelName(d.Model)
 			common.SetContextKey(c, constant.ContextKeyOriginalModel, d.Model)
 		} else {
 			// token 的可用模型限制不含目标模型：保留请求原模型并记录。
+			// 请求由原模型服务，结果不能归因于被拒档位——结算只观测不训练。
 			common.SysLog(fmt.Sprintf(
 				"agentic-router: #%d blocked by token model limit, tier=%s model=%q",
 				d.ID, d.Tier, d.Model))
 			d.Model = originModel
+			train = false
 		}
 	}
-	c.Set(pendingKey, &pending{id: d.ID, start: time.Now()})
+	c.Set(pendingKey, &pending{id: d.ID, start: time.Now(), mode: d.Mode, train: train})
 	common.SysLog(fmt.Sprintf(
 		"agentic-router: #%d mode=%s type=%s complexity=%.2f tier=%s model=%q note=%q reason=%q",
 		d.ID, d.Mode, d.Type, d.Complexity, d.Tier, d.Model, d.Note, d.Reason))
@@ -180,10 +188,11 @@ func (h *Hook) Settle(c *gin.Context, success bool) {
 		return
 	}
 	dt := time.Since(p.start).Milliseconds()
-	if h.router.Mode() != "active" {
-		// shadow：请求由原模型服务，结果不能归因于路由档位，只观测不训练。
+	if !p.train {
+		// shadow 或被权限拒绝的改写：请求由原模型服务，结果不能归因于路由
+		// 档位，只观测不训练（模式取决策时快照，中途切模式不影响归属）。
 		common.SysLog(fmt.Sprintf(
-			"agentic-router: observe #%d success=%v dt=%dms (shadow, no training)", p.id, success, dt))
+			"agentic-router: observe #%d mode=%s success=%v dt=%dms (no training)", p.id, p.mode, success, dt))
 		return
 	}
 	res := h.router.Settle(p.id, core.Outcome{Success: success, DtMs: dt})
@@ -377,7 +386,7 @@ func extractText(body []byte) (text, model string) {
 	if len(r) > 4000 {
 		r = r[:4000]
 	}
-	return string(r), req.Model
+	return strings.TrimSpace(string(r)), req.Model
 }
 
 type chatMessage struct {

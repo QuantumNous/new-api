@@ -98,6 +98,43 @@ func TestActiveRespectsTokenModelLimit(t *testing.T) {
 	assert.Equal(t, "test-base", common.GetContextKeyString(c, constant.ContextKeyOriginalModel))
 }
 
+func TestBlockedDecisionDoesNotTrain(t *testing.T) {
+	h := newActiveHook(t, "active", "")
+	c := newTestContext(t, `{"model":"test-base","messages":[{"role":"user","content":"帮我总结这篇文章的要点"}]}`)
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, "test-base")
+	common.SetContextKey(c, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(c, constant.ContextKeyTokenModelLimit, map[string]bool{"test-base": true})
+
+	h.Decide(c, &fakeRequest{model: "test-base"})
+	h.Settle(c, true)
+
+	// 请求由原模型 test-base 服务，奖励不能归因给被拒的 fast 档
+	assert.Zero(t, h.Router().State.UCB.Total, "rejected decisions must not train the flywheel")
+}
+
+func TestWhitespaceOnlyContentSkipsRouting(t *testing.T) {
+	h := newActiveHook(t, "active", "")
+	c := newTestContext(t, `{"model":"test-base","messages":[{"role":"user","content":"   \n\t"}]}`)
+	req := &fakeRequest{model: "test-base"}
+
+	h.Decide(c, req)
+
+	assert.Equal(t, "test-base", req.model)
+	_, ok := c.Get(pendingKey)
+	assert.False(t, ok, "whitespace-only content is not classifiable text")
+}
+
+func TestSettleUsesDecisionTimeMode(t *testing.T) {
+	h := newActiveHook(t, "shadow", "")
+	c := newTestContext(t, `{"model":"test-base","messages":[{"role":"user","content":"帮我总结这篇文章的要点"}]}`)
+
+	h.Decide(c, &fakeRequest{model: "test-base"})
+	h.Router().SetMode("active") // 中途切 active：已开始的请求仍按 shadow 归属
+	h.Settle(c, true)
+
+	assert.Zero(t, h.Router().State.UCB.Total, "settle must use the mode captured at decision time")
+}
+
 func TestSkipsRoutingWithoutUserText(t *testing.T) {
 	h := newActiveHook(t, "active", "")
 	c := newTestContext(t, `{"model":"test-base"}`) // 没有 messages

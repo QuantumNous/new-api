@@ -203,6 +203,8 @@ func (r *Router) Mode() string {
 }
 
 // MarshalState 在锁内序列化状态（宿主持久化用，避免与并发的 Decide/Settle 竞态）。
+// 注：刻意用标准库 encoding/json 而非仓库的 JSON 封装——core 与跨语言参考实现
+// （js/python）逐行对拍、零仓库依赖，是其可移植性的前提。
 func (r *Router) MarshalState() []byte {
 	r.mu.Lock()
 	defer r.mu.Unlock()
