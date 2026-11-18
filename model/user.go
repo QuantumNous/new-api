@@ -225,10 +225,6 @@ func UpdateUserBindColumn(userId int, column string, value string) error {
 // for the retained account, personal, and administration areas.
 func generateDefaultSidebarConfigForRole(userRole int) string {
 	defaultConfig := map[string]any{
-		"chat": map[string]any{
-			"enabled": true,
-			"chat":    true,
-		},
 		"console": map[string]any{
 			"enabled": true,
 			"detail":  true,
