@@ -21,6 +21,16 @@ We provide security updates for the following versions:
 
 We strongly recommend that users always use the latest version for the best security and features.
 
+## Frequently Reported Behaviors That Are Expected
+
+Check this list before submitting a report. If you find a security impact beyond what an entry describes, please [report it privately](#how-to-report).
+
+### Midjourney images can be viewed without signing in
+
+New API lets anyone who has the image link or knows the task ID on that instance view the corresponding image without an account or API key. Keep this in mind when sharing links or task IDs. Turning off `MjForwardUrlEnabled` changes the URL returned to clients; it does not make images private.
+
+This behavior covers viewing the image only. For example, if an unauthenticated caller can also read the task’s private details or modify the task, please report that separately.
+
 ## Reporting a Vulnerability
 
 We take security vulnerability reports very seriously. If you discover a security issue, please follow the steps below for responsible disclosure.
