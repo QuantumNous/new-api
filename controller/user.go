@@ -16,7 +16,6 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
 
-
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -1106,9 +1105,5 @@ func ManageUser(c *gin.Context) {
 		"data":    clearUser,
 	})
 	return
-}
-
-type topUpRequest struct {
-	Key string `json:"key"`
 }
 
