@@ -98,11 +98,6 @@ func main() {
 
 	service.StartSystemTaskRunner()
 
-	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
-		common.BatchUpdateEnabled = true
-		common.SysLog(common.LogText("batch update enabled with interval %ss", strconv.Itoa(common.BatchUpdateInterval)))
-		model.InitBatchUpdater()
-	}
 
 	host := os.Getenv("HOST")
 	if os.Getenv("ENABLE_PPROF") == "true" {
