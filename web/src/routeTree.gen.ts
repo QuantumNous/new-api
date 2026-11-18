@@ -625,12 +625,10 @@ export interface FileRouteTypes {
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
-    | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/usage-logs/audit'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
-    | '/_authenticated/models/'
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
@@ -644,7 +642,6 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/billing/$section'
     | '/_authenticated/system-settings/content/$section'
-    | '/_authenticated/system-settings/models/$section'
     | '/_authenticated/system-settings/operations/$section'
     | '/_authenticated/system-settings/request-policies/$section'
     | '/_authenticated/system-settings/security/$section'
@@ -652,7 +649,6 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
     | '/_authenticated/system-settings/content/'
-    | '/_authenticated/system-settings/models/'
     | '/_authenticated/system-settings/operations/'
     | '/_authenticated/system-settings/request-policies/'
     | '/_authenticated/system-settings/security/'
@@ -886,14 +882,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedKeysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/models/': {
-      id: '/_authenticated/models/'
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/models/$section': {
-      id: '/_authenticated/models/$section'
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/playground/': {
       id: '/_authenticated/playground/'
       path: '/playground'
@@ -1024,14 +1012,6 @@ declare module '@tanstack/react-router' {
       path: '/content/$section'
       fullPath: '/system-settings/content/$section'
       preLoaderRoute: typeof AuthenticatedSystemSettingsContentSectionRouteImport
-      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
-    }
-    '/_authenticated/system-settings/models/': {
-      id: '/_authenticated/system-settings/models/'
-      parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
-    }
-    '/_authenticated/system-settings/models/$section': {
-      id: '/_authenticated/system-settings/models/$section'
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
     '/_authenticated/system-settings/operations/': {
