@@ -200,6 +200,17 @@ export type RequestPluginAdminStep = {
 }
 
 export interface LogOtherData {
+  svg_author?: {
+    billing_model: string
+    quota: number
+    usage: {
+      model: string
+      input_tokens: number
+      output_tokens: number
+      reasoning_tokens: number
+      total_tokens: number
+    } | null
+  }
   admin_info?: {
     request_policy?: PolicyEvent[]
     request_plugins?: RequestPluginAdminStep[]

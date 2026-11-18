@@ -39,6 +39,8 @@ const (
 	MsgQuotaPreConsumeInsufficient       = "quota.pre_consume_insufficient"
 	MsgQuotaSubscriptionInsufficient     = "quota.subscription_insufficient"
 	MsgRelayModelPriceNotConfigured      = "relay.model_price_not_configured"
+	MsgRelaySVGAuthorRequired            = "relay.svg_author_required"
+	MsgRelaySVGStreamingUnsupported      = "relay.svg_streaming_unsupported"
 	MsgRelayModelPriceNotConfiguredAdmin = "relay.model_price_not_configured_admin"
 	MsgRelayTaskUsagePriceUnsupported    = "relay.task_usage_price_unsupported"
 	MsgRelaySharedTaskPriceNeedsOverride = "relay.shared_task_price_needs_override"

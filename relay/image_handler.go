@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,8 +11,10 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -33,6 +36,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	info.InitChannelMeta(c)
 	info.BillingImageCount = nil
 	info.ImageRequestCount = 0
+	info.SVGAuthor = nil
 
 	imageReq, ok := info.Request.(*dto.ImageRequest)
 	if !ok {
@@ -62,7 +66,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	var requestBody io.Reader
 	var jsonData []byte
 	var outbound struct {
-		N *uint `json:"n"`
+		N            *uint           `json:"n"`
+		OutputFormat json.RawMessage `json:"output_format"`
+		SVG          json.RawMessage `json:"svg"`
+		Stream       *bool           `json:"stream"`
 	}
 	validateQuantity := false
 
@@ -189,6 +196,27 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		requestBody = body
 	}
 
+	if info.ApiType == constant.APITypeOpenAI && info.RelayMode == relayconstant.RelayModeImagesGenerations {
+		var format, sentFormat string
+		_ = common.Unmarshal(imageReq.OutputFormat, &format)
+		_ = common.Unmarshal(outbound.OutputFormat, &sentFormat)
+		if format == "svg" || sentFormat == "svg" {
+			var requested, sent struct {
+				Model string `json:"model"`
+			}
+			if format != "svg" || sentFormat != format || common.Unmarshal(imageReq.Svg, &requested) != nil || strings.TrimSpace(requested.Model) == "" ||
+				common.Unmarshal(outbound.SVG, &sent) != nil || sent.Model != requested.Model {
+				return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGAuthorRequired)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+			if info.IsStream || outbound.Stream != nil && *outbound.Stream {
+				return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGStreamingUnsupported)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+			info.SVGAuthor, err = helper.PriceSVGAuthor(c, info, requested.Model)
+			if err != nil {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+		}
+	}
 	if billingErr := service.PrepareImageBillingForRequest(c, info, imageCount); billingErr != nil {
 		return billingErr
 	}

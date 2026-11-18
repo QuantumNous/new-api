@@ -68,8 +68,14 @@ import {
 import { pluginUsageSchema } from '@/features/pricing/lib/plugin-pricing'
 import { PolicyDecisionRecord } from '@/features/system-settings/request-policies/decision-record'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
+import {
+  formatLogQuota,
+  formatNumber,
+  formatTokens,
+  formatUseTime,
+} from '@/lib/format'
 import { translateServerText } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
@@ -399,7 +405,8 @@ function BillingBreakdown(props: {
 }
 
 function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { log, other } = props
 
   const promptTokens = log.prompt_tokens || 0
@@ -414,7 +421,8 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
     cacheWrite12h > 0 ? Math.max(cacheWrite - cacheWrite12h, 0) : 0
   const hasTokens = promptTokens > 0 || completionTokens > 0
 
-  if (!hasTokens) return null
+  const author = other.svg_author
+  if (!hasTokens && !author) return null
 
   const compiled = compileBillingExpression(
     decodeBillingExprB64(other.expr_b64)
@@ -498,6 +506,52 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
       {rows.map((row) => (
         <DetailRow key={row.label} label={row.label} value={row.value} mono />
       ))}
+      {author && (
+        <div role='group' aria-label='SVG' className='space-y-2'>
+          <Label className='text-xs font-semibold'>SVG</Label>
+          <DetailRow
+            label={t('Request Model')}
+            value={author.billing_model}
+            mono
+          />
+          {author.usage ? (
+            <>
+              <DetailRow
+                label={t('Actual Model')}
+                value={author.usage.model}
+                mono
+              />
+              <DetailRow
+                label={t('Input Tokens')}
+                value={formatNumber(author.usage.input_tokens, locale)}
+                mono
+              />
+              <DetailRow
+                label={t('Output Tokens')}
+                value={formatNumber(author.usage.output_tokens, locale)}
+                mono
+              />
+              <DetailRow
+                label={`${t('Output Tokens')} (${t('Reasoning')})`}
+                value={formatNumber(author.usage.reasoning_tokens, locale)}
+                mono
+              />
+              <DetailRow
+                label={t('Total Tokens')}
+                value={formatNumber(author.usage.total_tokens, locale)}
+                mono
+              />
+            </>
+          ) : (
+            <DetailRow label={t('Total Tokens')} value={t('Unavailable')} />
+          )}
+          <DetailRow
+            label={t('Cost')}
+            value={formatLogQuota(author.quota)}
+            mono
+          />
+        </div>
+      )}
       {other.billing_tokens && (
         <div
           role='group'

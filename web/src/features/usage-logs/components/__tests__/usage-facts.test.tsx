@@ -94,6 +94,29 @@ function rowValue(label: string): string | null {
   return screen.getByText(label).nextElementSibling?.textContent ?? null
 }
 
+test('shows SVG author tokens separately even without image usage', () => {
+  const client = renderDetails({
+    svg_author: {
+      billing_model: 'mini',
+      quota: 948,
+      usage: {
+        model: 'mini-snapshot',
+        input_tokens: 1599,
+        output_tokens: 155,
+        reasoning_tokens: 80,
+        total_tokens: 1754,
+      },
+    },
+  })
+  const author = within(screen.getByRole('group', { name: 'SVG' }))
+  expect(author.getByText('mini')).toBeVisible()
+  expect(author.getByText('1,599')).toBeVisible()
+  expect(author.getByText('155')).toBeVisible()
+  expect(author.getByText('80')).toBeVisible()
+  expect(author.getByText('1,754')).toBeVisible()
+  client.clear()
+})
+
 test('shows the recorded request and response models in log details', () => {
   const queryClient = renderDetails({
     response_model: {

@@ -6396,6 +6396,7 @@
     "Supports PNG, JPG, SVG, or WebP. Recommended size: 128×128 or smaller.": "支援 PNG、JPG、SVG 或 WebP，建議尺寸不超過 128×128。",
     "Surprise me": "給我驚喜",
     "Sustained tokens per second": "持續每秒 Token 數",
+    "SVG: {{model}}, {{input}} input tokens, {{output}} output tokens, cost {{quota}}": "SVG：{{model}}，輸入 {{input}} token，輸出 {{output}} token，費用 {{quota}}",
     "Swap Face": "換臉",
     "Switch account": "切換帳號",
     "Switch affinity on success": "成功後切換親和",

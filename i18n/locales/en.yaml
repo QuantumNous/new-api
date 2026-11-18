@@ -97,3 +97,5 @@ channel.upstream_update_failed_channels: "Failed channel IDs (showing {{.Shown}}
 channel.upstream_update_more_omitted: " ({{.Count}} more omitted)"
 
 channel.notify_scheduled_subject: "Channel \"{{.Name}}\" (#{{.Id}}) plugin notification"
+relay.svg_author_required: "SVG generation requires an explicit svg.model that is unchanged during forwarding."
+relay.svg_streaming_unsupported: "SVG generation does not support streaming."

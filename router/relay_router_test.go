@@ -9,13 +9,17 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/plugins"
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestListModelsSupportsOpenAIAndGeminiAuthentication(t *testing.T) {
@@ -144,6 +148,61 @@ func TestGeminiRelayHandsLongRunningPredictionToPluginRoute(t *testing.T) {
 			assert.Contains(t, recorder.Body.String(), `"code":"model_not_found"`)
 		})
 	}
+}
+
+func TestImageSVGAuthorBilling(t *testing.T) {
+	h := newRelayHarness(t)
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error { saved[key] = value; return nil }))
+	selfUse := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() {
+		operation_setting.SelfUseModeEnabled = selfUse
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+	})
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"gpt-image-2.6-flare":"tiered_expr","gpt-5.4-mini":"tiered_expr","expensive-author":"tiered_expr"}`,
+		"billing_setting.billing_expr": `{"gpt-image-2.6-flare":"tier(\"image\", p*5+c*30)","gpt-5.4-mini":"tier(\"author\", p*0.75+c*4.5)","expensive-author":"tier(\"author\",fixed(201))"}`,
+	}))
+	channel := h.newChannel(constant.ChannelTypeOpenAI, "test")
+	channel.Models = "gpt-image-2.6-flare"
+	h.install(t, channel)
+	const path = "/v1/images/generations"
+	const request = `{"model":"gpt-image-2.6-flare","prompt":"circle","output_format":"svg"`
+	for _, suffix := range []string{`}`, `,"svg":{"model":"unpriced-author"}}`} {
+		result := h.post(t, path, request+suffix)
+		assert.Equal(t, http.StatusBadRequest, result.status, result.body)
+		assert.Zero(t, result.quota)
+		assert.Empty(t, h.upstream.captured())
+	}
+	const response = `{"data":[{"b64_json":"PHN2Zy8+"}],"usage":{"input_tokens":89,"output_tokens":824},"svg_usage":{"model":"gpt-5.4-mini-2026-03-17","input_tokens":1599,"output_tokens":155,"reasoning_tokens":80,"total_tokens":1754}}`
+	expensive := h.post(t, path, request+`,"svg":{"model":"expensive-author"}}`)
+	assert.Equal(t, http.StatusForbidden, expensive.status, expensive.body)
+	assert.Zero(t, expensive.quota)
+	require.Empty(t, h.upstream.captured())
+	h.upstream.respond = func(w http.ResponseWriter, _ int, _ capturedRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, response)
+	}
+	result := h.post(t, path, request+`,"svg":{"model":"gpt-5.4-mini"}}`)
+	require.Equal(t, http.StatusOK, result.status, result.body)
+	assert.JSONEq(t, response, result.body)
+	assert.Equal(t, 12583+948, result.quota)
+	assert.Equal(t, result.quota, result.log.Quota)
+	assert.EqualValues(t, 1, consumeLogCount(t))
+	assert.Equal(t, "gpt-5.4-mini", gjson.Get(result.log.Other, "svg_author.billing_model").String())
+	assert.Equal(t, "gpt-5.4-mini-2026-03-17", gjson.Get(result.log.Other, "svg_author.usage.model").String())
+	assert.EqualValues(t, 80, gjson.Get(result.log.Other, "svg_author.usage.reasoning_tokens").Int())
+	assert.EqualValues(t, 948, gjson.Get(result.log.Other, "svg_author.quota").Int())
+	plain := h.post(t, path, `{"model":"gpt-image-2.6-flare","prompt":"circle","output_format":"png"}`)
+	assert.Equal(t, 12583, plain.quota)
+	assert.False(t, gjson.Get(plain.log.Other, "svg_author").Exists())
+	channel.ParamOverride = common.GetPointer(`{"svg":{"model":"another-author"}}`)
+	h.install(t, channel)
+	replaced := h.post(t, path, request+`,"svg":{"model":"gpt-5.4-mini"}}`)
+	assert.Equal(t, http.StatusBadRequest, replaced.status, replaced.body)
+	assert.Zero(t, replaced.quota)
+	assert.Len(t, h.upstream.captured(), 2)
 }
 
 func setupRelayRouterTestDB(t *testing.T) {

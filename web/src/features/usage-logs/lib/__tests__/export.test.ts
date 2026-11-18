@@ -72,6 +72,47 @@ async function chineseTranslator() {
 }
 
 describe('usage log CSV export', () => {
+  test.each([true, false])(
+    'exports separate numeric SVG usage columns (admin=%s)',
+    async (admin) => {
+      const t = await chineseTranslator()
+      const header = getLogCsvHeader(admin, t)
+      const row = getLogCsvRow(
+        {
+          ...consumeLog,
+          other: JSON.stringify({
+            svg_author: {
+              billing_model: 'mini',
+              quota: 948,
+              usage: {
+                model: 'mini-snapshot',
+                input_tokens: 1599,
+                output_tokens: 155,
+                reasoning_tokens: 80,
+                total_tokens: 1754,
+              },
+            },
+          }),
+        },
+        admin,
+        t
+      )
+      expect(row[header.indexOf('Input Tokens')]).toBe('2008')
+      expect(row.slice(-7)).toEqual([
+        'mini',
+        'mini-snapshot',
+        '1599',
+        '155',
+        '80',
+        '1754',
+        '948',
+      ])
+      expect(header.at(-1)).toBe('SVG · Quota')
+      expect(getLogCsvRow(consumeLog, admin, t).slice(-7)).toEqual(
+        Array(7).fill('')
+      )
+    }
+  )
   test('header in the user view has no user or channel column', async () => {
     const t = await chineseTranslator()
 
@@ -96,7 +137,7 @@ describe('usage log CSV export', () => {
   test('consume log row matches the log table values', async () => {
     const t = await chineseTranslator()
 
-    expect(getLogCsvRow(consumeLog, false, t)).toEqual([
+    expect(getLogCsvRow(consumeLog, false, t).slice(0, -7)).toEqual([
       '2026-10-12 08:30:05',
       '消费',
       'prod',
@@ -154,7 +195,7 @@ describe('usage log CSV export', () => {
 
     expect(row.slice(1, 2)).toEqual(['充值'])
     expect(row.slice(5, 12)).toEqual(['', '', '', '', '', '', ''])
-    expect(row.at(-1)).toBe('充值 $5')
+    expect(row[getLogCsvHeader(false, t).indexOf('Details')]).toBe('充值 $5')
   })
 
   test('cells are quoted and text that starts a formula stays text', () => {
