@@ -25,18 +25,12 @@ import {
 } from './section-registry.tsx'
 
 const defaultContentSettings: ContentSettings = {
-  'console_setting.api_info': '[]',
   'console_setting.announcements': '[]',
   'console_setting.faq': '[]',
   'console_setting.uptime_kuma_groups': '[]',
-  'console_setting.api_info_enabled': true,
   'console_setting.announcements_enabled': true,
   'console_setting.faq_enabled': true,
   'console_setting.uptime_kuma_enabled': false,
-  DataExportEnabled: false,
-  DataExportDefaultTime: 'hour',
-  DataExportInterval: 5,
-  Chats: '[]',
 }
 
 function resolveContentSettings(
@@ -50,7 +44,6 @@ function resolveContentSettings(
 
   const legacyMap = [
     { current: 'console_setting.announcements', legacy: 'Announcements' },
-    { current: 'console_setting.api_info', legacy: 'ApiInfo' },
     { current: 'console_setting.faq', legacy: 'FAQ' },
   ] as const
 
