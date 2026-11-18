@@ -230,7 +230,7 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 	}
 	if fixedPricing {
 		entry.withoutTokens = sync.OnceValues(func() (*vm.Program, error) {
-			return expr.Compile(body, expr.Env(getCompileEnv(version)), expr.Patch(&requestRulePatcher{}),
+			return expr.Compile(body, expr.Env(getCompileEnv(version)), expr.Patch(&requestRulePatcher{}), expr.Patch(envAliasPatcher{}),
 				expr.Patch(missingTokenPatcher{}), expr.Function("$missingToken", func(...any) (any, error) {
 					return nil, ErrTokensUnavailable
 				}, new(func() float64)), expr.Function("$missingEnv", func(...any) (any, error) { return nil, ErrTokensUnavailable }, new(func() map[string]any)),

@@ -521,9 +521,8 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			settlementFailure = map[string]any{"attempted_quota": summary.Quota, "attempted_svg_quota": authorQuota, "error": err.Error()}
 			var rejected *fundingSettlementError
 			if errors.As(err, &rejected) {
-				imageQuota := summary.Quota - authorQuota
 				summary.Quota = rejected.reserved
-				authorQuota = min(authorQuota, max(summary.Quota-imageQuota, 0))
+				authorQuota = min(relayInfo.SVGAuthor.ReservedQuota, summary.Quota)
 			}
 		}
 	}

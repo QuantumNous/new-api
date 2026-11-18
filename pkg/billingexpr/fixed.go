@@ -11,6 +11,23 @@ import (
 
 var ErrTokensUnavailable = errors.New("token usage unavailable")
 
+// Inline lexical aliases of $env before guarding its reads. Expr rejects
+// shadowing, so each substitution is scoped to the declaration's own body.
+type envAliasPatcher struct{ name string }
+
+func (p envAliasPatcher) Visit(node *ast.Node) {
+	if id, ok := (*node).(*ast.IdentifierNode); ok && p.name != "" && id.Value == p.name {
+		ast.Patch(node, &ast.IdentifierNode{Value: "$env"})
+		return
+	}
+	if decl, ok := (*node).(*ast.VariableDeclaratorNode); ok {
+		if id, ok := decl.Value.(*ast.IdentifierNode); ok && id.Value == "$env" {
+			ast.Walk(&decl.Expr, envAliasPatcher{name: decl.Name})
+			ast.Patch(node, decl.Expr)
+		}
+	}
+}
+
 // Only a token read on the executed path makes a fixed fee unknowable.
 // A token-priced sibling of a selected fixed leaf is never evaluated.
 type missingTokenPatcher struct{}

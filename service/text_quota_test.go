@@ -1720,7 +1720,7 @@ func TestSVGSubscriptionRejectedDeltaRecordsReservedAmount(t *testing.T) {
 	seedUser(t, id, 10000)
 	seedChannel(t, id)
 	require.NoError(t, model.DB.AutoMigrate(&model.UserSubscription{}))
-	sub := model.UserSubscription{UserId: id, AmountTotal: 5000, AmountUsed: 5000}
+	sub := model.UserSubscription{UserId: id, AmountTotal: 6000, AmountUsed: 6000}
 	require.NoError(t, model.DB.Create(&sub).Error)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Request = httptest.NewRequest("POST", "/v1/images/generations", nil)
@@ -1728,15 +1728,17 @@ func TestSVGSubscriptionRejectedDeltaRecordsReservedAmount(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		UserId: id, OriginModelName: "image", UsingGroup: "default", StartTime: time.Now(),
 		ChannelMeta: &relaycommon.ChannelMeta{ChannelId: id}, PriceData: price,
-		BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id, SubscriptionPreConsumed: 5000,
+		BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id, SubscriptionPreConsumed: 6000, ImageQuotaBeforeGroup: 5000,
 		SVGAuthor: &relaycommon.SVGAuthorBilling{Pricing: &relaycommon.RelayInfo{OriginModelName: "mini", PriceData: price},
 			Usage: &relaycommon.SVGAuthorUsage{InputTokens: common.GetPointer(int32(1000)), OutputTokens: common.GetPointer(int32(0))}},
 	}
-	info.Billing = &BillingSession{relayInfo: info, funding: &SubscriptionFunding{subscriptionId: sub.Id}, preConsumedQuota: 5000}
-	PostTextConsumeQuota(ctx, info, &dto.Usage{PromptTokens: 5000, TotalTokens: 5000}, nil)
+	info.Billing = &BillingSession{relayInfo: info, funding: &SubscriptionFunding{subscriptionId: sub.Id}, preConsumedQuota: 6000}
+	info.SVGAuthor.Pricing.PriceData.QuotaToPreConsume = 1000
+	require.Nil(t, PrepareImageBillingForRequest(ctx, info, 1))
+	PostTextConsumeQuota(ctx, info, &dto.Usage{PromptTokens: 6000, TotalTokens: 6000}, nil)
 	log := getLastLog(t)
 	require.NotNil(t, log)
-	assert.Equal(t, 5000, log.Quota)
+	assert.Equal(t, 6000, log.Quota)
 	var other struct {
 		Author struct {
 			Quota *int `json:"quota"`
@@ -1750,9 +1752,9 @@ func TestSVGSubscriptionRejectedDeltaRecordsReservedAmount(t *testing.T) {
 	}
 	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
 	require.NotNil(t, other.Author.Quota)
-	assert.Zero(t, *other.Author.Quota)
-	assert.Equal(t, 6000, other.Admin.Failure.Attempted)
+	assert.Equal(t, 1000, *other.Author.Quota)
+	assert.Equal(t, 7000, other.Admin.Failure.Attempted)
 	assert.Equal(t, 1000, other.Admin.Failure.Author)
 	require.NoError(t, model.DB.First(&sub, sub.Id).Error)
-	assert.EqualValues(t, 5000, sub.AmountUsed)
+	assert.EqualValues(t, 6000, sub.AmountUsed)
 }

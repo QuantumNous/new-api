@@ -59,8 +59,9 @@ type ResponsesUsageInfo struct {
 // SVGAuthorBilling prices the nested text model within the image request's
 // single billing session. The upstream snapshot name is diagnostic only.
 type SVGAuthorBilling struct {
-	Pricing *RelayInfo      `json:"-"`
-	Usage   *SVGAuthorUsage `json:"usage"`
+	ReservedQuota int             `json:"-"`
+	Pricing       *RelayInfo      `json:"-"`
+	Usage         *SVGAuthorUsage `json:"usage"`
 }
 
 type SVGAuthorUsage struct {
