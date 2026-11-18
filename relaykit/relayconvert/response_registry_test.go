@@ -560,6 +560,23 @@ func TestConvertStreamResponseStatefulDirectResponsesToClaude(t *testing.T) {
 	assert.Equal(t, 5, state.Usage().TotalTokens)
 }
 
+func TestConvertResponsesStreamErrorEvents(t *testing.T) {
+	for _, target := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude, types.RelayFormatGemini} {
+		for _, eventType := range []string{"error", "response.error", "response.failed"} {
+			t.Run(string(target)+"/"+eventType, func(t *testing.T) {
+				state, err := NewResponseStreamState(types.RelayFormatOpenAIResponses, target, ResponseStreamOptions{Model: "gpt-test"})
+				require.NoError(t, err)
+				results, err := ConvertStreamResponseChunk(nil, &convmeta.Values{}, state, &dto.ResponsesStreamResponse{
+					Type:    eventType,
+					Message: "upstream overloaded",
+				})
+				require.Error(t, err)
+				assert.Empty(t, results)
+			})
+		}
+	}
+}
+
 func TestResponseUsageMatrixChatAndResponsesDetails(t *testing.T) {
 	chat := textRegistryChatResponse()
 	chat.Usage = dto.Usage{

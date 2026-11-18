@@ -218,6 +218,72 @@ func TestOaiResponsesToChatBufferedStreamHandlerPreservesInterleavedClaudeConten
 	assert.Equal(t, "What would you like me to build?", claudeResponse.Content[3].GetText())
 }
 
+func TestOaiResponsesToChatHandlersRejectErrorEvents(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	for _, isStream := range []bool{false, true} {
+		for _, eventType := range []string{"error", "response.error", "response.failed"} {
+			name := "buffered/"
+			if isStream {
+				name = "stream/"
+			}
+			t.Run(name+eventType, func(t *testing.T) {
+				body := "data: {\"type\":\"" + eventType + "\",\"code\":\"server_error\",\"message\":\"upstream overloaded\",\"sequence_number\":1}\n\n"
+				c, recorder, resp, info := newResponsesChatTestContext(t, body, isStream)
+				var usage *dto.Usage
+				var apiErr *types.NewAPIError
+				if isStream {
+					usage, apiErr = OaiResponsesToChatStreamHandler(c, info, resp)
+				} else {
+					usage, apiErr = OaiResponsesToChatBufferedStreamHandler(c, info, resp)
+				}
+				assert.NotNil(t, apiErr, "an upstream error must fail before any output is sent")
+				assert.Nil(t, usage)
+				assert.Empty(t, recorder.Body.String(), "do not synthesize a successful response after an error")
+			})
+		}
+	}
+}
+
+func TestOaiResponsesToChatStreamHandlerStopsOnErrorAfterOutput(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test"}}`,
+		`data: {"type":"response.output_text.delta","delta":"hello"}`,
+		`data: {"type":"error","code":"server_error","message":"upstream overloaded","sequence_number":3}`,
+		``,
+	}, "\n")
+	for _, format := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude, types.RelayFormatGemini} {
+		t.Run(string(format), func(t *testing.T) {
+			c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+			info.RelayFormat = format
+			info.SetEstimatePromptTokens(2)
+			usage, apiErr := OaiResponsesToChatStreamHandler(c, info, resp)
+			require.Nil(t, apiErr)
+			require.NotNil(t, usage)
+			assert.Equal(t, 2, usage.PromptTokens)
+			assert.Positive(t, usage.CompletionTokens)
+			got := recorder.Body.String()
+			assert.Contains(t, got, "hello")
+			assert.Contains(t, got, `"error":`)
+			for _, marker := range []string{`"finish_reason":"stop"`, `"stop_reason":"end_turn"`, `"finishReason":"STOP"`, `data: [DONE]`} {
+				assert.NotContains(t, got, marker)
+			}
+		})
+	}
+}
+
 func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
