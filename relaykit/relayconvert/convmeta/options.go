@@ -40,6 +40,9 @@ type Options struct {
 }
 
 type ClaudeOptions struct {
+	// ResponsesPromptCaching enables native Anthropic cache breakpoints on
+	// converted Responses requests. Compatible endpoints need not accept them.
+	ResponsesPromptCaching bool
 	// ThinkingAdapterEnabled is the host thinking-suffix adapter toggle. The
 	// host passes it to reasoning.ParseClaudeModelSuffix, so -thinking,
 	// -nothinking, -thinking-<budget>, and effort tails such as -high on
