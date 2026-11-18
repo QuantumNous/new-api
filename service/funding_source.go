@@ -17,8 +17,8 @@ type FundingSource interface {
 	Source() string
 	// PreConsume 从该资金来源预扣 amount 额度
 	PreConsume(amount int) error
-	// Settle 根据差额调整资金来源（正数补扣，负数退还）
-	Settle(delta int) error
+	// Settle 根据差额调整资金来源（正数补扣，负数退还），返回实际生效的差额
+	Settle(delta int) (applied int, err error)
 	// Refund 退还所有预扣费
 	Refund() error
 }
@@ -55,14 +55,14 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	return nil
 }
 
-func (w *WalletFunding) Settle(delta int) error {
+func (w *WalletFunding) Settle(delta int) (int, error) {
 	if delta == 0 {
-		return nil
+		return 0, nil
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta, false)
+		return delta, model.DecreaseUserQuota(w.userId, delta, false)
 	}
-	return model.IncreaseUserQuota(w.userId, -delta, false)
+	return delta, model.IncreaseUserQuota(w.userId, -delta, false)
 }
 
 func (w *WalletFunding) Refund() error {
@@ -112,12 +112,12 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	return nil
 }
 
-func (s *SubscriptionFunding) Settle(delta int) error {
+func (s *SubscriptionFunding) Settle(delta int) (int, error) {
 	if delta == 0 {
-		return nil
+		return 0, nil
 	}
-	_, err := model.SettleUserSubscriptionDelta(s.subscriptionId, int64(delta))
-	return err
+	applied, err := model.SettleUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	return int(applied), err
 }
 
 func (s *SubscriptionFunding) Refund() error {

@@ -50,17 +50,17 @@ func TestSettleUserSubscriptionDelta(t *testing.T) {
 	sub := seedSettleSubscription(t, 100)
 
 	for _, step := range []struct {
-		delta     int64
-		uncovered int64
-		used      int64
+		delta   int64
+		applied int64
+		used    int64
 	}{
-		{delta: 40, uncovered: 0, used: 40},
-		{delta: 75, uncovered: 15, used: 100},
-		{delta: -500, uncovered: 0, used: 0},
+		{delta: 40, applied: 40, used: 40},
+		{delta: 75, applied: 60, used: 100},
+		{delta: -500, applied: -100, used: 0},
 	} {
-		uncovered, err := SettleUserSubscriptionDelta(sub.Id, step.delta)
+		applied, err := SettleUserSubscriptionDelta(sub.Id, step.delta)
 		require.NoError(t, err)
-		assert.Equal(t, step.uncovered, uncovered)
+		assert.Equal(t, step.applied, applied)
 		assert.Equal(t, step.used, subscriptionAmountUsed(t, sub.Id))
 	}
 

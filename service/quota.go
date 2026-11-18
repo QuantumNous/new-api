@@ -446,10 +446,11 @@ func postConsumeQuotaWithResult(relayInfo *relaycommon.RelayInfo, quota int, pre
 		}
 		delta := int64(quota)
 		if delta != 0 {
-			if _, err := model.SettleUserSubscriptionDelta(relayInfo.SubscriptionId, delta); err != nil {
+			applied, err := model.SettleUserSubscriptionDelta(relayInfo.SubscriptionId, delta)
+			if err != nil {
 				return result, err
 			}
-			relayInfo.SubscriptionPostDelta += delta
+			relayInfo.SubscriptionPostDelta += applied
 		}
 	} else {
 		// Wallet
