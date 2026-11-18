@@ -171,7 +171,7 @@ func TestImageSVGAuthorBilling(t *testing.T) {
 	h.install(t, channel)
 	const path = "/v1/images/generations"
 	const request = `{"model":"gpt-image-2.6-flare","prompt":"circle","output_format":"svg"`
-	for _, suffix := range []string{`}`, `,"svg":{"model":"unpriced-author"}}`} {
+	for _, suffix := range []string{`}`, `,"svg":{"model":"unpriced-author"}}`, `,"n":2,"svg":{"model":"gpt-5.4-mini"}}`} {
 		result := h.post(t, path, request+suffix)
 		assert.Equal(t, http.StatusBadRequest, result.status, result.body)
 		assert.Zero(t, result.quota)

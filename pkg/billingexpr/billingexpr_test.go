@@ -11,6 +11,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFixedPriceWithoutUsage(t *testing.T) {
+	for _, condition := range []string{`len == 0`, `$env["len"] == 0`, `$env[param("key")] == 0`, `(let env = $env; env.len == 0)`} {
+		t.Run(condition, func(t *testing.T) {
+			expression := condition + ` ? tier("free",fixed(0.01)) : tier("other",p)`
+			req := billingexpr.RequestInput{Body: []byte(`{"key":"len"}`)}
+			cost, _, err := billingexpr.RunExprWithRequest(expression, billingexpr.TokenParams{}, req)
+			require.NoError(t, err)
+			assert.Equal(t, 10000.0, cost)
+			req.TokensUnavailable = true
+			_, _, err = billingexpr.RunExprWithRequest(expression, billingexpr.TokenParams{}, req)
+			require.ErrorIs(t, err, billingexpr.ErrTokensUnavailable)
+		})
+	}
+}
+
 func TestFixedPriceBranches(t *testing.T) {
 	const expression = `(len <= 32000 ? tier("short", fixed(0.01)) : tier("long", p * 2 + c * 8)) * (param("fast") == true ? 2 : 1)`
 	for _, tc := range []struct {

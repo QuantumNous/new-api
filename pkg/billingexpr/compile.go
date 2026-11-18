@@ -232,8 +232,18 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 		entry.withoutTokens = sync.OnceValues(func() (*vm.Program, error) {
 			return expr.Compile(body, expr.Env(getCompileEnv(version)), expr.Patch(&requestRulePatcher{}),
 				expr.Patch(missingTokenPatcher{}), expr.Function("$missingToken", func(...any) (any, error) {
-					return nil, fmt.Errorf("token usage unavailable")
-				}, new(func() float64)), expr.AsFloat64())
+					return nil, ErrTokensUnavailable
+				}, new(func() float64)), expr.Function("$missingEnv", func(...any) (any, error) { return nil, ErrTokensUnavailable }, new(func() map[string]any)),
+				expr.Function("$lookupEnv", func(args ...any) (any, error) {
+					key, ok := args[1].(string)
+					if !ok {
+						return nil, fmt.Errorf("expected string environment key")
+					}
+					if key != "image_count" && slices.Contains(chatQuantityVars, key) {
+						return nil, ErrTokensUnavailable
+					}
+					return args[0].(map[string]any)[key], nil
+				}, new(func(map[string]any, any) any)), expr.AsFloat64())
 		})
 	}
 	cacheMu.Lock()

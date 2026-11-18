@@ -100,3 +100,4 @@ channel.notify_scheduled_subject: "Channel \"{{.Name}}\" (#{{.Id}}) plugin notif
 relay.svg_author_required: "SVG generation requires an explicit svg.model that is unchanged during forwarding."
 relay.svg_streaming_unsupported: "SVG generation does not support streaming."
 relay.svg_author_unsupported: "This image channel does not support SVG author billing."
+relay.svg_single_image: "SVG generation requires n=1."

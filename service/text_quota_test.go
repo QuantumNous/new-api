@@ -1706,6 +1706,14 @@ func TestPostTextConsumeQuotaLogsMissingUsageAsStructuredContent(t *testing.T) {
 	}, other["content_parts"])
 }
 
+func TestSVGMissingUsageRetainsReservationOnEvaluationFailure(t *testing.T) {
+	const expr = `tier(["flat"][param("index")],fixed(0.01))`
+	snap := &billingexpr.BillingSnapshot{ExprString: expr, ExprHash: billingexpr.ExprHashString(expr), GroupRatio: 1, QuotaPerUnit: 500000}
+	author := &relaycommon.SVGAuthorBilling{Pricing: &relaycommon.RelayInfo{TieredBillingSnapshot: snap, PriceData: hosttypes.PriceData{QuotaToPreConsume: 5000}, BillingRequestInput: &billingexpr.RequestInput{Body: []byte(`{"index":5}`)}}}
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	assert.Equal(t, 5000, svgAuthorQuota(ctx, author))
+}
+
 func TestSVGSubscriptionRejectedDeltaRecordsReservedAmount(t *testing.T) {
 	truncate(t)
 	const id = 79
@@ -1731,7 +1739,7 @@ func TestSVGSubscriptionRejectedDeltaRecordsReservedAmount(t *testing.T) {
 	assert.Equal(t, 5000, log.Quota)
 	var other struct {
 		Author struct {
-			Quota int `json:"quota"`
+			Quota *int `json:"quota"`
 		} `json:"svg_author"`
 		Admin struct {
 			Failure struct {
@@ -1741,7 +1749,8 @@ func TestSVGSubscriptionRejectedDeltaRecordsReservedAmount(t *testing.T) {
 		} `json:"admin_info"`
 	}
 	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
-	assert.Zero(t, other.Author.Quota)
+	require.NotNil(t, other.Author.Quota)
+	assert.Zero(t, *other.Author.Quota)
 	assert.Equal(t, 6000, other.Admin.Failure.Attempted)
 	assert.Equal(t, 1000, other.Admin.Failure.Author)
 	require.NoError(t, model.DB.First(&sub, sub.Id).Error)

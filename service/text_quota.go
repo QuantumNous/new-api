@@ -424,7 +424,14 @@ func svgAuthorQuota(ctx *gin.Context, author *relaycommon.SVGAuthorBilling) int 
 		}
 		request.TokensUnavailable = true
 		result, err := billingexpr.ComputeTieredQuotaWithRequest(snap, billingexpr.TokenParams{}, request)
-		if err != nil || result.BillingUnit != billingexpr.BillingUnitRequest {
+		if errors.Is(err, billingexpr.ErrTokensUnavailable) {
+			return 0
+		}
+		if err != nil {
+			logger.LogWarn(ctx, common.LogText("SVG author settlement failed; retaining reservation: %s", err.Error()))
+			return price.QuotaToPreConsume
+		}
+		if result.BillingUnit != billingexpr.BillingUnitRequest {
 			return 0
 		}
 		noteQuotaClamp(info, result.Clamp)

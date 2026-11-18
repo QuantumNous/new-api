@@ -1,6 +1,7 @@
 package billingexpr
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -8,13 +9,32 @@ import (
 	"github.com/expr-lang/expr/ast"
 )
 
+var ErrTokensUnavailable = errors.New("token usage unavailable")
+
 // Only a token read on the executed path makes a fixed fee unknowable.
 // A token-priced sibling of a selected fixed leaf is never evaluated.
 type missingTokenPatcher struct{}
 
 func (missingTokenPatcher) Visit(node *ast.Node) {
-	if id, ok := (*node).(*ast.IdentifierNode); ok && id.Value != "image_count" && slices.Contains(chatQuantityVars, id.Value) {
-		ast.Patch(node, &ast.CallNode{Callee: &ast.IdentifierNode{Value: "$missingToken"}})
+	if id, ok := (*node).(*ast.IdentifierNode); ok {
+		switch {
+		case id.Value == "$env":
+			// A bare environment (including one passed through an alias)
+			// would expose zero-valued token fields.
+			ast.Patch(node, &ast.CallNode{Callee: &ast.IdentifierNode{Value: "$missingEnv"}})
+		case id.Value != "image_count" && slices.Contains(chatQuantityVars, id.Value):
+			ast.Patch(node, &ast.CallNode{Callee: &ast.IdentifierNode{Value: "$missingToken"}})
+		}
+		return
+	}
+	// Visitors walk children first. A keyed environment lookup can safely
+	// proceed if its actual key does not name a missing token count.
+	if member, ok := (*node).(*ast.MemberNode); ok {
+		if call, ok := member.Node.(*ast.CallNode); ok {
+			if id, ok := call.Callee.(*ast.IdentifierNode); ok && id.Value == "$missingEnv" {
+				ast.Patch(node, &ast.CallNode{Callee: &ast.IdentifierNode{Value: "$lookupEnv"}, Arguments: []ast.Node{&ast.IdentifierNode{Value: "$env"}, member.Property}})
+			}
+		}
 	}
 }
 

@@ -120,30 +120,37 @@ describe('usage log CSV export', () => {
       expect(getLogCsvRow(consumeLog, admin, t).slice(-7)).toEqual(
         Array(7).fill('')
       )
-      for (const usage of [
-        null,
-        {
-          model: 'mini-snapshot',
-          input_tokens: 0,
-          output_tokens: 0,
-          reasoning_tokens: 0,
-          total_tokens: 0,
-        },
-      ]) {
-        const paid = {
-          ...consumeLog,
-          other: JSON.stringify({
-            svg_author: { billing_model: 'mini', quota: 5000, usage },
-          }),
-        }
-        expect(getLogCsvRow(paid, admin, t).slice(-7)).toEqual(
-          usage
-            ? ['mini', 'mini-snapshot', '0', '0', '0', '0', '5000']
-            : ['mini', '', '', '', '', '', '5000']
-        )
-      }
     }
   )
+  test.each([
+    {
+      name: 'missing usage',
+      usage: null,
+      expected: ['mini', '', '', '', '', '', '5000'],
+    },
+    {
+      name: 'explicit zero usage',
+      usage: {
+        model: 'mini-snapshot',
+        input_tokens: 0,
+        output_tokens: 0,
+        reasoning_tokens: 0,
+        total_tokens: 0,
+      },
+      expected: ['mini', 'mini-snapshot', '0', '0', '0', '0', '5000'],
+    },
+  ])('keeps the paid SVG fee with $name', async ({ usage, expected }) => {
+    const t = await chineseTranslator()
+    const paid = {
+      ...consumeLog,
+      other: JSON.stringify({
+        svg_author: { billing_model: 'mini', quota: 5000, usage },
+      }),
+    }
+    for (const admin of [true, false]) {
+      expect(getLogCsvRow(paid, admin, t).slice(-7)).toEqual(expected)
+    }
+  })
   test('header in the user view has no user or channel column', async () => {
     const t = await chineseTranslator()
 

@@ -208,6 +208,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGAuthorUnsupported)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
 			if supportsAuthor {
+				if imageCount != 1 || imageReq.N != nil && *imageReq.N > 1 {
+					return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGSingleImage)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				}
 				var requested, sent struct {
 					Model string `json:"model"`
 				}

@@ -111,9 +111,9 @@ test('shows SVG author tokens separately and updates their locale in the open di
   const author = within(screen.getByRole('group', { name: 'SVG' }))
   expect(
     author.getByText('Request Model').nextElementSibling
-  ).toHaveTextContent('mini')
+  ).toHaveTextContent(/^mini$/)
   expect(author.getByText('Actual Model').nextElementSibling).toHaveTextContent(
-    'mini-snapshot'
+    /^mini-snapshot$/
   )
   expect(author.getByText('Cost').nextElementSibling).toHaveTextContent(
     '$0.001896'
