@@ -226,14 +226,29 @@ func TestOaiResponsesToChatHandlersRejectErrorEvents(t *testing.T) {
 	constant.StreamingTimeout = 30
 	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
 
+	cases := []struct {
+		name    string
+		event   string
+		code    types.ErrorCode
+		message string
+		param   string
+	}{
+		{"standard", `{"type":"error","code":"server_error","message":"upstream overloaded","param":"model","sequence_number":1}`, "server_error", "upstream overloaded", "model"},
+		{"nullable code", `{"type":"error","code":null,"message":"upstream overloaded","sequence_number":1}`, types.ErrorCodeBadResponse, "upstream overloaded", ""},
+		{"legacy error", `{"type":"response.error"}`, types.ErrorCodeBadResponse, "responses stream error: response.error", ""},
+		{"legacy failed", `{"type":"response.failed"}`, types.ErrorCodeBadResponse, "responses stream error: response.failed", ""},
+		{"empty standard", `{"type":"error"}`, types.ErrorCodeBadResponse, "responses stream error: error", ""},
+		{"nested error takes precedence", `{"type":"error","code":"server_error","message":"outer message","response":{"error":{"type":"invalid_request_error","code":"nested_error","message":"nested message"}}}`, "nested_error", "nested message", ""},
+		{"nested failed", `{"type":"response.failed","response":{"error":{"type":"server_error","code":"nested_error","message":"nested message"}}}`, "nested_error", "nested message", ""},
+	}
 	for _, isStream := range []bool{false, true} {
-		for _, eventType := range []string{"error", "response.error", "response.failed"} {
+		for _, tc := range cases {
 			name := "buffered/"
 			if isStream {
 				name = "stream/"
 			}
-			t.Run(name+eventType, func(t *testing.T) {
-				body := "data: {\"type\":\"" + eventType + "\",\"code\":\"server_error\",\"message\":\"upstream overloaded\",\"sequence_number\":1}\n\n"
+			t.Run(name+tc.name, func(t *testing.T) {
+				body := "data: " + tc.event + "\n\n"
 				c, recorder, resp, info := newResponsesChatTestContext(t, body, isStream)
 				var usage *dto.Usage
 				var apiErr *types.NewAPIError
@@ -242,9 +257,13 @@ func TestOaiResponsesToChatHandlersRejectErrorEvents(t *testing.T) {
 				} else {
 					usage, apiErr = OaiResponsesToChatBufferedStreamHandler(c, info, resp)
 				}
-				assert.NotNil(t, apiErr, "an upstream error must fail before any output is sent")
+				require.NotNil(t, apiErr, "an upstream error must fail before any output is sent")
 				assert.Nil(t, usage)
 				assert.Empty(t, recorder.Body.String(), "do not synthesize a successful response after an error")
+				assert.Equal(t, tc.code, apiErr.GetErrorCode())
+				assert.Equal(t, tc.message, apiErr.Error())
+				assert.Equal(t, tc.param, apiErr.ToOpenAIError().Param)
+				assert.Equal(t, string(tc.code), apiErr.ToClaudeError().Type)
 			})
 		}
 	}
@@ -261,12 +280,13 @@ func TestOaiResponsesToChatStreamHandlerStopsOnErrorAfterOutput(t *testing.T) {
 	body := strings.Join([]string{
 		`data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-test"}}`,
 		`data: {"type":"response.output_text.delta","delta":"hello"}`,
-		`data: {"type":"error","code":"server_error","message":"upstream overloaded","sequence_number":3}`,
+		`data: {"type":"error","code":"server_error","message":"upstream overloaded at https://private-upstream.example/v1/responses","sequence_number":3}`,
 		``,
 	}, "\n")
 	for _, format := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude, types.RelayFormatGemini} {
 		t.Run(string(format), func(t *testing.T) {
 			c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://private-upstream.example")
 			info.RelayFormat = format
 			info.SetEstimatePromptTokens(2)
 			usage, apiErr := OaiResponsesToChatStreamHandler(c, info, resp)
@@ -276,8 +296,43 @@ func TestOaiResponsesToChatStreamHandlerStopsOnErrorAfterOutput(t *testing.T) {
 			assert.Positive(t, usage.CompletionTokens)
 			got := recorder.Body.String()
 			assert.Contains(t, got, "hello")
-			assert.Contains(t, got, `"error":`)
-			for _, marker := range []string{`"finish_reason":"stop"`, `"stop_reason":"end_turn"`, `"finishReason":"STOP"`, `data: [DONE]`} {
+			assert.NotContains(t, got, "private-upstream.example")
+			assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+			errorEvents := 0
+			for frame := range strings.SplitSeq(got, "\n\n") {
+				if frame == "" {
+					continue
+				}
+				eventName, data := "", ""
+				for line := range strings.SplitSeq(frame, "\n") {
+					if value, ok := strings.CutPrefix(line, "event: "); ok {
+						eventName = value
+					} else if value, ok := strings.CutPrefix(line, "data: "); ok {
+						data = value
+					} else {
+						t.Errorf("invalid SSE line: %q", line)
+					}
+				}
+				require.NotEmpty(t, data, "every event must have an SSE data field")
+				var event struct {
+					Type  string             `json:"type"`
+					Error *types.OpenAIError `json:"error"`
+				}
+				require.NoError(t, common.UnmarshalJsonStr(data, &event))
+				if event.Error != nil {
+					if format == types.RelayFormatClaude {
+						assert.Equal(t, "error", eventName)
+						assert.Equal(t, "error", event.Type)
+					} else {
+						assert.Equal(t, "server_error", event.Error.Code)
+					}
+					assert.Contains(t, event.Error.Message, "upstream overloaded")
+					errorEvents++
+				}
+			}
+			assert.Equal(t, 1, errorEvents)
+			assert.Equal(t, "failed", info.StreamStatus.ResponseOutcome())
+			for _, marker := range []string{`"finish_reason":"stop"`, `"stop_reason":"end_turn"`, `"finishReason":"STOP"`, `message_stop`, `data: [DONE]`} {
 				assert.NotContains(t, got, marker)
 			}
 		})
