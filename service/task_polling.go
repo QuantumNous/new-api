@@ -239,10 +239,6 @@ func DispatchPlatformUpdate(ctx context.Context, platform constant.TaskPlatform,
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if platform == constant.TaskPlatformMidjourney {
-		// MJ 轮询由其自身处理，这里预留入口
-		return
-	}
 	adaptor := GetTaskAdaptorFunc(platform)
 	if batchAdaptor, ok := adaptor.(BatchTaskPollingAdaptor); ok && batchAdaptor.FetchMode() == "batch" {
 		if err := UpdateBatchTasks(ctx, batchAdaptor, taskChannelM, taskM); err != nil {
