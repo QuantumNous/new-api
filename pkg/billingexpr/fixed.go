@@ -46,12 +46,24 @@ func (missingTokenPatcher) Visit(node *ast.Node) {
 	}
 	// Visitors walk children first. A keyed environment lookup can safely
 	// proceed if its actual key does not name a missing token count.
-	if member, ok := (*node).(*ast.MemberNode); ok {
-		if call, ok := member.Node.(*ast.CallNode); ok {
-			if id, ok := call.Callee.(*ast.IdentifierNode); ok && id.Value == "$missingEnv" {
-				ast.Patch(node, &ast.CallNode{Callee: &ast.IdentifierNode{Value: "$lookupEnv"}, Arguments: []ast.Node{&ast.IdentifierNode{Value: "$env"}, member.Property}})
-			}
+	var source, key ast.Node
+	switch n := (*node).(type) {
+	case *ast.MemberNode:
+		source, key = n.Node, n.Property
+	case *ast.BuiltinNode:
+		if n.Name != "get" || len(n.Arguments) != 2 {
+			return
 		}
+		source, key = n.Arguments[0], n.Arguments[1]
+	default:
+		return
+	}
+	call, ok := source.(*ast.CallNode)
+	if !ok {
+		return
+	}
+	if id, ok := call.Callee.(*ast.IdentifierNode); ok && id.Value == "$missingEnv" {
+		ast.Patch(node, &ast.CallNode{Callee: &ast.IdentifierNode{Value: "$lookupEnv"}, Arguments: []ast.Node{&ast.IdentifierNode{Value: "$env"}, key}})
 	}
 }
 

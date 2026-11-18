@@ -207,6 +207,12 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 		return ok && identifier.Value == "fixed"
 	}) != nil
 	if fixedPricing {
+		if ast.Find(tree.Node, func(node ast.Node) bool {
+			decl, ok := node.(*ast.VariableDeclaratorNode)
+			return ok && decl.Name == "$env"
+		}) != nil {
+			return nil, fmt.Errorf("expr compile error: fixed pricing cannot rebind $env")
+		}
 		if err := validateFixedPricingTree(tree.Node); err != nil {
 			return nil, fmt.Errorf("expr compile error: %w", err)
 		}
