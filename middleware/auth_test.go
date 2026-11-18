@@ -366,6 +366,56 @@ func TestTryUserAuthCredentialClassification(t *testing.T) {
 	assert.Contains(t, databaseFailureResponse.Body.String(), "AUTH_INTERNAL_ERROR")
 }
 
+// Self-deleting an account soft-deletes the user but leaves its API keys in
+// place; those keys must be rejected as invalid, not as a database failure,
+// including when Redis still held the owner from an earlier request.
+func TestTokenAuthRejectsKeysOfDeletedUser(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/v1/chat/completions", TokenAuth(), func(c *gin.Context) { c.Status(http.StatusOK) })
+	router.GET("/api/usage/token", TokenAuthReadOnly(), func(c *gin.Context) { c.Status(http.StatusOK) })
+	request := func(path, key string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer sk-"+key)
+		req.Header.Set("Accept-Language", "zh-CN")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		return response
+	}
+
+	for _, redisEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("redis=%t", redisEnabled), func(t *testing.T) {
+			setupDashboardAuthMiddlewareTest(t)
+			if redisEnabled {
+				useRateLimitMiniRedis(t)
+			}
+			require.NoError(t, model.DB.AutoMigrate(&model.Token{}))
+			t.Setenv("LOG_SQL_DSN", "")
+			// Shares the main database and initializes its quoted column names,
+			// which the API key lookup needs.
+			require.NoError(t, model.InitLogDB())
+			user := createMiddlewarePATUser(t, "deleted-key-owner", "deleted-key-owner-pat")
+			key := "deletedownerkey0123456789abcdefghijklmnopqrstuvwx"
+			require.NoError(t, model.DB.Create(&model.Token{
+				UserId: user.Id, Key: key, Name: "owner key", Status: common.TokenStatusEnabled,
+				ExpiredTime: -1, UnlimitedQuota: true,
+			}).Error)
+
+			for _, path := range []string{"/v1/chat/completions", "/api/usage/token"} {
+				assert.Equal(t, http.StatusOK, request(path, key).Code, path)
+			}
+			_, err := model.DeleteUserById(user.Id)
+			require.NoError(t, err)
+			for _, path := range []string{"/v1/chat/completions", "/api/usage/token"} {
+				response := request(path, key)
+				assert.Equal(t, http.StatusUnauthorized, response.Code, path)
+				assert.Contains(t, response.Body.String(), `"message":"无效的令牌`, path)
+			}
+		})
+	}
+}
+
 func createMiddlewareScopedToken(t *testing.T, userID int, expiresAt int64, scopes ...string) (string, *model.UserAccessToken) {
 	t.Helper()
 	suffix, err := common.GenerateRandomCharsKey(43)
