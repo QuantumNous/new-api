@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -16,29 +17,29 @@ import (
 
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
-	common.OptionMapRWMutex.Lock()
-	for k, v := range common.OptionMap {
+	common.OptionMapRWMutex.RLock()
+	for key, value := range common.OptionMap {
+		if key == "theme.frontend" || key == "ResendKeyConfigured" {
 			continue
 		}
-		value := common.Interface2String(v)
-		isSensitiveKey := strings.HasSuffix(k, "Token") ||
-			strings.HasSuffix(k, "Secret") ||
-			strings.HasSuffix(k, "Key") ||
-			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key") ||
-			strings.HasSuffix(k, "private_key")
+		valueString := common.Interface2String(value)
+		isSensitiveKey := strings.HasSuffix(key, "Token") ||
+			strings.HasSuffix(key, "Secret") ||
+			strings.HasSuffix(key, "Key") ||
+			strings.HasSuffix(key, "secret") ||
+			strings.HasSuffix(key, "api_key") ||
+			strings.HasSuffix(key, "private_key")
 		if isSensitiveKey {
 			continue
 		}
-		options = append(options, &model.Option{
-			Key:   k,
-			Value: value,
-		})
+		options = append(options, &model.Option{Key: key, Value: valueString})
 	}
 	options = append(options, &model.Option{
-		Key: "ResendKeyConfigured", Value: strconv.FormatBool(strings.TrimSpace(common.OptionMap["ResendApiKey"]) != ""),
+		Key:   "ResendKeyConfigured",
+		Value: strconv.FormatBool(strings.TrimSpace(common.OptionMap["ResendApiKey"]) != ""),
 	})
-	common.OptionMapRWMutex.Unlock()
+	common.OptionMapRWMutex.RUnlock()
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
