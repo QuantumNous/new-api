@@ -34,6 +34,7 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *t
 		Metadata:             mustRawMessage(t, map[string]any{"trace": "abc"}),
 		ParallelToolCalls:    mustRawMessage(t, parallelToolCalls),
 		PromptCacheKey:       mustRawMessage(t, "cache-key"),
+		PromptCacheOptions:   mustRawMessage(t, map[string]any{"mode": "implicit", "ttl": "30m", "prewarm": false}),
 		PromptCacheRetention: mustRawMessage(t, "24h"),
 		Reasoning:            &dto.Reasoning{Effort: "medium"},
 	})
@@ -51,6 +52,8 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *t
 	assert.Equal(t, 0.9, lo.FromPtr(got.TopP))
 	assert.True(t, lo.FromPtr(got.ParallelTooCalls))
 	assert.Equal(t, "cache-key", got.PromptCacheKey)
+	assert.JSONEq(t, `{"mode":"implicit","ttl":"30m","prewarm":false}`, string(got.PromptCacheOptions))
+	assert.JSONEq(t, `"24h"`, string(got.PromptCacheRetention))
 	assert.Equal(t, "medium", got.ReasoningEffort)
 	assert.Equal(t, `"user-1"`, string(got.User))
 	assert.Equal(t, `false`, string(got.Store))

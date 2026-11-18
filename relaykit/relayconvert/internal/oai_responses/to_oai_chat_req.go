@@ -78,6 +78,7 @@ func ResponsesRequestToChatCompletionsRequest(ctx context.Context, req *dto.Open
 		Store:                req.Store,
 		Metadata:             req.Metadata,
 		SafetyIdentifier:     req.SafetyIdentifier,
+		PromptCacheOptions:   req.PromptCacheOptions,
 		PromptCacheRetention: req.PromptCacheRetention,
 		EnableThinking:       req.EnableThinking,
 		ThinkingBudget:       req.ThinkingBudget,

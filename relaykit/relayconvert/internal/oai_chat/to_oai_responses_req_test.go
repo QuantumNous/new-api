@@ -103,6 +103,32 @@ func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *test
 	})
 }
 
+func TestChatCompletionsRequestToResponsesRequestPreservesCacheControls(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		options, retention json.RawMessage
+	}{
+		{name: "implicit cache options", options: json.RawMessage(`{"mode":"implicit","ttl":"30m","prewarm":false}`)},
+		{name: "legacy retention", retention: json.RawMessage(`"24h"`)},
+		{name: "absent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := &dto.GeneralOpenAIRequest{Model: "gpt-test", Messages: []dto.Message{{Role: "user", Content: "stable prompt"}}, PromptCacheOptions: tc.options, PromptCacheRetention: tc.retention}
+			converted, err := ChatCompletionsRequestToResponsesRequest(context.Background(), request)
+			require.NoError(t, err)
+			encoded, err := kitutil.Marshal(converted)
+			require.NoError(t, err)
+			for name, expected := range map[string]json.RawMessage{"prompt_cache_options": tc.options, "prompt_cache_retention": tc.retention} {
+				if len(expected) == 0 {
+					assert.False(t, ojson.GetBytes(encoded, name).Exists(), name)
+				} else {
+					assert.JSONEq(t, string(expected), ojson.GetBytes(encoded, name).Raw, name)
+				}
+			}
+		})
+	}
+}
+
 func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *testing.T) {
 	tests := []struct {
 		name   string
