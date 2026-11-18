@@ -14,8 +14,10 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/plugins"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -203,6 +205,103 @@ func TestImageSVGAuthorBilling(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, replaced.status, replaced.body)
 	assert.Zero(t, replaced.quota)
 	assert.Len(t, h.upstream.captured(), 2)
+
+	channel.ParamOverride = nil
+	channel.Type = constant.ChannelTypeNewAPI
+	h.install(t, channel)
+	compatible := h.post(t, path, request+`,"svg":{"model":"gpt-5.4-mini"}}`)
+	require.Equal(t, http.StatusOK, compatible.status, compatible.body)
+	assert.Equal(t, 13531, compatible.quota)
+
+	channel.Type = constant.ChannelTypeAdvancedCustom
+	channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{
+		{IncomingPath: path, UpstreamPath: path},
+	}}})
+	h.install(t, channel)
+	h.upstream.reset()
+	retries := common.RetryTimes
+	common.RetryTimes = 1
+	t.Cleanup(func() { common.RetryTimes = retries })
+	h.upstream.respond = func(w http.ResponseWriter, attempt int, _ capturedRequest) {
+		if attempt == 1 {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, response)
+	}
+	retried := h.post(t, path, request+`,"svg":{"model":"gpt-5.4-mini"}}`)
+	require.Equal(t, http.StatusOK, retried.status, retried.body)
+	assert.Len(t, h.upstream.captured(), 2)
+	assert.Equal(t, 13531, retried.quota)
+
+	h.upstream.respond = func(w http.ResponseWriter, _ int, _ capturedRequest) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: unexpected payload\n\n")
+	}
+	stream := h.post(t, path, request+`,"svg":{"model":"gpt-5.4-mini"}}`)
+	assert.Equal(t, http.StatusBadGateway, stream.status, stream.body)
+	assert.NotContains(t, stream.body, "unexpected payload")
+	assert.Zero(t, stream.quota)
+
+	oldPrices := ratio_setting.ModelPrice2JSONString()
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(oldPrices)) })
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"legacy-author":0.01,"free-image":0}`))
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"fixed-author":"tiered_expr","mixed-author":"tiered_expr","expensive-author":"tiered_expr","gpt-image-2.6-flare":"tiered_expr"}`,
+		"billing_setting.billing_expr": `{"fixed-author":"tier(\"fixed\", fixed(0.01))","mixed-author":"len == 0 ? tier(\"fixed\",fixed(0.01)) : tier(\"token\",p)","expensive-author":"tier(\"fixed\",fixed(100))","gpt-image-2.6-flare":"tier(\"image\",p*5+c*30)"}`,
+	}))
+	for _, tc := range []struct {
+		model, usage string
+		quota        int
+	}{
+		{"fixed-author", "", 5000}, {"legacy-author", "", 5000}, {"mixed-author", "", 0}, {"legacy-author", `,"svg_usage":{"input_tokens":0,"output_tokens":0}`, 5000},
+	} {
+		h.upstream.respond = func(w http.ResponseWriter, _ int, _ capturedRequest) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"data":[{"b64_json":"ok"}],"usage":{"input_tokens":89,"output_tokens":824}`+tc.usage+"}")
+		}
+		result := h.post(t, path, request+`,"svg":{"model":"`+tc.model+`"}}`)
+		require.Equal(t, http.StatusOK, result.status, result.body)
+		assert.Equal(t, 12583+tc.quota, result.quota, tc.model)
+		assert.EqualValues(t, tc.quota, gjson.Get(result.log.Other, "svg_author.quota").Int())
+		if tc.usage == "" {
+			assert.Equal(t, "null", gjson.Get(result.log.Other, "svg_author.usage").Raw)
+		}
+	}
+
+	// A free image creates no initial session. The wallet covers the combined
+	// estimate, but the limited token only exceeds the trust threshold.
+	channel.Models = "free-image"
+	operation_setting.GetQuotaSetting().EnableFreeModelPreConsume = false // restored by saved config
+	h.install(t, channel)
+	require.NoError(t, model.DB.Model(&model.Token{}).Where("id = ?", h.tokenID).Update("remain_quota", 10000000).Error)
+	h.upstream.reset()
+	limited := h.post(t, path, `{"model":"free-image","prompt":"circle","output_format":"svg","svg":{"model":"expensive-author"}}`)
+	assert.Equal(t, http.StatusForbidden, limited.status, limited.body)
+	assert.Zero(t, limited.quota)
+	assert.Empty(t, h.upstream.captured())
+
+	// The image leaves only 100 quota before the single-request ceiling.
+	channel.Models = "gpt-image-2.6-flare"
+	h.install(t, channel)
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_expr": `{"gpt-image-2.6-flare":"tier(\"image\", c > 0 ? 4294967094.0 : 0.0)"}`,
+	}))
+	for _, target := range []struct {
+		table  any
+		id     int
+		column string
+	}{
+		{&model.Token{}, h.tokenID, "remain_quota"}, {&model.User{}, h.userID, "quota"},
+	} {
+		require.NoError(t, model.DB.Model(target.table).Where("id = ?", target.id).Update(target.column, int64(common.MaxQuota)+100000000).Error)
+	}
+	capped := h.post(t, path, request+`,"svg":{"model":"legacy-author"}}`)
+	require.Equal(t, http.StatusOK, capped.status, capped.body)
+	assert.Equal(t, common.MaxQuota, capped.quota)
+	assert.EqualValues(t, 100, gjson.Get(capped.log.Other, "svg_author.quota").Int())
 }
 
 func setupRelayRouterTestDB(t *testing.T) {

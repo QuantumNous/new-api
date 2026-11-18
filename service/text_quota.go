@@ -397,6 +397,33 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 	return "openai"
 }
 
+// svgAuthorQuota prices only the text model; missing token counts cannot
+// select a usage-dependent tier, but do not invalidate a per-request fee.
+func svgAuthorQuota(ctx *gin.Context, author *relaycommon.SVGAuthorBilling) int {
+	info := author.Pricing
+	price := info.PriceData
+	if price.UsePrice {
+		amount := decimal.NewFromFloat(price.ModelPrice).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).Mul(decimal.NewFromFloat(price.GroupRatioInfo.GroupRatio))
+		quota, clamp := common.QuotaFromDecimalChecked(amount)
+		noteQuotaClamp(info, clamp)
+		return quota
+	}
+	tokens := dto.Usage{}
+	if u := author.Usage; u != nil {
+		tokens.PromptTokens = int(*u.InputTokens)
+		tokens.CompletionTokens = int(*u.OutputTokens) // Includes reasoning tokens.
+	} else {
+		snap := info.TieredBillingSnapshot
+		if snap == nil || snap.EstimatedBillingUnit != billingexpr.BillingUnitRequest || billingexpr.UsesChatQuantities(snap.ExprString) {
+			return 0
+		}
+	}
+	if ok, quota, _ := TryTieredSettle(info, BuildTieredTokenParams(&tokens, false, nil)); ok {
+		return quota
+	}
+	return calculateTextQuotaSummary(ctx, info, &tokens).Quota
+}
+
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []*common.Message) {
 	originUsage := usage
 	billingUsage := effectiveBillingUsage(usage)
@@ -439,15 +466,8 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 
 	var authorQuota int
-	if author := relayInfo.SVGAuthor; author != nil && author.Usage != nil {
-		u := author.Usage
-		tokens := &dto.Usage{PromptTokens: int(*u.InputTokens), CompletionTokens: int(*u.OutputTokens)}
-		// Reasoning tokens are a subset of the reported output, not another charge.
-		if ok, quota, _ := TryTieredSettle(author.Pricing, BuildTieredTokenParams(tokens, false, nil)); ok {
-			authorQuota = quota
-		} else {
-			authorQuota = calculateTextQuotaSummary(ctx, author.Pricing, tokens).Quota
-		}
+	if author := relayInfo.SVGAuthor; author != nil {
+		authorQuota = svgAuthorQuota(ctx, author)
 		if authorQuota < 0 {
 			logger.LogWarn(ctx, common.LogText("negative SVG author charge; retaining the author reservation"))
 			authorQuota = author.Pricing.PriceData.QuotaToPreConsume
@@ -455,10 +475,13 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		noteQuotaClamp(relayInfo, author.Pricing.QuotaClamp)
 		total, clamp := common.QuotaFromFloatChecked(float64(summary.Quota) + float64(authorQuota))
 		noteQuotaClamp(relayInfo, clamp)
+		authorQuota = total - summary.Quota
 		summary.Quota = total
-		extraContent = append(extraContent, common.NewMessage("SVG: {{model}}, {{input}} input tokens, {{output}} output tokens, cost {{quota}}", map[string]any{
-			"model": author.Pricing.OriginModelName, "input": *u.InputTokens, "output": *u.OutputTokens, "quota": logger.FormatQuota(authorQuota),
-		}))
+		if u := author.Usage; u != nil {
+			extraContent = append(extraContent, common.NewMessage("SVG: {{model}}, {{input}} input tokens, {{output}} output tokens, cost {{quota}}", map[string]any{
+				"model": author.Pricing.OriginModelName, "input": *u.InputTokens, "output": *u.OutputTokens, "quota": logger.FormatQuota(authorQuota),
+			}))
+		}
 	}
 	for _, item := range summary.ToolSurchargeItems {
 		q := decimal.NewFromFloat(item.Price).

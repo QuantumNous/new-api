@@ -83,6 +83,9 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 	}
 	info.PriceData.FreeModel = false
 	if info.Billing == nil {
+		if info.SVGAuthor != nil && info.SVGAuthor.Pricing.PriceData.QuotaToPreConsume > 0 {
+			info.ForcePreConsume = true
+		}
 		return PreConsumeBilling(c, quota, info)
 	}
 	if err := info.Billing.Reserve(quota); err != nil {

@@ -517,6 +517,9 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 }
 
+// SupportsSVGAuthorBilling marks native Images routes that deliver svg_usage to the OpenAI handler.
+func (*Adaptor) SupportsSVGAuthorBilling() {}
+
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:

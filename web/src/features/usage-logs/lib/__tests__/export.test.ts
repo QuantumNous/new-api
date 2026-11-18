@@ -107,7 +107,16 @@ describe('usage log CSV export', () => {
         '1754',
         '948',
       ])
-      expect(header.at(-1)).toBe('SVG · Quota')
+      expect(row).toHaveLength(header.length)
+      expect(header.slice(-7)).toEqual([
+        'SVG · Request Model',
+        'SVG · Actual Model',
+        'SVG · Input Tokens',
+        'SVG · Output Tokens',
+        'SVG · Output Tokens (Reasoning)',
+        'SVG · Total Tokens',
+        'SVG · Quota',
+      ])
       expect(getLogCsvRow(consumeLog, admin, t).slice(-7)).toEqual(
         Array(7).fill('')
       )

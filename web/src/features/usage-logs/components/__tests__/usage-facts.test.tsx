@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import i18next from 'i18next'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 
@@ -94,7 +94,7 @@ function rowValue(label: string): string | null {
   return screen.getByText(label).nextElementSibling?.textContent ?? null
 }
 
-test('shows SVG author tokens separately even without image usage', () => {
+test('shows SVG author tokens separately and updates their locale in the open dialog', async () => {
   const client = renderDetails({
     svg_author: {
       billing_model: 'mini',
@@ -114,6 +114,35 @@ test('shows SVG author tokens separately even without image usage', () => {
   expect(author.getByText('155')).toBeVisible()
   expect(author.getByText('80')).toBeVisible()
   expect(author.getByText('1,754')).toBeVisible()
+  const previous = i18next.language
+  try {
+    i18next.addResourceBundle('fr', 'translation', { SVG: 'SVG' })
+    await act(async () => {
+      await i18next.changeLanguage('fr')
+    })
+    expect(
+      author.getByText(
+        (_, element) =>
+          element?.textContent === new Intl.NumberFormat('fr').format(1599)
+      )
+    ).toBeVisible()
+  } finally {
+    await act(async () => {
+      await i18next.changeLanguage(previous)
+    })
+    i18next.removeResourceBundle('fr', 'translation')
+  }
+  client.clear()
+})
+
+test('shows the requested SVG model and unavailable usage without inventing tokens', () => {
+  const client = renderDetails({
+    svg_author: { billing_model: 'mini', quota: 0, usage: null },
+  })
+  const author = within(screen.getByRole('group', { name: 'SVG' }))
+  expect(author.getByText('mini')).toBeVisible()
+  expect(author.getByText('Unavailable')).toBeVisible()
+  expect(author.queryByText('Input Tokens')).not.toBeInTheDocument()
   client.clear()
 })
 

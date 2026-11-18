@@ -116,9 +116,13 @@ func priceBillingModel(c *gin.Context, info *relaycommon.RelayInfo, promptTokens
 		preConsumedTokens := float64(promptTokens) * preConsumeMultiplier
 		var success bool
 		var matchName string
-		modelRatio, success, matchName = ratio_setting.GetModelRatio(billingModelName)
-		if requirePrice && !ratio_setting.HasConfiguredModelRatio(billingModelName) {
-			return hosttypes.PriceData{}, errors.New(i18n.T(c, i18n.MsgRelayModelPriceNotConfigured, map[string]any{"Model": billingModelName}))
+		if requirePrice {
+			modelRatio, success = ratio_setting.ConfiguredModelRatio(billingModelName)
+			if !success {
+				return hosttypes.PriceData{}, errors.New(i18n.T(c, i18n.MsgRelayModelPriceNotConfigured, map[string]any{"Model": billingModelName}))
+			}
+		} else {
+			modelRatio, success, matchName = ratio_setting.GetModelRatio(billingModelName)
 		}
 		if !success {
 			acceptUnsetRatio := false

@@ -43,6 +43,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected dto.ImageRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
+	info.IsStream = imageReq.IsStream(c.Request)
 	request, err := common.DeepCopy(imageReq)
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to ImageRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
@@ -196,24 +197,31 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		requestBody = body
 	}
 
-	if info.ApiType == constant.APITypeOpenAI && info.RelayMode == relayconstant.RelayModeImagesGenerations {
+	if info.RelayMode == relayconstant.RelayModeImagesGenerations {
 		var format, sentFormat string
 		_ = common.Unmarshal(imageReq.OutputFormat, &format)
 		_ = common.Unmarshal(outbound.OutputFormat, &sentFormat)
 		if format == "svg" || sentFormat == "svg" {
-			var requested, sent struct {
-				Model string `json:"model"`
+			_, supportsAuthor := adaptor.(interface{ SupportsSVGAuthorBilling() })
+			gptImage := strings.HasPrefix(imageReq.Model, "gpt-image-") || strings.HasPrefix(info.GetUpstreamModelName(), "gpt-image-")
+			if !supportsAuthor && (gptImage || len(imageReq.Svg) != 0 || len(outbound.SVG) != 0) {
+				return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGAuthorUnsupported)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
-			if format != "svg" || sentFormat != format || common.Unmarshal(imageReq.Svg, &requested) != nil || strings.TrimSpace(requested.Model) == "" ||
-				common.Unmarshal(outbound.SVG, &sent) != nil || sent.Model != requested.Model {
-				return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGAuthorRequired)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-			}
-			if info.IsStream || outbound.Stream != nil && *outbound.Stream {
-				return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGStreamingUnsupported)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-			}
-			info.SVGAuthor, err = helper.PriceSVGAuthor(c, info, requested.Model)
-			if err != nil {
-				return types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			if supportsAuthor {
+				var requested, sent struct {
+					Model string `json:"model"`
+				}
+				if format != "svg" || sentFormat != format || common.Unmarshal(imageReq.Svg, &requested) != nil || strings.TrimSpace(requested.Model) == "" ||
+					common.Unmarshal(outbound.SVG, &sent) != nil || sent.Model != requested.Model {
+					return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGAuthorRequired)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				}
+				if info.IsStream || outbound.Stream != nil && *outbound.Stream {
+					return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGStreamingUnsupported)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				}
+				info.SVGAuthor, err = helper.PriceSVGAuthor(c, info, requested.Model)
+				if err != nil {
+					return types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				}
 			}
 		}
 	}
@@ -230,7 +238,6 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
-		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
 			if httpResp.StatusCode == http.StatusCreated && info.ApiType == constant.APITypeReplicate {
 				// replicate channel returns 201 Created when using Prefer: wait, treat it as success.
@@ -241,6 +248,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 				return newAPIError
 			}
+		}
+		if strings.HasPrefix(strings.ToLower(httpResp.Header.Get("Content-Type")), "text/event-stream") {
+			if info.SVGAuthor != nil {
+				service.CloseResponseBodyGracefully(httpResp)
+				return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGStreamingUnsupported)), types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
+			}
+			info.IsStream = true
 		}
 	}
 
