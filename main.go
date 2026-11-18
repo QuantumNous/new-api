@@ -85,110 +85,24 @@ func main() {
 		// for compatibility with old versions
 		common.MemoryCacheEnabled = true
 	}
-	if common.MemoryCacheEnabled {
-		common.SysLog(common.LogText("memory cache enabled"))
-		common.SysLog(common.LogText("sync frequency: %d seconds", common.SyncFrequency))
-
-		// Add panic recovery and retry for InitChannelCache
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					common.SysLog(common.LogText("InitChannelCache panic: %v, retrying once", r))
-					// Retry once
-					_, _, fixErr := model.FixAbility()
-					if fixErr != nil {
-						common.FatalLog(common.LogText("InitChannelCache failed: %s", fixErr.Error()))
-					}
-				}
-			}()
-			model.InitChannelCache()
-		}()
-
-		go model.SyncChannelCache(common.SyncFrequency)
-	}
-	wsmanager.StartSubscriber(context.Background())
-
-	// Warm pricing after channel cache initialization so Advanced Custom
-	// endpoint inference can read cached route settings on first request.
-	model.GetPricing()
-
-	// The first plugin sync finishes before the server accepts requests, so no
-	// request runs without the uploaded plugins.
-	controller.SyncTaskPluginsOnce()
 
 	// Every node reloads a topic within seconds of a write to it on any node.
 	// The periodic reloads below stay for writes that do not bump a topic.
 	service.RegisterSyncTopic(model.SyncTopicOptions, func(context.Context) error { return model.LoadOptionsFromDatabase() })
-	if common.MemoryCacheEnabled || common.IsMasterNode {
-		service.RegisterSyncTopic(model.SyncTopicChannels, func(ctx context.Context) error {
-			if common.MemoryCacheEnabled {
-				model.InitChannelCache()
-			}
-			return service.ScanScheduledPlugins(ctx)
-		})
-	}
 	service.RegisterSyncTopic(model.SyncTopicAuthz, func(context.Context) error { return authz.ReloadPolicy() })
-	service.RegisterSyncTopic(model.SyncTopicPlugins, controller.SyncTaskPluginsOnceContext)
 	service.RegisterSyncTopic(model.SyncTopicOAuthProviders, func(context.Context) error { return oauth.LoadCustomProviders() })
-	service.RegisterSyncTopic(model.SyncTopicModels, func(context.Context) error {
-		model.RefreshPricing()
-		return nil
-	})
-	if !common.RedisEnabled {
-		// With Redis every node shares the plan cache.
-		service.RegisterSyncTopic(model.SyncTopicSubscriptionPlans, func(context.Context) error { return model.PurgeSubscriptionPlanCache() })
-	}
 	service.StartNodeSync()
 
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
-	go controller.SyncTaskPlugins()
 
 	// 周期性重载授权策略，保证多节点/多 master 部署下权限变更能传播到每个实例
 	go authz.StartPolicySync(common.SyncFrequency)
-
-	// 数据看板
-	go model.UpdateQuotaData()
-
-	// CHANNEL_UPDATE_FREQUENCY schedules the update of all balances, a system
-	// task registered below.
-	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
-		if _, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY")); err != nil {
-			common.FatalLog(common.LogText("failed to parse CHANNEL_UPDATE_FREQUENCY: %s", err.Error()))
-		}
-	}
-
-	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
-	service.StartCodexCredentialAutoRefreshTask()
-
-	// Plugin credential refresh before expiry, on the master node every minute
-	service.StartPluginCredentialRefreshTask()
-
-	// Subscription quota reset task (daily/weekly/monthly/custom)
-	service.StartSubscriptionQuotaResetTask()
 
 	// Report this process as a system instance so the System Info page can show
 	// all currently alive nodes in multi-instance deployments.
 	service.StartSystemInstanceReporter()
 
-	// Wire task polling adaptor factory (breaks service -> relay import cycle).
-	// Must run before the system task runner starts: the async_task_poll handler
-	// calls service.RunTaskPollingOnce, which needs this factory set.
-	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
-		a := relay.GetTaskAdaptor(platform)
-		if a == nil {
-			return nil
-		}
-		return a
-	}
-	service.ReportTaskFunc = requestplugin.ReportTask
-
-	// Register the periodic channel test, balance update, upstream model update,
-	// and async task polling (Midjourney / Suno / video) jobs as scheduled system tasks
-	// (DB-lease dedup across masters + run history), then start the runner that
-	// schedules and executes them. Master-only execution and the UpdateTask
-	// switch are enforced inside the runner and each handler's Enabled().
-	controller.RegisterScheduledSystemTasks()
 	service.StartSystemTaskRunner()
 
 	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
@@ -264,10 +178,6 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		common.SysError(common.LogText("server forced to shutdown: %v", err))
 	}
-	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
-	if common.DataExportEnabled {
-		model.SaveQuotaDataCache()
-	}
 	common.SysLog(common.LogText("server exited"))
 }
 
@@ -329,9 +239,6 @@ func InitResources() error {
 
 	logger.SetupLogger()
 
-	// Initialize model settings
-	ratio_setting.InitRatioSettings()
-
 	service.InitHttpClient()
 
 	// Initialize SQL Database
@@ -384,8 +291,6 @@ func InitResources() error {
 	if err != nil {
 		return err
 	}
-
-	perfmetrics.Init()
 
 	// 启动系统监控
 	common.StartSystemMonitor()
