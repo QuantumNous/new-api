@@ -75,7 +75,7 @@ export function SidebarModulesSection({
     },
     personal: {
       title: t('Personal area'),
-      description: t('Wallet management and personal preferences.'),
+      description: t('Personal settings and account security.'),
     },
     admin: {
       title: t('Admin area'),
@@ -116,10 +116,6 @@ export function SidebarModulesSection({
       },
     },
     personal: {
-      topup: {
-        title: t('Wallet'),
-        description: t('Top up balance and view billing history.'),
-      },
       personal: {
         title: t('Profile'),
         description: t('Personal settings and profile management.'),
@@ -130,10 +126,6 @@ export function SidebarModulesSection({
       },
     },
     admin: {
-      redemption: {
-        title: t('Redeem codes'),
-        description: t('Create and review invite or credit codes.'),
-      },
       user: {
         title: t('Users'),
         description: t('Administer user accounts and roles.'),
@@ -141,10 +133,6 @@ export function SidebarModulesSection({
       setting: {
         title: t('System settings'),
         description: t('Advanced platform configuration.'),
-      },
-      subscription: {
-        title: t('Subscription Management'),
-        description: t('Manage subscription plans and pricing.'),
       },
     },
   }

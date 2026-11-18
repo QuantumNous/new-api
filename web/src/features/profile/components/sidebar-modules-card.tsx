@@ -110,11 +110,6 @@ export function SidebarModulesCard() {
       description: t('User personal functions'),
       modules: [
         {
-          key: 'topup',
-          title: t('Wallet Management'),
-          description: t('Balance and top-up management'),
-        },
-        {
           key: 'personal',
           title: t('Personal Settings'),
           description: t('Personal info settings'),
@@ -151,6 +146,11 @@ export function SidebarModulesCard() {
         const parsed = (typeof raw === 'string' ? JSON.parse(raw) : raw) as SidebarModulesConfig
         if (parsed.chat) delete parsed.chat.playground
         if (parsed.console) delete parsed.console.token
+        if (parsed.personal) delete parsed.personal.topup
+        if (parsed.admin) {
+          delete parsed.admin.redemption
+          delete parsed.admin.subscription
+        }
         setConfig(parsed)
       } else {
         setConfig({})

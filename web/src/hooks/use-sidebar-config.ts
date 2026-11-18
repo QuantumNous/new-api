@@ -51,16 +51,13 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   },
   personal: {
     enabled: true,
-    topup: true,
     personal: true,
     security: true,
   },
   admin: {
     enabled: true,
-    redemption: true,
     user: true,
     setting: true,
-    subscription: true,
   },
 }
 
@@ -88,6 +85,9 @@ const mergeWithDefaultSidebarModules = (
 
   delete merged.chat?.playground
   delete merged.console?.token
+  delete merged.personal?.topup
+  delete merged.admin?.redemption
+  delete merged.admin?.subscription
   return merged
 }
 
@@ -104,12 +104,9 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/usage-logs/audit': { section: 'console', module: 'audit' },
   '/usage-logs/drawing': { section: 'console', module: 'midjourney' },
   '/usage-logs/task': { section: 'console', module: 'task' },
-  '/wallet': { section: 'personal', module: 'topup' },
   '/profile': { section: 'personal', module: 'personal' },
   '/security': { section: 'personal', module: 'security' },
   '/users': { section: 'admin', module: 'user' },
-  '/redemption-codes': { section: 'admin', module: 'redemption' },
-  '/subscriptions': { section: 'admin', module: 'subscription' },
   '/system-settings': { section: 'admin', module: 'setting' },
   '/system-settings/site': { section: 'admin', module: 'setting' },
 }
@@ -149,6 +146,11 @@ function parseUserSidebarConfig(
   try {
     const parsed = JSON.parse(value) as SidebarModulesAdminConfig
     if (!parsed || typeof parsed !== 'object') return null
+    delete parsed.chat?.playground
+    delete parsed.console?.token
+    delete parsed.personal?.topup
+    delete parsed.admin?.redemption
+    delete parsed.admin?.subscription
     return parsed
   } catch {
     return null
@@ -309,7 +311,7 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
 /**
  * Check whether a single route is visible under the current sidebar_modules
  * config. Used by entries living outside the sidebar (e.g. the profile
- * dropdown's wallet link) so they honour the same "wallet display" toggle.
+ * profile dropdown links) so they honour the same visibility settings.
  */
 export function useIsSidebarModuleVisible(url: string): boolean {
   const { status } = useStatus()

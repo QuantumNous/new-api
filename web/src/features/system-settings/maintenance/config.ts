@@ -63,16 +63,13 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
   },
   personal: {
     enabled: true,
-    topup: true,
     personal: true,
     security: true,
   },
   admin: {
     enabled: true,
-    redemption: true,
     user: true,
     setting: true,
-    subscription: true,
   },
 }
 
@@ -194,6 +191,8 @@ export function parseSidebarModulesAdmin(
           if (moduleKey === 'enabled') return
           if (sectionKey === 'chat' && moduleKey === 'playground') return
           if (sectionKey === 'console' && moduleKey === 'token') return
+          if (sectionKey === 'personal' && moduleKey === 'topup') return
+          if (sectionKey === 'admin' && (moduleKey === 'redemption' || moduleKey === 'subscription')) return
           if (sectionKey === 'admin' && moduleKey === 'models') return
           sectionConfig[moduleKey] = toBoolean(
             moduleValue,
