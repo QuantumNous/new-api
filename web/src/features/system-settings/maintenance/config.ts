@@ -24,7 +24,6 @@ export type HeaderNavAccessConfig = {
 export type HeaderNavModulesConfig = {
   home: boolean
   console: boolean
-  pricing: HeaderNavAccessConfig
   rankings: HeaderNavAccessConfig
   docs: boolean
   about: boolean
@@ -41,10 +40,6 @@ export type SidebarModulesAdminConfig = Record<string, SidebarSectionConfig>
 export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
   home: true,
   console: true,
-  pricing: {
-    enabled: true,
-    requireAuth: false,
-  },
   rankings: {
     enabled: true,
     requireAuth: false,
@@ -76,7 +71,6 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
   },
   admin: {
     enabled: true,
-    models: true,
     redemption: true,
     user: true,
     setting: true,
@@ -97,7 +91,6 @@ const toBoolean = (value: unknown, fallback: boolean): boolean => {
 
 const cloneHeaderNavDefault = (): HeaderNavModulesConfig => ({
   ...HEADER_NAV_DEFAULT,
-  pricing: { ...HEADER_NAV_DEFAULT.pricing },
   rankings: { ...HEADER_NAV_DEFAULT.rankings },
 })
 
@@ -145,15 +138,10 @@ export function parseHeaderNavModules(
     const parsed = JSON.parse(value) as Record<string, unknown>
     const result: HeaderNavModulesConfig = {
       ...base,
-      pricing: { ...base.pricing },
       rankings: { ...base.rankings },
     }
 
     Object.entries(parsed).forEach(([key, raw]) => {
-      if (key === 'pricing') {
-        result.pricing = parseAccessModule(raw, base.pricing)
-        return
-      }
       if (key === 'rankings') {
         result.rankings = parseAccessModule(raw, base.rankings)
         return

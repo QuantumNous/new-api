@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
-  Box,
   ClipboardList,
   CreditCard,
   FileText,
@@ -131,10 +130,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
         title: t('Admin'),
         items: [
           {
-            title: t('Models'),
-            url: '/models/metadata',
-            icon: Box,
-          },
           {
             title: t('Users'),
             url: '/users',

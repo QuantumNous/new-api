@@ -138,10 +138,6 @@ export function SidebarModulesSection({
       },
     },
     admin: {
-      models: {
-        title: t('Models'),
-        description: t('Manage catalog visibility and pricing.'),
-      },
       redemption: {
         title: t('Redeem codes'),
         description: t('Create and review invite or credit codes.'),

@@ -26,7 +26,6 @@ import type {
   ResolvedSidebarView,
   SidebarBadges,
 } from '@/components/layout/types'
-import { useModelPricingIssueBadge } from '@/features/system-settings/models/pricing-issues'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -53,8 +52,7 @@ export function useSidebarView(): ResolvedSidebarView {
   const { t } = useTranslation()
   const pathname = useLocation({ select: (l) => l.pathname })
   const userRole = useAuthStore((s) => s.auth.user?.role)
-  const modelPricingBadge = useModelPricingIssueBadge()
-  const badges: SidebarBadges = { modelPricing: modelPricingBadge }
+  const badges: SidebarBadges = {}
   const rootSidebarData = useSidebarData(badges)
   const configFilteredRoot = useSidebarConfig(rootSidebarData.navGroups)
 
