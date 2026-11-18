@@ -31,6 +31,12 @@ New API lets anyone who has the image link or knows the task ID on that instance
 
 This behavior covers viewing the image only. For example, if an unauthenticated caller can also read the task’s private details or modify the task, please report that separately.
 
+### Site content published by the root role
+
+The New API `root` role can publish site content through settings designed for that purpose. For example, the About page supports HTML. A report that only shows this content rendering as intended for visitors does not establish an XSS vulnerability.
+
+Please report cases where someone without permission can control the published content, or where the content bypasses an intended restriction such as HTML sanitization or iframe isolation. Support for HTML does not imply support for arbitrary scripts.
+
 ## Reporting a Vulnerability
 
 We take security vulnerability reports very seriously. If you discover a security issue, please follow the steps below for responsible disclosure.
