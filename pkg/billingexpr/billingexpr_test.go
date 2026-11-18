@@ -15,10 +15,22 @@ func TestFixedPriceWithoutUsage(t *testing.T) {
 	const rebound = `(let env = $env; let $env = {"image_count": 2}; env.image_count == 2) ? tier("paid", fixed(0.01)) : tier("waived", fixed(0))`
 	_, err := billingexpr.CompileFromCache(rebound)
 	require.ErrorContains(t, err, "cannot rebind $env")
-	for _, condition := range []string{`(let env = $env; env.image_count == 1)`, `(let env = $env; let other = env; other.image_count == 1)`, `(let env = $env; get(env, "image_count") == 1)`} {
-		cost, _, err := billingexpr.RunExprWithRequest(condition+` ? tier("flat",fixed(0.01)) : tier("waived",fixed(0))`, billingexpr.TokenParams{}, billingexpr.RequestInput{TokensUnavailable: true})
-		require.NoError(t, err)
-		assert.Equal(t, 10000.0, cost)
+	for _, lookup := range []string{`$env.image_count`, `$env["image_count"]`, `(let env = $env; let other = env; other.image_count)`, `(let env = $env; get(env, "image_count"))`, `get($env, param("key"))`} {
+		t.Run(lookup, func(t *testing.T) {
+			for _, unavailable := range []bool{false, true} {
+				for _, count := range []int{1, 2, 0} {
+					req := billingexpr.RequestInput{ImageCount: &count, TokensUnavailable: unavailable, Body: []byte(`{"key":"image_count"}`)}
+					cost, trace, err := billingexpr.RunExprWithRequest(lookup+` == 2 ? tier("two",fixed(0.02)) : tier("one",fixed(0.01))`, billingexpr.TokenParams{}, req)
+					if count == 0 {
+						require.ErrorContains(t, err, "image_count")
+						continue
+					}
+					require.NoError(t, err)
+					assert.Equal(t, &count, trace.ImageCount)
+					assert.Equal(t, float64(count)*10000, cost)
+				}
+			}
+		})
 	}
 	for _, condition := range []string{`len == 0`, `$env["len"] == 0`, `$env[param("key")] == 0`, `(let env = $env; env.len == 0)`, `(let env = $env; get(env, param("key")) == 0)`} {
 		t.Run(condition, func(t *testing.T) {

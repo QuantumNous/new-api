@@ -416,6 +416,14 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 		if err != nil {
 			return hosttypes.PriceData{}, err
 		}
+	} else if image, ok := info.Request.(*dto.ImageRequest); ok && usedVars["$env"] {
+		// The key can be evaluated at runtime. Supply the same count without
+		// replacing the request body used by param() to select that key.
+		count, err := image.ImageCount(false)
+		if err != nil {
+			return hosttypes.PriceData{}, err
+		}
+		requestInput.ImageCount = &count
 	}
 
 	rawCost, trace, err := billingexpr.RunExprByHashWithRequest(exprStr, exprHash, billingexpr.TokenParams{

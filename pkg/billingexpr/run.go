@@ -63,13 +63,13 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 	}
 	headers := normalizeHeaders(request.Headers)
 	imageCount := 1
-	if usedVars["image_count"] {
-		if request.ImageCount != nil {
-			imageCount = *request.ImageCount
-		}
+	if request.ImageCount != nil {
+		imageCount = *request.ImageCount
 		if imageCount < 1 || imageCount > dto.MaxImageN {
 			return 0, trace, fmt.Errorf("image_count must be between 1 and %d", dto.MaxImageN)
 		}
+	}
+	if usedVars["image_count"] || (request.ImageCount != nil && usedVars["$env"]) {
 		trace.ImageCount = &imageCount
 	}
 
