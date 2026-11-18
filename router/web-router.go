@@ -18,12 +18,11 @@ type WebAssets struct {
 	IndexPage []byte
 }
 
-func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.HandlerFunc) {
+func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	frontendFS := common.EmbedFolder(assets.BuildFS, "web/dist")
 	compress := gzip.Gzip(gzip.DefaultCompression)
 
 	router.NoRoute(
-		pluginDispatcher,
 		middleware.RouteTag("web"),
 		func(c *gin.Context) {
 			// ServeFrontendFiles sends build files already compressed.
