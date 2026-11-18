@@ -156,6 +156,87 @@ func TestUserAuthNeverFallsBackForRecognizedInvalidInternalJWT(t *testing.T) {
 	assert.Contains(t, response.Body.String(), "AUTH_UNAUTHORIZED")
 }
 
+func TestDashboardAuthRejectsRedisRoleTampering(t *testing.T) {
+	for _, role := range []int{common.RoleCommonUser, common.RoleAdminUser, common.RoleRootUser} {
+		t.Run(fmt.Sprintf("role_%d", role), func(t *testing.T) {
+			setupDashboardAuthMiddlewareTest(t)
+			gin.SetMode(gin.TestMode)
+			_, redisClient := useRateLimitMiniRedis(t)
+			legacy := "cache-integrity-legacy"
+			user := createMiddlewarePATUser(t, "cache-integrity", legacy)
+			require.NoError(t, model.DB.Model(user).Update("role", role).Error)
+			bundle, err := service.CreateLoginSession(user.Id, "password", "127.0.0.1", "cache-integrity-test")
+			require.NoError(t, err)
+			pat, _ := createMiddlewareScopedToken(t, user.Id, 0, "profile:read", "user:read")
+
+			router := gin.New()
+			router.GET("/api/perf-metrics", RootAuth(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			router.GET("/api/user/", AdminAuth(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			showIdentity := func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"id": c.GetInt("id"), "role": c.GetInt("role")})
+			}
+			router.GET("/api/user/self", UserAuth(), showIdentity)
+			router.GET("/api/pricing", TryUserAuth(), showIdentity)
+			rootStatus, adminStatus := http.StatusForbidden, http.StatusForbidden
+			if role == common.RoleRootUser {
+				rootStatus = http.StatusNoContent
+			}
+			if role >= common.RoleAdminUser {
+				adminStatus = http.StatusNoContent
+			}
+			for _, credential := range []struct{ name, raw string }{
+				{name: "login JWT", raw: bundle.AccessToken},
+				{name: "scoped PAT", raw: pat},
+				{name: "legacy token", raw: legacy},
+			} {
+				t.Run(credential.name, func(t *testing.T) {
+					cacheKey := fmt.Sprintf("user:%d", user.Id)
+					require.NoError(t, redisClient.HSet(t.Context(), cacheKey, "Role", role).Err())
+					response := middlewareBearerRequest(router, "/api/perf-metrics", credential.raw)
+					require.Equal(t, rootStatus, response.Code, response.Body.String())
+					response = middlewareBearerRequest(router, "/api/user/", credential.raw)
+					require.Equal(t, adminStatus, response.Code, response.Body.String())
+
+					require.NoError(t, redisClient.HSet(t.Context(), cacheKey, "Role", common.RoleRootUser).Err())
+					response = middlewareBearerRequest(router, "/api/perf-metrics", credential.raw)
+					assert.Equal(t, rootStatus, response.Code, response.Body.String())
+					response = middlewareBearerRequest(router, "/api/user/", credential.raw)
+					assert.Equal(t, adminStatus, response.Code, response.Body.String())
+					for _, path := range []string{"/api/user/self", "/api/pricing"} {
+						response = middlewareBearerRequest(router, path, credential.raw)
+						require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+						var body struct {
+							ID   int `json:"id"`
+							Role int `json:"role"`
+						}
+						require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+						assert.Equal(t, user.Id, body.ID, path)
+						assert.Equal(t, role, body.Role, path)
+					}
+				})
+			}
+			stored, err := model.GetUserById(user.Id, false)
+			require.NoError(t, err)
+			assert.Equal(t, role, stored.Role)
+			if role == common.RoleCommonUser {
+				const callbackName = "test:dashboard-auth-user-read-failure"
+				require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+					if tx.Statement.Table == "users" {
+						tx.AddError(errors.New("forced user database read failure"))
+					}
+				}))
+				t.Cleanup(func() { model.DB.Callback().Query().Remove(callbackName) })
+				response := middlewareBearerRequest(router, "/api/user/self", bundle.AccessToken)
+				assert.Equal(t, http.StatusOK, response.Code, "a valid cache hit must not query the user table")
+				require.NoError(t, redisClient.HSet(t.Context(), fmt.Sprintf("user:%d", user.Id), "CacheMAC", "tampered", "Role", common.RoleRootUser).Err())
+				response = middlewareBearerRequest(router, "/api/perf-metrics", bundle.AccessToken)
+				assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+				assert.Contains(t, response.Body.String(), "AUTH_INTERNAL_ERROR")
+			}
+		})
+	}
+}
+
 func TestTryUserAuthCredentialClassification(t *testing.T) {
 	setupDashboardAuthMiddlewareTest(t)
 	gin.SetMode(gin.TestMode)
@@ -283,6 +364,56 @@ func TestTryUserAuthCredentialClassification(t *testing.T) {
 	router.ServeHTTP(databaseFailureResponse, databaseFailureRequest)
 	assert.Equal(t, http.StatusInternalServerError, databaseFailureResponse.Code)
 	assert.Contains(t, databaseFailureResponse.Body.String(), "AUTH_INTERNAL_ERROR")
+}
+
+// Self-deleting an account soft-deletes the user but leaves its API keys in
+// place; those keys must be rejected as invalid, not as a database failure,
+// including when Redis still held the owner from an earlier request.
+func TestTokenAuthRejectsKeysOfDeletedUser(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/v1/chat/completions", TokenAuth(), func(c *gin.Context) { c.Status(http.StatusOK) })
+	router.GET("/api/usage/token", TokenAuthReadOnly(), func(c *gin.Context) { c.Status(http.StatusOK) })
+	request := func(path, key string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer sk-"+key)
+		req.Header.Set("Accept-Language", "zh-CN")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		return response
+	}
+
+	for _, redisEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("redis=%t", redisEnabled), func(t *testing.T) {
+			setupDashboardAuthMiddlewareTest(t)
+			if redisEnabled {
+				useRateLimitMiniRedis(t)
+			}
+			require.NoError(t, model.DB.AutoMigrate(&model.Token{}))
+			t.Setenv("LOG_SQL_DSN", "")
+			// Shares the main database and initializes its quoted column names,
+			// which the API key lookup needs.
+			require.NoError(t, model.InitLogDB())
+			user := createMiddlewarePATUser(t, "deleted-key-owner", "deleted-key-owner-pat")
+			key := "deletedownerkey0123456789abcdefghijklmnopqrstuvwx"
+			require.NoError(t, model.DB.Create(&model.Token{
+				UserId: user.Id, Key: key, Name: "owner key", Status: common.TokenStatusEnabled,
+				ExpiredTime: -1, UnlimitedQuota: true,
+			}).Error)
+
+			for _, path := range []string{"/v1/chat/completions", "/api/usage/token"} {
+				assert.Equal(t, http.StatusOK, request(path, key).Code, path)
+			}
+			_, err := model.DeleteUserById(user.Id)
+			require.NoError(t, err)
+			for _, path := range []string{"/v1/chat/completions", "/api/usage/token"} {
+				response := request(path, key)
+				assert.Equal(t, http.StatusUnauthorized, response.Code, path)
+				assert.Contains(t, response.Body.String(), `"message":"无效的令牌`, path)
+			}
+		})
+	}
 }
 
 func createMiddlewareScopedToken(t *testing.T, userID int, expiresAt int64, scopes ...string) (string, *model.UserAccessToken) {

@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -19,15 +20,18 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	appmodel "github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/pkg/wsmanager"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -52,6 +56,7 @@ type responsesWSCreateRequest struct {
 	Body     []byte
 	Generate common.RawMessage
 	StreamID string
+	EventID  string
 }
 
 type responsesWSErrorEvent struct {
@@ -243,6 +248,11 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	started := time.Now()
 	var info *relaycommon.RelayInfo
 	billingPrepared := false
+	var ingressSteps []relaycommon.RequestPluginStep
+	var ingressRecord []relaycommon.RequestPluginRecord
+	// stopErr is the error the client gets for a response a request plugin
+	// stopped while checking its text.
+	var stopErr *types.NewAPIError
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			apiErr = types.NewError(fmt.Errorf("responses websocket call panic: %v", recovered), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
@@ -250,6 +260,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		}
 		if info == nil && modelName != "" {
 			info = &relaycommon.RelayInfo{OriginModelName: modelName, UsingGroup: common.GetContextKeyString(c, appconstant.ContextKeyUsingGroup), StartTime: started}
+			info.SetRequestPluginIngress(ingressSteps, ingressRecord)
 		}
 		perfmetrics.RecordRelayResult(c.Request.Context(), info, apiErr)
 		// Settlement already marks the request policy successful, and nothing
@@ -258,6 +269,8 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		if info != nil && billingPrepared {
 			apiErr = RefundFailedRequestBilling(c, info, apiErr)
 		}
+		// The request plugins' report hooks get the response once it settled.
+		requestplugin.Report(c, types.RelayFormatOpenAIResponses, info, ingressRecord, cmp.Or(apiErr, stopErr))
 	}()
 	if modelName == "" {
 		return newResponsesWSInvalidRequestError(errors.New("model is required"))
@@ -265,11 +278,25 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	if s.lockedModel != "" && modelName != s.lockedModel {
 		return newResponsesWSInvalidRequestError(fmt.Errorf("responses websocket connection is locked to model %q", s.lockedModel))
 	}
+	common.SetContextKey(c, appconstant.ContextKeyOriginalModel, modelName)
+	common.SetContextKey(c, appconstant.ContextKeyRequestStartTime, time.Now())
+	// As on HTTP, the request plugins' ingress reads the create before the
+	// model access and channel checks; a changed body is decoded again.
+	changed, ingressSteps, ingressRecord, ingressErr := requestplugin.SocketIngress(c, types.RelayFormatOpenAIResponses)
+	if ingressErr != nil {
+		ingress := &relaycommon.RelayInfo{}
+		ingress.SetRequestPluginIngress(ingressSteps, ingressRecord)
+		service.RecordRelayErrorLog(c, 0, ingressErr, ingress)
+		return ingressErr
+	}
+	if changed {
+		if apiErr = reloadResponsesWSCreate(c, &create); apiErr != nil {
+			return apiErr
+		}
+	}
 	if apiErr = checkResponsesWSModelAccess(c, modelName); apiErr != nil {
 		return apiErr
 	}
-	common.SetContextKey(c, appconstant.ContextKeyOriginalModel, modelName)
-	common.SetContextKey(c, appconstant.ContextKeyRequestStartTime, time.Now())
 	service.GetChannelConstraints(c).AddFilter(appdto.ChannelFilter{Kind: appdto.FilterRequestPath, RequestPath: c.Request.URL.Path})
 
 	if s.lockedChannelID != 0 {
@@ -278,6 +305,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		}
 		info = relaycommon.GenRelayInfoResponses(c, &create.Request)
 		info.IsStream = true
+		info.SetRequestPluginIngress(ingressSteps, ingressRecord)
 		common.SetContextKey(c, appconstant.ContextKeyIsStream, true)
 		if apiErr = PrepareRequestBilling(c, info); apiErr != nil {
 			return apiErr
@@ -286,6 +314,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		var payload []byte
 		payload, apiErr = buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
 		if apiErr != nil {
+			recordResponsesWSPluginError(c, info, apiErr)
 			return apiErr
 		}
 		if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
@@ -304,6 +333,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			if info == nil {
 				info = relaycommon.GenRelayInfoResponses(c, &create.Request)
 				info.IsStream = true
+				info.SetRequestPluginIngress(ingressSteps, ingressRecord)
 				common.SetContextKey(c, appconstant.ContextKeyIsStream, true)
 				if apiErr = PrepareRequestBilling(c, info); apiErr != nil {
 					return apiErr
@@ -320,6 +350,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			var payload []byte
 			payload, apiErr = buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
 			if apiErr != nil {
+				recordResponsesWSPluginError(c, info, apiErr)
 				return apiErr
 			}
 			adaptor := GetAdaptor(info.ApiType)
@@ -346,7 +377,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			}
 			s.lockedModel, s.lockedChannelID, s.lockedGroup = modelName, channel.Id, info.UsingGroup
 			s.lockedKey, s.lockedKeyIndex = info.ApiKey, info.ChannelMultiKeyIndex
-			s.lockedRoute, _ = channel.GetOtherSettings().AdvancedCustom.MatchPathForModel(c.Request.URL.Path, modelName)
+			s.lockedRoute, _ = connectionOtherSettings(c, channel).AdvancedCustom.MatchPathForModel(c.Request.URL.Path, modelName)
 			s.lockedContext = make(map[appconstant.ContextKey]any)
 			for _, key := range []appconstant.ContextKey{
 				appconstant.ContextKeyChannelId, appconstant.ContextKeyChannelName, appconstant.ContextKeyChannelType,
@@ -354,7 +385,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				appconstant.ContextKeyChannelParamOverride, appconstant.ContextKeyChannelHeaderOverride, appconstant.ContextKeyChannelOrganization,
 				appconstant.ContextKeyChannelAutoBan, appconstant.ContextKeyChannelModelMapping, appconstant.ContextKeyChannelStatusCodeMapping,
 				appconstant.ContextKeyChannelIsMultiKey, appconstant.ContextKeyChannelMultiKeyIndex, appconstant.ContextKeyChannelKey, appconstant.ContextKeyChannelBaseUrl,
-				appconstant.ContextKeyUpstreamRequestOrigin,
+				appconstant.ContextKeyUpstreamRequestOrigin, appconstant.ContextKeyProviderPlugin,
 			} {
 				if value, ok := c.Get(string(key)); ok {
 					s.lockedContext[key] = value
@@ -367,6 +398,41 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		}
 		if apiErr != nil {
 			return apiErr
+		}
+	}
+
+	// The request plugins' reply check reads the text of the response before
+	// the client gets it; without a reply or report instance the events go
+	// out untouched.
+	socket := requestplugin.ResponsesSocket(c, info, func(message []byte) {
+		if err := s.writeClient(websocket.TextMessage, message); err != nil {
+			s.shutdown(websocket.CloseInternalServerErr, "")
+		}
+	})
+	// terminalOf is the event that ends the response for the client: the
+	// reply check reads the rest of the text first, and a response it
+	// stopped ends with the error instead.
+	var responseID string
+	terminalOf := func(incoming responsesWSMessage) *responsesWSMessage {
+		if socket != nil && stopErr == nil && incoming.kind == websocket.TextMessage {
+			if body := socket.Terminal(incoming.body); body != nil {
+				incoming.body = body
+			}
+			stopErr = socket.Stopped()
+		}
+		if stopErr == nil {
+			return &incoming
+		}
+		openAIErr := stopErr.ToOpenAIError(common.UpstreamAddresses(c)...)
+		body, _ := common.Marshal(&responsesWSErrorEvent{Type: "error", Status: stopErr.StatusCode, EventID: create.EventID, StreamID: create.StreamID, ResponseID: responseID, Error: &openAIErr})
+		return &responsesWSMessage{kind: websocket.TextMessage, body: body}
+	}
+	// finishSocket ends the reply check of a response that ended without
+	// its terminal event.
+	finishSocket := func() {
+		if socket != nil && stopErr == nil {
+			socket.Finish()
+			stopErr = socket.Stopped()
 		}
 	}
 
@@ -383,12 +449,14 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	accepted := false
 	var pendingControl []byte
 	var sentControl []byte
-	var responseID string
+	// cancelled is set once the response.cancel of a stop went upstream.
+	cancelled := false
 	for {
 		select {
 		case incoming := <-state.inbox:
 			idle.Reset(timeout)
 			if incoming.err != nil {
+				finishSocket()
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, incoming.err)
 				state.closeCode, state.closeReason = websocket.CloseInternalServerErr, "upstream connection closed"
 				ConsumeResponsesQuota(c, info, accumulator.Finish())
@@ -421,6 +489,13 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 					}
 					terminal, ambiguous, controlError := responsesWSErrorEndsRequest(rejection, create.StreamID, responseID, sentControl)
 					if !terminal {
+						// A stopped response sends nothing more before its error.
+						if stopErr != nil {
+							if controlError {
+								sentControl = nil
+							}
+							continue
+						}
 						if err := s.writeClient(incoming.kind, incoming.body); err != nil {
 							s.shutdown(websocket.CloseInternalServerErr, "")
 						}
@@ -441,7 +516,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 						accumulator.Observe(&event.ResponsesStreamResponse, incoming.body)
 						info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 						s.lastResponseID = responseID
-						state.terminal = &incoming
+						state.terminal = terminalOf(incoming)
 						if ambiguous {
 							state.closeCode = websocket.CloseInternalServerErr
 						}
@@ -477,12 +552,17 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 					s.lastResponseID = event.Response.ID
 				}
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
-				state.terminal = &incoming
+				state.terminal = terminalOf(incoming)
 				ConsumeResponsesQuota(c, info, accumulator.Finish())
 				return nil
 			}
-			if err := s.writeClient(incoming.kind, incoming.body); err != nil {
-				s.shutdown(websocket.CloseInternalServerErr, "")
+			if stopErr == nil {
+				if socket != nil && incoming.kind == websocket.TextMessage {
+					socket.Event(incoming.body)
+					stopErr = socket.Stopped()
+				} else if err := s.writeClient(incoming.kind, incoming.body); err != nil {
+					s.shutdown(websocket.CloseInternalServerErr, "")
+				}
 			}
 			if accepted && pendingControl != nil {
 				if err := s.writeTarget(websocket.TextMessage, pendingControl); err != nil {
@@ -491,7 +571,28 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				sentControl = pendingControl
 				pendingControl = nil
 			}
+			if stopErr != nil && !cancelled && sentControl == nil {
+				// A stop ends the response as a client cancel does; the
+				// upstream terminal settles it and the client gets the error.
+				cancelled = true
+				cancel := map[string]string{"type": "response.cancel", "event_id": "evt_" + common.GetUUID()}
+				if responseID != "" {
+					cancel["response_id"] = responseID
+				}
+				if create.StreamID != "" {
+					cancel["stream_id"] = create.StreamID
+				}
+				body, _ := common.Marshal(cancel)
+				if err := s.writeTarget(websocket.TextMessage, body); err != nil {
+					s.shutdown(websocket.CloseInternalServerErr, "")
+				}
+				sentControl = body
+			}
 		case control := <-state.controls:
+			if stopErr != nil {
+				// The response is already ending.
+				continue
+			}
 			if pendingControl != nil || sentControl != nil {
 				s.sendError(control.eventID, control.streamID, newResponsesWSInvalidRequestError(errors.New("a response control event is already pending")))
 				continue
@@ -505,6 +606,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			}
 			sentControl = control.body
 		case <-idle.C:
+			finishSocket()
 			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, context.DeadlineExceeded)
 			state.closeCode, state.closeReason = websocket.CloseInternalServerErr, "upstream response timed out"
 			ConsumeResponsesQuota(c, info, accumulator.Finish())
@@ -576,7 +678,11 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 	// this model. Only the fields that shape the upstream handshake force a
 	// reconnect: target path, protocol conversion and credential placement.
 	// Other channel types match the zero route on both sides.
-	route, _ := channel.GetOtherSettings().AdvancedCustom.MatchPathForModel(c.Request.URL.Path, model)
+	if pinned, ok := s.lockedContext[appconstant.ContextKeyProviderPlugin]; ok {
+		c.Set(string(appconstant.ContextKeyProviderPlugin), pinned)
+	}
+	otherSettings := connectionOtherSettings(c, channel)
+	route, _ := otherSettings.AdvancedCustom.MatchPathForModel(c.Request.URL.Path, model)
 	if strings.TrimSpace(route.UpstreamPath) != strings.TrimSpace(s.lockedRoute.UpstreamPath) ||
 		route.IsNative() != s.lockedRoute.IsNative() ||
 		!reflect.DeepEqual(route.Auth, s.lockedRoute.Auth) {
@@ -603,7 +709,7 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 		c.Set(string(key), value)
 	}
 	common.SetContextKey(c, appconstant.ContextKeyChannelSetting, channel.GetSetting())
-	common.SetContextKey(c, appconstant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
+	common.SetContextKey(c, appconstant.ContextKeyChannelOtherSetting, otherSettings)
 	common.SetContextKey(c, appconstant.ContextKeyChannelParamOverride, channel.GetParamOverride())
 	common.SetContextKey(c, appconstant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, appconstant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
@@ -611,6 +717,51 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 	policy.BeginAttempt(channel, s.lockedGroup)
 	policy.AddEvent(service.PolicyEvent{ChannelID: channel.Id, Decision: service.PolicyDecision{Action: "select", Reason: "pinned_channel", Source: "channel_constraint"}})
 	return nil
+}
+
+// connectionOtherSettings is the channel's other settings as its requests use
+// them: a task plugin channel runs on the relay routes of the plugin pinned
+// for the connection, with the channel's plugin config.
+func connectionOtherSettings(c *gin.Context, channel *appmodel.Channel) dto.ChannelOtherSettings {
+	otherSettings := channel.GetOtherSettings()
+	pinned, _ := common.GetContextKey(c, appconstant.ContextKeyProviderPlugin)
+	if plugin, ok := pinned.(jsplugin.PinnedPlugin); ok && channel.Type == appconstant.ChannelTypeTaskPlugin {
+		otherSettings.AdvancedCustom = plugin.Plugin.Meta.ChannelRelayConfig(plugin.Plugin.ChannelConfigFor(otherSettings.PluginConfig))
+	}
+	return otherSettings
+}
+
+// reloadResponsesWSCreate decodes a create body the request plugins' ingress
+// changed, with the checks the first decode applied.
+func reloadResponsesWSCreate(c *gin.Context, create *responsesWSCreateRequest) *types.NewAPIError {
+	storage, err := common.GetBodyStorage(c)
+	var body []byte
+	if err == nil {
+		body, err = storage.Bytes()
+	}
+	var request dto.OpenAIResponsesRequest
+	if err == nil {
+		err = common.Unmarshal(body, &request)
+	}
+	if err == nil && helper.ExceedsMaxTokensLimit(request.MaxOutputTokens) {
+		err = errors.New("max_output_tokens is invalid")
+	}
+	if err != nil {
+		return newResponsesWSInvalidRequestError(err)
+	}
+	request.Stream = nil
+	request.StreamOptions = nil
+	create.Request = request
+	return nil
+}
+
+// recordResponsesWSPluginError writes the error log of a create a request
+// plugin stopped; it shows what the plugins did.
+func recordResponsesWSPluginError(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError) {
+	switch apiErr.GetErrorCode() {
+	case types.ErrorCodeRequestRejected, types.ErrorCodeRequestPluginFailed:
+		service.RecordRelayErrorLog(c, info.ChannelId, apiErr, info)
+	}
 }
 
 func buildResponsesWSCreatePayload(c *gin.Context, info *relaycommon.RelayInfo, req dto.OpenAIResponsesRequest, generate common.RawMessage, streamID string) ([]byte, *types.NewAPIError) {
@@ -817,34 +968,36 @@ func newResponsesWSInvalidRequestError(err error) *types.NewAPIError {
 
 // normalizeResponsesWSCreateEvent builds the HTTP-shaped request body from a
 // response.create whose envelope the read loop already parsed and validated.
-// The message is decoded once more as a raw map (the body source) and once as
-// the typed request; the envelope is not parsed again.
+// The body is the message with the WebSocket members removed, and is decoded
+// once as the typed request; the envelope is not parsed again.
 func normalizeResponsesWSCreateEvent(message []byte, event responsesWSCreateEvent, streamID string) (responsesWSCreateRequest, error) {
-	create := responsesWSCreateRequest{StreamID: streamID, Generate: event.Generate}
-	// Decode the wrapped request on its own so outer fields cannot enter the HTTP body.
+	create := responsesWSCreateRequest{StreamID: streamID, Generate: event.Generate, EventID: event.EventID}
+	// Edit the wrapped request on its own so outer fields cannot enter the HTTP body.
 	source := message
 	if len(event.Request) > 0 {
 		source = event.Request
 	}
-	var raw map[string]common.RawMessage
-	if err := common.Unmarshal(source, &raw); err != nil {
-		return create, err
+	if !ojson.GetBytesNoCopy(source, "@this").IsObject() {
+		return create, errors.New("response.create request must be a JSON object")
 	}
+	doc := ojson.NewDoc(source)
 	if len(event.Request) > 0 {
-		if len(create.Generate) == 0 {
-			create.Generate = raw["generate"]
+		if generate := doc.Get("generate"); len(create.Generate) == 0 && generate.Exists() {
+			create.Generate = common.RawMessage(generate.Raw)
 		}
 	} else {
 		for _, key := range []string{"type", "event_id", "background", "stream", "stream_options"} {
-			delete(raw, key)
+			if err := relaycommon.DeleteJSONMember(doc, key); err != nil {
+				return create, err
+			}
 		}
 	}
-	delete(raw, "generate")
-	delete(raw, "stream_id")
-	payload, err := common.Marshal(raw)
-	if err != nil {
-		return create, err
+	for _, key := range []string{"generate", "stream_id"} {
+		if err := relaycommon.DeleteJSONMember(doc, key); err != nil {
+			return create, err
+		}
 	}
+	payload := doc.Bytes()
 	if err := common.Unmarshal(payload, &create.Request); err != nil {
 		return create, err
 	}
@@ -858,33 +1011,35 @@ func normalizeResponsesWSCreateEvent(message []byte, event responsesWSCreateEven
 }
 
 func buildResponsesWSCreateEvent(jsonData []byte, generate common.RawMessage, streamID string) ([]byte, error) {
-	var event map[string]common.RawMessage
-	if err := common.Unmarshal(jsonData, &event); err != nil {
-		return nil, err
+	if !ojson.ValidBytes(jsonData) || !ojson.GetBytesNoCopy(jsonData, "@this").IsObject() {
+		return nil, errors.New("response.create body must be a JSON object")
 	}
-	typeData, err := common.Marshal(responsesWSEventTypeResponseCreate)
-	if err != nil {
-		return nil, err
-	}
-	event["type"] = typeData
+	event := ojson.NewDoc(jsonData)
 	// The normalized body never carries stream_id; a channel parameter
 	// override may inject one, and it must not shadow the envelope's value.
-	delete(event, "stream_id")
-	if streamID != "" {
-		streamData, err := common.Marshal(streamID)
-		if err != nil {
+	keys := []string{"type", "stream_id", "event_id", "background", "stream", "stream_options"}
+	if len(generate) > 0 {
+		keys = append(keys, "generate")
+	}
+	for _, key := range keys {
+		if err := relaycommon.DeleteJSONMember(event, key); err != nil {
 			return nil, err
 		}
-		event["stream_id"] = streamData
 	}
-	delete(event, "event_id")
-	delete(event, "background")
-	delete(event, "stream")
-	delete(event, "stream_options")
+	if err := event.Set("type", responsesWSEventTypeResponseCreate); err != nil {
+		return nil, err
+	}
+	if streamID != "" {
+		if err := event.Set("stream_id", streamID); err != nil {
+			return nil, err
+		}
+	}
 	if len(generate) > 0 {
-		event["generate"] = generate
+		if err := event.SetRawBytes("generate", generate); err != nil {
+			return nil, err
+		}
 	}
-	return common.Marshal(event)
+	return event.Bytes(), nil
 }
 
 func buildResponsesWSErrorPayload(eventID, streamID string, apiErr *types.NewAPIError, upstreamURLs ...string) ([]byte, error) {

@@ -19,23 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { createSectionRegistry } from '../utils/section-registry'
 import { ChannelHealthSection } from './channel-health-section'
 import type { RequestPolicySettings } from './defaults'
-import { RequestChecksSection } from './request-checks-section'
 import { RoutingPolicySection } from './routing-section'
 
 const POLICY_SECTIONS = [
-  {
-    id: 'filtering',
-    titleKey: 'Request checks',
-    build: (settings: RequestPolicySettings) => (
-      <RequestChecksSection
-        defaultValues={{
-          CheckSensitiveEnabled: settings.CheckSensitiveEnabled,
-          CheckSensitiveOnPromptEnabled: settings.CheckSensitiveOnPromptEnabled,
-          SensitiveWords: settings.SensitiveWords,
-        }}
-      />
-    ),
-  },
   {
     id: 'routing',
     titleKey: 'Sessions and retries',

@@ -20,8 +20,11 @@ import { ChevronDown } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -31,16 +34,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import type { PricingCurrency } from '@/features/model-pricing/currency'
 import { PricingAmountInput } from '@/features/model-pricing/pricing-amount-input'
 import { BILLING_EXTRA_VARS } from '@/features/pricing/lib/billing-expr'
 import type { VisualPrice } from '@/features/pricing/lib/billing-expression/visual'
 import {
-  CACHE_MODE_GENERIC,
-  CACHE_MODE_TIMED,
-  type CacheMode,
-} from '@/features/pricing/lib/tier-expr'
+  CACHE_PRICING_MODES,
+  getCachePriceLabels,
+  type CachePricingMode,
+} from '@/features/pricing/lib/cache-pricing'
 import { cn } from '@/lib/utils'
 
 const PRICE_VARS = BILLING_EXTRA_VARS.map((variable) => ({
@@ -81,7 +84,7 @@ function PriceField({
   const id = useId()
   const { t } = useTranslation()
   return (
-    <div className='w-36 space-y-0.5'>
+    <div className='w-48 max-w-full space-y-0.5'>
       <div className='flex items-center gap-1'>
         {onInclude && (
           <Checkbox
@@ -119,12 +122,24 @@ type TierPriceFieldsProps = {
   prices: Partial<Record<VisualPrice['variable'], number | string>>
   onChange: (variable: VisualPrice['variable'], value: string) => void
   onInclude?: (variable: VisualPrice['variable'], included: boolean) => void
-  cacheMode?: CacheMode
-  onCacheModeChange?: (mode: CacheMode) => void
+  cacheMode: CachePricingMode
+  onCacheModeChange: (mode: CachePricingMode) => void
   invalidVariables?: string[]
 }
 export function TierPriceFields(props: TierPriceFieldsProps) {
   const { t } = useTranslation()
+  const cacheModeId = useId()
+  const [pendingCacheMode, setPendingCacheMode] =
+    useState<CachePricingMode | null>(null)
+  const removedPrices = pendingCacheMode
+    ? CACHE_PRICE_VARS.filter(
+        (variable) =>
+          props.prices[variable.key] !== undefined &&
+          !CACHE_PRICING_MODES[pendingCacheMode].variables.includes(
+            variable.key
+          )
+      )
+    : []
   const hasMediaPricing = MEDIA_PRICE_VARS.some((variable) =>
     props.onInclude
       ? props.prices[variable.key] !== undefined
@@ -138,12 +153,12 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
     key: VisualPrice['variable']
     label: string
   }) => {
-    let label = t(variable.label)
-    if (variable.key === 'cc' && props.prices.cc1h !== undefined) {
-      label = t('Cache Creation (5m)')
-    } else if (variable.key === 'cc' && props.prices.cc12h !== undefined) {
-      label = t('Cache Creation (30m)')
-    }
+    const label = t(
+      getCachePriceLabels(
+        { ...variable, shortLabel: variable.label },
+        props.cacheMode
+      ).label
+    )
     return (
       <PriceField
         key={variable.key}
@@ -230,45 +245,68 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
             {renderPriceVariable({ key: 'c', label: 'Output price' })}
           </div>
 
-          <div className='space-y-2'>
-            <div className='flex h-7 items-center'>
-              {props.onCacheModeChange && (
-                <Tabs
-                  value={props.cacheMode}
-                  onValueChange={(value) =>
-                    value !== null &&
-                    props.onCacheModeChange?.(value as CacheMode)
-                  }
-                >
-                  <TabsList className='h-8'>
-                    <TabsTrigger
-                      value={CACHE_MODE_GENERIC}
-                      className='px-2 text-xs'
-                    >
-                      {t('Generic cache')}
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value={CACHE_MODE_TIMED}
-                      className='px-2 text-xs'
-                    >
-                      {t('Time-sliced cache (Claude)')}
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              )}
+          <div className='space-y-3'>
+            <Field>
+              <FieldLabel id={cacheModeId}>
+                {t('Cache billing method')}
+              </FieldLabel>
+              <ToggleGroup
+                aria-labelledby={cacheModeId}
+                value={[props.cacheMode]}
+                spacing={2}
+                variant='outline'
+                className='grid w-full grid-cols-2 sm:grid-cols-4'
+                onValueChange={(values) => {
+                  const mode = values[0] as CachePricingMode | undefined
+                  if (!mode || mode === props.cacheMode) return
+                  const removesPrices = CACHE_PRICE_VARS.some(
+                    (variable) =>
+                      props.prices[variable.key] !== undefined &&
+                      !CACHE_PRICING_MODES[mode].variables.includes(
+                        variable.key
+                      )
+                  )
+                  if (removesPrices) setPendingCacheMode(mode)
+                  else props.onCacheModeChange(mode)
+                }}
+              >
+                {Object.entries(CACHE_PRICING_MODES).map(([mode, option]) => (
+                  <ToggleGroupItem
+                    key={mode}
+                    value={mode}
+                    aria-label={t(option.label)}
+                    className='aria-pressed:border-primary aria-pressed:bg-accent h-auto min-h-14 min-w-0 flex-col items-start gap-1 px-3 py-2 text-left whitespace-normal'
+                  >
+                    <span className='text-xs font-medium'>
+                      {t(option.label)}
+                    </span>
+                    <span className='text-muted-foreground text-xs font-normal'>
+                      {t(option.hint)}
+                    </span>
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <FieldDescription>
+                {t(CACHE_PRICING_MODES[props.cacheMode].description)}
+              </FieldDescription>
+            </Field>
+            <div className='flex flex-wrap items-end gap-x-4 gap-y-2'>
+              {CACHE_PRICE_VARS.filter((variable) =>
+                CACHE_PRICING_MODES[props.cacheMode].variables.includes(
+                  variable.key
+                )
+              ).map(renderPriceVariable)}
             </div>
-            <div className='flex flex-wrap gap-x-4 gap-y-2'>
-              {CACHE_PRICE_VARS.map((variable) => {
-                if (
-                  variable.key === 'cc1h' &&
-                  props.onCacheModeChange &&
-                  props.cacheMode !== CACHE_MODE_TIMED
-                ) {
-                  return null
-                }
-                return renderPriceVariable(variable)
-              })}
-            </div>
+            {props.cacheMode === 'generic' && (
+              <Alert role='note'>
+                <AlertTitle>{t('Explicit cache storage charges')}</AlertTitle>
+                <AlertDescription>
+                  {t(
+                    'Gemini explicit cache storage is charged by cached tokens and retention time and must be accounted for separately.'
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         </div>
       </div>
@@ -296,6 +334,31 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={pendingCacheMode !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingCacheMode(null)
+        }}
+        title={t('Switch cache billing method?')}
+        desc={t(
+          'Switching to {{method}} removes these configured cache prices: {{prices}}.',
+          {
+            method: pendingCacheMode
+              ? t(CACHE_PRICING_MODES[pendingCacheMode].label)
+              : '',
+            prices: removedPrices
+              .map((variable) =>
+                t(getCachePriceLabels(variable, props.cacheMode).label)
+              )
+              .join(', '),
+          }
+        )}
+        confirmText={t('Switch method')}
+        handleConfirm={() => {
+          if (pendingCacheMode) props.onCacheModeChange(pendingCacheMode)
+          setPendingCacheMode(null)
+        }}
+      />
     </>
   )
 }

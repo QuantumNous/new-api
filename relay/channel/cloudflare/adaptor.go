@@ -105,7 +105,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayMode {
 	case constant.RelayModeEmbeddings:
-		fallthrough
+		return openai.OpenaiHandler(c, info, resp)
 	case constant.RelayModeChatCompletions:
 		if info.IsStream {
 			err, usage = cfStreamHandler(c, info, resp)

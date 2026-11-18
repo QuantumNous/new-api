@@ -16,7 +16,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -151,20 +150,6 @@ func TestRequestTokenEstimateSpecialCases(t *testing.T) {
 	tokens, err = service.CountRequestToken(ctx, meta, &relaycommon.RelayInfo{})
 	require.NoError(t, err)
 	assert.Positive(t, tokens)
-}
-
-func TestByteReservationPreservesPromptSensitiveCheck(t *testing.T) {
-	oldEnabled, oldPrompt, oldWords := setting.CheckSensitiveEnabled, setting.CheckSensitiveOnPromptEnabled, setting.SensitiveWords
-	setting.CheckSensitiveEnabled, setting.CheckSensitiveOnPromptEnabled, setting.SensitiveWords = true, true, []string{"blocked"}
-	t.Cleanup(func() {
-		setting.CheckSensitiveEnabled, setting.CheckSensitiveOnPromptEnabled, setting.SensitiveWords = oldEnabled, oldPrompt, oldWords
-	})
-	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	info := &relaycommon.RelayInfo{Request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: "blocked"}}}}
-	apiErr := PrepareRequestBilling(ctx, info)
-	require.NotNil(t, apiErr)
-	assert.Equal(t, types.ErrorCodeSensitiveWordsDetected, apiErr.GetErrorCode())
 }
 
 func BenchmarkRequestTokenEstimation(b *testing.B) {

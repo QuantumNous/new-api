@@ -129,7 +129,7 @@ it.each(['none', 'standard', 'claude_ttl', 'openai_ttl'] as const)(
     for (const panel of [billing, preview]) {
       if (mode === 'none') {
         expect(
-          within(panel).queryByText('Cache write price')
+          within(panel).queryByText('Standard cache write price')
         ).not.toBeInTheDocument()
         expect(
           within(panel).queryByText('Cache create (1h) price')
@@ -138,9 +138,9 @@ it.each(['none', 'standard', 'claude_ttl', 'openai_ttl'] as const)(
           within(panel).queryByText('Cache create (12h) price')
         ).not.toBeInTheDocument()
       } else {
-        let writeLabel = 'Cache write price'
-        if (mode === 'claude_ttl') writeLabel = 'Cache Creation (5m)'
-        if (mode === 'openai_ttl') writeLabel = 'Cache Creation (30m)'
+        let writeLabel = 'Standard cache write price'
+        if (mode === 'claude_ttl') writeLabel = 'Cache create (5m) price'
+        if (mode === 'openai_ttl') writeLabel = 'Cache create (30m) price'
         expect(
           within(panel).getByText(writeLabel).nextElementSibling
         ).toHaveTextContent('$5')
@@ -397,10 +397,22 @@ it.each(['default', 'unset'] as const)(
     await user.clear(price)
     await user.type(price, '0.25')
     const region = screen.getByRole('region', { name: 'Edit model pricing' })
-    const button = screen.getByRole('button', { name: 'Save model prices' })
+    const editor = region.closest('form')
+    if (!editor) throw new Error('Pricing editor form not found')
+    // The page top bar has its own Save; this one is the editor's action bar.
+    const button = within(editor).getByRole('button', {
+      name: 'Save model prices',
+    })
     expect(region).not.toContainElement(button)
     expect(button.parentElement?.parentElement).toHaveClass('shrink-0')
     await user.click(button)
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'Confirm price changes',
+    })
+    expect(save).not.toHaveBeenCalled()
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Confirm and save' })
+    )
     await waitFor(() => expect(save).toHaveBeenCalledOnce())
     expect(save).toHaveBeenCalledWith(
       expect.objectContaining({ ExposeRatioEnabled: variant === 'default' }),

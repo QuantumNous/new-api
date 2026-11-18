@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRelayInfoConvOptionsUsesNormalizedGeminiSafetySettings(t *testing.T) {
@@ -55,4 +56,22 @@ func TestRelayInfoConvOptionsGeminiJSONSchemaSupport(t *testing.T) {
 			assert.Equal(t, tt.want, info.ConvOptions().Gemini.SupportsJSONSchemaModel(tt.model))
 		})
 	}
+}
+
+// Vertex AI rejects functionResponse.id. Only the ids are removed; inline data
+// and every other member keep their bytes and order.
+func TestRemoveGeminiDisabledFieldsDropsFunctionResponseIDs(t *testing.T) {
+	settings := model_setting.GetGeminiSettings()
+	original := settings.RemoveFunctionResponseIdEnabled
+	t.Cleanup(func() {
+		settings.RemoveFunctionResponseIdEnabled = original
+	})
+	settings.RemoveFunctionResponseIdEnabled = true
+
+	input := `{"contents":[{"role":"user","parts":[{"inlineData":{"mimeType":"image/png","data":"iVBO<&>"}}]},{"role":"user","parts":[{"text":"x"},{"functionResponse":{"id":"call_1","name":"f","response":{"n":1.50}}},{"function_response":{"name":"g","id":"call_2"}}]}],"generationConfig":{"temperature":0.0}}`
+
+	out, err := RemoveGeminiDisabledFields([]byte(input))
+
+	require.NoError(t, err)
+	assert.Equal(t, `{"contents":[{"role":"user","parts":[{"inlineData":{"mimeType":"image/png","data":"iVBO<&>"}}]},{"role":"user","parts":[{"text":"x"},{"functionResponse":{"name":"f","response":{"n":1.50}}},{"function_response":{"name":"g"}}]}],"generationConfig":{"temperature":0.0}}`, string(out))
 }

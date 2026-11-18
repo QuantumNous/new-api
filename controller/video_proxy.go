@@ -3,7 +3,6 @@ package controller
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -15,7 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MoeForge/moego/base64"
+	"github.com/MoeForge/moego/ojson"
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -251,7 +253,11 @@ func proxyTaskMedia(c *gin.Context, task *model.Task, descriptor *relaychannel.T
 			message: "Artifact request headers were rejected", err: err,
 		}
 	}
-	clientHeaders := taskArtifactClientHeaders(c.Request.Header)
+	// Range and validators address the media, not a JSON reply carrying it.
+	clientHeaders := map[string]string{}
+	if len(descriptor.ContentPath) == 0 {
+		clientHeaders = taskArtifactClientHeaders(c.Request.Header)
+	}
 	for name, value := range clientHeaders {
 		req.Header.Set(name, value)
 	}
@@ -281,6 +287,9 @@ func proxyTaskMedia(c *gin.Context, task *model.Task, descriptor *relaychannel.T
 	}
 	defer resp.Body.Close()
 
+	if len(descriptor.ContentPath) > 0 && resp.StatusCode == http.StatusOK {
+		return writeTaskMediaContentPath(c, resp.Body, descriptor)
+	}
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusPartialContent, http.StatusNotModified, http.StatusRequestedRangeNotSatisfiable:
 		copyTaskMediaResponseHeaders(c.Writer.Header(), resp.Header)
@@ -324,6 +333,89 @@ func proxyTaskMedia(c *gin.Context, task *model.Task, descriptor *relaychannel.T
 type taskMediaHTTPResult struct {
 	response *http.Response
 	err      error
+}
+
+// writeTaskMediaContentPath answers with an artifact the upstream delivers
+// inside a long-running operation: the base64 string at the descriptor's
+// ContentPath of the JSON reply. An operation that failed is an upstream
+// error, one not yet done is not ready, and one without the string, expired
+// or written to storage instead, no longer has the content.
+func writeTaskMediaContentPath(c *gin.Context, body io.Reader, descriptor *relaychannel.TaskContentRequest) error {
+	limitMB := constant.MaxFileDownloadMB
+	if limitMB <= 0 {
+		limitMB = 64
+	}
+	// Base64 makes the media a third larger; the rest of the reply is small.
+	limit := int64(limitMB)<<20*4/3 + 1<<20
+	raw, err := io.ReadAll(io.LimitReader(body, limit+1))
+	if err != nil {
+		return &taskMediaProxyError{
+			status: http.StatusBadGateway, code: "artifact_upstream_error",
+			message: "Failed to fetch artifact content", err: err,
+		}
+	}
+	if int64(len(raw)) > limit {
+		return &taskMediaProxyError{
+			status: http.StatusBadGateway, code: "artifact_request_rejected",
+			message: "Artifact request was rejected", err: errTaskMediaRequestRejected,
+		}
+	}
+	if !ojson.ValidBytes(raw) {
+		return &taskMediaProxyError{
+			status: http.StatusBadGateway, code: "artifact_upstream_error",
+			message: "Failed to decode artifact content",
+		}
+	}
+	// The root shares memory with raw, which stays unchanged until the
+	// artifact is written, so the base64 payload is not copied.
+	operation := ojson.GetBytesNoCopy(raw, "@this")
+	if failure := operation.Get("error"); failure.Exists() && failure.Type != ojson.Null {
+		return &taskMediaProxyError{
+			status: http.StatusBadGateway, code: "artifact_upstream_error",
+			message: "Artifact upstream returned an error",
+		}
+	}
+	// An interaction reports completion through status, not done.
+	if operation.Get("done").Type != ojson.True && operation.Get("status").String() != "completed" {
+		return &taskMediaProxyError{
+			status: http.StatusConflict, code: "artifact_not_ready",
+			message: "Task artifacts are not ready",
+		}
+	}
+	content := operation
+	for _, segment := range descriptor.ContentPath {
+		if key, isKey := segment.(string); isKey && content.IsObject() {
+			content = content.Get(ojson.Escape(key))
+			continue
+		}
+		index := ""
+		switch typed := segment.(type) {
+		case int:
+			index = strconv.Itoa(typed)
+		case int64:
+			index = strconv.FormatInt(typed, 10)
+		case float64:
+			index = strconv.FormatFloat(typed, 'f', -1, 64)
+		}
+		if index == "" || !content.IsArray() {
+			content = ojson.Result{}
+			break
+		}
+		content = content.Get(index)
+	}
+	if content.Type != ojson.String || content.Str == "" {
+		return &taskMediaProxyError{
+			status: http.StatusGone, code: "artifact_gone",
+			message: "Artifact content is no longer available",
+		}
+	}
+	if err := writeTaskMediaBase64(c, descriptor.MimeType, content.Str); err != nil {
+		return &taskMediaProxyError{
+			status: http.StatusBadGateway, code: "artifact_upstream_error",
+			message: "Failed to decode artifact content", err: err,
+		}
+	}
+	return nil
 }
 
 type taskMediaCancelBody struct {
@@ -581,6 +673,13 @@ func writeVideoDataURL(c *gin.Context, dataURL string) error {
 
 	mimeType := strings.TrimPrefix(header, "data:")
 	mimeType = strings.TrimSuffix(mimeType, ";base64")
+	return writeTaskMediaBase64(c, mimeType, payload)
+}
+
+// writeTaskMediaBase64 answers with media the upstream delivered as base64,
+// decoding it while it streams; HEAD gets the headers only. The media type
+// defaults to video/mp4.
+func writeTaskMediaBase64(c *gin.Context, mimeType, payload string) error {
 	if mimeType == "" {
 		mimeType = "video/mp4"
 	}
@@ -590,11 +689,11 @@ func writeVideoDataURL(c *gin.Context, dataURL string) error {
 
 	var encoding *base64.Encoding
 	var contentLength int64
-	for _, candidate := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding} {
-		decodedLength, err := io.Copy(io.Discard, base64.NewDecoder(candidate, strings.NewReader(payload)))
+	for _, candidate := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
+		decodedLength, err := candidate.ValidateString(payload)
 		if err == nil {
 			encoding = candidate
-			contentLength = decodedLength
+			contentLength = int64(decodedLength)
 			break
 		}
 	}

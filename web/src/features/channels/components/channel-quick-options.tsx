@@ -38,6 +38,10 @@ import type { PassthroughKind } from './dialogs/passthrough-warning-dialog'
 
 type ChannelQuickOptionsProps = {
   channelType: number
+  /** Overrides the channel type rule, e.g. for a plugin with relay routes. */
+  modelFetchable?: boolean
+  /** Overrides the channel type rule, e.g. for a plugin that can serve it. */
+  responsesWebsocket?: boolean
   sensitiveLocked: boolean
   disabled: boolean
   /**
@@ -152,7 +156,7 @@ export function ChannelQuickOptions(props: ChannelQuickOptionsProps) {
       }),
     disabled: props.disabled,
   })
-  if (MODEL_FETCHABLE_TYPES.has(props.channelType)) {
+  if (props.modelFetchable ?? MODEL_FETCHABLE_TYPES.has(props.channelType)) {
     options.push({
       key: 'model-check',
       label: t('Detect model updates'),
@@ -163,7 +167,10 @@ export function ChannelQuickOptions(props: ChannelQuickOptionsProps) {
       disabled: sensitiveDisabled,
     })
   }
-  if (supportsResponsesWebSocket(props.channelType)) {
+  if (
+    props.responsesWebsocket ??
+    supportsResponsesWebSocket(props.channelType)
+  ) {
     options.push({
       key: 'websocket',
       label: t('Responses WebSocket'),

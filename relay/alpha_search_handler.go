@@ -6,15 +6,16 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 
+	"github.com/MoeForge/moego/ojson"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,11 +28,14 @@ func AlphaSearchHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError
 		constant.ChannelTypeCodex,
 		constant.ChannelTypeAdvancedCustom:
 	default:
-		// Allow retry onto another channel that may support this endpoint.
-		return types.NewError(
-			errors.New("channel does not support /v1/alpha/search"),
-			types.ErrorCodeInvalidRequest,
-		)
+		// Provider plugin channels serve the paths of their relay routes.
+		if info.ApiType != constant.APITypeProviderPlugin {
+			// Allow retry onto another channel that may support this endpoint.
+			return types.NewError(
+				errors.New("channel does not support /v1/alpha/search"),
+				types.ErrorCodeInvalidRequest,
+			)
+		}
 	}
 
 	request, ok := info.Request.(*dto.AlphaSearchRequest)
@@ -54,11 +58,17 @@ func AlphaSearchHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 
+	if jsonData, newAPIError = requestplugin.Outbound(c, info, jsonData); newAPIError != nil {
+		return newAPIError
+	}
 	if len(info.ParamOverride) > 0 {
 		jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 		if err != nil {
 			return newAPIErrorFromParamOverride(err)
 		}
+	}
+	if newAPIError = requestplugin.Egress(c, info, jsonData); newAPIError != nil {
+		return newAPIError
 	}
 
 	logger.LogDebug(c, "requestBody: %s", jsonData)
@@ -118,10 +128,12 @@ func buildAlphaSearchRequestBody(rawBody []byte, originModel, upstreamModel stri
 	if upstreamModel == "" || upstreamModel == originModel {
 		return rawBody, nil
 	}
-	var body map[string]any
-	if err := common.Unmarshal(rawBody, &body); err != nil {
+	if !ojson.ValidBytes(rawBody) || !ojson.GetBytesNoCopy(rawBody, "@this").IsObject() {
+		return nil, errors.New("alpha search request body must be a JSON object")
+	}
+	body := ojson.NewDoc(rawBody)
+	if err := relaycommon.SetJSONMember(body, "", "model", upstreamModel); err != nil {
 		return nil, err
 	}
-	body["model"] = upstreamModel
-	return common.Marshal(body)
+	return body.Bytes(), nil
 }
