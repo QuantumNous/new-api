@@ -107,6 +107,16 @@ func TestPricingAdvancedCustomUsesConfiguredEndpointTypes(t *testing.T) {
 	}, byModel["gpt-4o"])
 }
 
+func TestPricingAdvancedCustomVideoRoute(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+	insertPricingEndpointChannel(t, 101, constant.ChannelTypeAdvancedCustom, pricingEndpointAdvancedCustomConfig(
+		dto.AdvancedCustomRoute{IncomingPath: "/v1/videos", UpstreamPath: "/v1/videos"},
+	))
+	insertPricingEndpointAbility(t, 101, "video-test")
+	byModel := pricingEndpointTypesByModel(t)
+	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAIVideo}, byModel["video-test"])
+}
+
 func TestPricingModelMetadataEndpointsMergeWithAdvancedCustomInference(t *testing.T) {
 	resetPricingEndpointTestTables(t)
 

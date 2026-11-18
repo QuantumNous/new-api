@@ -236,6 +236,7 @@ const (
 	advancedCustomEndpointPathClaudeMessages         = "/v1/messages"
 	advancedCustomEndpointPathJinaRerank             = "/v1/rerank"
 	advancedCustomEndpointPathImageGeneration        = "/v1/images/generations"
+	advancedCustomEndpointPathVideo                  = "/v1/videos"
 	advancedCustomEndpointPathEmbeddings             = "/v1/embeddings"
 )
 
@@ -374,6 +375,8 @@ func advancedCustomEndpointTypeFromIncomingPath(incomingPath string) (types.Endp
 		return types.EndpointTypeJinaRerank, true
 	case advancedCustomEndpointPathImageGeneration:
 		return types.EndpointTypeImageGeneration, true
+	case advancedCustomEndpointPathVideo:
+		return types.EndpointTypeOpenAIVideo, true
 	case advancedCustomEndpointPathEmbeddings:
 		return types.EndpointTypeEmbeddings, true
 	default:
