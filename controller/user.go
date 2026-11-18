@@ -964,10 +964,6 @@ func ManageUser(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
-	if req.Action == "add_quota" {
-		manageUserQuota(c, req)
-		return
-	}
 	user := model.User{
 		Id: req.Id,
 	}
