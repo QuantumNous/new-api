@@ -366,6 +366,46 @@ func TestTryUserAuthCredentialClassification(t *testing.T) {
 	assert.Contains(t, databaseFailureResponse.Body.String(), "AUTH_INTERNAL_ERROR")
 }
 
+// Self-deleting an account soft-deletes the user but leaves its API keys in
+// place; those keys must be rejected as invalid, not as a database failure.
+func TestTokenAuthRejectsKeysOfDeletedUser(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	setupDashboardAuthMiddlewareTest(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Token{}))
+	t.Setenv("LOG_SQL_DSN", "")
+	// Shares the main database and initializes its quoted column names, which
+	// the API key lookup needs.
+	require.NoError(t, model.InitLogDB())
+	gin.SetMode(gin.TestMode)
+	user := createMiddlewarePATUser(t, "deleted-key-owner", "deleted-key-owner-pat")
+	key := "deletedownerkey0123456789abcdefghijklmnopqrstuvwx"
+	require.NoError(t, model.DB.Create(&model.Token{
+		UserId: user.Id, Key: key, Name: "owner key", Status: common.TokenStatusEnabled,
+		ExpiredTime: -1, UnlimitedQuota: true,
+	}).Error)
+	_, err := model.DeleteUserById(user.Id)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name       string
+		path       string
+		middleware gin.HandlerFunc
+	}{
+		{"relay", "/v1/chat/completions", TokenAuth()},
+		{"read only", "/api/usage/token", TokenAuthReadOnly()},
+	} {
+		router := gin.New()
+		router.GET(tc.path, tc.middleware, func(c *gin.Context) { c.Status(http.StatusOK) })
+		request := httptest.NewRequest(http.MethodGet, tc.path, nil)
+		request.Header.Set("Authorization", "Bearer sk-"+key)
+		request.Header.Set("Accept-Language", "zh-CN")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusUnauthorized, response.Code, tc.name)
+		assert.Contains(t, response.Body.String(), `"message":"无效的令牌`, tc.name)
+	}
+}
+
 func createMiddlewareScopedToken(t *testing.T, userID int, expiresAt int64, scopes ...string) (string, *model.UserAccessToken) {
 	t.Helper()
 	suffix, err := common.GenerateRandomCharsKey(43)
