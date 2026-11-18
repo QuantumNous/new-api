@@ -27,8 +27,6 @@ import {
   LayoutDashboard,
   ListTodo,
   MessageSquare,
-  PlugZap,
-  Radio,
   ServerCog,
   Settings,
   ShieldCheck,
@@ -36,7 +34,6 @@ import {
   User,
   Users,
   Wallet,
-  Workflow,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -134,11 +131,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
         title: t('Admin'),
         items: [
           {
-            title: t('Channels'),
-            url: '/channels',
-            icon: Radio,
-          },
-          {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,
@@ -162,18 +154,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             title: t('System Info'),
             url: '/system-info',
             icon: ServerCog,
-            requiredRole: ROLE.SUPER_ADMIN,
-          },
-          {
-            title: t('Plugins'),
-            url: '/task-plugins',
-            icon: PlugZap,
-            requiredRole: ROLE.SUPER_ADMIN,
-          },
-          {
-            title: t('Request processing'),
-            url: '/request-processing',
-            icon: Workflow,
             requiredRole: ROLE.SUPER_ADMIN,
           },
           {
