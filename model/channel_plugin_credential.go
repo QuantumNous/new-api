@@ -308,7 +308,8 @@ func UpdateScheduledChannelLocked(ctx context.Context, channelID int, update fun
 		}
 		channelSyncLock.Unlock()
 		CacheUpdateChannelStatus(channelID, channel.Status)
-		if channel.Status == common.ChannelStatusEnabled {
+		// A channel supplier's channel never joins selection (InitChannelCache).
+		if channel.Status == common.ChannelStatusEnabled && !channel.IsSupplierChannel() {
 			// The existing cache status path removes disabled channels. Restore
 			// this scheduled result to selection immediately when it enables one.
 			channelSyncLock.Lock()

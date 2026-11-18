@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 func FetchCodexChannelModels(channel *model.Channel) ([]string, error) {
@@ -25,7 +26,7 @@ func FetchCodexChannelModels(channel *model.Channel) ([]string, error) {
 
 	// The GitHub release lookup is not an upstream request; it always verifies
 	// certificates, whatever the channel's TLS setting says.
-	releaseClient, err := GetHttpClientWithProxy(setting.Proxy)
+	releaseClient, err := ChannelHTTPClient(setting.Proxy, dto.ChannelSettings{}, channel.IsSupplierChannel())
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +35,7 @@ func FetchCodexChannelModels(channel *model.Channel) ([]string, error) {
 		return nil, fmt.Errorf("failed to get Codex client version: %w", err)
 	}
 
-	client, err := GetHttpClientWithProxySettings(setting.Proxy, setting)
+	client, err := ChannelHTTPClient(setting.Proxy, setting, channel.IsSupplierChannel())
 	if err != nil {
 		return nil, err
 	}

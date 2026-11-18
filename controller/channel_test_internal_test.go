@@ -180,6 +180,7 @@ func TestCopyChannelRejectsInvalidLegacyProxySettings(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("role", common.RoleRootUser)
 	ctx.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", origin.Id)}}
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/copy", nil)
 
@@ -203,6 +204,7 @@ func TestDeleteChannelResetsProxyCacheWhenPreReadFails(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("role", common.RoleRootUser)
 	ctx.Params = gin.Params{{Key: "id", Value: "999999"}}
 	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/channel/999999", nil)
 
@@ -224,6 +226,7 @@ func TestDeleteChannelBatchReportsAndAuditsActualDeletedCount(t *testing.T) {
 	require.NoError(t, err)
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("role", common.RoleRootUser)
 	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/channel/batch", bytes.NewReader(requestBody))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 

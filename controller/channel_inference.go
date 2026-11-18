@@ -61,6 +61,9 @@ func getInferenceChannelStatus(c *gin.Context, channelType int) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid channel id"})
 		return
 	}
+	if rejectChannelOutsideScope(c, id) {
+		return
+	}
 	channel, err := model.GetChannelById(id, true)
 	if err != nil || channel == nil {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "Channel not found"})
@@ -102,7 +105,7 @@ func fetchInferenceStatus(ctx context.Context, channel *model.Channel) (*inferen
 		headers.Del("Authorization")
 	}
 	settings := channel.GetSetting()
-	client, err := service.GetHttpClientWithProxySettings(settings.Proxy, settings)
+	client, err := service.ChannelHTTPClient(settings.Proxy, settings, channel.IsSupplierChannel())
 	if err != nil {
 		return nil, errors.New("Invalid channel proxy")
 	}

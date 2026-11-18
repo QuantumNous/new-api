@@ -59,8 +59,10 @@ func InitChannelCache() {
 		newGroup2model2channels[group] = make(map[string][]int)
 	}
 	for _, channel := range channels {
-		if channel.Status != common.ChannelStatusEnabled {
-			continue // skip disabled channels
+		// Disabled channels and channel suppliers' channels never serve relay.
+		// channelsIDM still holds them, as channel tests read it.
+		if channel.Status != common.ChannelStatusEnabled || channel.IsSupplierChannel() {
+			continue
 		}
 		groups := strings.SplitSeq(channel.Group, ",")
 		for group := range groups {

@@ -94,6 +94,9 @@ export const channelSchema = z.object({
   header_override: z.string().nullish(),
   remark: z.string().default(''),
   max_input_tokens: z.number().default(0),
+  creator_user_id: z.number().optional(),
+  creator_role: z.number().optional(),
+  creator_username: z.string().optional(),
   channel_info: channelInfoSchema.default({
     is_multi_key: false,
     multi_key_size: 0,

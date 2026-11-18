@@ -131,6 +131,8 @@ export interface UserFormData {
 export type ManageUserAction =
   | 'promote'
   | 'demote'
+  | 'set_channel_supplier'
+  | 'unset_channel_supplier'
   | 'enable'
   | 'disable'
   | 'delete'

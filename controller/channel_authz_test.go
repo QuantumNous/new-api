@@ -104,6 +104,9 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 		Balance:            44.5,
 		BalanceUpdatedTime: 55,
 		UsedQuota:          66,
+		CreatorUserId:      77,
+		CreatorRole:        5,
+		CreatorUsername:    "someone",
 		Models:             "gpt-4o",
 		Group:              "default",
 	}}
@@ -115,6 +118,9 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 		"balance":              channel.Balance,
 		"balance_updated_time": channel.BalanceUpdatedTime,
 		"used_quota":           channel.UsedQuota,
+		"creator_user_id":      channel.CreatorUserId,
+		"creator_role":         channel.CreatorRole,
+		"creator_username":     channel.CreatorUsername,
 		"models":               channel.Models,
 		"group":                channel.Group,
 	})
@@ -125,6 +131,9 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 	assert.Zero(t, channel.Balance)
 	assert.Zero(t, channel.BalanceUpdatedTime)
 	assert.Zero(t, channel.UsedQuota)
+	assert.Zero(t, channel.CreatorUserId)
+	assert.Zero(t, channel.CreatorRole)
+	assert.Empty(t, channel.CreatorUsername)
 	assert.Equal(t, "gpt-4o", channel.Models)
 	assert.Equal(t, "default", channel.Group)
 }
@@ -133,6 +142,7 @@ func TestUpdateChannelRejectsStatusField(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("role", common.RoleRootUser)
 	ctx.Request = httptest.NewRequest(
 		http.MethodPut,
 		"/api/channel/",

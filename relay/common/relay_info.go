@@ -74,6 +74,9 @@ type ChannelMeta struct {
 	UpstreamModelName    string
 	IsModelMapped        bool
 	SupportStreamOptions bool // 是否支持流式选项
+	// SupplierChannel is whether a channel supplier created the channel, whose
+	// requests then go through the address checks of service.ChannelHTTPClient.
+	SupplierChannel bool
 }
 
 type TokenCountMeta struct {
@@ -315,6 +318,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		UpstreamModelName:    common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 		IsModelMapped:        false,
 		SupportStreamOptions: false,
+		SupplierChannel:      common.GetContextKeyBool(c, constant.ContextKeyChannelSupplier),
 	}
 
 	if channelType == constant.ChannelTypeAzure {

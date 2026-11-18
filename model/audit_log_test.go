@@ -139,3 +139,40 @@ ORDER BY index_column.ordinal_position
 		})
 	}
 }
+
+// TestAuditLogKeepsChannelSupplierRole verifies a channel supplier's audit
+// events keep their actor role and stay visible below root: to administrators
+// and to the supplier's own legacy token summary.
+func TestAuditLogKeepsChannelSupplierRole(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	previousDB, previousLogDB := DB, LOG_DB
+	DB, LOG_DB = db, db
+	t.Cleanup(func() {
+		DB, LOG_DB = previousDB, previousLogDB
+		assert.NoError(t, sqlDB.Close())
+	})
+	require.NoError(t, db.AutoMigrate(&User{}))
+	require.NoError(t, MigrateAuditLogs())
+	legacy := "audit-supplier-legacy-token"
+	supplier := &User{Username: "audit-supplier", Password: "password-placeholder", Role: common.RoleChannelSupplierUser, Status: common.UserStatusEnabled, AccessToken: &legacy, AuthVersion: 1, AffCode: "audit-supplier"}
+	require.NoError(t, db.Create(supplier).Error)
+
+	RecordAuditLog(nil, AuditLog{UserId: supplier.Id, ActorRole: common.RoleChannelSupplierUser, Category: AuditCategoryAccessToken, TokenRef: AccessTokenFingerprint(legacy), Success: true})
+
+	var stored AuditLog
+	require.NoError(t, db.Where("user_id = ?", supplier.Id).First(&stored).Error)
+	assert.Equal(t, common.RoleChannelSupplierUser, stored.ActorRole)
+	logs, total, err := GetAuditLogs(AuditLogFilter{}, 0, 10, common.RoleAdminUser)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, total)
+	require.Len(t, logs, 1)
+	assert.Equal(t, stored.EventId, logs[0].EventId)
+	status, err := GetUserAccessTokenStatus(supplier.Id)
+	require.NoError(t, err)
+	require.NotNil(t, status.LastUsedAt, "the supplier's own legacy token use stays visible")
+	assert.Equal(t, stored.CreatedAt, *status.LastUsedAt)
+}

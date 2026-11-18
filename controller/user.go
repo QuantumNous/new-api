@@ -1021,9 +1021,14 @@ func CreateUser(c *gin.Context) {
 		common.ApiErrorT(c, "Cannot create users with permission level equal to or higher than yourself")
 		return
 	}
+	if user.Role == common.RoleChannelSupplierUser && myRole != common.RoleRootUser {
+		common.ApiErrorT(c, "Only the super administrator can create channel suppliers")
+		return
+	}
 	auditParams := map[string]any{"role": user.Role}
-	// Creating an administrator grants privilege just like promoting one.
-	if user.Role >= common.RoleAdminUser {
+	// Creating an administrator or a channel supplier grants privilege just
+	// like promoting one or setting one.
+	if user.Role >= common.RoleAdminUser || user.Role == common.RoleChannelSupplierUser {
 		authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserCreate, service.AdminUserCreateContext{Role: user.Role})
 		if authorization == nil {
 			return
@@ -1176,6 +1181,32 @@ func ManageUser(c *gin.Context) {
 			common.ApiErrorT(c, "This user is already a common user")
 			return
 		}
+		// Only the super administrator ends a channel supplier, through
+		// unset_channel_supplier: demote would let any administrator do it.
+		if user.Role == common.RoleChannelSupplierUser {
+			common.ApiErrorT(c, "This user is not an administrator")
+			return
+		}
+		user.Role = common.RoleCommonUser
+	case "set_channel_supplier":
+		if myRole != common.RoleRootUser {
+			common.ApiErrorT(c, "Only the super administrator can change channel suppliers")
+			return
+		}
+		if user.Role != common.RoleCommonUser {
+			common.ApiErrorT(c, "Only common users can become channel suppliers")
+			return
+		}
+		user.Role = common.RoleChannelSupplierUser
+	case "unset_channel_supplier":
+		if myRole != common.RoleRootUser {
+			common.ApiErrorT(c, "Only the super administrator can change channel suppliers")
+			return
+		}
+		if user.Role != common.RoleChannelSupplierUser {
+			common.ApiErrorT(c, "This user is not a channel supplier")
+			return
+		}
 		user.Role = common.RoleCommonUser
 	default:
 		common.ApiErrorT(c, "Invalid parameters")
@@ -1186,7 +1217,10 @@ func ManageUser(c *gin.Context) {
 	if authorization == nil {
 		return
 	}
-	if req.Action == "demote" {
+	// Role changes other than promotion also clear the user's own permission
+	// rules, and end its sessions under a reason that names the action.
+	switch req.Action {
+	case "demote", "set_channel_supplier", "unset_channel_supplier":
 		if err := model.DB.Transaction(func(tx *gorm.DB) error {
 			if err := user.UpdateWithTx(tx, false); err != nil {
 				return err
@@ -1205,11 +1239,11 @@ func ManageUser(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
-		if _, err := model.RevokeAllUserSessions(user.Id, "admin_demote"); err != nil {
+		if _, err := model.RevokeAllUserSessions(user.Id, "admin_"+req.Action); err != nil {
 			common.ApiError(c, err)
 			return
 		}
-	} else {
+	default:
 		if err := user.Update(false); err != nil {
 			common.ApiError(c, err)
 			return

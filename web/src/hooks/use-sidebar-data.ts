@@ -137,26 +137,31 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+            requiredRole: ROLE.CHANNEL_SUPPLIER,
           },
           {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Users'),
             url: '/users',
             icon: Users,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Redemption Codes'),
             url: '/redemption-codes',
             icon: Ticket,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('System Info'),

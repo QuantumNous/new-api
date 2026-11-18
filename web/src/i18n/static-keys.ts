@@ -917,4 +917,14 @@ export const STATIC_I18N_KEYS = [
   'Channel priorities changed. Refresh and try again.',
   'Invalid channel priority move',
   'Channel priority is outside the sortable range',
+  // Channel supplier API errors.
+  'Only the super administrator can change channel suppliers',
+  'Only common users can become channel suppliers',
+  'This user is not a channel supplier',
+  'This user is not an administrator',
+  'Only the super administrator can create channel suppliers',
+  'One or more channels do not exist',
+  'Channel suppliers cannot change request plugins',
+  'Base URL is not allowed: {{error}}',
+  'Proxy is not allowed: {{error}}',
 ] as const

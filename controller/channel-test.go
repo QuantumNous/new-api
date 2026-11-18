@@ -892,6 +892,9 @@ func TestChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if rejectChannelOutsideScope(c, channelId) {
+		return
+	}
 	channel, err := model.CacheGetChannel(channelId)
 	if err != nil {
 		channel, err = model.GetChannelById(channelId, true)

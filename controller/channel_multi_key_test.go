@@ -93,7 +93,7 @@ func TestMultiKeyEnableRestoresOnlyExhaustedChannels(t *testing.T) {
 							if tc.manualOverride == "status" {
 								model.UpdateChannelStatus(channel.Id, "", common.ChannelStatusManuallyDisabled, "manual operation")
 							} else if tc.manualOverride == "tag" {
-								require.NoError(t, model.DisableChannelByTag(tag))
+								require.NoError(t, model.DisableChannelByTag(model.AllChannelsScope(), tag))
 							}
 						}
 						payload, err := common.Marshal(MultiKeyManageRequest{ChannelId: channel.Id, Action: operation, KeyIndex: common.GetPointer(0)})

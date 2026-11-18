@@ -68,6 +68,8 @@ func TestRatioConfigExportsEffectiveExpressions(t *testing.T) {
 }
 
 func TestPricingSyncCompleteSourcesAndArrayFormats(t *testing.T) {
+	// FetchUpstreamRatios looks up the channels its upstreams name by ID.
+	setupModelListControllerTestDB(t)
 	before := config.GlobalConfig.ExportAllConfigs()
 	oldRatios, oldCompletion := ratio_setting.ModelRatio2JSONString(), ratio_setting.CompletionRatio2JSONString()
 	t.Cleanup(func() {

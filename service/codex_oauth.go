@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 const (
@@ -26,12 +27,15 @@ type CodexOAuthTokenResult struct {
 	ExpiresAt    time.Time
 }
 
+// RefreshCodexOAuthToken refreshes a token that belongs to no channel.
 func RefreshCodexOAuthToken(ctx context.Context, refreshToken string) (*CodexOAuthTokenResult, error) {
-	return RefreshCodexOAuthTokenWithProxy(ctx, refreshToken, "")
+	return RefreshCodexOAuthTokenWithProxy(ctx, refreshToken, "", false)
 }
 
-func RefreshCodexOAuthTokenWithProxy(ctx context.Context, refreshToken string, proxyURL string) (*CodexOAuthTokenResult, error) {
-	client, err := getCodexOAuthHTTPClient(proxyURL)
+// RefreshCodexOAuthTokenWithProxy refreshes the token of a channel through
+// its proxy; supplierChannel tells whether a channel supplier created it.
+func RefreshCodexOAuthTokenWithProxy(ctx context.Context, refreshToken string, proxyURL string, supplierChannel bool) (*CodexOAuthTokenResult, error) {
+	client, err := getCodexOAuthHTTPClient(proxyURL, supplierChannel)
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +96,8 @@ func refreshCodexOAuthToken(
 	}, nil
 }
 
-func getCodexOAuthHTTPClient(proxyURL string) (*http.Client, error) {
-	baseClient, err := GetHttpClientWithProxy(strings.TrimSpace(proxyURL))
+func getCodexOAuthHTTPClient(proxyURL string, supplierChannel bool) (*http.Client, error) {
+	baseClient, err := ChannelHTTPClient(strings.TrimSpace(proxyURL), dto.ChannelSettings{}, supplierChannel)
 	if err != nil {
 		return nil, err
 	}

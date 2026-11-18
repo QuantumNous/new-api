@@ -170,6 +170,13 @@ export function UsersMutateDrawer({
   const currentQuotaRaw = form.watch('quota_dollars') || 0
   const selectedRole = form.watch('role')
   const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
+  const roleOptions = [
+    { value: '1', label: t('Common User') },
+    ...(canEditAdminPermissions
+      ? [{ value: '5', label: t('Channel Supplier') }]
+      : []),
+    { value: '10', label: t('Admin') },
+  ]
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
 
   const onSubmit = async (data: UserFormValues) => {
@@ -220,6 +227,17 @@ export function UsersMutateDrawer({
           if (!proof) return
           proofToken = proof.proof_token
         }
+      } else if (payload.role === ROLE.CHANNEL_SUPPLIER) {
+        const proof = await requestVerification({
+          scope: 'admin.user.create',
+          context: { role: ROLE.CHANNEL_SUPPLIER },
+          title: t('Verify to create channel supplier'),
+          description: t(
+            'Confirm your identity before creating a channel supplier account.'
+          ),
+        })
+        if (!proof) return
+        proofToken = proof.proof_token
       } else if ((payload.role ?? 0) >= ROLE.ADMIN) {
         const proof = await requestVerification({
           scope: 'admin.user.create',
@@ -336,10 +354,7 @@ export function UsersMutateDrawer({
                       <FormItem>
                         <FormLabel>{t('Role')}</FormLabel>
                         <Select
-                          items={[
-                            { value: '1', label: t('Common User') },
-                            { value: '10', label: t('Admin') },
-                          ]}
+                          items={roleOptions}
                           onValueChange={(value) =>
                             value !== null &&
                             field.onChange(Number.parseInt(value))
@@ -353,10 +368,14 @@ export function UsersMutateDrawer({
                           </FormControl>
                           <SelectContent alignItemWithTrigger={false}>
                             <SelectGroup>
-                              <SelectItem value='1'>
-                                {t('Common User')}
-                              </SelectItem>
-                              <SelectItem value='10'>{t('Admin')}</SelectItem>
+                              {roleOptions.map((option) => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                >
+                                  {option.label}
+                                </SelectItem>
+                              ))}
                             </SelectGroup>
                           </SelectContent>
                         </Select>

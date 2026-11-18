@@ -369,19 +369,19 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			logRoute.GET("/token", middleware.TokenAuthReadOnly(), controller.GetLogByKey)
 		}
+		// The channel page reads group names and prefill groups, so channel
+		// suppliers may read them; changing prefill groups stays with administrators.
 		groupRoute := apiRouter.Group("/group")
-		groupRoute.Use(middleware.AdminAuth())
 		{
-			groupRoute.GET("/", controller.GetGroups)
+			groupRoute.GET("/", middleware.ChannelSupplierAuth(), controller.GetGroups)
 		}
 
 		prefillGroupRoute := apiRouter.Group("/prefill_group")
-		prefillGroupRoute.Use(middleware.AdminAuth())
 		{
-			prefillGroupRoute.GET("/", controller.GetPrefillGroups)
-			prefillGroupRoute.POST("/", controller.CreatePrefillGroup)
-			prefillGroupRoute.PUT("/", controller.UpdatePrefillGroup)
-			prefillGroupRoute.DELETE("/:id", controller.DeletePrefillGroup)
+			prefillGroupRoute.GET("/", middleware.ChannelSupplierAuth(), controller.GetPrefillGroups)
+			prefillGroupRoute.POST("/", middleware.AdminAuth(), controller.CreatePrefillGroup)
+			prefillGroupRoute.PUT("/", middleware.AdminAuth(), controller.UpdatePrefillGroup)
+			prefillGroupRoute.DELETE("/:id", middleware.AdminAuth(), controller.DeletePrefillGroup)
 		}
 
 		mjRoute := apiRouter.Group("/mj")

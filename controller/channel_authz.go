@@ -39,19 +39,9 @@ func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, re
 	// from silently becoming editable by ChannelWrite-only admins until it is
 	// consciously classified in channelNonSensitiveFields.
 	for field := range requestData {
-		if _, ok := channelSensitiveFields[field]; ok {
-			continue
+		if !isClassifiedChannelField(field) {
+			return true
 		}
-		if _, ok := channelNonSensitiveFields[field]; ok {
-			continue
-		}
-		if _, ok := channelOperationalFields[field]; ok {
-			continue
-		}
-		if _, ok := channelReadOnlyFields[field]; ok {
-			continue
-		}
-		return true
 	}
 	return false
 }
@@ -89,6 +79,9 @@ var channelReadOnlyFields = map[string]struct{}{
 	"balance_updated_time": {},
 	"used_quota":           {},
 	"balance_detail":       {},
+	"creator_user_id":      {},
+	"creator_role":         {},
+	"creator_username":     {},
 }
 
 func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]any) {
@@ -112,6 +105,15 @@ func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]an
 	}
 	if _, ok := requestData["balance_detail"]; ok {
 		channel.BalanceDetail = nil
+	}
+	if _, ok := requestData["creator_user_id"]; ok {
+		channel.CreatorUserId = 0
+	}
+	if _, ok := requestData["creator_role"]; ok {
+		channel.CreatorRole = 0
+	}
+	if _, ok := requestData["creator_username"]; ok {
+		channel.CreatorUsername = ""
 	}
 }
 
@@ -137,4 +139,15 @@ var channelNonSensitiveFields = map[string]struct{}{
 	"remark":              {},
 	"channel_info":        {},
 	"multi_key_mode":      {},
+}
+
+// isClassifiedChannelField reports whether field is the exact name of a
+// field the channel edit endpoint classifies above.
+func isClassifiedChannelField(field string) bool {
+	for _, fields := range []map[string]struct{}{channelSensitiveFields, channelNonSensitiveFields, channelOperationalFields, channelReadOnlyFields} {
+		if _, ok := fields[field]; ok {
+			return true
+		}
+	}
+	return false
 }

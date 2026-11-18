@@ -21,6 +21,7 @@ import (
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
@@ -224,8 +225,12 @@ func FetchUpstreamRatios(c *gin.Context) {
 	}
 
 	var upstreams []dto.UpstreamDTO
+	// supplierChannelIDs tells which named channels a channel supplier
+	// created: their base URL is fetched with the checks of their requests.
+	supplierChannelIDs := make(map[int]bool)
 
 	if len(req.Upstreams) > 0 {
+		namedChannelIDs := make([]int, 0, len(req.Upstreams))
 		for _, u := range req.Upstreams {
 			if strings.HasPrefix(u.BaseURL, "http") {
 				if u.Endpoint == "" {
@@ -233,6 +238,22 @@ func FetchUpstreamRatios(c *gin.Context) {
 				}
 				u.BaseURL = strings.TrimRight(u.BaseURL, "/")
 				upstreams = append(upstreams, u)
+				if u.ID > 0 {
+					namedChannelIDs = append(namedChannelIDs, u.ID)
+				}
+			}
+		}
+		// The channel an upstream names by ID decides the checks, whatever
+		// address the request gives for it.
+		if len(namedChannelIDs) > 0 {
+			namedChannels, err := model.GetChannelsByIds(namedChannelIDs)
+			if err != nil {
+				logger.LogError(c.Request.Context(), common.LogText("failed to query channels: %s", err.Error()))
+				common.ApiErrorStatus(c, http.StatusInternalServerError, common.NewMessage("Failed to query channels"))
+				return
+			}
+			for _, ch := range namedChannels {
+				supplierChannelIDs[ch.Id] = ch.IsSupplierChannel()
 			}
 		}
 	} else if len(req.ChannelIDs) > 0 {
@@ -254,6 +275,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 					BaseURL:  strings.TrimRight(base, "/"),
 					Endpoint: "",
 				})
+				supplierChannelIDs[ch.Id] = ch.IsSupplierChannel()
 			}
 		}
 	}
@@ -352,11 +374,20 @@ func FetchUpstreamRatios(c *gin.Context) {
 				return
 			}
 
+			httpClient := client
+			if supplierChannelIDs[chItem.ID] {
+				httpClient, err = service.ChannelHTTPClient("", dto.ChannelSettings{}, true)
+				if err != nil {
+					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+					return
+				}
+			}
+
 			// 简单重试：最多 3 次，指数退避
 			var resp *http.Response
 			var lastErr error
 			for attempt := range 3 {
-				resp, lastErr = client.Do(httpReq)
+				resp, lastErr = httpClient.Do(httpReq)
 				if lastErr == nil {
 					break
 				}

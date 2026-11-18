@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -63,7 +64,7 @@ func getAccessToken(a *Adaptor, info *relaycommon.RelayInfo) (string, error) {
 		if token, ok := loadAccessToken(cacheKey, identity); ok {
 			return token, nil
 		}
-		token, lifetime, err := fetchAccessToken(creds, proxy)
+		token, lifetime, err := fetchAccessToken(creds, proxy, info.SupplierChannel)
 		if err != nil {
 			return "", err
 		}
@@ -135,19 +136,21 @@ func createSignedJWT(email, privateKeyPEM string) (string, error) {
 	return signedToken, nil
 }
 
+// AcquireAccessToken serves task plugin channels, which no channel supplier
+// can create.
 func AcquireAccessToken(creds Credentials, proxy string) (string, error) {
-	token, _, err := requestAccessToken(creds, proxy)
+	token, _, err := requestAccessToken(creds, proxy, false)
 	return token, err
 }
 
 // requestAccessToken signs a JWT for the service account and exchanges it for
 // an access token. It returns the token and how long Google says it lasts.
-func requestAccessToken(creds Credentials, proxy string) (string, time.Duration, error) {
+func requestAccessToken(creds Credentials, proxy string, supplierChannel bool) (string, time.Duration, error) {
 	signedJWT, err := createSignedJWT(creds.ClientEmail, creds.PrivateKey)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to create signed JWT: %w", err)
 	}
-	token, lifetime, err := exchangeJwtForAccessToken(signedJWT, proxy)
+	token, lifetime, err := exchangeJwtForAccessToken(signedJWT, proxy, supplierChannel)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to exchange JWT for access token: %w", err)
 	}
@@ -159,13 +162,13 @@ func requestAccessToken(creds Credentials, proxy string) (string, time.Duration,
 // always verifies the certificate; the channel's TLS setting does not apply.
 // Without an expires_in field the token is assumed to last one hour, Google's
 // documented lifetime.
-func exchangeJwtForAccessToken(signedJWT string, proxy string) (string, time.Duration, error) {
+func exchangeJwtForAccessToken(signedJWT string, proxy string, supplierChannel bool) (string, time.Duration, error) {
 	authURL := "https://www.googleapis.com/oauth2/v4/token"
 	data := url.Values{}
 	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer")
 	data.Set("assertion", signedJWT)
 
-	client, err := service.GetHttpClientWithProxy(proxy)
+	client, err := service.ChannelHTTPClient(proxy, dto.ChannelSettings{}, supplierChannel)
 	if err != nil {
 		return "", 0, fmt.Errorf("new proxy http client failed: %w", err)
 	}

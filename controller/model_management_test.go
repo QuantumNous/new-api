@@ -523,12 +523,16 @@ export function parseTaskResult() { return {}; }
 					Models: "square-visible,square-hidden,square-bare,square-partial-on,square-partial-hidden,square-hidden-child,square-hidden-override,square-prefix-ending,square-contains-ending"}
 				inactive := model.Channel{Name: "Square inactive", Type: 1, Key: "fixture", Group: "default", Status: common.ChannelStatusManuallyDisabled,
 					Models: "square-disabled,square-partial-off,square-off-child"}
-				for _, channel := range []*model.Channel{&active, &inactive} {
+				// A channel supplier's channel never serves relay, so the models
+				// only it serves stay out of the catalog.
+				supplier := model.Channel{Name: "Square supplier", Type: 1, Key: "fixture", Group: "default", Status: common.ChannelStatusEnabled,
+					Models: "square-supplier-only,square-bare", CreatorRole: common.RoleChannelSupplierUser}
+				for _, channel := range []*model.Channel{&active, &inactive, &supplier} {
 					require.NoError(t, channel.Insert())
 				}
 				t.Cleanup(func() {
-					require.NoError(t, db.Where("channel_id IN ?", []int{active.Id, inactive.Id}).Delete(&model.Ability{}).Error)
-					require.NoError(t, db.Where("id IN ?", []int{active.Id, inactive.Id}).Delete(&model.Channel{}).Error)
+					require.NoError(t, db.Where("channel_id IN ?", []int{active.Id, inactive.Id, supplier.Id}).Delete(&model.Ability{}).Error)
+					require.NoError(t, db.Where("id IN ?", []int{active.Id, inactive.Id, supplier.Id}).Delete(&model.Channel{}).Error)
 					require.NoError(t, db.Unscoped().Where("id IN ?", ids).Delete(&model.Model{}).Error)
 					model.RefreshPricing()
 				})
@@ -553,6 +557,7 @@ export function parseTaskResult() { return {}; }
 					"square-catalog":         model.ModelSquareUnavailable,
 					"square-hidden-catalog":  model.ModelSquareHidden,
 					"square-bare":            model.ModelSquareVisible,
+					"square-supplier-only":   model.ModelSquareUnavailable,
 					"square-disabled":        model.ModelSquareUnavailable,
 					"square-partial-":        model.ModelSquarePartial,
 					"square-partial-hidden":  model.ModelSquareHidden,

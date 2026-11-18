@@ -114,8 +114,11 @@ func buildTaskAliasView(generation *jsplugin.RoutingGeneration) *taskAliasView {
 	}
 
 	var channels []Channel
+	// A channel supplier's channel never serves relay, so its model mapping
+	// names no alias for the callers of other channels.
 	err := DB.Select("id", "type", "models", "model_mapping").
 		Where("status = ?", common.ChannelStatusEnabled).
+		Where("creator_role <> ?", common.RoleChannelSupplierUser).
 		Find(&channels).Error
 	if err != nil {
 		common.SysError(common.LogText("rebuild task alias view: %s", err.Error()))

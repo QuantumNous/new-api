@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   Link2,
   CreditCard,
+  Truck,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,7 +50,9 @@ import {
 import type { AdminUserManageAction } from '@/features/auth/secure-verification'
 import { UserSubscriptionsDialog } from '@/features/subscriptions/components/dialogs/user-subscriptions-dialog'
 import { handleServerError } from '@/lib/handle-server-error'
+import { ROLE } from '@/lib/roles'
 import { AuthOperationError } from '@/lib/secure-verification'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { manageUser, resetUserPasskey, resetUserTwoFA } from '../api'
 import {
@@ -68,6 +71,14 @@ const MANAGE_ACTION_TITLES: Record<AdminUserManageAction, string> = {
   enable: 'Verify to enable user',
   promote: 'Verify to promote user',
   demote: 'Verify to demote user',
+  set_channel_supplier: 'Verify to set channel supplier',
+  unset_channel_supplier: 'Verify to unset channel supplier',
+}
+
+// Raw action keys read badly in the failure fallback; these have a menu label.
+const MANAGE_ACTION_NAMES: Partial<Record<AdminUserManageAction, string>> = {
+  set_channel_supplier: 'Set as channel supplier',
+  unset_channel_supplier: 'Unset channel supplier',
 }
 
 interface DataTableRowActionsProps {
@@ -77,6 +88,8 @@ interface DataTableRowActionsProps {
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
   const user = row.original
+  const viewerIsRoot =
+    useAuthStore((s) => s.auth.user?.role) === ROLE.SUPER_ADMIN
   const {
     setOpen,
     setCurrentRow,
@@ -116,7 +129,13 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         toast.success(t(getUserActionMessage(action)))
         triggerRefresh()
       } else {
-        handleServerError(result, t('Failed to {{action}} user', { action }))
+        const actionName = MANAGE_ACTION_NAMES[action]
+        handleServerError(
+          result,
+          t('Failed to {{action}} user', {
+            action: actionName ? t(actionName) : action,
+          })
+        )
       }
     } catch (error) {
       handleServerError(
@@ -247,6 +266,28 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             {t('Promote')}
             <DropdownMenuShortcut>
               <ArrowUp size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        )}
+
+        {viewerIsRoot && user.role === USER_ROLE.USER && (
+          <DropdownMenuItem
+            onClick={() => handleManage('set_channel_supplier')}
+          >
+            {t('Set as channel supplier')}
+            <DropdownMenuShortcut>
+              <Truck size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        )}
+
+        {viewerIsRoot && user.role === USER_ROLE.CHANNEL_SUPPLIER && (
+          <DropdownMenuItem
+            onClick={() => handleManage('unset_channel_supplier')}
+          >
+            {t('Unset channel supplier')}
+            <DropdownMenuShortcut>
+              <Truck size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
         )}

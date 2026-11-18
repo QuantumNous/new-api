@@ -100,7 +100,7 @@ func RecordAuditLog(c *gin.Context, entry AuditLog) {
 		entry.EventId = common.NewRequestId()
 	}
 	switch entry.ActorRole {
-	case common.RoleCommonUser, common.RoleAdminUser, common.RoleRootUser:
+	case common.RoleCommonUser, common.RoleChannelSupplierUser, common.RoleAdminUser, common.RoleRootUser:
 	default:
 		logger.LogError(ctx, common.LogText("audit actor role unavailable (request_id=%s, actor_role=%d)", entry.RequestId, entry.ActorRole))
 		entry.ActorRole = 0 // Unknown actors remain visible to root only.
@@ -147,7 +147,7 @@ func GetAuditLogs(filter AuditLogFilter, start, limit, viewerRole int) ([]*Audit
 		})))
 	}
 	if viewerRole < common.RoleRootUser {
-		query = query.Where("actor_role IN ?", []int{common.RoleCommonUser, common.RoleAdminUser})
+		query = query.Where("actor_role IN ?", []int{common.RoleCommonUser, common.RoleChannelSupplierUser, common.RoleAdminUser})
 	}
 	if filter.UserId > 0 {
 		query = query.Where("user_id = ?", filter.UserId)
@@ -232,7 +232,7 @@ func GetUserAccessTokenStatus(userId int) (*UserAccessTokenStatus, error) {
 	var latest AuditLog
 	query := LOG_DB.Select("created_at", "ip").Where("user_id = ? AND token_ref = ? AND category = ?", userId, status.TokenRef, AuditCategoryAccessToken)
 	if user.Role < common.RoleRootUser {
-		query = query.Where("actor_role IN ?", []int{common.RoleCommonUser, common.RoleAdminUser})
+		query = query.Where("actor_role IN ?", []int{common.RoleCommonUser, common.RoleChannelSupplierUser, common.RoleAdminUser})
 	}
 	err := query.Order("created_at DESC").Order("event_id DESC").Take(&latest).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {

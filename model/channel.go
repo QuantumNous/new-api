@@ -60,11 +60,20 @@ type Channel struct {
 
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
+	CreatorUserId   int    `json:"creator_user_id" gorm:"not null;default:0;index"`
+	CreatorRole     int    `json:"creator_role" gorm:"not null;default:0;index"` // 创建时创建者的角色
+	CreatorUsername string `json:"creator_username,omitempty" gorm:"-"`          // 仅列表接口为管理员填充
+
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
 	// BalanceDetail is the last balance query in channel responses; see
 	// GetBalanceDetail.
 	BalanceDetail *ChannelBalanceDetail `json:"balance_detail,omitempty" gorm:"-"`
+}
+
+// IsSupplierChannel reports whether a channel supplier created the channel.
+func (channel *Channel) IsSupplierChannel() bool {
+	return channel.CreatorRole == common.RoleChannelSupplierUser
 }
 
 const ChannelStatusReasonAllKeysDisabled = "All keys are disabled"
@@ -435,10 +444,10 @@ func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOpti
 	return channels, err
 }
 
-func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
+func GetChannelsByTag(scope ChannelScope, tag string, idSort bool, selectAll bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
 	var channels []*Channel
 	order := resolveChannelSortOptions(idSort, sortOptions)
-	query := order.Apply(DB.Where("tag = ?", tag))
+	query := order.Apply(scope.Apply(DB.Where("tag = ?", tag)))
 	if !selectAll {
 		query = query.Omit("key")
 	}
@@ -446,7 +455,7 @@ func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...Ch
 	return channels, err
 }
 
-func SearchChannels(keyword string, group string, model string, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
+func SearchChannels(scope ChannelScope, keyword string, group string, model string, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
 	var channels []*Channel
 	modelsCol := "`models`"
 
@@ -464,7 +473,7 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 	order := resolveChannelSortOptions(idSort, sortOptions)
 
 	// 构造基础查询
-	baseQuery := DB.Model(&Channel{}).Omit("key")
+	baseQuery := scope.Apply(DB.Model(&Channel{}).Omit("key"))
 
 	// 构造WHERE子句
 	whereClause := "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + " LIKE ?"
@@ -618,7 +627,7 @@ func (channel *Channel) Insert() error {
 
 // Update writes an edited channel, all but its key: a key changes only through
 // UpdateChannelLocked, so an edit never writes back a key a refresh replaced
-// after the edit read it.
+// after the edit read it. The creator fields are set once on creation.
 func (channel *Channel) Update() error {
 	// If this is a multi-key channel, recalculate MultiKeySize based on the stored key list to avoid inconsistency after editing keys
 	if channel.ChannelInfo.IsMultiKey {
@@ -654,7 +663,7 @@ func (channel *Channel) Update() error {
 		}
 	}
 	var err error
-	err = DB.Model(channel).Omit("key").Updates(channel).Error
+	err = DB.Model(channel).Omit("key", "creator_user_id", "creator_role").Updates(channel).Error
 	if err != nil {
 		return err
 	}
@@ -979,21 +988,25 @@ func channelPluginHasHook(ch *Channel, hook string) bool {
 	return ok && plugin.HasProviderHook(hook)
 }
 
-func EnableChannelByTag(tag string) error {
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error
+// EnableChannelByTag enables the channels in scope that carry the tag, and
+// their abilities.
+func EnableChannelByTag(scope ChannelScope, tag string) error {
+	err := scope.Apply(DB.Model(&Channel{}).Where("tag = ?", tag)).Update("status", common.ChannelStatusEnabled).Error
 	if err != nil {
 		return err
 	}
 	defer BumpSyncTopic(SyncTopicChannels)
-	err = UpdateAbilityStatusByTag(tag, true)
+	err = UpdateAbilityStatusByTag(scope, tag, true)
 	return err
 }
 
-func DisableChannelByTag(tag string) error {
+// DisableChannelByTag disables the channels in scope that carry the tag, and
+// their abilities.
+func DisableChannelByTag(scope ChannelScope, tag string) error {
 	// Explicit tag-level disable also cancels automatic restoration for
 	// channels that were already disabled because all keys were unavailable.
 	var channels []Channel
-	if err := DB.Where("tag = ?", tag).Find(&channels).Error; err != nil {
+	if err := scope.Apply(DB.Where("tag = ?", tag)).Find(&channels).Error; err != nil {
 		return err
 	}
 	for _, channel := range channels {
@@ -1003,16 +1016,18 @@ func DisableChannelByTag(tag string) error {
 			}
 		}
 	}
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusManuallyDisabled).Error
+	err := scope.Apply(DB.Model(&Channel{}).Where("tag = ?", tag)).Update("status", common.ChannelStatusManuallyDisabled).Error
 	if err != nil {
 		return err
 	}
 	defer BumpSyncTopic(SyncTopicChannels)
-	err = UpdateAbilityStatusByTag(tag, false)
+	err = UpdateAbilityStatusByTag(scope, tag, false)
 	return err
 }
 
-func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
+// EditChannelByTag edits the channels in scope that carry the tag; both the
+// in-place ability update and the ability rebuild stay in scope too.
+func EditChannelByTag(scope ChannelScope, tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
 	updateData := Channel{}
 	shouldReCreateAbilities := false
 	updatedTag := tag
@@ -1045,13 +1060,13 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 		updateData.HeaderOverride = headerOverride
 	}
 
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Updates(updateData).Error
+	err := scope.Apply(DB.Model(&Channel{}).Where("tag = ?", tag)).Updates(updateData).Error
 	if err != nil {
 		return err
 	}
 	defer BumpSyncTopic(SyncTopicChannels)
 	if shouldReCreateAbilities {
-		channels, err := GetChannelsByTag(updatedTag, false, false)
+		channels, err := GetChannelsByTag(scope, updatedTag, false, false)
 		if err == nil {
 			for _, channel := range channels {
 				err = channel.UpdateAbilities(nil)
@@ -1061,7 +1076,7 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 			}
 		}
 	} else {
-		err := UpdateAbilityByTag(tag, newTag, priority, weight)
+		err := UpdateAbilityByTag(scope, tag, newTag, priority, weight)
 		if err != nil {
 			return err
 		}
@@ -1113,7 +1128,7 @@ func GetPaginatedChannelTags(query *gorm.DB, offset int, limit int) ([]*string, 
 	return tags, err
 }
 
-func SearchTags(keyword string, group string, model string, idSort bool) ([]*string, error) {
+func SearchTags(scope ChannelScope, keyword string, group string, model string, idSort bool) ([]*string, error) {
 	var tags []*string
 	modelsCol := "`models`"
 
@@ -1134,7 +1149,7 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 	}
 
 	// 构造基础查询
-	baseQuery := DB.Model(&Channel{}).Omit("key")
+	baseQuery := scope.Apply(DB.Model(&Channel{}).Omit("key"))
 
 	// 构造WHERE子句
 	whereClause := "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + " LIKE ?"

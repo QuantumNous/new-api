@@ -201,12 +201,14 @@ const (
 const (
 	RoleGuestUser  = 0
 	RoleCommonUser = 1
-	RoleAdminUser  = 10
-	RoleRootUser   = 100
+	// RoleChannelSupplierUser can manage only the channels it created.
+	RoleChannelSupplierUser = 5
+	RoleAdminUser           = 10
+	RoleRootUser            = 100
 )
 
 func IsValidateRole(role int) bool {
-	return role == RoleGuestUser || role == RoleCommonUser || role == RoleAdminUser || role == RoleRootUser
+	return role == RoleGuestUser || role == RoleCommonUser || role == RoleChannelSupplierUser || role == RoleAdminUser || role == RoleRootUser
 }
 
 var (

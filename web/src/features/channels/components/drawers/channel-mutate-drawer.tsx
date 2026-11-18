@@ -467,6 +467,7 @@ export function ChannelMutateDrawer({
     ADMIN_PERMISSION_ACTIONS.BIND
   )
   const canRevealChannelKey = currentUser?.role === ROLE.SUPER_ADMIN
+  const isAdmin = (currentUser?.role ?? 0) >= ROLE.ADMIN
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
   const initialModelsRef = useRef<string[]>([])
@@ -2944,7 +2945,7 @@ export function ChannelMutateDrawer({
           )}
         />
 
-        {canBindTaskPlugin && (
+        {canBindTaskPlugin && isAdmin && (
           <FormField
             control={form.control}
             name='request_plugins'

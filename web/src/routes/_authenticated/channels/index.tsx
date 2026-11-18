@@ -20,7 +20,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import z from 'zod'
 
 import { Channels } from '@/features/channels'
-import { ROLE } from '@/lib/roles'
+import { canAccessChannels } from '@/lib/admin-permissions'
 import { useAuthStore } from '@/stores/auth-store'
 
 const channelsSearchSchema = z.object({
@@ -37,7 +37,7 @@ export const Route = createFileRoute('/_authenticated/channels/')({
   beforeLoad: () => {
     const { auth } = useAuthStore.getState()
 
-    if (!auth.user || auth.user.role < ROLE.ADMIN) {
+    if (!canAccessChannels(auth.user)) {
       throw redirect({
         to: '/403',
       })

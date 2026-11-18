@@ -60,6 +60,8 @@ var channelUpstreamModelUpdateSelectFields = []string{
 	"tag",
 	"channel_info",
 	"header_override",
+	// A supplier channel's requests go through the address checks.
+	"creator_role",
 }
 
 var channelUpstreamModelUpdateNotifyState = struct {
@@ -367,7 +369,7 @@ func sendFetchModelsRequest(method string, requestURL string, channel *model.Cha
 		}
 	}
 	setting := channel.GetSetting()
-	client, err := service.GetHttpClientWithProxySettings(setting.Proxy, setting)
+	client, err := service.ChannelHTTPClient(setting.Proxy, setting, channel.IsSupplierChannel())
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +394,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 
 	if channel.Type == constant.ChannelTypeOllama {
 		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
-		models, err := ollama.FetchOllamaModels(baseURL, key)
+		models, err := ollama.FetchOllamaModels(baseURL, key, channel.IsSupplierChannel())
 		if err != nil {
 			return nil, err
 		}
@@ -407,7 +409,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 			return nil, fmt.Errorf("failed to get channel key: %w", apiErr)
 		}
 		key = strings.TrimSpace(key)
-		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting())
+		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting(), channel.IsSupplierChannel())
 		if err != nil {
 			return nil, err
 		}
@@ -573,7 +575,7 @@ func pluginKeyIndex(channel *model.Channel, key string) int {
 // channel's proxy and TLS setting. The caller closes the response body.
 func sendChannelRequest(channel *model.Channel, request *http.Request) (*http.Response, error) {
 	setting := channel.GetSetting()
-	client, err := service.GetHttpClientWithProxySettings(setting.Proxy, setting)
+	client, err := service.ChannelHTTPClient(setting.Proxy, setting, channel.IsSupplierChannel())
 	if err != nil {
 		return nil, err
 	}
@@ -967,6 +969,9 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 		})
 		return
 	}
+	if rejectChannelOutsideScope(c, req.ID) {
+		return
+	}
 
 	channel, err := model.GetChannelById(req.ID, true)
 	if err != nil {
@@ -1021,6 +1026,9 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 			"success": false,
 			"message": "invalid channel id",
 		})
+		return
+	}
+	if rejectChannelOutsideScope(c, req.ID) {
 		return
 	}
 

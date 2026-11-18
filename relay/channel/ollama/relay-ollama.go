@@ -338,10 +338,29 @@ func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	return usage, nil
 }
 
-func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
+// ollamaHTTPClient returns the client of an Ollama management request with
+// timeout, none when it is 0. The client of a supplier channel checks the
+// addresses it reaches as service.ChannelHTTPClient does.
+func ollamaHTTPClient(supplierChannel bool, timeout time.Duration) (*http.Client, error) {
+	if !supplierChannel {
+		return &http.Client{Timeout: timeout}, nil
+	}
+	protected, err := service.ChannelHTTPClient("", dto.ChannelSettings{}, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client: %v", err)
+	}
+	client := *protected
+	client.Timeout = timeout
+	return &client, nil
+}
+
+func FetchOllamaModels(baseURL, apiKey string, supplierChannel bool) ([]OllamaModel, error) {
 	url := fmt.Sprintf("%s/api/tags", baseURL)
 
-	client := &http.Client{}
+	client, err := ollamaHTTPClient(supplierChannel, 0)
+	if err != nil {
+		return nil, err
+	}
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
@@ -378,7 +397,7 @@ func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
 }
 
 // 拉取 Ollama 模型 (非流式)
-func PullOllamaModel(baseURL, apiKey, modelName string) error {
+func PullOllamaModel(baseURL, apiKey, modelName string, supplierChannel bool) error {
 	url := fmt.Sprintf("%s/api/pull", baseURL)
 
 	pullRequest := OllamaPullRequest{
@@ -391,8 +410,9 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	client := &http.Client{
-		Timeout: 30 * 60 * 1000 * time.Millisecond, // 30分钟超时，支持大模型
+	client, err := ollamaHTTPClient(supplierChannel, 30*60*1000*time.Millisecond) // 30分钟超时，支持大模型
+	if err != nil {
+		return err
 	}
 	request, err := http.NewRequest("POST", url, strings.NewReader(string(requestBody)))
 	if err != nil {
@@ -419,7 +439,7 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 }
 
 // 流式拉取 Ollama 模型 (支持进度回调)
-func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback func(OllamaPullResponse)) error {
+func PullOllamaModelStream(baseURL, apiKey, modelName string, supplierChannel bool, progressCallback func(OllamaPullResponse)) error {
 	url := fmt.Sprintf("%s/api/pull", baseURL)
 
 	pullRequest := OllamaPullRequest{
@@ -432,8 +452,9 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	client := &http.Client{
-		Timeout: 60 * 60 * 1000 * time.Millisecond, // 1小时超时，支持超大模型
+	client, err := ollamaHTTPClient(supplierChannel, 60*60*1000*time.Millisecond) // 1小时超时，支持超大模型
+	if err != nil {
+		return err
 	}
 	request, err := http.NewRequest("POST", url, strings.NewReader(string(requestBody)))
 	if err != nil {
@@ -496,7 +517,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 }
 
 // 删除 Ollama 模型
-func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
+func DeleteOllamaModel(baseURL, apiKey, modelName string, supplierChannel bool) error {
 	url := fmt.Sprintf("%s/api/delete", baseURL)
 
 	deleteRequest := OllamaDeleteRequest{
@@ -508,7 +529,10 @@ func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 
-	client := &http.Client{}
+	client, err := ollamaHTTPClient(supplierChannel, 0)
+	if err != nil {
+		return err
+	}
 	request, err := http.NewRequest("DELETE", url, strings.NewReader(string(requestBody)))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %v", err)
@@ -533,7 +557,7 @@ func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 	return nil
 }
 
-func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
+func FetchOllamaVersion(baseURL, apiKey string, supplierChannel bool) (string, error) {
 	trimmedBase := strings.TrimRight(baseURL, "/")
 	if trimmedBase == "" {
 		return "", fmt.Errorf("baseURL is empty")
@@ -541,7 +565,10 @@ func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
 
 	url := fmt.Sprintf("%s/api/version", trimmedBase)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client, err := ollamaHTTPClient(supplierChannel, 10*time.Second)
+	if err != nil {
+		return "", err
+	}
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %v", err)

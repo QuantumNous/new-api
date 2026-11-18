@@ -58,6 +58,7 @@ import {
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
+import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -92,6 +93,7 @@ export function ChannelsPrimaryButtons() {
   const [showConsistencyDialog, setShowConsistencyDialog] = useState(false)
   const [isRepairingConsistency, setIsRepairingConsistency] = useState(false)
   const currentUser = useAuthStore((s) => s.auth.user)
+  const isAdmin = (currentUser?.role ?? 0) >= ROLE.ADMIN
   const canEditSensitive = hasPermission(
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
@@ -210,82 +212,85 @@ export function ChannelsPrimaryButtons() {
               {t('Tag Mode')}
             </DropdownMenuCheckboxItem>
 
-            <DropdownMenuSeparator className='sm:hidden' />
+            {isAdmin && (
+              <>
+                <DropdownMenuSeparator className='sm:hidden' />
+                <DropdownMenuItem
+                  onClick={() => {
+                    handleTestAllChannels(queryClient)
+                  }}
+                >
+                  {t('Test All Channels')}
+                  <DropdownMenuShortcut>
+                    <TestTube className='h-4 w-4' />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onClick={() => {
-                handleTestAllChannels(queryClient)
-              }}
-            >
-              {t('Test All Channels')}
-              <DropdownMenuShortcut>
-                <TestTube className='h-4 w-4' />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    handleUpdateAllBalances(queryClient)
+                  }}
+                >
+                  {t('Update All Balances')}
+                  <DropdownMenuShortcut>
+                    <DollarSign className='h-4 w-4' />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onClick={() => {
-                handleUpdateAllBalances(queryClient)
-              }}
-            >
-              {t('Update All Balances')}
-              <DropdownMenuShortcut>
-                <DollarSign className='h-4 w-4' />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
+                <DropdownMenuSeparator />
 
-            <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => upstream.detectAllUpdates()}
+                  disabled={upstream.detectAllLoading}
+                >
+                  {t('Detect All Upstream Updates')}
+                  <DropdownMenuShortcut>
+                    <RefreshCw className='h-4 w-4' />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onClick={() => upstream.detectAllUpdates()}
-              disabled={upstream.detectAllLoading}
-            >
-              {t('Detect All Upstream Updates')}
-              <DropdownMenuShortcut>
-                <RefreshCw className='h-4 w-4' />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => upstream.applyAllUpdates()}
+                  disabled={upstream.applyAllLoading}
+                >
+                  {t('Apply All Upstream Updates')}
+                  <DropdownMenuShortcut>
+                    <ArrowUpFromLine className='h-4 w-4' />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onClick={() => upstream.applyAllUpdates()}
-              disabled={upstream.applyAllLoading}
-            >
-              {t('Apply All Upstream Updates')}
-              <DropdownMenuShortcut>
-                <ArrowUpFromLine className='h-4 w-4' />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
+                <DropdownMenuSeparator />
 
-            <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    setShowConsistencyDialog(true)
+                  }}
+                >
+                  {t('Repair Channel Consistency')}
+                  <DropdownMenuShortcut>
+                    <Settings2 className='h-4 w-4' />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
 
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault()
-                setShowConsistencyDialog(true)
-              }}
-            >
-              {t('Repair Channel Consistency')}
-              <DropdownMenuShortcut>
-                <Settings2 className='h-4 w-4' />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
+                <DropdownMenuSeparator />
 
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault()
-                if (!canEditSensitive) return
-                setShowDeleteDialog(true)
-              }}
-              disabled={!canEditSensitive}
-              className='text-destructive focus:text-destructive'
-            >
-              {t('Delete All Disabled')}
-              <DropdownMenuShortcut>
-                <Trash2 className='h-4 w-4' />
-              </DropdownMenuShortcut>
-            </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    if (!canEditSensitive) return
+                    setShowDeleteDialog(true)
+                  }}
+                  disabled={!canEditSensitive}
+                  className='text-destructive focus:text-destructive'
+                >
+                  {t('Delete All Disabled')}
+                  <DropdownMenuShortcut>
+                    <Trash2 className='h-4 w-4' />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -143,3 +143,13 @@ export function scopesToPermissionMatrix(
   }
   return matrix
 }
+
+// canAccessChannels reports whether the user may open the channel pages:
+// administrators always, channel suppliers through their channel read grant.
+export function canAccessChannels(user: AuthUser | null | undefined): boolean {
+  if (!user) return false
+  return (
+    user.role >= ROLE.ADMIN ||
+    hasPermission(user, ADMIN_PERMISSION_RESOURCES.CHANNEL, 'read')
+  )
+}

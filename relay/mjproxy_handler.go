@@ -320,7 +320,9 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 	if err != nil {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "get_channel_info_failed")
 	}
-	if channel.Status != common.ChannelStatusEnabled {
+	// A channel supplier's channel never serves relay; it is refused like a
+	// disabled channel.
+	if channel.Status != common.ChannelStatusEnabled || channel.IsSupplierChannel() {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, i18n.T(c, i18n.MsgRelayTaskChannelDisabled))
 	}
 	c.Set("channel_id", originTask.ChannelId)
@@ -494,7 +496,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 			if err != nil {
 				return service.MidjourneyErrorWrapper(constant.MjRequestError, "get_channel_info_failed")
 			}
-			if channel.Status != common.ChannelStatusEnabled {
+			if channel.Status != common.ChannelStatusEnabled || channel.IsSupplierChannel() {
 				return service.MidjourneyErrorWrapper(constant.MjRequestError, i18n.T(c, i18n.MsgRelayTaskChannelDisabled))
 			}
 			c.Set("base_url", channel.GetBaseURL())

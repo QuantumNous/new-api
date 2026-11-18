@@ -15,7 +15,7 @@ import (
 
 // stubAccessTokenFetch replaces the Google token exchange for one test and
 // clears the token cache before and after it.
-func stubAccessTokenFetch(t *testing.T, fetch func(Credentials, string) (string, time.Duration, error)) {
+func stubAccessTokenFetch(t *testing.T, fetch func(Credentials, string, bool) (string, time.Duration, error)) {
 	t.Helper()
 	accessTokens.Clear()
 	original := fetchAccessToken
@@ -36,7 +36,7 @@ func newAccessTokenTestAdaptor(keyID string) *Adaptor {
 
 func TestGetAccessTokenReusesTokenUntilNearExpiry(t *testing.T) {
 	var calls atomic.Int32
-	stubAccessTokenFetch(t, func(Credentials, string) (string, time.Duration, error) {
+	stubAccessTokenFetch(t, func(Credentials, string, bool) (string, time.Duration, error) {
 		return fmt.Sprintf("token-%d", calls.Add(1)), time.Hour, nil
 	})
 	info := newAccessTokenTestInfo(7)
@@ -65,7 +65,7 @@ func TestGetAccessTokenReusesTokenUntilNearExpiry(t *testing.T) {
 
 func TestGetAccessTokenSeparatesKeySlotsAndReplacedKeys(t *testing.T) {
 	var calls atomic.Int32
-	stubAccessTokenFetch(t, func(creds Credentials, _ string) (string, time.Duration, error) {
+	stubAccessTokenFetch(t, func(creds Credentials, _ string, _ bool) (string, time.Duration, error) {
 		calls.Add(1)
 		return creds.PrivateKeyID, time.Hour, nil
 	})
@@ -94,7 +94,7 @@ func TestGetAccessTokenSeparatesKeySlotsAndReplacedKeys(t *testing.T) {
 func TestGetAccessTokenSharesOneExchangeAcrossConcurrentRequests(t *testing.T) {
 	var calls atomic.Int32
 	release := make(chan struct{})
-	stubAccessTokenFetch(t, func(Credentials, string) (string, time.Duration, error) {
+	stubAccessTokenFetch(t, func(Credentials, string, bool) (string, time.Duration, error) {
 		calls.Add(1)
 		<-release
 		return "shared", time.Hour, nil
@@ -124,7 +124,7 @@ func TestGetAccessTokenSharesOneExchangeAcrossConcurrentRequests(t *testing.T) {
 
 func TestGetAccessTokenDoesNotCacheFailures(t *testing.T) {
 	var calls atomic.Int32
-	stubAccessTokenFetch(t, func(Credentials, string) (string, time.Duration, error) {
+	stubAccessTokenFetch(t, func(Credentials, string, bool) (string, time.Duration, error) {
 		if calls.Add(1) == 1 {
 			return "", 0, errors.New("exchange failed")
 		}
@@ -138,4 +138,22 @@ func TestGetAccessTokenDoesNotCacheFailures(t *testing.T) {
 	token, err := getAccessToken(a, info)
 	require.NoError(t, err)
 	assert.Equal(t, "recovered", token)
+}
+
+func TestGetAccessTokenTellsWhetherASupplierCreatedTheChannel(t *testing.T) {
+	for _, supplierChannel := range []bool{false, true} {
+		t.Run(fmt.Sprint(supplierChannel), func(t *testing.T) {
+			var received []bool
+			stubAccessTokenFetch(t, func(_ Credentials, _ string, supplier bool) (string, time.Duration, error) {
+				received = append(received, supplier)
+				return "token", time.Hour, nil
+			})
+			info := newAccessTokenTestInfo(13)
+			info.SupplierChannel = supplierChannel
+
+			_, err := getAccessToken(newAccessTokenTestAdaptor("key-1"), info)
+			require.NoError(t, err)
+			assert.Equal(t, []bool{supplierChannel}, received)
+		})
+	}
 }

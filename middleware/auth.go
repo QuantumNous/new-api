@@ -49,7 +49,7 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
-func authHelper(c *gin.Context, minRole int) {
+func authHelper(c *gin.Context, minRole int, auditWrites bool) {
 	if _, started := c.Get(accessTokenAuditContextKey); !started {
 		defer finishAccessTokenAudit(c)
 	}
@@ -64,6 +64,14 @@ func authHelper(c *gin.Context, minRole int) {
 	}
 	if user.Role < minRole {
 		abortWithWebMessage(c, http.StatusForbidden, "AUTH_INSUFFICIENT_PRIVILEGE", common.NewMessage("Unauthorized, insufficient privileges"))
+		return
+	}
+	// A demotion revokes login sessions but not access tokens, and legacy
+	// tokens skip the scope check, so a token minted under an earlier role
+	// would regain its grant here: channel suppliers need a dashboard session.
+	if useAccessToken && minRole == common.RoleChannelSupplierUser && user.Role < common.RoleAdminUser {
+		setAccessTokenAuditParam(c, "failure_reason", "session_required")
+		abortWithWebMessage(c, http.StatusForbidden, "AUTH_SESSION_REQUIRED", common.NewMessage(accessTokenSessionRequiredMsg))
 		return
 	}
 	var lookup *accessTokenLookup
@@ -82,11 +90,12 @@ func authHelper(c *gin.Context, minRole int) {
 		setAccessTokenContext(c, lookup)
 	}
 
-	// 管理/root 写操作审计兜底：内聚在鉴权链路里，保证任何经过 AdminAuth/RootAuth
+	// 写操作审计兜底：内聚在鉴权链路里，保证任何经过 ChannelSupplierAuth/AdminAuth/RootAuth
 	// 的写接口都会自动留痕（无需在路由上单独挂审计中间件，避免漏挂）。
+	// 由 auditWrites 显式开启，而不是按最低角色推断：最低角色低于管理员的门槛同样要留痕。
 	// handler 内手动埋点者会设置 ContextKeyAuditLogged，finishAdminAudit 据此跳过。
 	var auditWriter *auditResponseWriter
-	if minRole >= common.RoleAdminUser {
+	if auditWrites {
 		auditWriter = beginAdminAudit(c)
 	}
 
@@ -131,19 +140,30 @@ func TryUserAuth() func(c *gin.Context) {
 
 func UserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		authHelper(c, common.RoleCommonUser)
+		authHelper(c, common.RoleCommonUser, false)
+	}
+}
+
+// ChannelSupplierAuth admits channel suppliers and administrators to the routes
+// opened to suppliers: channel management, where each route's permission and
+// handler confine suppliers to their own channels, and the group reads it
+// needs. Writes are audited as under AdminAuth. Suppliers must use a dashboard
+// session; access tokens, legacy ones included, are rejected.
+func ChannelSupplierAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		authHelper(c, common.RoleChannelSupplierUser, true)
 	}
 }
 
 func AdminAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		authHelper(c, common.RoleAdminUser)
+		authHelper(c, common.RoleAdminUser, true)
 	}
 }
 
 func RootAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
-		authHelper(c, common.RoleRootUser)
+		authHelper(c, common.RoleRootUser, true)
 	}
 }
 
@@ -416,6 +436,20 @@ func RequirePermission(permission authz.Permission) func(c *gin.Context) {
 			return
 		}
 		abortWithWebMessage(c, http.StatusForbidden, "", common.NewMessage("Unauthorized, insufficient privileges"))
+	}
+}
+
+// RequireAdminRole limits a route behind a lower gate, such as
+// ChannelSupplierAuth, to administrators and rejects lower roles as AdminAuth
+// does. It checks the role rather than a permission, so the permission editor
+// gains no switch that would be meaningless for administrators.
+func RequireAdminRole() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		if c.GetInt("role") >= common.RoleAdminUser {
+			c.Next()
+			return
+		}
+		abortWithWebMessage(c, http.StatusForbidden, "AUTH_INSUFFICIENT_PRIVILEGE", common.NewMessage("Unauthorized, insufficient privileges"))
 	}
 }
 

@@ -48,6 +48,7 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { hasPermission } from '@/lib/admin-permissions'
+import { ROLE } from '@/lib/roles'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -330,9 +331,11 @@ export function ChannelsTable() {
     (idSort ? 'id' : 'priority')) as ChannelSortBy
   const sortDesc = sorting[0]?.desc ?? true
   const [reorderEnabled, setReorderEnabled] = useState(false)
+  const isAdmin = (user?.role ?? 0) >= ROLE.ADMIN
   const canReorder =
     sortField === 'priority' &&
     !enableTagMode &&
+    isAdmin &&
     hasPermission(user, 'channel', 'write')
   const reorderActive = reorderEnabled && canReorder
   useEffect(() => {
@@ -369,8 +372,9 @@ export function ChannelsTable() {
   let dragReason: 'sort' | 'tag' | 'permission' | 'busy' | null = null
   if (sortField !== 'priority') dragReason = 'sort'
   else if (enableTagMode) dragReason = 'tag'
-  else if (!hasPermission(user, 'channel', 'write')) dragReason = 'permission'
-  else if (priorityOrder.saving || isFetching) dragReason = 'busy'
+  else if (!isAdmin || !hasPermission(user, 'channel', 'write')) {
+    dragReason = 'permission'
+  } else if (priorityOrder.saving || isFetching) dragReason = 'busy'
 
   const dragControls = useMemo(
     () => ({ reason: dragReason, start: drag.start, keyDown: drag.keyDown }),
@@ -503,6 +507,7 @@ export function ChannelsTable() {
   return (
     <ChannelPriorityContext.Provider value={dragControls}>
       {priorityActionContainer &&
+        isAdmin &&
         createPortal(
           <ChannelPriorityModeToggle
             active={reorderActive}

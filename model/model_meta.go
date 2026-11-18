@@ -122,6 +122,10 @@ func FillModelSquareStates(rows []*Model, configured map[string][]int, connectio
 	resolved := resolveModelMetadata(metadata, names)
 	available := make(map[string]bool)
 	for _, connection := range connections {
+		// The public catalog leaves out the channels of channel suppliers.
+		if connection.ChannelCreatorRole == common.RoleChannelSupplierUser {
+			continue
+		}
 		available[connection.Model] = true
 	}
 	states := make(map[string]ModelSquareState, len(names))
@@ -414,12 +418,15 @@ func GetAllModels(offset int, limit int) ([]*Model, error) {
 type ModelConnection struct {
 	AbilityWithChannel
 	ChannelName string `json:"channel_name"`
+	// ChannelCreatorRole is the role the channel's creator had when creating
+	// it; a channel supplier's channel never serves relay.
+	ChannelCreatorRole int `json:"-"`
 }
 
 func GetModelConnections() ([]ModelConnection, error) {
 	var connections []ModelConnection
 	err := DB.Table("abilities").
-		Select("abilities.*, channels.type as channel_type, channels.name as channel_name").
+		Select("abilities.*, channels.type as channel_type, channels.name as channel_name, channels.creator_role as channel_creator_role").
 		Joins("JOIN channels ON abilities.channel_id = channels.id").
 		Where("abilities.enabled = ? AND channels.status = ?", true, common.ChannelStatusEnabled).
 		Order("abilities.model, abilities.channel_id").
@@ -469,6 +476,9 @@ func GetPreferredModelOwnerChannelTypes(modelNames []string, groups []string) (m
 	if len(groups) > 0 {
 		query = query.Where("abilities."+commonGroupCol+" IN ?", groups)
 	}
+	// A channel supplier's channel never serves the caller, so it owns none of
+	// the caller's models.
+	query = excludeSupplierChannelAbilities(query)
 
 	if err := query.Scan(&rows).Error; err != nil {
 		return nil, err

@@ -675,6 +675,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
+	common.SetContextKey(c, constant.ContextKeyChannelSupplier, channel.IsSupplierChannel())
 	otherSettings := channel.GetOtherSettings()
 	// An ordinary request on a task plugin channel runs on the relay routes of
 	// its plugin, pinned for the request like a task relay pins its plugin.

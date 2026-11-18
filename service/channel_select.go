@@ -313,7 +313,9 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 		if err != nil {
 			return nil, "", pinnedChannelUnavailable(pin, http.StatusBadRequest, i18n.MsgDistributorInvalidChannelId)
 		}
-		if channel.Status != common.ChannelStatusEnabled {
+		// A channel supplier's channel never serves relay; a pin to it fails
+		// like a pin to a disabled channel.
+		if channel.Status != common.ChannelStatusEnabled || channel.IsSupplierChannel() {
 			return nil, "", pinnedChannelUnavailable(pin, http.StatusForbidden, i18n.MsgDistributorChannelDisabled)
 		}
 		if ok, kind := model.ChannelSatisfiesFilters(channel, modelName, constraints.Filters); !ok {
@@ -334,7 +336,7 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			affinityUsable := false
 			preferred, err := model.CacheGetChannel(preferredChannelID)
 			affinitySatisfied := false
-			if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+			if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled && !preferred.IsSupplierChannel() {
 				affinitySatisfied, _ = model.ChannelSatisfiesFilters(preferred, modelName, constraints.Filters)
 			}
 			if affinitySatisfied {

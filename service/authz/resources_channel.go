@@ -27,24 +27,25 @@ func init() {
 				Action:         ActionRead,
 				LabelKey:       "Read channels",
 				DescriptionKey: "View channel lists and details without secrets.",
-				DefaultRoles:   []string{BuiltInRoleAdmin},
+				DefaultRoles:   []string{BuiltInRoleAdmin, BuiltInRoleChannelSupplier},
 			},
 			{
 				Action:         ActionOperate,
 				LabelKey:       "Operate channels",
 				DescriptionKey: "Test channels, refresh balances, and enable/disable individual, batch, or tagged channels.",
-				DefaultRoles:   []string{BuiltInRoleAdmin},
+				DefaultRoles:   []string{BuiltInRoleAdmin, BuiltInRoleChannelSupplier},
 			},
 			{
 				Action:         ActionWrite,
 				LabelKey:       "Edit channel routing",
 				DescriptionKey: "Edit non-sensitive settings such as models, groups, and routing rules.",
-				DefaultRoles:   []string{BuiltInRoleAdmin},
+				DefaultRoles:   []string{BuiltInRoleAdmin, BuiltInRoleChannelSupplier},
 			},
 			{
 				Action:         ActionSensitiveWrite,
 				LabelKey:       "Edit sensitive channel settings",
 				DescriptionKey: "Create channels or edit keys, base URLs, and overrides.",
+				DefaultRoles:   []string{BuiltInRoleChannelSupplier},
 			},
 			{
 				Action:         ActionSecretView,

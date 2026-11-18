@@ -352,20 +352,26 @@ func newHTTPClientFromPolicy(policy HTTPTransportPolicy, proxyURL *url.URL, tlsC
 }
 
 func newHTTPClientFromTransportFactory(policy HTTPTransportPolicy, factory func() *http.Transport) *http.Client {
+	return newRelayHTTPClient(newPolicyRoundTripper(policy, factory))
+}
+
+// newPolicyRoundTripper builds the transports of policy from factory: one
+// transport, or one per HTTP/2 connection shard.
+func newPolicyRoundTripper(policy HTTPTransportPolicy, factory func() *http.Transport) http.RoundTripper {
 	if policy.Shards < 1 {
 		policy.Shards = 1
 	}
 	if policy.Protocol == dto.HTTPProtocolHTTP1 || policy.Shards == 1 {
 		transport := factory()
 		applyHTTPTransportPolicy(transport, policy)
-		return newRelayHTTPClient(transport)
+		return transport
 	}
 	shardedFactory := func() *http.Transport {
 		transport := factory()
 		applyHTTPTransportPolicy(transport, policy)
 		return transport
 	}
-	return newRelayHTTPClient(newShardedRoundTripper(policy, shardedFactory))
+	return newShardedRoundTripper(policy, shardedFactory)
 }
 
 func newDirectHTTPClient(policy HTTPTransportPolicy, tlsConfig *tls.Config) *http.Client {
@@ -440,8 +446,9 @@ func getOrCreateDirectClient(policy HTTPTransportPolicy) (*http.Client, error) {
 	})
 }
 
-// InvalidateProxyClient removes every cached policy variant for one proxy and
-// closes their idle connections (including all HTTP/2 shards).
+// InvalidateProxyClient removes every cached policy variant for one proxy,
+// those of supplier channels included, and closes their idle connections
+// (including all HTTP/2 shards).
 func InvalidateProxyClient(rawProxyURL string) {
 	parsedURL, legacySuffixStripped, err := common.ParseProxyURLRuntime(rawProxyURL)
 	if err != nil || parsedURL == nil {
@@ -454,16 +461,23 @@ func InvalidateProxyClient(rawProxyURL string) {
 	for _, client := range proxyClients.removeProxy(config.cacheKey) {
 		client.CloseIdleConnections()
 	}
+	for _, client := range channelProtectedClients.removeProxy(config.cacheKey) {
+		client.CloseIdleConnections()
+	}
 }
 
-// ResetProxyClientCache clears cached proxy and non-default direct policy clients
-// and closes idle connections on every transport/shard. The package-level default
-// httpClient pointer stays stable after InitHttpClient; it is only closed and
-// re-registered in the policy cache so concurrent GetHttpClient readers never race
-// a pointer replacement.
+// ResetProxyClientCache clears cached proxy and non-default direct policy
+// clients, the clients of supplier channels included, and closes idle
+// connections on every transport/shard. The package-level default httpClient
+// pointer stays stable after InitHttpClient; it is only closed and
+// re-registered in the policy cache so concurrent GetHttpClient readers never
+// race a pointer replacement.
 func ResetProxyClientCache() {
 	defaultClient := httpClient
 	for _, client := range proxyClients.reset() {
+		client.CloseIdleConnections()
+	}
+	for _, client := range channelProtectedClients.reset() {
 		client.CloseIdleConnections()
 	}
 	if defaultClient == nil {

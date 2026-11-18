@@ -39,6 +39,10 @@ const (
 	ContextKeyChannelIsMultiKey        ContextKey = "channel_is_multi_key"
 	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
 	ContextKeyChannelKey               ContextKey = "channel_key"
+	// ContextKeyChannelSupplier is whether a channel supplier created the
+	// selected channel; requests of such a channel go through the address
+	// checks of service.ChannelHTTPClient.
+	ContextKeyChannelSupplier ContextKey = "channel_supplier"
 	// ContextKeyProviderPlugin holds the jsplugin.PinnedPlugin whose relay
 	// routes serve this request on a task plugin channel.
 	ContextKeyProviderPlugin ContextKey = "provider_plugin"

@@ -31,6 +31,7 @@ import type { AuditLog } from '../api'
 const AUDIT_ROLE_NAMES: Record<number, string> = {
   [ROLE.GUEST]: 'guest',
   [ROLE.USER]: 'user',
+  [ROLE.CHANNEL_SUPPLIER]: 'channel_supplier',
   [ROLE.ADMIN]: 'admin',
   [ROLE.SUPER_ADMIN]: 'root',
 }
@@ -431,7 +432,7 @@ export function buildAuditDetails(
   }
   if (
     typeof summaryParams.role === 'number' &&
-    [0, 1, 10, 100].includes(summaryParams.role)
+    [0, 1, 5, 10, 100].includes(summaryParams.role)
   ) {
     summaryParams.role = AUDIT_ROLE_NAMES[summaryParams.role]
   }
@@ -470,7 +471,7 @@ export function buildAuditDetails(
     actor = actorName ? `${actorName} (ID: ${actorId})` : `ID: ${actorId}`
   }
   let actorRole = ''
-  if ([1, 10, 100].includes(entry.actor_role)) {
+  if ([1, 5, 10, 100].includes(entry.actor_role)) {
     actorRole = AUDIT_ROLE_NAMES[entry.actor_role]
   }
   const authMethod =

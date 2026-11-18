@@ -1018,6 +1018,13 @@ func (user *User) HardDelete() (int64, error) {
 		if err := deleteUserAuthenticationData(tx, user.Id); err != nil {
 			return err
 		}
+		// MySQL before 8.0 may give the ID of a deleted row to the next new
+		// user after a restart, and that user would take over the channels
+		// created under the ID. They lose their creator instead; the creator
+		// role, which keeps a supplier's channel out of relay, stays.
+		if err := tx.Model(&Channel{}).Where("creator_user_id = ?", user.Id).Update("creator_user_id", 0).Error; err != nil {
+			return err
+		}
 		return tx.Unscoped().Delete(user).Error
 	})
 	if err != nil {

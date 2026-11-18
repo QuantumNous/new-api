@@ -76,6 +76,9 @@ func StartPluginLogin(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if rejectChannelOutsideScope(c, channelID) {
+		return
+	}
 	var request pluginLoginStartRequest
 	if err := common.DecodeJson(c.Request.Body, &request); err != nil && !errors.Is(err, io.EOF) {
 		common.ApiErrorT(c, "Invalid parameters")
@@ -97,6 +100,9 @@ func ContinuePluginLogin(c *gin.Context) {
 	}
 	channelID, ok := pluginLoginChannelID(c)
 	if !ok {
+		return
+	}
+	if rejectChannelOutsideScope(c, channelID) {
 		return
 	}
 	var request pluginLoginContinueRequest
@@ -136,6 +142,9 @@ func CompletePluginLoginCallback(c *gin.Context) {
 func GetPluginCredentials(c *gin.Context) {
 	channelID, ok := pluginLoginChannelID(c)
 	if !ok {
+		return
+	}
+	if rejectChannelOutsideScope(c, channelID) {
 		return
 	}
 	channel, err := model.GetChannelById(channelID, true)
