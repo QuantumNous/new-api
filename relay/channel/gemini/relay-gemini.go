@@ -201,8 +201,62 @@ func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.Ch
 	return nil
 }
 
+type geminiStreamOutcome struct {
+	abnormalFinishReason string
+	lastFinishReason     string
+	hasVisibleOutput     bool
+}
+
+func isGeminiNormalFinishReason(reason string) bool {
+	switch reason {
+	case "", "FINISH_REASON_UNSPECIFIED", "STOP", "MAX_TOKENS", "CONTINUATION":
+		return true
+	default:
+		return false
+	}
+}
+
+func geminiAbnormalFinishReason(response *dto.GeminiChatResponse) string {
+	if response == nil {
+		return ""
+	}
+	for _, candidate := range response.Candidates {
+		if candidate.FinishReason == nil || *candidate.FinishReason == "" || *candidate.FinishReason == "FINISH_REASON_UNSPECIFIED" {
+			continue
+		}
+		if !isGeminiNormalFinishReason(*candidate.FinishReason) {
+			return *candidate.FinishReason
+		}
+	}
+	return ""
+}
+
+func geminiHasVisibleOutput(response *dto.GeminiChatResponse) bool {
+	if response == nil {
+		return false
+	}
+	for _, candidate := range response.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if (!part.Thought && part.Text != "") ||
+				part.FunctionCall != nil ||
+				part.InlineData != nil ||
+				part.ExecutableCode != nil ||
+				part.CodeExecutionResult != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, callback func(data string, geminiResponse *dto.GeminiChatResponse) bool) (*dto.Usage, *types.NewAPIError) {
+	usage, _, err := geminiStreamHandlerWithOutcome(c, info, resp, callback)
+	return usage, err
+}
+
+func geminiStreamHandlerWithOutcome(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, callback func(data string, geminiResponse *dto.GeminiChatResponse) bool) (*dto.Usage, geminiStreamOutcome, *types.NewAPIError) {
 	var usage = &dto.Usage{}
+	var outcome geminiStreamOutcome
 	var imageCount int
 	var hasBillableUsageMetadata bool
 	var streamErr error
@@ -218,6 +272,9 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			return
 		}
 
+		if !outcome.hasVisibleOutput && geminiHasVisibleOutput(&geminiResponse) {
+			outcome.hasVisibleOutput = true
+		}
 		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
 			info.PerformanceBusinessRejection = true
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
@@ -226,6 +283,11 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		for _, candidate := range geminiResponse.Candidates {
 			if candidate.FinishReason == nil || *candidate.FinishReason == "" || *candidate.FinishReason == "FINISH_REASON_UNSPECIFIED" {
 				continue
+			}
+			outcome.lastFinishReason = *candidate.FinishReason
+			if !isGeminiNormalFinishReason(*candidate.FinishReason) {
+				outcome.abnormalFinishReason = *candidate.FinishReason
+				logger.LogWarn(c, fmt.Sprintf("Gemini abnormal finishReason=%s model=%s", *candidate.FinishReason, info.UpstreamModelName))
 			}
 			switch *candidate.FinishReason {
 			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT", "IMAGE_RECITATION":
@@ -285,13 +347,15 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 
 	if streamErr != nil {
-		return usage, types.NewOpenAIError(streamErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		return usage, outcome, types.NewOpenAIError(streamErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if info.StreamStatus != nil && !info.StreamStatus.IsNormalEnd() {
 		logger.LogWarn(c, common.LogText("Gemini stream ended unexpectedly: %s", info.StreamStatus.Summary()))
+	} else if !isGeminiDownstreamStop(c, info) && !outcome.hasVisibleOutput && info.ReceivedResponseCount > 0 {
+		logger.LogWarn(c, fmt.Sprintf("Gemini stream finished with empty visible output: model=%s finishReason=%s received=%d", info.UpstreamModelName, outcome.lastFinishReason, info.ReceivedResponseCount))
 	}
 
-	return usage, nil
+	return usage, outcome, nil
 }
 
 func isGeminiDownstreamStop(c *gin.Context, info *relaycommon.RelayInfo) bool {
@@ -309,7 +373,10 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 	toolCallIndexByChoice := make(map[int]map[string]int)
 	nextToolCallIndexByChoice := make(map[int]int)
 
-	usage, err := geminiStreamHandler(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
+	usage, outcome, err := geminiStreamHandlerWithOutcome(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
+		if geminiAbnormalFinishReason(geminiResponse) != "" && !geminiHasVisibleOutput(geminiResponse) {
+			return true
+		}
 		response, isStop := streamResponseGeminiChat2OpenAI(geminiResponse)
 
 		response.Id = id
@@ -395,6 +462,30 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 
 	if err != nil {
 		return usage, err
+	}
+
+	if outcome.abnormalFinishReason != "" || (!outcome.hasVisibleOutput && info.ReceivedResponseCount > 0 && !isGeminiDownstreamStop(c, info)) {
+		var errMsg string
+		if outcome.abnormalFinishReason != "" {
+			errMsg = fmt.Sprintf("gemini stream stopped abnormally: finishReason=%s", outcome.abnormalFinishReason)
+		} else {
+			errMsg = fmt.Sprintf("gemini stream finished with empty visible output: finishReason=%s", outcome.lastFinishReason)
+		}
+		if info.SendResponseCount == 0 {
+			return usage, types.NewOpenAIError(errors.New(errMsg), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+		if info.RelayFormat == types.RelayFormatClaude {
+			_ = helper.ClaudeData(c, dto.ClaudeResponse{
+				Type:  "error",
+				Error: map[string]any{"type": "api_error", "message": errMsg},
+			})
+		} else {
+			_ = helper.ObjectData(c, map[string]any{
+				"error": map[string]any{"message": errMsg, "type": "server_error"},
+			})
+			helper.Done(c)
+		}
+		return usage, nil
 	}
 
 	response := helper.GenerateFinalUsageResponse(id, createAt, info.UpstreamModelName, *usage)

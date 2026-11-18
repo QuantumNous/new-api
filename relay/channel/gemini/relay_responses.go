@@ -148,7 +148,7 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 		return true
 	}
 
-	usage, streamAPIError := geminiStreamHandler(c, info, resp, func(_ string, geminiResponse *dto.GeminiChatResponse) bool {
+	usage, outcome, streamAPIError := geminiStreamHandlerWithOutcome(c, info, resp, func(_ string, geminiResponse *dto.GeminiChatResponse) bool {
 		hostedBridge.Observe(geminiResponse)
 		return sendChunk(geminiResponse)
 	})
@@ -162,6 +162,14 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 		if info.StreamStatus.EndReason != relaycommon.StreamEndReasonClientGone {
 			failResponsesStream(fmt.Errorf("gemini stream ended unexpectedly: %s", info.StreamStatus.Summary()))
 		}
+		return usage, nil
+	}
+	if outcome.abnormalFinishReason != "" {
+		failResponsesStream(fmt.Errorf("gemini stream stopped abnormally: finishReason=%s", outcome.abnormalFinishReason))
+		return usage, nil
+	}
+	if !outcome.hasVisibleOutput && info.ReceivedResponseCount > 0 && !isGeminiDownstreamStop(c, info) {
+		failResponsesStream(fmt.Errorf("gemini stream finished with empty visible output: finishReason=%s", outcome.lastFinishReason))
 		return usage, nil
 	}
 	if streamErr != nil {
