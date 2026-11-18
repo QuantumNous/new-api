@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   ClipboardList,
-  LayoutDashboard,
   MessageSquare,
   ServerCog,
   Settings,
@@ -62,11 +61,6 @@ export function useSidebarData(): SidebarData {
             title: t('Overview'),
             url: '/dashboard/overview',
             icon: Activity,
-          },
-          {
-            title: t('Dashboard'),
-            url: '/dashboard/overview',
-            icon: LayoutDashboard,
           },
           {
             title: t('Audit Logs'),
