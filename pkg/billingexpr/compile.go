@@ -112,6 +112,7 @@ func usesRequestProbe(node ast.Node) bool {
 
 type cachedEntry struct {
 	prog          *vm.Program
+	withoutTokens func() (*vm.Program, error)
 	usedVars      map[string]bool
 	usedUsageKeys map[string]bool
 	requestRules  []RequestRuleTrace
@@ -226,6 +227,14 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 		requestRules:  patcher.requestRules,
 		version:       version,
 		fixedPricing:  fixedPricing,
+	}
+	if fixedPricing {
+		entry.withoutTokens = sync.OnceValues(func() (*vm.Program, error) {
+			return expr.Compile(body, expr.Env(getCompileEnv(version)), expr.Patch(&requestRulePatcher{}),
+				expr.Patch(missingTokenPatcher{}), expr.Function("$missingToken", func(...any) (any, error) {
+					return nil, fmt.Errorf("token usage unavailable")
+				}, new(func() float64)), expr.AsFloat64())
+		})
 	}
 	cacheMu.Lock()
 	if len(cache) >= maxCacheSize {

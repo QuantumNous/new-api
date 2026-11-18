@@ -186,10 +186,13 @@ func TestImageSVGAuthorBilling(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, response)
 	}
+	wallet := func() int { quota, err := model.GetUserQuota(h.userID, true); require.NoError(t, err); return quota }
+	before := wallet()
 	result := h.post(t, path, request+`,"svg":{"model":"gpt-5.4-mini"}}`)
 	require.Equal(t, http.StatusOK, result.status, result.body)
 	assert.JSONEq(t, response, result.body)
 	assert.Equal(t, 12583+948, result.quota)
+	assert.Equal(t, 13531, before-wallet())
 	assert.Equal(t, result.quota, result.log.Quota)
 	assert.EqualValues(t, 1, consumeLogCount(t))
 	assert.Equal(t, "gpt-5.4-mini", gjson.Get(result.log.Other, "svg_author.billing_model").String())
@@ -240,17 +243,19 @@ func TestImageSVGAuthorBilling(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		fmt.Fprint(w, "data: unexpected payload\n\n")
 	}
+	before = wallet()
 	stream := h.post(t, path, request+`,"svg":{"model":"gpt-5.4-mini"}}`)
 	assert.Equal(t, http.StatusBadGateway, stream.status, stream.body)
 	assert.NotContains(t, stream.body, "unexpected payload")
 	assert.Zero(t, stream.quota)
+	assert.Equal(t, before, wallet())
 
 	oldPrices := ratio_setting.ModelPrice2JSONString()
 	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(oldPrices)) })
 	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"legacy-author":0.01,"free-image":0}`))
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
 		"billing_setting.billing_mode": `{"fixed-author":"tiered_expr","mixed-author":"tiered_expr","expensive-author":"tiered_expr","gpt-image-2.6-flare":"tiered_expr"}`,
-		"billing_setting.billing_expr": `{"fixed-author":"tier(\"fixed\", fixed(0.01))","mixed-author":"len == 0 ? tier(\"fixed\",fixed(0.01)) : tier(\"token\",p)","expensive-author":"tier(\"fixed\",fixed(100))","gpt-image-2.6-flare":"tier(\"image\",p*5+c*30)"}`,
+		"billing_setting.billing_expr": `{"fixed-author":"param(\"output_format\") == \"svg\" ? tier(\"fixed\", fixed(0.01)) : tier(\"token\",p)","mixed-author":"len == 0 ? tier(\"fixed\",fixed(0.01)) : tier(\"token\",p)","expensive-author":"tier(\"fixed\",fixed(100))","gpt-image-2.6-flare":"tier(\"image\",p*5+c*30)"}`,
 	}))
 	for _, tc := range []struct {
 		model, usage string

@@ -3,9 +3,20 @@ package billingexpr
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/expr-lang/expr/ast"
 )
+
+// Only a token read on the executed path makes a fixed fee unknowable.
+// A token-priced sibling of a selected fixed leaf is never evaluated.
+type missingTokenPatcher struct{}
+
+func (missingTokenPatcher) Visit(node *ast.Node) {
+	if id, ok := (*node).(*ast.IdentifierNode); ok && id.Value != "image_count" && slices.Contains(chatQuantityVars, id.Value) {
+		ast.Patch(node, &ast.CallNode{Callee: &ast.IdentifierNode{Value: "$missingToken"}})
+	}
+}
 
 // UsesFixedPricing includes unselected branches, even when compilation later
 // optimizes them away. Hosts use it to reject unsupported billing entrances.

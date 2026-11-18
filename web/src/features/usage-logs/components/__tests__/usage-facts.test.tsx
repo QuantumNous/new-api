@@ -109,7 +109,15 @@ test('shows SVG author tokens separately and updates their locale in the open di
     },
   })
   const author = within(screen.getByRole('group', { name: 'SVG' }))
-  expect(author.getByText('mini')).toBeVisible()
+  expect(
+    author.getByText('Request Model').nextElementSibling
+  ).toHaveTextContent('mini')
+  expect(author.getByText('Actual Model').nextElementSibling).toHaveTextContent(
+    'mini-snapshot'
+  )
+  expect(author.getByText('Cost').nextElementSibling).toHaveTextContent(
+    '$0.001896'
+  )
   expect(author.getByText('1,599')).toBeVisible()
   expect(author.getByText('155')).toBeVisible()
   expect(author.getByText('80')).toBeVisible()

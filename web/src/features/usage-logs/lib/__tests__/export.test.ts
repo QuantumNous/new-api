@@ -120,6 +120,28 @@ describe('usage log CSV export', () => {
       expect(getLogCsvRow(consumeLog, admin, t).slice(-7)).toEqual(
         Array(7).fill('')
       )
+      for (const usage of [
+        null,
+        {
+          model: 'mini-snapshot',
+          input_tokens: 0,
+          output_tokens: 0,
+          reasoning_tokens: 0,
+          total_tokens: 0,
+        },
+      ]) {
+        const paid = {
+          ...consumeLog,
+          other: JSON.stringify({
+            svg_author: { billing_model: 'mini', quota: 5000, usage },
+          }),
+        }
+        expect(getLogCsvRow(paid, admin, t).slice(-7)).toEqual(
+          usage
+            ? ['mini', 'mini-snapshot', '0', '0', '0', '0', '5000']
+            : ['mini', '', '', '', '', '', '5000']
+        )
+      }
     }
   )
   test('header in the user view has no user or channel column', async () => {

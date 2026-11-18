@@ -70,7 +70,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		N            *uint           `json:"n"`
 		OutputFormat json.RawMessage `json:"output_format"`
 		SVG          json.RawMessage `json:"svg"`
-		Stream       *bool           `json:"stream"`
+		Stream       json.RawMessage `json:"stream"`
 	}
 	validateQuantity := false
 
@@ -215,7 +215,8 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 					common.Unmarshal(outbound.SVG, &sent) != nil || sent.Model != requested.Model {
 					return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGAuthorRequired)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 				}
-				if info.IsStream || outbound.Stream != nil && *outbound.Stream {
+				var stream bool
+				if info.IsStream || len(outbound.Stream) != 0 && (common.Unmarshal(outbound.Stream, &stream) != nil || stream) {
 					return types.NewErrorWithStatusCode(errors.New(i18n.T(c, i18n.MsgRelaySVGStreamingUnsupported)), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 				}
 				info.SVGAuthor, err = helper.PriceSVGAuthor(c, info, requested.Model)
