@@ -44,10 +44,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   console: {
     enabled: true,
     detail: true,
-    log: true,
     audit: true,
-    midjourney: true,
-    task: true,
   },
   personal: {
     enabled: true,
@@ -85,6 +82,9 @@ const mergeWithDefaultSidebarModules = (
 
   delete merged.chat?.playground
   delete merged.console?.token
+  delete merged.console?.log
+  delete merged.console?.midjourney
+  delete merged.console?.task
   delete merged.personal?.topup
   delete merged.admin?.redemption
   delete merged.admin?.subscription
@@ -99,11 +99,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/dashboard/overview': { section: 'console', module: 'detail' },
   '/dashboard/models': { section: 'console', module: 'detail' },
   '/dashboard/users': { section: 'console', module: 'detail' },
-  '/usage-logs': { section: 'console', module: 'log' },
-  '/usage-logs/common': { section: 'console', module: 'log' },
   '/usage-logs/audit': { section: 'console', module: 'audit' },
-  '/usage-logs/drawing': { section: 'console', module: 'midjourney' },
-  '/usage-logs/task': { section: 'console', module: 'task' },
   '/profile': { section: 'personal', module: 'personal' },
   '/security': { section: 'personal', module: 'security' },
   '/users': { section: 'admin', module: 'user' },
@@ -148,6 +144,9 @@ function parseUserSidebarConfig(
     if (!parsed || typeof parsed !== 'object') return null
     delete parsed.chat?.playground
     delete parsed.console?.token
+    delete parsed.console?.log
+    delete parsed.console?.midjourney
+    delete parsed.console?.task
     delete parsed.personal?.topup
     delete parsed.admin?.redemption
     delete parsed.admin?.subscription

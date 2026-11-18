@@ -19,9 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   ClipboardList,
-  FileText,
   LayoutDashboard,
-  ListTodo,
   MessageSquare,
   ServerCog,
   Settings,
@@ -71,21 +69,9 @@ export function useSidebarData(): SidebarData {
             icon: LayoutDashboard,
           },
           {
-            title: t('Usage Logs'),
-            url: '/usage-logs/common',
-            icon: FileText,
-          },
-          {
             title: t('Audit Logs'),
             url: '/usage-logs/audit',
             icon: ClipboardList,
-          },
-          {
-            title: t('Task Logs'),
-            url: '/usage-logs/task',
-            activeUrls: ['/usage-logs/drawing'],
-            configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
-            icon: ListTodo,
           },
         ],
       },
