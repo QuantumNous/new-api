@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -56,6 +57,7 @@ func TestSettleUserSubscriptionDelta(t *testing.T) {
 	}{
 		{delta: 40, applied: 40, used: 40},
 		{delta: 75, applied: 60, used: 100},
+		{delta: math.MaxInt64, applied: 0, used: 100},
 		{delta: -500, applied: -100, used: 0},
 	} {
 		applied, err := SettleUserSubscriptionDelta(sub.Id, step.delta)

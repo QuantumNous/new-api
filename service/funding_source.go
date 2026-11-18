@@ -17,7 +17,7 @@ type FundingSource interface {
 	Source() string
 	// PreConsume 从该资金来源预扣 amount 额度
 	PreConsume(amount int) error
-	// Settle 根据差额调整资金来源（正数补扣，负数退还），返回实际生效的差额
+	// Settle 根据差额调整资金来源（正数补扣，负数退还），返回实际生效的差额；err 非 nil 时 applied 无意义
 	Settle(delta int) (applied int, err error)
 	// Refund 退还所有预扣费
 	Refund() error

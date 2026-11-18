@@ -1554,7 +1554,9 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 // reserving, a positive delta that overruns the plan fills it to AmountTotal
 // and logs the uncovered part. Refusing here would leave AmountUsed below
 // AmountTotal for good, so every later small pre-consume would still fit and
-// the plan would never be exhausted.
+// the plan would never be exhausted. The uncovered part is forgiven: a later
+// refund of a concurrent reservation lowers AmountUsed as usual and may reopen
+// the plan by that amount.
 func SettleUserSubscriptionDelta(userSubscriptionId int, delta int64) (applied int64, err error) {
 	if userSubscriptionId <= 0 {
 		return 0, errors.New("invalid userSubscriptionId")
@@ -1569,10 +1571,13 @@ func SettleUserSubscriptionDelta(userSubscriptionId int, delta int64) (applied i
 			First(&sub).Error; err != nil {
 			return err
 		}
-		newUsed := max(sub.AmountUsed+delta, 0)
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			newUsed = sub.AmountTotal
+		// Bound a charge by the remaining quota before adding it, so the sum
+		// cannot overflow on a finite plan.
+		charge := delta
+		if charge > 0 && sub.AmountTotal > 0 {
+			charge = min(charge, max(sub.AmountTotal-sub.AmountUsed, 0))
 		}
+		newUsed := max(sub.AmountUsed+charge, 0)
 		applied = newUsed - sub.AmountUsed
 		sub.AmountUsed = newUsed
 		return tx.Save(&sub).Error
