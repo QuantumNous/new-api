@@ -37,8 +37,6 @@ import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
-import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
-import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
 import { Route as AuthenticatedSecurityIndexRouteImport } from './routes/_authenticated/security/index'
@@ -208,11 +206,6 @@ const AuthenticatedErrorsErrorRoute =
     path: '/errors/$error',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedKeysIndexRoute = AuthenticatedKeysIndexRouteImport.update({
-  id: '/keys/',
-  path: '/keys/',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedWalletIndexRoute =
   AuthenticatedWalletIndexRouteImport.update({
     id: '/wallet/',
@@ -343,8 +336,6 @@ export interface FileRoutesByFullPath {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
-  '/keys/': typeof AuthenticatedKeysIndexRoute
-  '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/security/': typeof AuthenticatedSecurityIndexRoute
@@ -398,8 +389,6 @@ export interface FileRoutesByTo {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
-  '/keys': typeof AuthenticatedKeysIndexRoute
-  '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
   '/security': typeof AuthenticatedSecurityIndexRoute
@@ -457,8 +446,6 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
-  '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
-  '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/_authenticated/security/': typeof AuthenticatedSecurityIndexRoute
@@ -515,8 +502,6 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/usage-logs/audit'
     | '/dashboard/'
-    | '/keys/'
-    | '/playground/'
     | '/profile/'
     | '/redemption-codes/'
     | '/security/'
@@ -570,8 +555,6 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/usage-logs/audit'
     | '/dashboard'
-    | '/keys'
-    | '/playground'
     | '/profile'
     | '/redemption-codes'
     | '/security'
@@ -628,8 +611,6 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/usage-logs/audit'
     | '/_authenticated/dashboard/'
-    | '/_authenticated/keys/'
-    | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
     | '/_authenticated/security/'
@@ -875,18 +856,8 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedErrorsErrorRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/keys/': {
-      id: '/_authenticated/keys/'
-      path: '/keys'
-      fullPath: '/keys/'
-      preLoaderRoute: typeof AuthenticatedKeysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/playground/': {
-      id: '/_authenticated/playground/'
-      path: '/playground'
-      fullPath: '/playground/'
-      preLoaderRoute: typeof AuthenticatedPlaygroundIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/profile/': {
@@ -1172,8 +1143,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedUsageLogsAuditRoute: typeof AuthenticatedUsageLogsAuditRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
-  AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
-  AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
   AuthenticatedSecurityIndexRoute: typeof AuthenticatedSecurityIndexRoute
@@ -1195,8 +1164,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedUsageLogsAuditRoute: AuthenticatedUsageLogsAuditRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
-  AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
-  AuthenticatedPlaygroundIndexRoute: AuthenticatedPlaygroundIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
     AuthenticatedRedemptionCodesIndexRoute,

@@ -21,8 +21,6 @@ import {
   ClipboardList,
   CreditCard,
   FileText,
-  FlaskConical,
-  Key,
   LayoutDashboard,
   ListTodo,
   MessageSquare,
@@ -36,7 +34,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type { SidebarBadges, SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -45,7 +43,7 @@ import { ROLE } from '@/lib/roles'
  * These are shown when the URL does not match any nested sidebar view
  * registered in `layout/lib/sidebar-view-registry.ts`.
  */
-export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
+export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
 
   return {
@@ -54,11 +52,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
         id: 'chat',
         title: t('Chat'),
         items: [
-          {
-            title: t('Playground'),
-            url: '/playground',
-            icon: FlaskConical,
-          },
           {
             title: t('Chat'),
             icon: MessageSquare,
@@ -79,11 +72,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             title: t('Dashboard'),
             url: '/dashboard/models',
             icon: LayoutDashboard,
-          },
-          {
-            title: t('API Keys'),
-            url: '/keys',
-            icon: Key,
           },
           {
             title: t('Usage Logs'),
@@ -157,8 +145,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             activeUrls: ['/system-settings'],
             icon: Settings,
             requiredRole: ROLE.SUPER_ADMIN,
-            // Model pricing lives in System Settings.
-            badge: badges.modelPricing,
           },
         ],
       },
