@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   ClipboardList,
-  MessageSquare,
   ServerCog,
   Settings,
   ShieldCheck,
@@ -42,17 +41,6 @@ export function useSidebarData(): SidebarData {
 
   return {
     navGroups: [
-      {
-        id: 'chat',
-        title: t('Chat'),
-        items: [
-          {
-            title: t('Chat'),
-            icon: MessageSquare,
-            type: 'chat-presets',
-          },
-        ],
-      },
       {
         id: 'general',
         title: t('General'),
