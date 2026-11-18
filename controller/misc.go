@@ -198,17 +198,6 @@ func GetPrivacyPolicy(c *gin.Context) {
 	serveRevalidatedJSON(c, system_setting.GetLegalSettings().PrivacyPolicy)
 }
 
-func GetMidjourney(c *gin.Context) {
-	common.OptionMapRWMutex.RLock()
-	defer common.OptionMapRWMutex.RUnlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    common.OptionMap["Midjourney"],
-	})
-	return
-}
-
 func GetHomePageContent(c *gin.Context) {
 	common.OptionMapRWMutex.RLock()
 	homePageContent := common.OptionMap["HomePageContent"]
