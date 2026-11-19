@@ -286,7 +286,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		var payload []byte
 		payload, apiErr = buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
 		if apiErr != nil {
-			recordResponsesWSPluginError(c, info, apiErr)
 			return apiErr
 		}
 		if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
@@ -321,7 +320,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			var payload []byte
 			payload, apiErr = buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
 			if apiErr != nil {
-				recordResponsesWSPluginError(c, info, apiErr)
 				return apiErr
 			}
 			adaptor := GetAdaptor(info.ApiType)
@@ -643,15 +641,6 @@ func reloadResponsesWSCreate(c *gin.Context, create *responsesWSCreateRequest) *
 	request.StreamOptions = nil
 	create.Request = request
 	return nil
-}
-
-// recordResponsesWSPluginError writes the error log of a create a request
-// plugin stopped; it shows what the plugins did.
-func recordResponsesWSPluginError(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError) {
-	switch apiErr.GetErrorCode() {
-	case types.ErrorCodeRequestRejected, types.ErrorCodeRequestPluginFailed:
-		service.RecordRelayErrorLog(c, info.ChannelId, apiErr, info)
-	}
 }
 
 func buildResponsesWSCreatePayload(c *gin.Context, info *relaycommon.RelayInfo, req dto.OpenAIResponsesRequest, generate common.RawMessage, streamID string) ([]byte, *types.NewAPIError) {
