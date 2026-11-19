@@ -385,11 +385,12 @@ describe('Admin group visibility by role', () => {
     expect(adminItemTitles()).toEqual(['Channels'])
   })
 
-  it('keeps the Admin group unchanged for administrators', async () => {
+  it('lists the Admin group items available to administrators', async () => {
     await renderSidebarFor(ROLE.ADMIN)
 
     expect(adminItemTitles()).toEqual([
       'Channels',
+      'Third-Party Sites',
       'Models',
       'Users',
       'Redemption Codes',
@@ -397,7 +398,7 @@ describe('Admin group visibility by role', () => {
     ])
   })
 
-  it('keeps the Admin group unchanged for the super administrator', async () => {
+  it('lists the Admin group items available to the super administrator', async () => {
     // The super administrator's sidebar also loads the model pricing issues.
     vi.spyOn(api, 'get').mockImplementation(async () => ({
       data: { success: true, data: [] },
@@ -406,6 +407,7 @@ describe('Admin group visibility by role', () => {
 
     expect(adminItemTitles()).toEqual([
       'Channels',
+      'Third-Party Sites',
       'Models',
       'Users',
       'Redemption Codes',

@@ -927,4 +927,11 @@ export const STATIC_I18N_KEYS = [
   'Channel suppliers cannot change request plugins',
   'Base URL is not allowed: {{error}}',
   'Proxy is not allowed: {{error}}',
+  // Third-party site labels, messages and API errors.
+  'Native NewAPI',
+  'Site created successfully',
+  'Site updated successfully',
+  'Site deleted successfully',
+  'A site with this name already exists',
+  'Site does not exist',
 ] as const

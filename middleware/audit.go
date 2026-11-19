@@ -68,6 +68,11 @@ var auditRouteActions = map[string]string{
 	"DELETE /api/redemption/:id":     "redemption.delete",
 	"DELETE /api/redemption/invalid": "redemption.delete_invalid",
 
+	// 第三方站点
+	"POST /api/third_party_site/":      "third_party_site.create",
+	"PUT /api/third_party_site/:id":    "third_party_site.update",
+	"DELETE /api/third_party_site/:id": "third_party_site.delete",
+
 	// 预填组
 	"POST /api/prefill_group/":      "prefill_group.create",
 	"PUT /api/prefill_group/":       "prefill_group.update",

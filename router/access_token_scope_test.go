@@ -200,3 +200,11 @@ func TestAccessTokenVerificationScopesAreAllListed(t *testing.T) {
 		assert.True(t, listed, "verification scope %s has no access token rule", scope)
 	}
 }
+
+func TestThirdPartySiteRoutesRequireDashboardSession(t *testing.T) {
+	for _, key := range []string{"GET /api/third_party_site/", "POST /api/third_party_site/", "PUT /api/third_party_site/:id", "DELETE /api/third_party_site/:id"} {
+		rule, ok := middleware.AccessTokenRouteRule(key)
+		require.True(t, ok, key)
+		assert.Equal(t, "session", rule.Kind(), key)
+	}
+}

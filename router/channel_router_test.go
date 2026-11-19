@@ -92,7 +92,8 @@ func TestChannelGlobalOperationsAreAdminOnly(t *testing.T) {
 // sessions: a channel supplier reaches the channel routes and the group reads
 // the channel page needs, but no operation on every channel, no prefill group
 // change and no channel key; a common user reaches none of them, and an
-// administrator still gets past every gate.
+// administrator and a root user still get past every gate, including the
+// third-party site routes, whose writes must leave an audit record.
 func TestChannelSupplierRouteGates(t *testing.T) {
 	previousDB, previousLogDB, previousType := model.DB, model.LOG_DB, common.MainDatabaseType()
 	previousRedis, previousSecret, wasMaster := common.RedisEnabled, common.SessionSecret, common.IsMasterNode
@@ -110,10 +111,10 @@ func TestChannelSupplierRouteGates(t *testing.T) {
 		common.RedisEnabled, common.SessionSecret, common.IsMasterNode = previousRedis, previousSecret, wasMaster
 		assert.NoError(t, sqlDB.Close())
 	})
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.PrefillGroup{}, &model.CasbinRule{}, &model.AuthzRole{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuditLog{}, &model.PrefillGroup{}, &model.ThirdPartySite{}, &model.CasbinRule{}, &model.AuthzRole{}))
 	require.NoError(t, authz.Init(db))
 	sessions := map[int]string{}
-	for _, role := range []int{common.RoleCommonUser, common.RoleChannelSupplierUser, common.RoleAdminUser} {
+	for _, role := range []int{common.RoleCommonUser, common.RoleChannelSupplierUser, common.RoleAdminUser, common.RoleRootUser} {
 		name := fmt.Sprintf("route-gate-%d", role)
 		user := &model.User{Username: name, Password: "password-placeholder", Role: role, Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, AffCode: name}
 		require.NoError(t, db.Create(user).Error)
@@ -144,6 +145,10 @@ func TestChannelSupplierRouteGates(t *testing.T) {
 		{method: http.MethodPut, path: "/api/prefill_group/", supplierStatus: http.StatusForbidden},
 		{method: http.MethodDelete, path: "/api/prefill_group/1", supplierStatus: http.StatusForbidden},
 		{method: http.MethodPost, path: "/api/channel/1/key", supplierStatus: http.StatusForbidden},
+		{method: http.MethodGet, path: "/api/third_party_site/", supplierStatus: http.StatusForbidden},
+		{method: http.MethodPost, path: "/api/third_party_site/", supplierStatus: http.StatusForbidden},
+		{method: http.MethodPut, path: "/api/third_party_site/1", supplierStatus: http.StatusForbidden},
+		{method: http.MethodDelete, path: "/api/third_party_site/1", supplierStatus: http.StatusForbidden},
 	}
 	for _, route := range channelPermissionRoutes {
 		if route.adminOnly {
@@ -161,6 +166,10 @@ func TestChannelSupplierRouteGates(t *testing.T) {
 		"DELETE /api/prefill_group/1":            true,
 		"GET /api/channel/priority/order":        true,
 		"GET /api/channel/update_balance/task/1": true,
+		"GET /api/third_party_site/":             true,
+		"POST /api/third_party_site/":            true,
+		"PUT /api/third_party_site/1":            true,
+		"DELETE /api/third_party_site/1":         true,
 	}
 	for _, test := range tests {
 		key := test.method + " " + test.path
@@ -176,13 +185,19 @@ func TestChannelSupplierRouteGates(t *testing.T) {
 			if !adminRoutes[key] {
 				return
 			}
-			response = request(test.method, test.path, sessions[common.RoleAdminUser])
-			assert.NotContains(t, []int{http.StatusUnauthorized, http.StatusForbidden}, response.Code, response.Body.String())
-			assert.NotContains(t, response.Body.String(), "AUTH_INSUFFICIENT_PRIVILEGE")
+			for _, role := range []int{common.RoleAdminUser, common.RoleRootUser} {
+				response = request(test.method, test.path, sessions[role])
+				assert.NotContains(t, []int{http.StatusUnauthorized, http.StatusForbidden}, response.Code, response.Body.String())
+				assert.NotContains(t, response.Body.String(), "AUTH_INSUFFICIENT_PRIVILEGE")
+			}
 		})
 		delete(adminRoutes, key)
 	}
 	assert.Empty(t, adminRoutes, "every administrator route must be in the table")
+	var actions []string
+	require.NoError(t, db.Model(&model.AuditLog{}).Where("action LIKE ?", "third_party_site.%").Order("id").Pluck("action", &actions).Error)
+	assert.Equal(t, []string{"third_party_site.create", "third_party_site.create", "third_party_site.update",
+		"third_party_site.update", "third_party_site.delete", "third_party_site.delete"}, actions)
 }
 
 func assertChannelRoutePermission(t *testing.T, method string, path string, permission authz.Permission, handler any) {

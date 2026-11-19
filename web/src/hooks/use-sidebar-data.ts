@@ -23,6 +23,7 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
+  Globe,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -138,6 +139,12 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             url: '/channels',
             icon: Radio,
             requiredRole: ROLE.CHANNEL_SUPPLIER,
+          },
+          {
+            title: t('Third-Party Sites'),
+            url: '/third-party-sites',
+            icon: Globe,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Models'),

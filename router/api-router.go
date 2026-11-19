@@ -327,6 +327,14 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
+		thirdPartySiteRoute := apiRouter.Group("/third_party_site")
+		thirdPartySiteRoute.Use(middleware.AdminAuth())
+		{
+			thirdPartySiteRoute.GET("/", controller.GetThirdPartySites)
+			thirdPartySiteRoute.POST("/", controller.CreateThirdPartySite)
+			thirdPartySiteRoute.PUT("/:id", controller.UpdateThirdPartySite)
+			thirdPartySiteRoute.DELETE("/:id", controller.DeleteThirdPartySite)
+		}
 		handlePermissionRoute(apiRouter.Group("", middleware.DisableCache(), middleware.AdminAuth()), http.MethodGet, "/audit", authz.AuditRead, controller.GetAuditLogs)
 		apiRouter.GET("/audit/self", middleware.DisableCache(), middleware.UserAuth(), controller.GetAuditLogs)
 		logRoute := apiRouter.Group("/log")

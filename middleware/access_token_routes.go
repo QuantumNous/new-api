@@ -237,6 +237,12 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"DELETE /api/redemption/invalid": accessTokenScopeRule("redemption:write"),
 	"DELETE /api/redemption/:id":     accessTokenScopeRule("redemption:write"),
 
+	// router/api-router.go: /api/third_party_site
+	"GET /api/third_party_site/":       accessTokenSessionRule,
+	"POST /api/third_party_site/":      accessTokenSessionRule,
+	"PUT /api/third_party_site/:id":    accessTokenSessionRule,
+	"DELETE /api/third_party_site/:id": accessTokenSessionRule,
+
 	// router/api-router.go: /api/audit, /api/log, /api/data
 	"GET /api/audit/self":                       accessTokenScopeRule("usage:read"),
 	"GET /api/log/":                             accessTokenScopeRule("log:read"),

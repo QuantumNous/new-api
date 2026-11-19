@@ -681,6 +681,45 @@ it.each([
   }
 )
 
+it.each([
+  [
+    'third_party_site.create',
+    'POST',
+    '/api/third_party_site/',
+    'Created a third-party site',
+  ],
+  [
+    'third_party_site.update',
+    'PUT',
+    '/api/third_party_site/:id',
+    'Updated a third-party site',
+  ],
+  [
+    'third_party_site.delete',
+    'DELETE',
+    '/api/third_party_site/:id',
+    'Deleted a third-party site',
+  ],
+])(
+  'renders third-party site audit %s as a readable summary',
+  async (action, method, route, summary) => {
+    const i18n = createInstance()
+    await i18n.init({ lng: 'en', resources: {} })
+    const detail = buildAuditDetails(
+      {
+        ...entry,
+        action,
+        method,
+        route,
+        success: true,
+        other: { op: { action, params: {} } },
+      },
+      i18n.t
+    )
+    expect(detail.summary).toBe(summary)
+  }
+)
+
 it('shows the affected count separately from requested redemption IDs', async () => {
   const i18n = createInstance()
   await i18n.init({ lng: 'en', resources: {} })
