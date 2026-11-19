@@ -889,8 +889,6 @@ func updateAdminPermissionsForUserInTx(c *gin.Context, tx *gorm.DB, userID int, 
 type ManageRequest struct {
 	Id     int    `json:"id"`
 	Action string `json:"action"`
-	Value  int    `json:"value"`
-	Mode   string `json:"mode"`
 }
 
 // ManageUser Only admin user can do this
