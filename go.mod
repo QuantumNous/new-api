@@ -170,7 +170,6 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/HugoSmits86/nativewebp v1.3.0
 	github.com/MoeForge/moego v0.1.0-alpha.3
-	github.com/MoeForge/moejs v0.1.0
 	github.com/QuantumNous/new-api/relaykit v0.0.0
 	github.com/QuantumNous/new-api/tokenkit v0.0.0
 )
