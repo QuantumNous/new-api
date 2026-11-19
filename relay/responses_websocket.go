@@ -20,7 +20,6 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	appmodel "github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/pkg/wsmanager"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -383,7 +382,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				appconstant.ContextKeyChannelParamOverride, appconstant.ContextKeyChannelHeaderOverride, appconstant.ContextKeyChannelOrganization,
 				appconstant.ContextKeyChannelAutoBan, appconstant.ContextKeyChannelModelMapping, appconstant.ContextKeyChannelStatusCodeMapping,
 				appconstant.ContextKeyChannelIsMultiKey, appconstant.ContextKeyChannelMultiKeyIndex, appconstant.ContextKeyChannelKey, appconstant.ContextKeyChannelBaseUrl,
-				appconstant.ContextKeyUpstreamRequestOrigin, appconstant.ContextKeyProviderPlugin,
 			} {
 				if value, ok := c.Get(string(key)); ok {
 					s.lockedContext[key] = value
@@ -676,9 +674,6 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 	// this model. Only the fields that shape the upstream handshake force a
 	// reconnect: target path, protocol conversion and credential placement.
 	// Other channel types match the zero route on both sides.
-	if pinned, ok := s.lockedContext[appconstant.ContextKeyProviderPlugin]; ok {
-		c.Set(string(appconstant.ContextKeyProviderPlugin), pinned)
-	}
 	otherSettings := connectionOtherSettings(c, channel)
 	route, _ := otherSettings.AdvancedCustom.MatchPathForModel(c.Request.URL.Path, model)
 	if strings.TrimSpace(route.UpstreamPath) != strings.TrimSpace(s.lockedRoute.UpstreamPath) ||
@@ -717,15 +712,9 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 	return nil
 }
 
-// connectionOtherSettings is the channel's other settings as its requests use
-// them: a task plugin channel runs on the relay routes of the plugin pinned
-// for the connection, with the channel's plugin config.
+// connectionOtherSettings returns the channel's effective non-secret settings.
 func connectionOtherSettings(c *gin.Context, channel *appmodel.Channel) dto.ChannelOtherSettings {
 	otherSettings := channel.GetOtherSettings()
-	pinned, _ := common.GetContextKey(c, appconstant.ContextKeyProviderPlugin)
-	if plugin, ok := pinned.(jsplugin.PinnedPlugin); ok && channel.Type == appconstant.ChannelTypeTaskPlugin {
-		otherSettings.AdvancedCustom = plugin.Plugin.Meta.ChannelRelayConfig(plugin.Plugin.ChannelConfigFor(otherSettings.PluginConfig))
-	}
 	return otherSettings
 }
 
