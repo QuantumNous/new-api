@@ -64,3 +64,24 @@ func TestVertexAdaptorConvertClaudeRequestGemini(t *testing.T) {
 	_, ok := converted.(*dto.GeminiChatRequest)
 	assert.True(t, ok)
 }
+
+func TestVertexAdaptorRejectsImagenOnResponses(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeResponses,
+		RelayFormat:     types.RelayFormatOpenAIResponses,
+		OriginModelName: "imagen-3.0-generate-002",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "imagen-3.0-generate-002",
+		},
+	}
+	adaptor := &Adaptor{}
+	adaptor.Init(info)
+	require.Equal(t, RequestModeGemini, adaptor.RequestMode)
+
+	_, err := adaptor.ConvertOpenAIResponsesRequest(nil, info, dto.OpenAIResponsesRequest{
+		Model: "imagen-3.0-generate-002",
+		Input: json.RawMessage(`"draw a cat"`),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not implemented")
+}
