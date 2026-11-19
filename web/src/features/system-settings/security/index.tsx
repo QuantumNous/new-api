@@ -25,11 +25,6 @@ import {
 } from './section-registry.tsx'
 
 const defaultSecuritySettings: SecuritySettings = {
-  ModelRequestRateLimitEnabled: false,
-  ModelRequestRateLimitCount: 0,
-  ModelRequestRateLimitSuccessCount: 1000,
-  ModelRequestRateLimitDurationMinutes: 1,
-  ModelRequestRateLimitGroup: '',
   'fetch_setting.enable_ssrf_protection': true,
   'fetch_setting.allow_private_ip': false,
   'fetch_setting.domain_filter_mode': false,
@@ -38,7 +33,6 @@ const defaultSecuritySettings: SecuritySettings = {
   'fetch_setting.ip_list': [],
   'fetch_setting.allowed_ports': [],
   'fetch_setting.apply_ip_filter_for_domain': false,
-  'token_setting.max_user_tokens': 1000,
 }
 
 export function SecuritySettings() {
