@@ -12,7 +12,6 @@ import (
 	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -87,11 +86,6 @@ func textRequestViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adapto
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
-
-		chatJSON, apiErr := requestplugin.Outbound(c, info, chatJSON)
-		if apiErr != nil {
-			return nil, apiErr
-		}
 		if len(info.ParamOverride) > 0 {
 			chatJSON, err = relaycommon.ApplyParamOverrideWithRelayInfo(chatJSON, info)
 			if err != nil {
@@ -145,19 +139,12 @@ func relayResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, adaptor 
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 	if !outboundApplied {
-		var apiErr *types.NewAPIError
-		if jsonData, apiErr = requestplugin.Outbound(c, info, jsonData); apiErr != nil {
-			return nil, apiErr
-		}
 		if len(info.ParamOverride) > 0 {
 			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 			if err != nil {
 				return nil, newAPIErrorFromParamOverride(err)
 			}
 		}
-	}
-	if apiErr := requestplugin.Egress(c, info, jsonData); apiErr != nil {
-		return nil, apiErr
 	}
 
 	body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)

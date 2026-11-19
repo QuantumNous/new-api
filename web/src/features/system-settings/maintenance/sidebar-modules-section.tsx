@@ -67,15 +67,15 @@ export function SidebarModulesSection({
   const sectionMeta: Record<string, { title: string; description: string }> = {
     chat: {
       title: t('Chat area'),
-      description: t('Playground experiments and live conversations.'),
+      description: t('Chat and conversation navigation.'),
     },
     console: {
       title: t('Console area'),
-      description: t('Dashboards, tokens, and usage analytics.'),
+      description: t('Dashboards and usage analytics.'),
     },
     personal: {
       title: t('Personal area'),
-      description: t('Wallet management and personal preferences.'),
+      description: t('Personal settings and account security.'),
     },
     admin: {
       title: t('Admin area'),
@@ -88,10 +88,6 @@ export function SidebarModulesSection({
     Record<string, { title: string; description: string }>
   > = {
     chat: {
-      playground: {
-        title: t('Playground'),
-        description: t('Experiment with prompts and models in real time.'),
-      },
       chat: {
         title: t('Chat'),
         description: t('Access previous conversations and start new ones.'),
@@ -101,10 +97,6 @@ export function SidebarModulesSection({
       detail: {
         title: t('Dashboard'),
         description: t('Aggregated usage metrics and trend charts.'),
-      },
-      token: {
-        title: t('Token management'),
-        description: t('Create, revoke, and audit API tokens.'),
       },
       log: {
         title: t('Usage logs'),
@@ -124,10 +116,6 @@ export function SidebarModulesSection({
       },
     },
     personal: {
-      topup: {
-        title: t('Wallet'),
-        description: t('Top up balance and view billing history.'),
-      },
       personal: {
         title: t('Profile'),
         description: t('Personal settings and profile management.'),
@@ -138,18 +126,6 @@ export function SidebarModulesSection({
       },
     },
     admin: {
-      channel: {
-        title: t('Channels'),
-        description: t('Configure upstream providers and routing.'),
-      },
-      models: {
-        title: t('Models'),
-        description: t('Manage catalog visibility and pricing.'),
-      },
-      redemption: {
-        title: t('Redeem codes'),
-        description: t('Create and review invite or credit codes.'),
-      },
       user: {
         title: t('Users'),
         description: t('Administer user accounts and roles.'),
@@ -157,10 +133,6 @@ export function SidebarModulesSection({
       setting: {
         title: t('System settings'),
         description: t('Advanced platform configuration.'),
-      },
-      subscription: {
-        title: t('Subscription Management'),
-        description: t('Manage subscription plans and pricing.'),
       },
     },
   }
@@ -209,7 +181,9 @@ export function SidebarModulesSection({
               description: t('Custom sidebar section'),
             }
             const modules = Object.entries(sectionConfig).filter(
-              ([moduleKey]) => moduleKey !== 'enabled'
+              ([moduleKey]) =>
+                moduleKey !== 'enabled' &&
+                !(sectionKey === 'admin' && moduleKey === 'channel')
             )
 
             return (

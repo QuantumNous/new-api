@@ -18,9 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 import {
-  Box,
   Route,
-  CreditCard,
   Layout,
   Settings,
   Shield,
@@ -29,15 +27,13 @@ import {
 } from 'lucide-react'
 
 import { getAuthSectionNavItems } from '@/features/system-settings/auth/section-registry.tsx'
-import { getBillingSectionNavItems } from '@/features/system-settings/billing/section-registry.tsx'
 import { getContentSectionNavItems } from '@/features/system-settings/content/section-registry.tsx'
-import { getModelsSectionNavItems } from '@/features/system-settings/models/section-registry.tsx'
 import { getOperationsSectionNavItems } from '@/features/system-settings/operations/section-registry.tsx'
 import { getPolicySectionNavItems } from '@/features/system-settings/request-policies/section-registry'
 import { getSecuritySectionNavItems } from '@/features/system-settings/security/section-registry.tsx'
 import { getSiteSectionNavItems } from '@/features/system-settings/site/section-registry.tsx'
 
-import type { NavGroup, SidebarBadges, SidebarView } from '../types'
+import type { NavGroup, SidebarView } from '../types'
 
 /**
  * Sidebar nav groups for the System Settings nested view.
@@ -46,10 +42,7 @@ import type { NavGroup, SidebarBadges, SidebarView } from '../types'
  * header already provides top-level context — the inner group label
  * scopes the items as "administration" actions.
  */
-function getSystemSettingsNavGroups(
-  t: TFunction,
-  badges: SidebarBadges
-): NavGroup[] {
+function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
   return [
     {
       id: 'system-administration',
@@ -64,19 +57,6 @@ function getSystemSettingsNavGroups(
           title: t('Authentication'),
           icon: Shield,
           items: getAuthSectionNavItems(t),
-        },
-        {
-          title: t('Billing & Payment'),
-          icon: CreditCard,
-          badge: badges.modelPricing,
-          items: getBillingSectionNavItems(t, {
-            'model-pricing': badges.modelPricing,
-          }),
-        },
-        {
-          title: t('Models'),
-          icon: Box,
-          items: getModelsSectionNavItems(t),
         },
         {
           title: t('Request policies'),

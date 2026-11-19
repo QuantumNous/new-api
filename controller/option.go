@@ -4,130 +4,42 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
-	"sort"
-	"strconv"
 	"strings"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting"
-	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
-	"github.com/QuantumNous/new-api/setting/model_setting"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/QuantumNous/new-api/setting/request_plugin_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
 
-var completionRatioMetaOptionKeys = []string{
-	"ModelPrice",
-	"ModelRatio",
-	"CompletionRatio",
-	"CacheRatio",
-	"CreateCacheRatio",
-	"ImageRatio",
-	"AudioRatio",
-	"AudioCompletionRatio",
-}
-
-func isPaymentComplianceOptionKey(key string) bool {
-	return strings.HasPrefix(key, "payment_setting.compliance_")
-}
-
-func isPositiveOptionValue(value string) bool {
-	intValue, err := strconv.Atoi(strings.TrimSpace(value))
-	if err == nil {
-		return intValue > 0
-	}
-	floatValue, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
-	return err == nil && floatValue > 0
-}
-
-func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
-	if strings.TrimSpace(raw) == "" {
-		return
-	}
-
-	var parsed map[string]any
-	if err := common.UnmarshalJsonStr(raw, &parsed); err != nil {
-		return
-	}
-
-	for modelName := range parsed {
-		modelNames[modelName] = struct{}{}
-	}
-}
-
-func buildCompletionRatioMetaValue(optionValues map[string]string) string {
-	modelNames := make(map[string]struct{})
-	for _, key := range completionRatioMetaOptionKeys {
-		collectModelNamesFromOptionValue(optionValues[key], modelNames)
-	}
-
-	meta := make(map[string]ratio_setting.CompletionRatioInfo, len(modelNames))
-	for modelName := range modelNames {
-		meta[modelName] = ratio_setting.GetCompletionRatioInfo(modelName)
-	}
-
-	jsonBytes, err := common.Marshal(meta)
-	if err != nil {
-		return "{}"
-	}
-	return string(jsonBytes)
-}
-
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
-	optionValues := make(map[string]string)
-	common.OptionMapRWMutex.Lock()
-	for k, v := range common.OptionMap {
-		if k == "theme.frontend" || k == "billing_setting.billing_mode" || k == "billing_setting.billing_expr" || k == "ResendKeyConfigured" {
+	common.OptionMapRWMutex.RLock()
+	for key, value := range common.OptionMap {
+		if key == "theme.frontend" || key == "ResendKeyConfigured" {
 			continue
 		}
-		value := common.Interface2String(v)
-		isSensitiveKey := strings.HasSuffix(k, "Token") ||
-			strings.HasSuffix(k, "Secret") ||
-			strings.HasSuffix(k, "Key") ||
-			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key") ||
-			strings.HasSuffix(k, "private_key")
+		valueString := common.Interface2String(value)
+		isSensitiveKey := strings.HasSuffix(key, "Token") ||
+			strings.HasSuffix(key, "Secret") ||
+			strings.HasSuffix(key, "Key") ||
+			strings.HasSuffix(key, "secret") ||
+			strings.HasSuffix(key, "api_key") ||
+			strings.HasSuffix(key, "private_key")
 		if isSensitiveKey {
 			continue
 		}
-		options = append(options, &model.Option{
-			Key:   k,
-			Value: value,
-		})
-		if slices.Contains(completionRatioMetaOptionKeys, k) {
-			optionValues[k] = value
-		}
+		options = append(options, &model.Option{Key: key, Value: valueString})
 	}
 	options = append(options, &model.Option{
-		Key: "ResendKeyConfigured", Value: strconv.FormatBool(strings.TrimSpace(common.OptionMap["ResendApiKey"]) != ""),
+		Key:   "ResendKeyConfigured",
+		Value: strconv.FormatBool(strings.TrimSpace(common.OptionMap["ResendApiKey"]) != ""),
 	})
-	common.OptionMapRWMutex.Unlock()
-	// Display the same effective expressions used by pricing and settlement,
-	// including built-in defaults absent from persisted administrator options.
-	for key, values := range map[string]map[string]string{
-		"billing_setting.billing_mode": billing_setting.GetBillingModeCopy(),
-		"billing_setting.billing_expr": billing_setting.GetBillingExprCopy(),
-	} {
-		encoded, err := common.Marshal(values)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
-			return
-		}
-		options = append(options, &model.Option{Key: key, Value: string(encoded)})
-	}
-	options = append(options, &model.Option{
-		Key:   "CompletionRatioMeta",
-		Value: buildCompletionRatioMetaValue(optionValues),
-	})
+	common.OptionMapRWMutex.RUnlock()
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -202,29 +114,6 @@ func UpdateOption(c *gin.Context) {
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
-	case "QuotaForInviter", "QuotaForInvitee":
-		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
-			common.ApiErrorT(c, "Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them.")
-			return
-		}
-	default:
-		if isPaymentComplianceOptionKey(option.Key) {
-			common.ApiErrorT(c, "Compliance confirmation fields cannot be changed through the general settings API")
-			return
-		}
-		// The request plugin API validates each instance config.
-		if option.Key == request_plugin_setting.InstancesOption {
-			common.ApiErrorT(c, "Request plugin instances cannot be changed through the general settings API")
-			return
-		}
-	}
-	if option.Key == "TaskPublicAddress" && option.Value.(string) != "" {
-		if err := service.ValidateTaskArtifactBaseURL(option.Value.(string)); err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	}
-	switch option.Key {
 	case "GitHubOAuthEnabled":
 		if option.Value == "true" && common.GitHubClientId == "" {
 			common.ApiErrorT(c, "Cannot enable {{provider}}. Enter the {{provider}} Client ID and Client Secret first.", map[string]any{"provider": "GitHub OAuth"})
@@ -272,125 +161,6 @@ func UpdateOption(c *gin.Context) {
 	case "theme.frontend":
 		if option.Value != "default" {
 			common.ApiErrorT(c, "The Classic frontend has been removed. The theme can only be set to default")
-			return
-		}
-	case "GroupRatio":
-		err = ratio_setting.CheckGroupRatio(option.Value.(string))
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	case "gemini.safety_settings":
-		err = model_setting.ValidateGeminiSafetySettings(option.Value.(string))
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	case "claude.default_max_tokens":
-		err = model_setting.ValidateClaudeDefaultMaxTokens(option.Value.(string))
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	case operation_setting.ToolPriceOptionKey:
-		err = operation_setting.ValidateToolPricesJSON(option.Value.(string))
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	case "ImageRatio":
-		err = ratio_setting.UpdateImageRatioByJSONString(option.Value.(string))
-		if err != nil {
-			common.ApiErrorT(c, "Failed to set the image ratio: {{error}}", map[string]any{"error": err.Error()})
-			return
-		}
-	case "AudioRatio":
-		err = ratio_setting.UpdateAudioRatioByJSONString(option.Value.(string))
-		if err != nil {
-			common.ApiErrorT(c, "Failed to set the audio ratio: {{error}}", map[string]any{"error": err.Error()})
-			return
-		}
-	case "AudioCompletionRatio":
-		err = ratio_setting.UpdateAudioCompletionRatioByJSONString(option.Value.(string))
-		if err != nil {
-			common.ApiErrorT(c, "Failed to set the audio completion ratio: {{error}}", map[string]any{"error": err.Error()})
-			return
-		}
-	case "CreateCacheRatio":
-		err = ratio_setting.UpdateCreateCacheRatioByJSONString(option.Value.(string))
-		if err != nil {
-			common.ApiErrorT(c, "Failed to set the cache creation ratio: {{error}}", map[string]any{"error": err.Error()})
-			return
-		}
-	case "ModelRequestRateLimitGroup":
-		err = setting.CheckModelRequestRateLimitGroup(option.Value.(string))
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	case "AutomaticDisableStatusCodes":
-		_, err = operation_setting.ParseHTTPStatusCodeRanges(option.Value.(string))
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	case "AutomaticRetryStatusCodes":
-		_, err = operation_setting.ParseHTTPStatusCodeRanges(option.Value.(string))
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	case "billing_setting.billing_expr":
-		expressions := make(map[string]string)
-		if err = common.UnmarshalJsonStr(option.Value.(string), &expressions); err != nil {
-			common.ApiErrorT(c, "Billing expressions must be a JSON object mapping models to expressions: {{error}}", map[string]any{"error": err.Error()})
-			return
-		}
-		models := make([]string, 0, len(expressions))
-		for modelName := range expressions {
-			models = append(models, modelName)
-		}
-		sort.Strings(models)
-		storedVariants := billing_setting.GetPluginBillingExprCopy()
-		for _, modelName := range models {
-			variants := make(map[string]any)
-			for key, expression := range storedVariants {
-				if plugin, name, ok := billing_setting.SplitPluginBillingExprKey(key); ok && name == modelName {
-					variants[plugin] = expression
-				}
-			}
-			err = model.ValidateModelPricing(modelName, model.PricingValues{
-				"billing_setting.billing_expr":          expressions[modelName],
-				billing_setting.PluginBillingExprOption: variants,
-			})
-			if err != nil {
-				common.ApiErrorT(c, "Invalid billing expression for model {{model}}: {{error}}", map[string]any{"model": modelName, "error": err.Error()})
-				return
-			}
-		}
-	case billing_setting.PluginBillingExprOption:
-		var expressions map[string]string
-		if err = common.UnmarshalJsonStr(option.Value.(string), &expressions); err != nil || expressions == nil {
-			common.ApiErrorMsg(c, "plugin billing expressions must be a JSON object")
-			return
-		}
-		for key, expression := range expressions {
-			plugin, name, valid := billing_setting.SplitPluginBillingExprKey(key)
-			if !valid {
-				common.ApiErrorMsg(c, "invalid plugin billing expression key: "+key)
-				return
-			}
-			if err = model.ValidateModelPricing(name, model.PricingValues{
-				billing_setting.PluginBillingExprOption: map[string]any{plugin: expression},
-			}); err != nil {
-				common.ApiError(c, err)
-				return
-			}
-		}
-	case "console_setting.api_info":
-		err = console_setting.ValidateConsoleSettings(option.Value.(string), "ApiInfo")
-		if err != nil {
-			common.ApiError(c, err)
 			return
 		}
 	case "console_setting.announcements":

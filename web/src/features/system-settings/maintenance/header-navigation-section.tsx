@@ -51,8 +51,6 @@ import {
 const headerNavSchema = z.object({
   home: z.boolean(),
   console: z.boolean(),
-  pricingEnabled: z.boolean(),
-  pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
   rankingsRequireAuth: z.boolean(),
   docs: z.boolean(),
@@ -73,14 +71,6 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.console === undefined
       ? HEADER_NAV_DEFAULT.console
       : Boolean(config.console),
-  pricingEnabled:
-    config.pricing?.enabled === undefined
-      ? HEADER_NAV_DEFAULT.pricing.enabled
-      : Boolean(config.pricing.enabled),
-  pricingRequireAuth:
-    config.pricing?.requireAuth === undefined
-      ? HEADER_NAV_DEFAULT.pricing.requireAuth
-      : Boolean(config.pricing.requireAuth),
   rankingsEnabled:
     config.rankings?.enabled === undefined
       ? HEADER_NAV_DEFAULT.rankings.enabled
@@ -121,11 +111,6 @@ export function HeaderNavigationSection({
       console: values.console,
       docs: values.docs,
       about: values.about,
-      pricing: {
-        ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
-        enabled: values.pricingEnabled,
-        requireAuth: values.pricingRequireAuth,
-      },
       rankings: {
         ...(config.rankings ?? HEADER_NAV_DEFAULT.rankings),
         enabled: values.rankingsEnabled,
@@ -178,23 +163,12 @@ export function HeaderNavigationSection({
   const accessModules: Array<{
     enabledKey: keyof HeaderNavFormValues
     requireAuthKey: keyof HeaderNavFormValues
-    requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
+    requireAuthDependsOn: 'rankingsEnabled'
     title: string
     description: string
     requireAuthTitle: string
     requireAuthDescription: string
   }> = [
-    {
-      enabledKey: 'pricingEnabled',
-      requireAuthKey: 'pricingRequireAuth',
-      requireAuthDependsOn: 'pricingEnabled',
-      title: t('Model Square'),
-      description: t('Public model catalog and pricing page.'),
-      requireAuthTitle: t('Require login to view models'),
-      requireAuthDescription: t(
-        'Visitors must authenticate before accessing the pricing directory.'
-      ),
-    },
     {
       enabledKey: 'rankingsEnabled',
       requireAuthKey: 'rankingsRequireAuth',

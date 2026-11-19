@@ -41,7 +41,6 @@ const (
 	ErrorCodeInvalidRequest         ErrorCode = "invalid_request"
 	ErrorCodeSensitiveWordsDetected ErrorCode = "sensitive_words_detected"
 	ErrorCodeRequestRejected        ErrorCode = "request_rejected"
-	ErrorCodeRequestPluginFailed    ErrorCode = "request_plugin_failed"
 	ErrorCodeResponseRejected       ErrorCode = "response_rejected"
 	ErrorCodeViolationFeeGrokCSAM   ErrorCode = "violation_fee.grok.csam"
 

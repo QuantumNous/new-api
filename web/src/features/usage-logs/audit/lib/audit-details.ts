@@ -23,9 +23,8 @@ import type { PermissionResourceDef } from '@/lib/admin-permissions'
 import dayjs from '@/lib/dayjs'
 import { ROLE } from '@/lib/roles'
 
-import { renderAuditContent } from '../../lib/format'
+import { renderAuditContent } from './audit-content'
 import { buildQuotaAuditOperation } from '../../lib/quota-audit-operation'
-import type { LogOtherData } from '../../types'
 import type { AuditLog } from '../api'
 
 const AUDIT_ROLE_NAMES: Record<number, string> = {
@@ -410,8 +409,7 @@ export function buildAuditDetails(
     t
   )
   const operation = tokenOperation ?? quotaOperation
-  const summaryParams: NonNullable<NonNullable<LogOtherData['op']>['params']> =
-    {}
+  const summaryParams: Record<string, string | number | boolean | string[]> = {}
   for (const [key, value] of Object.entries(params)) {
     if (
       typeof value === 'string' ||

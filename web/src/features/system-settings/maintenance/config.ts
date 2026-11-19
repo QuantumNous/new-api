@@ -24,7 +24,6 @@ export type HeaderNavAccessConfig = {
 export type HeaderNavModulesConfig = {
   home: boolean
   console: boolean
-  pricing: HeaderNavAccessConfig
   rankings: HeaderNavAccessConfig
   docs: boolean
   about: boolean
@@ -41,10 +40,6 @@ export type SidebarModulesAdminConfig = Record<string, SidebarSectionConfig>
 export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
   home: true,
   console: true,
-  pricing: {
-    enabled: true,
-    requireAuth: false,
-  },
   rankings: {
     enabled: true,
     requireAuth: false,
@@ -56,13 +51,11 @@ export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
 export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
   chat: {
     enabled: true,
-    playground: true,
     chat: true,
   },
   console: {
     enabled: true,
     detail: true,
-    token: true,
     log: true,
     audit: true,
     midjourney: true,
@@ -70,18 +63,13 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
   },
   personal: {
     enabled: true,
-    topup: true,
     personal: true,
     security: true,
   },
   admin: {
     enabled: true,
-    channel: true,
-    models: true,
-    redemption: true,
     user: true,
     setting: true,
-    subscription: true,
   },
 }
 
@@ -98,7 +86,6 @@ const toBoolean = (value: unknown, fallback: boolean): boolean => {
 
 const cloneHeaderNavDefault = (): HeaderNavModulesConfig => ({
   ...HEADER_NAV_DEFAULT,
-  pricing: { ...HEADER_NAV_DEFAULT.pricing },
   rankings: { ...HEADER_NAV_DEFAULT.rankings },
 })
 
@@ -146,15 +133,10 @@ export function parseHeaderNavModules(
     const parsed = JSON.parse(value) as Record<string, unknown>
     const result: HeaderNavModulesConfig = {
       ...base,
-      pricing: { ...base.pricing },
       rankings: { ...base.rankings },
     }
 
     Object.entries(parsed).forEach(([key, raw]) => {
-      if (key === 'pricing') {
-        result.pricing = parseAccessModule(raw, base.pricing)
-        return
-      }
       if (key === 'rankings') {
         result.rankings = parseAccessModule(raw, base.rankings)
         return
@@ -207,6 +189,11 @@ export function parseSidebarModulesAdmin(
       Object.entries(raw as Record<string, unknown>).forEach(
         ([moduleKey, moduleValue]) => {
           if (moduleKey === 'enabled') return
+          if (sectionKey === 'chat' && moduleKey === 'playground') return
+          if (sectionKey === 'console' && moduleKey === 'token') return
+          if (sectionKey === 'personal' && moduleKey === 'topup') return
+          if (sectionKey === 'admin' && (moduleKey === 'redemption' || moduleKey === 'subscription')) return
+          if (sectionKey === 'admin' && moduleKey === 'models') return
           sectionConfig[moduleKey] = toBoolean(
             moduleValue,
             defaultSection[moduleKey] ?? true

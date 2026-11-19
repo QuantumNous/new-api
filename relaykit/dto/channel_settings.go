@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"slices"
 	"strings"
 	"sync"
 
@@ -13,20 +12,6 @@ import (
 )
 
 type ChannelSettings struct {
-	TaskPluginKey             string `json:"task_plugin_key,omitempty"`
-	ForceFormat               bool   `json:"force_format,omitempty"`
-	ThinkingToContent         bool   `json:"thinking_to_content,omitempty"`
-	Proxy                     string `json:"proxy"`
-	PassThroughBodyEnabled    bool   `json:"pass_through_body_enabled,omitempty"`
-	ResponsesWebSocketEnabled bool   `json:"responses_websocket_enabled,omitempty"`
-	SystemPrompt              string `json:"system_prompt,omitempty"`
-	SystemPromptOverride      bool   `json:"system_prompt_override,omitempty"`
-	// TaskExtendPluginKeys lists the task plugins a New API channel (type 60)
-	// is extended with. The upstream gateway may host many plugins, so the
-	// channel serves every listed plugin's models while the request still pins
-	// the executing plugin. TaskPluginKey remains the single type-61 binding
-	// and stays valid on a New API channel as well.
-	TaskExtendPluginKeys []string `json:"task_extend_plugin_keys,omitempty"`
 	// HTTPProtocol controls outbound HTTP version negotiation for this channel.
 	// Accepted values: "", "auto" (default), "http1".
 	HTTPProtocol string `json:"http_protocol,omitempty"`
@@ -36,34 +21,6 @@ type ChannelSettings struct {
 	// TLSInsecureSkipVerify accepts upstream certificates that fail
 	// verification, such as self-signed ones, for this channel only.
 	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify,omitempty"`
-	// RequestPlugins lists the request plugin instances the channel binds,
-	// by instance id, in run order.
-	RequestPlugins []string `json:"request_plugins,omitempty"`
-}
-
-// BindsTaskPlugin reports whether the channel is bound to the task plugin,
-// either through the single binding or the New API extension list.
-func (s ChannelSettings) BindsTaskPlugin(key string) bool {
-	if key == "" {
-		return false
-	}
-	return s.TaskPluginKey == key || slices.Contains(s.TaskExtendPluginKeys, key)
-}
-
-// TaskPluginBindings returns the sorted, de-duplicated set of task plugins the
-// channel binds through either field, so callers can compare bindings as a set.
-func (s ChannelSettings) TaskPluginBindings() []string {
-	bindings := make([]string, 0, len(s.TaskExtendPluginKeys)+1)
-	if s.TaskPluginKey != "" {
-		bindings = append(bindings, s.TaskPluginKey)
-	}
-	for _, key := range s.TaskExtendPluginKeys {
-		if key != "" && !slices.Contains(bindings, key) {
-			bindings = append(bindings, key)
-		}
-	}
-	slices.Sort(bindings)
-	return bindings
 }
 
 const (
@@ -144,9 +101,6 @@ type ChannelOtherSettings struct {
 	// rejection. Empty follows the default allow policy. Accepted values:
 	// "", "allow", "safe", "strict".
 	ToolLossPolicy string `json:"tool_loss_policy,omitempty"`
-	// PluginConfig is the config a type-61 channel gives its plugin, checked
-	// against the plugin's meta.channelConfig when the channel is saved.
-	PluginConfig json.RawMessage `json:"plugin_config,omitempty"`
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

@@ -206,24 +206,12 @@ export type AuthSettings = {
 }
 
 export type ContentSettings = {
-  'console_setting.api_info': string
   'console_setting.announcements': string
   'console_setting.faq': string
   'console_setting.uptime_kuma_groups': string
-  'console_setting.api_info_enabled': boolean
   'console_setting.announcements_enabled': boolean
   'console_setting.faq_enabled': boolean
   'console_setting.uptime_kuma_enabled': boolean
-  DataExportEnabled: boolean
-  DataExportDefaultTime: string
-  DataExportInterval: number
-  Chats: string
-  DrawingEnabled: boolean
-  MjNotifyEnabled: boolean
-  MjAccountFilterEnabled: boolean
-  MjForwardUrlEnabled: boolean
-  MjModeClearEnabled: boolean
-  MjActionCheckSuccessEnabled: boolean
 }
 
 export type ModelSettings = {
@@ -394,10 +382,6 @@ export type OperationsSettings = {
   'performance_setting.monitor_cpu_threshold': number
   'performance_setting.monitor_memory_threshold': number
   'performance_setting.monitor_disk_threshold': number
-  'perf_metrics_setting.enabled': boolean
-  'perf_metrics_setting.flush_interval': number
-  'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
-  'perf_metrics_setting.retention_days': number
 }
 
 export type SecuritySettings = {
