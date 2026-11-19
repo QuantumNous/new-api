@@ -3,7 +3,6 @@ package relay
 import (
 
 	"github.com/QuantumNous/new-api/constant"
-	_ "github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
 	"github.com/QuantumNous/new-api/relay/channel/ali"
