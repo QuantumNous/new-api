@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import type { AxiosRequestConfig } from 'axios'
 
 import type { PermissionCatalog } from '@/lib/admin-permissions'
-import type { PermissionCatalog } from '@/lib/admin-permissions'
 import { api } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
@@ -66,7 +65,7 @@ export async function getUsers(
 }
 
 /**
- * Search users by keyword or group
+ * Search users by keyword, role, or status
  */
 export async function searchUsers(
   params: SearchUsersParams
