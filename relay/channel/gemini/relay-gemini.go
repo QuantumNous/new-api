@@ -205,6 +205,7 @@ type geminiStreamOutcome struct {
 	abnormalFinishReason string
 	lastFinishReason     string
 	hasVisibleOutput     bool
+	hasGroundingOutput   bool
 }
 
 func isGeminiNormalFinishReason(reason string) bool {
@@ -229,6 +230,44 @@ func geminiAbnormalFinishReason(response *dto.GeminiChatResponse) string {
 		}
 	}
 	return ""
+}
+
+func geminiHasGroundingQueries(response *dto.GeminiChatResponse) bool {
+	if response == nil {
+		return false
+	}
+	for _, candidate := range response.Candidates {
+		if candidate.GroundingMetadata == nil {
+			continue
+		}
+		if len(candidate.GroundingMetadata.WebSearchQueries) > 0 ||
+			len(candidate.GroundingMetadata.ImageSearchQueries) > 0 ||
+			len(candidate.GroundingMetadata.RetrievalQueries) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func geminiHasRenderablePart(response *dto.GeminiChatResponse) bool {
+	if response == nil {
+		return false
+	}
+	if geminiHasGroundingQueries(response) {
+		return true
+	}
+	for _, candidate := range response.Candidates {
+		for _, part := range candidate.Content.Parts {
+			if part.Text != "" ||
+				part.FunctionCall != nil ||
+				part.InlineData != nil ||
+				part.ExecutableCode != nil ||
+				part.CodeExecutionResult != nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func geminiHasVisibleOutput(response *dto.GeminiChatResponse) bool {
@@ -274,6 +313,9 @@ func geminiStreamHandlerWithOutcome(c *gin.Context, info *relaycommon.RelayInfo,
 
 		if !outcome.hasVisibleOutput && geminiHasVisibleOutput(&geminiResponse) {
 			outcome.hasVisibleOutput = true
+		}
+		if !outcome.hasGroundingOutput && geminiHasGroundingQueries(&geminiResponse) {
+			outcome.hasGroundingOutput = true
 		}
 		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
 			info.PerformanceBusinessRejection = true
@@ -372,6 +414,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 	finishReason := constant.FinishReasonStop
 	toolCallIndexByChoice := make(map[int]map[string]int)
 	nextToolCallIndexByChoice := make(map[int]int)
+	pendingStop := false
 
 	usage, outcome, err := geminiStreamHandlerWithOutcome(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
 		if geminiAbnormalFinishReason(geminiResponse) != "" && !geminiHasVisibleOutput(geminiResponse) {
@@ -454,7 +497,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		}
 		if isStop {
 			if info.RelayFormat != types.RelayFormatClaude {
-				_ = handleStream(c, info, helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, finishReason))
+				pendingStop = true
 			}
 		}
 		return true
@@ -464,15 +507,21 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		return usage, err
 	}
 
-	if outcome.abnormalFinishReason != "" || (!outcome.hasVisibleOutput && info.ReceivedResponseCount > 0 && !isGeminiDownstreamStop(c, info)) {
+	streamNormallyEnded := info.StreamStatus == nil || info.StreamStatus.IsNormalEnd()
+	if !isGeminiDownstreamStop(c, info) && (outcome.abnormalFinishReason != "" || (streamNormallyEnded && !outcome.hasVisibleOutput)) {
 		var errMsg string
+		errCode := types.ErrorCodeEmptyResponse
 		if outcome.abnormalFinishReason != "" {
 			errMsg = fmt.Sprintf("gemini stream stopped abnormally: finishReason=%s", outcome.abnormalFinishReason)
+			errCode = types.ErrorCodeBadResponse
 		} else {
 			errMsg = fmt.Sprintf("gemini stream finished with empty visible output: finishReason=%s", outcome.lastFinishReason)
 		}
-		if info.SendResponseCount == 0 {
-			return usage, types.NewOpenAIError(errors.New(errMsg), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		if info.SendResponseCount == 0 && !c.Writer.Written() {
+			return usage, types.NewOpenAIError(errors.New(errMsg), errCode, http.StatusInternalServerError)
+		}
+		if info.StreamStatus != nil {
+			info.StreamStatus.MarkFailed(string(errCode), "server_error", http.StatusInternalServerError)
 		}
 		if info.RelayFormat == types.RelayFormatClaude {
 			_ = helper.ClaudeData(c, dto.ClaudeResponse{
@@ -486,6 +535,10 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 			helper.Done(c)
 		}
 		return usage, nil
+	}
+
+	if pendingStop && info.RelayFormat != types.RelayFormatClaude {
+		_ = handleStream(c, info, helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, finishReason))
 	}
 
 	response := helper.GenerateFinalUsageResponse(id, createAt, info.UpstreamModelName, *usage)
