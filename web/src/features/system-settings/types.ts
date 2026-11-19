@@ -148,7 +148,6 @@ export type SiteSettings = {
   About: string
   HomePageContent: string
   ServerAddress: string
-  TaskPublicAddress: string
   'general_setting.docs_link': string
   'legal.user_agreement': string
   'legal.privacy_policy': string
@@ -352,8 +351,6 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
-  QuotaRemindEnabled: boolean
-  QuotaRemindThreshold: string
   EmailProvider: 'smtp' | 'resend'
   ResendApiKey: string
   ResendKeyConfigured: boolean
@@ -367,9 +364,6 @@ export type OperationsSettings = {
   SMTPStartTLSEnabled: boolean
   SMTPInsecureSkipVerify: boolean
   SMTPForceAuthLogin: boolean
-  WorkerUrl: string
-  WorkerValidKey: string
-  WorkerAllowHttpImageRequestEnabled: boolean
   LogConsumeEnabled: boolean
   'log_setting.user_export_enabled': boolean
   'log_setting.max_range_days': number
@@ -385,11 +379,6 @@ export type OperationsSettings = {
 }
 
 export type SecuritySettings = {
-  ModelRequestRateLimitEnabled: boolean
-  ModelRequestRateLimitCount: number
-  ModelRequestRateLimitSuccessCount: number
-  ModelRequestRateLimitDurationMinutes: number
-  ModelRequestRateLimitGroup: string
   'fetch_setting.enable_ssrf_protection': boolean
   'fetch_setting.allow_private_ip': boolean
   'fetch_setting.domain_filter_mode': boolean
@@ -398,7 +387,6 @@ export type SecuritySettings = {
   'fetch_setting.ip_list': string[]
   'fetch_setting.allowed_ports': number[]
   'fetch_setting.apply_ip_filter_for_domain': boolean
-  'token_setting.max_user_tokens': number
 }
 
 export type UpstreamChannel = {
