@@ -16,29 +16,6 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-type TaskPluginChannelRef struct {
-	Id   int    `json:"id"`
-	Name string `json:"name"`
-	Type int    `json:"type"`
-}
-
-func GetTaskPluginUsage(key string) ([]TaskPluginChannelRef, int64, error) {
-	var channels []Channel
-	boundTypes := []int{constant.ChannelTypeTaskPlugin, constant.ChannelTypeNewAPI}
-	if err := DB.Where("type IN ? AND status = ?", boundTypes, common.ChannelStatusEnabled).Find(&channels).Error; err != nil {
-		return nil, 0, err
-	}
-	refs := make([]TaskPluginChannelRef, 0)
-	for _, channel := range channels {
-		if channel.GetSetting().BindsTaskPlugin(key) {
-			refs = append(refs, TaskPluginChannelRef{Id: channel.Id, Name: channel.Name, Type: channel.Type})
-		}
-	}
-	var inFlight int64
-	err := DB.Model(&Task{}).Where("platform = ? AND status NOT IN ?", key, []TaskStatus{TaskStatusSuccess, TaskStatusFailure}).Count(&inFlight).Error
-	return refs, inFlight, err
-}
-
 // UnbindTaskPlugin removes one plugin from a channel's bindings and reports
 // whether the channel changed. A New API gateway channel keeps serving its other
 // plugins and its ordinary traffic.
