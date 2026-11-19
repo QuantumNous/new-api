@@ -81,8 +81,6 @@ export interface ApiResponse<T = unknown> {
 export type UserSortBy =
   | 'id'
   | 'username'
-  | 'quota'
-  | 'group'
   | 'created_at'
   | 'last_login_at'
 
@@ -108,7 +106,6 @@ export interface GetUsersResponse {
 
 export interface SearchUsersParams {
   keyword?: string
-  group?: string
   role?: string
   status?: string
   p?: number
@@ -132,16 +129,6 @@ export type ManageUserAction =
   | 'enable'
   | 'disable'
   | 'delete'
-  | 'add_quota'
-
-export type QuotaAdjustMode = 'add' | 'subtract' | 'override'
-
-export interface ManageUserQuotaPayload {
-  id: number
-  action: 'add_quota'
-  mode: QuotaAdjustMode
-  value: number
-}
 
 // ============================================================================
 // Dialog Types
