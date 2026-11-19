@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,16 +36,16 @@ func GetTopUpInfo(c *gin.Context) {
 		for _, method := range operation_setting.PayMethods {
 			copied := make(map[string]string, len(method)+1)
 			maps.Copy(copied, method)
-			gatewayMin, _ := strconv.Atoi(copied["min_topup"])
+			floorMin := effectiveGatewayMinTopUp(0)
 			switch copied["type"] {
 			case "stripe":
-				gatewayMin = max(gatewayMin, setting.StripeMinTopUp)
+				floorMin = stripeMinTopUp
 			case model.PaymentMethodWaffoPancake:
-				gatewayMin = max(gatewayMin, setting.WaffoPancakeMinTopUp)
+				floorMin = waffoPancakeMinTopUp
 			case model.PaymentMethodWaffo:
-				gatewayMin = max(gatewayMin, setting.WaffoMinTopUp)
+				floorMin = waffoMinTopUp
 			}
-			copied["min_topup"] = strconv.Itoa(effectiveGatewayMinTopUp(gatewayMin))
+			copied["min_topup"] = resolvePayMethodMinTopUp(copied["min_topup"], floorMin)
 			payMethods = append(payMethods, copied)
 		}
 	}
@@ -205,6 +206,16 @@ func getPayMoney(amount int64, group string) float64 {
 
 func effectiveGatewayMinTopUp(gatewayMin int) int {
 	return max(gatewayMin, operation_setting.MinTopUp, 1)
+}
+
+func resolvePayMethodMinTopUp(raw string, floor int) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed != "" {
+		if parsed, err := decimal.NewFromString(trimmed); err == nil && parsed.GreaterThanOrEqual(decimal.NewFromInt(int64(floor))) {
+			return trimmed
+		}
+	}
+	return strconv.Itoa(floor)
 }
 
 func effectiveGatewayMinTopUpAmount(gatewayMin int) int64 {

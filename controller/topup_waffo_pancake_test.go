@@ -114,6 +114,7 @@ func TestGlobalMinTopUpEnforcedOnWaffoPancakeAndTopUpInfo(t *testing.T) {
 	oldStripePrice := setting.StripePriceId
 	oldComplianceConfirmed := operation_setting.GetPaymentSetting().ComplianceConfirmed
 	oldComplianceVersion := operation_setting.GetPaymentSetting().ComplianceTermsVersion
+	oldPayMethods := operation_setting.PayMethods
 
 	t.Cleanup(func() {
 		operation_setting.GetGeneralSetting().QuotaDisplayType = oldDisplayType
@@ -134,6 +135,7 @@ func TestGlobalMinTopUpEnforcedOnWaffoPancakeAndTopUpInfo(t *testing.T) {
 		setting.StripePriceId = oldStripePrice
 		operation_setting.GetPaymentSetting().ComplianceConfirmed = oldComplianceConfirmed
 		operation_setting.GetPaymentSetting().ComplianceTermsVersion = oldComplianceVersion
+		operation_setting.PayMethods = oldPayMethods
 	})
 
 	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
@@ -141,6 +143,11 @@ func TestGlobalMinTopUpEnforcedOnWaffoPancakeAndTopUpInfo(t *testing.T) {
 	setting.WaffoPancakeMinTopUp = 1
 	setting.WaffoMinTopUp = 1
 	setting.StripeMinTopUp = 1
+	operation_setting.PayMethods = []map[string]string{
+		{"name": "Custom", "icon": "LuCreditCard", "type": "custom1", "min_topup": "50"},
+		{"name": "Custom Decimal", "icon": "LuCreditCard", "type": "custom2", "min_topup": "50.50"},
+		{"name": "Custom Below Floor", "icon": "LuCreditCard", "type": "custom3", "min_topup": "5.50"},
+	}
 
 	operation_setting.GetPaymentSetting().ComplianceConfirmed = true
 	operation_setting.GetPaymentSetting().ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
@@ -240,5 +247,11 @@ func TestGlobalMinTopUpEnforcedOnWaffoPancakeAndTopUpInfo(t *testing.T) {
 		require.Equal(t, "10", methodsByType[model.PaymentMethodWaffo]["min_topup"])
 		require.Equal(t, "10", methodsByType["stripe"]["min_topup"])
 		require.Equal(t, "50", methodsByType["custom1"]["min_topup"])
+		require.Equal(t, "50.50", methodsByType["custom2"]["min_topup"])
+		require.Equal(t, "10", methodsByType["custom3"]["min_topup"])
+
+		// Verify GetTopUpInfo does not mutate global operation_setting.PayMethods
+		require.Len(t, operation_setting.PayMethods, 3)
+		require.Equal(t, "5.50", operation_setting.PayMethods[2]["min_topup"])
 	})
 }
