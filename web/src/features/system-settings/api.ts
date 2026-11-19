@@ -91,25 +91,3 @@ export async function listSystemTasks(
   })
   return res.data
 }
-
-export async function resetModelRatios() {
-  const res = await api.post<UpdateOptionResponse>(
-    '/api/option/rest_model_ratio'
-  )
-  return res.data
-}
-
-export async function getUpstreamChannels() {
-  const res = await api.get<UpstreamChannelsResponse>(
-    '/api/ratio_sync/channels'
-  )
-  return res.data
-}
-
-export async function fetchUpstreamRatios(request: FetchUpstreamRatiosRequest) {
-  const res = await api.post<UpstreamRatiosResponse>(
-    '/api/ratio_sync/fetch',
-    request
-  )
-  return res.data
-}
