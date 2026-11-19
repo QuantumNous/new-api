@@ -192,3 +192,45 @@ it('displays tiered discount savings on recharge preset cards', () => {
     '优惠 5%支付 190 • 节省 10'
   )
 })
+
+it('suppresses threshold-only savings on preset cards when Stripe is the only enabled gateway', () => {
+  render(
+    <I18nextProvider i18n={i18n}>
+      <RechargeFormCard
+        topupInfo={{
+          enable_online_topup: false,
+          enable_stripe_topup: true,
+          pay_methods: [],
+          min_topup: 1,
+          stripe_min_topup: 1,
+          amount_options: [100, 200],
+          discount: { 100: 0.95 },
+        }}
+        presetAmounts={[
+          { value: 100, discount: 0.95 },
+          { value: 200, discount: 0.95 },
+        ]}
+        selectedPreset={null}
+        topupAmount={200}
+        paymentAmount={200}
+        priceRatio={1}
+        calculating={false}
+        paymentLoading={null}
+        redemptionCode=''
+        redeeming={false}
+        onSelectPreset={vi.fn()}
+        onTopupAmountChange={vi.fn()}
+        onPaymentMethodSelect={vi.fn()}
+        onRedemptionCodeChange={vi.fn()}
+        onRedeem={vi.fn()}
+      />
+    </I18nextProvider>
+  )
+
+  expect(screen.getByRole('button', { name: /^100 / })).toHaveTextContent(
+    '优惠 5%支付 95 • 节省 5'
+  )
+  expect(screen.getByRole('button', { name: /^200 / })).toHaveTextContent(
+    '支付 200'
+  )
+})
