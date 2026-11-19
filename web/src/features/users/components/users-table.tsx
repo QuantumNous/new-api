@@ -35,7 +35,7 @@ import {
   requireServerSuccess,
 } from '@/lib/server-error-message'
 
-import { getGroups, getUsers, searchUsers } from '../api'
+import { getUsers, searchUsers } from '../api'
 import {
   USER_STATUS,
   getUserStatusOptions,
@@ -52,8 +52,6 @@ const route = getRouteApi('/_authenticated/users/')
 const USER_SORTABLE_COLUMNS = new Set<UserSortBy>([
   'id',
   'username',
-  'quota',
-  'group',
   'created_at',
   'last_login_at',
 ])
@@ -85,7 +83,6 @@ export function UsersTable() {
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'role', searchKey: 'role', type: 'array' },
-      { columnId: 'group', searchKey: 'group', type: 'array' },
     ],
   })
   const statusFilter =
@@ -96,17 +93,6 @@ export function UsersTable() {
     (columnFilters.find((filter) => filter.id === 'role')?.value as
       | string[]
       | undefined) ?? []
-  const groupFilter =
-    (columnFilters.find((filter) => filter.id === 'group')?.value as
-      | string[]
-      | undefined) ?? []
-
-  const { data: groupsData } = useQuery({
-    queryKey: ['groups'],
-    queryFn: async () => requireServerSuccess(await getGroups()),
-    staleTime: 5 * 60 * 1000,
-  })
-
   const sortParams = useMemo(() => {
     const activeSort = sorting[0]
     if (
@@ -138,7 +124,6 @@ export function UsersTable() {
       globalFilter,
       statusFilter,
       roleFilter,
-      groupFilter,
       sortParams,
       refreshTrigger,
     ],
@@ -147,7 +132,6 @@ export function UsersTable() {
       const hasColumnFilter =
         statusFilter.length > 0 ||
         roleFilter.length > 0 ||
-        groupFilter.length > 0
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
@@ -161,7 +145,6 @@ export function UsersTable() {
               keyword: globalFilter,
               status: statusFilter[0] ?? '',
               role: roleFilter[0] ?? '',
-              group: groupFilter[0] ?? '',
             })
           : await getUsers(params)
 
@@ -240,15 +223,6 @@ export function UsersTable() {
             columnId: 'role',
             title: t('Role'),
             options: getUserRoleOptions(t),
-            singleSelect: true,
-          },
-          {
-            columnId: 'group',
-            title: t('User Group'),
-            options: (groupsData?.data ?? []).map((group) => ({
-              label: group,
-              value: group,
-            })),
             singleSelect: true,
           },
         ],
