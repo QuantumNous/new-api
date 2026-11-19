@@ -20,8 +20,6 @@ import type { AxiosRequestConfig } from 'axios'
 
 import type { PermissionCatalog } from '@/lib/admin-permissions'
 import { api } from '@/lib/api'
-import type { CustomOAuthBinding } from '@/lib/oauth'
-import { requireServerSuccess } from '@/lib/server-error-message'
 
 import type {
   User,
@@ -30,7 +28,6 @@ import type {
   SearchUsersParams,
   UserFormData,
   ManageUserAction,
-  ManageUserQuotaPayload,
   ApiResponse,
 } from './types'
 
@@ -74,8 +71,7 @@ export async function searchUsers(
 ): Promise<GetUsersResponse> {
   const {
     keyword = '',
-    group = '',
-    role = '',
+      role = '',
     status = '',
     p = 1,
     page_size = 10,
@@ -84,7 +80,6 @@ export async function searchUsers(
   } = params
   const queryParams = new URLSearchParams()
   queryParams.set('keyword', keyword)
-  queryParams.set('group', group)
   if (role) queryParams.set('role', role)
   if (status) queryParams.set('status', status)
   queryParams.set('p', String(p))
@@ -163,16 +158,6 @@ export async function manageUser(
 }
 
 /**
- * Adjust user quota atomically (add/subtract/override)
- */
-export async function adjustUserQuota(
-  payload: ManageUserQuotaPayload
-): Promise<ApiResponse<Partial<User>>> {
-  const res = await api.post('/api/user/manage', payload)
-  return res.data
-}
-
-/**
  * Reset user's Passkey registration; requires an `admin.user.passkey.reset` proof
  */
 export async function resetUserPasskey(
@@ -199,27 +184,6 @@ export async function resetUserTwoFA(
     securityProofConfig(proofToken)
   )
   return res.data
-}
-
-/**
- * Get all available groups
- */
-export async function getGroups(): Promise<ApiResponse<string[]>> {
-  const res = await api.get('/api/group/')
-  return res.data
-}
-
-/**
- * Get the permission catalog (resources, actions, and role baselines).
- * Source of truth lives in the backend authz package.
- */
-export async function getPermissionCatalog(): Promise<PermissionCatalog> {
-  const res = await api.get('/api/authz/catalog')
-  requireServerSuccess(res.data)
-  return {
-    resources: res.data?.data?.resources ?? [],
-    roles: res.data?.data?.roles ?? [],
-  }
 }
 
 // ============================================================================
