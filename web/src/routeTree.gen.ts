@@ -55,7 +55,6 @@ import { Route as AuthenticatedSystemSettingsSecurityIndexRouteImport } from './
 import { Route as AuthenticatedSystemSettingsSecuritySectionRouteImport } from './routes/_authenticated/system-settings/security/$section'
 import { Route as AuthenticatedSystemSettingsSiteIndexRouteImport } from './routes/_authenticated/system-settings/site/index'
 import { Route as AuthenticatedSystemSettingsSiteSectionRouteImport } from './routes/_authenticated/system-settings/site/$section'
-import { Route as AuthenticatedOauthPluginKeyCallbackRouteImport } from './routes/_authenticated/oauth/plugin/$key/callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -306,12 +305,6 @@ const AuthenticatedSystemSettingsSiteSectionRoute =
     path: '/site/$section',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
-const AuthenticatedOauthPluginKeyCallbackRoute =
-  AuthenticatedOauthPluginKeyCallbackRouteImport.update({
-    id: '/oauth/plugin/$key/callback',
-    path: '/oauth/plugin/$key/callback',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -358,7 +351,6 @@ export interface FileRoutesByFullPath {
   '/system-settings/request-policies/': typeof AuthenticatedSystemSettingsRequestPoliciesIndexRoute
   '/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
-  '/oauth/plugin/$key/callback': typeof AuthenticatedOauthPluginKeyCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -454,7 +446,6 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/request-policies/': typeof AuthenticatedSystemSettingsRequestPoliciesIndexRoute
   '/_authenticated/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/_authenticated/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
-  '/_authenticated/oauth/plugin/$key/callback': typeof AuthenticatedOauthPluginKeyCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -503,7 +494,6 @@ export interface FileRouteTypes {
     | '/system-settings/request-policies/'
     | '/system-settings/security/'
     | '/system-settings/site/'
-    | '/oauth/plugin/$key/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -600,7 +590,6 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/request-policies/'
     | '/_authenticated/system-settings/security/'
     | '/_authenticated/system-settings/site/'
-    | '/_authenticated/oauth/plugin/$key/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -944,13 +933,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemSettingsSiteSectionRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
-    '/_authenticated/oauth/plugin/$key/callback': {
-      id: '/_authenticated/oauth/plugin/$key/callback'
-      path: '/oauth/plugin/$key/callback'
-      fullPath: '/oauth/plugin/$key/callback'
-      preLoaderRoute: typeof AuthenticatedOauthPluginKeyCallbackRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
   }
 }
 
@@ -1043,7 +1025,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSecurityIndexRoute: typeof AuthenticatedSecurityIndexRoute
   AuthenticatedSystemInfoIndexRoute: typeof AuthenticatedSystemInfoIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
-  AuthenticatedOauthPluginKeyCallbackRoute: typeof AuthenticatedOauthPluginKeyCallbackRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1059,8 +1040,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSecurityIndexRoute: AuthenticatedSecurityIndexRoute,
   AuthenticatedSystemInfoIndexRoute: AuthenticatedSystemInfoIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
-  AuthenticatedOauthPluginKeyCallbackRoute:
-    AuthenticatedOauthPluginKeyCallbackRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
