@@ -44,9 +44,11 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 
 	setting.WaffoPancakeUnitPrice = 2.5
 	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
+		5:                            0,
 		10:                           0.8,
+		100:                          0.95,
+		200:                          0.90,
 		int(common.QuotaPerUnit * 3): 0.5,
-		20:                           0,
 	}
 	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1,"vip":1.2}`))
 
@@ -73,10 +75,24 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 		},
 		{
 			name:             "non-positive discount falls back to no discount",
-			amount:           20,
+			amount:           5,
 			group:            "default",
 			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
-			expected:         50,
+			expected:         12.5,
+		},
+		{
+			name:             "tiered discount matches largest threshold <= amount (105 -> 100 tier)",
+			amount:           105,
+			group:            "default",
+			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
+			expected:         249.375,
+		},
+		{
+			name:             "tiered discount matches highest applicable tier (250 -> 200 tier)",
+			amount:           250,
+			group:            "default",
+			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
+			expected:         562.5,
 		},
 	}
 
@@ -87,4 +103,41 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 			require.InDelta(t, tc.expected, actual, 0.000001)
 		})
 	}
+}
+
+func TestTieredAmountDiscountAcrossGateways(t *testing.T) {
+	originalDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
+	originalPrice := operation_setting.Price
+	originalWaffoUnitPrice := setting.WaffoUnitPrice
+	originalStripeUnitPrice := setting.StripeUnitPrice
+	originalDiscounts := make(map[int]float64, len(operation_setting.GetPaymentSetting().AmountDiscount))
+	maps.Copy(originalDiscounts, operation_setting.GetPaymentSetting().AmountDiscount)
+	originalTopupGroupRatio := common.TopupGroupRatio2JSONString()
+
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalDisplayType
+		operation_setting.Price = originalPrice
+		setting.WaffoUnitPrice = originalWaffoUnitPrice
+		setting.StripeUnitPrice = originalStripeUnitPrice
+		operation_setting.GetPaymentSetting().AmountDiscount = originalDiscounts
+		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
+	})
+
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	operation_setting.Price = 1.0
+	setting.WaffoUnitPrice = 1.0
+	setting.StripeUnitPrice = 1.0
+	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
+		100: 0.95,
+		200: 0.90,
+	}
+	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1}`))
+
+	require.InDelta(t, 99.75, getPayMoney(105, "default"), 1e-6)
+	require.InDelta(t, 99.75, getWaffoPayMoney(105, "default"), 1e-6)
+	require.InDelta(t, 99.75, getStripePayMoney(105, "default"), 1e-6)
+	require.InDelta(t, 225.0, getPayMoney(250, "default"), 1e-6)
+	require.InDelta(t, 225.0, getWaffoPayMoney(250, "default"), 1e-6)
+	require.InDelta(t, 225.0, getStripePayMoney(250, "default"), 1e-6)
+	require.InDelta(t, 99.0, getPayMoney(99, "default"), 1e-6)
 }
