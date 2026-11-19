@@ -104,11 +104,35 @@ func cleanGeminiFunctionParametersWithDepth(params interface{}, depth int) inter
 		}
 
 		if nested, ok := cleanedMap["anyOf"].([]interface{}); ok && nested != nil {
-			cleanedNested := make([]interface{}, len(nested))
-			for i, item := range nested {
-				cleanedNested[i] = cleanGeminiFunctionParametersWithDepth(item, depth+1)
+			cleanedNested := make([]interface{}, 0, len(nested))
+			hasNullVariant := false
+			for _, item := range nested {
+				cleanedItem := cleanGeminiFunctionParametersWithDepth(item, depth+1)
+				if isNullOnlyGeminiSchema(cleanedItem) {
+					hasNullVariant = true
+					continue
+				}
+				cleanedNested = append(cleanedNested, cleanedItem)
 			}
-			cleanedMap["anyOf"] = cleanedNested
+			if hasNullVariant {
+				cleanedMap["nullable"] = true
+			}
+			if hasNullVariant && len(cleanedNested) == 1 {
+				if single, ok := cleanedNested[0].(map[string]interface{}); ok {
+					delete(cleanedMap, "anyOf")
+					for k, v := range single {
+						if _, exists := cleanedMap[k]; !exists {
+							cleanedMap[k] = v
+						}
+					}
+				} else {
+					cleanedMap["anyOf"] = cleanedNested
+				}
+			} else if len(cleanedNested) > 0 {
+				cleanedMap["anyOf"] = cleanedNested
+			} else {
+				delete(cleanedMap, "anyOf")
+			}
 		}
 
 		return cleanedMap
@@ -167,6 +191,20 @@ func sanitizeGeminiEnum(schema map[string]interface{}) {
 			return
 		}
 	}
+}
+
+func isNullOnlyGeminiSchema(schema interface{}) bool {
+	m, ok := schema.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	nullable, _ := m["nullable"].(bool)
+	if !nullable {
+		return false
+	}
+	_, hasType := m["type"]
+	_, hasAnyOf := m["anyOf"]
+	return !hasType && !hasAnyOf
 }
 
 func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
@@ -340,6 +378,8 @@ func collectSchemaMisfits(schema any, depth int, found map[string]struct{}) {
 		case "type":
 			if _, isArray := item.([]any); isArray {
 				found["type arrays"] = struct{}{}
+			} else if typeStr, isString := item.(string); isString && strings.EqualFold(strings.TrimSpace(typeStr), "null") {
+				found["null type"] = struct{}{}
 			}
 		case "enum":
 			values, _ := item.([]any)
