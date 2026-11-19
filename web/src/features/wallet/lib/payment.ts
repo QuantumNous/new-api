@@ -25,6 +25,7 @@ import {
   DEFAULT_MIN_TOPUP,
 } from '../constants'
 import type { PaymentMethod, PresetAmount, TopupInfo } from '../types'
+import { getMatchedAmountDiscount } from './format'
 
 // ============================================================================
 // Payment Processing Functions
@@ -214,6 +215,6 @@ export function mergePresetAmounts(
 
   return amountOptions.map((amount) => ({
     value: amount,
-    discount: discounts[amount] || 1.0,
+    discount: getMatchedAmountDiscount(amount, discounts),
   }))
 }

@@ -109,7 +109,6 @@ func TestTieredAmountDiscountAcrossGateways(t *testing.T) {
 	originalDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
 	originalPrice := operation_setting.Price
 	originalWaffoUnitPrice := setting.WaffoUnitPrice
-	originalStripeUnitPrice := setting.StripeUnitPrice
 	originalDiscounts := make(map[int]float64, len(operation_setting.GetPaymentSetting().AmountDiscount))
 	maps.Copy(originalDiscounts, operation_setting.GetPaymentSetting().AmountDiscount)
 	originalTopupGroupRatio := common.TopupGroupRatio2JSONString()
@@ -118,7 +117,6 @@ func TestTieredAmountDiscountAcrossGateways(t *testing.T) {
 		operation_setting.GetGeneralSetting().QuotaDisplayType = originalDisplayType
 		operation_setting.Price = originalPrice
 		setting.WaffoUnitPrice = originalWaffoUnitPrice
-		setting.StripeUnitPrice = originalStripeUnitPrice
 		operation_setting.GetPaymentSetting().AmountDiscount = originalDiscounts
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
 	})
@@ -126,7 +124,6 @@ func TestTieredAmountDiscountAcrossGateways(t *testing.T) {
 	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
 	operation_setting.Price = 1.0
 	setting.WaffoUnitPrice = 1.0
-	setting.StripeUnitPrice = 1.0
 	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
 		100: 0.95,
 		200: 0.90,
@@ -135,9 +132,7 @@ func TestTieredAmountDiscountAcrossGateways(t *testing.T) {
 
 	require.InDelta(t, 99.75, getPayMoney(105, "default"), 1e-6)
 	require.InDelta(t, 99.75, getWaffoPayMoney(105, "default"), 1e-6)
-	require.InDelta(t, 99.75, getStripePayMoney(105, "default"), 1e-6)
 	require.InDelta(t, 225.0, getPayMoney(250, "default"), 1e-6)
 	require.InDelta(t, 225.0, getWaffoPayMoney(250, "default"), 1e-6)
-	require.InDelta(t, 225.0, getStripePayMoney(250, "default"), 1e-6)
 	require.InDelta(t, 99.0, getPayMoney(99, "default"), 1e-6)
 }

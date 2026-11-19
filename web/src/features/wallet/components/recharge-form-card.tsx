@@ -40,6 +40,7 @@ import { cn } from '@/lib/utils'
 import {
   formatCurrency,
   getDiscountLabel,
+  getMatchedAmountDiscount,
   getPaymentIcon,
   getMinTopupAmount,
   calculatePresetPricing,
@@ -229,9 +230,12 @@ export function RechargeFormCard({
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
                     {presetAmounts.map((preset) => {
                       const discount =
-                        preset.discount ||
-                        topupInfo?.discount?.[preset.value] ||
-                        1.0
+                        preset.discount && preset.discount < 1
+                          ? preset.discount
+                          : getMatchedAmountDiscount(
+                              preset.value,
+                              topupInfo?.discount
+                            )
                       const {
                         displayValue,
                         actualPrice,

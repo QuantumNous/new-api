@@ -27,6 +27,7 @@ import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 
 import { RechargeFormCard } from '../components/recharge-form-card'
+import { getMatchedAmountDiscount, mergePresetAmounts } from '../lib'
 
 const i18n = createInstance()
 
@@ -125,3 +126,50 @@ it.each([
     expect(screen.getByPlaceholderText('Minimum 1')).toBeVisible()
   }
 )
+
+it('matches highest qualifying discount threshold across presets and custom amounts', () => {
+  const discounts = { 100: 0.95, 200: 0.9, 50: 0 }
+  expect(getMatchedAmountDiscount(99, discounts)).toBe(1)
+  expect(getMatchedAmountDiscount(100, discounts)).toBe(0.95)
+  expect(getMatchedAmountDiscount(105, discounts)).toBe(0.95)
+  expect(getMatchedAmountDiscount(250, discounts)).toBe(0.9)
+  expect(mergePresetAmounts([50, 105, 200], { 100: 0.95 })).toEqual([
+    { value: 50, discount: 1 },
+    { value: 105, discount: 0.95 },
+    { value: 200, discount: 0.95 },
+  ])
+
+  render(
+    <I18nextProvider i18n={i18n}>
+      <RechargeFormCard
+        topupInfo={{
+          enable_online_topup: true,
+          enable_stripe_topup: false,
+          pay_methods: [],
+          min_topup: 1,
+          stripe_min_topup: 1,
+          amount_options: [200],
+          discount: { 100: 0.95 },
+        }}
+        presetAmounts={[{ value: 200, discount: 1 }]}
+        selectedPreset={null}
+        topupAmount={105}
+        paymentAmount={99.75}
+        priceRatio={1}
+        calculating={false}
+        paymentLoading={null}
+        redemptionCode=''
+        redeeming={false}
+        onSelectPreset={vi.fn()}
+        onTopupAmountChange={vi.fn()}
+        onPaymentMethodSelect={vi.fn()}
+        onRedemptionCodeChange={vi.fn()}
+        onRedeem={vi.fn()}
+      />
+    </I18nextProvider>
+  )
+
+  expect(screen.getByRole('button', { name: /^200 / })).toHaveTextContent(
+    '优惠 5%支付 190 • 节省 10'
+  )
+})

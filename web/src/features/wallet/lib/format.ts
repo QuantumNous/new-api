@@ -64,13 +64,52 @@ export function formatCurrency(amount: number | string): string {
 }
 
 /**
+ * Match the highest discount tier whose threshold is <= amount.
+ */
+export function getMatchedAmountDiscount(
+  amount: number,
+  discounts?: Record<number, number> | null
+): number {
+  if (!Number.isFinite(amount) || amount <= 0 || !discounts) {
+    return DEFAULT_DISCOUNT_RATE
+  }
+
+  let bestThreshold = 0
+  let bestRate = DEFAULT_DISCOUNT_RATE
+
+  for (const [rawThreshold, rawRate] of Object.entries(discounts)) {
+    const threshold = Number(rawThreshold)
+    const rate = Number(rawRate)
+    if (
+      !Number.isFinite(threshold) ||
+      threshold <= 0 ||
+      threshold > amount ||
+      !Number.isFinite(rate) ||
+      rate <= 0
+    ) {
+      continue
+    }
+
+    if (threshold > bestThreshold) {
+      bestThreshold = threshold
+      bestRate = rate
+    }
+  }
+
+  return bestRate
+}
+
+/**
  * Get discount label for display (e.g., "20% OFF")
  */
 export function getDiscountLabel(discount: number, t: TFunction): string {
-  if (discount >= DEFAULT_DISCOUNT_RATE) {
+  if (discount <= 0 || discount >= DEFAULT_DISCOUNT_RATE) {
     return ''
   }
   const off = Math.round((1 - discount) * 100)
+  if (off <= 0) {
+    return ''
+  }
   return t('{{percent}}% OFF', { percent: off })
 }
 
