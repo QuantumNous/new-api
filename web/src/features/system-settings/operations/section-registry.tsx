@@ -44,8 +44,6 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <EmailSettingsSection
         defaultValues={{
-          QuotaRemindEnabled: settings.QuotaRemindEnabled,
-          QuotaRemindThreshold: settings.QuotaRemindThreshold,
           EmailProvider: settings.EmailProvider,
           ResendApiKey: settings.ResendApiKey,
           ResendKeyConfigured: settings.ResendKeyConfigured,
