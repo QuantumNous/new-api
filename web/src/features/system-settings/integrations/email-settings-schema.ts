@@ -35,13 +35,6 @@ export const createEmailSchema = (t: (key: string) => string) =>
       SMTPStartTLSEnabled: z.boolean(),
       SMTPInsecureSkipVerify: z.boolean(),
       SMTPForceAuthLogin: z.boolean(),
-      QuotaRemindEnabled: z.boolean(),
-      // Entered as a display amount; stored in quota units.
-      QuotaRemindThreshold: z.string().refine((value) => {
-        const trimmed = value.trim()
-        if (!trimmed) return true
-        return Number.isFinite(Number(trimmed)) && Number(trimmed) >= 0
-      }, t('Must be greater than or equal to 0')),
     })
     .superRefine((values, context) => {
       if (values.EmailProvider === 'resend') {
