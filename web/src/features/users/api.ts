@@ -19,7 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import type { AxiosRequestConfig } from 'axios'
 
 import type { PermissionCatalog } from '@/lib/admin-permissions'
+import type { PermissionCatalog } from '@/lib/admin-permissions'
 import { api } from '@/lib/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import type {
   User,
@@ -189,6 +191,19 @@ export async function resetUserTwoFA(
 // ============================================================================
 // Admin Binding Management APIs
 // ============================================================================
+
+/**
+ * Get the permission catalog (resources, actions, and role baselines).
+ * Source of truth lives in the backend authz package.
+ */
+export async function getPermissionCatalog(): Promise<PermissionCatalog> {
+  const res = await api.get('/api/authz/catalog')
+  requireServerSuccess(res.data)
+  return {
+    resources: res.data?.data?.resources ?? [],
+    roles: res.data?.data?.roles ?? [],
+  }
+}
 
 /**
  * Get user's custom OAuth bindings (admin)
