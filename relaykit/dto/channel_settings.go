@@ -21,9 +21,6 @@ type ChannelSettings struct {
 	// TLSInsecureSkipVerify accepts upstream certificates that fail
 	// verification, such as self-signed ones, for this channel only.
 	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify,omitempty"`
-	// RequestPlugins lists the request plugin instances the channel binds,
-	// by instance id, in run order.
-	RequestPlugins []string `json:"request_plugins,omitempty"`
 }
 
 const (
