@@ -30,8 +30,6 @@ import { EmailSettingsSection } from '../email-settings-section'
 
 type EmailValues = ComponentProps<typeof EmailSettingsSection>['defaultValues']
 const defaults: EmailValues = {
-  QuotaRemindEnabled: true,
-  QuotaRemindThreshold: '0',
   EmailProvider: 'smtp',
   ResendApiKey: '',
   ResendKeyConfigured: true,
@@ -70,27 +68,6 @@ function renderEmail(values: Partial<EmailValues> = {}) {
 afterEach(() => vi.restoreAllMocks())
 
 describe('email delivery settings', () => {
-  it('keeps balance notifications editable when Resend is selected', async () => {
-    const request = vi
-      .spyOn(api, 'put')
-      .mockResolvedValue({ data: { success: true } })
-    const user = renderEmail({ EmailProvider: 'resend' })
-    expect(
-      screen.getByRole('textbox', { name: 'Sender email address' })
-    ).toBeVisible()
-    await user.click(
-      screen.getByRole('switch', { name: 'Low balance reminder' })
-    )
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
-    await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('/api/option/', {
-        key: 'QuotaRemindEnabled',
-        value: false,
-      })
-    )
-    expect(request).toHaveBeenCalledTimes(1)
-  })
-
   it('requires a key before first activating Resend and does not disable SMTP', async () => {
     const request = vi
       .spyOn(api, 'put')
