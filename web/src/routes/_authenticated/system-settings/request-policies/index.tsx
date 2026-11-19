@@ -23,8 +23,8 @@ export const Route = createFileRoute(
 )({
   beforeLoad: () => {
     throw redirect({
-      to: '/system-settings/request-policies/$section',
-      params: { section: 'routing' },
+      to: '/system-settings/operations/$section',
+      params: { section: 'behavior' },
       replace: true,
     })
   },
