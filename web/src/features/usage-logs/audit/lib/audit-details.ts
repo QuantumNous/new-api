@@ -193,6 +193,8 @@ export function auditFieldLabel(key: string, t: TFunction): string {
       return t('Reset password')
     case 'admin_permissions_updated':
       return t('Admin permissions updated')
+    case 'payable_discount':
+      return t('Payable Discount')
     case 'provider_id':
       return t('Provider ID')
     default:
@@ -523,7 +525,7 @@ export function buildAuditDetails(
   }
   if (
     typeof params.role === 'number' &&
-    [0, 1, 10, 100].includes(params.role)
+    [0, 1, 5, 10, 100].includes(params.role)
   ) {
     params.role = AUDIT_ROLE_NAMES[params.role]
   }

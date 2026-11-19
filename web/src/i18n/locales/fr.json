@@ -7811,6 +7811,10 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Payable Discount": "Remise à payer",
+    "Payable discount must be greater than 0 and at most 1, with at most 4 decimal places": "La remise à payer doit être supérieure à 0 et au plus égale à 1, avec au plus 4 décimales",
+    "Confirm the payable discount for {{username}} before making the account a channel supplier.": "Confirmez la remise à payer de {{username}} avant de faire de ce compte un fournisseur de canal.",
+    "Failed to set channel supplier": "Échec de la définition du fournisseur de canal"
   }
 }

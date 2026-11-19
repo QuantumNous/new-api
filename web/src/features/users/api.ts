@@ -147,16 +147,18 @@ export async function deleteUser(
 
 /**
  * Manage user (promote, demote, enable, disable, delete); requires an
- * `admin.user.manage` proof (`admin.user.delete` for deletion)
+ * `admin.user.manage` proof (`admin.user.delete` for deletion). `extra` rides
+ * along with the action, such as the payable discount of set_channel_supplier.
  */
 export async function manageUser(
   id: number,
   action: ManageUserAction,
-  proofToken: string
+  proofToken: string,
+  extra?: Record<string, unknown>
 ): Promise<ApiResponse<Partial<User>>> {
   const res = await api.post(
     '/api/user/manage',
-    { id, action },
+    { id, action, ...extra },
     securityProofConfig(proofToken)
   )
   return res.data

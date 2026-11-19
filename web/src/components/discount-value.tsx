@@ -20,7 +20,9 @@ import { useTranslation } from 'react-i18next'
 
 import { toIntlLocale } from '@/i18n/languages'
 
-export function ReceivableDiscountCell(props: { value: number }) {
+// Renders a settlement discount (a fraction of the list price) with the
+// locale's decimal separator and at most the 4 decimals the backend stores.
+export function DiscountValue(props: { value: number }) {
   const { i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
 

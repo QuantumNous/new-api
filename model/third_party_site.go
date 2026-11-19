@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"math"
 	"net/url"
 	"strings"
 	"time"
@@ -93,8 +92,8 @@ func normalizeThirdPartySiteInput(input ThirdPartySiteInput, editing bool) (Thir
 	if utf8.RuneCountInString(apiKey) > 4096 {
 		return ThirdPartySiteInput{}, false, &ThirdPartySiteFieldError{Field: "api_key", Message: "ApiKey must not exceed 4096 characters"}
 	}
-	d := input.ReceivableDiscount
-	if !(d > 0 && d <= 1 && math.Abs(d*10000-math.Round(d*10000)) <= 1e-6 && math.Round(d*10000) >= 1) {
+	discount, ok := NormalizeDiscount(input.ReceivableDiscount)
+	if !ok {
 		return ThirdPartySiteInput{}, false, &ThirdPartySiteFieldError{Field: "receivable_discount", Message: thirdPartySiteDiscountMessage}
 	}
 	return ThirdPartySiteInput{
@@ -103,7 +102,7 @@ func normalizeThirdPartySiteInput(input ThirdPartySiteInput, editing bool) (Thir
 		BaseURL:            baseURL,
 		RemoteUserID:       input.RemoteUserID,
 		ApiKey:             apiKey,
-		ReceivableDiscount: math.Round(d*10000) / 10000,
+		ReceivableDiscount: discount,
 	}, keepApiKey, nil
 }
 

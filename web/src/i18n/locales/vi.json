@@ -7811,6 +7811,10 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Payable Discount": "Chiết khấu phải trả",
+    "Payable discount must be greater than 0 and at most 1, with at most 4 decimal places": "Chiết khấu phải trả phải lớn hơn 0 và tối đa bằng 1, với tối đa 4 chữ số thập phân",
+    "Confirm the payable discount for {{username}} before making the account a channel supplier.": "Xác nhận chiết khấu phải trả cho {{username}} trước khi đặt tài khoản làm nhà cung cấp kênh.",
+    "Failed to set channel supplier": "Không thể đặt nhà cung cấp kênh"
   }
 }

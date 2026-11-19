@@ -61,7 +61,7 @@ vi.mock('../dialogs/user-binding-dialog', () => ({
   UserBindingDialog: () => null,
 }))
 
-function makeTarget(role: number): User {
+function makeTarget(role: number, extra?: Partial<User>): User {
   return {
     id: 7,
     username: 'target-user',
@@ -72,16 +72,21 @@ function makeTarget(role: number): User {
     used_quota: 0,
     request_count: 0,
     group: 'default',
+    ...extra,
   }
 }
 
-async function openMenuAs(viewerRole: number, targetRole: number) {
+async function openMenuAs(
+  viewerRole: number,
+  targetRole: number,
+  extra?: Partial<User>
+) {
   useAuthStore
     .getState()
     .auth.setUser({ id: 1, username: 'viewer', role: viewerRole })
   render(
     <DataTableRowActions
-      row={{ original: makeTarget(targetRole) } as Row<User>}
+      row={{ original: makeTarget(targetRole, extra) } as Row<User>}
     />
   )
   await userEvent.click(screen.getByRole('button', { name: 'Open menu' }))
@@ -155,18 +160,22 @@ it('administrator viewing a common user sees no supplier items', async () => {
   expect(screen.getByRole('menuitem', { name: 'Promote' })).toBeInTheDocument()
 })
 
-it('clicking Set as channel supplier verifies with the manage scope then sends the proof', async () => {
+it('Set as channel supplier asks for the payable discount, then verifies and sends both', async () => {
   requestVerification.mockResolvedValue({ proof_token: 'proof-1' })
   vi.mocked(manageUser).mockResolvedValue({ success: true })
   await openMenuAs(100, 1)
   await userEvent.click(
     screen.getByRole('menuitem', { name: 'Set as channel supplier' })
   )
+  expect(requestVerification).not.toHaveBeenCalled()
+  await userEvent.type(await screen.findByLabelText('Payable Discount'), '0.85')
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
   await waitFor(() =>
     expect(manageUser).toHaveBeenCalledWith(
       7,
       'set_channel_supplier',
-      'proof-1'
+      'proof-1',
+      { payable_discount: 0.85 }
     )
   )
   expect(requestVerification).toHaveBeenCalledWith(
@@ -176,6 +185,24 @@ it('clicking Set as channel supplier verifies with the manage scope then sends t
       title: 'Verify to set channel supplier',
     })
   )
+})
+
+it('Set as channel supplier refuses a missing or out-of-range discount without asking for a proof', async () => {
+  await openMenuAs(100, 1)
+  await userEvent.click(
+    screen.getByRole('menuitem', { name: 'Set as channel supplier' })
+  )
+  const field = await screen.findByLabelText('Payable Discount')
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+  expect(
+    screen.getByText(
+      'Payable discount must be greater than 0 and at most 1, with at most 4 decimal places'
+    )
+  ).toBeInTheDocument()
+  await userEvent.type(field, '1.0001')
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+  expect(requestVerification).not.toHaveBeenCalled()
+  expect(manageUser).not.toHaveBeenCalled()
 })
 
 it('clicking Unset channel supplier verifies with the manage scope then sends the proof', async () => {
@@ -211,6 +238,13 @@ it.each([
     vi.mocked(manageUser).mockResolvedValue({ success: true })
     await openMenuAs(100, targetRole)
     await userEvent.click(screen.getByRole('menuitem', { name: menuLabel }))
+    if (targetRole === 1) {
+      await userEvent.type(
+        await screen.findByLabelText('Payable Discount'),
+        '0.85'
+      )
+      await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    }
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(resultMessage)
     )
@@ -218,28 +252,45 @@ it.each([
 )
 
 it.each([
-  ['Set as channel supplier', 1],
-  ['Unset channel supplier', 5],
+  ['Set as channel supplier', 1, 'Failed to set channel supplier'],
+  ['Unset channel supplier', 5, 'Unset channel supplier'],
 ])(
   'failure without a server message after %s falls back to a readable name, never the raw action key',
-  async (menuLabel, targetRole) => {
+  async (menuLabel, targetRole, fallback) => {
     requestVerification.mockResolvedValue({ proof_token: 'proof-4' })
     vi.mocked(manageUser).mockResolvedValue({ success: false })
     await openMenuAs(100, targetRole)
     await userEvent.click(screen.getByRole('menuitem', { name: menuLabel }))
+    if (targetRole === 1) {
+      await userEvent.type(
+        await screen.findByLabelText('Payable Discount'),
+        '0.85'
+      )
+      await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    }
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
     const shown = String(vi.mocked(toast.error).mock.calls[0][0])
     expect(shown).not.toContain('channel_supplier')
-    expect(shown).toContain(menuLabel)
+    expect(shown).toContain(fallback)
   }
 )
 
-it('cancelling verification from the Set as channel supplier item never calls manageUser', async () => {
+it('cancelling verification after entering the discount never calls manageUser', async () => {
   requestVerification.mockResolvedValue(null)
   await openMenuAs(100, 1)
   await userEvent.click(
     screen.getByRole('menuitem', { name: 'Set as channel supplier' })
   )
+  await userEvent.type(await screen.findByLabelText('Payable Discount'), '0.85')
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
   await waitFor(() => expect(requestVerification).toHaveBeenCalled())
   expect(manageUser).not.toHaveBeenCalled()
+})
+
+it('being set again prefills the discount the account kept', async () => {
+  await openMenuAs(100, 1, { payable_discount: 0.9 })
+  await userEvent.click(
+    screen.getByRole('menuitem', { name: 'Set as channel supplier' })
+  )
+  expect(await screen.findByLabelText('Payable Discount')).toHaveValue('0.9')
 })

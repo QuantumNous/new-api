@@ -19,12 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 
+import { DiscountValue } from '@/components/discount-value'
 import { TruncatedText } from '@/components/truncated-text'
 
 import { THIRD_PARTY_SITE_TYPE_OPTIONS } from '../constants'
 import type { ThirdPartySite } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
-import { ReceivableDiscountCell } from './receivable-discount-cell'
 
 export function useThirdPartySitesColumns(): ColumnDef<ThirdPartySite>[] {
   const { t } = useTranslation()
@@ -58,7 +58,7 @@ export function useThirdPartySitesColumns(): ColumnDef<ThirdPartySite>[] {
       accessorKey: 'receivable_discount',
       header: t('Receivable Discount'),
       cell: ({ row }) => (
-        <ReceivableDiscountCell value={row.original.receivable_discount} />
+        <DiscountValue value={row.original.receivable_discount} />
       ),
     },
     {

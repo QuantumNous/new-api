@@ -63,6 +63,7 @@ import {
 } from '../constants'
 import { getUserActionMessage } from '../lib'
 import type { User } from '../types'
+import { SetChannelSupplierDialog } from './dialogs/set-channel-supplier-dialog'
 import { UserBindingDialog } from './dialogs/user-binding-dialog'
 import { useUsers } from './users-provider'
 
@@ -101,6 +102,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [resetTwoFAOpen, setResetTwoFAOpen] = useState(false)
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
+  const [setSupplierOpen, setSetSupplierOpen] = useState(false)
 
   const handleEdit = () => {
     setCurrentRow(user)
@@ -136,6 +138,41 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             action: actionName ? t(actionName) : action,
           })
         )
+      }
+    } catch (error) {
+      handleServerError(
+        AuthOperationError.from(error),
+        t(ERROR_MESSAGES.UNEXPECTED)
+      )
+    }
+  }
+
+  // Setting a supplier needs its payable discount, so it goes through a dialog
+  // that collects the discount and then asks for the manage proof.
+  const handleSetChannelSupplier = async (payableDiscount: number) => {
+    try {
+      const proof = await requestVerification({
+        scope: 'admin.user.manage',
+        context: { user_id: user.id, action: 'set_channel_supplier' },
+        title: t(MANAGE_ACTION_TITLES.set_channel_supplier),
+        description: t(
+          'Confirm your identity before changing the account {{username}}.',
+          { username: user.username }
+        ),
+      })
+      if (!proof) return
+      const result = await manageUser(
+        user.id,
+        'set_channel_supplier',
+        proof.proof_token,
+        { payable_discount: payableDiscount }
+      )
+      if (result.success) {
+        toast.success(t(getUserActionMessage('set_channel_supplier')))
+        setSetSupplierOpen(false)
+        triggerRefresh()
+      } else {
+        handleServerError(result, t('Failed to set channel supplier'))
       }
     } catch (error) {
       handleServerError(
@@ -272,7 +309,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
         {viewerIsRoot && user.role === USER_ROLE.USER && (
           <DropdownMenuItem
-            onClick={() => handleManage('set_channel_supplier')}
+            onSelect={(event) => {
+              event.preventDefault()
+              setSetSupplierOpen(true)
+            }}
           >
             {t('Set as channel supplier')}
             <DropdownMenuShortcut>
@@ -380,6 +420,14 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         )}
         confirmText={t('Reset 2FA')}
         handleConfirm={handleResetTwoFA}
+      />
+
+      <SetChannelSupplierDialog
+        open={setSupplierOpen && !verificationActive}
+        onOpenChange={setSetSupplierOpen}
+        username={user.username}
+        currentDiscount={user.payable_discount}
+        onConfirm={handleSetChannelSupplier}
       />
 
       <UserBindingDialog

@@ -223,6 +223,7 @@ it('root creating a channel supplier sends the create request only with a proof 
   await userEvent.click(
     await screen.findByRole('option', { name: 'Channel Supplier' })
   )
+  await userEvent.type(screen.getByLabelText('Payable Discount'), '0.85')
   await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
   expect(post).not.toHaveBeenCalledWith(
     '/api/user/',
@@ -260,6 +261,7 @@ it('cancelling verification while creating a channel supplier sends no create re
   await userEvent.click(
     await screen.findByRole('option', { name: 'Channel Supplier' })
   )
+  await userEvent.type(screen.getByLabelText('Payable Discount'), '0.85')
   await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
   await screen.findByLabelText('Authenticator code or backup code')
   await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -269,6 +271,57 @@ it('cancelling verification while creating a channel supplier sends no create re
     ).not.toBeInTheDocument()
   )
   expect(post).not.toHaveBeenCalled()
+})
+
+it('creating a channel supplier without a payable discount shows the message and sends nothing', async () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { success: true, data: [] } })
+  const post = vi.spyOn(api, 'post')
+  renderCreateDrawer(100)
+  await userEvent.type(await screen.findByLabelText('Username'), 'new-supplier')
+  await userEvent.type(screen.getByLabelText('Password'), 'Str0ng-Passw0rd!')
+  await userEvent.click(screen.getByRole('combobox', { name: 'Role' }))
+  await userEvent.click(
+    await screen.findByRole('option', { name: 'Channel Supplier' })
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  expect(
+    screen.getByText(
+      'Payable discount must be greater than 0 and at most 1, with at most 4 decimal places'
+    )
+  ).toBeInTheDocument()
+  expect(post).not.toHaveBeenCalled()
+})
+
+it('creating a channel supplier sends the payable discount with the create request', async () => {
+  const proof = mockVerification('admin.user.create', 'create-proof')
+  const post = vi.spyOn(api, 'post').mockImplementation(async (url) => {
+    if (url === '/api/verify') return proof
+    if (url === '/api/user/') return { data: { success: true } }
+    throw new Error(`Unexpected POST ${url}`)
+  })
+  renderCreateDrawer(100)
+  await userEvent.type(await screen.findByLabelText('Username'), 'new-supplier')
+  await userEvent.type(screen.getByLabelText('Password'), 'Str0ng-Passw0rd!')
+  await userEvent.click(screen.getByRole('combobox', { name: 'Role' }))
+  await userEvent.click(
+    await screen.findByRole('option', { name: 'Channel Supplier' })
+  )
+  await userEvent.type(screen.getByLabelText('Payable Discount'), '0,85')
+  await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  await completeTwoFactorVerification()
+  await waitFor(() =>
+    expect(post).toHaveBeenCalledWith(
+      '/api/user/',
+      expect.objectContaining({
+        username: 'new-supplier',
+        role: 5,
+        payable_discount: 0.85,
+      }),
+      expect.objectContaining({
+        headers: { 'X-Security-Proof': 'create-proof' },
+      })
+    )
+  )
 })
 
 it('administrator opening the create drawer is not offered the Channel Supplier role', async () => {

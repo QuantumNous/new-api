@@ -7811,6 +7811,10 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Payable Discount": "Скидка к выплате",
+    "Payable discount must be greater than 0 and at most 1, with at most 4 decimal places": "Скидка к выплате должна быть больше 0 и не больше 1, не более 4 знаков после запятой",
+    "Confirm the payable discount for {{username}} before making the account a channel supplier.": "Подтвердите скидку к выплате для {{username}}, прежде чем сделать аккаунт поставщиком канала.",
+    "Failed to set channel supplier": "Не удалось назначить поставщика канала"
   }
 }

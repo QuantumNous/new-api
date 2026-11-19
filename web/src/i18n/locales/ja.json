@@ -7811,6 +7811,10 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Payable Discount": "支払折扣",
+    "Payable discount must be greater than 0 and at most 1, with at most 4 decimal places": "支払折扣は 0 より大きく 1 以下で、小数点以下は最大 4 桁です",
+    "Confirm the payable discount for {{username}} before making the account a channel supplier.": "{{username}} をチャネルサプライヤーにする前に、支払折扣を確認してください。",
+    "Failed to set channel supplier": "チャネルサプライヤーの設定に失敗しました"
   }
 }

@@ -74,6 +74,7 @@ import {
   type AdminPermissionMatrix,
 } from '@/lib/admin-permissions'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { isValidDiscountText, parseDiscountText } from '@/lib/discount'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { accountPasswordSchema } from '@/lib/password-policy'
@@ -178,6 +179,11 @@ export function UsersMutateDrawer({
     { value: '10', label: t('Admin') },
   ]
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
+  // Only the super administrator sets the payable discount: for a supplier
+  // being created, or a supplier being edited.
+  const targetIsSupplier =
+    (selectedRole ?? currentRow?.role ?? 0) === ROLE.CHANNEL_SUPPLIER
+  const showsPayableDiscount = canEditAdminPermissions && targetIsSupplier
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate || data.password) {
@@ -185,6 +191,24 @@ export function UsersMutateDrawer({
         form.setError('password', {
           type: 'manual',
           message: t('Password must contain between 8 and 128 characters.'),
+        })
+        return
+      }
+    }
+    // A supplier needs a discount; an edit that leaves the field empty keeps
+    // the stored one. Checked before verification so a typo costs no proof.
+    const payableDiscountText = (data.payable_discount ?? '').trim()
+    if (showsPayableDiscount) {
+      if (
+        (payableDiscountText === '' && !isUpdate) ||
+        (payableDiscountText !== '' &&
+          !isValidDiscountText(payableDiscountText))
+      ) {
+        form.setError('payable_discount', {
+          type: 'manual',
+          message: t(
+            'Payable discount must be greater than 0 and at most 1, with at most 4 decimal places'
+          ),
         })
         return
       }
@@ -209,6 +233,9 @@ export function UsersMutateDrawer({
           )
       ) {
         delete payload.admin_permissions
+      }
+      if (showsPayableDiscount && payableDiscountText !== '') {
+        payload.payable_discount = parseDiscountText(payableDiscountText)
       }
       // Resetting a password, rewriting admin permissions, or creating an
       // administrator changes who can sign in or what they may do.
@@ -381,6 +408,33 @@ export function UsersMutateDrawer({
                         </Select>
                         <FormDescription>
                           {t("Set the user's role (cannot be Root)")}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {showsPayableDiscount && (
+                  <FormField
+                    control={form.control}
+                    name='payable_discount'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Payable Discount')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? ''}
+                            inputMode='decimal'
+                            autoComplete='off'
+                            placeholder='0.85'
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Between 0 and 1. For example, 0.85 means 85% of the list price'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

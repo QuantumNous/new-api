@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 import { z } from 'zod'
 
+import { isValidDiscountText, parseDiscountText } from '@/lib/discount'
+
 import type { ThirdPartySite, ThirdPartySitePayload } from '../types'
 
 export type ThirdPartySiteFormMode = 'create' | 'update'
@@ -64,16 +66,7 @@ function isValidRemoteUserId(value: string): boolean {
   return Number.isSafeInteger(n) && n > 0
 }
 
-// Judged on the text so a long fraction is never rounded into range. A comma
-// is accepted as the decimal separator, since some keyboards offer no dot.
-function parseDiscount(value: string): number {
-  return Number(value.replace(',', '.'))
-}
-
-function isValidDiscount(value: string): boolean {
-  if (!/^(?:0(?:[.,]\d{1,4})?|1(?:[.,]0{1,4})?)$/.test(value)) return false
-  return parseDiscount(value) > 0
-}
+// Judged on the text so a long fraction is never rounded into range.
 
 export function getThirdPartySiteFormSchema(
   t: TFunction,
@@ -128,7 +121,7 @@ export function getThirdPartySiteFormSchema(
     }),
     receivable_discount: z
       .string()
-      .refine((raw) => isValidDiscount(raw.trim()), {
+      .refine((raw) => isValidDiscountText(raw.trim()), {
         message: t(
           'Receivable discount must be greater than 0 and at most 1, with at most 4 decimal places'
         ),
@@ -158,7 +151,7 @@ export function toThirdPartySitePayload(
     type: values.type.trim() as ThirdPartySitePayload['type'],
     base_url: values.base_url.trim(),
     remote_user_id: Number(values.remote_user_id.trim()),
-    receivable_discount: parseDiscount(values.receivable_discount.trim()),
+    receivable_discount: parseDiscountText(values.receivable_discount.trim()),
   }
   const apiKey = values.api_key.trim()
   if (mode === 'create' || apiKey !== '') payload.api_key = apiKey

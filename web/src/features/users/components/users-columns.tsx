@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ActivityTimeCell } from '@/components/activity-time-cell'
 import { BadgeCell } from '@/components/data-table'
+import { DiscountValue } from '@/components/discount-value'
 import { GroupBadge } from '@/components/group-badge'
 import { LongText } from '@/components/long-text'
 import { StatusBadge } from '@/components/status-badge'
@@ -39,6 +40,7 @@ import { useSystemConfigStore } from '@/stores/system-config-store'
 import {
   USER_STATUS,
   USER_STATUSES,
+  USER_ROLE,
   USER_ROLES,
   isUserDeleted,
 } from '../constants'
@@ -226,7 +228,24 @@ export function useUsersColumns(): ColumnDef<User>[] {
             return null
           }
 
-          return <span className='text-sm'>{t(roleConfig.labelKey)}</span>
+          return (
+            <div className='flex min-w-0 flex-col gap-0.5'>
+              <span className='text-sm'>{t(roleConfig.labelKey)}</span>
+              {roleValue === USER_ROLE.CHANNEL_SUPPLIER && (
+                <span
+                  data-table-text='secondary'
+                  className='text-muted-foreground text-xs font-normal'
+                >
+                  {t('Payable Discount')}:{' '}
+                  {row.original.payable_discount == null ? (
+                    t('Not set')
+                  ) : (
+                    <DiscountValue value={row.original.payable_discount} />
+                  )}
+                </span>
+              )}
+            </div>
+          )
         },
         filterFn: (row, id, value) => {
           return value.includes(String(row.getValue(id)))

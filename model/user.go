@@ -112,6 +112,10 @@ type User struct {
 	LastLoginAt          int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AuthVersion          int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
 	AdminPermissions     map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+	// PayableDiscount is what the platform pays a channel supplier, as a
+	// fraction of the list price; nil means none was set. Only the super
+	// administrator sets it, and it stays when the user stops being a supplier.
+	PayableDiscount *float64 `json:"payable_discount" gorm:"column:payable_discount"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -885,6 +889,10 @@ func (user *User) EditWithTx(tx *gorm.DB, updatePassword bool) error {
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
+	}
+	// The caller has checked the payable discount; nil leaves it unchanged.
+	if newUser.PayableDiscount != nil {
+		updates["payable_discount"] = *newUser.PayableDiscount
 	}
 
 	current := User{}

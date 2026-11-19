@@ -91,7 +91,7 @@ func TestAdminUserRiskOperationsRequireProofBeforeMutation(t *testing.T) {
 		{
 			name: "manage set channel supplier", method: http.MethodPost, path: "/api/user/manage", handler: ManageUser,
 			body: func(target *model.User) string {
-				return fmt.Sprintf(`{"id":%d,"action":"set_channel_supplier"}`, target.Id)
+				return fmt.Sprintf(`{"id":%d,"action":"set_channel_supplier","payable_discount":0.85}`, target.Id)
 			},
 			unchanged: func(t *testing.T, target *model.User) {
 				stored, err := model.GetUserById(target.Id, false)
@@ -328,6 +328,11 @@ func TestChannelSupplierRoleManagement(t *testing.T) {
 	manage := func(t *testing.T, action, proof string, operatorRole int) securityEnrollmentResponse {
 		t.Helper()
 		body := fmt.Sprintf(`{"id":%d,"action":%q}`, target.Id, action)
+		// Becoming a supplier carries the payable discount; see
+		// TestChannelSupplierPayableDiscount.
+		if action == "set_channel_supplier" {
+			body = fmt.Sprintf(`{"id":%d,"action":%q,"payable_discount":0.85}`, target.Id, action)
+		}
 		return decodeSecurityEnrollmentResponse(t, adminUserRequest(http.MethodPost, "/api/user/manage", body, proof, identity, operatorRole, nil, ManageUser))
 	}
 	manageProof := func(t *testing.T, action string) string {
@@ -418,7 +423,11 @@ func TestChannelSupplierRoleManagement(t *testing.T) {
 			require.NotNil(t, audit.Other.Op)
 			params, err := common.Marshal(audit.Other.Op.Params)
 			require.NoError(t, err)
-			assert.JSONEq(t, fmt.Sprintf(`{"action":%q,"id":%d,"username":"managed-user","target_user_id":%d,"verification_method":"password"}`, action, target.Id, target.Id), string(params))
+			discount := ""
+			if action == "set_channel_supplier" {
+				discount = `"payable_discount":0.85,`
+			}
+			assert.JSONEq(t, fmt.Sprintf(`{"action":%q,"id":%d,"username":"managed-user",%s"target_user_id":%d,"verification_method":"password"}`, action, target.Id, discount, target.Id), string(params))
 		}
 
 		session := newTargetSession(t)
@@ -481,7 +490,7 @@ func TestChannelSupplierRoleManagement(t *testing.T) {
 	})
 
 	t.Run("only the super administrator creates a supplier", func(t *testing.T) {
-		body := `{"username":"new-supplier","password":"supplier-password-1","role":5}`
+		body := `{"username":"new-supplier","password":"supplier-password-1","role":5,"payable_discount":0.85}`
 		create := service.VerificationOperation{Scope: service.VerificationScopeAdminUserCreate, Context: []byte(`{"role":5}`)}
 		proof := issueSecurityEnrollmentProof(t, identity, create, service.VerificationMethodPassword)
 		result := decodeSecurityEnrollmentResponse(t, adminUserRequest(http.MethodPost, "/api/user/", body, proof, identity, common.RoleAdminUser, nil, CreateUser))
@@ -504,7 +513,184 @@ func TestChannelSupplierRoleManagement(t *testing.T) {
 		require.NotNil(t, audit.Other.Op)
 		params, err := common.Marshal(audit.Other.Op.Params)
 		require.NoError(t, err)
-		assert.JSONEq(t, fmt.Sprintf(`{"role":5,"username":"new-supplier","target_user_id":%d,"verification_method":"password"}`, created.Id), string(params))
+		assert.JSONEq(t, fmt.Sprintf(`{"role":5,"payable_discount":0.85,"username":"new-supplier","target_user_id":%d,"verification_method":"password"}`, created.Id), string(params))
+	})
+}
+
+// TestChannelSupplierPayableDiscount pins the payable discount that comes with
+// the channel supplier role. Creating a supplier or setting a user as one needs
+// a discount greater than 0 and at most 1, with at most 4 decimal places,
+// checked before the step-up proof is used. Only the super administrator
+// changes it afterwards, and it stays when the user stops being a supplier.
+func TestChannelSupplierPayableDiscount(t *testing.T) {
+	_, identity, target := setupAdminUserTest(t)
+	// Role changes and the super administrator's edits clear the user's own
+	// permission rules and reload the policy.
+	require.NoError(t, model.DB.AutoMigrate(&model.CasbinRule{}, &model.SystemTask{}))
+	previousMaster := common.IsMasterNode
+	common.IsMasterNode = false
+	t.Cleanup(func() { common.IsMasterNode = previousMaster })
+	require.NoError(t, authz.Init(model.DB))
+
+	const discountMessage = "Payable discount must be greater than 0 and at most 1, with at most 4 decimal places"
+	invalidDiscounts := []struct{ name, field string }{
+		{"missing", ""},
+		{"null", `,"payable_discount":null`},
+		{"zero", `,"payable_discount":0`},
+		{"negative", `,"payable_discount":-0.5`},
+		{"above one", `,"payable_discount":1.0001`},
+		{"five decimal places", `,"payable_discount":0.12345`},
+	}
+	setTarget := func(t *testing.T, role int, discount *float64) {
+		t.Helper()
+		var value any
+		if discount != nil {
+			value = *discount
+		}
+		require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", target.Id).Updates(map[string]any{"role": role, "payable_discount": value}).Error)
+	}
+	storedUser := func(t *testing.T) *model.User {
+		t.Helper()
+		stored, err := model.GetUserById(target.Id, false)
+		require.NoError(t, err)
+		return stored
+	}
+	manage := func(t *testing.T, action, field, proof string) securityEnrollmentResponse {
+		t.Helper()
+		body := fmt.Sprintf(`{"id":%d,"action":%q%s}`, target.Id, action, field)
+		return decodeSecurityEnrollmentResponse(t, adminUserRequest(http.MethodPost, "/api/user/manage", body, proof, identity, common.RoleRootUser, nil, ManageUser))
+	}
+	manageProof := func(t *testing.T, action string) string {
+		t.Helper()
+		context := fmt.Sprintf(`{"user_id":%d,"action":%q}`, target.Id, action)
+		return issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopeAdminUserManage, Context: []byte(context)}, service.VerificationMethodPassword)
+	}
+
+	t.Run("creating a supplier needs a valid discount, checked before the proof is used", func(t *testing.T) {
+		create := service.VerificationOperation{Scope: service.VerificationScopeAdminUserCreate, Context: []byte(`{"role":5}`)}
+		proof := issueSecurityEnrollmentProof(t, identity, create, service.VerificationMethodPassword)
+		for _, test := range invalidDiscounts {
+			body := `{"username":"discount-supplier","password":"supplier-password-1","role":5` + test.field + `}`
+			result := decodeSecurityEnrollmentResponse(t, adminUserRequest(http.MethodPost, "/api/user/", body, proof, identity, common.RoleRootUser, nil, CreateUser))
+			assert.False(t, result.Success, test.name)
+			assert.Equal(t, discountMessage, result.MessageKey, test.name)
+		}
+		var count int64
+		require.NoError(t, model.DB.Model(&model.User{}).Where("username = ?", "discount-supplier").Count(&count).Error)
+		assert.Zero(t, count)
+
+		// The same proof still works, and the stored value drops the
+		// floating-point noise of the decimal input.
+		body := `{"username":"discount-supplier","password":"supplier-password-1","role":5,"payable_discount":0.30000000000000004}`
+		result := decodeSecurityEnrollmentResponse(t, adminUserRequest(http.MethodPost, "/api/user/", body, proof, identity, common.RoleRootUser, nil, CreateUser))
+		require.True(t, result.Success, result.Message)
+		var created model.User
+		require.NoError(t, model.DB.Where("username = ?", "discount-supplier").First(&created).Error)
+		require.NotNil(t, created.PayableDiscount)
+		assert.Equal(t, 0.3, *created.PayableDiscount)
+	})
+
+	t.Run("a user created with another role gets no discount", func(t *testing.T) {
+		body := `{"username":"plain-member","password":"member-password-1","role":1,"payable_discount":0.5}`
+		result := decodeSecurityEnrollmentResponse(t, adminUserRequest(http.MethodPost, "/api/user/", body, "", identity, common.RoleAdminUser, nil, CreateUser))
+		require.True(t, result.Success, result.Message)
+		var created model.User
+		require.NoError(t, model.DB.Where("username = ?", "plain-member").First(&created).Error)
+		assert.Nil(t, created.PayableDiscount)
+	})
+
+	t.Run("setting a supplier needs a valid discount, checked before the proof is used", func(t *testing.T) {
+		setTarget(t, common.RoleCommonUser, nil)
+		proof := manageProof(t, "set_channel_supplier")
+		for _, test := range invalidDiscounts {
+			result := manage(t, "set_channel_supplier", test.field, proof)
+			assert.False(t, result.Success, test.name)
+			assert.Equal(t, discountMessage, result.MessageKey, test.name)
+			stored := storedUser(t)
+			assert.Equal(t, common.RoleCommonUser, stored.Role, test.name)
+			assert.Nil(t, stored.PayableDiscount, test.name)
+		}
+		result := manage(t, "set_channel_supplier", `,"payable_discount":0.85`, proof)
+		require.True(t, result.Success, result.Message)
+		stored := storedUser(t)
+		assert.Equal(t, common.RoleChannelSupplierUser, stored.Role)
+		require.NotNil(t, stored.PayableDiscount)
+		assert.Equal(t, 0.85, *stored.PayableDiscount)
+	})
+
+	t.Run("the discount stays when the user stops being a supplier", func(t *testing.T) {
+		discount := 0.85
+		for _, test := range []struct {
+			action string
+			role   int
+		}{
+			{"unset_channel_supplier", common.RoleCommonUser},
+			{"promote", common.RoleAdminUser},
+		} {
+			setTarget(t, common.RoleChannelSupplierUser, &discount)
+			result := manage(t, test.action, "", manageProof(t, test.action))
+			require.True(t, result.Success, result.Message)
+			stored := storedUser(t)
+			assert.Equal(t, test.role, stored.Role, test.action)
+			require.NotNil(t, stored.PayableDiscount, test.action)
+			assert.Equal(t, 0.85, *stored.PayableDiscount, test.action)
+		}
+	})
+
+	t.Run("only the super administrator changes the discount of a supplier", func(t *testing.T) {
+		discount := 0.85
+		update := func(t *testing.T, field string, operatorRole int) securityEnrollmentResponse {
+			t.Helper()
+			body := fmt.Sprintf(`{"id":%d,"username":"managed-user","display_name":"Managed","group":"default"%s}`, target.Id, field)
+			return decodeSecurityEnrollmentResponse(t, adminUserRequest(http.MethodPut, "/api/user/", body, "", identity, operatorRole, nil, UpdateUser))
+		}
+		for _, test := range []struct {
+			name, field, message     string
+			operatorRole, targetRole int
+		}{
+			{"administrator", `,"payable_discount":0.7`, "Only the super administrator can change channel suppliers", common.RoleAdminUser, common.RoleChannelSupplierUser},
+			{"common user target", `,"payable_discount":0.7`, "This user is not a channel supplier", common.RoleRootUser, common.RoleCommonUser},
+			{"invalid value", `,"payable_discount":1.5`, discountMessage, common.RoleRootUser, common.RoleChannelSupplierUser},
+		} {
+			setTarget(t, test.targetRole, &discount)
+			result := update(t, test.field, test.operatorRole)
+			assert.False(t, result.Success, test.name)
+			assert.Equal(t, test.message, result.MessageKey, test.name)
+			stored := storedUser(t)
+			require.NotNil(t, stored.PayableDiscount, test.name)
+			assert.Equal(t, 0.85, *stored.PayableDiscount, test.name)
+		}
+
+		// An edit that leaves the discount out keeps it: an administrator edits
+		// a supplier the way it edits any common user.
+		setTarget(t, common.RoleChannelSupplierUser, &discount)
+		result := update(t, "", common.RoleAdminUser)
+		require.True(t, result.Success, result.Message)
+		stored := storedUser(t)
+		require.NotNil(t, stored.PayableDiscount)
+		assert.Equal(t, 0.85, *stored.PayableDiscount)
+
+		// The super administrator changes it without a step-up proof, and the
+		// audit records the new value only when it changes.
+		latestUpdateAudit := func(t *testing.T) string {
+			t.Helper()
+			var audit model.AuditLog
+			require.NoError(t, model.LOG_DB.Where("action = ?", "user.update").Last(&audit).Error)
+			require.NotNil(t, audit.Other.Op)
+			params, err := common.Marshal(audit.Other.Op.Params)
+			require.NoError(t, err)
+			return string(params)
+		}
+		result = update(t, `,"payable_discount":0.7`, common.RoleRootUser)
+		require.True(t, result.Success, result.Message)
+		stored = storedUser(t)
+		require.NotNil(t, stored.PayableDiscount)
+		assert.Equal(t, 0.7, *stored.PayableDiscount)
+		assert.JSONEq(t, fmt.Sprintf(`{"id":%d,"username":"managed-user","payable_discount":0.7,"target_user_id":%d}`, target.Id, target.Id), latestUpdateAudit(t))
+
+		result = update(t, `,"payable_discount":0.7`, common.RoleRootUser)
+		require.True(t, result.Success, result.Message)
+		assert.JSONEq(t, fmt.Sprintf(`{"id":%d,"username":"managed-user","target_user_id":%d}`, target.Id, target.Id), latestUpdateAudit(t))
 	})
 }
 

@@ -7811,6 +7811,10 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Payable Discount": "應付折扣",
+    "Payable discount must be greater than 0 and at most 1, with at most 4 decimal places": "應付折扣必須大於 0 且不超過 1，最多 4 位小數",
+    "Confirm the payable discount for {{username}} before making the account a channel supplier.": "將 {{username}} 設為渠道供應商之前，請確認其應付折扣。",
+    "Failed to set channel supplier": "設為渠道供應商失敗"
   }
 }
