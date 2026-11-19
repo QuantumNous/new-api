@@ -22,7 +22,6 @@ import { useTranslation } from 'react-i18next'
 
 import { ActivityTimeCell } from '@/components/activity-time-cell'
 import { BadgeCell } from '@/components/data-table'
-import { GroupBadge } from '@/components/group-badge'
 import { LongText } from '@/components/long-text'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
@@ -32,9 +31,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { getCurrencyDisplay } from '@/lib/currency'
-import { formatQuota } from '@/lib/format'
-import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import {
   USER_STATUS,
@@ -44,13 +40,9 @@ import {
 } from '../constants'
 import type { User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
-import { UserQuotaCell } from './user-quota-cell'
 
 export function useUsersColumns(): ColumnDef<User>[] {
   const { t } = useTranslation()
-  const currencyConfig = useSystemConfigStore((state) => state.config.currency)
-  const { meta: currency } = getCurrencyDisplay()
-  const quotaUnit = currency.kind === 'tokens' ? t('Tokens') : currency.symbol
   return useMemo<ColumnDef<User>[]>(
     () => [
       {
@@ -145,8 +137,6 @@ export function useUsersColumns(): ColumnDef<User>[] {
         header: t('Status'),
         cell: ({ row }) => {
           const user = row.original
-          const requestCount = user.request_count
-
           const statusConfig = isUserDeleted(user)
             ? USER_STATUSES[USER_STATUS.DELETED]
             : USER_STATUSES[user.status as keyof typeof USER_STATUSES]
@@ -167,11 +157,6 @@ export function useUsersColumns(): ColumnDef<User>[] {
                   className='font-normal'
                 />
               </TooltipTrigger>
-              <TooltipContent>
-                <p className='text-xs'>
-                  {t('Requests:')} {requestCount.toLocaleString()}
-                </p>
-              </TooltipContent>
             </Tooltip>
           )
         },
@@ -181,39 +166,6 @@ export function useUsersColumns(): ColumnDef<User>[] {
         enableSorting: false,
         size: 120,
         meta: { mobileBadge: true },
-      },
-      {
-        id: 'quota',
-        accessorKey: 'quota',
-        header: `${t('Available Balance')} (${quotaUnit})`,
-        cell: ({ row }) => {
-          const user = row.original
-          return <UserQuotaCell remaining={user.quota} used={user.used_quota} />
-        },
-        size: 180,
-        minSize: 160,
-        meta: { mobileOrder: 40 },
-      },
-      {
-        accessorKey: 'group',
-        header: t('User Group'),
-        cell: ({ row }) => {
-          const group = row.getValue('group') as string
-          return (
-            <BadgeCell>
-              <GroupBadge group={group} className='font-normal' />
-            </BadgeCell>
-          )
-        },
-        filterFn: (row, id, value) => {
-          const group = String(
-            row.getValue(id) || t('User Group')
-          ).toLowerCase()
-          const searchValue = String(value).toLowerCase()
-          return group.includes(searchValue)
-        },
-        size: 140,
-        meta: { mobileOrder: 30 },
       },
       {
         accessorKey: 'role',
@@ -234,45 +186,6 @@ export function useUsersColumns(): ColumnDef<User>[] {
         enableSorting: false,
         size: 120,
         meta: { mobileOrder: 20 },
-      },
-      {
-        id: 'invite_info',
-        header: t('Invite Info'),
-        cell: ({ row }) => {
-          const user = row.original
-          const affCount = user.aff_count || 0
-          const affHistoryQuota = user.aff_history_quota || 0
-          const inviterId = user.inviter_id || 0
-
-          if (affCount === 0 && affHistoryQuota === 0 && inviterId === 0) {
-            return <span className='text-muted-foreground text-sm'>—</span>
-          }
-
-          return (
-            <div
-              data-table-text='secondary'
-              className='min-w-0 space-y-1 text-xs font-normal'
-            >
-              {(affCount > 0 || affHistoryQuota !== 0) && (
-                <LongText>
-                  {t('Invited {{count}} users', { count: affCount })} ·{' '}
-                  {t('Earnings')}:{' '}
-                  <span className='tabular-nums'>
-                    {formatQuota(affHistoryQuota)}
-                  </span>
-                </LongText>
-              )}
-              {inviterId > 0 && (
-                <LongText className='text-muted-foreground'>
-                  {t('Inviter ID: {{id}}', { id: inviterId })}
-                </LongText>
-              )}
-            </div>
-          )
-        },
-        size: 240,
-        enableSorting: false,
-        meta: { mobileHidden: true },
       },
       {
         accessorKey: 'created_at',
@@ -296,8 +209,6 @@ export function useUsersColumns(): ColumnDef<User>[] {
         meta: { pinned: 'right' as const },
       },
     ],
-    // formatQuota reads the currency configuration from the store.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, quotaUnit, currencyConfig]
+    [t]
   )
 }
