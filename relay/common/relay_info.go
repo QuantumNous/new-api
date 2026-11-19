@@ -294,11 +294,6 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 	headerOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelHeaderOverride)
 	apiType, _ := common.ChannelType2APIType(channelType)
-	pinnedProvider, _ := common.GetContextKey(c, constant.ContextKeyProviderPlugin)
-	providerPlugin := pinnedProvider != nil && channelType == constant.ChannelTypeTaskPlugin
-	if providerPlugin {
-		apiType = constant.APITypeProviderPlugin
-	}
 	channelMeta := &ChannelMeta{
 		ChannelType:          channelType,
 		ChannelId:            common.GetContextKeyInt(c, constant.ContextKeyChannelId),
@@ -334,7 +329,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		channelMeta.ChannelOtherSettings = channelOtherSettings
 	}
 
-	if (channelType == constant.ChannelTypeAdvancedCustom || providerPlugin) &&
+	if channelType == constant.ChannelTypeAdvancedCustom &&
 		!channelMeta.ChannelSetting.PassThroughBodyEnabled &&
 		c.Request != nil && c.Request.URL != nil {
 		route, matched := channelMeta.ChannelOtherSettings.AdvancedCustom.MatchPathForModel(c.Request.URL.Path, info.OriginModelName)
@@ -343,7 +338,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		}
 	}
 
-	if streamSupportedChannels[channelMeta.ChannelType] || providerPlugin {
+	if streamSupportedChannels[channelMeta.ChannelType] {
 		channelMeta.SupportStreamOptions = true
 	}
 
