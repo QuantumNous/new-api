@@ -1708,9 +1708,6 @@ func normalizeV1Meta(meta *Meta) error {
 		if channelType <= 0 {
 			return fmt.Errorf("plugin meta channelTypes must contain positive channel types")
 		}
-		if channelType == constant.ChannelTypeTaskPlugin {
-			return fmt.Errorf("plugin meta channelTypes must not contain the task plugin channel type")
-		}
 		if channelType == constant.ChannelTypeNewAPI {
 			return fmt.Errorf("plugin meta channelTypes must not contain the New API channel type; bind the plugin through task_extend_plugin_keys instead")
 		}
