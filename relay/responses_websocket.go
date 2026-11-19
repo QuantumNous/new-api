@@ -2,7 +2,6 @@ package relay
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -24,7 +23,6 @@ import (
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
-	"github.com/QuantumNous/new-api/relay/requestplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -246,11 +244,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	started := time.Now()
 	var info *relaycommon.RelayInfo
 	billingPrepared := false
-	var ingressSteps []relaycommon.RequestPluginStep
-	var ingressRecord []relaycommon.RequestPluginRecord
-	// stopErr is the error the client gets for a response a request plugin
-	// stopped while checking its text.
-	var stopErr *types.NewAPIError
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			apiErr = types.NewError(fmt.Errorf("responses websocket call panic: %v", recovered), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
@@ -258,7 +251,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		}
 		if info == nil && modelName != "" {
 			info = &relaycommon.RelayInfo{OriginModelName: modelName, UsingGroup: common.GetContextKeyString(c, appconstant.ContextKeyUsingGroup), StartTime: started}
-			info.SetRequestPluginIngress(ingressSteps, ingressRecord)
 		}
 		// Settlement already marks the request policy successful, and nothing
 		// reads a termination decision after this point on the WebSocket path,
@@ -266,8 +258,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		if info != nil && billingPrepared {
 			apiErr = RefundFailedRequestBilling(c, info, apiErr)
 		}
-		// The request plugins' report hooks get the response once it settled.
-		requestplugin.Report(c, types.RelayFormatOpenAIResponses, info, ingressRecord, cmp.Or(apiErr, stopErr))
 	}()
 	if modelName == "" {
 		return newResponsesWSInvalidRequestError(errors.New("model is required"))
@@ -277,20 +267,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	}
 	common.SetContextKey(c, appconstant.ContextKeyOriginalModel, modelName)
 	common.SetContextKey(c, appconstant.ContextKeyRequestStartTime, time.Now())
-	// As on HTTP, the request plugins' ingress reads the create before the
-	// model access and channel checks; a changed body is decoded again.
-	changed, ingressSteps, ingressRecord, ingressErr := requestplugin.SocketIngress(c, types.RelayFormatOpenAIResponses)
-	if ingressErr != nil {
-		ingress := &relaycommon.RelayInfo{}
-		ingress.SetRequestPluginIngress(ingressSteps, ingressRecord)
-		service.RecordRelayErrorLog(c, 0, ingressErr, ingress)
-		return ingressErr
-	}
-	if changed {
-		if apiErr = reloadResponsesWSCreate(c, &create); apiErr != nil {
-			return apiErr
-		}
-	}
 	if apiErr = checkResponsesWSModelAccess(c, modelName); apiErr != nil {
 		return apiErr
 	}
@@ -302,7 +278,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		}
 		info = relaycommon.GenRelayInfoResponses(c, &create.Request)
 		info.IsStream = true
-		info.SetRequestPluginIngress(ingressSteps, ingressRecord)
 		common.SetContextKey(c, appconstant.ContextKeyIsStream, true)
 		if apiErr = PrepareRequestBilling(c, info); apiErr != nil {
 			return apiErr
@@ -330,7 +305,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			if info == nil {
 				info = relaycommon.GenRelayInfoResponses(c, &create.Request)
 				info.IsStream = true
-				info.SetRequestPluginIngress(ingressSteps, ingressRecord)
 				common.SetContextKey(c, appconstant.ContextKeyIsStream, true)
 				if apiErr = PrepareRequestBilling(c, info); apiErr != nil {
 					return apiErr
@@ -397,40 +371,8 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		}
 	}
 
-	// The request plugins' reply check reads the text of the response before
-	// the client gets it; without a reply or report instance the events go
-	// out untouched.
-	socket := requestplugin.ResponsesSocket(c, info, func(message []byte) {
-		if err := s.writeClient(websocket.TextMessage, message); err != nil {
-			s.shutdown(websocket.CloseInternalServerErr, "")
-		}
-	})
-	// terminalOf is the event that ends the response for the client: the
-	// reply check reads the rest of the text first, and a response it
-	// stopped ends with the error instead.
 	var responseID string
-	terminalOf := func(incoming responsesWSMessage) *responsesWSMessage {
-		if socket != nil && stopErr == nil && incoming.kind == websocket.TextMessage {
-			if body := socket.Terminal(incoming.body); body != nil {
-				incoming.body = body
-			}
-			stopErr = socket.Stopped()
-		}
-		if stopErr == nil {
-			return &incoming
-		}
-		openAIErr := stopErr.ToOpenAIError(common.UpstreamAddresses(c)...)
-		body, _ := common.Marshal(&responsesWSErrorEvent{Type: "error", Status: stopErr.StatusCode, EventID: create.EventID, StreamID: create.StreamID, ResponseID: responseID, Error: &openAIErr})
-		return &responsesWSMessage{kind: websocket.TextMessage, body: body}
-	}
-	// finishSocket ends the reply check of a response that ended without
-	// its terminal event.
-	finishSocket := func() {
-		if socket != nil && stopErr == nil {
-			socket.Finish()
-			stopErr = socket.Stopped()
-		}
-	}
+	terminalOf := func(incoming responsesWSMessage) *responsesWSMessage { return &incoming }
 
 	accumulator := service.NewResponsesUsageAccumulator(info)
 	info.StreamStatus = relaycommon.NewStreamStatus()
@@ -445,14 +387,11 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	accepted := false
 	var pendingControl []byte
 	var sentControl []byte
-	// cancelled is set once the response.cancel of a stop went upstream.
-	cancelled := false
 	for {
 		select {
 		case incoming := <-state.inbox:
 			idle.Reset(timeout)
 			if incoming.err != nil {
-				finishSocket()
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, incoming.err)
 				state.closeCode, state.closeReason = websocket.CloseInternalServerErr, "upstream connection closed"
 				ConsumeResponsesQuota(c, info, accumulator.Finish())
@@ -485,13 +424,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 					}
 					terminal, ambiguous, controlError := responsesWSErrorEndsRequest(rejection, create.StreamID, responseID, sentControl)
 					if !terminal {
-						// A stopped response sends nothing more before its error.
-						if stopErr != nil {
-							if controlError {
-								sentControl = nil
-							}
-							continue
-						}
 						if err := s.writeClient(incoming.kind, incoming.body); err != nil {
 							s.shutdown(websocket.CloseInternalServerErr, "")
 						}
@@ -552,13 +484,8 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				ConsumeResponsesQuota(c, info, accumulator.Finish())
 				return nil
 			}
-			if stopErr == nil {
-				if socket != nil && incoming.kind == websocket.TextMessage {
-					socket.Event(incoming.body)
-					stopErr = socket.Stopped()
-				} else if err := s.writeClient(incoming.kind, incoming.body); err != nil {
-					s.shutdown(websocket.CloseInternalServerErr, "")
-				}
+			if err := s.writeClient(incoming.kind, incoming.body); err != nil {
+				s.shutdown(websocket.CloseInternalServerErr, "")
 			}
 			if accepted && pendingControl != nil {
 				if err := s.writeTarget(websocket.TextMessage, pendingControl); err != nil {
@@ -567,28 +494,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				sentControl = pendingControl
 				pendingControl = nil
 			}
-			if stopErr != nil && !cancelled && sentControl == nil {
-				// A stop ends the response as a client cancel does; the
-				// upstream terminal settles it and the client gets the error.
-				cancelled = true
-				cancel := map[string]string{"type": "response.cancel", "event_id": "evt_" + common.GetUUID()}
-				if responseID != "" {
-					cancel["response_id"] = responseID
-				}
-				if create.StreamID != "" {
-					cancel["stream_id"] = create.StreamID
-				}
-				body, _ := common.Marshal(cancel)
-				if err := s.writeTarget(websocket.TextMessage, body); err != nil {
-					s.shutdown(websocket.CloseInternalServerErr, "")
-				}
-				sentControl = body
-			}
 		case control := <-state.controls:
-			if stopErr != nil {
-				// The response is already ending.
-				continue
-			}
 			if pendingControl != nil || sentControl != nil {
 				s.sendError(control.eventID, control.streamID, newResponsesWSInvalidRequestError(errors.New("a response control event is already pending")))
 				continue
@@ -602,7 +508,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			}
 			sentControl = control.body
 		case <-idle.C:
-			finishSocket()
 			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, context.DeadlineExceeded)
 			state.closeCode, state.closeReason = websocket.CloseInternalServerErr, "upstream response timed out"
 			ConsumeResponsesQuota(c, info, accumulator.Finish())
@@ -718,8 +623,6 @@ func connectionOtherSettings(c *gin.Context, channel *appmodel.Channel) dto.Chan
 	return otherSettings
 }
 
-// reloadResponsesWSCreate decodes a create body the request plugins' ingress
-// changed, with the checks the first decode applied.
 func reloadResponsesWSCreate(c *gin.Context, create *responsesWSCreateRequest) *types.NewAPIError {
 	storage, err := common.GetBodyStorage(c)
 	var body []byte
