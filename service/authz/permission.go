@@ -12,6 +12,9 @@ type Permission struct {
 type PermissionsMap map[string]map[string]bool
 
 const (
+	ActionRead  = "read"
+	ActionWrite = "write"
+
 	EffectAllow = "allow"
 	EffectDeny  = "deny"
 )
