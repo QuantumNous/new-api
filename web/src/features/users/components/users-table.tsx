@@ -32,7 +32,6 @@ import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import {
   createServerError,
-  requireServerSuccess,
 } from '@/lib/server-error-message'
 
 import { getUsers, searchUsers } from '../api'
