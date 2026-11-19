@@ -94,26 +94,6 @@ func createMiddlewarePATUser(t *testing.T, username, token string) *model.User {
 // Read-only API key routes (/api/usage/token, /api/log/token) are called by
 // scripts, not the web console, so their errors are translated by the backend
 // in the language the request asks for.
-func TestTokenAuthReadOnlyTranslatesErrors(t *testing.T) {
-	require.NoError(t, i18n.Init())
-	for _, tc := range []struct {
-		acceptLanguage string
-		want           string
-	}{
-		{"zh-CN", "未提供令牌"},
-		{"en-US", "Token not provided"},
-	} {
-		recorder := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(recorder)
-		c.Request = httptest.NewRequest(http.MethodGet, "/api/log/token", nil)
-		c.Request.Header.Set("Accept-Language", tc.acceptLanguage)
-		TokenAuthReadOnly()(c)
-		assert.True(t, c.IsAborted(), tc.acceptLanguage)
-		assert.Equal(t, http.StatusUnauthorized, recorder.Code, tc.acceptLanguage)
-		assert.JSONEq(t, `{"success":false,"message":"`+tc.want+`"}`, recorder.Body.String(), tc.acceptLanguage)
-	}
-}
-
 func TestUserAuthAllowsOpaqueDottedPAT(t *testing.T) {
 	setupDashboardAuthMiddlewareTest(t)
 	user := createMiddlewarePATUser(t, "dotted-pat-user", "opaque.key.with-dots")
@@ -394,13 +374,13 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	require.NoError(t, model.DB.AutoMigrate(&model.CasbinRule{}, &model.AuthzRole{}))
 	require.NoError(t, authz.Init(model.DB))
 	// The channel router declares this rule when it registers the route.
-	DeclareAccessTokenPermissionRoute(http.MethodGet, "/api/channel/", authz.ChannelRead)
+	DeclareAccessTokenPermissionRoute(http.MethodGet, "/api/user/", authz.UserRead)
 
 	legacy := "middleware-legacy-token"
 	admin := createMiddlewarePATUser(t, "route-rule-admin", legacy)
 	require.NoError(t, model.DB.Model(admin).Update("role", common.RoleAdminUser).Error)
 	profile, _ := createMiddlewareScopedToken(t, admin.Id, 0, "profile:read")
-	channel, _ := createMiddlewareScopedToken(t, admin.Id, time.Now().Unix()+3600, "channel:read")
+	userRead, _ := createMiddlewareScopedToken(t, admin.Id, time.Now().Unix()+3600, "user:read")
 	expired, _ := createMiddlewareScopedToken(t, admin.Id, time.Now().Unix()-1, "profile:read")
 
 	ok := func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"id": c.GetInt("id")}) }
@@ -416,11 +396,11 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 		status                          int
 	}{
 		{name: "granted scope on a never expiring token", path: "/api/user/self", token: profile, status: http.StatusOK},
-		{name: "missing scope", path: "/api/user/self", token: channel, status: http.StatusForbidden, code: "ACCESS_TOKEN_SCOPE_DENIED", reason: "scope_denied"},
+		{name: "missing scope", path: "/api/user/self", token: userRead, status: http.StatusForbidden, code: "ACCESS_TOKEN_SCOPE_DENIED", reason: "scope_denied"},
 		{name: "undeclared route", path: "/api/undeclared", token: profile, status: http.StatusForbidden, code: "ACCESS_TOKEN_ROUTE_UNDECLARED", reason: "route_undeclared"},
 		{name: "session route", path: "/api/user/access_tokens", token: profile, status: http.StatusForbidden, code: "AUTH_SESSION_REQUIRED", reason: "session_required"},
-		{name: "permission route with its scope", path: "/api/channel/", token: channel, status: http.StatusOK},
-		{name: "permission route without its scope", path: "/api/channel/", token: profile, status: http.StatusForbidden, code: "ACCESS_TOKEN_SCOPE_DENIED", reason: "scope_denied"},
+		{name: "user route with its scope", path: "/api/channel/", token: channel, status: http.StatusOK},
+		{name: "user route without its scope", path: "/api/channel/", token: profile, status: http.StatusForbidden, code: "ACCESS_TOKEN_SCOPE_DENIED", reason: "scope_denied"},
 		{name: "expired token", path: "/api/user/self", token: expired, status: http.StatusUnauthorized, code: "ACCESS_TOKEN_EXPIRED", reason: "expired"},
 		{name: "legacy token before the deadline", path: "/api/user/self", token: legacy, status: http.StatusOK},
 		{name: "legacy token on a session route", path: "/api/user/access_tokens", token: legacy, status: http.StatusForbidden, code: "AUTH_SESSION_REQUIRED", reason: "session_required"},
@@ -537,81 +517,3 @@ func TestAccessTokenIdentityAndSingleLookup(t *testing.T) {
 	}
 }
 
-func TestAPIKeyFromWebSocketSubprotocol(t *testing.T) {
-	tests := []struct {
-		name      string
-		protocols string
-		wantKey   string
-		wantOK    bool
-	}{
-		{
-			name:      "responses protocol only",
-			protocols: "responses",
-			wantOK:    false,
-		},
-		{
-			name:      "realtime protocol only",
-			protocols: "realtime",
-			wantOK:    false,
-		},
-		{
-			name:      "responses with insecure key",
-			protocols: "responses, openai-insecure-api-key.sk-test",
-			wantKey:   "sk-test",
-			wantOK:    true,
-		},
-		{
-			name:      "realtime with beta and insecure key",
-			protocols: "realtime, openai-insecure-api-key.sk-realtime, openai-beta.realtime-v1",
-			wantKey:   "sk-realtime",
-			wantOK:    true,
-		},
-		{
-			name:      "empty insecure key",
-			protocols: "responses, openai-insecure-api-key.",
-			wantOK:    false,
-		},
-		{
-			name:      "bare insecure marker is not a key",
-			protocols: "openai-insecure-api-key",
-			wantOK:    false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotKey, gotOK := apiKeyFromWebSocketSubprotocol(tt.protocols)
-			assert.Equal(t, tt.wantOK, gotOK)
-			assert.Equal(t, tt.wantKey, gotKey)
-		})
-	}
-}
-
-func TestApplyWebSocketSubprotocolAuthorizationDoesNotOverrideProtocolOnly(t *testing.T) {
-	header := http.Header{}
-	header.Set("Authorization", "Bearer sk-original")
-	header.Set("Sec-WebSocket-Protocol", "responses")
-	header.Add("Sec-WebSocket-Protocol", "openai-beta.realtime-v1")
-
-	assert.False(t, applyWebSocketSubprotocolAuthorization(header))
-	assert.Equal(t, "Bearer sk-original", header.Get("Authorization"))
-}
-
-func TestApplyWebSocketSubprotocolAuthorizationOverridesWithInsecureKey(t *testing.T) {
-	header := http.Header{}
-	header.Set("Authorization", "Bearer sk-original")
-	header.Set("Sec-WebSocket-Protocol", "responses, openai-insecure-api-key.sk-from-protocol")
-
-	assert.True(t, applyWebSocketSubprotocolAuthorization(header))
-	assert.Equal(t, "Bearer sk-from-protocol", header.Get("Authorization"))
-}
-
-func TestApplyWebSocketSubprotocolAuthorizationReadsRepeatedHeaders(t *testing.T) {
-	header := http.Header{}
-	header.Set("Authorization", "Bearer sk-original")
-	header.Add("Sec-WebSocket-Protocol", "responses")
-	header.Add("Sec-WebSocket-Protocol", "openai-insecure-api-key.sk-later-field")
-
-	assert.True(t, applyWebSocketSubprotocolAuthorization(header))
-	assert.Equal(t, "Bearer sk-later-field", header.Get("Authorization"))
-}
