@@ -27,7 +27,11 @@ import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 
 import { RechargeFormCard } from '../components/recharge-form-card'
-import { getMatchedAmountDiscount, mergePresetAmounts } from '../lib'
+import {
+  getDiscountRateForPaymentType,
+  getMatchedAmountDiscount,
+  mergePresetAmounts,
+} from '../lib'
 
 const i18n = createInstance()
 
@@ -127,18 +131,33 @@ it.each([
   }
 )
 
-it('matches highest qualifying discount threshold across presets and custom amounts', () => {
+it('selects the highest qualifying positive discount threshold', () => {
   const discounts = { 100: 0.95, 200: 0.9, 50: 0 }
   expect(getMatchedAmountDiscount(99, discounts)).toBe(1)
   expect(getMatchedAmountDiscount(100, discounts)).toBe(0.95)
   expect(getMatchedAmountDiscount(105, discounts)).toBe(0.95)
   expect(getMatchedAmountDiscount(250, discounts)).toBe(0.9)
+})
+
+it('keeps exact-key lookup for Stripe and tiered thresholds for other methods', () => {
+  const discounts = { 100: 0.95, 200: 0.9 }
+  expect(getDiscountRateForPaymentType(100, discounts, 'stripe')).toBe(0.95)
+  expect(getDiscountRateForPaymentType(105, discounts, 'stripe')).toBe(1)
+  expect(getDiscountRateForPaymentType(105, discounts, 'waffo_pancake')).toBe(
+    0.95
+  )
+  expect(getDiscountRateForPaymentType(250, discounts, 'waffo')).toBe(0.9)
+})
+
+it('applies tiered thresholds when merging preset amounts', () => {
   expect(mergePresetAmounts([50, 105, 200], { 100: 0.95 })).toEqual([
     { value: 50, discount: 1 },
     { value: 105, discount: 0.95 },
     { value: 200, discount: 0.95 },
   ])
+})
 
+it('displays tiered discount savings on recharge preset cards', () => {
   render(
     <I18nextProvider i18n={i18n}>
       <RechargeFormCard
