@@ -57,7 +57,7 @@ function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
           items: getAuthSectionNavItems(t),
         },
         {
-          title: t('Security & Limits'),
+          title: t('Security'),
           icon: ShieldAlert,
           items: getSecuritySectionNavItems(t),
         },
