@@ -131,7 +131,7 @@ export function UsersTable() {
       const hasFilter = globalFilter?.trim()
       const hasColumnFilter =
         statusFilter.length > 0 ||
-        roleFilter.length > 0 ||
+        roleFilter.length > 0
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
