@@ -42,7 +42,6 @@ const SITE_SECTIONS = [
           About: settings.About,
           HomePageContent: settings.HomePageContent,
           ServerAddress: settings.ServerAddress,
-          TaskPublicAddress: settings.TaskPublicAddress,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],
           },
