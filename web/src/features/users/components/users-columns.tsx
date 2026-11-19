@@ -21,7 +21,6 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ActivityTimeCell } from '@/components/activity-time-cell'
-import { BadgeCell } from '@/components/data-table'
 import { LongText } from '@/components/long-text'
 import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
