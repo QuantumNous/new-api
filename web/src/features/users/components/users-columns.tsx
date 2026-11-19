@@ -145,18 +145,14 @@ export function useUsersColumns(): ColumnDef<User>[] {
           }
 
           return (
-            <Tooltip>
-              <TooltipTrigger render={<div className='-ml-1.5 cursor-help' />}>
-                <StatusBadge
-                  label={t(statusConfig.labelKey)}
-                  variant={
-                    isUserDeleted(user) ? 'neutral' : statusConfig.variant
-                  }
-                  copyable={false}
-                  className='font-normal'
-                />
-              </TooltipTrigger>
-            </Tooltip>
+            <StatusBadge
+              label={t(statusConfig.labelKey)}
+              variant={
+                isUserDeleted(user) ? 'neutral' : statusConfig.variant
+              }
+              copyable={false}
+              className='font-normal'
+            />
           )
         },
         filterFn: (row, id, value) => {
