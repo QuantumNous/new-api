@@ -186,6 +186,11 @@ export function UsersTable() {
     data: users,
     columns,
     enableRowSelection: true,
+    initialColumnVisibility: {
+      quota: false,
+      group: false,
+      invite_info: false,
+    },
     columnFilters,
     globalFilter,
     pagination,

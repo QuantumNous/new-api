@@ -111,8 +111,9 @@ async function renderUsers(initialEntry = '/users/') {
   return { get, router }
 }
 
-// The User Group column header is a sort menu with the same name; the
-// filter chip is the one that opens a dialog.
+// The filter keeps working while the User Group column is hidden by default.
+// Once an admin shows the column, its header is a sort menu with the same
+// name; the filter chip is the one that opens a dialog.
 function getGroupFilterTrigger() {
   const trigger = screen
     .getAllByRole('button', { name: /^User Group/ })

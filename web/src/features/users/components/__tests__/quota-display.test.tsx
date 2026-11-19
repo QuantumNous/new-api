@@ -318,9 +318,15 @@ async function renderUsersList(emptyInvitation = false) {
 
 it('sends balance sorting to the server and keeps invitation details on two lines', async () => {
   const get = await renderUsersList()
-  expect(
-    screen.getByRole('columnheader', { name: 'User Group' })
-  ).toBeInTheDocument()
+  // Both columns are hidden by default; admins show them from the View menu.
+  await userEvent.click(screen.getByRole('button', { name: 'View' }))
+  await userEvent.click(
+    screen.getByRole('menuitemcheckbox', { name: 'Available Balance ($)' })
+  )
+  await userEvent.click(
+    screen.getByRole('menuitemcheckbox', { name: 'Invite Info' })
+  )
+  await userEvent.keyboard('{Escape}')
   await userEvent.click(
     screen.getByRole('button', { name: 'Available Balance ($)' })
   )
@@ -347,6 +353,15 @@ it('shows balance above usage on mobile cards in Chinese', async () => {
   await i18n.changeLanguage('zh')
   try {
     await renderUsersList()
+    // The balance column is hidden by default; admins show it from the View menu.
+    await userEvent.click(screen.getByRole('button', { name: '查看' }))
+    await userEvent.click(
+      screen.getByRole('menuitemcheckbox', { name: '可用余额 ($)' })
+    )
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() =>
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    )
     expect(screen.getByText('可用余额 ($)')).toBeInTheDocument()
     expect(screen.getByText('已用')).toBeInTheDocument()
     expect(screen.getByText('0.0038')).toBeInTheDocument()
@@ -374,7 +389,6 @@ it('combines creation and last login into one column with full dates visible dir
   const row = screen.getByRole('row', {
     name: /long-user-name-for-table-layout/,
   })
-  expect(within(row).getByText('—')).toBeInTheDocument()
   const times = within(row).getAllByRole('time')
   expect(times).toHaveLength(2)
   expect(times[0]).toHaveTextContent(
@@ -386,12 +400,26 @@ it('combines creation and last login into one column with full dates visible dir
   expect(within(row).queryByText('Just now')).not.toBeInTheDocument()
   expect(within(row).getByText('Created')).toBeInTheDocument()
   expect(within(row).getByText('Last Login')).toBeInTheDocument()
-  expect(screen.queryByText('No Inviter')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'View' }))
   await userEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Time' }))
   expect(
     screen.queryByRole('columnheader', { name: /Time/ })
   ).not.toBeInTheDocument()
+})
+
+it('shows a dash in the invite column, once shown, for a user without invitations', async () => {
+  await renderUsersList(true)
+  await userEvent.click(screen.getByRole('button', { name: 'View' }))
+  await userEvent.click(
+    screen.getByRole('menuitemcheckbox', { name: 'Invite Info' })
+  )
+  const inviteColumn = screen
+    .getAllByRole('columnheader')
+    .indexOf(screen.getByRole('columnheader', { name: 'Invite Info' }))
+  const row = screen.getByRole('row', {
+    name: /long-user-name-for-table-layout/,
+  })
+  expect(within(row).getAllByRole('cell')[inviteColumn].textContent).toBe('—')
 })
 
 it('updates the header unit and converted amounts together when currency settings change', () => {

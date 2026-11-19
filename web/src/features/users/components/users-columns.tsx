@@ -228,24 +228,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
             return null
           }
 
-          return (
-            <div className='flex min-w-0 flex-col gap-0.5'>
-              <span className='text-sm'>{t(roleConfig.labelKey)}</span>
-              {roleValue === USER_ROLE.CHANNEL_SUPPLIER && (
-                <span
-                  data-table-text='secondary'
-                  className='text-muted-foreground text-xs font-normal'
-                >
-                  {t('Payable Discount')}:{' '}
-                  {row.original.payable_discount == null ? (
-                    t('Not set')
-                  ) : (
-                    <DiscountValue value={row.original.payable_discount} />
-                  )}
-                </span>
-              )}
-            </div>
-          )
+          return <span className='text-sm'>{t(roleConfig.labelKey)}</span>
         },
         filterFn: (row, id, value) => {
           return value.includes(String(row.getValue(id)))
@@ -255,7 +238,36 @@ export function useUsersColumns(): ColumnDef<User>[] {
         meta: { mobileOrder: 20 },
       },
       {
+        accessorKey: 'payable_discount',
+        header: t('Payable Discount'),
+        cell: ({ row }) => {
+          // Unsetting a supplier keeps the old discount on the user, but it
+          // only applies while the user is a supplier.
+          if (row.original.role !== USER_ROLE.CHANNEL_SUPPLIER) {
+            return <span className='text-muted-foreground text-sm'>—</span>
+          }
+          if (row.original.payable_discount == null) {
+            return (
+              <span className='text-muted-foreground text-sm'>
+                {t('Not set')}
+              </span>
+            )
+          }
+          return (
+            <span className='text-sm tabular-nums'>
+              <DiscountValue value={row.original.payable_discount} />
+            </span>
+          )
+        },
+        enableSorting: false,
+        size: 120,
+        meta: { mobileOrder: 25 },
+      },
+      {
         id: 'invite_info',
+        // The accessor only lists the column in the View menu, where it can be
+        // shown again after being hidden by default.
+        accessorKey: 'aff_count',
         header: t('Invite Info'),
         cell: ({ row }) => {
           const user = row.original
