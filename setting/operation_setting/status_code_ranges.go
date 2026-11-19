@@ -34,7 +34,8 @@ var alwaysSkipRetryStatusCodes = map[int]struct{}{
 }
 
 var alwaysSkipRetryCodes = map[types.ErrorCode]struct{}{
-	types.ErrorCodeBadResponseBody: {},
+	types.ErrorCodeBadResponseBody:  {},
+	types.ErrorCodeRequestCancelled: {},
 }
 
 func AutomaticDisableStatusCodesToString() string {

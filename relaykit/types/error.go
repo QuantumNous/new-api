@@ -67,6 +67,7 @@ const (
 	ErrorCodeReadRequestBodyFailed ErrorCode = "read_request_body_failed"
 	ErrorCodeConvertRequestFailed  ErrorCode = "convert_request_failed"
 	ErrorCodeAccessDenied          ErrorCode = "access_denied"
+	ErrorCodeRequestCancelled      ErrorCode = "request_cancelled"
 
 	// request error
 	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"

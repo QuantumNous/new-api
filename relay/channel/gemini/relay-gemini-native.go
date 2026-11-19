@@ -2,7 +2,6 @@ package gemini
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
@@ -22,16 +21,16 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 	defer service.CloseResponseBodyGracefully(resp)
 
 	// 读取响应体
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	responseBody, apiErr := helper.ReadResponseBody(c, resp, types.ErrorCodeBadResponseBody)
+	if apiErr != nil {
+		return nil, apiErr
 	}
 
 	logger.LogDebug(c, "Gemini native response body: %s", responseBody)
 
 	// 解析为 Gemini 原生响应格式
 	var geminiResponse dto.GeminiChatResponse
-	err = common.Unmarshal(responseBody, &geminiResponse)
+	err := common.Unmarshal(responseBody, &geminiResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
@@ -57,9 +56,9 @@ func GeminiTextGenerationHandler(c *gin.Context, info *relaycommon.RelayInfo, re
 func NativeGeminiEmbeddingHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	responseBody, apiErr := helper.ReadResponseBody(c, resp, types.ErrorCodeBadResponseBody)
+	if apiErr != nil {
+		return nil, apiErr
 	}
 
 	logger.LogDebug(c, "Gemini native embedding response body: %s", responseBody)
@@ -67,14 +66,14 @@ func NativeGeminiEmbeddingHandler(c *gin.Context, resp *http.Response, info *rel
 	var metadata *dto.GeminiEmbeddingUsageMetadata
 	if info.IsGeminiBatchEmbedding {
 		var geminiResponse dto.GeminiBatchEmbeddingResponse
-		err = common.Unmarshal(responseBody, &geminiResponse)
+		err := common.Unmarshal(responseBody, &geminiResponse)
 		if err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
 		metadata = geminiResponse.UsageMetadata
 	} else {
 		var geminiResponse dto.GeminiEmbeddingResponse
-		err = common.Unmarshal(responseBody, &geminiResponse)
+		err := common.Unmarshal(responseBody, &geminiResponse)
 		if err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}

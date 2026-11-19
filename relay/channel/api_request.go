@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -374,13 +375,24 @@ func signUpstreamRequest(adaptor any, c *gin.Context, info *common.RelayInfo, me
 	return nil
 }
 
+func requestContext(c *gin.Context) context.Context {
+	if c != nil && c.Request != nil && c.Request.Context() != nil {
+		return c.Request.Context()
+	}
+	return context.Background()
+}
+
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	logger.LogDebug(c, "fullRequestURL: %s", common.SanitizeURLForLog(fullRequestURL))
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	method := http.MethodPost
+	if c != nil && c.Request != nil {
+		method = c.Request.Method
+	}
+	req, err := http.NewRequestWithContext(requestContext(c), method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
@@ -411,13 +423,19 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 		return nil, fmt.Errorf("get request url failed: %w", err)
 	}
 	logger.LogDebug(c, "fullRequestURL: %s", common.SanitizeURLForLog(fullRequestURL))
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
+	method := http.MethodPost
+	if c != nil && c.Request != nil {
+		method = c.Request.Method
+	}
+	req, err := http.NewRequestWithContext(requestContext(c), method, fullRequestURL, requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
 	ApplyUpstreamBodyMetadata(req, requestBody)
 	// set form data
-	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	if c != nil && c.Request != nil {
+		req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	}
 	headers := req.Header
 	err = a.SetupRequestHeader(c, &headers, info)
 	if err != nil {
@@ -500,12 +518,16 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	}
 	targetConn, resp, err := dialer.DialContext(c.Request.Context(), fullRequestURL, targetHeader)
 	if err != nil {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		if helper.ClientRequestCanceled(c) {
+			logger.LogWarn(c, common2.LogText("client request canceled during websocket dial to %s: %v", common.SanitizeURLForLog(fullRequestURL), err))
+			return nil, types.NewError(err, types.ErrorCodeRequestCancelled, types.ErrOptionWithStatusCode(499), types.ErrOptionWithSkipRetry(), types.ErrOptionWithHideErrMsg("client closed request"))
+		}
 		statusCode := http.StatusInternalServerError
 		if resp != nil {
 			statusCode = resp.StatusCode
-			if resp.Body != nil {
-				_ = resp.Body.Close()
-			}
 		}
 		return nil, types.NewErrorWithStatusCode(fmt.Errorf("dial failed to %s: %w", common.SanitizeURLForLog(fullRequestURL), err), types.ErrorCodeDoRequestFailed, statusCode)
 	}
@@ -575,6 +597,10 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		var urlErr *url.Error
 		if errors.As(err, &urlErr) && urlErr.Err != nil {
 			reason = fmt.Sprintf("%s %s: %v", urlErr.Op, req.URL.Host, urlErr.Err)
+		}
+		if helper.ClientRequestCanceled(c) {
+			logger.LogWarn(c, common2.LogText("client request canceled: %s", reason))
+			return nil, types.NewError(err, types.ErrorCodeRequestCancelled, types.ErrOptionWithStatusCode(499), types.ErrOptionWithSkipRetry(), types.ErrOptionWithHideErrMsg("client closed request"))
 		}
 		logger.LogError(c, common2.LogText("do request failed: %s", reason))
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"sync"
@@ -95,6 +96,13 @@ func (s *RequestPolicyState) BeginAttempt(channel *model.Channel, group string) 
 	s.AddEvent(PolicyEvent{ChannelID: channel.Id, Decision: PolicyDecision{Action: "attempt", Reason: "channel_selected", Source: "routing"}})
 }
 
+func isClientCancellationError(c *gin.Context, err *types.NewAPIError) bool {
+	if err.GetErrorCode() == types.ErrorCodeRequestCancelled {
+		return true
+	}
+	return c != nil && c.Request != nil && c.Request.Context() != nil && errors.Is(c.Request.Context().Err(), context.Canceled)
+}
+
 // RelayErrorSource tells where a failed attempt went wrong: "channel" for the
 // channel's own key or config (channel:* codes), "transport" when the
 // upstream could not be reached, "local" for an error new-api raised itself
@@ -106,6 +114,8 @@ func RelayErrorSource(err *types.NewAPIError) string {
 	switch {
 	case types.IsChannelError(err):
 		return "channel"
+	case err.GetErrorCode() == types.ErrorCodeRequestCancelled:
+		return "local"
 	case err.GetErrorCode() == types.ErrorCodeDoRequestFailed:
 		return "transport"
 	case err.GetErrorType() != types.ErrorTypeNewAPIError:
@@ -130,15 +140,21 @@ func RecordPolicyFailure(c *gin.Context, channelID int, err *types.NewAPIError, 
 	if c == nil || err == nil {
 		return
 	}
+	canceled := isClientCancellationError(c, err)
 	source := RelayErrorSource(err)
+	if canceled {
+		source = "local"
+	}
 	state := RequestPolicy(c)
 	event := PolicyEvent{ChannelID: channelID, Status: err.StatusCode, ErrorCode: string(err.GetErrorCode()), ErrorSource: source, Decision: PolicyDecision{Action: "failure", Reason: "upstream_failure", Source: source}}
-	if source == "local" {
+	if canceled {
+		event.Decision.Reason = "client_cancelled"
+	} else if source == "local" {
 		event.Decision.Reason = "local_rejection"
 	}
 	state.AddEvent(event)
 	event.Decision, event.Health = decision, "unchanged"
-	if c.GetBool("auto_ban") && ShouldDisableChannel(err) {
+	if !canceled && c.GetBool("auto_ban") && ShouldDisableChannel(err) {
 		event.Health = "channel_disable_requested"
 		if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
 			event.Health = "key_disable_requested"

@@ -3,7 +3,6 @@ package openai
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -28,9 +27,9 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	defer service.CloseResponseBodyGracefully(resp)
 
 	var responsesResp dto.OpenAIResponsesResponse
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	body, apiErr := helper.ReadResponseBody(c, resp, types.ErrorCodeReadResponseBodyFailed)
+	if apiErr != nil {
+		return nil, apiErr
 	}
 
 	if err := common.Unmarshal(body, &responsesResp); err != nil {
