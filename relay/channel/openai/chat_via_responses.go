@@ -205,6 +205,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	// failedUsage the usage it reported, if any.
 	upstreamFailed := false
 	var failedUsage *dto.Usage
+	sentClientOutput := false
 
 	if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo == nil {
 		info.ClaudeConvertInfo = &relaycommon.ClaudeConvertInfo{LastMessagesType: relaycommon.LastMessageTypeNone}
@@ -233,6 +234,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 		c.Render(-1, common.CustomEvent{Data: "data: " + string(geminiResponseStr)})
 		_ = helper.FlushWriter(c)
+		sentClientOutput = true
 		return true
 	}
 
@@ -245,6 +247,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			if err := helper.ObjectData(c, &value); err != nil {
 				return writeFailed(err)
 			}
+			sentClientOutput = true
 			return true
 		case *dto.ChatCompletionsStreamResponse:
 			if value == nil || (len(value.Choices) == 0 && value.Usage == nil) {
@@ -253,11 +256,13 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			if err := helper.ObjectData(c, value); err != nil {
 				return writeFailed(err)
 			}
+			sentClientOutput = true
 			return true
 		case dto.ClaudeResponse:
 			if err := helper.ClaudeData(c, value); err != nil {
 				return writeFailed(err)
 			}
+			sentClientOutput = true
 			return true
 		case *dto.ClaudeResponse:
 			if value == nil {
@@ -266,6 +271,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			if err := helper.ClaudeData(c, *value); err != nil {
 				return writeFailed(err)
 			}
+			sentClientOutput = true
 			return true
 		case dto.GeminiChatResponse:
 			return sendGeminiResponse(&value)
@@ -319,6 +325,11 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 	if streamErr != nil {
 		if !upstreamFailed || state.UsageText() == "" {
+			if sentClientOutput {
+				// A role-only event commits the stream but is not billable output.
+				// Keep the failure/refund path without retrying a started response.
+				streamErr = types.NewError(streamErr, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+			}
 			return nil, streamErr
 		}
 		// The upstream failed after output reached the client: bill the
@@ -351,6 +362,11 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		streamErr.SetMessage(common.MessageWithRequestId(streamErr.Error(), c.GetString(common.RequestIdKey)))
 		if info.RelayFormat == types.RelayFormatClaude {
 			_ = helper.ClaudeData(c, dto.ClaudeResponse{Type: "error", Error: streamErr.ToClaudeError(common.UpstreamAddresses(c)...)})
+		} else if info.RelayFormat == types.RelayFormatGemini {
+			_ = helper.ObjectData(c, gin.H{"error": gin.H{
+				"code":    streamErr.StatusCode,
+				"message": streamErr.ToOpenAIError(common.UpstreamAddresses(c)...).Message,
+			}})
 		} else {
 			_ = helper.ObjectData(c, gin.H{"error": streamErr.ToOpenAIError(common.UpstreamAddresses(c)...)})
 		}

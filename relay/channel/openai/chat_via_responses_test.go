@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -264,6 +265,7 @@ func TestOaiResponsesToChatHandlersRejectErrorEvents(t *testing.T) {
 				assert.Equal(t, tc.message, apiErr.Error())
 				assert.Equal(t, tc.param, apiErr.ToOpenAIError().Param)
 				assert.Equal(t, string(tc.code), apiErr.ToClaudeError().Type)
+				assert.False(t, types.IsSkipRetryError(apiErr), "errors before output may retry")
 			})
 		}
 	}
@@ -298,6 +300,7 @@ func TestOaiResponsesToChatStreamHandlerStopsOnErrorAfterOutput(t *testing.T) {
 			assert.Contains(t, got, "hello")
 			assert.NotContains(t, got, "private-upstream.example")
 			assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+			assert.True(t, strings.HasSuffix(got, "\n\n"), "the final SSE event must end with a blank line")
 			errorEvents := 0
 			for frame := range strings.SplitSeq(got, "\n\n") {
 				if frame == "" {
@@ -323,6 +326,8 @@ func TestOaiResponsesToChatStreamHandlerStopsOnErrorAfterOutput(t *testing.T) {
 					if format == types.RelayFormatClaude {
 						assert.Equal(t, "error", eventName)
 						assert.Equal(t, "error", event.Type)
+					} else if format == types.RelayFormatGemini {
+						assert.Equal(t, float64(http.StatusInternalServerError), event.Error.Code)
 					} else {
 						assert.Equal(t, "server_error", event.Error.Code)
 					}
@@ -336,6 +341,46 @@ func TestOaiResponsesToChatStreamHandlerStopsOnErrorAfterOutput(t *testing.T) {
 				assert.NotContains(t, got, marker)
 			}
 		})
+	}
+}
+
+func TestOaiResponsesToChatStreamHandlerRejectsRetryAfterStart(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	for _, format := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude} {
+		for _, started := range []bool{false, true} {
+			for _, code := range []string{"server_error", "channel:no_available_key"} {
+				name := string(format) + "/heartbeat"
+				body := ""
+				if started {
+					name = string(format) + "/role only"
+					body = "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\",\"model\":\"gpt-test\"}}\n\n"
+				}
+				t.Run(name+"/"+code, func(t *testing.T) {
+					body += "data: {\"type\":\"error\",\"code\":\"" + code + "\",\"message\":\"upstream overloaded\"}\n\n"
+					c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+					info.RelayFormat = format
+					info.SetEstimatePromptTokens(100)
+					if !started {
+						helper.SetEventStreamHeaders(c)
+						require.NoError(t, helper.PingData(c))
+					}
+					usage, apiErr := OaiResponsesToChatStreamHandler(c, info, resp)
+					require.NotNil(t, apiErr, "no generated content must remain a failed request so billing can refund")
+					assert.Nil(t, usage, "a role-only event must not produce billable usage")
+					assert.NotEmpty(t, recorder.Body.String())
+					assert.Equal(t, started, types.IsSkipRetryError(apiErr), "only business output prevents retry")
+					if started {
+						assert.Equal(t, "stop", service.DecideRelayRetry(c, apiErr, 1).Action)
+					}
+				})
+			}
+		}
 	}
 }
 

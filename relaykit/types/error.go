@@ -97,6 +97,7 @@ type NewAPIError struct {
 	recordErrorLog *bool
 	errorType      ErrorType
 	errorCode      ErrorCode
+	localError     bool
 	StatusCode     int
 	Metadata       json.RawMessage
 }
@@ -148,6 +149,11 @@ func (e *NewAPIError) ErrorWithStatusCode() string {
 	return fmt.Sprintf("status_code=%d, %s", e.StatusCode, msg)
 }
 
+func (e *NewAPIError) isLocalTokenCountError() bool {
+	// Provider codes may match local codes, but cannot grant local exemptions.
+	return e.localError && e.errorCode == ErrorCodeCountTokenFailed
+}
+
 // MaskSensitiveError masks the upstream addresses of the channel that produced
 // the error in the error text; see kitutil.MaskSensitiveInfo.
 func (e *NewAPIError) MaskSensitiveError(upstreamURLs ...string) string {
@@ -158,7 +164,7 @@ func (e *NewAPIError) MaskSensitiveError(upstreamURLs ...string) string {
 		return string(e.errorCode)
 	}
 	errStr := e.Err.Error()
-	if e.errorCode == ErrorCodeCountTokenFailed {
+	if e.isLocalTokenCountError() {
 		return errStr
 	}
 	return kitutil.MaskSensitiveInfo(errStr, upstreamURLs...)
@@ -208,7 +214,7 @@ func (e *NewAPIError) ToOpenAIError(upstreamURLs ...string) OpenAIError {
 			Code:    e.errorCode,
 		}
 	}
-	if e.errorCode != ErrorCodeCountTokenFailed {
+	if !e.isLocalTokenCountError() {
 		result.Message = kitutil.MaskSensitiveInfo(result.Message, upstreamURLs...)
 	}
 	if result.Message == "" {
@@ -238,7 +244,7 @@ func (e *NewAPIError) ToClaudeError(upstreamURLs ...string) ClaudeError {
 			Type:    string(e.errorType),
 		}
 	}
-	if e.errorCode != ErrorCodeCountTokenFailed {
+	if !e.isLocalTokenCountError() {
 		result.Message = kitutil.MaskSensitiveInfo(result.Message, upstreamURLs...)
 	}
 	if result.Message == "" {
@@ -264,6 +270,7 @@ func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPI
 		errorType:  ErrorTypeNewAPIError,
 		StatusCode: http.StatusInternalServerError,
 		errorCode:  errorCode,
+		localError: true,
 	}
 	for _, op := range ops {
 		op(e)
@@ -293,7 +300,9 @@ func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAP
 		Type:    string(errorCode),
 		Code:    errorCode,
 	}
-	return WithOpenAIError(openaiError, statusCode, ops...)
+	e := WithOpenAIError(openaiError, statusCode, ops...)
+	e.localError = true
+	return e
 }
 
 func InitOpenAIError(errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
@@ -301,7 +310,9 @@ func InitOpenAIError(errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOpti
 		Type: string(errorCode),
 		Code: errorCode,
 	}
-	return WithOpenAIError(openaiError, statusCode, ops...)
+	e := WithOpenAIError(openaiError, statusCode, ops...)
+	e.localError = true
+	return e
 }
 
 func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
@@ -314,6 +325,7 @@ func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops 
 		errorType:  ErrorTypeNewAPIError,
 		StatusCode: statusCode,
 		errorCode:  errorCode,
+		localError: true,
 	}
 	for _, op := range ops {
 		op(e)
@@ -375,7 +387,7 @@ func IsChannelError(err *NewAPIError) bool {
 	if err == nil {
 		return false
 	}
-	return strings.HasPrefix(string(err.errorCode), "channel:")
+	return err.localError && strings.HasPrefix(string(err.errorCode), "channel:")
 }
 
 func IsSkipRetryError(err *NewAPIError) bool {
