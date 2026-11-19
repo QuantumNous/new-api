@@ -32,7 +32,6 @@ func sqliteChannelKeyLock(channelID int) *sync.Mutex {
 // update, and SQLite holds a process lock. update must not wait on the
 // network, because every request of a multi-key channel waits on this lock.
 // Every write of a channel's key goes through here or through
-// UpdateTaskPluginChannelLocked, which takes the same locks; Channel.Update
 // never writes it. So the key update reads is the stored one, never a copy a
 // refresh has replaced since.
 // update receives the stored channel and may change its Key, Status,
