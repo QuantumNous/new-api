@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -36,7 +35,10 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 		middleware.ServeFrontendFiles(frontendFS),
 		func(c *gin.Context) {
 			if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
-				controller.RelayNotFound(c)
+				c.JSON(http.StatusNotFound, gin.H{
+					"success": false,
+					"message": "Not found",
+				})
 				return
 			}
 			c.Header("Cache-Control", "no-cache")
