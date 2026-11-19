@@ -27,14 +27,11 @@ func AlphaSearchHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError
 		constant.ChannelTypeCodex,
 		constant.ChannelTypeAdvancedCustom:
 	default:
-		// Provider plugin channels serve the paths of their relay routes.
-		if info.ApiType != constant.APITypeProviderPlugin {
-			// Allow retry onto another channel that may support this endpoint.
-			return types.NewError(
-				errors.New("channel does not support /v1/alpha/search"),
-				types.ErrorCodeInvalidRequest,
-			)
-		}
+		// Allow retry onto another channel that may support this endpoint.
+		return types.NewError(
+			errors.New("channel does not support /v1/alpha/search"),
+			types.ErrorCodeInvalidRequest,
+		)
 	}
 
 	request, ok := info.Request.(*dto.AlphaSearchRequest)
