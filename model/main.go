@@ -354,7 +354,6 @@ func migrateDB() error {
 		&Log{},
 		&TopUp{},
 		&QuotaData{},
-		&TaskPlugin{},
 		&Model{},
 		&Vendor{},
 		&PrefillGroup{},
