@@ -17,27 +17,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
-  Activity,
   Box,
   ClipboardList,
-  CreditCard,
   FileText,
   FlaskConical,
   Globe,
   Key,
-  LayoutDashboard,
   ListTodo,
   MessageSquare,
-  PlugZap,
   Radio,
   ServerCog,
   Settings,
   ShieldCheck,
-  Ticket,
   User,
   Users,
-  Wallet,
-  Workflow,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -76,16 +69,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
         title: t('General'),
         items: [
           {
-            title: t('Overview'),
-            url: '/dashboard/overview',
-            icon: Activity,
-          },
-          {
-            title: t('Dashboard'),
-            url: '/dashboard/models',
-            icon: LayoutDashboard,
-          },
-          {
             title: t('API Keys'),
             url: '/keys',
             icon: Key,
@@ -113,11 +96,6 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
         id: 'personal',
         title: t('Personal'),
         items: [
-          {
-            title: t('Wallet'),
-            url: '/wallet',
-            icon: Wallet,
-          },
           {
             title: t('Profile'),
             url: '/profile',
@@ -159,33 +137,9 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             requiredRole: ROLE.ADMIN,
           },
           {
-            title: t('Redemption Codes'),
-            url: '/redemption-codes',
-            icon: Ticket,
-            requiredRole: ROLE.ADMIN,
-          },
-          {
-            title: t('Subscriptions'),
-            url: '/subscriptions',
-            icon: CreditCard,
-            requiredRole: ROLE.ADMIN,
-          },
-          {
             title: t('System Info'),
             url: '/system-info',
             icon: ServerCog,
-            requiredRole: ROLE.SUPER_ADMIN,
-          },
-          {
-            title: t('Plugins'),
-            url: '/task-plugins',
-            icon: PlugZap,
-            requiredRole: ROLE.SUPER_ADMIN,
-          },
-          {
-            title: t('Request processing'),
-            url: '/request-processing',
-            icon: Workflow,
             requiredRole: ROLE.SUPER_ADMIN,
           },
           {

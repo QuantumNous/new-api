@@ -104,7 +104,7 @@ describe('security sidebar visibility', () => {
       result.current
         .find((group) => group.id === 'personal')
         ?.items.map((item) => item.title)
-    ).toEqual(['Wallet', 'Profile', 'Security & Access'])
+    ).toEqual(['Profile', 'Security & Access'])
     expect(
       result.current
         .flatMap((group) => group.items)
@@ -393,8 +393,6 @@ describe('Admin group visibility by role', () => {
       'Third-Party Sites',
       'Models',
       'Users',
-      'Redemption Codes',
-      'Subscriptions',
     ])
   })
 
@@ -410,11 +408,7 @@ describe('Admin group visibility by role', () => {
       'Third-Party Sites',
       'Models',
       'Users',
-      'Redemption Codes',
-      'Subscriptions',
       'System Info',
-      'Plugins',
-      'Request processing',
       'System Settings',
     ])
   })

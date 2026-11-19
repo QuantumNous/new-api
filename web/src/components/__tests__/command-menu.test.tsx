@@ -35,12 +35,16 @@ import { useAuthStore } from '@/stores/auth-store'
 import { CommandMenu } from '../command-menu'
 import { Search } from '../search'
 
-const adminEntries = ['Channels', 'Models', 'Users', 'Redemption Codes']
-const superAdminEntries = [
-  'System Info',
+const adminEntries = ['Channels', 'Models', 'Users']
+const superAdminEntries = ['System Info', 'System Settings']
+const removedEntries = [
+  'Overview',
+  'Dashboard',
+  'Redemption Codes',
+  'Subscriptions',
   'Plugins',
+  'Wallet',
   'Request processing',
-  'System Settings',
 ]
 
 // jsdom lacks the Web Animations API the menu's scroll area waits on.
@@ -108,7 +112,7 @@ test('regular users only find their own console pages in search', async () => {
   const entries = await searchEntriesFor(ROLE.USER)
 
   expect(entries).toEqual(
-    expect.arrayContaining(['API Keys', 'Usage Logs', 'Wallet', 'Profile'])
+    expect.arrayContaining(['API Keys', 'Usage Logs', 'Profile'])
   )
   for (const entry of [...adminEntries, ...superAdminEntries]) {
     expect(entries).not.toContain(entry)
@@ -124,21 +128,32 @@ test('admins find admin pages in search but not super admin pages', async () => 
   }
 })
 
-test('super admins find Request processing right after Plugins', async () => {
+test('super admins find System Settings right after System Info', async () => {
   const entries = await searchEntriesFor(ROLE.SUPER_ADMIN)
 
   expect(entries).toEqual(expect.arrayContaining(superAdminEntries))
-  expect(entries.indexOf('Request processing')).toBe(
-    entries.indexOf('Plugins') + 1
+  expect(entries.indexOf('System Settings')).toBe(
+    entries.indexOf('System Info') + 1
   )
 })
+
+test.each([ROLE.USER, ROLE.ADMIN, ROLE.SUPER_ADMIN])(
+  'role %i never finds the removed console pages in search',
+  async (role) => {
+    const entries = await searchEntriesFor(role)
+
+    for (const entry of removedEntries) {
+      expect(entries).not.toContain(entry)
+    }
+  }
+)
 
 test('pages hidden in the sidebar settings stay out of search', async () => {
   const entries = await searchEntriesFor(
     ROLE.USER,
-    JSON.stringify({ personal: { enabled: true, topup: false } })
+    JSON.stringify({ personal: { enabled: true, security: false } })
   )
 
-  expect(entries).not.toContain('Wallet')
+  expect(entries).not.toContain('Security & Access')
   expect(entries).toContain('Profile')
 })
