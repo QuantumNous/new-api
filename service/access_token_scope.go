@@ -17,7 +17,6 @@ const (
 
 	AccessTokenMaxPerUser        = 20
 	AccessTokenDefaultExpiryDays = 30
-	accessTokenActionReveal      = "reveal"
 	accessTokenScopeSeparator    = ":"
 )
 
@@ -54,59 +53,20 @@ func accessTokenEdit(description string) authz.ActionDefinition {
 // must never be duplicated here.
 var accessTokenStaticResources = []AccessTokenResource{
 	{Resource: "profile", LabelKey: "Profile", group: AccessTokenGroupPersonal, minRole: common.RoleCommonUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View your profile, groups, and available models."),
+		accessTokenView("View your profile and account preferences."),
 		accessTokenEdit("Change your display name and personal settings."),
-	}},
-	{Resource: "api_key", LabelKey: "API keys", group: AccessTokenGroupPersonal, minRole: common.RoleCommonUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View API keys and their settings without the full key."),
-		accessTokenEdit("Create, edit, and delete API keys."),
-		{Action: accessTokenActionReveal, LabelKey: "Reveal full keys", DescriptionKey: "View complete API keys."},
-	}},
-	{Resource: "usage", LabelKey: "Usage", group: AccessTokenGroupPersonal, minRole: common.RoleCommonUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View your usage logs, statistics, tasks, and audit logs."),
-	}},
-	{Resource: "wallet", LabelKey: "Wallet", group: AccessTokenGroupPersonal, minRole: common.RoleCommonUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View balance, top-up records, subscriptions, and referral information."),
-		accessTokenEdit("Top up, pay for subscriptions, check in, and transfer referral rewards."),
 	}},
 	{Resource: "account_security", LabelKey: "Account security", group: AccessTokenGroupPersonal, minRole: common.RoleCommonUser, Actions: []authz.ActionDefinition{
 		accessTokenView("View Passkey, two-factor, and sign-in binding status."),
-		accessTokenEdit("Includes changes that require security verification, such as password, two-factor settings, and account deletion."),
+		accessTokenEdit("Manage password, two-factor settings, and account security."),
 	}},
 	{Resource: "user", LabelKey: "Users", group: AccessTokenGroupAdmin, minRole: common.RoleAdminUser, Actions: []authz.ActionDefinition{
 		accessTokenView("View users, their sign-in bindings, and permission settings."),
 		accessTokenEdit("Create, edit, disable, and delete users, and reset their security settings."),
 	}},
-	{Resource: "billing", LabelKey: "Billing management", group: AccessTokenGroupAdmin, minRole: common.RoleAdminUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View all top-up records, subscription plans, and user subscriptions."),
-		accessTokenEdit("Complete top-up orders and manage subscription plans and user subscriptions."),
-	}},
-	{Resource: "model", LabelKey: "Models", group: AccessTokenGroupAdmin, minRole: common.RoleAdminUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View models and vendors, and preview upstream sync."),
-		accessTokenEdit("Edit models and vendors, and sync them from upstream."),
-	}},
-	{Resource: "deployment", LabelKey: "Deployments", group: AccessTokenGroupAdmin, minRole: common.RoleAdminUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View deployments and price estimates."),
-		accessTokenEdit("Create, edit, and delete deployments, and test connections."),
-	}},
-	{Resource: "log", LabelKey: "Logs", group: AccessTokenGroupAdmin, minRole: common.RoleAdminUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View all users' usage logs, statistics, and tasks."),
-	}},
-	{Resource: "redemption", LabelKey: "Redemption codes", group: AccessTokenGroupAdmin, minRole: common.RoleAdminUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View redemption codes."),
-		accessTokenEdit("Create, edit, and delete redemption codes."),
-	}},
-	{Resource: "group", LabelKey: "Groups", group: AccessTokenGroupAdmin, minRole: common.RoleAdminUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View groups and prefill groups."),
-		accessTokenEdit("Create, edit, and delete prefill groups."),
-	}},
 	{Resource: "option", LabelKey: "System settings", group: AccessTokenGroupSystem, minRole: common.RoleRootUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View system settings, custom OAuth providers, and price sync sources."),
-		accessTokenEdit("Change system settings and custom OAuth providers, and sync prices."),
-	}},
-	{Resource: "plugin", LabelKey: "Task plugins", group: AccessTokenGroupSystem, minRole: common.RoleRootUser, Actions: []authz.ActionDefinition{
-		accessTokenView("View installed task plugins and their settings."),
-		accessTokenEdit("Install, configure, test, and remove task plugins."),
+		accessTokenView("View system settings and custom OAuth providers."),
+		accessTokenEdit("Change system settings and custom OAuth providers."),
 	}},
 	{Resource: "ops", LabelKey: "Operations", group: AccessTokenGroupSystem, minRole: common.RoleRootUser, Actions: []authz.ActionDefinition{
 		accessTokenView("View performance, system tasks, and system information."),
