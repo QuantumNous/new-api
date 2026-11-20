@@ -15,6 +15,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -202,4 +203,267 @@ func requireOrderedGeminiResponsesSubstrings(t *testing.T, s string, parts ...st
 		require.NotEqualf(t, -1, idx, "missing %q after byte offset %d", part, offset)
 		offset += idx + len(part)
 	}
+}
+
+func TestGeminiResponsesStreamHandlerFailsOnMalformedResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "gemini-responses-malformed-test")
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() { constant.StreamingTimeout = oldStreamingTimeout })
+
+	info := newGeminiResponsesRelayInfo(true)
+	malformed := "MALFORMED_RESPONSE"
+	chunk := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{
+				FinishReason: &malformed,
+				Content: dto.GeminiChatContent{
+					Role:  "model",
+					Parts: []dto.GeminiPart{},
+				},
+			},
+		},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount: 100,
+			TotalTokenCount:  100,
+		},
+	}
+	data, err := common.Marshal(chunk)
+	require.NoError(t, err)
+	streamBody := "data: " + string(data) + "\n\ndata: [DONE]\n\n"
+
+	usage, newAPIError := GeminiResponsesStreamHandler(c, info, &http.Response{
+		Body: io.NopCloser(strings.NewReader(streamBody)),
+	})
+	require.NotNil(t, newAPIError)
+	require.NotNil(t, usage)
+	assert.Contains(t, newAPIError.Error(), "gemini stream stopped abnormally: finishReason=MALFORMED_RESPONSE")
+	assert.Equal(t, types.ErrorCodeBadResponse, newAPIError.GetErrorCode())
+	assert.True(t, service.ShouldRetryRelayError(c, newAPIError, 1))
+	assert.Empty(t, recorder.Body.String())
+}
+
+func TestGeminiResponsesStreamHandlerEmitsFailedEventAfterPartialOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "gemini-responses-partial-malformed-test")
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() { constant.StreamingTimeout = oldStreamingTimeout })
+
+	info := newGeminiResponsesRelayInfo(true)
+	first := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{
+				Content: dto.GeminiChatContent{
+					Role:  "model",
+					Parts: []dto.GeminiPart{{Text: "partial"}},
+				},
+			},
+		},
+	}
+	malformed := "MALFORMED_RESPONSE"
+	second := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{
+				FinishReason: &malformed,
+				Content: dto.GeminiChatContent{
+					Role:  "model",
+					Parts: []dto.GeminiPart{},
+				},
+			},
+		},
+	}
+	d1, err := common.Marshal(first)
+	require.NoError(t, err)
+	d2, err := common.Marshal(second)
+	require.NoError(t, err)
+	streamBody := "data: " + string(d1) + "\n\ndata: " + string(d2) + "\n\ndata: [DONE]\n\n"
+
+	_, newAPIError := GeminiResponsesStreamHandler(c, info, &http.Response{
+		Body: io.NopCloser(strings.NewReader(streamBody)),
+	})
+	require.Nil(t, newAPIError)
+
+	got := recorder.Body.String()
+	assert.Contains(t, got, "event: response.failed")
+	assert.Contains(t, got, "gemini stream stopped abnormally: finishReason=MALFORMED_RESPONSE")
+	assert.NotContains(t, got, "event: response.completed")
+	assert.True(t, info.StreamStatus.ResponseFailed())
+}
+
+func TestGeminiResponsesStreamHandlerFailsOnEmptyStopOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "gemini-responses-empty-stop-test")
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() { constant.StreamingTimeout = oldStreamingTimeout })
+
+	info := newGeminiResponsesRelayInfo(true)
+	stop := "STOP"
+	chunk := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{
+				FinishReason: &stop,
+				Content: dto.GeminiChatContent{
+					Role:  "model",
+					Parts: []dto.GeminiPart{{Text: "thought only", Thought: true}},
+				},
+			},
+		},
+	}
+	data, err := common.Marshal(chunk)
+	require.NoError(t, err)
+	streamBody := "data: " + string(data) + "\n\ndata: [DONE]\n\n"
+
+	_, newAPIError := GeminiResponsesStreamHandler(c, info, &http.Response{
+		Body: io.NopCloser(strings.NewReader(streamBody)),
+	})
+	require.Nil(t, newAPIError)
+
+	got := recorder.Body.String()
+	assert.Contains(t, got, "event: response.failed")
+	assert.Contains(t, got, "gemini stream finished with empty visible output")
+	assert.NotContains(t, got, "event: response.completed")
+	assert.True(t, info.StreamStatus.ResponseFailed())
+}
+
+func TestGeminiResponsesStreamHandlerReturnsRetryableErrorOnEmptyStopBeforeWrite(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "gemini-responses-empty-stop-retry-test")
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() { constant.StreamingTimeout = oldStreamingTimeout })
+
+	info := newGeminiResponsesRelayInfo(true)
+	stop := "STOP"
+	chunk := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{
+				FinishReason: &stop,
+				Content: dto.GeminiChatContent{
+					Role:  "model",
+					Parts: []dto.GeminiPart{},
+				},
+			},
+		},
+	}
+	data, err := common.Marshal(chunk)
+	require.NoError(t, err)
+	streamBody := "data: " + string(data) + "\n\ndata: [DONE]\n\n"
+
+	_, newAPIError := GeminiResponsesStreamHandler(c, info, &http.Response{
+		Body: io.NopCloser(strings.NewReader(streamBody)),
+	})
+	require.NotNil(t, newAPIError)
+	assert.Contains(t, newAPIError.Error(), "gemini stream finished with empty visible output")
+	assert.Equal(t, types.ErrorCodeEmptyResponse, newAPIError.GetErrorCode())
+	assert.True(t, service.ShouldRetryRelayError(c, newAPIError, 1))
+	assert.Empty(t, recorder.Body.String())
+}
+
+func TestGeminiResponsesStreamHandlerAllowsGroundingOnlyOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "gemini-responses-grounding-only-test")
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() { constant.StreamingTimeout = oldStreamingTimeout })
+
+	info := newGeminiResponsesRelayInfo(true)
+	stop := "STOP"
+	chunk := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{
+				FinishReason: &stop,
+				Content: dto.GeminiChatContent{
+					Role:  "model",
+					Parts: []dto.GeminiPart{},
+				},
+				GroundingMetadata: &dto.GeminiGroundingMetadata{
+					WebSearchQueries: []string{"latest go release"},
+				},
+			},
+		},
+	}
+	data, err := common.Marshal(chunk)
+	require.NoError(t, err)
+	streamBody := "data: " + string(data) + "\n\ndata: [DONE]\n\n"
+
+	_, newAPIError := GeminiResponsesStreamHandler(c, info, &http.Response{
+		Body: io.NopCloser(strings.NewReader(streamBody)),
+	})
+	require.Nil(t, newAPIError)
+
+	got := recorder.Body.String()
+	assert.Contains(t, got, "event: response.completed")
+	assert.Contains(t, got, "latest go release")
+	assert.NotContains(t, got, "event: response.failed")
+}
+
+func TestGeminiChatStreamHandlerErrorsOnEmptyMalformedResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Set(common.RequestIdKey, "gemini-chat-malformed-test")
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() { constant.StreamingTimeout = oldStreamingTimeout })
+
+	info := &relaycommon.RelayInfo{
+		IsStream:        true,
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		RequestURLPath:  "/v1/chat/completions",
+		DisablePing:     true,
+		OriginModelName: "gemini-test",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gemini-test",
+		},
+	}
+	malformed := "MALFORMED_RESPONSE"
+	chunk := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{
+				FinishReason: &malformed,
+				Content: dto.GeminiChatContent{
+					Role:  "model",
+					Parts: []dto.GeminiPart{},
+				},
+			},
+		},
+	}
+	data, err := common.Marshal(chunk)
+	require.NoError(t, err)
+	streamBody := "data: " + string(data) + "\n\ndata: [DONE]\n\n"
+
+	_, newAPIError := GeminiChatStreamHandler(c, info, &http.Response{
+		Body: io.NopCloser(strings.NewReader(streamBody)),
+	})
+	require.NotNil(t, newAPIError)
+	assert.Contains(t, newAPIError.Error(), "gemini stream stopped abnormally: finishReason=MALFORMED_RESPONSE")
+	assert.Equal(t, types.ErrorCodeBadResponse, newAPIError.GetErrorCode())
+	assert.True(t, service.ShouldRetryRelayError(c, newAPIError, 1))
+	assert.Empty(t, recorder.Body.String())
 }
