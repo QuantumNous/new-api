@@ -38,9 +38,9 @@ func TestModelRedisRateLimitUsesUTCRegardlessOfLocalTimezone(t *testing.T) {
 	withinWindow := time.Now().UTC().Add(-30 * time.Second).Format(modelRateLimitTimeFormat)
 	_, err = redisServer.Push(checkKey, withinWindow, withinWindow)
 	require.NoError(t, err)
-	allowed, err := checkRedisRateLimit(ctx, redisClient, checkKey, 2, 60)
+	retryAfter, err := redisSuccessRetryAfter(ctx, redisClient, checkKey, 2, 60)
 	require.NoError(t, err)
-	assert.False(t, allowed, "an existing UTC timestamp inside the window must remain limited on a non-UTC host")
+	assert.InDelta(t, 30, retryAfter, 1, "report the remaining window on a non-UTC host")
 }
 
 var modelRateLimitTestUsers atomic.Int64
@@ -73,7 +73,16 @@ func TestModelRateLimitStreamFailuresDoNotConsumeSuccessLimit(t *testing.T) {
 				} else {
 					assert.Equal(t, http.StatusOK, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
 				}
-				assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
+				rejected := performRateLimitRequest(router, "/completed", "127.0.0.1:1000")
+				assert.Equal(t, http.StatusTooManyRequests, rejected.Code)
+				seconds, err := strconv.Atoi(rejected.Header().Get("Retry-After"))
+				require.NoError(t, err)
+				assert.Positive(t, seconds)
+				want := 60
+				if backend == "redis" && totalLimit > 0 {
+					want = 60 / totalLimit
+				}
+				assert.InDelta(t, want, seconds, 1)
 			})
 		}
 	}
@@ -99,7 +108,9 @@ func TestModelMemoryRateLimitReservesConcurrentSuccessAdmission(t *testing.T) {
 		assert.Equal(t, http.StatusOK, performRateLimitRequest(router, "/failed", "127.0.0.1:1000").Code)
 	}()
 	<-entered
-	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
+	pending := performRateLimitRequest(router, "/completed", "127.0.0.1:1000")
+	assert.Equal(t, http.StatusTooManyRequests, pending.Code)
+	assert.Equal(t, "1", pending.Header().Get("Retry-After"))
 	close(release)
 	<-finished
 	assert.Equal(t, http.StatusOK, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
