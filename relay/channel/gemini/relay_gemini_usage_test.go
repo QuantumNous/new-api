@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -652,6 +653,248 @@ func TestGeminiStreamHandlerEmptyUsageMetadataBuildsEstimatedBillingUsage(t *tes
 	require.Equal(t, usage.PromptTokens, usage.BillingUsage.GeminiUsageMetadata.PromptTokenCount)
 	require.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
 	require.True(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+}
+
+// geminiInlineFrame is one stream frame carrying a single inlineData part.
+func geminiInlineFrame(mimeType, data string) string {
+	return `{"candidates":[{"content":{"role":"model","parts":[{"inlineData":{"mimeType":"` + mimeType + `","data":"` + data + `"}}]},"index":0}],"modelVersion":"gemini-3.8-flash-lite-tts"}`
+}
+
+// pcm100ms is 4800 bytes of base64 PCM: 100 ms of 16-bit mono audio at 24 kHz.
+var pcm100ms = strings.Repeat("A", 6400)
+
+// Without billable usageMetadata, inline output is estimated from the payload:
+// 1400 tokens per image, and 25 tokens per second of PCM audio (the Gemini TTS
+// rate) with the length taken from the PCM byte count. Audio whose length
+// cannot be measured, and non-image media, add nothing. A relay that answered
+// a text request with audio/l16 chunks must not bill each chunk as an image.
+func TestGeminiStreamHandlerWithoutUsageMetadataEstimatesInlineOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldStreamingTimeout
+	})
+
+	l16Chunk := geminiInlineFrame("audio/l16; rate=24000; channels=1", pcm100ms)
+	for _, tc := range []struct {
+		name                 string
+		frames               []string
+		wantCompletionTokens int
+		wantAudioTokens      int
+	}{
+		{
+			// 0.3 s of audio: ceil(0.3 * 25) = 8.
+			name: "pcm audio chunks then in-stream error",
+			frames: []string{
+				l16Chunk,
+				l16Chunk,
+				l16Chunk,
+				`{"error":{"code":504,"message":"context deadline exceeded","status":"DEADLINE_EXCEEDED"}}`,
+			},
+			wantCompletionTokens: 8,
+			wantAudioTokens:      8,
+		},
+		{
+			// 1 s of audio in the Gemini API's own mimeType form.
+			name:                 "pcm audio with codec parameter",
+			frames:               []string{geminiInlineFrame("audio/L16;codec=pcm;rate=24000", strings.Repeat(pcm100ms, 10))},
+			wantCompletionTokens: 25,
+			wantAudioTokens:      25,
+		},
+		{
+			name:                 "audio without a measurable length",
+			frames:               []string{geminiInlineFrame("audio/mpeg", pcm100ms), geminiInlineFrame("audio/l16; rate=1", pcm100ms)},
+			wantCompletionTokens: 0,
+		},
+		{
+			// One byte is not a whole 16-bit sample.
+			name:                 "pcm audio with a partial sample",
+			frames:               []string{geminiInlineFrame("audio/l16; rate=24000; channels=1", "AA==")},
+			wantCompletionTokens: 0,
+		},
+		{
+			// Invalid base64 is not audio, so its length bills nothing.
+			name:                 "pcm audio with invalid base64",
+			frames:               []string{geminiInlineFrame("audio/l16; rate=24000; channels=1", strings.Repeat("A!", 3200))},
+			wantCompletionTokens: 0,
+		},
+		{
+			name:                 "image chunks",
+			frames:               []string{geminiInlineFrame("image/png", "iVBORw0KGgo="), geminiInlineFrame("image/png", "iVBORw0KGgo=")},
+			wantCompletionTokens: 2 * 1400,
+		},
+		{
+			// MIME types are case-insensitive (RFC 2045).
+			name:                 "uppercase image mimeType",
+			frames:               []string{geminiInlineFrame("IMAGE/PNG", "iVBORw0KGgo=")},
+			wantCompletionTokens: 1400,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+			info := &relaycommon.RelayInfo{
+				OriginModelName: "gemini-3.8-flash",
+				ChannelMeta: &relaycommon.ChannelMeta{
+					UpstreamModelName: "gemini-3.8-flash",
+				},
+			}
+			info.SetEstimatePromptTokens(20)
+
+			var streamBody strings.Builder
+			for _, frame := range tc.frames {
+				streamBody.WriteString("data: " + frame + "\n")
+			}
+			resp := &http.Response{
+				Body: io.NopCloser(strings.NewReader(streamBody.String())),
+			}
+
+			usage, newAPIError := geminiStreamHandler(c, info, resp, func(_ string, _ *dto.GeminiChatResponse) bool {
+				return true
+			})
+			require.Nil(t, newAPIError)
+			require.NotNil(t, usage)
+			assert.Equal(t, tc.wantCompletionTokens, usage.CompletionTokens)
+			assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
+			require.NotNil(t, usage.BillingUsage)
+			require.NotNil(t, usage.BillingUsage.GeminiUsageMetadata)
+			assert.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
+			// Tiered expressions price ao from the settled audio output detail.
+			settled, ok := usage.BillingUsage.CanonicalUsage()
+			require.True(t, ok)
+			assert.Equal(t, tc.wantAudioTokens, settled.CompletionTokenDetails.AudioTokens)
+		})
+	}
+}
+
+// When upstream reports no completion tokens, with prompt-only usageMetadata or
+// none at all, the stream and non-stream paths apply the same inline output
+// estimate.
+func TestGeminiHandlersWithoutCompletionUsageEstimateInlineOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldStreamingTimeout
+	})
+
+	audioPart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "audio/l16; rate=24000; channels=1", Data: pcm100ms}}
+	imagePart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "image/png", Data: "iVBORw0KGgo="}}
+
+	for _, tc := range []struct {
+		name                 string
+		parts                []dto.GeminiPart
+		wantCompletionTokens int
+		wantAudioTokens      int
+	}{
+		{"audio", []dto.GeminiPart{audioPart, audioPart, audioPart}, 8, 8},
+		{"image", []dto.GeminiPart{imagePart, imagePart}, 2 * 1400, 0},
+	} {
+		for _, metadata := range []struct {
+			name             string
+			usageMetadata    dto.GeminiUsageMetadata
+			wantPromptTokens int
+		}{
+			{"prompt-only usage", dto.GeminiUsageMetadata{PromptTokenCount: 151, TotalTokenCount: 151}, 151},
+			{"no usage", dto.GeminiUsageMetadata{}, 20},
+		} {
+			payload := dto.GeminiChatResponse{
+				Candidates: []dto.GeminiChatCandidate{
+					{Content: dto.GeminiChatContent{Role: "model", Parts: tc.parts}},
+				},
+				UsageMetadata: metadata.usageMetadata,
+			}
+			body, err := common.Marshal(payload)
+			require.NoError(t, err)
+
+			for _, stream := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/stream=%t", tc.name, metadata.name, stream), func(t *testing.T) {
+					c, _ := gin.CreateTestContext(httptest.NewRecorder())
+					c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+					info := &relaycommon.RelayInfo{
+						RelayFormat:     types.RelayFormatGemini,
+						OriginModelName: "gemini-3.8-flash",
+						ChannelMeta: &relaycommon.ChannelMeta{
+							UpstreamModelName: "gemini-3.8-flash",
+						},
+					}
+					info.SetEstimatePromptTokens(20)
+
+					var usage *dto.Usage
+					var newAPIError *types.NewAPIError
+					if stream {
+						resp := &http.Response{
+							Body: io.NopCloser(strings.NewReader("data: " + string(body) + "\n" + "data: [DONE]\n")),
+						}
+						usage, newAPIError = geminiStreamHandler(c, info, resp, func(_ string, _ *dto.GeminiChatResponse) bool {
+							return true
+						})
+					} else {
+						resp := &http.Response{
+							Body: io.NopCloser(bytes.NewReader(body)),
+						}
+						usage, newAPIError = GeminiChatHandler(c, info, resp)
+					}
+					require.Nil(t, newAPIError)
+					require.NotNil(t, usage)
+					assert.Equal(t, metadata.wantPromptTokens, usage.PromptTokens)
+					assert.Equal(t, tc.wantCompletionTokens, usage.CompletionTokens)
+					assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
+					require.NotNil(t, usage.BillingUsage)
+					require.NotNil(t, usage.BillingUsage.GeminiUsageMetadata)
+					assert.Equal(t, usage.CompletionTokens, usage.BillingUsage.GeminiUsageMetadata.CandidatesTokenCount)
+					settled, ok := usage.BillingUsage.CanonicalUsage()
+					require.True(t, ok)
+					assert.Equal(t, tc.wantAudioTokens, settled.CompletionTokenDetails.AudioTokens)
+				})
+			}
+		}
+	}
+}
+
+// Prompt-only usageMetadata that already lists an AUDIO candidate detail
+// without a candidate token count settles with the estimated audio once,
+// not with the upstream entry and the estimate added together.
+func TestGeminiChatHandlerPromptOnlyUsageReplacesAudioCandidateDetail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatGemini,
+		OriginModelName: "gemini-3.8-flash",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gemini-3.8-flash",
+		},
+	}
+
+	audioPart := dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: "audio/l16; rate=24000; channels=1", Data: pcm100ms}}
+	payload := dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{
+			{Content: dto.GeminiChatContent{Role: "model", Parts: []dto.GeminiPart{audioPart, audioPart, audioPart}}},
+		},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:        151,
+			TotalTokenCount:         151,
+			CandidatesTokensDetails: []dto.GeminiPromptTokensDetails{{Modality: "audio", TokenCount: 5}},
+		},
+	}
+	body, err := common.Marshal(payload)
+	require.NoError(t, err)
+
+	usage, newAPIError := GeminiChatHandler(c, info, &http.Response{Body: io.NopCloser(bytes.NewReader(body))})
+	require.Nil(t, newAPIError)
+	require.NotNil(t, usage)
+	require.NotNil(t, usage.BillingUsage)
+	settled, ok := usage.BillingUsage.CanonicalUsage()
+	require.True(t, ok)
+	assert.Equal(t, 8, settled.CompletionTokens)
+	assert.Equal(t, 8, settled.CompletionTokenDetails.AudioTokens)
 }
 
 // Google Search grounding records the unique trimmed non-empty queries
