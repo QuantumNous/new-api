@@ -1353,3 +1353,28 @@ func TestHailuoT2aAsyncReviewFixes(t *testing.T) {
 		assert.Equal(t, "Calm_Woman", voiceSetting["voice_id"])
 	})
 }
+
+// The persisted upstream model decides the H3 duration minimum: a query
+// response without its own model falls back to the task's properties, so an
+// H3-Max completion of 4 seconds cannot settle below the 5-second
+// reservation.
+func TestHailuoH3MaxCompletionWithoutResponseModel(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	task := map[string]any{
+		"properties": map[string]any{"upstream_model_name": "MiniMax-H3-Max"},
+		"model":      "MiniMax-H3-Max",
+	}
+	facts := callHailuoHook(t, plugin, "extractUsageOnComplete", task, nil, map[string]any{
+		"task": map[string]any{"id": "1", "status": "succeeded", "resolution": "768P", "usage": map[string]any{
+			"output_seconds": 4, "input_seconds": 0, "input_image_count": 0,
+		}},
+	})
+	// 4 seconds is below the H3-Max minimum, so it stays out of settlement.
+	assert.Equal(t, map[string]any{"resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)}, facts)
+	facts = callHailuoHook(t, plugin, "extractUsageOnComplete", task, nil, map[string]any{
+		"task": map[string]any{"id": "1", "status": "succeeded", "resolution": "768P", "usage": map[string]any{
+			"output_seconds": 5, "input_seconds": 0, "input_image_count": 0,
+		}},
+	})
+	assert.Equal(t, map[string]any{"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)}, facts)
+}

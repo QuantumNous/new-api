@@ -1067,7 +1067,7 @@ export function buildContentRequest(ctx) {
   return { url: url, method: "GET", credentialless: true };
 }
 
-export function extractUsageOnComplete(_task, _taskResult, body) {
+export function extractUsageOnComplete(task, _taskResult, body) {
   // The async T2A status reports the authoritative usage_characters; it
   // settles the submission estimate, and in particular replaces a
   // file-only submission's reserved maximum.
@@ -1078,12 +1078,17 @@ export function extractUsageOnComplete(_task, _taskResult, body) {
   }
   const h3Task = h3QueryTask(body);
   if (h3Task) {
+    // The persisted upstream model decides the duration minimum: the query
+    // response's own model can be absent, and an H3-Max completion of 4
+    // seconds must not settle below the 5-second reservation.
+    const model = trimmed(h3Task.model) || trimmed((task && task.properties && task.properties.upstream_model_name) || (task || {}).model);
+    const resolutions = h3Resolutions(model);
     const resolution = trimmed(h3Task.resolution).toUpperCase();
     const facts = {};
-    if (h3Resolutions(h3Task.model).indexOf(resolution) >= 0) facts.resolution = resolution;
+    if (resolutions.indexOf(resolution) >= 0) facts.resolution = resolution;
     const usage = h3Task.usage && typeof h3Task.usage === "object" && !Array.isArray(h3Task.usage) ? h3Task.usage : {};
     const fields = [
-      { key: "seconds", value: usage.output_seconds, minimum: h3MinDuration(h3Task.model), maximum: H3_MAX_DURATION, integer: false },
+      { key: "seconds", value: usage.output_seconds, minimum: h3MinDuration(model), maximum: H3_MAX_DURATION, integer: false },
       { key: "input_images", value: usage.input_image_count, minimum: 0, maximum: H3_MAX_REFERENCE_IMAGES, integer: true },
       { key: "input_video_seconds", value: usage.input_seconds, minimum: 0, maximum: H3_MAX_INPUT_VIDEO_SECONDS, integer: false },
     ];
