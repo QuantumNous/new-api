@@ -1,6 +1,10 @@
 package common
 
-import "github.com/QuantumNous/new-api/constant"
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
+)
 
 // GetEndpointTypesByChannelType 获取渠道最优先端点类型（所有的渠道都支持 OpenAI 端点）
 func GetEndpointTypesByChannelType(channelType int, modelName string) []constant.EndpointType {
@@ -35,6 +39,29 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 	case constant.ChannelTypeXai:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
+	case constant.ChannelTypeAli:
+		if IsOpenAIResponseOnlyModel(modelName) {
+			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIResponse}
+			break
+		}
+		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
+		name := strings.ToLower(strings.TrimSpace(modelName))
+		// Bailian's text protocols do not apply to its image, utility, or
+		// dedicated audio/realtime models, even when they share a Qwen prefix.
+		if IsImageGenerationModel(name) || strings.Contains(name, "embedding") ||
+			strings.Contains(name, "rerank") || strings.Contains(name, "-tts") ||
+			strings.Contains(name, "-asr") || strings.Contains(name, "-realtime") {
+			break
+		}
+		// The Ali adaptor supports Responses and Messages for these text
+		// families (Messages may fall back to Chat conversion). Unknown aliases
+		// can still declare their endpoints through model metadata.
+		for _, prefix := range []string{"qwen", "qwq-", "qvq-", "deepseek-", "glm-", "kimi-", "minimax-"} {
+			if strings.HasPrefix(name, prefix) {
+				endpointTypes = append(endpointTypes, constant.EndpointTypeOpenAIResponse, constant.EndpointTypeAnthropic)
+				break
+			}
+		}
 	case constant.ChannelTypeVLLM, constant.ChannelTypeSGLang:
 		endpointTypes = GetAdvancedCustomPreset(channelType).SupportedEndpointTypesForModel(modelName)
 	case constant.ChannelTypeSora:
