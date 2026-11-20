@@ -470,6 +470,8 @@ func TestKling4(t *testing.T) {
 			{"1792x1024", "", map[string]any{"resolution": "1080p", "aspect_ratio": "16:9", "duration": float64(5)}},
 			{"1024x1792", "", map[string]any{"resolution": "1080p", "aspect_ratio": "9:16", "duration": float64(5)}},
 			{"2560x1080", "", map[string]any{"resolution": "1080p", "aspect_ratio": "21:9", "duration": float64(5)}},
+			{"1440x1080", "", map[string]any{"resolution": "1080p", "aspect_ratio": "4:3", "duration": float64(5)}},
+			{"1080x1440", "", map[string]any{"resolution": "1080p", "aspect_ratio": "3:4", "duration": float64(5)}},
 			{"720x1280", "https://cdn.example/a.png", map[string]any{"resolution": "720p", "duration": float64(5)}},
 		} {
 			body := map[string]any{"model": "kling-4.0", "prompt": "a cat", "size": tc.size, "seconds": 5}
