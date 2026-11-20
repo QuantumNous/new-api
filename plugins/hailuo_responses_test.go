@@ -1139,6 +1139,12 @@ func TestHailuoH3MaxNativeBody(t *testing.T) {
 		assert.Equal(t, "submit", result["kind"])
 		assert.Equal(t, "MiniMax-H3-Max", result["model"])
 		assert.Equal(t, "text_to_video", result["action"])
+		// The forwarded native body reaches the upstream unchanged.
+		driver := map[string]any{"requestBody": result["requestBody"], "model": "MiniMax-H3-Max", "upstreamModel": "MiniMax-H3-Max", "baseUrl": "https://api.minimax.example", "apiKey": "vendor-key"}
+		sent := callHailuoHook(t, plugin, "buildSubmitRequest", driver)
+		assert.Equal(t, "https://api.minimax.example/v2/video_generation", sent["url"])
+		wantBody := decodePluginValue(t, body)
+		assert.Equal(t, wantBody, sent["body"])
 	})
 	t.Run("native duration below the H3 minimum is rejected with the model named", func(t *testing.T) {
 		body := map[string]any{"model": "MiniMax-H3-Max", "content": []any{
