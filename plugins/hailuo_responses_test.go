@@ -43,8 +43,9 @@ func TestHailuoResponsesProtocol(t *testing.T) {
 			"size":     "1920x1080",
 			"metadata": map[string]any{"first_frame_image": "https://cdn.example/frame.png"},
 		},
-		wantUsageKeys:  []string{"input_images", "input_video_seconds", "resolution", "seconds"},
-		wantVendorName: "hailuo",
+		wantUsageKeys:       []string{"characters", "input_images", "input_video_seconds", "resolution", "seconds"},
+		wantSubmitUsageKeys: []string{"input_images", "input_video_seconds", "resolution", "seconds"},
+		wantVendorName:      "hailuo",
 	})
 }
 
@@ -58,6 +59,13 @@ func TestHailuoUsageProfilesPerModel(t *testing.T) {
 		fields      []string
 		resolutions []string
 	}{
+		{
+			models: []string{
+				"speech-2.8-hd-async", "speech-2.8-turbo-async", "speech-2.6-hd-async",
+				"speech-2.6-turbo-async", "speech-02-hd-async", "speech-02-turbo-async",
+			},
+			fields: []string{"characters"},
+		},
 		{
 			models:      []string{"MiniMax-H3"},
 			fields:      []string{"input_images", "input_video_seconds", "resolution", "seconds"},
@@ -1165,4 +1173,102 @@ func TestHailuoH3MaxNativeBody(t *testing.T) {
 			"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
 		}, facts)
 	})
+}
+
+// The async long-form T2A family: /v1/t2a_async_v2 submit with a task poll
+// on /v1/query/t2a_async_query_v2 and the audio behind the file id.
+func TestHailuoT2aAsync(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	t2aCtx := func(requestBody map[string]any) map[string]any {
+		ctx := hailuoH3SubmitContext(requestBody)
+		ctx["model"] = "speech-2.8-turbo-async"
+		ctx["upstreamModel"] = "speech-2.8-turbo-async"
+		return ctx
+	}
+	t.Run("submit strips the async suffix from the upstream model", func(t *testing.T) {
+		descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", t2aCtx(map[string]any{
+			"model": "speech-2.8-turbo-async", "prompt": "第一章", "voice": "male-qn-qingse",
+		}))
+		assert.Equal(t, "https://api.minimax.example/v1/t2a_async_v2", descriptor["url"])
+		assert.Equal(t, "text_to_speech", descriptor["action"])
+		body, err := common.Marshal(descriptor["body"])
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"model":"speech-2.8-turbo","text":"第一章","voice_setting":{"voice_id":"male-qn-qingse"}}`, string(body))
+	})
+	t.Run("metadata.t2a passes MiniMax fields through", func(t *testing.T) {
+		descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", t2aCtx(map[string]any{
+			"model": "speech-2.8-turbo-async",
+			"metadata": map[string]any{"t2a": map[string]any{
+				"text_file_id": 12345, "audio_setting": map[string]any{"format": "mp3"},
+			}},
+		}))
+		body, err := common.Marshal(descriptor["body"])
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"model":"speech-2.8-turbo","text_file_id":12345,"audio_setting":{"format":"mp3"},"voice_setting":{"voice_id":"male-qn-qingse"}}`, string(body))
+	})
+	t.Run("a native body goes out as is", func(t *testing.T) {
+		native := map[string]any{"model": "speech-2.8-turbo-async", "text": "原生", "voice_setting": map[string]any{"voice_id": "Calm_Woman"}}
+		value, err := plugin.Engine.CallPath(t.Context(), "native", []string{"createT2aAsyncTask"}, map[string]any{
+			"body": map[string]any{"kind": "json", "value": native},
+		})
+		require.NoError(t, err)
+		result, ok := value.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "text_to_speech", result["action"])
+		// The forwarded body carries the upstream model name.
+		sent := callHailuoHook(t, plugin, "buildSubmitRequest", map[string]any{
+			"requestBody": result["requestBody"], "model": "speech-2.8-turbo-async", "upstreamModel": "speech-2.8-turbo-async",
+			"baseUrl": "https://api.minimax.example", "apiKey": "vendor-key",
+		})
+		assert.Equal(t, "https://api.minimax.example/v1/t2a_async_v2", sent["url"])
+		wantBody := decodePluginValue(t, native)
+		wantBody["model"] = "speech-2.8-turbo"
+		assert.Equal(t, wantBody, sent["body"])
+	})
+	t.Run("text or text_file_id is required", func(t *testing.T) {
+		_, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", t2aCtx(map[string]any{"model": "speech-2.8-turbo-async"}))
+		require.ErrorContains(t, err, "text or text_file_id is required")
+	})
+	t.Run("usage estimates characters with CJK doubling", func(t *testing.T) {
+		facts := callHailuoHook(t, plugin, "extractUsage", t2aCtx(map[string]any{"model": "speech-2.8-turbo-async", "prompt": "你好abc"}))
+		assert.Equal(t, map[string]any{"characters": float64(4)}, facts)
+	})
+	t.Run("query hits the t2a_async poll path", func(t *testing.T) {
+		descriptor := callHailuoHook(t, plugin, "buildQueryRequest", map[string]any{
+			"taskId": "t1", "upstreamModel": "speech-2.8-turbo-async", "baseUrl": "https://api.minimax.example", "apiKey": "k",
+		})
+		assert.Equal(t, "https://api.minimax.example/v1/query/t2a_async_query_v2?task_id=t1", descriptor["url"])
+	})
+	t.Run("statuses map and success reports the file id", func(t *testing.T) {
+		var body any
+		require.NoError(t, common.UnmarshalJsonStr(`{"status":"Processing","task_id":"t1","file_id":"t1"}`, &body))
+		result := callHailuoHook(t, plugin, "parseTaskResult", map[string]any{}, body)
+		assert.Equal(t, "IN_PROGRESS", result["status"])
+		require.NoError(t, common.UnmarshalJsonStr(`{"status":"Success","task_id":"t1","file_id":"f9","base_resp":{"status_code":0}}`, &body))
+		result = callHailuoHook(t, plugin, "parseTaskResult", map[string]any{}, body)
+		assert.Equal(t, "SUCCESS", result["status"])
+		assert.Equal(t, "f9", result["file_id"])
+		require.NoError(t, common.UnmarshalJsonStr(`{"status":"Fail","task_id":"t1","file_id":"t1","base_resp":{"status_code":0,"status_msg":"audio failed"}}`, &body))
+		result = callHailuoHook(t, plugin, "parseTaskResult", map[string]any{}, body)
+		assert.Equal(t, "FAILURE", result["status"])
+		assert.Contains(t, result["reason"], "audio failed")
+	})
+	t.Run("the audio artifact downloads under the file id", func(t *testing.T) {
+		task := &model.Task{TaskID: "t1", Status: model.TaskStatusSuccess, Action: "text_to_speech"}
+		data, err := common.Marshal(map[string]any{"file_id": "f9"})
+		require.NoError(t, err)
+		task.Data = data
+		artifacts, err := taskplugin.New(plugin).ListArtifacts(task)
+		require.NoError(t, err)
+		assert.Equal(t, []channel.TaskArtifact{{Key: "audio", Type: "audio", MimeType: "audio/mpeg"}}, artifacts)
+	})
+}
+
+// Every declared model must select a usage profile; the async family bills
+// characters.
+func TestHailuoT2aAsyncUsageProfile(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	schema, examples := plugin.Meta.UsageForModel("speech-2.8-turbo-async")
+	assert.Equal(t, []string{"characters"}, slices.Sorted(maps.Keys(schema)))
+	assert.NotEmpty(t, examples)
 }

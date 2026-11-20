@@ -62,11 +62,54 @@ const HAILUO_01_USAGE_SCHEMA = {
   seconds: VIDEO_SECONDS_FIELD,
 };
 
+// The async long-form T2A models bill per character (each CJK character
+// counts as two).
+const T2A_ASYNC_USAGE_SCHEMA = {
+  characters: {
+    type: "number",
+    unit: "credit",
+    description: { en: "Speech synthesis unit price per character", zh: "语音合成单价(每字符)" },
+  },
+};
+
+// The fields the async T2A host protocols carry, with MiniMax's defaults;
+// everything else rides in metadata.t2a for full-passthrough control.
+function t2aAsyncBody(req) {
+  const metadata = req.metadata || {};
+  const t2a = plainObject(metadata.t2a) || {};
+  const text = trimmed(req.prompt) || trimmed(req.text);
+  const body = Object.assign({ model: t2aAsyncUpstream(req.model || "") }, t2a);
+  if (!body.voice_setting) body.voice_setting = { voice_id: trimmed(req.voice) || "male-qn-qingse" };
+  if (text) body.text = text;
+  else if (!trimmed(body.text) && !trimmed(body.text_file_id)) throw new Error("text or text_file_id is required");
+  return body;
+}
+
 // MiniMax serves the MiniMax-H3 models on its /v2 video API and every other
 // model on /v1.
 const H3_MODEL = "MiniMax-H3";
 const H3_MAX_MODEL = "MiniMax-H3-Max";
 const H3_MODELS = [H3_MODEL, H3_MAX_MODEL];
+
+// The async long-form T2A models, served on /v1/t2a_async_v2 with a task id
+// poll on /v1/query/t2a_async_query_v2 and the audio behind a file id. The
+// speech-* model names route the sync /v1/t2a_v2 relay, so the async ones
+// take their own names to reach the task plugin.
+const T2A_ASYNC_MODELS = [
+  "speech-2.8-hd-async",
+  "speech-2.8-turbo-async",
+  "speech-2.6-hd-async",
+  "speech-2.6-turbo-async",
+  "speech-02-hd-async",
+  "speech-02-turbo-async",
+];
+// The upstream model behind an async alias, without the -async suffix.
+function t2aAsyncUpstream(model) {
+  return String(model || "").replace(/-async$/, "");
+}
+function isT2aAsync(model) {
+  return T2A_ASYNC_MODELS.indexOf(model) >= 0;
+}
 const V1_MODELS = [
   "MiniMax-Hailuo-2.3",
   "MiniMax-Hailuo-2.3-Fast",
@@ -104,7 +147,7 @@ export const meta = {
   version: "1.4.0",
   author: { name: "QuantumNous" },
   channelTypes: [35],
-  models: H3_MODELS.concat(V1_MODELS),
+  models: H3_MODELS.concat(V1_MODELS).concat(T2A_ASYNC_MODELS),
   fetchMode: "per_task",
   upstreams: ["vendor", "new_api"],
   // Fallback for a channel alias that resolves to more than one model: the
@@ -114,21 +157,29 @@ export const meta = {
       enum: ["480P", "512P", "768P", "720P", "1080P", "2K"],
       description: RESOLUTION_DESCRIPTION,
     },
-  }),
+  }, T2A_ASYNC_USAGE_SCHEMA),
   usageExamples: [
-    { label: "2.3/02 768P 6s", facts: { seconds: 6, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
-    { label: "2.3/02 768P 10s", facts: { seconds: 10, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
-    { label: "2.3/02 1080P 6s", facts: { seconds: 6, resolution: "1080P", input_images: 0, input_video_seconds: 0 } },
-    { label: "02 512P 6s", facts: { seconds: 6, resolution: "512P", input_images: 0, input_video_seconds: 0 } },
-    { label: "02 512P 10s", facts: { seconds: 10, resolution: "512P", input_images: 0, input_video_seconds: 0 } },
-    { label: "01-series 720P 6s", facts: { seconds: 6, resolution: "720P", input_images: 0, input_video_seconds: 0 } },
-    { label: "H3 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
-    { label: "H3 2K 5s · 9 images", facts: { seconds: 5, resolution: "2K", input_images: 9, input_video_seconds: 0 } },
-    { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15 } },
-    { label: "H3-Max 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
-    { label: "H3-Max 480P 15s", facts: { seconds: 15, resolution: "480P", input_images: 0, input_video_seconds: 0 } },
-  ],
+    { label: "2.3/02 768P 6s", facts: { seconds: 6, resolution: "768P", input_images: 0, input_video_seconds: 0, characters: 0 } },
+    { label: "2.3/02 768P 10s", facts: { seconds: 10, resolution: "768P", input_images: 0, input_video_seconds: 0, characters: 0 } },
+    { label: "2.3/02 1080P 6s", facts: { seconds: 6, resolution: "1080P", input_images: 0, input_video_seconds: 0, characters: 0 } },
+    { label: "02 512P 6s", facts: { seconds: 6, resolution: "512P", input_images: 0, input_video_seconds: 0, characters: 0 } },
+    { label: "02 512P 10s", facts: { seconds: 10, resolution: "512P", input_images: 0, input_video_seconds: 0, characters: 0 } },
+    { label: "01-series 720P 6s", facts: { seconds: 6, resolution: "720P", input_images: 0, input_video_seconds: 0, characters: 0 } },
+    { label: "H3 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0, characters: 0 } },
+    { label: "H3 2K 5s · 9 images", facts: { seconds: 5, resolution: "2K", input_images: 9, input_video_seconds: 0, characters: 0 } },
+    { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15, characters: 0 } },
+    { label: "H3-Max 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0, characters: 0 } },
+    { label: "H3-Max 480P 15s", facts: { seconds: 15, resolution: "480P", input_images: 0, input_video_seconds: 0, characters: 0 } },
+    { label: "T2A async 1000 chars", facts: { characters: 500, seconds: 0, resolution: "768P", input_images: 0, input_video_seconds: 0 } },  ],
   usageProfiles: [
+    {
+      models: T2A_ASYNC_MODELS,
+      schema: T2A_ASYNC_USAGE_SCHEMA,
+      examples: [
+        { label: "T2A async 1000 chars", facts: { characters: 500 } },
+        { label: "T2A async 10000 chars", facts: { characters: 5000 } },
+      ],
+    },
     {
       models: [H3_MODEL],
       schema: H3_USAGE_SCHEMA,
@@ -136,7 +187,7 @@ export const meta = {
         { label: "H3 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
         { label: "H3 2K 5s", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 0 } },
         { label: "H3 2K 5s · 9 images", facts: { seconds: 5, resolution: "2K", input_images: 9, input_video_seconds: 0 } },
-        { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15 } },
+        { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15} },
       ],
     },
     {
@@ -173,8 +224,7 @@ export const meta = {
       models: ["T2V-01-Director", "T2V-01", "I2V-01-Director", "I2V-01-live", "I2V-01", "S2V-01"],
       schema: HAILUO_01_USAGE_SCHEMA,
       examples: [{ label: "01-series 720P 6s", facts: { seconds: 6 } }],
-    },
-  ],
+    },  ],
   // MiniMax request and response bodies, for clients and for a downstream New
   // API gateway, at MiniMax's own paths; the gateway also serves each under
   // /hailuo. The /v1 query reads the task id from the query string, as MiniMax
@@ -188,6 +238,10 @@ export const meta = {
     { method: "GET", path: "/v1/files/retrieve", type: "query", taskIdParam: "file_id", render: "fileRetrieve" },
     { method: "POST", path: "/v2/video_generation", type: "submit", decode: "createH3Task", render: "taskCreated", models: H3_MODELS },
     { method: "GET", path: "/v2/query/video_generation/:task_id", type: "query", render: "h3TaskStatus" },
+    // The async long-form T2A family: a task on /v1/t2a_async_v2 whose audio
+    // downloads under the file id the status reports.
+    { method: "POST", path: "/v1/t2a_async_v2", type: "submit", decode: "createT2aAsyncTask", render: "t2aAsyncCreated", models: T2A_ASYNC_MODELS },
+    { method: "GET", path: "/v1/query/t2a_async_query_v2", type: "query", taskIdParam: "task_id", render: "t2aAsyncStatus" },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
@@ -594,6 +648,20 @@ function responsesVideoText(ctx) {
   return '<video controls src="' + escaped + '"></video>';
 }
 
+function responsesAudioText(ctx) {
+  const artifact = ctx && ctx.artifacts && ctx.artifacts.audio;
+  const url = trimmed(artifact && artifact.url);
+  if (!url) throw new Error("audio artifact is unavailable");
+  const escaped = url.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return '<audio controls src="' + escaped + '"></audio>';
+}
+
+// The final artifact text of a task: audio for the async T2A family, video
+// for every other model.
+function responsesTaskText(ctx) {
+  return isT2aAsync(ctx && (ctx.upstreamModel || ctx.model)) ? responsesAudioText(ctx) : responsesVideoText(ctx);
+}
+
 function nativeBody(ctx) {
   if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
   const body = plainObject(ctx.body.value);
@@ -617,6 +685,19 @@ export const native = {
     const action = hasHailuoImage({ metadata: body }, false) ? "image_to_video" : "text_to_video";
     return { kind: "submit", model: body.model, action: action, requestBody: { model: body.model, vendorBody: body } };
   },
+  // The async long-form T2A body, sent as is with the -async suffix stripped
+  // from the model; MiniMax checks the rest.
+  createT2aAsyncTask: function (ctx) {
+    const body = nativeBody(ctx);
+    if (typeof body.model !== "string" || !isT2aAsync(body.model)) throw new Error("model must be a speech-* async alias");
+    if (!trimmed(body.text) && !trimmed(body.text_file_id)) throw new Error("text or text_file_id is required");
+    return {
+      kind: "submit",
+      model: body.model,
+      action: "text_to_speech",
+      requestBody: { model: body.model, vendorBody: Object.assign({}, body, { model: t2aAsyncUpstream(body.model) }) },
+    };
+  },
   // MiniMax-H3's own body, sent as is for MiniMax to check.
   createH3Task: function (ctx) {
     const body = nativeBody(ctx);
@@ -629,6 +710,29 @@ export const native = {
   // MiniMax answers /v1 with a base_resp envelope and /v2 with a bare task_id.
   taskCreated: function (ctx, task) {
     return Object.assign({}, plainObject(task.data) || {}, { task_id: task.task_id });
+  },
+  // /v1/t2a_async_v2 answers a bare task_id with a task_token the poller can
+  // present instead of the API key; the snapshot before the first poll is the
+  // create reply itself.
+  t2aAsyncCreated: function (ctx, task) {
+    const data = plainObject(task.data) || {};
+    const output = Object.assign({}, data, { task_id: task.task_id });
+    if (task.status === "FAILURE") output.status = "Fail";
+    else if (typeof output.status !== "string") output.status = "Queueing";
+    return output;
+  },
+  // The async T2A status route: MiniMax's own snapshot with the base_resp
+  // envelope; the audio downloads under file_id.
+  t2aAsyncStatus: function (ctx, task) {
+    const data = plainObject(task.data) || {};
+    const output = Object.assign({}, data, { task_id: task.task_id });
+    if (task.status === "FAILURE") {
+      output.status = "Fail";
+      if (!output.base_resp) output.base_resp = { status_code: 1000, status_msg: task.fail_reason || "task failed" };
+    } else if (typeof output.status !== "string") {
+      output.status = task.status === "IN_PROGRESS" ? "Processing" : "Queueing";
+    }
+    return output;
   },
   // A status route answers with the latest MiniMax snapshot. Before the first
   // poll that is the create response, which has no status, and the poller can
@@ -684,6 +788,18 @@ export function buildSubmitRequest(ctx) {
   const req = ctx.requestBody || {};
   const model = ctx.upstreamModel;
   const metadata = req.metadata || {};
+  if (isT2aAsync(model)) {
+    // A native body goes out as is (its model already upstream-named); the
+    // host protocols carry prompt/voice fields under metadata.t2a.
+    const nativeBody = req.vendorBody || t2aAsyncBody(req);
+    return {
+      url: apiRoot(ctx) + "/v1/t2a_async_v2",
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
+      body: nativeBody,
+      action: "text_to_speech",
+    };
+  }
   if (isH3(model)) {
     const h3 = h3Request(req, model);
     const content = h3.content;
@@ -747,6 +863,15 @@ export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const req = ctx.requestBody || {};
   const model = ctx.upstreamModel || req.model;
+  if (isT2aAsync(model)) {
+    // MiniMax bills T2A per character with each CJK character counting as
+    // two; the weighted length is the only dimension.
+    const t2a = plainObject((req.metadata || {}).t2a) || {};
+    const text = trimmed(req.prompt) || trimmed(req.text) || trimmed(req.vendorBody && req.vendorBody.text) || trimmed(t2a.text);
+    let weighted = 0;
+    for (const ch of String(text || "")) weighted += ch.charCodeAt(0) > 0xff ? 2 : 1;
+    return { characters: Math.max(1, Math.ceil(weighted / 2)) };
+  }
   if (isH3(model)) {
     const h3 = h3Request(req, model);
     const content = h3.content;
@@ -773,9 +898,11 @@ export function buildQueryRequest(ctx) {
   // Polling carries no relay info; the host fills these identities from the
   // persisted task properties.
   const taskID = encodeURIComponent(ctx.taskId);
-  let path = "/v1/query/video_generation?task_id=" + taskID;
-  if (isH3(ctx.upstreamModel || ctx.model)) path = "/v2/query/video_generation/" + taskID;
+  let path;
+  if (isT2aAsync(ctx.upstreamModel || ctx.model)) path = "/v1/query/t2a_async_query_v2?task_id=" + taskID;
+  else if (isH3(ctx.upstreamModel || ctx.model)) path = "/v2/query/video_generation/" + taskID;
   else if (viaGateway(ctx)) path = "/v1/query/video_generation/" + taskID;
+  else path = "/v1/query/video_generation?task_id=" + taskID;
   return {
     url: apiRoot(ctx) + path,
     method: "GET",
@@ -805,6 +932,24 @@ export function parseTaskResult(ctx, body) {
       h3Result.reason = trimmed(h3Task.error && h3Task.error.message) || "task " + trimmed(h3Task.status);
     }
     return h3Result;
+  }
+  // The async T2A query: MiniMax's own statuses with the audio as a file_id
+  // the host downloads through /v1/files/retrieve_content.
+  if (body.status !== undefined && body.file_id !== undefined) {
+    const t2aStatuses = { Preparing: "IN_PROGRESS", Queueing: "IN_PROGRESS", Pending: "IN_PROGRESS", Processing: "IN_PROGRESS", Success: "SUCCESS", Fail: "FAILURE", Failed: "FAILURE" };
+    const t2aStatus = t2aStatuses[body.status];
+    if (!t2aStatus) {
+      return { status: "UNKNOWN", reason: "unrecognized status: " + String(body.status || "") };
+    }
+    const t2aResult = { code: (body.base_resp && body.base_resp.status_code) || 0, status: t2aStatus, progress: t2aStatus === "SUCCESS" || t2aStatus === "FAILURE" ? "100%" : "50%" };
+    if (t2aStatus === "SUCCESS") {
+      const fileID = trimmed(body.file_id);
+      if (fileID && fileID !== body.task_id) t2aResult.file_id = fileID;
+    }
+    if (t2aStatus === "FAILURE") {
+      t2aResult.reason = (body.base_resp && body.base_resp.status_msg) || "task failed";
+    }
+    return t2aResult;
   }
   if (body.base_resp && body.base_resp.status_code !== 0) {
     return { code: body.base_resp.status_code || 0, status: "FAILURE", progress: "100%", reason: body.base_resp.status_msg || "" };
@@ -838,10 +983,32 @@ function h3ArtifactURL(ctx) {
 
 export function listArtifacts(task) {
   if (task.status !== "SUCCESS") return [];
+  // The async T2A family submits under its own action.
+  if (trimmed(task.action) === "text_to_speech") {
+    const fileID = trimmed((task.data || {}).file_id) || trimmed(task.taskId);
+    return fileID ? [{ key: "audio", type: "audio", mimeType: "audio/mpeg" }] : [];
+  }
   return artifactFileID(task) || h3ArtifactURL(task) ? [{ key: "video", type: "video", mimeType: "video/mp4" }] : [];
 }
 
 export function buildContentRequest(ctx) {
+  // The async T2A audio: raw bytes from /v1/files/retrieve_content under the
+  // file id the query reports (no signed download_url form).
+  if (ctx.artifactKey === "audio") {
+    if (viaGateway(ctx)) {
+      return {
+        url: ctx.baseUrl + "/v1/tasks/" + encodeURIComponent(ctx.upstreamTaskId) + "/artifacts/audio/content",
+        method: ctx.clientRequest.method,
+        headers: { Authorization: "Bearer " + ctx.apiKey },
+      };
+    }
+    const audioFileID = trimmed((ctx.data || {}).file_id) || trimmed(ctx.taskId);
+    return {
+      url: ctx.baseUrl + "/v1/files/retrieve_content?file_id=" + encodeURIComponent(audioFileID),
+      method: "GET",
+      headers: { Accept: "audio/mpeg", Authorization: "Bearer " + ctx.apiKey },
+    };
+  }
   if (ctx.artifactKey !== "video") throw new Error("artifact_not_found");
   const fileID = artifactFileID(ctx);
   if (!fileID) {
@@ -917,6 +1084,17 @@ export const protocols = {
       if (req.images !== undefined && !Array.isArray(req.images)) throw new Error("images must be an array");
       if (req.metadata !== undefined && (!req.metadata || typeof req.metadata !== "object" || Array.isArray(req.metadata)))
         throw new Error("metadata must be an object");
+      // The async long-form T2A family: input is the text to synthesize,
+      // voice rides in metadata.voice, and metadata.t2a passes MiniMax's own
+      // fields through (voice_setting, audio_setting, text_file_id, ...).
+      if (isT2aAsync(ctx.upstreamModel || model)) {
+        const input0 = responsesInput(req);
+        const text = input0.prompt || trimmed(req.prompt);
+        const metadata = Object.assign({}, req.metadata || {});
+        if (!text && !plainObject(metadata.t2a)) throw new Error("input is required");
+        if (trimmed(req.voice) && !metadata.voice) metadata.voice = trimmed(req.voice);
+        return { kind: "submit", model: model, action: "text_to_speech", requestBody: { model: model, prompt: text, metadata: metadata } };
+      }
       const input = responsesInput(req);
       const prompt = input.prompt || trimmed(req.prompt);
       const images = [];
@@ -941,7 +1119,7 @@ export const protocols = {
       const progress = Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
       const state = { status: status, progress: progress };
       if (status === "SUCCESS") {
-        const text = responsesVideoText(ctx);
+        const text = responsesTaskText(ctx);
         const events = previousState && previousState.status === status ? [] : [{ type: "output", data: text }];
         return { events: events, state: state, done: true };
       }
@@ -959,7 +1137,7 @@ export const protocols = {
             type: "message",
             status: "completed",
             role: "assistant",
-            content: [{ type: "output_text", text: responsesVideoText(ctx), annotations: [], logprobs: [] }],
+            content: [{ type: "output_text", text: responsesTaskText(ctx), annotations: [], logprobs: [] }],
           },
         ],
         metadata: { vendor: "hailuo" },
