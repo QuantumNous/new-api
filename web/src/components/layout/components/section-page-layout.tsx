@@ -24,6 +24,7 @@ import {
   type ReactNode,
 } from 'react'
 
+import { BackToTopButton } from './back-to-top-button'
 import { Main } from './main'
 import { PageFooterProvider } from './page-footer'
 
@@ -52,10 +53,15 @@ SectionPageLayoutBreadcrumb.displayName = 'SectionPageLayout.Breadcrumb'
 export type SectionPageLayoutProps = {
   children: ReactNode
   fixedContent?: boolean
+  backToTop?: boolean
   stackActionsOnMobile?: boolean
 }
 
 export function SectionPageLayout(props: SectionPageLayoutProps) {
+  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(
+    null
+  )
+  const backToTop = props.backToTop && !props.fixedContent
   const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(
     null
   )
@@ -106,6 +112,7 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
         </div>
 
         <div
+          ref={backToTop ? setScrollContainer : undefined}
           className={
             props.fixedContent
               ? 'min-h-0 flex-1 overflow-hidden px-3 pt-1 pb-3 sm:px-4 sm:pt-1.5 sm:pb-4'
@@ -114,6 +121,7 @@ export function SectionPageLayout(props: SectionPageLayoutProps) {
         >
           {content}
         </div>
+        {backToTop && <BackToTopButton scrollContainer={scrollContainer} />}
 
         <div
           ref={setFooterContainer}

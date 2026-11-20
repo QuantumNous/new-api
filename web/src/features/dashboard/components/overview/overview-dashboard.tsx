@@ -628,7 +628,7 @@ export function OverviewDashboard() {
   }
 
   return (
-    <SectionPageLayout>
+    <SectionPageLayout backToTop>
       <SectionPageLayout.Title>{t('Overview')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         {setupStatusReady && setupComplete && (

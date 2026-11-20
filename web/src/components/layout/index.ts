@@ -38,6 +38,7 @@ export { SidebarViewHeader } from './components/sidebar-view-header'
 export { SystemBrand } from './components/system-brand'
 export { TopNav } from './components/top-nav'
 export { MobileDrawer } from './components/mobile-drawer'
+export { BackToTopButton } from './components/back-to-top-button'
 
 // Configuration
 export { SYSTEM_SETTINGS_VIEW } from './config/system-settings.config'
