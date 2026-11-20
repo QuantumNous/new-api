@@ -178,7 +178,8 @@ export const meta = {
     { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15, characters: 0 } },
     { label: "H3-Max 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0, characters: 0 } },
     { label: "H3-Max 480P 15s", facts: { seconds: 15, resolution: "480P", input_images: 0, input_video_seconds: 0, characters: 0 } },
-    { label: "T2A async 1000 chars", facts: { characters: 500, seconds: 0, resolution: "768P", input_images: 0, input_video_seconds: 0 } },  ],
+    { label: "T2A async 1000 chars", facts: { characters: 500, seconds: 0, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
+  ],
   usageProfiles: [
     {
       models: T2A_ASYNC_MODELS,
@@ -195,7 +196,7 @@ export const meta = {
         { label: "H3 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
         { label: "H3 2K 5s", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 0 } },
         { label: "H3 2K 5s · 9 images", facts: { seconds: 5, resolution: "2K", input_images: 9, input_video_seconds: 0 } },
-        { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15} },
+        { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15 } },
       ],
     },
     {
@@ -232,7 +233,8 @@ export const meta = {
       models: ["T2V-01-Director", "T2V-01", "I2V-01-Director", "I2V-01-live", "I2V-01", "S2V-01"],
       schema: HAILUO_01_USAGE_SCHEMA,
       examples: [{ label: "01-series 720P 6s", facts: { seconds: 6 } }],
-    },  ],
+    },
+  ],
   // MiniMax request and response bodies, for clients and for a downstream New
   // API gateway, at MiniMax's own paths; the gateway also serves each under
   // /hailuo. The /v1 query reads the task id from the query string, as MiniMax
@@ -953,8 +955,10 @@ export function parseTaskResult(ctx, body) {
   }
   // The async T2A query: MiniMax's own statuses with the audio as a file_id
   // the host downloads through /v1/files/retrieve_content. An envelope error
-  // fails the task whatever the status field says.
-  if (body.status !== undefined && body.file_id !== undefined) {
+  // fails the task whatever the status field says. A legacy /v1 video
+  // response also carries a status and a file_id, so this branch keys on the
+  // task's own model.
+  if (isT2aAsync(ctx.upstreamModel || ctx.model) && body.status !== undefined && body.file_id !== undefined) {
     const envelopeCode = (body.base_resp && body.base_resp.status_code) || 0;
     if (envelopeCode !== 0) {
       return { code: envelopeCode, status: "FAILURE", progress: "100%", reason: (body.base_resp && body.base_resp.status_msg) || "task failed" };

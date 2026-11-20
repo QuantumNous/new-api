@@ -1240,16 +1240,17 @@ func TestHailuoT2aAsync(t *testing.T) {
 		assert.Equal(t, "https://api.minimax.example/v1/query/t2a_async_query_v2?task_id=t1", descriptor["url"])
 	})
 	t.Run("statuses map and success reports the file id", func(t *testing.T) {
+		t2aQueryCtx := map[string]any{"upstreamModel": "speech-2.8-turbo-async"}
 		var body any
 		require.NoError(t, common.UnmarshalJsonStr(`{"status":"Processing","task_id":"t1","file_id":"t1"}`, &body))
-		result := callHailuoHook(t, plugin, "parseTaskResult", map[string]any{}, body)
+		result := callHailuoHook(t, plugin, "parseTaskResult", t2aQueryCtx, body)
 		assert.Equal(t, "IN_PROGRESS", result["status"])
 		require.NoError(t, common.UnmarshalJsonStr(`{"status":"Success","task_id":"t1","file_id":"f9","base_resp":{"status_code":0}}`, &body))
-		result = callHailuoHook(t, plugin, "parseTaskResult", map[string]any{}, body)
+		result = callHailuoHook(t, plugin, "parseTaskResult", t2aQueryCtx, body)
 		assert.Equal(t, "SUCCESS", result["status"])
 		assert.Equal(t, "f9", result["file_id"])
 		require.NoError(t, common.UnmarshalJsonStr(`{"status":"Fail","task_id":"t1","file_id":"t1","base_resp":{"status_code":0,"status_msg":"audio failed"}}`, &body))
-		result = callHailuoHook(t, plugin, "parseTaskResult", map[string]any{}, body)
+		result = callHailuoHook(t, plugin, "parseTaskResult", t2aQueryCtx, body)
 		assert.Equal(t, "FAILURE", result["status"])
 		assert.Contains(t, result["reason"], "audio failed")
 	})
@@ -1335,7 +1336,7 @@ func TestHailuoT2aAsyncReviewFixes(t *testing.T) {
 		var body any
 		require.NoError(t, common.UnmarshalJsonStr(
 			`{"status":"Success","file_id":"f9","base_resp":{"status_code":1001,"status_msg":"internal error"}}`, &body))
-		result := callHailuoHook(t, plugin, "parseTaskResult", map[string]any{}, body)
+		result := callHailuoHook(t, plugin, "parseTaskResult", map[string]any{"upstreamModel": "speech-2.8-turbo-async"}, body)
 		assert.Equal(t, "FAILURE", result["status"])
 		assert.Contains(t, result["reason"], "internal error")
 	})
@@ -1377,4 +1378,17 @@ func TestHailuoH3MaxCompletionWithoutResponseModel(t *testing.T) {
 		}},
 	})
 	assert.Equal(t, map[string]any{"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)}, facts)
+}
+
+
+// A legacy /v1 video response also carries a status and a file_id; the async
+// T2A branch keys on the task's model, so the legacy parse path is unchanged.
+func TestHailuoLegacyResponseWithFileIDNotSwallowed(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	var body any
+	require.NoError(t, common.UnmarshalJsonStr(
+		`{"status":"Success","file_id":"t1","task_id":"t1","base_resp":{"status_code":0}}`, &body))
+	result := callHailuoHook(t, plugin, "parseTaskResult", map[string]any{"upstreamModel": "MiniMax-Hailuo-2.3"}, body)
+	assert.Equal(t, "SUCCESS", result["status"])
+	assert.Empty(t, result["file_id"])
 }
