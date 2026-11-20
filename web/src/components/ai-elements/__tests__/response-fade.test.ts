@@ -153,6 +153,126 @@ describe('classifyValue', () => {
     expect(state.prevCount).toBe(longText.length)
   })
 
+  test('emits the hydration baseline as one unsplit segment', () => {
+    const state = createFadeState()
+    const value = 'word '.repeat(FADE_HYDRATION_THRESHOLD)
+    const run = beginRun(state, true)
+    const segments = classifyValue(run, value)
+    endRun(run)
+
+    expect(segments).toEqual([{ start: 0, value, animated: false, delay: 0 }])
+    expect(state.prevCount).toBe(value.length)
+  })
+
+  test('emits settled text before the last run as one segment and splits the new tail', () => {
+    const state = createFadeState()
+    const first = beginRun(state)
+    classifyValue(first, 'alpha beta ')
+    endRun(first)
+
+    vi.spyOn(performance, 'now').mockReturnValue(
+      1000 + FADE_DURATION_MS + FADE_STAGGER_MAX_MS + 1
+    )
+    const second = beginRun(state)
+    const segments = classifyValue(second, 'alpha beta gamma delta')
+    endRun(second)
+
+    expect(segments).toEqual([
+      { start: 0, value: 'alpha beta ', animated: false, delay: 0 },
+      { start: 11, value: 'gamma ', animated: true, delay: 0 },
+      { start: 17, value: 'delta', animated: true, delay: FADE_STAGGER_MS },
+    ])
+    expect(second.count).toBe(22)
+  })
+
+  test('keeps splitting words still inside their window with their original start and delay', () => {
+    const state = createFadeState()
+    const first = beginRun(state)
+    classifyValue(first, 'alpha beta ')
+    endRun(first)
+
+    // alpha (delay 0) has finished; beta (delay FADE_STAGGER_MS) is still fading
+    vi.spyOn(performance, 'now').mockReturnValue(1000 + FADE_DURATION_MS + 1)
+    const second = beginRun(state)
+    const segments = classifyValue(second, 'alpha beta gamma')
+    endRun(second)
+
+    expect(segments).toEqual([
+      { start: 0, value: 'alpha ', animated: false, delay: 0 },
+      { start: 6, value: 'beta ', animated: true, delay: FADE_STAGGER_MS },
+      { start: 11, value: 'gamma', animated: true, delay: 0 },
+    ])
+  })
+
+  test('does not animate the rest of a word whose head arrived in an earlier run', () => {
+    const state = createFadeState()
+    const first = beginRun(state)
+    classifyValue(first, 'hel')
+    endRun(first)
+
+    vi.spyOn(performance, 'now').mockReturnValue(1000 + FADE_DURATION_MS + 1)
+    const second = beginRun(state)
+    const segments = classifyValue(second, 'hello world')
+    endRun(second)
+
+    expect(segments).toEqual([
+      { start: 0, value: 'hello ', animated: false, delay: 0 },
+      { start: 6, value: 'world', animated: true, delay: 0 },
+    ])
+  })
+
+  test('splits a spaceless CJK run only after the last settled punctuation', () => {
+    const state = createFadeState()
+    const first = beginRun(state)
+    classifyValue(first, '你好。')
+    endRun(first)
+
+    vi.spyOn(performance, 'now').mockReturnValue(
+      1000 + FADE_DURATION_MS + FADE_STAGGER_MAX_MS + 1
+    )
+    const value = '你好。世界和平'
+    const second = beginRun(state)
+    const segments = classifyValue(second, value)
+    endRun(second)
+
+    const [head, ...tail] = segments
+    expect(head).toEqual({
+      start: 0,
+      value: '你好。',
+      animated: false,
+      delay: 0,
+    })
+    expect(tail.every((s) => s.animated)).toBe(true)
+    // Tail parts are exactly the parts splitting the whole run yields there
+    expect(tail.map((s) => s.value)).toEqual(
+      splitWords(value).slice(-tail.length)
+    )
+    expect(tail.map((s) => s.value).join('')).toBe('世界和平')
+  })
+
+  test('does not split a CJK run in the middle of a word', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(1000)
+    const state = createFadeState()
+    const first = beginRun(state)
+    classifyValue(first, '你好。世界')
+    endRun(first)
+
+    vi.spyOn(performance, 'now').mockReturnValue(
+      1000 + FADE_DURATION_MS + FADE_STAGGER_MAX_MS + 1
+    )
+    const value = '你好。世界和平'
+    const second = beginRun(state)
+    const [head, ...tail] = classifyValue(second, value)
+    endRun(second)
+
+    // The settled head stops at the punctuation, not inside 世界和平
+    expect(head).toMatchObject({ start: 0, value: '你好。', animated: false })
+    expect(tail.map((s) => s.value)).toEqual(
+      splitWords(value).slice(-tail.length)
+    )
+    expect(tail.map((s) => s.value).join('')).toBe('世界和平')
+  })
+
   test('stops replaying animation after the window expires', () => {
     const state = createFadeState()
     const first = beginRun(state)
