@@ -19,14 +19,17 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
 
 const (
-	InitialScannerBufferSize    = 64 << 10  // 64KB (64*1024)
-	DefaultMaxScannerBufferSize = 128 << 20 // 64MB (64*1024*1024) default SSE buffer size
-	DefaultPingInterval         = 10 * time.Second
+	InitialScannerBufferSize     = 64 << 10  // 64KB (64*1024)
+	DefaultMaxScannerBufferSize  = 128 << 20 // 64MB (64*1024*1024) default SSE buffer size
+	DefaultPingInterval          = 10 * time.Second
+	codexReasoningIncludedHeader = "X-Reasoning-Included"
+	codexTurnStateHeader         = "X-Codex-Turn-State"
 	// streamWriteTimeout bounds a write blocked on a client that stopped
 	// reading so the unconditional wg.Wait() in cleanup can always finish.
 	// Without it, a connected client with a full TCP buffer (no server
@@ -55,13 +58,15 @@ func NewStreamScanner(reader io.Reader, maxBytes ...int) *bufio.Scanner {
 	return scanner
 }
 
-func copyCodexSSEHeaders(c *gin.Context, resp *http.Response) {
+func copyCodexSSEHeaders(c *gin.Context, resp *http.Response, copyAll bool) {
 	if c == nil || c.Writer == nil || resp == nil {
 		return
 	}
-	// codex
-	for _, name := range []string{"X-Reasoning-Included", "X-Codex-Turn-State"} {
-		values := resp.Header.Values(name)
+	headers := resp.Header
+	if !copyAll {
+		headers = lo.PickByKeys(resp.Header, []string{codexReasoningIncludedHeader, codexTurnStateHeader})
+	}
+	for name, values := range headers {
 		if !service.ShouldCopyUpstreamHeader(c, name, values) {
 			continue
 		}
@@ -71,6 +76,14 @@ func copyCodexSSEHeaders(c *gin.Context, resp *http.Response) {
 			}
 		}
 	}
+}
+
+// copyAllSSEHeaders reports whether a stream keeps the upstream response
+// headers, as a non-stream response already does. A New API channel points at
+// another gateway, whose request ID and routing headers are what an operator
+// needs to trace a streamed call through both gateways.
+func copyAllSSEHeaders(channelType int) bool {
+	return channelType == constant.ChannelTypeCodex || channelType == constant.ChannelTypeNewAPI
 }
 
 // StreamWriteBudget gives the writes of one stream a deadline of
@@ -190,7 +203,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	defer cleanup()
 
 	scanner.Split(bufio.ScanLines)
-	copyCodexSSEHeaders(c, resp)
+	copyCodexSSEHeaders(c, resp, copyAllSSEHeaders(info.ChannelMeta.ChannelType))
 	SetEventStreamHeaders(c)
 
 	ctx = context.WithValue(ctx, "stop_chan", stopChan)
