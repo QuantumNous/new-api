@@ -14,7 +14,8 @@ func TaskExecutionSnapshotFromContext(ctx *gin.Context) *model.TaskExecutionSnap
 		return nil
 	}
 	snapshot := &model.TaskExecutionSnapshot{
-		RequestID: ctx.GetString(common.RequestIdKey),
+		RequestID:      ctx.GetString(common.RequestIdKey),
+		RequestHeaders: model.CaptureLogRequestHeaders(ctx.Request),
 	}
 	if ctx.Request != nil && ctx.Request.URL != nil {
 		snapshot.RequestPath = ctx.Request.URL.Path
@@ -43,7 +44,7 @@ func TaskExecutionSnapshotFromContext(ctx *gin.Context) *model.TaskExecutionSnap
 		}
 	}
 
-	if snapshot.RequestID == "" && snapshot.RequestPath == "" && snapshot.TaskPlugin == nil {
+	if snapshot.RequestID == "" && snapshot.RequestPath == "" && snapshot.RequestHeaders == nil && snapshot.TaskPlugin == nil {
 		return nil
 	}
 	return snapshot
