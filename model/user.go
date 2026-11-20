@@ -618,7 +618,11 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	}
 
 	// 提交事务
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	syncCreditUserQuotaCache(user.Id, quota, "affiliate quota transfer")
+	return nil
 }
 
 func (user *User) prepareForInsert(tx *gorm.DB) error {
