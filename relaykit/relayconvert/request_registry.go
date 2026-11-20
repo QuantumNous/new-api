@@ -312,10 +312,11 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 func responsesToolState(tools toolconv.Set) *convmeta.ResponsesToolState {
 	names := toolconv.ResponsesCustomToolNames(tools)
 	namespaces := toolconv.ResponsesToolNamespaces(tools)
-	if len(names) == 0 && len(namespaces) == 0 {
+	toolSearches := toolconv.ResponsesToolSearchNames(tools)
+	if len(names) == 0 && len(namespaces) == 0 && len(toolSearches) == 0 {
 		return nil
 	}
-	return &convmeta.ResponsesToolState{CustomToolNames: names, Namespaces: namespaces}
+	return &convmeta.ResponsesToolState{CustomToolNames: names, Namespaces: namespaces, ToolSearchNames: toolSearches}
 }
 
 func expandRequestConverterSteps(spec RequestConverterSpec) ([]RequestConverterSpec, error) {
