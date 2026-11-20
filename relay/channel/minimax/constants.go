@@ -23,6 +23,26 @@ var ModelList = []string{
 	"MiniMax-M2.5-highspeed",
 	"image-01",
 	"image-01-live",
+	"MiniMax-H3-Image",
+	"MiniMax-H3-Image-Highspeed",
 }
+
+// MiniMax H3 image limits, from the image generation
+// documentation: at most 16 reference images, at most 10 outputs per request,
+// and an explicit size between 655,360 and 20,000,000 pixels.
+const (
+	miniMaxH3MaxReferenceImages = 16
+	miniMaxH3MaxN               = 10
+	miniMaxH3MinPixels          = 655_360
+	miniMaxH3MaxPixels          = 20_000_000
+)
+
+// The upstream streams one event per finished image and ends the stream with
+// a summary event that carries the usage. The generation endpoint and the
+// edit endpoint use the same event shapes with a different prefix.
+const (
+	miniMaxH3GenerationPartialSucceeded = "image_generation.partial_succeeded"
+	miniMaxH3EditPartialSucceeded       = "image_edit.partial_succeeded"
+)
 
 var ChannelName = "minimax"

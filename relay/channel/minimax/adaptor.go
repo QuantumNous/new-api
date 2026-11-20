@@ -78,10 +78,17 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	if info.RelayMode != constant.RelayModeImagesGenerations {
+	switch info.RelayMode {
+	case constant.RelayModeImagesGenerations:
+		if isMiniMaxH3ImageModel(request.Model) {
+			return convertMiniMaxH3Generation(request)
+		}
+		return oaiImage2MiniMaxImageRequest(request), nil
+	case constant.RelayModeImagesEdits:
+		return convertMiniMaxH3Edit(c, request)
+	default:
 		return nil, fmt.Errorf("unsupported image relay mode: %d", info.RelayMode)
 	}
-	return oaiImage2MiniMaxImageRequest(request), nil
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -117,6 +124,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if info.RelayMode == constant.RelayModeImagesEdits && miniMaxH3IsMultipartRequest(c) {
+		return channel.DoFormRequest(a, c, info, requestBody)
+	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
@@ -124,7 +134,19 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if info.RelayMode == constant.RelayModeAudioSpeech {
 		return handleTTSResponse(c, resp, info)
 	}
+	if info.RelayMode == constant.RelayModeImagesEdits {
+		if info.IsStream {
+			return miniMaxH3ImageStreamHandler(c, info, resp)
+		}
+		return miniMaxH3ImageHandler(c, resp, info)
+	}
 	if info.RelayMode == constant.RelayModeImagesGenerations {
+		if isMiniMaxH3ImageModel(info.GetUpstreamModelName()) {
+			if info.IsStream {
+				return miniMaxH3ImageStreamHandler(c, info, resp)
+			}
+			return miniMaxH3ImageHandler(c, resp, info)
+		}
 		return miniMaxImageHandler(c, resp, info)
 	}
 
