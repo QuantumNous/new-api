@@ -65,6 +65,21 @@ func TestRenderGeminiMapsAndClampsInsteadOfRejecting(t *testing.T) {
 			wantCodes:  []string{"gemini_level_adjusted"},
 		},
 		{
+			name:       "xhigh on gemini 4 neon is kept",
+			model:      "gemini-4-neon",
+			intent:     Intent{Mode: ModeEnabled, Effort: EffortXHigh},
+			wantLevel:  "xhigh",
+			wantEffort: EffortXHigh,
+		},
+		{
+			name:       "minimal on gemini 4 neon moves to low",
+			model:      "gemini-4-neon",
+			intent:     Intent{Mode: ModeEnabled, Effort: EffortMinimal},
+			wantLevel:  "low",
+			wantEffort: EffortLow,
+			wantCodes:  []string{"gemini_level_adjusted"},
+		},
+		{
 			name:       "max on gemini 4 argon is kept",
 			model:      "gemini-4-argon",
 			intent:     Intent{Mode: ModeEnabled, Effort: EffortMax},
@@ -276,6 +291,14 @@ func TestNormalizeGeminiThinkingConfigRewritesNativeConfig(t *testing.T) {
 			config:     dto.GeminiThinkingConfig{ThinkingLevel: "max"},
 			wantLevel:  "max",
 			wantEffort: EffortMax,
+		},
+		{
+			name:       "budget on gemini 4 neon becomes level",
+			model:      "gemini-4-neon",
+			config:     dto.GeminiThinkingConfig{ThinkingBudget: intPtr(8192)},
+			wantLevel:  "medium",
+			wantEffort: EffortMedium,
+			wantCodes:  []string{"gemini_budget_to_level"},
 		},
 		{
 			name:    "unknown level is rejected",
