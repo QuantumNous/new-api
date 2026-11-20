@@ -188,10 +188,11 @@ func (c *ClaudeMessage) ParseContent() ([]ClaudeMediaMessage, error) {
 }
 
 type Tool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	InputSchema json.RawMessage `json:"input_schema"`
-	Strict      *bool           `json:"strict,omitempty"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description,omitempty"`
+	InputSchema  json.RawMessage `json:"input_schema"`
+	Strict       *bool           `json:"strict,omitempty"`
+	CacheControl json.RawMessage `json:"cache_control,omitempty"`
 }
 
 type InputSchema struct {
