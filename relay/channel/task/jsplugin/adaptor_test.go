@@ -130,6 +130,7 @@ export function parseSubmitResponse(){return {taskId:"1"}} export function build
 			require.NoError(t, err)
 			upstreamRequest := httptest.NewRequest(http.MethodPost, "https://provider.example/submit", body)
 			require.NoError(t, adaptor.BuildRequestHeader(c, upstreamRequest, info))
+			assert.Equal(t, "application/json", c.GetHeader("Content-Type"))
 			mediaType, params, err := mime.ParseMediaType(upstreamRequest.Header.Get("Content-Type"))
 			require.NoError(t, err)
 			assert.Equal(t, "multipart/form-data", mediaType)

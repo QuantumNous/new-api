@@ -56,6 +56,8 @@ type requestDescriptor struct {
 	// BodyText is the body as JSON.stringify wrote it, for a plugin that
 	// preserves JSON order: the upstream gets the members in that order.
 	BodyText json.RawMessage `json:"-"`
+
+	multipartContentType string
 }
 
 // orderedRequestDescriptor is requestDescriptor as a plugin that preserves
@@ -324,17 +326,16 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 	return a.submit.URL, pluginruntime.ValidateRequestURL(a.submit.URL, info.ChannelBaseUrl, a.plugin.Meta.AllowedHosts)
 }
 
-func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
+func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *relaycommon.RelayInfo) error {
 	if a.submit == nil {
 		return fmt.Errorf("plugin submit request was not built")
 	}
 	for name, value := range a.submit.Headers {
 		req.Header.Set(name, value)
 	}
-	// BuildRequestBody rebuilt the multipart body with a new boundary and put its
-	// Content-Type on the client request; a plugin's own Content-Type cannot match it.
-	if a.submit.BodyType == "multipart" {
-		req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	// The upstream Content-Type must carry the boundary used to encode the body.
+	if a.submit.multipartContentType != "" {
+		req.Header.Set("Content-Type", a.submit.multipartContentType)
 	}
 	return nil
 }
@@ -406,7 +407,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err = writer.Close(); err != nil {
 			return nil, err
 		}
-		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+		descriptor.multipartContentType = writer.FormDataContentType()
 		return bytes.NewReader(body.Bytes()), nil
 	}
 	if descriptor.Body == nil {
