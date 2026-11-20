@@ -1272,3 +1272,14 @@ func TestHailuoT2aAsyncUsageProfile(t *testing.T) {
 	assert.Equal(t, []string{"characters"}, slices.Sorted(maps.Keys(schema)))
 	assert.NotEmpty(t, examples)
 }
+
+// The async T2A create answers a numeric task_id; the host persists task ids
+// as strings.
+func TestHailuoT2aAsyncNumericTaskID(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	ctx := map[string]any{"upstreamModel": "speech-2.8-turbo-async"}
+	value := callHailuoHook(t, plugin, "parseSubmitResponse", ctx, map[string]any{
+		"body": map[string]any{"task_id": 465314564125293, "task_token": "jwt", "base_resp": map[string]any{"status_code": 0}},
+	})
+	assert.Equal(t, "465314564125293", value["taskId"])
+}

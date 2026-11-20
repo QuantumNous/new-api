@@ -849,14 +849,15 @@ export function parseSubmitResponse(ctx, resp) {
   if (apiError) throw new Error(apiError.message);
   const base = body.base_resp;
   // /v1 always wraps the create response in a base_resp envelope; /v2 returns a
-  // bare task_id and only adds base_resp when the call is rejected.
+  // bare task_id and only adds base_resp when the call is rejected. The async
+  // T2A create answers a numeric task_id, which the host persists as a string.
   if (base) {
     if (base.status_code !== 0) throw new Error(base.status_msg || "hailuo submit failed");
-  } else if (!isH3(ctx.upstreamModel)) {
+  } else if (!isH3(ctx.upstreamModel) && !isT2aAsync(ctx.upstreamModel)) {
     throw new Error("hailuo submit failed");
   }
-  if (!body.task_id) throw new Error("missing task_id");
-  return { taskId: body.task_id, taskData: body };
+  if (body.task_id === undefined || body.task_id === null || body.task_id === "") throw new Error("missing task_id");
+  return { taskId: String(body.task_id), taskData: body };
 }
 
 export function extractUsage(ctx) {
