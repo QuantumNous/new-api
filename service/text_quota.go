@@ -284,7 +284,6 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 
 	dPromptTokens := decimal.NewFromInt(int64(summary.PromptTokens))
 	dCacheTokens := decimal.NewFromInt(int64(summary.CacheTokens))
-	dImageTokens := decimal.NewFromInt(int64(summary.ImageTokens))
 	dAudioTokens := decimal.NewFromInt(int64(summary.AudioTokens))
 	dCompletionTokens := decimal.NewFromInt(int64(summary.CompletionTokens))
 	dCachedCreationTokens := decimal.NewFromInt(int64(summary.CacheCreationTokens))
@@ -299,6 +298,17 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	dCacheCreationRatio1h := decimal.NewFromFloat(summary.CacheCreationRatio1h)
 	dCacheCreationRatio12h := decimal.NewFromFloat(summary.CacheCreationRatio12h)
 	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+
+	// Prevent double-charging when some image tokens are also reported as cache hits.
+	// cache tokens is a modality-agnostic count; if cached tokens include some image
+	// tokens, those image tokens should not be additionally charged as image input.
+	imageTokensNotCached := summary.ImageTokens
+	if summary.CacheTokens >= imageTokensNotCached {
+		imageTokensNotCached = 0
+	} else {
+		imageTokensNotCached = summary.ImageTokens - summary.CacheTokens
+	}
+	dImageTokensEffective := decimal.NewFromInt(int64(imageTokensNotCached))
 
 	ratio := dModelRatio.Mul(dGroupRatio)
 	summary.ToolCallSurchargeQuota = calculateTextToolCallSurcharge(ctx, relayInfo, &summary)
@@ -333,9 +343,9 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		}
 
 		var imageTokensWithRatio decimal.Decimal
-		if !dImageTokens.IsZero() {
-			baseTokens = baseTokens.Sub(dImageTokens)
-			imageTokensWithRatio = dImageTokens.Mul(dImageRatio)
+		if !dImageTokensEffective.IsZero() {
+			baseTokens = baseTokens.Sub(dImageTokensEffective)
+			imageTokensWithRatio = dImageTokensEffective.Mul(dImageRatio)
 		}
 
 		if !dAudioTokens.IsZero() {
