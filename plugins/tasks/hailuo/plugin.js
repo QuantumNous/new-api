@@ -73,13 +73,17 @@ const T2A_ASYNC_USAGE_SCHEMA = {
 };
 
 // The fields the async T2A host protocols carry, with MiniMax's defaults;
-// everything else rides in metadata.t2a for full-passthrough control.
-function t2aAsyncBody(req) {
+// everything else rides in metadata.t2a for full-passthrough control. The
+// caller decides the model — the gateway contract keeps the alias, the
+// vendor gets the upstream name — and t2a.model cannot redirect it. The host
+// protocols carry the voice under metadata.voice.
+function t2aAsyncBody(req, model) {
   const metadata = req.metadata || {};
   const t2a = plainObject(metadata.t2a) || {};
   const text = trimmed(req.prompt) || trimmed(req.text);
-  const body = Object.assign({ model: t2aAsyncUpstream(req.model || "") }, t2a);
-  if (!body.voice_setting) body.voice_setting = { voice_id: trimmed(req.voice) || "male-qn-qingse" };
+  const body = Object.assign({}, t2a);
+  body.model = model;
+  if (!body.voice_setting) body.voice_setting = { voice_id: trimmed(req.voice) || trimmed(metadata.voice) || "male-qn-qingse" };
   if (text) body.text = text;
   else if (!trimmed(body.text) && !trimmed(body.text_file_id)) throw new Error("text or text_file_id is required");
   return body;
@@ -110,6 +114,10 @@ function t2aAsyncUpstream(model) {
 function isT2aAsync(model) {
   return T2A_ASYNC_MODELS.indexOf(model) >= 0;
 }
+// A text file may hold up to 100k direct characters; a file-only submission
+// reserves that maximum until the completion hook settles with the usage the
+// status reports.
+const T2A_MAX_FILE_CHARACTERS = 50000;
 const V1_MODELS = [
   "MiniMax-Hailuo-2.3",
   "MiniMax-Hailuo-2.3-Fast",
@@ -790,8 +798,12 @@ export function buildSubmitRequest(ctx) {
   const metadata = req.metadata || {};
   if (isT2aAsync(model)) {
     // A native body goes out as is (its model already upstream-named); the
-    // host protocols carry prompt/voice fields under metadata.t2a.
-    const nativeBody = req.vendorBody || t2aAsyncBody(req);
+    // host protocols carry prompt/voice fields under metadata.t2a. A New API
+    // gateway's own /hailuo route accepts only the async aliases, so the
+    // alias stays for gateway requests and the vendor gets the upstream name.
+    const nativeBody = req.vendorBody
+      ? Object.assign({}, req.vendorBody, { model: viaGateway(ctx) ? model : t2aAsyncUpstream(model) })
+      : t2aAsyncBody(req, viaGateway(ctx) ? model : t2aAsyncUpstream(model));
     return {
       url: apiRoot(ctx) + "/v1/t2a_async_v2",
       method: "POST",
@@ -866,9 +878,14 @@ export function extractUsage(ctx) {
   const model = ctx.upstreamModel || req.model;
   if (isT2aAsync(model)) {
     // MiniMax bills T2A per character with each CJK character counting as
-    // two; the weighted length is the only dimension.
+    // two; the weighted length is the only dimension. A file-only submission
+    // has no text to weigh, so the documented per-file maximum is reserved and
+    // the completion hook settles with the usage the status reports.
     const t2a = plainObject((req.metadata || {}).t2a) || {};
-    const text = trimmed(req.prompt) || trimmed(req.text) || trimmed(req.vendorBody && req.vendorBody.text) || trimmed(t2a.text);
+    const vendorBody = req.vendorBody || {};
+    const text = trimmed(req.prompt) || trimmed(req.text) || trimmed(vendorBody.text) || trimmed(t2a.text);
+    const fileOnly = !text && (trimmed(vendorBody.text_file_id) !== "" || trimmed(t2a.text_file_id) !== "" || (req.text_file_id !== undefined && req.text_file_id !== null && String(req.text_file_id) !== ""));
+    if (fileOnly) return { characters: T2A_MAX_FILE_CHARACTERS };
     let weighted = 0;
     for (const ch of String(text || "")) weighted += ch.charCodeAt(0) > 0xff ? 2 : 1;
     return { characters: Math.max(1, Math.ceil(weighted / 2)) };
@@ -935,14 +952,19 @@ export function parseTaskResult(ctx, body) {
     return h3Result;
   }
   // The async T2A query: MiniMax's own statuses with the audio as a file_id
-  // the host downloads through /v1/files/retrieve_content.
+  // the host downloads through /v1/files/retrieve_content. An envelope error
+  // fails the task whatever the status field says.
   if (body.status !== undefined && body.file_id !== undefined) {
+    const envelopeCode = (body.base_resp && body.base_resp.status_code) || 0;
+    if (envelopeCode !== 0) {
+      return { code: envelopeCode, status: "FAILURE", progress: "100%", reason: (body.base_resp && body.base_resp.status_msg) || "task failed" };
+    }
     const t2aStatuses = { Preparing: "IN_PROGRESS", Queueing: "IN_PROGRESS", Pending: "IN_PROGRESS", Processing: "IN_PROGRESS", Success: "SUCCESS", Fail: "FAILURE", Failed: "FAILURE" };
     const t2aStatus = t2aStatuses[body.status];
     if (!t2aStatus) {
       return { status: "UNKNOWN", reason: "unrecognized status: " + String(body.status || "") };
     }
-    const t2aResult = { code: (body.base_resp && body.base_resp.status_code) || 0, status: t2aStatus, progress: t2aStatus === "SUCCESS" || t2aStatus === "FAILURE" ? "100%" : "50%" };
+    const t2aResult = { code: envelopeCode, status: t2aStatus, progress: t2aStatus === "SUCCESS" || t2aStatus === "FAILURE" ? "100%" : "50%" };
     if (t2aStatus === "SUCCESS") {
       const fileID = trimmed(body.file_id);
       if (fileID && fileID !== body.task_id) t2aResult.file_id = fileID;
@@ -1046,6 +1068,14 @@ export function buildContentRequest(ctx) {
 }
 
 export function extractUsageOnComplete(_task, _taskResult, body) {
+  // The async T2A status reports the authoritative usage_characters; it
+  // settles the submission estimate, and in particular replaces a
+  // file-only submission's reserved maximum.
+  if (trimmed((body || {}).usage_characters) !== "" && trimmed((body || {}).status) === "Success") {
+    const reported = Number(body.usage_characters);
+    if (Number.isFinite(reported) && reported > 0) return { characters: Math.ceil(reported / 2) };
+    return null;
+  }
   const h3Task = h3QueryTask(body);
   if (h3Task) {
     const resolution = trimmed(h3Task.resolution).toUpperCase();

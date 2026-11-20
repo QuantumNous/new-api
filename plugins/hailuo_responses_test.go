@@ -1283,3 +1283,73 @@ func TestHailuoT2aAsyncNumericTaskID(t *testing.T) {
 	})
 	assert.Equal(t, "465314564125293", value["taskId"])
 }
+
+// The review round fixes: the selected model wins over metadata.t2a.model,
+// gateway requests keep the async alias, file-only submissions reserve the
+// documented maximum, envelope errors fail a task whatever the status says,
+// and the decoded voice reaches the request.
+func TestHailuoT2aAsyncReviewFixes(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	t2aCtx := func(requestBody map[string]any) map[string]any {
+		ctx := hailuoH3SubmitContext(requestBody)
+		ctx["model"] = "speech-2.8-turbo-async"
+		ctx["upstreamModel"] = "speech-2.8-turbo-async"
+		return ctx
+	}
+	t.Run("metadata.t2a.model cannot redirect the selected model", func(t *testing.T) {
+		descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", t2aCtx(map[string]any{
+			"model": "speech-2.8-turbo-async", "prompt": "p",
+			"metadata": map[string]any{"t2a": map[string]any{"model": "speech-2.8-hd"}},
+		}))
+		body, err := common.Marshal(descriptor["body"])
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(body, &decoded))
+		assert.Equal(t, "speech-2.8-turbo", decoded["model"])
+	})
+	t.Run("a gateway request keeps the async alias", func(t *testing.T) {
+		ctx := t2aCtx(map[string]any{"model": "speech-2.8-turbo-async", "prompt": "p"})
+		ctx["upstream"] = map[string]any{"kind": "new_api"}
+		descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", ctx)
+		assert.Equal(t, "https://api.minimax.example/hailuo/v1/t2a_async_v2", descriptor["url"])
+		body, err := common.Marshal(descriptor["body"])
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(body, &decoded))
+		assert.Equal(t, "speech-2.8-turbo-async", decoded["model"])
+	})
+	t.Run("a file-only submission reserves the documented maximum", func(t *testing.T) {
+		facts := callHailuoHook(t, plugin, "extractUsage", t2aCtx(map[string]any{
+			"model": "speech-2.8-turbo-async",
+			"metadata": map[string]any{"t2a": map[string]any{"text_file_id": 12345}},
+		}))
+		assert.Equal(t, map[string]any{"characters": float64(50000)}, facts)
+	})
+	t.Run("the completion hook settles with the reported usage characters", func(t *testing.T) {
+		facts := callHailuoHook(t, plugin, "extractUsageOnComplete", nil, nil, map[string]any{
+			"status": "Success", "usage_characters": 52,
+		})
+		assert.Equal(t, map[string]any{"characters": float64(26)}, facts)
+	})
+	t.Run("an envelope error fails the task whatever the status says", func(t *testing.T) {
+		var body any
+		require.NoError(t, common.UnmarshalJsonStr(
+			`{"status":"Success","file_id":"f9","base_resp":{"status_code":1001,"status_msg":"internal error"}}`, &body))
+		result := callHailuoHook(t, plugin, "parseTaskResult", map[string]any{}, body)
+		assert.Equal(t, "FAILURE", result["status"])
+		assert.Contains(t, result["reason"], "internal error")
+	})
+	t.Run("metadata.voice reaches the speech request", func(t *testing.T) {
+		descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", t2aCtx(map[string]any{
+			"model": "speech-2.8-turbo-async", "prompt": "p",
+			"metadata": map[string]any{"voice": "Calm_Woman"},
+		}))
+		body, err := common.Marshal(descriptor["body"])
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(body, &decoded))
+		voiceSetting, ok := decoded["voice_setting"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "Calm_Woman", voiceSetting["voice_id"])
+	})
+}
