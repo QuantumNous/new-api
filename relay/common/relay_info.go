@@ -1010,6 +1010,8 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 	}
 	if info != nil {
 		if info.ChannelMeta != nil {
+			options.Claude.ResponsesPromptCaching = channelType == constant.ChannelTypeAnthropic &&
+				strings.TrimRight(info.ChannelBaseUrl, "/") == constant.GetChannelBaseURL(constant.ChannelTypeAnthropic)
 			options.ToolLossPolicy = types.ConversionLossPolicy(info.ChannelOtherSettings.ToolLossPolicy)
 		}
 		info.convOptions = options
