@@ -64,14 +64,14 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *t
 
 func TestResponsesRequestToChatCompletionsRequestCacheControls(t *testing.T) {
 	for _, tc := range []struct {
-		name, options, wantError string
+		name, options, wantOptions, wantError string
 	}{
 		{name: "absent"},
 		{name: "no-op Responses fields", options: `{"prewarm":false,"comparison_response_id":null}`},
 		{name: "prewarm cannot become generation", options: `{"prewarm":true}`, wantError: "does not support prompt_cache_options.prewarm"},
 		{name: "comparison needs Responses diagnostics", options: `{"comparison_response_id":"resp_123"}`, wantError: "does not support prompt_cache_options.comparison_response_id"},
 		{name: "TTL cannot be shortened", options: `{"ttl":"12h"}`, wantError: "does not support prompt_cache_options.ttl=12h"},
-		{name: "explicit breakpoints unsupported", options: `{"mode":"explicit"}`, wantError: "breakpoints are not converted"},
+		{name: "explicit without breakpoints", options: `{"mode":"explicit"}`, wantOptions: `{"mode":"explicit"}`},
 		{name: "malformed prewarm", options: `{"prewarm":"false"}`, wantError: "invalid prompt_cache_options.prewarm"},
 		{name: "non-object", options: `[]`, wantError: "invalid prompt_cache_options"},
 	} {
@@ -89,7 +89,67 @@ func TestResponsesRequestToChatCompletionsRequestCacheControls(t *testing.T) {
 			require.NoError(t, err)
 			encoded, err := kitutil.Marshal(converted)
 			require.NoError(t, err)
-			assert.False(t, ojson.GetBytes(encoded, "prompt_cache_options").Exists())
+			options := ojson.GetBytes(encoded, "prompt_cache_options")
+			if tc.wantOptions == "" {
+				assert.False(t, options.Exists())
+			} else {
+				assert.JSONEq(t, tc.wantOptions, options.Raw)
+			}
+		})
+	}
+}
+
+func TestResponsesRequestToChatCompletionsRequestCacheBreakpoints(t *testing.T) {
+	for _, tc := range []struct {
+		name, request, wantPath string
+	}{
+		{
+			name:     "implicit mode by omission",
+			request:  `{"input":[{"role":"user","content":[{"type":"input_text","text":"prefix","prompt_cache_breakpoint":{}}]}]}`,
+			wantPath: "input[0].content[0].prompt_cache_breakpoint",
+		},
+		{
+			name:     "implicit mode with instruction blocks",
+			request:  `{"prompt_cache_options":{"mode":"implicit"},"input":"hello","instructions":[{"type":"message","role":"developer","content":[{"type":"input_text","text":"prefix","prompt_cache_breakpoint":{}}]}]}`,
+			wantPath: "instructions[0].content[0].prompt_cache_breakpoint",
+		},
+		{
+			name:     "explicit mode with a function output block",
+			request:  `{"prompt_cache_options":{"mode":"explicit"},"input":[{"type":"function_call_output","call_id":"call_1","output":[{"type":"input_text","text":"prefix","prompt_cache_breakpoint":{"mode":"explicit"}}]}]}`,
+			wantPath: "input[0].output[0].prompt_cache_breakpoint",
+		},
+		{
+			name:     "custom tool output image block",
+			request:  `{"input":[{"type":"custom_tool_call_output","call_id":"call_1","output":[{"type":"input_image","image_url":"https://example.test/a.png","prompt_cache_breakpoint":{"ttl":"30m"}}]}]}`,
+			wantPath: "input[0].output[0].prompt_cache_breakpoint",
+		},
+		{
+			name:    "text and function parameter names",
+			request: `{"instructions":"{\"prompt_cache_breakpoint\":{}}","input":"prompt_cache_breakpoint","tools":[{"type":"function","name":"lookup","parameters":{"type":"object","properties":{"prompt_cache_breakpoint":{"type":"string"}}}}]}`,
+		},
+		{
+			name:    "arbitrary JSON tool output",
+			request: `{"input":[{"type":"function_call_output","call_id":"call_1","output":[{"type":"record","prompt_cache_breakpoint":{}}]}]}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var req dto.OpenAIResponsesRequest
+			require.NoError(t, kitutil.Unmarshal([]byte(tc.request), &req))
+			req.Model = "gpt-test"
+			converted, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &req)
+			if tc.wantPath != "" {
+				require.ErrorContains(t, err, tc.wantPath)
+				assert.Nil(t, converted)
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, converted.Messages)
+			assert.Contains(t, converted.Messages[0].StringContent(), "prompt_cache_breakpoint")
+			if len(req.Tools) > 0 {
+				tools, err := kitutil.Marshal(converted.Tools)
+				require.NoError(t, err)
+				assert.Contains(t, string(tools), "prompt_cache_breakpoint")
+			}
 		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
@@ -17,8 +18,7 @@ func OptionsToChat(raw json.RawMessage) (json.RawMessage, error) {
 	return convertOptions(raw, "chat")
 }
 
-// convertOptions maps only request-level settings that both endpoints can
-// express. Content-level prompt_cache_breakpoint translation is separate.
+// convertOptions maps only request-level settings that both endpoints can express.
 func convertOptions(raw json.RawMessage, target string) (json.RawMessage, error) {
 	if len(raw) == 0 {
 		return nil, nil
@@ -39,10 +39,7 @@ func convertOptions(raw json.RawMessage, target string) (json.RawMessage, error)
 			if err := kitutil.Unmarshal(value, &options.Mode); err != nil {
 				return nil, fmt.Errorf("invalid prompt_cache_options.mode: %w", err)
 			}
-			if options.Mode == "explicit" {
-				return nil, fmt.Errorf("conversion to %s does not support prompt_cache_options.mode=explicit: prompt cache breakpoints are not converted", target)
-			}
-			if options.Mode != "implicit" {
+			if options.Mode != "implicit" && options.Mode != "explicit" {
 				return nil, fmt.Errorf("invalid prompt_cache_options.mode: expected implicit or explicit")
 			}
 		case "ttl":
@@ -85,4 +82,27 @@ func convertOptions(raw json.RawMessage, target string) (json.RawMessage, error)
 		return nil, nil
 	}
 	return kitutil.Marshal(options)
+}
+
+// BreakpointIndex returns the index of the first block with a cache breakpoint,
+// or -1. Part types can narrow the search in arrays that also carry plain JSON.
+func BreakpointIndex(content any, partTypes ...string) int {
+	hasBreakpoint := func(part map[string]any) bool {
+		if part["prompt_cache_breakpoint"] == nil {
+			return false
+		}
+		partType, _ := part["type"].(string)
+		return len(partTypes) == 0 || slices.Contains(partTypes, strings.TrimSpace(partType))
+	}
+	switch parts := content.(type) {
+	case []any:
+		return slices.IndexFunc(parts, func(value any) bool {
+			part, _ := value.(map[string]any)
+			return hasBreakpoint(part)
+		})
+	case []map[string]any:
+		return slices.IndexFunc(parts, hasBreakpoint)
+	default:
+		return -1
+	}
 }

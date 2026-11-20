@@ -97,10 +97,25 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 		return nil, err
 	}
 
+	if kitutil.GetJsonType(req.Prediction) == "object" {
+		var prediction struct {
+			Content any `json:"content"`
+		}
+		if err := kitutil.Unmarshal(req.Prediction, &prediction); err == nil {
+			if index := oaicache.BreakpointIndex(prediction.Content); index >= 0 {
+				return nil, fmt.Errorf("conversion to responses does not support prediction.content[%d].prompt_cache_breakpoint", index)
+			}
+		}
+	}
+
 	var instructionsParts []string
 	inputItems := make([]map[string]any, 0, len(req.Messages))
 
-	for _, msg := range req.Messages {
+	for index, msg := range req.Messages {
+		if partIndex := oaicache.BreakpointIndex(msg.Content); partIndex >= 0 {
+			return nil, fmt.Errorf("conversion to responses does not support messages[%d].content[%d].prompt_cache_breakpoint", index, partIndex)
+		}
+
 		role := strings.TrimSpace(msg.Role)
 		if role == "" {
 			continue
