@@ -51,6 +51,13 @@ export function getLogCsvHeader(isAdmin: boolean, t: Translate): string[] {
     t('IP'),
     t('Request ID'),
     t('Details'),
+    `SVG · ${t('Request Model')}`,
+    `SVG · ${t('Actual Model')}`,
+    `SVG · ${t('Input Tokens')}`,
+    `SVG · ${t('Output Tokens')}`,
+    `SVG · ${t('Output Tokens')} (${t('Reasoning')})`,
+    `SVG · ${t('Total Tokens')}`,
+    `SVG · ${t('Quota')}`,
   ]
 }
 
@@ -62,6 +69,7 @@ export function getLogCsvRow(
 ): string[] {
   const other = parseLogOther(log.other ?? '')
   const usage = isDisplayableLogType(log.type)
+  const author = other?.svg_author
   const cacheWrite =
     (other?.cache_creation_tokens_5m ?? 0) +
       (other?.cache_creation_tokens_1h ?? 0) ||
@@ -91,6 +99,13 @@ export function getLogCsvRow(
     log.ip ?? '',
     log.request_id ?? '',
     renderLogContent(other, t) ?? log.content ?? '',
+    author?.billing_model ?? '',
+    author?.usage?.model ?? '',
+    String(author?.usage?.input_tokens ?? ''),
+    String(author?.usage?.output_tokens ?? ''),
+    String(author?.usage?.reasoning_tokens ?? ''),
+    String(author?.usage?.total_tokens ?? ''),
+    String(author?.quota ?? ''),
   ]
 }
 

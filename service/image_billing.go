@@ -23,11 +23,15 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 	info.ImageRequestCount = count
 	var quota int
 	var err error
-	if snap := info.TieredBillingSnapshot; snap != nil && snap.BillingMode == "tiered_expr" {
+	snap := info.TieredBillingSnapshot
+	switch {
+	case snap != nil && snap.BillingMode == "tiered_expr" && snap.EstimatedImageCount == nil:
 		// Token-only image expressions must not acquire a quantity multiplier.
-		if snap.EstimatedImageCount == nil {
+		if info.SVGAuthor == nil {
 			return nil
 		}
+		quota = snap.EstimatedQuotaAfterGroup
+	case snap != nil && snap.BillingMode == "tiered_expr":
 		request := billingexpr.RequestInput{}
 		if info.BillingRequestInput != nil {
 			request = *info.BillingRequestInput
@@ -53,7 +57,7 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 			snap.EstimatedFixedPrice = trace.FixedPrice
 			snap.GroupRatio = info.PriceData.GroupRatioInfo.GroupRatio
 		}
-	} else {
+	default:
 		quantity := 1
 		if info.PriceData.UsePrice {
 			quantity = count
@@ -67,18 +71,26 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 		}
 		quota, err = common.QuotaFromFloatStrict(info.PriceData.ApplyOtherRatiosToFloat(base * info.PriceData.GroupRatioInfo.GroupRatio))
 	}
+	imageEstimate := quota
+	if author := info.SVGAuthor; author != nil && err == nil {
+		quota, err = common.QuotaFromFloatStrict(float64(quota) + float64(author.Pricing.PriceData.QuotaToPreConsume))
+	}
 	if err != nil {
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeModelPriceError, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 	info.PriceData.QuotaToPreConsume = quota
-	if quota == 0 && info.Billing == nil {
+	if quota == 0 && info.Billing == nil && (info.SVGAuthor == nil || info.SVGAuthor.Pricing.PriceData.FreeModel) {
 		return nil
 	}
 	info.PriceData.FreeModel = false
 	if info.Billing == nil {
-		return PreConsumeBilling(c, quota, info)
-	}
-	if err := info.Billing.Reserve(quota); err != nil {
+		if info.SVGAuthor != nil && info.SVGAuthor.Pricing.PriceData.QuotaToPreConsume > 0 {
+			info.ForcePreConsume = true
+		}
+		if apiErr := PreConsumeBilling(c, quota, info); apiErr != nil {
+			return apiErr
+		}
+	} else if err := info.Billing.Reserve(quota); err != nil {
 		var apiErr *types.NewAPIError
 		if errors.As(err, &apiErr) {
 			return apiErr
@@ -86,5 +98,8 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 	}
 	info.FinalPreConsumedQuota = info.Billing.GetPreConsumedQuota()
+	if author := info.SVGAuthor; author != nil {
+		author.ReservedQuota = min(author.Pricing.PriceData.QuotaToPreConsume, max(0, info.FinalPreConsumedQuota-imageEstimate))
+	}
 	return nil
 }

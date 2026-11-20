@@ -1705,3 +1705,56 @@ func TestPostTextConsumeQuotaLogsMissingUsageAsStructuredContent(t *testing.T) {
 		map[string]any{"key": "Upstream returned no usage, so nothing was charged (possibly an upstream timeout)"},
 	}, other["content_parts"])
 }
+
+func TestSVGMissingUsageRetainsReservationOnEvaluationFailure(t *testing.T) {
+	const expr = `tier(["flat"][param("index")],fixed(0.01))`
+	snap := &billingexpr.BillingSnapshot{ExprString: expr, ExprHash: billingexpr.ExprHashString(expr), GroupRatio: 1, QuotaPerUnit: 500000}
+	author := &relaycommon.SVGAuthorBilling{Pricing: &relaycommon.RelayInfo{TieredBillingSnapshot: snap, PriceData: hosttypes.PriceData{QuotaToPreConsume: 5000}, BillingRequestInput: &billingexpr.RequestInput{Body: []byte(`{"index":5}`)}}}
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	assert.Equal(t, 5000, svgAuthorQuota(ctx, author))
+}
+
+func TestSVGSubscriptionRejectedDeltaRecordsReservedAmount(t *testing.T) {
+	truncate(t)
+	const id = 79
+	seedUser(t, id, 10000)
+	seedChannel(t, id)
+	require.NoError(t, model.DB.AutoMigrate(&model.UserSubscription{}))
+	sub := model.UserSubscription{UserId: id, AmountTotal: 6000, AmountUsed: 6000}
+	require.NoError(t, model.DB.Create(&sub).Error)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/images/generations", nil)
+	price := hosttypes.PriceData{ModelRatio: 1, CompletionRatio: 1, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}}
+	info := &relaycommon.RelayInfo{
+		UserId: id, OriginModelName: "image", UsingGroup: "default", StartTime: time.Now(),
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelId: id}, PriceData: price,
+		BillingSource: BillingSourceSubscription, SubscriptionId: sub.Id, SubscriptionPreConsumed: 6000, ImageQuotaBeforeGroup: 5000,
+		SVGAuthor: &relaycommon.SVGAuthorBilling{Pricing: &relaycommon.RelayInfo{OriginModelName: "mini", PriceData: price},
+			Usage: &relaycommon.SVGAuthorUsage{InputTokens: common.GetPointer(int32(1000)), OutputTokens: common.GetPointer(int32(0))}},
+	}
+	info.Billing = &BillingSession{relayInfo: info, funding: &SubscriptionFunding{subscriptionId: sub.Id}, preConsumedQuota: 6000}
+	info.SVGAuthor.Pricing.PriceData.QuotaToPreConsume = 1000
+	require.Nil(t, PrepareImageBillingForRequest(ctx, info, 1))
+	PostTextConsumeQuota(ctx, info, &dto.Usage{PromptTokens: 6000, TotalTokens: 6000}, nil)
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, 6000, log.Quota)
+	var other struct {
+		Author struct {
+			Quota *int `json:"quota"`
+		} `json:"svg_author"`
+		Admin struct {
+			Failure struct {
+				Attempted int `json:"attempted_quota"`
+				Author    int `json:"attempted_svg_quota"`
+			} `json:"settlement_failure"`
+		} `json:"admin_info"`
+	}
+	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+	require.NotNil(t, other.Author.Quota)
+	assert.Equal(t, 1000, *other.Author.Quota)
+	assert.Equal(t, 7000, other.Admin.Failure.Attempted)
+	assert.Equal(t, 1000, other.Admin.Failure.Author)
+	require.NoError(t, model.DB.First(&sub, sub.Id).Error)
+	assert.EqualValues(t, 6000, sub.AmountUsed)
+}

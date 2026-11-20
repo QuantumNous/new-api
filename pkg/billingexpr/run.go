@@ -28,11 +28,7 @@ func RunExpr(exprStr string, params TokenParams) (float64, TraceResult, error) {
 }
 
 func RunExprWithRequest(exprStr string, params TokenParams, request RequestInput) (float64, TraceResult, error) {
-	entry, err := compileEntryFromCacheByHash(exprStr, ExprHashString(exprStr))
-	if err != nil {
-		return 0, TraceResult{}, err
-	}
-	return runProgram(entry.prog, entry.requestRules, entry.usedVars, params, request)
+	return RunExprByHashWithRequest(exprStr, ExprHashString(exprStr), params, request)
 }
 
 // RunExprByHash is like RunExpr but accepts a pre-computed hash for the cache
@@ -47,7 +43,17 @@ func RunExprByHashWithRequest(exprStr, hash string, params TokenParams, request 
 	if err != nil {
 		return 0, TraceResult{}, err
 	}
-	return runProgram(entry.prog, entry.requestRules, entry.usedVars, params, request)
+	program := entry.prog
+	if request.TokensUnavailable {
+		if entry.withoutTokens == nil {
+			return 0, TraceResult{}, fmt.Errorf("no fixed pricing without token usage")
+		}
+		program, err = entry.withoutTokens()
+		if err != nil {
+			return 0, TraceResult{}, err
+		}
+	}
+	return runProgram(program, entry.requestRules, entry.usedVars, params, request)
 }
 
 func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[string]bool, params TokenParams, request RequestInput) (float64, TraceResult, error) {
@@ -57,13 +63,13 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 	}
 	headers := normalizeHeaders(request.Headers)
 	imageCount := 1
-	if usedVars["image_count"] {
-		if request.ImageCount != nil {
-			imageCount = *request.ImageCount
-		}
+	if request.ImageCount != nil {
+		imageCount = *request.ImageCount
 		if imageCount < 1 || imageCount > dto.MaxImageN {
 			return 0, trace, fmt.Errorf("image_count must be between 1 and %d", dto.MaxImageN)
 		}
+	}
+	if usedVars["image_count"] || (request.ImageCount != nil && usedVars["$env"]) {
 		trace.ImageCount = &imageCount
 	}
 

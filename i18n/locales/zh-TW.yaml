@@ -98,3 +98,7 @@ channel.upstream_update_failed_channels: "失敗管道 ID（顯示 {{.Shown}}/{{
 channel.upstream_update_more_omitted: "（其餘 {{.Count}} 個已省略）"
 
 channel.notify_scheduled_subject: "渠道「{{.Name}}」(#{{.Id}}) 外掛通知"
+relay.svg_author_required: "產生 SVG 必須指定 svg.model，且轉送時不能變更該模型。"
+relay.svg_streaming_unsupported: "產生 SVG 不支援串流回應。"
+relay.svg_author_unsupported: "此圖片渠道不支援 SVG 文字模型計費。"
+relay.svg_single_image: "產生 SVG 時，n 必須為 1。"

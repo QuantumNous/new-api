@@ -56,6 +56,22 @@ type ResponsesUsageInfo struct {
 	BuiltInTools map[string]*BuildInToolInfo
 }
 
+// SVGAuthorBilling prices the nested text model within the image request's
+// single billing session. The upstream snapshot name is diagnostic only.
+type SVGAuthorBilling struct {
+	ReservedQuota int             `json:"-"`
+	Pricing       *RelayInfo      `json:"-"`
+	Usage         *SVGAuthorUsage `json:"usage"`
+}
+
+type SVGAuthorUsage struct {
+	Model           string `json:"model"`
+	InputTokens     *int32 `json:"input_tokens"`
+	OutputTokens    *int32 `json:"output_tokens"`
+	ReasoningTokens int32  `json:"reasoning_tokens"`
+	TotalTokens     int64  `json:"total_tokens"`
+}
+
 type ChannelMeta struct {
 	ChannelType          int
 	ChannelId            int
@@ -190,6 +206,7 @@ type RelayInfo struct {
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
 	BillingRequestInput   *billingexpr.RequestInput
 	BillingImageCount     *int
+	SVGAuthor             *SVGAuthorBilling
 	// ImageRequestCount is the effective quantity sent on the current attempt;
 	// ImageQuotaBeforeGroup is the frozen legacy estimate before request ratios.
 	ImageRequestCount     int

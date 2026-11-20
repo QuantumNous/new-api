@@ -42,6 +42,19 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 
 	info.UpdateImageCount(openaiImageResponseCount(responseBody))
 
+	if author := info.SVGAuthor; author != nil {
+		var usage relaycommon.SVGAuthorUsage
+		raw := ojson.GetBytesNoCopy(responseBody, "svg_usage")
+		if raw.IsObject() && common.UnmarshalJsonStr(raw.Raw, &usage) == nil &&
+			usage.InputTokens != nil && *usage.InputTokens >= 0 && usage.OutputTokens != nil && *usage.OutputTokens >= 0 &&
+			usage.ReasoningTokens >= 0 && usage.ReasoningTokens <= *usage.OutputTokens {
+			usage.TotalTokens = int64(*usage.InputTokens) + int64(*usage.OutputTokens)
+			author.Usage = &usage
+		} else {
+			logger.LogWarn(c, common.LogText("SVG response missing valid author token usage"))
+		}
+	}
+
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 

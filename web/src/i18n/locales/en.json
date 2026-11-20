@@ -6396,6 +6396,7 @@
     "Supports PNG, JPG, SVG, or WebP. Recommended size: 128×128 or smaller.": "Supports PNG, JPG, SVG, or WebP. Recommended size: 128×128 or smaller.",
     "Surprise me": "Surprise me",
     "Sustained tokens per second": "Sustained tokens per second",
+    "SVG: {{model}}, {{input}} input tokens, {{output}} output tokens, cost {{quota}}": "SVG: {{model}}, {{input}} input tokens, {{output}} output tokens, cost {{quota}}",
     "Swap Face": "Swap Face",
     "Switch account": "Switch account",
     "Switch affinity on success": "Switch affinity on success",

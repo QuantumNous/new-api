@@ -112,6 +112,7 @@ func usesRequestProbe(node ast.Node) bool {
 
 type cachedEntry struct {
 	prog          *vm.Program
+	withoutTokens func() (*vm.Program, error)
 	usedVars      map[string]bool
 	usedUsageKeys map[string]bool
 	requestRules  []RequestRuleTrace
@@ -206,6 +207,12 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 		return ok && identifier.Value == "fixed"
 	}) != nil
 	if fixedPricing {
+		if ast.Find(tree.Node, func(node ast.Node) bool {
+			decl, ok := node.(*ast.VariableDeclaratorNode)
+			return ok && decl.Name == "$env"
+		}) != nil {
+			return nil, fmt.Errorf("expr compile error: fixed pricing cannot rebind $env")
+		}
 		if err := validateFixedPricingTree(tree.Node); err != nil {
 			return nil, fmt.Errorf("expr compile error: %w", err)
 		}
@@ -226,6 +233,24 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 		requestRules:  patcher.requestRules,
 		version:       version,
 		fixedPricing:  fixedPricing,
+	}
+	if fixedPricing {
+		entry.withoutTokens = sync.OnceValues(func() (*vm.Program, error) {
+			return expr.Compile(body, expr.Env(getCompileEnv(version)), expr.Patch(&requestRulePatcher{}), expr.Patch(envAliasPatcher{}),
+				expr.Patch(missingTokenPatcher{}), expr.Function("$missingToken", func(...any) (any, error) {
+					return nil, ErrTokensUnavailable
+				}, new(func() float64)), expr.Function("$missingEnv", func(...any) (any, error) { return nil, ErrTokensUnavailable }, new(func() map[string]any)),
+				expr.Function("$lookupEnv", func(args ...any) (any, error) {
+					key, ok := args[1].(string)
+					if !ok {
+						return nil, fmt.Errorf("expected string environment key")
+					}
+					if key != "image_count" && slices.Contains(chatQuantityVars, key) {
+						return nil, ErrTokensUnavailable
+					}
+					return args[0].(map[string]any)[key], nil
+				}, new(func(map[string]any, any) any)), expr.AsFloat64())
+		})
 	}
 	cacheMu.Lock()
 	if len(cache) >= maxCacheSize {

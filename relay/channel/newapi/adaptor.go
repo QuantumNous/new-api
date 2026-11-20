@@ -85,6 +85,8 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	return a.geminiAdaptor.ConvertGeminiRequest(c, info, request)
 }
 
+func (*Adaptor) SupportsSVGAuthorBilling() {}
+
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	return a.openaiAdaptor.ConvertImageRequest(c, info, request)
 }
