@@ -378,6 +378,8 @@ func TestSelectResponsesWSChannelHonorsStrictSessionBinding(t *testing.T) {
 	_, found := service.GetPreferredChannelByAffinity(seed, "ws-model", "default")
 	require.False(t, found)
 	seed.Set("channel_id", bound.Id)
+	// Seed a stored binding independently of strict request completion.
+	service.RequestPolicy(seed).SessionMode = "prefer"
 	service.RecordChannelAffinity(seed, bound.Id)
 	t.Cleanup(func() { service.ClearCurrentChannelAffinityCache(seed) })
 
@@ -391,6 +393,8 @@ func TestSelectResponsesWSChannelHonorsStrictSessionBinding(t *testing.T) {
 	assert.False(t, found, "an unusable binding is cleared unless keep_on_channel_disabled is set")
 
 	affinity.SessionMode = "prefer"
+	// Seed a stored binding independently of strict request completion.
+	service.RequestPolicy(seed).SessionMode = "prefer"
 	service.RecordChannelAffinity(seed, bound.Id)
 	prefer := newSessionContext()
 	channel, apiErr = selectResponsesWSChannel(prefer, "ws-model", &service.RetryParam{Ctx: prefer, ModelName: "ws-model", TokenGroup: "default", Retry: common.GetPointer(0)})

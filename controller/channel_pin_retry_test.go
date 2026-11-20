@@ -203,7 +203,10 @@ func TestChannelAffinityRetryPriorities(t *testing.T) {
 						if tc.binding != 0 {
 							_, found := service.GetPreferredChannelByAffinity(ctx, modelName, group)
 							require.False(t, found)
+							// Seed the pre-existing binding through the completion path used by prefer.
+							service.RequestPolicy(ctx).SessionMode = "prefer"
 							service.RecordChannelAffinity(ctx, tc.binding)
+							service.RequestPolicy(ctx).SessionMode = tc.mode
 							t.Cleanup(func() { service.ClearCurrentChannelAffinityCache(ctx) })
 						}
 						// HTTP distribution and the relay loop use separate RetryParam values.
@@ -297,6 +300,8 @@ func TestRequestPolicyRoutingDatabaseMatrix(t *testing.T) {
 							_, found := service.GetPreferredChannelByAffinity(seed, "policy-test", "default")
 							require.False(t, found)
 							seed.Set("channel_id", 1)
+							// Seed a stored binding independently of strict request completion.
+							service.RequestPolicy(seed).SessionMode = "prefer"
 							service.RecordChannelAffinity(seed, 1)
 							t.Cleanup(func() { service.ClearCurrentChannelAffinityCache(seed) })
 							bound, found := service.GetPreferredChannelByAffinity(seed, "policy-test", "default")
