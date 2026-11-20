@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -37,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"golang.org/x/image/webp"
+	"golang.org/x/sync/semaphore"
 )
 
 // stagePlugin runs every stage as its instance config says: throw, allocate
@@ -484,12 +486,91 @@ func TestMediaReencode(t *testing.T) {
 	assert.Less(t, len(content.Get("1.source.data").Str), len(large))
 	// A re-encode that is not smaller keeps the image.
 	assert.Equal(t, "data:image/png;base64,"+small, content.Get("2.image_url.url").Str)
+	require.Len(t, outcome.Record, 1)
+	require.Len(t, outcome.Record[0].Media, 2)
+	assert.Equal(t, 0, outcome.Record[0].Media[0].Index)
+	assert.Equal(t, 1, outcome.Record[0].Media[1].Index)
 	// The hook saw placeholders, sizes and, at outbound, dimensions.
 	assert.JSONEq(t, `[
 		{"index":0,"path":"/messages/0/content/0/image_url/url","mimeType":"image/png","bytes":`+strconv.Itoa(len(large)*3/4-strings.Count(large[len(large)-2:], "="))+`,"width":256,"height":256},
 		{"index":1,"path":"/messages/0/content/1/source/data","mimeType":"image/png","bytes":`+strconv.Itoa(len(large)*3/4-strings.Count(large[len(large)-2:], "="))+`,"width":256,"height":256},
 		{"index":2,"path":"/messages/0/content/2/image_url/url","mimeType":"image/png","bytes":`+strconv.Itoa(len(small)*3/4-strings.Count(small[len(small)-2:], "="))+`,"width":1,"height":1}]`,
 		gjson.GetBytes(outcome.Body, "echo_rp.media").Raw)
+
+	// One good image followed by two unreadable ones. Report the first bad
+	// image in request order and discard the whole instance's changes.
+	bad := []byte(`{"images":["data:image/png;base64,` + large + `","data:image/png;base64,AQ==","data:image/png;base64,Ag=="]}`)
+	outcome = NewPlan().Run(context.Background(), Call{Stage: StageOutbound, Body: bad})
+	require.NotNil(t, outcome.Failed)
+	assert.Equal(t, errorMedia, outcome.Failed.Class)
+	assert.Contains(t, outcome.Failed.Detail, "effects[1]: media /images/1 ")
+	assert.Equal(t, bad, outcome.Body)
+	require.Len(t, outcome.Record, 1)
+	assert.Empty(t, outcome.Record[0].Media)
+}
+
+func TestMediaReencodeSharesCapacityAcrossRequests(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		type imageJob struct {
+			path   string
+			finish chan struct{}
+		}
+		started := make(chan imageJob, 5)
+		pool := imageReencodePool{
+			slots: semaphore.NewWeighted(2),
+			encode: func(ctx context.Context, item inlineMedia, _ requestpatch.Effect) ([]requestpatch.Operation, *relaycommon.RequestPluginMediaChange, error) {
+				job := imageJob{path: item.path, finish: make(chan struct{})}
+				started <- job
+				select {
+				case <-job.finish:
+					return nil, nil, nil
+				case <-ctx.Done():
+					return nil, nil, ctx.Err()
+				}
+			},
+		}
+		submit := func(ctx context.Context, paths ...string) <-chan []mediaReencodeResult {
+			media := make([]inlineMedia, len(paths))
+			effects := make([]requestpatch.Effect, len(paths))
+			for i, path := range paths {
+				media[i].path = path
+				effects[i] = requestpatch.Effect{Type: requestpatch.EffectMediaReencode, Media: i}
+			}
+			done := make(chan []mediaReencodeResult, 1)
+			go func() { done <- pool.reencode(ctx, media, effects) }()
+			synctest.Wait()
+			return done
+		}
+
+		batch := submit(ctx, "/a", "/b", "/c", "/d")
+		require.Len(t, started, 2)
+		first, second := <-started, <-started
+		assert.ElementsMatch(t, []string{"/a", "/b"}, []string{first.path, second.path})
+		single := submit(ctx, "/single")
+		waiting, leave := context.WithCancel(ctx)
+		abandoned := submit(waiting, "/canceled")
+		leave()
+		require.ErrorIs(t, (<-abandoned)[0].err, context.Canceled)
+		require.Empty(t, started)
+
+		close(first.finish)
+		third := <-started
+		require.Equal(t, "/c", third.path)
+		close(second.finish)
+		other := <-started
+		require.Equal(t, "/single", other.path)
+		close(other.finish)
+		require.NoError(t, (<-single)[0].err)
+		last := <-started
+		require.Equal(t, "/d", last.path)
+		close(last.finish)
+		close(third.finish)
+		for _, result := range <-batch {
+			require.NoError(t, result.err)
+		}
+	})
 }
 
 func TestDryRun(t *testing.T) {
@@ -621,7 +702,7 @@ func TestMediaReencodeLosslessWebP(t *testing.T) {
 	source := image.NewNRGBA(image.Rect(0, 0, 192, 128))
 	for y := range 128 {
 		for x := range 192 {
-			source.SetNRGBA(x, y, color.NRGBA{R: uint8(x), G: uint8(y * 2), B: uint8((x + y) % 7 * 30), A: 255})
+			source.SetNRGBA(x, y, color.NRGBA{R: uint8(x), G: uint8(y * 2), B: uint8((x + y) % 7 * 30), A: uint8((x + y) * 3)})
 		}
 	}
 	var buffer bytes.Buffer
