@@ -69,14 +69,22 @@ export function ApiKeyGroupCombobox({
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const shouldReduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
-  const selectedOption = options.find((option) => option.value === value)
+  // 空分组 = 跟随用户所属分组。提供显式选项，保证选中分组后可取消选择。
+  const allOptions = useMemo<ApiKeyGroupOption[]>(
+    () => [
+      { value: '', label: t('Follow user group') },
+      ...options.filter((option) => option.value !== ''),
+    ],
+    [options, t]
+  )
+  const selectedOption = allOptions.find((option) => option.value === value)
   const isAutoSelected = selectedOption?.value === 'auto'
 
   const filteredOptions = useMemo(() => {
     const search = searchValue.trim().toLowerCase()
-    if (!search) return options
+    if (!search) return allOptions
 
-    return options.filter((option) => {
+    return allOptions.filter((option) => {
       const ratioText = String(option.ratio ?? '').toLowerCase()
       return (
         option.value.toLowerCase().includes(search) ||
@@ -85,10 +93,11 @@ export function ApiKeyGroupCombobox({
         ratioText.includes(search)
       )
     })
-  }, [options, searchValue])
+  }, [allOptions, searchValue])
 
   const handleSelect = (selectedValue: string) => {
-    onValueChange(selectedValue)
+    // 再次点击当前已选中的分组 = 取消选择，恢复跟随用户分组
+    onValueChange(selectedValue === value ? '' : selectedValue)
     setOpen(false)
     setSearchValue('')
   }
