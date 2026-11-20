@@ -538,6 +538,10 @@ func executeTaskSubmissionWith(
 	}
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+		relayInfo.RetryIndex = retryParam.GetRetry()
+		relayInfo.RuntimeHeadersOverride = nil
+		relayInfo.UseRuntimeHeadersOverride = false
+
 		stage = "select_channel"
 		if requestErr := c.Request.Context().Err(); requestErr != nil {
 			diagnostics.cancelled("before_attempt", retryParam.GetRetry()+1)
