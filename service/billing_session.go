@@ -56,8 +56,10 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		return nil
 	}
 	// 1) 调整资金来源（仅在尚未提交时执行，防止重复调用）
+	applied := 0
 	if !s.fundingSettled {
-		if err := s.funding.Settle(delta); err != nil {
+		var err error
+		if applied, err = s.funding.Settle(delta); err != nil {
 			return err
 		}
 		s.fundingSettled = true
@@ -76,9 +78,9 @@ func (s *BillingSession) Settle(actualQuota int) error {
 				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
 		}
 	}
-	// 3) 更新 relayInfo 上的订阅 PostDelta（用于日志）
+	// 3) 更新 relayInfo 上的订阅 PostDelta（用于日志），按实际生效的差额计
 	if s.funding.Source() == BillingSourceSubscription {
-		s.relayInfo.SubscriptionPostDelta += int64(delta)
+		s.relayInfo.SubscriptionPostDelta += int64(applied)
 	}
 	s.settled = true
 	return tokenErr
