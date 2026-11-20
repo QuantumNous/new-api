@@ -1120,3 +1120,43 @@ func TestHailuoNativeFileIDIsTheTaskAndRetrieveReturnsTheGatewayDownload(t *test
 	require.NoError(t, err)
 	assert.NotContains(t, h3Status, "file_id")
 }
+
+// A native /v2 body is sent as is for MiniMax to check; the plugin validates
+// the duration per model and reserves unreadable resolutions at the model's
+// dearest for the usage estimate.
+func TestHailuoH3MaxNativeBody(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	t.Run("native body passes through", func(t *testing.T) {
+		body := map[string]any{"model": "MiniMax-H3-Max", "content": []any{
+			map[string]any{"type": "text", "text": "p"},
+		}, "duration": 5, "resolution": "480P", "ratio": "16:9"}
+		value, err := plugin.Engine.CallPath(t.Context(), "native", []string{"createH3Task"}, map[string]any{
+			"body": map[string]any{"kind": "json", "value": body},
+		})
+		require.NoError(t, err)
+		result, ok := value.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "submit", result["kind"])
+		assert.Equal(t, "MiniMax-H3-Max", result["model"])
+		assert.Equal(t, "text_to_video", result["action"])
+	})
+	t.Run("native duration below the H3 minimum is rejected with the model named", func(t *testing.T) {
+		body := map[string]any{"model": "MiniMax-H3-Max", "content": []any{
+			map[string]any{"type": "text", "text": "p"},
+		}, "duration": 4, "resolution": "480P", "ratio": "16:9"}
+		_, err := plugin.Engine.CallPath(t.Context(), "native", []string{"createH3Task"}, map[string]any{
+			"body": map[string]any{"kind": "json", "value": body},
+		})
+		require.ErrorContains(t, err, "MiniMax-H3-Max duration must be an integer between 5 and 15")
+	})
+	t.Run("an unreadable native resolution is reserved at the model's dearest", func(t *testing.T) {
+		ctx := hailuoH3MaxSubmitContext(map[string]any{
+			"model": "MiniMax-H3-Max",
+			"vendorBody": map[string]any{"content": []any{map[string]any{"type": "text", "text": "p"}}, "duration": 5, "resolution": "2K"},
+		})
+		facts := callHailuoHook(t, plugin, "extractUsage", ctx)
+		assert.Equal(t, map[string]any{
+			"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}, facts)
+	})
+}
