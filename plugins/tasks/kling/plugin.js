@@ -7,7 +7,7 @@ export const meta = {
     en: "Kuaishou Kling video generation (text-to-video and image-to-video)",
     zh: "快手可灵视频生成（文生视频、图生视频）",
   },
-  version: "1.2.0",
+  version: "1.3.0",
   author: { name: "QuantumNous" },
   channelTypes: [50],
   models: ["kling-v2-5-turbo", "kling-v2-6", "kling-v3", "kling-4.0"],
@@ -28,6 +28,7 @@ export const meta = {
     { label: "v3 4k 5s", facts: { units: 15 } },
     { label: "4.0 1080p 10s", facts: { units: 15 } },
     { label: "4.0 1080p 10s · video input", facts: { units: 18 } },
+    { label: "4.0 4k 10s · HDR", facts: { units: 40 } },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
   // Kling's own paths; the gateway also serves each under /kling.
@@ -71,8 +72,11 @@ const DEFAULT_KLING_MODEL = {
 // is longer. Input videos are feature_video, base_video and video character
 // elements; Kling reports their length in usage.input_duration.
 const KLING4_MODELS = ["kling-4.0"];
-const KLING4_UNITS = { "720p": 1.0, "1080p": 1.5 };
-const KLING4_VIDEO_INPUT_UNITS = { "720p": 0.6, "1080p": 0.9 };
+const KLING4_UNITS = { "720p": 1.0, "1080p": 1.5, "4k": 3.5 };
+const KLING4_VIDEO_INPUT_UNITS = { "720p": 0.6, "1080p": 0.9, "4k": 2.1 };
+// HDR (settings.dynamic_range "hdr") adds units per output second; Kling
+// makes it at 1080p and 4k only.
+const KLING4_HDR_UNITS = { "720p": 0, "1080p": 0.3, "4k": 0.5 };
 // The shortest and the longest output in seconds; the longest is also the
 // longest total of input videos.
 const KLING4_MIN_SECONDS = 3;
@@ -296,10 +300,25 @@ function usesKling4(ctx, req) {
   return req.vendorBody ? Boolean(req.endpoint) : isKling4(submitModel(ctx, req));
 }
 
-// 1080p is Kling's default and the dearer; a resolution Kling does not list
-// reserves it.
+// 1080p is Kling's default; a resolution Kling does not list reserves the
+// dearest, 4k.
 function kling4Resolution(settings) {
-  return trimmed(settings.resolution).toLowerCase() === "720p" ? "720p" : "1080p";
+  const resolution = trimmed(settings.resolution).toLowerCase() || "1080p";
+  return Object.prototype.hasOwnProperty.call(KLING4_UNITS, resolution) ? resolution : "4k";
+}
+
+// sdr is Kling's default; a dynamic range Kling does not list reserves HDR.
+function kling4HDR(settings) {
+  const dynamicRange = trimmed(settings.dynamic_range).toLowerCase();
+  return dynamicRange !== "" && dynamicRange !== "sdr";
+}
+
+function kling4Units(settings, outputSeconds, inputSeconds) {
+  const resolution = kling4Resolution(settings);
+  const units = inputSeconds
+    ? KLING4_VIDEO_INPUT_UNITS[resolution] * (outputSeconds + Math.max(inputSeconds, outputSeconds))
+    : KLING4_UNITS[resolution] * outputSeconds;
+  return units + (kling4HDR(settings) ? KLING4_HDR_UNITS[resolution] * outputSeconds : 0);
 }
 
 // Kling would call back, or look tasks up, by ids the gateway does not hand
@@ -339,8 +358,8 @@ function kling4Submission(ctx) {
   const size = trimmed(req.size);
   if (size) {
     const dimensions = sizeDimensions(size);
-    // Kling 4.0 makes 720p and 1080p; a size gets the one whose shorter side
-    // is nearer its own.
+    // The host protocols ask for 720p or 1080p: a size gets the one whose
+    // shorter side is nearer its own.
     settings.resolution = Math.min(dimensions.width, dimensions.height) < 900 ? "720p" : "1080p";
     if (endpoint === "text-to-video") settings.aspect_ratio = aspectRatio(dimensions, KLING4_ASPECT_RATIOS);
   }
@@ -363,14 +382,12 @@ function kling4Submission(ctx) {
 // so the longest input is reserved. The units Kling reports settle the task.
 function kling4ReservedUnits(body) {
   const settings = plainObject(body.settings);
-  const resolution = kling4Resolution(settings);
   const seconds = settings.duration === undefined || settings.duration === null ? KLING4_MAX_SECONDS : kling4Duration(settings.duration);
   const contents = Array.isArray(body.contents) ? body.contents : [];
   const videoInput = contents.some(function (item) {
     return item && KLING4_VIDEO_INPUTS.includes(item.type);
   });
-  if (!videoInput) return KLING4_UNITS[resolution] * seconds;
-  return KLING4_VIDEO_INPUT_UNITS[resolution] * Math.max(seconds * 2, KLING4_MAX_SECONDS + seconds);
+  return kling4Units(settings, seconds, videoInput ? KLING4_MAX_SECONDS : 0);
 }
 
 // The task's entry in a Kling 4.0 reply: the list GET /tasks answers, or the
@@ -421,9 +438,7 @@ function kling4CompletedUnits(ctx, body) {
   const output = reportedSeconds(videos.length ? videos[0].duration : "");
   if (!output) return null;
   const input = reportedSeconds(plainObject(entry.usage).input_duration);
-  const resolution = kling4Resolution(plainObject(ctx && ctx.state));
-  if (!input) return { units: KLING4_UNITS[resolution] * output };
-  return { units: KLING4_VIDEO_INPUT_UNITS[resolution] * (input <= output ? output * 2 : input + output) };
+  return { units: kling4Units(plainObject(ctx && ctx.state), output, input) };
 }
 
 function decodeKling4Submit(endpoint) {
@@ -567,8 +582,8 @@ export function buildSubmitRequest(ctx) {
   };
 }
 
-// A Kling 4.0 task keeps the resolution it was sent at, for a settlement
-// without a unit deduction; the state also marks the task as one.
+// A Kling 4.0 task keeps the settings it is billed by, for a settlement
+// without a unit deduction; the resolution also marks the task as one.
 function isKling4Task(ctx) {
   return Boolean(plainObject(ctx && ctx.state).resolution);
 }
@@ -580,7 +595,9 @@ export function parseSubmitResponse(ctx, resp) {
   if (usesKling4(ctx, req)) {
     if (!result.data || !result.data.id) throw new Error("missing task id");
     const settings = plainObject(kling4Submission(ctx).body.settings);
-    return { taskId: result.data.id, taskData: result, state: { resolution: kling4Resolution(settings) } };
+    const state = { resolution: kling4Resolution(settings) };
+    if (kling4HDR(settings)) state.dynamic_range = "hdr";
+    return { taskId: result.data.id, taskData: result, state: state };
   }
   if (!result.data || !result.data.task_id) throw new Error("missing task_id");
   return { taskId: result.data.task_id, taskData: result };
