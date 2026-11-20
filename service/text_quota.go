@@ -104,11 +104,19 @@ func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *d
 	return usage.ClaudeCacheCreation5mTokens > 0 || usage.ClaudeCacheCreation1hTokens > 0
 }
 
-func collectToolSurchargeItem(items []ToolSurchargeItem, name string, count int, modelName string) []ToolSurchargeItem {
+// collectToolSurchargeItem resolves one price, retaining explicit zero prices
+// when a realtime session supplies a price snapshot.
+func collectToolSurchargeItem(items []ToolSurchargeItem, name string, count int, modelName string, prices map[string]float64) []ToolSurchargeItem {
 	if count <= 0 {
 		return items
 	}
-	price := operation_setting.GetToolPriceForModel(name, modelName)
+	price, captured := prices[name]
+	if !captured {
+		price = operation_setting.GetToolPriceForModel(name, modelName)
+		if prices != nil {
+			prices[name] = price
+		}
+	}
 	if price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
 		return items
 	}
@@ -149,11 +157,17 @@ func mergeToolSurchargeItems(items []ToolSurchargeItem) []ToolSurchargeItem {
 	return merged
 }
 
+// calculateTextToolCallSurcharge prices bounded provider tool counts, reusing
+// captured prices when a realtime session has already reserved those tools.
 func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, summary *textQuotaSummary) decimal.Decimal {
 	dGroupRatio := decimal.NewFromFloat(summary.GroupRatio)
 	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 
 	var items []ToolSurchargeItem
+	var prices map[string]float64
+	if relayInfo.RealtimeBilling != nil {
+		prices = relayInfo.RealtimeBilling.ToolPrices
+	}
 
 	if relayInfo.ResponsesUsageInfo != nil {
 		for name, tool := range relayInfo.ResponsesUsageInfo.BuiltInTools {
@@ -165,12 +179,12 @@ func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.Rel
 				logger.LogWarn(ctx, common.LogText("tool surcharge call count clamped: tool=%s count=%d", name, count))
 				count = relaycommon.MaxBillableToolCallCount
 			}
-			items = collectToolSurchargeItem(items, name, count, summary.ModelName)
+			items = collectToolSurchargeItem(items, name, count, summary.ModelName, prices)
 		}
 	}
 	if relayInfo.RelayMode != relayconstant.RelayModeResponses &&
 		strings.HasSuffix(summary.ModelName, "search-preview") {
-		items = collectToolSurchargeItem(items, dto.BuildInToolWebSearchPreview, 1, summary.ModelName)
+		items = collectToolSurchargeItem(items, dto.BuildInToolWebSearchPreview, 1, summary.ModelName, prices)
 	}
 
 	summary.ToolSurchargeItems = mergeToolSurchargeItems(items)
