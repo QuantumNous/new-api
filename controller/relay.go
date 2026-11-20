@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -567,8 +566,7 @@ func RelayTask(c *gin.Context) {
 		return
 	}
 
-	reservation, handled := prepareTaskSubmissionKey(c, relayInfo)
-	if handled {
+	if prepareTaskSubmissionKey(c, relayInfo) {
 		return
 	}
 	var outcome *taskSubmissionOutcome
@@ -576,14 +574,6 @@ func RelayTask(c *gin.Context) {
 	if taskErr != nil {
 		respondTaskSubmissionError(c, taskErr)
 		return
-	}
-	if reservation != nil {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 5*time.Second)
-		err := model.AcceptTaskSubmissionKey(ctx, *reservation)
-		cancel()
-		if err != nil {
-			logger.LogError(c, common.LogText("finalize task submission key: %s", err.Error()))
-		}
 	}
 	presentTaskSubmission(c, outcome)
 }

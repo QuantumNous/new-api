@@ -13,7 +13,6 @@ type TaskSubmissionKey struct {
 	RequestHash string `gorm:"size:64;not null"`
 	TaskID      string `gorm:"size:64;not null"`
 	CreatedAt   int64
-	Accepted    bool
 }
 
 func ReserveTaskSubmissionKey(ctx context.Context, candidate TaskSubmissionKey) (TaskSubmissionKey, bool, error) {
@@ -26,10 +25,4 @@ func ReserveTaskSubmissionKey(ctx context.Context, candidate TaskSubmissionKey) 
 	var saved TaskSubmissionKey
 	err := db.First(&saved, "fingerprint = ?", candidate.Fingerprint).Error
 	return saved, saved.TaskID == candidate.TaskID, err
-}
-
-func AcceptTaskSubmissionKey(ctx context.Context, reservation TaskSubmissionKey) error {
-	return DB.WithContext(ctx).Model(&TaskSubmissionKey{}).
-		Where("fingerprint = ? AND task_id = ?", reservation.Fingerprint, reservation.TaskID).
-		Update("accepted", true).Error
 }

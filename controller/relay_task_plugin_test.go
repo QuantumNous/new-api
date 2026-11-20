@@ -552,23 +552,23 @@ func TestNativeVideoTaskSubmissionKey(t *testing.T) {
 	plugin.Meta.Key = "doubao"
 	route := pluginruntime.Route{Path: "/api/v3/contents/generations/tasks", Type: pluginruntime.RouteTypeSubmit}
 
-	submit := func(user int, body string) (*model.TaskSubmissionKey, bool, *httptest.ResponseRecorder) {
+	submit := func(user int, body string) (string, bool, *httptest.ResponseRecorder) {
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
 		c.Request = httptest.NewRequest(http.MethodPost, "/doubao"+route.Path, strings.NewReader(body))
 		c.Request.Header.Set("Idempotency-Key", "retry-key")
 		c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Plugin: plugin, Route: route})
 		info := &relaycommon.RelayInfo{UserId: user, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
-		reservation, handled := prepareTaskSubmissionKey(c, info)
-		return reservation, handled, recorder
+		handled := prepareTaskSubmissionKey(c, info)
+		return info.PublicTaskID, handled, recorder
 	}
 
 	original, handled, _ := submit(1, `{"prompt":"first"}`)
 	require.False(t, handled)
-	require.NotNil(t, original)
+	require.NotEmpty(t, original)
 	duplicate, handled, reply := submit(1, `{"prompt":"first"}`)
 	require.True(t, handled)
-	assert.Nil(t, duplicate)
+	assert.Empty(t, duplicate)
 	assert.Equal(t, http.StatusConflict, reply.Code)
 	assert.Contains(t, reply.Body.String(), "idempotency_pending")
 
@@ -577,29 +577,44 @@ func TestNativeVideoTaskSubmissionKey(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, reply.Code)
 	assert.Contains(t, reply.Body.String(), "idempotency_key_conflict")
 
-	require.NoError(t, db.Create(&model.Task{UserId: 1, TaskID: original.TaskID}).Error)
-	require.NoError(t, model.AcceptTaskSubmissionKey(context.Background(), *original))
+	// A task can be durably inserted before the original request fails to settle.
+	require.NoError(t, db.Create(&model.Task{UserId: 1, TaskID: original}).Error)
 	_, handled, reply = submit(1, `{"prompt":"first"}`)
 	require.True(t, handled)
 	assert.Equal(t, http.StatusOK, reply.Code)
-	assert.Contains(t, reply.Body.String(), original.TaskID)
+	assert.Contains(t, reply.Body.String(), original)
 
 	other, handled, _ := submit(2, `{"prompt":"first"}`)
 	require.False(t, handled)
-	require.NotNil(t, other)
-	assert.NotEqual(t, original.TaskID, other.TaskID)
+	require.NotEmpty(t, other)
+	assert.NotEqual(t, original, other)
 
 	start := make(chan struct{})
-	claims := make(chan bool, 2)
+	type submission struct {
+		id      string
+		handled bool
+		reply   *httptest.ResponseRecorder
+	}
+	results := make(chan submission, 2)
 	for range 2 {
 		go func() {
 			<-start
-			reservation, _, _ := submit(3, `{"prompt":"first"}`)
-			claims <- reservation != nil
+			id, handled, reply := submit(3, `{"prompt":"first"}`)
+			results <- submission{id, handled, reply}
 		}()
 	}
 	close(start)
-	assert.NotEqual(t, <-claims, <-claims, "only one concurrent request may submit")
+	owner, pending := <-results, <-results
+	if owner.handled {
+		owner, pending = pending, owner
+	}
+	assert.False(t, owner.handled)
+	assert.NotEmpty(t, owner.id)
+	assert.True(t, pending.handled)
+	assert.Empty(t, pending.id)
+	assert.Equal(t, http.StatusConflict, pending.reply.Code)
+	assert.Contains(t, pending.reply.Body.String(), "idempotency_pending")
+	assert.Equal(t, "2", pending.reply.Header().Get("Retry-After"))
 }
 
 func TestImmediateTaskSettlementDatabase(t *testing.T) {
