@@ -157,6 +157,68 @@ func TestImageBillingRequestValidatesProviderCountWithoutOverriding(t *testing.T
 	}
 }
 
+// TestImageBillingRequestFreezesProviderExtraScalars verifies that
+// provider-only scalar params (e.g. xAI grok-imagine's resolution and
+// aspect_ratio) reach pricing expressions, while non-scalar extras stay out
+// of the frozen body. Without the scalars, tiered expressions like
+// param("resolution") == "1k" ? ... : tier("2k-medium") always fall into the
+// last tier.
+func TestImageBillingRequestFreezesProviderExtraScalars(t *testing.T) {
+	t.Run("provider scalars are frozen and selectable by param()", func(t *testing.T) {
+		body := `{"model":"grok-imagine-image-2.0","prompt":"a neon market","n":1,"quality":"medium","resolution":"1k","aspect_ratio":"16:9","response_format":"url"}`
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewBufferString(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+		request, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
+		require.NoError(t, err)
+
+		input, err := ResolveImageBillingRequestInput(c, &relaycommon.RelayInfo{Request: request}, billingexpr.RequestInput{})
+		require.NoError(t, err)
+
+		var frozen struct {
+			Model       string `json:"model"`
+			N           int    `json:"n"`
+			Quality     string `json:"quality"`
+			Resolution  string `json:"resolution"`
+			AspectRatio string `json:"aspect_ratio"`
+			Prompt      string `json:"prompt"`
+		}
+		require.NoError(t, common.Unmarshal(input.Body, &frozen))
+		assert.Equal(t, "1k", frozen.Resolution)
+		assert.Equal(t, "16:9", frozen.AspectRatio)
+		assert.Equal(t, "medium", frozen.Quality)
+		assert.Equal(t, 1, frozen.N)
+		assert.Empty(t, frozen.Prompt, "prompts must stay out of the frozen body")
+
+		cost, _, err := billingexpr.RunExprWithRequest(
+			`param("resolution") == "1k" ? (param("quality") == "medium" ? tier("1k-medium", fixed(0.06)) * image_count : tier("1k-low", fixed(0.04)) * image_count) : tier("2k-medium", fixed(0.08)) * image_count`,
+			billingexpr.TokenParams{}, input)
+		require.NoError(t, err)
+		assert.Equal(t, float64(60000), cost, "1k-medium tier must be selected")
+	})
+
+	t.Run("non-scalar extras are not frozen", func(t *testing.T) {
+		body := `{"model":"grok-imagine-image-2.0","prompt":"a cat","resolution":"2k","nested":{"a":1},"list":[1,2],"nothing":null}`
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewBufferString(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+		request, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
+		require.NoError(t, err)
+
+		input, err := ResolveImageBillingRequestInput(c, &relaycommon.RelayInfo{Request: request}, billingexpr.RequestInput{})
+		require.NoError(t, err)
+
+		var frozen map[string]any
+		require.NoError(t, common.Unmarshal(input.Body, &frozen))
+		assert.Equal(t, "2k", frozen["resolution"])
+		assert.NotContains(t, frozen, "nested")
+		assert.NotContains(t, frozen, "list")
+		assert.NotContains(t, frozen, "nothing")
+	})
+}
+
 // TestGetAndValidOpenAIImageRequestNBounds guards the billing invariant that
 // the image generation count can never reach quota calculation with a value
 // large enough to overflow int64 into a negative charge.
