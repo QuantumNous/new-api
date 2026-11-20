@@ -2,6 +2,9 @@ package config
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testConfigWithMap struct {
@@ -93,4 +96,33 @@ func TestUpdateConfigFromMap_ScalarFieldsUnchanged(t *testing.T) {
 	if cfg.Modes["m"] != "v" {
 		t.Errorf("Modes should be unchanged, got %v", cfg.Modes)
 	}
+}
+
+type testConfigWithPorts struct {
+	AllowedPorts []string `json:"allowed_ports"`
+}
+
+func TestUpdateConfigFromMap_StringSlice(t *testing.T) {
+	cfg := &testConfigWithPorts{AllowedPorts: []string{"80", "443"}}
+
+	err := UpdateConfigFromMap(cfg, map[string]string{
+		"allowed_ports": `["80","443","8198"]`,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"80", "443", "8198"}, cfg.AllowedPorts)
+}
+
+func TestUpdateConfigFromMap_NumberSliceDropsNewValue(t *testing.T) {
+	cfg := &testConfigWithPorts{AllowedPorts: []string{"80", "443"}}
+
+	// A JSON array of numbers cannot decode into []string. Decoding fails part
+	// way through, so the previous entries survive and the new port never
+	// reaches the runtime config.
+	err := UpdateConfigFromMap(cfg, map[string]string{
+		"allowed_ports": `[80,443,8198]`,
+	})
+	require.NoError(t, err)
+
+	assert.NotContains(t, cfg.AllowedPorts, "8198")
 }
