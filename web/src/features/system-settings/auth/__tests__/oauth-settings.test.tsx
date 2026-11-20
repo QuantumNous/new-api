@@ -115,6 +115,130 @@ beforeEach(async () => {
 
 describe('OAuth settings saves', () => {
   it.each([
+    [
+      'GitHub',
+      'Enable GitHub OAuth',
+      'GitHubOAuthEnabled',
+      'GitHubClientId',
+      'GitHubClientSecret',
+    ],
+    [
+      'Discord',
+      'Enable Discord OAuth',
+      'discord.enabled',
+      'discord.client_id',
+      'discord.client_secret',
+    ],
+    [
+      'OIDC',
+      'Enable OIDC',
+      'oidc.enabled',
+      'oidc.client_id',
+      'oidc.client_secret',
+    ],
+    [
+      'Telegram',
+      'Enable Telegram OAuth',
+      'TelegramOAuthEnabled',
+      'telegram.client_id',
+      'telegram.client_secret',
+    ],
+    [
+      'LinuxDO',
+      'Enable LinuxDO OAuth',
+      'LinuxDOOAuthEnabled',
+      'LinuxDOClientId',
+      'LinuxDOClientSecret',
+    ],
+    [
+      'WeChat',
+      'Enable WeChat Auth',
+      'WeChatAuthEnabled',
+      'WeChatServerAddress',
+      'WeChatServerToken',
+    ],
+  ])(
+    'saves %s credentials before enabling login in the same submission',
+    async (provider, switchName, enabledKey, clientIdKey, clientSecretKey) => {
+      const user = userEvent.setup()
+      await renderSettings()
+      await user.click(screen.getByRole('tab', { name: provider }))
+      await user.click(screen.getByRole('switch', { name: switchName }))
+      await user.type(
+        screen.getByLabelText(
+          provider === 'WeChat' ? 'Server Address' : 'Client ID',
+          { exact: true }
+        ),
+        'provider-client'
+      )
+      await user.type(
+        screen.getByLabelText(
+          provider === 'WeChat' ? 'Server Token' : 'Client Secret',
+          { exact: true }
+        ),
+        'provider-secret'
+      )
+      await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled()
+      )
+      expect(
+        vi.mocked(api.put).mock.calls.map(([, request]) => request)
+      ).toEqual([
+        { key: clientIdKey, value: 'provider-client' },
+        { key: clientSecretKey, value: 'provider-secret' },
+        { key: enabledKey, value: true },
+      ])
+    }
+  )
+
+  it.each(['business', 'network'])(
+    'keeps OIDC disabled and allows retry when saving credentials fails with a %s error',
+    async (failure) => {
+      if (failure === 'business') {
+        vi.mocked(api.put).mockResolvedValueOnce({
+          data: { success: false, message: 'Failed to update setting' },
+        })
+      } else {
+        vi.mocked(api.put).mockRejectedValueOnce(
+          new Error('Network unavailable')
+        )
+      }
+      const errorToast = vi.spyOn(toast, 'error')
+      const user = userEvent.setup()
+      await renderSettings({ 'oidc.client_id': 'saved-client' })
+      await user.click(screen.getByRole('tab', { name: 'OIDC' }))
+      await user.click(screen.getByRole('switch', { name: 'Enable OIDC' }))
+      await user.type(
+        screen.getByLabelText('Client Secret', { exact: true }),
+        'new-secret'
+      )
+      await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+      await waitFor(() => expect(errorToast).toHaveBeenCalledTimes(1))
+      expect(api.put).toHaveBeenCalledTimes(1)
+      expect(api.put).not.toHaveBeenCalledWith('/api/option/', {
+        key: 'oidc.enabled',
+        value: true,
+      })
+      expect(
+        screen.getByLabelText('Client Secret', { exact: true })
+      ).toHaveValue('new-secret')
+      expect(screen.getByRole('button', { name: 'Reset' })).toBeEnabled()
+      await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled()
+      )
+      expect(api.put).toHaveBeenLastCalledWith('/api/option/', {
+        key: 'oidc.enabled',
+        value: true,
+      })
+    }
+  )
+
+  it.each([
     [false, 'provider.example.com/discovery'],
     [true, 'provider.example.com/discovery'],
     [true, 'https://provider.example.com/discovery'],
@@ -245,6 +369,15 @@ describe('OAuth settings saves', () => {
     const user = userEvent.setup()
     await renderSettings()
     await user.click(screen.getByRole('tab', { name: 'OIDC' }))
+    await user.click(screen.getByRole('switch', { name: 'Enable OIDC' }))
+    await user.type(
+      screen.getByLabelText('Client ID', { exact: true }),
+      'oidc-client'
+    )
+    await user.type(
+      screen.getByLabelText('Client Secret', { exact: true }),
+      'oidc-secret'
+    )
     await user.type(
       screen.getByRole('textbox', { name: 'Well-Known URL' }),
       'https://provider.example.com/discovery'
@@ -261,7 +394,7 @@ describe('OAuth settings saves', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled()
     )
-    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(4))
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(7))
     expect(api.put).toHaveBeenCalledWith('/api/option/', {
       key: 'oidc.authorization_endpoint',
       value: response.data.authorization_endpoint,
@@ -273,6 +406,10 @@ describe('OAuth settings saves', () => {
     expect(api.put).toHaveBeenCalledWith('/api/option/', {
       key: 'oidc.user_info_endpoint',
       value: response.data.userinfo_endpoint,
+    })
+    expect(api.put).toHaveBeenLastCalledWith('/api/option/', {
+      key: 'oidc.enabled',
+      value: true,
     })
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Save Changes' })).toBeEnabled()

@@ -361,11 +361,20 @@ export function OAuthSection(props: OAuthSectionProps) {
       return
     }
 
-    for (const key of changedKeys) {
-      await updateOption.mutateAsync({
-        key,
-        value: normalized[key],
-      })
+    const configurationKeys = changedKeys.filter(
+      (key) => normalized[key] !== true
+    )
+    const enableKeys = changedKeys.filter((key) => normalized[key] === true)
+
+    try {
+      for (const key of [...configurationKeys, ...enableKeys]) {
+        await updateOption.mutateAsync({
+          key,
+          value: normalized[key],
+        })
+      }
+    } catch {
+      return
     }
 
     baselineRef.current = normalized
