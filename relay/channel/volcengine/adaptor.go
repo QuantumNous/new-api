@@ -38,7 +38,8 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+	_, native := nativeMessagesOrigin(info)
+	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok || native {
 		adaptor := claude.Adaptor{}
 		return adaptor.ConvertClaudeRequest(c, info, req)
 	}
@@ -248,6 +249,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
 			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
 		}
+		if origin, ok := nativeMessagesOrigin(info); ok {
+			return fmt.Sprintf("%s/api/compatible/v1/messages", origin), nil
+		}
 		if strings.HasPrefix(info.UpstreamModelName, "bot") {
 			return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
 		}
@@ -286,6 +290,13 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
+
+	if _, ok := nativeMessagesOrigin(info); ok {
+		req.Set("Content-Type", "application/json")
+		req.Set("x-api-key", info.ApiKey)
+		req.Del("Authorization")
+		return nil
+	}
 
 	if info.RelayMode == constant.RelayModeAudioSpeech {
 		parts := strings.Split(info.ApiKey, "|")
@@ -348,7 +359,8 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayFormat == types.RelayFormatClaude {
-		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+		_, native := nativeMessagesOrigin(info)
+		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok || native {
 			adaptor := claude.Adaptor{}
 			return adaptor.DoResponse(c, resp, info)
 		}
