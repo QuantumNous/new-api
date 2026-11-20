@@ -566,6 +566,9 @@ func RelayTask(c *gin.Context) {
 		return
 	}
 
+	if prepareTaskSubmissionKey(c, relayInfo) {
+		return
+	}
 	var outcome *taskSubmissionOutcome
 	outcome, taskErr = executeTaskSubmission(c, relayInfo)
 	if taskErr != nil {
@@ -720,7 +723,11 @@ func executeTaskSubmissionWith(
 
 		taskAPIError := taskSubmissionAPIError(taskErr)
 		relayInfo.LastError = taskAPIError
-		decision := decideTaskRetry(c, taskErr, common.RetryTimes-retryParam.GetRetry())
+		remainingRetries := common.RetryTimes - retryParam.GetRetry()
+		if c.GetBool(taskSubmissionKeyReserved) {
+			remainingRetries = 0
+		}
+		decision := decideTaskRetry(c, taskErr, remainingRetries)
 		service.RecordPolicyFailure(c, channel.Id, taskAPIError, decision)
 		if !taskErr.LocalError {
 			processChannelError(c,
