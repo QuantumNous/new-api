@@ -848,8 +848,8 @@ func TestModelPriceHelperOutputReservation(t *testing.T) {
 	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"reserve-ratio-model":2}`))
 	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{"reserve-ratio-model":5}`))
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"billing_setting.billing_mode":    `{"reserve-expr-model":"tiered_expr","reserve-fixed-model":"tiered_expr"}`,
-		"billing_setting.billing_expr":    `{"reserve-expr-model":"tier(\"base\", p * 3 + c * 15)","reserve-fixed-model":"tier(\"request\", fixed(0.01))"}`,
+		"billing_setting.billing_mode":    `{"reserve-expr-model":"tiered_expr","reserve-fixed-model":"tiered_expr","reserve-tiered-model":"tiered_expr"}`,
+		"billing_setting.billing_expr":    `{"reserve-expr-model":"tier(\"base\", p * 3 + c * 15)","reserve-fixed-model":"tier(\"request\", fixed(0.01))","reserve-tiered-model":"c > 100 ? tier(\"long\", p * 2 + c * 10) : tier(\"short\", p * 2 + c * 20)"}`,
 		"group_ratio_setting.group_ratio": `{"default":1}`,
 	}))
 
@@ -862,10 +862,11 @@ func TestModelPriceHelperOutputReservation(t *testing.T) {
 		quotaSetting.PreConsumeMaxOutputTokens = previousLimit
 		quotaSetting.PreConsumeMultiplier = previousMultiplier
 	})
-
-	// The secure behavior is the default.
-	require.True(t, quotaSetting.PreConsumeOutputReserve)
-	require.Equal(t, operation_setting.DefaultPreConsumeMaxOutputTokens, quotaSetting.PreConsumeMaxOutputTokens)
+	// The pricing depends on these settings, so the fixture states them
+	// instead of inheriting the startup configuration.
+	quotaSetting.PreConsumeOutputReserve = true
+	quotaSetting.PreConsumeMaxOutputTokens = operation_setting.DefaultPreConsumeMaxOutputTokens
+	quotaSetting.PreConsumeMultiplier = 1
 
 	newInfo := func(model string, format types.RelayFormat, request dto.Request) *relaycommon.RelayInfo {
 		return &relaycommon.RelayInfo{
@@ -928,6 +929,29 @@ func TestModelPriceHelperOutputReservation(t *testing.T) {
 	t.Run("fixed price expressions reserve no output", func(t *testing.T) {
 		// fixed(0.01) * QuotaPerUnit
 		require.Equal(t, 5000, priceOf(t, newInfo("reserve-fixed-model", types.RelayFormatOpenAI, nil), 1000, 1000))
+	})
+
+	t.Run("declared completion count multiplies the reservation", func(t *testing.T) {
+		completions := 3
+		request := &dto.GeneralOpenAIRequest{Model: "reserve-ratio-model", N: &completions}
+		info := newInfo("reserve-ratio-model", types.RelayFormatOpenAI, request)
+		// (100 prompt + 3 completions * 1000 output * 5) * model ratio 2
+		require.Equal(t, 30200, priceOf(t, info, 100, 1000))
+	})
+
+	t.Run("declared completion count stays under the ceiling", func(t *testing.T) {
+		completions := 1000
+		request := &dto.GeneralOpenAIRequest{Model: "reserve-ratio-model", N: &completions}
+		info := newInfo("reserve-ratio-model", types.RelayFormatOpenAI, request)
+		// (100 prompt + 8192 output * 5) * model ratio 2, the ceiling caps the total
+		require.Equal(t, 82120, priceOf(t, info, 100, 1000))
+	})
+
+	t.Run("expression pricing the completion count keeps the reserved run", func(t *testing.T) {
+		// The tier depends on the completion count, so the two runs price
+		// different leaves and the input side cannot be isolated.
+		// (1000 prompt * 2 + 1000 output * 10) / 1e6 * QuotaPerUnit
+		require.Equal(t, 6000, priceOf(t, newInfo("reserve-tiered-model", types.RelayFormatOpenAI, nil), 1000, 1000))
 	})
 
 	t.Run("expression snapshot records the reserved output", func(t *testing.T) {

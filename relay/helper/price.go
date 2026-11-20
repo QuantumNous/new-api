@@ -83,13 +83,30 @@ func producesBilledCompletionTokens(info *relaycommon.RelayInfo) bool {
 	return true
 }
 
+// declaredCompletionCount returns the number of completions the request asks
+// for. Every completion can produce its own output tokens, and the settlement
+// charges the sum across them.
+func declaredCompletionCount(info *relaycommon.RelayInfo) int {
+	switch request := info.Request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		if request.N != nil && *request.N > 1 {
+			return *request.N
+		}
+	case *dto.GeminiChatRequest:
+		if request.GenerationConfig.CandidateCount != nil && *request.GenerationConfig.CandidateCount > 1 {
+			return *request.GenerationConfig.CandidateCount
+		}
+	}
+	return 1
+}
+
 // ReservedOutputTokens returns the output token ceiling this request counts in
 // the pre-consume estimate.
 //
 // A client-declared output limit is the only trustworthy upper bound because
 // the upstream honors it. Without a declared limit the configured default is
-// reserved conservatively. A declared limit above the configured ceiling is
-// reserved up to that ceiling; the settlement balance floor covers the rest.
+// reserved conservatively. The configured ceiling caps the reservation, so
+// output above the ceiling stays unreserved.
 func ReservedOutputTokens(info *relaycommon.RelayInfo, meta *types.TokenCountMeta) int {
 	if !operation_setting.OutputReserveEnabled() {
 		return 0
@@ -103,7 +120,14 @@ func ReservedOutputTokens(info *relaycommon.RelayInfo, meta *types.TokenCountMet
 	}
 	reserved := limit
 	if meta != nil && meta.MaxTokens > 0 {
-		reserved = min(meta.MaxTokens, limit)
+		completions := declaredCompletionCount(info)
+		// The ceiling caps the total, so a request that declares many
+		// completions reserves the ceiling instead of an unbounded amount.
+		if int64(meta.MaxTokens) > int64(limit)/int64(completions) {
+			reserved = limit
+		} else {
+			reserved = min(meta.MaxTokens*completions, limit)
+		}
 	}
 	// Claude manual thinking raises the upstream max_tokens above the client's
 	// declaration so the thinking budget fits, so the declared budget is part
@@ -468,20 +492,31 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 	// and leaving actual settlement and fixed request prices unchanged.
 	if trace.BillingUnit != billingexpr.BillingUnitRequest {
 		inputCost := rawCost
+		isolated := reservedOutput == 0
 		if reservedOutput > 0 {
 			// The expression mixes input and output in one formula, so it runs
 			// twice to scale only the input side: once with the reserved
 			// output for the total, once with C=0 for the input cost alone.
-			inputCost, _, err = billingexpr.RunExprByHashWithRequest(exprStr, exprHash, billingexpr.TokenParams{
+			var inputTrace billingexpr.TraceResult
+			var runErr error
+			inputCost, inputTrace, runErr = billingexpr.RunExprByHashWithRequest(exprStr, exprHash, billingexpr.TokenParams{
 				P:   float64(promptTokens),
 				C:   0,
 				Len: float64(promptTokens),
 			}, requestInput)
-			if err != nil {
-				return hosttypes.PriceData{}, fmt.Errorf("model %s tiered expr run failed: %w", billingModelName, err)
+			if runErr != nil {
+				return hosttypes.PriceData{}, fmt.Errorf("model %s tiered expr run failed: %w", billingModelName, runErr)
 			}
+			isolated = inputTrace.MatchedTier == trace.MatchedTier
 		}
-		reserveCost = inputCost*preConsumeMultiplier + (rawCost - inputCost)
+		if isolated {
+			reserveCost = inputCost*preConsumeMultiplier + (rawCost - inputCost)
+		} else {
+			// The two runs select different leaves, so the input side cannot be
+			// isolated from the output side. Keep the pricing decision of the
+			// reserved run and reserve its total.
+			reserveCost = rawCost
+		}
 	}
 	quotaBeforeGroup := reserveCost / 1_000_000 * common.QuotaPerUnit
 	preConsumedQuota, err := billingexpr.QuotaRoundStrict(quotaBeforeGroup * groupRatioInfo.GroupRatio)

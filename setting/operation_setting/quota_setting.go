@@ -21,7 +21,6 @@ const (
 const (
 	EnvPreConsumeOutputReserve   = "PRE_CONSUME_OUTPUT_RESERVE"
 	EnvPreConsumeMaxOutputTokens = "PRE_CONSUME_MAX_OUTPUT_TOKENS"
-	EnvMinBalanceQuota           = "MIN_BALANCE_QUOTA"
 )
 
 type QuotaSetting struct {
@@ -32,19 +31,20 @@ type QuotaSetting struct {
 	PreConsumeOutputReserve bool `json:"pre_consume_output_reserve"`
 	// PreConsumeMaxOutputTokens 预留的输出 token 上限：客户端未声明输出上限时的保守预留，也是声明值的封顶
 	PreConsumeMaxOutputTokens int `json:"pre_consume_max_output_tokens"`
-	// MinBalanceQuota 单次结算允许把钱包余额扣到的下限（quota 单位），未覆盖部分记账
-	MinBalanceQuota int `json:"min_balance_quota"`
 }
 
-// 默认配置
-var quotaSetting = QuotaSetting{
+// defaultQuotaSetting holds the declared defaults, before the environment and
+// the saved options apply.
+var defaultQuotaSetting = QuotaSetting{
 	EnableFreeModelPreConsume: true,
 	TrustQuotaUSD:             10,
 	PreConsumeMultiplier:      1,
 	PreConsumeOutputReserve:   true,
 	PreConsumeMaxOutputTokens: DefaultPreConsumeMaxOutputTokens,
-	MinBalanceQuota:           0,
 }
+
+// 默认配置
+var quotaSetting = defaultQuotaSetting
 
 func init() {
 	applyQuotaSettingEnvDefaults(&quotaSetting)
@@ -64,7 +64,6 @@ func applyQuotaSettingEnvDefaults(setting *QuotaSetting) {
 	} else {
 		setting.PreConsumeMaxOutputTokens = limit
 	}
-	setting.MinBalanceQuota = common.GetEnvOrDefault(EnvMinBalanceQuota, setting.MinBalanceQuota)
 }
 
 func GetQuotaSetting() *QuotaSetting {
@@ -90,10 +89,6 @@ func ValidateQuotaOption(key, value string) error {
 		limit, err := strconv.Atoi(value)
 		if err != nil || limit < 0 || limit > maxPreConsumeOutputTokens {
 			return fmt.Errorf("%s must be an integer between 0 and %d", key, maxPreConsumeOutputTokens)
-		}
-	case "quota_setting.min_balance_quota":
-		if _, err := strconv.Atoi(value); err != nil {
-			return fmt.Errorf("%s must be an integer", key)
 		}
 	}
 	return nil
@@ -122,9 +117,4 @@ func OutputReserveTokenLimit() int {
 		return DefaultPreConsumeMaxOutputTokens
 	}
 	return limit
-}
-
-// SettleBalanceFloor returns the lowest wallet balance a settlement may leave.
-func SettleBalanceFloor() int {
-	return quotaSetting.MinBalanceQuota
 }
